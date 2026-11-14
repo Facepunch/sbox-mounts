@@ -16,13 +16,32 @@ partial class MapLoader
 		var bspModel = bsp.Models[modelIndex];
 		var className = entity.ClassName;
 
+		if ( className == "func_friction" )
+		{
+			WarnUnsupportedEntity( entity );
+			return;
+		}
+
 		if ( className.StartsWith( "trigger", StringComparison.OrdinalIgnoreCase ) )
 		{
 			SpawnTriggerVolume( entity, bspModel );
 			return;
 		}
 
-		var rotating = className is "func_door_rotating" or "func_rot_button";
+		if ( className == "func_traincontrols" )
+		{
+			_wiring.Add( () =>
+			{
+				var train = _mapState.Find( entity.Target ) as TrackTrain;
+				if ( !train.IsValid() ) return;
+				var offset = entity.Origin - train.PlacedOrigin;
+				train.ControlBounds = new BBox( bspModel.Mins + offset, bspModel.Maxs + offset );
+			} );
+			return;
+		}
+
+		var rotating = className is "func_door_rotating" or "func_rot_button" or "func_rotating"
+			or "func_pendulum" or "func_platrot" or "momentary_rot_button" or "func_trackchange" or "func_trackautochange";
 		var center = rotating || className == "func_tracktrain" ? Vector3.Zero : (bspModel.Mins + bspModel.Maxs) * 0.5f;
 
 		var (blend, tint) = ResolveRenderMode( entity );
@@ -38,8 +57,9 @@ partial class MapLoader
 		}
 
 		var isStatic = className is "func_wall" or "func_illusionary"
-			or "func_conveyor" or "func_ladder" or "func_buyzone" or "func_water" or "func_detail";
-		var geometry = GetBrushGeometry( bsp, bspModel, modelIndex, center, blend, surfaceOverride, isStatic );
+			or "func_conveyor" or "func_ladder" or "func_buyzone" or "func_detail";
+		var aggregate = isStatic && string.IsNullOrEmpty( entity.TargetName );
+		var geometry = GetBrushGeometry( bsp, bspModel, modelIndex, center, blend, surfaceOverride, aggregate );
 		if ( geometry.IsEmpty )
 			return;
 
@@ -50,16 +70,22 @@ partial class MapLoader
 		if ( rotating )
 			go.WorldRotation = entity.Rotation;
 
-		// GoldSrc's R_DrawBrushModel bails out entirely once the blend reaches zero.
-		if ( tint.a > 0f )
-			AddRenderers( go, geometry, tint );
+		AddRenderers( go, geometry, tint );
+		var appearance = go.AddComponent<BrushAppearance>();
 
 		// Illusionary brushes and water are walked straight through.
-		var passable = className is "func_door" or "func_door_rotating" or "func_train" or "func_tracktrain"
+		var passable = className is "func_door" or "func_water" or "func_door_rotating" or "func_train" or "func_tracktrain" or "func_pendulum"
 			? (entity.SpawnFlags & 8) != 0
-			: className == "func_rot_button" && (entity.SpawnFlags & 1) != 0;
-		if ( !passable && !(className == "func_door" && entity.GetInt( "skin" ) != 0)
-			&& className is not ("func_illusionary" or "func_water" or "func_ladder" or "func_buyzone") )
+			: className switch
+			{
+				"func_rot_button" => (entity.SpawnFlags & 1) != 0,
+				"momentary_rot_button" => (entity.SpawnFlags & 1) == 0,
+				"func_rotating" => (entity.SpawnFlags & 64) != 0,
+				"func_conveyor" => (entity.SpawnFlags & 2) != 0,
+				_ => false
+			};
+		if ( !passable && !(className is "func_door" or "func_water" && entity.GetInt( "skin" ) != 0)
+			&& className is not ("func_illusionary" or "func_ladder" or "func_buyzone") )
 		{
 			AddCollider( go, geometry.Physics, isStatic );
 			if ( tint.a > 0f )
@@ -68,7 +94,7 @@ partial class MapLoader
 
 		switch ( className )
 		{
-			case "func_door" or "func_door_rotating" or "func_button" or "func_rot_button":
+			case "func_door" or "func_water" or "func_door_rotating" or "func_button" or "func_rot_button":
 				AddBrushMover( go, entity, bspModel, rotating );
 				break;
 
@@ -76,28 +102,79 @@ partial class MapLoader
 				AddToggleBrush( go, entity );
 				break;
 
+			case "func_wall" or "func_conveyor":
+				var wall = go.AddComponent<WallBrush>();
+				wall.TargetName = entity.TargetName;
+				wall.Appearance = appearance;
+				wall.Conveyor = className == "func_conveyor";
+				wall.VisualOnly = (entity.SpawnFlags & 1) != 0;
+				wall.Direction = entity.MoveDirection;
+				wall.Speed = DefaultSpeed( entity, 100f );
+				RegisterTarget( entity, wall );
+				break;
+
+			case "func_rotating":
+				AddRotatingBrush( go, entity );
+				break;
+
+			case "func_pendulum":
+				AddPendulum( go, entity );
+				break;
+
+			case "func_plat" or "func_platrot" or "func_trackchange" or "func_trackautochange":
+				AddPlatform( go, entity, bspModel );
+				break;
+
+			case "momentary_door":
+				var momentary = go.AddComponent<MomentaryDoor>();
+				momentary.TargetName = entity.TargetName;
+				momentary.StartOpen = (entity.SpawnFlags & 1) != 0;
+				momentary.SlideOffset = MoveDistance( entity, bspModel, 0f );
+				momentary.MoveSound = entity.GetInt( "movesnd" ) <= 8 ? GetIndexedSound( entity, "movesnd", DoorMoveSounds ) : null;
+				RegisterTarget( entity, momentary );
+				break;
+
+			case "momentary_rot_button":
+				AddMomentaryButton( go, entity );
+				break;
+
+			case "button_target":
+				var target = go.AddComponent<ButtonTarget>();
+				target.TargetName = entity.TargetName;
+				target.Appearance = appearance;
+				target.UseEnabled = (entity.SpawnFlags & 1) != 0;
+				target.StartOn = (entity.SpawnFlags & 2) != 0;
+				RegisterTarget( entity, target );
+				_wiring.Add( () =>
+				{
+					target.OnTurnOn = BuildFire( entity.Target, UseType.On );
+					target.OnTurnOff = BuildFire( entity.Target, UseType.Off );
+				} );
+				break;
+
+			case "func_breakable" or "func_pushable":
+				AddBreakable( go, entity, bspModel );
+				break;
+
 			case "func_tracktrain":
-				AddTrain( go, entity, tracked: true );
+				AddTrain( go, entity, bspModel, tracked: true );
 				break;
 
 			case "func_train":
-				AddTrain( go, entity, tracked: false );
+				AddTrain( go, entity, bspModel, tracked: false );
 				break;
 
 			default:
-				if ( !string.IsNullOrEmpty( entity.TargetName ) )
-				{
-					var passive = go.AddComponent<Relay>();
-					passive.TargetName = entity.TargetName;
-					RegisterTarget( entity, passive, null, null, null, nameof( MapEntity.Kill ) );
-				}
+				var passive = go.AddComponent<Relay>();
+				passive.TargetName = entity.TargetName;
+				RegisterTarget( entity, passive, null, null, null, nameof( MapEntity.Kill ) );
 				break;
 		}
 	}
 
 	/// <summary>
 	/// Translates a brush entity's rendermode into a blend mode plus the per-instance tint that
-	/// carries rendercolor and renderamt. Mirrors R_DrawBrushModel: only the translucent and
+	/// carries rendercolor and renderamt. Only the translucent and
 	/// additive modes read renderamt, everything else draws solid.
 	/// </summary>
 	private static (BlendMode Blend, Color Tint) ResolveRenderMode( Entity entity )
@@ -150,6 +227,8 @@ partial class MapLoader
 
 	private void SpawnTriggerVolume( Entity entity, BspModel bspModel )
 	{
+		if ( SpawnSpecialTriggerVolume( entity, bspModel ) ) return;
+
 		const int SF_TRIGGER_NOCLIENTS = 2;
 
 		var className = entity.ClassName;
@@ -178,11 +257,11 @@ partial class MapLoader
 		trigger.Wait = entity.GetFloat( "wait" );
 		if ( trigger.Wait == 0f ) trigger.Wait = 0.2f;
 		trigger.Damage = entity.GetFloat( "dmg" );
+		trigger.DamageTypes = entity.GetInt( "damagetype" );
 		trigger.StartOff = (entity.SpawnFlags & 2) != 0;
 		trigger.ClientsOnly = (entity.SpawnFlags & 32) != 0;
 		trigger.ClientsOnlyFire = (entity.SpawnFlags & 16) != 0;
 		trigger.TargetOnce = (entity.SpawnFlags & 1) != 0;
-		trigger.FacingDirection = entity.Angles.AsVector3().IsNearlyZero() ? Vector3.Zero : entity.MoveDirection;
 
 		if ( trigger.Hurt ) RegisterTarget( entity, trigger );
 		else RegisterTarget( entity, trigger, null, null, null, nameof( MapEntity.Kill ) );
@@ -196,13 +275,16 @@ partial class MapLoader
 		var mover = go.AddComponent<BrushMover>();
 		mover.TargetName = entity.TargetName;
 		mover.IsButton = button;
+		mover.Appearance = go.GetComponent<BrushAppearance>();
+		mover.Shootable = button && entity.GetFloat( "health" ) > 0f;
+		mover.Damage = entity.GetFloat( "dmg" );
 		mover.Rotating = rotating;
 		mover.StartAngles = rotating ? entity.Angles : default;
 		mover.StartOpen = !button && (flags & 1) != 0;
 		mover.Toggle = (flags & 32) != 0;
 		mover.OneWay = (flags & 16) != 0;
 		mover.UseEnabled = button ? (flags & 256) == 0 : (flags & 256) != 0;
-		mover.TouchEnabled = button ? (flags & 256) != 0 : (flags & 256) == 0 && string.IsNullOrEmpty( entity.TargetName );
+		mover.TouchEnabled = button ? (flags & 256) != 0 : (flags & 256) == 0;
 		mover.Speed = entity.GetFloat( "speed" );
 		if ( mover.Speed == 0f ) mover.Speed = button ? 40f : 100f;
 		mover.Wait = entity.GetFloat( "wait", button ? 1f : 0f );
@@ -221,10 +303,19 @@ partial class MapLoader
 				mover.SlideOffset = Vector3.Zero;
 		}
 
-		var silent = !button && (entity.ClassName == "func_door" && entity.GetInt( "skin" ) != 0 || flags < 0);
+		var silent = !button && (entity.ClassName is "func_door" or "func_water" && entity.GetInt( "skin" ) != 0 || flags < 0);
 		mover.MoveSound = button ? GetIndexedSound( entity, "sounds", ButtonSounds )
 			: silent ? null : GetIndexedSound( entity, "movesnd", DoorMoveSounds );
 		mover.StopSound = button || silent ? null : GetIndexedSound( entity, "stopsnd", DoorStopSounds );
+		mover.LockedSound = GetIndexedSound( entity, "locked_sound", ButtonSounds );
+		mover.UnlockedSound = GetIndexedSound( entity, "unlocked_sound", ButtonSounds );
+		if ( button && (flags & 64) != 0 )
+		{
+			mover.Sparks = go.AddComponent<SparkEffect>();
+			mover.Sparks.Toggleable = true;
+			mover.Sparks.StartOn = false;
+			mover.Sparks.Sounds = Enumerable.Range( 1, 6 ).Select( i => BuildSoundEvent( $"buttons/spark{i}.wav" ) ).ToArray();
+		}
 
 		if ( button && !mover.UseEnabled )
 			RegisterTarget( entity, mover, null, null, null, nameof( MapEntity.Kill ) );

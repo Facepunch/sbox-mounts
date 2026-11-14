@@ -52,9 +52,6 @@ public sealed class PathNode : MapEntity
 
 	private bool _passed;
 
-	/// <summary>
-	/// CPathTrack::Use toggles the disabled flag rather than firing anything.
-	/// </summary>
 	public override void Trigger( GameObject activator = null )
 	{
 		if ( !CanTrigger || !IsTrack ) return;
@@ -86,10 +83,94 @@ public sealed class PathNode : MapEntity
 
 		_passed = true;
 
-		Fire( OnPass, activator );
+		var train = activator.IsValid() ? activator.GetComponent<TrackTrain>() : null;
+		if ( train.IsValid() ) train.FirePathOutput( OnPass );
+		else Fire( OnPass, activator );
 	}
 
-	public void DeadEnd( GameObject activator ) => Fire( OnDeadEnd, activator );
+	public void DeadEnd( GameObject activator )
+	{
+		var train = activator.IsValid() ? activator.GetComponent<TrackTrain>() : null;
+		if ( train.IsValid() ) train.FirePathOutput( OnDeadEnd );
+		else Fire( OnDeadEnd, activator );
+	}
+
+	public override void ChangeTarget( string target )
+	{
+		Target = target;
+		if ( !IsTrack ) Next = Map.IsValid() ? Map.Find( target ) as PathNode : null;
+	}
+
+	public PathNode Nearest( Vector3 position )
+	{
+		var nearest = this;
+		var distance = (WorldPosition - position).WithZ( 0f ).LengthSquared;
+		var node = NextEnabled( true, false );
+		for ( var count = 0; node.IsValid() && node != this; count++ )
+		{
+			if ( count == 9999 ) return null;
+			var nextDistance = (node.WorldPosition - position).WithZ( 0f ).LengthSquared;
+			if ( nextDistance < distance )
+			{
+				distance = nextDistance;
+				nearest = node;
+			}
+			node = node.NextEnabled( true, false );
+		}
+		return nearest;
+	}
+
+	public PathNode LookAhead( ref Vector3 origin, float distance, bool move )
+	{
+		var current = this;
+		var position = origin;
+		var originalDistance = distance;
+		var backwards = distance < 0f;
+		if ( backwards ) distance = -distance;
+		for ( var guard = 0; distance > 0f; guard++ )
+		{
+			if ( guard >= 10000 ) return null;
+			var next = current.NextEnabled( !backwards, move );
+			if ( !backwards && !next.IsValid() )
+			{
+				var previous = current.NextEnabled( false, false );
+				if ( !move && previous.IsValid() )
+					origin = current.WorldPosition + (current.WorldPosition - previous.WorldPosition).Normal * distance;
+				return null;
+			}
+			var destination = backwards ? current.WorldPosition : next.WorldPosition;
+			var delta = destination - position;
+			var length = delta.Length;
+			if ( backwards && length == 0f )
+			{
+				if ( !next.IsValid() )
+				{
+					var forward = current.NextEnabled( true, false );
+					if ( !move && forward.IsValid() )
+						origin = current.WorldPosition + (current.WorldPosition - forward.WorldPosition).Normal * distance;
+					return null;
+				}
+				current = next;
+			}
+			else if ( !backwards && length == 0f && !next.NextEnabled( true, move ).IsValid() )
+				return distance == originalDistance ? null : current;
+			else if ( length > distance )
+			{
+				origin = position + delta * (distance / length);
+				return current;
+			}
+			else
+			{
+				distance -= length;
+				position = destination;
+				origin = position;
+				if ( backwards && !next.IsValid() ) return null;
+				current = next;
+			}
+		}
+		origin = position;
+		return current;
+	}
 
 	/// <summary>
 	/// Resolve the selected branch. Orientation samples can ignore the disabled flag.

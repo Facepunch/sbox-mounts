@@ -20,7 +20,7 @@ into `AggregateRenderer` models. World fragments follow the BSP's existing leaf 
 without duplicating faces or introducing an arbitrary spatial grid. Each fragment retains
 its own bounds and transform for native GPU culling, and batches respect the engine's
 fragment limit. Translucent/liquid surfaces keep regular renderers; doors, buttons, trains,
-breakables, pushables and animated models are not baked into the static batches.
+breakables, pushables, named brushes and animated models are not baked into the static batches.
 
 World and brush triangle collision lives in named `PhysicsGroupDescription` resources,
 assigned to `PhysicsCollider`, rather than duplicated in render models. Per-triangle
@@ -32,6 +32,39 @@ can be resolved when the serialized scene is instantiated.
 Map vertices use attributed `VertexLayout` fields and generic buffer creation. Lightstyle
 indices travel as exact float values matching the local shader's vertex input; reimport
 existing maps to regenerate their vertex buffers with this layout.
+
+## Map entities
+
+Map instances own their entity registry and global states. `env_global`, `multisource`,
+`trigger_counter`, `game_counter`, `game_counter_set`, master gates and
+`trigger_changetarget` retain caller-aware inputs. Changing a target rebuilds the
+affected output graph. Delayed outputs retain their own caller and survive removal
+of the source. Delays and `multi_manager` schedules use game time; threaded managers
+have independent runs. Output calls remain editable Doo graphs.
+
+Brush components cover doors, buttons, momentary controls, rotating brushes, pendulums,
+platforms, trains, track switches, toggle walls and breakables. Teleport and gravity
+volumes operate on the standard player controller. Hurt volumes pass tagged damage
+to the game's damage handlers. Sprites, glows, beams, lightning, lasers, switchable decals,
+sparks, ambient sound modulation and explosions have runtime components. `env_render`
+applies masked appearance changes to all matching targets. Brush blend changes use
+instance-owned materials, leaving other map objects unchanged.
+
+This is not complete entity parity. Pusher rollback/blocking, pushable movement and
+buoyancy, pendulum rope attachment, player train controls, healing, texture-frame
+switching and conveyor texture scrolling remain incomplete. `trigger_push` and
+`func_friction` are omitted rather than simulated with incorrect forces or solid walls.
+Breakable debris, bubbles, funnels, blood, sentence playback and room DSP remain
+unsupported. Spark, beam and explosion visuals are reconstructed; beam noise and
+texture scrolling, glow occlusion, some sprite orientations/render effects and
+explosion lighting are not reproduced. Runtime blend-mode conversion is limited to
+ordinary brush materials, not studio models or liquids; flat-color mode still tints
+the surface texture.
+Unsupported entity classes produce diagnostics instead of forwarding unrelated targets.
+
+Map transitions, saves, session exit, player-camera ownership, teams, scoring,
+NPC combat, weapons and pickups remain the hosting game's responsibility.
+Reimport existing scenes to acquire the new components and wiring.
 
 ## Surface audio
 
@@ -65,7 +98,8 @@ liquid, WAD and studio-model materials also expose their mounted physics surface
 tile, computer, rocks and unbreakable glass. Liquid collision behavior is unchanged.
 Studio collision boxes default to concrete: MDLs do not encode an entity's flesh-sound
 flag, and props are not indiscriminately treated as flesh. These bindings expose audio
-to normal player/weapon/physics consumers; they do not add breakable or NPC simulation.
+to normal player/weapon/physics consumers. Breakable brushes consume their break sounds;
+NPC combat is not simulated.
 Footstep timing, walking/crouching volume, water-depth/ladder sounds, damage-dependent
 break volume and exact discrete pitch probabilities still depend on gameplay code;
 the standard engine consumers do not reproduce GoldSrc movement or damage logic.
@@ -84,8 +118,8 @@ Original `{shot1`–`{shot5` impacts, `{break1`–`{break3` glass marks and `{bp
 bulletproof-glass marks use decal-only prefabs, never particle effects. Impact decals
 are transient and use the engine's decal limit; placed `infodecal` marks are persistent.
 Impact prefabs are built in a disabled temporary scene; only spawned instances activate their effects.
-Placed marks use the standard `Decal` component, without a custom runtime component.
-Triggered/named infodecals are omitted with a warning rather than revealed prematurely.
+Placed marks use the standard `Decal` component. Named infodecals wait for activation,
+then resolve their receiver and create the mark at its current transform.
 Marks attach to world/brush receivers and follow moving brushes. Missing assets or
 unmatched placement produce explicit warnings.
 

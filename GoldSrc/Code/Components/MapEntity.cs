@@ -3,20 +3,69 @@ using Sandbox;
 
 namespace GoldSrc;
 
+public enum UseType
+{
+	Off,
+	On,
+	Set,
+	Toggle
+}
+
 /// <summary>
 /// Base for every GoldSrc entity that can be fired by another entity's "target" key.
-///
-/// GoldSrc IO is a single call - CBaseEntity::Use( pActivator, pCaller, USE_TYPE, value ) - where
-/// the caller picks the USE_TYPE. Rather than pass a use type as an argument (Doo has no way to
-/// branch on it) each use type is its own method, so the wiring stays readable in the Doo editor.
 /// </summary>
 [Category( "GoldSrc" )]
 [Icon( "share" )]
 public abstract class MapEntity : Component
 {
+	[Property] public MapState Map { get; set; }
+	[Property] public string Master { get; set; }
+	[Property] public string Target { get; set; }
+	[Property, Hide] public string[] UseMethods { get; set; } = [nameof( TurnOff ), nameof( TurnOn ), nameof( SetValue ), nameof( Trigger )];
+	[Property, Hide] public string KillInput { get; set; } = nameof( Kill );
+	[Property, Hide] public bool UsesTargetOutput { get; set; }
+	[Property, Hide] public UseType OutputUse { get; set; } = UseType.Toggle;
+	[Property, Hide] public float OutputDelay { get; set; }
+	[Property, Hide] public string OutputKillTarget { get; set; }
+
+	public virtual void ChangeTarget( string target )
+	{
+		Target = target;
+		if ( UsesTargetOutput )
+			OnTrigger = Map.BuildOutput( Target, OutputUse, OutputDelay, OutputKillTarget );
+	}
+
+	protected MapEntity Caller { get; private set; }
+
+	public void Use( GameObject activator, MapEntity caller, int type, float value )
+	{
+		if ( !CanTrigger ) return;
+		var previous = Caller;
+		Caller = caller;
+		try
+		{
+			switch ( (UseType)type )
+			{
+				case UseType.Off: TurnOff( activator ); break;
+				case UseType.On: TurnOn( activator ); break;
+				case UseType.Set: SetValue( value, activator ); break;
+				case UseType.Toggle: Trigger( activator ); break;
+				default: throw new ArgumentOutOfRangeException( nameof( type ) );
+			}
+		}
+		finally
+		{
+			Caller = previous;
+		}
+	}
+
+	public virtual void SetValue( float value, GameObject activator = null ) => Trigger( activator );
+
+	protected bool IsMasterTriggered( GameObject activator ) =>
+		string.IsNullOrEmpty( Master ) || Map.IsMasterTriggered( Master, activator );
+
 	/// <summary>
-	/// The entity's "targetname". Only kept so the graph is readable; all wiring is resolved to
-	/// direct component references when the map loads.
+	/// The entity's "targetname".
 	/// </summary>
 	[Property] public string TargetName { get; set; }
 
@@ -55,10 +104,22 @@ public abstract class MapEntity : Component
 	/// delay between them - recurses until the stack runs out. Real maps contain these (Half-Life's
 	/// looping scripted_sequence walk cycles are one), so a mount cannot assume the data is acyclic.
 	/// </summary>
-	protected void Fire( Doo doo, GameObject activator = null )
+	protected void Fire( Doo doo, GameObject activator = null, float value = 0f, bool detached = false )
 	{
 		if ( doo is null || !CanTrigger )
 			return;
+
+		if ( UsesTargetOutput && OutputDelay != 0f && ReferenceEquals( doo, OnTrigger ) )
+		{
+			var go = new GameObject( true, "DelayedUse" ) { Parent = Map.GameObject };
+			var pending = go.AddComponent<DelayedUse>();
+			pending.Map = Map;
+			pending.Target = Target;
+			Map.Entities.Add( pending );
+			var player = activator.IsValid() ? activator.GetComponentInParent<PlayerController>() : null;
+			pending.Begin( doo, player.IsValid() ? player.GameObject : null );
+			return;
+		}
 
 		if ( _depth >= MaxDepth )
 		{
@@ -70,12 +131,23 @@ public abstract class MapEntity : Component
 
 		try
 		{
-			RunDoo( doo, c => c.SetArgument( "activator", activator ) );
+			Component host = detached && Map.IsValid() ? Map : this;
+			host.RunDoo( doo, c =>
+			{
+				c.SetArgument( "activator", activator );
+				c.SetArgument( "caller", this );
+				c.SetArgument( "value", value );
+			} );
 		}
 		finally
 		{
 			_depth--;
 		}
+	}
+
+	protected void RemoveAfter( float seconds )
+	{
+		Map.ScheduleRemoval( this, seconds );
 	}
 
 	private const int MaxDepth = 32;

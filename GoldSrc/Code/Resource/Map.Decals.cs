@@ -10,13 +10,9 @@ partial class MapLoader
 
 	private void SpawnDecals( BspFile bsp )
 	{
+		var surfaces = PrepareExplosions( bsp );
 		foreach ( var entity in _authoredDecals )
 		{
-			if ( !string.IsNullOrEmpty( entity.TargetName ) )
-			{
-				Log.Warning( $"{FilePath}: triggered infodecal '{entity.TargetName}' is omitted; activation is not implemented by the Decal component." );
-				continue;
-			}
 			var name = entity.GetString( "texture", "" );
 			if ( string.IsNullOrEmpty( name ) )
 			{
@@ -26,6 +22,18 @@ partial class MapLoader
 			var definition = Host.GetDecal( name );
 			if ( definition is null )
 				continue;
+			if ( !string.IsNullOrEmpty( entity.TargetName ) )
+			{
+				surfaces ??= BuildDecalSurfaces( bsp );
+				var trigger = new GameObject( true, EntityName( entity ) );
+				trigger.WorldPosition = entity.Origin;
+				var component = trigger.AddComponent<TriggeredDecal>();
+				component.TargetName = entity.TargetName;
+				component.Definition = definition;
+				component.Surfaces = surfaces;
+				RegisterTarget( entity, component );
+				continue;
+			}
 
 			var distance = 5f;
 			var position = Vector3.Zero;
@@ -65,5 +73,35 @@ partial class MapLoader
 			decal.Rotation = 0;
 			decal.Enabled = true;
 		}
+	}
+
+	private DecalSurfaces BuildDecalSurfaces( BspFile bsp )
+	{
+		var result = _mapState.GameObject.AddComponent<DecalSurfaces>();
+		foreach ( var candidate in _decalReceivers )
+		{
+			var collider = candidate.Receiver.GetComponent<PhysicsCollider>();
+			if ( !collider.IsValid() || collider.IsTrigger ) continue;
+			for ( var index = candidate.Model.FirstFace; index < candidate.Model.FirstFace + candidate.Model.FaceCount; index++ )
+			{
+				var face = bsp.Faces[index];
+				if ( face.EdgeCount < 3 ) continue;
+				var info = bsp.TexInfos[face.TextureInfo];
+				var texture = bsp.Textures[info.MipTex];
+				if ( texture.IsTool || texture.IsSky || texture.IsLiquid ) continue;
+				var vertices = new Vector3[face.EdgeCount];
+				for ( var edge = 0; edge < vertices.Length; edge++ )
+					vertices[edge] = bsp.VertexFromSurfEdge( face.FirstEdge + edge ) - candidate.GeometryOrigin;
+				result.Surfaces.Add( new()
+				{
+					Receiver = candidate.Receiver,
+					Collider = collider,
+					Vertices = vertices,
+					Normal = bsp.Planes[face.Plane].Normal * (face.PlaneSide == 0 ? 1 : -1),
+					TextureT = info.T
+				} );
+			}
+		}
+		return result;
 	}
 }

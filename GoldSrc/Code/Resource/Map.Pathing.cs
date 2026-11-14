@@ -52,21 +52,32 @@ partial class MapLoader
 	private void LinkPathNodes()
 	{
 		foreach ( var node in _pathNodes.Values )
+		{
 			if ( node.Next.IsValid() && node.Next.Alternate != node )
 				node.Next.Previous = node;
+			if ( node.Alternate.IsValid() && node.Alternate.Alternate != node )
+				node.Alternate.Previous = node;
+		}
 	}
 
-	private void AddTrain( GameObject go, Entity entity, bool tracked )
+	private void AddTrain( GameObject go, Entity entity, BspModel model, bool tracked )
 	{
 		const int SF_TRACKTRAIN_NOPITCH = 1;
 
 		var train = go.AddComponent<TrackTrain>();
 		train.TargetName = entity.TargetName;
+		train.PlacedOrigin = entity.Origin;
+		train.ControlBounds = new BBox( model.Mins, model.Maxs + Vector3.Up * 72f );
 		train.MaxSpeed = entity.GetFloat( "speed", 100f );
 		if ( train.MaxSpeed == 0f ) train.MaxSpeed = 100f;
 		train.NoRotation = !tracked;
 		train.NoPitch = (entity.SpawnFlags & SF_TRACKTRAIN_NOPITCH) != 0;
 		train.NoControl = tracked && (entity.SpawnFlags & 2) != 0;
+		train.ForwardOnly = tracked && (entity.SpawnFlags & 4) != 0;
+		train.Damage = entity.GetFloat( "dmg" );
+		if ( !tracked && train.Damage == 0f ) train.Damage = 2f;
+		train.Volume = entity.GetFloat( "volume" ) / (tracked ? 10f : 1f);
+		if ( train.Volume == 0f ) train.Volume = tracked ? 1f : 0.85f;
 		train.StartSpeed = tracked ? entity.GetFloat( "startspeed" ) : string.IsNullOrEmpty( entity.TargetName ) ? train.MaxSpeed : 0f;
 		train.WaitForTrigger = !tracked && (!string.IsNullOrEmpty( entity.TargetName ) || (entity.SpawnFlags & 1) != 0);
 		train.Bank = tracked ? entity.GetFloat( "bank" ) : 0f;
@@ -76,6 +87,13 @@ partial class MapLoader
 			train.WheelBase = entity.GetFloat( "wheels" );
 			train.Height = entity.GetFloat( "height" );
 			train.MoveSound = GetIndexedSound( entity, "sounds", TrainSounds );
+			train.StartSoundEvent = BuildSoundEvent( "plats/ttrain_start1.wav" );
+			train.StopSoundEvent = BuildSoundEvent( "plats/ttrain_brake1.wav" );
+		}
+		else
+		{
+			train.MoveSound = GetIndexedSound( entity, "movesnd", PlatformMoveSounds );
+			train.StopSoundEvent = GetIndexedSound( entity, "stopsnd", PlatformStopSounds );
 		}
 
 		RegisterTarget( entity, train );

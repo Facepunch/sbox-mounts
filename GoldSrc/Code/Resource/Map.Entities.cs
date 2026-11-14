@@ -19,6 +19,7 @@ partial class MapLoader
 			SpawnEntity( bsp, entity );
 
 		SpawnDecals( bsp );
+		_mapState.Entities = bsp.Entities.Where( _entities.ContainsKey ).Select( x => _entities[x] ).ToList();
 
 		// Every name exists by now, so targets can be resolved to direct component references.
 		foreach ( var wire in _wiring )
@@ -31,7 +32,7 @@ partial class MapLoader
 	{
 		switch ( entity.ClassName )
 		{
-			case null or "worldspawn":
+			case null or "worldspawn" or "info_null":
 				return;
 
 			case "infodecal":
@@ -60,12 +61,18 @@ partial class MapLoader
 		SpawnPointEntity( entity );
 	}
 
-	private static void SpawnPlayerStart( Entity entity )
+	private void SpawnPlayerStart( Entity entity )
 	{
 		var go = new GameObject( true, entity.ClassName );
 		go.WorldPosition = entity.Origin;
 		go.WorldRotation = Rotation.FromYaw( entity.Angles.yaw );
 		go.AddComponent<SpawnPoint>();
+		if ( !string.IsNullOrEmpty( entity.TargetName ) )
+		{
+			var marker = go.AddComponent<Relay>();
+			marker.TargetName = entity.TargetName;
+			RegisterTarget( entity, marker, null, null, null, nameof( MapEntity.Kill ) );
+		}
 	}
 
 	private void SpawnLight( Entity entity )
@@ -99,15 +106,21 @@ partial class MapLoader
 	/// </summary>
 	private void SpawnPointEntity( Entity entity )
 	{
+		if ( SpawnEffectEntity( entity ) ) return;
 		var className = entity.ClassName;
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
 			or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
-			or "scripted_sequence";
+			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
+			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
+			or "game_counter" or "game_counter_set" or "env_render";
 
 		if ( !handled && string.IsNullOrEmpty( entity.TargetName ) && string.IsNullOrEmpty( entity.Target ) )
+		{
+			WarnUnsupportedEntity( entity );
 			return;
+		}
 
 		var go = new GameObject( true, EntityName( entity ) );
 		go.WorldPosition = entity.Origin;
@@ -121,6 +134,70 @@ partial class MapLoader
 
 		switch ( className )
 		{
+			case "env_render":
+				var render = go.AddComponent<RenderController>();
+				render.TargetName = entity.TargetName;
+				render.Mask = entity.SpawnFlags;
+				render.RenderMode = entity.RenderMode;
+				render.RenderFx = entity.GetInt( "renderfx" );
+				render.RenderAmount = entity.GetFloat( "renderamt" );
+				var color = entity.RenderColor;
+				render.RenderColor = new Color( color.x / 255f, color.y / 255f, color.z / 255f );
+				RegisterTarget( entity, render );
+				return;
+
+			case "game_counter":
+				var gameCounter = go.AddComponent<GameCounter>();
+				gameCounter.TargetName = entity.TargetName;
+				gameCounter.Count = entity.GetFloat( "frags" );
+				gameCounter.InitialCount = (int)gameCounter.Count;
+				gameCounter.Limit = (int)entity.GetFloat( "health" );
+				gameCounter.FireOnce = (entity.SpawnFlags & 1) != 0;
+				gameCounter.ResetOnFire = (entity.SpawnFlags & 2) != 0;
+				RegisterTarget( entity, gameCounter );
+				WireTrigger( entity, gameCounter, delayed: false );
+				return;
+
+			case "game_counter_set":
+				var setter = go.AddComponent<CounterSetter>();
+				setter.TargetName = entity.TargetName;
+				setter.Value = entity.GetFloat( "frags" );
+				setter.FireOnce = (entity.SpawnFlags & 1) != 0;
+				RegisterTarget( entity, setter );
+				WireTrigger( entity, setter, UseType.Set, delayed: false );
+				return;
+
+			case "info_target" or "info_teleport_destination":
+				var marker = go.AddComponent<Relay>();
+				marker.TargetName = entity.TargetName;
+				RegisterTarget( entity, marker, null, null, null, nameof( MapEntity.Kill ) );
+				return;
+
+			case "trigger_changetarget":
+				var changer = go.AddComponent<TargetChanger>();
+				changer.TargetName = entity.TargetName;
+				changer.NewTarget = entity.GetString( "m_iszNewTarget" );
+				RegisterTarget( entity, changer );
+				return;
+
+			case "env_global":
+				AddGlobal( go, entity );
+				return;
+
+			case "multisource":
+				AddMultiSource( go, entity );
+				return;
+
+			case "trigger_counter":
+				var counter = go.AddComponent<Counter>();
+				counter.TargetName = entity.TargetName;
+				counter.Remaining = entity.GetInt( "count", 2 );
+				if ( counter.Remaining == 0 ) counter.Remaining = 2;
+				counter.NoMessage = (entity.SpawnFlags & 1) != 0;
+				RegisterTarget( entity, counter );
+				WireTrigger( entity, counter );
+				return;
+
 			case "path_track" or "path_corner":
 				AddPathNode( go, entity );
 				return;
@@ -158,12 +235,9 @@ partial class MapLoader
 		var relay = go.AddComponent<Relay>();
 		relay.TargetName = entity.TargetName;
 		relay.FireOnSpawn = className is "trigger_auto";
+		relay.SelfActivator = isRelay;
 		relay.FireOnce = isRelay && (entity.SpawnFlags & 1) != 0;
-		if ( relay.FireOnSpawn && !string.IsNullOrEmpty( entity.GetString( "globalstate" ) ) )
-		{
-			relay.FireOnSpawn = false;
-			Log.Warning( $"{FilePath}: {EntityName( entity )} requires globalstate '{entity.GetString( "globalstate" )}'; global-state simulation is not supported, so automatic firing is disabled." );
-		}
+		relay.GlobalState = relay.FireOnSpawn ? entity.GetString( "globalstate" ) : null;
 
 		if ( className == "trigger_auto" || !isRelay )
 			RegisterTarget( entity, relay, null, null, null, nameof( MapEntity.Kill ) );
@@ -176,8 +250,7 @@ partial class MapLoader
 		// to loop an NPC's walk cycle, so an instant pass-through recurses forever.
 		if ( !ForwardsTarget( className ) )
 		{
-			if ( !string.IsNullOrEmpty( entity.Target ) )
-				WarnUnsupportedEntity( entity );
+			WarnUnsupportedEntity( entity );
 			return;
 		}
 
@@ -196,19 +269,52 @@ partial class MapLoader
 	}
 
 	/// <summary>
-	/// A multi_manager's keys are target names rather than a fixed schema, so its whole batch is
-	/// built as one Doo of interleaved delays and calls.
+	/// A multi_manager's keys are target names and absolute delays.
 	/// </summary>
 	private void AddManager( GameObject go, Entity entity )
 	{
 		const int SF_MULTIMAN_THREAD = 1;
 
-		var relay = go.AddComponent<Relay>();
-		relay.TargetName = entity.TargetName;
-		relay.AllowOverlap = (entity.SpawnFlags & SF_MULTIMAN_THREAD) != 0;
+		var manager = go.AddComponent<MultiManager>();
+		manager.TargetName = entity.TargetName;
+		manager.Threaded = (entity.SpawnFlags & SF_MULTIMAN_THREAD) != 0;
+		RegisterTarget( entity, manager );
+		_wiring.Add( () => manager.Events = ManagerEvents( entity ).OrderBy( x => x.Delay )
+			.Select( x => new MultiManager.TimedOutput { Target = x.Name, Delay = x.Delay, Output = BuildFire( x.Name ) } ).ToList() );
+	}
 
-		RegisterTarget( entity, relay );
-		_wiring.Add( () => relay.OnTrigger = BuildManager( entity ) );
+	private void AddGlobal( GameObject go, Entity entity )
+	{
+		var name = entity.GetString( "globalstate" );
+		if ( string.IsNullOrEmpty( name ) )
+		{
+			go.Destroy();
+			return;
+		}
+		var global = go.AddComponent<GlobalSwitch>();
+		global.TargetName = entity.TargetName;
+		global.GlobalState = name;
+		global.Mode = entity.GetInt( "triggermode" );
+		RegisterTarget( entity, global );
+		if ( (entity.SpawnFlags & 1) != 0 && !_mapState.Globals.ContainsKey( name ) )
+			_mapState.SetGlobal( name, entity.GetInt( "initialstate" ) );
+	}
+
+	private void AddMultiSource( GameObject go, Entity entity )
+	{
+		var source = go.AddComponent<MultiSource>();
+		source.TargetName = entity.TargetName;
+		source.GlobalState = entity.GetString( "globalstate" );
+		RegisterTarget( entity, source );
+		WireTrigger( entity, source, string.IsNullOrEmpty( source.GlobalState ) ? UseType.Toggle : UseType.On, delayed: false );
+		_wiring.Add( () =>
+		{
+			source.Inputs = _entities.Where( x => x.Key.Target == entity.TargetName )
+				.Concat( _entities.Where( x => x.Key.ClassName == "multi_manager"
+					&& ManagerEvents( x.Key ).Any( e => e.Name == entity.TargetName ) ) )
+				.Select( x => x.Value ).Take( 32 ).ToList();
+			source.InputStates = new bool[source.Inputs.Count];
+		} );
 	}
 
 	/// <summary>

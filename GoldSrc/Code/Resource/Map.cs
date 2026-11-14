@@ -12,6 +12,7 @@ public partial class MapLoader( string filePath ) : SceneLoader<GameMount>
 {
 	private readonly string FilePath = filePath;
 	private LightStyles _lightStyles;
+	private MapState _mapState;
 
 	protected override void BuildScene()
 	{
@@ -27,6 +28,7 @@ public partial class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		var world = new GameObject( true, "worldspawn" ) { IsStatic = true };
 		_lightStyles = world.AddComponent<LightStyles>();
+		_mapState = world.AddComponent<MapState>();
 		AddRenderers( world, geometry, Color.White );
 		AddCollider( world, geometry.Physics, true );
 		_decalReceivers.Add( (bsp.Models[0], world, Vector3.Zero) );

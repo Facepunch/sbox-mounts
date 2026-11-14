@@ -28,18 +28,22 @@ public sealed class TriggerVolume : MapEntity, Component.ITriggerListener
 	[Property] public bool AllowPushables { get; set; }
 	[Property] public bool Hurt { get; set; }
 	[Property] public float Damage { get; set; }
+	[Property] public int DamageTypes { get; set; }
 	[Property] public bool StartOff { get; set; }
 	[Property] public bool ClientsOnly { get; set; }
 	[Property] public bool ClientsOnlyFire { get; set; }
 	[Property] public bool TargetOnce { get; set; }
-	[Property] public Vector3 FacingDirection { get; set; }
 
 	private bool _fired;
 	private float _nextFire;
 	private float _nextDamage;
+	private float _lastDamageTime = -1f;
+	private float _damageFrame = -1f;
 	private bool _targetFired;
+	private bool _warnedHealing;
 	private Collider _collider;
 	private readonly HashSet<IDamageable> _damaged = [];
+	private readonly HashSet<GameObject> _windowPlayers = [];
 	private readonly List<Collider> _touching = [];
 
 	protected override void OnStart()
@@ -66,16 +70,21 @@ public sealed class TriggerVolume : MapEntity, Component.ITriggerListener
 		var monster = AllowMonsters && other.GetComponentInParent<Monster>().IsValid();
 		var pushable = AllowPushables && other.GameObject.Tags.Has( "goldsrc_pushable" );
 		if ( !(player && !NoClients || monster || pushable) ) return;
-		if ( Vector3.Dot( FacingDirection, other.WorldRotation.Forward ) < 0f ) return;
+		var controller = other.GetComponentInParent<PlayerController>();
+		var activator = controller.IsValid() ? controller.GameObject : other.GameObject;
+		if ( !IsMasterTriggered( activator ) ) return;
 
 		_fired = true;
 		_nextFire = Time.Now + Wait;
-		Fire( OnTrigger, other.GameObject );
+		bool remove = FireOnce || Wait <= 0f;
+		Fire( OnTrigger, activator, detached: remove );
+		if ( remove ) RemoveAfter( 0.1f );
 	}
 
 	void ITriggerListener.OnTriggerEnter( Collider other )
 	{
-		if ( !Hurt ) Touch( other );
+		if ( Hurt ) HurtTouch( other );
+		else Touch( other );
 	}
 
 	protected override void OnFixedUpdate()
@@ -93,37 +102,59 @@ public sealed class TriggerVolume : MapEntity, Component.ITriggerListener
 			return;
 		}
 
-		if ( Time.Now < _nextDamage ) return;
-		_damaged.Clear();
-		var touched = false;
 		foreach ( var other in _touching )
 		{
 			if ( !CanTrigger || !_collider.Enabled ) return;
-			if ( !other.IsValid() ) continue;
-			var player = IsPlayer( other );
-			if ( player ? NoClients : ClientsOnly ) continue;
-			foreach ( var target in other.GetComponentsInParent<IDamageable>() )
-			{
-				if ( !_damaged.Add( target ) ) continue;
-				touched = true;
-				var damage = new DamageInfo
-				{
-					Damage = Damage * 0.5f,
-					Attacker = GameObject,
-					Origin = WorldPosition,
-					Position = other.WorldPosition
-				};
-				target.OnDamage( damage );
-				if ( !CanTrigger ) return;
-				if ( (!ClientsOnlyFire || player) && (!TargetOnce || !_targetFired) )
-				{
-					_targetFired = true;
-					Fire( OnTrigger, other.GameObject );
-				}
-			}
+			HurtTouch( other );
 		}
+	}
 
-		if ( touched ) _nextDamage = Time.Now + 0.5f;
+	private void HurtTouch( Collider other )
+	{
+		if ( !CanTrigger || !other.IsValid() ) return;
+		var player = IsPlayer( other );
+		if ( player ? NoClients : ClientsOnly ) return;
+		var targets = other.GetComponentsInParent<IDamageable>().ToArray();
+		if ( targets.Length == 0 ) return;
+		if ( Damage < 0f && !_warnedHealing )
+		{
+			_warnedHealing = true;
+			Log.Warning( $"GoldSrc: healing trigger '{TargetName}' requires game-provided health integration." );
+		}
+		var controller = other.GetComponentInParent<PlayerController>();
+		var activator = controller.IsValid() ? controller.GameObject : other.GameObject;
+		if ( Time.Now < _nextDamage )
+		{
+			if ( Time.Now != _lastDamageTime
+				&& (!Networking.IsActive || !player || !_windowPlayers.Add( activator )) ) return;
+		}
+		else
+		{
+			_windowPlayers.Clear();
+			if ( player ) _windowPlayers.Add( activator );
+		}
+		if ( _damageFrame != Time.Now )
+		{
+			_damageFrame = Time.Now;
+			_damaged.Clear();
+		}
+		var touched = false;
+		foreach ( var target in targets )
+		{
+			if ( !_damaged.Add( target ) ) continue;
+			touched = true;
+			if ( Damage >= 0f )
+				target.OnDamage( new EntityDamage( Damage * 0.5f, DamageTypes, GameObject, other.WorldPosition ) );
+			if ( !CanTrigger ) return;
+		}
+		if ( !touched ) return;
+		_lastDamageTime = Time.Now;
+		_nextDamage = Time.Now + 0.5f;
+		if ( (!ClientsOnlyFire || player) && (!TargetOnce || !_targetFired) )
+		{
+			_targetFired = true;
+			Fire( OnTrigger, activator );
+		}
 	}
 
 	private static bool IsPlayer( Collider other )

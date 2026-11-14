@@ -19,7 +19,7 @@ public sealed class ToggleBrush : MapEntity
 	{
 		if ( !CanTrigger ) return;
 		_visible = visible;
-		foreach ( var renderer in GetComponentsInChildren<ModelRenderer>( true ) )
+		foreach ( var renderer in GetComponentsInChildren<Renderer>( true ) )
 			renderer.Enabled = visible;
 		foreach ( var collider in GetComponentsInChildren<Collider>( true ) )
 			collider.Enabled = visible;

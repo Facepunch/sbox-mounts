@@ -120,6 +120,10 @@ public abstract partial class GameMount : BaseGameMount
 				{
 					context.Add( ResourceType.Sound, path, new WavSoundLoader( fullPath ) );
 				}
+				else if ( ext == ".spr" )
+				{
+					MountSprite( context, path );
+				}
 				else if ( ext == ".bsp" )
 				{
 					context.Add( ResourceType.Scene, path, new MapLoader( fullPath ) );
