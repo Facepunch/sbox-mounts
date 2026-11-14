@@ -15,9 +15,11 @@ public abstract partial class BaseMount
 	/// <summary>
 	/// A directory or archive in <paramref name="FileSystem"/>. Paths are relative to the filesystem root
 	/// and use '/' separators; the root directory itself is "".
+	/// <paramref name="Replaces"/> selects files of an archive that take the place of an earlier source's file
+	/// at the same path, and are left out where there is none.
 	/// </summary>
 	internal readonly record struct ContentSource( BaseFileSystem FileSystem, string Path, bool IsArchive, bool Recursive = true,
-		string Prefix = "", IReadOnlyList<string> Files = null );
+		string Prefix = "", IReadOnlyList<string> Files = null, Func<string, bool> Include = null, Func<string, bool> Replaces = null );
 
 	private static bool IsArchive( string path ) => path.EndsWith( ".vpk", StringComparison.OrdinalIgnoreCase )
 		|| path.EndsWith( ".gma", StringComparison.OrdinalIgnoreCase );
@@ -219,7 +221,14 @@ public abstract partial class BaseMount
 					package?.Dispose();
 				}
 				foreach ( var path in indexed.GetFilePaths() )
-					files.Add( path, new SourceFile( path, indexed ) );
+				{
+					if ( source.Include?.Invoke( path ) == false )
+						continue;
+					if ( source.Replaces?.Invoke( path ) != true )
+						files.Add( path, new SourceFile( path, indexed ) );
+					else if ( files.Files.ContainsKey( path ) )
+						files.Files[path] = new SourceFile( path, indexed );
+				}
 				continue;
 			}
 
@@ -228,6 +237,8 @@ public abstract partial class BaseMount
 				if ( IsArchive( path ) )
 					continue;
 				var virtualPath = source.Prefix + (source.Path.Length == 0 ? path : path[(source.Path.Length + 1)..]);
+				if ( source.Include?.Invoke( virtualPath ) == false )
+					continue;
 				if ( !files.Add( virtualPath, new SourceFile( path, null, source.FileSystem ) ) )
 					Log.Trace( $"{path}: '{virtualPath}' was not indexed because an earlier content source takes precedence." );
 			}

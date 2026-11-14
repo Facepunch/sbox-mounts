@@ -23,9 +23,24 @@ cannot resolve it through the GMod mount.
 
 For example: `mount://gmod/models/props_c17/oildrum001.mdl.vmdl`.
 
+The `hl2` mount scans the Half-Life 2 installation the same way, with `hl2` first; the Episodes
+and Lost Coast are folders of that installation. Without it, the mount falls back to the copy
+Garry's Mod ships: `sourceengine/hl2_*_dir.vpk`, then `sourceengine/content_hl2_dir.vpk` (Episode
+One/Two models, materials, particles and some sound scripts), then GMod's own sound manifest and the
+HL2 sound scripts it moved to `scripts/sounds/`, then the loose `sourceengine/scripts` (HL2's weapon,
+surface and prop scripts), `sourceengine/resource` (its scheme and HUD fonts) and `garrysmod/cfg/skill.cfg` (HL2's with the Episodes' values merged in).
+That copy has no maps, Lost Coast, Episode voice lines or music, `cfg/skill_episodic.cfg`, the
+player stunstick, hopwire, harpoon or proto1 weapon scripts, or the Episode Two-only particle files
+(advisor, hunter intro/shield, grenade and explosion effects among them). Whenever Garry's Mod is
+installed, its handless `models/weapons/c_*` viewmodels (not its `c_arms` models) and the
+`v_stunstick` materials they need are added last. Standalone files always win; with Half-Life 2
+installed, everything else resolves exactly as without Garry's Mod. Game code detects availability
+per resource, e.g. `Directory.Get( "hl2" ).GetByPath( "mount://hl2/models/weapons/c_pistol.mdl.vmdl" )`.
+
 ## Code layout
 
 `BaseMount` owns indexing and mount lifecycle; `GameMount.cs` defines game mounts.
+A mount that reads more than its own installation overrides `FindContent`.
 `BaseMount.Files.cs` inventories loose files and archives in one filesystem pass;
 there is no search-path configuration layer. Loose and archive-backed files share one file reference
 representation and one content-opening API.

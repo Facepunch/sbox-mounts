@@ -30,15 +30,30 @@ public abstract partial class BaseMount : BaseGameMount
 		ReplaceIndex( new FileIndex() );
 		IsInstalled = false;
 		IsMounted = false;
-		if ( !context.IsAppInstalled( AppId ) )
-			return;
-
-		var directory = context.GetFileSystem( AppId );
-		if ( directory is null )
-			return;
-
-		IndexContent( directory );
+		if ( FindContent( context ) is { } sources )
+			IndexContent( sources );
 	}
+
+	private protected virtual IEnumerable<ContentSource> FindContent( InitializeContext context ) =>
+		context.GetFileSystem( AppId ) is { } fs ? ScanContent( fs ) : null;
+
+	private protected const long GarrysModAppId = 4000;
+
+	// Garry's Mod's copy of the archives in a standalone game's shared hl2 folder.
+	private protected static IEnumerable<ContentSource> GarrysModSharedArchives( BaseFileSystem garrysMod ) =>
+		garrysMod.FindFile( "sourceengine", "hl2_*_dir.vpk" )
+			.Order( StringComparer.OrdinalIgnoreCase ).Select( name => new ContentSource( garrysMod, $"sourceengine/{name}", true ) );
+
+	// Added after every other source, so standalone files win on path conflicts, except the ones it replaces.
+	private protected static ContentSource? GarrysModArchive( BaseFileSystem garrysMod, Func<string, bool> include, Func<string, bool> replaces = null )
+	{
+		const string path = "garrysmod/garrysmod_dir.vpk";
+		return garrysMod is not null && garrysMod.FileExists( path ) ? new ContentSource( garrysMod, path, true, Include: include, Replaces: replaces ) : null;
+	}
+
+	// Garry's Mod rigs world models that a game left as props to the hand, so its players can hold them.
+	private protected static bool IsGarrysModWorldModelFile( string path ) =>
+		path.StartsWith( "models/weapons/w_", StringComparison.OrdinalIgnoreCase );
 
 	internal void IndexContent( BaseFileSystem fs ) => IndexContent( ScanContent( fs ) );
 
