@@ -33,6 +33,26 @@ internal sealed class ModelWeaponData
 	public float? SecondaryNpcDamage { get; set; }
 	public float? BlastRadius { get; set; }
 	public float? SecondaryBlastRadius { get; set; }
+	/// <summary>Seconds between primary shots, when authored.</summary>
+	public float? CycleTime { get; set; }
+	/// <summary>Pellets per primary shot, when authored.</summary>
+	public int? Bullets { get; set; }
+	public bool? FullAuto { get; set; }
+	public float? Range { get; set; }
+	/// <summary>Damage multiplier per 500 units travelled, when authored.</summary>
+	public float? RangeModifier { get; set; }
+	/// <summary>Source weapon family, such as Pistol, Rifle, SubMachinegun, Shotgun, SniperRifle, Machinegun, Knife or Grenade.</summary>
+	public string WeaponType { get; set; }
+	/// <summary>Team that may use the weapon, such as TERRORIST, CT or ANY.</summary>
+	public string Team { get; set; }
+	/// <summary>Suffix naming the third-person animation set, such as ak or pistol.</summary>
+	public string PlayerAnimationExtension { get; set; }
+	/// <summary>False when the viewmodel is authored left-handed and is mirrored for right-handed use.</summary>
+	public bool? BuiltRightHanded { get; set; }
+	public string SilencerModel { get; set; }
+	/// <summary>Counter-Strike muzzle flash style: CS_MUZZLEFLASH_NORM, CS_MUZZLEFLASH_X or CS_MUZZLEFLASH_NONE.</summary>
+	public string MuzzleFlashStyle { get; set; }
+	public float? MuzzleFlashScale { get; set; }
 	/// <summary>Sound role (single_shot, reload, empty, etc.) to mounted SoundEvent resource path.</summary>
 	public Dictionary<string, string> Sounds { get; set; } = new();
 }

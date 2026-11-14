@@ -37,10 +37,22 @@ installed, its handless `models/weapons/c_*` viewmodels (not its `c_arms` models
 installed, everything else resolves exactly as without Garry's Mod. Game code detects availability
 per resource, e.g. `Directory.Get( "hl2" ).GetByPath( "mount://hl2/models/weapons/c_pistol.mdl.vmdl" )`.
 
+The `css` mount (Counter-Strike: Source, app 240; `cstrike` is the GoldSrc CS 1.6 mount)
+scans the standalone installation with `cstrike` first, so its `hl2` folder supplies the
+shared HL2 archives. Without it, the mount falls back to the same content as shipped by
+Garry's Mod: `sourceengine/content_cstrike_dir.vpk` followed by `sourceengine/hl2_*_dir.vpk`.
+That copy has no weapon scripts, particles, radio or bot sounds. Whenever Garry's Mod is
+installed, a filtered `garrysmod/garrysmod_dir.vpk` is added last: only its handless
+`models/weapons/cstrike/c_*` viewmodels, `scripts/sounds/cs_game_sounds_*.txt` and the sound
+manifest that lists them. Standalone files always win, so with both installed the `c_`
+models resolve their materials from the standalone archives. Game code detects either
+case per resource, e.g. `mount://css/models/weapons/cstrike/c_rif_ak47.mdl.vmdl`
+(handless viewmodel) or `mount://css/scripts/weapon_ak47.ctx.json` (weapon script).
+
 ## Code layout
 
-`BaseMount` owns indexing and mount lifecycle; `GameMount.cs` defines game mounts.
-A mount that reads more than its own installation overrides `FindContent`.
+`BaseMount` owns indexing and mount lifecycle; `GameMount.cs` and `CounterStrikeSourceMount.cs`
+define game mounts. A mount that reads more than its own installation overrides `FindContent`.
 `BaseMount.Files.cs` inventories loose files and archives in one filesystem pass;
 there is no search-path configuration layer. Loose and archive-backed files share one file reference
 representation and one content-opening API.
@@ -307,15 +319,20 @@ and `weapon_data_list` (`Resource/ModelData.cs`). The engine defines no types fo
 declares its own classes with the same `[ModelEditor.GameData]` names and member names and reads
 them with `Model.GetData<T>()`.
 
-Weapon scripts (`scripts/weapon_*.txt`) become `weapon_data` on their
-view and world models and `scripts/weapon_*.txt.json` text resources. Damage comes from
-the script's `Damage` or else `cfg/skill.cfg`.
-A script's `TextureData` "weapon" icon becomes `scripts/weapon_*.txt.icon.vtex` (the `Icon` member): the scheme font's glyph
+Weapon scripts (`scripts/weapon_*.txt`, or ICE-encrypted `.ctx` for mounts that know the
+game's key, `css` among them; a `.txt` takes precedence) become `weapon_data` on their
+view and world models and `scripts/weapon_*.<ext>.json` text resources. Damage comes from
+the script's `Damage` or else `cfg/skill.cfg`. Counter-Strike keys fill `CycleTime`, `Bullets`,
+`FullAuto`, `Range`, `RangeModifier`, `WeaponType`, `Team`, `PlayerAnimationExtension`,
+`BuiltRightHanded`, `SilencerModel`, `MuzzleFlashStyle` and `MuzzleFlashScale`; they stay null for games without them. Accuracy,
+recoil, economy and movement keys are not imported.
+A script's `TextureData` "weapon" icon becomes `scripts/weapon_*.<ext>.icon.vtex` (the `Icon` member): the scheme font's glyph
 (logical font to family through `resource/clientscheme.res`, family to a `resource/` font file), or a `"file"` material region, white on transparent.
 Sound events come from
 `scripts/game_sounds_manifest.txt`; every PCF's systems register as particle prefabs.
-Speech data becomes JSON text resources for game code to read: `scripts/sentences.txt.json`
-and `scripts/talker/response_rules.txt.json`.
+Speech data becomes JSON text resources for game code to read: `scripts/sentences.txt.json`,
+`scripts/talker/response_rules.txt.json` and Counter-Strike's `botchatter.db.json` (chatter
+phrases with their radio fallback and count/place-qualified `sound/bot` waves; location phrases are left out).
 
 ### Shaders
 

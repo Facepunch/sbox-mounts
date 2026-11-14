@@ -36,7 +36,7 @@ public abstract partial class BaseMount
 				using var stream = entry.Value.Open();
 				var bytes = new byte[checked((int)stream.Length)];
 				stream.ReadExactly( bytes );
-				var root = SourceWeaponScript.Parse( SourceWeaponScript.Decode( bytes ), entry.Key );
+				var root = SourceWeaponScript.Parse( SourceWeaponScript.Decode( bytes, entry.Key, WeaponScriptKey ), entry.Key );
 				var data = SourceWeaponScript.Read( root, entry.Key, skill );
 				if ( data is null ) continue;
 				data.Icon = MountWeaponIcon( context, files, entry.Key, SourceHudTexture.Read( root, "weapon" ), hudFonts );
@@ -72,9 +72,14 @@ public abstract partial class BaseMount
 		foreach ( var ammo in ammoResources ) context.Add( ResourceType.GameResource, ammo.Key, ammo.Value );
 	}
 
+	/// <summary>The ICE key of this game's encrypted <c>.ctx</c> weapon scripts, if it ships any.</summary>
+	protected virtual string WeaponScriptKey => null;
+
+	// Source reads a plain .txt script in preference to its encrypted .ctx counterpart.
 	private IEnumerable<KeyValuePair<string, SourceFile>> WeaponScriptFiles( FileIndex files ) => files.Files
 		.Where( x => x.Key.StartsWith( "scripts/weapon_", StringComparison.OrdinalIgnoreCase )
-			&& x.Key.EndsWith( ".txt", StringComparison.OrdinalIgnoreCase ) )
+			&& (x.Key.EndsWith( ".txt", StringComparison.OrdinalIgnoreCase )
+				|| (WeaponScriptKey is not null && x.Key.EndsWith( ".ctx", StringComparison.OrdinalIgnoreCase ) && !files.Files.ContainsKey( Path.ChangeExtension( x.Key, ".txt" ) ))) )
 		.OrderBy( x => x.Key );
 
 	internal ModelWeaponData[] GetWeaponData( string model )

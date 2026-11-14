@@ -6,7 +6,8 @@ public abstract partial class BaseMount
 {
 	/// <summary>
 	/// Exposes scripts/sentences.txt as scripts/sentences.txt.json (group -> alternatives -> words) and the talker response
-	/// rules as scripts/talker/response_rules.txt.json (concept -> rules with criteria and responses).
+	/// rules as scripts/talker/response_rules.txt.json (concept -> rules with criteria and responses), and Counter-Strike's bot
+	/// chatter as botchatter.db.json (phrase -> radio fallback, importance and qualified waves).
 	/// </summary>
 	private void MountSpeech( MountContext context, FileIndex files )
 	{
@@ -42,6 +43,17 @@ public abstract partial class BaseMount
 		catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException )
 		{
 			Log.Trace( $"{Title}: response rules were not imported: {e.Message}" );
+		}
+
+		try
+		{
+			const string chatter = "botchatter.db";
+			if ( Read( chatter ) is { } text && SourceBotChatter.Parse( text, Exists ) is { Count: > 0 } phrases )
+				context.Add( ResourceType.Text, chatter + ".json", new SourceSpeechLoader( phrases ) );
+		}
+		catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException )
+		{
+			Log.Trace( $"{Title}: bot chatter was not imported: {e.Message}" );
 		}
 	}
 }

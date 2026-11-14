@@ -6,7 +6,16 @@ namespace Source1;
 /// <summary>Reads a Source <c>WeaponData</c> script. Sound roles map to script sound names, not mounted resources.</summary>
 internal static class SourceWeaponScript
 {
-	internal static string Decode( byte[] data ) => Encoding.UTF8.GetString( data ).TrimEnd( '\0' );
+	internal static string Decode( byte[] data, string path, string iceKey )
+	{
+		if ( path.EndsWith( ".ctx", StringComparison.OrdinalIgnoreCase ) )
+		{
+			if ( iceKey is null )
+				throw new NotSupportedException( $"{path}: encrypted weapon script has no known key." );
+			new IceKey( Encoding.ASCII.GetBytes( iceKey ) ).Decrypt( data );
+		}
+		return Encoding.UTF8.GetString( data ).TrimEnd( '\0' );
+	}
 
 	internal static ModelWeaponData Read( string text, string path, SourceSkillConfig skill ) => Read( Parse( text, path ), path, skill );
 
@@ -31,6 +40,7 @@ internal static class SourceWeaponScript
 			ClassName = weaponClass,
 			ViewModel = ModelPath( p, "viewmodel" ),
 			WorldModel = ModelPath( p, "playermodel" ),
+			SilencerModel = ModelPath( p, "SilencerModel" ),
 			PrimaryAmmo = primaryAmmo,
 			SecondaryAmmo = secondaryAmmo,
 			PrintName = p.String( "printname" ),
@@ -44,7 +54,18 @@ internal static class SourceWeaponScript
 			SecondaryClipSize = p.Integer( "clip2_size", -1 ),
 			Bucket = p.Integer( "bucket", 0 ),
 			BucketPosition = p.Integer( "bucket_position", -1 ) is var position && position >= 0 ? position : null,
-			Weight = p.Integer( "weight", -1 ) is var weight && weight >= 0 ? weight : null
+			Weight = p.Integer( "weight", -1 ) is var weight && weight >= 0 ? weight : null,
+			CycleTime = p.Contains( "CycleTime" ) ? p.Float( "CycleTime" ) : null,
+			Bullets = p.Contains( "Bullets" ) ? p.Integer( "Bullets" ) : null,
+			FullAuto = p.Contains( "FullAuto" ) ? p.Boolean( "FullAuto" ) : null,
+			Range = p.Contains( "Range" ) ? p.Float( "Range" ) : null,
+			RangeModifier = p.Contains( "RangeModifier" ) ? p.Float( "RangeModifier" ) : null,
+			WeaponType = p.String( "WeaponType" ),
+			Team = p.String( "Team" ),
+			PlayerAnimationExtension = p.String( "PlayerAnimationExtension" ),
+			BuiltRightHanded = p.Contains( "BuiltRightHanded" ) ? p.Boolean( "BuiltRightHanded" ) : null,
+			MuzzleFlashStyle = p.String( "MuzzleFlashStyle" ),
+			MuzzleFlashScale = p.Contains( "MuzzleFlashScale" ) ? p.Float( "MuzzleFlashScale" ) : null
 		};
 		foreach ( var sound in root.Children.Where( x => x.IsBlock && x.Name.Equals( "SoundData", StringComparison.OrdinalIgnoreCase ) ).SelectMany( x => x.Children ) )
 		{

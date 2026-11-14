@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace Source1;
 
-/// <summary>Exports parsed sentences or response rules as JSON; the game defines the shapes it reads.</summary>
+/// <summary>Exports parsed sentences, response rules or bot chatter as JSON; the game defines the shapes it reads.</summary>
 internal sealed class SourceSpeechLoader( object data ) : ResourceLoader<BaseMount>
 {
 	static readonly JsonSerializerOptions Options = new()
