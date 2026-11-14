@@ -68,7 +68,7 @@ partial class MapLoader
 		var angles = entity.Angles;
 		if ( entity.ClassName == "env_sprite" && angles.yaw != 0 && angles.roll == 0 )
 			angles = new( angles.pitch, 0, angles.yaw );
-		if ( sprite.Orientation is not (3 or 4) )
+		if ( sprite.Orientation is 0 or 1 )
 			angles = new( angles.pitch, angles.yaw, 0 );
 		go.WorldRotation = Rotation.From( angles );
 		var effect = go.AddComponent<SpriteEffect>();

@@ -34,5 +34,5 @@ partial class GameMount
 internal sealed class SpriteTextureLoader( SpriteFile.Frame frame ) : ResourceLoader<GameMount>
 {
 	protected override object Load() => Texture.Create( frame.Width, frame.Height, ImageFormat.RGBA8888_LINEAR )
-		.WithData( frame.Pixels ).WithMips().WithStaticUsage().Finish();
+		.WithName( Path ).WithData( frame.Pixels ).WithMips().WithStaticUsage().Finish();
 }

@@ -46,6 +46,11 @@ public sealed class BeamEffect : MapEntity
 
 	protected override void OnStart() => Initialize();
 
+	protected override void OnEnabled()
+	{
+		if ( _initialized ) UpdateVisibility();
+	}
+
 	public void Initialize()
 	{
 		if ( _initialized ) return;
@@ -128,10 +133,10 @@ public sealed class BeamEffect : MapEntity
 	private void UpdateVisibility()
 	{
 		if ( PersistentVisual.IsValid() && PersistentVisual.Renderer.IsValid() )
-			PersistentVisual.Renderer.Enabled = IsOn;
+			PersistentVisual.Renderer.Enabled = Enabled && IsOn && PersistentVisual.Enabled;
 		if ( _endSprite.IsValid() )
 		{
-			if ( IsOn ) _endSprite.TurnOn();
+			if ( Enabled && IsOn ) _endSprite.TurnOn();
 			else _endSprite.TurnOff();
 		}
 	}

@@ -142,9 +142,9 @@ public sealed class SpriteEffect : MapEntity
 			_displayedFrame = frame;
 		}
 		Renderer.Size = Frames[frame].Size * (Scale == 0 ? 1 : Scale);
-		Renderer.Opaque = RenderMode == 4 || (RenderMode == 0 && TextureFormat is 0 or 3);
+		Renderer.Opaque = RenderMode == 0;
 		Renderer.AlphaCutoff = TextureFormat == 3 ? 0.5f : 0f;
-		Renderer.Additive = RenderMode is 3 or 5 || (RenderMode == 0 && TextureFormat == 1);
+		Renderer.Additive = RenderMode is 3 or 5;
 		var color = RenderColor.r == 0 && RenderColor.g == 0 && RenderColor.b == 0 ? Color.White : RenderColor;
 		Renderer.Color = color.WithAlpha( RenderMode == 0 ? 1 : Math.Clamp( RenderAmount / 255f, 0, 1 ) );
 	}

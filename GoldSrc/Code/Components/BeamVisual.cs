@@ -35,6 +35,7 @@ public sealed class BeamVisual : Component
 	{
 		_initialized = true;
 		_age = 0;
+		_frame = -1;
 		Renderer ??= GameObject.AddComponent<LineRenderer>();
 		Renderer.UseVectorPoints = true;
 		Renderer.VectorPoints = [];
@@ -52,6 +53,13 @@ public sealed class BeamVisual : Component
 	protected override void OnStart()
 	{
 		if ( !_initialized ) Initialize();
+	}
+
+	protected override void OnEnabled()
+	{
+		if ( !_initialized || !Renderer.IsValid() ) return;
+		var beam = GameObject.Parent?.GetComponent<BeamEffect>( true );
+		Renderer.Enabled = !beam.IsValid() || (beam.Enabled && beam.IsOn);
 	}
 
 	protected override void OnUpdate()

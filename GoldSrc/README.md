@@ -50,13 +50,18 @@ sparks, ambient sound modulation and explosions have runtime components. `env_re
 applies masked appearance changes to all matching targets. Brush blend changes use
 instance-owned materials, leaving other map objects unchanged.
 
+Sprite and beam frame textures retain their mount paths through scene serialization.
+Sprite blending follows the entity's render mode, including translucent mode 4;
+view-parallel sprites preserve authored roll. Reimport existing scenes to refresh
+their sprite texture references.
+
 This is not complete entity parity. Pusher rollback/blocking, pushable movement and
 buoyancy, pendulum rope attachment, player train controls, healing, texture-frame
 switching and conveyor texture scrolling remain incomplete. `trigger_push` and
 `func_friction` are omitted rather than simulated with incorrect forces or solid walls.
 Breakable debris, bubbles, funnels, blood, sentence playback and room DSP remain
 unsupported. Spark, beam and explosion visuals are reconstructed; beam noise and
-texture scrolling, glow occlusion, some sprite orientations/render effects and
+exact texture phase, glow occlusion, some sprite orientations/render effects and
 explosion lighting are not reproduced. Runtime blend-mode conversion is limited to
 ordinary brush materials, not studio models or liquids; flat-color mode still tints
 the surface texture.
