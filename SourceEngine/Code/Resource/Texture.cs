@@ -13,13 +13,14 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 
 	protected override object Load()
 	{
-		var texture = CreateTexture( Host.GetSourceTexture( filename ).ReadTexture( frame ), Path, frame );
+		var source = Host.GetSourceTexture( filename );
+		var texture = CreateTexture( source.ReadTexture( frame ), Path, frame, source.Sheet );
 		if ( texture is null || !texture.IsValid || texture.IsError )
 			throw new InvalidDataException( $"Texture '{filename}' frame {frame} could not be loaded." );
 		return texture;
 	}
 
-	internal static Texture CreateTexture( VtfFile vtf, string filename, int? frame )
+	internal static Texture CreateTexture( VtfFile vtf, string filename, int? frame, VtfSheet sheet = null )
 	{
 		var width = vtf.Header.Width;
 		var height = vtf.Header.Height;
@@ -50,6 +51,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		if ( frameCount > 1 )
 		{
 			return new TextureArrayBuilder()
+				.WithName( filename )
 				.WithFormat( format )
 				.WithSize( width, height )
 				.WithCount( frameCount )
@@ -62,6 +64,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		if ( isCube )
 		{
 			return new TextureCubeBuilder()
+				.WithName( filename )
 				.WithFormat( format )
 				.WithSize( width, height )
 				.WithData( data )
@@ -70,7 +73,13 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 				.Finish();
 		}
 
-		return new Texture2DBuilder()
+		var builder = new Texture2DBuilder().WithName( filename );
+		foreach ( var sequence in sheet?.Sequences ?? [] )
+		{
+			builder = builder.AddSequence( sequence.Frames.Select( frame => new Rect( frame.Min, frame.Max - frame.Min ) ).ToArray(), sequence.FrameRate, sequence.Loop );
+		}
+
+		return builder
 			.WithFormat( format )
 			.WithSize( width, height )
 			.WithData( data )

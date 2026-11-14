@@ -90,6 +90,7 @@ public abstract partial class BaseMount : BaseGameMount
 	protected override void Shutdown()
 	{
 		ReplaceIndex( new FileIndex() );
+		lock ( animations ) animations.Clear();
 	}
 
 	protected override Task Mount( MountContext context )
@@ -107,6 +108,9 @@ public abstract partial class BaseMount : BaseGameMount
 		foreach ( var resource in current.Resources )
 		{
 			context.Add( resource.Factory.Type, resource.Path, resource.Factory.Create( resource.Path ) );
+			// Animation decoding is opt-in: browsing/spawning ordinary mounted props stays cheap.
+			if ( resource.Factory.Type == ResourceType.Model )
+				context.Add( ResourceType.Model, $"{resource.Path}.animated", new ModelLoader( resource.Path, animated: true ) { Flags = ResourceFlags.DeveloperOnly } );
 			if ( resource.Factory.Type == ResourceType.Texture && resource.Path.EndsWith( ".vtf", StringComparison.OrdinalIgnoreCase ) )
 				MountTextureFrames( context, current, resource.Path );
 			if ( resource.Factory.Type == ResourceType.Scene )
@@ -118,6 +122,10 @@ public abstract partial class BaseMount : BaseGameMount
 
 		MountDecals( context, current );
 		MountSoundscapes( context, current );
+		MountSoundEvents( context, current );
+		ReadWeaponScripts( context, current );
+		MountSpeech( context, current );
+		MountParticles( context, current );
 		try
 		{
 			MountSurfaces( context, current );

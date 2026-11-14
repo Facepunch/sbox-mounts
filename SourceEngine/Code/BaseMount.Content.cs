@@ -10,8 +10,17 @@ public abstract partial class BaseMount
 		return Material.Load( GetRegisteredContentPath( path, ResourceType.Material, contentRoot ) );
 	}
 
-	internal SoundFile LoadContentSound( string path, string contentRoot = "" ) =>
-		SoundFile.Load( GetRegisteredContentPath( path, ResourceType.Sound, contentRoot ) );
+	internal SoundFile LoadContentSound( string path, string contentRoot = "", int? channel = null )
+	{
+		var resource = GetRegisteredContentPath( path, ResourceType.Sound, contentRoot );
+		if ( channel is null ) return SoundFile.Load( resource );
+		var file = FindContentFile( index, path, contentRoot ) ?? path;
+		var name = $"{resource}.channel{channel}.vsnd";
+		var options = new SoundFile.LoadOptions { Channel = channel };
+		return file.EndsWith( ".mp3", StringComparison.OrdinalIgnoreCase )
+			? SoundFile.FromMp3( name, GetFileBytes( file ), options )
+			: SoundFile.FromWav( name, GetFileBytes( file ), options );
+	}
 
 	internal Model LoadContentModel( string path, string contentRoot = "" ) =>
 		Model.Load( GetRegisteredContentPath( path, ResourceType.Model, contentRoot ) );
@@ -55,12 +64,12 @@ public abstract partial class BaseMount
 		return source.Value;
 	}
 
-	internal SourceModel ReadSourceModel( string path, string contentRoot = "", bool readLighting = false )
+	internal SourceModel ReadSourceModel( string path, string contentRoot = "", bool readLighting = false, bool animated = false )
 	{
 		using var files = AcquireIndex();
 		return SourceModel.Read( this, ResolveContentFile( files, path, contentRoot ), readLighting,
 			file => OpenContentFile( files, file ),
-			file => FindContentFile( files, file ) is { } filename ? files.Files[filename].Open() : null );
+			file => FindContentFile( files, file ) is { } filename ? files.Files[filename].Open() : null, animated );
 	}
 
 	internal SourceTexture GetSourceTexture( string path, string contentRoot = "" )

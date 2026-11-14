@@ -1,8 +1,30 @@
+using System;
+
 namespace Source1;
 
-internal sealed class ModelLoader( string fullPath ) : ResourceLoader<BaseMount>
+internal sealed class ModelLoader( string fullPath, bool animated = false ) : ResourceLoader<BaseMount>
 {
-	protected override object Load() => Host.ReadSourceModel( fullPath ).Build( Path );
+	protected override object Load() => Host.ReadSourceModel( fullPath, animated: animated ).Build( Path );
+
+	// A model's skeleton and clips are only known once its animations are read, so they aren't listed while mounting.
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		type = default;
+		if ( !animated )
+			return null;
+
+		if ( name.Equals( SourceAnimations.SkeletonName, StringComparison.OrdinalIgnoreCase ) )
+		{
+			type = ResourceType.AnimationSkeleton;
+			return new SkeletonLoader();
+		}
+
+		if ( !name.EndsWith( ".anim", StringComparison.OrdinalIgnoreCase ) )
+			return null;
+
+		type = ResourceType.AnimationClip;
+		return new ClipLoader( name[..^5] );
+	}
 }
 
 internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPath )
@@ -11,7 +33,7 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 	private string FullPath { get; } = fullPath;
 	private string ContentRoot { get; } = BaseMount.GetContentRoot( fullPath, "models" );
 	internal Model BuildModel( MdlFile mdl, VtxFile vtx, PhyFile physics, string name = null, Transform[] referencePose = null,
-		StaticPropLighting lighting = null )
+		StaticPropLighting lighting = null, MdlFile.ImportedAnimations animations = null )
 	{
 		var builder = Model.Builder.WithName( name );
 		var viewBounds = GetViewBounds( mdl );
@@ -34,7 +56,8 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 					bone.PointToWorld( new Vector3( matrix.M14, matrix.M24, matrix.M34 ) ) );
 			}
 		}
-		var boneBounds = AddGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, skinTransforms, lighting );
+		var boneBounds = AddGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, skinTransforms, lighting,
+			retainBoneSurfaces: animations is not null );
 		materials.AddGroups( builder );
 
 		var boneNames = AddSkeleton( builder, mdl, boneBounds, boneTransforms, parentLocal: vtx == null );
@@ -57,8 +80,43 @@ internal sealed partial class SourceModelBuilder( BaseMount mount, string fullPa
 		AddHitboxes( builder, mdl, boneNames );
 		AddGameData( builder, mdl, physics );
 
+		string[] animatedBones = null;
+		if ( animations is not null )
+		{
+			builder.WithData( animations.StoredSequences() );
+			builder.WithData( animations.Clips.Where( animation => animation.PoseLayer is not null ).Select( animation => animation.PoseLayer ).Distinct().ToArray() );
+			builder.WithData( animations.PoseParameters );
+			// IK target bones ride on the bone their rule is relative to; the clips animate them.
+			animatedBones = [.. boneNames, .. animations.IkBones.Select( x => x.Name )];
+			foreach ( var (target, parent) in animations.IkBones )
+			{
+				// Bones are given in model space when the model has meshes, as the skeleton's own are.
+				var bind = vtx == null ? new Transform( Vector3.Zero ) : boneTransforms[parent];
+				builder.AddBone( target, bind.Position, bind.Rotation, boneNames[parent] );
+			}
+			if ( name is not null )
+			{
+				builder.WithData( new ModelAnimationData
+				{
+					Skeleton = SourceAnimations.SkeletonPath( name ),
+					ClipFolder = SourceAnimations.ClipFolder( name ),
+					Clips = animations.Clips.Select( animation => animation.Name ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray()
+				} );
+			}
+		}
+
 		builder.WithViewBounds( viewBounds );
 		var result = builder.Create();
+		if ( animations is not null && name is not null )
+		{
+			// The skeleton and clips are mounted resources of their own, created when something first loads them.
+			Host.AddAnimations( name, new SourceAnimations( animatedBones.Select( bone =>
+			{
+				var built = result.Bones.GetBone( bone );
+				if ( built is null ) return (bone, (string)null, Transform.Zero);
+				return (bone, built.Parent?.Name, built.Parent is null ? built.LocalTransform : built.Parent.LocalTransform.ToLocal( built.LocalTransform ));
+			} ).ToArray(), animations.BoneMasks, animations.Clips ) );
+		}
 		if ( physicsPlan != null )
 			ValidatePhysics( result, physics, physicsPlan );
 		return result;

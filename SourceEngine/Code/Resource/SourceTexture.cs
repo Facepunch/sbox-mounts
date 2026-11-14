@@ -10,6 +10,27 @@ internal sealed class SourceTexture : IDisposable
 	private readonly object frameLock = new();
 	private readonly Dictionary<int, VtfFile> decodedFrames = [];
 	private bool disposed;
+	private VtfSheet sheet;
+	private bool sheetLoaded;
+
+	internal VtfSheet Sheet
+	{
+		get
+		{
+			lock ( frameLock )
+			{
+				ObjectDisposedException.ThrowIf( disposed, this );
+				if ( sheetLoaded ) return sheet;
+				if ( metadata.SheetOffset is { } offset )
+				{
+					using var stream = file.Open();
+					sheet = VtfSheet.Read( stream, offset );
+				}
+				sheetLoaded = true;
+				return sheet;
+			}
+		}
+	}
 
 	internal SourceTexture( VtfFile metadata, BaseMount.SourceFile file, string texturePath )
 	{

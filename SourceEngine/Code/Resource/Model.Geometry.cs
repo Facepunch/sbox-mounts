@@ -6,22 +6,38 @@ namespace Source1;
 internal sealed partial class SourceModelBuilder
 {
 	private BBox?[] AddGeometry( ModelBuilder builder, MdlFile mdl, VtxFile vtx, MaterialSlots materials,
-		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, VertexTransform[] skinTransforms, StaticPropLighting lighting = null )
+		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, VertexTransform[] skinTransforms, StaticPropLighting lighting = null,
+		bool retainBoneSurfaces = false )
 	{
 		var boneBounds = new BBox?[mdl.BoneCount];
 		if ( vtx == null )
 			return boneBounds;
+		var surfaces = retainBoneSurfaces ? new Dictionary<int, List<ModelBoneSurfaceData.Sample>>() : null;
 		for ( var lod = 0; lod < vtx.RenderLodCount; lod++ )
 		{
 			builder.WithLodDistance( lod, vtx.GetLodSwitchPoint( lod ) );
-			AddLodGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, lod, boneBounds, skinTransforms, lighting );
+			AddLodGeometry( builder, mdl, vtx, materials, viewBounds, bodyGroupNames, flexNames, lod, boneBounds, skinTransforms, lighting, surfaces );
+		}
+		if ( surfaces?.Count > 0 )
+		{
+			builder.WithData( surfaces.OrderBy( entry => entry.Key ).Select( entry =>
+			{
+				var points = entry.Value.DistinctBy( point => (point.Position, point.TexCoord) ).ToArray();
+				// Retain useful spatial coverage without duplicating the complete mesh in metadata.
+				var count = Math.Min( 48, points.Length );
+				return new ModelBoneSurfaceData
+				{
+					Bone = mdl.GetBoneName( entry.Key ),
+					Samples = Enumerable.Range( 0, count ).Select( i => points[i * points.Length / count] ).ToArray()
+				};
+			} ).ToArray() );
 		}
 		return boneBounds;
 	}
 
 	private void AddLodGeometry( ModelBuilder builder, MdlFile mdl, VtxFile vtx, MaterialSlots materials,
 		BBox viewBounds, string[] bodyGroupNames, string[] flexNames, int lod, BBox?[] boneBounds, VertexTransform[] skinTransforms,
-		StaticPropLighting lighting )
+		StaticPropLighting lighting, Dictionary<int, List<ModelBoneSurfaceData.Sample>> surfaces )
 	{
 		for ( int bodyPartIndex = 0; bodyPartIndex < mdl.BodyPartCount; bodyPartIndex++ )
 		{
@@ -82,6 +98,17 @@ internal sealed partial class SourceModelBuilder
 							vertexTransforms[mapped] = GetVertexTransform( boneWeights, skinTransforms );
 
 						uniqueVerts[mapped] = new SkinnedVertex( pos, norm, tangent, new Vector2( src.TexCoordX, src.TexCoordY ), blendIndices, blendWeights );
+						if ( lod == 0 && surfaces is not null )
+						{
+							var bone = blendWeights.r >= 243 ? blendIndices.r : blendWeights.g >= 243 ? blendIndices.g
+								: blendWeights.b >= 243 ? blendIndices.b : -1;
+							if ( bone >= 0 )
+							{
+								var vertex = vertexTransforms is null ? uniqueVerts[mapped] : TransformVertex( uniqueVerts[mapped], vertexTransforms[mapped] );
+								if ( !surfaces.TryGetValue( bone, out var samples ) ) surfaces.Add( bone, samples = [] );
+								samples.Add( new( vertex.position, vertex.normal, vertex.texcoord ) );
+							}
+						}
 					}
 
 					for ( int i = 0; i < indices.Length; i += 3 )

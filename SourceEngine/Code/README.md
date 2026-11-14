@@ -261,6 +261,12 @@ extra entity rotations or runtime-only renderer overrides.
 
 WAV/MP3 files are mounted directly; surface sound
 events retain their authored wave variants, volume, pitch and attenuation.
+Every sound level falls off on Source's own gain curve (inverse distance referenced to
+36 units at 60 dB, 4 dB extra loss per 1200 units, compressed towards full volume close by),
+sampled into the event's falloff curve out to where the gain reaches 0.001.
+`attenuation` and `CompatibilityAttenuation` values become sound levels through
+`50 + 20 / attenuation`; GoldSrc's linear compatibility curve, which Counter-Strike: Source
+weapons select, is not reproduced.
 Unavailable wave references are reported once per sound during mounting.
 Available variants remain usable; a sound with no available waves leaves its
 surface slot empty without preventing the physical surface from loading.
@@ -274,8 +280,27 @@ shaders and render targets report an error and use the error material.
 bind a shared, initially black render target. No live camera entities, feeds or
 captured UI views are imported.
 Refraction destination-alpha masks are not reproduced.
-There is no skeletal animation reader, animation-data copy, clip import,
-included animation model loading or flex-controller/rule evaluation.
+Every model also registers an opt-in `<path>.animated` loader (developer-only in browsing)
+that imports its sequences, including `$includemodel` animation files, as lazily decoded
+clips with sequence data: activities, anim events, blend grids, autolayers, pose parameters
+and sequence weight lists as bone masks. The plain loader imports no animation.
+There is no flex-controller/rule evaluation.
+
+Source-shaped model data is stored with `ModelBuilder.WithData` under the GameData names
+`sequence_data_list`, `pose_layer_data_list`, `pose_parameter_data_list`, `bone_surface_list`
+and `weapon_data_list` (`Resource/ModelData.cs`). The engine defines no types for it: game code
+declares its own classes with the same `[ModelEditor.GameData]` names and member names and reads
+them with `Model.GetData<T>()`.
+
+Weapon scripts (`scripts/weapon_*.txt`) become `weapon_data` on their
+view and world models and `scripts/weapon_*.txt.json` text resources. Damage comes from
+the script's `Damage` or else `cfg/skill.cfg`.
+A script's `TextureData` "weapon" icon becomes `scripts/weapon_*.txt.icon.vtex` (the `Icon` member): the scheme font's glyph
+(logical font to family through `resource/clientscheme.res`, family to a `resource/` font file), or a `"file"` material region, white on transparent.
+Sound events come from
+`scripts/game_sounds_manifest.txt`; every PCF's systems register as particle prefabs.
+Speech data becomes JSON text resources for game code to read: `scripts/sentences.txt.json`
+and `scripts/talker/response_rules.txt.json`.
 
 ### Shaders
 
@@ -294,6 +319,13 @@ bounded native dielectric reflectance. Source Half-Lambert, diffuse/specular war
 and rim-light overrides do not replace native lighting and are reported at trace
 level when authored. This is native lighting integration, not exact Source BRDF parity.
 Authored cubemaps retain their Source masks, tints and environment Fresnel.
+Without `$phong` the generic shader uses one roughness for native direct specular, which
+Source does not have, and for scene-probe reflections. Authored environment textures are
+sampled separately, so their surfaces use roughness 1. Lit model `env_cubemap` surfaces derive
+roughness from their brightest linear `$envmaptint` component: at most 0.25 is matte (1), at
+least 0.75 keeps a sharp mirror (0), with a smoothstep between. Dim sheens such as Counter-Strike
+player cloth no longer get a full-surface sun highlight, while chrome and glass keep crisp
+reflections. Phong, unlit and lightmapped surfaces keep sharp probe reflections.
 Self-illumination Fresnel uses the vertex normal and Source's scale/bias/brightness
 convention. Imported BSP lightmaps and static-prop lighting remain baked inputs;
 additional clustered lights use the native light evaluator without adding the baked
@@ -348,7 +380,7 @@ Each bone's reference transform is composed with its authored `poseToBone` matri
 vertices use Source's weighted skin matrices, not a shared root correction.
 Mesh geometry, normals, tangents, morphs and the skeleton use that pose together.
 Independent roots and child bones retain their individual transforms.
-No animation clips or full animation buffers are imported. Additive, IK,
+The reference pose itself reads no animation clips (see `.animated` above). Additive, IK,
 root-motion and reparented references retain the bind pose with a trace diagnostic.
 PHY coordinates and ragdoll bind poses remain unchanged.
 Geometry-free animation helpers retain empty geometry. Studiomdl's untouched

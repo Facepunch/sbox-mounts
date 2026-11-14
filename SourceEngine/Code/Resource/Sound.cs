@@ -19,7 +19,10 @@ internal static class SourceSoundEvents
 		var sounds = new List<SoundFile>();
 		foreach ( var wave in definition.Waves )
 		{
-			var sound = host.LoadContentSound( wave, contentRoot );
+			// ^ stores close/far recordings and < stores front/rear recordings,
+			// not ordinary left/right stereo. Use close/front until SoundEvent can
+			// blend those authored layers by listener distance and source orientation.
+			var sound = host.LoadContentSound( wave, contentRoot, definition.DistanceVariant || definition.Directional ? 0 : null );
 			if ( sound is null || !sound.IsValid )
 				throw new InvalidOperationException( $"{definition.SourcePath}: wave '{wave}' could not be loaded." );
 			sounds.Add( sound );

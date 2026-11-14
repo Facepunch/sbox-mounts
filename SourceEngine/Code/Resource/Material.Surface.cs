@@ -157,6 +157,7 @@ internal sealed partial class SourceMaterialBuilder
 			SetVector( "g_vSourceDetailTint", "$detailtint", Vector3.One, linearize: true );
 		material.Set( "g_flSourceDetailSrgb", detailMode is > 0 and < 10 );
 		material.Set( "g_flSourceEnvMap", environment );
+		material.Set( "g_flSourceEnvRoughness", GetEnvironmentRoughness( shader, parameters ) );
 		material.Set( "g_nSourceEnvMask", envMaskMode );
 		SetVector( "g_vSourceEnvTint", "$envmaptint", Vector3.One, linearize: !skin );
 		SetVector( "g_vSourceEnvContrast", "$envmapcontrast", Vector3.Zero );
@@ -222,6 +223,21 @@ internal sealed partial class SourceMaterialBuilder
 				throw new InvalidDataException( $"{name}: {input} color conversion overflows." );
 			material.Set( input, value );
 		}
+	}
+
+	// Without $phong this also drives native direct specular, which Source does not have, so only bright env_cubemap tints stay glossy.
+	internal static float GetEnvironmentRoughness( string shader, VmtParameters parameters )
+	{
+		var environment = parameters.String( "$envmap" )?.Trim();
+		if ( string.IsNullOrEmpty( environment ) || (shader == "vertexlitgeneric" && parameters.Boolean( "$phong" )) )
+			return 0;
+		if ( !environment.Equals( "env_cubemap", StringComparison.OrdinalIgnoreCase ) )
+			return 1;
+		if ( shader is not ("vertexlitgeneric" or "vortwarp") || parameters.Boolean( "$unlit" ) )
+			return 0;
+		var tint = ToLinear( parameters.Vector( "$envmaptint", Vector3.One ) );
+		var strength = Math.Clamp( (Math.Max( tint.x, Math.Max( tint.y, tint.z ) ) - 0.25f) / 0.5f, 0, 1 );
+		return 1 - strength * strength * (3 - 2 * strength);
 	}
 
 	private static float Alpha( SurfaceTexture texture ) => texture?.HasAlpha == true ? 1 : 0;

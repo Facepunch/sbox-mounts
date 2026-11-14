@@ -8,7 +8,7 @@ internal sealed partial class VmtFile
 	private enum TokenKind { End, Value, Open, Close, Assignment, Condition }
 	private readonly record struct Token( string Text, TokenKind Kind, int Line );
 
-	private sealed class Parser( string text, string path, LoadContext context )
+	private sealed class Parser( string text, string path, LoadContext context, bool escapeSequences = true )
 	{
 		private int position;
 		private int line = 1;
@@ -79,7 +79,7 @@ internal sealed partial class VmtFile
 							: value.Append( text, segmentStart, position - segmentStart - 1 ).ToString();
 						return new( result, TokenKind.Value, tokenLine );
 					}
-					if ( c == '\\' && position < text.Length && text[position] == '"' )
+					if ( escapeSequences && c == '\\' && position < text.Length && text[position] == '"' )
 					{
 						value ??= new StringBuilder();
 						value.Append( text, segmentStart, position - segmentStart - 1 );

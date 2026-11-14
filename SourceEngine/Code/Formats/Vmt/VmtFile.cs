@@ -27,13 +27,14 @@ internal sealed partial class VmtFile
 	/// <summary>
 	/// Parses a standalone KeyValues document without material path or patch semantics.
 	/// File inclusion requires a filesystem-aware loader and is rejected here.
+	/// Without escape sequences a backslash before a quote is literal, as in Source's default KeyValues reader.
 	/// </summary>
 	public static IReadOnlyList<VmtNode> ParseKeyValues( string text, string sourceName,
-		Action<VmtDiagnostic> reportDiagnostic = null )
+		Action<VmtDiagnostic> reportDiagnostic = null, bool escapeSequences = true )
 	{
 		var context = new LoadContext( _ => throw new NotSupportedException( "Standalone KeyValues file inclusion is not supported." ),
 			null, reportDiagnostic );
-		var parser = new Parser( text, sourceName, context );
+		var parser = new Parser( text, sourceName, context, escapeSequences );
 		var roots = parser.ReadDocument();
 		if ( parser.Includes.Count > 0 || parser.Bases.Count > 0 )
 			throw new NotSupportedException( $"{sourceName}: standalone KeyValues file inclusion is not supported." );
