@@ -1,8 +1,9 @@
 using System;
+using System.IO;
 
 namespace GoldSrc.Mdl;
 
-readonly struct Header( BinaryReader reader )
+public readonly struct Header( BinaryReader reader )
 {
 	public readonly int Id = reader.ReadInt32();
 	public readonly int Version = reader.ReadInt32();

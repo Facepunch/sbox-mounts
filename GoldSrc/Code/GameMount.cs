@@ -1,9 +1,11 @@
+using Sandbox.Mounting;
+using System;
+using System.IO;
+using System.Threading.Tasks;
+
 namespace GoldSrc;
 
-/// <summary>
-/// A mounting implementation for Half-Life 1
-/// </summary>
-public abstract class GameMount : BaseGameMount
+public abstract partial class GameMount : BaseGameMount
 {
 	public abstract long AppId { get; }
 
@@ -12,6 +14,38 @@ public abstract class GameMount : BaseGameMount
 	public abstract IReadOnlyList<string> GameDirs { get; }
 
 	internal BaseFileSystem FileSystem { get; private set; }
+
+	private readonly Dictionary<string, Wad> wads = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// Every WAD3 found in the mounted game directories, keyed by file name without extension.
+	/// Maps reference these by name in their worldspawn "wad" key.
+	/// </summary>
+	public IReadOnlyDictionary<string, Wad> Wads => wads;
+
+	/// <summary>
+	/// Resolve a game relative path (like "gfx/env/desertup.tga") against the mounted game
+	/// directories, in priority order, so HD content wins over the base game.
+	/// </summary>
+	public string FindFile( string relativePath )
+	{
+		if ( FileSystem is null || GameDirs is null )
+			return null;
+
+		foreach ( var dir in GameDirs )
+		{
+			var fullPath = Path.Combine( dir, relativePath ).Replace( '\\', '/' );
+			if ( FileSystem.FileExists( fullPath ) )
+				return fullPath;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Resolve the game-relative path for building "mount://" resource paths.
+	/// </summary>
+	public string FindMountPath( string relativePath ) => FindFile( relativePath );
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -34,12 +68,12 @@ public abstract class GameMount : BaseGameMount
 
 			foreach ( var relativePath in FileSystem.FindFile( dir, "*.*", true ) )
 			{
-				var ext = Path.GetExtension( relativePath )?.ToLowerInvariant();
+				var fullPath = Path.Combine( dir, relativePath );
+				var ext = Path.GetExtension( fullPath )?.ToLowerInvariant();
 				if ( string.IsNullOrEmpty( ext ) )
 					continue;
 
-				var fullPath = Path.Combine( dir, relativePath );
-				var path = Path.Combine( dir, relativePath ).Replace( '\\', '/' );
+				var path = fullPath.Replace( '\\', '/' );
 
 				if ( ext == ".wad" )
 				{
@@ -49,13 +83,15 @@ public abstract class GameMount : BaseGameMount
 						wad.LoadWadFile( FileSystem, fullPath );
 						var wadName = Path.GetFileNameWithoutExtension( path );
 
+						wads[wadName] = wad;
+
 						foreach ( var lump in wad.Lumps )
 						{
 							if ( lump.Type != 67 ) continue;
 
 							var texture = new WadTextureLoader( wad, lump.Name );
 							context.Add( ResourceType.Texture, $"{dir}/textures/{wadName}/{lump.Name}", texture );
-							context.Add( ResourceType.Material, $"{dir}/materials/{wadName}/{lump.Name}", new MaterialLoader( texture.Path ) );
+							context.Add( ResourceType.Material, $"{dir}/materials/{wadName}/{lump.Name}", new MaterialLoader( texture.Path, lump.Name ) );
 						}
 					}
 					catch ( System.Exception ex )
@@ -68,12 +104,13 @@ public abstract class GameMount : BaseGameMount
 
 				if ( ext == ".mdl" )
 				{
-					using var reader = new BinaryReader( FileSystem.OpenRead( fullPath ) );
+					using var stream = FileSystem.OpenRead( fullPath );
+					using var reader = new BinaryReader( stream );
 
 					if ( reader.ReadInt32() != 0x54534449 || reader.ReadInt32() != 10 )
 						continue;
 
-					reader.BaseStream.Seek( 204, SeekOrigin.Begin );
+					stream.Seek( 204, SeekOrigin.Begin );
 					if ( reader.ReadInt32() <= 0 )
 						continue;
 
@@ -83,9 +120,15 @@ public abstract class GameMount : BaseGameMount
 				{
 					context.Add( ResourceType.Sound, path, new WavSoundLoader( fullPath ) );
 				}
+				else if ( ext == ".bsp" )
+				{
+					context.Add( ResourceType.Scene, path, new MapLoader( fullPath ) );
+				}
 			}
 		}
 
+		MountSurfaces( context );
+		MountDecals( context );
 		IsMounted = true;
 		return Task.CompletedTask;
 	}

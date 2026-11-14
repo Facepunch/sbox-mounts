@@ -1,16 +1,20 @@
-﻿using System.Text;
+using Sandbox.Mounting;
+using System.IO;
+using System.Text;
 
 namespace GoldSrc;
 
-class WadTextureLoader( Wad wad, string lumpName ) : ResourceLoader<GameMount>
+public class WadTextureLoader( Wad wad, string lumpName ) : ResourceLoader<GameMount>
 {
+	private readonly Wad Wad = wad;
+
 	protected override object Load()
 	{
-		var lumpData = wad.GetLumpData( lumpName );
+		var lumpData = Wad.GetLumpData( lumpName );
 		using var ms = new MemoryStream( lumpData );
 		using var br = new BinaryReader( ms );
 
-		var textureName = Encoding.ASCII.GetString( br.ReadBytes( 16 ) ).TrimEnd( '\0' );
+		var textureName = Encoding.ASCII.GetString( br.ReadBytes( 16 ) ).Split( '\0' )[0];
 		var width = br.ReadInt32();
 		var height = br.ReadInt32();
 
@@ -41,16 +45,6 @@ class WadTextureLoader( Wad wad, string lumpName ) : ResourceLoader<GameMount>
 		var length = width * height;
 		var data = br.ReadBytes( length );
 
-		// Only masked textures ({name) treat palette index 255 as transparent,
-		// black it out so the key colour doesn't bleed into the edges
-		var masked = lumpName.StartsWith( '{' );
-		if ( masked )
-		{
-			palette[(255 * 3) + 0] = 0;
-			palette[(255 * 3) + 1] = 0;
-			palette[(255 * 3) + 2] = 0;
-		}
-
 		var imageData = new byte[length * 4];
 		int offset = 0;
 
@@ -62,7 +56,7 @@ class WadTextureLoader( Wad wad, string lumpName ) : ResourceLoader<GameMount>
 			imageData[offset++] = palette[paletteOffset];
 			imageData[offset++] = palette[paletteOffset + 1];
 			imageData[offset++] = palette[paletteOffset + 2];
-			imageData[offset++] = (masked && index == 255) ? (byte)0 : (byte)255;
+			imageData[offset++] = (index == 255) ? (byte)0 : (byte)255;
 		}
 
 		return Texture.Create( width, height )

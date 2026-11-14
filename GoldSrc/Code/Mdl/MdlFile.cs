@@ -1,9 +1,10 @@
-﻿using System;
+using System;
+using System.IO;
 using System.Text;
 
 namespace GoldSrc.Mdl;
 
-class File
+public class File
 {
 	public Header Header => _header;
 
@@ -311,6 +312,7 @@ class File
 		return value;
 	}
 
+
 	public static File FromStream( Stream stream )
 	{
 		return new File( stream );
@@ -462,13 +464,14 @@ class File
 			ms.Seek( textureData.Index + pixelCount, SeekOrigin.Begin );
 			var palette = br.ReadBytes( 256 * 3 );
 
-			var masked = (textureData.Flags & LightingFlags.Masked) != 0;
-			if ( masked )
+			if ( (textureData.Flags & LightingFlags.Masked) != 0 )
 			{
 				palette[(255 * 3) + 0] = 0;
 				palette[(255 * 3) + 1] = 0;
 				palette[(255 * 3) + 2] = 0;
 			}
+
+			bool masked = (textureData.Flags & LightingFlags.Masked) != 0;
 
 			var imageData = new byte[pixelCount * 4];
 			var imageDataSpan = imageData.AsSpan();
@@ -476,22 +479,23 @@ class File
 
 			for ( var j = 0; j < pixelCount; ++j )
 			{
-				var palIndex = pixelData[j] * 3;
+				var rawIndex = pixelData[j];
+				var palIndex = rawIndex * 3;
 				var destIndex = j * 4;
 
 				imageDataSpan[destIndex] = paletteSpan[palIndex];
 				imageDataSpan[destIndex + 1] = paletteSpan[palIndex + 1];
 				imageDataSpan[destIndex + 2] = paletteSpan[palIndex + 2];
-				imageDataSpan[destIndex + 3] = (masked && pixelData[j] == 255) ? (byte)0 : (byte)255;
+				imageDataSpan[destIndex + 3] = (byte)(masked && rawIndex == 255 ? 0 : 255);
 			}
 
 			var width = textureData.Width;
 			var height = textureData.Height;
 
-			_textures[i] = Texture.Create( width, height )
-				.WithData( imageData )
-				.WithMips()
-				.Finish();
+			var builder = Texture.Create( width, height ).WithData( imageData );
+			if ( (textureData.Flags & LightingFlags.NoMips) == 0 )
+				builder = builder.WithMips();
+			_textures[i] = builder.Finish();
 		}
 
 		_skinRefs = new short[_header.NumSkinFamilies * _header.NumSkinRef];
