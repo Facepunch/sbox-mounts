@@ -14,7 +14,6 @@ partial class MapLoader
 	private const int LuxelSize = 16;
 
 	private readonly List<Texture[]> _lightmapPages = [];
-	private Texture _lightstyleTex;
 	private FaceSurface[] _surfaces;
 
 	private struct FaceSurface
@@ -27,40 +26,12 @@ partial class MapLoader
 	}
 
 	/// <summary>
-	/// Packs the animated lightstyle sequences into a small lookup texture. Row = style / 4,
-	/// channel = style % 4, column = frame, matching what quake_generic.shader samples.
-	/// </summary>
-	private static Texture BuildLightstyleTexture()
-	{
-		const int frames = 64;
-		const int rows = 3;
-
-		var data = new byte[frames * rows * 4];
-
-		for ( var styleIndex = 0; styleIndex < DefaultLightstyles.Length; ++styleIndex )
-		{
-			var row = styleIndex / 4;
-			var channel = styleIndex % 4;
-			var style = DefaultLightstyles[styleIndex];
-
-			for ( var frame = 0; frame < frames; ++frame )
-			{
-				var texel = ((row * frames) + frame) * 4;
-				data[texel + channel] = (byte)style[frame % style.Length];
-			}
-		}
-
-		return Texture.Create( frames, rows, ImageFormat.RGBA8888 ).WithData( data ).Finish();
-	}
-
-	/// <summary>
 	/// Measures every face's lightmap extents, packs them into atlas pages and copies the
 	/// RGB samples (one block per active lightstyle) into the three style-channel textures.
 	/// </summary>
 	private void CreateSurfaces( BspFile bsp )
 	{
 		const int size = LightmapPageSize;
-		_lightstyleTex = BuildLightstyleTexture();
 
 		var faceCount = bsp.Faces.Length;
 		_surfaces = new FaceSurface[faceCount];
@@ -167,9 +138,11 @@ partial class MapLoader
 			for ( var s = 0; s < styles.Length; ++s )
 			{
 				if ( styles[s] == 255 )
-					continue;
+					break;
+				if ( styles[s] >= LightStyles.StyleCount )
+					throw new InvalidDataException( $"{FilePath}: face {faceIndex} has invalid lightstyle {styles[s]}." );
 
-				int source = checked( face.LightmapOffset + block++ * luxels * 3 );
+				int source = checked(face.LightmapOffset + block++ * luxels * 3);
 				if ( source < 0 || source > bsp.Lighting.Length - luxels * 3 )
 					throw new InvalidDataException( $"{FilePath}: face {faceIndex} has invalid lightmap samples." );
 				for ( var y = 0; y < height; ++y )
@@ -255,23 +228,4 @@ partial class MapLoader
 		node.MaxH = Math.Max( node.Left.MaxH, node.Right.MaxH );
 		return result;
 	}
-
-	/// <summary>
-	/// The stock GoldSrc/Quake lightstyle animation strings, 'a' being off and 'z' brightest.
-	/// </summary>
-	private static readonly string[] DefaultLightstyles =
-	[
-		"m",
-		"mmnmmommommnonmmonqnmmo",
-		"abcdefghijklmnopqrstuvwxyzyxwvutsrqponmlkjihgfedcba",
-		"mmmmmaaaaammmmmaaaaaabcdefgabcdefg",
-		"mamamamamama",
-		"jklmnopqrstuvwxyzyxwvutsrqponmlkj",
-		"nmonqnmomnmomomno",
-		"mmmaaaabcdefgmmmmaaaammmaamm",
-		"mmmaaammmaaammmabcdefaaaammmmabcdefmmmaaaa",
-		"aaaaaaaazzzzzzzz",
-		"mmamammmmammamamaaamammma",
-		"abcdefghijklmnopqrrqponmlkjihgfedcba",
-	];
 }

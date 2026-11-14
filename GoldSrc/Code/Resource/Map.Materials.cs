@@ -48,7 +48,6 @@ partial class MapLoader
 		material.Set( "LightmapR", lightmaps[0] );
 		material.Set( "LightmapG", lightmaps[1] );
 		material.Set( "LightmapB", lightmaps[2] );
-		material.Set( "LightstyleTex", _lightstyleTex );
 
 		return material;
 	}
@@ -62,7 +61,6 @@ partial class MapLoader
 		var material = Material.Create( $"{texture.Name}_{texIndex}_unlit_{(int)blend}_{surfaceType}", "shaders/goldsrc_generic.shader" );
 		material.Set( "Color", _textures[texIndex] );
 		material.Set( "Fullbright", _whiteTexture ??= CreateWhiteTexture() );
-		material.Set( "LightstyleTex", _lightstyleTex );
 		return material;
 	}
 

@@ -38,6 +38,10 @@ partial class MapLoader
 				_authoredDecals.Add( entity );
 				return;
 
+			case "light" or "light_spot" or "light_environment":
+				SpawnLight( entity );
+				return;
+
 			case "info_player_start" or "info_player_deathmatch" or "info_player_coop":
 				SpawnPlayerStart( entity );
 				return;
@@ -62,6 +66,23 @@ partial class MapLoader
 		go.WorldPosition = entity.Origin;
 		go.WorldRotation = Rotation.FromYaw( entity.Angles.yaw );
 		go.AddComponent<SpawnPoint>();
+	}
+
+	private void SpawnLight( Entity entity )
+	{
+		if ( string.IsNullOrEmpty( entity.TargetName ) ) return;
+		var go = new GameObject( true, EntityName( entity ) );
+		go.WorldPosition = entity.Origin;
+		go.WorldRotation = entity.Rotation;
+		var light = go.AddComponent<Light>();
+		light.TargetName = entity.TargetName;
+		light.Styles = _lightStyles;
+		light.Style = entity.GetInt( "style" );
+		light.Pattern = entity.GetString( "pattern" );
+		light.IsOn = (entity.SpawnFlags & 1) == 0;
+		if ( light.Style >= 32 )
+			_lightStyles.SetStyle( light.Style, light.IsOn ? light.OnPattern : "a" );
+		RegisterTarget( entity, light );
 	}
 
 	private static void SpawnPreview( Entity entity )

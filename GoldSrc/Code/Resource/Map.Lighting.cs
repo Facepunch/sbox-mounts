@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using GoldSrc.Bsp;
 
 namespace GoldSrc;
@@ -9,11 +8,9 @@ partial class MapLoader
 	private const int MaxProbeVolumes = 24;
 	private const int MaxProbesPerVolume = 1024;
 	private const float ProbeSpacing = 64;
-	private readonly List<Texture> _probeTextures = [];
 
 	private void SpawnLightProbes( BspFile bsp )
 	{
-		_probeTextures.Clear();
 		var open = bsp.Leaves.Where( leaf => !leaf.Solid && leaf.HasVolume ).Select( leaf => leaf.Bounds ).ToArray();
 		if ( open.Length == 0 )
 		{
@@ -39,12 +36,13 @@ partial class MapLoader
 			Log.Warning( $"{FilePath}: BSP has no lightmap samples; using fullbright model probes." );
 		int totalProbes = 0;
 		int reflectionProbes = 0;
+		int volumeIndex = 0;
 		foreach ( var cell in cells.Values )
 		{
 			var bounds = cell.Grow( 16 );
 			var counts = ProbeCounts( bounds.Size );
 			int probes = counts.x * counts.y * counts.z;
-			var data = new byte[probes * 48];
+			var samples = new byte[probes * LightStyleProbes.SampleStride];
 			var spacing = bounds.Size / new Vector3( counts.x, counts.y, counts.z );
 			var capturePosition = bounds.Center;
 			float captureDistance = float.PositiveInfinity;
@@ -60,34 +58,23 @@ partial class MapLoader
 							capturePosition = position;
 							captureDistance = distance;
 						}
-						var color = SampleFloorLight( bsp, position );
 						int probe = x + counts.x * (y + counts.y * z);
-						// Native ambient layers are +X, +Y, +Z, -X, -Y, -Z, not interleaved.
-						for ( int side = 0; side < 6; side++ )
-						{
-							float lightcos = side == 2 ? -1 : side == 5 ? 1 : 0;
-							float shade = bsp.Lighting.Length == 0 ? 1 : 1 - 0.9f * Math.Max( 0, (lightcos + 0.4953241f) / 1.4953241f );
-							int offset = (side * probes + probe) * 8;
-							WriteProbeHalf( data, offset, ProbeLinear( color.x * shade ) );
-							WriteProbeHalf( data, offset + 2, ProbeLinear( color.y * shade ) );
-							WriteProbeHalf( data, offset + 4, ProbeLinear( color.z * shade ) );
-							WriteProbeHalf( data, offset + 6, 1 );
-						}
+						int offset = probe * LightStyleProbes.SampleStride;
+						samples[offset] = 1;
+						SampleFloorLight( bsp, position, samples.AsSpan( offset + 1, 16 ) );
 					}
-			var texture = Texture.CreateVolume( counts.x, counts.y, counts.z * 6, ImageFormat.RGBA16161616F )
-				.WithName( $"{WorldModelName}/model_probes_{_probeTextures.Count}" ).WithData( data ).Finish();
-			if ( texture is null || !texture.IsValid || texture.IsError )
-				throw new InvalidOperationException( $"{FilePath}: failed to create model light probe texture." );
-			_probeTextures.Add( texture );
-			var go = new GameObject( false, $"model light probes {_probeTextures.Count}" )
+			var go = new GameObject( false, $"model light probes {++volumeIndex}" )
 			{
 				Parent = root,
 				LocalPosition = bounds.Center
 			};
-			var volume = go.AddComponent<LightProbeVolume>();
+			var volume = go.AddComponent<LightStyleProbes>();
+			volume.Styles = _lightStyles;
+			volume.GridSize = counts;
+			volume.Samples = samples;
+			volume.Fullbright = bsp.Lighting.Length == 0;
 			volume.Bounds = new BBox( bounds.Mins - bounds.Center, bounds.Maxs - bounds.Center );
 			volume.Priority = -(int)Math.Ceiling( Math.Log2( Math.Max( 1, bounds.Size.LengthSquared ) ) );
-			volume.Texture = texture;
 			if ( float.IsFinite( captureDistance ) )
 			{
 				var reflections = new GameObject( false, "reflections" )
@@ -110,7 +97,7 @@ partial class MapLoader
 			}
 			else
 			{
-				Log.Warning( $"{FilePath}: model probe volume {_probeTextures.Count} has no open capture position; no reflection probe was created." );
+				Log.Warning( $"{FilePath}: model probe volume {volumeIndex} has no open capture position; no reflection probe was created." );
 			}
 			go.Enabled = true;
 			totalProbes += probes;
@@ -137,14 +124,5 @@ partial class MapLoader
 		return counts;
 
 		static int Count( float extent ) => Math.Clamp( (int)Math.Ceiling( extent / ProbeSpacing ), 1, 16 );
-	}
-
-	private static void WriteProbeHalf( byte[] data, int offset, float value ) =>
-		BitConverter.TryWriteBytes( data.AsSpan( offset, 2 ), (Half)value );
-
-	private static float ProbeLinear( float value )
-	{
-		value = Math.Clamp( value / 255, 0, 1 );
-		return value <= 0.04045f ? value / 12.92f : MathF.Pow( (value + 0.055f) / 1.055f, 2.4f );
 	}
 }

@@ -60,25 +60,11 @@ VS
 {
 	#include "common/vertex.hlsl"
 
-	CreateInputTexture2D( LightstyleTex, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
-	Texture2D g_tLightstyleTex < Channel( RGBA, Box( LightstyleTex ), Linear ); OutputFormat( RGBA8888 ); SrgbRead( false ); >;
+	Texture2D<float> g_tLightStyles < Attribute( "GoldSrcLightStyles" ); SrgbRead( false ); >;
 
-	//
-	// Lightstyle values are ( 'x' - 'a' ) * 22. The lightmap bake
-	// accumulates sample * value, scales by 256 and shifts down by 14, then writes the top
-	// 8 bits ( >> 2 ) into the lightmap texture. Net, a style contributes
-	// ( c - 'a' ) * 22 / 256 of the sample, which is 1.03125 for the normal style 'm'.
-	//
 	float GetLightstyleValue( int styleIndex )
 	{
-		int frame = (int)( g_flTime * 10.0 ) % 64;
-		int row = styleIndex / 4;
-		int channel = styleIndex % 4;
-		uint2 texelCoords = uint2( frame, row );
-		float4 rgba = g_tLightstyleTex.Load( int3( texelCoords, 0 ) );
-		float ch = rgba[channel] * 255.0;
-		if ( ch < 97.0 || ch > 122.0 ) ch = 109.0;
-		return ( ch - 97.0 ) * 22.0 / 256.0;
+		return g_tLightStyles.Load( int3( styleIndex, 0, 0 ) );
 	}
 
 	PixelInput MainVs( VertexInput v )

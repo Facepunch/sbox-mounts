@@ -7,17 +7,16 @@ namespace GoldSrc;
 partial class MapLoader
 {
 	// Sample the floor, not the mean lighting of a room's walls.
-	private Vector3 SampleFloorLight( BspFile bsp, Vector3 position )
+	private void SampleFloorLight( BspFile bsp, Vector3 position, Span<byte> samples )
 	{
-		if ( bsp.Lighting.Length == 0 ) return new Vector3( 255 );
+		for ( int slot = 0; slot < 4; slot++ ) samples[slot * 4 + 3] = 255;
+		if ( bsp.Lighting.Length == 0 ) return;
 		var start = position + Vector3.Up * 8;
-		return TraceLightPoint( bsp, checked( (int)bsp.Models[0].HeadNode0 ), start, start + Vector3.Down * 2048, 0, out var color )
-			? color.Clamp( 0, 255 ) : Vector3.Zero;
+		TraceLightPoint( bsp, checked((int)bsp.Models[0].HeadNode0), start, start + Vector3.Down * 2048, 0, samples );
 	}
 
-	private bool TraceLightPoint( BspFile bsp, int index, Vector3 start, Vector3 end, int depth, out Vector3 color )
+	private bool TraceLightPoint( BspFile bsp, int index, Vector3 start, Vector3 end, int depth, Span<byte> samples )
 	{
-		color = Vector3.Zero;
 		if ( index < 0 ) return false;
 		if ( index >= bsp.Nodes.Length || depth >= 128 )
 			throw new InvalidDataException( $"{FilePath}: invalid BSP tree while sampling model lighting." );
@@ -27,9 +26,9 @@ partial class MapLoader
 		float back = Vector3.Dot( end, plane.Normal ) - plane.Distance;
 		int side = front < 0 ? 1 : 0;
 		if ( (back < 0) == (front < 0) )
-			return TraceLightPoint( bsp, node.Child( side ), start, end, depth + 1, out color );
+			return TraceLightPoint( bsp, node.Child( side ), start, end, depth + 1, samples );
 		var middle = start + (end - start) * (front / (front - back));
-		if ( TraceLightPoint( bsp, node.Child( side ), start, middle, depth + 1, out color ) ) return true;
+		if ( TraceLightPoint( bsp, node.Child( side ), start, middle, depth + 1, samples ) ) return true;
 		for ( int i = 0; i < node.FaceCount; i++ )
 		{
 			int faceIndex = node.FirstFace + i;
@@ -43,31 +42,23 @@ partial class MapLoader
 			if ( width <= 0 || height <= 0 || s < 0 || t < 0 || s > (width - 1) * LuxelSize || t > (height - 1) * LuxelSize )
 				continue;
 			if ( face.LightmapOffset < 0 ) return true;
-			int x = Math.Clamp( (int)MathF.Floor( s / LuxelSize + 0.5f ), 0, width - 1 );
-			int y = Math.Clamp( (int)MathF.Floor( t / LuxelSize + 0.5f ), 0, height - 1 );
+			int x = (int)s / LuxelSize;
+			int y = (int)t / LuxelSize;
 			Span<byte> styles = [face.Style0, face.Style1, face.Style2, face.Style3];
 			int block = 0;
 			foreach ( var style in styles )
 			{
 				if ( style == 255 ) break;
-				int offset = checked( face.LightmapOffset + ((block++ * width * height + y * width + x) * 3) );
+				int offset = checked(face.LightmapOffset + ((block * width * height + y * width + x) * 3));
 				if ( offset < 0 || offset > bsp.Lighting.Length - 3 )
 					throw new InvalidDataException( $"{FilePath}: face {faceIndex} has invalid lightmap samples." );
-				float scale = ProbeLightstyleScale( style );
-				color += new Vector3( bsp.Lighting[offset], bsp.Lighting[offset + 1], bsp.Lighting[offset + 2] ) * scale;
+				bsp.Lighting.AsSpan( offset, 3 ).CopyTo( samples.Slice( block * 4, 3 ) );
+				samples[block * 4 + 3] = style;
+				block++;
 			}
 			return true;
 		}
-		return TraceLightPoint( bsp, node.Child( 1 - side ), middle, end, depth + 1, out color );
-	}
-
-	private static float ProbeLightstyleScale( int style )
-	{
-		if ( style >= DefaultLightstyles.Length ) return 1;
-		var sequence = DefaultLightstyles[style];
-		float sum = 0;
-		foreach ( char c in sequence ) sum += (c - 'a') * 22f / 256;
-		return sum / sequence.Length;
+		return TraceLightPoint( bsp, node.Child( 1 - side ), middle, end, depth + 1, samples );
 	}
 
 	private static bool FindProbePosition( BspFile bsp, ref Vector3 position, Vector3 spacing )
@@ -89,7 +80,7 @@ partial class MapLoader
 
 	private static bool ProbeInOpenLeaf( BspFile bsp, Vector3 position )
 	{
-		int index = checked( (int)bsp.Models[0].HeadNode0 );
+		int index = checked((int)bsp.Models[0].HeadNode0);
 		int remaining = bsp.Nodes.Length;
 		while ( index >= 0 )
 		{

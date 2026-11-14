@@ -14,8 +14,6 @@ Only textures referenced by rendered faces are resolved from WADs, decoded and u
 Lit and fullbright materials share constant masks instead of allocating a mask per texture.
 Missing WAD textures warn and use opaque black. Geometry reuses its face-vertex buffer,
 keeps the existing triangulator and gives each render mesh its own tight bounds.
-Lightmap packing and samples, entity wiring, probe budgets,
-capture placement and floor-light sampling are unchanged.
 
 Opaque static world and brush geometry is batched across objects by material and tint
 into `AggregateRenderer` models. World fragments follow the BSP's existing leaf references
@@ -103,6 +101,15 @@ Reimport existing scenes to acquire the decal resources and placed marks.
 ## Lighting
 
 World and brush surfaces retain their original RGB lightmaps and animated lightstyles.
+Each map instance owns 64 lightstyles. Patterns advance in discrete 10 Hz steps,
+loop at their own length and retain their phase when switched. Empty styles have
+intensity 256; pattern letters contribute `(letter - 'a') * 22`. Custom patterns
+use at most 63 characters. Named `light`, `light_spot` and `light_environment`
+entities support start-off, custom patterns and on/off/toggle inputs for styles
+32–63. Shared style IDs use the last write, and removing a light leaves its style
+unchanged. Inputs do not fire the light's targets. Pattern and switch state are
+serialized and host-synchronized when the map objects are networked.
+Renderer attributes keep instances independent without changing shared materials.
 `goldsrc_generic` applies the bake as emission and disables indirect diffuse/specular
 through material ambient occlusion, so model probes do not brighten world geometry.
 GoldSrc and Quake opaque baked world surfaces apply SSAO after conversion to linear
@@ -115,9 +122,11 @@ The GoldSrc skybox is visual only: skybox indirect lighting is disabled so it do
 add ambient or reflection lighting on top of the imported model probes.
 Liquid surfaces retain their existing emissive rendering.
 
-Models use the engine's `LightProbeVolume`, not DDGI or a custom runtime component.
+`LightStyleProbes` supplies the engine's `LightProbeVolume` with instance-owned textures.
 Probe samples descend the BSP tree to the first lightmapped surface below them,
-using floor-light sampling. The six native ambient layers
+retaining each style's RGB contribution. A volume updates only when one of its
+styles changes brightness, so flickering and switched lights affect models too.
+The six native ambient layers
 approximate studio ambient plus modified hemispherical shading (direct fraction 0.9,
 Lambert 1.4953241). They preserve RGB color without a room-average brightness boost.
 Model textures also use the default `texgamma / gamma = 2.0 / 2.5` palette response,
@@ -125,8 +134,9 @@ matching the world shader rather than compensating with brighter probes.
 
 The grid targets 64-unit spacing, with at most 24 volumes and 1,024 probes per volume.
 Six RGBA half-float layers cost 48 bytes per probe: at most 1.125 MiB of texture payload
-per map, excluding GPU allocation overhead. Named textures survive mounted scene
-serialization. Each volume also gets a box-projected realtime `EnvmapProbe` covering
+per map, excluding GPU allocation overhead. Raw style samples are serialized;
+runtime textures and probe helpers are recreated for each instance.
+Each volume also gets a box-projected realtime `EnvmapProbe` covering
 the same bounds, captured once on enable at 128x128 with multiple bounces disabled.
 The capture origin uses the nearest valid grid sample to the volume center, avoiding
 solid space. A volume with no valid sample logs a warning and omits its reflection probe.
@@ -138,8 +148,8 @@ Import work is bounded to 24,576 floor traces plus short BSP
 point lookups to move probes out of solid space.
 
 This is an approximation: sparse-grid interpolation can blend across room boundaries,
-studio directional shading is represented by six cube directions, and model lighting
-uses average lightstyle intensities rather than animating them. It does not reproduce
+studio directional shading is represented by six cube directions, lightmap layers are
+filtered before they are combined, and reflections remain startup captures. It does not reproduce
 GoldSrc's per-entity inverted lighting, skylight override, or dynamic-light accumulation.
 Chrome textures retain diffuse lighting instead of becoming PBR metal requiring a
 reflection capture. Existing scenes need reimporting; old serialized DDGI components

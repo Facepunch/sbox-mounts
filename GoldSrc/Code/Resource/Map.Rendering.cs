@@ -48,8 +48,8 @@ partial class MapLoader
 		int vertexCount = 0, indexCount = 0;
 		foreach ( var chunk in chunks )
 		{
-			vertexCount = checked( vertexCount + chunk.Mesh.Vertices.Count );
-			indexCount = checked( indexCount + chunk.Mesh.Indices.Count );
+			vertexCount = checked(vertexCount + chunk.Mesh.Vertices.Count);
+			indexCount = checked(indexCount + chunk.Mesh.Indices.Count);
 		}
 
 		var vertices = new MapVertex[vertexCount];
@@ -112,6 +112,7 @@ partial class MapLoader
 			var renderer = parent.AddComponent<ModelRenderer>( false );
 			renderer.Model = geometry.Surfaces;
 			renderer.Tint = tint;
+			_lightStyles.Renderers.Add( renderer );
 			renderer.Enabled = true;
 		}
 		foreach ( var batch in geometry.StaticMeshes )
@@ -147,6 +148,7 @@ partial class MapLoader
 				renderer.Fragments = aggregate.Fragments;
 				renderer.Model = aggregate.Model;
 				renderer.Tint = key.Tint;
+				_lightStyles.Renderers.Add( renderer );
 				renderer.Enabled = true;
 				child.Enabled = true;
 			}
