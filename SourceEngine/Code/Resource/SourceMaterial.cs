@@ -11,17 +11,17 @@ internal sealed class SourceMaterial : IDisposable
 	private readonly object buildLock = new();
 	private bool disposed;
 
-	private SourceMaterial( BaseMount mount, string path, VmtFile source, object scope )
+	private SourceMaterial( SourceGameMount mount, string path, VmtFile source, object scope )
 	{
 		Source = source;
 		Scope = scope;
-		ContentRoot = BaseMount.GetContentRoot( path, "materials" );
+		ContentRoot = SourceGameMount.GetContentRoot( path, "materials" );
 		builder = new( () => new SourceMaterialBuilder( mount, path, source ) );
 	}
 
-	internal static SourceMaterial Read( BaseMount mount, string path, object scope, Func<string, string, Stream> open )
+	internal static SourceMaterial Read( SourceGameMount mount, string path, object scope, Func<string, string, Stream> open )
 	{
-		var contentRoot = BaseMount.GetContentRoot( path, "materials" );
+		var contentRoot = SourceGameMount.GetContentRoot( path, "materials" );
 		var entry = VmtFile.NormalizePath( path[contentRoot.Length..], ".vmt" );
 		Stream Open( string file ) => file.Equals( entry, StringComparison.OrdinalIgnoreCase )
 			? open( path, "" ) : open( file, contentRoot );

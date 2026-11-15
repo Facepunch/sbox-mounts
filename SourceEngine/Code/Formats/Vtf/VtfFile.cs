@@ -79,6 +79,7 @@ internal sealed partial class VtfFile
 	public int FrameCount { get; }
 	public int FaceCount { get; }
 	public int ZSliceCount { get; }
+	internal uint? SheetOffset { get; }
 
 	[StructLayout( LayoutKind.Sequential, Pack = 1 )]
 	private struct ImageData
@@ -130,6 +131,7 @@ internal sealed partial class VtfFile
 		FaceCount = metadata.FaceCount;
 		ZSliceCount = metadata.ZSliceCount;
 		_imageOffset = metadata._imageOffset;
+		SheetOffset = metadata.SheetOffset;
 		_selectedFrame = frame;
 		if ( frame.HasValue && (uint)frame.Value >= FrameCount )
 			throw new ArgumentOutOfRangeException( nameof( frame ), frame, $"VTF frame must be between 0 and {FrameCount - 1}." );
@@ -190,6 +192,7 @@ internal sealed partial class VtfFile
 						throw new InvalidDataException( "Invalid or duplicate VTF sheet resource." );
 					hasSheet = true;
 					var sheetOffset = BinaryPrimitives.ReadUInt32LittleEndian( buffer[4..] );
+					SheetOffset = sheetOffset;
 					if ( sheetOffset < Header.HeaderSize )
 						throw new InvalidDataException( "VTF sheet resource overlaps its header." );
 				}

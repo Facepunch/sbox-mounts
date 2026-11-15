@@ -3,13 +3,13 @@ using Sandbox.Rendering;
 
 namespace Source1;
 
-internal sealed class SourceDecalTextureLoader( SourceDecalMaterial material, bool normal ) : ResourceLoader<BaseMount>
+internal sealed class SourceDecalTextureLoader( SourceDecalMaterial material, bool normal ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
 		var parameters = material.Parameters;
 		var path = VmtFile.NormalizePath( parameters.String( normal ? "$bumpmap" : "$basetexture" ), ".vtf" );
-		var root = BaseMount.GetContentRoot( material.Path, "materials" );
+		var root = SourceGameMount.GetContentRoot( material.Path, "materials" );
 		var source = Host.GetSourceTexture( path, root );
 		var frame = parameters.Integer( normal ? "$bumpframe" : "$frame" );
 		var vtf = source.ReadFrame( frame );

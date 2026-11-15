@@ -3,7 +3,7 @@ using Sandbox.Rendering;
 
 namespace Source1;
 
-internal sealed class SourceDecalLoader( SourceDecalMaterial material ) : ResourceLoader<BaseMount>
+internal sealed class SourceDecalLoader( SourceDecalMaterial material ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -12,7 +12,7 @@ internal sealed class SourceDecalLoader( SourceDecalMaterial material ) : Resour
 			throw new NotSupportedException( $"{material.Path}: unsupported Source decal shader '{material.Shader}'." );
 		var parameters = material.Parameters;
 		var color = LoadTexture( "color" );
-		var source = Host.GetSourceTexture( parameters.String( "$basetexture" ), BaseMount.GetContentRoot( material.Path, "materials" ) );
+		var source = Host.GetSourceTexture( parameters.String( "$basetexture" ), SourceGameMount.GetContentRoot( material.Path, "materials" ) );
 		var normal = !string.IsNullOrWhiteSpace( parameters.String( "$bumpmap" ) ) ? LoadTexture( "normal" ) : null;
 		var scale = parameters.Float( "$decalscale", 1 );
 		if ( scale <= 0 || !float.IsFinite( color.Width * scale ) || !float.IsFinite( color.Height * scale ) )
@@ -46,7 +46,7 @@ internal sealed class SourceDecalLoader( SourceDecalMaterial material ) : Resour
 	}
 }
 
-internal sealed class SourceDecalPrefabLoader( string group, IReadOnlyList<SourceDecalLibrary.Entry> entries ) : ResourceLoader<BaseMount>
+internal sealed class SourceDecalPrefabLoader( string group, IReadOnlyList<SourceDecalLibrary.Entry> entries ) : ResourceLoader<SourceGameMount>
 {
 	private PrefabFile prefab;
 

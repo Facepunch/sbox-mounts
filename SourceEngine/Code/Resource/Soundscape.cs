@@ -1,6 +1,6 @@
 namespace Source1;
 
-internal sealed class SourceSoundscapeLoader( SourceSoundscapes.Definition definition, string root ) : ResourceLoader<BaseMount>
+internal sealed class SourceSoundscapeLoader( SourceSoundscapes.Definition definition, string root ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -30,7 +30,7 @@ internal sealed class SourceSoundscapeLoader( SourceSoundscapes.Definition defin
 	}
 }
 
-internal sealed class SourceSoundscapeEventLoader( SourceSoundscapes.Entry entry, string root ) : ResourceLoader<BaseMount>
+internal sealed class SourceSoundscapeEventLoader( SourceSoundscapes.Entry entry, string root ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load() => SourceSoundEvents.Create( Host, entry.Sound, root, entry.Ambient );
 }

@@ -1,0 +1,236 @@
+using System;
+using Sandbox.Npcs;
+
+namespace Source1;
+
+/// <summary>
+/// The base of the mounted Source weapons: view kick, the view model placed against the camera, the drop out in
+/// front of the holder, the standalone model shown only while nobody holds it, and the shared bullet rules.
+/// </summary>
+public abstract class SourceWeapon : BaseCombatWeapon
+{
+	/// <summary>What a mounted weapon's attack2 does. One data-driven choice instead of a flag per behaviour.</summary>
+	public enum SecondaryFires
+	{
+		/// <summary>Launch the projectile the weapon script's secondary ammo names, if any.</summary>
+		Default,
+		/// <summary>weapon_shotgun: both barrels at once.</summary>
+		DoubleShot,
+		/// <summary>weapon_crossbow: toggle a narrow field of view. Counter-Strike's scopes step through <see cref="SourceBulletWeapon.ZoomLevels"/>.</summary>
+		Zoom,
+		/// <summary>weapon_rpg: toggle laser guidance.</summary>
+		Guide,
+		/// <summary>Counter-Strike's Glock and FAMAS: toggle three-round bursts.</summary>
+		Burst,
+		/// <summary>Counter-Strike's M4A1 and USP: attach or detach the silencer.</summary>
+		Silencer
+	}
+
+	/// <summary>Random pitch added to the aim per attack (min, max degrees).</summary>
+	[Property, Group( "Recoil" )] public Vector2 RecoilPitch { get; set; } = new( -0.3f, -0.1f );
+
+	/// <summary>Random yaw added to the aim per attack (min, max degrees).</summary>
+	[Property, Group( "Recoil" )] public Vector2 RecoilYaw { get; set; } = new( -0.1f, 0.1f );
+
+	/// <summary>Random pitch of the first-person view punch per attack (min, max degrees).</summary>
+	[Property, Group( "Camera" )] public Vector2 PunchPitch { get; set; } = new( 0f, 0f );
+
+	/// <summary>Random yaw of the first-person view punch per attack (min, max degrees).</summary>
+	[Property, Group( "Camera" )] public Vector2 PunchYaw { get; set; } = new( 0f, 0f );
+
+	/// <summary>Random roll of the first-person view punch per attack (min, max degrees).</summary>
+	[Property, Group( "Camera" )] public Vector2 PunchRoll { get; set; } = new( 0.5f, 0.5f );
+
+	/// <summary>How many times the view punch oscillates before it lapses.</summary>
+	[Property, Group( "Camera" )] public float PunchFrequency { get; set; } = 2f;
+
+	/// <summary>How long the view punch lasts, in seconds.</summary>
+	[Property, Group( "Camera" )] public float PunchDuration { get; set; } = 0.3f;
+
+	/// <summary>First-person camera shake strength per attack, in world units. Zero for none.</summary>
+	[Property, Group( "Camera" )] public float ShakeAmplitude { get; set; } = 0f;
+
+	/// <summary>New shake offsets per second.</summary>
+	[Property, Group( "Camera" )] public float ShakeFrequency { get; set; } = 40f;
+
+	/// <summary>How long the shake takes to settle, in seconds.</summary>
+	[Property, Group( "Camera" )] public float ShakeDuration { get; set; } = 0.3f;
+
+	/// <summary>The weapon's own model while it lies in the world, hidden while something holds it.</summary>
+	[Property, Feature( "WorldModel" )] public GameObject DroppedGameObject { get; set; }
+
+	/// <summary>True while a player holds this.</summary>
+	public bool HasOwner => Owner.IsValid();
+
+	/// <summary>The root GameObject to ignore when tracing from the aim ray.</summary>
+	public GameObject AimIgnoreRoot => Holder?.GameObject ?? GameObject;
+
+	internal GameObject AttackInstigator => Attacker;
+
+	// Only a host-local launch can supply captured attribution. A remote owner is credited through the weapon.
+	internal GameObject ResolveLaunchAttacker( GameObject attacker ) =>
+		Rpc.Caller == Connection.Local && attacker.IsValid() ? attacker : Attacker;
+
+	protected override void OnEnabled()
+	{
+		base.OnEnabled();
+		ShowStandalone();
+	}
+
+	TimeSince _sinceIconAttempt = 10;
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+		ShowStandalone();
+
+		// The HUD icon comes from the mounted weapon script, which may not be readable until its game has mounted
+		if ( DisplayIcon is null && _sinceIconAttempt > 1 )
+		{
+			_sinceIconAttempt = 0;
+			SourceWeaponSetup.Icon( this );
+		}
+	}
+
+	void ShowStandalone()
+	{
+		var show = !IsHeld;
+		if ( DroppedGameObject.IsValid() && DroppedGameObject.Enabled != show ) DroppedGameObject.Enabled = show;
+	}
+
+	/// <summary>
+	/// Kicks the owner's aim, then punches and shakes their view if they're the local player in first person.
+	/// Returns whether the view was kicked.
+	/// </summary>
+	protected bool KickView()
+	{
+		if ( !HasOwner ) return false;
+
+		Owner.EyeAngles += new Angles( Random.Shared.Float( RecoilPitch.x, RecoilPitch.y ), Random.Shared.Float( RecoilYaw.x, RecoilYaw.y ), 0 );
+
+		if ( Owner.ThirdPerson || Owner.IsProxy ) return false;
+
+		var punch = new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
+		Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
+
+		if ( ShakeAmplitude > 0f )
+			Scene.Camera?.AddShake( ShakeAmplitude, ShakeFrequency, ShakeDuration );
+
+		return true;
+	}
+
+	// The view the gun is placed at, captured before the camera bone offsets the view, so authored camera
+	// animation moves the camera around the gun, not the gun with it.
+	CameraView _viewModelView;
+
+	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
+	{
+		base.ModifyCamera( camera, ref view );
+
+		_viewModelView = view;
+
+		ViewModel?.GetComponentInChildren<SourceViewModel>()?.UpdateCameraBone( ref view );
+	}
+
+	protected override void PlaceViewModel( CameraComponent camera, in CameraView view )
+	{
+		var model = ViewModel?.GetComponentInChildren<SourceViewModel>();
+		if ( !model.IsValid() ) return;
+
+		model.Place( _viewModelView );
+		model.FollowCameraEffects( camera, view );
+	}
+
+	/// <summary>Bullets go through hitboxes and skip the player controller's own collider.</summary>
+	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius )
+	{
+		return Scene.Trace.Ray( ray, distance )
+			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
+			.WithCollisionRules( "bullet" )
+			.WithoutTags( "playercontroller" )
+			.Radius( radius )
+			.UseHitboxes();
+	}
+
+	TimeSince _timeSinceNoise;
+
+	/// <summary>Gunfire is loud: NPCs hear a player shooting. NPC shooters announce their own bursts.</summary>
+	protected void EmitGunfireNoise( ShotEffect shot )
+	{
+		if ( !Networking.IsHost || shot.NoEvents || _timeSinceNoise < 0.25f ) return;
+
+		var owner = Owner;
+		if ( !owner.IsValid() ) return;
+
+		_timeSinceNoise = 0;
+		Scene.GetSystem<NpcSystem>()?.EmitStimulus( StimulusKinds.Gunshot, owner.WorldPosition, owner.GameObject, radius: 3000f, lifetime: 1.5f );
+	}
+
+	/// <summary>
+	/// Ragdolls take a bullet as a change of velocity: the struck bone gains <c>Ballistics.Force * impactScale</c>
+	/// along the shot, every other bone <paramref name="bodyShare"/> of that. Runs on every peer, as ragdolls are local.
+	/// </summary>
+	protected void PushRagdoll( GameObject hitObject, Vector3 hitPosition, Vector3 origin, float impactScale, float bodyShare )
+	{
+		if ( !hitObject.IsValid() ) return;
+
+		var struck = hitObject.Components.GetInAncestorsOrSelf<Rigidbody>();
+		if ( !struck.IsValid() || struck.IsProxy ) return;
+
+		var physics = hitObject.Components.GetInAncestorsOrSelf<ModelPhysics>();
+		if ( !physics.IsValid() || physics.Bodies.Count < 2 ) return;
+
+		var speed = Ballistics.Force * impactScale;
+		if ( speed <= 0f ) return;
+
+		var dir = (hitPosition - origin).Normal;
+
+		foreach ( var body in physics.Bodies )
+		{
+			var rb = body.Component;
+			if ( !rb.IsValid() ) continue;
+
+			if ( rb == struck )
+				rb.ApplyImpulseAt( hitPosition, dir * speed * rb.Mass );
+			else if ( bodyShare > 0f )
+				rb.ApplyImpulse( dir * speed * bodyShare * rb.Mass );
+		}
+	}
+
+	/// <summary>Thrown out in front of the player dropping it, carrying their speed; otherwise let go where it is.</summary>
+	protected override bool OnDrop()
+	{
+		var holder = Owner;
+		var position = WorldPosition;
+		var velocity = Vector3.Up * 50f;
+
+		if ( holder.IsValid() )
+		{
+			var eye = holder.EyeTransform;
+			position = eye.Position + eye.Forward * 48f;
+			velocity = holder.Velocity + eye.Forward * 200f + Vector3.Up * 100f;
+		}
+
+		Network.DropOwnership();
+		GameObject.SetParent( null, true );
+		WorldScale = PrefabWorldScale();
+		GameObject.Enabled = true;
+		WorldPosition = position;
+
+		if ( GetComponent<Rigidbody>( true ) is { } body )
+		{
+			body.Velocity = velocity;
+			body.AngularVelocity = Vector3.Random * 8.0f;
+		}
+
+		return true;
+	}
+
+	Vector3 PrefabWorldScale()
+	{
+		if ( !string.IsNullOrEmpty( GameObject.PrefabInstanceSource ) && GameObject.GetPrefab( GameObject.PrefabInstanceSource ) is { } prefab && prefab.IsValid() )
+			return prefab.LocalScale;
+
+		return WorldScale;
+	}
+}

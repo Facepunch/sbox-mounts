@@ -24,7 +24,7 @@ internal sealed class StaticPropLighting( string name, string contentRoot, VtxFi
 		vertexLit = vertices;
 	}
 
-	public void ReadVertices( BaseMount mount, string filename, int checksum )
+	public void ReadVertices( SourceGameMount mount, string filename, int checksum )
 	{
 		var found = mount.TryOpenContentFile( $"{ContentRoot}{filename}", out var stream );
 		using ( stream )
@@ -47,7 +47,7 @@ internal sealed class StaticPropLighting( string name, string contentRoot, VtxFi
 		}
 	}
 
-	public bool ReadTexels( BaseMount mount, string filename, int checksum )
+	public bool ReadTexels( SourceGameMount mount, string filename, int checksum )
 	{
 		var found = mount.TryOpenContentFile( $"{ContentRoot}{filename}", out var stream );
 		using ( stream )
@@ -145,7 +145,7 @@ internal sealed class StaticPropLighting( string name, string contentRoot, VtxFi
 		return vertices[vertex];
 	}
 
-	public Material CreateMaterial( BaseMount mount, Material original, int slot, (int BodyPart, int Model, int Lod, int Mesh) key, int skin )
+	public Material CreateMaterial( SourceGameMount mount, Material original, int slot, (int BodyPart, int Model, int Lod, int Mesh) key, int skin )
 	{
 		if ( !SourceMaterialBuilder.IsLitSurfaceShader( original ) )
 			return original;

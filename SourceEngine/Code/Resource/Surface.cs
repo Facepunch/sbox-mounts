@@ -1,6 +1,6 @@
 namespace Source1;
 
-internal sealed class SourceSurfaceLoader( SourceSurfaceDefinition definition ) : ResourceLoader<BaseMount>
+internal sealed class SourceSurfaceLoader( SourceSurfaceDefinition definition ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -49,7 +49,7 @@ internal sealed class SourceSurfaceLoader( SourceSurfaceDefinition definition ) 
 
 }
 
-internal sealed class SurfaceSoundLoader( SourceSoundDefinition definition ) : ResourceLoader<BaseMount>
+internal sealed class SurfaceSoundLoader( SourceSoundDefinition definition ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load() => SourceSoundEvents.Create( Host, definition );
 }

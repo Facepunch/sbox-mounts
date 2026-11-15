@@ -1,11 +1,11 @@
 namespace Source1;
 
-internal sealed partial class MapLoader : SceneLoader<BaseMount>
+internal sealed partial class MapLoader : SceneLoader<SourceGameMount>
 {
 	internal string FullPath { get; }
 	private bool skybox;
 
-	private string ContentRoot => BaseMount.GetMapPakRoot( FullPath );
+	private string ContentRoot => SourceGameMount.GetMapPakRoot( FullPath );
 	private string ResourcePrefix => $"source1/{Host.Ident}/{FullPath}{(skybox ? "_skybox" : "")}";
 
 	private readonly List<Model> _worldModels = [];

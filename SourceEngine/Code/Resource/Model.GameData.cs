@@ -7,6 +7,7 @@ internal sealed partial class SourceModelBuilder
 	private void AddGameData( ModelBuilder builder, MdlFile mdl, PhyFile physics )
 	{
 		AddPropSettings( builder, mdl, physics );
+		if ( Host.GetWeaponData( FullPath ) is { } weapon ) builder.WithData( weapon );
 		if ( physics is not null )
 			AddBreakPieces( builder, physics );
 	}

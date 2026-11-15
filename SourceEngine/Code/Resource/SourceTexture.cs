@@ -5,20 +5,41 @@ namespace Source1;
 internal sealed class SourceTexture : IDisposable
 {
 	private readonly VtfFile metadata;
-	private readonly BaseMount.SourceFile file;
+	private readonly SourceGameMount.SourceFile file;
 	private readonly string texturePath;
 	private readonly object frameLock = new();
 	private readonly Dictionary<int, VtfFile> decodedFrames = [];
 	private bool disposed;
+	private VtfSheet sheet;
+	private bool sheetLoaded;
 
-	internal SourceTexture( VtfFile metadata, BaseMount.SourceFile file, string texturePath )
+	internal VtfSheet Sheet
+	{
+		get
+		{
+			lock ( frameLock )
+			{
+				ObjectDisposedException.ThrowIf( disposed, this );
+				if ( sheetLoaded ) return sheet;
+				if ( metadata.SheetOffset is { } offset )
+				{
+					using var stream = file.Open();
+					sheet = VtfSheet.Read( stream, offset );
+				}
+				sheetLoaded = true;
+				return sheet;
+			}
+		}
+	}
+
+	internal SourceTexture( VtfFile metadata, SourceGameMount.SourceFile file, string texturePath )
 	{
 		this.metadata = metadata;
 		this.file = file;
 		this.texturePath = texturePath;
 	}
 
-	internal static SourceTexture Read( BaseMount.SourceFile file, string texturePath )
+	internal static SourceTexture Read( SourceGameMount.SourceFile file, string texturePath )
 	{
 		using var stream = file.Open();
 		return new SourceTexture( new VtfFile( stream, onlyHeader: true ), file, texturePath );

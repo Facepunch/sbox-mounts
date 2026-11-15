@@ -2,24 +2,27 @@ using System;
 
 namespace Source1;
 
-internal sealed class WavSoundLoader( string fullPath ) : ResourceLoader<BaseMount>
+internal sealed class WavSoundLoader( string fullPath ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load() => SoundFile.FromWav( Path, Host.GetFileBytes( fullPath ) );
 }
 
-internal sealed class Mp3SoundLoader( string fullPath ) : ResourceLoader<BaseMount>
+internal sealed class Mp3SoundLoader( string fullPath ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load() => SoundFile.FromMp3( Path, Host.GetFileBytes( fullPath ) );
 }
 
 internal static class SourceSoundEvents
 {
-	internal static SoundEvent Create( BaseMount host, SourceSoundDefinition definition, string contentRoot = "", bool ambient = false )
+	internal static SoundEvent Create( SourceGameMount host, SourceSoundDefinition definition, string contentRoot = "", bool ambient = false )
 	{
 		var sounds = new List<SoundFile>();
 		foreach ( var wave in definition.Waves )
 		{
-			var sound = host.LoadContentSound( wave, contentRoot );
+			// ^ stores close/far recordings and < stores front/rear recordings,
+			// not ordinary left/right stereo. Use close/front until SoundEvent can
+			// blend those authored layers by listener distance and source orientation.
+			var sound = host.LoadContentSound( wave, contentRoot, definition.DistanceVariant || definition.Directional ? 0 : null );
 			if ( sound is null || !sound.IsValid )
 				throw new InvalidOperationException( $"{definition.SourcePath}: wave '{wave}' could not be loaded." );
 			sounds.Add( sound );

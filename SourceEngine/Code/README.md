@@ -1,7 +1,10 @@
 # Source 1
 
-The engine's Source 1 mount uses the `Sandbox.Mounting.Source1` namespace and
-ships its shaders in `game\mount\source1\Assets\shaders\source1`.
+The Source 1 mount puts every type in the `Source1` namespace and ships its shaders in
+`game\mount\source1\Assets\shaders\source1`. Public types are named for where they come from:
+`Source…` for code shared by the Source games, `Hl2…` for Half-Life 2 and `Css…` for Counter-Strike: Source.
+Components are titled the same way (`Source …`, `HL2 …`, `CS:S …`) under the categories `Source 1`,
+`Half-Life 2` and `Counter-Strike: Source`.
 
 The `gmod` mount registers supported resources by scanning GMA/VPK archives and
 loose files inside the Garry's Mod installation, including bundled Source game content.
@@ -23,10 +26,37 @@ cannot resolve it through the GMod mount.
 
 For example: `mount://gmod/models/props_c17/oildrum001.mdl.vmdl`.
 
+The `hl2` mount scans the Half-Life 2 installation the same way, with `hl2` first; the Episodes
+and Lost Coast are folders of that installation. Without it, the mount falls back to the copy
+Garry's Mod ships: `sourceengine/hl2_*_dir.vpk`, then `sourceengine/content_hl2_dir.vpk` (Episode
+One/Two models, materials, particles and some sound scripts), then GMod's own sound manifest and the
+HL2 sound scripts it moved to `scripts/sounds/`, then the loose `sourceengine/scripts` (HL2's weapon,
+surface and prop scripts), `sourceengine/resource` (its scheme and HUD fonts) and `garrysmod/cfg/skill.cfg` (HL2's with the Episodes' values merged in).
+That copy has no maps, Lost Coast, Episode voice lines or music, `cfg/skill_episodic.cfg`, the
+player stunstick, hopwire, harpoon or proto1 weapon scripts, or the Episode Two-only particle files
+(advisor, hunter intro/shield, grenade and explosion effects among them). Whenever Garry's Mod is
+installed, its handless `models/weapons/c_*` viewmodels (not its `c_arms` models) and the
+`v_stunstick` materials they need are added last. Standalone files always win; with Half-Life 2
+installed, everything else resolves exactly as without Garry's Mod. Game code detects availability
+per resource, e.g. `Directory.Get( "hl2" ).GetByPath( "mount://hl2/models/weapons/c_pistol.mdl.vmdl" )`.
+
+The `css` mount (Counter-Strike: Source, app 240; `cstrike` is the GoldSrc CS 1.6 mount)
+scans the standalone installation with `cstrike` first, so its `hl2` folder supplies the
+shared HL2 archives. Without it, the mount falls back to the same content as shipped by
+Garry's Mod: `sourceengine/content_cstrike_dir.vpk` followed by `sourceengine/hl2_*_dir.vpk`.
+That copy has no weapon scripts, particles, radio or bot sounds. Whenever Garry's Mod is
+installed, a filtered `garrysmod/garrysmod_dir.vpk` is added last: only its handless
+`models/weapons/cstrike/c_*` viewmodels, `scripts/sounds/cs_game_sounds_*.txt` and the sound
+manifest that lists them. Standalone files always win, so with both installed the `c_`
+models resolve their materials from the standalone archives. Game code detects either
+case per resource, e.g. `mount://css/models/weapons/cstrike/c_rif_ak47.mdl.vmdl`
+(handless viewmodel) or `mount://css/scripts/weapon_ak47.ctx.json` (weapon script).
+
 ## Code layout
 
-`BaseMount` owns indexing and mount lifecycle; `GameMount.cs` defines game mounts.
-`BaseMount.Files.cs` inventories loose files and archives in one filesystem pass;
+`SourceGameMount` owns indexing and mount lifecycle; `Hl2Mount.cs`, `CssMount.cs` and
+`SourceGarrysModMount.cs` define game mounts. A mount that reads more than its own installation overrides `FindContent`.
+`SourceGameMount.Files.cs` inventories loose files and archives in one filesystem pass;
 there is no search-path configuration layer. Loose and archive-backed files share one file reference
 representation and one content-opening API.
 GMA and VPK readers share only a small archive interface and the existing leased,
@@ -300,6 +330,12 @@ default, 0.55 for dirt, 0.7 for vents), rather than full sound-script volume.
 Surfaces sharing a sound script and footstep gain share the same event.
 The engine player controller owns footstep and landing playback and volume scaling.
 Impact, scrape, break and ambient events keep their authored volume.
+Every sound level falls off on Source's own gain curve (inverse distance referenced to
+36 units at 60 dB, 4 dB extra loss per 1200 units, compressed towards full volume close by),
+sampled into the event's falloff curve out to where the gain reaches 0.001.
+`attenuation` and `CompatibilityAttenuation` values become sound levels through
+`50 + 20 / attenuation`; GoldSrc's linear compatibility curve, which Counter-Strike: Source
+weapons select, is not reproduced.
 Unavailable wave references are reported once per sound during mounting.
 Available variants remain usable; a sound with no available waves leaves its
 surface slot empty without preventing the physical surface from loading.
@@ -313,8 +349,33 @@ shaders and render targets report an error and use the error material.
 bind a shared, initially black render target. No live camera entities, feeds or
 captured UI views are imported.
 Refraction destination-alpha masks are not reproduced.
-There is no skeletal animation reader, animation-data copy, clip import,
-included animation model loading or flex-controller/rule evaluation.
+Every model also registers an opt-in `<path>.animated` loader (developer-only in browsing)
+that imports its sequences, including `$includemodel` animation files, as lazily decoded
+clips with sequence data: activities, anim events, blend grids, autolayers, pose parameters
+and sequence weight lists as bone masks. The plain loader imports no animation.
+There is no flex-controller/rule evaluation.
+
+Source-shaped model data is stored with `ModelBuilder.WithData` under the GameData names
+`sequence_data_list`, `pose_layer_data_list`, `pose_parameter_data_list`, `bone_surface_list`
+and `weapon_data_list` (`Resource/ModelData.cs`). The engine defines no types for it: game code
+declares its own classes with the same `[ModelEditor.GameData]` names and member names and reads
+them with `Model.GetData<T>()`.
+
+Weapon scripts (`scripts/weapon_*.txt`, or ICE-encrypted `.ctx` for mounts that know the
+game's key, `css` among them; a `.txt` takes precedence) become `weapon_data` on their
+view and world models and `scripts/weapon_*.<ext>.json` text resources. Damage comes from
+the script's `Damage` or else `cfg/skill.cfg`. Each ammo type a script names becomes `scripts/ammo/<type>.ammo` with its carry limit from `cfg/skill.cfg`'s
+`sk_max_*`, taking precedence over game-specific defaults. Counter-Strike: Source weapon scripts supply ammo identifiers and clip sizes, but its reserve limits are compiled `ammo_*_max` defaults, absent from its configuration and weapon scripts. `CssMount.cs` supplies those verified defaults as a fallback. Counter-Strike keys fill `CycleTime`, `Bullets`,
+`FullAuto`, `Range`, `RangeModifier`, `WeaponType`, `Team`, `PlayerAnimationExtension`,
+`BuiltRightHanded`, `SilencerModel`, `MuzzleFlashStyle` and `MuzzleFlashScale`; they stay null for games without them. Accuracy,
+recoil, economy and movement keys are not imported.
+A script's `TextureData` "weapon" icon becomes `scripts/weapon_*.<ext>.icon.vtex` (the `Icon` member): the scheme font's glyph
+(logical font to family through `resource/clientscheme.res`, family to a `resource/` font file), or a `"file"` material region, white on transparent.
+Sound events come from
+`scripts/game_sounds_manifest.txt`; every PCF's systems register as particle prefabs.
+Speech data becomes JSON text resources for game code to read: `scripts/sentences.txt.json`,
+`scripts/talker/response_rules.txt.json` and Counter-Strike's `botchatter.db.json` (chatter
+phrases with their radio fallback and count/place-qualified `sound/bot` waves; location phrases are left out).
 
 ### Shaders
 
@@ -333,6 +394,13 @@ bounded native dielectric reflectance. Source Half-Lambert, diffuse/specular war
 and rim-light overrides do not replace native lighting and are reported at trace
 level when authored. This is native lighting integration, not exact Source BRDF parity.
 Authored cubemaps retain their Source masks, tints and environment Fresnel.
+Without `$phong` the generic shader uses one roughness for native direct specular, which
+Source does not have, and for scene-probe reflections. Authored environment textures are
+sampled separately, so their surfaces use roughness 1. Lit model `env_cubemap` surfaces derive
+roughness from their brightest linear `$envmaptint` component: at most 0.25 is matte (1), at
+least 0.75 keeps a sharp mirror (0), with a smoothstep between. Dim sheens such as Counter-Strike
+player cloth no longer get a full-surface sun highlight, while chrome and glass keep crisp
+reflections. Phong, unlit and lightmapped surfaces keep sharp probe reflections.
 Self-illumination Fresnel uses the vertex normal and Source's scale/bias/brightness
 convention. Imported BSP lightmaps and static-prop lighting remain baked inputs;
 additional clustered lights use the native light evaluator without adding the baked
@@ -387,7 +455,7 @@ Each bone's reference transform is composed with its authored `poseToBone` matri
 vertices use Source's weighted skin matrices, not a shared root correction.
 Mesh geometry, normals, tangents, morphs and the skeleton use that pose together.
 Independent roots and child bones retain their individual transforms.
-No animation clips or full animation buffers are imported. Additive, IK,
+The reference pose itself reads no animation clips (see `.animated` above). Additive, IK,
 root-motion and reparented references retain the bind pose with a trace diagnostic.
 PHY coordinates and ragdoll bind poses remain unchanged.
 Geometry-free animation helpers retain empty geometry. Studiomdl's untouched
@@ -398,6 +466,65 @@ approximate ball-joint swing cones, angular friction and collision exclusions.
 Model import diagnostics are reported at trace verbosity. Map limitations,
 unsupported connections and missing scene dependencies produce warnings.
 Errors remain visible.
+
+## Gameplay
+
+`Gameplay` holds the games' weapons, NPCs, pickups and effects as ordinary components: `Gameplay/Source`
+for what they share (`SourceWeapon` and its bullet, projectile and melee kinds, `SourceCombatNpc`,
+`SourceCreatureNpc`, viewmodels and world models, mounted models and effects, speech), `Gameplay/Hl2`
+and `Gameplay/Css` for each game's own. They run on the engine's `BaseCombatWeapon`, `BaseNpc`,
+`BaseCombatNpc` and inventory components and load their art from the mount at runtime.
+
+### Entity prefabs
+
+Each game mount builds its entities as prefabs from the installed game when they're first loaded, such as
+`mount://hl2/entities/npcs/combine_soldier.prefab`:
+
+| Path | What |
+|------|------|
+| `entities/weapons/<name>.prefab` | Weapons, tagged `weapon` |
+| `entities/npcs/<name>.prefab` | NPCs, tagged `npc` |
+| `entities/items/<name>.prefab` | Pickups and chargers, tagged `item` |
+| `entities/parts/<name>_vm.prefab`, `<name>_wm.prefab` | A weapon's viewmodel and world model |
+| `entities/effects/<name>.prefab` | Explosions and impacts the entities spawn |
+
+`Gameplay/Entities/SourceEntities.Table.cs` lists them: a template per kind in `SourceEntities.Templates.cs`,
+and per entity only what differs from it. An entity is registered when its models (or their fallbacks)
+are in the game's index and the entities it can't work without are too (a weapon's parts, a nested weapon,
+the headcrab a zombie drops); optional ones, such as one of an NPC's weapon choices, are left out of
+its prefab instead. Nothing is written to disk.
+
+A game finds the spawnable ones by tag (`SourceEntities.NpcTag`, `WeaponTag`, `ItemTag`) without
+loading them:
+
+```csharp
+var npcs = Sandbox.Mounting.Directory.Get( "hl2" ).GetAll( ResourceType.PrefabFile ).Where( x => x.Tags.Contains( "npc" ) );
+```
+
+Loading one (`PrefabFile.Load`, `GameObject.GetPrefab`) builds it. Its metadata, read with
+`PrefabFile.GetMetadata`, holds `Title`, `Group` (the game's title), `Description` (the Episode, for
+Episode NPCs) and `PreviewModel` and `PreviewSequence`, a loadable model path and sequence for an icon.
+The mount's own code finds another entity by name with `SourceEntities.Prefab( mount, name )`.
+
+### What a game provides
+
+- Players with a component implementing `Component.IDamageable`: NPCs aim at, hurt and heal it through
+  `Health` and `MaxHealth`, and chargers and batteries fill `Armour` and `MaxArmour` when it implements them.
+  It sits beside the engine's `PlayerController`, which is how NPCs tell players from other targets.
+- An inventory derived from `BaseInventoryComponent` on the player, for picking weapons up and switching
+  between them; weapons fire from the engine's weapon input or a game's own controls.
+- Optionally its own first-person arms: the mount's `source1_viewmodel_hands` console variable
+  (`SourceViewModel.Hands`), which exists while a Source mount is mounted, so a game sets it by name once it
+  appears. It takes a plain `.vmdl` path in the game's files with the citizen first-person arms skeleton; anything
+  else, or an empty value, keeps the viewmodels' own gloves.
+
+A prefab a client hasn't got is built on the client from its own installed game, so clients need the game mounted
+before the host's entities arrive: a reference to a mount prefab in an unmounted game resolves to nothing.
+The mount's components do nothing random and add nothing in `OnValidate`, which runs wherever an object is read or
+cloned, prefab builds included. What a spawned entity picks for itself happens on the host as it's network spawned
+(`Component.INetworkSpawn`), or in `OnStart` when it never is: the engine's `BaseCombatNpc` chooses its starting weapon
+from `WeaponChoices`, and `SourceNpcSpawnChoice`, placed before it, picks a model from `ModelChoices` and a weapon its
+`Team` may carry, unless the game handed the NPC a weapon first.
 
 ## Validation
 

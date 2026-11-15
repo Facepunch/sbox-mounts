@@ -70,7 +70,7 @@ internal sealed class SourceColorLookup
 		.Finish();
 }
 
-internal sealed class SourceColorLookupLoader( string filename ) : ResourceLoader<BaseMount>
+internal sealed class SourceColorLookupLoader( string filename ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -80,7 +80,7 @@ internal sealed class SourceColorLookupLoader( string filename ) : ResourceLoade
 	}
 }
 
-internal sealed class MapColorLookupLoader( string filename ) : ResourceLoader<BaseMount>
+internal sealed class MapColorLookupLoader( string filename ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -98,7 +98,7 @@ internal sealed class MapColorLookupLoader( string filename ) : ResourceLoader<B
 			if ( weight <= 0 )
 				continue;
 			var lookupFile = correction.Entity.Get( "filename", "" ).Replace( '\\', '/' );
-			var root = BaseMount.GetMapPakRoot( filename );
+			var root = SourceGameMount.GetMapPakRoot( filename );
 			var path = Host.GetContentPath( lookupFile, root )
 				?? throw new FileNotFoundException( $"Color-correction lookup '{correction.Entity.Get( "filename" )}' was not found in '{filename}' content." );
 			if ( !lookups.TryGetValue( path, out var lookup ) )

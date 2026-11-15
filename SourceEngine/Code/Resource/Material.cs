@@ -2,7 +2,7 @@ using System;
 
 namespace Source1;
 
-internal sealed class MaterialLoader( string fullPath ) : ResourceLoader<BaseMount>
+internal sealed class MaterialLoader( string fullPath ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{
@@ -26,7 +26,7 @@ internal sealed class MaterialLoader( string fullPath ) : ResourceLoader<BaseMou
 
 internal sealed partial class SourceMaterialBuilder
 {
-	private BaseMount Host { get; }
+	private SourceGameMount Host { get; }
 	private string FullPath { get; }
 	private readonly string contentRoot;
 	private readonly VmtParameters parameters;
@@ -36,11 +36,11 @@ internal sealed partial class SourceMaterialBuilder
 	private readonly TextureAnimation? animation;
 	private readonly VmtNode proxies;
 
-	internal SourceMaterialBuilder( BaseMount mount, string path, VmtFile vmt )
+	internal SourceMaterialBuilder( SourceGameMount mount, string path, VmtFile vmt )
 	{
 		Host = mount;
 		FullPath = path;
-		contentRoot = BaseMount.GetContentRoot( path, "materials" );
+		contentRoot = SourceGameMount.GetContentRoot( path, "materials" );
 		parameters = new VmtParameters( VmtFile.SelectParameters( vmt ), FullPath );
 		shaderName = VmtFile.NormalizeShaderName( vmt.ShaderName );
 		proxies = vmt.Root.GetBlock( "proxies" );
