@@ -1,0 +1,25 @@
+{
+  "Title": "Doom",
+  "Type": "addon",
+  "Org": "local",
+  "Ident": "doom",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [
+    "heretic",
+    "doom2",
+    "doom"
+  ],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "facepunch.sandbox",
+    "StartupScene": "scenes/sandbox.scene"
+  }
+}
