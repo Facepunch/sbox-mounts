@@ -1,0 +1,25 @@
+{
+  "Title": "RenderWare",
+  "Type": "addon",
+  "Org": "local",
+  "Ident": "renderware",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [
+    "gtasa",
+    "gta3",
+    "gtavc"
+  ],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "facepunch.sandbox",
+    "StartupScene": "scenes/sandbox.scene"
+  }
+}
