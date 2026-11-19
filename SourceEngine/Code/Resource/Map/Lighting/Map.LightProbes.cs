@@ -7,6 +7,7 @@ partial class MapLoader
 	private BspProbeTextures _probeTextures;
 	internal int ProbeTextureCount => _probeTextures.Count;
 	internal long ProbeTextureBytes => _probeTextures.ByteCount;
+	internal bool ProbeTexturesReachedBudget => _probeTextures.ReachedBudget;
 
 	private void BuildLightProbes( BspFile bsp, GameObject world, bool skybox = false )
 	{

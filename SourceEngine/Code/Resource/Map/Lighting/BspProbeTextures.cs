@@ -2,15 +2,29 @@ using System;
 
 namespace Source1;
 
-internal sealed class BspProbeTextures( string resourcePrefix ) : IDisposable
+internal sealed class BspProbeTextures( string resourcePrefix, int maxTextures = MaxProbeTextures ) : IDisposable
 {
+	/// <summary>
+	/// The engine's texture slot limit is 32 768. Reserve headroom for materials, lightmaps,
+	/// render targets and other mounts. Each leaf volume needs 3 textures (ambient, indices,
+	/// scalars), so this cap keeps a single map well under the global limit even when several
+	/// Source 1 maps are mounted at once.
+	/// </summary>
+	internal const int MaxProbeTextures = 6000;
+
 	private readonly HashSet<Texture> textures = [];
 	private readonly Dictionary<(ImageFormat Format, ulong Value), Texture> constants = [];
 	public int Count => textures.Count;
 	public long ByteCount { get; private set; }
+	public bool ReachedBudget { get; private set; }
 
 	public Texture GetOrCreate( Vector3Int counts, int depth, ImageFormat format, ReadOnlySpan<byte> data )
 	{
+		if ( textures.Count >= maxTextures )
+		{
+			ReachedBudget = true;
+			return null;
+		}
 		int stride = format switch
 		{
 			ImageFormat.RGBA8888 => 4,
