@@ -49,6 +49,19 @@ public static class MaterialBuilder
 		return def.Name.StartsWith( "textures/common/", StringComparison.Ordinal ) && def.Stages.Count == 0;
 	}
 
+	/// <summary>
+	/// True for surfaces that block light: opaque, not alpha tested, not sky or fog. Shadow blockers are built from these.
+	/// </summary>
+	public static bool CastsShadow( ShaderDef def )
+	{
+		if ( def is null ) return true;
+		if ( def.IsSky || def.IsFog || IsInvisible( def ) ) return false;
+		if ( def.ImplicitMode is "implicitmask" or "implicitblend" ) return false;
+		if ( def.Stages.Count == 0 ) return true;
+		var first = def.Stages[0];
+		return first.IsOpaque && first.AlphaFunc == AlphaFunc.None;
+	}
+
 	public static Material Build( GameData game, MaterialRequest req )
 	{
 		var def = game.Shaders.Find( req.ShaderName );

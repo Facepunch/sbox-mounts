@@ -42,6 +42,8 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 		_bsp = BspFile.Load( data );
 		_materials.Clear();
 		_brushModels.Clear();
+		_brushShadows.Clear();
+		_shadowMaterial = null;
 
 		var portal = FindSkyPortal();
 		if ( _skybox )
@@ -53,16 +55,19 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 		BuildLightmaps();
 		_sun = FindSun();
 
-		// static, so a baked sun leaves it out of its shadow cascades: the lightmaps already have its shadows
 		var world = new GameObject( true, "worldspawn" ) { IsStatic = true };
 		var worldspawn = _bsp.WorldSpawn;
 
 		// with a sky portal, its room and the sky surfaces are drawn by the Skybox3D instead
 		Predicate<int> draw = portal is null ? null : si => !portal.Surfaces.Contains( si ) && !IsSkySurface( si );
-		var worldModel = BuildBspModel( 0, Vector3.Zero, WorldModelName, draw );
+		var shadows = new List<Model>();
+		var worldModel = BuildBspModel( 0, Vector3.Zero, WorldModelName, draw, shadows: shadows );
+		AddShadowBlockers( world, shadows );
 		if ( worldModel is not null )
 		{
-			world.AddComponent<ModelRenderer>().Model = worldModel;
+			var renderer = world.AddComponent<ModelRenderer>();
+			renderer.Model = worldModel;
+			renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
 			var collider = world.AddComponent<ModelCollider>();
 			collider.Model = worldModel;
 			collider.Static = true;

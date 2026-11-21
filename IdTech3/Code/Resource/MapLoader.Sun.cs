@@ -69,7 +69,7 @@ partial class MapLoader
 	/// <summary>
 	/// The sun as a directional light. When the light probes carry it (<paramref name="baked"/>), it is baked light
 	/// index 0 with mixed shadows: probe-lit objects take its light from the probes' per-probe strength and its
-	/// realtime shadows from dynamic casters, and static casters (the world) stay out of its cascades.
+	/// realtime shadows from the world's shadow blockers and dynamic casters.
 	/// </summary>
 	void BuildSun( bool baked )
 	{
@@ -86,6 +86,8 @@ partial class MapLoader
 			light.LightColor = new Color( _sun.Color.x, _sun.Color.y, _sun.Color.z );
 			light.BakeLightIndex = 0;
 			light.MixedShadows = true;
+			// the world's shadow blockers are static; without them the sun reaches indoors
+			light.IncludeStaticShadowCasters = true;
 		}
 		else
 		{

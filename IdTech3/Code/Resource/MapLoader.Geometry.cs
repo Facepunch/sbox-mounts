@@ -11,6 +11,8 @@ sealed partial class MapLoader
 	sealed class MeshGroup
 	{
 		public Material Material;
+		/// <summary>Opaque surfaces, which go into the shadow blockers.</summary>
+		public bool Shadow;
 		public List<Id3Vertex> Vertices = [];
 		public List<int> Indices = [];
 		public BBox Bounds;
@@ -73,8 +75,9 @@ sealed partial class MapLoader
 	/// <summary>
 	/// Geometry for a BSP model (0 = world), relative to <paramref name="pivot"/>. <paramref name="draw"/> picks which
 	/// surfaces are rendered (all when null); collision is built unless <paramref name="collision"/> is false.
+	/// When <paramref name="shadows"/> is given, it receives the model's shadow blockers.
 	/// </summary>
-	Model BuildBspModel( int index, Vector3 pivot, string name, Predicate<int> draw = null, bool collision = true )
+	Model BuildBspModel( int index, Vector3 pivot, string name, Predicate<int> draw = null, bool collision = true, List<Model> shadows = null )
 	{
 		if ( index < 0 || index >= _bsp.Models.Length ) return null;
 		var bspModel = _bsp.Models[index];
@@ -155,7 +158,7 @@ sealed partial class MapLoader
 
 			var key = $"{shaderRef.Name}|{mode}|{page}|{s.Fog}";
 			if ( !groups.TryGetValue( key, out var group ) )
-				groups[key] = group = new MeshGroup { Material = material };
+				groups[key] = group = new MeshGroup { Material = material, Shadow = MaterialBuilder.CastsShadow( def ) };
 
 			float offset = def?.PolygonOffset == true ? 0.25f : 0f;
 			int start = group.Vertices.Count;
@@ -201,6 +204,9 @@ sealed partial class MapLoader
 			builder.AddMesh( mesh );
 			meshCount++;
 		}
+
+		if ( shadows is not null )
+			shadows.AddRange( BuildShadowBlockers( groups.Values, name ) );
 
 		// brushes: convex hulls for everything solid
 		int hulls = 0;
@@ -350,11 +356,100 @@ sealed partial class MapLoader
 		}
 	}
 
-	Model GetBrushModel( int index, Vector3 pivot )
+	Model GetBrushModel( int index, Vector3 pivot, out List<Model> shadows )
 	{
-		if ( _brushModels.TryGetValue( index, out var model ) ) return model;
-		model = BuildBspModel( index, pivot, $"{WorldModelName}*{index}" );
+		if ( _brushModels.TryGetValue( index, out var model ) )
+		{
+			shadows = _brushShadows[index];
+			return model;
+		}
+		shadows = [];
+		model = BuildBspModel( index, pivot, $"{WorldModelName}*{index}", shadows: shadows );
 		_brushModels[index] = model;
+		_brushShadows[index] = shadows;
 		return model;
+	}
+
+	// ------------------------------------------------------------------ shadow blockers
+
+	/// <summary>Side of the cubes opaque triangles are grouped into, so shadow passes cull blockers per chunk.</summary>
+	const float ShadowChunkSize = 1024;
+
+	readonly Dictionary<int, List<Model>> _brushShadows = [];
+	Material _shadowMaterial;
+
+	/// <summary>
+	/// Shadow blockers: the opaque triangles turned inside out, drawn only into
+	/// shadow maps. Lit faces cast from their back faces, so they don't shadow themselves; the visible world draws no
+	/// shadows of its own.
+	/// </summary>
+	List<Model> BuildShadowBlockers( IEnumerable<MeshGroup> groups, string name )
+	{
+		var chunks = new Dictionary<Vector3, (List<Id3Vertex> Vertices, List<int> Indices)>();
+		foreach ( var g in groups )
+		{
+			if ( !g.Shadow ) continue;
+			for ( int i = 0; i + 2 < g.Indices.Count; i += 3 )
+			{
+				var a = g.Vertices[g.Indices[i]];
+				var b = g.Vertices[g.Indices[i + 1]];
+				var c = g.Vertices[g.Indices[i + 2]];
+				var center = (a.Position + b.Position + c.Position) / (3 * ShadowChunkSize);
+				var cell = new Vector3( MathF.Floor( center.x ), MathF.Floor( center.y ), MathF.Floor( center.z ) );
+				if ( !chunks.TryGetValue( cell, out var chunk ) )
+					chunks[cell] = chunk = ([], []);
+
+				// reversed winding, flipped normals
+				int start = chunk.Vertices.Count;
+				chunk.Vertices.Add( Flip( a ) );
+				chunk.Vertices.Add( Flip( c ) );
+				chunk.Vertices.Add( Flip( b ) );
+				chunk.Indices.Add( start );
+				chunk.Indices.Add( start + 1 );
+				chunk.Indices.Add( start + 2 );
+			}
+		}
+
+		var models = new List<Model>( chunks.Count );
+		if ( chunks.Count == 0 ) return models;
+
+		_shadowMaterial ??= CreateShadowMaterial();
+		foreach ( var (vertices, indices) in chunks.Values )
+		{
+			var bounds = BBox.FromPoints( vertices.Select( v => v.Position ) );
+			var mesh = new Mesh( _shadowMaterial );
+			mesh.CreateVertexBuffer( vertices.Count, vertices );
+			mesh.CreateIndexBuffer( indices.Count, indices );
+			mesh.Bounds = bounds;
+			models.Add( Model.Builder.WithName( $"{name}_shadow{models.Count}" ).AddMesh( mesh ).Create() );
+		}
+		return models;
+
+		static Id3Vertex Flip( Id3Vertex v )
+		{
+			v.Normal = -v.Normal;
+			v.Tangent = Convert3.TangentFor( v.Normal );
+			return v;
+		}
+	}
+
+	Material CreateShadowMaterial()
+	{
+		var material = Material.Create( "_shadowblocker", MaterialBuilder.ShaderPath );
+		material.SetFeature( "F_RENDER_BACKFACES", 0 );
+		return material;
+	}
+
+	/// <summary>Shadow-only renderers for a model's blockers, under <paramref name="parent"/>.</summary>
+	static void AddShadowBlockers( GameObject parent, List<Model> models )
+	{
+		foreach ( var model in models )
+		{
+			var go = new GameObject( parent, false, "shadow blocker" ) { IsStatic = parent.IsStatic };
+			var renderer = go.AddComponent<ModelRenderer>();
+			renderer.Model = model;
+			renderer.RenderType = ModelRenderer.ShadowRenderType.ShadowsOnly;
+			go.Enabled = true;
+		}
 	}
 }

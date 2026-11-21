@@ -527,9 +527,9 @@ PS
 		return diffuse;
 	}
 
-	// The lightmap can't be split into sunlight and the rest, so where the sun's realtime shadow (cast only by
-	// dynamic objects: the world is static and a baked sun leaves it out) falls on a surface facing the sun, the
-	// baked lighting is darkened to a fixed tint.
+	// The lightmap can't be split into sunlight and the rest, so where the sun's realtime shadow (from the world's
+	// shadow blockers and dynamic objects) falls on a surface facing the sun, the baked lighting is darkened to a
+	// fixed tint, as the Source mount does.
 	float Id3SunShadow( PixelInput i, float3 normalWs )
 	{
 		// screen-space derivatives: keep in uniform control flow

@@ -287,12 +287,15 @@ sealed partial class MapLoader
 
 		// brush models are built in world space; entities with an origin key (origin brush) pivot around it
 		var pivot = e.Has( "origin" ) ? Pos( e ) : center;
-		var model = GetBrushModel( modelIndex, pivot );
+		var model = GetBrushModel( modelIndex, pivot, out var shadows );
 		if ( model is null ) return;
 
 		var go = NewEntityObject( e, $"*{modelIndex}" );
 		go.WorldPosition = pivot;
-		go.AddComponent<ModelRenderer>().Model = model;
+		var renderer = go.AddComponent<ModelRenderer>();
+		renderer.Model = model;
+		renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
+		AddShadowBlockers( go, shadows );
 		var collider = go.AddComponent<ModelCollider>();
 		collider.Model = model;
 
