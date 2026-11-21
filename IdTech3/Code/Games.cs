@@ -29,7 +29,7 @@ public sealed class WolfETMount : IdTech3Mount
 	public override string Ident => "wolfet";
 	public override string Title => "Wolfenstein: Enemy Territory";
 	protected override long AppId => 1873030;
-	protected override string BaseDirectory => "Main";
+	protected override string BaseDirectory => "etmain";
 
 	static readonly GameProfile _profile = Profiles.Rtcw();
 	public override GameProfile Profile => _profile;
