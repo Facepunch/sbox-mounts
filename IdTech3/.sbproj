@@ -1,0 +1,29 @@
+{
+  "Title": "idTech 3",
+  "Type": "addon",
+  "Org": "local",
+  "OrgTitle": null,
+  "Ident": "idtech3",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [
+    "coduo",
+    "jk2",
+    "jka",
+    "quake3",
+    "cod",
+    "rtcw"
+  ],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "facepunch.sandbox",
+    "StartupScene": "scenes/sandbox.scene"
+  }
+}
