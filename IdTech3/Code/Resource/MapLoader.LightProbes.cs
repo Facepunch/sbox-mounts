@@ -44,8 +44,9 @@ partial class MapLoader
 			// all-zero ambient marks a point inside solid
 			if ( c[o] + c[o + 1] + c[o + 2] == 0 ) continue;
 
-			// r_ambientScale 0.6, r_directedScale 1, as R_SetupEntityLightingGrid
-			var ambient = GridColor( c[o], c[o + 1], c[o + 2] );// * 0.6f;
+			// r_ambientScale 0.6, r_directedScale 1, as R_SetupEntityLightingGrid. Without the 0.6 every side of the
+			// cube gets the full ambient and the shading goes flat.
+			var ambient = GridColor( c[o], c[o + 1], c[o + 2] ) * 0.6f;
 			var directed = GridColor( c[o + 3], c[o + 4], c[o + 5] );
 			var direction =  grid.Direction( o ) ;
 
@@ -56,6 +57,7 @@ partial class MapLoader
 				float share = SmoothStep( 0.5f, 0.95f, Vector3.Dot( direction, sun.ToSun ) );
 				var sunlight = directed * share;
 				directed -= sunlight;
+				sunlight = Vector3.Min( sunlight, Vector3.One );
 
 				// linear sunlight over the light's colour; probe strengths are linear and the light's colour has a
 				// largest channel of 1
@@ -63,8 +65,10 @@ partial class MapLoader
 				cubes[i * ProbeStride + SunSlot] = new Vector3( Vector3.Dot( linear, Luminance ) / sunLuminance, 0, 0 );
 			}
 
+			// RB_CalcDiffuseColor clamps the sum, not its parts: clamping the shifted grid colours first saturated most
+			// lit sides to the same value
 			for ( int side = 0; side < 6; side++ )
-				cubes[i * ProbeStride + side] = ambient + directed * MathF.Max( 0, Vector3.Dot( direction, ProbeAxes[side] ) );
+				cubes[i * ProbeStride + side] = Vector3.Min( ambient + directed * MathF.Max( 0, Vector3.Dot( direction, ProbeAxes[side] ) ), Vector3.One );
 
 			lit[i] = true;
 			litCount++;
@@ -135,12 +139,8 @@ partial class MapLoader
 		return t * t * (3 - 2 * t);
 	}
 
-	/// <summary>Grid colour after the overbright shift, 0..1.</summary>
-	Vector3 GridColor( byte r, byte g, byte b )
-	{
-		TextureUtil.ColorShift( ref r, ref g, ref b, _game.Profile.LightShift );
-		return new Vector3( r, g, b ) / 255f;
-	}
+	/// <summary>Grid colour after the overbright shift, not clamped (it can pass 1): the caller clamps the lit result.</summary>
+	Vector3 GridColor( byte r, byte g, byte b ) => new Vector3( r, g, b ) * ((1 << _game.Profile.LightShift) / 255f);
 
 	/// <summary>
 	/// Points inside solid have no light. Give them their lit neighbours' average so the volume texture's
