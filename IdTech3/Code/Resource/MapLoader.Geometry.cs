@@ -75,9 +75,11 @@ sealed partial class MapLoader
 	/// <summary>
 	/// Geometry for a BSP model (0 = world), relative to <paramref name="pivot"/>. <paramref name="draw"/> picks which
 	/// surfaces are rendered (all when null); collision is built unless <paramref name="collision"/> is false.
-	/// When <paramref name="shadows"/> is given, it receives the model's shadow blockers.
+	/// When <paramref name="shadows"/> is given, it receives the model's shadow blockers. When
+	/// <paramref name="skyHulls"/> is given, sky brushes go there instead of into the model's collision.
 	/// </summary>
-	Model BuildBspModel( int index, Vector3 pivot, string name, Predicate<int> draw = null, bool collision = true, List<Model> shadows = null )
+	Model BuildBspModel( int index, Vector3 pivot, string name, Predicate<int> draw = null, bool collision = true, List<Model> shadows = null,
+		List<List<Vector3>> skyHulls = null )
 	{
 		if ( index < 0 || index >= _bsp.Models.Length ) return null;
 		var bspModel = _bsp.Models[index];
@@ -245,6 +247,11 @@ sealed partial class MapLoader
 			if ( (ContentsOf( brush ) & BspFile.ContentsSolid) == 0 ) continue;
 			var points = BrushPoints( brush, pivot );
 			if ( points.Count < 4 ) continue;
+			if ( skyHulls is not null && IsSkyBrush( brush ) )
+			{
+				skyHulls.Add( points );
+				continue;
+			}
 			BodyFor( BrushSurface( brush ) ).AddHull( points.ToArray() );
 			hulls++;
 		}
@@ -283,6 +290,43 @@ sealed partial class MapLoader
 
 		if ( meshCount == 0 && hulls == 0 && collisionIndices.Count == 0 ) return null;
 		return builder.Create();
+	}
+
+	/// <summary>True when a brush has a sky side (only the side facing the map usually does).</summary>
+	bool IsSkyBrush( BspBrush brush )
+	{
+		if ( IsSkyShader( brush.Shader ) ) return true;
+		for ( int i = 0; i < brush.NumSides; i++ )
+		{
+			int si = brush.FirstSide + i;
+			if ( si >= 0 && si < _bsp.BrushSides.Length && IsSkyShader( _bsp.BrushSides[si].Shader ) ) return true;
+		}
+		return false;
+	}
+
+	bool IsSkyShader( int shader )
+	{
+		if ( shader < 0 || shader >= _bsp.Shaders.Length ) return false;
+		var s = _bsp.Shaders[shader];
+		return (s.SurfaceFlags & BspFile.SurfSky) != 0 || _game.Shaders.Find( s.Name )?.IsSky == true;
+	}
+
+	/// <summary>
+	/// The world's sky brushes as their own static collider tagged "world" and "passaudio", as the Source mount does
+	/// with its audio-transparent collision. They still stop players and count as world, but the audio simulation
+	/// ignores "passaudio", so its rays escape there and big outdoor areas sound open instead of like a room.
+	/// </summary>
+	void BuildSkyCollider( GameObject world, List<List<Vector3>> hulls )
+	{
+		if ( hulls.Count == 0 ) return;
+		var builder = Model.Builder.WithName( $"{WorldModelName}_sky" );
+		foreach ( var h in hulls ) builder.AddCollisionHull( h );
+		var go = new GameObject( world, true, "sky" ) { IsStatic = true };
+		go.Tags.Add( "world" );
+		go.Tags.Add( "passaudio" );
+		var collider = go.AddComponent<ModelCollider>();
+		collider.Model = builder.Create();
+		collider.Static = true;
 	}
 
 	/// <summary>The physics surface for a shader's material (footsteps, impacts).</summary>

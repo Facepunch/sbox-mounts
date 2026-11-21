@@ -69,7 +69,7 @@ public abstract partial class IdTech3Mount
 			}
 		}
 
-		// atlases for multi-texture shaders
+		// shader scripts defined by this directory become materials, and their animMaps atlases
 		var shaderNames = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var def in game.Shaders.All )
 		{
@@ -81,6 +81,10 @@ public abstract partial class IdTech3Mount
 				Add( context, registered, ResourceType.Texture, $"{game.Dir}/{GameData.AnimAtlasName( stage.Maps )}",
 					new AnimAtlasLoader( game, stage.Maps.ToArray() ) { Flags = ResourceFlags.DeveloperOnly } );
 			}
+
+			// GameData.GetModelMaterial asks for exactly these: drawable script shaders, whatever images they use
+			if ( MaterialBuilder.IsInvisible( def ) || def.IsSky || def.IsFog ) continue;
+			Add( context, registered, ResourceType.Material, $"{game.Dir}/{def.Name}", new MaterialLoader( game, def.Name ) );
 		}
 
 		foreach ( var image in images )

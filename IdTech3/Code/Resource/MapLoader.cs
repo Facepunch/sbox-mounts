@@ -59,8 +59,10 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 		// with a sky portal, its room and the sky surfaces are drawn by the Skybox3D instead
 		Predicate<int> draw = portal is null ? null : si => !portal.Surfaces.Contains( si ) && !IsSkySurface( si );
 		var shadows = new List<Model>();
-		var worldModel = BuildBspModel( 0, Vector3.Zero, WorldModelName, draw, shadows: shadows );
+		var skyHulls = new List<List<Vector3>>();
+		var worldModel = BuildBspModel( 0, Vector3.Zero, WorldModelName, draw, shadows: shadows, skyHulls: skyHulls );
 		AddShadowBlockers( world, shadows );
+		BuildSkyCollider( world, skyHulls );
 		if ( worldModel is not null )
 		{
 			var renderer = world.AddComponent<ModelRenderer>();
