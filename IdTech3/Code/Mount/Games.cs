@@ -1,6 +1,5 @@
 namespace IdTech3;
 
-/// <summary>Quake III Arena, plus Team Arena (missionpack) and any installed mods.</summary>
 public sealed class Quake3Mount : IdTech3Mount
 {
 	public override string Ident => "quake3";
@@ -14,7 +13,6 @@ public sealed class Quake3Mount : IdTech3Mount
 	public override GameProfile Profile => _profile;
 }
 
-/// <summary>Return to Castle Wolfenstein.</summary>
 public sealed class RtcwMount : IdTech3Mount
 {
 	public override string Ident => "rtcw";
@@ -26,7 +24,18 @@ public sealed class RtcwMount : IdTech3Mount
 	public override GameProfile Profile => _profile;
 }
 
-/// <summary>Call of Duty (2003).</summary>
+public sealed class WolfETMount : IdTech3Mount
+{
+	public override string Ident => "wolfet";
+	public override string Title => "Wolfenstein: Enemy Territory";
+	protected override long AppId => 1873030;
+	protected override string BaseDirectory => "Main";
+
+	static readonly GameProfile _profile = Profiles.Rtcw();
+	public override GameProfile Profile => _profile;
+}
+
+/*
 public sealed class CallOfDutyMount : IdTech3Mount
 {
 	public override string Ident => "cod";
@@ -41,7 +50,6 @@ public sealed class CallOfDutyMount : IdTech3Mount
 	public override GameProfile Profile => _profile;
 }
 
-/// <summary>Star Wars Jedi Knight II: Jedi Outcast (maps, MD3 models, shaders, textures and sounds).</summary>
 public sealed class JediOutcastMount : IdTech3Mount
 {
 	public override string Ident => "jk2";
@@ -53,7 +61,6 @@ public sealed class JediOutcastMount : IdTech3Mount
 	public override GameProfile Profile => _profile;
 }
 
-/// <summary>Star Wars Jedi Knight: Jedi Academy (maps, MD3 models, shaders, textures and sounds).</summary>
 public sealed class JediAcademyMount : IdTech3Mount
 {
 	public override string Ident => "jka";
@@ -64,6 +71,7 @@ public sealed class JediAcademyMount : IdTech3Mount
 	static readonly GameProfile _profile = Profiles.Raven( "Jedi Knight: Jedi Academy" );
 	public override GameProfile Profile => _profile;
 }
+*/
 
 static class Profiles
 {
