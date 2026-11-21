@@ -1,15 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace IdTech3.Formats;
 
 public struct ModelVertex
 {
-	public Vec3 Position;
-	public Vec3 Normal;
-	public Vec2 TexCoord;
+	public Vector3 Position;
+	public Vector3 Normal;
+	public Vector2 TexCoord;
 	/// <summary>Up to 4 bone influences (index, weight). Unused for vertex-animated models.</summary>
 	public int B0, B1, B2, B3;
 	public float W0, W1, W2, W3;
@@ -27,7 +24,7 @@ public sealed class ModelSurface
 public struct ModelTag
 {
 	public string Name;
-	public Vec3 Origin;
+	public Vector3 Origin;
 	public Axis Axis;
 }
 
@@ -36,7 +33,7 @@ public sealed class ModelBone
 	public string Name;
 	public int Parent = -1;
 	/// <summary>Model-space bind pose.</summary>
-	public Vec3 Position;
+	public Vector3 Position;
 	/// <summary>Model-space rotation quaternion (x, y, z, w).</summary>
 	public float Qx, Qy, Qz, Qw = 1;
 }
@@ -57,7 +54,7 @@ public sealed class ModelData
 	}
 
 	/// <summary>Apply a rigid transform to all geometry and tags (used when attaching player parts).</summary>
-	public void Transform( Vec3 origin, Axis axis )
+	public void Transform( Vector3 origin, Axis axis )
 	{
 		foreach ( var s in Surfaces )
 			for ( int i = 0; i < s.Vertices.Count; i++ )
@@ -92,11 +89,11 @@ public static class ModelReader
 		};
 	}
 
-	internal static Vec3 DecodeLatLong( int packed )
+	internal static Vector3 DecodeLatLong( int packed )
 	{
 		float lat = ((packed >> 8) & 0xff) * (MathF.PI * 2 / 256f);
 		float lng = (packed & 0xff) * (MathF.PI * 2 / 256f);
-		return new Vec3( MathF.Cos( lat ) * MathF.Sin( lng ), MathF.Sin( lat ) * MathF.Sin( lng ), MathF.Cos( lng ) );
+		return new Vector3( MathF.Cos( lat ) * MathF.Sin( lng ), MathF.Sin( lat ) * MathF.Sin( lng ), MathF.Cos( lng ) );
 	}
 }
 
@@ -143,7 +140,7 @@ public static class Md3
 				int xo = so + ofsXyz + (f * numVerts + v) * 8;
 				surf.Vertices.Add( new ModelVertex
 				{
-					Position = new Vec3( b.I16( xo ), b.I16( xo + 2 ), b.I16( xo + 4 ) ) * (1f / 64f),
+					Position = new Vector3( b.I16( xo ), b.I16( xo + 2 ), b.I16( xo + 4 ) ) * (1f / 64f),
 					Normal = ModelReader.DecodeLatLong( b.U16( xo + 6 ) ),
 					TexCoord = b.V2( so + ofsSt + v * 8 ),
 					W0 = 1,
@@ -183,9 +180,9 @@ public static class Mdc
 		for ( int i = 0; i < numTags; i++ )
 		{
 			int o = ofsTags + (frame * numTags + i) * 12;
-			var origin = new Vec3( b.I16( o ), b.I16( o + 2 ), b.I16( o + 4 ) ) * (1f / 64f);
-			var ang = new Vec3( b.I16( o + 6 ), b.I16( o + 8 ), b.I16( o + 10 ) ) * tagAngleScale;
-			model.Tags.Add( new ModelTag { Name = b.Str( ofsTagNames + i * 64, 64 ), Origin = origin, Axis = Axis.FromAngles( ang.X, ang.Y, ang.Z ) } );
+			var origin = new Vector3( b.I16( o ), b.I16( o + 2 ), b.I16( o + 4 ) ) * (1f / 64f);
+			var ang = new Vector3( b.I16( o + 6 ), b.I16( o + 8 ), b.I16( o + 10 ) ) * tagAngleScale;
+			model.Tags.Add( new ModelTag { Name = b.Str( ofsTagNames + i * 64, 64 ), Origin = origin, Axis = Axis.FromAngles( ang.x, ang.y, ang.z ) } );
 		}
 
 		int so = ofsSurfaces;
@@ -209,11 +206,11 @@ public static class Mdc
 			for ( int v = 0; v < numVerts; v++ )
 			{
 				int xo = so + ofsXyz + (baseFrame * numVerts + v) * 8;
-				var pos = new Vec3( b.I16( xo ), b.I16( xo + 2 ), b.I16( xo + 4 ) ) * (1f / 64f);
+				var pos = new Vector3( b.I16( xo ), b.I16( xo + 2 ), b.I16( xo + 4 ) ) * (1f / 64f);
 				if ( compFrame >= 0 && compFrame < numComp )
 				{
 					uint c = b.U32( so + ofsComp + (compFrame * numVerts + v) * 4 );
-					pos += new Vec3( ((c & 255) - 127f) * 0.05f, (((c >> 8) & 255) - 127f) * 0.05f, (((c >> 16) & 255) - 127f) * 0.05f );
+					pos += new Vector3( ((c & 255) - 127f) * 0.05f, (((c >> 8) & 255) - 127f) * 0.05f, (((c >> 16) & 255) - 127f) * 0.05f );
 				}
 				surf.Vertices.Add( new ModelVertex
 				{
@@ -242,7 +239,7 @@ public static class Mdc
 /// <summary>RTCW skeletal model (MDSW v4). Posed at a single frame; bones are exported in that pose.</summary>
 public static class Mds
 {
-	struct BoneXform { public Axis Axis; public Vec3 Translation; }
+	struct BoneXform { public Axis Axis; public Vector3 Translation; }
 
 	public static ModelData Load( byte[] data, string name, int frame = 0 )
 	{
@@ -280,9 +277,9 @@ public static class Mds
 			if ( p >= 0 && p < numBones ) Calc( p, depth + 1 );
 
 			int co = fo + 52 + i * 12;
-			var ang = new Vec3( b.I16( co ) * s2a, b.I16( co + 2 ) * s2a, b.I16( co + 4 ) * s2a );
-			var axis = Axis.FromAngles( ang.X, ang.Y, ang.Z );
-			Vec3 translation;
+			var ang = new Vector3( b.I16( co ) * s2a, b.I16( co + 2 ) * s2a, b.I16( co + 4 ) * s2a );
+			var axis = Axis.FromAngles(ang.x, ang.y, ang.z);
+			Vector3 translation;
 			if ( p >= 0 && p < numBones )
 			{
 				float pitch = b.I16( co + 8 ) * s2a, yaw = b.I16( co + 10 ) * s2a;
@@ -320,12 +317,12 @@ public static class Mds
 		return model;
 	}
 
-	static float BoundsError( ModelData m, Vec3 min, Vec3 max )
+	static float BoundsError( ModelData m, Vector3 min, Vector3 max )
 	{
-		var mn = new Vec3( float.MaxValue, float.MaxValue, float.MaxValue );
+		var mn = new Vector3( float.MaxValue, float.MaxValue, float.MaxValue );
 		var mx = -mn;
-		foreach ( var s in m.Surfaces ) foreach ( var v in s.Vertices ) { mn = Vec3.Min( mn, v.Position ); mx = Vec3.Max( mx, v.Position ); }
-		if ( mn.X > mx.X ) return float.MaxValue;
+		foreach ( var s in m.Surfaces ) foreach ( var v in s.Vertices ) { mn = Vector3.Min( mn, v.Position ); mx = Vector3.Max( mx, v.Position ); }
+		if ( mn.x > mx.x ) return float.MaxValue;
 		return (mn - min).Length + (mx - max).Length;
 	}
 
@@ -349,8 +346,8 @@ public static class Mds
 				var n = b.V3( vo );
 				var uv = b.V2( vo + 12 );
 				int numWeights = b.I32( vo + 20 );
-				var pos = Vec3.Zero;
-				var nrm = Vec3.Zero;
+				var pos = Vector3.Zero;
+				var nrm = Vector3.Zero;
 				var vert = new ModelVertex { TexCoord = uv };
 				var infl = new List<(int, float)>();
 				for ( int w = 0; w < numWeights; w++ )
@@ -366,7 +363,7 @@ public static class Mds
 					infl.Add( (bone, weight) );
 				}
 				vert.Position = pos;
-				vert.Normal = nrm.Normalized;
+				vert.Normal = nrm.Normal;
 				infl = infl.OrderByDescending( x => x.Item2 ).Take( 4 ).ToList();
 				float total = infl.Sum( x => x.Item2 );
 				if ( total <= 0 ) total = 1;
@@ -392,16 +389,16 @@ public static class Mds
 		return model;
 	}
 
-	static Vec3 Apply( Axis a, Vec3 v, bool transpose ) => transpose
-		? new Vec3( v.Dot( a.Forward ), v.Dot( a.Left ), v.Dot( a.Up ) )
+	static Vector3 Apply( Axis a, Vector3 v, bool transpose ) => transpose
+		? new Vector3( v.Dot( a.Forward ), v.Dot( a.Left ), v.Dot( a.Up ) )
 		: a.Transform( v );
 
 	internal static (float x, float y, float z, float w) QuatFromAxis( Axis a )
 	{
 		// columns of the rotation matrix are forward, left, up
-		float m00 = a.Forward.X, m01 = a.Left.X, m02 = a.Up.X;
-		float m10 = a.Forward.Y, m11 = a.Left.Y, m12 = a.Up.Y;
-		float m20 = a.Forward.Z, m21 = a.Left.Z, m22 = a.Up.Z;
+		float m00 = a.Forward.x, m01 = a.Left.x, m02 = a.Up.x;
+		float m10 = a.Forward.y, m11 = a.Left.y, m12 = a.Up.y;
+		float m20 = a.Forward.z, m21 = a.Left.z, m22 = a.Up.z;
 		float tr = m00 + m11 + m22;
 		float x, y, z, w;
 		if ( tr > 0 )
@@ -473,12 +470,12 @@ public static class XModel
 		return h;
 	}
 
-	struct Xf { public Vec3 P; public float Qx, Qy, Qz, Qw; }
+	struct Xf { public Vector3 P; public float Qx, Qy, Qz, Qw; }
 
-	static Vec3 Rotate( Vec3 v, float qx, float qy, float qz, float qw )
+	static Vector3 Rotate( Vector3 v, float qx, float qy, float qz, float qw )
 	{
 		// v' = q v q*
-		var u = new Vec3( qx, qy, qz );
+		var u = new Vector3( qx, qy, qz );
 		var t = u.Cross( v ) * 2;
 		return v + t * qw + u.Cross( t );
 	}
@@ -597,7 +594,7 @@ public static class XModel
 					n = Rotate( n, bn.Qx, bn.Qy, bn.Qz, bn.Qw );
 				}
 
-				surf.Vertices.Add( new ModelVertex { Position = p, Normal = n.Normalized, TexCoord = uv, B0 = bone, W0 = 1 } );
+				surf.Vertices.Add( new ModelVertex { Position = p, Normal = n.Normal, TexCoord = uv, B0 = bone, W0 = 1 } );
 			}
 
 			for ( int v = 0; v < vertexCount; v++ )

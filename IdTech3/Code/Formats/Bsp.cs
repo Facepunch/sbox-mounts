@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Text;
 
 namespace IdTech3.Formats;
@@ -25,13 +23,13 @@ public struct BspShaderRef
 
 public struct BspPlane
 {
-	public Vec3 Normal;
+	public Vector3 Normal;
 	public float Dist;
 }
 
 public sealed class BspModel
 {
-	public Vec3 Mins, Maxs;
+	public Vector3 Mins, Maxs;
 	public int FirstSurface, NumSurfaces;
 	public int FirstBrush, NumBrushes;
 	public int FirstCollision, NumCollision;
@@ -39,7 +37,7 @@ public sealed class BspModel
 
 public struct BspBrushSide
 {
-	public Vec3 Normal;
+	public Vector3 Normal;
 	public float Dist;
 	public int Shader;
 }
@@ -51,11 +49,11 @@ public struct BspBrush
 
 public struct BspVertex
 {
-	public Vec3 Position;
-	public Vec2 TexCoord;
-	public Vec2 LightmapCoord;
-	public Vec3 Normal;
-	public Rgba Color;
+	public Vector3 Position;
+	public Vector2 TexCoord;
+	public Vector2 LightmapCoord;
+	public Vector3 Normal;
+	public Color32 Color;
 }
 
 public sealed class BspSurface
@@ -67,8 +65,8 @@ public sealed class BspSurface
 	public int FirstIndex, NumIndexes;
 	public int Lightmap = -1;
 	public int PatchWidth, PatchHeight;
-	public Vec3 LightmapOrigin;
-	public Vec3 LightmapNormal;
+	public Vector3 LightmapOrigin;
+	public Vector3 LightmapNormal;
 }
 
 public struct BspNode
@@ -102,7 +100,7 @@ public sealed class BspLightmap
 public sealed class BspCollisionMesh
 {
 	public int Shader;
-	public List<Vec3> Vertices = new();
+	public List<Vector3> Vertices = new();
 	public List<int> Indices = new();
 }
 
@@ -111,17 +109,17 @@ public sealed class BspCollisionMesh
 /// </summary>
 public sealed class BspLightGrid
 {
-	public Vec3 Origin;
-	public Vec3 Size;
+	public Vector3 Origin;
+	public Vector3 Size;
 	public int Nx, Ny, Nz;
 	public byte[] Cells;
 
 	/// <summary>Direction towards the light of the cell at byte offset <paramref name="o"/>.</summary>
-	public Vec3 Direction( int o )
+	public Vector3 Direction( int o )
 	{
 		float lat = Cells[o + 7] * (MathF.PI * 2 / 256f);
 		float lng = Cells[o + 6] * (MathF.PI * 2 / 256f);
-		return new Vec3( MathF.Cos( lat ) * MathF.Sin( lng ), MathF.Sin( lat ) * MathF.Sin( lng ), MathF.Cos( lng ) );
+		return new Vector3( MathF.Cos( lat ) * MathF.Sin( lng ), MathF.Sin( lat ) * MathF.Sin( lng ), MathF.Cos( lng ) );
 	}
 }
 
@@ -155,7 +153,7 @@ public sealed class BspFile
 	public Entity WorldSpawn => Entities.Count > 0 ? Entities[0] : new Entity();
 
 	/// <summary>The leaf containing a point, or -1 without a BSP tree.</summary>
-	public int LeafAt( Vec3 p )
+	public int LeafAt( Vector3 p )
 	{
 		if ( Nodes.Length == 0 ) return Leaves.Length > 0 ? 0 : -1;
 		int node = 0;
@@ -164,7 +162,7 @@ public sealed class BspFile
 			var n = Nodes[node];
 			if ( n.Plane < 0 || n.Plane >= Planes.Length ) return -1;
 			var plane = Planes[n.Plane];
-			float d = p.X * plane.Normal.X + p.Y * plane.Normal.Y + p.Z * plane.Normal.Z - plane.Dist;
+			float d = p.x * plane.Normal.x + p.y * plane.Normal.y + p.z * plane.Normal.z - plane.Dist;
 			node = d >= 0 ? n.Front : n.Back;
 		}
 		int leaf = -(node + 1);
@@ -175,7 +173,7 @@ public sealed class BspFile
 	/// Surfaces in the leaves potentially visible from a point (its cluster's PVS), or null when the map has
 	/// no visibility data or the point is outside the world.
 	/// </summary>
-	public HashSet<int> SurfacesVisibleFrom( Vec3 p )
+	public HashSet<int> SurfacesVisibleFrom( Vector3 p )
 	{
 		int leaf = LeafAt( p );
 		if ( leaf < 0 || Vis is null || VisClusters <= 0 ) return null;
@@ -336,7 +334,7 @@ public sealed class BspFile
 		{
 			int o = ofs[9] + i * sideSize;
 			int plane = b.I32( o );
-			var p = plane >= 0 && plane < f.Planes.Length ? f.Planes[plane] : new BspPlane { Normal = new Vec3( 0, 0, 1 ) };
+			var p = plane >= 0 && plane < f.Planes.Length ? f.Planes[plane] : new BspPlane { Normal = new Vector3( 0, 0, 1 ) };
 			f.BrushSides[i] = new BspBrushSide { Normal = p.Normal, Dist = p.Dist, Shader = b.I32( o + 4 ) };
 		}
 
@@ -420,23 +418,23 @@ public sealed class BspFile
 
 		// need worldspawn gridsize, parse entities early
 		var world = Entity.ParseAll( f.EntityText );
-		var size = new Vec3( 64, 64, 128 );
+		var size = new Vector3( 64, 64, 128 );
 		if ( world.Count > 0 && world[0].Has( "gridsize" ) ) size = world[0].Vector( "gridsize", size );
-		if ( size.X <= 0 || size.Y <= 0 || size.Z <= 0 ) return;
+		if ( size.x <= 0 || size.y <= 0 || size.z <= 0 ) return;
 
 		var grid = new BspLightGrid { Size = size };
 		var wm = f.Models[0];
-		var maxs = new Vec3();
-		var origin = new Vec3();
+		var maxs = new Vector3();
+		var origin = new Vector3();
 		for ( int i = 0; i < 3; i++ )
 		{
 			origin[i] = size[i] * MathF.Ceiling( wm.Mins[i] / size[i] );
 			maxs[i] = size[i] * MathF.Floor( wm.Maxs[i] / size[i] );
 		}
 		grid.Origin = origin;
-		grid.Nx = (int)((maxs.X - origin.X) / size.X) + 1;
-		grid.Ny = (int)((maxs.Y - origin.Y) / size.Y) + 1;
-		grid.Nz = (int)((maxs.Z - origin.Z) / size.Z) + 1;
+		grid.Nx = (int)((maxs.x - origin.x) / size.x) + 1;
+		grid.Ny = (int)((maxs.y - origin.y) / size.y) + 1;
+		grid.Nz = (int)((maxs.z - origin.z) / size.z) + 1;
 		long count = (long)grid.Nx * grid.Ny * grid.Nz;
 		if ( count <= 0 || count > 16_000_000 ) return;
 
@@ -605,7 +603,7 @@ public sealed class BspFile
 				else
 				{
 					int plane = b.I32( o );
-					var p = plane >= 0 && plane < f.Planes.Length ? f.Planes[plane] : new BspPlane { Normal = new Vec3( 0, 0, 1 ), Dist = 1e9f };
+					var p = plane >= 0 && plane < f.Planes.Length ? f.Planes[plane] : new BspPlane { Normal = new Vector3( 0, 0, 1 ), Dist = 1e9f };
 					f.BrushSides[si] = new BspBrushSide { Normal = p.Normal, Dist = p.Dist, Shader = shader };
 				}
 			}
@@ -620,8 +618,8 @@ public sealed class BspFile
 			{
 				float min = negated ? -axial[axis * 2] : axial[axis * 2];
 				float max = axial[axis * 2 + 1];
-				var nNeg = new Vec3(); nNeg[axis] = -1;
-				var nPos = new Vec3(); nPos[axis] = 1;
+				var nNeg = new Vector3(); nNeg[axis] = -1;
+				var nPos = new Vector3(); nPos[axis] = 1;
 				int s0 = brush.FirstSide + axis * 2;
 				if ( s0 + 1 >= numSides ) break;
 				f.BrushSides[s0].Normal = nNeg; f.BrushSides[s0].Dist = -min;

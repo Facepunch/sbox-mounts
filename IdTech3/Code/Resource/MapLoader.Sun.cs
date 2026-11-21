@@ -31,12 +31,12 @@ partial class MapLoader
 
 			// pitch and yaw of the direction towards the sun (negative pitch looks up)
 			var angles = ws.Vector( "sundirection" );
-			float pitch = angles.X * MathF.PI / 180, yaw = angles.Y * MathF.PI / 180;
+			float pitch = angles.x * MathF.PI / 180, yaw = angles.y * MathF.PI / 180;
 			var toSun = new Vector3( MathF.Cos( pitch ) * MathF.Cos( yaw ), MathF.Cos( pitch ) * MathF.Sin( yaw ), -MathF.Sin( pitch ) );
 			return new Sun
 			{
 				ToSun = toSun.Normal,
-				Color = NormalizeColor( Convert3.V( ws.Vector( "suncolor", new Vec3( 1, 1, 1 ) ) ) ),
+				Color = NormalizeColor(  ws.Vector( "suncolor", new Vector3( 1, 1, 1 ) )  ),
 				Intensity = Math.Clamp( ws.Float( "sunlight", 1 ), 0.25f, 4f ),
 			};
 		}
@@ -55,7 +55,7 @@ partial class MapLoader
 		return new Sun
 		{
 			ToSun = new Vector3( MathF.Cos( elevation ) * MathF.Cos( azimuth ), MathF.Cos( elevation ) * MathF.Sin( azimuth ), MathF.Sin( elevation ) ).Normal,
-			Color = NormalizeColor( Convert3.V( shader.SunColor ) ),
+			Color = NormalizeColor(  shader.SunColor  ),
 			Intensity = Math.Clamp( shader.SunIntensity / 100f, 0.25f, 4f ),
 		};
 	}

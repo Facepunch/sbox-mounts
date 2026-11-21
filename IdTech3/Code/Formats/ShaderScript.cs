@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-
 namespace IdTech3.Formats;
 
 public enum WaveFunc { None, Sin, Triangle, Square, Sawtooth, InverseSawtooth, Noise }
@@ -55,7 +51,7 @@ public struct Deform
 	public DeformType Type;
 	public float Spread;
 	public WaveForm Wave;
-	public Vec3 Vector;
+	public Vector3 Vector;
 	public float BulgeWidth, BulgeHeight, BulgeSpeed;
 }
 
@@ -74,7 +70,7 @@ public sealed class ShaderStage
 	public BlendFactor Dst = BlendFactor.Zero;
 
 	public RgbGen RgbGen = RgbGen.Default;
-	public Vec3 ConstColor = new( 1, 1, 1 );
+	public Vector3 ConstColor = new( 1, 1, 1 );
 	public WaveForm RgbWave;
 
 	public AlphaGen AlphaGen = AlphaGen.Default;
@@ -82,7 +78,7 @@ public sealed class ShaderStage
 	public WaveForm AlphaWave;
 
 	public TcGen TcGen = TcGen.Base;
-	public Vec3 TcGenS = new( 1, 0, 0 ), TcGenT = new( 0, 1, 0 );
+	public Vector3 TcGenS = new( 1, 0, 0 ), TcGenT = new( 0, 1, 0 );
 	public List<TcMod> TcMods = new();
 
 	public AlphaFunc AlphaFunc;
@@ -124,7 +120,7 @@ public sealed class ShaderDef
 	public float CloudHeight = 128;
 
 	public bool IsFog;
-	public Vec3 FogColor;
+	public Vector3 FogColor;
 	public float FogDepthForOpaque = 300;
 
 	public bool PolygonOffset;
@@ -139,7 +135,7 @@ public sealed class ShaderDef
 	public string LightImage;
 
 	public bool HasSun;
-	public Vec3 SunColor = new( 1, 1, 1 );
+	public Vector3 SunColor = new( 1, 1, 1 );
 	public float SunIntensity;
 	public float SunYaw, SunElevation;
 
@@ -244,7 +240,7 @@ public static class ShaderParser
 					if ( nums.Count >= 4 )
 					{
 						shader.IsFog = true;
-						shader.FogColor = new Vec3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
+						shader.FogColor = new Vector3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
 						shader.FogDepthForOpaque = MathF.Max( 1, Num.F( nums[3], 300 ) );
 					}
 					break;
@@ -278,7 +274,7 @@ public static class ShaderParser
 					if ( nums.Count >= 6 )
 					{
 						shader.HasSun = true;
-						shader.SunColor = new Vec3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
+						shader.SunColor = new Vector3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
 						shader.SunIntensity = Num.F( nums[3] );
 						shader.SunYaw = Num.F( nums[4] );
 						shader.SunElevation = Num.F( nums[5] );
@@ -390,7 +386,7 @@ public static class ShaderParser
 						{
 							var nums = args.Skip( 1 ).Where( a => a != "(" && a != ")" ).ToList();
 							s.RgbGen = RgbGen.Const;
-							if ( nums.Count >= 3 ) s.ConstColor = new Vec3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
+							if ( nums.Count >= 3 ) s.ConstColor = new Vector3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
 							break;
 						}
 					}
@@ -429,8 +425,8 @@ public static class ShaderParser
 							if ( nums.Count >= 6 )
 							{
 								s.TcGen = TcGen.Vector;
-								s.TcGenS = new Vec3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
-								s.TcGenT = new Vec3( Num.F( nums[3] ), Num.F( nums[4] ), Num.F( nums[5] ) );
+								s.TcGenS = new Vector3( Num.F( nums[0] ), Num.F( nums[1] ), Num.F( nums[2] ) );
+								s.TcGenT = new Vector3( Num.F( nums[3] ), Num.F( nums[4] ), Num.F( nums[5] ) );
 							}
 							break;
 						}
@@ -574,7 +570,7 @@ public static class ShaderParser
 				break;
 			case "move":
 				d.Type = DeformType.Move;
-				d.Vector = new Vec3( P( 1 ), P( 2 ), P( 3 ) );
+				d.Vector = new Vector3( P( 1 ), P( 2 ), P( 3 ) );
 				d.Wave = ParseWave( args, 4 );
 				break;
 			case "autosprite": d.Type = DeformType.AutoSprite; break;

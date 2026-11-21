@@ -207,36 +207,3 @@ public sealed class TriggerRelay : Component, Component.ITriggerListener
 		Id3Entity.FireTargets( Scene, Target, pc.GameObject );
 	}
 }
-
-/// <summary>Spinning pickup display, like cg_items (one revolution every ~2 seconds, optional bob).</summary>
-[Title( "idTech3 Item" ), Category( "idTech3" ), Icon( "redeem" )]
-public sealed class ItemDisplay : Component
-{
-	[Property] public bool Spin { get; set; } = true;
-	[Property] public bool Bob { get; set; }
-	[Property] public float Phase { get; set; }
-
-	Vector3 _base;
-	protected override void OnStart() => _base = LocalPosition;
-
-	protected override void OnUpdate()
-	{
-		if ( Spin ) LocalRotation = Rotation.FromYaw( (Time.Now * 1000f % 2048f) * 360f / 2048f );
-		if ( Bob ) LocalPosition = _base + Vector3.Up * (4f + MathF.Cos( (Time.Now * 1000f + 1000f) * 0.005f + Phase ) * 4f);
-	}
-}
-
-/// <summary>target_speaker: plays a sound, optionally when used.</summary>
-[Title( "idTech3 Speaker" ), Category( "idTech3" ), Icon( "volume_up" )]
-public sealed class Speaker : Component, IId3Usable
-{
-	[Property] public SoundEvent Sound { get; set; }
-	[Property] public bool Global { get; set; }
-
-	public void Use( GameObject activator )
-	{
-		if ( Sound is null ) return;
-		var handle = Sandbox.Sound.Play( Sound, WorldPosition );
-		if ( Global && handle.IsValid() ) handle.ListenLocal = true;
-	}
-}

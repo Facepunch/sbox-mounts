@@ -1,11 +1,11 @@
-using System.Collections.Concurrent;
 using IdTech3.Formats;
 
 namespace IdTech3;
 
 /// <summary>
-/// Everything needed to load assets for one game directory: the layered file system, the shader
-/// scripts and caches of textures and materials shared by every loader.
+/// Everything needed to load assets for one game directory: the layered file system and the shader scripts.
+/// Textures, sky cubes and materials are mount resources, loaded through their mount:// paths so the engine's
+/// resource system shares them.
 /// </summary>
 public sealed class GameData
 {
@@ -14,24 +14,44 @@ public sealed class GameData
 	public LayeredFileSystem Fs { get; }
 	public GameProfile Profile { get; }
 
+	/// <summary>The archives and loose files this directory provides itself (not inherited from the base game).</summary>
+	public IReadOnlySet<IFileSource> OwnSources { get; }
+
 	readonly object _shaderLock = new();
 	ShaderLibrary _shaders;
-	readonly ConcurrentDictionary<string, Texture> _textures = new( StringComparer.OrdinalIgnoreCase );
-	readonly ConcurrentDictionary<string, Material> _materials = new( StringComparer.OrdinalIgnoreCase );
-	readonly ConcurrentDictionary<string, Texture> _skies = new( StringComparer.OrdinalIgnoreCase );
 
-	public GameData( IdTech3Mount mount, string dir, LayeredFileSystem fs, GameProfile profile )
+	public GameData( IdTech3Mount mount, string dir, LayeredFileSystem fs, GameProfile profile, IEnumerable<IFileSource> ownSources )
 	{
 		Mount = mount;
 		Dir = dir;
 		Fs = fs;
 		Profile = profile;
+		OwnSources = new HashSet<IFileSource>( ownSources );
 	}
 
 	public string Ident => Mount.Ident;
 
 	/// <summary>mount:// path of a resource registered for this game directory.</summary>
-	public string ResourcePath( string relative, string extension ) => $"mount://{Mount.Ident}/{Dir}/{relative}{extension}";
+	public string ResourcePath( string relative, string extension ) => ResourcePath( Dir, relative, extension );
+
+	string ResourcePath( string dir, string relative, string extension ) => $"mount://{Mount.Ident}/{dir}/{relative}{extension}";
+
+	/// <summary>
+	/// mount:// path of the resource registered for a file (model, sound, image), in the directory that provides it.
+	/// <paramref name="suffix"/> is added to the file's path, e.g. ".loop" for looping sounds.
+	/// </summary>
+	public string FileResourcePath( string path, string extension, string suffix = "" ) => ResourcePath( OwnerDir( path ), path + suffix, extension );
+
+	/// <summary>
+	/// The game directory that registers a file's resources: this one when it provides the file, otherwise the
+	/// directory it's inherited from.
+	/// </summary>
+	public string OwnerDir( string path )
+	{
+		var source = Fs.SourceOf( path );
+		if ( source is null || OwnSources.Contains( source ) ) return Dir;
+		return Mount.OwnerOf( source )?.Dir ?? Dir;
+	}
 
 	public ShaderLibrary Shaders
 	{
@@ -100,63 +120,107 @@ public sealed class GameData
 		return new ImageData { Width = bitmap.Width, Height = bitmap.Height, Mips = { bytes }, HasAlpha = ImageData.DetectAlpha( bytes ) };
 	}
 
-	/// <summary>Load (cached) the texture for an image reference, or null if it doesn't exist.</summary>
-	public Texture GetTexture( string name, bool mips = true )
+	/// <summary>The registered texture for an image reference, or null if there's no such image.</summary>
+	public Texture GetTexture( string name )
 	{
 		var path = FindImage( name );
-		if ( path is null ) return null;
-		var key = mips ? path : path + "#nomip";
-		if ( _textures.TryGetValue( key, out var cached ) ) return cached;
-
-		var image = LoadImage( path );
-		var texture = image is null ? null : TextureUtil.Create( image, mips );
-		_textures[key] = texture;
-		return texture;
+		return path is null ? null : Texture.Load( FileResourcePath( path, ".vtex" ) );
 	}
 
-	/// <summary>An animMap as a vertical strip of equally sized frames.</summary>
-	public Texture GetAnimAtlas( IReadOnlyList<string> frames )
+	/// <summary>Builds the texture for a registered image (the mount's texture loader).</summary>
+	public Texture CreateTexture( string path )
 	{
-		var key = "anim:" + string.Join( "|", frames );
-		if ( _textures.TryGetValue( key, out var cached ) ) return cached;
+		var image = LoadImage( path );
+		return image is null ? null : TextureUtil.Create( image, true );
+	}
 
+	/// <summary>Resource name of an animMap atlas: the same frames give the same atlas.</summary>
+	public static string AnimAtlasName( IReadOnlyList<string> frames )
+	{
+		// FNV-1a: string.GetHashCode differs between runs
+		uint hash = 2166136261;
+		foreach ( var frame in frames )
+		{
+			foreach ( var c in frame ) { hash ^= c; hash *= 16777619; }
+			hash ^= '|'; hash *= 16777619;
+		}
+		return $"animmap/{hash:x8}";
+	}
+
+	/// <summary>The registered animMap atlas of a shader's stage.</summary>
+	public Texture GetAnimAtlas( ShaderDef def, IReadOnlyList<string> frames )
+	{
+		var dir = def?.SourceFile is null ? Dir : OwnerDir( def.SourceFile );
+		return Texture.Load( ResourcePath( dir, AnimAtlasName( frames ), ".vtex" ) );
+	}
+
+	/// <summary>Builds an animMap as a vertical strip of equally sized frames (the mount's atlas loader).</summary>
+	public Texture CreateAnimAtlas( IReadOnlyList<string> frames )
+	{
 		var images = frames.Select( f => FindImage( f ) is string p ? LoadImage( p )?.ToRgba() : null ).ToList();
 		var first = images.FirstOrDefault( x => x is not null );
-		Texture result = null;
-		if ( first is not null )
+		if ( first is null ) return null;
+
+		int w = first.Width, h = first.Height;
+		var atlas = new byte[w * h * 4 * frames.Count];
+		for ( int i = 0; i < images.Count; i++ )
 		{
-			int w = first.Width, h = first.Height;
-			var atlas = new byte[w * h * 4 * frames.Count];
-			for ( int i = 0; i < images.Count; i++ )
-			{
-				var img = images[i] ?? first;
-				var px = img.Width == w && img.Height == h ? img.Pixels : TextureUtil.ResizeNearest( img, w, h );
-				Buffer.BlockCopy( px, 0, atlas, i * w * h * 4, w * h * 4 );
-			}
-			result = Texture.Create( w, h * frames.Count ).WithData( atlas ).WithMips().Finish();
+			var img = images[i] ?? first;
+			var px = img.Width == w && img.Height == h ? img.Pixels : TextureUtil.ResizeNearest( img, w, h );
+			Buffer.BlockCopy( px, 0, atlas, i * w * h * 4, w * h * 4 );
 		}
-		_textures[key] = result;
-		return result;
+		return Texture.Create( w, h * frames.Count ).WithData( atlas ).WithMips().Finish();
 	}
 
-	/// <summary>Cubemap from env/NAME_rt, _lf, _ft, _bk, _up, _dn.</summary>
+	/// <summary>
+	/// The directory registering a sky box's cube and sky material: where its _bk face comes from, as
+	/// <see cref="Registration"/> registers them from that image.
+	/// </summary>
+	string SkyOwnerDir( string farBox ) => FindImage( $"{farBox}_bk" ) is string bk ? OwnerDir( bk ) : null;
+
+	/// <summary>The registered cubemap for env/NAME_rt, _lf, _ft, _bk, _up, _dn, or null.</summary>
 	public Texture GetSkyCube( string farBox )
 	{
-		if ( string.IsNullOrEmpty( farBox ) ) return null;
-		if ( _skies.TryGetValue( farBox, out var cached ) ) return cached;
-		var cube = TextureUtil.CreateSkyCube( this, farBox );
-		_skies[farBox] = cube;
-		return cube;
+		if ( string.IsNullOrEmpty( farBox ) || SkyOwnerDir( farBox ) is not string dir ) return null;
+		return Texture.Load( ResourcePath( dir, $"{farBox}_cube", ".vtex" ) );
 	}
 
-	public Material GetCachedMaterial( string key, Func<Material> create ) => _materials.GetOrAdd( key, _ => create() );
+	/// <summary>mount:// path of a sky box's registered SkyBox2D material, or null.</summary>
+	public string SkyMaterialPath( string farBox )
+	{
+		if ( string.IsNullOrEmpty( farBox ) || SkyOwnerDir( farBox ) is not string dir ) return null;
+		return ResourcePath( dir, farBox, ".vmat" );
+	}
 
-	/// <summary>Material for a shader as used on models (light grid / scene lighting).</summary>
+	/// <summary>The registered model-lit material for a shader (a script entry or an implicit image), or null.</summary>
 	public Material GetModelMaterial( string shader )
 	{
-		var key = $"model:{shader}";
-		return _materials.GetOrAdd( key, _ => MaterialBuilder.Build( this, new MaterialRequest { ShaderName = shader, Mode = LightingMode.Model } ) );
+		if ( string.IsNullOrEmpty( shader ) ) return null;
+		var name = PathUtil.StripExtensionIfImage( PathUtil.Normalize( shader ) );
+
+		// only what Registration registers: drawable script shaders, and images used as implicit shaders
+		string dir;
+		var def = Shaders.Find( name );
+		if ( def?.SourceFile is not null )
+		{
+			if ( MaterialBuilder.IsInvisible( def ) || def.IsSky || def.IsFog ) return null;
+			dir = OwnerDir( def.SourceFile );
+		}
+		else if ( def is null && FindImage( name ) is string image
+			&& (image.StartsWith( "textures/" ) || image.StartsWith( "models/" ) || image.StartsWith( "skins/" )) )
+		{
+			// registered under the image's own name (CoD finds some under skins/)
+			name = PathUtil.StripExtension( image );
+			dir = OwnerDir( image );
+		}
+		else return null;
+
+		return Material.Load( ResourcePath( dir, name, ".vmat" ) );
 	}
+
+	/// <summary>Builds the model-lit material for a shader (the mount's material loader).</summary>
+	public Material CreateModelMaterial( string shader ) =>
+		MaterialBuilder.Build( this, new MaterialRequest { ShaderName = shader, Mode = LightingMode.Model } );
 
 	static readonly Sandbox.Diagnostics.Logger Log = new( "idTech3" );
 }
@@ -241,7 +305,7 @@ static class TextureUtil
 
 	static ImageData Rotate( ImageData img, int degrees )
 	{
-		int turns = ((degrees / 90) % 4 + 4) % 4;
+		int turns = (degrees / 90 % 4 + 4) % 4;
 		if ( turns == 0 ) return img;
 		int n = img.Width;
 		var src = img.Pixels;

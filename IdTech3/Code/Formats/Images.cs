@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace IdTech3.Formats;
 
 public enum PixelFormat { Rgba8, Dxt1, Dxt3, Dxt5 }

@@ -5,16 +5,28 @@ namespace IdTech3;
 /// <summary>An image (tga, jpg, png, dds, iwi).</summary>
 sealed class TextureLoader( GameData game, string path ) : ResourceLoader<IdTech3Mount>
 {
-	protected override object Load() => game.GetTexture( path );
+	protected override object Load() => game.CreateTexture( path );
+}
+
+/// <summary>An animMap's frames as one vertical strip, shared by every stage using the same frames.</summary>
+sealed class AnimAtlasLoader( GameData game, IReadOnlyList<string> frames ) : ResourceLoader<IdTech3Mount>
+{
+	protected override object Load() => game.CreateAnimAtlas( frames );
+}
+
+/// <summary>env/NAME_rt, _lf, _ft, _bk, _up, _dn as a cubemap.</summary>
+sealed class SkyCubeLoader( GameData game, string box ) : ResourceLoader<IdTech3Mount>
+{
+	protected override object Load() => TextureUtil.CreateSkyCube( game, box );
 }
 
 /// <summary>A shader script entry or implicit image shader, as a model-lit material.</summary>
 sealed class MaterialLoader( GameData game, string shader ) : ResourceLoader<IdTech3Mount>
 {
-	protected override object Load() => game.GetModelMaterial( shader );
+	protected override object Load() => game.CreateModelMaterial( shader );
 }
 
-/// <summary>env/NAME_* six-sided skybox as a sky material (for SkyBox2D).</summary>
+/// <summary>env/NAME_* six-sided skybox as a sky material (for SkyBox2D), using the registered cube.</summary>
 sealed class SkyboxLoader( GameData game, string box ) : ResourceLoader<IdTech3Mount>
 {
 	protected override object Load()
@@ -40,9 +52,11 @@ static class SoundUtil
 		var data = game.Read( path );
 		if ( data is null || data.Length == 0 ) return null;
 
+		var options = new SoundFile.LoadOptions { Loop = loop };
+
 		switch ( PathUtil.Extension( path ) )
 		{
-			case ".mp3": return SoundFile.FromMp3( name, data, loop );
+			case ".mp3": return SoundFile.FromMp3( name, data, options );
 			case ".ogg": return SoundFile.FromOgg( name, data, new SoundFile.LoadOptions { Loop = loop } );
 		}
 
@@ -52,18 +66,16 @@ static class SoundUtil
 		switch ( info.Encoding )
 		{
 			case WavEncoding.Pcm:
-				return SoundFile.FromWav( name, data, loop );
+				return SoundFile.FromWav( name, data, options );
 
 			case WavEncoding.Mp3:
-				return SoundFile.FromMp3( name, data.AsSpan( info.DataOffset, info.DataLength ), loop );
+				return SoundFile.FromMp3( name, data.AsSpan( info.DataOffset, info.DataLength ), options );
 
 			case WavEncoding.ImaAdpcm:
 			case WavEncoding.MsAdpcm:
 			case WavEncoding.Float:
 			{
-				var pcm = Wav.DecodeToPcm16( data, info );
-				if ( pcm is null || pcm.Length == 0 ) return null;
-				return SoundFile.FromPcm( name, pcm, info.Channels, (uint)info.SampleRate, 16, loop );
+				return SoundFile.FromPcm( name, data, new SoundFile.PcmOptions { Loop = loop } );
 			}
 
 			default:

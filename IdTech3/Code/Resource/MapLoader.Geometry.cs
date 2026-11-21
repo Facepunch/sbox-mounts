@@ -34,7 +34,7 @@ sealed partial class MapLoader
 			{
 				var bounds = BBox.FromPositionAndSize( points[0], 0 );
 				foreach ( var p in points ) bounds = bounds.AddPoint( p );
-				fog = new FogVolume { Color = Convert3.V( def.FogColor ), DepthForOpaque = def.FogDepthForOpaque, Bounds = bounds };
+				fog = new FogVolume { Color =  def.FogColor , DepthForOpaque = def.FogDepthForOpaque, Bounds = bounds };
 			}
 		}
 		_fogs[index] = fog;
@@ -49,7 +49,7 @@ sealed partial class MapLoader
 			int si = brush.FirstSide + i;
 			if ( si >= 0 && si < _bsp.BrushSides.Length ) sides.Add( _bsp.BrushSides[si] );
 		}
-		return Geometry.BrushPoints( sides ).Select( p => Convert3.V( p ) - offset ).ToList();
+		return Geometry.BrushPoints( sides ).Select( p =>  p  - offset ).ToList();
 	}
 
 	int ContentsOf( BspBrush brush ) => brush.Shader >= 0 && brush.Shader < _bsp.Shaders.Length ? _bsp.Shaders[brush.Shader].ContentFlags : 0;
@@ -154,7 +154,7 @@ sealed partial class MapLoader
 			}
 
 			if ( solidPatch )
-				AddCollisionTriangles( SurfaceFor( s.Shader ), verts.Select( v => Convert3.V( v.Position ) - pivot ), tris );
+				AddCollisionTriangles( SurfaceFor( s.Shader ), verts.Select( v =>  v.Position  - pivot ), tris );
 
 			if ( !visible || tris.Count == 0 ) continue;
 
@@ -182,16 +182,16 @@ sealed partial class MapLoader
 			int start = group.Vertices.Count;
 			foreach ( var v in verts )
 			{
-				var p = Convert3.V( v.Position ) - pivot;
-				var n = Convert3.V( v.Normal );
+				var p =  v.Position  - pivot;
+				var n =  v.Normal ;
 				if ( n.LengthSquared < 0.0001f ) n = Vector3.Up;
 				n = n.Normal;
 				if ( offset != 0 ) p += n * offset;
 
-				byte r = v.Color.R, g = v.Color.G, b = v.Color.B;
+				byte r = v.Color.r, g = v.Color.g, b = v.Color.b;
 				TextureUtil.ColorShift( ref r, ref g, ref b, shift );
 
-				var lm = Convert3.V( v.LightmapCoord );
+				var lm =  v.LightmapCoord ;
 				if ( lightmapped ) lm = slot.Offset + lm * slot.Scale;
 
 				group.Vertices.Add( new Id3Vertex
@@ -199,9 +199,9 @@ sealed partial class MapLoader
 					Position = p,
 					Normal = n,
 					Tangent = Convert3.TangentFor( n ),
-					TexCoord = Convert3.V( v.TexCoord ),
+					TexCoord =  v.TexCoord ,
 					LightmapCoord = lm,
-					Color = new Color32( r, g, b, v.Color.A ),
+					Color = new Color32( r, g, b, v.Color.a ),
 				} );
 
 				if ( !group.HasBounds ) { group.Bounds = BBox.FromPositionAndSize( p, 0 ); group.HasBounds = true; }
@@ -268,7 +268,7 @@ sealed partial class MapLoader
 					tris.Add( cm.Indices[i + 2] );
 					tris.Add( cm.Indices[i + 1] );
 				}
-				AddCollisionTriangles( SurfaceFor( cm.Shader ), cm.Vertices.Select( v => Convert3.V( v ) - pivot ), tris );
+				AddCollisionTriangles( SurfaceFor( cm.Shader ), cm.Vertices.Select( v =>  v  - pivot ), tris );
 			}
 		}
 
@@ -310,7 +310,7 @@ sealed partial class MapLoader
 			var name = SurfaceMap.NameFor( style, _bsp.Shaders[side.Shader].SurfaceFlags );
 			if ( name is null ) continue;
 			any ??= name;
-			if ( side.Normal.Z > topZ ) { topZ = side.Normal.Z; top = name; }
+			if ( side.Normal.z > topZ ) { topZ = side.Normal.z; top = name; }
 		}
 		var chosen = top ?? any;
 		return chosen is not null ? SurfaceMap.ForName( chosen ) : SurfaceFor( brush.Shader );

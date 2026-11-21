@@ -22,8 +22,6 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 		_game = game;
 		_path = path;
 		_skybox = skybox;
-
-		Flags.WithFlag( ResourceFlags.DeveloperOnly, skybox );
 	}
 
 	string MapName => PathUtil.StripExtension( PathUtil.FileName( _path ) );
@@ -123,7 +121,7 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 
 		int cellW = maps.Max( m => m.Width ), cellH = maps.Max( m => m.Height );
 		int page = 1024;
-		while ( page < 4096 && (page / cellW) * (page / cellH) < maps.Count ) page *= 2;
+		while ( page < 4096 && page / cellW * (page / cellH) < maps.Count ) page *= 2;
 		page = Math.Max( page, Math.Max( cellW, cellH ) );
 		_pageSize = page;
 
@@ -144,7 +142,7 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 			for ( int i = 0; i < count; i++ )
 			{
 				var lm = maps[first + i];
-				int cx = (i % perRow) * cellW, cy = (i / perRow) * cellH;
+				int cx = i % perRow * cellW, cy = i / perRow * cellH;
 				for ( int y = 0; y < lm.Height; y++ )
 					for ( int x = 0; x < lm.Width; x++ )
 					{
@@ -187,11 +185,11 @@ sealed partial class MapLoader : SceneLoader<IdTech3Mount>
 			if ( def is not null && def.IsSky ) { sky = def; break; }
 		}
 
-		if ( sky is not null && sky.SkyFarBox is not null && _game.GetSkyCube( sky.SkyFarBox ) is not null )
+		if ( sky?.SkyFarBox is not null && _game.SkyMaterialPath( sky.SkyFarBox ) is string skyMaterial )
 		{
 			var skybox = world.AddComponent<SkyBox2D>();
 			skybox.SkyIndirectLighting = false;
-			skybox.SkyMaterial = Material.Load( _game.ResourcePath( sky.SkyFarBox, ".vmat" ) );
+			skybox.SkyMaterial = Material.Load( skyMaterial );
 		}
 
 		// ambient from the light grid average

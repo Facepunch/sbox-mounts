@@ -33,7 +33,7 @@ sealed partial class MapLoader
 
 	Entity FindTargetEntity( string name ) => !string.IsNullOrEmpty( name ) && _targets.TryGetValue( name, out var e ) ? e : null;
 
-	static Vector3 Pos( Entity e ) => Convert3.V( e.Origin );
+	static Vector3 Pos( Entity e ) =>  e.Origin ;
 
 	GameObject NewEntityObject( Entity e, string fallbackName = null )
 	{
@@ -48,10 +48,26 @@ sealed partial class MapLoader
 		return go;
 	}
 
+	static string[] SpawnClasses =
+	[
+		"info_player_start",
+		"info_player_deathmatch",
+		"info_player_checkpoint",
+
+		"team_CTF_redplayer",
+		"team_CTF_blueplayer",
+		"team_CTF_redspawn",
+		"team_CTF_bluespawn",
+
+		"info_player_duel",
+		"info_player_siegeteam1",
+		"info_player_siegeteam2",
+	];
+
 	bool IsSpawnClass( string cls )
 	{
 		if ( string.IsNullOrEmpty( cls ) ) return false;
-		if ( _game.Profile.SpawnClasses.Contains( cls ) ) return true;
+		if ( SpawnClasses.Contains( cls ) ) return true;
 		// Call of Duty: mp_deathmatch_spawn, mp_teamdeathmatch_spawn, mp_searchanddestroy_spawn_allied ...
 		return _game.Profile.CallOfDuty && cls.StartsWith( "mp_", StringComparison.OrdinalIgnoreCase ) && cls.Contains( "_spawn", StringComparison.OrdinalIgnoreCase );
 	}
@@ -64,7 +80,7 @@ sealed partial class MapLoader
 		{
 			var go = NewEntityObject( e );
 			go.WorldPosition = Pos( e ) + Vector3.Up * SpawnHeightOffset;
-			go.WorldRotation = Rotation.FromYaw( e.Angles.Y );
+			go.WorldRotation = Rotation.FromYaw( e.Angles.y );
 			go.AddComponent<SpawnPoint>();
 			return;
 		}
@@ -98,12 +114,6 @@ sealed partial class MapLoader
 				return;
 		}
 
-		if ( _game.Profile.ItemModels.TryGetValue( cls, out var itemModel ) )
-		{
-			//SpawnItem( e, itemModel );
-			return;
-		}
-
 		int brushModel = e.BrushModel;
 		if ( brushModel > 0 )
 		{
@@ -124,16 +134,16 @@ sealed partial class MapLoader
 		if ( string.IsNullOrEmpty( model ) ) return null;
 		var m = PathUtil.Normalize( model );
 		if ( m.StartsWith( "xmodel/" ) )
-			return _game.Fs.Exists( m ) ? _game.ResourcePath( m, ".vmdl" ) : null;
+			return _game.Fs.Exists( m ) ? _game.FileResourcePath( m, ".vmdl" ) : null;
 		if ( _game.Profile.CallOfDuty && !m.Contains( '.' ) && _game.Fs.Exists( "xmodel/" + m ) )
-			return _game.ResourcePath( "xmodel/" + m, ".vmdl" );
+			return _game.FileResourcePath( "xmodel/" + m, ".vmdl" );
 
-		if ( _game.Fs.Exists( m ) ) return _game.ResourcePath( m, ".vmdl" );
+		if ( _game.Fs.Exists( m ) ) return _game.FileResourcePath( m, ".vmdl" );
 		// md3 references are often swapped for .mdc in RTCW
 		foreach ( var ext in new[] { ".md3", ".mdc", ".mds" } )
 		{
 			var alt = PathUtil.StripExtension( m ) + ext;
-			if ( _game.Fs.Exists( alt ) ) return _game.ResourcePath( alt, ".vmdl" );
+			if ( _game.Fs.Exists( alt ) ) return _game.FileResourcePath( alt, ".vmdl" );
 		}
 		return null;
 	}
@@ -150,33 +160,12 @@ sealed partial class MapLoader
 		go.WorldRotation = Convert3.Angles( e.Angles );
 
 		float scale = e.Float( "modelscale", 1 );
-		var scaleVec = e.Has( "modelscale_vec" ) ? Convert3.V( e.Vector( "modelscale_vec" ) ) : new Vector3( scale );
+		var scaleVec = e.Has( "modelscale_vec" ) ?  e.Vector( "modelscale_vec" )  : new Vector3( scale );
 		if ( scaleVec != Vector3.One && scaleVec.x > 0 ) go.WorldScale = scaleVec;
 
 		var renderer = go.AddComponent<ModelRenderer>();
 		renderer.Model = m;
 		return go;
-	}
-
-	void SpawnItem( Entity e, string model )
-	{
-		var resource = ModelResource( model );
-		if ( resource is null ) return;
-		var m = Model.Load( resource );
-		if ( m is null || m.IsError ) return;
-
-		var root = NewEntityObject( e );
-		root.WorldPosition = Pos( e );
-
-		var visual = new GameObject( root, true, "model" );
-		var cls = e.ClassName ?? "";
-		if ( cls.StartsWith( "weapon_", StringComparison.OrdinalIgnoreCase ) ) visual.LocalScale = 1.5f;
-		visual.AddComponent<ModelRenderer>().Model = m;
-
-		var display = visual.AddComponent<ItemDisplay>();
-		display.Spin = !cls.StartsWith( "team_", StringComparison.OrdinalIgnoreCase ) || cls.Contains( "flag", StringComparison.OrdinalIgnoreCase );
-		display.Bob = cls.StartsWith( "item_", StringComparison.OrdinalIgnoreCase ) && !cls.StartsWith( "item_armor", StringComparison.OrdinalIgnoreCase );
-		display.Phase = e.Index * 0.1f;
 	}
 
 	// ------------------------------------------------------------------ sounds
@@ -192,7 +181,7 @@ sealed partial class MapLoader
 			path = alt;
 		}
 
-		var file = SoundFile.Load( _game.ResourcePath( loop ? path + ".loop" : path, ".vsnd" ) );
+		var file = SoundFile.Load( _game.FileResourcePath( path, ".vsnd", loop ? ".loop" : "" ) );
 		if ( file is null ) return null;
 
 		var ev = new SoundEvent
@@ -228,9 +217,9 @@ sealed partial class MapLoader
 			return;
 		}
 
-		var speaker = go.AddComponent<Speaker>();
-		speaker.Sound = ev;
-		speaker.Global = global;
+		var speaker = go.AddComponent<SoundPointComponent>();
+		speaker.SoundEvent = ev;
+		speaker.Force2d = global;
 
 		// "wait" + "random": periodically repeating ambient sounds
 		float wait = e.Float( "wait" );
@@ -273,8 +262,8 @@ sealed partial class MapLoader
 		var bspModel = _bsp.Models[modelIndex];
 		var cls = (e.ClassName ?? "").ToLowerInvariant();
 
-		var mins = Convert3.V( bspModel.Mins );
-		var maxs = Convert3.V( bspModel.Maxs );
+		var mins =  bspModel.Mins ;
+		var maxs =  bspModel.Maxs ;
 		var center = (mins + maxs) * 0.5f;
 		var size = maxs - mins;
 
@@ -409,7 +398,7 @@ sealed partial class MapLoader
 				if ( dest is null ) return;
 				var tp = go.AddComponent<Teleporter>();
 				tp.Destination = Pos( dest ) + Vector3.Up * (SpawnHeightOffset + 1);
-				tp.DestinationYaw = dest.Angles.Y;
+				tp.DestinationYaw = dest.Angles.y;
 				tp.Sound = FirstSound( "sound/world/telein.wav", "sound/world/teleport.wav" );
 				break;
 			}
@@ -426,7 +415,7 @@ sealed partial class MapLoader
 				else
 				{
 					pad.UseTarget = false;
-					pad.Velocity = Convert3.V( e.MoveDir ) * e.Float( "speed", 1000 );
+					pad.Velocity =  e.MoveDir  * e.Float( "speed", 1000 );
 				}
 				pad.Sound = FirstSound( "sound/world/jumppad.wav", "sound/world/bouncepad.wav" );
 				break;
@@ -454,7 +443,7 @@ sealed partial class MapLoader
 
 	static Vector3 MoveVector( Entity e, Vector3 size, float lipDefault )
 	{
-		var dir = Convert3.V( e.MoveDir );
+		var dir =  e.MoveDir ;
 		float lip = e.Float( "lip", lipDefault );
 		var abs = new Vector3( MathF.Abs( dir.x ), MathF.Abs( dir.y ), MathF.Abs( dir.z ) );
 		float distance = abs.x * size.x + abs.y * size.y + abs.z * size.z - lip;

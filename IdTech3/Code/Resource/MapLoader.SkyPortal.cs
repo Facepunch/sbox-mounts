@@ -40,7 +40,7 @@ partial class MapLoader
 		// the room must be sealed off from the playable map, or hiding it would hide the map too
 		foreach ( var e in _bsp.Entities )
 		{
-			if ( e.ClassName is null || !_game.Profile.SpawnClasses.Contains( e.ClassName ) ) continue;
+			if ( e.ClassName is null || !IsSpawnClass( e.ClassName ) ) continue;
 			int leaf = _bsp.LeafAt( e.Origin );
 			if ( leaf < 0 ) continue;
 			foreach ( int si in LeafSurfaces( leaf ) )
@@ -97,7 +97,7 @@ partial class MapLoader
 			return;
 		}
 
-		var origin = Convert3.V( portal.Entity.Origin );
+		var origin =  portal.Entity.Origin ;
 		var go = new GameObject( false, "sky portal" )
 		{
 			Parent = world,
@@ -135,7 +135,7 @@ partial class MapLoader
 
 		var c = e.Vector( "fogcolor" );
 		fog.ColorSource = FogColorSource.Constant;
-		fog.Color = new Color32( ToByte( c.X ), ToByte( c.Y ), ToByte( c.Z ) ).ToColor( true );
+		fog.Color = new Color32( ToByte( c.x ), ToByte( c.y ), ToByte( c.z ) ).ToColor( true );
 		fog.SunLightingEnabled = false;
 		fog.SkyAffect = 0;
 		go.Enabled = true;

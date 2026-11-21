@@ -1,5 +1,3 @@
-using IdTech3.Formats;
-
 namespace IdTech3;
 
 partial class MapLoader
@@ -49,7 +47,7 @@ partial class MapLoader
 			// r_ambientScale 0.6, r_directedScale 1, as R_SetupEntityLightingGrid
 			var ambient = GridColor( c[o], c[o + 1], c[o + 2] );// * 0.6f;
 			var directed = GridColor( c[o + 3], c[o + 4], c[o + 5] );
-			var direction = Convert3.V( grid.Direction( o ) );
+			var direction =  grid.Direction( o ) ;
 
 			if ( sun is not null )
 			{
@@ -119,8 +117,8 @@ partial class MapLoader
 		}
 
 		// probes sit at the texel centres: grid point i is at origin + i * size
-		var size = Convert3.V( grid.Size );
-		var origin = Convert3.V( grid.Origin );
+		var size =  grid.Size ;
+		var origin =  grid.Origin ;
 		var go = new GameObject( world, false, "light probes" );
 		var volume = go.AddComponent<LightProbeVolume>();
 		volume.Bounds = new BBox( origin - size * 0.5f, origin + size * new Vector3( nx - 0.5f, ny - 0.5f, nz - 0.5f ) );

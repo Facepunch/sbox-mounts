@@ -7,7 +7,7 @@ namespace IdTech3;
 /// is exposed as a layered virtual file system that follows the idTech 3 search order:
 /// mod directory before base directory, loose files before archives, later archives before earlier ones.
 /// </summary>
-public abstract class IdTech3Mount : BaseGameMount
+public abstract partial class IdTech3Mount : BaseGameMount
 {
 	/// <summary>Steam app this game is installed with.</summary>
 	protected abstract long AppId { get; }
@@ -81,6 +81,9 @@ public abstract class IdTech3Mount : BaseGameMount
 	/// <summary>Get the data for a mounted game directory.</summary>
 	public GameData GetGame( string dir ) => _games.TryGetValue( dir, out var g ) ? g : null;
 
+	/// <summary>The game directory that provides a file source itself.</summary>
+	public GameData OwnerOf( IFileSource source ) => _games.Values.FirstOrDefault( g => g.OwnSources.Contains( source ) );
+
 	public IEnumerable<GameData> Games => _games.Values;
 
 	List<IFileSource> OwnSources( string dir )
@@ -147,9 +150,9 @@ public abstract class IdTech3Mount : BaseGameMount
 		foreach ( var (dir, own, all) in mounted )
 		{
 			var key = (dir.Contains( '/' ) ? dir[(dir.LastIndexOf( '/' ) + 1)..] : dir).ToLowerInvariant();
-			var game = new GameData( this, key, new LayeredFileSystem( key, all ), Profile );
+			var game = new GameData( this, key, new LayeredFileSystem( key, all ), Profile, own );
 			_games[key] = game;
-			Registration.RegisterAll( context, game, own );
+			RegisterAll( context, game, own );
 		}
 
 		IsMounted = true;
@@ -205,7 +208,9 @@ sealed class LooseSource : IFileSource
 /// </summary>
 public sealed class GameProfile
 {
-	public string Title;
+	public bool Has3dSkyboxes = false;
+
+	public bool CallOfDuty;
 
 	/// <summary>
 	/// Bits to shift lightmap and vertex lighting by (r_mapOverBrightBits minus the hardware overbright),
@@ -216,14 +221,6 @@ public sealed class GameProfile
 	/// <summary>Image extensions tried, in order, when a shader references an image without one.</summary>
 	public string[] ImageExtensions = [".tga", ".jpg", ".png"];
 
-	public bool CallOfDuty;
-
 	/// <summary>How the BSP's surface flags encode a surface's material (footsteps, impacts).</summary>
 	public SurfaceFlagStyle SurfaceFlags;
-
-	/// <summary>Classname to world model for items/weapons that are shown in maps.</summary>
-	public Dictionary<string, string> ItemModels = new( StringComparer.OrdinalIgnoreCase );
-
-	/// <summary>Classnames that act as player spawn points.</summary>
-	public HashSet<string> SpawnClasses = new( StringComparer.OrdinalIgnoreCase );
 }

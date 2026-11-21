@@ -17,13 +17,10 @@ public struct Id3Vertex
 
 static class Convert3
 {
-	public static Vector3 V( Vec3 v ) => new( v.X, v.Y, v.Z );
-	public static Vector2 V( Vec2 v ) => new( v.X, v.Y );
-
-	public static Rotation R( Axis a ) => Rotation.LookAt( V( a.Forward ), V( a.Up ) );
+	public static Rotation R( Axis a ) => Rotation.LookAt( a.Forward, a.Up );
 
 	/// <summary>idTech 3 pitch/yaw/roll in degrees to an s&amp;box rotation.</summary>
-	public static Rotation Angles( Vec3 a ) => R( Axis.FromAngles( a.X, a.Y, a.Z ) );
+	public static Rotation Angles( Vector3 a ) => R( Axis.FromAngles( a.x, a.y, a.z ) );
 
 	public static Vector4 TangentFor( Vector3 normal )
 	{
@@ -53,17 +50,17 @@ static class ModelBuild
 			if ( material is null ) continue;
 
 			var verts = new List<Id3Vertex>( surface.Vertices.Count );
-			var bounds = BBox.FromPositionAndSize( Convert3.V( surface.Vertices[0].Position ), 0 );
+			var bounds = BBox.FromPositionAndSize( surface.Vertices[0].Position, 0 );
 			foreach ( var v in surface.Vertices )
 			{
-				var p = Convert3.V( v.Position );
-				var n = Convert3.V( v.Normal );
+				var p = v.Position;
+				var n = v.Normal;
 				verts.Add( new Id3Vertex
 				{
 					Position = p,
 					Normal = n,
 					Tangent = Convert3.TangentFor( n ),
-					TexCoord = Convert3.V( v.TexCoord ),
+					TexCoord =  v.TexCoord ,
 					Color = new Color32( 255, 255, 255, 255 ),
 				} );
 				bounds = bounds.AddPoint( p );
@@ -91,7 +88,7 @@ static class ModelBuild
 		if ( meshes == 0 ) return null;
 
 		foreach ( var tag in data.Tags )
-			builder.AddAttachment( tag.Name, Convert3.V( tag.Origin ), Convert3.R( tag.Axis ) );
+			builder.AddAttachment( tag.Name,  tag.Origin , Convert3.R( tag.Axis ) );
 
 		if ( materialGroups is not null && materialGroups.Count > 0 )
 		{

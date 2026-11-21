@@ -5,7 +5,7 @@ namespace IdTech3;
 /// <summary>
 /// Registers every asset a game directory provides with the mount system.
 /// </summary>
-static class Registration
+public abstract partial class IdTech3Mount
 {
 	static readonly string[] SkySuffixes = ["_bk", "_ft", "_lf", "_rt", "_up", "_dn"];
 
@@ -31,8 +31,10 @@ static class Registration
 					{
 						Add( context, registered, ResourceType.Scene, full, new MapLoader( game, path ) );
 						// RTCW / ET sky portal, drawn by the map's Skybox3D (empty for maps without one)
-						if ( !game.Profile.CallOfDuty )
+						if ( game.Profile.Has3dSkyboxes )
+						{
 							Add( context, registered, ResourceType.Scene, full + "_skybox", new MapLoader( game, path, skybox: true ) { Flags = ResourceFlags.DeveloperOnly } );
+						}
 					}
 					break;
 
@@ -67,17 +69,20 @@ static class Registration
 			}
 		}
 
-		// shader scripts defined by this directory become materials
+		// atlases for multi-texture shaders
 		var shaderNames = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var def in game.Shaders.All )
 		{
 			if ( def.SourceFile is null || !own.Contains( game.Fs.SourceOf( def.SourceFile ) ) ) continue;
 			shaderNames.Add( def.Name );
-			if ( MaterialBuilder.IsInvisible( def ) || def.IsSky || def.IsFog ) continue;
-			Add( context, registered, ResourceType.Material, $"{game.Dir}/{def.Name}", new MaterialLoader( game, def.Name ) );
+			foreach ( var stage in def.Stages )
+			{
+				if ( stage.Maps.Count < 2 ) continue;
+				Add( context, registered, ResourceType.Texture, $"{game.Dir}/{GameData.AnimAtlasName( stage.Maps )}",
+					new AnimAtlasLoader( game, stage.Maps.ToArray() ) { Flags = ResourceFlags.DeveloperOnly } );
+			}
 		}
 
-		// images that are used as implicit shaders
 		foreach ( var image in images )
 		{
 			if ( !image.StartsWith( "textures/", StringComparison.Ordinal ) && !image.StartsWith( "models/", StringComparison.Ordinal ) && !image.StartsWith( "skins/", StringComparison.Ordinal ) )
@@ -96,6 +101,7 @@ static class Registration
 		// need at least most of the faces
 		int found = SkySuffixes.Count( s => game.FindImage( box + s ) is not null );
 		if ( found < 5 ) return;
+		Add( context, registered, ResourceType.Texture, $"{game.Dir}/{box}_cube", new SkyCubeLoader( game, box ) );
 		Add( context, registered, ResourceType.Material, $"{game.Dir}/{box}", new SkyboxLoader( game, box ) );
 	}
 

@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 
 namespace IdTech3.Formats;
 
@@ -190,38 +187,38 @@ public sealed class Entity
 	public float Float( string key, float def = 0 ) => _map.TryGetValue( key, out var v ) ? Num.F( v, def ) : def;
 	public int Int( string key, int def = 0 ) => _map.TryGetValue( key, out var v ) ? Num.I( v, def ) : def;
 
-	public Vec3 Vector( string key, Vec3 def = default )
+	public Vector3 Vector( string key, Vector3 def = default )
 	{
 		if ( !_map.TryGetValue( key, out var v ) ) return def;
 		return ParseVector( v, def );
 	}
 
-	public static Vec3 ParseVector( string v, Vec3 def = default )
+	public static Vector3 ParseVector( string v, Vector3 def = default )
 	{
 		if ( string.IsNullOrWhiteSpace( v ) ) return def;
 		var parts = v.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
-		if ( parts.Length == 1 ) { var f = Num.F( parts[0] ); return new Vec3( f, f, f ); }
+		if ( parts.Length == 1 ) { var f = Num.F( parts[0] ); return new Vector3( f, f, f ); }
 		if ( parts.Length < 3 ) return def;
-		return new Vec3( Num.F( parts[0] ), Num.F( parts[1] ), Num.F( parts[2] ) );
+		return new Vector3( Num.F( parts[0] ), Num.F( parts[1] ), Num.F( parts[2] ) );
 	}
 
-	public Vec3 Origin => Vector( "origin" );
+	public Vector3 Origin => Vector( "origin" );
 
 	/// <summary>pitch/yaw/roll, honoring "angles" then "angle" (yaw; -1 up, -2 down).</summary>
-	public Vec3 Angles
+	public Vector3 Angles
 	{
 		get
 		{
 			if ( Has( "angles" ) ) return Vector( "angles" );
 			var a = Float( "angle" );
-			if ( a == -1 ) return new Vec3( -90, 0, 0 );
-			if ( a == -2 ) return new Vec3( 90, 0, 0 );
-			return new Vec3( 0, a, 0 );
+			if ( a == -1 ) return new Vector3( -90, 0, 0 );
+			if ( a == -2 ) return new Vector3( 90, 0, 0 );
+			return new Vector3( 0, a, 0 );
 		}
 	}
 
 	/// <summary>Q3 G_SetMovedir: movement direction from "angle"/"angles".</summary>
-	public Vec3 MoveDir
+	public Vector3 MoveDir
 	{
 		get
 		{
@@ -229,10 +226,10 @@ public sealed class Entity
 			if ( !Has( "angles" ) )
 			{
 				var yaw = Float( "angle" );
-				if ( yaw == -1 ) return new Vec3( 0, 0, 1 );
-				if ( yaw == -2 ) return new Vec3( 0, 0, -1 );
+				if ( yaw == -1 ) return new Vector3( 0, 0, 1 );
+				if ( yaw == -2 ) return new Vector3( 0, 0, -1 );
 			}
-			return Axis.FromAngles( a.X, a.Y, a.Z ).Forward;
+			return Axis.FromAngles( a.x, a.y, a.z ).Forward;
 		}
 	}
 

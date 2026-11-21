@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace IdTech3.Formats;
 
 public static class Geometry
@@ -40,17 +37,17 @@ public static class Geometry
 			LightmapCoord = a.LightmapCoord * wa + b.LightmapCoord * wb + c.LightmapCoord * wc,
 			Normal = a.Normal * wa + b.Normal * wb + c.Normal * wc,
 		};
-		v.Color = new Rgba(
-			ClampByte( a.Color.R * wa + b.Color.R * wb + c.Color.R * wc ),
-			ClampByte( a.Color.G * wa + b.Color.G * wb + c.Color.G * wc ),
-			ClampByte( a.Color.B * wa + b.Color.B * wb + c.Color.B * wc ),
-			ClampByte( a.Color.A * wa + b.Color.A * wb + c.Color.A * wc ) );
+		v.Color = new Color32(
+			ClampByte( a.Color.r * wa + b.Color.r * wb + c.Color.r * wc ),
+			ClampByte( a.Color.g * wa + b.Color.g * wb + c.Color.g * wc ),
+			ClampByte( a.Color.b * wa + b.Color.b * wb + c.Color.b * wc ),
+			ClampByte( a.Color.a * wa + b.Color.a * wb + c.Color.a * wc ) );
 		return v;
 	}
 
 	static byte ClampByte( float f ) => (byte)Math.Clamp( (int)MathF.Round( f ), 0, 255 );
 
-	static int CurveLevel( Vec3 p0, Vec3 p1, Vec3 p2, float tolerance, int maxLevel )
+	static int CurveLevel( Vector3 p0, Vector3 p1, Vector3 p2, float tolerance, int maxLevel )
 	{
 		var mid = (p0 + p2) * 0.5f;
 		float dev = (p1 - mid).Length * 0.5f;
@@ -123,7 +120,7 @@ public static class Geometry
 				var r1 = Lerp3( control[b + width], control[b + width + 1], control[b + width + 2], s );
 				var r2 = Lerp3( control[b + width * 2], control[b + width * 2 + 1], control[b + width * 2 + 2], s );
 				var v = Lerp3( r0, r1, r2, t );
-				v.Normal = v.Normal.Normalized;
+				v.Normal = v.Normal.Normal;
 				outVerts.Add( v );
 			}
 		}
@@ -148,9 +145,9 @@ public static class Geometry
 	/// <summary>
 	/// Corner points of the convex volume bounded by planes (inside: dot(n, p) &lt;= d).
 	/// </summary>
-	public static List<Vec3> BrushPoints( IReadOnlyList<BspBrushSide> sides, float epsilon = 0.05f )
+	public static List<Vector3> BrushPoints( IReadOnlyList<BspBrushSide> sides, float epsilon = 0.05f )
 	{
-		var points = new List<Vec3>();
+		var points = new List<Vector3>();
 		int n = sides.Count;
 		if ( n < 4 ) return points;
 
@@ -171,7 +168,7 @@ public static class Geometry
 
 					// p = (d1 (n2 x n3) + d2 (n3 x n1) + d3 (n1 x n2)) / det
 					var p = (b.Normal.Cross( c.Normal ) * a.Dist + c.Normal.Cross( a.Normal ) * b.Dist + ab * c.Dist) * (1f / det);
-					if ( float.IsNaN( p.X ) || MathF.Abs( p.X ) > 1e6f || MathF.Abs( p.Y ) > 1e6f || MathF.Abs( p.Z ) > 1e6f ) continue;
+					if ( float.IsNaN( p.x ) || MathF.Abs( p.x ) > 1e6f || MathF.Abs( p.y ) > 1e6f || MathF.Abs( p.z ) > 1e6f ) continue;
 
 					bool inside = true;
 					for ( int m = 0; m < n; m++ )
@@ -189,11 +186,11 @@ public static class Geometry
 		}
 
 		// must be a real volume
-		if ( points.Count < 4 ) return new List<Vec3>();
+		if ( points.Count < 4 ) return new List<Vector3>();
 		var mins = points[0]; var maxs = points[0];
-		foreach ( var p in points ) { mins = Vec3.Min( mins, p ); maxs = Vec3.Max( maxs, p ); }
+		foreach ( var p in points ) { mins = Vector3.Min( mins, p ); maxs = Vector3.Max( maxs, p ); }
 		var ext = maxs - mins;
-		if ( ext.X < 0.1f || ext.Y < 0.1f || ext.Z < 0.1f ) return new List<Vec3>();
+		if ( ext.x < 0.1f || ext.y < 0.1f || ext.z < 0.1f ) return new List<Vector3>();
 		return points;
 	}
 }

@@ -178,7 +178,7 @@ public static class MaterialBuilder
 				case DeformType.Move:
 					material.Set( "g_vId3Deform", new Vector4( 2, 0, 0, 0 ) );
 					material.Set( "g_vId3DeformWave", Wave( d.Wave ) );
-					material.Set( "g_vId3DeformMove", new Vector4( d.Wave.Freq, d.Vector.X, d.Vector.Y, d.Vector.Z ) );
+					material.Set( "g_vId3DeformMove", new Vector4( d.Wave.Freq, d.Vector.x, d.Vector.y, d.Vector.z ) );
 					return;
 				case DeformType.Bulge:
 					material.Set( "g_vId3Deform", new Vector4( 3, 0, d.BulgeWidth, d.BulgeHeight ) );
@@ -221,9 +221,9 @@ public static class MaterialBuilder
 		m.Set( $"g_vS{i}RgbWave", Wave( s.RgbWave ) );
 		m.Set( $"g_vS{i}AlphaWave", Wave( s.AlphaWave ) );
 		m.Set( $"g_vS{i}Freq", new Vector4( s.RgbWave.Freq, s.AlphaWave.Freq, s.AnimFrequency, sky ? 0 : bakedLight ) );
-		m.Set( $"g_vS{i}Const", new Vector4( s.ConstColor.X, s.ConstColor.Y, s.ConstColor.Z, s.ConstAlpha ) );
-		m.Set( $"g_vS{i}TcS", new Vector4( s.TcGenS.X, s.TcGenS.Y, s.TcGenS.Z, 0 ) );
-		m.Set( $"g_vS{i}TcT", new Vector4( s.TcGenT.X, s.TcGenT.Y, s.TcGenT.Z, 0 ) );
+		m.Set( $"g_vS{i}Const", new Vector4( s.ConstColor.x, s.ConstColor.y, s.ConstColor.z, s.ConstAlpha ) );
+		m.Set( $"g_vS{i}TcS", new Vector4( s.TcGenS.x, s.TcGenS.y, s.TcGenS.z, 0 ) );
+		m.Set( $"g_vS{i}TcT", new Vector4( s.TcGenT.x, s.TcGenT.y, s.TcGenT.z, 0 ) );
 
 		for ( int j = 0; j < MaxTcMods; j++ )
 		{
@@ -260,9 +260,9 @@ public static class MaterialBuilder
 	{
 		if ( s.IsLightmap ) return req.Mode == LightingMode.Lightmap && req.Lightmap is not null ? req.Lightmap : Texture.White;
 		if ( s.IsWhiteImage ) return Texture.White;
-		if ( s.Maps.Count > 1 ) return game.GetAnimAtlas( s.Maps );
+		if ( s.Maps.Count > 1 ) return game.GetAnimAtlas( def, s.Maps );
 		if ( s.Map is null ) return null;
-		return game.GetTexture( s.Map, def is null || !def.NoMipMaps );
+		return game.GetTexture( s.Map );
 	}
 
 	/// <summary>
