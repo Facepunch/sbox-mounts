@@ -218,6 +218,9 @@ public sealed class GameProfile
 
 	public bool CallOfDuty;
 
+	/// <summary>How the BSP's surface flags encode a surface's material (footsteps, impacts).</summary>
+	public SurfaceFlagStyle SurfaceFlags;
+
 	/// <summary>Classname to world model for items/weapons that are shown in maps.</summary>
 	public Dictionary<string, string> ItemModels = new( StringComparer.OrdinalIgnoreCase );
 

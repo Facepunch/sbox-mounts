@@ -82,9 +82,31 @@ sealed partial class MapLoader
 		if ( index < 0 || index >= _bsp.Models.Length ) return null;
 		var bspModel = _bsp.Models[index];
 		var groups = new Dictionary<string, MeshGroup>();
+		// every collision triangle, for the trace mesh
 		var collisionVerts = new List<Vector3>();
 		var collisionIndices = new List<int>();
+		// the same triangles by physics surface
+		var surfaceMeshes = new Dictionary<string, (Surface Surface, List<Vector3> Vertices, List<uint> Indices)>();
 		int shift = _game.Profile.LightShift;
+
+		void AddCollisionTriangles( Surface surface, IEnumerable<Vector3> vertices, IReadOnlyList<int> triangles )
+		{
+			int baseIndex = collisionVerts.Count;
+			var key = surface?.ResourceName ?? "";
+			if ( !surfaceMeshes.TryGetValue( key, out var mesh ) )
+				surfaceMeshes[key] = mesh = (surface, [], []);
+			uint meshBase = (uint)mesh.Vertices.Count;
+			foreach ( var v in vertices )
+			{
+				collisionVerts.Add( v );
+				mesh.Vertices.Add( v );
+			}
+			foreach ( var i in triangles )
+			{
+				collisionIndices.Add( baseIndex + i );
+				mesh.Indices.Add( meshBase + (uint)i );
+			}
+		}
 
 		var patchVerts = new List<BspVertex>();
 		var patchIndices = new List<int>();
@@ -132,11 +154,7 @@ sealed partial class MapLoader
 			}
 
 			if ( solidPatch )
-			{
-				int baseIndex = collisionVerts.Count;
-				foreach ( var v in verts ) collisionVerts.Add( Convert3.V( v.Position ) - pivot );
-				foreach ( var i in tris ) collisionIndices.Add( baseIndex + i );
-			}
+				AddCollisionTriangles( SurfaceFor( s.Shader ), verts.Select( v => Convert3.V( v.Position ) - pivot ), tris );
 
 			if ( !visible || tris.Count == 0 ) continue;
 
@@ -208,6 +226,16 @@ sealed partial class MapLoader
 		if ( shadows is not null )
 			shadows.AddRange( BuildShadowBlockers( groups.Values, name ) );
 
+		// one static physics body per surface, so each shape carries its material
+		var bodies = new Dictionary<string, PhysicsBodyBuilder>();
+		PhysicsBodyBuilder BodyFor( Surface surface )
+		{
+			var key = surface?.ResourceName ?? "";
+			if ( !bodies.TryGetValue( key, out var body ) )
+				bodies[key] = body = builder.AddBody( 0, surface );
+			return body;
+		}
+
 		// brushes: convex hulls for everything solid
 		int hulls = 0;
 		for ( int bi = bspModel.FirstBrush; collision && bi < bspModel.FirstBrush + bspModel.NumBrushes; bi++ )
@@ -217,7 +245,7 @@ sealed partial class MapLoader
 			if ( (ContentsOf( brush ) & BspFile.ContentsSolid) == 0 ) continue;
 			var points = BrushPoints( brush, pivot );
 			if ( points.Count < 4 ) continue;
-			builder.AddCollisionHull( points );
+			BodyFor( BrushSurface( brush ) ).AddHull( points.ToArray() );
 			hulls++;
 		}
 
@@ -232,26 +260,60 @@ sealed partial class MapLoader
 				var cm = _bsp.CollisionMeshes[ci];
 				if ( cm.Indices.Count < 3 ) continue;
 				if ( cm.Shader >= 0 && cm.Shader < _bsp.Shaders.Length && (_bsp.Shaders[cm.Shader].ContentFlags & BspFile.ContentsSolid) == 0 ) continue;
-				int baseIndex = collisionVerts.Count;
-				foreach ( var v in cm.Vertices ) collisionVerts.Add( Convert3.V( v ) - pivot );
 				// collision triangles share the clockwise convention
+				var tris = new List<int>( cm.Indices.Count );
 				for ( int i = 0; i + 2 < cm.Indices.Count; i += 3 )
 				{
-					collisionIndices.Add( baseIndex + cm.Indices[i] );
-					collisionIndices.Add( baseIndex + cm.Indices[i + 2] );
-					collisionIndices.Add( baseIndex + cm.Indices[i + 1] );
+					tris.Add( cm.Indices[i] );
+					tris.Add( cm.Indices[i + 2] );
+					tris.Add( cm.Indices[i + 1] );
 				}
+				AddCollisionTriangles( SurfaceFor( cm.Shader ), cm.Vertices.Select( v => Convert3.V( v ) - pivot ), tris );
 			}
 		}
 
-		if ( collisionIndices.Count >= 3 )
+		foreach ( var mesh in surfaceMeshes.Values )
 		{
-			builder.AddCollisionMesh( collisionVerts, collisionIndices );
-			builder.AddTraceMesh( collisionVerts, collisionIndices );
+			if ( mesh.Vertices.Count < 3 || mesh.Indices.Count < 3 ) continue;
+			BodyFor( mesh.Surface ).AddMesh( mesh.Vertices.ToArray(), mesh.Indices.ToArray(), default );
 		}
+
+		if ( collisionIndices.Count >= 3 )
+			builder.AddTraceMesh( collisionVerts, collisionIndices );
 
 		if ( meshCount == 0 && hulls == 0 && collisionIndices.Count == 0 ) return null;
 		return builder.Create();
+	}
+
+	/// <summary>The physics surface for a shader's material (footsteps, impacts).</summary>
+	Surface SurfaceFor( int shader )
+	{
+		int flags = shader >= 0 && shader < _bsp.Shaders.Length ? _bsp.Shaders[shader].SurfaceFlags : 0;
+		return SurfaceMap.For( _game.Profile.SurfaceFlags, flags );
+	}
+
+	/// <summary>
+	/// The physics surface of a brush. Sides can differ, so the top side's material wins (it's what's walked on),
+	/// then any side with a material, then the brush's own shader. Caulk and other tool shaders have no material.
+	/// </summary>
+	Surface BrushSurface( BspBrush brush )
+	{
+		var style = _game.Profile.SurfaceFlags;
+		string top = null, any = null;
+		float topZ = 0.7f;
+		for ( int i = 0; i < brush.NumSides; i++ )
+		{
+			int si = brush.FirstSide + i;
+			if ( si < 0 || si >= _bsp.BrushSides.Length ) continue;
+			var side = _bsp.BrushSides[si];
+			if ( side.Shader < 0 || side.Shader >= _bsp.Shaders.Length ) continue;
+			var name = SurfaceMap.NameFor( style, _bsp.Shaders[side.Shader].SurfaceFlags );
+			if ( name is null ) continue;
+			any ??= name;
+			if ( side.Normal.Z > topZ ) { topZ = side.Normal.Z; top = name; }
+		}
+		var chosen = top ?? any;
+		return chosen is not null ? SurfaceMap.ForName( chosen ) : SurfaceFor( brush.Shader );
 	}
 
 	/// <summary>

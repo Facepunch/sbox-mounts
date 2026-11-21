@@ -75,7 +75,7 @@ static class Profiles
 
 	public static GameProfile Quake3()
 	{
-		var p = new GameProfile { Title = "Quake III Arena", LightShift = 2 };
+		var p = new GameProfile { Title = "Quake III Arena", LightShift = 2, SurfaceFlags = SurfaceFlagStyle.Quake3 };
 		foreach ( var s in CommonSpawns ) p.SpawnClasses.Add( s );
 
 		void Item( string cls, string model ) => p.ItemModels[cls] = model;
@@ -138,7 +138,7 @@ static class Profiles
 
 	public static GameProfile Rtcw()
 	{
-		var p = new GameProfile { Title = "Return to Castle Wolfenstein", LightShift = 2 };
+		var p = new GameProfile { Title = "Return to Castle Wolfenstein", LightShift = 2, SurfaceFlags = SurfaceFlagStyle.Rtcw };
 		foreach ( var s in CommonSpawns ) p.SpawnClasses.Add( s );
 		p.SpawnClasses.Add( "info_player_checkpoint" );
 		return p;
@@ -151,6 +151,7 @@ static class Profiles
 			Title = title,
 			LightShift = 1,
 			CallOfDuty = true,
+			SurfaceFlags = SurfaceFlagStyle.CallOfDuty,
 			ImageExtensions = [".dds", ".tga", ".jpg", ".png"],
 		};
 		p.SpawnClasses.Add( "info_player_start" );
