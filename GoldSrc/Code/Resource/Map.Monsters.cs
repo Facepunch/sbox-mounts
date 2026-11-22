@@ -85,12 +85,7 @@ partial class MapBuilder
 		{
 			if ( npc is Personnel or GMan )
 			{
-				var agent = go.GetComponent<NavMeshAgent>( true );
-				if ( agent.IsValid() )
-				{
-					npc.MapNavigation = agent;
-					agent.UpdatePosition = false;
-				}
+				npc.HoldMapPosition();
 				if ( npc is Personnel person ) person.PreDisaster = (entity.SpawnFlags & 256) != 0;
 				go.WorldPosition = PlacePerson( bsp, entity.Origin, npc );
 				if ( npc is SittingScientist seated ) seated.PlacedOnMapHull = true;
@@ -231,6 +226,7 @@ partial class MapBuilder
 
 		if ( script.MoveTo == MoveInstant )
 		{
+			if ( actor.Npc.IsValid() ) actor.Npc.HoldMapPosition();
 			actor.WorldPosition = entity.Origin;
 			actor.WorldRotation = Rotation.FromYaw( entity.Angles.yaw );
 		}

@@ -9,6 +9,12 @@ public partial class Npc
 	// A map mark can be on furniture or outside the walkable mesh. Only a movement
 	// command should hand the actor's transform to the navigation simulation.
 	[Property, Hide] public NavMeshAgent MapNavigation { get; set; }
+	internal void HoldMapPosition()
+	{
+		MapNavigation = GetComponent<NavMeshAgent>( true );
+		if ( MapNavigation.IsValid() ) MapNavigation.UpdatePosition = false;
+	}
+
 	private Transform _scriptMark;
 	private int _approach;
 	private string _pendingScript;
@@ -24,7 +30,7 @@ public partial class Npc
 		ScriptedIdle = null;
 		if ( moveTo == 4 )
 		{
-			if ( MapNavigation.IsValid() ) MapNavigation.UpdatePosition = false;
+			HoldMapPosition();
 			WorldPosition = mark.Position;
 			WorldRotation = mark.Rotation;
 		}
