@@ -10,7 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
-	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, float[] Status, float[] Shapes );
+	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
 
 	internal enum CenterMotion { Full, Vertical, None }
 
@@ -62,12 +62,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 			if ( version >= 7 ) Skip( Count() * (version >= 8 ? 72L : 64L) );
 			bool hasMobility = version >= 9 && reader.ReadBoolean();
+			float yaw = 0f;
 			var inverseYaw = Rotation.Identity;
 			if ( hasMobility )
 			{
 				for ( int j = 0; j < 16; j++ ) matrix[j] = reader.ReadSingle();
 				// The file stores the mobility forward vector in its negative second column.
-				var yaw = MathF.Atan2( -matrix[4], -matrix[6] );
+				yaw = MathF.Atan2( -matrix[4], -matrix[6] );
 				inverseYaw = Rotation.FromYaw( -yaw.RadianToDegree() );
 				center = new Vector3( -matrix[14], -matrix[12], matrix[13] ) * 40f;
 			}
@@ -116,7 +117,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			Vector3 savedCenter = default;
 			if ( centered )
 			{
-				reader.ReadSingle(); // Mobility yaw.
+				yaw = reader.ReadSingle();
 				float x = reader.ReadSingle(), y = reader.ReadSingle(), z = reader.ReadSingle();
 				savedCenter = new Vector3( z, x, y ) * 40f;
 			}
@@ -137,7 +138,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				CenterMotion.Vertical => Vector3.Up * savedCenter.z,
 				_ => savedCenter
 			};
-			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status, shapeWeights );
+			if ( k > 0 && !centered )
+			{
+				if ( yaw > keys[k - 1].Yaw + MathF.PI ) yaw -= MathF.Tau;
+				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
+			}
+			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
+			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -188,7 +195,9 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				else
 					frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );
 			}
-			clip.AddFrame( frame );
+			var travel = Vector3.Lerp( b.Travel, c.Travel, t );
+			float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
+			clip.AddFrame( frame, new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) ) );
 			if ( sampleFeet )
 			{
 				var weights = a.FootWeights * w0 + b.FootWeights * w1 + c.FootWeights * w2 + d.FootWeights * w3;

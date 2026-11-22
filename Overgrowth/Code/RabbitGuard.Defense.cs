@@ -31,7 +31,10 @@ public sealed partial class RabbitGuard
 			ReactionPhase = 1f;
 			return false;
 		}
+		var clip = boundAnimations.Clips[Stance].Animation;
+		var from = clip.GetRootMotion( ReactionPhase );
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
+		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
 		return ReactionPhase < 1f;
 	}
 

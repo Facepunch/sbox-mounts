@@ -21,19 +21,19 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is not null )
 		{
+			float previousHeight = AttackHeight;
 			if ( enemy.IsValid() )
 			{
 				AttackHeight = GetAttackHeight( enemy );
 				TurnDuringStrike( TargetPosition( enemy ) - WorldPosition );
 			}
-			var (frequency, clip) = strike.Sample( AttackHeight );
 			bool blocked = Stance == strike.Blocked;
-			if ( blocked )
-			{
-				clip = boundAnimations.Clips[Stance];
-				frequency = 1f / clip.Duration;
-			}
-			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * frequency );
+			var blend = blocked ? new RabbitAttack.Blend( boundAnimations.Clips[Stance], boundAnimations.Clips[Stance], 0f ) : strike.Sample( AttackHeight );
+			var clip = blend.Events;
+			var previous = !blocked && previousHeight != AttackHeight ? strike.Sample( previousHeight ) : blend;
+			var from = previous.Motion( AttackPhase );
+			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * blend.Frequency );
+			ApplyRootMotion( from, blend.Motion( AttackPhase ) );
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
