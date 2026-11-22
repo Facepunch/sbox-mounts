@@ -22,16 +22,35 @@ public sealed partial class RabbitGuard
 	readonly Vector3[] plantedPosition = new Vector3[2];
 	int steppingFoot;
 	float stepProgress, stancePhase;
+	[Sync] float ThreatAmount { get; set; }
+	[Sync] float CrouchAmount { get; set; }
+	float threatVelocity;
+
+	void UpdateStanceAmounts()
+	{
+		if ( !Networking.IsHost ) return;
+		bool movement = Stance is Idle or Watch or Locomotion or Threat;
+		if ( !movement && strike is null ) ThreatAmount = 0;
+		float target = (movement || strike is not null) && enemy.IsValid() && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
+		float acceleration = target == 0 && ThreatAmount < 0 ? 100f : 200f;
+		threatVelocity += (target - ThreatAmount) * Time.Delta * acceleration;
+		threatVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
+		ThreatAmount += threatVelocity * Time.Delta;
+		CrouchAmount = duckAmount;
+	}
 
 	void UpdateStanceFeet( bool entering )
 	{
-		var clip = boundAnimations.Clips[Threat];
-		stancePhase = entering ? 0f : (stancePhase + Time.Delta / clip.Duration) % 1f;
+		float threat = Math.Clamp( ThreatAmount, 0, 1 );
+		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
+		float Frequency( string relaxed, string ready ) => (1f - threat) / boundAnimations.Clips[relaxed].Duration + threat / boundAnimations.Clips[ready].Duration;
+		float frequency = (1f - crouch) * Frequency( "r_combatidle", Threat ) + crouch * Frequency( "r_combatcrouch", "r_combatcrouchthreat" );
+		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
-		var leftPose = FootPose.Sample( clip.Feet[0], stancePhase );
-		var rightPose = FootPose.Sample( clip.Feet[1], stancePhase );
-		var left = Renderer.WorldTransform.ToWorld( leftPose.Transform );
-		var right = Renderer.WorldTransform.ToWorld( rightPose.Transform );
+		Renderer.Animation.Parameters.Set( "threat_coord", threat );
+		Renderer.Animation.Parameters.Set( "tall_coord", 1f - crouch );
+		if ( !Renderer.TryGetBoneTransformAnimation( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
+			!Renderer.TryGetBoneTransformAnimation( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
 		if ( entering )
 		{
 			plantedPosition[0] = left.Position;

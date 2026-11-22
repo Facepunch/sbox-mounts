@@ -68,7 +68,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
-		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "tall_coord", "threat_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		coordinates["stride_phase"] = phase;
 		GraphBuilder.Node AnimationGroup( string file, string time = null )
 		{
 			if ( file.EndsWith( ".anm" ) )
@@ -93,6 +94,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		{
 			if ( name == RabbitGuard.FreeAir )
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ) ) );
+			if ( name == RabbitGuard.Threat )
+				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "idle" ), "stride_phase" ) );
 			if ( name == RabbitGuard.Locomotion )
 			{
 				var blend = graph.BlendSpace( speed );
@@ -139,10 +142,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 
 			var clipName = guards.GetValueOrDefault( name, name );
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), sampleFeet: name == RabbitGuard.Threat );
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ) );
 			clips[name] = clip;
-			if ( name == RabbitGuard.Threat )
-				return machine.AddState( graph.TimeControlledClip( clip.Animation, phase, new() { SampleRootMotion = false } ) );
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
 			if ( RabbitGuard.IsGetUp( name ) )

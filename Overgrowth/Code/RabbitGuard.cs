@@ -87,6 +87,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		UpdateStanceAmounts();
 		if ( UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 )
 		{
