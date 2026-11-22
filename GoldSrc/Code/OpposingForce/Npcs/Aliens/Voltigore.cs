@@ -10,6 +10,12 @@ public sealed class Voltigore : ExpansionPredator
 	internal override NpcSounds Sounds { get; } = new( "voltigore/voltigore_idle", "voltigore/voltigore_alert", "voltigore/voltigore_pain", "voltigore/voltigore_die" );
 	internal override float MeleeDistance => 128;
 
+	protected override void OnDeath( Component.IDamageable.DeathEvent death )
+	{
+		base.OnDeath( death );
+		if ( Networking.IsHost && IsValid ) Blast.DamageInRadius( GameObject, GameObject, HullCenter, Definition.Damage, 160, "shock", "alwaysgib" );
+	}
+
 	internal override void HandleActionEvent( int id )
 	{
 		if ( id is 12 or 13 )
@@ -20,7 +26,7 @@ public sealed class Voltigore : ExpansionPredator
 		else if ( id == 1 && IsLiveTarget( Prey ) )
 		{
 			EmitSound( "voltigore/voltigore_attack_shock.wav", AttackOrigin );
-			NpcProjectile.Fire<ElectricBolt>( this, Prey, AttackOrigin, (AimAt( Prey ) - AttackOrigin).Normal, 1000 );
+			NpcProjectile.Fire<VoltigoreBolt>( this, Prey, AttackOrigin, (AimAt( Prey ) - AttackOrigin).Normal, 1000 );
 		}
 	}
 }

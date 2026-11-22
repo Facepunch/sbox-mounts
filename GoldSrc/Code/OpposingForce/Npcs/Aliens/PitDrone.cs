@@ -19,7 +19,8 @@ public sealed class PitDrone : ExpansionPredator
 		else if ( id == 1 && _spikes > 0 && IsLiveTarget( Prey ) )
 		{
 			var origin = WorldTransform.PointToWorld( new Vector3( 15, 0, 36 ) );
-			NpcProjectile.Fire<NpcProjectile>( this, Prey, origin, (TargetEyePosition( Prey ) - origin).Normal, 900 );
+			var direction = (TargetEyePosition( Prey ) - origin).Normal;
+			NpcProjectile.Fire<PitDroneSpike>( GameObject, ProjectilePath, Definition.Damage, Prey, origin, direction, 900 );
 			EmitSound( "pitdrone/pit_drone_attack_spike", origin );
 			_spikes--;
 		}

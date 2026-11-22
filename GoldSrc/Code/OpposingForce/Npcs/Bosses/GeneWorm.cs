@@ -9,7 +9,7 @@ public sealed class GeneWorm : Npc
 {
 	bool _leftEye, _rightEye;
 	int _wounds;
-	TimeUntil _coreCloses;
+	TimeUntil _coreCloses, _spitEnds, _nextCloud;
 
 	internal override void ModifyDamage( Component.IDamageable.DamageEvent hit )
 	{
@@ -37,6 +37,12 @@ public sealed class GeneWorm : Npc
 	protected override void Think()
 	{
 		if ( _leftEye && _rightEye && _coreCloses <= 0 ) CloseCore();
+		if ( _spitEnds > 0 && _nextCloud <= 0 && IsLiveTarget( _enemy ) )
+		{
+			_nextCloud = 0.1f;
+			var origin = Renderer.GetAttachment( "attachment1" )?.Position ?? AttackOrigin;
+			NpcProjectile.Fire<AcidCloud>( this, _enemy, origin, (TargetEyePosition( _enemy ) - origin).Normal, 1000 );
+		}
 		base.Think();
 	}
 
@@ -49,6 +55,15 @@ public sealed class GeneWorm : Npc
 
 	internal override string[] ExtraActions => ["bigpain4", "eyepain1", "eyepain2", "melee1", "melee2", "melee3", "dattack2", "dattack3"];
 	internal override NpcSounds Sounds { get; } = new( "geneworm/geneworm_idle", Pain: "geneworm/geneworm_final_pain", Death: "geneworm/geneworm_death.wav" );
+	internal override void OnModelLoaded( ModelLoader loader )
+	{
+		EyeHeight = 300;
+		var hull = GetComponentInChildren<BoxCollider>();
+		var bounds = new BBox( new Vector3( -436.67f, -720.49f, -331.74f ), new Vector3( 425.29f, 164.85f, 355.68f ) );
+		hull.Center = bounds.Center;
+		hull.Scale = bounds.Size;
+	}
+
 	GameObject _enemy;
 
 	internal override void BeginAttack( GameObject target )
@@ -61,11 +76,15 @@ public sealed class GeneWorm : Npc
 
 	internal override void HandleActionEvent( int id )
 	{
-		if ( id is 3 or 5 or 7 ) TraceMelee( 320, 30, "club", out _ );
+		if ( id == 2 )
+		{
+			var origin = Renderer.GetAttachment( "attachment2" )?.Position ?? EyePosition;
+			NpcProjectile.Fire<WarpOrb>( GameObject, null, 0, null, origin, WorldRotation.Forward, Game.Random.Float( 300, 350 ) );
+		}
+		else if ( id is 3 or 5 or 7 ) TraceMelee( 320, 30, "club", out _ );
 		else if ( id == 0 && IsLiveTarget( _enemy ) )
 		{
-			var end = AimAt( _enemy );
-			NpcProjectile.Fire<Spit>( this, _enemy, AttackOrigin, (end - AttackOrigin).Normal, 900 );
+			_spitEnds = 2;
 		}
 	}
 }
