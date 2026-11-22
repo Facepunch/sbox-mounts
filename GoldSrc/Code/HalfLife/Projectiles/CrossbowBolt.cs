@@ -24,10 +24,10 @@ public sealed class CrossbowBolt : NpcProjectile
 		var victim = hit.GameObject?.GetComponentInParent<IDamageable>();
 		if ( victim is not null )
 		{
-			var player = hit.GameObject.GetComponentInParent<PlayerController>().IsValid();
+			var player = WeaponDamage.IsPlayer( hit.GameObject );
 			var tags = new TagSet { "nevergib" };
 			if ( !player ) tags.Add( "bullet" );
-			var damage = player ? (Networking.MaxPlayers > 1 ? 20 : 10) : Damage;
+			var damage = player ? WeaponDamage.ForTarget( Shooter, hit.GameObject, 10, 20 ) : Damage;
 			BaseCombatWeapon.ShootBullet( hit, damage, 0, Shooter, GameObject, tags );
 		}
 		WorldPosition = hit.EndPosition + (victim is null ? -direction * 12 : hit.Normal * 2);
@@ -58,7 +58,7 @@ public sealed class CrossbowBolt : NpcProjectile
 			return;
 		}
 		if ( delay > 0 ) return;
-		Blast.DamageInRadius( GameObject, Shooter, WorldPosition, 40, 128, "blast", "alwaysgib" );
+		Blast.DamageInRadius( GameObject, Shooter, WorldPosition, 0, 128, 40, "blast", "alwaysgib" );
 		Explode( WorldPosition );
 		GameObject.Destroy();
 	}

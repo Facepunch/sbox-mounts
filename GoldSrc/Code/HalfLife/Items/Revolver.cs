@@ -5,6 +5,7 @@ namespace GoldSrc.HalfLife;
 public sealed class Revolver : BulletWeapon
 {
 	internal override int PlayerMuzzleFlash => 31;
+	internal override float DeathmatchDamage => 50;
 
 	internal override float ZoomFieldOfView => 40;
 	internal override (string Name, float? Delay) IdleAnimation => Game.Random.Float( 0, 1 ) switch
@@ -26,7 +27,7 @@ public sealed class Revolver : BulletWeapon
 		PrimaryDelay = 0.75f;
 		ClipMaxSize = 6;
 		AttackDamageTags = ["bullet"];
-		Ballistics = new() { Damage = 50, Range = 8192, Radius = 0 };
+		Ballistics = new() { Damage = 40, Range = 8192, Radius = 0 };
 	}
 
 	internal override Vector2 PelletSpread => Vector2.One * 0.00873f;
@@ -46,7 +47,6 @@ public sealed class Revolver : BulletWeapon
 			Click();
 			return;
 		}
-		Ballistics = Ballistics with { Damage = Deathmatch ? 50 : 40 };
 		base.PrimaryAttack();
 	}
 

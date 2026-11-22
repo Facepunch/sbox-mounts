@@ -15,7 +15,8 @@ public sealed class Hivehand : ProjectileWeapon
 		_ => ("fidgetShake", 35f / 16)
 	};
 	static float RechargeTime => Networking.MaxPlayers > 1 ? 0.3f : 0.5f;
-	static float HornetDamage => Networking.MaxPlayers > 1 ? 10 : 7;
+	const float HornetDamage = 7;
+	const float DeathmatchHornetDamage = 10;
 	int _phase;
 	TimeUntil _regenerate;
 	internal override Vector3 WorldMuzzleOffset( bool hd ) => hd ? new( 19.1f, 0.7f, -2.2f ) : new( 19.3f, 0.9f, -0.6f );
@@ -53,7 +54,8 @@ public sealed class Hivehand : ProjectileWeapon
 	internal override bool Release( Ray ray )
 	{
 		_regenerate = RechargeTime;
-		NpcProjectile.Fire<Hornet>( Owner.GameObject, "mount://hl1/valve/models/hornet.mdl.vmdl", HornetDamage, null, ray.Position, ray.Forward, 300 );
+		var hornet = NpcProjectile.Fire<Hornet>( Owner.GameObject, "mount://hl1/valve/models/hornet.mdl.vmdl", HornetDamage, null, ray.Position, ray.Forward, 300 );
+		hornet.DeathmatchDamage = DeathmatchHornetDamage;
 		return true;
 	}
 
@@ -64,7 +66,8 @@ public sealed class Hivehand : ProjectileWeapon
 		_phase = (_phase + 1) % 8;
 		var basis = Rotation.LookAt( ray.Forward );
 		var origin = ray.Position + basis.Up * up + basis.Right * right;
-		NpcProjectile.Fire<HornetDart>( Owner.GameObject, "mount://hl1/valve/models/hornet.mdl.vmdl", HornetDamage, null, origin, ray.Forward, 1200 );
+		var dart = NpcProjectile.Fire<HornetDart>( Owner.GameObject, "mount://hl1/valve/models/hornet.mdl.vmdl", HornetDamage, null, origin, ray.Forward, 1200 );
+		dart.DeathmatchDamage = DeathmatchHornetDamage;
 		_regenerate = Ammo1 == 1 ? 0.5f : RechargeTime;
 		return true;
 	}

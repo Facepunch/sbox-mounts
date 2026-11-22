@@ -35,8 +35,10 @@ public sealed partial class RocketLauncher : ProjectileWeapon
 
 	internal override bool Release( Ray ray )
 	{
-		var damage = Networking.MaxPlayers > 1 ? 120 : 100;
+		const float normalDamage = 100;
+		var damage = Networking.MaxPlayers > 1 ? 120 : normalDamage;
 		var rocket = NpcProjectile.Fire<PlayerRocket>( Owner.GameObject, "mount://hl1/valve/models/rpgrocket.mdl.vmdl", damage, null, ray.Position, ray.Forward, 250 );
+		rocket.NormalDamage = normalDamage;
 		rocket.Launcher = this;
 		ActiveRockets++;
 		return true;

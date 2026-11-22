@@ -33,7 +33,8 @@ public sealed class Crowbar : StudioWeapon
 		var hit = TraceSwing( AimRay );
 		if ( hit.Hit )
 		{
-			var damage = Networking.MaxPlayers > 1 ? 25 : Ballistics.Damage * (_fullDamageAt <= 0 ? 1 : 0.5f);
+			var normalDamage = Ballistics.Damage * (_fullDamageAt <= 0 ? 1 : 0.5f);
+			var damage = WeaponDamage.ForTarget( Holder?.GameObject, hit.GameObject, normalDamage, 25 );
 			ShootBullet( hit, damage, 0, hitboxTags: false );
 			SetNextPrimaryFire( 0.25f );
 			_fullDamageAt = 1.25f;

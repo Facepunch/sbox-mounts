@@ -101,11 +101,11 @@ public class NpcProjectile : Component
 
 	internal virtual void OnImpact( IDamageable victim, Vector3 position, Vector3 normal ) => DamageVictim( victim, position );
 
-	internal void DamageVictim( IDamageable victim, Vector3 position, Hitbox hitbox = null )
+	internal void DamageVictim( IDamageable victim, Vector3 position, Hitbox hitbox = null, float? amount = null )
 	{
 		if ( victim is not null )
 		{
-			var damage = new DamageInfo { Damage = Damage, Attacker = Shooter, Weapon = GameObject, Origin = WorldPosition, Position = position, Hitbox = hitbox };
+			var damage = new DamageInfo { Damage = amount ?? Damage, Attacker = Shooter, Weapon = GameObject, Origin = WorldPosition, Position = position, Hitbox = hitbox };
 			damage.Tags.Add( DamageTag );
 			victim.OnDamage( damage );
 		}

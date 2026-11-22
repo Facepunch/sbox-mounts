@@ -5,6 +5,7 @@ namespace GoldSrc.HalfLife;
 public sealed class Pistol : BulletWeapon
 {
 	internal override int PlayerMuzzleFlash => 21;
+	internal override float DeathmatchDamage => 12;
 
 	bool _rapidFire;
 
@@ -31,7 +32,7 @@ public sealed class Pistol : BulletWeapon
 		SecondaryAutomatic = true;
 		ReloadTime = 1.5f;
 		AttackDamageTags = ["bullet"];
-		Ballistics = new() { Damage = 12, Range = 8192, Radius = 0 };
+		Ballistics = new() { Damage = 8, Range = 8192, Radius = 0 };
 	}
 
 	internal override Vector2 PelletSpread => Vector2.One * (_rapidFire ? 0.1f : 0.01f);
@@ -42,7 +43,6 @@ public sealed class Pistol : BulletWeapon
 	void FireRound( bool rapid )
 	{
 		_rapidFire = rapid;
-		Ballistics = Ballistics with { Damage = Deathmatch ? 12 : 8 };
 		base.PrimaryAttack();
 		SetNextFire( rapid ? SecondaryDelay : PrimaryDelay );
 	}

@@ -4,6 +4,7 @@ namespace GoldSrc.HalfLife;
 [WeaponPickup( "crossbow", "bolts", 50, Bucket = 2, Weight = 10 )]
 public sealed class Crossbow : ProjectileWeapon
 {
+	const float BoltDamage = 50;
 	internal override float ZoomFieldOfView => 20;
 
 	internal override string DeploySequence => Clip1 == 0 ? "draw2" : "draw1";
@@ -61,7 +62,11 @@ public sealed class Crossbow : ProjectileWeapon
 		var hit = BulletTrace( ray, 8192, 0 ).Run();
 		if ( !hit.Hit ) return true;
 		var victim = hit.GameObject?.GetComponentInParent<IDamageable>();
-		if ( victim is not null ) ShootBullet( hit, 120, 0, new TagSet { "bullet", "nevergib" } );
+		if ( victim is not null )
+		{
+			var damage = WeaponDamage.ForTarget( Holder?.GameObject, hit.GameObject, BoltDamage, 120 );
+			ShootBullet( hit, damage, 0, new TagSet { "bullet", "nevergib" } );
+		}
 		var stick = victim is null && hit.Body?.BodyType != PhysicsBodyType.Dynamic && !hit.HasTag( "glass" );
 		CrossbowBolt.ImpactEffects( hit.EndPosition, ray.Forward, victim is not null, stick );
 		return true;
@@ -70,7 +75,7 @@ public sealed class Crossbow : ProjectileWeapon
 	internal override bool Release( Ray ray )
 	{
 		GoldSrc.HalfLife.Npc.PunchPlayer( Owner, Vector3.Zero, new Angles( -2, 0, 0 ) );
-		NpcProjectile.Fire<CrossbowBolt>( Owner.GameObject, CrossbowBolt.ModelAsset, 50, null, ray.Position, ray.Forward,
+		NpcProjectile.Fire<CrossbowBolt>( Owner.GameObject, CrossbowBolt.ModelAsset, BoltDamage, null, ray.Position, ray.Forward,
 			WaterBody.Find( Scene, Owner.EyePosition ).IsValid() ? 1000 : 2000 );
 		return true;
 	}

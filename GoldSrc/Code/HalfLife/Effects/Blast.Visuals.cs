@@ -2,10 +2,10 @@ namespace GoldSrc.HalfLife;
 
 internal static partial class Blast
 {
-	internal static void Detonate( GameObject inflictor, GameObject owner, Vector3 contact, Vector3 normal, float damage, bool hit )
+	internal static void Detonate( GameObject inflictor, GameObject owner, Vector3 contact, Vector3 normal, float damage, bool hit, float? normalDamage = null )
 	{
 		var origin = hit ? contact + normal * ((damage - 24) * 0.6f) : contact;
-		DamageInRadius( inflictor, owner, origin, damage, damage * 2.5f, "blast" );
+		DamageInRadius( inflictor, owner, origin, normalDamage ?? damage, damage * 2.5f, damage, "blast" );
 		ShowExplosion( origin, contact, normal, damage, hit );
 		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
 		{

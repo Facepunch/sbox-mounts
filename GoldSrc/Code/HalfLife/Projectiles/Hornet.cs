@@ -3,6 +3,7 @@ namespace GoldSrc.HalfLife;
 [Hide]
 public class Hornet : NpcProjectile, Component.IDamageable
 {
+	internal float? DeathmatchDamage { get; set; }
 	internal override float LaunchSpeed => 300;
 	internal override string HitTag => "bullet";
 	internal override float Lifetime => _dashEndsAt > 0 ? _dashEndsAt : Networking.MaxPlayers > 1 ? 3.5f : 5f;
@@ -97,7 +98,8 @@ public class Hornet : NpcProjectile, Component.IDamageable
 
 	internal override void OnImpact( IDamageable victim, Vector3 position, Vector3 normal )
 	{
-		base.OnImpact( victim, position, normal );
+		var damage = WeaponDamage.ForTarget( Shooter, (victim as Component)?.GameObject, Damage, DeathmatchDamage ?? Damage );
+		DamageVictim( victim, position, amount: damage );
 		if ( victim is not null ) PlaySound( "hornet/ag_hornethit", position );
 	}
 

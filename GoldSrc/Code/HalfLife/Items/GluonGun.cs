@@ -42,9 +42,9 @@ public sealed partial class GluonGun : StudioWeapon
 		}
 		else if ( !hit.StartedSolid )
 		{
-			var damage = multiplayer ? 20 : 14;
 			if ( hit.Hit )
 			{
+				var damage = WeaponDamage.ForTarget( Holder?.GameObject, hit.GameObject, 14, 20 );
 				ShootBullet( hit, damage, 0 );
 				// Keep the blast's visibility traces outside the surface, including sloped ceilings.
 				ImpactPulse( hit.EndPosition + hit.Normal * 2, _firstImpact );
@@ -65,7 +65,7 @@ public sealed partial class GluonGun : StudioWeapon
 	{
 		if ( !Owner.IsValid() || !IsActive ) return;
 		if ( Networking.MaxPlayers > 1 )
-			Blast.DamageInRadius( GameObject, Owner.GameObject, point, 5, 128, "energybeam", "blast", "alwaysgib" );
+			Blast.DamageInRadius( GameObject, Owner.GameObject, point, 0, 128, 5, "energybeam", "blast", "alwaysgib" );
 		if ( !firstImpact && _nextShake > 0 ) return;
 		GroundShake.Emit( Scene, point, 5, 150, 0.75f, 250 );
 		_nextShake = 1.5f;

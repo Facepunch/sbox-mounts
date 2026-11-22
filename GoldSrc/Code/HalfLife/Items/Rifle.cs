@@ -5,6 +5,7 @@ namespace GoldSrc.HalfLife;
 public sealed class Rifle : BulletWeapon
 {
 	internal override int PlayerMuzzleFlash => 40;
+	internal override float DeathmatchDamage => 12;
 
 	internal const string GrenadeAmmoPath = "ammo/argrenades.ammo";
 	TimeUntil _nextLaunch;
@@ -52,7 +53,6 @@ public sealed class Rifle : BulletWeapon
 	public override void PrimaryAttack()
 	{
 		if ( Underwater() ) return;
-		Ballistics = Ballistics with { Damage = Deathmatch ? 12 : 5 };
 		base.PrimaryAttack();
 	}
 

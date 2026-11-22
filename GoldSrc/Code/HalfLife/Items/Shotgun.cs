@@ -5,6 +5,7 @@ namespace GoldSrc.HalfLife;
 public sealed class Shotgun : BulletWeapon
 {
 	internal override int PlayerMuzzleFlash => 51;
+	internal override float DeathmatchDamage => 20;
 
 	bool _double;
 	TimeUntil _pump, _insert;
@@ -65,7 +66,7 @@ public sealed class Shotgun : BulletWeapon
 		}
 		if ( both && IsHeld && (Clip1 < 2 || !TakePrimaryAmmo()) ) return;
 		_double = both;
-		Ballistics = Ballistics with { Damage = Deathmatch ? 20 : 5, Pellets = (Deathmatch ? 4 : 6) * (both ? 2 : 1) };
+		Ballistics = Ballistics with { Pellets = (Deathmatch ? 4 : 6) * (both ? 2 : 1) };
 		base.PrimaryAttack();
 		SetNextFire( both ? SecondaryDelay : PrimaryDelay );
 		ReportShot( both );
