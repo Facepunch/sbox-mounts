@@ -135,6 +135,10 @@ public abstract partial class GameMount : BaseGameMount
 				{
 					context.Add( ResourceType.Sound, path, new WavSoundLoader( fullPath ) );
 				}
+				else if ( ext == ".mp3" && relativePath.Replace( '\\', '/' ).StartsWith( "media/", StringComparison.OrdinalIgnoreCase ) )
+				{
+					context.Add( ResourceType.Sound, path, new MusicLoader( fullPath ) );
+				}
 				else if ( ext == ".spr" )
 				{
 					MountSprite( context, path );

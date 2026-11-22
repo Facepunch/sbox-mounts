@@ -22,14 +22,31 @@ partial class MapBuilder
 			SpawnExplosion( entity );
 			return true;
 		}
+		if ( entity.ClassName == "env_sound" )
+		{
+			var roomObject = new GameObject( true, EntityName( entity ) ) { WorldPosition = entity.Origin };
+			var room = roomObject.AddComponent<SoundRoom>();
+			room.TargetName = entity.TargetName;
+			room.RoomType = entity.GetInt( "roomtype" );
+			room.Radius = entity.GetFloat( "radius" );
+			RegisterTarget( entity, room, null, null, null, nameof( MapEntity.Kill ) );
+			_mapState.GameObject.GetOrAddComponent<RoomAcoustics>();
+			return true;
+		}
+		if ( entity.ClassName == "env_funnel" )
+		{
+			var funnelObject = new GameObject( true, EntityName( entity ) ) { WorldPosition = entity.Origin };
+			var funnel = funnelObject.AddComponent<Funnel>();
+			funnel.TargetName = entity.TargetName;
+			funnel.Reverse = (entity.SpawnFlags & 1) != 0;
+			RegisterTarget( entity, funnel );
+			return true;
+		}
 		var unsupported = entity.ClassName switch
 		{
 			"env_bubbles" => "brush-volume bubble simulation and the temporary-effect renderer are unavailable",
-			"env_funnel" => "the funnel temporary-effect particle simulation is unavailable",
 			"env_shooter" or "gibshooter" => "gib body selection, bounce physics, collision sounds and fade lifetime are unavailable",
 			"env_blood" => "blood stream/spray temporary effects and player-relative placement are unavailable",
-			"env_sound" => "GoldSrc room-type DSP and per-player room acoustics are unavailable",
-			"speaker" => "sentence-group playback, sentence word parameters and shared speech arbitration are unavailable",
 			_ => null
 		};
 		if ( unsupported is not null )

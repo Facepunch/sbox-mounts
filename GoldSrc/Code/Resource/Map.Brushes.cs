@@ -269,6 +269,20 @@ partial class MapBuilder
 		const int SF_TRIGGER_NOCLIENTS = 2;
 
 		var className = entity.ClassName;
+		if ( className == "trigger_cdaudio" )
+		{
+			var volume = new GameObject( true, EntityName( entity ) ) { IsStatic = true };
+			volume.WorldPosition = entity.Origin + (bspModel.Mins + bspModel.Maxs) * 0.5f;
+			AddCollider( volume, GetTriggerPhysics( entity.BrushModelIndex, bspModel.Maxs - bspModel.Mins ), true, trigger: true );
+			var cue = volume.AddComponent<CdAudio>();
+			cue.TargetName = entity.TargetName;
+			cue.Track = entity.GetInt( "health" );
+			var file = CdAudio.FileName( cue.Track );
+			if ( file is not null && Host.FindMountPath( $"media/{file}.mp3" ) is {} path )
+				cue.SoundPath = $"mount://{Host.Ident}/{path}.vsnd";
+			RegisterTarget( entity, cue );
+			return;
+		}
 		if ( SpawnLevelTrigger( entity, bspModel ) || className == "trigger_camera" )
 			return;
 		if ( className is not ("trigger_once" or "trigger_multiple" or "trigger_hurt") )
