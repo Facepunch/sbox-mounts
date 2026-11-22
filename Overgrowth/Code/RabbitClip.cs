@@ -14,6 +14,21 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 	internal enum CenterMotion { Full, Vertical, None }
 
+	// Overgrowth's Slerp switches to an unnormalized linear mix for close quaternions.
+	// The subsequent two stages of its cubic blend consume that magnitude as well.
+	static Transform Mix( Transform a, Transform b, float t )
+	{
+		var first = a.Rotation;
+		var next = b.Rotation;
+		float dot = first.x * next.x + first.y * next.y + first.z * next.z + first.w * next.w;
+		if ( MathF.Abs( dot ) < 0.99f ) return Transform.Lerp( a, b, t, false );
+
+		float w = dot < 0f ? -t : t;
+		return new Transform( Vector3.Lerp( a.Position, b.Position, t, false ), new Rotation(
+			first.x * (1f - t) + next.x * w, first.y * (1f - t) + next.y * w,
+			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w ) );
+	}
+
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
@@ -120,7 +135,17 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 		// The uniformly sampled clip must resolve fast limb rotations through attacks and recoveries.
 		int sampleRate = centerMotion switch { CenterMotion.Vertical => 480, CenterMotion.None => 240, _ => 120 };
-		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * (sampleRate / 1000f) ) );
+		int grid = duration;
+		if ( damage is not null || centerMotion == CenterMotion.Vertical )
+		{
+			// Keep authored keys on the sample grid. A short jab can reverse direction at a single key.
+			foreach ( var key in keys )
+			{
+				int remainder = Math.Abs( key.Time );
+				while ( remainder > 0 ) (grid, remainder) = (remainder, grid % remainder);
+			}
+		}
+		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid * (sampleRate / 1000f) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
@@ -143,9 +168,10 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
 			for ( int j = 0; j < frame.Length; j++ )
 			{
-				var pose = w0 + w1 > 0 ? Transform.Lerp( a.Bones[j], b.Bones[j], w1 / (w0 + w1), false ) : b.Bones[j];
-				if ( w0 + w1 + w2 > 0 ) pose = Transform.Lerp( pose, c.Bones[j], w2 / (w0 + w1 + w2), false );
-				frame[j] = Transform.Lerp( pose, d.Bones[j], w3, false );
+				var pose = w0 + w1 > 0 ? Mix( a.Bones[j], b.Bones[j], w1 / (w0 + w1) ) : b.Bones[j];
+				if ( w0 + w1 + w2 > 0 ) pose = Mix( pose, c.Bones[j], w2 / (w0 + w1 + w2) );
+				frame[j] = Mix( pose, d.Bones[j], w3 );
+				frame[j].Rotation = frame[j].Rotation.Normal;
 				if ( skeleton.HierParents[j] < 0 )
 					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
 				else
