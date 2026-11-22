@@ -27,6 +27,18 @@ public sealed partial class RabbitGuard
 		if ( Networking.IsHost ) MirroredStance = LeftHanded;
 	}
 
+	bool CanEndAttack( bool canCancel )
+	{
+		if ( !canCancel )
+		{
+			cancelDelay = 0.01f;
+			return false;
+		}
+		if ( cancelDelay <= 0f ) return true;
+		cancelDelay -= Time.Delta;
+		return false;
+	}
+
 	void UpdateCombat()
 	{
 		if ( strike is not null )
@@ -79,19 +91,7 @@ public sealed partial class RabbitGuard
 				}
 				else TryHit( clip, impact.Bone );
 			}
-			if ( AttackPhase < 1f )
-			{
-				if ( !AnimationCanCancel )
-				{
-					cancelDelay = 0.01f;
-					return;
-				}
-				if ( cancelDelay > 0f )
-				{
-					cancelDelay -= Time.Delta;
-					return;
-				}
-			}
+			if ( AttackPhase < 1f && !CanEndAttack( AnimationCanCancel ) ) return;
 			strike = null;
 			Stance = Threat;
 			return;

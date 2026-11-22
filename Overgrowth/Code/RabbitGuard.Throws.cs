@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 	RabbitGuard stunnedBy, throwPartner;
 	Rotation throwFacing;
 	Vector3 alignmentOffset;
-	float alignmentYaw, throwElapsed;
+	float alignmentYaw, throwElapsed, fadeElapsed;
 	bool awaitingThrowImpact;
 
 	bool TryCounterThrow()
@@ -53,8 +53,11 @@ public sealed partial class RabbitGuard
 		activeBlockReaction = false;
 		throwFacing = WorldRotation;
 		throwElapsed = 0f;
-		alignmentOffset = default;
-		alignmentYaw = 0f;
+		var entry = boundAnimations.Clips[action].ForSide( mirrored ).Animation.GetRootMotion( 0f );
+		alignmentOffset = WorldRotation * (entry.Position * WorldScale);
+		alignmentYaw = entry.Rotation.Yaw();
+		fadeElapsed = 0f;
+		cancelDelay = 0.01f;
 	}
 
 	void UpdateThrow()
@@ -66,17 +69,16 @@ public sealed partial class RabbitGuard
 		throwElapsed += Time.Delta;
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / clip.Duration );
 		var to = clip.Animation.GetRootMotion( ReactionPhase );
-		// WasGrabbed feeds the position and yaw difference through the animation client's fade.
-		if ( Stance == "thrown" )
-		{
-			float weight = Math.Clamp( throwElapsed * 5f, 0f, 1f );
-			var correction = alignmentOffset * weight;
-			float turn = alignmentYaw * weight;
-			to.Position += WorldRotation.Inverse * correction / WorldScale;
-			to.Rotation *= Rotation.FromYaw( turn );
-			alignmentOffset -= correction;
-			alignmentYaw -= turn;
-		}
+		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
+		fadeElapsed += Time.Delta;
+		float fadeRate = Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
+		float weight = Math.Min( 1f, fadeElapsed * fadeRate );
+		alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
+		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );
+		to.Position = from.Position + WorldRotation.Inverse * (alignmentOffset * weight) / WorldScale;
+		to.Rotation = from.Rotation * Rotation.FromYaw( alignmentYaw * weight );
+		alignmentOffset *= 1f - weight;
+		alignmentYaw *= 1f - weight;
 		ApplyRootMotion( from, to );
 		throwFacing = WorldRotation;
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
@@ -97,11 +99,13 @@ public sealed partial class RabbitGuard
 			clip.Animation.TryGetFloatChannel( ReactionPhase, "status", "escape", out float escape ) && escape * Math.Min( 1f, throwElapsed * 5f ) >= 1f )
 		{
 			Stance = "thrown_counter";
+			fadeElapsed = 0f;
 			reactionDuration = boundAnimations.Clips[Stance].Duration;
 			ReactionPhase = Math.Min( 1f, ReactionPhase * clip.Duration / reactionDuration );
 			PlayCombatSound( "Data/Sounds/weapon_foley/swoosh/weapon_whoos_big.xml", WorldPosition );
 		}
-		bool cancel = playing == Stance && AnimationCanCancel && (Stance == "throw" || throwElapsed > 0.1f);
+		bool cancel = playing == Stance && AnimationCanCancel;
+		cancel = Stance == "throw" ? CanEndAttack( cancel ) : cancel && throwElapsed > 0.1f;
 		if ( ReactionPhase < 1f && !cancel && (Stance == "throw" || throwElapsed < 0.6f) ) return;
 		ReactionPhase = 1f;
 		throwPartner = null;
