@@ -91,6 +91,15 @@ public sealed record ItemDefinition( int Id, string Model, string Txd, ItemKind 
 {
 	/// <summary>Placeable map geometry, which the game treats as a "simple model" (see <see cref="DffFile.GetStaticParts"/>).</summary>
 	public bool IsMapObject => Kind is ItemKind.Object or ItemKind.TimedObject or ItemKind.AnimatedObject;
+
+	/// <summary>
+	/// Cars: the id of the wheel model fitted to each wheel dummy (III / VC: one of the wheels.dff models), or -1 to
+	/// use the car's own "wheel" atomic (San Andreas).
+	/// </summary>
+	public int WheelId { get; init; } = -1;
+
+	/// <summary>Cars: scale of the wheel model (front wheels in San Andreas).</summary>
+	public float WheelScale { get; init; } = 1;
 }
 
 /// <summary>
@@ -122,7 +131,7 @@ public static class ItemDefinitions
 					break;
 
 				// everything else just maps a model to its texture dictionary
-				case "cars": Add( ItemKind.Vehicle ); break;
+				case "cars": contents.Definitions.Add( ReadVehicle( f, game ) ); break;
 				case "peds": Add( ItemKind.Ped ); break;
 				case "weap": Add( ItemKind.Weapon ); break;
 				case "hier": Add( ItemKind.Hierarchy ); break;
@@ -159,6 +168,25 @@ public static class ItemDefinitions
 		var flags = (ItemFlags)(int)Number( f[count - 1] );
 
 		return new ItemDefinition( id, model, txd, kind, drawDistance, flags );
+	}
+
+	/// <summary>
+	/// id, model, txd, type, handling, game name, (VC / SA: anim group,) class, frequency, level / flags, component
+	/// rules, then for type "car" the wheel model id and scale (San Andreas: front and rear scale). Other types use
+	/// those fields for other things (bikes: steering angle, wheel scale).
+	/// </summary>
+	static ItemDefinition ReadVehicle( TextScript.Fields f, GameVersion game )
+	{
+		var definition = new ItemDefinition( f.Int(), f.String(), f.String(), ItemKind.Vehicle, 0, 0 );
+
+		int wheel = game == GameVersion.III ? 10 : 11;
+		if ( !f[3].Equals( "car", StringComparison.OrdinalIgnoreCase ) || f.Count < wheel + 2 )
+			return definition;
+
+		bool parsed = float.TryParse( f[wheel], NumberStyles.Float, CultureInfo.InvariantCulture, out var id )
+			& float.TryParse( f[wheel + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out var scale );
+
+		return parsed ? definition with { WheelId = (int)id, WheelScale = scale } : definition;
 	}
 
 	static float Number( string value ) => float.Parse( value, NumberStyles.Float, CultureInfo.InvariantCulture );

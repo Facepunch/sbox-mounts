@@ -1,43 +1,45 @@
+using System;
+
 namespace Renderware;
 
 partial class DffModelBuilder
 {
 	/// <summary>
-	/// A capsule body per bone from its geometry's bounds, joined to its parent with a ball joint.
+	/// A capsule body per bone along its geometry's bone local bounds, joined to its parent with a ball joint.
 	/// </summary>
 	void GenerateBodies( ModelBuilder builder )
 	{
-		var bodyIndex = new Dictionary<string, int>();
+		var bodyIndex = new Dictionary<RigBone, int>();
 
-		foreach ( var (frame, bone) in bones )
+		foreach ( var bone in rig )
 		{
-			if ( bone.Name is null || bone.ParentName is null )
+			if ( bone.Parent is null || bone.Bounds is not { } bounds )
 				continue;
 
-			var extents = frame.GetLocalBounds().Size;
-			float length = extents.Dot( Vector3.Forward );
-			float radius = extents.Dot( Vector3.Left ) / 2.0f;
+			var mins = bounds.Mins * Units.Scale;
+			var maxs = bounds.Maxs * Units.Scale;
+			float radius = MathF.Max( 1, MathF.Max( maxs.y - mins.y, maxs.z - mins.z ) * 0.5f );
+			var center = (mins + maxs) * 0.5f;
 
 			var body = builder.AddBody( boneName: bone.Name );
-			body.AddCapsule( new Capsule( Vector3.Zero, Vector3.Forward * (length * 0.5f), radius ) );
-			bodyIndex[bone.Name] = bodyIndex.Count;
+			body.AddCapsule( new Capsule( center.WithX( mins.x + radius ), center.WithX( MathF.Max( mins.x + radius, maxs.x - radius ) ), radius ) );
+			bodyIndex[bone] = bodyIndex.Count;
 		}
 
-		foreach ( var bone in bones.Values )
+		foreach ( var (bone, childBody) in bodyIndex )
 		{
-			if ( bone.Name is null || bone.ParentName is null )
+			var parent = bone.Parent;
+			while ( parent is not null && !bodyIndex.ContainsKey( parent ) )
+				parent = parent.Parent;
+
+			if ( parent is null )
 				continue;
 
-			if ( !bodyIndex.TryGetValue( bone.ParentName, out var parentBody ) || !bodyIndex.TryGetValue( bone.Name, out var childBody ) )
-				continue;
-
-			var parent = bones.Values.First( b => b.Name == bone.ParentName );
-
-			var transform = new Transform( bone.Position, Rotation.LookAt( bone.Rotation.Up, bone.Rotation.Forward ) );
-			var parentTransform = new Transform( parent.Position, parent.Rotation );
+			var transform = new Transform( bone.Bind.Position * Units.Scale, bone.Bind.Rotation );
+			var parentTransform = new Transform( parent.Bind.Position * Units.Scale, parent.Bind.Rotation );
 
 			// todo: work out joint types and limits properly
-			builder.AddBallJoint( parentBody, childBody, parentTransform.ToLocal( transform ), transform.ToLocal( transform ) )
+			builder.AddBallJoint( bodyIndex[parent], childBody, parentTransform.ToLocal( transform ), Transform.Zero )
 				.WithTwistLimit( -20, 20 )
 				.WithSwingLimit( 90 );
 		}

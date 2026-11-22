@@ -9,7 +9,9 @@ public class Skin : Chunk
 	public byte[] BoneIds { get; }
 	public Color32[] VertexBoneIndices { get; }
 	public Color32[] VertexBoneWeights { get; }
-	public Matrix[] BoneTransforms { get; }
+
+	/// <summary>Per bone, from the space the vertices are in to the bone's.</summary>
+	public Transform[] InverseBindPoses { get; }
 
 	public Skin( BinaryReader br, ChunkHeader header, Chunk parent ) : base( header )
 	{
@@ -31,19 +33,27 @@ public class Skin : Chunk
 		for ( int i = 0; i < VertexBoneWeights.Length; i++ )
 			VertexBoneWeights[i] = NormalizeWeights( br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle() );
 
-		BoneTransforms = new Matrix[NumBones];
+		InverseBindPoses = new Transform[NumBones];
 		for ( int i = 0; i < NumBones; i++ )
 		{
 			if ( boneIdCount == 0 )
 				br.ReadUInt32(); // III / VC pad each matrix
 
-			BoneTransforms[i] = new Matrix(
-				br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle(),
-				br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle(),
-				br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle(),
-				br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle() );
+			// an RwMatrix: right, flags, up, pad, at, pad, pos, pad - the w column is junk
+			var right = br.ReadVector3(); br.ReadUInt32();
+			br.ReadVector3(); br.ReadUInt32(); // up, implied by the other two
+			var at = br.ReadVector3(); br.ReadUInt32();
+			var pos = br.ReadVector3(); br.ReadUInt32();
+
+			InverseBindPoses[i] = new Transform( pos, Rotation.LookAt( right, at ) );
 		}
 	}
+
+	/// <summary>
+	/// Bone <paramref name="index"/>'s bind pose in the space the skinned vertices are in - which isn't necessarily the
+	/// frame hierarchy's, see <see cref="DffModelBuilder"/>.
+	/// </summary>
+	public Transform GetBindPose( int index ) => InverseBindPoses[index].ToLocal( Transform.Zero );
 
 	/// <summary>
 	/// Four float weights to bytes that add up to exactly 255, the rounding error going to the largest remainder.

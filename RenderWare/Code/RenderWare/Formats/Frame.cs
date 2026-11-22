@@ -35,7 +35,10 @@ public class FrameList : Chunk
 	/// </summary>
 	public bool TryGetBone( int nodeId, out Frame bone ) => byNodeId.TryGetValue( nodeId, out bone );
 
-	public Frame GetParent( Frame frame ) => frame.ParentIndex < 0 ? null : Frames[frame.ParentIndex];
+	public Frame GetParent( Frame frame ) => frame.ParentIndex < 0 || frame.ParentIndex >= Frames.Length ? null : Frames[frame.ParentIndex];
+
+	/// <summary>The frame holding the animation hierarchy (the HAnim with nodes), null if the model has none.</summary>
+	public Frame HierarchyRoot => Frames.FirstOrDefault( f => f.HAnim is { Nodes.Length: > 0 } );
 
 	/// <summary>
 	/// A frame's transform in model space, walking up its parents.
@@ -64,10 +67,6 @@ public class Frame
 	public Transform Transform;
 
 	public int NodeId => HAnim?.NodeId ?? -1;
-
-	BBox localBounds;
-	public BBox GetLocalBounds() => localBounds;
-	public void AddBoundsPoint( Vector3 position ) => localBounds = localBounds.AddPoint( position );
 
 	public Frame( BinaryReader br )
 	{
