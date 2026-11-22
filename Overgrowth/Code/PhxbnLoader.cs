@@ -220,7 +220,7 @@ static class PhxbnLoader
 	{
 		var diff = end - start;
 		float len = diff.Length;
-		if ( len < 0.0001f )
+		if ( len == 0f )
 			return new Transform( new Vector3( start.z, start.x, start.y ) * 40f, Rotation.Identity );
 
 		var dir = diff / len;

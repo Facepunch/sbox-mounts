@@ -11,14 +11,14 @@ internal sealed class RabbitRetarget
 	readonly Vector3[] childHalf;
 	readonly List<int> flippedToes = [];
 
-	internal RabbitRetarget( BaseFileSystem fs, string rigPath, SkeletonData target, float scale )
+	internal RabbitRetarget( BaseFileSystem fs, string rigPath, SkeletonData target, float scale, out SkeletonData source )
 	{
 		this.target = target;
 		this.scale = scale;
 		var rig = XmlAsset.Read( fs, rigPath, "rig" );
 		var mesh = ObjLoader.Load( fs, rig.Attribute( "model_path" ) );
 		using var stream = fs.OpenRead( rig.Attribute( "bone_path" ) );
-		var source = PhxbnLoader.Load( stream, mesh.FaceVertexCount );
+		source = PhxbnLoader.Load( stream, mesh.FaceVertexCount );
 		if ( !source.HierParents.SequenceEqual( target.HierParents ) )
 			throw new InvalidDataException( $"Rabbit animation hierarchy differs from {rigPath}" );
 		legRatio = LegLength( target ) / LegLength( source );
@@ -67,6 +67,13 @@ internal sealed class RabbitRetarget
 	static readonly Rotation ToeFlip = Rotation.FromAxis( Vector3.Forward, 3.14f.RadianToDegree() );
 
 	internal Vector3 JointPosition( int bone, Rotation rotation ) => parentAnchor[bone] + rotation * childHalf[bone];
+
+	internal void Mirror( RabbitMirror mirror, Transform[] frame, Transform[] scratch )
+	{
+		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip.Inverse;
+		mirror.Apply( frame, scratch, target.HierParents );
+		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip;
+	}
 
 	internal Transform FootTarget( int side, Transform pose )
 	{

@@ -19,14 +19,20 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			.SelectMany( rig => rig.Elements( "anim" ).Select( anim => (anim.Value, Rig: rig.Attribute( "path" )) ) )
 			.ToLookup( entry => entry.Value, entry => entry.Rig, System.StringComparer.OrdinalIgnoreCase );
 		var sources = new Dictionary<string, RabbitRetarget>();
+		var referenceRig = mapping["Data/Animations/r_ledge.anm"].Last();
+		RabbitMirror mirror = null;
 		RabbitRetarget SourceFor( string name )
 		{
-			var sourcePath = mapping[$"Data/Animations/{name}.anm"].LastOrDefault() ?? mapping["Data/Animations/r_ledge.anm"].Last();
+			var sourcePath = mapping[$"Data/Animations/{name}.anm"].LastOrDefault() ?? referenceRig;
 			if ( !sources.TryGetValue( sourcePath, out var source ) )
-				sources[sourcePath] = source = new RabbitRetarget( fs, sourcePath, skeleton, scale );
+			{
+				sources[sourcePath] = source = new RabbitRetarget( fs, sourcePath, skeleton, scale, out var original );
+				if ( sourcePath == referenceRig ) mirror = new RabbitMirror( original, scale );
+			}
 			return source;
 		}
 
+		SourceFor( "r_ledge" );
 		var character = XmlAsset.Read( fs, characterPath, "character" );
 		var morphs = CharacterMorph.Read( character );
 		if ( morphs.Any( m => m.Steps == 1 ) )
@@ -67,26 +73,28 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
 		var speed = graph.FloatParameter( "ground_speed" );
+		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
-		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false )
+		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
 		{
 			if ( file.EndsWith( ".anm" ) )
 			{
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
-				if ( !clips.TryGetValue( name, out var clip ) )
-					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full );
+				var key = mirrored ? name + "_mirrored" : name;
+				if ( !clips.TryGetValue( key, out var clip ) )
+					clips[key] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirror: mirrored ? mirror : null );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
 			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
 			inAir |= group.Element( "InAir" )?.Value == "true";
 			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
-			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) ?? time, inAir );
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) ?? time, inAir, mirrored );
 			if ( inputs.Length == 1 ) return Input( inputs[0] );
 			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
@@ -106,7 +114,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.Idle )
 				return machine.AddState( AnimationGroup( "Data/Animations/r_relaxidle.xml" ) );
 			if ( name == RabbitGuard.FreeAir )
-				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ), "air_phase" ) );
+			{
+				var jump = character.Element( "animations" ).Attribute( "jump" );
+				return machine.AddState( graph.Blend( AnimationGroup( jump, "air_phase" ), AnimationGroup( jump, "air_phase", mirrored: true ), leftFootJump ) );
+			}
 			if ( name == RabbitGuard.Threat )
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "idle" ), "stride_phase" ) );
 			if ( name == RabbitGuard.Locomotion )

@@ -29,7 +29,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w ) );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
@@ -164,6 +164,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid / spacing );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
+		var scratch = mirror is null ? null : new Transform[rig.BoneCount];
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
@@ -199,6 +200,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 			var travel = Vector3.Lerp( b.Travel, c.Travel, t );
 			float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
+			if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
 			clip.AddFrame( frame, new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) ) );
 			if ( sampleFeet )
 			{
@@ -226,16 +228,19 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 		}
 		for ( int channel = 0; channel < tracks.Length; channel++ )
-			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", StatusChannels[channel], track );
+			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? StatusChannels[channel] : StatusChannels[channel] switch { "leftarm_blend" => "rightarm_blend", "rightarm_blend" => "leftarm_blend", var label => label }, track );
 		for ( int i = 0; i < morphs.Length; i++ )
 		{
 			if ( shapeTracks[i] is not { } values ) continue;
-			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( morphs[i].Name, values );
-			else clip.AddFloatChannelTrack( "multistep", morphs[i].Name, values );
+			var label = morphs[i].Name;
+			if ( mirror is not null && (label.EndsWith( "_l" ) || label.EndsWith( "_r" )) )
+				label = label[..^1] + (label[^1] == 'l' ? "r" : "l");
+			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
+			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet );
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet );
 
 		int Count()
 		{
