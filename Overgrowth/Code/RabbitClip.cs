@@ -127,6 +127,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				frame[j] = Transform.Lerp( pose, d.Bones[j], w3, false );
 				if ( skeleton.HierParents[j] < 0 )
 					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
+				else
+					frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );
 			}
 			clip.AddFrame( frame );
 			if ( sampleFeet )

@@ -44,6 +44,7 @@ internal sealed class RabbitRetarget
 			var parentCenter = target.BindPose[parent].Position;
 			parentAnchor[i] = target.BindPose[parent].Rotation.Inverse * (ToUnits( target.Points[a] ) * scale - parentCenter);
 			childHalf[i] = target.BindPose[i].Rotation.Inverse * ToUnits( target.Points[b] - target.Points[a] ) * (0.5f * scale);
+			if ( flippedToes.Contains( i ) ) childHalf[i] = ToeFlip.Inverse * childHalf[i];
 		}
 	}
 
@@ -63,6 +64,10 @@ internal sealed class RabbitRetarget
 		return length;
 	}
 
+	static readonly Rotation ToeFlip = Rotation.FromAxis( Vector3.Forward, 3.14f.RadianToDegree() );
+
+	internal Vector3 JointPosition( int bone, Rotation rotation ) => parentAnchor[bone] + rotation * childHalf[bone];
+
 	internal Vector3 ScaleOffset( Vector3 offset ) => offset * (legRatio * scale);
 
 	internal Transform[] ToLocalPose( Transform[] pose )
@@ -77,11 +82,11 @@ internal sealed class RabbitRetarget
 				continue;
 			}
 			var rotation = pose[parent].Rotation.Inverse * pose[i].Rotation;
-			result[i] = new Transform( parentAnchor[i] + rotation * childHalf[i], rotation );
+			result[i] = new Transform( Vector3.Zero, rotation );
 		}
 		// Retarget's flipped-toe check rotates about the source rig's Z (s&box forward).
 		foreach ( int toe in flippedToes )
-			result[toe] = result[toe].WithRotation( result[toe].Rotation * Rotation.FromAxis( Vector3.Forward, 3.14f.RadianToDegree() ) );
+			result[toe] = result[toe].WithRotation( result[toe].Rotation * ToeFlip );
 		return result;
 	}
 }
