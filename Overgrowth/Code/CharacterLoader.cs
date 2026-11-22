@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>, IHotloadManaged
 {
 	RabbitGuardAnimations compiledAnimations;
+	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
 
@@ -106,7 +107,13 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 		if ( guard ) compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, scale );
 
-		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
+		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters );
+		if ( guard )
+		{
+			var hullPath = modelObjPath[..^4] + "_hulls.obj";
+			if ( Host.FileSystem.FileExists( hullPath ) )
+				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
+		}
 		var model = builder.Create();
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );

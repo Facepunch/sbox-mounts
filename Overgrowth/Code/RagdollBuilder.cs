@@ -14,7 +14,7 @@ static class RagdollBuilder
 	record struct Shape( string Kind, FzxObject Object );
 	record struct Joint( int A, int B, int Type, Vector3 Anchor, Vector3 Axis, float[] Limits );
 
-	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale )
+	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, Vector3> bodyCenters )
 	{
 		int count = skeleton.Bones.Count;
 		if ( skeleton.BoneMass.Count != count )
@@ -90,6 +90,7 @@ static class RagdollBuilder
 				new Joint( source.BoneA, source.BoneB, source.Type, Convert( skeleton.Points[point] ) * scale, Convert( source.Axis ) / Units, limits );
 		}
 
+		bodyCenters = new();
 		var bodyIds = Enumerable.Repeat( -1, count ).ToArray();
 		var sourcePoses = new Transform[count];
 		int bodyCount = 0;
@@ -116,6 +117,7 @@ static class RagdollBuilder
 			if ( fixedBones[i] || !assigned[i] )
 				continue;
 			bodyIds[i] = bodyCount++;
+			bodyCenters.Add( i, pose.Position );
 			var bindPose = skeleton.BindPose[i];
 			var body = builder.AddBody( masses[i], boneName: $"bone_{i}" ).SetBindPose( bindPose );
 			foreach ( var shape in shapes[i] )

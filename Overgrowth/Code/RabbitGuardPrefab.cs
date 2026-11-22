@@ -29,12 +29,13 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		{
 			Game.ActiveScene.Enabled = false;
 			var go = new GameObject( true, actor.Title );
-			Configure( go, model, actor.Title );
+			var loader = (CharacterLoader)Host.GetByPath( modelPath );
+			Configure( go, model, actor.Title, loader.HitVolumes );
 		}
 		return prefab = builder.Create();
 	}
 
-	static void Configure( GameObject go, Model model, string title )
+	static void Configure( GameObject go, Model model, string title, ModelHitboxes.ConvexHull[] volumes )
 	{
 		go.Tags.Add( "npc" );
 		go.NetworkMode = NetworkMode.Object;
@@ -46,6 +47,10 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		var renderer = visuals.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;
+		var hitboxes = visuals.AddComponent<ModelHitboxes>();
+		hitboxes.Hulls = volumes;
+		hitboxes.Target = go;
+		hitboxes.Renderer = renderer;
 
 		var hull = new GameObject( go, true, "collider" );
 		hull.Tags.Add( "playercontroller" );
