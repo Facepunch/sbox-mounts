@@ -32,6 +32,7 @@ public sealed class TrackTrain : MapEntity
 
 	/// <summary>A func_train slides along its path without ever turning.</summary>
 	[Property] public bool NoRotation { get; set; }
+	[Property] public Vector3 CornerOffset { get; set; }
 	[Property] public float StartSpeed { get; set; }
 	[Property] public bool NoControl { get; set; }
 	[Property] public bool ForwardOnly { get; set; }
@@ -420,7 +421,7 @@ public sealed class TrackTrain : MapEntity
 
 	private void Place()
 	{
-		WorldPosition = _trackPosition + Vector3.Up * Height;
+		WorldPosition = _trackPosition + CornerOffset + Vector3.Up * Height;
 
 		if ( NoRotation )
 			return;

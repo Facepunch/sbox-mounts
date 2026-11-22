@@ -72,6 +72,7 @@ partial class MapBuilder
 		train.MaxSpeed = entity.GetFloat( "speed", 100f );
 		if ( train.MaxSpeed == 0f ) train.MaxSpeed = 100f;
 		train.NoRotation = !tracked;
+		if ( !tracked ) train.CornerOffset = -(model.Mins + model.Maxs) * 0.5f;
 		train.NoPitch = (entity.SpawnFlags & SF_TRACKTRAIN_NOPITCH) != 0;
 		train.NoControl = tracked && (entity.SpawnFlags & 2) != 0;
 		train.ForwardOnly = tracked && (entity.SpawnFlags & 4) != 0;
@@ -106,7 +107,7 @@ partial class MapBuilder
 		{
 			train.Path = FindPathNode( entity.Target );
 			if ( train.Path.IsValid() && train.Path.IsTrack == tracked )
-				go.WorldPosition = train.Path.WorldPosition + Vector3.Up * train.Height;
+				go.WorldPosition = train.Path.WorldPosition + train.CornerOffset + Vector3.Up * train.Height;
 			else
 			{
 				train.Path = null;

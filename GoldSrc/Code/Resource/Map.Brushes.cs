@@ -73,7 +73,7 @@ partial class MapBuilder
 
 		var rotating = className is "func_door_rotating" or "func_rot_button" or "func_rotating"
 			or "func_pendulum" or "func_platrot" or "momentary_rot_button" or "func_trackchange" or "func_trackautochange";
-		var center = rotating || className == "func_tracktrain" ? Vector3.Zero : (bspModel.Mins + bspModel.Maxs) * 0.5f;
+		var center = rotating || className is "func_tracktrain" or "func_train" ? Vector3.Zero : (bspModel.Mins + bspModel.Maxs) * 0.5f;
 
 		var (blend, tint) = ResolveRenderMode( entity );
 
@@ -98,7 +98,7 @@ partial class MapBuilder
 		go.WorldPosition = entity.Origin + center;
 		if ( className == "func_pushable" )
 			go.Tags.Add( "goldsrc_pushable" );
-		if ( rotating )
+		if ( rotating || className == "func_train" )
 			go.WorldRotation = entity.Rotation;
 
 		AddRenderers( go, geometry, tint );
