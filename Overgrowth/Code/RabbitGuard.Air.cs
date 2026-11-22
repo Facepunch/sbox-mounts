@@ -7,16 +7,33 @@ public sealed partial class RabbitGuard
 	[Sync] bool LeftFootJump { get; set; }
 	bool nextJumpUsesLeft;
 	float jumpLaunch, airPhase;
-	Vector3 airVelocity;
+	Vector3? airVelocity;
+
+	void UpdateLanding()
+	{
+		if ( Downed || !Networking.IsHost )
+		{
+			airVelocity = null;
+			return;
+		}
+		if ( !Animation.IsGrounded )
+		{
+			airVelocity = Animation.MoveVelocity;
+			return;
+		}
+		if ( airVelocity is not { } velocity ) return;
+		airVelocity = null;
+		if ( strike is not null || Stance == "throw" ) GoLimp();
+		else Land( velocity );
+	}
 
 	string AirPose()
 	{
 		var pose = !Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion ? FreeAir : Stance;
-		if ( playing == FreeAir && Animation.IsGrounded ) Land();
+
 		if ( pose == FreeAir )
 		{
-			airVelocity = Animation.MoveVelocity;
-			var velocity = airVelocity / 40f;
+			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir )
 			{
 				jumpLaunch = velocity.z > 0 ? 1f : 0f;
@@ -42,9 +59,8 @@ public sealed partial class RabbitGuard
 		return pose;
 	}
 
-	void Land()
+	void Land( Vector3 airVelocity )
 	{
-		if ( !Networking.IsHost ) return;
 		var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 		if ( !floor.Hit ) return;

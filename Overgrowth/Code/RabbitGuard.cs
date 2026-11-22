@@ -52,6 +52,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		Renderer.Animation.Parameters.Set( "mirrored_flinch", MirroredFlinch );
 		Renderer.Animation.Parameters.Set( "block_flinch", FlinchWeight );
 		UpdateMorphs();
+		UpdateLanding();
 		if ( Downed )
 		{
 			if ( Networking.IsHost ) TryGetUp();
