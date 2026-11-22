@@ -36,6 +36,7 @@ partial class MapBuilder
 	private static void AddCollider( GameObject target, PhysicsGroupDescription physics, bool isStatic, bool trigger = false )
 	{
 		if ( physics is null ) return;
+		if ( !trigger ) target.Tags.Add( "world" );
 		var collider = target.AddComponent<PhysicsCollider>( false );
 		collider.Static = isStatic;
 		collider.IsTrigger = trigger;
