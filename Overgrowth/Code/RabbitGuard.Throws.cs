@@ -70,10 +70,12 @@ public sealed partial class RabbitGuard
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / clip.Duration );
 		var to = clip.Animation.GetRootMotion( ReactionPhase );
 		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
+		bool firstCounterFrame = Stance == "thrown_counter" && fadeElapsed == 0f;
 		fadeElapsed += Time.Delta;
 		float fadeRate = Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
 		float weight = Math.Min( 1f, fadeElapsed * fadeRate );
-		alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
+		// Seeking the new reader on a swap suppresses its first translation sample.
+		if ( !firstCounterFrame ) alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
 		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );
 		to.Position = from.Position + WorldRotation.Inverse * (alignmentOffset * weight) / WorldScale;
 		to.Rotation = from.Rotation * Rotation.FromYaw( alignmentYaw * weight );
@@ -98,10 +100,15 @@ public sealed partial class RabbitGuard
 		if ( Stance == "thrown" && willEscapeThrow && startled <= 0 &&
 			clip.Animation.TryGetFloatChannel( ReactionPhase, "status", "escape", out float escape ) && escape * Math.Min( 1f, throwElapsed * 5f ) >= 1f )
 		{
+			var previousRotation = clip.Animation.GetRootMotion( ReactionPhase ).Rotation;
 			Stance = "thrown_counter";
 			fadeElapsed = 0f;
-			reactionDuration = boundAnimations.Clips[Stance].Duration;
+			var counter = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+			reactionDuration = counter.Duration;
 			ReactionPhase = Math.Min( 1f, ReactionPhase * clip.Duration / reactionDuration );
+			// SwapAnimation retains the outgoing reader's last sampled rotation.
+			var counterRoot = counter.Animation.GetRootMotion( ReactionPhase );
+			alignmentYaw += (previousRotation.Inverse * counterRoot.Rotation).Yaw();
 			PlayCombatSound( "Data/Sounds/weapon_foley/swoosh/weapon_whoos_big.xml", WorldPosition );
 		}
 		bool cancel = playing == Stance && AnimationCanCancel;
