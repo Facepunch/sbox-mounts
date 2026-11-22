@@ -210,6 +210,12 @@ public sealed class GameProfile
 {
 	public bool Has3dSkyboxes = false;
 
+	/// <summary>
+	/// RTCW / ET doors: opened with use rather than by walking into them (unless flagged TOUCH), rotating doors
+	/// swing away from whoever opens them, and the "type" key picks the door%i_* sound set.
+	/// </summary>
+	public bool ActivatedDoors = false;
+
 	public bool CallOfDuty;
 
 	/// <summary>

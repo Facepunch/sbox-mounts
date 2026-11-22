@@ -33,8 +33,23 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 	/// <summary>Can be opened by pressing use as well as by touching.</summary>
 	[Property] public bool Usable { get; set; } = true;
 
+	/// <summary>Using an open mover closes it (RTCW TOGGLE / STAYOPEN), instead of keeping it open.</summary>
+	[Property] public bool Toggle { get; set; }
+
+	/// <summary>
+	/// Rotating doors swing away from whoever opens them, as RTCW's do, instead of always the same way.
+	/// </summary>
+	[Property] public bool SwingAway { get; set; }
+
+	/// <summary>Centre of the mover's brushes, relative to its pivot, for working out which way to swing.</summary>
+	[Property] public Vector3 Center { get; set; }
+
+	/// <summary>Played when it starts opening (and closing, without <see cref="CloseStartSound"/>).</summary>
 	[Property, Group( "Sound" )] public SoundEvent StartSound { get; set; }
+	/// <summary>Played when it's fully open (and closed, without <see cref="CloseStopSound"/>).</summary>
 	[Property, Group( "Sound" )] public SoundEvent StopSound { get; set; }
+	[Property, Group( "Sound" )] public SoundEvent CloseStartSound { get; set; }
+	[Property, Group( "Sound" )] public SoundEvent CloseStopSound { get; set; }
 
 	enum State { Closed, Opening, Open, Closing }
 
@@ -44,6 +59,8 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 	Vector3 _closedPosition;
 	Rotation _closedRotation;
 	bool _initialized;
+	/// <summary>1 or -1: which way a rotating door is swinging this time.</summary>
+	float _swing = 1;
 
 	protected override void OnStart() => Init();
 
@@ -93,7 +110,7 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 
 	public void Use( GameObject activator )
 	{
-		foreach ( var m in TeamMembers() ) m.Activate();
+		foreach ( var m in TeamMembers() ) m.Activate( activator );
 	}
 
 	/// <summary>Called by the touch trigger.</summary>
@@ -109,22 +126,45 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 		Use( activator );
 	}
 
-	void Activate()
+	void Activate( GameObject activator )
 	{
 		Init();
 		switch ( _state )
 		{
 			case State.Closed:
+				ChooseSwing( activator );
 				StartOpening();
 				break;
 			case State.Open:
-				// re-arm the wait while being touched
-				_openedAt = 0;
+				// toggle doors close when used again; others re-arm their wait while being touched
+				if ( Toggle ) StartClosing();
+				else _openedAt = 0;
 				break;
 			case State.Closing:
 				if ( Kind != MoverKind.Button ) StartOpening();
 				break;
 		}
+	}
+
+	/// <summary>
+	/// For <see cref="SwingAway"/> doors: swing the way that moves the door away from the activator, as RTCW picks
+	/// between its two open positions.
+	/// </summary>
+	void ChooseSwing( GameObject activator )
+	{
+		_swing = 1;
+		if ( !SwingAway || Kind != MoverKind.RotatingDoor || !activator.IsValid() ) return;
+
+		var parent = GameObject.Parent;
+		Vector3 CenterAt( float fraction )
+		{
+			var local = _closedPosition + _closedRotation * Rotation.From( Rotate * fraction ) * Center;
+			return parent.IsValid() ? parent.WorldTransform.PointToWorld( local ) : local;
+		}
+
+		var closed = CenterAt( 0 );
+		var opening = CenterAt( 0.05f ) - closed;
+		if ( Vector3.Dot( opening, activator.WorldPosition - closed ) > 0 ) _swing = -1;
 	}
 
 	void StartOpening()
@@ -136,7 +176,7 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 	void StartClosing()
 	{
 		_state = State.Closing;
-		PlaySound( StartSound );
+		PlaySound( CloseStartSound ?? StartSound );
 	}
 
 	void PlaySound( SoundEvent sound )
@@ -172,7 +212,7 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 				{
 					_state = State.Closed;
 					_openedAt = 0;
-					PlaySound( StopSound );
+					PlaySound( CloseStopSound ?? StopSound );
 				}
 				break;
 
@@ -188,10 +228,17 @@ public sealed class Mover : Component, IId3Usable, Component.IPressable
 	{
 		if ( Kind == MoverKind.RotatingDoor )
 		{
-			LocalRotation = _closedRotation * Rotation.From( Rotate * _fraction );
+			LocalRotation = _closedRotation * Rotation.From( Rotate * (_fraction * _swing) );
 			return;
 		}
 		LocalPosition = _closedPosition + Move * _fraction;
+	}
+
+	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e )
+	{
+		if ( !Usable && Kind != MoverKind.Plat ) return null;
+
+		return new IPressable.Tooltip( "Use", "touch_app", "" );
 	}
 
 	bool IPressable.CanPress( IPressable.Event e ) => Usable && Kind != MoverKind.Plat;

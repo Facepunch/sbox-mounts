@@ -267,20 +267,28 @@ sealed partial class MapLoader
 		var center = (mins + maxs) * 0.5f;
 		var size = maxs - mins;
 
+		// An entity with an origin key (an origin brush: door hinges, rotation axes, trains) has its brushes,
+		// surfaces and bounds stored relative to that origin: q3map moves them there (AdjustBrushesForOrigin,
+		// SetEntityOrigins) and the game adds the origin back. Other brush models are in world space; those pivot
+		// around their centre.
+		bool local = e.Has( "origin" );
+		var worldOffset = local ? Pos( e ) : Vector3.Zero;
+
 		// trigger volumes
 		if ( cls.StartsWith( "trigger_" ) || InvisibleTriggers.Contains( cls ) )
 		{
-			SpawnTrigger( e, cls, modelIndex, mins, maxs );
+			SpawnTrigger( e, cls, modelIndex, mins + worldOffset, maxs + worldOffset, worldOffset );
 			return;
 		}
 
-		// brush models are built in world space; entities with an origin key (origin brush) pivot around it
-		var pivot = e.Has( "origin" ) ? Pos( e ) : center;
+		// where the entity sits, and the point in the model's own coordinates that lands there
+		var position = local ? worldOffset : center;
+		var pivot = local ? Vector3.Zero : center;
 		var model = GetBrushModel( modelIndex, pivot, out var shadows );
 		if ( model is null ) return;
 
 		var go = NewEntityObject( e, $"*{modelIndex}" );
-		go.WorldPosition = pivot;
+		go.WorldPosition = position;
 		var renderer = go.AddComponent<ModelRenderer>();
 		renderer.Model = model;
 		renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
@@ -355,7 +363,9 @@ sealed partial class MapLoader
 		}
 	}
 
-	void SpawnTrigger( Entity e, string cls, int modelIndex, Vector3 mins, Vector3 maxs )
+	/// <param name="mins">World-space bounds.</param>
+	/// <param name="modelOffset">Where the model's own coordinates are in the world (its origin, for origin-brush models).</param>
+	void SpawnTrigger( Entity e, string cls, int modelIndex, Vector3 mins, Vector3 maxs, Vector3 modelOffset = default )
 	{
 		if ( cls is not ("trigger_teleport" or "trigger_push" or "trigger_hurt" or "trigger_multiple" or "trigger_once") )
 			return;
@@ -370,7 +380,7 @@ sealed partial class MapLoader
 		for ( int bi = bspModel.FirstBrush; bi < bspModel.FirstBrush + bspModel.NumBrushes; bi++ )
 		{
 			if ( bi < 0 || bi >= _bsp.Brushes.Length ) continue;
-			var points = BrushPoints( _bsp.Brushes[bi], center );
+			var points = BrushPoints( _bsp.Brushes[bi], center - modelOffset );
 			if ( points.Count >= 4 ) hulls.Add( points );
 		}
 
@@ -479,33 +489,80 @@ sealed partial class MapLoader
 		door.Speed = e.Float( "speed", 400 );
 		door.Wait = e.Float( "wait", 2 );
 		door.Move = MoveVector( e, size, 8 );
-		door.StartOpen = (e.Int( "spawnflags" ) & 1) != 0;
+		int flags = e.Int( "spawnflags" );
+		door.StartOpen = (flags & 1) != 0;
 		door.Team = e.Get( "team" );
 		door.Target = e.Target;
-		door.StartSound = FirstSound( "sound/movers/doors/dr1_strt.wav", "sound/movers/doors/door1_open.wav" );
-		door.StopSound = FirstSound( "sound/movers/doors/dr1_end.wav", "sound/movers/doors/door1_endo.wav" );
+
+		if ( _game.Profile.ActivatedDoors )
+		{
+			// RTCW / ET func_door: START_OPEN 1, TOGGLE 2, CRUSHER 4, TOUCH 8
+			door.Toggle = (flags & 2) != 0;
+			if ( door.Toggle ) door.Wait = -1;
+			SetDoorSounds( door, e );
+
+			// used, not walked into, unless TOUCH; doors with a targetname wait to be triggered
+			if ( (flags & 8) != 0 && string.IsNullOrEmpty( e.TargetName ) )
+				AddTouchTrigger( go, door, localMins, localMaxs, 120 );
+			return;
+		}
+
+		// Quake 3's door sounds (only Quake 3 ships these)
+		door.StartSound = FirstSound( "sound/movers/doors/dr1_strt.wav" );
+		door.StopSound = FirstSound( "sound/movers/doors/dr1_end.wav" );
 
 		// doors with a targetname or health only open when triggered/shot (we let shootable doors open on touch)
 		if ( string.IsNullOrEmpty( e.TargetName ) )
 			AddTouchTrigger( go, door, localMins, localMaxs, 120 );
 	}
 
+	/// <summary>
+	/// RTCW / ET func_door_rotating: spawnflags - TOGGLE 2, X_AXIS 4, Y_AXIS 8, REVERSE 16, FORCE 32, STAYOPEN 64,
+	/// TAKE_KEY 128. They open with use and swing away from whoever opens them. ET's team doors ("allowteams")
+	/// open for everyone, as there are no teams here; doors locked or driven by map scripts open normally.
+	/// </summary>
 	void AddRotatingDoor( GameObject go, Entity e, Vector3 localMins, Vector3 localMaxs )
 	{
 		var door = go.AddComponent<Mover>();
 		door.Kind = MoverKind.RotatingDoor;
 		float degrees = e.Float( "degrees", 90 );
 		int flags = e.Int( "spawnflags" );
-		// RTCW: 8 = reverse, 32/64 = X/Y axis
-		if ( (flags & 8) != 0 ) degrees = -degrees;
-		door.Rotate = (flags & 32) != 0 ? new Angles( 0, 0, degrees ) : (flags & 64) != 0 ? new Angles( degrees, 0, 0 ) : new Angles( 0, degrees, 0 );
+		if ( (flags & 16) != 0 ) degrees = -degrees;
+		// SP_func_door_rotating: X_AXIS turns about roll, Y_AXIS about pitch, otherwise yaw
+		door.Rotate = (flags & 4) != 0 ? new Angles( 0, 0, degrees ) : (flags & 8) != 0 ? new Angles( degrees, 0, 0 ) : new Angles( 0, degrees, 0 );
 		door.Speed = e.Float( "speed", 100 );
 		door.Wait = e.Float( "wait", 2 );
 		door.Team = e.Get( "team" );
-		door.StartSound = FirstSound( "sound/movers/doors/door1_open.wav", "sound/movers/doors/dr1_strt.wav" );
-		door.StopSound = FirstSound( "sound/movers/doors/door1_close.wav", "sound/movers/doors/dr1_end.wav" );
+		door.Center = (localMins + localMaxs) * 0.5f;
+		door.Toggle = (flags & (2 | 64)) != 0;
+		if ( door.Toggle ) door.Wait = -1;
+
+		if ( _game.Profile.ActivatedDoors )
+		{
+			door.SwingAway = true;
+			SetDoorSounds( door, e );
+			return;
+		}
+
+		// Quake 3 has no rotating doors of its own; use its door sounds
+		door.StartSound = FirstSound( "sound/movers/doors/dr1_strt.wav" );
+		door.StopSound = FirstSound( "sound/movers/doors/dr1_end.wav" );
 		if ( string.IsNullOrEmpty( e.TargetName ) )
 			AddTouchTrigger( go, door, localMins, localMaxs, 64 );
+	}
+
+	/// <summary>
+	/// DoorSetSounds: "type" picks sound/movers/doors/door{type}_open, _endo, _close and _endc; 0 (the default) is silent.
+	/// </summary>
+	void SetDoorSounds( Mover door, Entity e )
+	{
+		int type = e.Int( "type" );
+		if ( type <= 0 ) return;
+		var prefix = $"sound/movers/doors/door{type}";
+		door.StartSound = FirstSound( $"{prefix}_open.wav" );
+		door.StopSound = FirstSound( $"{prefix}_endo.wav" );
+		door.CloseStartSound = FirstSound( $"{prefix}_close.wav" );
+		door.CloseStopSound = FirstSound( $"{prefix}_endc.wav" );
 	}
 
 	void AddButton( GameObject go, Entity e, Vector3 size, Vector3 localMins, Vector3 localMaxs )

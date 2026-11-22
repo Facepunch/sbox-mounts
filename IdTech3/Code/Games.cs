@@ -9,7 +9,11 @@ public sealed class Quake3Mount : IdTech3Mount
 	protected override bool MountOtherDirectories => true;
 	protected override string[] IgnoredDirectories => ["Docs", "Extras", "Punkbuster", "pb"];
 
-	static readonly GameProfile _profile = Profiles.Quake3();
+	readonly GameProfile _profile = new()
+	{
+		LightShift = 2,
+		SurfaceFlags = SurfaceFlagStyle.Quake3
+	};
 	public override GameProfile Profile => _profile;
 }
 
@@ -20,7 +24,13 @@ public sealed class RtcwMount : IdTech3Mount
 	protected override long AppId => 9010;
 	protected override string BaseDirectory => "Main";
 
-	static readonly GameProfile _profile = Profiles.Rtcw();
+	readonly GameProfile _profile = new()
+	{
+		LightShift = 2,
+		SurfaceFlags = SurfaceFlagStyle.Rtcw,
+		Has3dSkyboxes = true,
+		ActivatedDoors = true
+	};
 	public override GameProfile Profile => _profile;
 }
 
@@ -31,7 +41,13 @@ public sealed class WolfETMount : IdTech3Mount
 	protected override long AppId => 1873030;
 	protected override string BaseDirectory => "etmain";
 
-	static readonly GameProfile _profile = Profiles.Rtcw();
+	readonly GameProfile _profile = new()
+	{
+		LightShift = 2,
+		SurfaceFlags = SurfaceFlagStyle.Rtcw,
+		Has3dSkyboxes = true,
+		ActivatedDoors = true
+	};
 	public override GameProfile Profile => _profile;
 }
 
@@ -46,7 +62,13 @@ public sealed class CallOfDutyMount : IdTech3Mount
 	// the Steam release ships most of its data (and maps) as pak*.zip
 	protected override string[] ArchiveExtensions => [".pk3", ".zip"];
 
-	static readonly GameProfile _profile = Profiles.CallOfDuty();
+	readonly GameProfile _profile = new ()
+	{
+		LightShift = 1,
+		CallOfDuty = true,
+		SurfaceFlags = SurfaceFlagStyle.CallOfDuty,
+		ImageExtensions = [".dds", ".tga", ".jpg", ".png"],
+	};
 	public override GameProfile Profile => _profile;
 }
 
@@ -57,7 +79,10 @@ public sealed class JediOutcastMount : IdTech3Mount
 	protected override long AppId => 6030;
 	protected override string BaseDirectory => "GameData/base";
 
-	static readonly GameProfile _profile = Profiles.Raven();
+	readonly GameProfile _profile = new ()
+	{
+		LightShift = 1
+	};
 	public override GameProfile Profile => _profile;
 }
 
@@ -68,36 +93,10 @@ public sealed class JediAcademyMount : IdTech3Mount
 	protected override long AppId => 6020;
 	protected override string BaseDirectory => "GameData/base";
 
-	static readonly GameProfile _profile = Profiles.Raven();
-	public override GameProfile Profile => _profile;
-}
-*/
-
-static class Profiles
-{
-	public static GameProfile Quake3() => new ()
-	{
-		LightShift = 2,
-		SurfaceFlags = SurfaceFlagStyle.Quake3
-	};
-
-	public static GameProfile Rtcw() => new ()
-	{
-		LightShift = 2,
-		SurfaceFlags = SurfaceFlagStyle.Rtcw,
-		Has3dSkyboxes = true
-	};
-
-	public static GameProfile CallOfDuty() => new ()
-	{
-		LightShift = 1,
-		CallOfDuty = true,
-		SurfaceFlags = SurfaceFlagStyle.CallOfDuty,
-		ImageExtensions = [".dds", ".tga", ".jpg", ".png"],
-	};
-
-	public static GameProfile Raven() => new ()
+	readonly GameProfile _profile = new ()
 	{
 		LightShift = 1
 	};
+	public override GameProfile Profile => _profile;
 }
+*/
