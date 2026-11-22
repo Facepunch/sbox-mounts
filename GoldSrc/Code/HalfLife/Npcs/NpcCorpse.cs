@@ -36,6 +36,10 @@ public class NpcCorpse : Component
 		go.WorldTransform = source.WorldTransform;
 
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
+		renderer.Model = source.Model;
+		renderer.BodyGroups = source.BodyGroups;
+		renderer.MaterialGroup = source.MaterialGroup;
+		renderer.Tint = source.Tint;
 		renderer.UseAnimGraph = true;
 
 		var corpse = npc.AddCorpseComponent( go );
