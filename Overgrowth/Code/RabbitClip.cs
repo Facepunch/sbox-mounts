@@ -14,7 +14,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal RabbitClip ForSide( bool mirrored ) => mirrored ? Mirrored ?? this : this;
 
 	internal static string[] StatusChannels => ["escape", "cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
-	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, int[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
+	readonly record struct FootChain( int Anchor, int End );
+	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, FootChain?[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
 
 	internal enum CenterMotion { Full, Vertical, None }
 
@@ -98,17 +99,21 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
-			var footBones = sampleFeet ? new[] { -1, -1 } : null;
+			var footBones = sampleFeet ? new FootChain?[2] : null;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
 				Skip( 24 );
 				int length = Count();
-				int end = -1;
-				for ( int index = 0; index < length; index++ ) end = reader.ReadInt32();
+				int anchor = -1, end = -1;
+				for ( int index = 0; index < length; index++ )
+				{
+					end = reader.ReadInt32();
+					if ( index == 0 ) anchor = end;
+				}
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				if ( sampleFeet && label == "left_leg" ) footBones[0] = end;
-				if ( sampleFeet && label == "right_leg" ) footBones[1] = end;
+				if ( sampleFeet && label == "left_leg" ) footBones[0] = length > 0 ? new( anchor, end ) : null;
+				if ( sampleFeet && label == "right_leg" ) footBones[1] = length > 0 ? new( anchor, end ) : null;
 			}
 			int shapes = Count();
 			var shapeWeights = new float[morphs.Length];
@@ -220,23 +225,25 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
 				for ( int side = 0; side < 2; side++ )
 				{
-					int bone = -1;
+					FootChain? chain = null;
 					float weight = 0;
 					void Include( Key key, float w )
 					{
-						if ( key.FootBones[side] < 0 ) return;
-						bone = key.FootBones[side];
+						if ( key.FootBones[side] is not { } authored ) return;
+						chain = authored;
 						weight += w;
 					}
 					Include( a, w0 );
 					Include( b, w1 );
 					Include( c, w2 );
 					Include( d, w3 );
-					if ( bone < 0 ) continue;
-					var target = Mix( b.ModelBones[bone], c.ModelBones[bone], t );
-					target = retarget.FootTarget( side, target );
-					target.Position += Vector3.Lerp( b.Center, c.Center, t );
-					feet[side][i] = new( target, weight, true );
+					if ( chain is not { } selected ) continue;
+					var target = Mix( b.ModelBones[selected.End], c.ModelBones[selected.End], t );
+					int outputSide = mirror is null ? side : 1 - side;
+					target = retarget.FootTarget( outputSide, target, mirror, selected.Anchor );
+					var offset = Vector3.Lerp( b.Center, c.Center, t );
+					target.Position += mirror is null ? offset : offset.WithY( -offset.y );
+					feet[outputSide][i] = new( target, weight, true );
 				}
 			}
 		}

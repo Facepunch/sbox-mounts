@@ -10,8 +10,8 @@ public sealed partial class RabbitGuard
 		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
 		var controls = new RabbitMovement.Controls( speed / boundAnimations.CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount );
 		var motion = boundAnimations.Movement;
-		float next = stridePhase + Time.Delta * motion.Evaluate( controls, stridePhase ).Frequency;
-		var pose = motion.Evaluate( controls, next % 1f );
+		float next = stridePhase + Time.Delta * motion.Evaluate( controls, stridePhase, MirroredStance ).Frequency;
+		var pose = motion.Evaluate( controls, next % 1f, MirroredStance );
 		UpdateBodyLean( pose.Lift );
 		Renderer.Animation.Parameters.Set( "ground_speed", controls.Speed );
 		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );

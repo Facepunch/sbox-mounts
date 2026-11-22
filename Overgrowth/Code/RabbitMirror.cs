@@ -52,6 +52,12 @@ internal sealed class RabbitMirror
 		return tx;
 	}
 
+	internal int Opposite( int bone ) => symmetry[bone];
+	internal Transform BindChange( int bone ) => Reflect( inverseBind[bone] ).ToWorld( bind[symmetry[bone]] );
+
+	internal Transform FootTarget( int anchor, Transform pose ) =>
+		Reflect( pose.ToWorld( bind[anchor] ) ).ToWorld( inverseBind[symmetry[anchor]] );
+
 	internal void Apply( Transform[] frame, Transform[] skin, List<int> parents )
 	{
 		foreach ( int i in order )

@@ -38,7 +38,7 @@ public sealed partial class RabbitGuard
 			if ( bone.Parent is { } parent )
 			{
 				var local = originalGaitPose[parent.Index].ToLocal( pose );
-				local.Position = rig.JointPosition( rigIndices[bone.Index], local.Rotation );
+				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, MirroredStance );
 				pose = gaitPose[parent.Index].ToWorld( local );
 			}
 			gaitPose[bone.Index] = pose;

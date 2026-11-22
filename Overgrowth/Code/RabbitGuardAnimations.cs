@@ -124,9 +124,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var source = SourceFor( name );
 			movementRigs.Add( source );
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
-				clips[name] = cycle = RabbitClip.Load( fs, path, rig, skeleton, name, source, morphs, sampleFeet: true );
+			{
+				RabbitClip LoadCycle( RabbitMirror side ) => RabbitClip.Load( fs, path, rig, skeleton, name, source, morphs, sampleFeet: true, mirror: side );
+				clips[name] = cycle = LoadCycle( null ) with { Mirrored = LoadCycle( mirror ) };
+			}
 			return cycle;
 		} );
+		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
+		movementRig?.PrepareMirroredJoints( mirror );
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Idle )
@@ -142,7 +147,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( HandedPose( AnimationGroup( idle, "stride_phase" ), AnimationGroup( idle, "stride_phase", mirrored: true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
-				return machine.AddState( movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase ) );
+			{
+				GraphBuilder.Node Gait( bool mirrored ) => movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase, mirrored );
+				return machine.AddState( HandedPose( Gait( false ), Gait( true ) ) );
+			}
 			if ( attacks.TryGetValue( name, out var attack ) )
 			{
 				var pathToAnimation = attack.Element( "animations" ).Attribute( "unblocked" );
@@ -221,7 +229,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
 		} ).ToArray();
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, movementRigs.Count == 1 ? movementRigs.First() : null, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs );
 	}
 
 }

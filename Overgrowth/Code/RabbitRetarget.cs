@@ -10,6 +10,7 @@ internal sealed class RabbitRetarget
 	readonly Vector3 hipOffset;
 	readonly Vector3[] parentAnchor;
 	readonly Vector3[] childHalf;
+	Vector3[] mirroredParentAnchor, mirroredChildHalf;
 	readonly List<int> flippedToes = [];
 
 	internal RabbitRetarget( BaseFileSystem fs, string rigPath, SkeletonData target, float scale, out SkeletonData source )
@@ -70,6 +71,31 @@ internal sealed class RabbitRetarget
 
 	internal Vector3 JointPosition( int bone, Rotation rotation ) => parentAnchor[bone] + rotation * childHalf[bone];
 
+	internal void PrepareMirroredJoints( RabbitMirror mirror )
+	{
+		mirroredParentAnchor = new Vector3[parentAnchor.Length];
+		mirroredChildHalf = new Vector3[childHalf.Length];
+		for ( int i = 0; i < childHalf.Length; i++ )
+		{
+			int parent = target.HierParents[i];
+			if ( parent < 0 ) continue;
+			int other = mirror.Opposite( i );
+			// Mirroring a model-space bone also changes its reference bind frame.
+			// Express each end of the mirrored joint in its new parent and child frames.
+			var parentBasis = mirror.BindChange( parent );
+			var childBasis = mirror.BindChange( i );
+			var anchor = parentAnchor[i];
+			mirroredParentAnchor[other] = parentBasis.PointToLocal( anchor.WithY( -anchor.y ) );
+			var half = flippedToes.Contains( i ) ? ToeFlip * childHalf[i] : childHalf[i];
+			half = childBasis.Rotation.Inverse * (childBasis.Position + half.WithY( -half.y ));
+			mirroredChildHalf[other] = flippedToes.Contains( other ) ? ToeFlip.Inverse * half : half;
+		}
+	}
+
+	internal Vector3 GaitJointPosition( int bone, Rotation rotation, bool mirrored ) => mirrored
+		? mirroredParentAnchor[bone] + rotation * mirroredChildHalf[bone]
+		: JointPosition( bone, rotation );
+
 	internal int EventBone( int bone ) => (uint)bone < eventBones.Length ? eventBones[bone] : bone;
 
 	internal void Mirror( RabbitMirror mirror, Transform[] frame, Transform[] scratch )
@@ -79,9 +105,14 @@ internal sealed class RabbitRetarget
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip;
 	}
 
-	internal Transform FootTarget( int side, Transform pose )
+	internal Transform FootTarget( int side, Transform pose, RabbitMirror mirror, int anchor )
 	{
 		pose.Position = ScaleOffset( pose.Position + hipOffset );
+		if ( mirror is not null )
+		{
+			pose = mirror.FootTarget( anchor, pose );
+			pose.Rotation *= ToeFlip;
+		}
 		// Retarget applies each flipped-toe correction to the left IK target.
 		if ( side == 0 )
 			foreach ( int _ in flippedToes ) pose.Rotation *= ToeFlip;

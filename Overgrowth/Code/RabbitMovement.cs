@@ -27,18 +27,18 @@ internal sealed class RabbitMovement
 		return new( group.Element( "CoordLabel" ).Value, children );
 	}
 
-	internal GraphBuilder.Node Build( GraphBuilder graph, Func<string, GraphBuilder.Node> parameter, GraphBuilder.Node phase )
+	internal GraphBuilder.Node Build( GraphBuilder graph, Func<string, GraphBuilder.Node> parameter, GraphBuilder.Node phase, bool mirrored )
 	{
-		if ( clip is not null ) return graph.TimeControlledClip( clip.Animation, phase, new() { SampleRootMotion = false } );
+		if ( clip is not null ) return graph.TimeControlledClip( clip.ForSide( mirrored ).Animation, phase, new() { SampleRootMotion = false } );
 		var blend = graph.BlendSpace( parameter( label ), looping: false );
-		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, phase ) );
+		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, phase, mirrored ) );
 		return blend;
 	}
 
-	internal Sample Evaluate( Controls controls, float phase )
+	internal Sample Evaluate( Controls controls, float phase, bool mirrored )
 	{
-		if ( clip is not null )
-			return new( 1f / clip.Duration, 0f, FootPose.Sample( clip.Feet[0], phase ), FootPose.Sample( clip.Feet[1], phase ), clip );
+		if ( clip?.ForSide( mirrored ) is { } pose )
+			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet[0], phase ), FootPose.Sample( pose.Feet[1], phase ), pose );
 		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
@@ -46,7 +46,7 @@ internal sealed class RabbitMovement
 		var b = children[hi];
 		Sample EvaluateChild( Child child )
 		{
-			var sample = child.Motion.Evaluate( controls, phase );
+			var sample = child.Motion.Evaluate( controls, phase, mirrored );
 			float frequency = sample.Frequency * (child.GroundSpeed.HasValue ? controls.Speed / child.GroundSpeed.Value : 1f);
 			float rate = Math.Max( 2f, frequency );
 			float t = phase % 0.5f / rate;
