@@ -5,61 +5,88 @@ using Sandbox.Npcs.Layers;
 namespace Overgrowth;
 
 [Library( "overgrowth_turner" )]
-public sealed class RabbitGuard : BaseNpc
+public sealed partial class RabbitGuard : BaseNpc
 {
 	internal const string ModelName = "entities/npcs/turner";
 	internal const string ActorPath = "Data/Objects/IGF_Characters/IGF_TurnerActor.xml";
-	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat"];
+	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat", "r_walk_3", "r_run5", "r_frontkick", "r_kneestrike", "r_jab", "r_roundhouse"];
 
 	[Sync] public int AlertStage { get; private set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
 	int playing = -1;
+	[Sync] int Pose { get; set; }
+	CharacterLoader modelLoader;
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
-		if ( Renderer.Animation.Graph is null )
+		if ( modelLoader is null || Renderer.Animation.Graph is null )
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GuardGraph is null ) return;
+			modelLoader = loader;
 			Renderer.Animation.Graph = loader.GuardGraph;
 			playing = -1;
 		}
-		if ( playing == AlertStage ) return;
-		playing = AlertStage;
+		if ( playing == Pose ) return;
+		playing = Pose;
 		Renderer.Animation.Parameters.Set( "stance", Poses[playing] );
 	}
 
 	protected override void Think()
 	{
-		if ( nextVisionCheck > 0 || !Renderer.IsValid() ) return;
-		nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
-		UpdateAwareness();
+		if ( !Renderer.IsValid() || modelLoader is null ) return;
+		if ( nextVisionCheck <= 0 )
+		{
+			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
+			UpdateAwareness();
+		}
+		UpdateCombat();
 	}
 
-	// enemycontrol.as accumulates sightings on vision checks and fades by 0.05 per missed check.
+	GameObject enemy;
+	Vector3 lastSeen;
+	bool visible;
+	GameObject watching;
+
 	void UpdateAwareness()
 	{
-		var eye = EyePosition;
-		float gain = 0;
-		foreach ( var player in Scene.GetAllComponents<PlayerController>() )
+		IEnumerable<GameObject> candidates = Scene.GetAllComponents<PlayerController>().Select( x => x.GameObject )
+			.Concat( Scene.GetAllComponents<BaseNpc>().Where( x => x is not RabbitGuard && x.Health >= 1 ).Select( x => x.GameObject ) );
+		GameObject closest = null;
+		float nearest = float.MaxValue;
+		foreach ( var candidate in candidates )
 		{
-			var target = player.EyeTransform.Position;
-			var delta = target - eye;
-			var distance = delta.Length;
-			var direction = WorldRotation.Inverse * delta;
-			var angles = direction.EulerAngles.Normal;
+			var delta = CalculateEyePosition( candidate ) - EyePosition;
+			float distance = delta.Length;
+			if ( distance >= nearest ) continue;
+			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
 			bool focus = distance <= 4000 && MathF.Abs( angles.yaw ) <= 36 && MathF.Abs( angles.pitch ) <= 36;
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
-			if ( Scene.Trace.Ray( eye, target ).IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( player.GameObject ).WithoutTags( "trigger" ).Run().Hit ) continue;
-			gain += 0.5f - 0.4f * distance / 4000f;
+			if ( !HasSight( candidate ) ) continue;
+			closest = candidate;
+			nearest = distance;
 		}
-		enemySeen = Math.Clamp( enemySeen + (gain > 0 ? gain : -0.05f), 0, 1 );
-		AlertStage = enemySeen >= 1 ? 2 : enemySeen > 0 ? 1 : 0;
+		visible = closest.IsValid();
+		if ( visible )
+		{
+			if ( closest != watching ) enemySeen = 0;
+			watching = closest;
+			enemySeen = Math.Min( 1, enemySeen + 0.5f - 0.4f * nearest / 4000f );
+			if ( enemySeen >= 1 ) enemy = closest;
+			if ( closest == enemy ) lastSeen = closest.WorldPosition;
+		}
+		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
+		visible = visible && closest == enemy;
+		AlertStage = enemy.IsValid() ? 2 : enemySeen > 0 ? 1 : 0;
 	}
+
+	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, CalculateEyePosition( other ) )
+		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( other ).WithoutTags( "trigger" ).Run().Hit;
+
 }
 
 internal sealed class RabbitGuardPrefab : ResourceLoader<GameMount>

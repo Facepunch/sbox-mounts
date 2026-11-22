@@ -6,6 +6,7 @@ namespace Overgrowth;
 
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>
 {
+	internal Dictionary<string, RabbitClip> GuardClips { get; } = new();
 	internal Sandbox.Animation.Graph GuardGraph { get; private set; }
 	const float Scale = 40f;
 
@@ -68,7 +69,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		}
 
 		if ( guard )
-			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale );
+			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale, GuardClips );
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, defaultScale );
 		var model = builder.Create();
