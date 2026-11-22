@@ -27,7 +27,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( !enemy.IsValid() || enemy.GetComponent<Sandbox.Npcs.BaseNpc>() is { Health: < 1 } )
+		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			enemy = null;
@@ -40,9 +40,8 @@ public sealed partial class RabbitGuard
 		float distance = delta.Length;
 		if ( !visible && distance < 40 )
 		{
-			Movement.Stop();
-			enemy = null;
-			Stance = Watch;
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			Stance = sinceEnemySeen < 2f ? Threat : Watch;
 			return;
 		}
 
@@ -66,14 +65,14 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			Movement.MoveTo( destination, 0.45f * 40, visible ? 8f * 40 : 2.2f * 40 );
+			Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
 		}
 		Stance = Locomotion;
 	}
 
 	void TryHit()
 	{
-		if ( !enemy.IsValid() || WorldPosition.Distance( enemy.WorldPosition ) >= 1.5f * 40 || !HasSight( enemy ) )
+		if ( !CanAttack( enemy ) || WorldPosition.Distance( enemy.WorldPosition ) >= 1.5f * 40 || !HasSight( enemy ) )
 		{
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", EyePosition );
 			return;

@@ -53,14 +53,42 @@ public sealed partial class RabbitGuard : BaseNpc
 	bool visible;
 	GameObject watching;
 
+	TimeSince sinceEnemySeen;
+
+	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Friendly );
+
+	protected override Relationship GetFallbackRelationship( GameObject other ) =>
+		new( other.GetComponent<BaseNpc>().IsValid() ? Disposition.Hostile : Disposition.Neutral );
+
+	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject
+		&& other.GetComponent<BaseNpc>() is { Active: true, Health: >= 1 }
+		&& GetDisposition( other ) == Disposition.Hostile;
+
+	void Remember( GameObject target )
+	{
+		enemy = target;
+		lastSeen = target.WorldPosition;
+		sinceEnemySeen = 0;
+		visible = true;
+		AlertStage = 2;
+	}
+
 	void UpdateAwareness()
 	{
-		IEnumerable<GameObject> candidates = Scene.GetAllComponents<PlayerController>().Select( x => x.GameObject )
-			.Concat( Scene.GetAllComponents<BaseNpc>().Where( x => x is not RabbitGuard && x.Health >= 1 ).Select( x => x.GameObject ) );
+		// enemycontrol.as checks the chase target's line of sight separately from the acquisition cone.
+		if ( CanAttack( enemy ) && HasSight( enemy ) )
+		{
+			Remember( enemy );
+			return;
+		}
+		visible = false;
+		var candidates = Scene.GetAllComponents<BaseNpc>();
 		GameObject closest = null;
 		float nearest = float.MaxValue;
-		foreach ( var candidate in candidates )
+		foreach ( var npc in candidates )
 		{
+			var candidate = npc.GameObject;
+			if ( !CanAttack( candidate ) ) continue;
 			var delta = CalculateEyePosition( candidate ) - EyePosition;
 			float distance = delta.Length;
 			if ( distance >= nearest ) continue;
@@ -72,17 +100,14 @@ public sealed partial class RabbitGuard : BaseNpc
 			closest = candidate;
 			nearest = distance;
 		}
-		visible = closest.IsValid();
-		if ( visible )
+		if ( closest.IsValid() )
 		{
 			if ( closest != watching ) enemySeen = 0;
 			watching = closest;
 			enemySeen = Math.Min( 1, enemySeen + 0.5f - 0.4f * nearest / 4000f );
-			if ( enemySeen >= 1 ) enemy = closest;
-			if ( closest == enemy ) lastSeen = closest.WorldPosition;
+			if ( enemySeen >= 1 && strike is null ) Remember( closest );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
-		visible = visible && closest == enemy;
 		AlertStage = enemy.IsValid() ? 2 : enemySeen > 0 ? 1 : 0;
 	}
 
