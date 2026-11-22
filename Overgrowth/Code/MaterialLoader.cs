@@ -24,7 +24,7 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 		material.SetFeature( "F_ALPHA_TEST", alpha ? 1 : 0 );
 		material.SetFeature( "F_TRANSLUCENT", element == "DecalObject" || (string)properties?.Attribute( "transparent" ) == "true" && !alpha ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", (string)properties?.Attribute( "double_sided" ) == "true" || plant ? 1 : 0 );
-		material.SetFeature( "F_DETAIL", detail ? 1 : 0 );
+
 		material.Set( "g_flKind", character ? 1f : item ? 2f : plant ? 3f : element == "DecalObject" ? 4f : 0f );
 		material.Set( "g_flTangentSpace", flags.Contains( detail ? "#BASE_TANGENT" : "#TANGENT" ) || element == "DecalObject" ? 1f : 0f );
 		material.Set( "g_flClampTexture", (string)properties?.Attribute( "clamp_texture" ) == "true" ? 1f : 0f );
