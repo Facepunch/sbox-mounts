@@ -13,10 +13,11 @@ namespace GoldSrc.Maps;
 public sealed class Monster : MapEntity
 {
 	[Property, Hide] public bool SpawnedByMaker { get; set; }
+	[Property, Hide] public bool FromPreviousMap { get; set; }
 
 	protected override void OnDestroy()
 	{
-		if ( SpawnedByMaker && Map.IsValid() ) Map.Entities.Remove( this );
+		if ( (SpawnedByMaker || FromPreviousMap) && Map.IsValid() ) Map.Entities.Remove( this );
 	}
 
 	[Property] public HalfLife.Npc Npc { get; set; }

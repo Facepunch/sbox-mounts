@@ -24,6 +24,8 @@ partial class MapBuilder
 		{
 			if ( !_entities.TryGetValue( bsp.Entities[i], out var component ) ) continue;
 			component.EntityIndex = i;
+			if ( component is Landmark )
+				LandmarkVisibility[i] = Bsp.LandmarkVisibility.From( bsp, bsp.Entities[i].Origin );
 			_mapState.Entities.Add( component );
 		}
 

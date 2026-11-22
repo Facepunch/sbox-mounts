@@ -11,6 +11,7 @@ internal sealed class MapLoader( string filePath ) : SceneLoader<GameMount>
 {
 	// The serialized scene refers to generated resources by name. Keep them alive for its lifetime.
 	private MapBuilder builder;
+	internal Bsp.LandmarkVisibility VisibilityAt( int entity ) => builder?.LandmarkVisibility.GetValueOrDefault( entity );
 
 	protected override Texture GetThumbnail()
 	{
@@ -36,6 +37,7 @@ internal sealed partial class MapBuilder( GameMount host, string filePath, strin
 	private string FilePath => filePath;
 	private LightStyles _lightStyles;
 	private MapState _mapState;
+	internal Dictionary<int, LandmarkVisibility> LandmarkVisibility { get; } = [];
 
 	internal void Build()
 	{

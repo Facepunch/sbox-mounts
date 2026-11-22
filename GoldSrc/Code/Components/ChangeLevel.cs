@@ -51,6 +51,17 @@ public sealed class ChangeLevel : MapEntity, Component.ITriggerListener
 		var trains = !landmark.IsValid() ? [] : Map.Entities.OfType<TrackTrain>()
 			.Where( t => t.IsValid() && !t.NoRotation && !string.IsNullOrEmpty( t.GlobalName ) && InTransition( t.GameObject.GetBounds() ) )
 			.Select( t => (t.GlobalName, Offset: t.WorldPosition - landmark.WorldPosition, t.WorldRotation, t.Speed) ).ToArray();
+		var loader = Sandbox.Mounting.MountUtility.TryParse( instance.MapName, out var mount )
+			? Sandbox.Mounting.Directory.Get( mount )?.GetByPath( instance.MapName ) as MapLoader : null;
+		var visibility = landmark.IsValid() ? loader?.VisibilityAt( landmark.EntityIndex ) : null;
+		var actors = !landmark.IsValid() ? [] : Map.Entities.OfType<Monster>()
+			.Where( a => a.IsValid() && a.Npc.IsValid() && a.Npc.Health > 0 )
+			.Where( a =>
+			{
+				var bounds = a.GameObject.GetBounds();
+				return InTransition( bounds ) && (visibility?.Contains( bounds.Transform( Map.WorldTransform.ToLocal( global::Transform.Zero ) ) ) ?? true);
+			} )
+			.Select( a => (Actor: a, Offset: a.WorldPosition - landmark.WorldPosition) ).ToArray();
 		var offset = player.WorldPosition - (landmark?.WorldPosition ?? player.WorldPosition);
 		var eye = player.EyeAngles;
 		var velocity = player.Body.Velocity;
@@ -59,20 +70,42 @@ public sealed class ChangeLevel : MapEntity, Component.ITriggerListener
 		var delay = ChangeDelay;
 		var destination = Destination;
 		Fire( OnTrigger, activator );
+		foreach ( var (actor, _) in actors )
+			actor.GameObject.SetParent( instance.GameObject.Parent, true );
 		instance.OnMapLoaded += Arrive;
 		instance.MapName = destination;
 
 		void Arrive()
 		{
 			instance.OnMapLoaded -= Arrive;
-			if ( instance.MapName != destination || !player.IsValid() ) return;
 			var next = instance.GetComponentsInChildren<Landmark>().FirstOrDefault( x => x.TargetName == name );
-			if ( !next.IsValid() ) return;
+			if ( instance.MapName != destination || !next.IsValid() )
+			{
+				foreach ( var (actor, _) in actors )
+					if ( actor.IsValid() ) actor.GameObject.Destroy();
+				return;
+			}
+			foreach ( var (actor, relative) in actors )
+			{
+				if ( !actor.IsValid() ) continue;
+				// The world's map-owned root handles teardown. The checkpoint owns the
+				// actor snapshot because the destination BSP cannot recreate it.
+				actor.GameObject.SetParent( next.Map.GameObject, true );
+				actor.GameObject.BreakFromPrefab();
+				actor.GameObject.Flags &= ~GameObjectFlags.NotSaved;
+				actor.FromPreviousMap = true;
+				actor.WorldPosition = next.WorldPosition + relative;
+				actor.Transform.ClearInterpolation();
+				actor.EntityIndex = -1;
+				actor.Map = next.Map;
+				next.Map.Entities.Add( actor );
+			}
 			foreach ( var train in trains )
 			{
 				var replacement = next.Map.Entities.OfType<TrackTrain>().FirstOrDefault( t => t.GlobalName == train.GlobalName && !t.NoRotation );
 				replacement?.ResumeTrack( next.WorldPosition + train.Offset, train.WorldRotation, train.Speed );
 			}
+			if ( !player.IsValid() ) return;
 			player.WorldPosition = next.WorldPosition + offset;
 			player.EyeAngles = eye;
 			player.Body.Velocity = velocity;

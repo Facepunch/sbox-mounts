@@ -204,6 +204,7 @@ partial class MapBuilder
 		var script = go.AddComponent<ScriptedSequence>();
 		script.TargetName = entity.TargetName;
 		script.MoveTo = entity.GetInt( "m_fMoveTo" );
+		script.ActorName = entity.GetString( "m_iszEntity" );
 		script.PlaySequence = entity.GetString( "m_iszPlay" );
 
 		RegisterTarget( entity, script );

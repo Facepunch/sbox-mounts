@@ -196,6 +196,7 @@ internal partial class BspFile
 	public BspModel[] Models { get; private set; }
 	public Leaf[] Leaves { get; private set; }
 	public Node[] Nodes { get; private set; }
+	public byte[] Visibility { get; private set; }
 
 	/// <summary>Face indices, grouped per leaf by Leaf.FirstMarkSurface.</summary>
 	public ushort[] MarkSurfaces { get; private set; }
@@ -236,6 +237,7 @@ internal partial class BspFile
 		Leaves = ReadLump<Leaf>( stream, lumps[(int)LumpType.Leaves], LumpType.Leaves );
 		ClipNodes = ReadLump<ClipNode>( stream, lumps[(int)LumpType.ClipNodes], LumpType.ClipNodes );
 		Nodes = ReadLump<Node>( stream, lumps[(int)LumpType.Nodes], LumpType.Nodes );
+		Visibility = ReadLump<byte>( stream, lumps[(int)LumpType.Visibility], LumpType.Visibility );
 		MarkSurfaces = ReadLump<ushort>( stream, lumps[(int)LumpType.MarkSurfaces], LumpType.MarkSurfaces );
 
 		Lighting = ReadBytes( stream, lumps[(int)LumpType.Lighting] );
