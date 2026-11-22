@@ -16,7 +16,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
-		if ( version is < 6 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
+		if ( version is < 5 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
 		bool centered = version >= 10 && reader.ReadBoolean();
 		bool loop = reader.ReadBoolean();
 		int start = reader.ReadInt32();
@@ -71,7 +71,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			int shapes = Count();
 			for ( int j = 0; j < shapes; j++ ) { Skip( 4 ); Skip( Count() ); }
 			float cancel = 0f;
-			int statuses = Count();
+			int statuses = version >= 6 ? Count() : 0;
 			for ( int j = 0; j < statuses; j++ )
 			{
 				float value = reader.ReadSingle();
