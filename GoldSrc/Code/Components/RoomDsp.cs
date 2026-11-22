@@ -47,7 +47,7 @@ internal sealed class RoomDsp : AudioProcessor
 		private int _index;
 		private float _prev, _older;
 
-		internal float Process( float input, float feedback, int taps )
+		internal float Process( float input, float feedback, int taps, bool delayedOutput = false )
 		{
 			float sample = _buffer[_index];
 			float next = Math.Clamp( input + sample * feedback, -1, 1 );
@@ -56,7 +56,7 @@ internal sealed class RoomDsp : AudioProcessor
 			_prev = taps == 3 ? value : next;
 			_buffer[_index] = value;
 			if ( ++_index == _buffer.Length ) _index = 0;
-			return sample;
+			return delayedOutput ? sample : value;
 		}
 	}
 
@@ -72,7 +72,7 @@ internal sealed class RoomDsp : AudioProcessor
 
 	internal RoomDsp( Preset settings )
 	{
-		_settings = settings;
+		_settings = settings with { Reflection = (int)(255 * settings.Reflection) / 256f, Feedback = (int)(255 * settings.Feedback) / 256f };
 		for ( int i = 0; i < _channels.Length; i++ ) _channels[i] = new( settings );
 	}
 
@@ -88,11 +88,11 @@ internal sealed class RoomDsp : AudioProcessor
 				int taps = _settings.ReverbFilter == 0 ? 1 : 2;
 				float a = state.First.Process( sample, _settings.Reflection, taps );
 				float b = state.Second.Process( sample, _settings.Reflection, taps );
-				sample += (a + b) * (11f / 64);
+				sample = Math.Clamp( sample + (a + b) * (11f / 64), -1, 1 );
 			}
 			if ( _settings.EchoTime > 0 )
-				sample += state.Echo.Process( sample, _settings.Feedback, _settings.EchoFilter == 0 ? 1 : 3 ) * 0.25f;
-			if ( channel.Get() == 0 && _settings.LeftDelay > 0 ) sample = state.Left.Process( sample, 0, 1 );
+				sample = Math.Clamp( sample + state.Echo.Process( sample, _settings.Feedback, _settings.EchoFilter == 0 ? 1 : 3 ) * 0.25f, -1, 1 );
+			if ( channel.Get() == 0 && _settings.LeftDelay > 0 ) sample = state.Left.Process( sample, 0, 1, delayedOutput: true );
 			input[i] = Math.Clamp( sample, -1, 1 );
 		}
 	}
