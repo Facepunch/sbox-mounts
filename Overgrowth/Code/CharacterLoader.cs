@@ -36,6 +36,19 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return (PhxbnLoader.Load( stream, reference.FaceVertexCount ), rig, reference, modelPath);
 	}
 
+	void ReadBoneMasses( SkeletonData skeleton, XmlAsset rig )
+	{
+		if ( rig.Attribute( "mass_path" ) is { } massPath )
+		{
+			var massRig = XmlAsset.Read( Host.FileSystem, Host.Resolve( massPath ), "rig" );
+			var massReference = ObjLoader.Load( Host.FileSystem, Host.Resolve( (string)massRig.Attribute( "model_path" ) ) );
+			using var stream = Host.FileSystem.OpenRead( Host.Resolve( (string)massRig.Attribute( "bone_path" ) ) );
+			var massSkeleton = PhxbnLoader.Load( stream, massReference.FaceVertexCount );
+			for ( int i = 0; i < Math.Min( skeleton.BoneMass.Count, massSkeleton.BoneMass.Count ); i++ )
+				skeleton.BoneMass[i] = massSkeleton.BoneMass[i];
+		}
+	}
+
 	float ScaleSkeleton( XmlAsset appearance, SkeletonData skeleton )
 	{
 		float defaultScale = appearance.Number( "default_scale" ) ?? 1f;
@@ -57,7 +70,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		{
 			// The mounted model can survive code hotload even when its animation data has been invalidated.
 			var appearance = ReadAppearance();
-			var skeleton = ReadSkeleton( appearance ).Skeleton;
+			var (skeleton, rig, _, _) = ReadSkeleton( appearance );
+			ReadBoneMasses( skeleton, rig );
 			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, ScaleSkeleton( appearance, skeleton ) );
 		}
 		return compiledAnimations;
@@ -73,15 +87,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var objData = string.Equals( modelObjPath, skeletonModelPath, StringComparison.OrdinalIgnoreCase )
 			? reference : ObjLoader.Load( Host.FileSystem, modelObjPath );
 
-		if ( rig.Attribute( "mass_path" ) is { } massPath )
-		{
-			var massRig = XmlAsset.Read( Host.FileSystem, Host.Resolve( massPath ), "rig" );
-			var massReference = ObjLoader.Load( Host.FileSystem, Host.Resolve( (string)massRig.Attribute( "model_path" ) ) );
-			using var stream = Host.FileSystem.OpenRead( Host.Resolve( (string)massRig.Attribute( "bone_path" ) ) );
-			var massSkeleton = PhxbnLoader.Load( stream, massReference.FaceVertexCount );
-			for ( int i = 0; i < Math.Min( skeleton.BoneMass.Count, massSkeleton.BoneMass.Count ); i++ )
-				skeleton.BoneMass[i] = massSkeleton.BoneMass[i];
-		}
+		ReadBoneMasses( skeleton, rig );
 
 		var weights = skeleton.BoneWeights ?? Array.Empty<Vector4>();
 		var boneIds = skeleton.BoneIds ?? Array.Empty<Vector4>();

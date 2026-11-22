@@ -28,7 +28,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void OnUpdate()
 	{
 		if ( !Downed ) base.OnUpdate();
-		if ( Downed || Stance != Locomotion || !Animation.IsGrounded ) SetStrideLift( 0f );
+		if ( Downed || Health < 1 ) ResetBodyLean();
 		if ( Downed || plantedLegs && (Stance != Threat || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
@@ -36,6 +36,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations() is not { } ready ) return;
 			boundAnimations = ready;
+			leanBones = null;
 			Renderer.Animation.Graph = ready.Graph;
 			playing = null;
 		}
@@ -62,6 +63,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		var pose = AirPose();
 		if ( pose == Idle ) Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 		if ( pose == Locomotion ) UpdateGait();
+		else UpdateBodyLean( 0f );
 		if ( pose == Threat ) UpdateStanceFeet( playing != Threat );
 		if ( track ) UpdateChestLook( GazeTarget.Value );
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
