@@ -82,17 +82,18 @@ public sealed class LightStyleProbes : Component, Component.ExecuteInEditor, Com
 			int sample = probe * SampleStride;
 			if ( Samples[sample] == 0 ) continue;
 			var color = Fullbright ? new Vector3( 255 ) : SampleColor( sample );
-			for ( int side = 0; side < 6; side++ )
-			{
-				float lightcos = side == 2 ? -1 : side == 5 ? 1 : 0;
-				float shade = Fullbright ? 1 : 1 - 0.9f * Math.Max( 0, (lightcos + 0.4953241f) / 1.4953241f );
-				int offset = (side * probes + probe) * 8;
-				WriteHalf( offset, Linear( color.x * shade ) );
-				WriteHalf( offset + 2, Linear( color.y * shade ) );
-				WriteHalf( offset + 4, Linear( color.z * shade ) );
-				WriteHalf( offset + 6, 1 );
-			}
+			// The four horizontal faces receive the same light.
+			const float horizontalShade = 1 - 0.9f * (0.4953241f / 1.4953241f);
+			WriteColor( probe, color, Fullbright ? 1 : horizontalShade );
+			WriteColor( 2 * probes + probe, color, 1 );
+			WriteColor( 5 * probes + probe, color, Fullbright ? 1 : 1 - 0.9f );
 		}
+
+		int faceBytes = probes * 8;
+		var horizontal = _pixels.AsSpan( 0, faceBytes );
+		horizontal.CopyTo( _pixels.AsSpan( faceBytes ) );
+		horizontal.CopyTo( _pixels.AsSpan( 3 * faceBytes ) );
+		horizontal.CopyTo( _pixels.AsSpan( 4 * faceBytes ) );
 
 		if ( !create )
 		{
@@ -129,6 +130,15 @@ public sealed class LightStyleProbes : Component, Component.ExecuteInEditor, Com
 			blue += Samples[offset + 2] * value;
 		}
 		return new Vector3( red >> 8, green >> 8, blue >> 8 ).Clamp( 0, 255 );
+	}
+
+	private void WriteColor( int texel, Vector3 color, float shade )
+	{
+		int offset = texel * 8;
+		WriteHalf( offset, Linear( color.x * shade ) );
+		WriteHalf( offset + 2, Linear( color.y * shade ) );
+		WriteHalf( offset + 4, Linear( color.z * shade ) );
+		WriteHalf( offset + 6, 1 );
 	}
 
 	private void WriteHalf( int offset, float value ) =>
