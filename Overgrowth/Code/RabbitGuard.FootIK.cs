@@ -75,6 +75,7 @@ public sealed partial class RabbitGuard
 			foot.Position = target.WithZ( foot.Position.z + lift );
 			ApplyFootTarget( side, side == 0 ? "left_leg" : "right_leg", foot, 1f, plant: true );
 		}
+		SolveStance();
 	}
 
 	void UpdateFoot( int side, string label, RabbitClip first, RabbitClip second, float phase, float blend )
@@ -109,7 +110,7 @@ public sealed partial class RabbitGuard
 		if ( weight == 0 ) groundHeight[side] = null;
 		if ( plant )
 		{
-			SolveLeg( side, Renderer.WorldTransform.ToLocal( target ) );
+			stanceFoot[side] = Renderer.WorldTransform.ToLocal( target );
 			return;
 		}
 		Renderer.Animation.Parameters.Set( label, target );

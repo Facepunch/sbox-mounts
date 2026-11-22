@@ -1,3 +1,5 @@
+using System;
+
 namespace Overgrowth;
 
 internal readonly record struct RabbitLeg( string Bone, float Length )
@@ -19,10 +21,60 @@ internal readonly record struct RabbitLeg( string Bone, float Length )
 public sealed partial class RabbitGuard
 {
 	readonly Transform[] legPose = new Transform[6];
+	readonly Transform[] stanceFoot = new Transform[2];
+	Vector3 hipOffset;
 	bool plantedLegs;
 
+	// CDoHipIK keeps the distance from each hip to its foot from the authored pose.
+	void SolveStance()
+	{
+		var bones = Renderer.Model.Bones;
+		Transform Animated( string name )
+		{
+			Renderer.TryGetBoneTransformAnimation( bones.GetBone( name ), out var world );
+			return Renderer.WorldTransform.ToLocal( world );
+		}
+		Span<Vector3> hips = stackalloc Vector3[2];
+		Span<Vector3> feet = stackalloc Vector3[2];
+		Span<float> lengths = stackalloc float[2];
+		for ( int i = 0; i < 2; i++ )
+		{
+			var chain = boundAnimations.Legs[i];
+			var hip = Animated( chain[5].Bone );
+			var toe = Animated( chain[0].Bone );
+			hips[i] = hip.Position - hip.Rotation.Forward * (chain[5].Length * 0.5f);
+			lengths[i] = hips[i].Distance( toe.Position - toe.Rotation.Forward * (chain[0].Length * 0.5f) );
+			feet[i] = stanceFoot[i].Position - stanceFoot[i].Rotation.Forward * (chain[0].Length * 0.5f);
+		}
+		var middle = (hips[0] + hips[1]) * 0.5f;
+		var axis = hips[1] - hips[0];
+		for ( int pass = 0; pass < 2; pass++ )
+		{
+			for ( int i = 0; i < 2; i++ )
+				hips[i] = feet[i] + (hips[i] - feet[i]).Normal * lengths[i];
+			var center = middle.WithZ( (hips[0].z + hips[1].z) * 0.5f );
+			var half = (hips[1] - hips[0] + axis * 3f).Normal * (axis.Length * 0.5f);
+			hips[0] = center - half;
+			hips[1] = center + half;
+		}
+		var rotation = Rotation.FromToRotation( axis.Normal, (hips[1] - hips[0]).Normal );
+		float maxTilt = Math.Max( 0f, 0.2f - Animation.MoveVelocity.WithZ( 0 ).Length / 40f * 0.2f );
+		float tilt = Rotation.Identity.Distance( rotation );
+		if ( tilt > maxTilt.RadianToDegree() )
+			rotation = Rotation.Slerp( Rotation.Identity, rotation, maxTilt.RadianToDegree() / tilt );
+		var rootName = boundAnimations.TorsoBones[^1];
+		var pelvis = Animated( rootName );
+		var hipRoot = pelvis.Position + pelvis.Rotation.Forward * boundAnimations.HipHalfLength;
+		var pivot = middle - hipRoot;
+		var offset = (hips[0] + hips[1]) * 0.5f - middle + pivot - rotation * pivot;
+		hipOffset = plantedLegs ? Vector3.Lerp( offset, hipOffset, MathF.Pow( 0.95f, Time.Delta * 120f ) ) : offset;
+		Renderer.SetBoneTransform( bones.GetBone( rootName ), pelvis.WithPosition( pelvis.Position + hipOffset ) );
+		for ( int i = 0; i < 2; i++ )
+			SolveLeg( i, stanceFoot[i], hipRoot, rotation );
+	}
+
 	// movementobject.cpp CDrawLegImpl. Both the thigh and the shin have two skinned segments.
-	void SolveLeg( int side, Transform foot )
+	void SolveLeg( int side, Transform foot, Vector3 pivot, Rotation pelvisRotation )
 	{
 		var chain = boundAnimations.Legs[side];
 		var bones = Renderer.Model.Bones;
@@ -34,12 +86,14 @@ public sealed partial class RabbitGuard
 		Vector3 Start( int i ) => legPose[i].Position - legPose[i].Rotation.Forward * (chain[i].Length * 0.5f);
 		var hip = Start( 5 );
 		var oldEnd = Start( 0 ) - hip;
+		var oldHip = hip;
+		hip = pivot + pelvisRotation * (hip - pivot) + hipOffset;
 		var end = foot.Position - foot.Rotation.Forward * (chain[0].Length * 0.5f);
 		if ( oldEnd.IsNearlyZero() || (end - hip).IsNearlyZero() ) return;
 		var align = Rotation.FromToRotation( oldEnd.Normal, (end - hip).Normal );
 		float stretch = (end - hip).Length / oldEnd.Length;
-		var knee = hip + align * (Start( 3 ) - hip) * stretch;
-		var ankle = hip + align * (Start( 1 ) - hip) * stretch;
+		var knee = hip + align * (Start( 3 ) - oldHip) * stretch;
+		var ankle = hip + align * (Start( 1 ) - oldHip) * stretch;
 		float thigh = chain[4].Length + chain[5].Length;
 		float shin = chain[2].Length + chain[3].Length;
 		for ( int i = 0; i < 2; i++ )

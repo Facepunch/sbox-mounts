@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -141,8 +141,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var torsoBones = new List<string>();
 		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
 			torsoBones.Add( $"bone_{bone}" );
+		int hip = torso.BoneId;
+		for ( int i = 1; i < torsoBones.Count; i++ ) hip = skeleton.HierParents[hip];
+		var (a, b) = skeleton.Bones[hip];
+		float hipHalfLength = skeleton.Points[a].Distance( skeleton.Points[b] ) * 20f * scale;
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )] );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], hipHalfLength );
 	}
 
 }
