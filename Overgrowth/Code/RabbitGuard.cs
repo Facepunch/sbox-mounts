@@ -86,6 +86,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Threat ) UpdateStanceFeet( playing != Threat );
 		if ( pose is Idle or Watch && Animation.IsGrounded ) UpdateIdleFeet();
 		if ( track ) UpdateChestLook( GazeTarget.Value );
+		if ( headMotion is null ) DrawRestingHead();
 		UpdateArms();
 		UpdateEars();
 		PublishPose();

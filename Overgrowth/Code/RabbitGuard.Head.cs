@@ -2,6 +2,8 @@ using System;
 
 namespace Overgrowth;
 
+internal sealed record RabbitHead( Vector3 NeckRoot, float HeadHalfLength, Vector3 BreathDirection );
+
 public sealed partial class RabbitGuard
 {
 	Vector2 headAngles, headVelocity;
@@ -48,11 +50,39 @@ public sealed partial class RabbitGuard
 		var turn = Rotation.FromAxis( basis.Up, headAngles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, headAngles.y.RadianToDegree() );
 		var half = Rotation.Slerp( Rotation.Identity, turn, 0.5f );
 		var pivot = neck.Position - neck.Rotation.Forward * boundAnimations.NeckHalfLength;
-		neck.Position = pivot + half * (neck.Position - pivot);
-		neck.Rotation = half * neck.Rotation;
+
 		head.Position = pivot + half * (head.Position - pivot);
 		head.Rotation = turn * head.Rotation;
-		SetPoseBone( neckBone, Renderer.WorldTransform.ToLocal( neck ) );
+		DrawHead( chest, animatedHead, head, animatedNeck );
+	}
+
+	void DrawRestingHead()
+	{
+		var bones = Renderer.Model.Bones;
+		var head = bones.GetBone( boundAnimations.HeadBone );
+		if ( TryGetAnimatedBone( bones.GetBone( boundAnimations.TorsoBones[0] ), out var chest )
+			&& TryGetAnimatedBone( head, out var animated ) && TryGetAnimatedBone( head.Parent, out var neck ) )
+			DrawHead( chest, animated, animated, neck );
+	}
+
+	void DrawHead( Transform chest, Transform animatedHead, Transform head, Transform neck )
+	{
+		var headBone = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
+		var rig = boundAnimations.Head;
+		var breathe = chest.Rotation * rig.BreathDirection * (breathAmount * boundAnimations.CharacterScale * 40f);
+		var extent = head.Rotation.Forward * rig.HeadHalfLength;
+		var skull = head.Position - extent + breathe * 0.005f;
+		var crown = head.Position + extent + breathe * 0.002f;
+		var root = chest.PointToWorld( rig.NeckRoot );
+		static Transform Align( Transform pose, Vector3 from, Vector3 to )
+		{
+			pose.Position = (from + to) * 0.5f;
+			pose.Rotation = Rotation.FromToRotation( pose.Rotation.Forward, (to - from).Normal ) * pose.Rotation;
+			return pose;
+		}
+		neck = Align( neck, root, skull );
+		head = Align( head, skull, crown );
+		SetPoseBone( headBone.Parent, Renderer.WorldTransform.ToLocal( neck ) );
 		headMotion = (animatedHead, head);
 		SetPoseBone( headBone, Renderer.WorldTransform.ToLocal( head ) );
 	}

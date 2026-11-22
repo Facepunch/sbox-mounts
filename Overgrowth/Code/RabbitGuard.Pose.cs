@@ -68,9 +68,9 @@ public sealed partial class RabbitGuard
 				var parent = modelBone.Parent;
 				while ( parent is not null && boundAnimations.UnweightedBones.Contains( parent.Name ) )
 					parent = parent.Parent;
-				// DrawArms carries every finger with the hand, including unweighted finger joints.
-				bool followsHand = parent is not null && boundAnimations.Arms.Any( arm => arm[0].Bone == parent.Name );
-				poseParents[modelBone.Index] = followsHand || !boundAnimations.UnweightedBones.Contains( modelBone.Name )
+				// DrawArms and DrawHead also carry their unweighted child joints.
+				bool followsEnd = parent is not null && (parent.Name == boundAnimations.HeadBone || boundAnimations.Arms.Any( arm => arm[0].Bone == parent.Name ));
+				poseParents[modelBone.Index] = followsEnd || !boundAnimations.UnweightedBones.Contains( modelBone.Name )
 					? parent?.Index ?? -1 : -1;
 			}
 		}

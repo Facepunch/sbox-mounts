@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitHead Head, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -235,6 +235,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var (a, b) = skeleton.Bones[bone];
 			return skeleton.Points[a].Distance( skeleton.Points[b] ) * 20f * scale;
 		}
+		int head = skeleton.IKBones["head"].BoneId;
+		var neckBind = skeleton.BindPose[parents[head]];
+		var chestBind = skeleton.BindPose[torso.BoneId];
+		var neckRoot = chestBind.PointToLocal( neckBind.Position - neckBind.Rotation.Forward * (HalfLength( parents[head] ) / scale) ) * scale;
+		// DrawHead uses the torso chain's starting offset as its breathing reference bone.
+		int torsoStart = new[] { "leftarm", "rightarm", "left_leg", "right_leg", "head", "leftear", "rightear" }.Sum( label => skeleton.IKBones[label].ChainLength );
+		var breathDirection = chestBind.Rotation.Inverse * skeleton.BindPose[torsoStart].Rotation * new Vector3( 1f, 0f, -0.3f ).Normal;
+		var headRig = new RabbitHead( neckRoot, HalfLength( head ), breathDirection );
 		var ears = new[] { "leftear", "rightear" }.Select( label =>
 		{
 			int tip = skeleton.IKBones[label].BoneId, root = parents[tip];
@@ -249,7 +257,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs );
 	}
 
 }
