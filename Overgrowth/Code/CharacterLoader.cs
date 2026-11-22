@@ -6,31 +6,55 @@ namespace Overgrowth;
 
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>
 {
-	internal RabbitGait[] Gaits { get; private set; }
-	internal Dictionary<string, RabbitClip> GuardClips { get; } = new();
-	internal Sandbox.Animation.Graph GuardGraph { get; private set; }
+	RabbitGuardAnimations compiledAnimations;
 	const float Scale = 40f;
+
+	XmlAsset ReadAppearance() => XmlAsset.Read( Host.FileSystem, filePath, "character" ).Element( "appearance" )
+		?? throw new InvalidDataException( $"Character has no appearance: {filePath}" );
+
+	(SkeletonData Skeleton, XmlAsset Rig, ObjLoader.ObjData Reference, string ModelPath) ReadSkeleton( XmlAsset appearance )
+	{
+		var rig = XmlAsset.Read( Host.FileSystem, Host.Resolve( appearance.Attribute( "skeleton" ) ), "rig" );
+		var modelPath = Host.Resolve( rig.Attribute( "model_path" ) );
+		var reference = ObjLoader.Load( Host.FileSystem, modelPath );
+		using var stream = Host.FileSystem.OpenRead( Host.Resolve( rig.Attribute( "bone_path" ) ) );
+		return (PhxbnLoader.Load( stream, reference.FaceVertexCount ), rig, reference, modelPath);
+	}
+
+	float ScaleSkeleton( XmlAsset appearance, SkeletonData skeleton )
+	{
+		float defaultScale = appearance.Number( "default_scale" ) ?? 1f;
+		float modelScale = appearance.Number( "model_scale" ) ?? 1f;
+		if ( !float.IsFinite( defaultScale ) || !float.IsFinite( modelScale ) || defaultScale <= 0 || modelScale <= 0 )
+			throw new InvalidDataException( $"Invalid character scale: {filePath}" );
+		float scale = defaultScale / modelScale;
+		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
+			skeleton.BindPose[i] = skeleton.BindPose[i].WithPosition( skeleton.BindPose[i].Position * scale );
+		return scale;
+	}
+
+	internal RabbitGuardAnimations GetGuardAnimations()
+	{
+		if ( compiledAnimations is null && guard )
+		{
+			// The mounted model can survive code hotload even when its animation data has been invalidated.
+			var appearance = ReadAppearance();
+			var skeleton = ReadSkeleton( appearance ).Skeleton;
+			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, skeleton, ScaleSkeleton( appearance, skeleton ) );
+		}
+		return compiledAnimations;
+	}
 
 	protected override object Load()
 	{
-		var character = XmlAsset.Read( Host.FileSystem, filePath, "character" );
-		var appearance = character.Element( "appearance" )
-			?? throw new InvalidDataException( $"Character has no appearance: {filePath}" );
-		var skeletonXmlPath = Host.Resolve( appearance.Attribute( "skeleton" ) );
+		var appearance = ReadAppearance();
 		var objectPath = appearance.Attribute( "obj_path" );
 		var objXmlPath = Host.Resolve( objectPath );
-
-		var rig = XmlAsset.Read( Host.FileSystem, skeletonXmlPath, "rig" );
-		var phxbnPath = Host.Resolve( rig.Attribute( "bone_path" ) );
-		var skeletonModelPath = Host.Resolve( rig.Attribute( "model_path" ) );
+		var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
 		var modelObjPath = Host.Resolve( XmlAsset.Read( Host.FileSystem, objXmlPath, "Object" ).Element( "Model" )?.Value );
-		var reference = ObjLoader.Load( Host.FileSystem, skeletonModelPath );
 		var objData = string.Equals( modelObjPath, skeletonModelPath, StringComparison.OrdinalIgnoreCase )
 			? reference : ObjLoader.Load( Host.FileSystem, modelObjPath );
 
-		SkeletonData skeleton;
-		using ( var stream = Host.FileSystem.OpenRead( phxbnPath ) )
-			skeleton = PhxbnLoader.Load( stream, reference.FaceVertexCount );
 		if ( rig.Attribute( "mass_path" ) is { } massPath )
 		{
 			var massRig = XmlAsset.Read( Host.FileSystem, Host.Resolve( massPath ), "rig" );
@@ -47,16 +71,10 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			throw new InvalidDataException( $"Character mesh and skeleton have different topology: {modelObjPath}" );
 		FixZeroWeights( skeleton, weights, boneIds, reference );
 
-		float defaultScale = appearance.Number( "default_scale" ) ?? 1f;
-		float modelScale = appearance.Number( "model_scale" ) ?? 1f;
-		if ( !float.IsFinite( defaultScale ) || !float.IsFinite( modelScale ) || defaultScale <= 0 || modelScale <= 0 )
-			throw new InvalidDataException( $"Invalid character scale: {filePath}" );
-		float scale = defaultScale / modelScale;
+		float scale = ScaleSkeleton( appearance, skeleton );
 		for ( int i = 0; i < objData.Positions.Count; i++ )
 			objData.Positions[i] *= scale;
 		objData.Bounds = BBox.FromPoints( objData.Positions );
-		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
-			skeleton.BindPose[i] = skeleton.BindPose[i].WithPosition( skeleton.BindPose[i].Position * scale );
 
 		var material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
 		var mesh = ObjLoader.CreateSkinnedMesh( objData, Path, material, weights, boneIds );
@@ -69,15 +87,9 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			builder.AddBone( $"bone_{i}", bindPose.Position, bindPose.Rotation, parent );
 		}
 
-		if ( guard )
-		{
-			Gaits = XmlAsset.Read( Host.FileSystem, "Data/Animations/r_standmovement.xml", "SyncedAnimationGroup" )
-				.Element( "Animations" ).Elements( "Animation" )
-				.Select( x => new RabbitGait( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), x.Number( "coord" ).Value, x.Number( "ground_speed" ).Value ) ).ToArray();
-			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale, GuardClips, Gaits );
-		}
+		if ( guard ) compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, skeleton, scale );
 
-		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, defaultScale );
+		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
 		var model = builder.Create();
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );

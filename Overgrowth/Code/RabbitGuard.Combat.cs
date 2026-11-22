@@ -21,7 +21,7 @@ public sealed partial class RabbitGuard
 			}
 			if ( attackTime < strike.Duration ) return;
 			strike = null;
-			Pose = 2;
+			Stance = Threat;
 			// Leave the attack state before an identical move can play again.
 			recovery = 0.2f;
 			return;
@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			enemy = null;
-			Pose = Math.Min( AlertStage, 1 );
+			Stance = AlertStage > 0 ? Watch : Idle;
 			return;
 		}
 
@@ -42,7 +42,7 @@ public sealed partial class RabbitGuard
 		{
 			Movement.Stop();
 			enemy = null;
-			Pose = 1;
+			Stance = Watch;
 			return;
 		}
 
@@ -52,12 +52,12 @@ public sealed partial class RabbitGuard
 			Movement.Stop();
 			var facing = delta.WithZ( 0 );
 			if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
-			if ( recovery > 0 ) { Pose = 2; return; }
+			if ( recovery > 0 ) { Stance = Threat; return; }
 
 			bool close = distance < 40;
 			// aschar.as GetAttackPath: moving_close / moving, or stationary_close / stationary.
-			Pose = moving ? (close ? 6 : 7) : (close ? 5 : 4);
-			strike = modelLoader.GuardClips[Poses[Pose]];
+			Stance = moving ? (close ? Jab : Roundhouse) : (close ? Knee : Kick);
+			strike = boundAnimations.Clips[Stance];
 			attackTime = 0;
 			impactPassed = false;
 			return;
@@ -68,7 +68,7 @@ public sealed partial class RabbitGuard
 			repath = 0.2f;
 			Movement.MoveTo( destination, 0.45f * 40, visible ? 8f * 40 : 2.2f * 40 );
 		}
-		Pose = 3;
+		Stance = Locomotion;
 	}
 
 	void TryHit()

@@ -8,15 +8,15 @@ public sealed partial class RabbitGuard
 
 	void UpdateGait()
 	{
-		var gaits = modelLoader.Gaits;
+		var gaits = boundAnimations.Gaits;
 		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
 		int upper = 0;
 		while ( upper < gaits.Length - 1 && speed > gaits[upper].Coordinate ) upper++;
 		var a = gaits[Math.Max( 0, upper - 1 )];
 		var b = gaits[upper];
 		float blend = a == b ? 0 : Math.Clamp( (speed - a.Coordinate) / (b.Coordinate - a.Coordinate), 0, 1 );
-		var first = modelLoader.GuardClips[a.Name];
-		var second = modelLoader.GuardClips[b.Name];
+		var first = boundAnimations.Clips[a.Name];
+		var second = boundAnimations.Clips[b.Name];
 		// SyncedAnimationGroup::GetFrequency blends the normalized cycles per second.
 		float frequency = speed * ((1 - blend) / (first.Duration * a.GroundSpeed) + blend / (second.Duration * b.GroundSpeed));
 		float next = stridePhase + Time.Delta * frequency;

@@ -2,10 +2,14 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal static class RabbitGuardPose
+internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits )
 {
-	public static Graph CreateGraph( BaseFileSystem fs, string path, SkeletonData skeleton, float scale, Dictionary<string, RabbitClip> clips, RabbitGait[] gaits )
+	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, SkeletonData skeleton, float scale )
 	{
+		var clips = new Dictionary<string, RabbitClip>();
+		var gaits = XmlAsset.Read( fs, "Data/Animations/r_standmovement.xml", "SyncedAnimationGroup" )
+			.Element( "Animations" ).Elements( "Animation" )
+			.Select( x => new RabbitGait( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), x.Number( "coord" ).Value, x.Number( "ground_speed" ).Value ) ).ToArray();
 		var bones = new SkeletonBuilder();
 		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
 		{
@@ -28,13 +32,14 @@ internal static class RabbitGuardPose
 
 		var rig = bones.Create( path + "/turner.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
-		var stance = graph.IdParameter( "stance", RabbitGuard.Poses );
+		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.Kick, RabbitGuard.Knee, RabbitGuard.Jab, RabbitGuard.Roundhouse];
+		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
 		var speed = graph.FloatParameter( "ground_speed" );
-		var states = RabbitGuard.Poses.Select( name =>
+		var states = names.Select( name =>
 		{
-			if ( name == "movement" )
+			if ( name == RabbitGuard.Locomotion )
 			{
 				var blend = graph.BlendSpace( speed );
 				foreach ( var gait in gaits )
@@ -51,12 +56,12 @@ internal static class RabbitGuardPose
 		} ).ToArray();
 		for ( int i = 0; i < states.Length; i++ )
 		{
-			var condition = graph.IdCompare( stance, RabbitGuard.Poses[i] );
+			var condition = graph.IdCompare( stance, names[i] );
 			foreach ( var previous in states )
 				if ( previous != states[i] )
 					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = 0.2f } );
 		}
-		return graph.Create( machine.Build(), path + "/guard.ag" );
+		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits );
 	}
 
 }

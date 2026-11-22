@@ -9,36 +9,37 @@ public sealed partial class RabbitGuard : BaseNpc
 {
 	internal const string ModelName = "entities/npcs/turner";
 	internal const string ActorPath = "Data/Objects/IGF_Characters/IGF_TurnerActor.xml";
-	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat", "movement", "r_frontkick", "r_kneestrike", "r_jab", "r_roundhouse"];
+	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
+	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 
 	[Sync] public int AlertStage { get; private set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
-	int playing = -1;
-	[Sync] int Pose { get; set; }
-	CharacterLoader modelLoader;
+	string playing;
+	[Sync] string Stance { get; set; } = Idle;
+	RabbitGuardAnimations boundAnimations;
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
-		if ( modelLoader is null || Renderer.Animation.Graph is null )
+		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
-			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GuardGraph is null ) return;
-			modelLoader = loader;
-			Renderer.Animation.Graph = loader.GuardGraph;
-			playing = -1;
+			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations() is not { } ready ) return;
+			boundAnimations = ready;
+			Renderer.Animation.Graph = ready.Graph;
+			playing = null;
 		}
-		if ( Pose == 3 ) UpdateGait();
-		if ( playing == Pose ) return;
-		playing = Pose;
-		Renderer.Animation.Parameters.Set( "stance", Poses[playing] );
+		if ( Stance == Locomotion ) UpdateGait();
+		if ( playing == Stance ) return;
+		playing = Stance;
+		Renderer.Animation.Parameters.Set( "stance", playing );
 	}
 
 	protected override void Think()
 	{
-		if ( !Renderer.IsValid() || modelLoader is null ) return;
+		if ( !Renderer.IsValid() || boundAnimations is null ) return;
 		if ( nextVisionCheck <= 0 )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
