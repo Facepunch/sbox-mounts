@@ -5,16 +5,28 @@ public sealed partial class RabbitGuard
 	Model poseModel;
 	Transform[] animationPose, solvedPose;
 	bool[] overridden;
+	int[] poseParents;
 
 	void SetPoseBone( BoneCollection.Bone bone, Transform modelSpace )
 	{
-		if ( poseModel != Renderer.Model || solvedPose is null )
+		if ( poseModel != Renderer.Model || poseParents is null )
 		{
 			poseModel = Renderer.Model;
 			int count = poseModel.BoneCount;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
 			overridden = new bool[count];
+			poseParents = new int[count];
+			foreach ( var modelBone in poseModel.Bones.AllBones )
+			{
+				var parent = modelBone.Parent;
+				while ( parent is not null && boundAnimations.UnweightedBones.Contains( parent.Name ) )
+					parent = parent.Parent;
+				// DrawArms carries every finger with the hand, including unweighted finger joints.
+				bool followsHand = parent is not null && boundAnimations.Arms.Any( arm => arm[0].Bone == parent.Name );
+				poseParents[modelBone.Index] = followsHand || !boundAnimations.UnweightedBones.Contains( modelBone.Name )
+					? parent?.Index ?? -1 : -1;
+			}
 		}
 		solvedPose[bone.Index] = modelSpace;
 		overridden[bone.Index] = true;
@@ -33,8 +45,9 @@ public sealed partial class RabbitGuard
 			animationPose[i] = model.ToLocal( world );
 			if ( !overridden[i] )
 			{
-				solvedPose[i] = bone.Parent is { } parent
-					? solvedPose[parent.Index].ToWorld( animationPose[parent.Index].ToLocal( animationPose[i] ) )
+				int parent = poseParents[i];
+				solvedPose[i] = parent >= 0
+					? solvedPose[parent].ToWorld( animationPose[parent].ToLocal( animationPose[i] ) )
 					: animationPose[i];
 			}
 			Renderer.SetBoneTransform( bone, solvedPose[i] );
