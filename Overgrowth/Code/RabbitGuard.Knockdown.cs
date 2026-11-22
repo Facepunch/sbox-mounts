@@ -19,6 +19,7 @@ public sealed partial class RabbitGuard
 		if ( CanAttack( attacker ) ) Remember( attacker );
 		if ( !Downed )
 		{
+			EndGetUpBlend();
 			// Older saved instances predate the explicit prefab reference.
 			MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
 			Movement.Stop();
@@ -93,6 +94,8 @@ public sealed partial class RabbitGuard
 			up += bone.Rotation.Forward;
 		}
 		var facing = -up.WithZ( 0 );
+		CapturePhysicsPose();
+		BeginGetUpBlend();
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
 		WorldPosition = floor.EndPosition;
@@ -104,6 +107,8 @@ public sealed partial class RabbitGuard
 		agent.SetAgentPosition( WorldPosition );
 		Stance = front.z < 0f ? StandFromFront : StandFromBack;
 		reactionDuration = boundAnimations.Clips[Stance].Duration;
+		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation )
+			navigation.HoldMovement( reactionDuration );
 		ReactionPhase = 0;
 		Downed = false;
 	}
