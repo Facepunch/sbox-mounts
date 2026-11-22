@@ -1,5 +1,6 @@
 using System;
 using GoldSrc.Bsp;
+using GoldSrc.HalfLife;
 
 namespace GoldSrc.Maps;
 
@@ -41,6 +42,37 @@ partial class MapBuilder
 	private static readonly string[] SitPoses =
 		["sitlookleft", "sitlookright", "sitscared", "sitting2", "sitting3"];
 
+	private bool TrySpawnNpc( Entity entity )
+	{
+		var path = $"mount://{Host.Ident}/entities/npcs/{entity.ClassName}.prefab";
+		if ( Host.GetByPath( path ) is not NpcPrefabLoader ) return false;
+
+		var prefab = PrefabFile.Load( path );
+		var go = GameObject.Clone( prefab, new Transform( entity.Origin, entity.Rotation ), startEnabled: false );
+		go.Name = EntityName( entity );
+		if ( go.GetComponent<Npc>( true ) is { } npc )
+		{
+			npc.Body = entity.GetInt( "body" );
+			npc.Skin = entity.GetInt( "skin" );
+			if ( entity.GetFloat( "health" ) > 0 ) npc.Health = entity.GetFloat( "health" );
+			if ( entity.ClassName is "monster_generic" or "monster_furniture"
+				&& LoadMountedModel( entity.GetString( "model" ) ) is { IsError: false } model )
+			{
+				npc.ModelPath = model.ResourcePath;
+				npc.Renderer.Model = model;
+			}
+			RegisterMonster( go, entity, npc.Renderer, npc );
+		}
+		else if ( !string.IsNullOrEmpty( entity.TargetName ) )
+		{
+			var marker = go.AddComponent<Relay>();
+			marker.TargetName = entity.TargetName;
+			RegisterTarget( entity, marker, null, null, null, nameof( MapEntity.Kill ) );
+		}
+		go.Enabled = true;
+		return true;
+	}
+
 	private void SpawnMonster( GameObject go, Entity entity )
 	{
 		var model = LoadMountedModel( MonsterModel( entity ) );
@@ -51,10 +83,16 @@ partial class MapBuilder
 
 		ApplyBody( renderer, entity );
 
+		RegisterMonster( go, entity, renderer, null );
+	}
+
+	private void RegisterMonster( GameObject go, Entity entity, SkinnedModelRenderer renderer, Npc npc )
+	{
 		var monster = go.AddComponent<Monster>();
+		monster.Npc = npc;
 		monster.TargetName = entity.TargetName;
 		monster.Renderer = renderer;
-		monster.IdleSequence = MonsterIdle( entity );
+		if ( npc is null ) monster.IdleSequence = MonsterIdle( entity );
 
 		RegisterTarget( entity, monster );
 
@@ -127,6 +165,7 @@ partial class MapBuilder
 		script.PlaySequence = entity.GetString( "m_iszPlay" );
 
 		RegisterTarget( entity, script );
+		WireTrigger( entity, script );
 
 		// Possession waits for the deferred pass, because the monster can appear later in the lump.
 		_wiring.Add( () => Possess( entity, script ) );
@@ -134,8 +173,7 @@ partial class MapBuilder
 
 	/// <summary>
 	/// CCineMonster::PossessEntity. m_fMoveTo 4 zaps the monster to the script's own origin and
-	/// yaw; the walk and run cases leave it where it spawned, since getting there needs the AI we
-	/// don't run. The script's "m_iszIdle" then becomes what the monster holds.
+	/// yaw; the walk and run cases leave it where it spawned, until scripted approach movement is implemented. The script's "m_iszIdle" then becomes what the monster holds.
 	/// </summary>
 	private void Possess( Entity entity, ScriptedSequence script )
 	{
@@ -159,7 +197,8 @@ partial class MapBuilder
 
 		// Only the property is set - the component plays it itself once the scene starts, which is
 		// also the point at which the model is actually ready to be posed.
-		actor.IdleSequence = idle;
+		if ( actor.Npc.IsValid() ) actor.Npc.ScriptedIdle = idle;
+		else actor.IdleSequence = idle;
 	}
 
 	/// <summary>

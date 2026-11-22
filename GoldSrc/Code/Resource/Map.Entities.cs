@@ -108,6 +108,7 @@ partial class MapBuilder
 	{
 		if ( SpawnEffectEntity( entity ) ) return;
 		var className = entity.ClassName;
+		if ( TrySpawnNpc( entity ) ) return;
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"

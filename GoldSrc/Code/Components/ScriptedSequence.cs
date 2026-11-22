@@ -5,10 +5,6 @@ namespace GoldSrc.Maps;
 /// <summary>
 /// CCineMonster - a scripted_sequence. It takes possession of the monster named by "m_iszEntity"
 /// and holds it in an animation, which is how Half-Life poses its opening cast.
-///
-/// Only the possession is modelled. Without AI there is nothing to interrupt and no sequence ever
-/// runs to completion, which is why the "target" key isn't forwarded - CCineMonster fires it from
-/// SequenceDone. See MapBuilder.ForwardsTarget.
 /// </summary>
 [Category( "GoldSrc" )]
 [Icon( "movie" )]
@@ -23,7 +19,10 @@ public sealed class ScriptedSequence : MapEntity
 	public override void Trigger( GameObject activator = null )
 	{
 		if ( !CanTrigger ) return;
-		if ( Actor.IsValid() )
+		if ( !Actor.IsValid() ) return;
+		if ( Actor.Npc.IsValid() )
+			Actor.Npc.StartScript( PlaySequence, () => Fire( OnTrigger, activator ) );
+		else
 			Actor.Play( PlaySequence );
 	}
 

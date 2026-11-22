@@ -6,16 +6,13 @@ using System.Linq;
 namespace GoldSrc.Maps;
 
 /// <summary>
-/// A GoldSrc monster.
-///
-/// None of the AI is simulated. What a map like Half-Life's tram ride actually needs is the model,
-/// stood where the map puts it, holding whatever sequence its scripted_sequence chose - the whole
-/// opening is NPCs possessed by scripts, and the player can't reach any of them.
+/// Connects a BSP actor to map inputs and scripted sequences.
 /// </summary>
 [Category( "GoldSrc" )]
 [Icon( "person" )]
 public sealed class Monster : MapEntity
 {
+	[Property] public HalfLife.Npc Npc { get; set; }
 	[Property] public SkinnedModelRenderer Renderer { get; set; }
 
 	/// <summary>
@@ -24,7 +21,10 @@ public sealed class Monster : MapEntity
 	/// </summary>
 	[Property] public string IdleSequence { get; set; }
 
-	protected override void OnStart() => Play( IdleSequence );
+	protected override void OnStart()
+	{
+		if ( !Npc.IsValid() ) Play( IdleSequence );
+	}
 
 	/// <summary>
 	/// Hold the monster in a named sequence, the way CCineMonster::StartSequence does. A model only
