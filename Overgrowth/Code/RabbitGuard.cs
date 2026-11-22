@@ -9,12 +9,14 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 {
 	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
 	internal const string Sweep = "r_sweep", SoccerKick = "r_soccerkick";
+	internal const string FreeAir = "jump";
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 
 	[Sync] public int AlertStage { get; private set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
 	string playing;
+	float jumpLaunch;
 	[Sync] string Stance { get; set; } = Idle;
 	RabbitGuardAnimations boundAnimations;
 
@@ -27,7 +29,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void OnUpdate()
 	{
 		if ( !Downed ) base.OnUpdate();
-		if ( (plantedLegs || chestActive) && Downed || plantedLegs && Stance != Threat ) ReleaseLegs();
+		if ( Downed || plantedLegs && (Stance != Threat || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{
@@ -57,8 +59,19 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost ) GazeTarget = visible && enemy.IsValid() ? TargetPosition( enemy, eyes: true ) : null;
 		bool track = Animation.IsGrounded && Stance is Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
-		if ( Stance == Locomotion ) UpdateGait();
-		if ( Stance == Threat ) UpdateStanceFeet( playing != Threat );
+		var pose = !Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion ? FreeAir : Stance;
+		if ( pose == FreeAir )
+		{
+			var velocity = Animation.MoveVelocity / 40f;
+			if ( playing != FreeAir ) jumpLaunch = velocity.z > 0 ? 1f : 0f;
+			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
+			float flail = Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f );
+			Renderer.Animation.Parameters.Set( "up_coord", 0.5f - up * 0.5f );
+			Renderer.Animation.Parameters.Set( "flail_coord", Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, flail ) );
+			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
+		}
+		if ( pose == Locomotion ) UpdateGait();
+		if ( pose == Threat ) UpdateStanceFeet( playing != Threat );
 		if ( track ) UpdateChestLook( GazeTarget.Value );
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{
@@ -66,8 +79,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "attack_phase", AttackPhase );
 		}
 		if ( ReactionPhase < 1f ) Renderer.Animation.Parameters.Set( "reaction_phase", ReactionPhase );
-		if ( playing == Stance ) return;
-		playing = Stance;
+		if ( playing == pose ) return;
+		playing = pose;
 		Renderer.Animation.Parameters.Set( "stance", playing );
 	}
 

@@ -59,7 +59,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			.ToDictionary( x => x.key, x => x.animation );
 		var blocked = attacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
 		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
-		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, .. attacks.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, .. attacks.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -68,10 +68,31 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
+		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		GraphBuilder.Node AnimationGroup( string file, string time = null )
+		{
+			if ( file.EndsWith( ".anm" ) )
+			{
+				var name = System.IO.Path.GetFileNameWithoutExtension( file );
+				if ( !clips.TryGetValue( name, out var clip ) )
+					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ) );
+				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
+					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
+			}
+			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
+			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) ?? time );
+			if ( inputs.Length == 1 ) return Input( inputs[0] );
+			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
+			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
+			return blend;
+		}
 		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
 			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
 		var states = names.Select( name =>
 		{
+			if ( name == RabbitGuard.FreeAir )
+				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ) ) );
 			if ( name == RabbitGuard.Locomotion )
 			{
 				var blend = graph.BlendSpace( speed );
