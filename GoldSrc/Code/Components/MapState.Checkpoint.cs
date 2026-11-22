@@ -90,7 +90,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 	void Global.ISaveEvents.BeforeSave( string filename )
 	{
 		if ( !Networking.IsHost ) return;
-		var player = Scene.GetAllComponents<PlayerController>().FirstOrDefault( x => !x.IsProxy );
+		var player = global::Player.FindLocalPlayer()?.Controller;
 		if ( !player.IsValid() ) return;
 		var data = new Snapshot { Map = GetComponentInParent<MapInstance>().MapName, Position = player.WorldPosition, Eyes = player.EyeAngles };
 		foreach ( var pair in Globals ) data.Globals[pair.Key] = pair.Value;
@@ -127,7 +127,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		if ( data?.Map != GetComponentInParent<MapInstance>().MapName ) return;
 		if ( filename.StartsWith( "goldsrc/checkpoints/", StringComparison.Ordinal ) ) _checkpoint = filename;
 		foreach ( var pair in data.Globals ) SetGlobal( pair.Key, pair.Value );
-		var player = Scene.GetAllComponents<PlayerController>().FirstOrDefault( x => !x.IsProxy );
+		var player = global::Player.FindLocalPlayer()?.Controller;
 		foreach ( var entity in Entities.ToArray() )
 		{
 			if ( !entity.IsValid() || entity.EntityIndex < 0 ) continue;
