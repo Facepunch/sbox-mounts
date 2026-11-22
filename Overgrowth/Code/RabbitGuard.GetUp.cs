@@ -1,79 +1,70 @@
-using System;
+using Sandbox.Animation;
 
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	internal const string GetUpSlot = "ragdoll_pose", GetUpWeight = "ragdoll_weight";
 	Transform[] lastPhysicsPose;
-	Transform[] animatedPose;
-	IDisposable getUpHook;
+	Graph getUpGraph;
+	Clip getUpPose;
 	TimeSince sinceGetUp;
 
 	void CapturePhysicsPose()
 	{
-		var model = Renderer.Model;
-		if ( lastPhysicsPose?.Length != model.BoneCount )
-			lastPhysicsPose = new Transform[model.BoneCount];
-		for ( int i = 0; i < lastPhysicsPose.Length; i++ )
-			lastPhysicsPose[i] = Renderer.SceneModel.GetBoneWorldTransform( i );
+		var rig = boundAnimations.Rig;
+		lastPhysicsPose ??= new Transform[rig.BoneCount];
+		foreach ( var bone in rig.Bones )
+		{
+			if ( Renderer.TryGetBoneTransform( bone.Name, out var world ) )
+				lastPhysicsPose[bone.Index] = world;
+			else
+				lastPhysicsPose[bone.Index] = Renderer.WorldTransform.ToWorld( bone.Transform );
+		}
 	}
-
-	(int Index, int Parent)[] hierarchy;
 
 	void BeginGetUpBlend()
 	{
-		// Build parent-first order once so a frame can process every bone without allocating.
-		var order = new List<(int, int)>( lastPhysicsPose.Length );
-		void Visit( BoneCollection.Bone bone )
+		var rig = boundAnimations.Rig;
+		var frame = new Transform[rig.BoneCount];
+		foreach ( var bone in rig.Bones )
 		{
-			order.Add( (bone.Index, bone.Parent?.Index ?? -1) );
-			foreach ( var child in bone.Children ) Visit( child );
+			var parent = bone.ParentIndex < 0 ? Renderer.WorldTransform : lastPhysicsPose[bone.ParentIndex];
+			frame[bone.Index] = parent.ToLocal( lastPhysicsPose[bone.Index] );
 		}
-		foreach ( var bone in Renderer.Model.Bones.AllBones )
-			if ( bone.Parent is null ) Visit( bone );
 
-		hierarchy = order.ToArray();
-		animatedPose = new Transform[lastPhysicsPose.Length];
+		lastPhysicsPose = null;
+		getUpPose = new ClipBuilder { Skeleton = rig }.AddFrame( frame ).Create();
+		var graph = new GraphBuilder().WithSkeleton( rig );
+		getUpGraph = graph.Create( graph.Pose( getUpPose, new GraphBuilder.PoseSettings() ) );
+		Renderer.Animation.ExternalGraphs.Connect( GetUpSlot, getUpGraph );
+		Renderer.Animation.Parameters.Set( GetUpWeight, 1f );
 		sinceGetUp = 0;
-		getUpHook = Scene.AddHook( GameObjectSystem.Stage.UpdateBones, 1, BlendGetUpPose, nameof( RabbitGuard ), "Blend get-up pose" );
 	}
 
-	void BlendGetUpPose()
+	void UpdateGetUpBlend()
 	{
-		float weight = sinceGetUp; // Overgrowth's standing wake uses a fade speed of 1/s.
-		if ( weight >= 1f || !Renderer.IsValid() || Health <= 0 )
-		{
+		if ( getUpGraph is null ) return;
+		if ( sinceGetUp >= 1f )
 			EndGetUpBlend();
-			return;
-		}
-
-		var sceneModel = Renderer.SceneModel;
-		for ( int i = 0; i < animatedPose.Length; i++ )
-			animatedPose[i] = sceneModel.GetBoneWorldTransform( i );
-
-		// Convert children before their parents, while both poses are still in world space.
-		for ( int j = hierarchy.Length - 1; j >= 0; j-- )
-		{
-			var (i, parent) = hierarchy[j];
-			if ( parent < 0 ) continue;
-			lastPhysicsPose[i] = lastPhysicsPose[parent].ToLocal( lastPhysicsPose[i] );
-			animatedPose[i] = animatedPose[parent].ToLocal( animatedPose[i] );
-		}
-		foreach ( var (i, parent) in hierarchy )
-		{
-			var blended = global::Transform.Lerp( lastPhysicsPose[i], animatedPose[i], weight, false );
-			lastPhysicsPose[i] = parent < 0 ? blended : lastPhysicsPose[parent].ToWorld( blended );
-			sceneModel.SetBoneWorldTransform( i, lastPhysicsPose[i] );
-		}
+		else
+			Renderer.Animation.Parameters.Set( GetUpWeight, 1f - sinceGetUp );
 	}
 
 	void EndGetUpBlend()
 	{
-		getUpHook?.Dispose();
-		getUpHook = null;
 		lastPhysicsPose = null;
-		animatedPose = null;
-		hierarchy = null;
+		if ( getUpGraph is null ) return;
+		if ( Renderer.IsValid() )
+		{
+			Renderer.Animation.Parameters.Set( GetUpWeight, 0f );
+			if ( Renderer.Animation.ExternalGraphs.IsConnected( GetUpSlot ) )
+				Renderer.Animation.ExternalGraphs.Disconnect( GetUpSlot );
+		}
+		getUpGraph.Dispose();
+		getUpPose.Dispose();
+		getUpGraph = null;
+		getUpPose = null;
 	}
 
 	protected override void OnDisabled()

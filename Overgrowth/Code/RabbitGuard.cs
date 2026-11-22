@@ -40,13 +40,14 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( Networking.IsHost ) UpdateKnockdown();
 			else
 			{
-				if ( getUpHook is not null ) EndGetUpBlend();
+				if ( getUpGraph is not null ) EndGetUpBlend();
 				CapturePhysicsPose();
 			}
 			return;
 		}
-		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpHook is null )
+		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpGraph is null )
 			BeginGetUpBlend();
+		UpdateGetUpBlend();
 		if ( Stance == Locomotion ) UpdateGait();
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{

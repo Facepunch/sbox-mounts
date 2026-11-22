@@ -95,11 +95,11 @@ public sealed partial class RabbitGuard
 		}
 		var facing = -up.WithZ( 0 );
 		CapturePhysicsPose();
-		BeginGetUpBlend();
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
 		WorldPosition = floor.EndPosition;
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+		BeginGetUpBlend();
 		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;
 		var agent = GetComponent<NavMeshAgent>( true );

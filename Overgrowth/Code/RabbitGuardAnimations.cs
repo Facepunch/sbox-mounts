@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -65,6 +65,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
+		var ragdollWeight = graph.FloatParameter( RabbitGuard.GetUpWeight );
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
 			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
@@ -132,7 +133,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 		var torsoBones = new List<string>();
 		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
 			torsoBones.Add( $"bone_{bone}" );
-		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray() );
+		var output = graph.Blend( machine.Build(), graph.ExternalGraphSlot( RabbitGuard.GetUpSlot ), ragdollWeight );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray() );
 	}
 
 }
