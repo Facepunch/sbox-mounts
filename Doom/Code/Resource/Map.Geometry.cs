@@ -47,6 +47,8 @@ partial class MapLoader
 		_floorBatches = new Batch[count];
 		_ceilingBatches = new Batch[count];
 		_static = new Batch();
+		_skyBatches = [];
+		_blockers = new Batch();
 
 		for ( int i = 0; i < count; i++ )
 		{
@@ -85,7 +87,49 @@ partial class MapLoader
 			_ceilingOrigins[i] = Finish( _ceilingObjects[i], _ceilingBatches[i], $"{ModelPrefix}/sector{i}_ceiling", movable: true );
 		}
 
+		if ( !_blockers.IsEmpty )
+		{
+			var blockers = BuildOnCarrier( Carrier.Static, "Blocking Lines", _blockers, $"{ModelPrefix}/blockers" );
+			blockers.Tags.Add( BlockerTag );
+		}
+
+		foreach ( var (carrier, batch) in _skyBatches )
+		{
+			var name = carrier.Sector < 0 ? "world" : $"sector{carrier.Sector}_{(carrier.Ceiling ? "ceiling" : "floor")}";
+			var sky = BuildOnCarrier( carrier, "Sky", batch, $"{ModelPrefix}/{name}_sky" );
+			sky.Tags.Add( "sky" );
+		}
+
 		FinishSwitches();
+	}
+
+	/// <summary>
+	/// Builds a batch as its own object on whatever it rides on: the map root, or a movable plane.
+	/// Runs after the planes are placed, since a plane's child is positioned relative to it.
+	/// </summary>
+	private GameObject BuildOnCarrier( Carrier carrier, string objectName, Batch batch, string modelName )
+	{
+		bool movable = carrier.Sector >= 0;
+		var parent = !movable ? Root : carrier.Ceiling ? _ceilingObjects[carrier.Sector] : _floorObjects[carrier.Sector];
+
+		var go = new GameObject( true, objectName ) { Parent = parent, IsStatic = !movable };
+		Finish( go, batch, modelName, movable );
+
+		// Finish places the object at its geometry's centre in world space; make that relative to the plane.
+		if ( movable )
+			go.LocalPosition -= parent.LocalPosition;
+
+		return go;
+	}
+
+	/// <summary>Sky surfaces, kept apart from the rest so their objects can carry the "sky" tag.</summary>
+	private Dictionary<Carrier, Batch> _skyBatches;
+
+	private Batch SkyBatchFor( Carrier carrier )
+	{
+		if ( !_skyBatches.TryGetValue( carrier, out var batch ) )
+			_skyBatches[carrier] = batch = new Batch();
+		return batch;
 	}
 
 	private string ModelPrefix => $"doom/{Host.Ident}/{WadName}/{Map.Name.ToLowerInvariant()}";
@@ -148,11 +192,11 @@ partial class MapLoader
 		if ( polygons is null ) return;
 
 		var sector = _sectors[sectorIndex];
+		bool sky = IsSkyFlat( sector.CeilingFlat );
 		var floorBatch = BatchFor( PlaneCarrier( sectorIndex, false ) );
-		var ceilingBatch = BatchFor( PlaneCarrier( sectorIndex, true ) );
+		var ceilingBatch = sky ? SkyBatchFor( PlaneCarrier( sectorIndex, true ) ) : BatchFor( PlaneCarrier( sectorIndex, true ) );
 
 		var floorMaterial = FlatMaterial( sector.FloorFlat );
-		bool sky = IsSkyFlat( sector.CeilingFlat );
 		var ceilingMaterial = sky ? SkyMaterial() : FlatMaterial( sector.CeilingFlat );
 
 		// Static sky sectors share one plane with the rest of their sky region.
@@ -213,7 +257,7 @@ partial class MapLoader
 		bool otherSky = otherIndex >= 0 && IsSkyFlat( _sectors[otherIndex].CeilingFlat );
 
 		if ( ownSky && !otherSky && !_dynamic[sectorIndex] && _skyHeights[sectorIndex] > s.CeilingHeight )
-			AddSkyWall( _static, wall, s.CeilingHeight, _skyHeights[sectorIndex] );
+			AddSkyWall( SkyBatchFor( Carrier.Static ), wall, s.CeilingHeight, _skyHeights[sectorIndex] );
 
 		// One-sided: a solid wall from floor to ceiling.
 		if ( otherIndex < 0 )
@@ -258,7 +302,7 @@ partial class MapLoader
 
 			if ( bothSky )
 			{
-				AddSkyWall( BatchFor( carrier ), wall, o.CeilingHeight, top );
+				AddSkyWall( SkyBatchFor( carrier ), wall, o.CeilingHeight, top );
 			}
 			else
 			{
@@ -295,6 +339,15 @@ partial class MapLoader
 	}
 
 	/// <summary>
+	/// Tag on the collision for impassable lines. They stop movement but not hitscan or sight in
+	/// vanilla: player movement and physics collide with it through the collision rules, and traces
+	/// that skip the tag (a game's bullets, say) pass through.
+	/// </summary>
+	protected const string BlockerTag = "playerclip";
+
+	private Batch _blockers;
+
+	/// <summary>
 	/// An impassable two-sided line blocks movement through its whole height, whether or not it has
 	/// a middle texture (P_CheckPosition treats ML_BLOCKING lines as solid).
 	/// </summary>
@@ -315,7 +368,7 @@ partial class MapLoader
 		var v2 = _vertexes[line.EndVertex];
 
 		Span<Vector3> positions = [World( v1.X, v1.Y, bottom ), World( v2.X, v2.Y, bottom ), World( v2.X, v2.Y, top ), World( v1.X, v1.Y, top )];
-		AddPolygon( _static, null, positions, default, default, default, collide: true, reverse: false, default );
+		AddPolygon( _blockers, null, positions, default, default, default, collide: true, reverse: false, default );
 	}
 
 	/// <summary>The plane that bounds a middle texture's opening, if it can move.</summary>

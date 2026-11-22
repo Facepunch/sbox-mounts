@@ -76,17 +76,7 @@ partial class MapLoader
 		{
 			if ( face.Batch is null ) continue;
 
-			var carrier = face.Carrier;
-			bool movable = carrier.Sector >= 0;
-			var parent = !movable ? Root : carrier.Ceiling ? _ceilingObjects[carrier.Sector] : _floorObjects[carrier.Sector];
-
-			var go = new GameObject( true, $"Switch {line}" ) { Parent = parent, WorldPosition = face.Batch.Bounds.Center };
-			Finish( go, face.Batch, $"{ModelPrefix}/switch{line}", movable );
-
-			// Finish places the object at its geometry's centre in world space; make that relative to the plane.
-			if ( movable )
-				go.LocalPosition -= parent.LocalPosition;
-
+			var go = BuildOnCarrier( face.Carrier, $"Switch {line}", face.Batch, $"{ModelPrefix}/switch{line}" );
 			face.Renderer = go.GetComponent<ModelRenderer>();
 		}
 	}
