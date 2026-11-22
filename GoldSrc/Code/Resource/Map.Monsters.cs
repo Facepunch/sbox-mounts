@@ -6,7 +6,7 @@ namespace GoldSrc.Maps;
 /// <summary>
 /// Monsters and the scripted_sequences that pose them.
 /// </summary>
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly Dictionary<string, Monster> _monsters = new( StringComparer.Ordinal );
 	private readonly List<(string ClassName, Monster Monster)> _monsterList = [];

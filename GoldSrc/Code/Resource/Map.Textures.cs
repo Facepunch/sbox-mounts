@@ -3,7 +3,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private Texture[] _textures;
 	private Texture _blackTexture;

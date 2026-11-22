@@ -3,7 +3,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly Dictionary<(int Model, BlendMode Blend, bool PivotAtOrigin, char Surface, bool Aggregate), MapGeometry> _brushGeometry = [];
 

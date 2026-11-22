@@ -3,7 +3,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private const int MaxProbeVolumes = 24;
 	private const int MaxProbesPerVolume = 1024;

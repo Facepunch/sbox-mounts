@@ -8,13 +8,28 @@ namespace GoldSrc.Maps;
 /// Turns a GoldSrc BSP (Half-Life and friends) into a scene: lightmapped world geometry,
 /// brush entities, player starts and lights.
 /// </summary>
-public partial class MapLoader( string filePath ) : SceneLoader<GameMount>
+internal sealed class MapLoader( string filePath ) : SceneLoader<GameMount>
 {
-	private readonly string FilePath = filePath;
+	// The serialized scene refers to generated resources by name. Keep them alive for its lifetime.
+	private MapBuilder builder;
+
+	protected override void BuildScene()
+	{
+		builder = new MapBuilder( Host, filePath, Path );
+		builder.Build();
+	}
+
+	protected override void OnSceneUnloaded() => builder = null;
+}
+
+internal sealed partial class MapBuilder( GameMount host, string filePath, string resourcePath )
+{
+	private GameMount Host => host;
+	private string FilePath => filePath;
 	private LightStyles _lightStyles;
 	private MapState _mapState;
 
-	protected override void BuildScene()
+	internal void Build()
 	{
 		using var stream = Host.FileSystem.OpenRead( FilePath );
 		var bsp = new BspFile( stream );
@@ -42,7 +57,7 @@ public partial class MapLoader( string filePath ) : SceneLoader<GameMount>
 	/// <summary>
 	/// Stable prefix for the map's generated render models and physics resources.
 	/// </summary>
-	private string WorldModelName => $"goldsrcmap/{Path}".Replace( '\\', '/' );
+	private string WorldModelName => $"goldsrcmap/{resourcePath}".Replace( '\\', '/' );
 
 	private string BrushModelName( int modelIndex ) => $"{WorldModelName}*{modelIndex}";
 }

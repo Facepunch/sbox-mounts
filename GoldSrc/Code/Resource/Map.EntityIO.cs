@@ -8,7 +8,7 @@ namespace GoldSrc.Maps;
 /// name up front we resolve those names to direct component references at load time and emit the
 /// result as a Doo, so the whole map's logic is visible and editable in the Doo editor.
 /// </summary>
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly Dictionary<Entity, MapEntity> _entities = [];
 	private static readonly HashSet<string> EntityFields = new( StringComparer.OrdinalIgnoreCase )

@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly Dictionary<string, PhysicsGroupDescription> _physicsResources = [];
 

@@ -4,7 +4,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private int[] _faceLeaves;
 

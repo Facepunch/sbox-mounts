@@ -4,7 +4,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	// Sample the floor, not the mean lighting of a room's walls.
 	private void SampleFloorLight( BspFile bsp, Vector3 position, Span<byte> samples )

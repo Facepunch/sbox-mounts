@@ -9,7 +9,7 @@ internal enum BlendMode
 	Additive
 }
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private const int LiquidPage = -1;
 	private const int UnlitPage = -2;

@@ -4,7 +4,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	/// <summary>
 	/// The "movesnd" key, from the switch in CBaseDoor::Precache. Index 0 and anything out of

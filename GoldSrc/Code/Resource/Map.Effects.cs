@@ -3,7 +3,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly List<ExplosionEffect> _explosions = [];
 	private readonly List<BeamEffect> _beams = [];

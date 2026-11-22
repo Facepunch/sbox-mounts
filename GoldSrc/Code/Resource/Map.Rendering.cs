@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly List<Model> _models = [];
 	private readonly Dictionary<(Material Material, Color Tint), List<StaticFragment>> _staticGeometry = [];

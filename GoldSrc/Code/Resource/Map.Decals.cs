@@ -3,7 +3,7 @@ using System;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	private readonly List<Entity> _authoredDecals = [];
 	private readonly List<(BspModel Model, GameObject Receiver, Vector3 GeometryOrigin)> _decalReceivers = [];

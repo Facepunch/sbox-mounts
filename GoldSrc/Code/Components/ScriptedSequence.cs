@@ -8,7 +8,7 @@ namespace GoldSrc.Maps;
 ///
 /// Only the possession is modelled. Without AI there is nothing to interrupt and no sequence ever
 /// runs to completion, which is why the "target" key isn't forwarded - CCineMonster fires it from
-/// SequenceDone. See MapLoader.ForwardsTarget.
+/// SequenceDone. See MapBuilder.ForwardsTarget.
 /// </summary>
 [Category( "GoldSrc" )]
 [Icon( "movie" )]

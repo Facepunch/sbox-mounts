@@ -3,7 +3,7 @@ using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
 
-partial class MapLoader
+partial class MapBuilder
 {
 	/// <summary>
 	/// Half-Life's default sky when a map doesn't ask for one, matching the sv_skyname default.
