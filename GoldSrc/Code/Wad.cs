@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.IO;
 using System.Text;
 
 namespace GoldSrc;
@@ -26,16 +27,43 @@ public class Wad
 	public WadHeader Header { get; private set; }
 	public List<WadLump> Lumps { get; private set; } = [];
 
-	private BaseFileSystem _fileSystem;
-	private string _filePath;
+	private string filePath;
+	private BaseFileSystem fileSystem;
+	private byte[] rawData;
 
-	public void LoadWadFile( BaseFileSystem fs, string filePath )
+	public void LoadWadFile( BaseFileSystem fileSystem, string filePath )
 	{
-		_fileSystem = fs;
-		_filePath = filePath;
+		this.fileSystem = fileSystem;
+		this.filePath = filePath;
 
-		using var reader = new BinaryReader( fs.OpenRead( filePath ), Encoding.ASCII );
+		try
+		{
+			using var reader = new BinaryReader( fileSystem.OpenRead( filePath ), Encoding.ASCII );
+			ReadWad( reader );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Error loading WAD file: {ex.Message}" );
+		}
+	}
 
+	public void LoadWadData( byte[] data )
+	{
+		this.rawData = data;
+
+		try
+		{
+			using var reader = new BinaryReader( new MemoryStream( data ), Encoding.ASCII );
+			ReadWad( reader );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Error loading WAD data: {ex.Message}" );
+		}
+	}
+
+	private void ReadWad( BinaryReader reader )
+	{
 		Header = new WadHeader
 		{
 			Magic = new string( reader.ReadChars( 4 ) ),
@@ -60,7 +88,7 @@ public class Wad
 				Type = reader.ReadChar(),
 				Compression = reader.ReadChar(),
 				Padding = reader.ReadInt16(),
-				Name = Encoding.ASCII.GetString( reader.ReadBytes( 16 ) ).TrimEnd( '\0' )
+				Name = Encoding.ASCII.GetString( reader.ReadBytes( 16 ) ).Split( '\0' )[0]
 			} );
 		}
 	}
@@ -70,11 +98,42 @@ public class Wad
 		var lump = Lumps.Find( l => l.Name.Equals( lumpName, StringComparison.OrdinalIgnoreCase ) );
 		if ( lump == null )
 		{
+			Log.Warning( $"Lump '{lumpName}' not found." );
 			return null;
 		}
 
-		using BinaryReader reader = new BinaryReader( _fileSystem.OpenRead( _filePath ) );
-		reader.BaseStream.Seek( lump.Offset, SeekOrigin.Begin );
-		return reader.ReadBytes( lump.DiskSize );
+		return ReadLump( lump );
+	}
+
+	/// <summary>
+	/// Like <see cref="GetLumpData"/>, but returns null quietly when the lump isn't in this WAD.
+	/// Maps reference several WADs, so a miss is expected rather than exceptional.
+	/// </summary>
+	public byte[] GetLumpDataOrDefault( string lumpName )
+	{
+		var lump = Lumps.Find( l => l.Name.Equals( lumpName, StringComparison.OrdinalIgnoreCase ) );
+		return lump is null ? null : ReadLump( lump );
+	}
+
+	private byte[] ReadLump( WadLump lump )
+	{
+		try
+		{
+			if ( rawData != null )
+			{
+				using var reader = new BinaryReader( new MemoryStream( rawData ) );
+				reader.BaseStream.Seek( lump.Offset, SeekOrigin.Begin );
+				return reader.ReadBytes( lump.DiskSize );
+			}
+
+			using BinaryReader fileReader = new BinaryReader( fileSystem.OpenRead( filePath ) );
+			fileReader.BaseStream.Seek( lump.Offset, SeekOrigin.Begin );
+			return fileReader.ReadBytes( lump.DiskSize );
+		}
+		catch ( Exception ex )
+		{
+			Log.Warning( $"Error reading lump data: {ex.Message}" );
+			return null;
+		}
 	}
 }

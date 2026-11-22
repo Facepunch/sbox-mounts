@@ -91,17 +91,16 @@ public abstract partial class GameMount
 		context.Add( ResourceType.GameResource, $"surfaces/{Ident}_goldsrc_audio_base.surface", new GoldSrcAudioBaseLoader() );
 	}
 
-	internal string GetSurfaceBindingName( char type )
-	{
-		var path = SurfacePath( GoldSrcSurfaces.Get( type ).Name );
-		return GameResource.Load<Surface>( path )?.ResourcePath ?? "default";
-	}
+	internal char GetTextureSurfaceType( string textureName, bool liquid = false )
+		=> _textureTypes.GetValueOrDefault( GoldSrcSurfaces.TextureKey( textureName ), liquid ? 'S' : 'C' );
+
+	internal Surface GetSurface( char type )
+		=> GameResource.Load<Surface>( SurfacePath( GoldSrcSurfaces.Get( type ).Name ) );
+
+	internal string GetSurfaceBindingName( char type ) => GetSurface( type )?.ResourcePath ?? "default";
 
 	internal void BindSurface( Material material, string textureName )
-	{
-		var type = _textureTypes.GetValueOrDefault( GoldSrcSurfaces.TextureKey( textureName ), 'C' );
-		material.Attributes.Set( "PhysicsSurfaceProperties", GetSurfaceBindingName( type ) );
-	}
+		=> material.Attributes.Set( "PhysicsSurfaceProperties", GetSurfaceBindingName( GetTextureSurfaceType( textureName ) ) );
 
 	internal SoundEvent GetBulletImpactSound( Surface surface, bool flesh )
 	{

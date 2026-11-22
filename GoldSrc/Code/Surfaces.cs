@@ -136,6 +136,21 @@ internal static class GoldSrcSurfaces
 		return result;
 	}
 
+	internal static char BreakableType( int material ) => material switch
+	{
+		0 => 'Y',
+		1 => 'W',
+		2 => 'M',
+		3 => 'F',
+		4 => 'C',
+		5 => 'H',
+		6 => 'P',
+		7 => 'U',
+		8 => 'R',
+		9 => '\0',
+		_ => throw new ArgumentOutOfRangeException( nameof( material ), material, "Unknown GoldSrc breakable material." )
+	};
+
 	internal static GoldSrcSurfaceSound[] Sounds( char type, GoldSrcSurfaceProfile profile = GoldSrcSurfaceProfile.HalfLife )
 	{
 		var dod = profile == GoldSrcSurfaceProfile.DayOfDefeat;
