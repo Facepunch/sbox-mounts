@@ -97,6 +97,7 @@ partial class MapBuilder
 		effect.FrameRate = entity.GetFloat( "framerate" );
 		effect.Scale = entity.GetFloat( "scale", 1 );
 		effect.RenderMode = entity.RenderMode;
+		effect.NoDissipation = entity.GetInt( "renderfx" ) == 14;
 		effect.RenderAmount = entity.RenderAmt;
 		effect.RenderColor = new Color( entity.RenderColor.x / 255f, entity.RenderColor.y / 255f, entity.RenderColor.z / 255f );
 		effect.TextureFormat = sprite.TextureFormat;
@@ -124,9 +125,7 @@ partial class MapBuilder
 			3 => SpriteRenderer.BillboardMode.None,
 			_ => SpriteRenderer.BillboardMode.Always
 		};
-		if ( entity.RenderMode == 3 )
-			Log.Warning( $"{FilePath}: sprite '{model}' uses glow mode; rendered depth-tested and world-sized because view-dependent glow occlusion and scaling are unavailable." );
-		if ( entity.GetInt( "renderfx" ) != 0 )
+		if ( entity.GetInt( "renderfx" ) is not (0 or 14) )
 			Log.Warning( $"{FilePath}: sprite '{model}' renderfx {entity.GetInt( "renderfx" )} is unsupported." );
 		if ( sprite.Orientation == 1 )
 			Log.Warning( $"{FilePath}: sprite '{model}' facing-upright orientation uses camera-plane upright rendering; per-view facing-position billboards are unavailable." );

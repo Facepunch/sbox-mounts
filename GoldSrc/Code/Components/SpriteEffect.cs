@@ -28,6 +28,7 @@ public sealed class SpriteEffect : MapEntity
 	[Property] public float FrameRate { get; set; }
 	[Property] public float Scale { get; set; } = 1;
 	[Property] public int RenderMode { get; set; }
+	[Property] public bool NoDissipation { get; set; }
 	[Property] public float RenderAmount { get; set; }
 	[Property] public Color RenderColor { get; set; } = Color.White;
 	[Property] public int TextureFormat { get; set; }
@@ -141,11 +142,29 @@ public sealed class SpriteEffect : MapEntity
 			Renderer.PlaybackSpeed = 0;
 			_displayedFrame = frame;
 		}
-		Renderer.Size = Frames[frame].Size * (Scale == 0 ? 1 : Scale);
+		var scale = Scale == 0 ? 1 : Scale;
+		var brightness = 1f;
+		if ( RenderMode == 3 && Scene.Camera is {} camera )
+		{
+			var eye = camera.WorldPosition;
+			var trace = Scene.Trace.Ray( eye, WorldPosition ).WithTag( "world" ).Run();
+			if ( trace.Hit && trace.EndPosition.Distance( WorldPosition ) > 8 )
+			{
+				Renderer.Enabled = false;
+				return;
+			}
+			if ( !NoDissipation )
+			{
+				var distance = eye.Distance( WorldPosition );
+				scale *= distance / 200f;
+				brightness = Math.Clamp( 19000f / (distance * distance), 0.05f, 1f );
+			}
+		}
+		Renderer.Size = Frames[frame].Size * scale;
 		Renderer.Opaque = RenderMode == 0;
 		Renderer.AlphaCutoff = TextureFormat == 3 ? 0.5f : 0f;
 		Renderer.Additive = RenderMode is 3 or 5;
 		var color = RenderColor.r == 0 && RenderColor.g == 0 && RenderColor.b == 0 ? Color.White : RenderColor;
-		Renderer.Color = color.WithAlpha( RenderMode == 0 ? 1 : Math.Clamp( RenderAmount / 255f, 0, 1 ) );
+		Renderer.Color = color.WithAlpha( RenderMode == 0 ? 1 : brightness * Math.Clamp( RenderAmount / 255f, 0, 1 ) );
 	}
 }
