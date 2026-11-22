@@ -1,5 +1,4 @@
 using Sandbox.Mounting;
-using System.IO;
 using GoldSrc.Bsp;
 
 namespace GoldSrc.Maps;
@@ -12,6 +11,15 @@ internal sealed class MapLoader( string filePath ) : SceneLoader<GameMount>
 {
 	// The serialized scene refers to generated resources by name. Keep them alive for its lifetime.
 	private MapBuilder builder;
+
+	protected override Texture GetThumbnail()
+	{
+		var map = System.IO.Path.GetFileNameWithoutExtension( filePath );
+		var overview = Host.FindFile( $"overviews/{map}.bmp" ) ?? Host.FindFile( $"overviews/{map}.tga" );
+		if ( overview is null ) return null;
+		using var bitmap = Bitmap.CreateFromBytes( Host.FileSystem.ReadAllBytes( overview ).ToArray() );
+		return bitmap?.ToTexture();
+	}
 
 	protected override void BuildScene()
 	{
