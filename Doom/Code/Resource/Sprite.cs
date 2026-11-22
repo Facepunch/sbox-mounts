@@ -1,27 +1,31 @@
 namespace Doom;
 
 /// <summary>
-/// A thing's spawn animation as a sprite resource. The origin comes from the first frame's patch
-/// offsets, which is where Doom puts the thing's position: centred, standing on the floor.
+/// A thing's animations as a sprite resource: its spawn animation, which plays by default, and
+/// <see cref="DeathAnimation"/> if it can be killed.
 /// </summary>
-public sealed class SpriteLoader( ThingType type, SpriteFrameInfo[] frames ) : ResourceLoader<GameMount>
+public sealed class SpriteLoader( ThingType type, SpriteFrameInfo[] frames, SpriteFrameInfo[] death = null ) : ResourceLoader<GameMount>
 {
+	public const string DeathAnimation = "death";
+
 	protected override object Load()
 	{
-		var first = frames[0];
-
 		var sprite = new Sprite();
 		sprite.Animations.Clear();
-		sprite.Animations.Add( new Sprite.Animation
-		{
-			Name = type.Name,
-			FrameRate = type.Tics > 0 ? 35f / type.Tics : 0f,
-			LoopMode = frames.Length > 1 ? Sprite.LoopMode.Loop : Sprite.LoopMode.None,
-			//Origin = new Vector2( first.LeftOffset / (float)first.Width, first.TopOffset / (float)first.Height ),
-			Origin = new Vector2( 0.5f, 1f ),
-			Frames = frames.Select( f => new Sprite.Frame { Texture = Texture.Load( Host.Url( f.TexturePath, "vtex" ), false ) } ).ToList(),
-		} );
+		sprite.Animations.Add( CreateAnimation( type.Name, frames, type.Tics, loop: true ) );
+
+		if ( death is { Length: > 0 } && type.Death is { } d )
+			sprite.Animations.Add( CreateAnimation( DeathAnimation, death, d.Tics, loop: false ) );
 
 		return sprite;
 	}
+
+	private Sprite.Animation CreateAnimation( string name, SpriteFrameInfo[] animationFrames, int tics, bool loop ) => new()
+	{
+		Name = name,
+		FrameRate = tics > 0 ? 35f / tics : 0f,
+		LoopMode = loop && animationFrames.Length > 1 ? Sprite.LoopMode.Loop : Sprite.LoopMode.None,
+		Origin = new Vector2( 0.5f, 1f ),
+		Frames = animationFrames.Select( f => new Sprite.Frame { Texture = Texture.Load( Host.Url( f.TexturePath, "vtex" ), false ) } ).ToList(),
+	};
 }

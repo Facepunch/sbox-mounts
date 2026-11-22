@@ -32,7 +32,24 @@ public enum ThingTypeFlags
 
 	/// <summary>The spawn frames are full bright (FF_FULLBRIGHT), ignoring sector light.</summary>
 	Bright = 4,
+
+	/// <summary>Can be shot and blows up when killed (A_Explode), like the barrel.</summary>
+	Explosive = 8,
+
+	/// <summary>
+	/// Pickupable and lobable
+	/// </summary>
+	Rigidbody = 9,
 }
+
+/// <summary>
+/// A run of sprite frames. A frame shown for longer than <see cref="Tics"/> is repeated, so
+/// vanilla's per-state durations play back at one frame rate.
+/// </summary>
+/// <param name="Sprite">4 letter sprite name.</param>
+/// <param name="Frames">Frame letters in play order.</param>
+/// <param name="Tics">Tics per letter (35 per second).</param>
+public sealed record ThingAnimation( string Sprite, string Frames, int Tics );
 
 /// <summary>
 /// A thing's editor number and what vanilla's mobjinfo and spawn state make of it.
@@ -47,12 +64,19 @@ public enum ThingTypeFlags
 /// <param name="Radius">Collision radius in map units.</param>
 /// <param name="Height">Collision height in map units.</param>
 /// <param name="Flags">Behaviour flags.</param>
+/// <param name="Health">Spawn health, for things that can be killed.</param>
+/// <param name="Death">The death animation, for things that can be killed. Always full bright here.</param>
 public sealed record ThingType( int Id, string Name, ThingCategory Category, string Sprite, string Frames = "A",
-	int Tics = 0, int Radius = 20, int Height = 16, ThingTypeFlags Flags = ThingTypeFlags.None );
+	int Tics = 0, int Radius = 20, int Height = 16, ThingTypeFlags Flags = ThingTypeFlags.None,
+	int Health = 0, ThingAnimation Death = null );
 
 public static class ThingTypes
 {
-	const ThingTypeFlags Solid = ThingTypeFlags.Solid, Hanging = ThingTypeFlags.Hanging, Bright = ThingTypeFlags.Bright;
+	const ThingTypeFlags Solid = ThingTypeFlags.Solid, 
+		Hanging = ThingTypeFlags.Hanging, 
+		Bright = ThingTypeFlags.Bright,
+		Explosive = ThingTypeFlags.Explosive,
+		Rigidbody = ThingTypeFlags.Rigidbody;
 
 	/// <summary>Every vanilla Doom and Doom II thing (info.c).</summary>
 	public static readonly IReadOnlyDictionary<int, ThingType> Vanilla = new ThingType[]
@@ -133,7 +157,9 @@ public static class ThingTypes
 		new( 38, "red_skull_key", ThingCategory.Key, "RSKU", "AB", 10, Flags: Bright ),
 
 		// Obstacles and decorations
-		new( 2035, "barrel", ThingCategory.Decoration, "BAR1", "AB", 6, 10, 42, Solid ),
+		// S_BEXP to S_BEXP5: A, B, C for 5 tics each, then D and E for 10.
+		new( 2035, "barrel", ThingCategory.Decoration, "BAR1", "AB", 6, 10, 42, Solid | Explosive | Rigidbody,
+			Health: 20, Death: new ThingAnimation( "BEXP", "ABCDDEE", 5 ) ),
 		new( 30, "tall_green_pillar", ThingCategory.Decoration, "COL1", "A", 0, 16, 16, Solid ),
 		new( 31, "short_green_pillar", ThingCategory.Decoration, "COL2", "A", 0, 16, 16, Solid ),
 		new( 32, "tall_red_pillar", ThingCategory.Decoration, "COL3", "A", 0, 16, 16, Solid ),

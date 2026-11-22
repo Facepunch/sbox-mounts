@@ -68,11 +68,15 @@ partial class GameMount
 			if ( type.Sprite is null ? stack.Wads.Count > 1 : !TryGetThingSprite( stack, type, out var owner, out frames ) || owner != wad )
 				continue;
 
+			SpriteFrameInfo[] death = null;
+			if ( type.Death is { } d && !TryGetSpriteFrames( stack, d.Sprite, d.Frames, out _, out death ) )
+				Log.Warning( $"{Title}: {wad.Name} has no {d.Sprite} frames for the {type.Name}'s death" );
+
 			if ( frames is not null )
-				context.Add( ResourceType.GameResource, ThingSpritePath( wad.Name, type ), new SpriteLoader( type, frames ) );
+				context.Add( ResourceType.GameResource, ThingSpritePath( wad.Name, type ), new SpriteLoader( type, frames, death ) );
 
 			context.Add( ResourceType.PrefabFile, ThingPrefabPath( wad.Name, type ),
-				new ThingPrefabLoader( type, frames, frames is null ? null : Url( ThingSpritePath( wad.Name, type ) ) ) );
+				new ThingPrefabLoader( stack, type, frames, frames is null ? null : Url( ThingSpritePath( wad.Name, type ) ) ) );
 		}
 
 		foreach ( var map in wad.Maps )
@@ -110,12 +114,22 @@ partial class GameMount
 	{
 		owner = null;
 		frames = null;
-		if ( type.Sprite is null ) return false;
+		return type.Sprite is not null && TryGetSpriteFrames( stack, type.Sprite, type.Frames, out owner, out frames );
+	}
+
+	/// <summary>
+	/// Resolves a run of frame letters of a sprite through the stack. Each frame can come from a
+	/// different WAD; <paramref name="owner"/> is the one providing the first.
+	/// </summary>
+	public static bool TryGetSpriteFrames( WadStack stack, string sprite, string letters, out WadFile owner, out SpriteFrameInfo[] frames )
+	{
+		owner = null;
+		frames = null;
 
 		var result = new List<SpriteFrameInfo>();
-		foreach ( char letter in type.Frames )
+		foreach ( char letter in letters )
 		{
-			if ( !stack.TryFindSpriteFrame( type.Sprite, letter, out var frame, out var frameOwner ) )
+			if ( !stack.TryFindSpriteFrame( sprite, letter, out var frame, out var frameOwner ) )
 				return false;
 
 			owner ??= frameOwner;

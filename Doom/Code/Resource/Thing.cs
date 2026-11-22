@@ -1,4 +1,5 @@
 using System;
+using Doom.Wad;
 
 namespace Doom;
 
@@ -7,7 +8,7 @@ namespace Doom;
 /// or a spawn point or teleport destination for things that aren't drawn. Built at the mount's
 /// scale. Maps place instances and only set what depends on where they stand (sector light, tags).
 /// </summary>
-public sealed class ThingPrefabLoader( ThingType type, SpriteFrameInfo[] frames, string spritePath ) : ResourceLoader<GameMount>
+public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFrameInfo[] frames, string spritePath ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
 
@@ -22,9 +23,6 @@ public sealed class ThingPrefabLoader( ThingType type, SpriteFrameInfo[] frames,
 			Game.ActiveScene.Enabled = false;
 
 			var go = new GameObject( true, type.Name );
-			var thing = go.AddComponent<DoomThing>();
-			thing.Type = type.Id;
-			thing.Category = type.Category;
 
 			switch ( type.Category )
 			{
@@ -40,6 +38,19 @@ public sealed class ThingPrefabLoader( ThingType type, SpriteFrameInfo[] frames,
 				case ThingCategory.TeleportDestination:
 					go.AddComponent<DoomTeleportDestination>();
 					break;
+
+			}
+
+			if ( type.Name == "barrel" )
+			{
+				var rigidbody = go.AddComponent<Rigidbody>();
+				rigidbody.Locking = new PhysicsLock()
+				{
+					Pitch = true,
+					Yaw = true,
+					Roll = true
+				};
+				rigidbody.MassOverride = 30f;
 			}
 
 			if ( sprite is not null && frames is { Length: > 0 } )
@@ -66,13 +77,27 @@ public sealed class ThingPrefabLoader( ThingType type, SpriteFrameInfo[] frames,
 					var box = go.AddComponent<BoxCollider>();
 					box.Scale = new Vector3( first.Width, first.Width, first.Height ) * scale;
 					box.Center = new Vector3( 0, 0, first.Height * 0.5f * scale );
-					box.Static = true;
+					box.Static = !go.Components.TryGet<Rigidbody>( out _ );
 				}
+			}
+
+			if ( (type.Flags & ThingTypeFlags.Explosive) != 0 )
+			{
+				var barrel = go.AddComponent<DoomExplosiveBarrel>();
+				barrel.Health = type.Health;
+				barrel.Radius = 128f * scale;
+				barrel.ExplodeSound = LoadSound( "DSBAREXP" );
 			}
 		}
 
 		return _prefab = builder.Create()
 			?? throw new InvalidOperationException( $"{Path}: could not create the thing prefab." );
+	}
+
+	private SoundEvent LoadSound( string lump )
+	{
+		if ( stack.FindSound( lump, out var owner ) is null ) return null;
+		return GameResource.Load<SoundEvent>( Host.Url( GameMount.SoundEventPath( owner.Name, lump ) ) );
 	}
 
 	protected override void Shutdown()
