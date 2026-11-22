@@ -22,7 +22,7 @@ partial class GameMount
 			var sprite = new SpriteFile( stream );
 			_sprites[path] = sprite;
 			for ( var frame = 0; frame < sprite.Frames.Count; frame++ )
-				context.Add( ResourceType.Texture, $"{path}/frame{frame}", new SpriteTextureLoader( sprite.Frames[frame] ) );
+				context.Add( ResourceType.Texture, $"{path}/frame{frame}", new SpriteTextureLoader( sprite, sprite.Frames[frame] ) );
 		}
 		catch ( Exception e )
 		{
@@ -31,8 +31,8 @@ partial class GameMount
 	}
 }
 
-internal sealed class SpriteTextureLoader( SpriteFile.Frame frame ) : ResourceLoader<GameMount>
+internal sealed class SpriteTextureLoader( SpriteFile sprite, SpriteFile.Frame frame ) : ResourceLoader<GameMount>
 {
 	protected override object Load() => Texture.Create( frame.Width, frame.Height, ImageFormat.RGBA8888_LINEAR )
-		.WithName( Path ).WithData( frame.Pixels ).WithMips().WithStaticUsage().Finish();
+		.WithName( Path ).WithData( sprite.DecodePixels( frame ) ).WithMips().WithStaticUsage().Finish();
 }

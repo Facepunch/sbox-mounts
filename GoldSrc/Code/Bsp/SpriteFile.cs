@@ -5,7 +5,8 @@ namespace GoldSrc.Bsp;
 
 internal sealed class SpriteFile
 {
-	internal sealed record Frame( int X, int Y, int Width, int Height, byte[] Pixels );
+	internal sealed record Frame( int X, int Y, int Width, int Height, byte[] Indices );
+	private readonly byte[] palette;
 	internal sealed record Group( int FirstFrame, int FrameCount, float[] Intervals );
 
 	public int Orientation { get; private set; }
@@ -32,7 +33,7 @@ internal sealed class SpriteFile
 		var paletteSize = reader.ReadUInt16();
 		if ( paletteSize != 256 )
 			throw new InvalidDataException( "Expected a 256-color sprite palette." );
-		var palette = reader.ReadBytes( paletteSize * 3 );
+		palette = reader.ReadBytes( paletteSize * 3 );
 		if ( palette.Length != paletteSize * 3 )
 			throw new InvalidDataException( "Truncated sprite palette." );
 		for ( var i = 0; i < count; i++ )
@@ -60,23 +61,29 @@ internal sealed class SpriteFile
 				if ( width is < 1 or > 4096 || height is < 1 or > 4096 || (long)width * height > stream.Length - stream.Position )
 					throw new InvalidDataException( "Invalid sprite frame dimensions." );
 				var indices = reader.ReadBytes( checked(width * height) );
-				var pixels = new byte[checked(indices.Length * 4)];
-				for ( var pixel = 0; pixel < indices.Length; pixel++ )
-				{
-					var index = indices[pixel];
-					var color = TextureFormat == 2 ? 255 : index;
-					pixels[pixel * 4] = palette[color * 3];
-					pixels[pixel * 4 + 1] = palette[color * 3 + 1];
-					pixels[pixel * 4 + 2] = palette[color * 3 + 2];
-					pixels[pixel * 4 + 3] = TextureFormat switch
-					{
-						2 => index,
-						3 when index == 255 => 0,
-						_ => 255
-					};
-				}
-				Frames.Add( new( x, y, width, height, pixels ) );
+				Frames.Add( new( x, y, width, height, indices ) );
 			}
 		}
+	}
+
+	internal byte[] DecodePixels( Frame frame )
+	{
+		var indices = frame.Indices;
+		var pixels = new byte[checked(indices.Length * 4)];
+		for ( var pixel = 0; pixel < indices.Length; pixel++ )
+		{
+			var index = indices[pixel];
+			var color = TextureFormat == 2 ? 255 : index;
+			pixels[pixel * 4] = palette[color * 3];
+			pixels[pixel * 4 + 1] = palette[color * 3 + 1];
+			pixels[pixel * 4 + 2] = palette[color * 3 + 2];
+			pixels[pixel * 4 + 3] = TextureFormat switch
+			{
+				2 => index,
+				3 when index == 255 => 0,
+				_ => 255
+			};
+		}
+		return pixels;
 	}
 }
