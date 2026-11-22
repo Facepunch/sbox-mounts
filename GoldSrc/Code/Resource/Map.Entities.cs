@@ -145,6 +145,7 @@ partial class MapBuilder
 				maker.MaxLive = entity.GetInt( "m_imaxlivechildren" );
 				maker.Interval = entity.GetFloat( "delay" );
 				maker.StartActive = string.IsNullOrEmpty( maker.TargetName ) || (entity.SpawnFlags & 1) != 0;
+				maker.HitMonsterClip = (entity.SpawnFlags & 8) != 0;
 				maker.Cyclic = !string.IsNullOrEmpty( maker.TargetName ) && (entity.SpawnFlags & 4) != 0;
 				RegisterTarget( entity, maker );
 				WireTrigger( entity, maker, delayed: false );

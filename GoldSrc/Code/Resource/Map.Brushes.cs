@@ -16,6 +16,20 @@ partial class MapBuilder
 		var bspModel = bsp.Models[modelIndex];
 		var className = entity.ClassName;
 
+		if ( className == "func_monsterclip" )
+		{
+			var clip = new GameObject( false, EntityName( entity ) ) { IsStatic = true, WorldPosition = entity.Origin };
+			var area = clip.AddComponent<NavMeshArea>();
+			area.IsBlocker = false;
+			area.Area = MonsterClip.Area;
+			area.SceneVolume = new Sandbox.Volumes.SceneVolume { Box = new BBox( bspModel.Mins, bspModel.Maxs ) };
+			var marker = clip.AddComponent<Relay>();
+			marker.TargetName = entity.TargetName;
+			RegisterTarget( entity, marker, null, null, null, nameof( MapEntity.Kill ) );
+			clip.Enabled = true;
+			return;
+		}
+
 		if ( className == "func_ladder" )
 		{
 			var ladder = new GameObject( true, EntityName( entity ) ) { IsStatic = true };

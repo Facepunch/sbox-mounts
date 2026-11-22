@@ -90,6 +90,7 @@ partial class MapBuilder
 				go.WorldPosition = PlacePerson( bsp, entity.Origin, npc );
 				if ( npc is SittingScientist seated ) seated.PlacedOnMapHull = true;
 			}
+			if ( (entity.SpawnFlags & 4) != 0 ) MonsterClip.Restrict( go );
 			npc.FadeCorpse = (entity.SpawnFlags & 512) != 0;
 			npc.Body = entity.GetInt( "body" );
 			npc.Skin = entity.GetInt( "skin" );

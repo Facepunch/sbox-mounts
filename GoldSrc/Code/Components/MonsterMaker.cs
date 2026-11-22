@@ -11,6 +11,7 @@ public sealed class MonsterMaker : MapEntity
 	[Property] public int MaxLive { get; set; }
 	[Property] public float Interval { get; set; }
 	[Property] public bool StartActive { get; set; }
+	[Property] public bool HitMonsterClip { get; set; }
 	[Property] public bool Cyclic { get; set; }
 
 	readonly List<GameObject> _children = [];
@@ -70,6 +71,7 @@ public sealed class MonsterMaker : MapEntity
 		var actor = child.AddComponent<Monster>();
 		actor.TargetName = ChildName;
 		actor.Npc = npc;
+		if ( HitMonsterClip ) MonsterClip.Restrict( child );
 		actor.SpawnedByMaker = true;
 		if ( npc.IsValid() ) npc.FadeCorpse = _fadeChildren;
 		actor.Renderer = npc?.Renderer;
