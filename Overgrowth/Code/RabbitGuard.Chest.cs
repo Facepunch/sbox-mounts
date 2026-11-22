@@ -18,6 +18,7 @@ public sealed partial class RabbitGuard
 		if ( !Renderer.TryGetBoneTransformAnimation( chest, out var chestWorld )
 			|| !Renderer.TryGetBoneTransformAnimation( abdomen, out var abdomenWorld )
 			|| !Renderer.TryGetBoneTransformAnimation( bones.GetBone( boundAnimations.HeadBone ), out var headWorld ) ) return;
+		var animatedChest = chestWorld;
 		var basis = chestWorld.Rotation * Renderer.Model.GetBoneTransform( chest.Index ).Rotation.Inverse;
 		float frames = Time.Delta * 120f;
 		bool stance = Stance == Threat;
@@ -50,6 +51,7 @@ public sealed partial class RabbitGuard
 		chestWorld.Rotation = turn * (plantedLegs ? Renderer.WorldRotation * balanceRotation * Renderer.WorldRotation.Inverse : Rotation.Identity) * chestWorld.Rotation;
 		Renderer.SetBoneTransform( abdomen, Renderer.WorldTransform.ToLocal( abdomenWorld ) );
 		Renderer.SetBoneTransform( chest, Renderer.WorldTransform.ToLocal( chestWorld ) );
+		UpdateHeadLook( target, animatedChest, chestWorld, headWorld );
 		chestActive = true;
 	}
 }
