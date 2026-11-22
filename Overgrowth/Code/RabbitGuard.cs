@@ -27,6 +27,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
 		if ( !Downed ) base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Downed || Health < 1 )

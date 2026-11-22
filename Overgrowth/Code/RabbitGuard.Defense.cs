@@ -5,7 +5,8 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[Property, Range( 0f, 1f )] public float BlockSkill { get; set; } = 0.5f;
-	TimeUntil blockRecharge;
+	TimeUntil blockRecharge, activeBlock;
+	float? blockDelay;
 	TimeUntil startled;
 	float blockHealth = 1f;
 	int hitsOnGround;
@@ -38,18 +39,47 @@ public sealed partial class RabbitGuard
 		return ReactionPhase < 1f;
 	}
 
-	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move, float predictability )
+	void UpdateActiveBlock( float step )
+	{
+		if ( blockDelay is null && startled <= 0 && blockRecharge <= 0 && CanAttack( enemy ) &&
+			enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
+		{
+			// AnimationReader searches all synced poses for the next event, using the first pose as its clock.
+			float next = float.PositiveInfinity;
+			foreach ( var pose in move.Poses )
+			{
+				if ( pose.Clip.Prepare is not { } prepare ) continue;
+				float phase = prepare.Time / pose.Clip.Duration;
+				if ( phase > opponent.AttackPhase ) next = Math.Min( next, phase );
+			}
+			if ( float.IsFinite( next ) )
+			{
+				float power = 0.5f * MathF.Pow( 4f, opponent.predictability );
+				if ( tactic == CombatTactic.Provoke ) power += 1f;
+				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration;
+				if ( Random.Shared.Float() > 1f - MathF.Pow( 1f - BlockSkill, power ) ) blockDelay += 0.4f;
+			}
+		}
+		if ( blockDelay is not { } delay ) return;
+		blockDelay = Math.Min( 1f, delay - step );
+		if ( blockDelay > 0f ) return;
+		blockDelay = null;
+		if ( !IsOnGround || InThrow || (strike is not null && blockStun <= 0) ) return;
+		activeBlock = 0.2f;
+		blockRecharge = 0.4f;
+	}
+
+	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
 		if ( boundAnimations is null || !IsOnGround || Health < 1 ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
-		var skillPower = 0.5f * MathF.Pow( 4f, predictability );
-		if ( tactic == CombatTactic.Provoke ) skillPower += 1f;
-		bool active = enemy == attacker.GameObject && startled <= 0 && blockRecharge <= 0 && strike is null
-			&& Random.Shared.Float() <= 1f - MathF.Pow( 1f - BlockSkill, skillPower );
+		bool active = activeBlock > 0;
+
 		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
 		if ( Downed || IsGetUp( Stance ) )
 		{
+			throwRecharge = Math.Max( (float)throwRecharge, 1f );
 			var direction = (TargetPosition( GameObject ) - attacker.WorldPosition).Normal;
 			var facing = move.WorldImpact( direction, attacker.flippedAttack ).WithZ( 0 );
 			if ( Downed )
@@ -69,8 +99,7 @@ public sealed partial class RabbitGuard
 			MirroredAction = MirroredStance;
 			BeginReaction( attacker.GameObject, attacker.WorldPosition, slot, guard, activeBlock: true );
 		}
-		// At original difficulty an NPC's active window and subsequent recharge are each 0.2 s.
-		blockRecharge = 0.4f;
+
 		PickBlockFollowUp();
 		return true;
 	}
@@ -94,6 +123,7 @@ public sealed partial class RabbitGuard
 
 	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false )
 	{
+		strike = null;
 		Movement.Stop();
 		var facing = (source - WorldPosition).WithZ( 0 );
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
