@@ -1,6 +1,6 @@
 namespace Overgrowth;
 
-internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactions, float BlockMin, float BlockMax, string Blocked, string Guard, string Height, string Direction )
+internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactions, float BlockMin, float BlockMax, string Blocked, string Guard, string Height, string Direction, Vector3 ImpactDirection, float Force )
 {
 	internal sealed record Pose( float Height, RabbitClip Clip );
 

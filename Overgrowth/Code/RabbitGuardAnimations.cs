@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates )
+internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -56,7 +56,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( character.Element( "animations" ).Attribute( key ) )))
 			.ToDictionary( x => x.key, x => x.animation );
 		var blocked = attacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
-		var reactionNames = reactions.Values.SelectMany( names => names ).ToHashSet();
+		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront] ).ToHashSet();
 		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, .. attacks.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
@@ -103,7 +103,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 					: [LoadPose( pathToAnimation, 0 )];
 
 				var block = attack.Element( "block_damage" );
-				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), attack.Element( "flags" ).Attribute( "height" ), attack.Element( "flags" ).Attribute( "direction" ) );
+				var direction = attack.Element( "impact_dir" );
+				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), attack.Element( "flags" ).Attribute( "height" ), attack.Element( "flags" ).Attribute( "direction" ),
+					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value );
 				var blend = graph.BlendSpace( height, looping: false );
 				foreach ( var pose in poses )
 					blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
@@ -126,7 +128,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 				if ( previous != states[i] )
 					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = 0.2f } );
 		}
-		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet() );
+		var torso = skeleton.IKBones["torso"];
+		var torsoBones = new List<string>();
+		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
+			torsoBones.Add( $"bone_{bone}" );
+		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray() );
 	}
 
 }

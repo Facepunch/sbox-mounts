@@ -25,7 +25,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
-		base.OnUpdate();
+		if ( !Downed ) base.OnUpdate();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{
@@ -34,6 +34,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			boundAnimations = ready;
 			Renderer.Animation.Graph = ready.Graph;
 			playing = null;
+		}
+		if ( Downed )
+		{
+			if ( Networking.IsHost ) UpdateKnockdown();
+			return;
 		}
 		if ( Stance == Locomotion ) UpdateGait();
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
