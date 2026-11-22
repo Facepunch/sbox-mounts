@@ -5,6 +5,8 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	internal const string StandFromFront = "r_standfromfront", StandFromBack = "r_standfromback2";
+	[ConVar( "overgrowth_sparring", ConVarFlags.Replicated, Help = "Overgrowth fighters recover their health on a lethal hit and can keep fighting." )]
+	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }
 	[Sync] bool Downed { get; set; }
 	ModelPhysics ragdoll;
@@ -13,6 +15,7 @@ public sealed partial class RabbitGuard
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaged( hit );
+		if ( Sparring && Health < 1f && hit.AcceptedDamage > 0 ) Health = MaxHealth;
 		if ( Health < 1f || hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
 		var attacker = hit.Instigator;
 		var move = attacker.IsValid() ? attacker.GetComponent<RabbitGuard>()?.strike : null;
