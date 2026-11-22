@@ -4,7 +4,7 @@ namespace GoldSrc.OpposingForce;
 
 [Title( "Dead Zombie Soldier" ), Category( "Opposing Force" )]
 [NpcDefinition( "monster_zombie_soldier_dead", "zombie_soldier", MonsterClass.AlienMonster, 8, 0, 0, 0,
-	Mount = "opfor", Gibs = GibSet.Alien, Blood = Npc.BloodColor.Yellow )]
+	Mount = "opfor", Gibs = GibSet.Alien, Blood = Npc.BloodColor.Red )]
 public sealed class DeadZombieSoldier : PosedCorpse
 {
 	static readonly string[] Poses = ["dead_on_stomach", "dead_on_back"];

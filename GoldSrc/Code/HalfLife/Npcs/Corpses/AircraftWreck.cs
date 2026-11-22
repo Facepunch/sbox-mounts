@@ -17,7 +17,9 @@ public sealed class AircraftWreck : Component
 		model.Model = source.Renderer.Model;
 		model.BodyGroups = source.Renderer.BodyGroups;
 		var wreck = go.AddComponent<AircraftWreck>();
-		wreck.DebrisModel = source.DebrisModel;
+		if ( MountUtility.TryParse( source.ModelPath, out var ident ) && Sandbox.Mounting.Directory.Get( ident ) is HalfLifeMount mount )
+			wreck.DebrisModel = mount.GameDirs.Select( dir => $"mount://{ident}/{dir}/models/{source.DebrisModel}.mdl.vmdl" )
+				.FirstOrDefault( path => mount.GetByPath( path ) is ModelLoader );
 		wreck._velocity = source.Animation.MoveVelocity;
 		wreck._spin = new Angles( Game.Random.Float( -20, 20 ), 0, Game.Random.Float( -50, 50 ) );
 		wreck._timeout = 4;
@@ -53,7 +55,7 @@ public sealed class AircraftWreck : Component
 		Fireball( origin, 192 );
 		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount ) mount.NpcAudio.Emit( "weapons/mortarhit.wav", origin, attenuation: 0.3f );
 		Blast.DamageInRadius( GameObject, GameObject, origin, 300, 750, "blast" );
-		ScatterDebris( origin, DebrisModel );
+		if ( DebrisModel is not null ) ScatterDebris( origin, DebrisModel );
 		GameObject.Destroy();
 	}
 
@@ -73,9 +75,9 @@ public sealed class AircraftWreck : Component
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ScatterDebris( Vector3 position, string name )
+	static void ScatterDebris( Vector3 position, string modelPath )
 	{
-		var model = Model.Load( $"mount://hl1/valve/models/{name}.mdl.vmdl" );
+		var model = Model.Load( modelPath );
 		if ( !model.IsValid() || model.IsError ) return;
 		for ( int i = 0; i < 8; ++i )
 		{

@@ -4,7 +4,7 @@ namespace GoldSrc.OpposingForce;
 
 [Title( "Skeleton" ), Category( "Opposing Force" )]
 [NpcDefinition( "monster_skeleton_dead", "skeleton", MonsterClass.HumanPassive, 8, 0, 0, 0,
-	Mount = "opfor", Gibs = GibSet.Human, Blood = Npc.BloodColor.Red )]
+	Mount = "opfor", Gibs = GibSet.Human, Blood = Npc.BloodColor.None )]
 public sealed class Skeleton : PosedCorpse
 {
 	static readonly string[] Poses = ["s_onback", "s_sitting", "dead_against_wall", "dead_stomach"];

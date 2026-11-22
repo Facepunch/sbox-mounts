@@ -2,7 +2,7 @@ namespace GoldSrc.HalfLife;
 
 [Title( "Dead Scientist" ), Category( "Half-Life" )]
 [NpcDefinition( "monster_scientist_dead", "scientist", MonsterClass.HumanPassive, 8, 0, 0, 0 )]
-public class DeadScientist : PosedCorpse
+public sealed class DeadScientist : PosedCorpse
 {
 	public enum Position { Back, Stomach, Sitting, Hanging, TableOne, TableTwo, TableThree }
 	[Property] public Position Pose { get; set; }
