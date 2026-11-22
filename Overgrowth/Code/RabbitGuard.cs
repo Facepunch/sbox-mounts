@@ -55,13 +55,13 @@ public sealed partial class RabbitGuard : BaseNpc
 
 	TimeSince sinceEnemySeen;
 
-	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Friendly );
+	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Hostile );
 
 	protected override Relationship GetFallbackRelationship( GameObject other ) =>
 		new( other.GetComponent<BaseNpc>().IsValid() ? Disposition.Hostile : Disposition.Neutral );
 
 	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject
-		&& other.GetComponent<BaseNpc>() is { Active: true, Health: >= 1 }
+		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not { Health: < 1 }
 		&& GetDisposition( other ) == Disposition.Hostile;
 
 	void Remember( GameObject target )
@@ -82,12 +82,12 @@ public sealed partial class RabbitGuard : BaseNpc
 			return;
 		}
 		visible = false;
-		var candidates = Scene.GetAllComponents<BaseNpc>();
+		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
+			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
 		GameObject closest = null;
 		float nearest = float.MaxValue;
-		foreach ( var npc in candidates )
+		foreach ( var candidate in candidates )
 		{
-			var candidate = npc.GameObject;
 			if ( !CanAttack( candidate ) ) continue;
 			var delta = CalculateEyePosition( candidate ) - EyePosition;
 			float distance = delta.Length;
