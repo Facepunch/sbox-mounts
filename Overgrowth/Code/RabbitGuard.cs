@@ -80,6 +80,25 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not { Health: < 1 }
 		&& GetDisposition( other ) == Disposition.Hostile;
 
+	// MovementObject follows the mean physics-bone position while ragdolled. Here the
+	// navigation root stays parked until recovery, so observers read the bodies directly.
+	Vector3 TargetPosition( GameObject target, bool eyes = false )
+	{
+		if ( target.GetComponent<RabbitGuard>() is { Downed: true, ragdoll: { } physics } )
+		{
+			Vector3 sum = default;
+			int count = 0;
+			foreach ( var body in physics.Bodies )
+			{
+				if ( !body.Component.IsValid() ) continue;
+				sum += body.Component.WorldPosition;
+				count++;
+			}
+			if ( count > 0 ) return sum / count;
+		}
+		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
+	}
+
 	void Remember( GameObject target )
 	{
 		if ( !enemy.IsValid() )
@@ -88,7 +107,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Speak( "engage" );
 		}
 		enemy = target;
-		lastSeen = target.WorldPosition;
+		lastSeen = TargetPosition( target );
 		sinceEnemySeen = 0;
 		visible = true;
 		AlertStage = 2;
@@ -100,15 +119,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		// A known opponent remains recognizable outside the initial acquisition cone.
 		visible = CanAttack( enemy ) && HasSight( enemy );
 		GameObject closest = visible ? enemy : null;
-		float nearest = visible ? WorldPosition.DistanceSquared( enemy.WorldPosition ) : float.MaxValue;
+		float nearest = visible ? WorldPosition.DistanceSquared( TargetPosition( enemy ) ) : float.MaxValue;
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
 		foreach ( var candidate in candidates )
 		{
 			if ( candidate == enemy || !CanAttack( candidate ) ) continue;
-			float separation = WorldPosition.DistanceSquared( candidate.WorldPosition );
+			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
 			if ( separation >= nearest ) continue;
-			var delta = CalculateEyePosition( candidate ) - EyePosition;
+			var delta = TargetPosition( candidate, eyes: true ) - EyePosition;
 			float distance = delta.Length;
 			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
 			bool focus = distance <= 4000 && MathF.Abs( angles.yaw ) <= 36 && MathF.Abs( angles.pitch ) <= 36;
@@ -129,7 +148,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		AlertStage = enemy.IsValid() ? 2 : enemySeen > 0 ? 1 : 0;
 	}
 
-	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, CalculateEyePosition( other ) )
+	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )
 		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( other ).WithoutTags( "trigger" ).Run().Hit;
 
 }

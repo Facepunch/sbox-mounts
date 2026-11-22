@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( enemy ) && WorldPosition.Distance( enemy.WorldPosition ) < 64f && HasSight( enemy ) &&
+				if ( CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < 64f && HasSight( enemy ) &&
 					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike, predictability ) )
 				{
 					Stance = strike.Blocked;
@@ -71,7 +71,7 @@ public sealed partial class RabbitGuard
 			Stance = Watch;
 			return;
 		}
-		var destination = visible ? enemy.WorldPosition : lastSeen;
+		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = destination - WorldPosition;
 		float distance = delta.Length;
 		if ( !visible && distance < 40 )
@@ -146,7 +146,7 @@ public sealed partial class RabbitGuard
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
-		if ( !CanAttack( enemy ) || WorldPosition.Distance( enemy.WorldPosition ) >= 1.6f * 40 || !HasSight( enemy ) )
+		if ( !CanAttack( enemy ) || WorldPosition.Distance( TargetPosition( enemy ) ) >= 1.6f * 40 || !HasSight( enemy ) )
 		{
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
