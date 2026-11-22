@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	internal const string StandFromFront = "r_standfromfront", StandFromBack = "r_standfromback2";
+	[Property] public CapsuleCollider MovementCapsule { get; set; }
 	[Sync] bool Downed { get; set; }
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown;
@@ -18,9 +19,11 @@ public sealed partial class RabbitGuard
 		if ( CanAttack( attacker ) ) Remember( attacker );
 		if ( !Downed )
 		{
+			// Older saved instances predate the explicit prefab reference.
+			MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
 			Movement.Stop();
 			Movement.Enabled = false;
-			GetComponentInChildren<CapsuleCollider>().Enabled = false;
+			MovementCapsule.Enabled = false;
 			strike = null;
 			blockHealth = 0;
 			// Copy the live pose before letting the physics skeleton drive it.
@@ -69,8 +72,18 @@ public sealed partial class RabbitGuard
 		}
 		if ( count == 0 || mass <= 0 || (velocity / mass).LengthSquared >= 20f * 40f * 40f ) return;
 		center /= count;
-		var floor = Scene.Trace.Ray( center, center + Vector3.Down * 40f ).IgnoreGameObjectHierarchy( GameObject ).Run();
-		if ( !floor.Hit || floor.Normal.z <= 0.5f ) return;
+		var extent = MovementCapsule.WorldScale;
+		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
+		var ground = Scene.Trace.Ray( center, center + Vector3.Down * 40f )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+		if ( !ground.Hit || ground.StartedSolid || ground.Normal.z <= 0.5f ) return;
+
+		// On a slope the bottom sphere touches uphill of the point directly below its center.
+		var lift = capsule.Radius * (1f / ground.Normal.z - 1f);
+		var feet = ground.EndPosition + Vector3.Up * lift;
+		var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, feet + Vector3.Down )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+		if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return;
 
 		Vector3 front = default, up = default;
 		foreach ( var name in boundAnimations.TorsoBones )
@@ -84,7 +97,7 @@ public sealed partial class RabbitGuard
 		Renderer.ClearPhysicsBones();
 		WorldPosition = floor.EndPosition;
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
-		GetComponentInChildren<CapsuleCollider>( true ).Enabled = true;
+		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;
 		var agent = GetComponent<NavMeshAgent>( true );
 		agent.Enabled = true;

@@ -70,6 +70,7 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;
 		var npc = go.AddComponent<RabbitGuard>();
+		npc.MovementCapsule = collider;
 		npc.DisplayName = title;
 		npc.Renderer = renderer;
 		npc.Animation = animation;
