@@ -92,6 +92,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
 		var states = names.Select( name =>
 		{
+			if ( name == RabbitGuard.Idle )
+				return machine.AddState( AnimationGroup( "Data/Animations/r_relaxidle.xml" ) );
 			if ( name == RabbitGuard.FreeAir )
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ), "air_phase" ) );
 			if ( name == RabbitGuard.Threat )
