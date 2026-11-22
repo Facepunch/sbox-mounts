@@ -93,15 +93,19 @@ public sealed partial class RabbitGuard
 			var target = side == steppingFoot ? Vector3.Lerp( plantedPosition[side], Goal( side ), stepProgress ) : plantedPosition[side];
 			float lift = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
 			foot.Position = target.WithZ( foot.Position.z + lift );
-			ApplyFootTarget( side, foot, 1f );
+			PlantFoot( side, foot );
 		}
 		SolveStance();
 	}
 
-	void ApplyFootTarget( int side, Transform target, float poseWeight )
+	void PlantFoot( int side, Transform foot ) =>
+		ApplyFootTarget( side, foot, foot, 1f, foot.Position.z - WorldPosition.z );
+
+	void ApplyFootTarget( int side, Transform animated, Transform target, float weight, float authoredHeight )
 	{
-		float weight = 0;
-		if ( poseWeight > 0 )
+		var result = global::Transform.Lerp( animated, target, weight, false );
+		bool contact = false;
+		if ( weight > 0f )
 		{
 			// CDoFootIKImpl sweeps a 0.05 m sphere from 0.2 m above to 0.6 m below the animated foot.
 			var trace = Scene.Trace.Sphere( 2f, target.Position + Vector3.Up * 8f, target.Position + Vector3.Down * 24f )
@@ -115,13 +119,13 @@ public sealed partial class RabbitGuard
 				groundHeight[side] = height;
 				var tilt = Rotation.FromToRotation( Vector3.Up, trace.Normal );
 				footRotation[side] = Rotation.Lerp( tilt, footRotation[side], inertia );
-				float lift = target.Position.z - WorldPosition.z - 2f;
-				target.Position = target.Position.WithZ( height + lift );
-				target.Rotation = Rotation.Lerp( Rotation.Identity, footRotation[side], Math.Clamp( 1f - lift / 10f, 0f, 1f ) ) * target.Rotation;
-				weight = poseWeight;
+				float lift = authoredHeight - 2f;
+				result.Position += Vector3.Up * ((height + lift - target.Position.z) * weight);
+				result.Rotation = Rotation.Lerp( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ) * result.Rotation;
+				contact = true;
 			}
 		}
-		if ( weight == 0 ) groundHeight[side] = null;
-		stanceFoot[side] = Renderer.WorldTransform.ToLocal( target );
+		if ( !contact ) groundHeight[side] = null;
+		stanceFoot[side] = Renderer.WorldTransform.ToLocal( result );
 	}
 }

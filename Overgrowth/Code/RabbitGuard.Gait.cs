@@ -24,8 +24,7 @@ public sealed partial class RabbitGuard
 			var foot = side == 0 ? pose.Left : pose.Right;
 			float weight = Math.Max( 0f, foot.Weight );
 			var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
-			ApplyFootTarget( side, target, weight );
-			stanceFoot[side] = global::Transform.Lerp( Renderer.WorldTransform.ToLocal( animated ), stanceFoot[side], weight, false );
+			ApplyFootTarget( side, animated, target, weight, foot.Transform.Position.z / boundAnimations.MovementScale );
 		}
 		SolveStance();
 
