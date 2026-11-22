@@ -15,6 +15,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		public Transform Transform { get; set; }
 		public bool ColliderEnabled { get; set; } = true;
 		public float? Health { get; set; }
+		public HalfLife.Npc.SavedScript Script { get; set; }
 		public int? Count { get; set; }
 		public bool Running { get; set; }
 		public float Elapsed { get; set; }
@@ -102,7 +103,10 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 			switch ( entity )
 			{
 				case WallCharger charger: entry.Count = charger.Juice; break;
-				case Monster actor when actor.Npc.IsValid(): entry.Health = actor.Npc.Health; break;
+				case Monster actor when actor.Npc.IsValid():
+					entry.Health = actor.Npc.Health;
+					entry.Script = actor.Npc.CaptureScript();
+					break;
 				case MonsterMaker maker: entry.Maker = maker.CaptureMaker(); break;
 				case BrushMover mover: entry.Move = mover.CaptureMove(); break;
 				case MultiSource source: entry.Inputs = source.InputStates; break;
@@ -123,6 +127,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		if ( data?.Map != GetComponentInParent<MapInstance>().MapName ) return;
 		if ( filename.StartsWith( "goldsrc/checkpoints/", StringComparison.Ordinal ) ) _checkpoint = filename;
 		foreach ( var pair in data.Globals ) SetGlobal( pair.Key, pair.Value );
+		var player = Scene.GetAllComponents<PlayerController>().FirstOrDefault( x => !x.IsProxy );
 		foreach ( var entity in Entities.ToArray() )
 		{
 			if ( !entity.IsValid() || entity.EntityIndex < 0 ) continue;
@@ -134,6 +139,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 				case Monster actor when actor.Npc.IsValid() && entry.Health.HasValue:
 					actor.Npc.Health = entry.Health.Value;
 					actor.WorldTransform = entry.Transform;
+					if ( entry.Script is {} script ) actor.Npc.RestoreScript( script, this, player );
 					break;
 				case MonsterMaker maker when entry.Maker is not null: maker.RestoreMaker( entry.Maker ); break;
 				case MonsterMaker maker when entry.Count.HasValue: maker.Count = entry.Count.Value; break;
@@ -146,7 +152,6 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 					break;
 			}
 		}
-		var player = Scene.GetAllComponents<PlayerController>().FirstOrDefault( x => !x.IsProxy );
 		if ( !player.IsValid() ) return;
 		player.WorldPosition = data.Position;
 		player.EyeAngles = data.Eyes;

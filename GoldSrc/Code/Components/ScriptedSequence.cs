@@ -22,10 +22,12 @@ public sealed class ScriptedSequence : MapEntity
 		if ( !CanTrigger ) return;
 		if ( !Actor.IsValid() ) return;
 		if ( Actor.Npc.IsValid() )
-			Actor.Npc.StartScript( PlaySequence, WorldTransform, MoveTo, () => Fire( OnTrigger, activator ) );
+			Actor.Npc.StartScript( this, activator );
 		else
 			Actor.Play( PlaySequence );
 	}
 
 	public override void TurnOff( GameObject activator = null ) => Trigger( activator );
+
+	internal void Finish( GameObject activator ) => Fire( OnTrigger, activator );
 }

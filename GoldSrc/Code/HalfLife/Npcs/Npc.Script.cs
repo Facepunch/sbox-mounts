@@ -1,4 +1,5 @@
 using System;
+using GoldSrc.Maps;
 
 namespace GoldSrc.HalfLife;
 
@@ -19,29 +20,66 @@ public partial class Npc
 	[Sync( SyncFlags.FromHost )] private int ScriptApproach { get; set; }
 	private StudioSequence ScriptGait => ScriptApproach switch { 1 => _walk, 2 => _run, _ => null };
 	private string _pendingScript;
-	private Action _scriptDone;
+	private ScriptedSequence _script;
+	private GameObject _scriptActivator;
+	private SavedScript _resume;
 	private Vector3? _navigationEntry;
 
-	internal void StartScript( string sequence, Transform mark, int moveTo, Action done )
+	internal sealed class SavedScript
+	{
+		public string Idle { get; set; }
+		public int Sequence { get; set; } = -1;
+		public int Activator { get; set; } = -1;
+		public bool PlayerActivated { get; set; }
+		public int Approach { get; set; }
+		public float Elapsed { get; set; }
+		public int NextEvent { get; set; }
+	}
+
+	internal SavedScript CaptureScript() => _resume ?? new()
+	{
+		Idle = ScriptedIdle,
+		Sequence = _script.IsValid() ? _script.EntityIndex : -1,
+		Activator = _scriptActivator.IsValid() ? _scriptActivator.GetComponentInParent<MapEntity>()?.EntityIndex ?? -1 : -1,
+		PlayerActivated = _scriptActivator.IsValid() && _scriptActivator.GetComponentInParent<PlayerController>().IsValid(),
+		Approach = ScriptApproach,
+		Elapsed = _action is null ? 0 : (float)ActionStart,
+		NextEvent = _action is null ? 0 : _nextEvent
+	};
+
+	internal void RestoreScript( SavedScript saved, MapState map, PlayerController player )
+	{
+		ScriptedIdle = saved.Idle;
+		if ( saved.Sequence < 0 ) return;
+		var script = map.Entities.OfType<ScriptedSequence>().FirstOrDefault( x => x.IsValid() && x.EntityIndex == saved.Sequence );
+		if ( !script.IsValid() ) return;
+		var activator = saved.PlayerActivated ? player?.GameObject : saved.Activator < 0 ? null
+			: map.Entities.FirstOrDefault( x => x.IsValid() && x.EntityIndex == saved.Activator )?.GameObject;
+		StartScript( script, activator, saved );
+	}
+
+	internal void StartScript( ScriptedSequence script, GameObject activator, SavedScript resume = null )
 	{
 		if ( !Networking.IsHost || Health <= 0 ) return;
 		Movement?.Stop();
 		InterruptAction();
-		_scriptMark = mark;
-		ScriptApproach = moveTo;
+		_script = script;
+		_scriptActivator = activator;
+		_resume = resume;
+		_scriptMark = script.WorldTransform;
+		ScriptApproach = resume?.Approach ?? script.MoveTo;
 		_navigationEntry = null;
-		if ( moveTo is 1 or 2 && Definition.Movement == NpcMovement.Ground && MapNavigation.IsValid() )
+		if ( ScriptApproach is 1 or 2 && Definition.Movement == NpcMovement.Ground && MapNavigation.IsValid() )
 			_navigationEntry = Movement?.ProjectPoint( WorldPosition );
 		ScriptedIdle = null;
-		if ( moveTo == 4 )
+		if ( resume is null && ScriptApproach == 4 )
 		{
 			HoldMapPosition();
-			WorldPosition = mark.Position;
-			WorldRotation = mark.Rotation;
+			WorldPosition = _scriptMark.Position;
+			WorldRotation = _scriptMark.Rotation;
 			Transform.ClearInterpolation();
 		}
-		_pendingScript = sequence;
-		_scriptDone = done;
+		_pendingScript = script.PlaySequence;
 	}
 
 	internal virtual void SpeakMapSentence( string sentence, float duration, GameObject listener, float volume, float attenuation, bool silenceFriends )
@@ -69,14 +107,25 @@ public partial class Npc
 
 		if ( _pendingScript is not null )
 		{
-			if ( Find( _pendingScript ) is { } clip ) PlayAction( clip );
+			if ( Find( _pendingScript ) is { } clip )
+			{
+				PlayAction( clip );
+				if ( _resume is {} saved )
+				{
+					ActionStart = saved.Elapsed;
+					_nextEvent = saved.NextEvent;
+				}
+			}
 			_pendingScript = null;
 		}
+		_resume = null;
 		if ( AdvanceAction() ) return;
-		var done = _scriptDone;
-		_scriptDone = null;
+		var script = _script;
+		var activator = _scriptActivator;
+		_script = null;
+		_scriptActivator = null;
 		ScriptedIdle = null;
-		done();
+		script.Finish( activator );
 	}
 
 	// Actors can start on a scripted mark just outside the eroded edge of the navmesh.

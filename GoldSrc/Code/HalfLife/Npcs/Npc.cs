@@ -188,14 +188,14 @@ public partial class Npc : BaseNpc
 
 	protected override void OnUpdate()
 	{
-		if ( ScriptedIdle is null && _scriptDone is null ) base.OnUpdate();
+		if ( ScriptedIdle is null && !_script.IsValid() ) base.OnUpdate();
 		if ( MapNavigation.IsValid() ) MapNavigation.UpdatePosition = Movement?.MoveTarget.HasValue == true;
 		if ( !_loaded || Health <= 0 )
 			return;
 
 		if ( Networking.IsHost )
 		{
-			if ( _scriptDone is not null ) UpdateScript();
+			if ( _script.IsValid() ) UpdateScript();
 			else if ( ScriptedIdle is null ) UpdateLeap();
 		}
 		UpdateSequence();
