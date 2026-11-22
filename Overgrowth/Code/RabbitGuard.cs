@@ -46,6 +46,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Graph = ready.Graph;
 			playing = null;
 		}
+		UpdateMorphs();
 		if ( Downed )
 		{
 			if ( Networking.IsHost ) TryGetUp();

@@ -102,6 +102,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 		var material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
 		var mesh = ObjLoader.CreateSkinnedMesh( objData, Path, material, weights, boneIds );
+		CharacterMorph.AddTargets( Host.FileSystem, filePath, modelObjPath, objData, mesh, scale );
 		var builder = Model.Builder.WithName( Path ).AddMesh( mesh );
 		for ( int i = 0; i < skeleton.Bones.Count; i++ )
 		{

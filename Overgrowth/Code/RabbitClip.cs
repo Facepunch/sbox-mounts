@@ -10,7 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
-	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, float[] Status );
+	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, float[] Status, float[] Shapes );
 
 	internal enum CenterMotion { Full, Vertical, None }
 
@@ -29,7 +29,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w ) );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
@@ -96,7 +96,14 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( label == "right_leg" ) footWeights.y = 1;
 			}
 			int shapes = Count();
-			for ( int j = 0; j < shapes; j++ ) { Skip( 4 ); Skip( Count() ); }
+			var shapeWeights = new float[morphs.Length];
+			for ( int j = 0; j < shapes; j++ )
+			{
+				float weight = reader.ReadSingle();
+				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
+				int channel = Array.FindIndex( morphs, morph => morph.Name == label );
+				if ( channel >= 0 ) shapeWeights[channel] = weight;
+			}
 			var status = new float[StatusChannels.Length];
 			int statuses = version >= 6 ? Count() : 0;
 			for ( int j = 0; j < statuses; j++ )
@@ -130,7 +137,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				CenterMotion.Vertical => Vector3.Up * savedCenter.z,
 				_ => savedCenter
 			};
-			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status, shapeWeights );
 		}
 
 		// The uniformly sampled clip must resolve fast limb rotations through attacks and recoveries.
@@ -148,6 +155,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid * (sampleRate / 1000f) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
+		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
 		int[] toes = sampleFeet ? [skeleton.IKBones["left_leg"].BoneId, skeleton.IKBones["right_leg"].BoneId] : null;
@@ -166,6 +174,9 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			float t2 = t * t, t3 = t2 * t;
 			float w0 = (-t3 + 2*t2 - t) * 0.5f, w1 = (3*t3 - 5*t2 + 2) * 0.5f;
 			float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
+			for ( int channel = 0; channel < shapeTracks.Length; channel++ )
+				if ( shapeTracks[channel] is { } shape )
+					shape[i] = a.Shapes[channel] * w0 + b.Shapes[channel] * w1 + c.Shapes[channel] * w2 + d.Shapes[channel] * w3;
 			for ( int j = 0; j < frame.Length; j++ )
 			{
 				var pose = w0 + w1 > 0 ? Mix( a.Bones[j], b.Bones[j], w1 / (w0 + w1) ) : b.Bones[j];
@@ -193,6 +204,12 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		}
 		for ( int channel = 0; channel < tracks.Length; channel++ )
 			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", StatusChannels[channel], track );
+		for ( int i = 0; i < morphs.Length; i++ )
+		{
+			if ( shapeTracks[i] is not { } values ) continue;
+			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( morphs[i].Name, values );
+			else clip.AddFloatChannelTrack( "multistep", morphs[i].Name, values );
+		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
 		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet );

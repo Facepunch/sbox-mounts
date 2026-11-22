@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, CharacterMorph[] Morphs )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -27,6 +27,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return source;
 		}
 
+		var character = XmlAsset.Read( fs, characterPath, "character" );
+		var morphs = CharacterMorph.Read( character );
+		if ( morphs.Any( m => m.Steps == 1 ) )
+			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
+		if ( morphs.Any( m => m.Steps > 1 ) )
+			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
 		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
@@ -36,7 +42,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			[RabbitGuard.Jab] = "moving_close", [RabbitGuard.Roundhouse] = "moving",
 			[RabbitGuard.Sweep] = "low", [RabbitGuard.SoccerKick] = "moving_low"
 		};
-		var character = XmlAsset.Read( fs, characterPath, "character" );
+
 		var characterAttacks = character.Element( "attacks" );
 		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, characterAttacks.Attribute( kv.Value ), "attack" ) );
 		var reactions = attacks.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value.Element( "reaction" ).Value, "reaction" )
@@ -73,7 +79,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			{
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
 				if ( !clips.TryGetValue( name, out var clip ) )
-					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full );
+					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
@@ -91,7 +97,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var movement = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "movement" ), name =>
 		{
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
-				clips[name] = cycle = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), sampleFeet: true );
+				clips[name] = cycle = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, sampleFeet: true );
 			return cycle;
 		} );
 		var states = names.Select( name =>
@@ -118,7 +124,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				RabbitAttack.Pose LoadPose( string file, float coordinate )
 				{
 					var clipName = System.IO.Path.GetFileNameWithoutExtension( file );
-					var animation = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), damage, centerMotion: attack.Element( "flags" ).Attribute( "mobile" ) == "true" ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
+					var animation = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), morphs, damage, centerMotion: attack.Element( "flags" ).Attribute( "mobile" ) == "true" ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
 					return new( coordinate, animation );
 				}
 
@@ -142,7 +148,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 			var clipName = guards.GetValueOrDefault( name, name );
 			bool mobile = reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), centerMotion: mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), morphs, centerMotion: mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
@@ -183,7 +189,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
 		} ).ToArray();
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, morphs );
 	}
 
 }

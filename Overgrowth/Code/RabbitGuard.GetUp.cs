@@ -50,15 +50,20 @@ public sealed partial class RabbitGuard
 			clip.AddFrame( frame );
 		}
 		foreach ( var channel in RabbitClip.StatusChannels )
+			AddTrack( "status", channel );
+		foreach ( var morph in boundAnimations.Morphs )
+			AddTrack( morph.Steps == 1 ? "MorphChannel" : "multistep", morph.Name );
+
+		void AddTrack( string set, string channel )
 		{
 			var weights = new float[steps + 1];
 			for ( int step = 1; step <= steps; step++ )
 			{
 				float time = step * duration / steps;
-				if ( stand.Animation.TryGetFloatChannel( time / stand.Duration, "status", channel, out var value ) )
+				if ( stand.Animation.TryGetFloatChannel( time / stand.Duration, set, channel, out var value ) )
 					weights[step] = time * value;
 			}
-			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( "status", channel, weights );
+			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( set, channel, weights );
 		}
 		getUpPose = clip.Create();
 		var graph = new GraphBuilder().WithSkeleton( rig );
