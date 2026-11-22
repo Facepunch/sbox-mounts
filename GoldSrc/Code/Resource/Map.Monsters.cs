@@ -130,6 +130,7 @@ partial class MapBuilder
 		var monster = go.AddComponent<Monster>();
 		monster.Npc = npc;
 		monster.TargetName = entity.TargetName;
+		if ( entity.GetInt( "TriggerCondition" ) == 2 ) monster.DamageTarget = entity.GetString( "TriggerTarget" );
 		monster.Renderer = renderer;
 		if ( npc is null ) monster.IdleSequence = MonsterIdle( entity );
 

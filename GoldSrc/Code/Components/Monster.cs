@@ -28,6 +28,21 @@ public sealed class Monster : MapEntity
 	/// </summary>
 	[Property] public string IdleSequence { get; set; }
 
+	[Property] public string DamageTarget { get; set; }
+
+	internal void FireDamageTarget()
+	{
+		if ( string.IsNullOrEmpty( DamageTarget ) ) return;
+		var target = DamageTarget;
+		DamageTarget = null;
+		FireAnimationTarget( target );
+	}
+
+	internal void FireAnimationTarget( string name )
+	{
+		if ( Map.IsValid() ) Fire( Map.BuildOutput( name ), GameObject );
+	}
+
 	protected override void OnStart()
 	{
 		if ( !Npc.IsValid() ) Play( IdleSequence );

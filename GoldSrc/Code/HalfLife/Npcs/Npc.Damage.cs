@@ -11,6 +11,7 @@ public partial class Npc
 		_remainingHealth = _healthBeforeHit - damage.AcceptedDamage;
 		_healthBeforeHit = Health;
 		ShowWound( damage );
+		if ( damage.AcceptedDamage > 0 ) GetComponent<Maps.Monster>()?.FireDamageTarget();
 		if ( !_loaded || Health <= 0 )
 			return;
 		if ( damage.Instigator.IsValid() && GetDisposition( damage.Instigator ) == Disposition.Neutral )

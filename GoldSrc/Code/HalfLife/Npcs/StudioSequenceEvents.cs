@@ -42,6 +42,10 @@ internal sealed class StudioSequenceEvents
 		var position = renderer.WorldPosition;
 		switch ( e.Index )
 		{
+			case 1003:
+				if ( Networking.IsHost && npc.IsValid() )
+					npc.GetComponent<Maps.Monster>()?.FireAnimationTarget( e.Options );
+				break;
 			case 1004:
 				NpcAudio.Play( audio.Find( e.Options ), position, attenuation: GoldSrcSoundEvents.Idle );
 				break;
