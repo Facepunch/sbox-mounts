@@ -65,7 +65,13 @@ partial class MapBuilder
 
 			faceVertices.Clear();
 			for ( var edge = 0; edge < face.EdgeCount; ++edge )
-				faceVertices.Add( bsp.VertexFromSurfEdge( face.FirstEdge + edge ) - origin );
+			{
+				var vertex = bsp.VertexFromSurfEdge( face.FirstEdge + edge ) - origin;
+				if ( faceVertices.Count == 0 || faceVertices[^1] != vertex ) faceVertices.Add( vertex );
+			}
+			if ( faceVertices.Count > 1 && faceVertices[^1] == faceVertices[0] )
+				faceVertices.RemoveAt( faceVertices.Count - 1 );
+			if ( faceVertices.Count < 3 ) continue;
 			var triangles = Mesh.TriangulatePolygon( CollectionsMarshal.AsSpan( faceVertices ) );
 			if ( triangles.IsEmpty )
 			{
@@ -120,9 +126,8 @@ partial class MapBuilder
 			var indices = group.Indices;
 			var indexOffset = vertices.Count;
 
-			for ( var edge = 0; edge < face.EdgeCount; ++edge )
+			foreach ( var position in faceVertices )
 			{
-				var position = faceVertices[edge];
 				var world = position + origin;
 
 				var u = Vector3.Dot( world, texInfo.S ) + texInfo.OffsetS;
