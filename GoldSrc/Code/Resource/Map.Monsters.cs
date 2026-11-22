@@ -42,6 +42,37 @@ partial class MapBuilder
 	private static readonly string[] SitPoses =
 		["sitlookleft", "sitlookright", "sitscared", "sitting2", "sitting3"];
 
+	// CPushable uses SOLID_BBOX, including chairs built as movable brushes.
+	private IEnumerable<BBox> PushableBounds( BspFile bsp )
+	{
+		foreach ( var entity in bsp.Entities )
+		{
+			if ( entity.ClassName != "func_pushable" || entity.BrushModelIndex <= 0 || entity.BrushModelIndex >= bsp.Models.Length ) continue;
+			var model = bsp.Models[entity.BrushModelIndex];
+			var offset = entity.Origin + Vector3.Up;
+			yield return new BBox( model.Mins + offset, model.Maxs + offset );
+		}
+	}
+
+	private Vector3 PlacePerson( BspFile bsp, Vector3 origin, Npc npc )
+	{
+		var radius = npc.Definition.Radius;
+		var mins = new Vector3( -radius, -radius, 0 );
+		var floor = bsp.DropToHumanHull( origin, mins, npc is SittingScientist );
+		var end = floor ?? origin + Vector3.Down * 256;
+		foreach ( var box in PushableBounds( bsp ) )
+		{
+			if ( origin.x + radius <= box.Mins.x || origin.x - radius >= box.Maxs.x
+				|| origin.y + radius <= box.Mins.y || origin.y - radius >= box.Maxs.y
+				|| origin.z + npc.Definition.Height <= box.Mins.z || end.z > box.Maxs.z ) continue;
+
+			// DROP_TO_FLOOR leaves the authored origin alone if the hull starts in solid.
+			if ( origin.z <= box.Maxs.z ) return origin;
+			floor = end = origin.WithZ( box.Maxs.z );
+		}
+		return floor ?? origin;
+	}
+
 	private bool TrySpawnNpc( BspFile bsp, Entity entity )
 	{
 		var path = $"mount://{Host.Ident}/entities/npcs/{entity.ClassName}.prefab";
@@ -52,14 +83,17 @@ partial class MapBuilder
 		go.Name = EntityName( entity );
 		if ( go.GetComponent<Npc>( true ) is { } npc )
 		{
-			if ( npc is SittingScientist seated )
+			if ( npc is Personnel or GMan )
 			{
-				var radius = seated.Definition.Radius;
-				if ( bsp.DropToCrouchHull( entity.Origin, new Vector3( -radius, -radius, 0 ) ) is { } floor )
+				var agent = go.GetComponent<NavMeshAgent>( true );
+				if ( agent.IsValid() )
 				{
-					go.WorldPosition = floor;
-					seated.PlacedOnMapHull = true;
+					npc.MapNavigation = agent;
+					agent.UpdatePosition = false;
 				}
+				if ( npc is Personnel person ) person.PreDisaster = (entity.SpawnFlags & 256) != 0;
+				go.WorldPosition = PlacePerson( bsp, entity.Origin, npc );
+				if ( npc is SittingScientist seated ) seated.PlacedOnMapHull = true;
 			}
 			npc.Body = entity.GetInt( "body" );
 			npc.Skin = entity.GetInt( "skin" );
@@ -171,6 +205,7 @@ partial class MapBuilder
 	{
 		var script = go.AddComponent<ScriptedSequence>();
 		script.TargetName = entity.TargetName;
+		script.MoveTo = entity.GetInt( "m_fMoveTo" );
 		script.PlaySequence = entity.GetString( "m_iszPlay" );
 
 		RegisterTarget( entity, script );
@@ -180,10 +215,6 @@ partial class MapBuilder
 		_wiring.Add( () => Possess( entity, script ) );
 	}
 
-	/// <summary>
-	/// CCineMonster::PossessEntity. m_fMoveTo 4 zaps the monster to the script's own origin and
-	/// yaw; the walk and run cases leave it where it spawned, until scripted approach movement is implemented. The script's "m_iszIdle" then becomes what the monster holds.
-	/// </summary>
 	private void Possess( Entity entity, ScriptedSequence script )
 	{
 		const int MoveInstant = 4;
@@ -194,13 +225,15 @@ partial class MapBuilder
 
 		script.Actor = actor;
 
-		if ( entity.GetInt( "m_fMoveTo" ) == MoveInstant )
+		var idle = entity.GetString( "m_iszIdle" );
+		if ( !string.IsNullOrEmpty( entity.TargetName ) && string.IsNullOrEmpty( idle ) ) return;
+
+		if ( script.MoveTo == MoveInstant )
 		{
 			actor.WorldPosition = entity.Origin;
 			actor.WorldRotation = Rotation.FromYaw( entity.Angles.yaw );
 		}
 
-		var idle = entity.GetString( "m_iszIdle" );
 		if ( string.IsNullOrEmpty( idle ) )
 			return;
 

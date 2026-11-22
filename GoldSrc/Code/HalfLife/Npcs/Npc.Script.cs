@@ -6,20 +6,48 @@ public partial class Npc
 {
 	[Property, Sync( SyncFlags.FromHost )] public string ScriptedIdle { get; set; }
 
+	// A map mark can be on furniture or outside the walkable mesh. Only a movement
+	// command should hand the actor's transform to the navigation simulation.
+	[Property, Hide] public NavMeshAgent MapNavigation { get; set; }
+	private Transform _scriptMark;
+	private int _approach;
 	private string _pendingScript;
 	private Action _scriptDone;
 
-	internal void StartScript( string sequence, Action done )
+	internal void StartScript( string sequence, Transform mark, int moveTo, Action done )
 	{
 		if ( !Networking.IsHost || Health <= 0 ) return;
 		Movement?.Stop();
 		InterruptAction();
+		_scriptMark = mark;
+		_approach = moveTo;
+		ScriptedIdle = null;
+		if ( moveTo == 4 )
+		{
+			if ( MapNavigation.IsValid() ) MapNavigation.UpdatePosition = false;
+			WorldPosition = mark.Position;
+			WorldRotation = mark.Rotation;
+		}
 		_pendingScript = sequence;
 		_scriptDone = done;
 	}
 
 	private void UpdateScript()
 	{
+		if ( _approach is 1 or 2 && Movement.IsValid() )
+		{
+			var destination = Movement.MoveTarget;
+			if ( !destination.HasValue )
+			{
+				MoveToward( _scriptMark.Position, 8, _approach == 1 ? 0.5f : 1f );
+				return;
+			}
+			if ( WorldPosition.Distance( destination.Value ) > 8 ) return;
+			Movement.Stop();
+			WorldRotation = _scriptMark.Rotation;
+			_approach = 0;
+		}
+
 		if ( _pendingScript is not null )
 		{
 			if ( Find( _pendingScript ) is { } clip ) PlayAction( clip );

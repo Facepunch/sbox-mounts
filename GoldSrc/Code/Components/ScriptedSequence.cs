@@ -11,6 +11,7 @@ namespace GoldSrc.Maps;
 public sealed class ScriptedSequence : MapEntity
 {
 	/// <summary>The monster this script possesses, from "m_iszEntity".</summary>
+	[Property] public int MoveTo { get; set; }
 	[Property] public Monster Actor { get; set; }
 
 	/// <summary>"m_iszPlay" - what the monster does once the script is triggered.</summary>
@@ -21,7 +22,7 @@ public sealed class ScriptedSequence : MapEntity
 		if ( !CanTrigger ) return;
 		if ( !Actor.IsValid() ) return;
 		if ( Actor.Npc.IsValid() )
-			Actor.Npc.StartScript( PlaySequence, () => Fire( OnTrigger, activator ) );
+			Actor.Npc.StartScript( PlaySequence, WorldTransform, MoveTo, () => Fire( OnTrigger, activator ) );
 		else
 			Actor.Play( PlaySequence );
 	}

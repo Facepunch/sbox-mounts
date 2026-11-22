@@ -16,13 +16,14 @@ internal partial class BspFile
 
 	private ClipNode[] ClipNodes;
 
-	// GoldSrc traces small step monsters through hull 3, offsetting the origin by
+	// GoldSrc traces people through the standing or crouched hull, offsetting the origin by
 	// the difference between the compiled crouch hull and the monster's own mins.
-	internal Vector3? DropToCrouchHull( Vector3 origin, Vector3 mins )
+	internal Vector3? DropToHumanHull( Vector3 origin, Vector3 mins, bool crouched )
 	{
-		if ( ClipNodes.Length == 0 || Models[0].HeadNode3 >= ClipNodes.Length ) return null;
-		var start = origin + mins - new Vector3( -16, -16, -18 );
-		var distance = FirstSolid( (int)Models[0].HeadNode3, start, 0, 256, 0 );
+		var head = crouched ? Models[0].HeadNode3 : Models[0].HeadNode1;
+		if ( head >= ClipNodes.Length ) return null;
+		var start = origin + mins - new Vector3( -16, -16, crouched ? -18 : -36 );
+		var distance = FirstSolid( (int)head, start, 0, 256, 0 );
 		return distance.HasValue ? origin + Vector3.Down * Math.Max( 0, distance.Value - 1f / 32 ) : null;
 	}
 
