@@ -1,9 +1,5 @@
 namespace GoldSrc.Maps;
 
-public sealed class HevSuit : Component
-{
-}
-
 public sealed class SuitItem : MapEntity, Component.ITriggerListener
 {
 	[ConVar( "hl1_skill" )] public static int Skill { get; set; } = 1;
@@ -15,7 +11,9 @@ public sealed class SuitItem : MapEntity, Component.ITriggerListener
 	{
 		if ( !Networking.IsHost ) return;
 		var start = WorldPosition;
-		var floor = Scene.Trace.Ray( start + Vector3.Up, start + Vector3.Down * 256 ).WithTag( "world" ).Run();
+		var drop = Scene.Trace.Ray( start + Vector3.Up, start + Vector3.Down * 256 ).WithTag( "world" );
+		if ( Item != "weaponbox" ) drop = drop.Size( new BBox( new Vector3( -16, -16, 0 ), new Vector3( 16, 16, 16 ) ) );
+		var floor = drop.Run();
 		if ( floor.Hit && !floor.StartedSolid ) WorldPosition = floor.EndPosition;
 	}
 
@@ -24,25 +22,25 @@ public sealed class SuitItem : MapEntity, Component.ITriggerListener
 		if ( !CanTrigger || !Networking.IsHost ) return;
 		var player = other.GetComponentInParent<global::Player>();
 		if ( !player.IsValid() || player.Health <= 0 ) return;
-		var suited = player.GetComponent<HevSuit>().IsValid();
-		string sound;
+		var suit = player.GetComponent<HevSuit>();
+		string sound = null;
 		switch ( Item )
 		{
-			case "item_suit" when !suited:
-				player.GameObject.AddComponent<HevSuit>();
-				sound = ShortLogon ? "!HEV_A0" : "!HEV_AAx";
+			case "item_suit" when !suit.IsValid():
+				player.GameObject.AddComponent<HevSuit>().Speak( ShortLogon ? "!HEV_A0" : "!HEV_AAx" );
 				break;
-			case "item_battery" when suited && player.Armour < 100:
+			case "item_battery" when suit.IsValid() && player.Armour < 100:
 				player.Armour = System.Math.Min( 100, player.Armour + (Skill >= 3 ? 10 : 15) );
+				suit.ReportCharge( player.Armour );
 				sound = "items/gunpickup2.wav";
 				break;
 			case "item_healthkit" when player.Health < player.MaxHealth:
 				player.Health = System.Math.Min( player.MaxHealth, player.Health + (Skill >= 3 ? 10 : 15) );
 				sound = "items/smallmedkit1.wav";
 				break;
-			case "item_longjump" when suited && !player.GetComponent<LongJumpModule>().IsValid():
+			case "item_longjump" when suit.IsValid() && !player.GetComponent<LongJumpModule>().IsValid():
 				player.GameObject.AddComponent<LongJumpModule>();
-				sound = "!HEV_A1";
+				suit.Speak( "!HEV_A1" );
 				break;
 			case "weaponbox" when player.GetComponentInChildren<BaseInventoryComponent>() is {} inventory:
 				foreach ( var (path, count) in Ammo )
@@ -52,7 +50,7 @@ public sealed class SuitItem : MapEntity, Component.ITriggerListener
 			default:
 				return;
 		}
-		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
+		if ( sound is not null && Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
 			mount.NpcAudio.Emit( sound, player.WorldPosition );
 		Fire( OnTrigger, player.GameObject, detached: true );
 		Kill();
