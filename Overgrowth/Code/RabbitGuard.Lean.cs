@@ -27,7 +27,7 @@ public sealed partial class RabbitGuard
 		Vector3 target;
 		if ( Animation.IsGrounded )
 		{
-			bool moving = Stance == Locomotion && !velocity.WithZ( 0 ).IsNearlyZero();
+			bool moving = Stance is Locomotion or Threat && !velocity.WithZ( 0 ).IsNearlyZero();
 			accelTilt = moving ? Vector3.Lerp( (velocity - previousVelocity) / dt, accelTilt, MathF.Pow( 0.95f, frames ) )
 				: accelTilt * MathF.Pow( 0.8f, frames );
 			target = (accelTilt + (moving ? velocity * 0.5f : Vector3.Zero)).WithZ( 0 ) / boundAnimations.CharacterScale;
