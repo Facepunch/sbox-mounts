@@ -4,8 +4,9 @@ using System.IO;
 
 namespace Overgrowth;
 
-public class CharacterLoader( string filePath ) : ResourceLoader<GameMount>
+public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>
 {
+	internal Sandbox.Animation.Graph GuardGraph { get; private set; }
 	const float Scale = 40f;
 
 	protected override object Load()
@@ -65,6 +66,9 @@ public class CharacterLoader( string filePath ) : ResourceLoader<GameMount>
 			var bindPose = skeleton.BindPose[i];
 			builder.AddBone( $"bone_{i}", bindPose.Position, bindPose.Rotation, parent );
 		}
+
+		if ( guard )
+			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale );
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, defaultScale );
 		var model = builder.Create();
