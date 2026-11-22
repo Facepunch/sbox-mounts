@@ -75,37 +75,34 @@ public sealed partial class RabbitGuard : BaseNpc
 
 	void UpdateAwareness()
 	{
-		// enemycontrol.as checks the chase target's line of sight separately from the acquisition cone.
-		if ( CanAttack( enemy ) && HasSight( enemy ) )
-		{
-			Remember( enemy );
-			return;
-		}
-		visible = false;
+		if ( strike is not null ) return;
+		// A known opponent remains recognizable outside the initial acquisition cone.
+		visible = CanAttack( enemy ) && HasSight( enemy );
+		GameObject closest = visible ? enemy : null;
+		float nearest = visible ? WorldPosition.DistanceSquared( enemy.WorldPosition ) : float.MaxValue;
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
-		GameObject closest = null;
-		float nearest = float.MaxValue;
 		foreach ( var candidate in candidates )
 		{
-			if ( !CanAttack( candidate ) ) continue;
+			if ( candidate == enemy || !CanAttack( candidate ) ) continue;
+			float separation = WorldPosition.DistanceSquared( candidate.WorldPosition );
+			if ( separation >= nearest ) continue;
 			var delta = CalculateEyePosition( candidate ) - EyePosition;
 			float distance = delta.Length;
-			if ( distance >= nearest ) continue;
 			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
 			bool focus = distance <= 4000 && MathF.Abs( angles.yaw ) <= 36 && MathF.Abs( angles.pitch ) <= 36;
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
 			if ( !HasSight( candidate ) ) continue;
 			closest = candidate;
-			nearest = distance;
+			nearest = separation;
 		}
 		if ( closest.IsValid() )
 		{
 			if ( closest != watching ) enemySeen = 0;
 			watching = closest;
-			enemySeen = Math.Min( 1, enemySeen + 0.5f - 0.4f * nearest / 4000f );
-			if ( enemySeen >= 1 && strike is null ) Remember( closest );
+			enemySeen = Math.Min( 1, enemySeen + 0.5f - 0.4f * MathF.Sqrt( nearest ) / 4000f );
+			if ( enemy.IsValid() || enemySeen >= 1 ) Remember( closest );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
 		AlertStage = enemy.IsValid() ? 2 : enemySeen > 0 ? 1 : 0;
