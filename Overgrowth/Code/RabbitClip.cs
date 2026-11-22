@@ -12,7 +12,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal RabbitClip Mirrored { get; init; }
 	internal RabbitClip ForSide( bool mirrored ) => mirrored ? Mirrored ?? this : this;
 
-	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
+	internal static string[] StatusChannels => ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
 	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, int[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
 
 	internal enum CenterMotion { Full, Vertical, None }
@@ -44,6 +44,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int count = Count();
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
+		var channels = StatusChannels;
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
@@ -115,13 +116,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				int channel = Array.FindIndex( morphs, morph => morph.Name == label );
 				if ( channel >= 0 ) shapeWeights[channel] = weight;
 			}
-			var status = new float[StatusChannels.Length];
+			var status = new float[channels.Length];
 			int statuses = version >= 6 ? Count() : 0;
 			for ( int j = 0; j < statuses; j++ )
 			{
 				float value = reader.ReadSingle();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				int channel = Array.IndexOf( StatusChannels, label );
+				int channel = Array.IndexOf( channels, label );
 				if ( channel >= 0 ) status[channel] = value;
 			}
 			Vector3 savedCenter = default;
@@ -174,7 +175,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var frame = new Transform[rig.BoneCount];
 		var scratch = mirror is null ? null : new Transform[rig.BoneCount];
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
-		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
+		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
 
 		for ( int i = 0; i <= intervals; i++ )
@@ -237,7 +238,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 		}
 		for ( int channel = 0; channel < tracks.Length; channel++ )
-			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? StatusChannels[channel] : RabbitMirror.SwapSide( StatusChannels[channel] ), track );
+			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? channels[channel] : RabbitMirror.SwapSide( channels[channel] ), track );
 		for ( int i = 0; i < morphs.Length; i++ )
 		{
 			if ( shapeTracks[i] is not { } values ) continue;
