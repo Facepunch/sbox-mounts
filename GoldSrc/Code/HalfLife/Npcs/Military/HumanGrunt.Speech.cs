@@ -16,7 +16,7 @@ public partial class HumanGrunt
 
 	[Property, Group( "Speech" )] public bool QuietOutsideCombat { get; set; }
 
-	bool Radio( string sentence )
+	internal virtual bool Radio( string sentence )
 	{
 		var channel = Channel;
 		if ( channel.NextLine > 0 ) return false;

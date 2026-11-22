@@ -24,7 +24,7 @@ public sealed class ShockTrooper : HumanGrunt
 	internal override void BeginAttack( GameObject target )
 	{
 		if ( WorldPosition.Distance( target.WorldPosition ) < 64 && Find( "frontkick" ) is { } kick ) PlayAction( kick );
-		else if ( _charges > 0 ) AttackWith( target, WeightedActivity( Ranged ) );
+		else if ( _charges > 0 ) AttackWith( target, Find( "crouching_mp5" ) );
 	}
 
 	internal override void FireBullet( GameObject target, Vector3 origin, Vector3 end )
@@ -38,16 +38,21 @@ public sealed class ShockTrooper : HumanGrunt
 
 	internal override void HandleActionEvent( int id )
 	{
-		if ( id == 3 ) base.HandleActionEvent( id );
+		if ( id is 3 or 7 ) base.HandleActionEvent( id );
 	}
 
+	internal override void TossGrenade( Vector3 origin, Vector3 velocity ) =>
+		NpcProjectile.Fire<SporeGrenade>( GameObject, "mount://opfor/gearbox/models/spore.mdl.vmdl", 50, null, origin, velocity.Normal, velocity.Length );
+
+	internal override bool Radio( string sentence ) => false;
 	internal override void OnGibbed() { }
 	internal override NpcCorpse AddCorpseComponent( GameObject go ) => go.AddComponent<NpcCorpse>();
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
-		if ( Networking.IsHost && PrefabFile.Load( "mount://opfor/entities/npcs/monster_shockroach.prefab" ) is { } prefab )
+		if ( Networking.IsHost && Renderer.IsValid() && Renderer.GetBodyGroup( "weapons" ) == 0 && PrefabFile.Load( "mount://opfor/entities/npcs/monster_shockroach.prefab" ) is { } prefab )
 		{
+			Renderer.SetBodyGroup( "weapons", 1 );
 			var child = GameObject.Clone( prefab, WorldTransform.WithPosition( WorldPosition + Vector3.Up * 48 ) );
 			child.NetworkSpawn( true, null );
 		}

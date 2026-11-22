@@ -8,6 +8,14 @@ public abstract class AlliedGrunt : HumanGrunt, Component.IPressable
 {
 	[Sync( SyncFlags.FromHost )] protected GameObject Leader { get; private set; }
 
+	internal override NpcSounds Sounds { get; } = new( Pain: "fgrunt/pain", Death: "fgrunt/death" );
+	internal override bool Radio( string sentence ) => base.Radio( sentence == "!HG_MONST" ? "!FG_MONSTER" : sentence.Replace( "!HG_", "!FG_" ) );
+
+	internal override void IdleMovement()
+	{
+		if ( Movement?.MoveTarget.HasValue == true ) Movement.Stop();
+	}
+
 	internal override bool FollowLeader()
 	{
 		if ( !IsLiveTarget( Leader ) ) return false;

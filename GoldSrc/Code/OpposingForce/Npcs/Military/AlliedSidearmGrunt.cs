@@ -5,6 +5,8 @@ namespace GoldSrc.OpposingForce;
 [Hide]
 public abstract class AlliedSidearmGrunt : AlliedGrunt
 {
+	internal override bool HasShotgun => false;
+
 	internal override void FireBullet( GameObject target, Vector3 origin, Vector3 end )
 	{
 		if ( Ammo <= 0 || FriendlyInLine( target ) ) return;

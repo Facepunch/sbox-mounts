@@ -8,7 +8,7 @@ public partial class HumanGrunt : Npc, Component.IDamageable.IEvents
 	internal override float ViewDot => 0.2f;
 
 	protected override Sandbox.Npcs.Relationship GetFallbackRelationship( GameObject other ) =>
-		other.GetComponent<Npc>() is AlienGrunt or Gargantua ? new( Sandbox.Npcs.Disposition.Hostile, 2 ) : base.GetFallbackRelationship( other );
+		Classification is MonsterClass.HumanMilitary or MonsterClass.PlayerAlly && other.GetComponent<Npc>() is (AlienGrunt or Gargantua) ? new( Sandbox.Npcs.Disposition.Hostile, 2 ) : base.GetFallbackRelationship( other );
 
 	internal override NpcSounds Sounds { get; } = new( Pain: "hgrunt/gr_pain", Death: "hgrunt/gr_die", Attack: "hgrunt/gr_mgun" );
 
@@ -31,7 +31,7 @@ public partial class HumanGrunt : Npc, Component.IDamageable.IEvents
 			PlayAction( kick );
 			return;
 		}
-		if ( Renderer.GetBodyGroup( "weapons" ) == 2 ) return;
+		if ( Renderer.GetBodyGroup( "weapons" ) == EmptyGunBody ) return;
 		if ( _suppressionBursts > 0 && _encounterEnemy == target && Ammo > 0 && !FriendlyInLine( target ) )
 		{
 			_suppressionBursts--;
@@ -64,7 +64,7 @@ public partial class HumanGrunt : Npc, Component.IDamageable.IEvents
 	void FireBurst( GameObject target )
 	{
 		var stance = _standing ? "standing" : "crouching";
-		AttackWith( target, Find( $"{stance}_{(HasShotgun ? "shotgun" : "mp5")}" ) );
+		AttackWith( target, Find( $"{stance}_{GunSequence}" ) );
 	}
 
 	internal override void HandleActionEvent( int id )
@@ -82,7 +82,7 @@ public partial class HumanGrunt : Npc, Component.IDamageable.IEvents
 		}
 		if ( id == 7 )
 		{
-			TimedGrenade.Throw( this, ThrowOrigin, _toss, 3.5f );
+			TossGrenade( ThrowOrigin, _toss );
 			_nextGrenade = 6;
 			return;
 		}

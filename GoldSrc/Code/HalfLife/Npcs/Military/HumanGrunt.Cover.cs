@@ -42,7 +42,7 @@ public partial class HumanGrunt
 		if ( TakeCover( TargetEyePosition( enemy ), enemy ) ) Radio( "!HG_COVER" );
 	}
 
-	void ReloadWeapon() => PlayAction( Find( HasShotgun ? "reload_shotgun" : "reload_mp5" ) );
+	void ReloadWeapon() => PlayAction( Find( $"reload_{GunSequence}" ) );
 
 	bool TakeCover( Vector3 danger, GameObject source, bool allowOpenGround = false, bool reload = false )
 	{

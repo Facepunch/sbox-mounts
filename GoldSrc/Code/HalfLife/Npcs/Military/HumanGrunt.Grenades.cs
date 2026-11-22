@@ -5,6 +5,7 @@ public partial class HumanGrunt
 	[Property] public bool HandGrenades { get; set; } = true;
 	TimeUntil _nextGrenade;
 	Vector3 _toss;
+	internal virtual void TossGrenade( Vector3 origin, Vector3 velocity ) => TimedGrenade.Throw( this, origin, velocity, 3.5f );
 	GameObject _grenadeTarget;
 	Vector3 ThrowOrigin => WorldPosition + Vector3.Up * 60;
 

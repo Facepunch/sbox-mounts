@@ -11,8 +11,10 @@ public partial class HumanGrunt
 	[Sync( SyncFlags.FromHost ), Change( nameof( GunDroppedChanged ) )] bool GunDropped { get; set; }
 
 	bool HasLauncher => Weapon == Loadout.RifleWithGrenadeLauncher;
-	bool HasShotgun => Renderer.GetBodyGroup( "weapons" ) == 1;
-	int Capacity => HasShotgun ? 8 : 36;
+	internal virtual bool HasShotgun => Renderer.GetBodyGroup( "weapons" ) == 1;
+	internal virtual string GunSequence => HasShotgun ? "shotgun" : "mp5";
+	internal virtual int EmptyGunBody => 2;
+	internal virtual int Capacity => HasShotgun ? 8 : 36;
 
 	internal override int EffectiveSkin
 	{
@@ -36,14 +38,14 @@ public partial class HumanGrunt
 
 	void GunDroppedChanged( bool before, bool after )
 	{
-		if ( after && Renderer.IsValid() && Renderer.Model.IsValid() ) Renderer.SetBodyGroup( "weapons", 2 );
+		if ( after && Renderer.IsValid() && Renderer.Model.IsValid() ) Renderer.SetBodyGroup( "weapons", EmptyGunBody );
 	}
 
 	internal override void ApplyEquipment()
 	{
 		if ( GunDropped )
 		{
-			Renderer.SetBodyGroup( "weapons", 2 );
+			Renderer.SetBodyGroup( "weapons", EmptyGunBody );
 			return;
 		}
 		if ( Weapon != Loadout.FromModelBody )
