@@ -110,6 +110,17 @@ partial class MapBuilder
 				AddBrushMover( go, entity, bspModel, rotating );
 				break;
 
+			case "func_healthcharger" or "func_recharge":
+				var charger = go.AddComponent<WallCharger>();
+				charger.TargetName = entity.TargetName;
+				charger.Armour = className == "func_recharge";
+				float volume = charger.Armour ? 0.85f : 1f;
+				charger.StartSound = BuildSoundEvent( charger.Armour ? "items/suitchargeok1.wav" : "items/medshot4.wav", volume );
+				charger.LoopSound = BuildSoundEvent( charger.Armour ? "items/suitcharge1.wav" : "items/medcharge4.wav", volume );
+				charger.DenySound = BuildSoundEvent( charger.Armour ? "items/suitchargeno1.wav" : "items/medshotno1.wav", volume );
+				RegisterTarget( entity, charger );
+				break;
+
 			case "func_wall_toggle":
 				AddToggleBrush( go, entity );
 				break;

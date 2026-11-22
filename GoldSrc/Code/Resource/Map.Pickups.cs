@@ -11,18 +11,36 @@ partial class MapBuilder
 		var name = entity.ClassName.ToLowerInvariant();
 		GameObject go;
 		var transform = new Transform( entity.Origin, entity.Rotation );
-		if ( name == "item_longjump" )
+		if ( name == "world_items" && entity.GetInt( "type" ) == 45 ) name = "item_suit";
+		var itemModel = name switch
+		{
+			"item_suit" => "w_suit", "item_longjump" => "w_longjump", "item_battery" => "w_battery",
+			"item_healthkit" => "w_medkit", "weaponbox" => "w_weaponbox", _ => null
+		};
+		if ( itemModel is not null )
 		{
 			go = new GameObject( false, EntityName( entity ) ) { WorldTransform = transform };
-			go.AddComponent<ModelRenderer>().Model = LoadMountedModel( "models/w_longjump.mdl" );
+			go.AddComponent<ModelRenderer>().Model = LoadMountedModel( $"models/{itemModel}.mdl" );
 			var trigger = go.AddComponent<BoxCollider>();
 			trigger.Center = Vector3.Up * 8;
 			trigger.Scale = new Vector3( 32, 32, 16 );
 			trigger.IsTrigger = true;
-			var module = go.AddComponent<LongJumpPickup>();
-			module.TargetName = entity.TargetName;
-			RegisterTarget( entity, module, null, null, null, nameof( MapEntity.Kill ) );
-			WireTrigger( entity, module );
+			var item = go.AddComponent<SuitItem>();
+			item.Item = name;
+			item.ShortLogon = (entity.SpawnFlags & 1) != 0;
+			if ( name == "weaponbox" )
+			{
+				foreach ( var (key, value) in entity.KeyValues )
+				{
+					if ( !int.TryParse( value, out var count ) || count <= 0 || EntityFields.Contains( key ) ) continue;
+					var pool = key.ToLowerInvariant() switch { "trip mine" => "tripmines", "satchel charge" => "satchels", _ => key.ToLowerInvariant() };
+					var ammoPath = $"mount://{Host.Ident}/ammo/{pool}.ammo";
+					if ( Host.GetByPath( ammoPath ) is not null ) item.Ammo[ammoPath] = count;
+				}
+			}
+			item.TargetName = entity.TargetName;
+			RegisterTarget( entity, item, null, null, null, nameof( MapEntity.Kill ) );
+			WireTrigger( entity, item );
 			go.Enabled = true;
 			return true;
 		}
@@ -56,7 +74,6 @@ partial class MapBuilder
 		}
 
 		go.Name = EntityName( entity );
-		if ( !string.IsNullOrEmpty( entity.TargetName ) || !string.IsNullOrEmpty( entity.Target ) )
 		{
 			var marker = go.AddComponent<Relay>();
 			marker.TargetName = entity.TargetName;
