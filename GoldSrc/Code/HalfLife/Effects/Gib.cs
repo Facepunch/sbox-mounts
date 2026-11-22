@@ -9,6 +9,7 @@ public sealed class Gib : Component, Component.ICollisionListener
 	Npc.BloodColor _blood;
 	ModelRenderer _renderer;
 	Rigidbody _body;
+	ClassicBounce _classic;
 	int _decals = 5;
 	TimeSince _age;
 	TimeUntil _fade;
@@ -66,6 +67,27 @@ public sealed class Gib : Component, Component.ICollisionListener
 		gib._renderer = go.AddComponent<ModelRenderer>();
 		gib._renderer.Model = model;
 		gib._renderer.SetBodyGroup( group, variant );
+		random ??= Game.Random;
+		var spin = Vector3.Zero;
+		if ( fleshShard )
+		{
+			if ( random.Int( 0, 255 ) < 200 ) spin = random.VectorInCube( 256 );
+		}
+		else if ( fadeAfter == 0 )
+			spin = new Vector3( 0, random.Float( 100, 200 ), random.Float( 100, 300 ) );
+		velocity = fleshShard ? velocity : velocity.ClampLength( 1500 );
+		gib._age = 0;
+		if ( fadeAfter > 0 )
+		{
+			gib._landed = true;
+			gib._fade = fadeAfter;
+		}
+		if ( ClassicBounce.Enabled )
+		{
+			gib._classic = new( velocity, new Angles( spin.y, spin.z, spin.x ), fleshShard ? 0.5f : 1, 0.55f );
+			go.Enabled = true;
+			return;
+		}
 		var collider = go.AddComponent<HullCollider>();
 		collider.Type = HullCollider.PrimitiveType.Points;
 		collider.Points = ((ModelLoader)Sandbox.Mounting.Directory.Get( "hl1" ).GetByPath( model.Name )).GibHull( group, variant );
@@ -78,36 +100,37 @@ public sealed class Gib : Component, Component.ICollisionListener
 		gib._body.EnableImpactDamage = false;
 		if ( fleshShard ) gib._body.GravityScale = 0.5f;
 		go.Enabled = true;
-		gib._body.Velocity = fleshShard ? velocity : velocity.ClampLength( 1500 );
-		random ??= Game.Random;
-		if ( fleshShard )
-		{
-			if ( random.Int( 0, 255 ) < 200 ) gib._body.AngularVelocity = random.VectorInCube( 256 ) * (MathF.PI / 180);
-		}
-		else if ( fadeAfter == 0 )
-			gib._body.AngularVelocity = new Vector3( 0, random.Float( 100, 200 ).DegreeToRadian(), random.Float( 100, 300 ).DegreeToRadian() );
-		gib._age = 0;
-		if ( fadeAfter > 0 )
-		{
-			gib._landed = true;
-			gib._fade = fadeAfter;
-		}
+		gib._body.Velocity = velocity;
+		gib._body.AngularVelocity = spin * (MathF.PI / 180);
 	}
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
 		if ( collision.Other.IsTrigger || collision.Other.Body?.BodyType != PhysicsBodyType.Static ) return;
-		if ( _fleshShard && Game.Random.Int( 0, 5 ) == 0 && Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
-		{
-			var volume = 0.8f * MathF.Min( 1, MathF.Abs( collision.Contact.Speed.z ) / 450 );
-			var pitch = Game.Random.Int( 0, 3 ) == 0 ? Game.Random.Float( 0.95f, 1.05f ) : 1;
-			if ( volume > 0 ) NpcAudio.Play( mount.NpcAudio.Find( "debris/flesh" ), collision.Contact.Point, volume, pitch );
-		}
-		if ( _decals <= 0 || _blood == Npc.BloodColor.None ) return;
 		var normal = collision.Contact.Normal;
 		if ( normal.Dot( collision.Self.Body.MassCenter - collision.Contact.Point ) < 0 ) normal = -normal;
+		MarkImpact( collision.Contact.Point, normal, collision.Contact.Speed.z );
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		if ( _classic is null ) return;
+		var speed = _classic.Velocity.z;
+		var hit = _classic.Step( GameObject, worldOnly: true );
+		if ( hit.Hit ) MarkImpact( hit.EndPosition, hit.Normal, speed );
+	}
+
+	void MarkImpact( Vector3 point, Vector3 normal, float speed )
+	{
+		if ( _fleshShard && Game.Random.Int( 0, 5 ) == 0 && Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
+		{
+			var volume = 0.8f * MathF.Min( 1, MathF.Abs( speed ) / 450 );
+			var pitch = Game.Random.Int( 0, 3 ) == 0 ? Game.Random.Float( 0.95f, 1.05f ) : 1;
+			if ( volume > 0 ) NpcAudio.Play( mount.NpcAudio.Find( "debris/flesh" ), point, volume, pitch );
+		}
+		if ( _decals <= 0 || _blood == Npc.BloodColor.None ) return;
 		var prefix = _blood == Npc.BloodColor.Red ? "blood" : "yblood";
-		ImpactDecal.Place( collision.Contact.Point, normal, $"{prefix}{Game.Random.Int( 1, 6 )}", 0 );
+		ImpactDecal.Place( point, normal, $"{prefix}{Game.Random.Int( 1, 6 )}", 0 );
 		_decals--;
 	}
 
@@ -116,7 +139,7 @@ public sealed class Gib : Component, Component.ICollisionListener
 		if ( !_landed )
 		{
 			if ( WorldPosition.z < -32768 ) { GameObject.Destroy(); return; }
-			if ( _age < 4 || !_body.Sleeping ) return;
+			if ( _age < 4 || !(_classic?.Settled ?? _body.Sleeping) ) return;
 			_landed = true;
 			_fade = 25;
 			if ( Networking.IsHost && _blood != Npc.BloodColor.None )

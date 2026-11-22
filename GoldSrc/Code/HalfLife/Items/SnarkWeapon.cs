@@ -48,7 +48,7 @@ public sealed class SnarkWeapon : ProjectileWeapon
 		var snark = prefab.Clone( new Transform( clearance.EndPosition, Rotation.LookAt( ray.Forward ) ) );
 		snark.GetComponent<Snark>().Thrower = Owner.GameObject;
 		snark.NetworkSpawn( true, null );
-		if ( snark.GetComponent<Rigidbody>() is { } body ) body.Velocity = forward * 200 + Owner.Velocity;
+		snark.GetComponent<Snark>().Launch( forward * 200 + Owner.Velocity );
 		_redraw = 1;
 		return true;
 	}

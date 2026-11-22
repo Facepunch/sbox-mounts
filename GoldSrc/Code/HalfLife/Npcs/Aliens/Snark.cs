@@ -21,6 +21,8 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		? MonsterClass.AlienMilitary : MonsterClass.AlienWeapon;
 
 	Rigidbody _body;
+	ClassicBounce _classic;
+	Vector3 _launchVelocity;
 	[Property] internal GameObject Thrower { get; set; }
 	GameObject DamageAttacker => Thrower.IsValid() ? Thrower : GameObject;
 	GameObject _enemy;
@@ -32,7 +34,16 @@ public sealed class Snark : Npc, Component.ICollisionListener
 
 	protected override void OnStart()
 	{
-		if ( Networking.IsHost ) Detonation = Fuse;
+		if ( Networking.IsHost )
+		{
+			Detonation = Fuse;
+			if ( ClassicBounce.Enabled )
+			{
+				var halfWidth = Definition.Radius;
+				var hull = new BBox( new Vector3( -halfWidth, -halfWidth, 0 ), new Vector3( halfWidth, halfWidth, Definition.Height ) );
+				_classic = new( _launchVelocity, default, 0.5f, 0.5f, hull );
+			}
+		}
 		base.OnStart();
 	}
 
@@ -45,7 +56,7 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		hull.Friction = 0.5f;
 		_body.GravityScale = 0.5f;
 		_body.Gravity = true;
-		_body.MotionEnabled = true;
+		_body.MotionEnabled = _classic is null;
 		// GoldSrc bounces an axis-aligned box. Only the visual model tumbles.
 		_body.Locking = new PhysicsLock { Pitch = true, Roll = true, Yaw = true };
 		_previousPosition = WorldPosition;
@@ -68,6 +79,29 @@ public sealed class Snark : Npc, Component.ICollisionListener
 
 	internal override StudioSequence MovementSequence( float speed ) => RestSequence;
 
+	internal void Launch( Vector3 velocity )
+	{
+		_launchVelocity = velocity;
+		FlightVelocity = velocity;
+	}
+
+	Vector3 FlightVelocity
+	{
+		get => _classic?.Velocity ?? _body.Velocity;
+		set
+		{
+			if ( _classic is { } classic ) classic.Velocity = value;
+			else if ( GetComponent<Rigidbody>() is { } body ) body.Velocity = value;
+		}
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		if ( !Networking.IsHost || _classic is not { } classic || !_body.IsValid() || Health <= 0 || PhysicsCarrier.IsValid() ) return;
+		var hit = classic.Step( GameObject, _touched ? null : Thrower );
+		if ( hit.Hit ) Touch( hit.GameObject, hit.EndPosition, hit.Normal );
+	}
+
 	protected override void Think()
 	{
 		if ( !_body.IsValid() || PhysicsCarrier.IsValid() ) return;
@@ -75,13 +109,14 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		{
 			_nextWaterCheck = 0.1f;
 			var submerged = WaterBody.Find( Scene, WorldPosition ).IsValid();
-			_body.Gravity = !submerged;
-			if ( submerged ) _body.Velocity = _body.Velocity * 0.9f + Vector3.Up * 8;
+			if ( _classic is { } classic ) classic.GravityScale = submerged ? 0 : 0.5f;
+			else _body.Gravity = !submerged;
+			if ( submerged ) FlightVelocity = FlightVelocity * 0.9f + Vector3.Up * 8;
 		}
 		if ( !_touched || _nextHunt > 0 ) return;
 		_nextHunt = 2;
 		if ( !IsLiveTarget( _enemy ) ) _enemy = FindVisibleEnemy();
-		var velocity = _body.Velocity;
+		var velocity = FlightVelocity;
 		if ( _enemy.IsValid() )
 		{
 			var eye = TargetEyePosition( _enemy );
@@ -92,7 +127,7 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		if ( _previousPosition.DistanceSquared( WorldPosition ) < 1 )
 			velocity = new Vector3( Game.Random.Float( -100, 100 ), Game.Random.Float( -100, 100 ), velocity.z );
 		_previousPosition = WorldPosition;
-		_body.Velocity = velocity;
+		FlightVelocity = velocity;
 		var grounded = System.MathF.Abs( velocity.z ) < 30 && Scene.Trace.Ray( WorldPosition + Vector3.Up, WorldPosition + Vector3.Down * 2 )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run().Hit;
 		if ( grounded ) TumbleRate = Vector2.Zero;
@@ -106,8 +141,12 @@ public sealed class Snark : Npc, Component.ICollisionListener
 
 	void Touch( Collision collision )
 	{
+		if ( _classic is null ) Touch( collision.Other.GameObject, collision.Contact.Point, collision.Contact.Normal );
+	}
+
+	void Touch( GameObject other, Vector3 point, Vector3 normal )
+	{
 		if ( !Networking.IsHost || Health <= 0 || !_body.IsValid() ) return;
-		var other = collision.Other.GameObject;
 		if ( !_touched && other.IsValid() && Thrower.IsValid() && other.Root == Thrower.Root ) return;
 
 		if ( !_touched ) WorldRotation = Rotation.FromYaw( WorldRotation.Yaw() );
@@ -121,14 +160,14 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		{
 			_nextBite = 0.5f;
 			BlastDamage += PopDamage;
-			var hit = new DamageInfo { Damage = Definition.Damage, Attacker = DamageAttacker, Weapon = GameObject, Origin = WorldPosition, Position = collision.Contact.Point };
+			var hit = new DamageInfo { Damage = Definition.Damage, Attacker = DamageAttacker, Weapon = GameObject, Origin = WorldPosition, Position = point };
 			hit.Tags.Add( "slash" );
 			victim.OnDamage( hit );
 			EmitSound( "squeek/sqk_deploy1.wav", WorldPosition, pitch: pitch );
 		}
 		if ( Connection.All.Count > 1 && _nextBounceSound > 0 ) return;
 		_nextBounceSound = 0.5f;
-		var grounded = System.MathF.Abs( collision.Contact.Normal.z ) > 0.7f && System.MathF.Abs( _body.Velocity.z ) < 30;
+		var grounded = _classic?.Grounded ?? (System.MathF.Abs( normal.z ) > 0.7f && System.MathF.Abs( FlightVelocity.z ) < 30);
 		if ( !grounded ) EmitSound( "squeek/sqk_hunt", WorldPosition, pitch: pitch );
 		EmitStimulus( "combat", radius: grounded ? 100 : 256, lifetime: grounded ? 0.1f : 0.25f );
 	}

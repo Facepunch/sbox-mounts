@@ -5,6 +5,7 @@ public sealed class SparkShower : Component
 {
 	ParticleEffect _sparks;
 	Vector3 _velocity;
+	bool _classic;
 	TimeUntil _nextBurst, _expires;
 
 	internal static void Spawn( Vector3 origin, Vector3 normal )
@@ -18,6 +19,7 @@ public sealed class SparkShower : Component
 		velocity.y += Game.Random.Float( -100, 100 );
 		velocity.z += velocity.z >= 0 ? 200 : -200;
 		shower._velocity = velocity;
+		shower._classic = ClassicBounce.Enabled;
 		shower._nextBurst = 0.1f;
 		shower._expires = Game.Random.Float( 0.5f, 1.5f );
 		go.Enabled = true;
@@ -26,7 +28,7 @@ public sealed class SparkShower : Component
 	protected override void OnFixedUpdate()
 	{
 		var step = Time.Delta;
-		var gravity = Scene.PhysicsWorld.Gravity * 0.5f;
+		var gravity = ClassicBounce.GravityFor( Scene, _classic ) * 0.5f;
 		var end = WorldPosition + (_velocity + gravity * (step * 0.5f)) * step;
 		_velocity += gravity * step;
 		var hit = Scene.Trace.Ray( WorldPosition, end ).IgnoreDynamic().WithoutTags( "trigger" ).Run();

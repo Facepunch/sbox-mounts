@@ -18,6 +18,8 @@ public class NpcProjectile : Component
 	internal virtual float Lifetime => 4;
 	internal virtual void PrepareLaunch() { }
 	internal virtual void Guide() { }
+	bool _classicPhysics;
+	internal Vector3 FlightGravity => ClassicBounce.GravityFor( Scene, _classicPhysics );
 	[Property] public GameObject Target { get; set; }
 
 	internal static void Fire<T>( Npc npc, GameObject target, Vector3 origin, Vector3 direction, float? speed = null ) where T : NpcProjectile, new()
@@ -36,6 +38,7 @@ public class NpcProjectile : Component
 		projectile.Damage = damage;
 		projectile.DamageTag = projectile.HitTag;
 		projectile.Age = 0;
+		projectile._classicPhysics = ClassicBounce.Enabled;
 		projectile.PrepareLaunch();
 		go.Enabled = true;
 		go.NetworkSpawn( true, null );

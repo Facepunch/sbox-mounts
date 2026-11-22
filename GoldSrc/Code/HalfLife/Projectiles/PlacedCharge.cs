@@ -8,6 +8,7 @@ public sealed partial class PlacedCharge : Component, Component.IDamageable, Com
 	bool _spent;
 	float _satchelGravity = 0.5f;
 	TimeUntil _nextWaterCheck;
+	ClassicBounce _classic;
 
 	void Component.IDamageable.IEvents.OnDied( Component.IDamageable.DeathEvent death )
 	{
@@ -24,6 +25,16 @@ public sealed partial class PlacedCharge : Component, Component.IDamageable, Com
 		renderer.Model = Model.Load( "mount://hl1/valve/models/w_satchel.mdl.vmdl" );
 		renderer.UseAnimGraph = false;
 		renderer.Sequence.Name = "onback";
+		var charge = go.AddComponent<PlacedCharge>();
+		charge.Thrower = player.GameObject;
+		var velocity = ray.Forward * 274 + player.Velocity;
+		if ( ClassicBounce.Enabled )
+		{
+			charge._classic = new( velocity, new Angles( 0, 400, 0 ), 0.5f, 0.8f, new BBox( -Vector3.One * 4, Vector3.One * 4 ) );
+			go.Enabled = true;
+			go.NetworkSpawn( true, null );
+			return;
+		}
 		var collider = go.AddComponent<BoxCollider>();
 		collider.Scale = new Vector3( 8, 8, 8 );
 		collider.Friction = 0.8f;
@@ -31,10 +42,8 @@ public sealed partial class PlacedCharge : Component, Component.IDamageable, Com
 		body.GravityScale = 0.5f;
 		body.EnableImpactDamage = false;
 		body.RigidbodyFlags |= RigidbodyFlags.DisableCollisionSounds;
-		var charge = go.AddComponent<PlacedCharge>();
-		charge.Thrower = player.GameObject;
 		go.Enabled = true;
-		body.Velocity = ray.Forward * 274 + player.Velocity;
+		body.Velocity = velocity;
 		body.AngularVelocity = Vector3.Up * 400f.DegreeToRadian();
 		go.NetworkSpawn( true, null );
 	}
@@ -45,19 +54,52 @@ public sealed partial class PlacedCharge : Component, Component.IDamageable, Com
 		var body = GetComponent<Rigidbody>();
 		_satchelGravity = 1;
 		if ( body.GravityScale > 0 ) body.GravityScale = 1;
-		if ( collision.Contact.Speed.WithZ( 0 ).Length <= 10 ) return;
+		PlayBounce( collision.Contact.Point, collision.Contact.Speed );
+	}
+
+	void PlayBounce( Vector3 point, Vector3 velocity )
+	{
+		if ( velocity.WithZ( 0 ).Length <= 10 ) return;
 		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
-			mount.NpcAudio.Emit( "weapons/g_bounce", collision.Contact.Point );
+			mount.NpcAudio.Emit( "weapons/g_bounce", point );
 	}
 
 	protected override void OnFixedUpdate()
 	{
 		if ( !Networking.IsHost ) return;
 		if ( IsMine ) { CheckMine(); return; }
+		if ( _classic is { } classic )
+		{
+			var hit = classic.Step( GameObject, Thrower );
+			if ( hit.Hit )
+			{
+				_satchelGravity = 1;
+				if ( classic.GravityScale > 0 ) classic.GravityScale = 1;
+				if ( classic.Grounded )
+				{
+					classic.Velocity *= 0.95f;
+					classic.Spin *= 0.9f;
+				}
+				else PlayBounce( hit.EndPosition, classic.Velocity );
+			}
+		}
 		if ( _nextWaterCheck > 0 ) return;
 		_nextWaterCheck = 0.1f;
+		var submerged = WaterBody.Find( Scene, WorldPosition + Vector3.Up * 4 ).IsValid();
+		var atSurface = !submerged && WaterBody.Find( Scene, WorldPosition - Vector3.Up * 4 ).IsValid();
+		if ( _classic is { } motion )
+		{
+			motion.GravityScale = submerged ? 0 : _satchelGravity;
+			if ( submerged )
+			{
+				motion.Velocity = motion.Velocity * 0.8f + Vector3.Up * 8;
+				motion.Spin *= 0.9f;
+			}
+			else if ( atSurface ) motion.Velocity += Vector3.Down * 8;
+			return;
+		}
 		var body = GetComponent<Rigidbody>();
-		if ( WaterBody.Find( Scene, WorldPosition + Vector3.Up * 4 ).IsValid() )
+		if ( submerged )
 		{
 			body.GravityScale = 0;
 			body.Velocity = body.Velocity * 0.8f + Vector3.Up * 8;
@@ -66,7 +108,7 @@ public sealed partial class PlacedCharge : Component, Component.IDamageable, Com
 		else
 		{
 			body.GravityScale = _satchelGravity;
-			if ( WaterBody.Find( Scene, WorldPosition - Vector3.Up * 4 ).IsValid() )
+			if ( atSurface )
 				body.Velocity += Vector3.Down * 8;
 		}
 	}

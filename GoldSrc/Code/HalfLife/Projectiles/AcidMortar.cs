@@ -13,7 +13,7 @@ public sealed class AcidMortar : NpcProjectile
 
 	internal override void Guide()
 	{
-		Velocity += Scene.PhysicsWorld.Gravity * Time.Delta;
+		Velocity += FlightGravity * Time.Delta;
 		if ( _nextSpray > 0 ) return;
 		_nextSpray = 0.2f;
 		BroadcastSpray( WorldPosition, -Velocity.Normal, 3 );

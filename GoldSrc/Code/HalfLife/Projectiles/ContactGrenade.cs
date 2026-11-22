@@ -14,7 +14,7 @@ public sealed class ContactGrenade : NpcProjectile
 			_nextWarning = 0.2f;
 			Scene.GetSystem<Sandbox.Npcs.NpcSystem>().EmitStimulus( TimedGrenade.DangerStimulus, WorldPosition + Velocity * 0.5f, GameObject, Velocity.Length, 0.2f );
 		}
-		Velocity += Scene.PhysicsWorld.Gravity * (0.5f * Time.Delta);
+		Velocity += FlightGravity * (0.5f * Time.Delta);
 		WorldRotation *= Rotation.FromPitch( -300 * Time.Delta );
 	}
 

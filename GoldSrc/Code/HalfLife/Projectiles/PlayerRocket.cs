@@ -25,7 +25,7 @@ public sealed class PlayerRocket : RocketProjectile
 	{
 		if ( Age < IgnitionDelay )
 		{
-			Velocity += Scene.PhysicsWorld.Gravity * (0.5f * Time.Delta);
+			Velocity += FlightGravity * (0.5f * Time.Delta);
 			return;
 		}
 		if ( Age < _nextSteer ) return;
