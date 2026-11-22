@@ -58,6 +58,7 @@ public abstract partial class StudioWeapon : BaseCombatWeapon
 
 		var extra = Clip1 < 0 && UsesPrimaryClip ? FreshPickupRounds - ClipMaxSize : 0;
 		base.OnAdded( inventory );
+		GetComponent<Maps.Relay>()?.Trigger( inventory.GameObject );
 		if ( extra > 0 ) inventory.GiveAmmo( PrimaryAmmoType, extra );
 	}
 
