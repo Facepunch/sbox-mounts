@@ -112,9 +112,9 @@ partial class MapBuilder
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
-			or "env_fade" or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
+			or "player_loadsaved" or "env_fade" or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
 			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
-			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
+			or "info_landmark" or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
 
 		if ( !handled && string.IsNullOrEmpty( entity.TargetName ) && string.IsNullOrEmpty( entity.Target ) )
@@ -177,6 +177,7 @@ partial class MapBuilder
 				WireTrigger( entity, sentence );
 				return;
 
+			case "player_loadsaved":
 			case "env_fade":
 				var fade = go.AddComponent<ScreenFade>();
 				fade.TargetName = entity.TargetName;
@@ -187,6 +188,17 @@ partial class MapBuilder
 				fade.FadeIn = (entity.SpawnFlags & 1) != 0;
 				fade.Modulate = (entity.SpawnFlags & 2) != 0;
 				fade.OnlyActivator = (entity.SpawnFlags & 4) != 0;
+				if ( className == "player_loadsaved" )
+				{
+					var restart = go.AddComponent<RestartLevel>();
+					restart.TargetName = entity.TargetName;
+					restart.Fade = fade;
+					restart.Message = ResolveTitle( entity.GetString( "message" ) );
+					restart.MessageTime = entity.GetFloat( "messagetime" );
+					restart.LoadTime = entity.GetFloat( "loadtime" );
+					RegisterTarget( entity, restart );
+					return;
+				}
 				RegisterTarget( entity, fade );
 				WireTrigger( entity, fade );
 				return;
@@ -222,6 +234,12 @@ partial class MapBuilder
 				setter.FireOnce = (entity.SpawnFlags & 1) != 0;
 				RegisterTarget( entity, setter );
 				WireTrigger( entity, setter, UseType.Set, delayed: false );
+				return;
+
+			case "info_landmark":
+				var landmark = go.AddComponent<Landmark>();
+				landmark.TargetName = entity.TargetName;
+				RegisterTarget( entity, landmark, null, null, null, nameof( MapEntity.Kill ) );
 				return;
 
 			case "info_target" or "info_teleport_destination":

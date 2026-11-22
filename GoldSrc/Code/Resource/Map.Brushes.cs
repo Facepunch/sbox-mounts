@@ -244,7 +244,7 @@ partial class MapBuilder
 		const int SF_TRIGGER_NOCLIENTS = 2;
 
 		var className = entity.ClassName;
-		if ( className is "trigger_changelevel" or "trigger_transition" or "trigger_camera" )
+		if ( SpawnLevelTrigger( entity, bspModel ) || className == "trigger_camera" )
 			return;
 		if ( className is not ("trigger_once" or "trigger_multiple" or "trigger_hurt") )
 		{
