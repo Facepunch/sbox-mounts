@@ -55,83 +55,44 @@ partial class MapLoader
 			Log.Info( $"Doom: {Map.Name} has things of unknown types: {string.Join( ", ", unknown )}" );
 	}
 
+	/// <summary>
+	/// Places an instance of the thing type's mounted prefab, then sets what depends on where it
+	/// stands: riding a movable plane, the sector's light, a teleport destination's tag.
+	/// </summary>
 	protected virtual void SpawnThing( Thing thing, ThingType type, GameObject parent )
 	{
+		if ( GameMount.GetThingOwner( Wads, type ) is not { } owner ) return;
+
+		var prefab = PrefabFile.Load( Host.Url( GameMount.ThingPrefabPath( owner.Name, type ) ) );
+		if ( prefab is null ) return;
+
 		int sector = SectorAt( thing.X, thing.Y );
 		bool hanging = (type.Flags & ThingTypeFlags.Hanging) != 0;
+		bool moving = sector >= 0 && _dynamic[sector];
 
-		var go = new GameObject( true, type.Name ) { Parent = parent };
-		if ( sector >= 0 && _dynamic[sector] )
-			go.Parent = hanging ? _ceilingObjects[sector] : _floorObjects[sector];
+		if ( moving )
+			parent = hanging ? _ceilingObjects[sector] : _floorObjects[sector];
 
 		float z = sector < 0 ? 0 : hanging ? _sectors[sector].CeilingHeight - type.Height : _sectors[sector].FloorHeight;
-		go.WorldPosition = World( thing.X, thing.Y, z );
-		go.WorldRotation = Rotation.FromYaw( thing.Angle );
+		var go = GameObject.Clone( prefab, new Transform( World( thing.X, thing.Y, z ), Rotation.FromYaw( thing.Angle ) ), parent );
+		if ( !go.IsValid() ) return;
 
-		switch ( type.Category )
+		if ( go.Components.TryGet<DoomTeleportDestination>( out var destination ) )
 		{
-			case ThingCategory.PlayerStart:
-				go.AddComponent<SpawnPoint>();
-				return;
-
-			case ThingCategory.DeathmatchStart:
-				go.AddComponent<SpawnPoint>();
-				go.Tags.Add( "deathmatch" );
-				return;
-
-			case ThingCategory.TeleportDestination:
-				var destination = go.AddComponent<DoomTeleportDestination>();
-				destination.SectorTag = sector >= 0 ? _sectors[sector].Tag : 0;
-				Level.TeleportDestinations.Add( destination );
-				return;
+			destination.SectorTag = sector >= 0 ? _sectors[sector].Tag : 0;
+			Level.TeleportDestinations.Add( destination );
 		}
 
-		if ( (type.Flags & ThingTypeFlags.Solid) != 0 )
-		{
-			var box = go.AddComponent<BoxCollider>();
-			box.Scale = new Vector3( type.Radius * 2, type.Radius * 2, type.Height ) * _scale;
-			box.Center = new Vector3( 0, 0, type.Height * 0.5f * _scale );
-			box.Static = go.Parent == parent;
-		}
-
-		AddSprite( go, type, sector );
-	}
-
-	private void AddSprite( GameObject go, ThingType type, int sector )
-	{
-		if ( !GameMount.TryGetThingSprite( Wads, type, out var owner, out var frames ) )
-			return;
-
-		var sprite = GameResource.Load<Sprite>( Host.Url( GameMount.ThingPath( owner.Name, type ) ) );
-		if ( sprite is null ) return;
-
-		var first = frames[0];
-		int size = Math.Max( first.Width, first.Height );
-
-		var renderer = go.AddComponent<SpriteRenderer>();
-		renderer.Sprite = sprite;
-		renderer.Size = new Vector2( size, size ) * _scale;
-		renderer.FlipHorizontal = first.Flipped;
-		renderer.TextureFilter = Sandbox.Rendering.FilterMode.Point;
-		renderer.Billboard = SpriteRenderer.BillboardMode.YOnly;
-		renderer.Opaque = true;
-		renderer.IsSorted = true;
-		renderer.Shadows = true;
+		// Things on a moving floor or ceiling need a collider that can follow it.
+		if ( moving && go.Components.TryGet<BoxCollider>( out var collider ) )
+			collider.Static = false;
 
 		// Full bright frames ignore sector light. Others take the sector's light step, darkened
 		// the same way the world shader darkens walls.
-		bool bright = (type.Flags & ThingTypeFlags.Bright) != 0;
-		renderer.Lighting = !bright;
-		if ( !bright && sector >= 0 )
+		if ( sector >= 0 && (type.Flags & ThingTypeFlags.Bright) == 0 && go.Components.TryGet<SpriteRenderer>( out var renderer ) )
 		{
 			float light = MathF.Floor( _lights[sector].Max / 16f ) * 16f / 255f;
 			renderer.Color = new Color( light * light, light * light, light * light, 1f );
-		}
-
-		if ( go.Components.TryGet<BoxCollider>( out var collider ) )
-		{
-			collider.Scale = new Vector3( first.Width, first.Width, first.Height ) * _scale;
-			collider.Center = new Vector3( 0, 0, first.Height * 0.5f * _scale );
 		}
 	}
 }

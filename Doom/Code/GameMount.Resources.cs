@@ -10,7 +10,8 @@ partial class GameMount
 	public static string TexturePath( string wad, string name ) => $"{wad}/textures/{ResourceName( name )}";
 	public static string SkyPath( string wad, string name ) => $"{wad}/skies/{ResourceName( name )}";
 	public static string SpritePath( string wad, string lump ) => $"{wad}/sprites/{ResourceName( lump )}";
-	public static string ThingPath( string wad, ThingType type ) => $"{wad}/things/{type.Name}.sprite";
+	public static string ThingSpritePath( string wad, ThingType type ) => $"{wad}/things/{type.Name}.sprite";
+	public static string ThingPrefabPath( string wad, ThingType type ) => $"{wad}/things/{type.Name}.prefab";
 	public static string SoundPath( string wad, string name ) => $"{wad}/sounds/{ResourceName( name )}";
 	public static string SoundEventPath( string wad, string name ) => $"{SoundPath( wad, name )}.sound";
 	public static string MapPath( string wad, string name ) => $"{wad}/maps/{ResourceName( name )}";
@@ -59,12 +60,19 @@ partial class GameMount
 			context.Add( ResourceType.GameResource, SoundEventPath( wad.Name, sound.Name ), new SoundEventLoader( Url( path, "vsnd" ) ) );
 		}
 
+		// Each thing type gets a prefab, registered under the WAD that provides its first sprite frame.
+		// Things that aren't drawn (starts, teleport destinations) belong to the IWAD.
 		foreach ( var type in ThingTable.Values )
 		{
-			if ( TryGetThingSprite( stack, type, out var owner, out var frames ) && owner == wad )
-				context.Add( ResourceType.GameResource, ThingPath( wad.Name, type ), new SpriteLoader( type, frames ) );
+			SpriteFrameInfo[] frames = null;
+			if ( type.Sprite is null ? stack.Wads.Count > 1 : !TryGetThingSprite( stack, type, out var owner, out frames ) || owner != wad )
+				continue;
 
-			// prefabs?
+			if ( frames is not null )
+				context.Add( ResourceType.GameResource, ThingSpritePath( wad.Name, type ), new SpriteLoader( type, frames ) );
+
+			context.Add( ResourceType.PrefabFile, ThingPrefabPath( wad.Name, type ),
+				new ThingPrefabLoader( type, frames, frames is null ? null : Url( ThingSpritePath( wad.Name, type ) ) ) );
 		}
 
 		foreach ( var map in wad.Maps )
@@ -85,6 +93,13 @@ partial class GameMount
 		context.Add( ResourceType.Texture, path, texture );
 		context.Add( ResourceType.Material, path, new SurfaceMaterialLoader( texture.Path, tics ) );
 		return texture;
+	}
+
+	/// <summary>The WAD a thing type's prefab is registered under, or null if the stack can't draw it.</summary>
+	public static WadFile GetThingOwner( WadStack stack, ThingType type )
+	{
+		if ( type.Sprite is null ) return stack.Wads[^1];
+		return TryGetThingSprite( stack, type, out var owner, out _ ) ? owner : null;
 	}
 
 	/// <summary>

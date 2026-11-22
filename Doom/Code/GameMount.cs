@@ -21,6 +21,9 @@ public abstract partial class GameMount : BaseGameMount
 	public virtual IReadOnlyDictionary<int, ThingType> ThingTable => ThingTypes.Vanilla;
 	public virtual IReadOnlyList<TextureAnimation> AnimationTable => TextureAnimations.Vanilla;
 
+	/// <summary>World units per map unit. Thing prefabs are built at this scale, and maps default to it.</summary>
+	public virtual float UnitScale => 1.5f;
+
 	internal BaseFileSystem FileSystem { get; private set; }
 
 	private readonly Dictionary<string, WadStack> _stacks = new( StringComparer.OrdinalIgnoreCase );

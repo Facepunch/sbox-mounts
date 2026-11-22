@@ -29,7 +29,7 @@ public partial class MapLoader( string wadName, MapData map ) : SceneLoader<Game
 	protected DoomLevel Level { get; private set; }
 
 	/// <summary>World units per map unit.</summary>
-	protected virtual float UnitScale => 1.5f;
+	protected virtual float UnitScale => Host.UnitScale;
 
 	private float _scale;
 
