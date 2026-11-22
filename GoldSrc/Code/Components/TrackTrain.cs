@@ -168,6 +168,8 @@ public sealed class TrackTrain : MapEntity
 	{
 		_suspended = true;
 		_node = null;
+		// The lift takes over movement, including any pending arrival on the old track.
+		_deadEndAt = float.PositiveInfinity;
 		_trackVelocity = Vector3.Zero;
 		_angularVelocity = default;
 	}
