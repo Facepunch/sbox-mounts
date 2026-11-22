@@ -1,4 +1,5 @@
 using Sandbox.Npcs.Layers;
+using System.Threading.Tasks;
 
 namespace Overgrowth;
 
@@ -17,10 +18,11 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 {
 	PrefabFile prefab;
 
-	protected override object Load()
+	protected override async Task<object> LoadAsync()
 	{
 		var modelPath = Host.MountedPath( actor.ModelName ) + ".vmdl";
-		var model = Model.Load( modelPath );
+		var loader = (CharacterLoader)Host.GetByPath( modelPath );
+		var model = (Model)await loader.GetOrCreate();
 		if ( model is null || model.IsError )
 			throw new System.IO.InvalidDataException( $"Could not build {actor.Title} prefab with missing model {modelPath}" );
 		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", actor.Title )
@@ -29,7 +31,6 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		{
 			Game.ActiveScene.Enabled = false;
 			var go = new GameObject( true, actor.Title );
-			var loader = (CharacterLoader)Host.GetByPath( modelPath );
 			Configure( go, model, actor.Title, loader.HitVolumes );
 		}
 		return prefab = builder.Create();
