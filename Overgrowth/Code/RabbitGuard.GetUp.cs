@@ -9,6 +9,7 @@ public sealed partial class RabbitGuard
 	Graph getUpGraph;
 	Clip getUpPose;
 	TimeSince sinceGetUp;
+	float ragdollWeight;
 
 	void CapturePhysicsPose()
 	{
@@ -38,7 +39,7 @@ public sealed partial class RabbitGuard
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		getUpGraph = graph.Create( graph.Pose( getUpPose, new GraphBuilder.PoseSettings() ) );
 		Renderer.Animation.ExternalGraphs.Connect( GetUpSlot, getUpGraph );
-		Renderer.Animation.Parameters.Set( GetUpWeight, 1f );
+		Renderer.Animation.Parameters.Set( GetUpWeight, ragdollWeight = 1f );
 		sinceGetUp = 0;
 	}
 
@@ -48,7 +49,11 @@ public sealed partial class RabbitGuard
 		if ( sinceGetUp >= 1f )
 			EndGetUpBlend();
 		else
-			Renderer.Animation.Parameters.Set( GetUpWeight, 1f - sinceGetUp );
+		{
+			// Overgrowth blends again from the previous frame's result each update.
+			ragdollWeight *= 1f - sinceGetUp;
+			Renderer.Animation.Parameters.Set( GetUpWeight, ragdollWeight );
+		}
 	}
 
 	void EndGetUpBlend()
