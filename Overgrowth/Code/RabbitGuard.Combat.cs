@@ -89,6 +89,7 @@ public sealed partial class RabbitGuard
 			Weapon = GameObject
 		};
 		damage.Tags.Add( "melee" );
+		damage.Tags.Add( "nevergib" );
 		victim.OnDamage( damage );
 		bool killed = enemy.IsValid() && enemy.GetComponent<Sandbox.Npcs.BaseNpc>() is { Health: < 1 };
 		PlayCombatSound( killed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_normal.xml", damage.Position );
