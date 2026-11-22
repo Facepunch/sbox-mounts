@@ -64,6 +64,7 @@ public sealed partial class RabbitGuard : BaseNpc
 
 	void Remember( GameObject target )
 	{
+		if ( !enemy.IsValid() ) Speak( "engage" );
 		enemy = target;
 		lastSeen = target.WorldPosition;
 		sinceEnemySeen = 0;

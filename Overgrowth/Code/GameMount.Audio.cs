@@ -20,7 +20,7 @@ public partial class GameMount
 		if ( group is not null ) PlayGroup( group, position );
 	}
 
-	internal void PlayGroup( string path, Vector3 position )
+	internal (SoundFile File, float Volume) PickSound( string path )
 	{
 		if ( !soundGroups.TryGetValue( path, out var group ) )
 		{
@@ -29,8 +29,14 @@ public partial class GameMount
 		}
 		int variant = Random.Shared.Next( 1, group.Variants + 1 );
 		var file = SoundFile.Load( MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd" );
+		return (file, group.Volume);
+	}
+
+	internal void PlayGroup( string path, Vector3 position )
+	{
+		var (file, volume) = PickSound( path );
 		if ( file is null ) return;
-		var handle = Sound.PlayFile( file, group.Volume );
+		var handle = Sound.PlayFile( file, volume );
 		if ( handle.IsValid() ) handle.Position = position;
 	}
 }

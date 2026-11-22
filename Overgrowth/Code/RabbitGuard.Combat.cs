@@ -47,7 +47,7 @@ public sealed partial class RabbitGuard
 
 		if ( visible && distance < 1.5f * 40 && HasSight( enemy ) )
 		{
-			bool moving = Movement.IsMoving;
+			bool moving = Movement.IsMoving && enemy.GetComponent<PlayerController>() is not { IsDucking: true };
 			Movement.Stop();
 			var facing = delta.WithZ( 0 );
 			if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
@@ -57,6 +57,7 @@ public sealed partial class RabbitGuard
 			// aschar.as GetAttackPath: moving_close / moving, or stationary_close / stationary.
 			Stance = moving ? (close ? Jab : Roundhouse) : (close ? Knee : Kick);
 			strike = boundAnimations.Clips[Stance];
+			Speak( "attack" );
 			attackTime = 0;
 			impactPassed = false;
 			return;
@@ -94,6 +95,22 @@ public sealed partial class RabbitGuard
 		victim.OnDamage( damage );
 		bool killed = enemy.IsValid() && enemy.GetComponent<Sandbox.Npcs.BaseNpc>() is { Health: < 1 };
 		PlayCombatSound( killed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_normal.xml", damage.Position );
+	}
+
+	void Speak( string cue )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
+			mount.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
+		var (group, pitch) = character.GetVoice( cue );
+		if ( group is null ) return;
+		var (file, volume) = mount.PickSound( group );
+		if ( file is not null ) PlayVoice( file.ResourcePath, volume, pitch );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayVoice( string path, float volume, float pitch )
+	{
+		if ( Renderer.IsValid() ) Renderer.SpeakSound( SoundFile.Load( path ), volume, pitch );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

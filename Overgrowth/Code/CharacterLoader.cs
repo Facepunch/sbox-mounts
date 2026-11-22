@@ -8,6 +8,20 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 {
 	RabbitGuardAnimations compiledAnimations;
 	const float Scale = 40f;
+	(XmlAsset Groups, float Pitch)? voice;
+
+	internal (string Group, float Pitch) GetVoice( string cue )
+	{
+		if ( voice is null )
+		{
+			var definition = XmlAsset.Read( Host.FileSystem, filePath, "character" ).Element( "voice" );
+			var groups = definition?.Attribute( "path" ) is { } path
+				? XmlAsset.Read( Host.FileSystem, Host.Resolve( path ), "voice" )
+				: null;
+			voice = (groups, definition?.Number( "pitch" ) ?? 1f);
+		}
+		return (voice.Value.Groups?.Element( cue )?.Attribute( "path" ), voice.Value.Pitch);
+	}
 
 	XmlAsset ReadAppearance() => XmlAsset.Read( Host.FileSystem, filePath, "character" ).Element( "appearance" )
 		?? throw new InvalidDataException( $"Character has no appearance: {filePath}" );
