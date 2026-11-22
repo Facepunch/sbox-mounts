@@ -19,7 +19,11 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is not null )
 		{
-			if ( enemy.IsValid() ) AttackHeight = GetAttackHeight( enemy );
+			if ( enemy.IsValid() )
+			{
+				AttackHeight = GetAttackHeight( enemy );
+				TurnDuringStrike( TargetPosition( enemy ) - WorldPosition );
+			}
 			var (frequency, clip) = strike.Sample( AttackHeight );
 			bool blocked = Stance == strike.Blocked;
 			if ( blocked )
@@ -86,7 +90,6 @@ public sealed partial class RabbitGuard
 		if ( visible && distance <= preferredRange && (!attacking || distance >= 1.5f * 40) )
 		{
 			Movement.Stop();
-			if ( !delta.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( delta.WithZ( 0 ) );
 			Stance = Threat;
 			return;
 		}
@@ -95,8 +98,6 @@ public sealed partial class RabbitGuard
 		{
 			bool moving = Movement.IsMoving && enemy.GetComponent<PlayerController>() is not { IsDucking: true };
 			Movement.Stop();
-			var facing = delta.WithZ( 0 );
-			if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 			if ( recovery > 0 ) { Stance = Threat; return; }
 
 			bool close = distance < 40;
@@ -118,6 +119,23 @@ public sealed partial class RabbitGuard
 			Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
 		}
 		Stance = Locomotion;
+	}
+
+	// aschar.as UpdateAttacking and interpdirection.as, for an unarmed non-throw attack.
+	void TurnDuringStrike( Vector3 direction )
+	{
+		var target = direction.WithZ( 0 ).Normal;
+		if ( target.IsNearlyZero() ) return;
+
+		var facing = WorldRotation.Forward;
+		if ( facing.Dot( target ) < -0.8f )
+		{
+			var perpendicular = Vector3.Up.Cross( facing );
+			target = perpendicular.Dot( target ) < 0f ? -perpendicular : perpendicular;
+		}
+
+		float inertia = MathF.Pow( 0.9f, Time.Delta * 120f );
+		WorldRotation = Rotation.LookAt( facing * inertia + target * (1f - inertia) );
 	}
 
 	float GetAttackHeight( GameObject target )
