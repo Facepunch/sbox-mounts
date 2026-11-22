@@ -9,6 +9,9 @@ public sealed partial class RabbitGuard
 	[Sync] float AttackHeight { get; set; }
 	[Sync( SyncFlags.Interpolate )] float AttackPhase { get; set; }
 	bool impactPassed;
+	bool preparePassed;
+	float predictability;
+	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
 	TimeUntil recovery;
 
@@ -18,11 +21,33 @@ public sealed partial class RabbitGuard
 		{
 			if ( enemy.IsValid() ) AttackHeight = GetAttackHeight( enemy );
 			var (frequency, clip) = strike.Sample( AttackHeight );
+			bool blocked = Stance == strike.Blocked;
+			if ( blocked )
+			{
+				clip = boundAnimations.Clips[Stance];
+				frequency = 1f / clip.Duration;
+			}
 			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * frequency );
-			if ( !impactPassed && clip.Impact is { } impact && AttackPhase >= impact.Time / clip.Duration )
+			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
+			{
+				preparePassed = true;
+				if ( CanAttack( enemy ) && WorldPosition.Distance( enemy.WorldPosition ) < 64f && HasSight( enemy ) &&
+					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike, predictability ) )
+				{
+					Stance = strike.Blocked;
+					clip = boundAnimations.Clips[Stance];
+					blocked = true;
+				}
+			}
+			if ( !impactPassed && (blocked ? clip.Blocked : clip.Impact) is { } impact && AttackPhase >= impact.Time / clip.Duration )
 			{
 				impactPassed = true;
-				TryHit( clip, impact.Bone );
+				if ( blocked )
+				{
+					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
+					PlayCombatSound( "Data/Sounds/hit/hit_block.xml", pos );
+				}
+				else TryHit( clip, impact.Bone );
 			}
 			if ( AttackPhase < 1f ) return;
 			strike = null;
@@ -40,6 +65,12 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
+		if ( startled > 0 )
+		{
+			Movement.Stop();
+			Stance = Watch;
+			return;
+		}
 		var destination = visible ? enemy.WorldPosition : lastSeen;
 		var delta = destination - WorldPosition;
 		float distance = delta.Length;
@@ -50,7 +81,17 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( visible && distance < 1.5f * 40 && HasSight( enemy ) )
+		if ( visible ) UpdateTactic( distance );
+		bool attacking = tactic is CombatTactic.Rush or CombatTactic.Wait;
+		if ( visible && distance <= preferredRange && (!attacking || distance >= 1.5f * 40) )
+		{
+			Movement.Stop();
+			if ( !delta.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( delta.WithZ( 0 ) );
+			Stance = Threat;
+			return;
+		}
+
+		if ( visible && attacking && distance < 1.5f * 40 && HasSight( enemy ) )
 		{
 			bool moving = Movement.IsMoving && enemy.GetComponent<PlayerController>() is not { IsDucking: true };
 			Movement.Stop();
@@ -66,6 +107,8 @@ public sealed partial class RabbitGuard
 			AttackPhase = 0;
 			AttackHeight = GetAttackHeight( enemy );
 			impactPassed = false;
+			preparePassed = false;
+			predictability = attackHistory.Record( strike );
 			return;
 		}
 

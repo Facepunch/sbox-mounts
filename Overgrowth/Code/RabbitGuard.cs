@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			playing = null;
 		}
 		if ( Stance == Locomotion ) UpdateGait();
-		if ( boundAnimations.Attacks.ContainsKey( Stance ) )
+		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{
 			Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );
 			Renderer.Animation.Parameters.Set( "attack_phase", AttackPhase );
@@ -77,7 +77,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void Remember( GameObject target )
 	{
-		if ( !enemy.IsValid() ) Speak( "engage" );
+		if ( !enemy.IsValid() )
+		{
+			startled = 1f;
+			Speak( "engage" );
+		}
 		enemy = target;
 		lastSeen = target.WorldPosition;
 		sinceEnemySeen = 0;

@@ -8,7 +8,7 @@ internal sealed record Impact( float Time, int Bone );
 internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitGait( string Name, float Coordinate, float GroundSpeed );
 
-internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, float DamageMin, float DamageMax, List<Step> Steps )
+internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps )
 {
 	private sealed record Key( int Time, Transform[] Bones );
 
@@ -24,7 +24,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int count = Count();
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
-		Impact impact = null;
+		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
 		Vector3 firstCenter = default;
@@ -50,7 +50,12 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			{
 				int bone = reader.ReadInt32();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				if ( label == "attackimpact" ) impact = new( time * 0.001f, bone );
+				switch ( label )
+				{
+					case "attackimpact": impact = new( time * 0.001f, bone ); break;
+					case "blockprepare": prepare = new( time * 0.001f, bone ); break;
+					case "attackblocked": blocked = new( time * 0.001f, bone ); break;
+				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
 			int ik = Count();
@@ -101,7 +106,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, min, max, steps );
+		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps );
 
 		int Count()
 		{

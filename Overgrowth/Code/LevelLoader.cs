@@ -50,7 +50,17 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			case "ActorObject" when RabbitActor.All.FirstOrDefault( a => string.Equals( file, a.Path, StringComparison.OrdinalIgnoreCase ) ) is { } definition:
 				var prefab = PrefabFile.Load( Host.MountedPath( definition.PrefabName ) );
 				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
-				var renderer = actor.GetComponent<RabbitGuard>( includeDisabled: true ).Renderer;
+				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
+				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
+				{
+					if ( parameter.Number( "val" ) is not { } value ) continue;
+					switch ( parameter.Attribute( "name" ) )
+					{
+						case "Block Skill": fighter.BlockSkill = Math.Clamp( value, 0f, 1f ); break;
+						case "Aggression": fighter.Aggression = Math.Clamp( value, 0f, 1f ); break;
+					}
+				}
+				var renderer = fighter.Renderer;
 				actor.WorldPosition = transform.PointToWorld( Vector3.Up * renderer.Model.Bounds.Mins.z );
 				actor.Enabled = true;
 				return;
