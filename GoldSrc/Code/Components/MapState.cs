@@ -8,11 +8,17 @@ public sealed partial class MapState : Component
 	[Property] public List<MapEntity> Entities { get; set; } = [];
 	[Property, Sync( SyncFlags.FromHost )] public NetDictionary<string, int> Globals { get; set; } = new();
 	private readonly List<(MapEntity Entity, float Time)> _removals = [];
+	private System.Threading.Tasks.Task<bool> _navigation;
+	internal bool NavigationReady => _navigation?.IsCompletedSuccessfully == true;
 
 	public void ScheduleRemoval( MapEntity entity, float delay ) => _removals.Add( (entity, Time.Now + delay) );
 
 	protected override void OnFixedUpdate()
 	{
+		// A level transition replaces the collision world inside the same scene.
+		// Its previous navmesh can still return valid positions on the old map.
+		if ( Networking.IsHost && _navigation is null && !Scene.NavMesh.IsGenerating && GetComponentInParent<MapInstance>() is { IsLoaded: true } )
+			_navigation = Scene.NavMesh.Generate( Scene.PhysicsWorld );
 		for ( int i = _removals.Count - 1; i >= 0; i-- )
 		{
 			var entry = _removals[i];

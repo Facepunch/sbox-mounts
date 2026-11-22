@@ -24,6 +24,7 @@ public partial class Npc
 	private GameObject _scriptActivator;
 	private SavedScript _resume;
 	private Vector3? _navigationEntry;
+	private bool _needsNavigationEntry;
 
 	internal sealed class SavedScript
 	{
@@ -69,8 +70,7 @@ public partial class Npc
 		_scriptMark = script.WorldTransform;
 		ScriptApproach = resume?.Approach ?? script.MoveTo;
 		_navigationEntry = null;
-		if ( ScriptApproach is 1 or 2 && Definition.Movement == NpcMovement.Ground && MapNavigation.IsValid() )
-			_navigationEntry = Movement?.ProjectPoint( WorldPosition );
+		_needsNavigationEntry = ScriptApproach is 1 or 2 && Definition.Movement == NpcMovement.Ground && MapNavigation.IsValid();
 		ScriptedIdle = null;
 		if ( resume is null && ScriptApproach == 4 )
 		{
@@ -92,6 +92,12 @@ public partial class Npc
 	{
 		if ( ScriptGait is {} gait && Movement.IsValid() )
 		{
+			if ( _needsNavigationEntry )
+			{
+				if ( !_script.Map.NavigationReady ) return;
+				_navigationEntry = Movement.ProjectPoint( WorldPosition );
+				_needsNavigationEntry = false;
+			}
 			var destination = Movement.MoveTarget;
 			if ( !destination.HasValue )
 			{
