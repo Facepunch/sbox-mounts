@@ -1,0 +1,21 @@
+{
+  "Title": "Overgrowth",
+  "Type": "addon",
+  "Org": "local",
+  "Ident": "overgrowth",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "facepunch.sandbox",
+    "StartupScene": "scenes/sandbox.scene"
+  }
+}
