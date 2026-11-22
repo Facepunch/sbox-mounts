@@ -112,7 +112,7 @@ partial class MapBuilder
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
-			or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
+			or "env_fade" or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
 			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
 			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
@@ -175,6 +175,20 @@ partial class MapBuilder
 				sentence.Attenuation = entity.GetInt( "attenuation" ) switch { 1 => 1.25f, 2 => GoldSrcSoundEvents.Normal, 3 => 0f, _ => GoldSrcSoundEvents.Idle };
 				RegisterTarget( entity, sentence );
 				WireTrigger( entity, sentence );
+				return;
+
+			case "env_fade":
+				var fade = go.AddComponent<ScreenFade>();
+				fade.TargetName = entity.TargetName;
+				var rgb = entity.RenderColor / 255f;
+				fade.Tint = new Color( rgb.x, rgb.y, rgb.z, entity.RenderAmt / 255f );
+				fade.Duration = FadeTime( entity.GetFloat( "duration" ) );
+				fade.Hold = FadeTime( entity.GetFloat( "holdtime" ) );
+				fade.FadeIn = (entity.SpawnFlags & 1) != 0;
+				fade.Modulate = (entity.SpawnFlags & 2) != 0;
+				fade.OnlyActivator = (entity.SpawnFlags & 4) != 0;
+				RegisterTarget( entity, fade );
+				WireTrigger( entity, fade );
 				return;
 
 			case "env_render":
@@ -288,6 +302,9 @@ partial class MapBuilder
 				return;
 		}
 	}
+
+	// ScreenFade sends both times as unsigned 4.12 fixed point.
+	private static float FadeTime( float seconds ) => (int)Math.Clamp( seconds * 4096f, 0f, ushort.MaxValue ) / 4096f;
 
 	private static string EntityName( Entity entity )
 		=> string.IsNullOrEmpty( entity.TargetName ) ? entity.ClassName : $"{entity.ClassName} ({entity.TargetName})";
