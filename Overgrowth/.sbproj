@@ -2,6 +2,7 @@
   "Title": "Overgrowth",
   "Type": "addon",
   "Org": "local",
+  "OrgTitle": null,
   "Ident": "overgrowth",
   "Schema": 1,
   "IncludeSourceFiles": false,

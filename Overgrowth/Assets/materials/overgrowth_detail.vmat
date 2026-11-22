@@ -1,7 +1,0 @@
-Layer0
-{
-	shader "shaders/overgrowth.shader"
-	F_DETAIL 1
-	ColorMap "materials/default/default_color.tga"
-	NormalMap "materials/default/default_normal.tga"
-}

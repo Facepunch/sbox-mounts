@@ -10,7 +10,7 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 		var layers = terrain.Element( "DetailMaps" )?.Elements( "DetailMap" ).Count() ?? 0;
 		var detailed = layers == 4 && terrain.Element( "WeightMap" ) is { Value.Length: > 0 };
 		var mat = detailed
-			? Material.Load( "materials/overgrowth_detail.vmat" ).CreateCopy( Path + "/terrain.vmat" )
+			? MaterialLoader.CreateMaterial( Path + "/terrain.vmat", true )
 			: Material.Create( Path + "/terrain.vmat", "simple_color" );
 		if ( terrain.Element( "ColorMap" ) is { Value.Length: > 0 } color )
 			mat.Set( detailed ? "g_tColor" : "Color", Host.LoadTexture( color.Value ) );
