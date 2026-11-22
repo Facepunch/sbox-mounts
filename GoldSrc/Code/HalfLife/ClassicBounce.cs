@@ -2,7 +2,7 @@ namespace GoldSrc.HalfLife;
 
 internal sealed class ClassicBounce( Vector3 velocity, Angles spin, float gravityScale, float friction, BBox? hull = null )
 {
-	[ConVar( "hl1_classic_physics", ConVarFlags.Replicated | ConVarFlags.Server, Help = "Use GoldSrc bounce physics for newly spawned Half-Life debris and throwables." )]
+	[ConVar( "goldsrc_classic_physics", ConVarFlags.Replicated | ConVarFlags.Server, Help = "Use GoldSrc bounce physics for newly spawned Half-Life debris and throwables." )]
 	public static bool Enabled { get; set; }
 
 	internal const float Gravity = 800;

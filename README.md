@@ -8,7 +8,7 @@ See the full [Mount API docs](https://sbox.game/dev/doc/game-mounts/) to learn m
 
 ### Half-Life physics
 
-The host can set `hl1_classic_physics 1` in the console to use GoldSrc-style movement for newly spawned gibs, casings, timed grenades, satchels, and Snarks. Gravity-driven effects and projectiles also use the original default gravity. Set `hl1_classic_physics 0` to return to the default Sandbox behavior for new objects.
+The host can set `goldsrc_classic_physics 1` in the console to use GoldSrc-style movement for newly spawned Half-Life gibs, casings, timed grenades, satchels, and Snarks. Gravity-driven Half-Life effects and projectiles also use the original default gravity. Set `goldsrc_classic_physics 0` to return to the default Sandbox behavior for new objects.
 
 ## Development
 You will need a copy of s&box to develop mounts. You can get it on [Steam](https://store.steampowered.com/app/590830/sbox/), or by building [from source](https://github.com/Facepunch/sbox-public).
