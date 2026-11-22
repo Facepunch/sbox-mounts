@@ -16,7 +16,14 @@ public sealed partial class RabbitGuard
 			airVelocity = null;
 			return;
 		}
-		if ( !Animation.IsGrounded )
+		bool grounded = Animation.IsGrounded;
+		if ( !grounded && InThrow && throwPartner.IsValid() )
+		{
+			var floor = IgnoreFighters( Scene.Trace.Ray( WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f ) )
+				.WithCollisionRules( Tags ).Run();
+			grounded = floor.Hit && !floor.StartedSolid;
+		}
+		if ( !grounded )
 		{
 			airVelocity = Animation.MoveVelocity;
 			return;
