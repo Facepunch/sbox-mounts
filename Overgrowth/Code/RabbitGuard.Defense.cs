@@ -10,12 +10,19 @@ public sealed partial class RabbitGuard
 	float blockHealth = 1f;
 	int hitsOnGround;
 	float reactionDuration;
+	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
 	bool UpdateDefense()
 	{
 		blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( Health / 100f, 0f, 1f ) );
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
+		float elapsed = ReactionPhase * reactionDuration;
+		if ( !IsGetUp( Stance ) && (elapsed > (activeBlockReaction ? 0.2f : 0.6f) || elapsed > 0.1f && AnimationCanCancel) )
+		{
+			ReactionPhase = 1f;
+			return false;
+		}
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		return ReactionPhase < 1f;
 	}
@@ -45,7 +52,7 @@ public sealed partial class RabbitGuard
 				StartGetUp( BlockFromGround );
 			}
 		}
-		else BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard );
+		else BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard, activeBlock: true );
 		// At original difficulty an NPC's active window and subsequent recharge are each 0.2 s.
 		blockRecharge = 0.4f;
 		return true;
@@ -67,13 +74,14 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip )
+	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false )
 	{
 		Movement.Stop();
 		var facing = (source - WorldPosition).WithZ( 0 );
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 		if ( CanAttack( attacker ) ) Remember( attacker );
 		Stance = animation;
+		activeBlockReaction = activeBlock;
 		reactionDuration = clip.Duration;
 		ReactionPhase = 0;
 	}
