@@ -38,13 +38,19 @@ public sealed class ChangeLevel : MapEntity, Component.ITriggerListener
 		if ( !player.IsValid() ) return;
 
 		var named = Map.FindAll( LandmarkName ).ToArray();
-		var volumes = named.OfType<TransitionVolume>().ToArray();
+		var volumes = named.OfType<TransitionVolume>().Select( v => v.Bounds.Transform( v.WorldTransform ) ).ToArray();
+		bool InTransition( BBox bounds ) => volumes.Length == 0 || volumes.Any( v => v.Overlaps( bounds ) );
 		var hull = new BBox( new Vector3( -player.BodyRadius, -player.BodyRadius, 0 ),
 			new Vector3( player.BodyRadius, player.BodyRadius, player.CurrentHeight ) ).Transform( player.WorldTransform );
-		if ( volumes.Length > 0 && !volumes.Any( v => v.Bounds.Transform( v.WorldTransform ).Overlaps( hull ) ) ) return;
+		if ( !InTransition( hull ) ) return;
 
 		_changing = true;
 		var landmark = named.OfType<Landmark>().FirstOrDefault();
+		// Global tracktrains continue on the overlapping track in the next BSP. Their
+		// configured starting node is only for entering that map directly.
+		var trains = !landmark.IsValid() ? [] : Map.Entities.OfType<TrackTrain>()
+			.Where( t => t.IsValid() && !t.NoRotation && !string.IsNullOrEmpty( t.GlobalName ) && InTransition( t.GameObject.GetBounds() ) )
+			.Select( t => (t.GlobalName, Offset: t.WorldPosition - landmark.WorldPosition, t.WorldRotation, t.Speed) ).ToArray();
 		var offset = player.WorldPosition - (landmark?.WorldPosition ?? player.WorldPosition);
 		var eye = player.EyeAngles;
 		var velocity = player.Body.Velocity;
@@ -62,6 +68,11 @@ public sealed class ChangeLevel : MapEntity, Component.ITriggerListener
 			if ( instance.MapName != destination || !player.IsValid() ) return;
 			var next = instance.GetComponentsInChildren<Landmark>().FirstOrDefault( x => x.TargetName == name );
 			if ( !next.IsValid() ) return;
+			foreach ( var train in trains )
+			{
+				var replacement = next.Map.Entities.OfType<TrackTrain>().FirstOrDefault( t => t.GlobalName == train.GlobalName && !t.NoRotation );
+				replacement?.ResumeTrack( next.WorldPosition + train.Offset, train.WorldRotation, train.Speed );
+			}
 			player.WorldPosition = next.WorldPosition + offset;
 			player.EyeAngles = eye;
 			player.Body.Velocity = velocity;

@@ -16,6 +16,7 @@ public sealed class TrackTrain : MapEntity
 {
 	/// <summary>The node named by the entity's "target" key - where the train starts.</summary>
 	[Property] public PathNode Path { get; set; }
+	[Property] public string GlobalName { get; set; }
 
 	/// <summary>The "speed" key: the speed the train runs at when it is switched on.</summary>
 	[Property] public float MaxSpeed { get; set; } = 100f;
@@ -72,7 +73,7 @@ public sealed class TrackTrain : MapEntity
 
 	protected override void OnStart()
 	{
-		if ( !Path.IsValid() )
+		if ( _started || !Path.IsValid() )
 			return;
 
 		_node = Path;
@@ -86,6 +87,22 @@ public sealed class TrackTrain : MapEntity
 	}
 
 	protected override void OnDisabled() => StopSound();
+
+	internal void ResumeTrack( Vector3 position, Rotation rotation, float speed )
+	{
+		_started = true;
+		_trackPosition = position - Vector3.Up * Height;
+		_trackAngles = rotation.Angles();
+		WorldPosition = position;
+		WorldRotation = rotation;
+		Transform.ClearInterpolation();
+		// CFuncTrackTrain::NearestPath rebinds after a global restore by position.
+		// Track names and the train's default starting node can differ across BSPs.
+		_node = Map.Entities.OfType<PathNode>().Where( n => n.IsValid() && n.IsTrack )
+			.MinBy( n => n.WorldPosition.DistanceSquared( position ) );
+		if ( _node.IsValid() && _node.WorldPosition.Distance( position ) >= 1024f ) _node = null;
+		SetSpeed( _node.IsValid() ? speed : 0f );
+	}
 
 	public override void Trigger( GameObject activator = null )
 	{

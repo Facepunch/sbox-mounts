@@ -66,6 +66,7 @@ partial class MapBuilder
 
 		var train = go.AddComponent<TrackTrain>();
 		train.TargetName = entity.TargetName;
+		train.GlobalName = entity.GetString( "globalname" );
 		train.PlacedOrigin = entity.Origin;
 		train.ControlBounds = new BBox( model.Mins, model.Maxs + Vector3.Up * 72f );
 		train.MaxSpeed = entity.GetFloat( "speed", 100f );
