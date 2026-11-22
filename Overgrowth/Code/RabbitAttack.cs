@@ -1,13 +1,13 @@
 namespace Overgrowth;
 
-internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactions, float BlockMin, float BlockMax, string Blocked, string Guard, string Height, string Direction, Vector3 ImpactDirection, float Force )
+internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactions, float BlockMin, float BlockMax, string Blocked, string Guard, string Height, string Direction, Vector3 ImpactDirection, float Force, bool SwapStance, bool SwapBlocked, string ReactionMirror )
 {
 	internal sealed record Pose( float Height, RabbitClip Clip );
 
-	internal Vector3 WorldImpact( Vector3 direction )
+	internal Vector3 WorldImpact( Vector3 direction, bool flipped )
 	{
 		var lateral = new Vector3( direction.y, -direction.x, direction.z );
-		return direction * ImpactDirection.x + lateral * ImpactDirection.y + Vector3.Up * ImpactDirection.z;
+		return direction * ImpactDirection.x + lateral * (flipped ? -ImpactDirection.y : ImpactDirection.y) + Vector3.Up * ImpactDirection.z;
 	}
 
 	// The source blends rates and root motion continuously and takes events from the closest pose.
@@ -22,15 +22,15 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactio
 		}
 	}
 
-	internal Blend Sample( float height )
+	internal Blend Sample( float height, bool mirrored = false )
 	{
 		var lower = Poses[0];
 		foreach ( var upper in Poses )
 		{
 			if ( height <= upper.Height )
-				return new( lower.Clip, upper.Clip, lower == upper ? 0f : (height - lower.Height) / (upper.Height - lower.Height) );
+				return new( lower.Clip.ForSide( mirrored ), upper.Clip.ForSide( mirrored ), lower == upper ? 0f : (height - lower.Height) / (upper.Height - lower.Height) );
 			lower = upper;
 		}
-		return new( lower.Clip, lower.Clip, 0f );
+		return new( lower.Clip.ForSide( mirrored ), lower.Clip.ForSide( mirrored ), 0f );
 	}
 }

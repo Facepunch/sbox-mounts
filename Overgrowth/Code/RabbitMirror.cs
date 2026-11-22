@@ -19,11 +19,16 @@ internal sealed class RabbitMirror
 			return depth;
 		}
 		order = Enumerable.Range( 0, bind.Length ).OrderBy( Depth ).ToArray();
-		symmetry = Enumerable.Range( 0, bind.Length ).ToArray();
-		for ( int i = 0; i < bind.Length; i++ )
+		symmetry = MatchBones( source );
+	}
+
+	internal static int[] MatchBones( SkeletonData source )
+	{
+		var symmetry = Enumerable.Range( 0, source.Bones.Count ).ToArray();
+		for ( int i = 0; i < symmetry.Length; i++ )
 		{
 			var (a, b) = source.Bones[i];
-			for ( int j = i; j < bind.Length; j++ )
+			for ( int j = i; j < symmetry.Length; j++ )
 			{
 				var (c, d) = source.Bones[j];
 				// SkeletonAsset compares endpoints in the original file axes, in metres.
@@ -33,7 +38,11 @@ internal sealed class RabbitMirror
 				symmetry[j] = i;
 			}
 		}
+		return symmetry;
 	}
+
+	internal static string SwapSide( string label ) => label.Contains( "left" )
+		? label.Replace( "left", "right" ) : label.Replace( "right", "left" );
 
 	internal static Transform Reflect( Transform tx )
 	{

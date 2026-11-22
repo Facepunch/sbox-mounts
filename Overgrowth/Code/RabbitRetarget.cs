@@ -3,6 +3,7 @@ namespace Overgrowth;
 // The unmirrored, shared-hierarchy path of Animation::Retarget for the rabbit clips.
 internal sealed class RabbitRetarget
 {
+	readonly int[] eventBones;
 	readonly SkeletonData target;
 	readonly float scale;
 	readonly float legRatio;
@@ -21,6 +22,7 @@ internal sealed class RabbitRetarget
 		source = PhxbnLoader.Load( stream, mesh.FaceVertexCount );
 		if ( !source.HierParents.SequenceEqual( target.HierParents ) )
 			throw new InvalidDataException( $"Rabbit animation hierarchy differs from {rigPath}" );
+		eventBones = RabbitMirror.MatchBones( source );
 		legRatio = LegLength( target ) / LegLength( source );
 		int torso = source.IKBones["torso"].BoneId;
 		int hip = source.BoneParents[source.BoneParents[torso]];
@@ -67,6 +69,8 @@ internal sealed class RabbitRetarget
 	static readonly Rotation ToeFlip = Rotation.FromAxis( Vector3.Forward, 3.14f.RadianToDegree() );
 
 	internal Vector3 JointPosition( int bone, Rotation rotation ) => parentAnchor[bone] + rotation * childHalf[bone];
+
+	internal int EventBone( int bone ) => (uint)bone < eventBones.Length ? eventBones[bone] : bone;
 
 	internal void Mirror( RabbitMirror mirror, Transform[] frame, Transform[] scratch )
 	{

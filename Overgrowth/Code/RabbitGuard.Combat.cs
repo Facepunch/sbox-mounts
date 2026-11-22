@@ -6,6 +6,9 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	RabbitAttack strike;
+	[Sync] bool MirroredStance { get; set; }
+	[Sync] bool MirroredAction { get; set; }
+	bool flippedAttack;
 	[Sync] float AttackHeight { get; set; }
 	[Sync( SyncFlags.Interpolate )] float AttackPhase { get; set; }
 	bool impactPassed;
@@ -28,9 +31,10 @@ public sealed partial class RabbitGuard
 				TurnDuringStrike( TargetPosition( enemy ) - WorldPosition );
 			}
 			bool blocked = Stance == strike.Blocked;
-			var blend = blocked ? new RabbitAttack.Blend( boundAnimations.Clips[Stance], boundAnimations.Clips[Stance], 0f ) : strike.Sample( AttackHeight );
+			var blockClip = blocked ? boundAnimations.Clips[Stance].ForSide( MirroredAction ) : null;
+			var blend = blocked ? new RabbitAttack.Blend( blockClip, blockClip, 0f ) : strike.Sample( AttackHeight, MirroredAction );
 			var clip = blend.Events;
-			var previous = !blocked && previousHeight != AttackHeight ? strike.Sample( previousHeight ) : blend;
+			var previous = !blocked && previousHeight != AttackHeight ? strike.Sample( previousHeight, MirroredAction ) : blend;
 			var from = previous.Motion( AttackPhase );
 			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * blend.Frequency );
 			ApplyRootMotion( from, blend.Motion( AttackPhase ) );
@@ -43,7 +47,8 @@ public sealed partial class RabbitGuard
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
 					blockingOpponent = defender;
 					Stance = strike.Blocked;
-					clip = boundAnimations.Clips[Stance];
+					clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+					if ( strike.SwapStance != strike.SwapBlocked ) MirroredStance = !MirroredStance;
 					blocked = true;
 				}
 			}
@@ -56,7 +61,7 @@ public sealed partial class RabbitGuard
 					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
 					{
 						var direction = (TargetPosition( blockingOpponent.GameObject ) - WorldPosition).Normal;
-						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction ) * (strike.Height == "low" ? -20f : 20f) );
+						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction, flippedAttack ) * (strike.Height == "low" ? -20f : 20f) );
 					}
 					blockingOpponent = null;
 					PlayCombatSound( "Data/Sounds/hit/hit_block.xml", pos );
@@ -144,7 +149,12 @@ public sealed partial class RabbitGuard
 				_ => close ? Knee : Kick
 			};
 			strike = boundAnimations.Attacks[Stance];
-			if ( strike.Height == "low" ) duckAmount = 1f;
+			if ( strike.Direction != "front" )
+				MirroredStance = (Random.Shared.Next( 2 ) == 0) != (strike.Direction == "left");
+			MirroredAction = MirroredStance;
+			flippedAttack = strike.Direction == "front" ? !MirroredStance : MirroredStance;
+			if ( strike.SwapStance ) MirroredStance = !MirroredStance;
+			duckAmount = strike.Height == "low" ? 1f : 0f;
 			punishGroundedTarget = null;
 			Speak( "attack" );
 			AttackPhase = 0;
@@ -259,7 +269,7 @@ public sealed partial class RabbitGuard
 		var damage = new StrikeDamage
 		{
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
-			Impulse = strike.WorldImpact( direction ) * (force * 40f / 120f),
+			Impulse = strike.WorldImpact( direction, flippedAttack ) * (force * 40f / 120f),
 			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100,
 			Origin = WorldPosition,
 			Position = position,

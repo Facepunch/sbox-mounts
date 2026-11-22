@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 			ReactionPhase = 1f;
 			return false;
 		}
-		var clip = boundAnimations.Clips[Stance].Animation;
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction ).Animation;
 		var from = clip.GetRootMotion( ReactionPhase );
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
@@ -41,7 +41,8 @@ public sealed partial class RabbitGuard
 	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move, float predictability )
 	{
 		if ( boundAnimations is null || !IsOnGround || Health < 1 ) return false;
-		if ( !boundAnimations.Clips.TryGetValue( move.Guard, out var guard ) ) return false;
+		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
+		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
 		var skillPower = 0.5f * MathF.Pow( 4f, predictability );
 		if ( tactic == CombatTactic.Provoke ) skillPower += 1f;
 		bool active = enemy == attacker.GameObject && startled <= 0 && blockRecharge <= 0 && strike is null
@@ -50,7 +51,7 @@ public sealed partial class RabbitGuard
 		if ( Downed || IsGetUp( Stance ) )
 		{
 			var direction = (TargetPosition( GameObject ) - attacker.WorldPosition).Normal;
-			var facing = move.WorldImpact( direction ).WithZ( 0 );
+			var facing = move.WorldImpact( direction, attacker.flippedAttack ).WithZ( 0 );
 			if ( Downed )
 			{
 				if ( !TryGetUp( facing ) ) return false;
@@ -63,7 +64,11 @@ public sealed partial class RabbitGuard
 				StartGetUp( BlockFromGround );
 			}
 		}
-		else BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard, activeBlock: true );
+		else
+		{
+			MirroredAction = MirroredStance;
+			BeginReaction( attacker.GameObject, attacker.WorldPosition, slot, guard, activeBlock: true );
+		}
 		// At original difficulty an NPC's active window and subsequent recharge are each 0.2 s.
 		blockRecharge = 0.4f;
 		PickBlockFollowUp();
@@ -80,6 +85,8 @@ public sealed partial class RabbitGuard
 		// Reaction::GetAnimPath partitions the severity range in XML order.
 		var animation = move.Reactions[(int)((1f - blockHealth) * 0.999f * move.Reactions.Length)];
 		if ( !boundAnimations.Clips.TryGetValue( animation, out var clip ) ) return false;
+		bool mirroredReaction = move.Direction != "front" && attacker.flippedAttack;
+		MirroredAction = MirroredStance = move.ReactionMirror == "maybe" ? MirroredStance : (move.ReactionMirror == "true") != mirroredReaction;
 		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
 		Speak( "block_hit" );
 		return true;

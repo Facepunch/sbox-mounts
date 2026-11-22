@@ -9,6 +9,9 @@ internal sealed record Step( float Phase, string Event, int Bone );
 
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
+	internal RabbitClip Mirrored { get; init; }
+	internal RabbitClip ForSide( bool mirrored ) => mirrored ? Mirrored ?? this : this;
+
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
 	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, int[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
 
@@ -78,6 +81,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			{
 				int bone = reader.ReadInt32();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
+				if ( mirror is not null )
+				{
+					bone = retarget.EventBone( bone );
+					label = RabbitMirror.SwapSide( label );
+				}
 				switch ( label )
 				{
 					case "attackimpact": impact = new( time * 0.001f, bone ); break;
@@ -201,7 +209,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			var travel = Vector3.Lerp( b.Travel, c.Travel, t );
 			float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
 			if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
-			clip.AddFrame( frame, new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) ) );
+			var root = new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) );
+			clip.AddFrame( frame, mirror is null ? root : RabbitMirror.Reflect( root ) );
 			if ( sampleFeet )
 			{
 				// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
@@ -228,7 +237,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 		}
 		for ( int channel = 0; channel < tracks.Length; channel++ )
-			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? StatusChannels[channel] : StatusChannels[channel] switch { "leftarm_blend" => "rightarm_blend", "rightarm_blend" => "leftarm_blend", var label => label }, track );
+			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? StatusChannels[channel] : RabbitMirror.SwapSide( StatusChannels[channel] ), track );
 		for ( int i = 0; i < morphs.Length; i++ )
 		{
 			if ( shapeTracks[i] is not { } values ) continue;
