@@ -140,19 +140,19 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status, shapeWeights );
 		}
 
-		// The uniformly sampled clip must resolve fast limb rotations through attacks and recoveries.
-		int sampleRate = centerMotion switch { CenterMotion.Vertical => 480, CenterMotion.None => 240, _ => 120 };
+		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
+		// cubic curves, and reversals at a key must fall exactly on an AG2 sample.
+		int shortest = duration;
 		int grid = duration;
-		if ( damage is not null || centerMotion == CenterMotion.Vertical )
+		for ( int k = 0; k < keys.Length; k++ )
 		{
-			// Keep authored keys on the sample grid. A short jab can reverse direction at a single key.
-			foreach ( var key in keys )
-			{
-				int remainder = Math.Abs( key.Time );
-				while ( remainder > 0 ) (grid, remainder) = (remainder, grid % remainder);
-			}
+			if ( k > 0 && keys[k].Time > keys[k - 1].Time )
+				shortest = Math.Min( shortest, keys[k].Time - keys[k - 1].Time );
+			int remainder = Math.Abs( keys[k].Time );
+			while ( remainder > 0 ) (grid, remainder) = (remainder, grid % remainder);
 		}
-		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid * (sampleRate / 1000f) );
+		float spacing = Math.Clamp( shortest / 64f, 0.5f, 1000f / 120f );
+		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid / spacing );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
