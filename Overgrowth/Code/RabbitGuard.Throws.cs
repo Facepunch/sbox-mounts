@@ -9,6 +9,7 @@ public sealed partial class RabbitGuard
 	bool wantsBlockThrow, willEscapeThrow;
 	TimeUntil throwRecharge = 5f, blockStun;
 	RabbitGuard stunnedBy, throwPartner;
+	Rotation throwFacing;
 	Vector3 alignmentOffset;
 	float alignmentYaw, throwElapsed;
 	bool awaitingThrowImpact;
@@ -50,6 +51,7 @@ public sealed partial class RabbitGuard
 		reactionDuration = boundAnimations.Clips[action].Duration;
 		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation ) navigation.HoldMovement( reactionDuration );
 		activeBlockReaction = false;
+		throwFacing = WorldRotation;
 		throwElapsed = 0f;
 		alignmentOffset = default;
 		alignmentYaw = 0f;
@@ -57,6 +59,8 @@ public sealed partial class RabbitGuard
 
 	void UpdateThrow()
 	{
+		// Both roles take their facing from the paired animation throughout the throw.
+		WorldRotation = throwFacing;
 		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
 		var from = clip.Animation.GetRootMotion( ReactionPhase );
 		throwElapsed += Time.Delta;
@@ -74,6 +78,7 @@ public sealed partial class RabbitGuard
 			alignmentYaw -= turn;
 		}
 		ApplyRootMotion( from, to );
+		throwFacing = WorldRotation;
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
 		{
 			awaitingThrowImpact = true;
