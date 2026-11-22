@@ -9,12 +9,20 @@ public sealed partial class RabbitGuard
 	TimeUntil startled;
 	float blockHealth = 1f;
 	int hitsOnGround;
+	float duckAmount, duckVelocity;
 	float reactionDuration;
 	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
 	bool UpdateDefense()
 	{
+		// UpdateDuckAmount runs in movement and ground recovery. Unarmed combat AI rises toward standing.
+		if ( strike is null && (ReactionPhase >= 1f || IsGetUp( Stance )) )
+		{
+			duckVelocity -= duckAmount * Time.Delta * 120f;
+			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
+			duckAmount += duckVelocity * Time.Delta;
+		}
 		blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( Health / 100f, 0f, 1f ) );
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
 		float elapsed = ReactionPhase * reactionDuration;

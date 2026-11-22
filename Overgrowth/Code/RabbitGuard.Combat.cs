@@ -115,11 +115,12 @@ public sealed partial class RabbitGuard
 			Stance = Random.Shared.Next( 3 ) switch
 			{
 				1 when enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
-				1 when enemy.GetComponent<PlayerController>() is not { IsDucking: true } => close ? Jab : Roundhouse,
+				1 when !IsCrouching( enemy ) => close ? Jab : Roundhouse,
 				2 => Sweep,
 				_ => close ? Knee : Kick
 			};
 			strike = boundAnimations.Attacks[Stance];
+			if ( strike.Height == "low" ) duckAmount = 1f;
 			punishGroundedTarget = null;
 			Speak( "attack" );
 			AttackPhase = 0;
@@ -178,11 +179,21 @@ public sealed partial class RabbitGuard
 		return (targetZ - WorldPosition.z) / 40f - (0.45f + 0.45f);
 	}
 
+	static bool IsCrouching( GameObject target ) => target.GetComponent<RabbitGuard>() is { duckAmount: >= 0.5f }
+		|| target.GetComponent<PlayerController>() is { IsDucking: true };
+
+	static bool AvoidsStrike( GameObject target, string height ) => height switch
+	{
+		"high" => IsCrouching( target ),
+		"low" => target.GetComponent<BaseNpc>() is { IsAirborne: true } || target.GetComponent<PlayerController>() is { IsOnGround: false },
+		_ => false
+	};
+
 	void TryHit( RabbitClip clip, int bone )
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
-		if ( !CanAttack( enemy ) || WorldPosition.Distance( TargetPosition( enemy ) ) >= 1.6f * 40 || !HasSight( enemy ) )
+		if ( !CanAttack( enemy ) || WorldPosition.Distance( TargetPosition( enemy ) ) >= 1.6f * 40 || !HasSight( enemy ) || AvoidsStrike( enemy, strike.Height ) )
 		{
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;

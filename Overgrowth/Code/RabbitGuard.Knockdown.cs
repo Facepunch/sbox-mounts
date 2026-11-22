@@ -133,6 +133,8 @@ public sealed partial class RabbitGuard
 
 	void StartGetUp( string stance )
 	{
+		duckAmount = 1f;
+		duckVelocity = 0f;
 		Stance = stance;
 		BeginGetUpBlend();
 		Renderer.Animation.Parameters.Set( "stance", Stance );
