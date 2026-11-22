@@ -7,6 +7,11 @@ public sealed partial class RabbitGuard
 	[Property, Range( 0f, 1f )] public float BlockSkill { get; set; } = 0.5f;
 	TimeUntil blockRecharge, activeBlock;
 	float? blockDelay;
+	float flinchSpring, flinchVelocity, flinchFade, flinchFadeOut, flinchOpacity;
+	bool flinching;
+	[Sync] bool MirroredFlinch { get; set; }
+	[Sync( SyncFlags.Interpolate )] float FlinchWeight { get; set; }
+
 	TimeUntil startled;
 	float blockHealth = 1f;
 	int hitsOnGround;
@@ -14,6 +19,32 @@ public sealed partial class RabbitGuard
 	float reactionDuration;
 	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
+
+	void UpdateBlockFlinch()
+	{
+		float dt = Time.Delta;
+		// ActiveBlocking lasts .2 seconds; the spring stays raised for .3 from activation.
+		bool raised = activeBlock > -0.1f;
+		float target = raised ? 1f : 0f;
+		flinchVelocity += (target - flinchSpring) * dt * (raised ? 300f : 150f);
+		flinchSpring += dt * flinchVelocity;
+		flinchVelocity *= MathF.Pow( raised ? 0.8f : 0.86f, dt * 120f );
+		bool settled = MathF.Abs( flinchSpring ) < 0.01f && MathF.Abs( flinchVelocity ) < 0.01f;
+		if ( flinching && settled )
+		{
+			flinching = false;
+			flinchFadeOut = 4f;
+		}
+		if ( !flinching && !settled && ReactionPhase >= 1f && !InThrow && !Downed && startled <= 0 &&
+			enemy.IsValid() && sinceEnemySeen < 1f && WorldPosition.DistanceSquared( TargetPosition( enemy ) ) < 200f * 200f )
+		{
+			flinching = true;
+			MirroredFlinch = MirroredStance;
+		}
+		if ( flinching ) flinchOpacity = Math.Clamp( flinchSpring, 0.00001f, 1f );
+		flinchFade = Math.Clamp( flinchFade + dt * (flinching ? 10f : -flinchFadeOut), 0f, 1f );
+		FlinchWeight = flinchFade * flinchOpacity;
+	}
 
 	bool UpdateDefense()
 	{
@@ -77,6 +108,8 @@ public sealed partial class RabbitGuard
 		bool active = activeBlock > 0;
 
 		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
+		flinching = false;
+		flinchFadeOut = 100f;
 		if ( Downed || IsGetUp( Stance ) )
 		{
 			throwRecharge = Math.Max( (float)throwRecharge, 1f );

@@ -34,15 +34,33 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w ) );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
+	static (int Version, bool Centered, bool Loop, int Start, int Duration) ReadHeader( BinaryReader reader, string name )
 	{
-		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
 		if ( version is < 5 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
 		bool centered = version >= 10 && reader.ReadBoolean();
 		bool loop = reader.ReadBoolean();
 		int start = reader.ReadInt32();
 		int duration = reader.ReadInt32() - start;
+		return (version, centered, loop, start, duration);
+	}
+
+	// The flinch pose has the same authored bone mask on both keyframes.
+	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones )
+	{
+		using var reader = new BinaryReader( fs.OpenRead( path ) );
+		ReadHeader( reader, path );
+		if ( reader.ReadInt32() <= 0 ) throw new InvalidDataException( $"Empty layer {path}" );
+		reader.ReadInt32(); // First key time
+		int count = reader.ReadInt32();
+		if ( count > bones || count < 0 ) throw new InvalidDataException( $"Invalid layer weights in {path}" );
+		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? reader.ReadSingle() : 1f );
+	}
+
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
+	{
+		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
+		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
 		int count = Count();
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];

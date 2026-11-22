@@ -37,6 +37,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		if ( morphs.Any( m => m.Steps > 1 ) )
 			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
 		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
+		var flinchPath = character.Element( "animations" ).Attribute( "blockflinch" );
+		if ( flinchPath is not null )
+		{
+			var mask = RabbitClip.ReadLayerMask( fs, flinchPath, skeleton.Bones.Count );
+			foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = 1f;
+			bones.AddBoneMask( "block_flinch", mask, defaultFloatChannelWeight: 0f );
+		}
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		var attackSlots = new Dictionary<string, string>
@@ -73,6 +80,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var phase = graph.FloatParameter( "stride_phase" );
 		var speed = graph.FloatParameter( "ground_speed" );
 		var mirroredPose = graph.BoolParameter( "mirrored_pose" );
+		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
+		var flinchWeight = graph.FloatParameter( "block_flinch" );
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
@@ -229,6 +238,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
 		} ).ToArray();
 		var output = machine.Build();
+		if ( flinchPath is not null )
+		{
+			var flinch = clips["block_flinch"] = CombatClip( System.IO.Path.GetFileNameWithoutExtension( flinchPath ), false, null, true );
+
+			var layer = graph.Blend( graph.Clip( flinch.Animation ), graph.Clip( flinch.Mirrored.Animation ), graph.Switch( mirroredFlinch, 1f, 0f ) );
+			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
+				Weight = flinchWeight, IgnoreEvents = true } );
+		}
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs );
 	}
 
