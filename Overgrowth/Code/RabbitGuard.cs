@@ -88,7 +88,7 @@ internal sealed class RabbitGuardPrefab : ResourceLoader<GameMount>
 		const float radius = 0.45f * 40f;
 
 		var visuals = new GameObject( go, true, "model" );
-		visuals.LocalPosition = Vector3.Up * -model.Bounds.Mins.z;
+		// aschar.as places animated frames at the bottom of the leg sphere (the NPC root).
 		var renderer = visuals.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;
