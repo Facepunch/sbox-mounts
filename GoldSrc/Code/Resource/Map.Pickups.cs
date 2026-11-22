@@ -11,6 +11,21 @@ partial class MapBuilder
 		var name = entity.ClassName.ToLowerInvariant();
 		GameObject go;
 		var transform = new Transform( entity.Origin, entity.Rotation );
+		if ( name == "item_longjump" )
+		{
+			go = new GameObject( false, EntityName( entity ) ) { WorldTransform = transform };
+			go.AddComponent<ModelRenderer>().Model = LoadMountedModel( "models/w_longjump.mdl" );
+			var trigger = go.AddComponent<BoxCollider>();
+			trigger.Center = Vector3.Up * 8;
+			trigger.Scale = new Vector3( 32, 32, 16 );
+			trigger.IsTrigger = true;
+			var module = go.AddComponent<LongJumpPickup>();
+			module.TargetName = entity.TargetName;
+			RegisterTarget( entity, module, null, null, null, nameof( MapEntity.Kill ) );
+			WireTrigger( entity, module );
+			go.Enabled = true;
+			return true;
+		}
 		if ( name.StartsWith( "weapon_", System.StringComparison.Ordinal ) )
 		{
 			var canonical = name switch { "weapon_glock" => "weapon_9mmhandgun", "weapon_mp5" => "weapon_9mmar", "weapon_python" => "weapon_357", _ => name };
