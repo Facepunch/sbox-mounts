@@ -5,7 +5,7 @@ using Sandbox.Npcs.Layers;
 namespace Overgrowth;
 
 [Library( "overgrowth_turner" )]
-public sealed partial class RabbitGuard : BaseNpc
+public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 {
 	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
@@ -16,6 +16,12 @@ public sealed partial class RabbitGuard : BaseNpc
 	string playing;
 	[Sync] string Stance { get; set; } = Idle;
 	RabbitGuardAnimations boundAnimations;
+
+	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
+	{
+		boundAnimations = null;
+		strike = null;
+	}
 
 	protected override void OnUpdate()
 	{
@@ -30,6 +36,11 @@ public sealed partial class RabbitGuard : BaseNpc
 			playing = null;
 		}
 		if ( Stance == Locomotion ) UpdateGait();
+		if ( boundAnimations.Attacks.ContainsKey( Stance ) )
+		{
+			Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );
+			Renderer.Animation.Parameters.Set( "attack_phase", AttackPhase );
+		}
 		if ( playing == Stance ) return;
 		playing = Stance;
 		Renderer.Animation.Parameters.Set( "stance", playing );

@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits )
+internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -37,6 +37,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
 		var speed = graph.FloatParameter( "ground_speed" );
+		var attackPhase = graph.FloatParameter( "attack_phase" );
+		var height = graph.FloatParameter( "attack_height_coord" );
+		var moves = new Dictionary<string, RabbitAttack>();
 		var attacks = XmlAsset.Read( fs, characterPath, "character" ).Element( "attacks" );
 		var states = names.Select( name =>
 		{
@@ -56,19 +59,32 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 				RabbitGuard.Kick => "stationary", RabbitGuard.Knee => "stationary_close",
 				RabbitGuard.Jab => "moving_close", RabbitGuard.Roundhouse => "moving", _ => null
 			};
-			var animationName = name;
-			XmlAsset damage = null;
 			if ( slot is not null )
 			{
 				var attack = XmlAsset.Read( fs, attacks.Attribute( slot ), "attack" );
-				var anim = attack.Element( "animations" ).Attribute( "unblocked" );
-				if ( anim.EndsWith( ".xml" ) )
-					anim = XmlAsset.Read( fs, anim, "SyncedAnimationGroup" ).Element( "Animations" ).Elements( "Animation" )
-						.MinBy( x => System.Math.Abs( x.Number( "coord" ) ?? 0 ) ).Attribute( "path" );
-				animationName = System.IO.Path.GetFileNameWithoutExtension( anim );
-				damage = attack.Element( "damage" );
+				var pathToAnimation = attack.Element( "animations" ).Attribute( "unblocked" );
+				var damage = attack.Element( "damage" );
+
+				RabbitAttack.Pose LoadPose( string file, float coordinate )
+				{
+					var clipName = System.IO.Path.GetFileNameWithoutExtension( file );
+					var animation = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), damage );
+					return new( coordinate, animation );
+				}
+
+				RabbitAttack.Pose[] poses = pathToAnimation.EndsWith( ".xml" )
+					? XmlAsset.Read( fs, pathToAnimation, "SyncedAnimationGroup" ).Element( "Animations" ).Elements( "Animation" )
+						.Select( x => LoadPose( x.Attribute( "path" ), x.Number( "coord" ).Value ) ).OrderBy( p => p.Height ).ToArray()
+					: [LoadPose( pathToAnimation, 0 )];
+
+				moves[name] = new RabbitAttack( poses );
+				var blend = graph.BlendSpace( height, looping: false );
+				foreach ( var pose in poses )
+					blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
+				return machine.AddState( blend );
 			}
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, animationName, SourceFor( animationName ), damage );
+
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ) );
 			clips[name] = clip;
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
@@ -79,7 +95,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 				if ( previous != states[i] )
 					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = 0.2f } );
 		}
-		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits );
+		return new( graph.Create( machine.Build(), path + "/guard.ag" ), clips, gaits, moves );
 	}
 
 }

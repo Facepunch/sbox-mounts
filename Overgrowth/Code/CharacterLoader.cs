@@ -4,7 +4,7 @@ using System.IO;
 
 namespace Overgrowth;
 
-public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>
+public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>, IHotloadManaged
 {
 	RabbitGuardAnimations compiledAnimations;
 	const float Scale = 40f;
@@ -46,6 +46,9 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			skeleton.BindPose[i] = skeleton.BindPose[i].WithPosition( skeleton.BindPose[i].Position * scale );
 		return scale;
 	}
+
+	// Generated clips and event metadata must be rebuilt together after a code reload.
+	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state ) => compiledAnimations = null;
 
 	internal RabbitGuardAnimations GetGuardAnimations()
 	{

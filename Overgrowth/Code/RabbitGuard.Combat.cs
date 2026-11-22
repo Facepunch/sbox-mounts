@@ -1,11 +1,13 @@
 using System;
+using Sandbox.Npcs;
 
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	RabbitClip strike;
-	TimeSince attackTime;
+	RabbitAttack strike;
+	[Sync] float AttackHeight { get; set; }
+	[Sync( SyncFlags.Interpolate )] float AttackPhase { get; set; }
 	bool impactPassed;
 	TimeUntil repath;
 	TimeUntil recovery;
@@ -14,12 +16,15 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is not null )
 		{
-			if ( !impactPassed && strike.Impact is { } impact && attackTime >= impact.Time )
+			if ( enemy.IsValid() ) AttackHeight = GetAttackHeight( enemy );
+			var (frequency, clip) = strike.Sample( AttackHeight );
+			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * frequency );
+			if ( !impactPassed && clip.Impact is { } impact && AttackPhase >= impact.Time / clip.Duration )
 			{
 				impactPassed = true;
-				TryHit( impact.Bone );
+				TryHit( clip, impact.Bone );
 			}
-			if ( attackTime < strike.Duration ) return;
+			if ( AttackPhase < 1f ) return;
 			strike = null;
 			Stance = Threat;
 			// Leave the attack state before an identical move can play again.
@@ -56,9 +61,10 @@ public sealed partial class RabbitGuard
 			bool close = distance < 40;
 			// aschar.as GetAttackPath: moving_close / moving, or stationary_close / stationary.
 			Stance = moving ? (close ? Jab : Roundhouse) : (close ? Knee : Kick);
-			strike = boundAnimations.Clips[Stance];
+			strike = boundAnimations.Attacks[Stance];
 			Speak( "attack" );
-			attackTime = 0;
+			AttackPhase = 0;
+			AttackHeight = GetAttackHeight( enemy );
 			impactPassed = false;
 			return;
 		}
@@ -71,7 +77,29 @@ public sealed partial class RabbitGuard
 		Stance = Locomotion;
 	}
 
-	void TryHit( int bone )
+	float GetAttackHeight( GameObject target )
+	{
+		// Overgrowth targets the mean position of the rig's physics bones.
+		var model = target.GetComponent<BaseNpc>()?.Renderer;
+		float sum = 0;
+		int count = 0;
+		if ( model.IsValid() && model.Model?.Physics is { } physics )
+		{
+			foreach ( var part in physics.Parts )
+			{
+				if ( !model.TryGetBoneTransform( part.BoneName, out var bone ) ) continue;
+				sum += bone.Position.z;
+				count++;
+			}
+		}
+
+		var targetZ = count > 0 ? sum / count : target.GetComponent<PlayerController>() is { } player
+			? player.WorldPosition.z + player.CurrentHeight * 0.5f : target.GetBounds().Center.z;
+		// The movement object's origin is one leg-sphere radius above our ground origin.
+		return (targetZ - WorldPosition.z) / 40f - (0.45f + 0.45f);
+	}
+
+	void TryHit( RabbitClip clip, int bone )
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
@@ -84,7 +112,7 @@ public sealed partial class RabbitGuard
 		if ( victim is null ) return;
 		var damage = new DamageInfo
 		{
-			Damage = Random.Shared.Float( strike.DamageMin, strike.DamageMax ) * 100,
+			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100,
 			Origin = WorldPosition,
 			Position = position,
 			Attacker = GameObject,
