@@ -109,6 +109,7 @@ public sealed partial class RabbitGuard
 				_ => close ? Knee : Kick
 			};
 			strike = boundAnimations.Attacks[Stance];
+			punishGroundedTarget = null;
 			Speak( "attack" );
 			AttackPhase = 0;
 			AttackHeight = GetAttackHeight( enemy );
