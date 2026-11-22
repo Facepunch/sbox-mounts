@@ -8,6 +8,8 @@ public sealed partial class RabbitGuard
 	bool nextJumpUsesLeft;
 	float jumpLaunch, airPhase;
 	Vector3? airVelocity;
+	[Sync] float AirTuck { get; set; }
+	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
 
 	void UpdateLanding()
 	{
@@ -25,6 +27,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( !grounded )
 		{
+			if ( !airVelocity.HasValue ) AirTuck = 0f;
 			airVelocity = Animation.MoveVelocity;
 			return;
 		}
@@ -57,7 +60,9 @@ public sealed partial class RabbitGuard
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
 			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
-			float frequency = (1f - flail) / boundAnimations.Clips["r_jump"].Duration + flail / boundAnimations.Clips["r_flailfall"].Duration;
+			float jumpFrequency = (1f - flail) / boundAnimations.Clips["r_jump"].Duration + flail / boundAnimations.Clips["r_flailfall"].Duration;
+			float frequency = (1f - AirTuck) * jumpFrequency + AirTuck / boundAnimations.Clips["r_tuck"].Duration;
+			Renderer.Animation.Parameters.Set( "tuck_coord", AirTuck );
 			airPhase = (airPhase + Time.Delta * frequency) % 1f;
 			Renderer.Animation.Parameters.Set( "up_coord", Math.Clamp( 0.5f - up * 0.5f, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "flail_coord", flail );
@@ -65,6 +70,22 @@ public sealed partial class RabbitGuard
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		return pose;
+	}
+
+	internal void OnAirContact( Collision collision )
+	{
+		if ( !Networking.IsHost || Downed || Health < 1f || airVelocity is not { } before || collision.Other.IsTrigger ) return;
+		if ( collision.Other.GameObject.Tags.Has( "npc" ) || !collision.Self.Body.IsValid() ) return;
+		float impact = before.Distance( collision.Self.Body.Velocity ) / 40f;
+		flinchSpring = Math.Max( flinchSpring, Math.Min( 1f, impact * 2f - 1f ) );
+		AirTuck = Math.Max( AirTuck, Math.Min( 0.4f, impact * 0.1f ) );
+		string sound;
+		if ( impact > 12f && bodyFall <= 0f ) { sound = "bodyfall"; bodyFall = 0.6f; }
+		else if ( impact > 6f && heavyFall <= 0f ) { sound = "bodyfall_heavy"; heavyFall = 0.2f; }
+		else if ( impact > 4f && mediumFall <= 0f ) { sound = "bodyfall_medium"; mediumFall = 0.2f; }
+		else if ( impact > 2f && lightFall <= 0f ) { sound = "bodyfall_light"; lightFall = 0.2f; }
+		else return;
+		PlayMaterialEvent( sound, collision.Contact.Point, collision.Other.Surface?.ResourceName, 1f );
 	}
 
 	void Land( Vector3 airVelocity )
@@ -94,5 +115,15 @@ public sealed partial class RabbitGuard
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character )
 			mount.PlayMaterialEvent( character, GameObject, surface, step, point, gain );
+	}
+}
+
+internal sealed class RabbitAirContact : Component, Component.ICollisionListener
+{
+	[Property] public RabbitGuard Fighter { get; set; }
+
+	void ICollisionListener.OnCollisionStart( Collision collision )
+	{
+		if ( Fighter.IsValid() ) Fighter.OnAirContact( collision );
 	}
 }

@@ -63,6 +63,7 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		var body = go.AddComponent<Rigidbody>();
 		body.MotionEnabled = false;
 		body.EnableImpactDamage = false;
+		body.CollisionEventsEnabled = true;
 		body.Locking = new PhysicsLock { Pitch = true, Roll = true };
 		var agent = go.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
@@ -71,6 +72,7 @@ internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<Ga
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;
 		var npc = go.AddComponent<RabbitGuard>();
+		go.AddComponent<RabbitAirContact>().Fighter = npc;
 		npc.MovementCapsule = collider;
 		npc.DisplayName = title;
 		npc.Renderer = renderer;
