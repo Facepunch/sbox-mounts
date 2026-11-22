@@ -104,11 +104,15 @@ public sealed class Gib : Component, Component.ICollisionListener
 			if ( volume > 0 ) NpcAudio.Play( mount.NpcAudio.Find( "debris/flesh" ), collision.Contact.Point, volume, pitch );
 		}
 		if ( _decals <= 0 || _blood == Npc.BloodColor.None ) return;
-		var normal = collision.Contact.Normal;
-		if ( normal.Dot( collision.Self.Body.MassCenter - collision.Contact.Point ) < 0 ) normal = -normal;
-		var prefix = _blood == Npc.BloodColor.Red ? "blood" : "yblood";
-		ImpactDecal.Place( collision.Contact.Point, normal, $"{prefix}{Game.Random.Int( 1, 6 )}", 0 );
+		// GoldSrc stamps the surface beneath the gib, even when the bounce hits a wall.
 		_decals--;
+		var origin = WorldPosition;
+		var surface = Scene.Trace.Ray( origin + Vector3.Up * 8, origin + Vector3.Down * 16 )
+			.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic()
+			.WithoutTags( "npc", "player", "playercontroller", "trigger", "debris", "ragdoll" ).Run();
+		if ( !surface.Hit || surface.StartedSolid ) return;
+		var prefix = _blood == Npc.BloodColor.Red ? "blood" : "yblood";
+		ImpactDecal.Place( surface.EndPosition, surface.Normal, $"{prefix}{Game.Random.Int( 1, 6 )}", 0 );
 	}
 
 	protected override void OnUpdate()
