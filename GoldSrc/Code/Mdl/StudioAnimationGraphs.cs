@@ -95,11 +95,16 @@ internal sealed class StudioAnimationGraphs( Skeleton skeleton, string modelPath
 		if ( _clips.TryGetValue( name, out var cached ) ) return cached;
 		var clip = new ClipBuilder { Skeleton = skeleton, IsAdditive = true };
 		var frame = Enumerable.Repeat( Transform.Zero.WithScale( 0f ), skeleton.BoneCount ).ToArray();
+		var axis = controller.RotationAxis;
+		// GoldSrc adds jaw Z rotation in parent space. Additive clips apply it in bone space.
+		if ( name == MouthParameter && axis == Vector3.Up )
+			axis = skeleton.Bones[bone].LocalTransform.Rotation.Inverse * axis;
+
 		foreach ( var value in new[] { controller.Start, (controller.Start + controller.End) * 0.5f, controller.End } )
 		{
 			frame[bone] = controller.TranslationAxis != Vector3.Zero
 				? frame[bone].WithPosition( controller.TranslationAxis * value )
-				: frame[bone].WithRotation( Rotation.FromAxis( controller.RotationAxis, value ) );
+				: frame[bone].WithRotation( Rotation.FromAxis( axis, value ) );
 			clip.AddFrame( frame );
 		}
 		return _clips[name] = clip.Create( $"{modelPath}/{name}.anim" );
