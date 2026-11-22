@@ -32,6 +32,7 @@ struct PixelInput
 	float3 vNormalOs : TEXCOORD14;
 	float4 vTangentOs : TEXCOORD15;
 	float4 vTint : COLOR1;
+	float2 vDetailUv : TEXCOORD16;
 };
 VS
 {
@@ -40,6 +41,7 @@ VS
 	{
 		PixelInput i = ProcessVertex( v );
 		VS_DecodeObjectSpaceNormalAndTangent( v, i.vNormalOs, i.vTangentOs );
+		i.vDetailUv = v.vTexCoord2;
 		i.vTint = GetExtraPerInstanceShaderData( v.nInstanceTransformID ).vTint;
 		return FinalizeVertex( i );
 	}
@@ -70,6 +72,8 @@ PS
 	float g_flInvisible < Default( 0 ); >;
 	float g_flScrollSpeed < Default( 0 ); >;
 	float g_flMagma < Default( 0 ); >;
+	float g_flTerrain < Default( 0 ); >;
+	float g_flHeightBlend < Default( 0 ); >;
 	float g_flAxisBlend < Default( 0 ); >;
 	float g_flPalette < Default( 0 ); >;
 	float g_flTranslucency < Default( 0 ); >;
@@ -145,6 +149,17 @@ PS
 			float2 uv1 = uv * g_vDetailScale.y;
 			float2 uv2 = uv * g_vDetailScale.z;
 			float2 uv3 = uv * g_vDetailScale.w;
+			if ( g_flTerrain > 0.5 )
+			{
+				uv0 = uv1 = uv2 = uv3 = g_flTerrain > 1.5 ? uv * 204.8 : i.vDetailUv;
+				baseNormal = float3( 0, 0, 1 );
+			}
+			if ( g_flHeightBlend > 0.5 )
+			{
+				float4 heights = float4( SampleMap( g_tDetailNormal0, uv0 ).a, SampleMap( g_tDetailNormal1, uv1 ).a,
+					SampleMap( g_tDetailNormal2, uv2 ).a, SampleMap( g_tDetailNormal3, uv3 ).a );
+				weights = pow( weights + heights, 16.0 );
+			}
 			if ( g_flAxisBlend > 0.5 )
 			{
 				weights = float4( worldNormal.y * worldNormal.y, pow( max( 0, worldNormal.z ), 2 ),
@@ -154,7 +169,7 @@ PS
 				uv2 = world.yz * float2( 0.15, -0.15 );
 				uv3 = uv1;
 			}
-			weights /= dot( weights, float4( 1, 1, 1, 1 ) );
+			weights /= max( 1e-10, dot( weights, float4( 1, 1, 1, 1 ) ) );
 			float fade = saturate( length( world * 40 - g_vCameraPositionWs ) / (200 * 40) );
 			float4 detailColor = SampleMap( g_tDetailColor0, uv0 ) * weights.x
 				+ SampleMap( g_tDetailColor1, uv1 ) * weights.y

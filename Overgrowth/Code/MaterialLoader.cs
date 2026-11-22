@@ -50,24 +50,27 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 			material.Set( "g_flTranslucency", 1f );
 		}
 		if ( detail )
-		{
-			material.Set( "g_tWeight", Host.LoadTexture( root.Element( "WeightMap" )?.Value ) );
-			var layers = root.Element( "DetailMaps" )?.Elements( "DetailMap" ).ToArray() ?? [];
-			if ( layers.Length != 4 )
-				throw new InvalidDataException( $"Overgrowth DETAILMAP4 requires four layers: {filePath}" );
-			var scales = new float[4];
-			for ( int i = 0; i < layers.Length; i++ )
-			{
-				var colorPath = (string)layers[i].Attribute( "colorpath" );
-				var color = Host.LoadTexture( colorPath );
-				material.Set( $"g_tDetailColor{i}", color );
-				material.Set( $"g_tDetailNormal{i}", Host.LoadTexture( (string)layers[i].Attribute( "normalpath" ) ) );
-				material.Set( $"g_vAverage{i}", Host.AverageColor( colorPath, color ) );
-				scales[i] = layers[i].Number( "scale" ) ?? 1f;
-			}
-			material.Set( "g_vDetailScale", new Vector4( scales[0], scales[1], scales[2], scales[3] ) );
-		}
+			ApplyDetailMaps( Host, material, root );
 		return material;
+	}
+
+	internal static void ApplyDetailMaps( GameMount host, Material material, XmlAsset root )
+	{
+		material.Set( "g_tWeight", host.LoadTexture( root.Element( "WeightMap" )?.Value ) );
+		var layers = root.Element( "DetailMaps" )?.Elements( "DetailMap" ).ToArray() ?? [];
+		if ( layers.Length != 4 )
+			throw new InvalidDataException( $"Overgrowth DETAILMAP4 requires four layers: {material.Name}" );
+		var scales = new float[4];
+		for ( int i = 0; i < layers.Length; i++ )
+		{
+			var colorPath = (string)layers[i].Attribute( "colorpath" );
+			var color = host.LoadTexture( colorPath );
+			material.Set( $"g_tDetailColor{i}", color );
+			material.Set( $"g_tDetailNormal{i}", host.LoadTexture( (string)layers[i].Attribute( "normalpath" ) ) );
+			material.Set( $"g_vAverage{i}", host.AverageColor( colorPath, color ) );
+			scales[i] = layers[i].Number( "scale" ) ?? 1f;
+		}
+		material.Set( "g_vDetailScale", new Vector4( scales[0], scales[1], scales[2], scales[3] ) );
 	}
 
 	static string ExpandShader( string shader ) => shader switch
