@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Human Grunt" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeHumanGrunt" )]
 [NpcDefinition( "monster_human_grunt", "hgrunt", MonsterClass.HumanMilitary, 50, 16, 72, 160, ArmorGroup = 11, Attack = NpcAttack.Bullet, Damage = 5, Range = 2048, ProjectileModel = "grenade", StrikeEvents = new[] { 4, 5, 6 }, Gibs = GibSet.Human, Blood = BloodColor.Red )]
-public sealed partial class HumanGrunt : Npc, Component.IDamageable.IEvents
+public partial class HumanGrunt : Npc, Component.IDamageable.IEvents
 {
 	internal override float ViewDot => 0.2f;
 

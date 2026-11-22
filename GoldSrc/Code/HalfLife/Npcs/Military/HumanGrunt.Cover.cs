@@ -2,7 +2,7 @@ using Sandbox.Npcs.Layers;
 
 namespace GoldSrc.HalfLife;
 
-public sealed partial class HumanGrunt
+public partial class HumanGrunt
 {
 	GameObject _danger;
 	bool _movingToCover, _reloadAtCover;

@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 
 namespace GoldSrc.HalfLife;
 
-public sealed partial class HumanGrunt
+public partial class HumanGrunt
 {
 	sealed class RadioChannel
 	{

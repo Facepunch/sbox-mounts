@@ -1,6 +1,6 @@
 namespace GoldSrc.HalfLife;
 
-public sealed partial class HumanGrunt
+public partial class HumanGrunt
 {
 	[Property] public bool HandGrenades { get; set; } = true;
 	TimeUntil _nextGrenade;

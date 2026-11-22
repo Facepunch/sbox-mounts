@@ -2,7 +2,7 @@ namespace GoldSrc.HalfLife;
 
 [Title( "Rappelling Human Grunt" ), Category( "Half-Life" )]
 [NpcDefinition( "monster_grunt_repel", "hgrunt", MonsterClass.HumanMilitary, 0, 0, 0, 0 )]
-public sealed class GruntRepel : Component
+public class GruntRepel : Component
 {
 	[Property] public string GruntPrefab { get; set; } = HumanGrunt.DeploymentPrefab;
 

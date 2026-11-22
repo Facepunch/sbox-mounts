@@ -1,13 +1,13 @@
 namespace GoldSrc.HalfLife;
 
-public sealed partial class HumanGrunt
+public partial class HumanGrunt
 {
 	public enum Loadout { FromModelBody, Rifle, Shotgun, RifleWithGrenadeLauncher }
 
 	public HumanGrunt() => Skin = -1;
 
 	[Property, Sync( SyncFlags.FromHost ), Change( nameof( LoadoutChanged ) )] public Loadout Weapon { get; set; }
-	[Sync( SyncFlags.FromHost )] public int Ammo { get; private set; } = -1;
+	[Sync( SyncFlags.FromHost )] public int Ammo { get; protected set; } = -1;
 	[Sync( SyncFlags.FromHost ), Change( nameof( GunDroppedChanged ) )] bool GunDropped { get; set; }
 
 	bool HasLauncher => Weapon == Loadout.RifleWithGrenadeLauncher;

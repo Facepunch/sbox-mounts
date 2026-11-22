@@ -5,7 +5,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Apache" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeApache" )]
 [NpcDefinition( "monster_apache", "apache", MonsterClass.HumanMilitary, 250, 52, 52, 265, MetalBody = true, Attack = NpcAttack.Bullet, Damage = 10, Range = 4092, Movement = NpcMovement.Flying, ProjectileModel = "hvr" )]
-public sealed class Apache : Aircraft
+public class Apache : Aircraft
 {
 	internal override float ViewDot => -0.707f;
 	internal override float SightRange => 4092;

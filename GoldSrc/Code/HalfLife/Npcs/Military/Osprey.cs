@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Osprey" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeOsprey" )]
 [NpcDefinition( "monster_osprey", "osprey", MonsterClass.Machine, 400, 62, 64, 170, Movement = NpcMovement.Flying, IdleSequence = "rotor" )]
-public sealed class Osprey : Aircraft
+public class Osprey : Aircraft
 {
 	internal override float ViewDot => 0;
 
@@ -11,6 +11,9 @@ public sealed class Osprey : Aircraft
 	internal override float RotorAttenuation => 0.15f;
 	internal override string RotorSample => "apache/ap_rotor4.wav";
 	internal override string DebrisModel => "osprey_bodygibs";
+
+	internal virtual string UnitPrefab => HumanGrunt.DeploymentPrefab;
+	internal virtual bool CanDeploy( HumanGrunt unit ) => unit.GetType() == typeof( HumanGrunt );
 
 	readonly List<HumanGrunt> _units = [];
 	TimeUntil _nextDeployment;
@@ -37,7 +40,7 @@ public sealed class Osprey : Aircraft
 		_nextDeployment = 1;
 		if ( _units.Count == 0 )
 		{
-			_units.AddRange( Scene.GetAllComponents<HumanGrunt>().Where( grunt => grunt.Health > 0 ).Take( 24 ) );
+			_units.AddRange( Scene.GetAllComponents<HumanGrunt>().Where( grunt => grunt.Health > 0 && CanDeploy( grunt ) ).Take( 24 ) );
 			// A standalone spawn starts with one deployment when no ground squad exists.
 			if ( _units.Count == 0 ) _units.AddRange( new HumanGrunt[4] );
 		}
@@ -53,7 +56,7 @@ public sealed class Osprey : Aircraft
 			var ground = Scene.Trace.Ray( start, start + Vector3.Down * 4096 )
 				.IgnoreGameObjectHierarchy( GameObject ).Run();
 			if ( !ground.Hit || ground.GameObject?.GetComponentInParent<IDamageable>() is not null ) continue;
-			_units[slot] = HumanGrunt.Deploy( this, start, WorldRotation );
+			_units[slot] = HumanGrunt.Deploy( this, start, WorldRotation, UnitPrefab );
 		}
 	}
 

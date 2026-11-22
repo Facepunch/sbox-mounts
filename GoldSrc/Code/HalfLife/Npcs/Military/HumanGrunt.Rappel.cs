@@ -1,6 +1,6 @@
 namespace GoldSrc.HalfLife;
 
-public sealed partial class HumanGrunt
+public partial class HumanGrunt
 {
 	[Property, Sync( SyncFlags.FromHost )] public Vector3? RopeAnchor { get; private set; }
 	float _descentSpeed;
