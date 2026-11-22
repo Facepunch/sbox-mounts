@@ -79,11 +79,14 @@ class ModelLoader( string fullPath, bool npcAnimations = false, HalfLife.NpcDefi
 		{
 			var source = mdlFile.SequenceTransforms[index++];
 			if ( source is null || string.IsNullOrWhiteSpace( sequence.Label ) ) continue;
-			sequences.Add( Sequences[sequences.Count] with { Frames = source.Transforms, PitchFrames = source.PitchFrames } );
+			sequences.Add( CreateSequence( main, sequence.Label, sequence, source.Transforms, source.PitchFrames ) );
 		}
 		PrepareSkeleton( mdlFile, main, mdlFile.Bones.ToArray() );
 		Sequences = sequences;
 	}
+
+	static StudioSequence CreateSequence( BinaryReader reader, string name, Mdl.SequenceDesc description, Transform[] frames, Transform[] pitchFrames )
+		=> new( name, description, Mdl.File.ReadEvents( reader, description ).OrderBy( x => x.Frame ).ToArray(), frames, pitchFrames );
 
 	void ReadAnimations( Mdl.File mdlFile, BinaryReader main, bool includePitchBlends )
 	{
@@ -326,7 +329,7 @@ class ModelLoader( string fullPath, bool npcAnimations = false, HalfLife.NpcDefi
 				animation.AddFrame( transforms.Slice( frameIndex * boneCount, boneCount ) );
 			}
 
-			sequences.Add( new StudioSequence( animation.Name, sequence, GoldSrc.Mdl.File.ReadEvents( main, sequence ).OrderBy( x => x.Frame ).ToArray(),
+			sequences.Add( CreateSequence( main, animation.Name, sequence,
 				npcAnimations ? source.Transforms : null, source.PitchFrames ) );
 		}
 

@@ -59,7 +59,7 @@ public class NpcCorpse : Component
 		corpse._hull = new BBox( new Vector3( -radius, -radius, 0 ), new Vector3( radius, radius, npc.Definition.Height ) );
 		corpse.Velocity = velocity ?? (npc.GetComponent<Rigidbody>() is { MotionEnabled: true } body ? body.Velocity : Sandbox.Npcs.BaseNpc.GetVelocity( npc.GameObject ));
 		corpse._anchored = corpse.Landed = anchored;
-		corpse.StartPose( sequence );
+		corpse.StartPose();
 		go.Enabled = true;
 		go.NetworkSpawn( true, null );
 		return go;
@@ -75,13 +75,15 @@ public class NpcCorpse : Component
 
 	protected override void OnStart() => StartPose();
 
-	void StartPose( StudioSequence sequence = null )
+	void StartPose()
 	{
 		if ( _poseStarted || !Renderer.IsValid() ) return;
 		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is not HalfLifeMount mount || mount.GetByPath( ModelPath ) is not ModelLoader loader ) return;
 
+		// Hotloading the mount can give an existing actor a fresh loader for its corpse.
+		loader.EnsureNpcAnimations();
 		var desired = PoseName ?? DeathSequence;
-		_sequence = sequence ?? loader.Sequences.FirstOrDefault( x => string.Equals( x.Name, desired, StringComparison.OrdinalIgnoreCase ) );
+		_sequence = loader.Sequences.FirstOrDefault( x => string.Equals( x.Name, desired, StringComparison.OrdinalIgnoreCase ) );
 		if ( _sequence is null ) return;
 
 		_audio = mount.NpcAudio;
