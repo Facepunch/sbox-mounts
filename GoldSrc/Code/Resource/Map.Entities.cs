@@ -112,7 +112,7 @@ partial class MapBuilder
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
-			or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
+			or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
 			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
 			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
@@ -247,6 +247,28 @@ partial class MapBuilder
 
 			case "multi_manager":
 				AddManager( go, entity );
+				return;
+
+			case "speaker":
+				var speaker = go.AddComponent<AnnouncementSpeaker>();
+				speaker.TargetName = entity.TargetName;
+				speaker.Sentence = entity.GetInt( "preset" ) switch
+				{
+					0 => entity.GetString( "message" ),
+					int preset and >= 1 and <= 5 => $"C1A{preset - 1}_",
+					int preset and >= 6 and <= 10 => $"C2A{preset - 5}_",
+					11 => "C3A1_",
+					12 => "C3A2_",
+					_ => null
+				};
+				if ( string.IsNullOrEmpty( speaker.Sentence ) )
+				{
+					go.Destroy();
+					return;
+				}
+				speaker.Volume = entity.GetFloat( "health" ) * 0.1f;
+				speaker.StartSilent = (entity.SpawnFlags & 1) != 0;
+				RegisterTarget( entity, speaker );
 				return;
 
 			case "ambient_generic":
