@@ -74,6 +74,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		bool track = Animation.IsGrounded && Stance is Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
+		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
 		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
