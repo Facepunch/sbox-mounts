@@ -70,6 +70,8 @@ public sealed partial class RabbitGuard
 					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
 					{
 						var direction = (TargetPosition( blockingOpponent.GameObject ) - WorldPosition).Normal;
+						stunnedBy = blockingOpponent;
+						blockStun = 0.5f;
 						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction, flippedAttack ) * (strike.Height == "low" ? -20f : 20f) );
 					}
 					blockingOpponent = null;
@@ -132,6 +134,7 @@ public sealed partial class RabbitGuard
 			Stance = Watch;
 			return;
 		}
+		if ( TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = destination - WorldPosition;
 		float distance = delta.Length;

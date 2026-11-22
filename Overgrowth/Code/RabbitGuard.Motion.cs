@@ -22,6 +22,8 @@ public sealed partial class RabbitGuard
 				displacement -= ground.Normal * displacement.Dot( ground.Normal );
 			}
 			var trace = Scene.Trace.Capsule( capsule ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" );
+			if ( throwPartner.IsValid() && Stance is ("throw" or "thrown" or "thrown_counter") )
+				trace = trace.IgnoreGameObjectHierarchy( throwPartner.GameObject );
 			var move = new CharacterControllerHelper( trace, WorldPosition + lift, displacement );
 			move.TryMove( 1f );
 			WorldPosition = move.Position - lift;

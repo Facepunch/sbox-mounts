@@ -30,28 +30,34 @@ public sealed partial class RabbitGuard
 		NoticeAttacker( attacker );
 		if ( !Downed )
 		{
-			EndGetUpBlend();
-			// Older saved instances predate the explicit prefab reference.
-			MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
-			Movement.Stop();
-			Movement.Enabled = false;
-			MovementCapsule.Enabled = false;
-			strike = null;
-			blockHealth = 0;
-			// Copy the live pose before letting the physics skeleton drive it.
-			ragdoll = Renderer.GetOrAddComponent<ModelPhysics>( false );
-			ragdoll.Renderer = Renderer;
-			ragdoll.Model = Renderer.Model;
-			ragdoll.IgnoreRoot = true;
-			ragdoll.CopyBonesFrom( Renderer, true );
-			ReleaseProceduralPose();
-			ragdoll.Enabled = true;
-			Downed = true;
+			GoLimp();
 			Speak( "hit" );
 		}
 
 		sinceKnockdown = 0;
 		if ( hit.DamageInfo is StrikeDamage blow ) ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
+	}
+
+	void GoLimp()
+	{
+		sinceKnockdown = 0;
+		EndGetUpBlend();
+		// Older saved instances predate the explicit prefab reference.
+		MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
+		Movement.Stop();
+		Movement.Enabled = false;
+		MovementCapsule.Enabled = false;
+		strike = null;
+		blockHealth = 0;
+		// Copy the live pose before letting the physics skeleton drive it.
+		ragdoll = Renderer.GetOrAddComponent<ModelPhysics>( false );
+		ragdoll.Renderer = Renderer;
+		ragdoll.Model = Renderer.Model;
+		ragdoll.IgnoreRoot = true;
+		ragdoll.CopyBonesFrom( Renderer, true );
+		ReleaseProceduralPose();
+		ragdoll.Enabled = true;
+		Downed = true;
 	}
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
@@ -129,6 +135,8 @@ public sealed partial class RabbitGuard
 		agent.SetAgentPosition( WorldPosition );
 		StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		secondaryReset = 4f * (4f / 120f);
+		awaitingThrowImpact = false;
+		throwPartner = null;
 		Downed = false;
 		return true;
 	}

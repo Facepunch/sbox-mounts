@@ -22,8 +22,8 @@ public sealed partial class RabbitGuard
 		float chance = BlockFollowUp;
 		if ( tactic == CombatTactic.Provoke ) chance = 1f - (1f - chance) * (1f - chance);
 		if ( Random.Shared.Float() >= chance ) return;
-		// enemycontrol.as reserves the other 30% of follow-ups for a counter throw.
-		if ( Random.Shared.Float() > 0.7f ) return;
+		wantsBlockThrow = Random.Shared.Float() > 0.7f;
+		if ( wantsBlockThrow ) return;
 		rangeChanged |= tactic != CombatTactic.Rush;
 		tactic = CombatTactic.Rush;
 		nextTactic = 1f;

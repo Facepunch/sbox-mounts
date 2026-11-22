@@ -28,6 +28,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void OnUpdate()
 	{
 		if ( !Downed ) base.OnUpdate();
+		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Downed || Health < 1 )
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
@@ -99,7 +100,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
 		UpdateStanceAmounts();
-		if ( UpdateDefense() ) return;
+		if ( InThrow || UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
