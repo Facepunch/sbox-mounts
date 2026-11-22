@@ -2,14 +2,11 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitGait[] Gaits, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, float[] BoneMass, float CharacterScale )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, float[] BoneMass, float CharacterScale )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
-		var gaits = XmlAsset.Read( fs, "Data/Animations/r_standmovement.xml", "SyncedAnimationGroup" )
-			.Element( "Animations" ).Elements( "Animation" )
-			.Select( x => new RabbitGait( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), x.Number( "coord" ).Value, x.Number( "ground_speed" ).Value, x.Number( "run_bounce" ) ?? 0f ) ).ToArray();
 		var bones = new SkeletonBuilder();
 		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
 		{
@@ -90,6 +87,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
 			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
+		var movement = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "movement" ), name =>
+		{
+			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
+				clips[name] = cycle = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), sampleFeet: true );
+			return cycle;
+		} );
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Idle )
@@ -100,14 +103,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "idle" ), "stride_phase" ) );
 			if ( name == RabbitGuard.Locomotion )
 			{
-				var blend = graph.BlendSpace( speed );
-				foreach ( var gait in gaits )
-				{
-					var cycle = RabbitClip.Load( fs, path, rig, skeleton, gait.Name, SourceFor( gait.Name ), sampleFeet: true );
-					clips[gait.Name] = cycle;
-					blend.Add( gait.Coordinate, graph.TimeControlledClip( cycle.Animation, phase, new() { SampleRootMotion = false } ) );
-				}
-				GraphBuilder.Node locomotion = blend;
+				var locomotion = movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase );
 				foreach ( var foot in feet )
 					locomotion = graph.TwoBoneIK( locomotion, foot.Bone, foot.Target,
 						new() { Weight = foot.Weight, WorldSpace = true, BlendTime = 0 } );
@@ -173,7 +169,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return skeleton.Points[a].Distance( skeleton.Points[b] ) * 20f * scale;
 		}
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], HalfLength( hip ), HalfLength( skeleton.HierParents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( skeleton.HierParents[skeleton.IKBones["head"].BoneId] ), skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], HalfLength( hip ), HalfLength( skeleton.HierParents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( skeleton.HierParents[skeleton.IKBones["head"].BoneId] ), skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
 	}
 
 }

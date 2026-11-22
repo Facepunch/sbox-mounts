@@ -97,12 +97,6 @@ public sealed partial class RabbitGuard
 		SolveStance();
 	}
 
-	void UpdateFoot( int side, string label, RabbitClip first, RabbitClip second, float phase, float blend )
-	{
-		var pose = FootPose.Blend( FootPose.Sample( first.Feet[side], phase ), FootPose.Sample( second.Feet[side], phase ), blend );
-		ApplyFootTarget( side, label, Renderer.WorldTransform.ToWorld( pose.Transform ), pose.Weight );
-	}
-
 	void ApplyFootTarget( int side, string label, Transform target, float poseWeight, bool plant = false )
 	{
 		float weight = 0;

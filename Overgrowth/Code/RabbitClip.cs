@@ -6,7 +6,6 @@ namespace Overgrowth;
 
 internal sealed record Impact( float Time, int Bone );
 internal sealed record Step( float Phase, string Event, int Bone );
-internal sealed record RabbitGait( string Name, float Coordinate, float GroundSpeed, float RunBounce );
 
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
