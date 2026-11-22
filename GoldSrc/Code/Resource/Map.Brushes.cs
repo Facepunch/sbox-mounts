@@ -16,6 +16,18 @@ partial class MapBuilder
 		var bspModel = bsp.Models[modelIndex];
 		var className = entity.ClassName;
 
+		if ( className == "func_ladder" )
+		{
+			var ladder = new GameObject( true, EntityName( entity ) ) { IsStatic = true };
+			ladder.WorldPosition = entity.Origin + (bspModel.Mins + bspModel.Maxs) * 0.5f;
+			ladder.Tags.Add( "ladder" );
+			var collider = ladder.AddComponent<BoxCollider>();
+			collider.Scale = bspModel.Maxs - bspModel.Mins;
+			collider.IsTrigger = true;
+			collider.Static = true;
+			return;
+		}
+
 		if ( className == "func_friction" )
 		{
 			WarnUnsupportedEntity( entity );
@@ -57,7 +69,7 @@ partial class MapBuilder
 		}
 
 		var isStatic = className is "func_wall" or "func_illusionary"
-			or "func_conveyor" or "func_ladder" or "func_buyzone" or "func_detail";
+			or "func_conveyor" or "func_buyzone" or "func_detail";
 		var aggregate = isStatic && string.IsNullOrEmpty( entity.TargetName );
 		var geometry = GetBrushGeometry( bsp, bspModel, modelIndex, center, blend, surfaceOverride, aggregate );
 		if ( geometry.IsEmpty )
@@ -85,7 +97,7 @@ partial class MapBuilder
 				_ => false
 			};
 		if ( !passable && !(className is "func_door" or "func_water" && entity.GetInt( "skin" ) != 0)
-			&& className is not ("func_illusionary" or "func_ladder" or "func_buyzone") )
+			&& className is not ("func_illusionary" or "func_buyzone") )
 		{
 			AddCollider( go, geometry.Physics, isStatic );
 			if ( tint.a > 0f )
