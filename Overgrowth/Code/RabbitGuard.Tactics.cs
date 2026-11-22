@@ -14,9 +14,12 @@ public sealed partial class RabbitGuard
 	TimeUntil nextTactic;
 	TimeUntil dontAttackBefore;
 	float preferredRange;
+	float strafeOffset;
 
 	void UpdateTactic( float distance )
 	{
+		if ( Random.Shared.Float() < Time.Delta * 120f / 150f )
+			strafeOffset = Random.Shared.Float( -0.2f, 0.2f ) * 40f;
 		if ( nextTactic <= 0 )
 		{
 			nextTactic = Random.Shared.Float( 0.35f, 1.25f );

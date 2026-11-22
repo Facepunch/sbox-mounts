@@ -114,13 +114,6 @@ public sealed partial class RabbitGuard
 
 		if ( visible ) UpdateTactic( distance );
 		bool attacking = tactic is CombatTactic.Rush or CombatTactic.Wait;
-		if ( visible && distance <= preferredRange && (!attacking || distance >= 1.5f * 40) )
-		{
-			Movement.Stop();
-			Stance = Threat;
-			return;
-		}
-
 		if ( visible && attacking && distance < 1.5f * 40 && HasSight( enemy ) )
 		{
 			Movement.Stop();
@@ -150,9 +143,23 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
+			if ( visible && preferredRange > 0 )
+			{
+				var direction = delta.WithZ( 0 ).Normal;
+				var offset = destination - direction * preferredRange + direction.Cross( Vector3.Up ) * strafeOffset;
+				if ( Movement.ProjectPoint( offset ) is { } point )
+				{
+					const float slowRadius = 0.2f * 40f;
+					float remaining = (point - WorldPosition).WithZ( 0 ).Length - slowRadius;
+					if ( remaining > 0 )
+						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * 8f * 40f, enemy );
+					else Movement.Stop();
+				}
+				else Movement.Stop();
+			}
+			else Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
 		}
-		Stance = Locomotion;
+		Stance = Movement.MoveTarget.HasValue ? Locomotion : Threat;
 	}
 
 	// aschar.as UpdateAttacking and interpdirection.as, for an unarmed non-throw attack.
