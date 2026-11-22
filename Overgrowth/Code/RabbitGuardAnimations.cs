@@ -30,6 +30,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return source;
 		}
 
+		bones.AddFloatChannelSet( "status", "cancel" );
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		var attackSlots = new Dictionary<string, string>

@@ -13,7 +13,8 @@ public sealed partial class RabbitGuard
 	float predictability;
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
-	TimeUntil recovery;
+	float cancelDelay;
+	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
 
 	void UpdateCombat()
 	{
@@ -53,11 +54,21 @@ public sealed partial class RabbitGuard
 				}
 				else TryHit( clip, impact.Bone );
 			}
-			if ( AttackPhase < 1f ) return;
+			if ( AttackPhase < 1f )
+			{
+				if ( !AnimationCanCancel )
+				{
+					cancelDelay = 0.01f;
+					return;
+				}
+				if ( cancelDelay > 0f )
+				{
+					cancelDelay -= Time.Delta;
+					return;
+				}
+			}
 			strike = null;
 			Stance = Threat;
-			// Leave the attack state before an identical move can play again.
-			recovery = 0.2f;
 			return;
 		}
 
@@ -97,7 +108,6 @@ public sealed partial class RabbitGuard
 		if ( visible && attacking && distance < 1.5f * 40 && HasSight( enemy ) )
 		{
 			Movement.Stop();
-			if ( recovery > 0 ) { Stance = Threat; return; }
 
 			bool close = distance < 40;
 			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
@@ -112,6 +122,7 @@ public sealed partial class RabbitGuard
 			punishGroundedTarget = null;
 			Speak( "attack" );
 			AttackPhase = 0;
+			cancelDelay = 0.01f;
 			AttackHeight = GetAttackHeight( enemy );
 			impactPassed = false;
 			preparePassed = false;
