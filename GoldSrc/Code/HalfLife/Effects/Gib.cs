@@ -128,15 +128,20 @@ public sealed class Gib : Component, Component.ICollisionListener
 		if ( !_fading )
 		{
 			_fading = true;
-			for ( int i = 0; i < _renderer.Materials.Count; i++ )
-			{
-				var material = _renderer.Materials.GetOriginal( i );
-				if ( material.IsValid() ) _renderer.Materials.SetOverride( i, FadeMaterials.GetValue( material, CreateFadeMaterial ) );
-			}
+			EnableFade( _renderer );
 		}
 		var alpha = 1 + (float)_fade * (_fleshShard ? 0.5f : 70f / 255f);
 		if ( alpha <= 0 ) GameObject.Destroy();
 		else _renderer.Attributes.Set( "StudioOpacity", alpha );
+	}
+
+	internal static void EnableFade( ModelRenderer renderer )
+	{
+		for ( int i = 0; i < renderer.Materials.Count; i++ )
+		{
+			var material = renderer.Materials.GetOriginal( i );
+			if ( material.IsValid() ) renderer.Materials.SetOverride( i, FadeMaterials.GetValue( material, CreateFadeMaterial ) );
+		}
 	}
 
 	static Material CreateFadeMaterial( Material original )

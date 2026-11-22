@@ -95,6 +95,7 @@ partial class MapBuilder
 				go.WorldPosition = PlacePerson( bsp, entity.Origin, npc );
 				if ( npc is SittingScientist seated ) seated.PlacedOnMapHull = true;
 			}
+			npc.FadeCorpse = (entity.SpawnFlags & 512) != 0;
 			npc.Body = entity.GetInt( "body" );
 			npc.Skin = entity.GetInt( "skin" );
 			if ( entity.GetFloat( "health" ) > 0 ) npc.Health = entity.GetFloat( "health" );

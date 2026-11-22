@@ -2,6 +2,8 @@ namespace GoldSrc.HalfLife;
 
 public partial class Npc
 {
+	[Property] public bool FadeCorpse { get; set; }
+
 	const int DieSimple = 36, DieBackward = 37, DieForward = 38, DieHeadshot = 66, DieGutshot = 68;
 	bool _gibbed;
 	float _healthBeforeHit, _remainingHealth;

@@ -12,6 +12,13 @@ namespace GoldSrc.Maps;
 [Icon( "person" )]
 public sealed class Monster : MapEntity
 {
+	[Property, Hide] public bool SpawnedByMaker { get; set; }
+
+	protected override void OnDestroy()
+	{
+		if ( SpawnedByMaker && Map.IsValid() ) Map.Entities.Remove( this );
+	}
+
 	[Property] public HalfLife.Npc Npc { get; set; }
 	[Property] public SkinnedModelRenderer Renderer { get; set; }
 

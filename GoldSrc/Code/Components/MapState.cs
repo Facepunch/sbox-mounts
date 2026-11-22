@@ -65,7 +65,7 @@ public sealed class MapState : Component
 
 	public void KillManagerClones( string name )
 	{
-		foreach ( var clone in FindAll( name ).OfType<MultiManager>().Where( x => x.IsClone ).ToArray() )
+		foreach ( var clone in FindAll( name ).Where( x => x is MultiManager { IsClone: true } or Monster { SpawnedByMaker: true } ).ToArray() )
 			clone.Kill();
 	}
 

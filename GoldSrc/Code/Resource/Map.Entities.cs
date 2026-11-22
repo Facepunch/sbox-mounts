@@ -112,7 +112,7 @@ partial class MapBuilder
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
-			or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
+			or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
 			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
 			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
@@ -135,6 +135,21 @@ partial class MapBuilder
 
 		switch ( className )
 		{
+			case "monstermaker":
+				var maker = go.AddComponent<MonsterMaker>();
+				maker.TargetName = entity.TargetName;
+				maker.ChildClass = entity.GetString( "monstertype" );
+				maker.ChildName = entity.GetString( "netname" );
+				maker.PrefabPath = $"mount://{Host.Ident}/entities/npcs/{maker.ChildClass}.prefab";
+				maker.Count = entity.GetInt( "monstercount" );
+				maker.MaxLive = entity.GetInt( "m_imaxlivechildren" );
+				maker.Interval = entity.GetFloat( "delay" );
+				maker.StartActive = string.IsNullOrEmpty( maker.TargetName ) || (entity.SpawnFlags & 1) != 0;
+				maker.Cyclic = !string.IsNullOrEmpty( maker.TargetName ) && (entity.SpawnFlags & 4) != 0;
+				RegisterTarget( entity, maker );
+				WireTrigger( entity, maker, delayed: false );
+				return;
+
 			case "env_shake":
 				var shake = go.AddComponent<Shake>();
 				shake.TargetName = entity.TargetName;

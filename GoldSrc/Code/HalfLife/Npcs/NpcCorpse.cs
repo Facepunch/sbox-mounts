@@ -15,6 +15,9 @@ public class NpcCorpse : Component
 	[Property] public Color Tint { get; set; } = Color.White;
 	[Sync( SyncFlags.FromHost )] protected TimeSince Age { get; set; }
 
+	[Property] public bool FadeOnDeath { get; set; }
+	TimeSince? _fadeAge;
+
 	readonly StudioSequenceEvents _sequenceEvents = new();
 	StudioSequence _sequence, _final;
 	bool _finishing, _poseStarted;
@@ -42,6 +45,7 @@ public class NpcCorpse : Component
 		var corpse = npc.AddCorpseComponent( go );
 		corpse.ModelPath = npc.ModelPath;
 		corpse.ModelOriginHeight = npc.ModelOriginHeight;
+		corpse.FadeOnDeath = npc.FadeCorpse;
 		corpse.DeathSequence = sequence.Name;
 		corpse.Renderer = renderer;
 		corpse.BodyGroups = source.BodyGroups;
@@ -106,6 +110,13 @@ public class NpcCorpse : Component
 
 	protected override void OnUpdate()
 	{
+		if ( _fadeAge is {} fade )
+		{
+			float alpha = Math.Max( 0, 1 - (int)((float)fade * 10) * (7f / 255) );
+			Renderer.Attributes.Set( "StudioOpacity", alpha );
+			if ( Networking.IsHost && (float)fade >= 3.9f ) GameObject.Destroy();
+			return;
+		}
 		if ( _sequence is null || !Renderer.IsValid() || !Renderer.Animation.IsValid )
 			return;
 
@@ -131,7 +142,13 @@ public class NpcCorpse : Component
 		}
 		if ( time >= _sequence.Duration && (_final is null || _finishing) )
 		{
-			if ( Networking.IsHost && GetComponent<CorpseDamage>().IsValid() )
+			if ( FadeOnDeath )
+			{
+				Gib.EnableFade( Renderer );
+				if ( GetComponent<ModelHitboxes>() is {} hitboxes ) hitboxes.Enabled = false;
+				_fadeAge = 0;
+			}
+			else if ( Networking.IsHost && GetComponent<CorpseDamage>().IsValid() )
 				Scene.GetSystem<Sandbox.Npcs.NpcSystem>().EmitStimulus( "carcass", WorldPosition, GameObject, 384, 30 );
 			_sequence = null;
 		}
