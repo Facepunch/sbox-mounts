@@ -19,11 +19,16 @@ partial class MapBuilder
 		if ( className == "func_monsterclip" )
 		{
 			var clip = new GameObject( false, EntityName( entity ) ) { IsStatic = true, WorldPosition = entity.Origin };
+			clip.Tags.Add( MonsterClip.BrushTag );
+			var marker = clip.AddComponent<MonsterClip>();
+			var collider = clip.AddComponent<PhysicsCollider>();
+			collider.Physics = GetMonsterClipPhysics( bsp, bspModel, modelIndex );
+			collider.Static = true;
+			collider.ColliderFlags = ColliderFlags.IgnoreTraces;
 			var area = clip.AddComponent<NavMeshArea>();
 			area.IsBlocker = false;
 			area.Area = MonsterClip.Area;
 			area.SceneVolume = new Sandbox.Volumes.SceneVolume { Box = new BBox( bspModel.Mins, bspModel.Maxs ) };
-			var marker = clip.AddComponent<Relay>();
 			marker.TargetName = entity.TargetName;
 			RegisterTarget( entity, marker, null, null, null, nameof( MapEntity.Kill ) );
 			clip.Enabled = true;
