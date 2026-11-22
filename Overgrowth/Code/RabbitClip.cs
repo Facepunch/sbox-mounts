@@ -11,11 +11,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 {
 	private sealed record Key( int Time, Transform[] Bones );
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
-		if ( version is < 7 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
+		if ( version is < 6 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
 		bool centered = version >= 10 && reader.ReadBoolean();
 		bool loop = reader.ReadBoolean();
 		int start = reader.ReadInt32();
@@ -42,7 +42,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				pose[b] = new Transform( new Vector3( matrix[14], matrix[12], matrix[13] ) * 40, new Rotation( q.z, q.x, q.y, q.w ) );
 				center += pose[b].Position;
 			}
-			Skip( Count() * (version >= 8 ? 72L : 64L) );
+			if ( version >= 7 ) Skip( Count() * (version >= 8 ? 72L : 64L) );
 			if ( version >= 9 && reader.ReadBoolean() ) Skip( 64 );
 			int events = Count();
 			for ( int j = 0; j < events; j++ )
@@ -98,13 +98,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 			clip.AddFrame( frame );
 		}
-		float min = 0, max = 0;
-		if ( impact >= 0 )
-		{
-			var attack = XmlAsset.Read( fs, $"Data/Attacks/{name[2..]}.xml", "attack" ).Element( "damage" );
-			min = attack.Number( "min" ) ?? 0;
-			max = attack.Number( "max" ) ?? 0;
-		}
+		var min = damage?.Number( "min" ) ?? 0;
+		var max = damage?.Number( "max" ) ?? 0;
 		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, min, max, steps );
 
 		int Count()

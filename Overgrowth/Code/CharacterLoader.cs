@@ -40,7 +40,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			// The mounted model can survive code hotload even when its animation data has been invalidated.
 			var appearance = ReadAppearance();
 			var skeleton = ReadSkeleton( appearance ).Skeleton;
-			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, skeleton, ScaleSkeleton( appearance, skeleton ) );
+			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, ScaleSkeleton( appearance, skeleton ) );
 		}
 		return compiledAnimations;
 	}
@@ -87,7 +87,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			builder.AddBone( $"bone_{i}", bindPose.Position, bindPose.Rotation, parent );
 		}
 
-		if ( guard ) compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, skeleton, scale );
+		if ( guard ) compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, scale );
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
 		var model = builder.Create();

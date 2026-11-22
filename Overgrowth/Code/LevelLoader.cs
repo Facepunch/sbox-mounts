@@ -47,13 +47,13 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				light.Radius=(node.Number("s0")??1)*40;
 				light.LightColor=new Color(node.Number("color_r")??1,node.Number("color_g")??1,node.Number("color_b")??1);
 				return;
-			case "ActorObject" when string.Equals( file, RabbitGuard.ActorPath, StringComparison.OrdinalIgnoreCase ):
-				var guard = Model.Load( Host.MountedPath( RabbitGuard.ModelName ) + ".vmdl" );
+			case "ActorObject" when RabbitActor.All.FirstOrDefault( a => string.Equals( file, a.Path, StringComparison.OrdinalIgnoreCase ) ) is { } definition:
+				var guard = Model.Load( Host.MountedPath( definition.ModelName ) + ".vmdl" );
 				if ( guard is { IsError: false } )
 				{
 					var actor = Object();
 					actor.WorldPosition = actor.WorldTransform.PointToWorld( Vector3.Up * guard.Bounds.Mins.z );
-					RabbitGuardPrefab.Configure( actor, guard );
+					RabbitGuardPrefab.Configure( actor, guard, definition.Title );
 				}
 				return;
 			case "ActorObject":

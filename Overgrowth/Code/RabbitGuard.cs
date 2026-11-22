@@ -7,8 +7,6 @@ namespace Overgrowth;
 [Library( "overgrowth_turner" )]
 public sealed partial class RabbitGuard : BaseNpc
 {
-	internal const string ModelName = "entities/npcs/turner";
-	internal const string ActorPath = "Data/Objects/IGF_Characters/IGF_TurnerActor.xml";
 	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 
@@ -113,25 +111,41 @@ public sealed partial class RabbitGuard : BaseNpc
 
 }
 
-internal sealed class RabbitGuardPrefab : ResourceLoader<GameMount>
+internal sealed record RabbitActor( string Title, string Path )
+{
+	internal string ModelName => $"entities/npcs/{Title.ToLowerInvariant()}";
+	internal static IEnumerable<RabbitActor> All
+	{
+		get
+		{
+			yield return new( "Turner", "Data/Objects/IGF_Characters/IGF_TurnerActor.xml" );
+			yield return new( "Rabbot", "Data/Objects/characters/rabbot_actor.xml" );
+		}
+	}
+}
+
+internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<GameMount>
 {
 	PrefabFile prefab;
 
 	protected override object Load()
 	{
-		var modelPath = Host.MountedPath( RabbitGuard.ModelName ) + ".vmdl";
-		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", "Turner" )
+		var modelPath = Host.MountedPath( actor.ModelName ) + ".vmdl";
+		var model = Model.Load( modelPath );
+		if ( model is null || model.IsError )
+			throw new System.IO.InvalidDataException( $"Could not build {actor.Title} prefab with missing model {modelPath}" );
+		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", actor.Title )
 			.WithMetadata( "Group", Host.Title ).WithMetadata( "PreviewModel", modelPath );
 		using ( builder.Scope() )
 		{
 			Game.ActiveScene.Enabled = false;
-			var go = new GameObject( true, "Turner" );
-			Configure( go, Model.Load( modelPath ) );
+			var go = new GameObject( true, actor.Title );
+			Configure( go, model, actor.Title );
 		}
 		return prefab = builder.Create();
 	}
 
-	internal static void Configure( GameObject go, Model model )
+	internal static void Configure( GameObject go, Model model, string title )
 	{
 		go.Tags.Add( "npc" );
 		go.NetworkMode = NetworkMode.Object;
@@ -162,7 +176,7 @@ internal sealed class RabbitGuardPrefab : ResourceLoader<GameMount>
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;
 		var npc = go.AddComponent<RabbitGuard>();
-		npc.DisplayName = "Turner";
+		npc.DisplayName = title;
 		npc.Renderer = renderer;
 		npc.Animation = animation;
 		npc.EyeHeight = -model.Bounds.Mins.z + model.Bounds.Maxs.z * 0.8f;

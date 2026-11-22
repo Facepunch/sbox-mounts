@@ -62,12 +62,15 @@ public partial class GameMount : BaseGameMount
 			}
 		}
 
-		var actor = XmlAsset.Read( FileSystem, RabbitGuard.ActorPath, "Actor" );
-		var character = Resolve( actor.Element( "Character" ).Value );
-		context.Add( ResourceType.Model, RabbitGuard.ModelName, new CharacterLoader( character, true ) { Flags = ResourceFlags.DeveloperOnly } );
-		var turner = new RabbitGuardPrefab();
-		turner.Tags.Add( "npc" );
-		context.Add( ResourceType.PrefabFile, "entities/npcs/turner.prefab", turner );
+		foreach ( var actor in RabbitActor.All )
+		{
+			var definition = XmlAsset.Read( FileSystem, actor.Path, "Actor" );
+			var character = Resolve( definition.Element( "Character" ).Value );
+			context.Add( ResourceType.Model, actor.ModelName, new CharacterLoader( character, true ) { Flags = ResourceFlags.DeveloperOnly } );
+			var prefab = new RabbitGuardPrefab( actor );
+			prefab.Tags.Add( "npc" );
+			context.Add( ResourceType.PrefabFile, actor.ModelName + ".prefab", prefab );
+		}
 
 		IsMounted = true;
 		return Task.CompletedTask;
