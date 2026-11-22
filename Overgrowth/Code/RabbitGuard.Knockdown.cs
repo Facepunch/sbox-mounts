@@ -118,13 +118,16 @@ public sealed partial class RabbitGuard
 		Renderer.ClearPhysicsBones();
 		WorldPosition = floor.EndPosition;
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
-		BeginGetUpBlend();
 		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;
 		var agent = GetComponent<NavMeshAgent>( true );
 		agent.Enabled = true;
 		agent.SetAgentPosition( WorldPosition );
 		Stance = front.z < 0f ? StandFromFront : StandFromBack;
+		BeginGetUpBlend();
+		Renderer.Animation.Parameters.Set( "stance", Stance );
+		Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
+		playing = Stance;
 		reactionDuration = boundAnimations.Clips[Stance].Duration;
 		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation )
 			navigation.HoldMovement( reactionDuration );

@@ -65,7 +65,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
-		var ragdollWeight = graph.FloatParameter( RabbitGuard.GetUpWeight );
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
 			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
@@ -118,6 +117,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
+			if ( name is RabbitGuard.StandFromFront or RabbitGuard.StandFromBack )
+				return machine.AddState( graph.ExternalGraphSlot( name, graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) ) );
 			if ( reactionNames.Contains( name ) || guards.ContainsKey( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
@@ -127,13 +128,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var condition = graph.IdCompare( stance, names[i] );
 			foreach ( var previous in states )
 				if ( previous != states[i] )
-					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = 0.2f } );
+					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = names[i] is RabbitGuard.StandFromFront or RabbitGuard.StandFromBack ? 0f : 0.2f } );
 		}
 		var torso = skeleton.IKBones["torso"];
 		var torsoBones = new List<string>();
 		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
 			torsoBones.Add( $"bone_{bone}" );
-		var output = graph.Blend( machine.Build(), graph.ExternalGraphSlot( RabbitGuard.GetUpSlot ), ragdollWeight );
+		var output = machine.Build();
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, gaits, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray() );
 	}
 

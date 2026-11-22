@@ -46,8 +46,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpGraph is null )
-			BeginGetUpBlend();
-		UpdateGetUpBlend();
+		{
+			if ( Stance is StandFromFront or StandFromBack ) BeginGetUpBlend();
+			else lastPhysicsPose = null;
+		}
+		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
+			EndGetUpBlend();
 		if ( Stance == Locomotion ) UpdateGait();
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{

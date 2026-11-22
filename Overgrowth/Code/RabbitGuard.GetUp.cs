@@ -1,15 +1,15 @@
+using System;
 using Sandbox.Animation;
 
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	internal const string GetUpSlot = "ragdoll_pose", GetUpWeight = "ragdoll_weight";
+	string getUpSlot;
 	Transform[] lastPhysicsPose;
 	Graph getUpGraph;
 	Clip getUpPose;
-	TimeSince sinceGetUp;
-	float ragdollWeight;
+
 
 	void CapturePhysicsPose()
 	{
@@ -35,25 +35,24 @@ public sealed partial class RabbitGuard
 		}
 
 		lastPhysicsPose = null;
-		getUpPose = new ClipBuilder { Skeleton = rig }.AddFrame( frame ).Create();
-		var graph = new GraphBuilder().WithSkeleton( rig );
-		getUpGraph = graph.Create( graph.Pose( getUpPose, new GraphBuilder.PoseSettings() ) );
-		Renderer.Animation.ExternalGraphs.Connect( GetUpSlot, getUpGraph );
-		Renderer.Animation.Parameters.Set( GetUpWeight, ragdollWeight = 1f );
-		sinceGetUp = 0;
-	}
-
-	void UpdateGetUpBlend()
-	{
-		if ( getUpGraph is null ) return;
-		if ( sinceGetUp >= 1f )
-			EndGetUpBlend();
-		else
+		getUpSlot = Stance;
+		var stand = boundAnimations.Clips[getUpSlot];
+		var duration = Math.Min( 1f, stand.Duration );
+		int steps = (int)MathF.Ceiling( duration * 120f );
+		var clip = new ClipBuilder { Skeleton = rig, FrameRate = steps / duration };
+		clip.AddFrame( frame );
+		// aschar.as blends from the previous result towards the moving stand pose in parent space.
+		for ( int step = 1; step <= steps; step++ )
 		{
-			// Overgrowth blends again from the previous frame's result each update.
-			ragdollWeight *= 1f - sinceGetUp;
-			Renderer.Animation.Parameters.Set( GetUpWeight, ragdollWeight );
+			float time = step * duration / steps;
+			for ( int i = 0; i < frame.Length; i++ )
+				frame[i] = global::Transform.Lerp( frame[i], stand.Animation.GetLocalTransform( time / stand.Duration, i ), time, false );
+			clip.AddFrame( frame );
 		}
+		getUpPose = clip.Create();
+		var graph = new GraphBuilder().WithSkeleton( rig );
+		getUpGraph = graph.Create( graph.Clip( getUpPose, new() { Looping = false, SampleRootMotion = false } ) );
+		Renderer.Animation.ExternalGraphs.Connect( getUpSlot, getUpGraph );
 	}
 
 	void EndGetUpBlend()
@@ -62,9 +61,8 @@ public sealed partial class RabbitGuard
 		if ( getUpGraph is null ) return;
 		if ( Renderer.IsValid() )
 		{
-			Renderer.Animation.Parameters.Set( GetUpWeight, 0f );
-			if ( Renderer.Animation.ExternalGraphs.IsConnected( GetUpSlot ) )
-				Renderer.Animation.ExternalGraphs.Disconnect( GetUpSlot );
+			if ( Renderer.Animation.ExternalGraphs.IsConnected( getUpSlot ) )
+				Renderer.Animation.ExternalGraphs.Disconnect( getUpSlot );
 		}
 		getUpGraph.Dispose();
 		getUpPose.Dispose();
