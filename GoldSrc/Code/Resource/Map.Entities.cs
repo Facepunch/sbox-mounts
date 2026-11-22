@@ -19,7 +19,13 @@ partial class MapBuilder
 			SpawnEntity( bsp, entity );
 
 		SpawnDecals( bsp );
-		_mapState.Entities = bsp.Entities.Where( _entities.ContainsKey ).Select( x => _entities[x] ).ToList();
+		_mapState.Entities = [];
+		for ( int i = 0; i < bsp.Entities.Count; i++ )
+		{
+			if ( !_entities.TryGetValue( bsp.Entities[i], out var component ) ) continue;
+			component.EntityIndex = i;
+			_mapState.Entities.Add( component );
+		}
 
 		// Every name exists by now, so targets can be resolved to direct component references.
 		foreach ( var wire in _wiring )

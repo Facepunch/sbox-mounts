@@ -142,6 +142,18 @@ public sealed class BrushMover : MapEntity, Component.IPressable, Component.ICol
 			Arrive( up );
 	}
 
+	internal sealed record SavedMove( int State, float Fraction, float? ReturnIn );
+	internal SavedMove CaptureMove() => new( (int)_state, _fraction, float.IsFinite( _returnAt ) ? _returnAt - Time.Now : null );
+
+	internal void RestoreMove( SavedMove saved )
+	{
+		_state = (MoveState)saved.State;
+		_fraction = saved.Fraction;
+		_returnAt = saved.ReturnIn.HasValue ? Time.Now + saved.ReturnIn.Value : float.PositiveInfinity;
+		_arrivalPending = _state is MoveState.GoingUp or MoveState.GoingDown;
+		Place();
+	}
+
 	private void Place()
 	{
 		if ( Rotating )

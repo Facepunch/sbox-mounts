@@ -3,7 +3,7 @@ using System;
 namespace GoldSrc.Maps;
 
 [Hide]
-public sealed class MapState : Component
+public sealed partial class MapState : Component
 {
 	[Property] public List<MapEntity> Entities { get; set; } = [];
 	[Property, Sync( SyncFlags.FromHost )] public NetDictionary<string, int> Globals { get; set; } = new();

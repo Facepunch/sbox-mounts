@@ -18,6 +18,7 @@ public enum UseType
 [Icon( "share" )]
 public abstract class MapEntity : Component
 {
+	[Property, Hide] public int EntityIndex { get; set; } = -1;
 	[Property] public MapState Map { get; set; }
 	[Property] public string Master { get; set; }
 	[Property] public string Target { get; set; }

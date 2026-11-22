@@ -32,7 +32,8 @@ public sealed class RestartLevel : MapEntity
 
 		if ( _elapsed < LoadTime ) return;
 		_pending = false;
-		// The mount has no game-owned save slot. Restart this map on mission failure.
+		if ( Map.LoadCheckpoint() ) return;
+		// No checkpoint has been reached during this visit.
 		var instance = Map.GetComponentInParent<MapInstance>();
 		if ( !instance.IsValid() ) return;
 		var scene = Scene;

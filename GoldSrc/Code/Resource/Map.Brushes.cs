@@ -269,11 +269,18 @@ partial class MapBuilder
 		const int SF_TRIGGER_NOCLIENTS = 2;
 
 		var className = entity.ClassName;
-		if ( className == "trigger_cdaudio" )
+		if ( className is "trigger_cdaudio" or "trigger_autosave" )
 		{
 			var volume = new GameObject( true, EntityName( entity ) ) { IsStatic = true };
 			volume.WorldPosition = entity.Origin + (bspModel.Mins + bspModel.Maxs) * 0.5f;
 			AddCollider( volume, GetTriggerPhysics( entity.BrushModelIndex, bspModel.Maxs - bspModel.Mins ), true, trigger: true );
+			if ( className == "trigger_autosave" )
+			{
+				var checkpoint = volume.AddComponent<AutoSave>();
+				checkpoint.TargetName = entity.TargetName;
+				RegisterTarget( entity, checkpoint, null, null, null, nameof( MapEntity.Kill ) );
+				return;
+			}
 			var cue = volume.AddComponent<CdAudio>();
 			cue.TargetName = entity.TargetName;
 			cue.Track = entity.GetInt( "health" );
