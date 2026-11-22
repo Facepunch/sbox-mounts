@@ -1,15 +1,16 @@
 using System;
+using Sandbox.Npcs;
+using Sandbox.Npcs.Layers;
 
 namespace Overgrowth;
 
 [Library( "overgrowth_turner" )]
-public sealed class RabbitGuard : Component
+public sealed class RabbitGuard : BaseNpc
 {
 	internal const string ModelName = "entities/npcs/turner";
 	internal const string ActorPath = "Data/Objects/IGF_Characters/IGF_TurnerActor.xml";
 	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat"];
 
-	[Property] public SkinnedModelRenderer Renderer { get; set; }
 	[Sync] public int AlertStage { get; private set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
@@ -17,7 +18,8 @@ public sealed class RabbitGuard : Component
 
 	protected override void OnUpdate()
 	{
-		if ( !Renderer.IsValid() || Renderer.Model is null ) return;
+		base.OnUpdate();
+		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( Renderer.Animation.Graph is null )
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
@@ -25,20 +27,22 @@ public sealed class RabbitGuard : Component
 			Renderer.Animation.Graph = loader.GuardGraph;
 			playing = -1;
 		}
-		if ( !IsProxy && nextVisionCheck <= 0 )
-		{
-			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
-			UpdateAwareness();
-		}
 		if ( playing == AlertStage ) return;
 		playing = AlertStage;
 		Renderer.Animation.Parameters.Set( "stance", Poses[playing] );
 	}
 
+	protected override void Think()
+	{
+		if ( nextVisionCheck > 0 || !Renderer.IsValid() ) return;
+		nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
+		UpdateAwareness();
+	}
+
 	// enemycontrol.as accumulates sightings on vision checks and fades by 0.05 per missed check.
 	void UpdateAwareness()
 	{
-		var eye = WorldPosition + WorldRotation.Up * (Renderer.Model.Bounds.Maxs.z * 0.8f);
+		var eye = EyePosition;
 		float gain = 0;
 		foreach ( var player in Scene.GetAllComponents<PlayerController>() )
 		{
@@ -80,14 +84,37 @@ internal sealed class RabbitGuardPrefab : ResourceLoader<GameMount>
 	{
 		go.Tags.Add( "npc" );
 		go.NetworkMode = NetworkMode.Object;
-		var renderer = go.AddComponent<SkinnedModelRenderer>();
+		float height = model.Bounds.Size.z;
+		const float radius = 0.45f * 40f;
+
+		var visuals = new GameObject( go, true, "model" );
+		visuals.LocalPosition = Vector3.Up * -model.Bounds.Mins.z;
+		var renderer = visuals.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;
-		go.AddComponent<RabbitGuard>().Renderer = renderer;
-		var collider = go.AddComponent<CapsuleCollider>();
-		collider.Radius = 0.45f * 40f;
-		collider.Start = Vector3.Up * (model.Bounds.Mins.z + collider.Radius);
-		collider.End = Vector3.Up * (model.Bounds.Maxs.z - collider.Radius);
+
+		var hull = new GameObject( go, true, "collider" );
+		hull.Tags.Add( "playercontroller" );
+		var collider = hull.AddComponent<CapsuleCollider>();
+		collider.Radius = radius;
+		collider.Start = Vector3.Up * radius;
+		collider.End = Vector3.Up * (height - radius);
+
+		var body = go.AddComponent<Rigidbody>();
+		body.MotionEnabled = false;
+		body.EnableImpactDamage = false;
+		body.Locking = new PhysicsLock { Pitch = true, Roll = true };
+		var agent = go.AddComponent<NavMeshAgent>();
+		agent.Radius = radius;
+		agent.Height = height;
+		go.AddComponent<NavigationLayer>().RunSpeed = 8f * 40f;
+		var animation = go.AddComponent<AnimationLayer>();
+		animation.EnableFootstepSounds = false;
+		var npc = go.AddComponent<RabbitGuard>();
+		npc.DisplayName = "Turner";
+		npc.Renderer = renderer;
+		npc.Animation = animation;
+		npc.EyeHeight = -model.Bounds.Mins.z + model.Bounds.Maxs.z * 0.8f;
 	}
 
 	protected override void Shutdown()

@@ -50,7 +50,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			case "ActorObject" when string.Equals( file, RabbitGuard.ActorPath, StringComparison.OrdinalIgnoreCase ):
 				var guard = Model.Load( Host.MountedPath( RabbitGuard.ModelName ) + ".vmdl" );
 				if ( guard is { IsError: false } )
-					RabbitGuardPrefab.Configure( Object(), guard );
+				{
+					var actor = Object();
+					actor.WorldPosition = actor.WorldTransform.PointToWorld( Vector3.Up * guard.Bounds.Mins.z );
+					RabbitGuardPrefab.Configure( actor, guard );
+				}
 				return;
 			case "ActorObject":
 				if(string.IsNullOrEmpty(file)||!Host.FileSystem.FileExists(file))return;
