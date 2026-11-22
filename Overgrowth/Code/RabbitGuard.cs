@@ -88,6 +88,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateArms();
 		UpdateEars();
 		PublishPose();
+		ApplyDisplayBreath();
 		hasGaitPose = false;
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{

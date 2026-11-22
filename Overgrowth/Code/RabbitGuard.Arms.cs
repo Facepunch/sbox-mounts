@@ -16,21 +16,17 @@ public sealed partial class RabbitGuard
 	(Transform Animated, Transform Solved)? chestMotion;
 	bool armsActive;
 	TimeUntil secondaryReset;
-	float breathTime, breathSpeed = 0.9f, armRemainder;
+	float armRemainder;
 
 	void UpdateArms()
 	{
-		float dt = Time.Delta, frames = dt * 120f;
+		float dt = Time.Delta;
 		var velocity = Animation.MoveVelocity;
 		float speedRatio = Math.Clamp( velocity.Length / (8f * 40f), 0f, 1f );
 		bool combat = GazeTarget.HasValue || Stance == Threat || strike is not null;
-		float breathRatio = combat ? (1f + speedRatio) * 0.5f : speedRatio;
-		float targetSpeed = 0.9f + 4f * breathRatio;
-		breathSpeed = targetSpeed + (breathSpeed - targetSpeed) * MathF.Pow( 0.999f - 0.009f * breathRatio, frames );
-		breathTime += dt * breathSpeed;
-		float breath = (MathF.Sin( breathTime ) * 0.5f + 0.5f) * (0.5f + 0.1f * breathSpeed);
+		UpdateBreathing( combat, velocity.Length / (8f * 40f), dt );
 		float loose = Animation.IsGrounded ? (combat ? 0f : 1f - speedRatio) : 0.7f;
-		SolveArms( dt, velocity, breath, loose );
+		SolveArms( dt, velocity, breathAmount, loose );
 	}
 
 	void SolveArms( float dt, Vector3 velocity, float breath, float loose )
