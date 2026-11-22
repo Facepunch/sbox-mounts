@@ -156,12 +156,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void Remember( GameObject target, bool engage = true )
 	{
-		if ( engage && !enemy.IsValid() )
+		if ( engage && !enemy.IsValid() && !escortTarget.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );
 		}
 		enemy = target;
+		escortTarget = null;
 		investigatePoint = null;
 		urgentInvestigation = false;
 		lastSeen = TargetPosition( target );
@@ -206,7 +207,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 				investigatePoint = Movement.ProjectPoint( WorldPosition + (TargetPosition( closest ) - WorldPosition).Normal * 120f );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
-		AlertStage = enemy.IsValid() ? 2 : investigatePoint.HasValue || enemySeen > 0 ? 1 : 0;
+		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || investigatePoint.HasValue || enemySeen > 0 ? 1 : 0;
 	}
 
 	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )

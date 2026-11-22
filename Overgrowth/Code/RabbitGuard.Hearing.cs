@@ -4,7 +4,8 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	enum HeardSound { Footstep, RunningFootstep, Combat }
+	enum HeardSound { Footstep, RunningFootstep, Combat, Voice }
+	GameObject escortTarget;
 	float suspicion;
 	TimeSince sinceSound;
 
@@ -40,7 +41,7 @@ public sealed partial class RabbitGuard
 				guard.sinceEnemySeen = 0;
 				continue;
 			}
-			if ( !guard.CanAttack( source ) ) continue;
+			if ( guard.escortTarget.IsValid() || (sound != HeardSound.Voice && !guard.CanAttack( source )) ) continue;
 			guard.suspicion = Math.Max( 0f, guard.suspicion - (float)guard.sinceSound * 0.1f ) +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
 			guard.sinceSound = 0;
@@ -48,11 +49,47 @@ public sealed partial class RabbitGuard
 			if ( !guard.investigatePoint.HasValue )
 			{
 				guard.Speak( "suspicious" );
-				guard.startled = 1f;
+				guard.startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
 			}
-			guard.investigatePoint = guard.Movement.ProjectPoint( position );
+			if ( sound == HeardSound.Voice )
+			{
+				guard.escortTarget = source;
+				guard.investigatePoint = null;
+			}
+			else guard.investigatePoint = guard.Movement.ProjectPoint( position );
 			guard.urgentInvestigation = sound == HeardSound.Combat;
 			guard.AlertStage = 1;
 		}
+	}
+
+	bool FollowHeardVoice()
+	{
+		if ( !escortTarget.IsValid() ) return false;
+		var position = TargetPosition( escortTarget );
+		if ( !IsLiveTarget( escortTarget ) )
+		{
+			investigatePoint = Movement.ProjectPoint( position );
+			urgentInvestigation = true;
+			escortTarget = null;
+			return false;
+		}
+
+		const float radius = 2f * 40f;
+		float remaining = (position - WorldPosition).WithZ( 0 ).Length - radius;
+		if ( startled > 0 || remaining <= 0 )
+		{
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			Stance = Watch;
+		}
+		else
+		{
+			if ( repath <= 0 )
+			{
+				Movement.MoveTo( position, radius, Math.Min( remaining / 40f, 1f ) * 8f * 40f );
+				repath = 0.2f;
+			}
+			Stance = Locomotion;
+		}
+		return true;
 	}
 }

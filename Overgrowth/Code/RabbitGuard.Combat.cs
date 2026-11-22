@@ -108,6 +108,7 @@ public sealed partial class RabbitGuard
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
 			enemy = null;
+			if ( FollowHeardVoice() ) return;
 			float arrival = urgentInvestigation ? MathF.Sqrt( 2f ) * 40f : 40f;
 			if ( investigatePoint.HasValue && startled > 0 )
 			{
@@ -301,6 +302,7 @@ public sealed partial class RabbitGuard
 
 	void Speak( string cue )
 	{
+		if ( cue is "attack" or "engage" ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
 			mount.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
 		var (group, pitch) = character.GetVoice( cue );
