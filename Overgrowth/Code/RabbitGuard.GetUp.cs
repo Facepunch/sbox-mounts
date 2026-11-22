@@ -73,6 +73,8 @@ public sealed partial class RabbitGuard
 	protected override void OnDisabled()
 	{
 		ResetBodyLean();
+		if ( earsActive && Renderer.IsValid() ) Renderer.ClearPhysicsBones();
+		ResetEars();
 		ReleaseLegs();
 		EndGetUpBlend();
 		base.OnDisabled();

@@ -83,7 +83,12 @@ public sealed partial class RabbitGuard
 			var name = boundAnimations.TorsoBones[i];
 			var torso = Animated( name );
 			torso.Position += hipOffset;
-			if ( i == 0 ) torso.Rotation = balanceRotation * torso.Rotation;
+			if ( i == 0 )
+			{
+				var raw = Renderer.WorldTransform.ToWorld( Animated( name ) );
+				torso.Rotation = balanceRotation * torso.Rotation;
+				headMotion = (raw, Renderer.WorldTransform.ToWorld( torso ));
+			}
 			Renderer.SetBoneTransform( bones.GetBone( name ), torso );
 		}
 		for ( int i = 0; i < 2; i++ )

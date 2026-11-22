@@ -53,6 +53,7 @@ public sealed partial class RabbitGuard
 		head.Position = pivot + half * (head.Position - pivot);
 		head.Rotation = turn * head.Rotation;
 		Renderer.SetBoneTransform( neckBone, Renderer.WorldTransform.ToLocal( neck ) );
+		headMotion = (animatedHead, head);
 		Renderer.SetBoneTransform( headBone, Renderer.WorldTransform.ToLocal( head ) );
 	}
 }

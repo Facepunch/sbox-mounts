@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, float[] BoneMass, float CharacterScale )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -168,8 +168,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var (a, b) = skeleton.Bones[bone];
 			return skeleton.Points[a].Distance( skeleton.Points[b] ) * 20f * scale;
 		}
+		var ears = new[] { "leftear", "rightear" }.Select( label =>
+		{
+			int tip = skeleton.IKBones[label].BoneId, root = skeleton.HierParents[tip];
+			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
+		} ).ToArray();
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], HalfLength( hip ), HalfLength( skeleton.HierParents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( skeleton.HierParents[skeleton.IKBones["head"].BoneId] ), skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], HalfLength( hip ), HalfLength( skeleton.HierParents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( skeleton.HierParents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
 	}
 
 }
