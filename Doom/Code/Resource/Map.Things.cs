@@ -74,8 +74,13 @@ partial class MapLoader
 			parent = hanging ? _ceilingObjects[sector] : _floorObjects[sector];
 
 		float z = sector < 0 ? 0 : hanging ? _sectors[sector].CeilingHeight - type.Height : _sectors[sector].FloorHeight;
-		var go = GameObject.Clone( prefab, new Transform( World( thing.X, thing.Y, z ), Rotation.FromYaw( thing.Angle ) ), parent );
+		var go = GameObject.Clone( prefab, Transform.Zero, parent );
 		if ( !go.IsValid() ) return;
+
+		// Clone treats a transform as local to the parent, and movable planes sit away from the origin,
+		// so place the thing in world space once it's parented.
+		go.WorldPosition = World( thing.X, thing.Y, z );
+		go.WorldRotation = Rotation.FromYaw( thing.Angle );
 
 		if ( sector >= 0 && go.Components.TryGet<DoomTeleportDestination>( out _ ) )
 			go.Tags.Add( DoomTeleportDestination.TagFor( _sectors[sector].Tag ) );
