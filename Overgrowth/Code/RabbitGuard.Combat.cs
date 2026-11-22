@@ -48,6 +48,8 @@ public sealed partial class RabbitGuard
 					blockingOpponent = defender;
 					Stance = strike.Blocked;
 					clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+					// SwapAnimation preserves elapsed time. A synced group uses its first clip as the clock.
+					AttackPhase = Math.Min( 1f, AttackPhase * strike.Poses[0].Clip.Duration / clip.Duration );
 					if ( strike.SwapStance != strike.SwapBlocked ) MirroredStance = !MirroredStance;
 					blocked = true;
 				}
