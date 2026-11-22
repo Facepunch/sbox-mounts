@@ -185,10 +185,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} ).ToArray();
 		for ( int i = 0; i < states.Length; i++ )
 		{
-			var condition = graph.IdCompare( stance, names[i] );
+			string target = names[i];
+			var condition = graph.IdCompare( stance, target );
+			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
+			// Get-up already blends from the captured ragdoll pose inside its graph slot.
+			float duration = RabbitGuard.IsGetUp( target ) ? 0f : blocked.ContainsValue( target ) ? 0.01f
+				: attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			foreach ( var previous in states )
 				if ( previous != states[i] )
-					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = RabbitGuard.IsGetUp( names[i] ) ? 0f : 0.2f } );
+					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = duration } );
 		}
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
 		var weighted = skeleton.GetWeightedBones();
