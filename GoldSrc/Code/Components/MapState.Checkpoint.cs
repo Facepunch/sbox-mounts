@@ -8,6 +8,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 	private string _checkpoint;
 	private bool _loading;
 	private int _savingTrigger = -1;
+	internal static bool SoloCampaign => Networking.IsHost && Connection.All.Count <= 1 && !Application.IsDedicatedServer;
 
 	private sealed class SavedEntity
 	{
@@ -46,7 +47,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 
 	internal bool SaveCheckpoint( AutoSave trigger )
 	{
-		if ( SaveSystem() is not {} system ) return false;
+		if ( !SoloCampaign || SaveSystem() is not {} system ) return false;
 		var name = GetComponentInParent<MapInstance>().MapName.Split( '/' ).Last();
 		var path = $"goldsrc/checkpoints/{name}.sav";
 		GetComponentInParent<MapInstance>().GameObject.GetOrAddComponent<CheckpointLoader>();
@@ -62,6 +63,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 
 	internal bool LoadCheckpoint()
 	{
+		if ( !SoloCampaign ) return false;
 		if ( _loading ) return true;
 		if ( _checkpoint is null || !FileSystem.Data.FileExists( _checkpoint ) || SaveSystem() is not {} system ) return false;
 		_loading = true;

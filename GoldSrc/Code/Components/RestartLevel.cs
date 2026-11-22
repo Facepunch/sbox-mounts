@@ -12,7 +12,7 @@ public sealed class RestartLevel : MapEntity
 
 	public override void Trigger( GameObject activator = null )
 	{
-		if ( !Networking.IsHost || !CanTrigger ) return;
+		if ( !MapState.SoloCampaign || !CanTrigger ) return;
 		Fade.Trigger( activator );
 		_pending = true;
 		_shown = false;
@@ -23,7 +23,9 @@ public sealed class RestartLevel : MapEntity
 
 	protected override void OnFixedUpdate()
 	{
-		if ( !_pending || !CanTrigger || _elapsed < MessageTime ) return;
+		if ( !_pending ) return;
+		if ( !MapState.SoloCampaign ) { _pending = false; return; }
+		if ( !CanTrigger || _elapsed < MessageTime ) return;
 		if ( !_shown )
 		{
 			_shown = true;
