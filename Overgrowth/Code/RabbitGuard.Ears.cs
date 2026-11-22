@@ -9,20 +9,28 @@ public sealed partial class RabbitGuard
 	sealed class EarState
 	{
 		public Vector3 Base, Middle, Tip, PreviousMiddle, PreviousTip;
+		public Vector3 LastMiddle, LastTip, MiddleOffset, TipOffset, PreviousMiddleOffset, PreviousTipOffset;
 		public float Twist, TargetTwist;
 		public TimeUntil NextTwist;
 	}
 
 	readonly EarState[] earStates = [new(), new()];
 	bool earsActive;
+	float earRemainder;
 	(Transform Animated, Transform Solved)? headMotion;
 
 
 	// CDrawEarImpl twists the two bones, then constrains the moving tip to the authored segment lengths.
-	void UpdateEars()
+	void UpdateEars() => SolveEars( Time.Delta, Animation.MoveVelocity );
+
+	void SolveEars( float dt, Vector3 moveVelocity )
 	{
-		float frames = Time.Delta * 120f;
-		var velocity = Animation.MoveVelocity * Time.Delta;
+		float frames = dt * 120f;
+		const float tick = 4f / 120f;
+		float elapsed = earsActive ? earRemainder + dt : 0f;
+		int steps = (int)(elapsed / tick);
+		float remainder = elapsed - steps * tick;
+		var velocity = moveVelocity * tick;
 		var bones = Renderer.Model.Bones;
 		for ( int side = 0; side < earStates.Length; side++ )
 		{
@@ -54,20 +62,25 @@ public sealed partial class RabbitGuard
 			{
 				ear.PreviousMiddle = ear.Middle = middle;
 				ear.PreviousTip = ear.Tip = tip;
+				ear.PreviousMiddleOffset = ear.MiddleOffset = ear.PreviousTipOffset = ear.TipOffset = Vector3.Zero;
 			}
-			else
+			else for ( int step = 0; step < steps; step++ )
 			{
-				float inertia = MathF.Pow( 0.95f, frames );
+				float fraction = ((step + 1) * tick - earRemainder) / dt;
+				var basePoint = Vector3.Lerp( ear.Base, root, fraction );
+				var middlePoint = Vector3.Lerp( ear.LastMiddle, middle, fraction );
+				var tipPoint = Vector3.Lerp( ear.LastTip, tip, fraction );
+				const float inertia = 0.95f * 0.95f * 0.95f * 0.95f;
 				Vector3 Advance( Vector3 current, Vector3 old ) => current + ((current - old - velocity) * inertia + velocity) * (0.95f * 0.95f);
 				var mid = Advance( ear.Middle, ear.PreviousMiddle );
 				var end = Advance( ear.Tip, ear.PreviousTip );
-				var bend = Rotation.FromToRotation( (middle - root).Normal, (mid - root).Normal );
-				end = Vector3.Lerp( mid + bend * (tip - middle), end, MathF.Pow( 0.92f, frames ) );
-				mid = Vector3.Lerp( middle, mid, MathF.Pow( 0.9f, frames ) );
-				float lowerLength = middle.Distance( root ), upperLength = tip.Distance( middle );
+				var bend = Rotation.FromToRotation( (middlePoint - basePoint).Normal, (mid - basePoint).Normal );
+				end = Vector3.Lerp( mid + bend * (tipPoint - middlePoint), end, MathF.Pow( 0.92f, 4f ) );
+				mid = Vector3.Lerp( middlePoint, mid, MathF.Pow( 0.9f, 4f ) );
+				float lowerLength = middlePoint.Distance( basePoint ), upperLength = tipPoint.Distance( middlePoint );
 				for ( int pass = 0; pass < 3; pass++ )
 				{
-					mid = root + (mid - root).Normal * lowerLength;
+					mid = basePoint + (mid - basePoint).Normal * lowerLength;
 					var center = (mid + end) * 0.5f;
 					var half = (end - mid).Normal * (upperLength * 0.5f);
 					mid = center - half;
@@ -77,17 +90,26 @@ public sealed partial class RabbitGuard
 				ear.PreviousTip = ear.Tip;
 				ear.Middle = mid;
 				ear.Tip = end;
+				ear.PreviousMiddleOffset = ear.MiddleOffset;
+				ear.PreviousTipOffset = ear.TipOffset;
+				ear.MiddleOffset = mid - middlePoint;
+				ear.TipOffset = end - tipPoint;
 			}
 			ear.Base = root;
+			ear.LastMiddle = middle;
+			ear.LastTip = tip;
+			middle += Vector3.Lerp( ear.PreviousMiddleOffset, ear.MiddleOffset, remainder / tick );
+			tip += Vector3.Lerp( ear.PreviousTipOffset, ear.TipOffset, remainder / tick );
 			void Place( BoneCollection.Bone bone, Transform pose, Vector3 a, Vector3 b )
 			{
 				pose.Position = (a + b) * 0.5f;
 				pose.Rotation = Rotation.FromToRotation( pose.Rotation.Forward, (b - a).Normal ) * pose.Rotation;
 				SetPoseBone( bone, Renderer.WorldTransform.ToLocal( pose ) );
 			}
-			Place( lower, low, root, ear.Middle );
-			Place( upper, high, ear.Middle, ear.Tip );
+			Place( lower, low, root, middle );
+			Place( upper, high, middle, tip );
 		}
+		earRemainder = remainder;
 		earsActive = true;
 	}
 }
