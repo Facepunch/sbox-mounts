@@ -30,10 +30,10 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			return;
 		}
 		var file=node.Attribute("type_file");
-		GameObject Object() => new GameObject(true,node.Attribute("name") ?? System.IO.Path.GetFileNameWithoutExtension(file) ?? node.Name)
-		{
-			WorldTransform=new Transform(Vector(node,"t",0)*40,Orientation(node),Vector(node,"s",1))
-		};
+		var name = node.Attribute( "name" ) ?? System.IO.Path.GetFileNameWithoutExtension( file ) ?? node.Name;
+		var transform = new Transform( Vector( node, "t", 0 ) * 40, Orientation( node ), Vector( node, "s", 1 ) );
+		GameObject Object() => new GameObject( true, name ) { WorldTransform = transform };
+
 		switch(node.Name)
 		{
 			case "SpawnPoint":
@@ -48,13 +48,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				light.LightColor=new Color(node.Number("color_r")??1,node.Number("color_g")??1,node.Number("color_b")??1);
 				return;
 			case "ActorObject" when RabbitActor.All.FirstOrDefault( a => string.Equals( file, a.Path, StringComparison.OrdinalIgnoreCase ) ) is { } definition:
-				var guard = Model.Load( Host.MountedPath( definition.ModelName ) + ".vmdl" );
-				if ( guard is { IsError: false } )
-				{
-					var actor = Object();
-					actor.WorldPosition = actor.WorldTransform.PointToWorld( Vector3.Up * guard.Bounds.Mins.z );
-					RabbitGuardPrefab.Configure( actor, guard, definition.Title );
-				}
+				var prefab = PrefabFile.Load( Host.MountedPath( definition.PrefabName ) );
+				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
+				var renderer = actor.GetComponent<RabbitGuard>( includeDisabled: true ).Renderer;
+				actor.WorldPosition = transform.PointToWorld( Vector3.Up * renderer.Model.Bounds.Mins.z );
+				actor.Enabled = true;
 				return;
 			case "ActorObject":
 				if(string.IsNullOrEmpty(file)||!Host.FileSystem.FileExists(file))return;

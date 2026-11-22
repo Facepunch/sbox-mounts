@@ -69,7 +69,7 @@ public partial class GameMount : BaseGameMount
 			context.Add( ResourceType.Model, actor.ModelName, new CharacterLoader( character, true ) { Flags = ResourceFlags.DeveloperOnly } );
 			var prefab = new RabbitGuardPrefab( actor );
 			prefab.Tags.Add( "npc" );
-			context.Add( ResourceType.PrefabFile, actor.ModelName + ".prefab", prefab );
+			context.Add( ResourceType.PrefabFile, actor.PrefabName, prefab );
 		}
 
 		IsMounted = true;
