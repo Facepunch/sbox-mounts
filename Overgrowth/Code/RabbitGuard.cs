@@ -67,7 +67,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( playing != FreeAir ) jumpLaunch = velocity.z > 0 ? 1f : 0f;
 			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f );
-			Renderer.Animation.Parameters.Set( "up_coord", 0.5f - up * 0.5f );
+			Renderer.Animation.Parameters.Set( "up_coord", Math.Clamp( 0.5f - up * 0.5f, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "flail_coord", Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, flail ) );
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
