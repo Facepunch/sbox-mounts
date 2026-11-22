@@ -74,6 +74,7 @@ sealed partial class DffModelBuilder( GTAMount mount, DffFile dff, string txd )
 		BuildRig();
 		AddRiggedMeshes( builder );
 		builder.AddBones( GetBones() );
+		AddAnimations( builder );
 
 		if ( flags.HasFlag( Flags.GenerateBodies ) )
 			GenerateBodies( builder );

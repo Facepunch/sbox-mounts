@@ -346,8 +346,42 @@ partial class GTAMount
 		}
 	}
 
+	readonly object animationLock = new();
+	List<AnimationClip> pedAnimations;
+
+	/// <summary>
+	/// anim/ped.ifp, which every ped shares - read once, when the first ped model loads. Empty if it can't be read.
+	/// </summary>
+	public IReadOnlyList<AnimationClip> PedAnimations
+	{
+		get
+		{
+			lock ( animationLock )
+			{
+				if ( pedAnimations is not null )
+					return pedAnimations;
+
+				try
+				{
+					using var stream = OpenFile( "anim/ped.ifp" );
+					pedAnimations = stream is null ? new() : AnimationPackage.Read( stream );
+				}
+				catch ( Exception e )
+				{
+					Log.Warning( $"anim/ped.ifp: {e.Message}" );
+					pedAnimations = new();
+				}
+
+				return pedAnimations;
+			}
+		}
+	}
+
 	void ClearGameData()
 	{
+		lock ( animationLock )
+			pedAnimations = null;
+
 		carColours.Clear();
 		definitions.Clear();
 		definitionsByModel.Clear();

@@ -36,6 +36,11 @@ sealed class ModelLoader( string model, Func<Stream> open ) : ResourceLoader<GTA
 			flags |= DffModelBuilder.Flags.Rigged;
 
 		var modelBuilder = new DffModelBuilder( Host, dff, definition?.Txd );
+
+		// every ped shares ped.ifp; skinned models without a definition are special characters (the player...)
+		if ( definition?.Kind == ItemKind.Ped || (definition is null && dff.FrameList.HierarchyRoot is not null) )
+			modelBuilder.Animations = Host.PedAnimations;
+
 		if ( definition?.Kind == ItemKind.Vehicle )
 			AddWheels( modelBuilder, dff, definition );
 

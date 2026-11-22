@@ -45,8 +45,7 @@ public class FrameList : Chunk
 	/// </summary>
 	public Transform GetWorldTransform( Frame frame )
 	{
-		// RW matrices are rows of right / up / at, at being the z axis
-		var local = new Transform( frame.Position, Rotation.LookAt( frame.Right, frame.Forward ) );
+		var local = frame.LocalTransform;
 		return GetParent( frame ) is { } parent ? GetWorldTransform( parent ).ToWorld( local ) : local;
 	}
 }
@@ -65,6 +64,9 @@ public class Frame
 
 	/// <summary>Model space transform, see <see cref="FrameList.GetWorldTransform"/>.</summary>
 	public Transform Transform;
+
+	/// <summary>Relative to the parent frame. RW matrices are rows of right / up / at, at being the z axis.</summary>
+	public Transform LocalTransform => new( Position, Rotation.LookAt( Right, Forward ) );
 
 	public int NodeId => HAnim?.NodeId ?? -1;
 
