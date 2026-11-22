@@ -11,14 +11,21 @@ public sealed partial class RabbitGuard
 	[Sync] bool Downed { get; set; }
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown;
+	sealed class StrikeDamage : DamageInfo
+	{
+		public Vector3 Impulse { get; init; }
+	}
+
+	StrikeDamage lethalBlow;
 
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaged( hit );
 		if ( Sparring && Health < 1f && hit.AcceptedDamage > 0 ) Health = MaxHealth;
-		if ( Health < 1f || hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
+		if ( Health < 1f ) return;
+		if ( hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
 		var attacker = hit.Instigator;
-		var move = attacker.IsValid() ? attacker.GetComponent<RabbitGuard>()?.strike : null;
+
 		if ( CanAttack( attacker ) ) Remember( attacker );
 		if ( !Downed )
 		{
@@ -42,17 +49,26 @@ public sealed partial class RabbitGuard
 		}
 
 		sinceKnockdown = 0;
-		if ( move is null ) return;
-		var direction = (WorldPosition - attacker.WorldPosition).Normal;
-		var right = new Vector3( -direction.y, direction.x, direction.z );
-		var impact = direction * move.ImpactDirection.x + right * move.ImpactDirection.y + Vector3.Up * move.ImpactDirection.z;
-		// Overgrowth applies this force for one 120 Hz physics step.
-		ApplyHitImpulse( hit.DamageInfo.Position, impact * (move.Force * 40f / 120f) );
+		if ( hit.DamageInfo is StrikeDamage blow ) ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
 	}
 
-	void ApplyHitImpulse( Vector3 point, Vector3 impulse )
+	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
-		float Weight( Rigidbody rb ) => rb.Mass / (rb.WorldPosition.DistanceSquared( point ) + 16f);
+		lethalBlow = death.DamageInfo as StrikeDamage;
+		base.OnDeath( death );
+	}
+
+	protected override GameObject CreateRagdoll()
+	{
+		var corpse = base.CreateRagdoll();
+		if ( lethalBlow is not null && corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
+			ApplyHitImpulse( physics, lethalBlow.Position, lethalBlow.Impulse );
+		return corpse;
+	}
+
+	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse )
+	{
+		float Weight( Rigidbody rb ) => rb.Mass / (rb.PhysicsBody.MassCenter.DistanceSquared( point ) + 16f);
 		float total = ragdoll.Bodies.Where( b => b.Component.IsValid() ).Sum( b => Weight( b.Component ) );
 		if ( total <= 0 ) return;
 		foreach ( var body in ragdoll.Bodies )
