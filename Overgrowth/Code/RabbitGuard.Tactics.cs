@@ -12,6 +12,7 @@ public sealed partial class RabbitGuard
 	TimeSince sinceTargetDown;
 	bool rangeChanged = true;
 	TimeUntil nextTactic;
+	TimeUntil dontAttackBefore;
 	float preferredRange;
 
 	void UpdateTactic( float distance )
@@ -31,7 +32,8 @@ public sealed partial class RabbitGuard
 				punishGroundedTarget ??= Random.Shared.Float() < GroundAggression;
 			}
 			else if ( sinceTargetDown > 0.8f ) punishGroundedTarget = null;
-			if ( distance > 4f * 40f || (next == CombatTactic.Rush && punishGroundedTarget == false) )
+			if ( distance > 4f * 40f || (next == CombatTactic.Rush && punishGroundedTarget == false)
+				|| (dontAttackBefore > 0f && next is CombatTactic.Rush or CombatTactic.Wait) )
 				next = CombatTactic.Provoke;
 
 			rangeChanged |= next != tactic;

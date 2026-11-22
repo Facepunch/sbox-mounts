@@ -39,6 +39,7 @@ public sealed partial class RabbitGuard
 				if ( CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < 64f && HasSight( enemy ) &&
 					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike, predictability ) )
 				{
+					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
 					Stance = strike.Blocked;
 					clip = boundAnimations.Clips[Stance];
 					blocked = true;
