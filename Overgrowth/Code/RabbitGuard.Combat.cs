@@ -76,13 +76,21 @@ public sealed partial class RabbitGuard
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
 			enemy = null;
-			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= 40f * 40f )
+			float arrival = urgentInvestigation ? MathF.Sqrt( 2f ) * 40f : 40f;
+			if ( investigatePoint.HasValue && startled > 0 )
 			{
-				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 40f, 0.2f * 8f * 40f );
+				Movement.Stop();
+				Stance = Watch;
+				return;
+			}
+			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= arrival * arrival )
+			{
+				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, arrival, (urgentInvestigation ? 0.7f : 0.2f) * 8f * 40f );
 				Stance = Locomotion;
 				return;
 			}
 			investigatePoint = null;
+			urgentInvestigation = false;
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = AlertStage > 0 ? Watch : Idle;
 			return;
@@ -207,6 +215,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( enemy.GetComponent<RabbitGuard>() is { } rabbit && rabbit.TryPassiveBlock( this, strike ) )
 		{
+			ReportCombatSound( enemy, position );
 			PlayCombatSound( "Data/Sounds/hit/hit_normal.xml", position );
 			return;
 		}
@@ -230,6 +239,7 @@ public sealed partial class RabbitGuard
 		damage.Tags.Add( "nevergib" );
 		var npc = enemy.GetComponent<BaseNpc>();
 		victim.OnDamage( damage );
+		if ( enemy.IsValid() ) ReportCombatSound( enemy, position );
 		var group = "hit_normal";
 		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
 		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
