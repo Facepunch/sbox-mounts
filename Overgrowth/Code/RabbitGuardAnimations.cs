@@ -57,7 +57,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( character.Element( "animations" ).Attribute( key ) )))
 			.ToDictionary( x => x.key, x => x.animation );
 		var blocked = attacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
-		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront] ).ToHashSet();
+		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
 		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, .. attacks.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
@@ -118,7 +118,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
-			if ( name is RabbitGuard.StandFromFront or RabbitGuard.StandFromBack )
+			if ( RabbitGuard.IsGetUp( name ) )
 				return machine.AddState( graph.ExternalGraphSlot( name, graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) ) );
 			if ( reactionNames.Contains( name ) || guards.ContainsKey( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) );
@@ -129,7 +129,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var condition = graph.IdCompare( stance, names[i] );
 			foreach ( var previous in states )
 				if ( previous != states[i] )
-					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = names[i] is RabbitGuard.StandFromFront or RabbitGuard.StandFromBack ? 0f : 0.2f } );
+					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = RabbitGuard.IsGetUp( names[i] ) ? 0f : 0.2f } );
 		}
 		var torso = skeleton.IKBones["torso"];
 		var torsoBones = new List<string>();

@@ -8,6 +8,7 @@ public sealed partial class RabbitGuard
 	TimeUntil blockRecharge;
 	TimeUntil startled;
 	float blockHealth = 1f;
+	int hitsOnGround;
 	float reactionDuration;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
@@ -21,19 +22,38 @@ public sealed partial class RabbitGuard
 
 	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move, float predictability )
 	{
-		if ( Downed || boundAnimations is null || !IsOnGround || Health < 1 || enemy != attacker.GameObject || startled > 0 || blockRecharge > 0 || strike is not null ) return false;
+		if ( boundAnimations is null || !IsOnGround || Health < 1 ) return false;
 		if ( !boundAnimations.Clips.TryGetValue( move.Guard, out var guard ) ) return false;
 		var skillPower = 0.5f * MathF.Pow( 4f, predictability );
 		if ( tactic == CombatTactic.Provoke ) skillPower += 1f;
-		if ( Random.Shared.Float() > 1f - MathF.Pow( 1f - BlockSkill, skillPower ) ) return false;
+		bool active = enemy == attacker.GameObject && startled <= 0 && blockRecharge <= 0 && strike is null
+			&& Random.Shared.Float() <= 1f - MathF.Pow( 1f - BlockSkill, skillPower );
+		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
+		if ( Downed || IsGetUp( Stance ) )
+		{
+			var direction = (TargetPosition( GameObject ) - attacker.WorldPosition).Normal;
+			var facing = move.WorldImpact( direction ).WithZ( 0 );
+			if ( Downed )
+			{
+				if ( !TryGetUp( facing ) ) return false;
+			}
+			else
+			{
+				EndGetUpBlend();
+				CapturePhysicsPose();
+				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+				StartGetUp( BlockFromGround );
+			}
+		}
+		else BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard );
 		// At original difficulty an NPC's active window and subsequent recharge are each 0.2 s.
 		blockRecharge = 0.4f;
-		BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard );
 		return true;
 	}
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
+		if ( Downed || IsGetUp( Stance ) ) hitsOnGround++;
 		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) );
 		var direction = (WorldPosition - attacker.WorldPosition).Normal;
 		if ( Downed || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||

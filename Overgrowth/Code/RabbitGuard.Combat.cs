@@ -182,16 +182,13 @@ public sealed partial class RabbitGuard
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var direction = (TargetPosition( enemy ) - WorldPosition).Normal;
-		// aschar.as GetAdjustedAttackDir rotates the authored impulse into the attack frame.
-		var lateral = new Vector3( direction.y, -direction.x, direction.z );
-		var impact = direction * strike.ImpactDirection.x + lateral * strike.ImpactDirection.y + Vector3.Up * strike.ImpactDirection.z;
 		float force = strike.Force;
 		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
 			force *= 1f - Math.Clamp( defender.Health / defender.MaxHealth, 0f, 1f ) * 0.5f;
 		var damage = new StrikeDamage
 		{
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
-			Impulse = impact * (force * 40f / 120f),
+			Impulse = strike.WorldImpact( direction ) * (force * 40f / 120f),
 			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100,
 			Origin = WorldPosition,
 			Position = position,

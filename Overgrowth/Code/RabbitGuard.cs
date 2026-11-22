@@ -38,7 +38,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( Downed )
 		{
-			if ( Networking.IsHost ) UpdateKnockdown();
+			if ( Networking.IsHost ) TryGetUp();
 			else
 			{
 				if ( getUpGraph is not null ) EndGetUpBlend();
@@ -48,7 +48,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpGraph is null )
 		{
-			if ( Stance is StandFromFront or StandFromBack ) BeginGetUpBlend();
+			if ( IsGetUp( Stance ) ) BeginGetUpBlend();
 			else lastPhysicsPose = null;
 		}
 		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
@@ -74,6 +74,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
 			UpdateAwareness();
 		}
+		if ( !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
 	}
 

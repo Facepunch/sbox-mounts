@@ -4,6 +4,12 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactio
 {
 	internal sealed record Pose( float Height, RabbitClip Clip );
 
+	internal Vector3 WorldImpact( Vector3 direction )
+	{
+		var lateral = new Vector3( direction.y, -direction.x, direction.z );
+		return direction * ImpactDirection.x + lateral * ImpactDirection.y + Vector3.Up * ImpactDirection.z;
+	}
+
 	// SyncedAnimationGroup blends frequency and dispatches events from the closest animation.
 	internal (float Frequency, RabbitClip Events) Sample( float height )
 	{
