@@ -10,7 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
-	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
+	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, int[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
 
 	internal enum CenterMotion { Full, Vertical, None }
 
@@ -86,15 +86,17 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
-			var footWeights = Vector2.Zero;
+			var footBones = sampleFeet ? new[] { -1, -1 } : null;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
 				Skip( 24 );
-				Skip( Count() * 4L );
+				int length = Count();
+				int end = -1;
+				for ( int index = 0; index < length; index++ ) end = reader.ReadInt32();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				if ( label == "left_leg" ) footWeights.x = 1;
-				if ( label == "right_leg" ) footWeights.y = 1;
+				if ( sampleFeet && label == "left_leg" ) footBones[0] = end;
+				if ( sampleFeet && label == "right_leg" ) footBones[1] = end;
 			}
 			int shapes = Count();
 			var shapeWeights = new float[morphs.Length];
@@ -144,7 +146,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
 			}
 			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
-			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -165,7 +167,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
-		int[] toes = sampleFeet ? [skeleton.IKBones["left_leg"].BoneId, skeleton.IKBones["right_leg"].BoneId] : null;
+
 		for ( int i = 0; i <= intervals; i++ )
 		{
 			float time = (float)i / intervals * duration;
@@ -200,14 +202,26 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			clip.AddFrame( frame, new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) ) );
 			if ( sampleFeet )
 			{
-				var weights = a.FootWeights * w0 + b.FootWeights * w1 + c.FootWeights * w2 + d.FootWeights * w3;
+				// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
 				for ( int side = 0; side < 2; side++ )
 				{
-					int toe = toes[side];
-					var transform = frame[toe];
-					for ( int parent = skeleton.HierParents[toe]; parent >= 0; parent = skeleton.HierParents[parent] )
-						transform = frame[parent].ToWorld( transform );
-					feet[side][i] = new( transform, Math.Clamp( side == 0 ? weights.x : weights.y, 0, 1 ) );
+					int bone = -1;
+					float weight = 0;
+					void Include( Key key, float w )
+					{
+						if ( key.FootBones[side] < 0 ) return;
+						bone = key.FootBones[side];
+						weight += w;
+					}
+					Include( a, w0 );
+					Include( b, w1 );
+					Include( c, w2 );
+					Include( d, w3 );
+					if ( bone < 0 ) continue;
+					var target = Mix( b.ModelBones[bone], c.ModelBones[bone], t );
+					target = retarget.FootTarget( side, target );
+					target.Position += Vector3.Lerp( b.Center, c.Center, t );
+					feet[side][i] = new( target, weight, true );
 				}
 			}
 		}

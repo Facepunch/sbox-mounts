@@ -22,9 +22,10 @@ public sealed partial class RabbitGuard
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
 			var foot = side == 0 ? pose.Left : pose.Right;
-			var target = Renderer.WorldTransform.ToWorld( foot.Transform );
-			ApplyFootTarget( side, target, foot.Weight );
-			stanceFoot[side] = global::Transform.Lerp( Renderer.WorldTransform.ToLocal( animated ), stanceFoot[side], foot.Weight, false );
+			float weight = Math.Max( 0f, foot.Weight );
+			var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
+			ApplyFootTarget( side, target, weight );
+			stanceFoot[side] = global::Transform.Lerp( Renderer.WorldTransform.ToLocal( animated ), stanceFoot[side], weight, false );
 		}
 		SolveStance();
 

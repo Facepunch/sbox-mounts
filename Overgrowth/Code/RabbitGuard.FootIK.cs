@@ -2,10 +2,11 @@ using System;
 
 namespace Overgrowth;
 
-internal readonly record struct FootPose( Transform Transform, float Weight )
+internal readonly record struct FootPose( Transform Transform, float Weight, bool Present )
 {
 	internal static FootPose Blend( FootPose a, FootPose b, float fraction ) =>
-		new( Transform.Lerp( a.Transform, b.Transform, fraction, false ), a.Weight + (b.Weight - a.Weight) * fraction );
+		new( !a.Present ? b.Transform : !b.Present ? a.Transform : Transform.Lerp( a.Transform, b.Transform, fraction, false ),
+			a.Weight + (b.Weight - a.Weight) * fraction, a.Present || b.Present );
 
 	internal static FootPose Sample( FootPose[] frames, float phase )
 	{

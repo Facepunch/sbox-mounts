@@ -68,6 +68,15 @@ internal sealed class RabbitRetarget
 
 	internal Vector3 JointPosition( int bone, Rotation rotation ) => parentAnchor[bone] + rotation * childHalf[bone];
 
+	internal Transform FootTarget( int side, Transform pose )
+	{
+		pose.Position = ScaleOffset( pose.Position + hipOffset );
+		// Retarget applies each flipped-toe correction to the left IK target.
+		if ( side == 0 )
+			foreach ( int _ in flippedToes ) pose.Rotation *= ToeFlip;
+		return pose;
+	}
+
 	internal Vector3 ScaleOffset( Vector3 offset ) => offset * (legRatio * scale);
 
 	internal Transform[] ToLocalPose( Transform[] pose )
