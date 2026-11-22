@@ -73,6 +73,14 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
+		// UpdateGroundAttackControls only runs on the ground. The rabbit's airborne
+		// leg-cannon controls are player-only; an AI finishes its crossing first.
+		if ( !Animation.IsGrounded )
+		{
+			Stance = Locomotion;
+			return;
+		}
+
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
 			enemy = null;
