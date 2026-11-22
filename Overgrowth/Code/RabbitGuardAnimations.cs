@@ -66,6 +66,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
+		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
+			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Locomotion )
@@ -73,11 +75,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 				var blend = graph.BlendSpace( speed );
 				foreach ( var gait in gaits )
 				{
-					var cycle = RabbitClip.Load( fs, path, rig, skeleton, gait.Name, SourceFor( gait.Name ) );
+					var cycle = RabbitClip.Load( fs, path, rig, skeleton, gait.Name, SourceFor( gait.Name ), sampleFeet: true );
 					clips[gait.Name] = cycle;
 					blend.Add( gait.Coordinate, graph.TimeControlledClip( cycle.Animation, phase, new() { SampleRootMotion = false } ) );
 				}
-				return machine.AddState( blend );
+				GraphBuilder.Node locomotion = blend;
+				foreach ( var foot in feet )
+					locomotion = graph.TwoBoneIK( locomotion, foot.Bone, foot.Target,
+						new() { Weight = foot.Weight, WorldSpace = true, BlendTime = 0 } );
+				return machine.AddState( locomotion );
 			}
 			if ( attacks.TryGetValue( name, out var attack ) )
 			{

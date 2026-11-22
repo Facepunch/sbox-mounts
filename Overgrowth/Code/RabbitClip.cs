@@ -8,11 +8,11 @@ internal sealed record Impact( float Time, int Bone );
 internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitGait( string Name, float Coordinate, float GroundSpeed );
 
-internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps )
+internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
-	private sealed record Key( int Time, Transform[] Bones );
+	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights );
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
@@ -58,12 +58,15 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
+			var footWeights = Vector2.Zero;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
 				Skip( 24 );
 				Skip( Count() * 4L );
-				Skip( Count() );
+				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
+				if ( label == "left_leg" ) footWeights.x = 1;
+				if ( label == "right_leg" ) footWeights.y = 1;
 			}
 			for ( int group = 0; group < 2; group++ )
 			{
@@ -77,12 +80,14 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( !centered )
 				for ( int b = 0; b < bones; b++ )
 					pose[b] = pose[b].WithPosition( pose[b].Position - (center - firstCenter).WithZ( 0 ) );
-			keys[k] = new( time, retarget.ToLocalPose( pose ) );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights );
 		}
 
 		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * 0.06f ) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
+		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
+		int[] toes = sampleFeet ? [skeleton.IKBones["left_leg"].BoneId, skeleton.IKBones["right_leg"].BoneId] : null;
 		for ( int i = 0; i <= intervals; i++ )
 		{
 			float time = (float)i / intervals * duration;
@@ -103,10 +108,22 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				frame[j] = Transform.Lerp( pose, d.Bones[j], w3, false );
 			}
 			clip.AddFrame( frame );
+			if ( sampleFeet )
+			{
+				var weights = a.FootWeights * w0 + b.FootWeights * w1 + c.FootWeights * w2 + d.FootWeights * w3;
+				for ( int side = 0; side < 2; side++ )
+				{
+					int toe = toes[side];
+					var transform = frame[toe];
+					for ( int parent = skeleton.HierParents[toe]; parent >= 0; parent = skeleton.HierParents[parent] )
+						transform = frame[parent].ToWorld( transform );
+					feet[side][i] = new( transform, Math.Clamp( side == 0 ? weights.x : weights.y, 0, 1 ) );
+				}
+			}
 		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps );
+		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet );
 
 		int Count()
 		{

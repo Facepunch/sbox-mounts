@@ -23,6 +23,9 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "ground_speed", speed );
 		Renderer.Animation.Parameters.Set( "stride_phase", next % 1 );
 
+		UpdateFoot( 0, "left_leg", first, second, next % 1, blend );
+		UpdateFoot( 1, "right_leg", first, second, next % 1, blend );
+
 		if ( IsOnGround )
 		{
 			var dominant = blend < 0.5f ? first : second;
