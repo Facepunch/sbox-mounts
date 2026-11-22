@@ -12,8 +12,9 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 		var root = XmlAsset.Read( Host.FileSystem, filePath, element );
 		var shader = ExpandShader( root.Element( "ShaderName" )?.Value.Trim() ?? "" );
 		var flags = shader.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).ToHashSet( StringComparer.Ordinal );
-		var material = Material.Load( "materials/overgrowth.vmat" ).CreateCopy( Path );
+
 		bool detail = flags.Contains( "#DETAILMAP4" );
+		var material = Material.Load( detail ? "materials/overgrowth_detail.vmat" : "materials/overgrowth.vmat" ).CreateCopy( Path );
 		bool character = flags.Contains( "#CHARACTER" );
 		bool item = flags.Contains( "#ITEM" );
 		bool alpha = flags.Contains( "#ALPHA" );
@@ -84,4 +85,3 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 		_ => shader
 	};
 }
-
