@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Sitting Scientist" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeSittingScientist" )]
 [NpcDefinition( "monster_sitting_scientist", "scientist", MonsterClass.HumanPassive, 50, 14, 36, 0, Movement = NpcMovement.Stationary, IdleSequence = "sitlookleft", Gibs = GibSet.Human, Blood = BloodColor.Red )]
-public sealed class SittingScientist : ScientistBase
+public class SittingScientist : ScientistBase
 {
 	static readonly string[] Poses = ["sitlookleft", "sitlookright", "sitscared", "sitting2", "sitting3"];
 	internal override string[] ExtraActions => Poses;

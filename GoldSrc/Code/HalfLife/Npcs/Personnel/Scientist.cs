@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Scientist" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeScientist" )]
 [NpcDefinition( "monster_scientist", "scientist", MonsterClass.HumanPassive, 20, 16, 72, 105, Gibs = GibSet.Human, Blood = BloodColor.Red )]
-public sealed partial class Scientist : ScientistBase
+public partial class Scientist : ScientistBase
 {
 	internal override string[] ExtraActions => ["walk_scared", "run2", "panic", "crouch"];
 	[Sync( SyncFlags.FromHost )] TimeUntil AfraidUntil { get; set; }

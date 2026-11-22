@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Security Guard" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeSecurityGuard" )]
 [NpcDefinition( "monster_barney", "barney", MonsterClass.PlayerAlly, 35, 16, 72, 145, ArmorGroup = 10, Attack = NpcAttack.Bullet, Damage = 5, Range = 1024, StrikeEvents = new[] { 3 }, Gibs = GibSet.Human, Blood = BloodColor.Red )]
-public sealed partial class SecurityGuard : Personnel, Component.IDamageable.IEvents
+public partial class SecurityGuard : Personnel, Component.IDamageable.IEvents
 {
 	protected override int PainVariants => 3;
 	internal override void DeathSound() => EmitSound( $"{Sounds.Death}{Game.Random.Int( 1, 3 )}.wav", WorldPosition, VoiceVolume, SpeechPitch, this );

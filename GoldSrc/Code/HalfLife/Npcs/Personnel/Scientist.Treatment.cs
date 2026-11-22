@@ -1,6 +1,6 @@
 namespace GoldSrc.HalfLife;
 
-public sealed partial class Scientist
+public partial class Scientist
 {
 	const int Arm = 33, Disarm = 34;
 	StudioSequence _drawNeedle, _inject, _putAway;

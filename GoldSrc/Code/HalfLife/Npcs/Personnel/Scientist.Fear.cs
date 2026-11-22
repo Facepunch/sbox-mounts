@@ -3,7 +3,7 @@ using Sandbox.Npcs.Layers;
 
 namespace GoldSrc.HalfLife;
 
-public sealed partial class Scientist
+public partial class Scientist
 {
 	const int CrouchIdle = 18, RunScared = 64;
 	[Sync( SyncFlags.FromHost )] string CoverRun { get; set; }

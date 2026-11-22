@@ -2,7 +2,7 @@ using Sandbox.Npcs;
 
 namespace GoldSrc.HalfLife;
 
-public sealed partial class SecurityGuard
+public partial class SecurityGuard
 {
 	bool _suspicious;
 

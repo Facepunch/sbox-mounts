@@ -26,7 +26,7 @@ internal sealed class NpcPrefabLoader( TypeDescription component, NpcDefinitionA
 			if ( pose is not null ) builder.WithMetadata( "PreviewSequence", pose );
 			if ( entry is Npc npc ) ConfigureNpc( root, npc, modelPath );
 			else if ( entry is GruntRepel rappel && edition == "SD" )
-				rappel.GruntPrefab = "mount://hl1/entities/npcs/sd/monster_human_grunt.prefab";
+				rappel.GruntPrefab = rappel.GruntPrefab.Replace( "/npcs/", "/npcs/sd/" );
 			else if ( entry is PosedCorpse corpse )
 			{
 				root.Tags.Add( "ragdoll", "removable" );
@@ -37,7 +37,8 @@ internal sealed class NpcPrefabLoader( TypeDescription component, NpcDefinitionA
 				var hitboxes = root.AddComponent<ModelHitboxes>();
 				hitboxes.Renderer = corpse.Renderer;
 				hitboxes.Target = root;
-				CorpseDamage.Attach( root, corpse.Renderer, definition.Health * 0.5f, GibSet.Human, Npc.BloodColor.Red );
+				CorpseDamage.Attach( root, corpse.Renderer, definition.Health * 0.5f, definition.Gibs == GibSet.None ? GibSet.Human : definition.Gibs,
+					definition.Gibs == GibSet.None ? Npc.BloodColor.Red : definition.Blood );
 			}
 		}
 
