@@ -73,7 +73,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
 		UpdateIdleBalance( pose is Threat or Idle or Watch );
 		if ( pose == Idle ) Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
-		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = false;
+		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle ? MirroredStance : MirroredAction );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
