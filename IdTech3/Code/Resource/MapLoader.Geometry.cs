@@ -112,6 +112,7 @@ sealed partial class MapLoader
 
 		var patchVerts = new List<BspVertex>();
 		var patchIndices = new List<int>();
+		var patchLevels = StitchedPatchLevels( bspModel );
 
 		for ( int si = bspModel.FirstSurface; si < bspModel.FirstSurface + bspModel.NumSurfaces; si++ )
 		{
@@ -135,7 +136,8 @@ sealed partial class MapLoader
 				if ( s.FirstVert < 0 || s.FirstVert + s.NumVerts > _bsp.Vertices.Length ) continue;
 				var control = new ArraySegment<BspVertex>( _bsp.Vertices, s.FirstVert, s.NumVerts );
 				patchVerts.Clear(); patchIndices.Clear();
-				Geometry.TessellatePatch( control, s.PatchWidth, s.PatchHeight, patchVerts, patchIndices );
+				Geometry.TessellatePatch( control, s.PatchWidth, s.PatchHeight, patchVerts, patchIndices,
+					levels: patchLevels.TryGetValue( si, out var levels ) ? (levels.U, levels.V) : null );
 				verts = patchVerts;
 				tris = patchIndices;
 			}
@@ -290,6 +292,26 @@ sealed partial class MapLoader
 
 		if ( meshCount == 0 && hulls == 0 && collisionIndices.Count == 0 ) return null;
 		return builder.Create();
+	}
+
+	/// <summary>
+	/// Subdivision levels for every patch of a BSP model, with patches that share an edge agreeing on it, so their
+	/// tessellations meet without cracks. Covers all the model's patches, drawn or not, so every caller agrees.
+	/// </summary>
+	Dictionary<int, Geometry.PatchInfo> StitchedPatchLevels( BspModel bspModel )
+	{
+		var patches = new Dictionary<int, Geometry.PatchInfo>();
+		for ( int si = bspModel.FirstSurface; si < bspModel.FirstSurface + bspModel.NumSurfaces; si++ )
+		{
+			if ( si < 0 || si >= _bsp.Surfaces.Length ) continue;
+			var s = _bsp.Surfaces[si];
+			if ( s.Type != SurfaceType.Patch || s.FirstVert < 0 || s.FirstVert + s.NumVerts > _bsp.Vertices.Length ) continue;
+			var control = new ArraySegment<BspVertex>( _bsp.Vertices, s.FirstVert, s.NumVerts );
+			if ( Geometry.PatchLevels( control, s.PatchWidth, s.PatchHeight ) is not { } levels ) continue;
+			patches[si] = new Geometry.PatchInfo { Control = control, Width = s.PatchWidth, Height = s.PatchHeight, U = levels.U, V = levels.V };
+		}
+		Geometry.StitchPatchLevels( patches.Values.ToList() );
+		return patches;
 	}
 
 	/// <summary>True when a brush has a sky side (only the side facing the map usually does).</summary>

@@ -56,15 +56,16 @@ public static class Geometry
 		return Math.Clamp( Math.Max( n, 2 ), 2, maxLevel );
 	}
 
+	static bool IsValidPatch( IReadOnlyList<BspVertex> control, int width, int height ) =>
+		width >= 3 && height >= 3 && (width & 1) == 1 && (height & 1) == 1 && control.Count >= width * height;
+
 	/// <summary>
-	/// Tessellate a biquadratic Bézier patch of <paramref name="width"/> x <paramref name="height"/>
-	/// control points. Levels are chosen per patch column/row so neighbouring sub-patches never crack.
+	/// Subdivisions per sub-patch column (U) and row (V) of a patch, from its curvature, or null for a bad patch.
+	/// A column's level is the most any of its rows needs.
 	/// </summary>
-	public static void TessellatePatch( IReadOnlyList<BspVertex> control, int width, int height,
-		List<BspVertex> outVerts, List<int> outIndices, float tolerance = 4f, int maxLevel = 16 )
+	public static (int[] U, int[] V)? PatchLevels( IReadOnlyList<BspVertex> control, int width, int height, float tolerance = 4f, int maxLevel = 16 )
 	{
-		if ( width < 3 || height < 3 || (width & 1) == 0 || (height & 1) == 0 || control.Count < width * height )
-			return;
+		if ( !IsValidPatch( control, width, height ) ) return null;
 
 		int pw = (width - 1) / 2, ph = (height - 1) / 2;
 		var levelU = new int[pw];
@@ -84,9 +85,95 @@ public static class Geometry
 				levelV[j] = Math.Max( levelV[j], CurveLevel( control[b].Position, control[b + width].Position, control[b + width * 2].Position, tolerance, maxLevel ) );
 			}
 
+		return (levelU, levelV);
+	}
+
+	public sealed class PatchInfo
+	{
+		public IReadOnlyList<BspVertex> Control;
+		public int Width, Height;
+		public int[] U, V;
+	}
+
+	readonly record struct EdgeKey( int Ax, int Ay, int Az, int Mx, int My, int Mz, int Bx, int By, int Bz );
+
+	/// <summary>
+	/// Give patches that share an edge the same subdivision along it, as R_FixSharedVertexLodError does.
+	/// Each patch picks its levels from its own curvature, so two patches meeting along a curve (a wall and the
+	/// floor beside it) would otherwise split the shared edge differently and leave cracks between them.
+	/// </summary>
+	public static void StitchPatchLevels( IReadOnlyList<PatchInfo> patches )
+	{
+		// every border segment (three control points), keyed the same whichever way round it runs
+		var edges = new Dictionary<EdgeKey, List<(PatchInfo Patch, bool U, int Index)>>();
+
+		static (int, int, int) Quantize( Vector3 p ) =>
+			((int)MathF.Round( p.x * 8 ), (int)MathF.Round( p.y * 8 ), (int)MathF.Round( p.z * 8 ));
+
+		void AddEdge( PatchInfo patch, bool u, int index, Vector3 a, Vector3 m, Vector3 b )
+		{
+			var qa = Quantize( a ); var qm = Quantize( m ); var qb = Quantize( b );
+			if ( qb.CompareTo( qa ) < 0 ) (qa, qb) = (qb, qa);
+			var key = new EdgeKey( qa.Item1, qa.Item2, qa.Item3, qm.Item1, qm.Item2, qm.Item3, qb.Item1, qb.Item2, qb.Item3 );
+			if ( !edges.TryGetValue( key, out var list ) ) edges[key] = list = [];
+			list.Add( (patch, u, index) );
+		}
+
+		foreach ( var p in patches )
+		{
+			int w = p.Width, h = p.Height;
+			var c = p.Control;
+			for ( int i = 0; i < p.U.Length; i++ )
+				foreach ( int row in new[] { 0, h - 1 } )
+				{
+					int b = row * w + i * 2;
+					AddEdge( p, true, i, c[b].Position, c[b + 1].Position, c[b + 2].Position );
+				}
+			for ( int j = 0; j < p.V.Length; j++ )
+				foreach ( int col in new[] { 0, w - 1 } )
+				{
+					int b = j * 2 * w + col;
+					AddEdge( p, false, j, c[b].Position, c[b + w].Position, c[b + w * 2].Position );
+				}
+		}
+
+		// a column's level covers both its border rows, so raising one can reach further neighbours: repeat until settled
+		bool changed = true;
+		for ( int pass = 0; changed && pass < 64; pass++ )
+		{
+			changed = false;
+			foreach ( var list in edges.Values )
+			{
+				if ( list.Count < 2 ) continue;
+				int max = 0;
+				foreach ( var (patch, u, index) in list ) max = Math.Max( max, u ? patch.U[index] : patch.V[index] );
+				foreach ( var (patch, u, index) in list )
+				{
+					var levels = u ? patch.U : patch.V;
+					if ( levels[index] == max ) continue;
+					levels[index] = max;
+					changed = true;
+				}
+			}
+		}
+	}
+
+	/// <summary>
+	/// Tessellate a biquadratic Bézier patch of <paramref name="width"/> x <paramref name="height"/>
+	/// control points. Levels are chosen per patch column/row so neighbouring sub-patches never crack; pass
+	/// <paramref name="levels"/> (from <see cref="PatchLevels"/>, stitched with neighbouring patches) to use those.
+	/// </summary>
+	public static void TessellatePatch( IReadOnlyList<BspVertex> control, int width, int height,
+		List<BspVertex> outVerts, List<int> outIndices, float tolerance = 4f, int maxLevel = 16, (int[] U, int[] V)? levels = null )
+	{
+		levels ??= PatchLevels( control, width, height, tolerance, maxLevel );
+		if ( levels is not { } l ) return;
+		int[] levelU = l.U, levelV = l.V;
+		int pw = levelU.Length, ph = levelV.Length;
+
 		int cols = 1, rows = 1;
-		foreach ( var l in levelU ) cols += l;
-		foreach ( var l in levelV ) rows += l;
+		foreach ( var lu in levelU ) cols += lu;
+		foreach ( var lv in levelV ) rows += lv;
 
 		// map global column -> (patch, t)
 		var uPatch = new int[cols]; var uT = new float[cols];
