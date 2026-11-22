@@ -10,7 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
-	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, float[] Status );
+	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, float[] Status );
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false )
 	{
@@ -79,17 +79,27 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				int channel = Array.IndexOf( StatusChannels, label );
 				if ( channel >= 0 ) status[channel] = value;
 			}
-			if ( centered ) Skip( 16 );
+			Vector3 savedCenter = default;
+			if ( centered )
+			{
+				reader.ReadSingle(); // Mobility yaw.
+				float x = reader.ReadSingle(), y = reader.ReadSingle(), z = reader.ReadSingle();
+				savedCenter = new Vector3( z, x, y ) * 40f;
+			}
 			center /= bones;
 			if ( k == 0 ) firstCenter = center;
-			// Horizontal motion is supplied by the NPC mover; keep the authored vertical motion.
 			if ( !centered )
+			{
+				savedCenter = center - firstCenter;
 				for ( int b = 0; b < bones; b++ )
-					pose[b] = pose[b].WithPosition( pose[b].Position - (center - firstCenter).WithZ( 0 ) );
-			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, status );
+					pose[b] = pose[b].WithPosition( pose[b].Position - savedCenter );
+			}
+			// AnimationReader restores full body sway for movement and vertical offset for mobile clips.
+			var offset = sampleFeet ? savedCenter : Vector3.Up * savedCenter.z;
+			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status );
 		}
 
-		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * 0.06f ) );
+		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * 0.12f ) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
@@ -115,6 +125,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				var pose = w0 + w1 > 0 ? Transform.Lerp( a.Bones[j], b.Bones[j], w1 / (w0 + w1), false ) : b.Bones[j];
 				if ( w0 + w1 + w2 > 0 ) pose = Transform.Lerp( pose, c.Bones[j], w2 / (w0 + w1 + w2), false );
 				frame[j] = Transform.Lerp( pose, d.Bones[j], w3, false );
+				if ( skeleton.HierParents[j] < 0 )
+					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
 			}
 			clip.AddFrame( frame );
 			if ( sampleFeet )

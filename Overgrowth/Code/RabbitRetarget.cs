@@ -63,6 +63,8 @@ internal sealed class RabbitRetarget
 		return length;
 	}
 
+	internal Vector3 ScaleOffset( Vector3 offset ) => offset * (legRatio * scale);
+
 	internal Transform[] ToLocalPose( Transform[] pose )
 	{
 		var result = new Transform[pose.Length];
