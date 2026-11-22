@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var foot ) ) return;
-			ApplyFootTarget( side, side == 0 ? "left_leg" : "right_leg", foot, 1f, plant: true );
+			ApplyFootTarget( side, foot, 1f );
 		}
 		SolveStance();
 	}

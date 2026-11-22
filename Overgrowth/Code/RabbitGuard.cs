@@ -32,7 +32,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
 		}
-		else if ( plantedLegs && (Stance is not (Threat or Idle or Watch) || !Animation.IsGrounded) ) ReleaseLegs();
+		else if ( plantedLegs && (Stance is not (Threat or Idle or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{

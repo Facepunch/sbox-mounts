@@ -17,8 +17,16 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );
 		Renderer.Animation.Parameters.Set( "threat_coord", controls.Threat );
 		Renderer.Animation.Parameters.Set( "stride_phase", next % 1f );
-		ApplyFootTarget( 0, "left_leg", Renderer.WorldTransform.ToWorld( pose.Left.Transform ), pose.Left.Weight );
-		ApplyFootTarget( 1, "right_leg", Renderer.WorldTransform.ToWorld( pose.Right.Transform ), pose.Right.Weight );
+		for ( int side = 0; side < 2; side++ )
+		{
+			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var animated ) ) return;
+			var foot = side == 0 ? pose.Left : pose.Right;
+			var target = Renderer.WorldTransform.ToWorld( foot.Transform );
+			ApplyFootTarget( side, target, foot.Weight );
+			stanceFoot[side] = global::Transform.Lerp( Renderer.WorldTransform.ToLocal( animated ), stanceFoot[side], foot.Weight, false );
+		}
+		SolveStance();
 
 		if ( IsOnGround )
 		{

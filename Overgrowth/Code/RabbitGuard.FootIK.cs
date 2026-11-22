@@ -92,12 +92,12 @@ public sealed partial class RabbitGuard
 			var target = side == steppingFoot ? Vector3.Lerp( plantedPosition[side], Goal( side ), stepProgress ) : plantedPosition[side];
 			float lift = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
 			foot.Position = target.WithZ( foot.Position.z + lift );
-			ApplyFootTarget( side, side == 0 ? "left_leg" : "right_leg", foot, 1f, plant: true );
+			ApplyFootTarget( side, foot, 1f );
 		}
 		SolveStance();
 	}
 
-	void ApplyFootTarget( int side, string label, Transform target, float poseWeight, bool plant = false )
+	void ApplyFootTarget( int side, Transform target, float poseWeight )
 	{
 		float weight = 0;
 		if ( poseWeight > 0 )
@@ -121,12 +121,6 @@ public sealed partial class RabbitGuard
 			}
 		}
 		if ( weight == 0 ) groundHeight[side] = null;
-		if ( plant )
-		{
-			stanceFoot[side] = Renderer.WorldTransform.ToLocal( target );
-			return;
-		}
-		Renderer.Animation.Parameters.Set( label, target );
-		Renderer.Animation.Parameters.Set( label + "_weight", weight );
+		stanceFoot[side] = Renderer.WorldTransform.ToLocal( target );
 	}
 }

@@ -92,8 +92,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
 			return blend;
 		}
-		var feet = new[] { "left_leg", "right_leg" }.Select( label => (
-			Bone: $"bone_{skeleton.IKBones[label].BoneId}", Target: graph.TargetParameter( label ), Weight: graph.FloatParameter( label + "_weight" )) ).ToArray();
 		var movement = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "movement" ), name =>
 		{
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
@@ -109,13 +107,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.Threat )
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "idle" ), "stride_phase" ) );
 			if ( name == RabbitGuard.Locomotion )
-			{
-				var locomotion = movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase );
-				foreach ( var foot in feet )
-					locomotion = graph.TwoBoneIK( locomotion, foot.Bone, foot.Target,
-						new() { Weight = foot.Weight, WorldSpace = true, BlendTime = 0 } );
-				return machine.AddState( locomotion );
-			}
+				return machine.AddState( movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase ) );
 			if ( attacks.TryGetValue( name, out var attack ) )
 			{
 				var pathToAnimation = attack.Element( "animations" ).Attribute( "unblocked" );
