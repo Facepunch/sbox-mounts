@@ -23,6 +23,9 @@ public sealed class GMan : TalkingNpc
 		_talkUntil = duration;
 	}
 
+	internal override void SpeakMapSentence( string sentence, float duration, GameObject listener, float volume, float attenuation, bool silenceFriends )
+		=> PlayScriptedSentence( sentence, duration, listener, volume, attenuation );
+
 	protected override void Think()
 	{
 		if ( AdvanceAction() || PhysicsCarrier.IsValid() ) { Animation.ClearLookTarget(); return; }

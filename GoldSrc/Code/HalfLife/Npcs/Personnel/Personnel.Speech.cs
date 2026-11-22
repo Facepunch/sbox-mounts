@@ -52,6 +52,23 @@ public abstract partial class Personnel
 		if ( listener.IsValid() ) Animation.SetLookTarget( listener );
 	}
 
+	internal bool FollowingPlayer => Leader.IsValid();
+
+	internal override void SpeakMapSentence( string sentence, float duration, GameObject listener, float volume, float attenuation, bool silenceFriends )
+	{
+		if ( silenceFriends )
+			foreach ( var friend in Scene.GetAllComponents<Personnel>() )
+				if ( friend != this && friend.Health > 0 && CanSeeColleague( friend, WorldPosition ) ) friend.StopVoice();
+
+		base.SpeakMapSentence( sentence, duration, listener, volume, attenuation, silenceFriends );
+		HasSpoken = true;
+		_speaker = null;
+		_listener = listener;
+		_talkUntil = duration;
+		PauseConversation( duration + 2 );
+		if ( listener.IsValid() ) Animation.SetLookTarget( listener );
+	}
+
 	internal void Ask( Personnel friend, string line, float duration )
 	{
 		Say( line, friend.GameObject, duration );

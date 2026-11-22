@@ -32,6 +32,12 @@ public partial class Npc
 		_scriptDone = done;
 	}
 
+	internal virtual void SpeakMapSentence( string sentence, float duration, GameObject listener, float volume, float attenuation, bool silenceFriends )
+	{
+		if ( !string.IsNullOrEmpty( sentence ) )
+			_audio?.Emit( $"!{sentence.TrimStart( '!' )}", WorldPosition, volume, VoicePitch, this as VoicedNpc, attenuation );
+	}
+
 	private void UpdateScript()
 	{
 		if ( _approach is 1 or 2 && Movement.IsValid() )

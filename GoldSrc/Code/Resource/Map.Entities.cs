@@ -112,7 +112,7 @@ partial class MapBuilder
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
-			or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
+			or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
 			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
 			or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
@@ -135,6 +135,33 @@ partial class MapBuilder
 
 		switch ( className )
 		{
+			case "env_shake":
+				var shake = go.AddComponent<Shake>();
+				shake.TargetName = entity.TargetName;
+				shake.Amplitude = entity.GetFloat( "amplitude" );
+				shake.Frequency = entity.GetFloat( "frequency" );
+				shake.Duration = entity.GetFloat( "duration" );
+				shake.Radius = (entity.SpawnFlags & 1) != 0 ? 0 : entity.GetFloat( "radius" );
+				RegisterTarget( entity, shake );
+				return;
+
+			case "scripted_sentence":
+				var sentence = go.AddComponent<ScriptedSentence>();
+				sentence.TargetName = entity.TargetName;
+				sentence.Speaker = entity.GetString( "entity" );
+				sentence.Listener = entity.GetString( "listener" );
+				sentence.Sentence = entity.GetString( "sentence" );
+				sentence.Duration = entity.GetFloat( "duration" );
+				sentence.Repeat = entity.GetFloat( "refire" );
+				sentence.Radius = entity.GetFloat( "radius" );
+				sentence.SpawnFlags = entity.SpawnFlags;
+				var volume = entity.GetFloat( "volume" );
+				sentence.Volume = volume > 0 ? volume * 0.1f : 1;
+				sentence.Attenuation = entity.GetInt( "attenuation" ) switch { 1 => 1.25f, 2 => GoldSrcSoundEvents.Normal, 3 => 0f, _ => GoldSrcSoundEvents.Idle };
+				RegisterTarget( entity, sentence );
+				WireTrigger( entity, sentence );
+				return;
+
 			case "env_render":
 				var render = go.AddComponent<RenderController>();
 				render.TargetName = entity.TargetName;

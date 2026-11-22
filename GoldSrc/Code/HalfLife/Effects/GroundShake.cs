@@ -6,7 +6,7 @@ internal static class GroundShake
 	{
 		foreach ( var player in scene.GetAllComponents<PlayerController>() )
 		{
-			if ( player.WorldPosition.DistanceSquared( center ) >= radius * radius ) continue;
+			if ( radius > 0 && player.WorldPosition.DistanceSquared( center ) >= radius * radius ) continue;
 			using ( Rpc.FilterInclude( player.Network.Owner ?? Connection.Local ) )
 				ShakeCamera( player, amplitude, frequency, duration );
 		}
