@@ -49,6 +49,17 @@ public sealed partial class RabbitGuard
 				frame[i] = global::Transform.Lerp( frame[i], stand.Animation.GetLocalTransform( time / stand.Duration, i ), time, false );
 			clip.AddFrame( frame );
 		}
+		foreach ( var channel in RabbitClip.StatusChannels )
+		{
+			var weights = new float[steps + 1];
+			for ( int step = 1; step <= steps; step++ )
+			{
+				float time = step * duration / steps;
+				if ( stand.Animation.TryGetFloatChannel( time / stand.Duration, "status", channel, out var value ) )
+					weights[step] = time * value;
+			}
+			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( "status", channel, weights );
+		}
 		getUpPose = clip.Create();
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		getUpGraph = graph.Create( graph.Clip( getUpPose, new() { Looping = false, SampleRootMotion = false } ) );

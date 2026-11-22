@@ -44,7 +44,21 @@ public sealed partial class RabbitGuard
 		var neutral = neutralModel ??= Renderer.LocalTransform;
 		var pose = neutral;
 		pose.Position += Vector3.Up * lift;
+		var rotation = Rotation.Identity;
+		var parent = Renderer.GameObject.Parent.WorldRotation;
 		if ( tilt.LengthSquared > 0.000001f )
+			rotation = Rotation.FromAxis( (parent.Inverse * Vector3.Up.Cross( tilt )).Normal, tilt.Length );
+		if ( Animation.IsGrounded && Renderer.Animation.Debug.TryGetFloatChannel( "status", "groundconform", out float conform ) && conform > 0f )
+		{
+			var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			if ( floor.Hit && !floor.StartedSolid )
+			{
+				var slope = Rotation.FromToRotation( parent.Inverse * Vector3.Up, parent.Inverse * floor.Normal );
+				rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
+			}
+		}
+		if ( rotation != Rotation.Identity )
 		{
 			// FinalAnimationMatrixUpdate rotates all animated bones about their mass-weighted center.
 			var masses = boundAnimations.BoneMass;
@@ -60,8 +74,6 @@ public sealed partial class RabbitGuard
 			if ( mass > 0f )
 			{
 				var localCenter = Renderer.WorldTransform.PointToLocal( center / mass );
-				var axis = Renderer.GameObject.Parent.WorldRotation.Inverse * Vector3.Up.Cross( tilt );
-				var rotation = Rotation.FromAxis( axis.Normal, tilt.Length );
 				var pivotOffset = pose.Rotation * (pose.Scale * localCenter);
 				pose.Position += pivotOffset - rotation * pivotOffset;
 				pose.Rotation = rotation * pose.Rotation;

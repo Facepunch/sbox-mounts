@@ -9,7 +9,8 @@ internal sealed record Step( float Phase, string Event, int Bone );
 
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
-	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, float Cancel );
+	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
+	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, float[] Status );
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false )
 	{
@@ -69,13 +70,14 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 			int shapes = Count();
 			for ( int j = 0; j < shapes; j++ ) { Skip( 4 ); Skip( Count() ); }
-			float cancel = 0f;
+			var status = new float[StatusChannels.Length];
 			int statuses = version >= 6 ? Count() : 0;
 			for ( int j = 0; j < statuses; j++ )
 			{
 				float value = reader.ReadSingle();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				if ( label == "cancel" ) cancel = value;
+				int channel = Array.IndexOf( StatusChannels, label );
+				if ( channel >= 0 ) status[channel] = value;
 			}
 			if ( centered ) Skip( 16 );
 			center /= bones;
@@ -84,13 +86,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( !centered )
 				for ( int b = 0; b < bones; b++ )
 					pose[b] = pose[b].WithPosition( pose[b].Position - (center - firstCenter).WithZ( 0 ) );
-			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, cancel );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, status );
 		}
 
 		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * 0.06f ) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
-		var cancelTrack = keys.Any( key => key.Cancel != 0f ) ? new float[intervals + 1] : null;
+		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
 		int[] toes = sampleFeet ? [skeleton.IKBones["left_leg"].BoneId, skeleton.IKBones["right_leg"].BoneId] : null;
 		for ( int i = 0; i <= intervals; i++ )
@@ -103,7 +105,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			float from = b.Time > time ? b.Time - duration : b.Time;
 			float to = c.Time < time ? c.Time + duration : c.Time;
 			float t = b == c || to <= from ? 0 : Math.Clamp( (time - from) / (to - from), 0, 1 );
-			if ( cancelTrack is not null ) cancelTrack[i] = b.Cancel + (c.Cancel - b.Cancel) * t;
+			for ( int channel = 0; channel < tracks.Length; channel++ )
+				if ( tracks[channel] is { } track ) track[i] = b.Status[channel] + (c.Status[channel] - b.Status[channel]) * t;
 			float t2 = t * t, t3 = t2 * t;
 			float w0 = (-t3 + 2*t2 - t) * 0.5f, w1 = (3*t3 - 5*t2 + 2) * 0.5f;
 			float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
@@ -127,7 +130,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 			}
 		}
-		if ( cancelTrack is not null ) clip.AddFloatChannelTrack( "status", "cancel", cancelTrack );
+		for ( int channel = 0; channel < tracks.Length; channel++ )
+			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", StatusChannels[channel], track );
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
 		return new( clip.Create( $"{path}/{name}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet );
