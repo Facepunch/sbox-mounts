@@ -5,7 +5,7 @@ internal static partial class BloodEffects
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	internal static void Stream( Npc.BloodColor color, Vector3 point, Vector3 direction, float damage )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is not HalfLifeMount mount ) return;
+		if ( HalfLifeMount.SharedAssets is not { IsMounted: true } mount ) return;
 		int speed = System.Math.Clamp( (int)damage, 0, 255 );
 		var jet = CreateStreamParticles( point, 2, 0.4f );
 		for ( int i = 0; i < 100; i++ )

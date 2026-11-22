@@ -29,8 +29,8 @@ public abstract partial class GameMount : BaseGameMount
 		if ( FileSystem is null || GameDirs is null || GameDirs.Count == 0 )
 			return Task.CompletedTask;
 
-		var registry = this is HalfLifeMount ? new NpcRegistry() : null;
-		var weapons = registry is null ? [] : Game.TypeLibrary.GetTypes<StudioWeapon>()
+		var registry = this is HalfLifeMount ? new NpcRegistry( Ident ) : null;
+		var weapons = registry is null || this is OpposingForceMount ? [] : Game.TypeLibrary.GetTypes<StudioWeapon>()
 			.Select( type => (Type: type, Pickup: type.GetAttribute<WeaponPickupAttribute>()) )
 			.Where( entry => entry.Pickup is not null ).ToArray();
 		var viewModels = weapons.SelectMany( entry => entry.Pickup.ViewModelPaths ).ToHashSet( System.StringComparer.OrdinalIgnoreCase );
@@ -91,7 +91,7 @@ public abstract partial class GameMount : BaseGameMount
 					var animated = npc is not null || (registry is not null && viewModels.Contains( modelPath ));
 					context.Add( ResourceType.Model, path, new ModelLoader( fullPath, animated, npc ) );
 					npcModels?.TryAdd( modelPath, path );
-					if ( registry is not null && dir == "valve" ) originalModels[modelPath] = path;
+					if ( registry is not null && dir == (this is OpposingForceMount ? "gearbox" : "valve") ) originalModels[modelPath] = path;
 				}
 				else if ( ext == ".wav" )
 				{
@@ -101,9 +101,9 @@ public abstract partial class GameMount : BaseGameMount
 		}
 
 		MountSurfaces( context );
-		if ( npcModels is not null )
+		registry?.Mount( context, npcModels, originalModels );
+		if ( weapons.Length > 0 )
 		{
-			registry.Mount( context, npcModels, originalModels );
 			context.Add( ResourceType.GameResource, Rifle.GrenadeAmmoPath, new AmmoLoader( "AR grenades", 10 ) );
 			foreach ( var ammo in weapons.Select( w => w.Pickup ).Where( p => p.Ammo is not null ).DistinctBy( w => w.Ammo ) )
 				context.Add( ResourceType.GameResource, $"ammo/{ammo.Ammo}.ammo", new AmmoLoader( ammo.Ammo, ammo.Limit ) );
@@ -140,6 +140,10 @@ public partial class HalfLifeMount : GameMount
 	public override long AppId => 70;
 	public override IReadOnlyList<string> GameDirs => ["valve_hd", "valve"];
 
+	// Both games ship the valve assets. Effects without a source model use the active mount.
+	internal static HalfLifeMount SharedAssets => Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount { IsMounted: true } hl
+		? hl : Sandbox.Mounting.Directory.Get( "opfor" ) as OpposingForceMount;
+
 	internal NpcAudio NpcAudio => _npcAudio ??= new( this );
 
 	protected override void Shutdown()
@@ -152,12 +156,12 @@ public partial class HalfLifeMount : GameMount
 	}
 }
 
-public class OpposingForceMount : GameMount
+public class OpposingForceMount : HalfLifeMount
 {
 	public override string Ident => "opfor";
 	public override string Title => "Half-Life: Opposing Force";
 	public override long AppId => 50;
-	public override IReadOnlyList<string> GameDirs => ["gearbox_hd", "gearbox"];
+	public override IReadOnlyList<string> GameDirs => ["gearbox_hd", "gearbox", "valve_hd", "valve"];
 }
 
 public class BlueShiftMount : GameMount

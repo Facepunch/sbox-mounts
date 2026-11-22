@@ -7,7 +7,7 @@ internal static partial class BloodEffects
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	internal static void Spray( Npc.BloodColor color, Vector3 point, int damage )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is not HalfLifeMount mount ) return;
+		if ( HalfLifeMount.SharedAssets is not { IsMounted: true } mount ) return;
 		var size = System.Math.Clamp( damage * (Connection.All.Count > 1 ? 2 : 1) / 10, 3, 16 );
 		var shade = (int)color + Game.Random.Int( 1, 3 );
 		if ( mount.GetIndexedSprite( "bloodspray" ) is { } mist )

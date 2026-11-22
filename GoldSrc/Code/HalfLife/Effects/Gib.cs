@@ -28,10 +28,11 @@ public sealed class Gib : Component, Component.ICollisionListener
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void ScatterPieces( BBox hull, Vector3 eye, Vector3 direction, float health, bool human, Npc.BloodColor blood, int pieces, bool skull, Vector3? headTarget, int seed, string sourceModel )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "hl1" ) is not HalfLifeMount mount ) return;
+		var mount = MountUtility.TryParse( sourceModel, out var ident ) ? Sandbox.Mounting.Directory.Get( ident ) as HalfLifeMount : HalfLifeMount.SharedAssets;
+		if ( mount is not { IsMounted: true } ) return;
 		var file = human ? "hgibs" : "agibs";
-		var path = mount.GameDirs.OrderByDescending( dir => sourceModel?.StartsWith( $"mount://hl1/{dir}/" ) == true )
-			.Select( dir => $"mount://hl1/{dir}/models/{file}.mdl.vmdl" ).FirstOrDefault( name => mount.GetByPath( name ) is ModelLoader );
+		var path = mount.GameDirs.OrderByDescending( dir => sourceModel?.StartsWith( $"mount://{mount.Ident}/{dir}/" ) == true )
+			.Select( dir => $"mount://{mount.Ident}/{dir}/models/{file}.mdl.vmdl" ).FirstOrDefault( name => mount.GetByPath( name ) is ModelLoader );
 		if ( path is null ) return;
 		var model = Model.Load( path );
 		if ( !model.IsValid() || model.IsError || model.Parts.All.FirstOrDefault() is not { } part ) return;
@@ -68,7 +69,7 @@ public sealed class Gib : Component, Component.ICollisionListener
 		gib._renderer.SetBodyGroup( group, variant );
 		var collider = go.AddComponent<HullCollider>();
 		collider.Type = HullCollider.PrimitiveType.Points;
-		collider.Points = ((ModelLoader)Sandbox.Mounting.Directory.Get( "hl1" ).GetByPath( model.Name )).GibHull( group, variant );
+		collider.Points = ((ModelLoader)MountUtility.FindLoader( model.Name )).GibHull( group, variant );
 		collider.Friction = 0.55f;
 		collider.ColliderFlags |= ColliderFlags.IgnoreTraces;
 		collider.Elasticity = 0.5f;
@@ -97,7 +98,7 @@ public sealed class Gib : Component, Component.ICollisionListener
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
 		if ( collision.Other.IsTrigger || collision.Other.Body?.BodyType != PhysicsBodyType.Static ) return;
-		if ( _fleshShard && Game.Random.Int( 0, 5 ) == 0 && Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
+		if ( _fleshShard && Game.Random.Int( 0, 5 ) == 0 && HalfLifeMount.SharedAssets is { IsMounted: true } mount )
 		{
 			var volume = 0.8f * MathF.Min( 1, MathF.Abs( collision.Contact.Speed.z ) / 450 );
 			var pitch = Game.Random.Int( 0, 3 ) == 0 ? Game.Random.Float( 0.95f, 1.05f ) : 1;

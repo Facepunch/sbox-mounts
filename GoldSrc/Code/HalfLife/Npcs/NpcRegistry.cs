@@ -5,11 +5,11 @@ internal sealed class NpcRegistry
 	readonly (TypeDescription Component, NpcDefinitionAttribute Definition)[] _entries;
 	readonly Dictionary<string, NpcDefinitionAttribute> _models;
 
-	internal NpcRegistry()
+	internal NpcRegistry( string mountIdent )
 	{
 		_entries = Game.TypeLibrary.GetTypes<Component>()
 			.Select( type => (Component: type, Definition: type.GetAttribute<NpcDefinitionAttribute>()) )
-			.Where( entry => entry.Definition is not null )
+			.Where( entry => entry.Definition?.Mount == mountIdent )
 			.ToArray();
 		_models = new( System.StringComparer.OrdinalIgnoreCase );
 		// Corpses and deployment helpers share models with live NPCs. Use the live NPC's hitbox materials.

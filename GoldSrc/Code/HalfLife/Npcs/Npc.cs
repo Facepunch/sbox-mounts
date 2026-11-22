@@ -76,7 +76,8 @@ public partial class Npc : BaseNpc
 
 		try
 		{
-			var mount = await Sandbox.Mounting.Directory.Mount( "hl1" );
+			if ( !MountUtility.TryParse( ModelPath, out var ident ) ) return;
+			var mount = await Sandbox.Mounting.Directory.Mount( ident );
 			if ( mount is not HalfLifeMount halfLife || mount.GetByPath( ModelPath ) is not ModelLoader loader )
 				return;
 

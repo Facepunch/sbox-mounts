@@ -19,6 +19,7 @@ internal sealed class NpcDefinitionAttribute : System.Attribute
 		Speed = speed;
 	}
 
+	public string Mount { get; set; } = "hl1";
 	public string ClassName { get; }
 	public string[] Aliases { get; set; } = [];
 	public string Model { get; }

@@ -8,7 +8,8 @@ internal static class ImpactDecal
 
 	internal static void Place( Vector3 position, Vector3 normal, string name, float size )
 	{
-		var texture = Texture.Load( $"mount://hl1/valve/textures/decals/{{{name}.vtex" );
+		if ( HalfLifeMount.SharedAssets is not { IsMounted: true } mount ) return;
+		var texture = Texture.Load( $"mount://{mount.Ident}/valve/textures/decals/{{{name}.vtex" );
 		if ( !texture.IsValid() || texture.IsError ) return;
 		var go = new GameObject( false, $"{name} decal" );
 		go.NetworkMode = NetworkMode.Never;

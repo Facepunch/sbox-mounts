@@ -3,7 +3,7 @@ namespace GoldSrc.HalfLife;
 [Title( "Zombie" ), Category( "Half-Life" )]
 [Alias( "GoldSrc.HalfLifeZombie" )]
 [NpcDefinition( "monster_zombie", "zombie", MonsterClass.AlienMonster, 50, 16, 72, 85, Attack = NpcAttack.Melee, Damage = 20, Range = 64, Gibs = GibSet.Alien, Blood = BloodColor.Yellow )]
-public sealed class Zombie : VoicedNpc
+public class Zombie : VoicedNpc
 {
 	internal override NpcSounds Sounds { get; } = new( "zombie/zo_idle", "zombie/zo_alert", "zombie/zo_pain", null,
 				"zombie/zo_attack", "zombie/claw_strike" );
