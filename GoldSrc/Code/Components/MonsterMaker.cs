@@ -19,6 +19,25 @@ public sealed class MonsterMaker : MapEntity
 	float? _ground;
 	TimeUntil _next;
 
+	internal sealed record SavedChild( Transform Transform, float Health );
+	internal sealed record SavedMaker( int Count, bool Active, bool Exhausted, float NextSpawn, SavedChild[] Children );
+
+	internal SavedMaker CaptureMaker() => new( Count, _active, _exhausted, _next,
+		_children.Where( go => go.IsValid() && !go.IsDestroyed && go.GetComponent<Npc>() is { Health: > 0 } )
+			.Select( go => new SavedChild( go.WorldTransform, go.GetComponent<Npc>().Health ) ).ToArray() );
+
+	internal void RestoreMaker( SavedMaker state )
+	{
+		foreach ( var child in _children )
+			if ( child.IsValid() ) child.Destroy();
+		_children.Clear();
+		Count = state.Count;
+		_active = state.Active;
+		_exhausted = state.Exhausted;
+		_next = state.NextSpawn;
+		foreach ( var child in state.Children ) CreateChild( child.Transform, child.Health );
+	}
+
 	protected override void OnStart()
 	{
 		_active = StartActive;
@@ -57,14 +76,21 @@ public sealed class MonsterMaker : MapEntity
 		var bounds = new BBox( new Vector3( pos.x - 34, pos.y - 34, _ground.Value ), pos + new Vector3( 34, 34, 0 ) );
 		if ( Scene.FindInPhysics( bounds ).Any( go => go.GetComponentInParent<PlayerController>().IsValid() || go.GetComponentInParent<Npc>().IsValid() ) ) return;
 
+		if ( !CreateChild( WorldTransform ) ) return;
+		_exhausted = --Count == 0;
+		Fire( OnTrigger, GameObject );
+	}
+
+	private bool CreateChild( Transform transform, float? health = null )
+	{
 		var prefab = GameObject.GetPrefab( PrefabPath );
 		if ( !prefab.IsValid() )
 		{
 			Log.Warning( $"{GameObject.Name}: missing monster prefab '{PrefabPath}'." );
 			_exhausted = true;
-			return;
+			return false;
 		}
-		var child = prefab.Clone( WorldTransform, startEnabled: false );
+		var child = prefab.Clone( transform, startEnabled: false );
 		child.SetParent( Map.GameObject, true );
 		var npc = child.GetComponent<Npc>( true );
 		child.Name = string.IsNullOrEmpty( ChildName ) ? ChildClass : ChildName;
@@ -73,14 +99,17 @@ public sealed class MonsterMaker : MapEntity
 		actor.Npc = npc;
 		if ( HitMonsterClip ) MonsterClip.Restrict( child );
 		actor.SpawnedByMaker = true;
-		if ( npc.IsValid() ) npc.FadeCorpse = _fadeChildren;
+		if ( npc.IsValid() )
+		{
+			npc.FadeCorpse = _fadeChildren;
+			if ( health.HasValue ) npc.Health = health.Value;
+		}
 		actor.Renderer = npc?.Renderer;
 		actor.Map = Map;
 		if ( !string.IsNullOrEmpty( ChildName ) ) Map.Entities.Add( actor );
 		_children.Add( child );
-		_exhausted = --Count == 0;
 		child.Enabled = true;
 		child.NetworkSpawn( true, null );
-		Fire( OnTrigger, GameObject );
+		return true;
 	}
 }

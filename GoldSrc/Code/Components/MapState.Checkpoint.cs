@@ -20,6 +20,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		public int EventIndex { get; set; }
 		public bool[] Inputs { get; set; }
 		public BrushMover.SavedMove Move { get; set; }
+		public MonsterMaker.SavedMaker Maker { get; set; }
 	}
 
 	private sealed class Snapshot
@@ -100,7 +101,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 			{
 				case WallCharger charger: entry.Count = charger.Juice; break;
 				case Monster actor when actor.Npc.IsValid(): entry.Health = actor.Npc.Health; break;
-				case MonsterMaker maker: entry.Count = maker.Count; break;
+				case MonsterMaker maker: entry.Maker = maker.CaptureMaker(); break;
 				case BrushMover mover: entry.Move = mover.CaptureMove(); break;
 				case MultiSource source: entry.Inputs = source.InputStates; break;
 				case MultiManager manager:
@@ -132,6 +133,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 					actor.Npc.Health = entry.Health.Value;
 					actor.WorldTransform = entry.Transform;
 					break;
+				case MonsterMaker maker when entry.Maker is not null: maker.RestoreMaker( entry.Maker ); break;
 				case MonsterMaker maker when entry.Count.HasValue: maker.Count = entry.Count.Value; break;
 				case BrushMover mover when entry.Move is not null: mover.RestoreMove( entry.Move ); break;
 				case MultiSource source when entry.Inputs is not null: source.InputStates = entry.Inputs; source.Initialized = true; break;
