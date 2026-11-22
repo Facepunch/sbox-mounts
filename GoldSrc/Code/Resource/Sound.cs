@@ -27,7 +27,6 @@ internal static class GoldSrcSoundEvents
 			handle.Distance = Range( attenuation );
 			handle.Falloff = LinearFalloff;
 			handle.OcclusionEnabled = false;
-			handle.ReverbEnabled = false;
 			handle.AirAbsorption = false;
 		}
 		return handle;
@@ -46,7 +45,6 @@ internal static class GoldSrcSoundEvents
 			FalloffMode = SoundFalloffMode.Curve,
 			Falloff = LinearFalloff,
 			OcclusionEnabled = false,
-			ReverbEnabled = false,
 			AirAbsorption = false
 		};
 	}
