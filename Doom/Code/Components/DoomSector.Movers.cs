@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace Doom;
 
@@ -76,7 +76,6 @@ partial class DoomSector
 	{
 		var self = Heights;
 		var neighbours = NeighbourHeights.ToArray();
-		var level = Level;
 
 		switch ( action )
 		{
@@ -93,14 +92,14 @@ partial class DoomSector
 
 				var door = new DoorMover( this, kind, blaze ? VDoorSpeed * 4 : VDoorSpeed ) { Direction = 1, Top = SectorMoves.DoorTop( self, neighbours ) };
 				if ( door.Top != self.Ceiling )
-					Play( blaze ? level?.BlazeOpenSound : level?.DoorOpenSound, true );
+					Play( blaze ? BlazeOpenSound : DoorOpenSound, true );
 				return door;
 			}
 
 			case SectorAction.DoorClose or SectorAction.DoorBlazeClose:
 			{
 				bool blaze = action == SectorAction.DoorBlazeClose;
-				Play( blaze ? level?.BlazeCloseSound : level?.DoorCloseSound, true );
+				Play( blaze ? BlazeCloseSound : DoorCloseSound, true );
 				return new DoorMover( this, blaze ? DoorMover.Kind.BlazeClose : DoorMover.Kind.Close, blaze ? VDoorSpeed * 4 : VDoorSpeed )
 				{
 					Direction = -1,
@@ -109,7 +108,7 @@ partial class DoomSector
 			}
 
 			case SectorAction.DoorCloseWaitOpen:
-				Play( level?.DoorCloseSound, true );
+				Play( DoorCloseSound, true );
 				return new DoorMover( this, DoorMover.Kind.CloseWaitOpen, VDoorSpeed ) { Direction = -1, Top = self.Ceiling };
 
 			case SectorAction.FloorLowerToHighest:
@@ -172,7 +171,7 @@ partial class DoomSector
 			case SectorAction.PlatDownWaitUpStay or SectorAction.PlatBlazeDownWaitUpStay:
 			{
 				bool blaze = action == SectorAction.PlatBlazeDownWaitUpStay;
-				Play( level?.PlatStartSound, false );
+				Play( PlatStartSound, false );
 				return new PlatMover( this, blaze ? PlatMover.Kind.BlazeDownWaitUpStay : PlatMover.Kind.DownWaitUpStay, PlatSpeed * (blaze ? 8 : 4) )
 				{
 					Low = MathF.Min( SectorMoves.LowestFloor( self, neighbours ), self.Floor ),
@@ -183,7 +182,7 @@ partial class DoomSector
 			}
 
 			case SectorAction.PlatPerpetualRaise:
-				Play( level?.PlatStartSound, false );
+				Play( PlatStartSound, false );
 				return new PlatMover( this, PlatMover.Kind.PerpetualRaise, PlatSpeed * 4 )
 				{
 					Low = MathF.Min( SectorMoves.LowestFloor( self, neighbours ), self.Floor ),
@@ -193,7 +192,7 @@ partial class DoomSector
 				};
 
 			case SectorAction.PlatRaiseAndChange or SectorAction.PlatRaiseToNearestAndChange:
-				Play( level?.StoneMoveSound, false );
+				Play( StoneMoveSound, false );
 				return new PlatMover( this, PlatMover.Kind.RaiseAndChange, PlatSpeed / 2 )
 				{
 					Low = self.Floor,
@@ -289,7 +288,7 @@ partial class DoomSector
 			if ( _stoneTimer > 0 ) return;
 
 			_stoneTimer += StoneInterval;
-			Sector.Play( Sector.Level?.StoneMoveSound, ceiling );
+			Sector.Play( Sector.StoneMoveSound, ceiling );
 		}
 	}
 
@@ -305,7 +304,6 @@ partial class DoomSector
 
 		public override bool Tick( float delta )
 		{
-			var level = Sector.Level;
 
 			switch ( Direction )
 			{
@@ -317,15 +315,15 @@ partial class DoomSector
 					{
 						case Kind.BlazeRaise:
 							Direction = -1;
-							Sector.Play( level?.BlazeCloseSound, true );
+							Sector.Play( Sector.BlazeCloseSound, true );
 							break;
 						case Kind.Raise:
 							Direction = -1;
-							Sector.Play( level?.DoorCloseSound, true );
+							Sector.Play( Sector.DoorCloseSound, true );
 							break;
 						case Kind.CloseWaitOpen:
 							Direction = 1;
-							Sector.Play( level?.DoorOpenSound, true );
+							Sector.Play( Sector.DoorOpenSound, true );
 							break;
 					}
 					return true;
@@ -338,7 +336,7 @@ partial class DoomSector
 					{
 						Direction = 1;
 						Type = Kind.Raise;
-						Sector.Play( level?.DoorOpenSound, true );
+						Sector.Play( Sector.DoorOpenSound, true );
 					}
 					return true;
 
@@ -348,7 +346,7 @@ partial class DoomSector
 					switch ( Type )
 					{
 						case Kind.BlazeRaise or Kind.BlazeClose:
-							Sector.Play( level?.BlazeCloseSound, true );
+							Sector.Play( Sector.BlazeCloseSound, true );
 							return false;
 						case Kind.Raise or Kind.Close:
 							return false;
@@ -387,7 +385,7 @@ partial class DoomSector
 
 			if ( !Sector.MovePlane( false, destination, Speed, delta ) ) return true;
 
-			Sector.Play( Sector.Level?.PlatStopSound, false );
+			Sector.Play( Sector.PlatStopSound, false );
 			return false;
 		}
 	}
@@ -418,7 +416,7 @@ partial class DoomSector
 					case Kind.RaiseToHighest:
 						return false;
 					case Kind.SilentCrushAndRaise:
-						Sector.Play( Sector.Level?.PlatStopSound, true );
+						Sector.Play( Sector.PlatStopSound, true );
 						Direction = -1;
 						return true;
 					case Kind.FastCrushAndRaise or Kind.CrushAndRaise:
@@ -433,7 +431,7 @@ partial class DoomSector
 			switch ( kind )
 			{
 				case Kind.SilentCrushAndRaise:
-					Sector.Play( Sector.Level?.PlatStopSound, true );
+					Sector.Play( Sector.PlatStopSound, true );
 					Speed = CeilingSpeed;
 					Direction = 1;
 					return true;
@@ -465,7 +463,6 @@ partial class DoomSector
 
 		public override bool Tick( float delta )
 		{
-			var level = Sector.Level;
 
 			switch ( Status )
 			{
@@ -477,7 +474,7 @@ partial class DoomSector
 
 					_count = Wait;
 					Status = State.Waiting;
-					Sector.Play( level?.PlatStopSound, false );
+					Sector.Play( Sector.PlatStopSound, false );
 					return kind == Kind.PerpetualRaise;
 
 				case State.Down:
@@ -485,7 +482,7 @@ partial class DoomSector
 
 					_count = Wait;
 					Status = State.Waiting;
-					Sector.Play( level?.PlatStopSound, false );
+					Sector.Play( Sector.PlatStopSound, false );
 					return true;
 
 				case State.Waiting:
@@ -493,7 +490,7 @@ partial class DoomSector
 					if ( _count > 0 ) return true;
 
 					Status = Sector.FloorHeight == Low ? State.Up : State.Down;
-					Sector.Play( level?.PlatStartSound, false );
+					Sector.Play( Sector.PlatStartSound, false );
 					return true;
 			}
 

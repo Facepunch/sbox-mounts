@@ -77,11 +77,8 @@ partial class MapLoader
 		var go = GameObject.Clone( prefab, new Transform( World( thing.X, thing.Y, z ), Rotation.FromYaw( thing.Angle ) ), parent );
 		if ( !go.IsValid() ) return;
 
-		if ( go.Components.TryGet<DoomTeleportDestination>( out var destination ) )
-		{
-			destination.SectorTag = sector >= 0 ? _sectors[sector].Tag : 0;
-			Level.TeleportDestinations.Add( destination );
-		}
+		if ( sector >= 0 && go.Components.TryGet<DoomTeleportDestination>( out _ ) )
+			go.Tags.Add( DoomTeleportDestination.TagFor( _sectors[sector].Tag ) );
 
 		// Things on a moving floor or ceiling need a collider that can follow it.
 		if ( moving && go.Components.TryGet<BoxCollider>( out var collider ) )

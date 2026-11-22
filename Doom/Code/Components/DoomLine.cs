@@ -8,8 +8,6 @@ namespace Doom;
 [Icon( "linear_scale" )]
 public sealed class DoomLine : Component, Component.IPressable, Component.IDamageable
 {
-	[Property, Hide] public DoomLevel Level { get; set; }
-
 	[Property, ReadOnly] public int Index { get; set; }
 	[Property, ReadOnly] public int Special { get; set; }
 	[Property, ReadOnly] public int Tag { get; set; }
@@ -26,6 +24,26 @@ public sealed class DoomLine : Component, Component.IPressable, Component.IDamag
 
 	/// <summary>The sector behind the line: the one a door used directly opens.</summary>
 	[Property, ReadOnly] public DoomSector Back { get; set; }
+
+	/// <summary>The movable sectors with this line's tag, which its special acts on.</summary>
+	public IEnumerable<DoomSector> Targets => FindTagged<DoomSector>( DoomSector.TagFor( Tag ) );
+
+	/// <summary>Where a teleport line sends you: the first destination standing in a sector with its tag (EV_Teleport).</summary>
+	public DoomTeleportDestination Destination => FindTagged<DoomTeleportDestination>( DoomTeleportDestination.TagFor( Tag ) ).FirstOrDefault();
+
+	/// <summary>Objects with an object tag, in this line's own map only, so two maps in one scene stay apart.</summary>
+	private IEnumerable<T> FindTagged<T>( string tag ) where T : Component
+	{
+		var root = GameObject.Root;
+		return Scene.FindAllWithTag( tag )
+			.Where( go => go.Root == root )
+			.Select( go => go.GetComponent<T>() )
+			.Where( c => c.IsValid() );
+	}
+
+	[Property, Hide] public SoundEvent SwitchSound { get; set; }
+	[Property, Hide] public SoundEvent ExitSwitchSound { get; set; }
+	[Property, Hide] public SoundEvent TeleportSound { get; set; }
 
 	/// <summary>Line start, world space. The front of the line is on the right going from start to end.</summary>
 	[Property, ReadOnly] public Vector3 Start { get; set; }
@@ -72,7 +90,7 @@ public sealed class DoomLine : Component, Component.IPressable, Component.IDamag
 		{
 			_switchPressed = false;
 			SetSwitch( false );
-			PlaySound( Level?.SwitchSound );
+			PlaySound( SwitchSound );
 		}
 
 		if ( Trigger != LineTrigger.Walk || !_collider.IsValid() ) return;
@@ -127,7 +145,7 @@ public sealed class DoomLine : Component, Component.IPressable, Component.IDamag
 	/// <summary>P_ChangeSwitchTexture: flip the texture and click. Repeatable switches flip back after a second.</summary>
 	private void PressSwitch()
 	{
-		PlaySound( Action is SectorAction.Exit or SectorAction.SecretExit ? Level?.ExitSwitchSound : Level?.SwitchSound );
+		PlaySound( Action is SectorAction.Exit or SectorAction.SecretExit ? ExitSwitchSound : SwitchSound );
 
 		if ( _switchPressed ) return;
 
@@ -152,7 +170,81 @@ public sealed class DoomLine : Component, Component.IPressable, Component.IDamag
 		Sound.Play( sound, SwitchRenderer.IsValid() ? SwitchRenderer.WorldPosition : WorldPosition );
 	}
 
-	private bool Fire( GameObject activator ) => Level.IsValid() && Level.Activate( this, activator );
+	/// <summary>
+	/// Runs the special. Returns true if anything started, which is what decides whether a
+	/// once-only switch is used up.
+	/// </summary>
+	private bool Fire( GameObject activator )
+	{
+		bool started = Run( Action, activator );
+		if ( Secondary != SectorAction.None )
+			started |= Run( Secondary, activator );
+		return started;
+	}
+
+	private bool Run( SectorAction action, GameObject activator )
+	{
+		if ( Trigger == LineTrigger.Door )
+			return Back.IsValid() && Back.UseDoor( action, Repeat, activator );
+
+		switch ( action )
+		{
+			case SectorAction.Teleport:
+				return Teleport( activator );
+
+			case SectorAction.Exit or SectorAction.SecretExit:
+				Log.Info( $"Doom: {(action == SectorAction.Exit ? "exit" : "secret exit")} switch used" );
+				return true;
+
+			case SectorAction.LightTurnOn or SectorAction.LightTurnOff or SectorAction.LightStartStrobing or SectorAction.ScrollTextureLeft:
+				return false;
+		}
+
+		var targets = Targets.ToArray();
+
+		// Crushers and perpetual lifts that were stopped resume before anything new starts.
+		bool started = action switch
+		{
+			SectorAction.CeilingCrushAndRaise or SectorAction.CeilingFastCrushAndRaise or SectorAction.CeilingSilentCrushAndRaise
+				=> targets.Aggregate( false, ( any, s ) => s.ResumeCrusher() | any ),
+			SectorAction.PlatPerpetualRaise
+				=> targets.Aggregate( false, ( any, s ) => s.ResumePlat() | any ),
+			_ => false
+		};
+
+		foreach ( var sector in targets )
+			started |= sector.Start( action, Amount );
+
+		return started;
+	}
+
+	/// <summary>EV_Teleport: to the destination, facing its angle.</summary>
+	private bool Teleport( GameObject activator )
+	{
+		var destination = Destination;
+		if ( !destination.IsValid() || !activator.IsValid() ) return false;
+
+		if ( TeleportSound is not null )
+		{
+			Sound.Play( TeleportSound, activator.WorldPosition );
+			Sound.Play( TeleportSound, destination.WorldPosition );
+		}
+
+		var player = activator.GetComponentInParent<PlayerController>();
+		var subject = player.IsValid() ? player.GameObject : activator;
+
+		subject.WorldPosition = destination.WorldPosition;
+		subject.WorldRotation = destination.WorldRotation;
+
+		if ( player.IsValid() )
+		{
+			player.EyeAngles = destination.WorldRotation.Angles();
+			if ( player.Body.IsValid() ) player.Body.Velocity = Vector3.Zero;
+		}
+
+		subject.Transform.ClearInterpolation();
+		return true;
+	}
 
 	private static GameObject PlayerOf( GameObject other )
 	{

@@ -26,7 +26,6 @@ public partial class MapLoader( string wadName, MapData map ) : SceneLoader<Game
 	/// <summary>Parent of everything this loader creates.</summary>
 	public GameObject Root { get; private set; }
 
-	protected DoomLevel Level { get; private set; }
 
 	/// <summary>World units per map unit.</summary>
 	protected virtual float UnitScale => Host.UnitScale;
@@ -59,13 +58,13 @@ public partial class MapLoader( string wadName, MapData map ) : SceneLoader<Game
 		_polygons = BuildSectorPolygons();
 
 		Root = new GameObject( true, Map.Name );
-		Level = Root.AddComponent<DoomLevel>();
-		Level.Scale = _scale;
 
 		CreateSectorObjects();
 		BuildGeometry();
-		BuildSpecials();
+
+		// Things first: teleport lines link to the destinations they place.
 		SpawnThings();
+		BuildSpecials();
 
 		var ambient = new GameObject( true, "Ambient Light" ) { Parent = Root };
 		ambient.AddComponent<AmbientLight>().Color = Color.White;

@@ -8,7 +8,11 @@ namespace Doom;
 [Icon( "layers" )]
 public sealed partial class DoomSector : Component
 {
-	[Property, Hide] public DoomLevel Level { get; set; }
+	/// <summary>The object tag for movable sectors with this sector tag. Line specials find their sectors by it.</summary>
+	public static string TagFor( int sectorTag ) => $"sector.{sectorTag}";
+
+	/// <summary>World units per map unit.</summary>
+	[Property, ReadOnly] public float Scale { get; set; } = 1f;
 
 	[Property, ReadOnly] public int Index { get; set; }
 	[Property, ReadOnly] public int Tag { get; set; }
@@ -47,7 +51,13 @@ public sealed partial class DoomSector : Component
 	/// <summary>The floor height a donut's pillar and ring move to.</summary>
 	[Property, ReadOnly, Group( "Specials" )] public float DonutHeight { get; set; }
 
-	private float Scale => Level.IsValid() ? Level.Scale : 1f;
+	[Property, Hide] public SoundEvent DoorOpenSound { get; set; }
+	[Property, Hide] public SoundEvent DoorCloseSound { get; set; }
+	[Property, Hide] public SoundEvent BlazeOpenSound { get; set; }
+	[Property, Hide] public SoundEvent BlazeCloseSound { get; set; }
+	[Property, Hide] public SoundEvent PlatStartSound { get; set; }
+	[Property, Hide] public SoundEvent PlatStopSound { get; set; }
+	[Property, Hide] public SoundEvent StoneMoveSound { get; set; }
 
 	public float FloorHeight
 	{

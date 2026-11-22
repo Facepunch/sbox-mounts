@@ -17,17 +17,6 @@ partial class MapLoader
 
 	private void BuildSpecials()
 	{
-		Level.DoorOpenSound = LoadSound( "DSDOROPN" );
-		Level.DoorCloseSound = LoadSound( "DSDORCLS" );
-		Level.BlazeOpenSound = LoadSound( "DSBDOPN" );
-		Level.BlazeCloseSound = LoadSound( "DSBDCLS" );
-		Level.PlatStartSound = LoadSound( "DSPSTART" );
-		Level.PlatStopSound = LoadSound( "DSPSTOP" );
-		Level.StoneMoveSound = LoadSound( "DSSTNMOV" );
-		Level.SwitchSound = LoadSound( "DSSWTCHN" );
-		Level.ExitSwitchSound = LoadSound( "DSSWTCHX" );
-		Level.TeleportSound = LoadSound( "DSTELEPT" );
-
 		BuildSectors();
 		BuildLines();
 		BuildPainFloors();
@@ -50,8 +39,9 @@ partial class MapLoader
 
 			var s = _sectors[i];
 			var sector = _sectorComponents[i] = _sectorObjects[i].AddComponent<DoomSector>();
-			sector.Level = Level;
+			sector.Scale = _scale;
 			sector.Index = i;
+			if ( s.Tag != 0 ) _sectorObjects[i].Tags.Add( DoomSector.TagFor( s.Tag ) );
 			sector.Tag = s.Tag;
 			sector.Special = s.Special;
 			sector.Floor = _floorObjects[i];
@@ -61,7 +51,13 @@ partial class MapLoader
 			sector.RestFloor = s.FloorHeight;
 			sector.RestCeiling = s.CeilingHeight;
 			sector.ShortestLowerTexture = _shortestLower[i];
-			Level.Sectors.Add( sector );
+			sector.DoorOpenSound = LoadSound( "DSDOROPN" );
+			sector.DoorCloseSound = LoadSound( "DSDORCLS" );
+			sector.BlazeOpenSound = LoadSound( "DSBDOPN" );
+			sector.BlazeCloseSound = LoadSound( "DSBDCLS" );
+			sector.PlatStartSound = LoadSound( "DSPSTART" );
+			sector.PlatStopSound = LoadSound( "DSPSTOP" );
+			sector.StoneMoveSound = LoadSound( "DSSTNMOV" );
 		}
 
 		for ( int i = 0; i < _sectors.Count; i++ )
@@ -138,7 +134,6 @@ partial class MapLoader
 			box.Scale = new Vector3( length, depth, MathF.Max( 1f, ceiling - floor ) * _scale );
 
 			var component = go.AddComponent<DoomLine>();
-			component.Level = Level;
 			component.Index = i;
 			component.Special = line.Special;
 			component.Tag = line.Tag;
@@ -152,6 +147,9 @@ partial class MapLoader
 			component.Back = back >= 0 ? _sectorComponents[back] : null;
 			component.Start = a;
 			component.End = b;
+			component.SwitchSound = LoadSound( "DSSWTCHN" );
+			component.ExitSwitchSound = LoadSound( "DSSWTCHX" );
+			component.TeleportSound = LoadSound( "DSTELEPT" );
 
 			if ( _switches.TryGetValue( i, out var face ) && face.Renderer.IsValid() )
 			{
