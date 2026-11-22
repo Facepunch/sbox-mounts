@@ -228,9 +228,12 @@ public sealed partial class RabbitGuard
 		};
 		damage.Tags.Add( "melee" );
 		damage.Tags.Add( "nevergib" );
+		var npc = enemy.GetComponent<BaseNpc>();
 		victim.OnDamage( damage );
-		bool killed = enemy.IsValid() && enemy.GetComponent<Sandbox.Npcs.BaseNpc>() is { Health: < 1 };
-		PlayCombatSound( killed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_normal.xml", damage.Position );
+		var group = "hit_normal";
+		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
+		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
+		PlayCombatSound( $"Data/Sounds/hit/{group}.xml", damage.Position );
 	}
 
 	void Speak( string cue )
