@@ -1,4 +1,5 @@
 using System;
+using Sandbox.Engine.Resources;
 
 namespace Overgrowth;
 
@@ -19,14 +20,42 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			if (!ray.IsNearlyZero()) go.WorldRotation = Rotation.LookAt(-ray.Normal);
 			go.AddComponent<DirectionalLight>().SkyColor = Color.White * 0.35f;
 		}
-		foreach(var child in level.Children) Place(child);
+		var jumpNodes = new Dictionary<int, XmlAsset>();
+		foreach(var child in level.Children) Place(child, jumpNodes);
+		PlaceJumpLinks( jumpNodes );
 	}
 
-	void Place(XmlAsset node)
+	static void PlaceJumpLinks( Dictionary<int, XmlAsset> nodes )
 	{
+		var pairs = new HashSet<(int, int)>();
+		foreach ( var (id, node) in nodes )
+		{
+			foreach ( var connection in node.Element( "NavMeshConnections" )?.Elements( "NavMeshConnection" ) ?? [] )
+			{
+				if ( !int.TryParse( connection.Attribute( "other_object_id" ), out int otherId ) || id == otherId ||
+					!nodes.TryGetValue( otherId, out var other ) || !pairs.Add( (Math.Min( id, otherId ), Math.Max( id, otherId )) ) ) continue;
+				var start = Vector( node, "t", 0 ) * 40f;
+				var go = new GameObject( false, "Jump link" ) { WorldPosition = start };
+				var link = go.AddComponent<NavMeshLink>();
+				link.Type = NavMeshLinkType.Jump;
+				link.WorldEndPosition = Vector( other, "t", 0 ) * 40f;
+				link.IsBiDirectional = true;
+				link.ConnectionRadius = 40f;
+				go.Enabled = true;
+			}
+		}
+	}
+
+	void Place(XmlAsset node, Dictionary<int, XmlAsset> jumpNodes)
+	{
+		if ( node.Name == "NavmeshConnectionObject" && int.TryParse( node.Attribute( "id" ), out int id ) )
+		{
+			jumpNodes[id] = node;
+			return;
+		}
 		if(node.Name is "Group" or "Prefab" || node.Attribute("t0") is null)
 		{
-			foreach(var child in node.Children) Place(child);
+			foreach(var child in node.Children) Place(child, jumpNodes);
 			return;
 		}
 		var file=node.Attribute("type_file");
