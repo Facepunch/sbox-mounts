@@ -63,6 +63,7 @@ public sealed partial class RabbitGuard
 		else BeginReaction( attacker.GameObject, attacker.WorldPosition, move.Guard, guard, activeBlock: true );
 		// At original difficulty an NPC's active window and subsequent recharge are each 0.2 s.
 		blockRecharge = 0.4f;
+		PickBlockFollowUp();
 		return true;
 	}
 

@@ -7,6 +7,7 @@ public sealed partial class RabbitGuard
 	enum CombatTactic { Rush, Wait, Defend, Provoke }
 	[Property, Range( 0f, 1f )] public float Aggression { get; set; } = 0.5f;
 	[Property, Range( 0f, 1f )] public float GroundAggression { get; set; } = 0.5f;
+	[Property, Range( 0f, 1f )] public float BlockFollowUp { get; set; } = 0.5f;
 	CombatTactic tactic = CombatTactic.Wait;
 	bool? punishGroundedTarget;
 	TimeSince sinceTargetDown;
@@ -15,6 +16,18 @@ public sealed partial class RabbitGuard
 	TimeUntil dontAttackBefore;
 	float preferredRange;
 	float strafeOffset;
+
+	void PickBlockFollowUp()
+	{
+		float chance = BlockFollowUp;
+		if ( tactic == CombatTactic.Provoke ) chance = 1f - (1f - chance) * (1f - chance);
+		if ( Random.Shared.Float() >= chance ) return;
+		// enemycontrol.as reserves the other 30% of follow-ups for a counter throw.
+		if ( Random.Shared.Float() > 0.7f ) return;
+		rangeChanged |= tactic != CombatTactic.Rush;
+		tactic = CombatTactic.Rush;
+		nextTactic = 1f;
+	}
 
 	void UpdateTactic( float distance )
 	{
