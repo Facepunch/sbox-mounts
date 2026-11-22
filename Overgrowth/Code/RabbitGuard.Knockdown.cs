@@ -44,7 +44,7 @@ public sealed partial class RabbitGuard
 			ragdoll.Model = Renderer.Model;
 			ragdoll.IgnoreRoot = true;
 			ragdoll.CopyBonesFrom( Renderer, true );
-			ReleaseLegs();
+			ReleaseProceduralPose();
 			ragdoll.Enabled = true;
 			Downed = true;
 			Speak( "hit" );
@@ -128,6 +128,7 @@ public sealed partial class RabbitGuard
 		agent.Enabled = true;
 		agent.SetAgentPosition( WorldPosition );
 		StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
+		secondaryReset = 4f * (4f / 120f);
 		Downed = false;
 		return true;
 	}

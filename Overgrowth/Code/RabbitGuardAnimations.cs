@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLeg[][] Legs, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitEar[] Ears, float[] BoneMass, float CharacterScale )
 {
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale )
 	{
@@ -157,12 +157,18 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				if ( previous != states[i] )
 					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings() { Duration = RabbitGuard.IsGetUp( names[i] ) ? 0f : 0.2f } );
 		}
+		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
+		var weighted = skeleton.GetWeightedBones();
+		var parents = skeleton.HierParents.ToArray();
+		for ( int i = 0; i < parents.Length; i++ )
+			while ( parents[i] >= 0 && !weighted[parents[i]] )
+				parents[i] = parents[parents[i]];
 		var torso = skeleton.IKBones["torso"];
 		var torsoBones = new List<string>();
-		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
+		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = parents[bone] )
 			torsoBones.Add( $"bone_{bone}" );
 		int hip = torso.BoneId;
-		for ( int i = 1; i < torsoBones.Count; i++ ) hip = skeleton.HierParents[hip];
+		for ( int i = 1; i < torsoBones.Count; i++ ) hip = parents[hip];
 		float HalfLength( int bone )
 		{
 			var (a, b) = skeleton.Bones[bone];
@@ -170,11 +176,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		var ears = new[] { "leftear", "rightear" }.Select( label =>
 		{
-			int tip = skeleton.IKBones[label].BoneId, root = skeleton.HierParents[tip];
+			int tip = skeleton.IKBones[label].BoneId, root = parents[tip];
 			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
 		} ).ToArray();
 		var output = machine.Build();
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLeg.Chain( skeleton, "left_leg", scale ), RabbitLeg.Chain( skeleton, "right_leg", scale )], HalfLength( hip ), HalfLength( skeleton.HierParents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( skeleton.HierParents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f );
 	}
 
 }

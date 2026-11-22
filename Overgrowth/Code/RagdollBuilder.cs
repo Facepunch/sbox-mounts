@@ -24,11 +24,7 @@ static class RagdollBuilder
 		if ( hasFzx )
 			LoadShapes( FzxLoader.Load( fs, fzxPath ), skeleton, shapes );
 
-		var assigned = new bool[count];
-		for ( int i = 0; i < skeleton.BoneWeights.Length; i++ )
-			for ( int j = 0; j < 4; j++ )
-				if ( skeleton.BoneWeights[i][j] > 0 )
-					assigned[(int)skeleton.BoneIds[i][j]] = true;
+		var assigned = skeleton.GetWeightedBones();
 
 		var fixedBones = new bool[count];
 		var masses = skeleton.BoneMass.Select( mass => mass * massScale * massScale * massScale ).ToArray();

@@ -18,6 +18,16 @@ public class SkeletonData
 	public Transform[] BindPose;
 	public Vector4[] BoneWeights;
 	public Vector4[] BoneIds;
+
+	internal bool[] GetWeightedBones()
+	{
+		var assigned = new bool[Bones.Count];
+		for ( int i = 0; i < BoneWeights.Length; i++ )
+			for ( int j = 0; j < 4; j++ )
+				if ( BoneWeights[i][j] > 0 )
+					assigned[(int)BoneIds[i][j]] = true;
+		return assigned;
+	}
 }
 
 public struct JointData

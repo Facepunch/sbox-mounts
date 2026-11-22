@@ -81,12 +81,17 @@ public sealed partial class RabbitGuard
 		getUpPose = null;
 	}
 
+	// ModelPhysics drives only bones with bodies. Every other bone must inherit its parent again.
+	void ReleaseProceduralPose()
+	{
+		if ( Renderer.IsValid() ) Renderer.ClearPhysicsBones();
+		armsActive = earsActive = plantedLegs = chestActive = false;
+		ResetBodyLean();
+	}
+
 	protected override void OnDisabled()
 	{
-		ResetBodyLean();
-		if ( earsActive && Renderer.IsValid() ) Renderer.ClearPhysicsBones();
-		ResetEars();
-		ReleaseLegs();
+		ReleaseProceduralPose();
 		EndGetUpBlend();
 		base.OnDisabled();
 	}

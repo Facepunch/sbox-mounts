@@ -2,17 +2,17 @@ using System;
 
 namespace Overgrowth;
 
-internal readonly record struct RabbitLeg( string Bone, float Length )
+internal readonly record struct RabbitLimbBone( string Bone, float Length )
 {
-	internal static RabbitLeg[] Chain( SkeletonData rig, string label, float scale )
+	internal static RabbitLimbBone[] Chain( SkeletonData rig, int[] parents, string label, float scale )
 	{
-		var chain = new RabbitLeg[6];
+		var chain = new RabbitLimbBone[6];
 		int bone = rig.IKBones[label].BoneId;
 		for ( int i = 0; i < chain.Length; i++ )
 		{
 			var (a, b) = rig.Bones[bone];
 			chain[i] = new( $"bone_{bone}", rig.Points[a].Distance( rig.Points[b] ) * 40f * scale );
-			bone = rig.HierParents[bone];
+			bone = parents[bone];
 		}
 		return chain;
 	}
@@ -76,7 +76,7 @@ public sealed partial class RabbitGuard
 		hipOffset = solvedHipOffset + shift;
 		pelvis.Position += hipOffset;
 		pelvis.Rotation = rotation * balanceRotation * pelvis.Rotation;
-		Renderer.SetBoneTransform( bones.GetBone( rootName ), pelvis );
+		SetPoseBone( bones.GetBone( rootName ), pelvis );
 		// Overgrowth translates the torso keys with the hip, then rolls the chest about its own origin.
 		for ( int i = 0; i < 2; i++ )
 		{
@@ -87,9 +87,9 @@ public sealed partial class RabbitGuard
 			{
 				var raw = Renderer.WorldTransform.ToWorld( Animated( name ) );
 				torso.Rotation = balanceRotation * torso.Rotation;
-				headMotion = (raw, Renderer.WorldTransform.ToWorld( torso ));
+				headMotion = chestMotion = (raw, Renderer.WorldTransform.ToWorld( torso ));
 			}
-			Renderer.SetBoneTransform( bones.GetBone( name ), torso );
+			SetPoseBone( bones.GetBone( name ), torso );
 		}
 		for ( int i = 0; i < 2; i++ )
 			SolveLeg( i, stanceFoot[i], hipRoot, rotation * balanceRotation );
@@ -131,7 +131,7 @@ public sealed partial class RabbitGuard
 		{
 			var original = legPose[index].Rotation;
 			var rotation = Rotation.FromToRotation( original.Forward, (to - from).Normal ) * original;
-			Renderer.SetBoneTransform( bones.GetBone( chain[index].Bone ), new Transform( (from + to) * 0.5f, rotation ) );
+			SetPoseBone( bones.GetBone( chain[index].Bone ), new Transform( (from + to) * 0.5f, rotation ) );
 		}
 		var midThigh = Vector3.Lerp( hip, knee, chain[5].Length / thigh );
 		var midShin = Vector3.Lerp( knee, ankle, chain[3].Length / shin );
@@ -140,7 +140,7 @@ public sealed partial class RabbitGuard
 		Place( 3, knee, midShin );
 		Place( 2, midShin, ankle );
 		Place( 1, ankle, end );
-		Renderer.SetBoneTransform( bones.GetBone( chain[0].Bone ), foot );
+		SetPoseBone( bones.GetBone( chain[0].Bone ), foot );
 		plantedLegs = true;
 	}
 

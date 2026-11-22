@@ -49,8 +49,9 @@ public sealed partial class RabbitGuard
 		abdomenWorld.Rotation = half * abdomenWorld.Rotation;
 		chestWorld.Position = movedTop + turn * (chestWorld.Position - top) + shift;
 		chestWorld.Rotation = turn * (plantedLegs ? Renderer.WorldRotation * balanceRotation * Renderer.WorldRotation.Inverse : Rotation.Identity) * chestWorld.Rotation;
-		Renderer.SetBoneTransform( abdomen, Renderer.WorldTransform.ToLocal( abdomenWorld ) );
-		Renderer.SetBoneTransform( chest, Renderer.WorldTransform.ToLocal( chestWorld ) );
+		SetPoseBone( abdomen, Renderer.WorldTransform.ToLocal( abdomenWorld ) );
+		SetPoseBone( chest, Renderer.WorldTransform.ToLocal( chestWorld ) );
+		chestMotion = (animatedChest, chestWorld);
 		UpdateHeadLook( target, animatedChest, chestWorld, headWorld );
 		chestActive = true;
 	}

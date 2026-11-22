@@ -17,7 +17,6 @@ public sealed partial class RabbitGuard
 	bool earsActive;
 	(Transform Animated, Transform Solved)? headMotion;
 
-	void ResetEars() => earsActive = false;
 
 	// CDrawEarImpl twists the two bones, then constrains the moving tip to the authored segment lengths.
 	void UpdateEars()
@@ -51,7 +50,7 @@ public sealed partial class RabbitGuard
 			high.Rotation = twist * twist * high.Rotation;
 			middle = root + twist * twist * (middle - root);
 			var tip = middle + high.Rotation.Forward * (2f * rig.UpperHalf);
-			if ( !earsActive || ear.Base.Distance( root ) > 400f )
+			if ( !earsActive || secondaryReset > 0f || ear.Base.Distance( root ) > 400f )
 			{
 				ear.PreviousMiddle = ear.Middle = middle;
 				ear.PreviousTip = ear.Tip = tip;
@@ -84,7 +83,7 @@ public sealed partial class RabbitGuard
 			{
 				pose.Position = (a + b) * 0.5f;
 				pose.Rotation = Rotation.FromToRotation( pose.Rotation.Forward, (b - a).Normal ) * pose.Rotation;
-				Renderer.SetBoneTransform( bone, Renderer.WorldTransform.ToLocal( pose ) );
+				SetPoseBone( bone, Renderer.WorldTransform.ToLocal( pose ) );
 			}
 			Place( lower, low, root, ear.Middle );
 			Place( upper, high, ear.Middle, ear.Tip );
