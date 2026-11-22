@@ -12,7 +12,9 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal static readonly string[] StatusChannels = ["cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
 	private sealed record Key( int Time, Transform[] Bones, Vector2 FootWeights, Vector3 Center, float[] Status );
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false )
+	internal enum CenterMotion { Full, Vertical, None }
+
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		int version = reader.ReadInt32();
@@ -27,7 +29,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
-		Vector3 firstCenter = default;
+		Vector3 firstCenter = default, previousCenter = default, accumulatedCenter = default;
 		for ( int k = 0; k < count; k++ )
 		{
 			int time = reader.ReadInt32() - start;
@@ -44,7 +46,17 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				center += pose[b].Position;
 			}
 			if ( version >= 7 ) Skip( Count() * (version >= 8 ? 72L : 64L) );
-			if ( version >= 9 && reader.ReadBoolean() ) Skip( 64 );
+			bool hasMobility = version >= 9 && reader.ReadBoolean();
+			var inverseYaw = Rotation.Identity;
+			if ( hasMobility )
+			{
+				for ( int j = 0; j < 16; j++ ) matrix[j] = reader.ReadSingle();
+				// The file stores the mobility forward vector in its negative second column.
+				var yaw = MathF.Atan2( -matrix[4], -matrix[6] );
+				inverseYaw = Rotation.FromYaw( -yaw.RadianToDegree() );
+				center = new Vector3( -matrix[14], -matrix[12], matrix[13] ) * 40f;
+			}
+			else center /= bones;
 			int events = Count();
 			for ( int j = 0; j < events; j++ )
 			{
@@ -86,20 +98,29 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				float x = reader.ReadSingle(), y = reader.ReadSingle(), z = reader.ReadSingle();
 				savedCenter = new Vector3( z, x, y ) * 40f;
 			}
-			center /= bones;
-			if ( k == 0 ) firstCenter = center;
+			if ( k == 0 && !hasMobility ) firstCenter = center;
 			if ( !centered )
 			{
 				savedCenter = center - firstCenter;
 				for ( int b = 0; b < bones; b++ )
-					pose[b] = pose[b].WithPosition( pose[b].Position - savedCenter );
+					pose[b] = new Transform( inverseYaw * (pose[b].Position - savedCenter), inverseYaw * pose[b].Rotation );
+				accumulatedCenter = k == 0 ? savedCenter : accumulatedCenter + inverseYaw * (savedCenter - previousCenter);
+				previousCenter = savedCenter;
+				savedCenter = accumulatedCenter;
 			}
 			// AnimationReader restores full body sway for movement and vertical offset for mobile clips.
-			var offset = sampleFeet ? savedCenter : Vector3.Up * savedCenter.z;
+			var offset = centerMotion switch
+			{
+				CenterMotion.None => Vector3.Zero,
+				CenterMotion.Vertical => Vector3.Up * savedCenter.z,
+				_ => savedCenter
+			};
 			keys[k] = new( time, retarget.ToLocalPose( pose ), footWeights, retarget.ScaleOffset( offset ), status );
 		}
 
-		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * 0.12f ) );
+		// The uniformly sampled clip must resolve fast limb rotations through attacks and recoveries.
+		int sampleRate = centerMotion switch { CenterMotion.Vertical => 480, CenterMotion.None => 240, _ => 120 };
+		int intervals = count == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( duration * (sampleRate / 1000f) ) );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		var frame = new Transform[rig.BoneCount];
 		var tracks = StatusChannels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();

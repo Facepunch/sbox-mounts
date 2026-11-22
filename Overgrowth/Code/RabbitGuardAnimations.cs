@@ -67,19 +67,20 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
-		GraphBuilder.Node AnimationGroup( string file, string time = null )
+		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false )
 		{
 			if ( file.EndsWith( ".anm" ) )
 			{
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
 				if ( !clips.TryGetValue( name, out var clip ) )
-					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ) );
+					clips[name] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
 			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
+			inAir |= group.Element( "InAir" )?.Value == "true";
 			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
-			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) ?? time );
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) ?? time, inAir );
 			if ( inputs.Length == 1 ) return Input( inputs[0] );
 			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
@@ -117,7 +118,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				RabbitAttack.Pose LoadPose( string file, float coordinate )
 				{
 					var clipName = System.IO.Path.GetFileNameWithoutExtension( file );
-					var animation = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), damage );
+					var animation = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), damage, centerMotion: attack.Element( "flags" ).Attribute( "mobile" ) == "true" ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
 					return new( coordinate, animation );
 				}
 
@@ -140,7 +141,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 
 			var clipName = guards.GetValueOrDefault( name, name );
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ) );
+			bool mobile = reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, clipName, SourceFor( clipName ), centerMotion: mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( graph.TimeControlledClip( clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
