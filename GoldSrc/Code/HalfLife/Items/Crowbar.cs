@@ -21,8 +21,14 @@ public sealed class Crowbar : StudioWeapon
 	}
 
 	public override void PrimaryAttack() => Swing( true );
+
 	// The swing starts at the player, even when the camera is behind them.
-	public override Ray AimRay => Owner.IsValid() ? Owner.EyeTransform.ForwardRay : base.AimRay;
+	public override Ray AimRay => Holder switch
+	{
+		PlayerController player => player.EyeTransform.ForwardRay,
+		{ } holder => holder.CalculateAimRay( this ),
+		_ => base.AimRay
+	};
 
 	void Swing( bool first )
 	{
