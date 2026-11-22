@@ -4,20 +4,37 @@ namespace Overgrowth;
 
 public partial class GameMount
 {
-	readonly Dictionary<(string Surface, string Event), string> stepGroups = new();
+	readonly Dictionary<string, XmlAsset> audioMaterials = new();
 	readonly Dictionary<string, (int Variants, float Volume)> soundGroups = new();
 
-	internal void PlayStep( string surface, string step, Vector3 position )
+	XmlAsset AudioMaterial( string path )
 	{
-		surface ??= "default";
-		if ( !stepGroups.TryGetValue( (surface, step), out var group ) )
+		if ( !audioMaterials.TryGetValue( path, out var xml ) )
+			audioMaterials[path] = xml = FileSystem.FileExists( path ) ? XmlAsset.Read( FileSystem, path, "material" ) : null;
+		return xml;
+	}
+
+	internal void PlayMaterialEvent( CharacterLoader character, GameObject actor, string surface, string step, Vector3 position, float gain )
+	{
+		var floor = AudioMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? AudioMaterial( "Data/Materials/default.xml" );
+		Play( floor, character.SoundMod );
+		if ( character.Clothing is { Length: > 0 } clothing ) Play( AudioMaterial( clothing ), null );
+
+		void Play( XmlAsset material, string mod )
 		{
-			var path = $"Data/Materials/{surface}.xml";
-			if ( !FileSystem.FileExists( path ) ) path = "Data/Materials/default.xml";
-			group = XmlAsset.Read( FileSystem, path, "material" ).Element( "events" )?.Element( step )?.Attribute( "soundgroup" );
-			stepGroups[(surface, step)] = group;
+			var events = material?.Elements( "events" );
+			var entry = events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
+				?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
+			if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
+			var handle = PlayGroup( group, position, gain );
+			if ( !handle.IsValid() ) return;
+			float distance = entry.Number( "max_distance" ) ?? AudioMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
+			if ( distance > 0 ) handle.Distance = distance * gain * 40f;
+			if ( entry.Attribute( "attached" ) != "true" ) return;
+			handle.Parent = actor;
+			handle.LocalTransform = actor.WorldTransform.ToLocal( new Transform( position ) );
+			handle.FollowParent = true;
 		}
-		if ( group is not null ) PlayGroup( group, position );
 	}
 
 	internal (SoundFile File, float Volume) PickSound( string path )
@@ -32,11 +49,12 @@ public partial class GameMount
 		return (file, group.Volume);
 	}
 
-	internal void PlayGroup( string path, Vector3 position )
+	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f )
 	{
 		var (file, volume) = PickSound( path );
-		if ( file is null ) return;
-		var handle = Sound.PlayFile( file, volume );
+		if ( file is null ) return null;
+		var handle = Sound.PlayFile( file, volume * gain );
 		if ( handle.IsValid() ) handle.Position = position;
+		return handle;
 	}
 }

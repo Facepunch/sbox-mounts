@@ -28,7 +28,7 @@ public sealed partial class RabbitGuard
 		}
 		SolveStance();
 
-		if ( IsOnGround )
+		if ( Networking.IsHost && IsOnGround )
 		{
 			var dominant = pose.Events;
 			foreach ( var step in dominant.Steps )
@@ -38,8 +38,8 @@ public sealed partial class RabbitGuard
 				var position = Renderer.TryGetBoneTransform( $"bone_{step.Bone}", out var bone ) ? bone.Position : WorldPosition;
 				ReportFootstep( step.Event, position );
 				var floor = Scene.Trace.Ray( position + Vector3.Up * 12, position + Vector3.Down * 48 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-				if ( floor.Hit && Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-					mount.PlayStep( floor.Surface?.ResourceName, step.Event, floor.EndPosition );
+				if ( floor.Hit )
+					PlayMaterialEvent( step.Event, floor.EndPosition, floor.Surface?.ResourceName, step.Event.Contains( "crouch" ) ? 3f : 5f );
 			}
 		}
 		stridePhase = next % 1;

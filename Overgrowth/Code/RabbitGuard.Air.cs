@@ -25,7 +25,8 @@ public sealed partial class RabbitGuard
 				{
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
-					PlayAirStep( "jump", WorldPosition, GroundSurface?.ResourceName );
+					ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );
+					PlayMaterialEvent( "jump", WorldPosition, GroundSurface?.ResourceName, 1f );
 				}
 			}
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
@@ -53,13 +54,21 @@ public sealed partial class RabbitGuard
 			duckAmount = CrouchAmount = 1f;
 			duckVelocity = 3f;
 		}
-		PlayAirStep( hard ? "land" : "land_soft", floor.EndPosition, floor.Surface?.ResourceName );
+		ReportSound( GameObject, WorldPosition, hard ? HeardSound.LoudFoley : HeardSound.Footstep, hard ? 5f : 2f );
+		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, floor.Surface?.ResourceName, 1f );
+		if ( hard )
+		{
+			float slide = 1f - (-airVelocity.Normal).Dot( floor.Normal );
+			float gain = Math.Min( 1f, slide * slide * (airVelocity.Length / 40f) * 0.2f );
+			if ( gain > 0.2f ) PlayMaterialEvent( "slide", floor.EndPosition, floor.Surface?.ResourceName, gain );
+		}
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayAirStep( string step, Vector3 point, string surface )
+	void PlayMaterialEvent( string step, Vector3 point, string surface, float gain )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-			mount.PlayStep( surface, step, point );
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
+			mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character )
+			mount.PlayMaterialEvent( character, GameObject, surface, step, point, gain );
 	}
 }

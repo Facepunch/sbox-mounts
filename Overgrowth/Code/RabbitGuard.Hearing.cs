@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	enum HeardSound { Footstep, RunningFootstep, Combat, Voice }
+	enum HeardSound { Footstep, LoudFoley, Combat, Voice }
 	GameObject escortTarget;
 	float suspicion;
 	TimeSince sinceSound;
@@ -15,7 +15,7 @@ public sealed partial class RabbitGuard
 		switch ( step )
 		{
 			case "leftrunstep": case "rightrunstep":
-				ReportSound( GameObject, position, HeardSound.RunningFootstep, 5f );
+				ReportSound( GameObject, position, HeardSound.LoudFoley, 5f );
 				break;
 			case "leftwalkstep": case "rightwalkstep": case "leftstep": case "rightstep":
 				ReportSound( GameObject, position, HeardSound.Footstep, 5f );

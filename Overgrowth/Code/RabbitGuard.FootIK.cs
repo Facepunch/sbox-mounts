@@ -78,10 +78,12 @@ public sealed partial class RabbitGuard
 				plantedPosition[steppingFoot] = Goal( steppingFoot );
 				var floor = Scene.Trace.Ray( plantedPosition[steppingFoot] + Vector3.Up * 8f, plantedPosition[steppingFoot] + Vector3.Down * 24f )
 					.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-				if ( floor.Hit && Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+				if ( Networking.IsHost && floor.Hit )
 				{
 					var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
-					mount.PlayStep( floor.Surface?.ResourceName, (steppingFoot == 0 ? "left" : "right") + gait + "step", floor.EndPosition );
+					var step = (steppingFoot == 0 ? "left" : "right") + gait + "step";
+					ReportFootstep( step, floor.EndPosition );
+					PlayMaterialEvent( step, floor.EndPosition, floor.Surface?.ResourceName, speed < 2f ? 3f : 5f );
 				}
 				steppingFoot = NeedsStep( 1 - steppingFoot ) ? 1 - steppingFoot : -1;
 				stepProgress = 0;

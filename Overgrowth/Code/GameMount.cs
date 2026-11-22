@@ -185,7 +185,7 @@ public partial class GameMount : BaseGameMount
 	protected override void Shutdown()
 	{
 		averageColors.Clear();
-		stepGroups.Clear();
+		audioMaterials.Clear();
 		soundGroups.Clear();
 	}
 }

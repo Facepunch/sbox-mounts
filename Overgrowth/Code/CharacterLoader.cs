@@ -10,12 +10,16 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
+	XmlAsset characterDefinition;
+	XmlAsset Definition => characterDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "character" );
+	internal string Clothing => Definition.Element( "clothing" )?.Value;
+	internal string SoundMod => Definition.Element( "soundmod" )?.Value;
 
 	internal (string Group, float Pitch) GetVoice( string cue )
 	{
 		if ( voice is null )
 		{
-			var definition = XmlAsset.Read( Host.FileSystem, filePath, "character" ).Element( "voice" );
+			var definition = Definition.Element( "voice" );
 			var groups = definition?.Attribute( "path" ) is { } path
 				? XmlAsset.Read( Host.FileSystem, Host.Resolve( path ), "voice" )
 				: null;
@@ -24,7 +28,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return (voice.Value.Groups?.Element( cue )?.Attribute( "path" ), voice.Value.Pitch);
 	}
 
-	XmlAsset ReadAppearance() => XmlAsset.Read( Host.FileSystem, filePath, "character" ).Element( "appearance" )
+	XmlAsset ReadAppearance() => Definition.Element( "appearance" )
 		?? throw new InvalidDataException( $"Character has no appearance: {filePath}" );
 
 	(SkeletonData Skeleton, XmlAsset Rig, ObjLoader.ObjData Reference, string ModelPath) ReadSkeleton( XmlAsset appearance )
