@@ -4,18 +4,20 @@ namespace GoldSrc.HalfLife;
 [Alias( "GoldSrc.HalfLifeSnark" )]
 [NpcDefinition( "monster_snark", "w_squeak", MonsterClass.AlienWeapon, 2, 4, 8, 300,
 	Movement = NpcMovement.Bouncing, Damage = 10, IdleSequence = "run", Blood = BloodColor.Yellow )]
-public sealed class Snark : Npc, Component.ICollisionListener
+public class Snark : Npc, Component.ICollisionListener
 {
 	internal override float ViewDot => 0;
 	internal override float SightRange => 512;
 
-	const float Fuse = 15, PopDamage = 5;
+	const float Fuse = 15;
+	internal virtual float InitialBlastDamage => 5;
+	internal virtual float ChargeBite( float damage ) => damage + 5;
 	internal override void DeathSound() => EmitSound( Sounds.Death, WorldPosition, attenuation: 0.5f );
 
 	internal override NpcSounds Sounds { get; } = new( Death: "squeek/sqk_blast1.wav" );
 
 	[Sync( SyncFlags.FromHost )] TimeUntil Detonation { get; set; }
-	[Sync( SyncFlags.FromHost )] float BlastDamage { get; set; } = PopDamage;
+	[Sync( SyncFlags.FromHost )] float BlastDamage { get; set; }
 
 	internal override MonsterClass Classification => _enemy.IsValid() && _enemy.GetComponent<Snark>() is null && ClassOf( _enemy ) is MonsterClass.Player or MonsterClass.HumanPassive or MonsterClass.HumanMilitary
 		? MonsterClass.AlienMilitary : MonsterClass.AlienWeapon;
@@ -32,7 +34,11 @@ public sealed class Snark : Npc, Component.ICollisionListener
 
 	protected override void OnStart()
 	{
-		if ( Networking.IsHost ) Detonation = Fuse;
+		if ( Networking.IsHost )
+		{
+			Detonation = Fuse;
+			BlastDamage = InitialBlastDamage;
+		}
 		base.OnStart();
 	}
 
@@ -120,7 +126,7 @@ public sealed class Snark : Npc, Component.ICollisionListener
 		if ( _nextBite <= 0 && other?.GetComponentInParent<IDamageable>() is { } victim && victim is not Snark )
 		{
 			_nextBite = 0.5f;
-			BlastDamage += PopDamage;
+			BlastDamage = ChargeBite( BlastDamage );
 			var hit = new DamageInfo { Damage = Definition.Damage, Attacker = DamageAttacker, Weapon = GameObject, Origin = WorldPosition, Position = collision.Contact.Point };
 			hit.Tags.Add( "slash" );
 			victim.OnDamage( hit );

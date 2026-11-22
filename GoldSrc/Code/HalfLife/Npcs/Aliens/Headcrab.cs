@@ -14,6 +14,7 @@ public class Headcrab : VoicedNpc
 	internal virtual bool PerchedOnActor => false;
 	int _pounceAction = -1;
 	GameObject _prey, _turnTarget;
+	internal virtual string LeapCall( int variation ) => $"headcrab/hc_attack{variation}.wav";
 	internal virtual float LeapTurnSpeed => 120;
 	internal virtual float LeapRecovery => Game.Random.Float( 0.1f, 0.5f );
 	TimeUntil _leapRecovery, _nextCooCheck;
@@ -91,7 +92,7 @@ public class Headcrab : VoicedNpc
 		_prey = _turnTarget;
 		_turnTarget = null;
 		if ( WeightedActivity( Ranged ) is not { } jump ) return;
-		EmitSound( "headcrab/hc_attack1.wav", WorldPosition, VoiceVolume, VoicePitch, attenuation: GoldSrcSoundEvents.Idle );
+		EmitSound( LeapCall( 1 ), WorldPosition, VoiceVolume, VoicePitch, attenuation: GoldSrcSoundEvents.Idle );
 		PlayAction( jump );
 		_pounceAction = ActionSerial;
 	}
@@ -113,7 +114,7 @@ public class Headcrab : VoicedNpc
 		_biting = _pounceAction == ActionSerial;
 
 		var call = Game.Random.Int( 0, 2 );
-		if ( call != 0 ) Call( $"headcrab/hc_attack{call + 1}.wav" );
+		if ( call != 0 ) Call( LeapCall( call + 1 ) );
 		Launch( velocity );
 	}
 
