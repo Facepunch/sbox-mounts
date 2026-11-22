@@ -44,6 +44,7 @@ public sealed partial class RabbitGuard
 			ragdoll.Model = Renderer.Model;
 			ragdoll.IgnoreRoot = true;
 			ragdoll.CopyBonesFrom( Renderer, true );
+			ReleaseLegs();
 			ragdoll.Enabled = true;
 			Downed = true;
 			Speak( "hit" );

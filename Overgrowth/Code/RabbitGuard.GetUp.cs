@@ -72,6 +72,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDisabled()
 	{
+		ReleaseLegs();
 		EndGetUpBlend();
 		base.OnDisabled();
 	}

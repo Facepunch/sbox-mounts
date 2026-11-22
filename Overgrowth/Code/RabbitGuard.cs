@@ -27,6 +27,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void OnUpdate()
 	{
 		if ( !Downed ) base.OnUpdate();
+		if ( plantedLegs && (Stance != Threat || Downed) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{
@@ -54,6 +55,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
 			EndGetUpBlend();
 		if ( Stance == Locomotion ) UpdateGait();
+		if ( Stance == Threat ) UpdateStanceFeet( playing != Threat );
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{
 			Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );

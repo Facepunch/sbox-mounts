@@ -152,14 +152,15 @@ public sealed partial class RabbitGuard
 					const float slowRadius = 0.2f * 40f;
 					float remaining = (point - WorldPosition).WithZ( 0 ).Length - slowRadius;
 					if ( remaining > 0 )
-						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * 8f * 40f, enemy );
+						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * 8f * 40f,
+							Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
 					else Movement.Stop();
 				}
 				else Movement.Stop();
 			}
 			else Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
 		}
-		Stance = Movement.MoveTarget.HasValue ? Locomotion : Threat;
+		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}
 
 	// aschar.as UpdateAttacking and interpdirection.as, for an unarmed non-throw attack.
