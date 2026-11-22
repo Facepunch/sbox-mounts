@@ -268,7 +268,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( rabbit is not null && rabbit.TryPassiveBlock( this, strike ) )
 		{
-			ReportCombatSound( enemy, position );
+			ReportSound( enemy, position, HeardSound.Combat, 10f );
 			PlayCombatSound( "Data/Sounds/hit/hit_normal.xml", position );
 			return;
 		}
@@ -292,7 +292,7 @@ public sealed partial class RabbitGuard
 		damage.Tags.Add( "nevergib" );
 		var npc = enemy.GetComponent<BaseNpc>();
 		victim.OnDamage( damage );
-		if ( enemy.IsValid() ) ReportCombatSound( enemy, position );
+		if ( enemy.IsValid() ) ReportSound( enemy, position, HeardSound.Combat, 10f );
 		var group = "hit_normal";
 		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
 		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";

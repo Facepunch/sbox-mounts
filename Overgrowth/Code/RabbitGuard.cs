@@ -118,33 +118,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	bool urgentInvestigation;
 	TimeUntil hearingReady = 1f;
 
-	void ReportCombatSound( GameObject source, Vector3 position )
-	{
-		// AISound sends the impact from the struck character. Rabbits hear it at twice the loud radius.
-		const float range = 10f * 2f * 40f;
-		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
-		{
-			if ( !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Downed || guard.hearingReady > 0 ||
-				guard.WorldPosition.DistanceSquared( position ) >= range * range ) continue;
-			if ( guard.enemy.IsValid() )
-			{
-				if ( guard.enemy != source ) continue;
-				guard.lastSeen = guard.TargetPosition( source );
-				guard.sinceEnemySeen = 0;
-				continue;
-			}
-			if ( !guard.CanAttack( source ) ) continue;
-			if ( !guard.investigatePoint.HasValue )
-			{
-				guard.Speak( "suspicious" );
-				guard.startled = 1f;
-			}
-			guard.investigatePoint = guard.Movement.ProjectPoint( position );
-			guard.urgentInvestigation = true;
-			guard.AlertStage = 1;
-		}
-	}
-
 	TimeSince sinceEnemySeen;
 
 	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Hostile );
