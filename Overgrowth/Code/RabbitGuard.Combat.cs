@@ -6,6 +6,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	RabbitAttack strike;
+	[Property] public bool LeftHanded { get; set; }
 	[Sync] bool MirroredStance { get; set; }
 	[Sync] bool MirroredAction { get; set; }
 	bool flippedAttack;
@@ -19,6 +20,12 @@ public sealed partial class RabbitGuard
 	TimeUntil repath;
 	float cancelDelay;
 	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		if ( Networking.IsHost ) MirroredStance = LeftHanded;
+	}
 
 	void UpdateCombat()
 	{

@@ -173,12 +173,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 			var clipName = guards.GetValueOrDefault( name, name );
 			bool mobile = reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
-			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch && !RabbitGuard.IsGetUp( name ) );
+			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( CombatPose( clip, attackPhase ) );
 			if ( RabbitGuard.IsGetUp( name ) )
-				return machine.AddState( graph.ExternalGraphSlot( name, graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) ) );
+				return machine.AddState( graph.ExternalGraphSlot( name, CombatPose( clip, reactionPhase ) ) );
 			if ( reactionNames.Contains( name ) || guards.ContainsKey( name ) )
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );

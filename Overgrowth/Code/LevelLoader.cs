@@ -87,6 +87,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					{
 						case "Block Skill": fighter.BlockSkill = Math.Clamp( value, 0f, 1f ); break;
 						case "Aggression": fighter.Aggression = Math.Clamp( value, 0f, 1f ); break;
+						case "Left handed": fighter.LeftHanded = value != 0f; break;
 					}
 				}
 				var renderer = fighter.Renderer;

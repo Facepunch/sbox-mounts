@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard
 
 		lastPhysicsPose = null;
 		getUpSlot = Stance;
-		var stand = boundAnimations.Clips[getUpSlot];
+		var stand = boundAnimations.Clips[getUpSlot].ForSide( MirroredAction );
 		var duration = Math.Min( 1f, stand.Duration );
 		int steps = (int)MathF.Ceiling( duration * 120f );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = steps / duration };
