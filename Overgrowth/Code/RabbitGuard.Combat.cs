@@ -108,6 +108,11 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
+		if ( enemy.GetComponent<RabbitGuard>() is { } rabbit && rabbit.TryPassiveBlock( this, strike ) )
+		{
+			PlayCombatSound( "Data/Sounds/hit/hit_normal.xml", position );
+			return;
+		}
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var damage = new DamageInfo

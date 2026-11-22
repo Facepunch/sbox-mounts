@@ -32,7 +32,17 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
-		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.Kick, RabbitGuard.Knee, RabbitGuard.Jab, RabbitGuard.Roundhouse];
+		var attackSlots = new Dictionary<string, string>
+		{
+			[RabbitGuard.Kick] = "stationary", [RabbitGuard.Knee] = "stationary_close",
+			[RabbitGuard.Jab] = "moving_close", [RabbitGuard.Roundhouse] = "moving"
+		};
+		var characterAttacks = XmlAsset.Read( fs, characterPath, "character" ).Element( "attacks" );
+		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, characterAttacks.Attribute( kv.Value ), "attack" ) );
+		var reactions = attacks.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value.Element( "reaction" ).Value, "reaction" )
+			.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray() );
+		var reactionNames = reactions.Values.SelectMany( names => names ).ToHashSet();
+		string[] names = [RabbitGuard.Idle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, .. attacks.Keys, .. reactionNames];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -40,7 +50,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
-		var attacks = XmlAsset.Read( fs, characterPath, "character" ).Element( "attacks" );
+		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Locomotion )
@@ -54,14 +64,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 				}
 				return machine.AddState( blend );
 			}
-			var slot = name switch
+			if ( attacks.TryGetValue( name, out var attack ) )
 			{
-				RabbitGuard.Kick => "stationary", RabbitGuard.Knee => "stationary_close",
-				RabbitGuard.Jab => "moving_close", RabbitGuard.Roundhouse => "moving", _ => null
-			};
-			if ( slot is not null )
-			{
-				var attack = XmlAsset.Read( fs, attacks.Attribute( slot ), "attack" );
 				var pathToAnimation = attack.Element( "animations" ).Attribute( "unblocked" );
 				var damage = attack.Element( "damage" );
 
@@ -77,7 +81,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 						.Select( x => LoadPose( x.Attribute( "path" ), x.Number( "coord" ).Value ) ).OrderBy( p => p.Height ).ToArray()
 					: [LoadPose( pathToAnimation, 0 )];
 
-				moves[name] = new RabbitAttack( poses );
+				var block = attack.Element( "block_damage" );
+				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value );
 				var blend = graph.BlendSpace( height, looping: false );
 				foreach ( var pose in poses )
 					blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
@@ -86,6 +91,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, IReadOnlyDictionary<s
 
 			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ) );
 			clips[name] = clip;
+			if ( reactionNames.Contains( name ) )
+				return machine.AddState( graph.TimeControlledClip( clip.Animation, reactionPhase, new() { SampleRootMotion = false } ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
 		for ( int i = 0; i < states.Length; i++ )

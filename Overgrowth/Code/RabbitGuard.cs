@@ -41,6 +41,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );
 			Renderer.Animation.Parameters.Set( "attack_phase", AttackPhase );
 		}
+		if ( ReactionPhase < 1f ) Renderer.Animation.Parameters.Set( "reaction_phase", ReactionPhase );
 		if ( playing == Stance ) return;
 		playing = Stance;
 		Renderer.Animation.Parameters.Set( "stance", playing );
@@ -49,6 +50,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		if ( UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
