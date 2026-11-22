@@ -68,7 +68,6 @@ public sealed partial class RabbitGuard
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
-		if ( Downed || IsGetUp( Stance ) ) hitsOnGround++;
 		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) );
 		var direction = (WorldPosition - attacker.WorldPosition).Normal;
 		if ( Downed || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
@@ -87,7 +86,7 @@ public sealed partial class RabbitGuard
 		Movement.Stop();
 		var facing = (source - WorldPosition).WithZ( 0 );
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
-		if ( CanAttack( attacker ) ) Remember( attacker );
+		NoticeAttacker( attacker );
 		Stance = animation;
 		activeBlockReaction = activeBlock;
 		reactionDuration = clip.Duration;

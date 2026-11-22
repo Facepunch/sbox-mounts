@@ -215,12 +215,19 @@ public sealed partial class RabbitGuard
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
-		if ( !CanAttack( enemy ) || WorldPosition.Distance( TargetPosition( enemy ) ) >= 1.6f * 40 || !HasSight( enemy ) || AvoidsStrike( enemy, strike.Height ) )
+		bool reached = CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < 1.6f * 40 && HasSight( enemy );
+		var rabbit = reached ? enemy.GetComponent<RabbitGuard>() : null;
+		if ( rabbit is not null )
+		{
+			rabbit.NoticeAttacker( GameObject );
+			if ( rabbit.Downed || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
+		}
+		if ( !reached || AvoidsStrike( enemy, strike.Height ) )
 		{
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
-		if ( enemy.GetComponent<RabbitGuard>() is { } rabbit && rabbit.TryPassiveBlock( this, strike ) )
+		if ( rabbit is not null && rabbit.TryPassiveBlock( this, strike ) )
 		{
 			ReportCombatSound( enemy, position );
 			PlayCombatSound( "Data/Sounds/hit/hit_normal.xml", position );

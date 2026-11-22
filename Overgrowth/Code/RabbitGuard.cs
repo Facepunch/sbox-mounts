@@ -142,9 +142,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
 	}
 
-	void Remember( GameObject target )
+	void NoticeAttacker( GameObject attacker )
 	{
-		if ( !enemy.IsValid() )
+		if ( !CanAttack( enemy ) && CanAttack( attacker ) )
+			Remember( attacker, engage: false );
+	}
+
+	void Remember( GameObject target, bool engage = true )
+	{
+		if ( engage && !enemy.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );

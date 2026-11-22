@@ -27,7 +27,7 @@ public sealed partial class RabbitGuard
 		if ( hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
 		var attacker = hit.Instigator;
 
-		if ( CanAttack( attacker ) ) Remember( attacker );
+		NoticeAttacker( attacker );
 		if ( !Downed )
 		{
 			EndGetUpBlend();
