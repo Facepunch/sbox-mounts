@@ -107,6 +107,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				var direction = attack.Element( "impact_dir" );
 				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), attack.Element( "flags" ).Attribute( "height" ), attack.Element( "flags" ).Attribute( "direction" ),
 					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value );
+				if ( poses.Length == 1 )
+					return machine.AddState( graph.TimeControlledClip( poses[0].Clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
+
 				var blend = graph.BlendSpace( height, looping: false );
 				foreach ( var pose in poses )
 					blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.Animation, attackPhase, new() { SampleRootMotion = false } ) );
