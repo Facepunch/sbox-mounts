@@ -19,6 +19,8 @@ public sealed partial class RabbitGuard
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
 	float cancelDelay;
+	float AttackRange => 1.5f * 40f * boundAnimations.CharacterScale;
+	float ContactRange => 1.6f * 40f * boundAnimations.CharacterScale;
 	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
 
 	protected override void OnStart()
@@ -60,7 +62,7 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < 64f && HasSight( enemy ) &&
+				if ( CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < ContactRange && HasSight( enemy ) &&
 					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
 				{
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
@@ -148,11 +150,11 @@ public sealed partial class RabbitGuard
 
 		if ( visible ) UpdateTactic( distance );
 		bool attacking = tactic is CombatTactic.Rush or CombatTactic.Wait;
-		if ( visible && attacking && distance < 1.5f * 40 && HasSight( enemy ) )
+		if ( visible && attacking && distance < AttackRange && HasSight( enemy ) )
 		{
 			Movement.Stop();
 
-			bool close = distance < 40;
+			bool close = distance < 40f * boundAnimations.CharacterScale;
 			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
 			Stance = Random.Shared.Next( 3 ) switch
 			{
@@ -255,7 +257,7 @@ public sealed partial class RabbitGuard
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
-		bool reached = CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < 1.6f * 40 && HasSight( enemy );
+		bool reached = CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < ContactRange && HasSight( enemy );
 		var rabbit = reached ? enemy.GetComponent<RabbitGuard>() : null;
 		if ( rabbit is not null )
 		{
