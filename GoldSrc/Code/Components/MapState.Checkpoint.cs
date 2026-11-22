@@ -23,12 +23,16 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		public bool[] Inputs { get; set; }
 		public BrushMover.SavedMove Move { get; set; }
 		public MonsterMaker.SavedMaker Maker { get; set; }
+		public TrackTrain.SavedTrain Train { get; set; }
 	}
+
+	private sealed record SavedActor( System.Text.Json.Nodes.JsonObject Object, float Health, HalfLife.Npc.SavedScript Script );
 
 	private sealed class Snapshot
 	{
 		public string Map { get; set; }
 		public Dictionary<int, SavedEntity> Entities { get; set; } = [];
+		public List<SavedActor> IncomingActors { get; set; } = [];
 		public Dictionary<string, int> Globals { get; set; } = [];
 		public Vector3 Position { get; set; }
 		public Angles Eyes { get; set; }
@@ -96,8 +100,11 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		foreach ( var pair in Globals ) data.Globals[pair.Key] = pair.Value;
 		foreach ( var entity in Entities )
 		{
-			if ( !entity.IsValid() || entity.GameObject.IsDestroyed || entity.EntityIndex < 0 || entity.EntityIndex == _savingTrigger ) continue;
+			if ( !entity.IsValid() || entity.GameObject.IsDestroyed ) continue;
 			if ( entity is Monster dead && dead.Npc.IsValid() && dead.Npc.Health <= 0 ) continue;
+			if ( entity is Monster { FromPreviousMap: true } incoming && incoming.Npc.IsValid() )
+				data.IncomingActors.Add( new( incoming.GameObject.Serialize(), incoming.Npc.Health, incoming.Npc.CaptureScript() ) );
+			if ( entity.EntityIndex < 0 || entity.EntityIndex == _savingTrigger ) continue;
 			var entry = new SavedEntity { Transform = entity.WorldTransform, ColliderEnabled = entity.GetComponent<Collider>( true )?.Enabled ?? true };
 			data.Entities[entity.EntityIndex] = entry;
 			switch ( entity )
@@ -109,6 +116,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 					break;
 				case MonsterMaker maker: entry.Maker = maker.CaptureMaker(); break;
 				case BrushMover mover: entry.Move = mover.CaptureMove(); break;
+				case TrackTrain train: entry.Train = train.CaptureTrain(); break;
 				case MultiSource source: entry.Inputs = source.InputStates; break;
 				case MultiManager manager:
 					entry.Running = manager.Running;
@@ -128,6 +136,22 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 		if ( filename.StartsWith( "goldsrc/checkpoints/", StringComparison.Ordinal ) ) _checkpoint = filename;
 		foreach ( var pair in data.Globals ) SetGlobal( pair.Key, pair.Value );
 		var player = global::Player.FindLocalPlayer()?.Controller;
+		foreach ( var saved in data.IncomingActors )
+		{
+			var go = new GameObject( false ) { Parent = GameObject };
+			go.Deserialize( saved.Object );
+			var actor = go.GetComponent<Monster>( true );
+			if ( !actor.IsValid() || !actor.Npc.IsValid() )
+			{
+				Log.Warning( $"Could not restore transferred actor '{go.Name}' from {filename}" );
+				go.Destroy();
+				continue;
+			}
+			actor.Map = this;
+			Entities.Add( actor );
+			actor.Npc.Health = saved.Health;
+			actor.Npc.RestoreScript( saved.Script, this, player );
+		}
 		foreach ( var entity in Entities.ToArray() )
 		{
 			if ( !entity.IsValid() || entity.EntityIndex < 0 ) continue;
@@ -144,6 +168,7 @@ public sealed partial class MapState : Global.ISaveEvents, Global.IPlayerEvents
 				case MonsterMaker maker when entry.Maker is not null: maker.RestoreMaker( entry.Maker ); break;
 				case MonsterMaker maker when entry.Count.HasValue: maker.Count = entry.Count.Value; break;
 				case BrushMover mover when entry.Move is not null: mover.RestoreMove( entry.Move ); break;
+				case TrackTrain train when entry.Train is not null: train.RestoreTrain( entry.Transform, entry.Train ); break;
 				case MultiSource source when entry.Inputs is not null: source.InputStates = entry.Inputs; source.Initialized = true; break;
 				case MultiManager manager:
 					manager.Running = entry.Running;
@@ -172,7 +197,8 @@ public sealed class CheckpointLoader : Component, Global.ISaveEvents
 		if ( _pending is null || !GetComponent<MapInstance>().IsLoaded ) return;
 		var state = GetComponentInChildren<MapState>();
 		if ( !state.IsValid() ) return;
-		state.RestoreCheckpoint( _pending );
+		var filename = _pending;
 		_pending = null;
+		state.RestoreCheckpoint( filename );
 	}
 }

@@ -89,6 +89,36 @@ public sealed class TrackTrain : MapEntity
 
 	protected override void OnDisabled() => StopSound();
 
+	internal sealed record SavedTrain( int Node, int Corner, string Target, bool Started, bool Moving, bool Waiting,
+		float? Wait, float Speed, float ResumeSpeed, Vector3 Velocity, Angles AngularVelocity, float? DeadEnd, float OldSpeed );
+
+	internal SavedTrain CaptureTrain() => !_node.IsValid() ? null : new( _node.EntityIndex,
+		_cornerTarget.IsValid() ? _cornerTarget.EntityIndex : -1, Target, _started, _cornerMoving, WaitForTrigger,
+		float.IsFinite( _waitUntilTime ) ? MathF.Max( 0, _waitUntilTime - Time.Now ) : null, Speed, _resumeSpeed, _trackVelocity, _angularVelocity,
+		float.IsFinite( _deadEndAt ) ? _deadEndAt - Time.Now : null, _oldSpeed );
+
+	internal void RestoreTrain( Transform transform, SavedTrain state )
+	{
+		PathNode Node( int index ) => Map.Entities.OfType<PathNode>().FirstOrDefault( n => n.EntityIndex == index );
+		_node = Node( state.Node );
+		_cornerTarget = Node( state.Corner );
+		_started = state.Started;
+		_cornerMoving = state.Moving;
+		WaitForTrigger = state.Waiting;
+		Target = state.Target;
+		_waitUntilTime = state.Wait.HasValue ? Time.Now + state.Wait.Value : float.PositiveInfinity;
+		Speed = state.Speed;
+		_resumeSpeed = state.ResumeSpeed;
+		_trackVelocity = state.Velocity;
+		_angularVelocity = state.AngularVelocity;
+		_oldSpeed = state.OldSpeed;
+		_deadEndAt = state.DeadEnd.HasValue ? Time.Now + state.DeadEnd.Value : float.PositiveInfinity;
+		WorldTransform = transform;
+		_trackPosition = transform.Position - CornerOffset - Vector3.Up * Height;
+		_trackAngles = transform.Rotation.Angles();
+		Transform.ClearInterpolation();
+	}
+
 	internal void ResumeTrack( Vector3 position, Rotation rotation, float speed )
 	{
 		_started = true;
