@@ -272,6 +272,12 @@ public partial class Npc : BaseNpc
 			point = projected.Value;
 		}
 
+		if ( MapNavigation.IsValid() && !MapNavigation.UpdatePosition )
+		{
+			// A scripted teleport can move the actor while the nav agent is parked.
+			MapNavigation.SetAgentPosition( WorldPosition );
+			MapNavigation.UpdatePosition = true;
+		}
 		Movement.MoveTo( point, stop, Definition.Speed * pace );
 		return true;
 	}
@@ -296,7 +302,7 @@ public partial class Npc : BaseNpc
 		var sequence = captured ?? Find( Action );
 		var loop = sequence is null;
 		var speed = Animation.MoveVelocity.Length;
-		sequence ??= Find( ScriptedIdle ) ?? MovementSequence( speed ) ?? RestSequence;
+		sequence ??= Find( ScriptedIdle ) ?? ScriptGait ?? MovementSequence( speed ) ?? RestSequence;
 		if ( sequence is null || !Renderer.Animation.IsValid )
 			return;
 

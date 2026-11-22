@@ -16,9 +16,11 @@ public partial class Npc
 	}
 
 	private Transform _scriptMark;
-	private int _approach;
+	[Sync( SyncFlags.FromHost )] private int ScriptApproach { get; set; }
+	private StudioSequence ScriptGait => ScriptApproach switch { 1 => _walk, 2 => _run, _ => null };
 	private string _pendingScript;
 	private Action _scriptDone;
+	private Vector3? _navigationEntry;
 
 	internal void StartScript( string sequence, Transform mark, int moveTo, Action done )
 	{
@@ -26,13 +28,17 @@ public partial class Npc
 		Movement?.Stop();
 		InterruptAction();
 		_scriptMark = mark;
-		_approach = moveTo;
+		ScriptApproach = moveTo;
+		_navigationEntry = null;
+		if ( moveTo is 1 or 2 && Definition.Movement == NpcMovement.Ground && MapNavigation.IsValid() )
+			_navigationEntry = Movement?.ProjectPoint( WorldPosition );
 		ScriptedIdle = null;
 		if ( moveTo == 4 )
 		{
 			HoldMapPosition();
 			WorldPosition = mark.Position;
 			WorldRotation = mark.Rotation;
+			Transform.ClearInterpolation();
 		}
 		_pendingScript = sequence;
 		_scriptDone = done;
@@ -46,19 +52,20 @@ public partial class Npc
 
 	private void UpdateScript()
 	{
-		if ( _approach is 1 or 2 && Movement.IsValid() )
+		if ( ScriptGait is {} gait && Movement.IsValid() )
 		{
 			var destination = Movement.MoveTarget;
 			if ( !destination.HasValue )
 			{
-				MoveToward( _scriptMark.Position, 8, _approach == 1 ? 0.5f : 1f );
+				if ( WalkOntoMesh( gait ) ) return;
+				MoveToward( _scriptMark.Position, 8, gait.GroundSpeed > 0 ? gait.GroundSpeed / Definition.Speed : 1 );
 				return;
 			}
 			if ( WorldPosition.Distance( destination.Value ) > 8 ) return;
 			Movement.Stop();
 			WorldRotation = _scriptMark.Rotation;
-			_approach = 0;
 		}
+		ScriptApproach = 0;
 
 		if ( _pendingScript is not null )
 		{
@@ -70,5 +77,28 @@ public partial class Npc
 		_scriptDone = null;
 		ScriptedIdle = null;
 		done();
+	}
+
+	// Actors can start on a scripted mark just outside the eroded edge of the navmesh.
+	// Walk the clear entry segment at the clip's speed before handing position to the agent.
+	private bool WalkOntoMesh( StudioSequence gait )
+	{
+		if ( _navigationEntry is not {} entry ) return false;
+		var delta = (entry - WorldPosition).WithZ( 0 );
+		float step = (gait.GroundSpeed > 0 ? gait.GroundSpeed : Definition.Speed) * Time.Delta;
+		if ( delta.Length > 1 && step > 0 )
+		{
+			var next = WorldPosition + delta.Normal * Math.Min( step, delta.Length );
+			var radius = Definition.Radius;
+			var hull = new BBox( new Vector3( -radius, -radius, 1 ), new Vector3( radius, radius, Definition.Height ) );
+			if ( !Scene.Trace.Box( hull, WorldPosition, next ).WithTag( "world" ).Run().Hit )
+			{
+				WorldRotation = Rotation.Slerp( WorldRotation, Rotation.LookAt( delta ), Movement.TurnSpeed * Time.Delta );
+				WorldPosition = next;
+				return true;
+			}
+		}
+		_navigationEntry = null;
+		return false;
 	}
 }
