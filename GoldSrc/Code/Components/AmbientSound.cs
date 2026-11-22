@@ -7,6 +7,8 @@ namespace GoldSrc.Maps;
 public sealed class AmbientSound : MapEntity
 {
 	[Property] public SoundEvent Sound { get; set; }
+	[Property] public string Sentence { get; set; }
+	[Property] public float Attenuation { get; set; }
 	[Property] public bool OneShot { get; set; }
 	[Property] public bool StartSilent { get; set; }
 	[Property] public int Preset { get; set; }
@@ -156,6 +158,8 @@ public sealed class AmbientSound : MapEntity
 	private void Play()
 	{
 		Stop();
+		if ( Sentence is not null && Networking.IsHost && Sandbox.Mounting.Directory.Get( "hl1" ) is HalfLifeMount mount )
+			mount.NpcAudio.Emit( Sentence, WorldPosition, _volume / 100f, _pitch / 100f, attenuation: Attenuation );
 		if ( Sound is not null )
 		{
 			_handle = global::Sandbox.Sound.Play( Sound, WorldPosition );

@@ -171,7 +171,11 @@ partial class MapBuilder
 
 		// The "health" key is a 0-10 volume. The radius flags decide how far it carries - the tram
 		// ride's announcer is flagged EVERYWHERE, so it must not fall off with distance at all.
-		ambient.Sound = BuildSoundEvent( wav, 1f, AmbientAttenuation( entity.SpawnFlags ) );
+		ambient.Attenuation = AmbientAttenuation( entity.SpawnFlags );
+		if ( wav.StartsWith( '!' ) && Host is HalfLifeMount mount && mount.NpcAudio.HasSentence( wav[1..] ) )
+			ambient.Sentence = wav;
+		else
+			ambient.Sound = BuildSoundEvent( wav, 1f, ambient.Attenuation );
 		ambient.Volume = Math.Clamp( entity.GetFloat( "health" ) / 10f, 0f, 1f );
 		ambient.Preset = entity.GetInt( "preset" );
 		ambient.Pitch = entity.GetInt( "pitch" );
@@ -186,7 +190,7 @@ partial class MapBuilder
 		ambient.LfoPitch = entity.GetInt( "lfomodpitch" );
 		ambient.LfoVolume = entity.GetInt( "lfomodvol" );
 		ambient.IncrementalSpinUp = entity.GetInt( "cspinup" );
-		if ( ambient.Sound is null )
+		if ( ambient.Sound is null && ambient.Sentence is null )
 			Log.Warning( $"{FilePath}: ambient_generic '{entity.TargetName}' cannot play '{wav}'; missing WAV or unsupported sentence." );
 
 		ambient.StartSilent = (entity.SpawnFlags & SF_AMBIENT_START_SILENT) != 0;

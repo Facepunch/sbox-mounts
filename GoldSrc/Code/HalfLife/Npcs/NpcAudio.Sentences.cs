@@ -77,6 +77,8 @@ internal sealed partial class NpcAudio
 		return words.ToArray();
 	}
 
+	internal bool HasSentence( string name ) => _sentences.ContainsKey( name ) || _speechGroups.ContainsKey( name );
+
 	bool EmitSentence( string name, Vector3 position, float volume, float pitch, VoicedNpc speaker, float attenuation )
 	{
 		if ( _speechGroups.TryGetValue( name, out var group ) ) name = group.Pick();
