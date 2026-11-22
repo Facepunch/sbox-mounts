@@ -81,7 +81,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	GameObject enemy;
 	Vector3 lastSeen;
 	bool visible;
-	GameObject watching;
+	Vector3? investigatePoint;
 
 	TimeSince sinceEnemySeen;
 
@@ -121,6 +121,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Speak( "engage" );
 		}
 		enemy = target;
+		investigatePoint = null;
 		lastSeen = TargetPosition( target );
 		sinceEnemySeen = 0;
 		visible = true;
@@ -130,17 +131,16 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	void UpdateAwareness()
 	{
 		if ( strike is not null ) return;
-		// A known opponent remains recognizable outside the initial acquisition cone.
-		visible = CanAttack( enemy ) && HasSight( enemy );
-		GameObject closest = visible ? enemy : null;
-		float nearest = visible ? WorldPosition.DistanceSquared( TargetPosition( enemy ) ) : float.MaxValue;
+		visible = false;
+		GameObject closest = null;
+		float nearest = float.MaxValue;
+		float attention = 0f;
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
 		foreach ( var candidate in candidates )
 		{
-			if ( candidate == enemy || !CanAttack( candidate ) ) continue;
+			if ( !CanAttack( candidate ) ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
-			if ( separation >= nearest ) continue;
 			var delta = TargetPosition( candidate, eyes: true ) - EyePosition;
 			float distance = delta.Length;
 			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
@@ -148,15 +148,20 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
 			if ( !HasSight( candidate ) ) continue;
-			closest = candidate;
-			nearest = separation;
+			attention += (0.5f - 0.4f * MathF.Sqrt( separation ) / 4000f) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f);
+			if ( candidate == enemy ) visible = true;
+			if ( separation < nearest )
+			{
+				closest = candidate;
+				nearest = separation;
+			}
 		}
 		if ( closest.IsValid() )
 		{
-			if ( closest != watching ) enemySeen = 0;
-			watching = closest;
-			enemySeen = Math.Min( 1, enemySeen + 0.5f - 0.4f * MathF.Sqrt( nearest ) / 4000f );
-			if ( enemy.IsValid() || enemySeen >= 1 ) Remember( closest );
+			enemySeen = Math.Min( 1f, enemySeen + attention );
+			if ( enemySeen >= 1f ) Remember( closest );
+			else if ( !enemy.IsValid() && !investigatePoint.HasValue && enemySeen > 0.5f )
+				investigatePoint = Movement.ProjectPoint( WorldPosition + (TargetPosition( closest ) - WorldPosition).Normal * 120f );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
 		AlertStage = enemy.IsValid() ? 2 : enemySeen > 0 ? 1 : 0;

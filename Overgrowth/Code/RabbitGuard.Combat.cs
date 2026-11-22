@@ -75,8 +75,15 @@ public sealed partial class RabbitGuard
 
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			enemy = null;
+			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= 40f * 40f )
+			{
+				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 40f, 0.2f * 8f * 40f );
+				Stance = Locomotion;
+				return;
+			}
+			investigatePoint = null;
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = AlertStage > 0 ? Watch : Idle;
 			return;
 		}
