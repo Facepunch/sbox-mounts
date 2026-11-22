@@ -14,10 +14,10 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is not null )
 		{
-			if ( !impactPassed && attackTime >= strike.ImpactTime )
+			if ( !impactPassed && strike.Impact is { } impact && attackTime >= impact.Time )
 			{
 				impactPassed = true;
-				TryHit();
+				TryHit( impact.Bone );
 			}
 			if ( attackTime < strike.Duration ) return;
 			strike = null;
@@ -70,11 +70,13 @@ public sealed partial class RabbitGuard
 		Stance = Locomotion;
 	}
 
-	void TryHit()
+	void TryHit( int bone )
 	{
-		if ( !CanAttack( enemy ) || WorldPosition.Distance( enemy.WorldPosition ) >= 1.5f * 40 || !HasSight( enemy ) )
+		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
+		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
+		if ( !CanAttack( enemy ) || WorldPosition.Distance( enemy.WorldPosition ) >= 1.6f * 40 || !HasSight( enemy ) )
 		{
-			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", EyePosition );
+			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
 		var victim = enemy.GetComponentInParent<IDamageable>();
@@ -83,7 +85,7 @@ public sealed partial class RabbitGuard
 		{
 			Damage = Random.Shared.Float( strike.DamageMin, strike.DamageMax ) * 100,
 			Origin = WorldPosition,
-			Position = Vector3.Lerp( enemy.WorldPosition, CalculateEyePosition( enemy ), 0.5f ),
+			Position = position,
 			Attacker = GameObject,
 			Weapon = GameObject
 		};

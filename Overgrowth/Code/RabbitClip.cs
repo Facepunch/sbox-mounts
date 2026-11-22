@@ -4,10 +4,11 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
+internal sealed record Impact( float Time, int Bone );
 internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitGait( string Name, float Coordinate, float GroundSpeed );
 
-internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, float ImpactTime, float DamageMin, float DamageMax, List<Step> Steps )
+internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, float DamageMin, float DamageMax, List<Step> Steps )
 {
 	private sealed record Key( int Time, Transform[] Bones );
 
@@ -23,7 +24,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int count = Count();
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
-		float impact = -1;
+		Impact impact = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
 		Vector3 firstCenter = default;
@@ -49,7 +50,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			{
 				int bone = reader.ReadInt32();
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
-				if ( label == "attackimpact" ) impact = time * 0.001f;
+				if ( label == "attackimpact" ) impact = new( time * 0.001f, bone );
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
 			int ik = Count();
