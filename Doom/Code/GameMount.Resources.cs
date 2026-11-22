@@ -12,6 +12,7 @@ partial class GameMount
 	public static string SpritePath( string wad, string lump ) => $"{wad}/sprites/{ResourceName( lump )}";
 	public static string ThingSpritePath( string wad, ThingType type ) => $"{wad}/things/{type.Name}.sprite";
 	public static string ThingPrefabPath( string wad, ThingType type ) => $"{wad}/things/{type.Name}.prefab";
+	public static string ThingFramePath( string wad, ThingType type, string lump, bool flipped ) => $"{wad}/things/{type.Name}/{ResourceName( lump )}{(flipped ? "_flip" : "")}";
 	public static string SoundPath( string wad, string name ) => $"{wad}/sounds/{ResourceName( name )}";
 	public static string SoundEventPath( string wad, string name ) => $"{SoundPath( wad, name )}.sound";
 	public static string MapPath( string wad, string name ) => $"{wad}/maps/{ResourceName( name )}";
@@ -72,11 +73,38 @@ partial class GameMount
 			if ( type.Death is { } d && !TryGetSpriteFrames( stack, d.Sprite, d.Frames, out _, out death ) )
 				Log.Warning( $"{Title}: {wad.Name} has no {d.Sprite} frames for the {type.Name}'s death" );
 
+			SpriteCanvas? canvas = null;
 			if ( frames is not null )
-				context.Add( ResourceType.GameResource, ThingSpritePath( wad.Name, type ), new SpriteLoader( type, frames, death ) );
+			{
+				// Every picture of the thing shares one canvas, so the sprite's size and origin fit all of them.
+				var all = death is null ? frames : [.. frames, .. death];
+				var shared = SpriteCanvas.Around( all );
+
+				// Standing things rest on the floor; the idle frames decide how far to lift, so a bigger
+				// death animation doesn't make them float.
+				if ( (type.Flags & ThingTypeFlags.Hanging) == 0 )
+					shared = shared.OnFloor( frames );
+				canvas = shared;
+
+				// One texture per distinct lump (and mirroring), however many times the animations repeat it.
+				var textures = new Dictionary<(string Lump, bool Flipped), string>();
+				foreach ( var f in all )
+				{
+					var key = (f.Patch.Name, f.Flipped);
+					if ( textures.ContainsKey( key ) ) continue;
+
+					var framePath = ThingFramePath( wad.Name, type, f.Patch.Name, f.Flipped );
+					context.Add( ResourceType.Texture, framePath, new SpriteFrameTextureLoader( palette, f, shared ) );
+					textures[key] = Url( framePath, "vtex" );
+				}
+
+				var spawnTextures = frames.Select( f => textures[(f.Patch.Name, f.Flipped)] ).ToArray();
+				var deathTextures = death?.Select( f => textures[(f.Patch.Name, f.Flipped)] ).ToArray();
+				context.Add( ResourceType.GameResource, ThingSpritePath( wad.Name, type ), new SpriteLoader( type, spawnTextures, deathTextures, shared ) );
+			}
 
 			context.Add( ResourceType.PrefabFile, ThingPrefabPath( wad.Name, type ),
-				new ThingPrefabLoader( stack, type, frames, frames is null ? null : Url( ThingSpritePath( wad.Name, type ) ) ) );
+				new ThingPrefabLoader( stack, type, frames, canvas, frames is null ? null : Url( ThingSpritePath( wad.Name, type ) ) ) );
 		}
 
 		foreach ( var map in wad.Maps )
@@ -133,7 +161,7 @@ partial class GameMount
 				return false;
 
 			owner ??= frameOwner;
-			result.Add( new SpriteFrameInfo( SpritePath( frameOwner.Name, frame.Patch.Name ), frame.Patch.Width, frame.Patch.Height,
+			result.Add( new SpriteFrameInfo( frame.Patch, SpritePath( frameOwner.Name, frame.Patch.Name ), frame.Patch.Width, frame.Patch.Height,
 				frame.Patch.LeftOffset, frame.Patch.TopOffset, frame.Flipped ) );
 		}
 
@@ -142,5 +170,5 @@ partial class GameMount
 	}
 }
 
-/// <summary>One frame of a thing's sprite: where its texture is mounted, and how the picture sits on the thing's origin.</summary>
-public readonly record struct SpriteFrameInfo( string TexturePath, int Width, int Height, int LeftOffset, int TopOffset, bool Flipped );
+/// <summary>One frame of a thing's sprite: its patch, where the raw lump texture is mounted, and how the picture sits on the thing's origin.</summary>
+public readonly record struct SpriteFrameInfo( Patch Patch, string TexturePath, int Width, int Height, int LeftOffset, int TopOffset, bool Flipped );

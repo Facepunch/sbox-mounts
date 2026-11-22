@@ -8,7 +8,7 @@ namespace Doom;
 /// or a spawn point or teleport destination for things that aren't drawn. Built at the mount's
 /// scale. Maps place instances and only set what depends on where they stand (sector light, tags).
 /// </summary>
-public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFrameInfo[] frames, string spritePath ) : ResourceLoader<GameMount>
+public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFrameInfo[] frames, SpriteCanvas? canvas, string spritePath ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
 
@@ -53,16 +53,17 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 				rigidbody.MassOverride = 30f;
 			}
 
-			if ( sprite is not null && frames is { Length: > 0 } )
+			if ( sprite is not null && frames is { Length: > 0 } && canvas is { } c )
 			{
 				var first = frames[0];
-				int size = Math.Max( first.Width, first.Height );
 				bool bright = (type.Flags & ThingTypeFlags.Bright) != 0;
 
+				// The renderer fits the texture into Size keeping its aspect ratio, so a square of the
+				// canvas's longest side gives one texel per map unit. Every frame shares the canvas, so
+				// they all line up on the origin.
 				var renderer = go.AddComponent<SpriteRenderer>();
 				renderer.Sprite = sprite;
-				renderer.Size = new Vector2( size, size ) * scale;
-				renderer.FlipHorizontal = first.Flipped;
+				renderer.Size = new Vector2( Math.Max( c.Width, c.Height ) ) * scale;
 				renderer.TextureFilter = Sandbox.Rendering.FilterMode.Point;
 				renderer.Billboard = SpriteRenderer.BillboardMode.YOnly;
 				renderer.Opaque = true;
