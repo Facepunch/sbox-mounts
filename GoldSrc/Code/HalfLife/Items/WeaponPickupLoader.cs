@@ -3,6 +3,7 @@ namespace GoldSrc.HalfLife;
 internal sealed class WeaponPickupLoader( TypeDescription type, string modelPath, string previewPath, string iconPath ) : ResourceLoader<GameMount>
 {
 	PrefabFile _prefab;
+	internal WeaponCrosshairs Crosshairs => field ??= new( Host, System.IO.Path.GetFileNameWithoutExtension( Path ) );
 	string ModelPath => $"mount://{Host.Ident}/{modelPath}.vmdl";
 
 	internal void BindPresentation( StudioWeapon weapon, SkinnedModelRenderer renderer )
