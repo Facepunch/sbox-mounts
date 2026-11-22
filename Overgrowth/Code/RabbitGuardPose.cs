@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 internal static class RabbitGuardPose
 {
-	public static Graph CreateGraph( BaseFileSystem fs, string path, SkeletonData skeleton, float scale, Dictionary<string, RabbitClip> clips )
+	public static Graph CreateGraph( BaseFileSystem fs, string path, SkeletonData skeleton, float scale, Dictionary<string, RabbitClip> clips, RabbitGait[] gaits )
 	{
 		var bones = new SkeletonBuilder();
 		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
@@ -30,8 +30,21 @@ internal static class RabbitGuardPose
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		var stance = graph.IdParameter( "stance", RabbitGuard.Poses );
 		var machine = graph.StateMachine();
+		var phase = graph.FloatParameter( "stride_phase" );
+		var speed = graph.FloatParameter( "ground_speed" );
 		var states = RabbitGuard.Poses.Select( name =>
 		{
+			if ( name == "movement" )
+			{
+				var blend = graph.BlendSpace( speed );
+				foreach ( var gait in gaits )
+				{
+					var cycle = RabbitClip.Load( fs, path, rig, skeleton, gait.Name, SourceFor( gait.Name ) );
+					clips[gait.Name] = cycle;
+					blend.Add( gait.Coordinate, graph.TimeControlledClip( cycle.Animation, phase, new() { SampleRootMotion = false } ) );
+				}
+				return machine.AddState( blend );
+			}
 			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ) );
 			clips[name] = clip;
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );

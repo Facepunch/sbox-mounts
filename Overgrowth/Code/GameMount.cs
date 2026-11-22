@@ -179,5 +179,10 @@ public partial class GameMount : BaseGameMount
 		return average;
 	}
 
-	protected override void Shutdown() => averageColors.Clear();
+	protected override void Shutdown()
+	{
+		averageColors.Clear();
+		stepGroups.Clear();
+		soundGroups.Clear();
+	}
 }

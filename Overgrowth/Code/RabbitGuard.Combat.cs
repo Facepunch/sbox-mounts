@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 
 			bool close = distance < 40;
 			// aschar.as GetAttackPath: moving_close / moving, or stationary_close / stationary.
-			Pose = moving ? (close ? 7 : 8) : (close ? 6 : 5);
+			Pose = moving ? (close ? 6 : 7) : (close ? 5 : 4);
 			strike = modelLoader.GuardClips[Poses[Pose]];
 			attackTime = 0;
 			impactPassed = false;
@@ -66,14 +66,18 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			Movement.MoveTo( destination, 0.45f * 40, visible ? 8f * 40 : 2.2f * 40, visible ? enemy : null );
+			Movement.MoveTo( destination, 0.45f * 40, visible ? 8f * 40 : 2.2f * 40 );
 		}
-		Pose = Movement.IsMoving ? (visible ? 4 : 3) : 2;
+		Pose = 3;
 	}
 
 	void TryHit()
 	{
-		if ( !enemy.IsValid() || WorldPosition.Distance( enemy.WorldPosition ) >= 1.5f * 40 || !HasSight( enemy ) ) return;
+		if ( !enemy.IsValid() || WorldPosition.Distance( enemy.WorldPosition ) >= 1.5f * 40 || !HasSight( enemy ) )
+		{
+			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", EyePosition );
+			return;
+		}
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var damage = new DamageInfo
@@ -86,5 +90,14 @@ public sealed partial class RabbitGuard
 		};
 		damage.Tags.Add( "melee" );
 		victim.OnDamage( damage );
+		bool killed = enemy.IsValid() && enemy.GetComponent<Sandbox.Npcs.BaseNpc>() is { Health: < 1 };
+		PlayCombatSound( killed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_normal.xml", damage.Position );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayCombatSound( string group, Vector3 position )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlayGroup( group, position );
 	}
 }

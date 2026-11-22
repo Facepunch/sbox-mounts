@@ -6,6 +6,7 @@ namespace Overgrowth;
 
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>
 {
+	internal RabbitGait[] Gaits { get; private set; }
 	internal Dictionary<string, RabbitClip> GuardClips { get; } = new();
 	internal Sandbox.Animation.Graph GuardGraph { get; private set; }
 	const float Scale = 40f;
@@ -69,7 +70,12 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		}
 
 		if ( guard )
-			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale, GuardClips );
+		{
+			Gaits = XmlAsset.Read( Host.FileSystem, "Data/Animations/r_standmovement.xml", "SyncedAnimationGroup" )
+				.Element( "Animations" ).Elements( "Animation" )
+				.Select( x => new RabbitGait( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), x.Number( "coord" ).Value, x.Number( "ground_speed" ).Value ) ).ToArray();
+			GuardGraph = RabbitGuardPose.CreateGraph( Host.FileSystem, Path, skeleton, scale, GuardClips, Gaits );
+		}
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, defaultScale );
 		var model = builder.Create();

@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard : BaseNpc
 {
 	internal const string ModelName = "entities/npcs/turner";
 	internal const string ActorPath = "Data/Objects/IGF_Characters/IGF_TurnerActor.xml";
-	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat", "r_walk_3", "r_run5", "r_frontkick", "r_kneestrike", "r_jab", "r_roundhouse"];
+	internal static readonly string[] Poses = ["r_idle", "r_dialogue_shade", "r_combatidlethreat", "movement", "r_frontkick", "r_kneestrike", "r_jab", "r_roundhouse"];
 
 	[Sync] public int AlertStage { get; private set; }
 	TimeUntil nextVisionCheck = 1f;
@@ -30,6 +30,7 @@ public sealed partial class RabbitGuard : BaseNpc
 			Renderer.Animation.Graph = loader.GuardGraph;
 			playing = -1;
 		}
+		if ( Pose == 3 ) UpdateGait();
 		if ( playing == Pose ) return;
 		playing = Pose;
 		Renderer.Animation.Parameters.Set( "stance", Poses[playing] );
