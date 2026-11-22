@@ -6,7 +6,15 @@ public sealed partial class RabbitGuard
 {
 	float breathTime, breathAmount, breathSpeed = 0.9f;
 
-	bool CombatPosture => GazeTarget.HasValue || Stance == Threat || boundAnimations.AttackStates.Contains( Stance );
+	[Sync] bool CombatPosture { get; set; }
+	TimeUntil leaveCombatPosture;
+
+	void UpdateCombatPosture()
+	{
+		if ( !Networking.IsHost ) return;
+		if ( strike is not null || Stance == "throw" || NeedsCombatPose() ) leaveCombatPosture = 2f;
+		CombatPosture = leaveCombatPosture > 0f;
+	}
 
 	void UpdateBreathing( float dt )
 	{

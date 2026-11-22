@@ -74,6 +74,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		bool track = Animation.IsGrounded && Stance is Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
+		UpdateCombatPosture();
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
 		hasGaitPose = false;
@@ -116,6 +117,21 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
+	}
+
+	// NeedsCombatPose considers every hostile seen in the last second, including those outside the current goal.
+	readonly Dictionary<GameObject, float> seenHostiles = new();
+
+	bool NeedsCombatPose()
+	{
+		if ( startled > 0 ) return false;
+		foreach ( var (other, seen) in seenHostiles )
+		{
+			if ( Time.Now - seen >= 1f || !CanAttack( other ) ) continue;
+			if ( other.GetComponent<RabbitGuard>() is { } rabbit && (!rabbit.enemy.IsValid() || rabbit.startled > 0) ) continue;
+			if ( WorldPosition.DistanceSquared( TargetPosition( other ) ) < 200f * 200f ) return true;
+		}
+		return false;
 	}
 
 	GameObject enemy;
@@ -169,6 +185,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Speak( "engage" );
 		}
 		enemy = target;
+		seenHostiles[target] = Time.Now;
 		escortTarget = null;
 		investigatePoint = null;
 		urgentInvestigation = false;
@@ -182,6 +199,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	{
 		if ( strike is not null ) return;
 		visible = false;
+		foreach ( var (other, seen) in seenHostiles )
+			if ( !other.IsValid() || Time.Now - seen >= 1f ) seenHostiles.Remove( other );
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		float attention = 0f;
@@ -198,6 +217,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
 			if ( !HasSight( candidate ) ) continue;
+			seenHostiles[candidate] = Time.Now;
 			attention += (0.5f - 0.4f * MathF.Sqrt( separation ) / 4000f) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f);
 			if ( candidate == enemy ) visible = true;
 			if ( separation < nearest )
