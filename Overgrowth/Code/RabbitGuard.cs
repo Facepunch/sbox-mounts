@@ -8,6 +8,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 {
 	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
+	internal const string Sweep = "r_sweep", SoccerKick = "r_soccerkick";
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 
 	[Sync] public int AlertStage { get; private set; }

@@ -96,13 +96,18 @@ public sealed partial class RabbitGuard
 
 		if ( visible && attacking && distance < 1.5f * 40 && HasSight( enemy ) )
 		{
-			bool moving = Movement.IsMoving && enemy.GetComponent<PlayerController>() is not { IsDucking: true };
 			Movement.Stop();
 			if ( recovery > 0 ) { Stance = Threat; return; }
 
 			bool close = distance < 40;
-			// aschar.as GetAttackPath: moving_close / moving, or stationary_close / stationary.
-			Stance = moving ? (close ? Jab : Roundhouse) : (close ? Knee : Kick);
+			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
+			Stance = Random.Shared.Next( 3 ) switch
+			{
+				1 when enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
+				1 when enemy.GetComponent<PlayerController>() is not { IsDucking: true } => close ? Jab : Roundhouse,
+				2 => Sweep,
+				_ => close ? Knee : Kick
+			};
 			strike = boundAnimations.Attacks[Stance];
 			Speak( "attack" );
 			AttackPhase = 0;

@@ -35,7 +35,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var attackSlots = new Dictionary<string, string>
 		{
 			[RabbitGuard.Kick] = "stationary", [RabbitGuard.Knee] = "stationary_close",
-			[RabbitGuard.Jab] = "moving_close", [RabbitGuard.Roundhouse] = "moving"
+			[RabbitGuard.Jab] = "moving_close", [RabbitGuard.Roundhouse] = "moving",
+			[RabbitGuard.Sweep] = "low", [RabbitGuard.SoccerKick] = "moving_low"
 		};
 		var character = XmlAsset.Read( fs, characterPath, "character" );
 		var characterAttacks = character.Element( "attacks" );
