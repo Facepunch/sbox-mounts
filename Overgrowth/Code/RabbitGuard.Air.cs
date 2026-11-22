@@ -43,9 +43,10 @@ public sealed partial class RabbitGuard
 			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir )
 			{
-				jumpLaunch = velocity.z > 0 ? 1f : 0f;
+				bool jumping = Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
+				jumpLaunch = jumping ? 1f : 0f;
 				airPhase = 0;
-				if ( Networking.IsHost && Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump )
+				if ( Networking.IsHost && jumping )
 				{
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;

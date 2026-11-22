@@ -205,6 +205,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
+		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
 		for ( int i = 0; i < states.Length; i++ )
 		{
 			string target = names[i];
@@ -212,10 +213,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
 			// Get-up already blends from the captured ragdoll pose inside its graph slot.
 			float duration = RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
-				: target == "throw" || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
+				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			foreach ( var previous in states )
-				if ( previous != states[i] )
-					machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = duration } );
+			{
+				if ( previous == states[i] ) continue;
+				bool landing = previous == airState && target is RabbitGuard.Idle or RabbitGuard.Threat or RabbitGuard.Locomotion;
+				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = landing ? 0.1f : duration } );
+			}
 		}
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
 		var weighted = skeleton.GetWeightedBones();
