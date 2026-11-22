@@ -7,6 +7,52 @@ public sealed partial class RabbitGuard
 	bool[] overridden;
 	int[] poseParents;
 
+	Transform[] gaitPose, originalGaitPose;
+	int[] rigIndices;
+	Model gaitModel;
+	bool hasGaitPose;
+
+	// SyncedAnimationGroup blends clips authored for the same rig before Retarget enforces each
+	// joint length. AG2 blends translations as well as rotations, so restore the joints here.
+	void ReadGaitPose()
+	{
+		var model = Renderer.Model;
+		var rig = boundAnimations.MovementRig;
+		if ( rig is null ) return;
+		if ( gaitModel != model || rigIndices is null )
+		{
+			gaitModel = model;
+			rigIndices = new int[model.BoneCount];
+			gaitPose = new Transform[model.BoneCount];
+			originalGaitPose = new Transform[model.BoneCount];
+			foreach ( var bone in model.Bones.AllBones )
+				rigIndices[bone.Index] = int.Parse( bone.Name[5..] );
+		}
+
+		var basis = Renderer.WorldTransform;
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
+			var pose = basis.ToLocal( world );
+			originalGaitPose[bone.Index] = pose;
+			if ( bone.Parent is { } parent )
+			{
+				var local = originalGaitPose[parent.Index].ToLocal( pose );
+				local.Position = rig.JointPosition( rigIndices[bone.Index], local.Rotation );
+				pose = gaitPose[parent.Index].ToWorld( local );
+			}
+			gaitPose[bone.Index] = pose;
+		}
+		hasGaitPose = true;
+	}
+
+	bool TryGetAnimatedBone( BoneCollection.Bone bone, out Transform world )
+	{
+		if ( !hasGaitPose || bone is null ) return Renderer.TryGetBoneTransformAnimation( bone, out world );
+		world = Renderer.WorldTransform.ToWorld( gaitPose[bone.Index] );
+		return true;
+	}
+
 	void SetPoseBone( BoneCollection.Bone bone, Transform modelSpace )
 	{
 		if ( poseModel != Renderer.Model || poseParents is null )
@@ -41,7 +87,7 @@ public sealed partial class RabbitGuard
 		foreach ( var bone in poseModel.Bones.AllBones )
 		{
 			int i = bone.Index;
-			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) continue;
+			if ( !TryGetAnimatedBone( bone, out var world ) ) continue;
 			animationPose[i] = model.ToLocal( world );
 			if ( !overridden[i] )
 			{

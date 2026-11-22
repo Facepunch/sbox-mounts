@@ -32,7 +32,7 @@ public sealed partial class RabbitGuard
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
-			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var foot ) ) return;
+			if ( !TryGetAnimatedBone( bone, out var foot ) ) return;
 			ApplyFootTarget( side, foot, 1f );
 		}
 		SolveStance();

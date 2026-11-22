@@ -37,7 +37,7 @@ public sealed partial class RabbitGuard
 			var rig = boundAnimations.Ears[side];
 			var lower = bones.GetBone( rig.Root );
 			var upper = bones.GetBone( rig.Tip );
-			if ( !Renderer.TryGetBoneTransformAnimation( lower, out var low ) || !Renderer.TryGetBoneTransformAnimation( upper, out var high ) ) return;
+			if ( !TryGetAnimatedBone( lower, out var low ) || !TryGetAnimatedBone( upper, out var high ) ) return;
 			if ( headMotion is { } motion )
 			{
 				low = motion.Solved.ToWorld( motion.Animated.ToLocal( low ) );

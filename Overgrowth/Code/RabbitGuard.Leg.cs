@@ -32,7 +32,7 @@ public sealed partial class RabbitGuard
 		var bones = Renderer.Model.Bones;
 		Transform Animated( string name )
 		{
-			Renderer.TryGetBoneTransformAnimation( bones.GetBone( name ), out var world );
+			TryGetAnimatedBone( bones.GetBone( name ), out var world );
 			return Renderer.WorldTransform.ToLocal( world );
 		}
 		Span<Vector3> hips = stackalloc Vector3[2];
@@ -102,7 +102,7 @@ public sealed partial class RabbitGuard
 		var bones = Renderer.Model.Bones;
 		for ( int i = 0; i < chain.Length; i++ )
 		{
-			if ( !Renderer.TryGetBoneTransformAnimation( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
+			if ( !TryGetAnimatedBone( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
 			legPose[i] = Renderer.WorldTransform.ToLocal( pose );
 		}
 		Vector3 Start( int i ) => legPose[i].Position - legPose[i].Rotation.Forward * (chain[i].Length * 0.5f);

@@ -49,8 +49,8 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
 		Renderer.Animation.Parameters.Set( "threat_coord", threat );
 		Renderer.Animation.Parameters.Set( "tall_coord", 1f - crouch );
-		if ( !Renderer.TryGetBoneTransformAnimation( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
-			!Renderer.TryGetBoneTransformAnimation( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
+		if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
+			!TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
 		if ( entering )
 		{
 			plantedPosition[0] = left.Position;

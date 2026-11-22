@@ -20,7 +20,7 @@ public sealed partial class RabbitGuard
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
-			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var animated ) ) return;
+			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
 			var foot = side == 0 ? pose.Left : pose.Right;
 			var target = Renderer.WorldTransform.ToWorld( foot.Transform );
 			ApplyFootTarget( side, target, foot.Weight );

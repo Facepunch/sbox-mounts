@@ -67,7 +67,7 @@ public sealed partial class RabbitGuard
 			float mass = 0f;
 			for ( int i = 0; i < leanBones.Length; i++ )
 			{
-				if ( masses[i] <= 0f || leanBones[i] is not { } bone || !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) continue;
+				if ( masses[i] <= 0f || leanBones[i] is not { } bone || !TryGetAnimatedBone( bone, out var world ) ) continue;
 				center += world.Position * masses[i];
 				mass += masses[i];
 			}

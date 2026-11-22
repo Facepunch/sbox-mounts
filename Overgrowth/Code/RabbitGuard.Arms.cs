@@ -44,7 +44,7 @@ public sealed partial class RabbitGuard
 		float remainder = elapsed - steps * tick;
 		var bones = Renderer.Model.Bones;
 		var chestBone = bones.GetBone( boundAnimations.TorsoBones[0] );
-		if ( !Renderer.TryGetBoneTransformAnimation( chestBone, out var chest ) ) return;
+		if ( !TryGetAnimatedBone( chestBone, out var chest ) ) return;
 		var basis = (chestMotion?.Solved ?? chest).Rotation * Renderer.Model.GetBoneTransform( chestBone.Index ).Rotation.Inverse;
 		var breathe = basis * new Vector3( 1f, 0f, -0.3f ).Normal * (breath * 0.2f * boundAnimations.CharacterScale);
 
@@ -53,7 +53,7 @@ public sealed partial class RabbitGuard
 			var chain = boundAnimations.Arms[side];
 			for ( int i = 0; i < chain.Length; i++ )
 			{
-				if ( !Renderer.TryGetBoneTransformAnimation( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
+				if ( !TryGetAnimatedBone( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
 				armPose[i] = chestMotion is { } m ? m.Solved.ToWorld( m.Animated.ToLocal( pose ) ) : pose;
 			}
 			Vector3 Start( int i ) => armPose[i].Position - armPose[i].Rotation.Forward * (0.5f * chain[i].Length);
