@@ -110,7 +110,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return blend;
 		}
 		var ordinaryPose = graph.Not( mirroredPose );
-		GraphBuilder.Node HandedPose( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) =>
+		GraphBuilder.Node CombatStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) =>
 			graph.Selector().Add( ordinary, ordinaryPose ).Add( reflected, mirroredPose );
 
 		RabbitClip CombatClip( string name, bool mobile, XmlAsset damage, bool bothSides )
@@ -124,8 +124,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		GraphBuilder.Node CombatPose( RabbitClip clip, GraphBuilder.Node time )
 		{
 			GraphBuilder.Node Sample( RabbitClip pose ) => graph.TimeControlledClip( pose.Animation, time, new() { SampleRootMotion = false } );
-			return clip.Mirrored is null ? Sample( clip ) : HandedPose( Sample( clip ), Sample( clip.Mirrored ) );
+			return clip.Mirrored is null ? Sample( clip ) : CombatStance( Sample( clip ), Sample( clip.Mirrored ) );
 		}
+
+		var stanceWeight = graph.Switch( mirroredPose, 1f, 0f );
+		GraphBuilder.Node MovementStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) => graph.Blend( ordinary, reflected, stanceWeight );
 
 		var movementRigs = new HashSet<RabbitRetarget>();
 		var movement = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "movement" ), name =>
@@ -144,7 +147,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Idle )
-				return machine.AddState( HandedPose( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ) ) );
+				return machine.AddState( MovementStance( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ) ) );
 			if ( name == RabbitGuard.FreeAir )
 			{
 				var jump = character.Element( "animations" ).Attribute( "jump" );
@@ -153,12 +156,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.Threat )
 			{
 				var idle = character.Element( "animations" ).Attribute( "idle" );
-				return machine.AddState( HandedPose( AnimationGroup( idle, "stride_phase" ), AnimationGroup( idle, "stride_phase", mirrored: true ) ) );
+				return machine.AddState( MovementStance( AnimationGroup( idle, "stride_phase" ), AnimationGroup( idle, "stride_phase", mirrored: true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
 			{
 				GraphBuilder.Node Gait( bool mirrored ) => movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase, mirrored );
-				return machine.AddState( HandedPose( Gait( false ), Gait( true ) ) );
+				return machine.AddState( MovementStance( Gait( false ), Gait( true ) ) );
 			}
 			if ( attacks.TryGetValue( name, out var attack ) )
 			{
