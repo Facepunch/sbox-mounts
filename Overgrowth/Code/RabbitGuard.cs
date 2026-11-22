@@ -29,6 +29,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void OnUpdate()
 	{
 		if ( !Downed ) base.OnUpdate();
+		if ( Downed || Stance != Locomotion || !Animation.IsGrounded ) SetStrideLift( 0f );
 		if ( Downed || plantedLegs && (Stance != Threat || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )

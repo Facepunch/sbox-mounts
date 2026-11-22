@@ -72,6 +72,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDisabled()
 	{
+		SetStrideLift( 0f );
 		ReleaseLegs();
 		EndGetUpBlend();
 		base.OnDisabled();

@@ -5,6 +5,14 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	float stridePhase;
+	float strideLift;
+
+	void SetStrideLift( float lift )
+	{
+		if ( lift == strideLift ) return;
+		if ( Renderer.IsValid() ) Renderer.LocalPosition += Vector3.Up * (lift - strideLift);
+		strideLift = lift;
+	}
 
 	void UpdateGait()
 	{
@@ -20,6 +28,14 @@ public sealed partial class RabbitGuard
 		// SyncedAnimationGroup::GetFrequency blends the normalized cycles per second.
 		float frequency = speed * ((1 - blend) / (first.Duration * a.GroundSpeed) + blend / (second.Duration * b.GroundSpeed));
 		float next = stridePhase + Time.Delta * frequency;
+		// SyncedAnimationGroup adds a vertical arc over each half-cycle of clips with run_bounce.
+		float Lift( RabbitGait gait, RabbitClip clip )
+		{
+			float cycles = Math.Max( 2f, speed / (clip.Duration * gait.GroundSpeed) );
+			float t = (next % 0.5f) / cycles;
+			return 40f * gait.RunBounce * 9.8f * t * (0.5f / cycles - t);
+		}
+		SetStrideLift( (1f - blend) * Lift( a, first ) + blend * Lift( b, second ) );
 		Renderer.Animation.Parameters.Set( "ground_speed", speed );
 		Renderer.Animation.Parameters.Set( "stride_phase", next % 1 );
 
