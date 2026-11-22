@@ -42,7 +42,7 @@ partial class MapBuilder
 	private static readonly string[] SitPoses =
 		["sitlookleft", "sitlookright", "sitscared", "sitting2", "sitting3"];
 
-	private bool TrySpawnNpc( Entity entity )
+	private bool TrySpawnNpc( BspFile bsp, Entity entity )
 	{
 		var path = $"mount://{Host.Ident}/entities/npcs/{entity.ClassName}.prefab";
 		if ( Host.GetByPath( path ) is not NpcPrefabLoader ) return false;
@@ -52,6 +52,15 @@ partial class MapBuilder
 		go.Name = EntityName( entity );
 		if ( go.GetComponent<Npc>( true ) is { } npc )
 		{
+			if ( npc is SittingScientist seated )
+			{
+				var radius = seated.Definition.Radius;
+				if ( bsp.DropToCrouchHull( entity.Origin, new Vector3( -radius, -radius, 0 ) ) is { } floor )
+				{
+					go.WorldPosition = floor;
+					seated.PlacedOnMapHull = true;
+				}
+			}
 			npc.Body = entity.GetInt( "body" );
 			npc.Skin = entity.GetInt( "skin" );
 			if ( entity.GetFloat( "health" ) > 0 ) npc.Health = entity.GetFloat( "health" );

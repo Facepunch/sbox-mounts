@@ -18,8 +18,11 @@ public sealed class SittingScientist : ScientistBase
 		Animation.TurnsBody = false;
 	}
 
+	[Property, Hide] public bool PlacedOnMapHull { get; set; }
+
 	internal override void PlaceAtSpawn()
 	{
+		if ( PlacedOnMapHull ) return;
 		var radius = Definition.Radius;
 		var hull = new BBox( new Vector3( -radius, -radius, 0 ), new Vector3( radius, radius, Definition.Height ) );
 		var floor = Scene.Trace.Box( hull, WorldPosition, WorldPosition + Vector3.Down * 256 )

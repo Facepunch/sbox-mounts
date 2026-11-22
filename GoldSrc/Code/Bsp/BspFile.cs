@@ -183,7 +183,7 @@ internal readonly struct Lump
 /// are RGB lighting instead of greyscale, and textures carrying their own 256 colour palette
 /// (or living in an external WAD3 named by worldspawn).
 /// </summary>
-internal class BspFile
+internal partial class BspFile
 {
 	public const int Version = 30;
 
@@ -234,6 +234,7 @@ internal class BspFile
 		SurfEdges = ReadLump<int>( stream, lumps[(int)LumpType.SurfEdges], LumpType.SurfEdges );
 		Models = ReadLump<BspModel>( stream, lumps[(int)LumpType.Models], LumpType.Models );
 		Leaves = ReadLump<Leaf>( stream, lumps[(int)LumpType.Leaves], LumpType.Leaves );
+		ClipNodes = ReadLump<ClipNode>( stream, lumps[(int)LumpType.ClipNodes], LumpType.ClipNodes );
 		Nodes = ReadLump<Node>( stream, lumps[(int)LumpType.Nodes], LumpType.Nodes );
 		MarkSurfaces = ReadLump<ushort>( stream, lumps[(int)LumpType.MarkSurfaces], LumpType.MarkSurfaces );
 

@@ -58,7 +58,7 @@ partial class MapBuilder
 			return;
 		}
 
-		SpawnPointEntity( entity );
+		SpawnPointEntity( bsp, entity );
 	}
 
 	private void SpawnPlayerStart( Entity entity )
@@ -104,11 +104,11 @@ partial class MapBuilder
 	/// Spawn supported point logic, or a passive killtarget placeholder. Unsupported entities
 	/// must not become immediate forwarding relays.
 	/// </summary>
-	private void SpawnPointEntity( Entity entity )
+	private void SpawnPointEntity( BspFile bsp, Entity entity )
 	{
 		if ( SpawnEffectEntity( entity ) ) return;
 		var className = entity.ClassName;
-		if ( TrySpawnNpc( entity ) ) return;
+		if ( TrySpawnNpc( bsp, entity ) ) return;
 		var isMonster = MonsterModel( entity ) is not null;
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
