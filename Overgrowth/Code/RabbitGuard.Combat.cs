@@ -10,6 +10,7 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] float AttackPhase { get; set; }
 	bool impactPassed;
 	bool preparePassed;
+	RabbitGuard blockingOpponent;
 	float predictability;
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
@@ -40,6 +41,7 @@ public sealed partial class RabbitGuard
 					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike, predictability ) )
 				{
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
+					blockingOpponent = defender;
 					Stance = strike.Blocked;
 					clip = boundAnimations.Clips[Stance];
 					blocked = true;
@@ -51,6 +53,12 @@ public sealed partial class RabbitGuard
 				if ( blocked )
 				{
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
+					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
+					{
+						var direction = (TargetPosition( blockingOpponent.GameObject ) - WorldPosition).Normal;
+						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction ) * (strike.Height == "low" ? -20f : 20f) );
+					}
+					blockingOpponent = null;
 					PlayCombatSound( "Data/Sounds/hit/hit_block.xml", pos );
 				}
 				else TryHit( clip, impact.Bone );

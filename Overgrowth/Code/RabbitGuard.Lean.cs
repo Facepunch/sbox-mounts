@@ -8,6 +8,9 @@ public sealed partial class RabbitGuard
 	Transform? neutralModel;
 	BoneCollection.Bone[] leanBones;
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ApplyBlockTilt( Vector3 recoil ) => tilt = recoil;
+
 	void ResetBodyLean()
 	{
 		if ( neutralModel is { } neutral && Renderer.IsValid() ) Renderer.LocalTransform = neutral;
