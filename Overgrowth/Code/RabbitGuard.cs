@@ -16,7 +16,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
 	string playing;
-	float jumpLaunch;
+	float jumpLaunch, airPhase;
 	[Sync] string Stance { get; set; } = Idle;
 	RabbitGuardAnimations boundAnimations;
 
@@ -64,11 +64,18 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == FreeAir )
 		{
 			var velocity = Animation.MoveVelocity / 40f;
-			if ( playing != FreeAir ) jumpLaunch = velocity.z > 0 ? 1f : 0f;
+			if ( playing != FreeAir )
+			{
+				jumpLaunch = velocity.z > 0 ? 1f : 0f;
+				airPhase = 0;
+			}
 			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
-			float flail = Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f );
+			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
+			float frequency = (1f - flail) / boundAnimations.Clips["r_jump"].Duration + flail / boundAnimations.Clips["r_flailfall"].Duration;
+			airPhase = (airPhase + Time.Delta * frequency) % 1f;
 			Renderer.Animation.Parameters.Set( "up_coord", Math.Clamp( 0.5f - up * 0.5f, 0f, 1f ) );
-			Renderer.Animation.Parameters.Set( "flail_coord", Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, flail ) );
+			Renderer.Animation.Parameters.Set( "flail_coord", flail );
+			Renderer.Animation.Parameters.Set( "air_phase", airPhase );
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		if ( pose == Locomotion ) UpdateGait();

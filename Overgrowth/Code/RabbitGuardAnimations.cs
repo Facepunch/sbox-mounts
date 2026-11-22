@@ -68,7 +68,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
-		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "tall_coord", "threat_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		GraphBuilder.Node AnimationGroup( string file, string time = null )
 		{
@@ -93,7 +93,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.FreeAir )
-				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ) ) );
+				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "jump" ), "air_phase" ) );
 			if ( name == RabbitGuard.Threat )
 				return machine.AddState( AnimationGroup( character.Element( "animations" ).Attribute( "idle" ), "stride_phase" ) );
 			if ( name == RabbitGuard.Locomotion )
