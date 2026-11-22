@@ -22,8 +22,7 @@ public sealed partial class RabbitGuard
 		float frames = Time.Delta * 120f;
 		bool stance = Stance == Threat;
 		stanceLook = (stance ? 0.5f : 0f) + (stanceLook - (stance ? 0.5f : 0f)) * MathF.Pow( 0.9f, frames );
-		idleStance = stance ? 1f - (1f - idleStance) * MathF.Pow( 0.94f, frames ) : idleStance * MathF.Pow( 0.98f, frames );
-		float weight = Math.Max( 0.35f, stanceLook ) * (1f - duckAmount * 0.5f);
+		float weight = Math.Max( 0.35f, stanceLook ) * (1f - CrouchAmount * 0.5f);
 		var look = basis.Inverse * (target - headWorld.Position).Normal;
 		float yaw = MathF.Abs( look.z ) > 0.9f ? previousYaw : MathF.Atan2( look.y, look.x );
 		if ( yaw > 2.2f && previousYaw <= -1f ) yaw = -1f;
@@ -48,7 +47,7 @@ public sealed partial class RabbitGuard
 		abdomenWorld.Position = bottom + half * extent + shift;
 		abdomenWorld.Rotation = half * abdomenWorld.Rotation;
 		chestWorld.Position = movedTop + turn * (chestWorld.Position - top) + shift;
-		chestWorld.Rotation = turn * chestWorld.Rotation;
+		chestWorld.Rotation = turn * (plantedLegs ? Renderer.WorldRotation * balanceRotation * Renderer.WorldRotation.Inverse : Rotation.Identity) * chestWorld.Rotation;
 		Renderer.SetBoneTransform( abdomen, Renderer.WorldTransform.ToLocal( abdomenWorld ) );
 		Renderer.SetBoneTransform( chest, Renderer.WorldTransform.ToLocal( chestWorld ) );
 		chestActive = true;

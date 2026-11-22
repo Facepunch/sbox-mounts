@@ -22,7 +22,8 @@ public sealed partial class RabbitGuard
 {
 	readonly Transform[] legPose = new Transform[6];
 	readonly Transform[] stanceFoot = new Transform[2];
-	Vector3 hipOffset;
+	Vector3 hipOffset, solvedHipOffset;
+	Rotation balanceRotation = Rotation.Identity;
 	bool plantedLegs;
 
 	// CDoHipIK keeps the distance from each hip to its foot from the authored pose.
@@ -67,10 +68,26 @@ public sealed partial class RabbitGuard
 		var hipRoot = pelvis.Position + pelvis.Rotation.Forward * boundAnimations.HipHalfLength;
 		var pivot = middle - hipRoot;
 		var offset = (hips[0] + hips[1]) * 0.5f - middle + pivot - rotation * pivot;
-		hipOffset = plantedLegs ? Vector3.Lerp( offset, hipOffset, MathF.Pow( 0.95f, Time.Delta * 120f ) ) : offset;
-		Renderer.SetBoneTransform( bones.GetBone( rootName ), pelvis.WithPosition( pelvis.Position + hipOffset ) );
+		solvedHipOffset = plantedLegs ? Vector3.Lerp( offset, solvedHipOffset, MathF.Pow( 0.95f, Time.Delta * 120f ) ) : offset;
+		var across = feet[1] - feet[0];
+		var leanAxis = Vector3.Up.Cross( across ).Normal;
+		balanceRotation = Rotation.FromAxis( leanAxis, (balanceOffset.x * 0.25f * idleStance).RadianToDegree() );
+		var shift = (across * balanceOffset.x + Vector3.Forward * balanceOffset.y).WithZ( balanceOffset.z ) * idleStance;
+		hipOffset = solvedHipOffset + shift;
+		pelvis.Position += hipOffset;
+		pelvis.Rotation = rotation * balanceRotation * pelvis.Rotation;
+		Renderer.SetBoneTransform( bones.GetBone( rootName ), pelvis );
+		// Overgrowth translates the torso keys with the hip, then rolls the chest about its own origin.
 		for ( int i = 0; i < 2; i++ )
-			SolveLeg( i, stanceFoot[i], hipRoot, rotation );
+		{
+			var name = boundAnimations.TorsoBones[i];
+			var torso = Animated( name );
+			torso.Position += hipOffset;
+			if ( i == 0 ) torso.Rotation = balanceRotation * torso.Rotation;
+			Renderer.SetBoneTransform( bones.GetBone( name ), torso );
+		}
+		for ( int i = 0; i < 2; i++ )
+			SolveLeg( i, stanceFoot[i], hipRoot, rotation * balanceRotation );
 	}
 
 	// movementobject.cpp CDrawLegImpl. Both the thigh and the shin have two skinned segments.

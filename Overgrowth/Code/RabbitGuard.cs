@@ -29,7 +29,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	{
 		if ( !Downed ) base.OnUpdate();
 		if ( Downed || Health < 1 ) ResetBodyLean();
-		if ( Downed || plantedLegs && (Stance != Threat || !Animation.IsGrounded) ) ReleaseLegs();
+		if ( Downed || plantedLegs && (Stance is not (Threat or Idle or Watch) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null )
 		{
@@ -61,10 +61,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		bool track = Animation.IsGrounded && Stance is Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		var pose = AirPose();
+		UpdateIdleBalance( pose is Threat or Idle or Watch );
 		if ( pose == Idle ) Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( pose == Threat ) UpdateStanceFeet( playing != Threat );
+		if ( pose is Idle or Watch && Animation.IsGrounded ) UpdateIdleFeet();
 		if ( track ) UpdateChestLook( GazeTarget.Value );
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{
