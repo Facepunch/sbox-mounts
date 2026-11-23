@@ -6,6 +6,7 @@ public sealed partial class LevelItem
 {
 	Vector3 incomingVelocity;
 	Transform? pendingEmbed;
+	TimeUntil impactSoundDelay;
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
@@ -13,12 +14,32 @@ public sealed partial class LevelItem
 		flyingStraight = false;
 		var body = collision.Self.Body;
 		if ( !body.IsValid() || !body.MotionEnabled || collision.Other.GameObject?.GetComponentInParent<RabbitGuard>() is not null ) return;
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
-			!mount.AllowsPenetration( collision.Other.Surface?.ResourceName ) || incomingVelocity.IsNearlyZero() ) return;
+		var surface = collision.Other.Surface?.ResourceName;
+		var point = collision.Contact.Point;
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		if ( mount.AllowsPenetration( surface ) && !incomingVelocity.IsNearlyZero() )
+			TryEmbed( mount, body, collision.Contact );
+		float impulse = pendingEmbed.HasValue ? body.Mass : RabbitGuard.BodyImpactImpulse( collision ) / 40f;
+		if ( !pendingEmbed.HasValue && (impactSoundDelay > 0f || body.Velocity.LengthSquared < 160f || impulse <= 0.1f) ) return;
+		string step = body.Mass < 1f ? "weapon_drop_light" : body.Mass < 3f ? "weapon_drop_medium" : "weapon_drop_heavy";
+		PlayImpact( surface, step, point, impulse );
+		impactSoundDelay = 0.2f;
+		if ( guard.IsValid() ) guard.ReportItemImpact( point );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayImpact( string surface, string step, Vector3 point, float gain )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlaySurfaceEvent( GameObject, surface, step, point, gain, Definition?.Element( "physics" )?.Attribute( "sound_modifier" ) );
+	}
+
+	void TryEmbed( GameMount mount, PhysicsBody body, PhysicsContact contact )
+	{
 		var model = GetComponent<ModelRenderer>().Model;
 		if ( mount.GetByPath( model.ResourcePath ) is not ObjectLoader { Sharpness: { } sharpness } ) return;
 		var pose = new Transform( body.Position, body.Rotation, WorldScale );
-		var contact = collision.Contact;
+
 		var vertex = sharpness.ClosestVertex( pose.PointToLocal( contact.Point ) );
 		var point = pose.PointToWorld( vertex.Position );
 		var direction = (point - body.MassCenter).Normal;

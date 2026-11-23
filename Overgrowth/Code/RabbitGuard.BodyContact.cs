@@ -64,7 +64,7 @@ public sealed partial class RabbitGuard
 
 	// Box3D's begin-touch notification can contain just the last solver substep's impulse.
 	// Recover the normal impulse required to arrest the initial approach at this contact.
-	static float BodyImpactImpulse( Collision collision )
+	internal static float BodyImpactImpulse( Collision collision )
 	{
 		var contact = collision.Contact;
 		float inverseMass = InverseContactMass( collision.Self.Body ) + InverseContactMass( collision.Other.Body );

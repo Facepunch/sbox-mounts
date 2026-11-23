@@ -462,7 +462,7 @@ public sealed partial class RabbitGuard
 			mount.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
 		var (group, pitch) = character.GetVoice( cue );
 		if ( group is null ) return;
-		var (file, volume) = mount.PickSound( group );
+		var (file, volume, _) = mount.PickSound( group );
 		if ( file is not null ) PlayVoice( file.ResourcePath, volume, pitch );
 	}
 

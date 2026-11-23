@@ -5,7 +5,7 @@ namespace Overgrowth;
 public partial class GameMount
 {
 	readonly Dictionary<string, XmlAsset> materials = new();
-	readonly Dictionary<string, (int Variants, float Volume)> soundGroups = new();
+	readonly Dictionary<string, (int Variants, float Volume, float Distance)> soundGroups = new();
 
 	XmlAsset ReadMaterial( string path )
 	{
@@ -21,45 +21,61 @@ public partial class GameMount
 
 	internal void PlayMaterialEvent( CharacterLoader character, GameObject actor, string surface, string step, Vector3 position, float gain )
 	{
-		var floor = ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );
-		Play( floor, character.SoundMod );
-		if ( character.Clothing is { Length: > 0 } clothing ) Play( ReadMaterial( clothing ), null );
-
-		void Play( XmlAsset material, string mod )
-		{
-			var events = material?.Elements( "events" );
-			var entry = events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
-				?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
-			if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
-			var handle = PlayGroup( group, position, gain );
-			if ( !handle.IsValid() ) return;
-			float distance = entry.Number( "max_distance" ) ?? ReadMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
-			if ( distance > 0 ) handle.Distance = distance * gain * 40f;
-			if ( entry.Attribute( "attached" ) != "true" ) return;
-			handle.Parent = actor;
-			handle.LocalTransform = actor.WorldTransform.ToLocal( new Transform( position ) );
-			handle.FollowParent = true;
-		}
+		PlaySurfaceEvent( actor, surface, step, position, gain, character.SoundMod, true );
+		if ( character.Clothing is { Length: > 0 } clothing )
+			PlayEvent( ReadMaterial( clothing ), null, actor, step, position, gain, true );
 	}
 
-	internal (SoundFile File, float Volume) PickSound( string path )
+	internal void PlaySurfaceEvent( GameObject actor, string surface, string step, Vector3 position, float gain, string mod, bool useMaterialDistance = false )
+	{
+		var material = ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );
+		PlayEvent( material, mod, actor, step, position, gain, useMaterialDistance );
+	}
+
+	void PlayEvent( XmlAsset material, string mod, GameObject actor, string step, Vector3 position, float gain, bool useMaterialDistance )
+	{
+		var events = material?.Elements( "events" );
+		var entry = events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
+			?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
+		if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
+		var handle = PlayGroup( group, position, gain );
+		if ( !handle.IsValid() ) return;
+		if ( useMaterialDistance )
+		{
+			float distance = entry.Number( "max_distance" ) ?? ReadMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
+			if ( distance > 0 ) handle.Distance = distance * gain * 40f;
+		}
+		if ( entry.Attribute( "attached" ) != "true" ) return;
+		handle.Parent = actor;
+		handle.LocalTransform = actor.WorldTransform.ToLocal( new Transform( position ) );
+		handle.FollowParent = true;
+	}
+
+	internal (SoundFile File, float Volume, float Distance) PickSound( string path )
 	{
 		if ( !soundGroups.TryGetValue( path, out var group ) )
 		{
 			var xml = XmlAsset.Read( FileSystem, path, "soundgroup" );
-			soundGroups[path] = group = ((int)(xml.Number( "variants" ) ?? 1), xml.Number( "volume" ) ?? 1);
+			soundGroups[path] = group = ((int)(xml.Number( "variants" ) ?? 1), xml.Number( "volume" ) ?? 1, (xml.Number( "max_distance" ) ?? 30f) * 40f);
 		}
 		int variant = Random.Shared.Next( 1, group.Variants + 1 );
 		var file = SoundFile.Load( MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd" );
-		return (file, group.Volume);
+		return (file, group.Volume, group.Distance);
 	}
 
 	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f )
 	{
-		var (file, volume) = PickSound( path );
+		var (file, volume, distance) = PickSound( path );
 		if ( file is null ) return null;
-		var handle = Sound.PlayFile( file, volume * gain );
-		if ( handle.IsValid() ) handle.Position = position;
+		float level = volume * gain;
+		var handle = Sound.PlayFile( file, Math.Min( 1f, level ) );
+		if ( handle.IsValid() )
+		{
+			// OpenAL caps the attenuated gain at one, with a one-metre reference distance.
+			handle.MinDistance = 40f * Math.Max( 1f, level );
+			handle.Distance = distance;
+			handle.Position = position;
+		}
 		return handle;
 	}
 }

@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	enum HeardSound { Footstep, LoudFoley, Combat, Voice }
+	enum HeardSound { Footstep, LoudFoley, Combat, Voice, ItemImpact }
 	[Property] public float HearingModifier { get; set; } = 1f;
 	GameObject escortTarget;
 	float suspicion;
@@ -36,11 +36,13 @@ public sealed partial class RabbitGuard
 	static bool IsAudibleStep( string step ) => step is "leftrunstep" or "rightrunstep" or "leftwalkstep" or "rightwalkstep"
 		or "leftstep" or "rightstep" or "leftwallstep" or "rightwallstep";
 
+	internal void ReportItemImpact( Vector3 point ) => ReportSound( GameObject, point, HeardSound.ItemImpact, 10f );
+
 	void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
 	{
 		if ( !source.IsValid() || IsIgnoredPlayer( source ) ) return;
 		// AISound broadcasts to character spheres within twice the event radius.
-		float broadcastRange = (2f * radius + 0.5f) * 40f;
+		float broadcastRange = (sound == HeardSound.ItemImpact ? radius : 2f * radius + 0.5f) * 40f;
 		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && IsLiveTarget( source );
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
@@ -56,7 +58,7 @@ public sealed partial class RabbitGuard
 				guard.sinceEnemySeen = 0;
 				continue;
 			}
-			if ( guard.escortTarget.IsValid() || !awake ) continue;
+			if ( guard.escortTarget.IsValid() || !awake || sound == HeardSound.ItemImpact && guard.investigatePoint.HasValue ) continue;
 			bool knownAlly = guard.knownCharacters.ContainsKey( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
 			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation) ) continue;
 			guard.suspicion = guard.CurrentSuspicion +
@@ -75,7 +77,7 @@ public sealed partial class RabbitGuard
 				guard.investigatePoint = null;
 			}
 			else guard.investigatePoint = guard.Movement.ProjectPoint( position );
-			guard.urgentInvestigation = sound == HeardSound.Combat;
+			guard.urgentInvestigation = sound is HeardSound.Combat or HeardSound.ItemImpact;
 			guard.AlertStage = 1;
 		}
 	}
