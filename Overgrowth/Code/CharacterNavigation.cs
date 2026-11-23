@@ -11,16 +11,22 @@ public sealed class CharacterNavigation : NavigationLayer
 	TimeUntil takeoff;
 	TimeSince sinceAirborne = 0f;
 
+	protected override bool UsesGround => Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
+
 	protected override void OnUpdate()
 	{
 		if ( !Networking.IsHost ) return;
 		if ( Npc.IsAirborne ) sinceAirborne = 0f;
-		if ( LinkTraversal is { } crossing && crossing.Type == NavMeshLinkType.Jump && Npc is RabbitGuard fighter )
+		if ( Npc is RabbitGuard climber && climber.AdvanceLedge() ) return;
+		if ( LinkTraversal is { } crossing && (crossing.Type == NavMeshLinkType.Jump || crossing.Type == NavMeshLinkType.Climb) && Npc is RabbitGuard fighter )
 		{
 			if ( sinceAirborne <= 0.1f ) return;
 			if ( !preparedVelocity.HasValue )
 			{
-				if ( !TryJumpVelocity( WorldPosition, crossing.End, out var velocity ) )
+				bool climb = crossing.Type == NavMeshLinkType.Climb;
+				Vector3 velocity;
+				bool possible = climb ? fighter.TryClimbLaunch( crossing.End, out velocity ) : TryJumpVelocity( WorldPosition, crossing.End, out velocity );
+				if ( !possible )
 				{
 					AbortLinkTraversal();
 					return;
@@ -29,6 +35,7 @@ public sealed class CharacterNavigation : NavigationLayer
 				takeoff = fighter.PrepareJump();
 			}
 			if ( takeoff > 0f ) return;
+			if ( crossing.Type == NavMeshLinkType.Climb ) fighter.StartLedgeApproach( preparedVelocity.Value );
 			Npc.Launch( preparedVelocity.Value );
 			followingJump = true;
 		}
@@ -43,6 +50,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		followingJump = false;
 		preparedVelocity = null;
+		if ( Npc is RabbitGuard fighter ) fighter.EndLedge();
 		base.OnDisabled();
 	}
 

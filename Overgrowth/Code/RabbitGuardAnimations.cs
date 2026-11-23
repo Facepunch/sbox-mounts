@@ -69,7 +69,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -96,6 +96,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
+		var ledgePhase = graph.FloatParameter( "ledge_phase" );
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
@@ -212,6 +213,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				var roll = AnimationPath( "roll" );
 				return machine.AddState( MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) );
 			}
+			if ( name is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach )
+			{
+				var mode = name == RabbitGuard.ClimbUp ? RabbitClip.CenterMotion.Extract : RabbitClip.CenterMotion.Full;
+				var ledgeClip = clips[name] = library.Clip( name, mode ) with { Mirrored = library.Clip( name, mode, mirrored: true ) };
+				return machine.AddState( CombatPose( ledgeClip, ledgePhase ) );
+			}
 			if ( name == RabbitGuard.Wall )
 				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, coordinates["air_phase"], false ) );
 			if ( name == RabbitGuard.FreeAir )
@@ -291,7 +298,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var condition = graph.IdCompare( stance, target );
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
 			// Get-up already blends from the captured ragdoll pose after the full body is posed.
-			float duration = (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
+			float duration = target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			foreach ( var previous in states )
 			{

@@ -34,7 +34,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	readonly record struct FootChain( int Anchor, int End );
 	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, FootChain?[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes, Transform Weapon );
 
-	internal enum CenterMotion { Full, Vertical, None }
+	internal enum CenterMotion { Full, Vertical, None, Extract }
 
 	// Overgrowth's Slerp switches to an unnormalized linear mix for close quaternions.
 	// The subsequent two stages of its cubic blend consume that magnitude as well.
@@ -259,7 +259,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			// AnimationReader restores full body sway for movement and vertical offset for mobile clips.
 			var offset = centerMotion switch
 			{
-				CenterMotion.None => Vector3.Zero,
+				CenterMotion.None or CenterMotion.Extract => Vector3.Zero,
 				CenterMotion.Vertical => Vector3.Up * savedCenter.z,
 				_ => savedCenter
 			};
@@ -268,7 +268,12 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( yaw > keys[k - 1].Yaw + MathF.PI ) yaw -= MathF.Tau;
 				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
 			}
-			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
+			var travel = centerMotion switch
+			{
+				CenterMotion.Vertical => retarget.ScaleOffset( savedCenter.WithZ( 0f ) ),
+				CenterMotion.Extract => retarget.ScaleOffset( savedCenter ),
+				_ => Vector3.Zero
+			};
 			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
 		}
 

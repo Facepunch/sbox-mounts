@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 	[Sync] float AirTuck { get; set; }
 	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
 
-	// Physics::gravity is 9.8 m/s². Retain the scene's gravity direction and zero-gravity behavior.
+	// Physics::gravity is 9.8 m/sï¿½. Retain the scene's gravity direction and zero-gravity behavior.
 	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
 
 	void UpdateLanding()
@@ -88,6 +88,11 @@ public sealed partial class RabbitGuard
 
 	string AirPose()
 	{
+		if ( LedgeAnimation is not null )
+		{
+			Renderer.Animation.Parameters.Set( "ledge_phase", LedgePhase );
+			return LedgeAnimation;
+		}
 		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion ? FreeAir : Stance;
 
 		if ( pose == FreeAir && !WallDirection.IsNearlyZero() ) return Wall;

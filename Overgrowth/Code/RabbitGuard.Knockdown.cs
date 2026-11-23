@@ -108,6 +108,7 @@ public sealed partial class RabbitGuard
 
 	void GoLimp()
 	{
+		EndLedge();
 		sinceKnockdown = fallAge = sinceRagdollImpact = 0;
 		limpStun = 0f;
 		displayingRoll = false;

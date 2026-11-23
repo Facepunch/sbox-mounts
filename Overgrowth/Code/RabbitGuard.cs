@@ -122,6 +122,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
+		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
@@ -147,7 +148,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
-		if ( Holding || Held ) return;
+		if ( Holding || Held || LedgeAnimation is not null ) return;
 		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
 		{
 			seenHostiles.Remove( enemy );
