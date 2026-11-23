@@ -2,6 +2,7 @@
   "Title": "NaturalSelection2",
   "Type": "addon",
   "Org": "local",
+  "OrgTitle": null,
   "Ident": "ns2",
   "Schema": 1,
   "IncludeSourceFiles": false,
@@ -9,7 +10,9 @@
   "PublishUsedAssetsOnly": false,
   "PackageReferences": [],
   "EditorReferences": null,
-  "Mounts": [],
+  "Mounts": [
+    "ns2"
+  ],
   "IsStandaloneOnly": false,
   "AI": {
     "EnableMcpCommunication": true
