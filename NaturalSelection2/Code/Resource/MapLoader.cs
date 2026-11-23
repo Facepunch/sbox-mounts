@@ -303,9 +303,13 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				return;
 			}
 
-			var model = Model.Load( ModelPath( modelPath ) );
+			var path = ModelPath( modelPath );
+			var model = Model.Load( path );
 
-			if ( model is not null && !model.IsError )
+			if ( model is null || model.IsError ) return;
+			if ( name == "prop_dynamic" && Host.GetByPath( path ) is ModelLoader dynamicLoader )
+				BuildDynamicProp( entity, parent, model, dynamicLoader );
+			else
 				BuildProp( entity, parent, model, geometry );
 		}
 		else if ( name.Equals( "skybox", StringComparison.OrdinalIgnoreCase ) )
@@ -343,6 +347,50 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		// Spark lights the level entirely from its own light entities, so letting the sky
 		// contribute indirect light on top of those just washes the map out.
 		skybox.SkyIndirectLighting = false;
+	}
+
+	static void BuildDynamicProp( LevelEntity entity, GameObject parent, Model model, ModelLoader loader )
+	{
+		// PropDynamic.lua stores the editor scale but never applies it to the model.
+		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = new Transform( Origin( entity ), Angles( entity ) ) };
+		var renderer = go.AddComponent<SkinnedModelRenderer>();
+		renderer.Model = model;
+		renderer.UseAnimGraph = false;
+		var (clips, loop) = loader.PropGraph.Resolve( entity.Get( "animation" ).AsString() );
+		for ( int i = 0; i < clips.Length; i++ )
+			clips[i] = loader.ResolveSequenceName( clips[i] );
+
+		if ( clips.Length > 0 )
+		{
+			renderer.Sequence.Name = clips[0];
+			renderer.Sequence.Looping = clips.Length == 1;
+			if ( clips.Length > 1 )
+			{
+				var sequence = go.AddComponent<PropAnimationSequence>();
+				sequence.Renderer = renderer;
+				sequence.Clips = clips;
+				sequence.LoopStart = loop;
+			}
+		}
+		else renderer.PlaybackRate = 0;
+
+		// The shipped Lua enables physics only when collidable is explicitly false.
+		if ( !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool() || model.Physics is null ) return;
+		var moving = entity.Get( "dynamic" ).AsBool();
+		if ( model.Physics.Parts.Any( p => model.Bones.GetBone( p.BoneName ) is not null ) )
+		{
+			var physics = go.AddComponent<ModelPhysics>();
+			physics.Model = model;
+			physics.Renderer = renderer;
+			physics.MotionEnabled = moving;
+		}
+		else
+		{
+			var collider = go.AddComponent<PhysicsCollider>();
+			collider.Physics = model.Physics;
+			collider.Static = !moving;
+			if ( moving ) go.AddComponent<Rigidbody>();
+		}
 	}
 
 	void BuildProp( LevelEntity entity, GameObject parent, Model model, StaticGeometry geometry, ModelLoader.StaticProp prop = null )

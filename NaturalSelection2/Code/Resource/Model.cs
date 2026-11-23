@@ -683,7 +683,29 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	static Rotation ToRotation( Quaternion q ) => new( q.X, q.Y, q.Z, q.W );
 
-	private static void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
+	Dictionary<string, string> sequenceAliases;
+	internal string ResolveSequenceName( string name ) => sequenceAliases?.GetValueOrDefault( name ) ?? name;
+
+	internal PropAnimationGraph PropGraph => field ??= LoadPropGraph();
+
+	PropAnimationGraph LoadPropGraph()
+	{
+		var path = System.IO.Path.ChangeExtension( FullPath, ".animation_graph" );
+		if ( Host.FileSystem.FileExists( path ) )
+		{
+			try
+			{
+				return PropAnimationGraph.Read( Host.ReadAllBytes( path ) );
+			}
+			catch ( InvalidDataException e )
+			{
+				Log.Warning( e, $"Could not read prop animation graph {path}." );
+			}
+		}
+		return new();
+	}
+
+	private void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
 	{
 		if ( animations.Animations.Length == 0 || model.Bones.Length == 0 )
 			return;
@@ -694,8 +716,11 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		foreach ( var seq in animations.Sequences )
 		{
 			int animIndex = ResolveAnimation( animations.AnimationNodes, seq.AnimationNodeIndex );
-			if ( animIndex >= 0 && animIndex < names.Length && names[animIndex] is null )
+			if ( (uint)animIndex >= names.Length ) continue;
+			if ( names[animIndex] is null )
 				names[animIndex] = seq.Name;
+			else
+				(sequenceAliases ??= new( StringComparer.OrdinalIgnoreCase ))[seq.Name] = names[animIndex];
 		}
 
 		// The rest are blend-node poses — name them "{parameter}_{value}" (e.g. arc_yaw_-90)
@@ -921,7 +946,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			BuildAnimations( builder, model, animations, animSource );
 		}
 		BuildMeshes( builder, model );
-		BuildPhysics( builder, model );
+		BuildPhysics( builder, model, animations.Animations.Length > 0 || model.Joints.Length > 0 );
 
 		// trace mesh from render geometry so editor traces (selection etc.) hit what you see
 		if ( Application.IsEditor )
@@ -979,7 +1004,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	{
 		if ( model.CollisionRepBodyCount <= 0 || model.Solids.Length == 0 ) return [];
 		var body = new PhysicsBodyBuilder();
-		foreach ( var (_, points) in CollisionHulls( model ) )
+		foreach ( var (_, points) in CollisionHulls( model, false ) )
 			body.AddHull( points, Transform.Zero, HullSimplification );
 
 		var physics = PhysicsGroupDescription.Create( $"{FullPath}/hulls.vphys", [body] );
@@ -1057,7 +1082,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		Method = PhysicsBodyBuilder.SimplifyMethod.QEM
 	};
 
-	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model )
+	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model, bool preserveBones )
 	{
 		int count = Math.Min( model.CollisionRepBodyCount, model.Solids.Length );
 		for ( int i = 0; i < count; i++ )
@@ -1065,7 +1090,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var solid = model.Solids[i];
 			var bone = (uint)solid.BoneIndex < (uint)model.Bones.Length ? solid.BoneIndex : -1;
 			var transform = solid.Transform;
-			if ( model.Joints.Length == 0 && bone >= 0 )
+			if ( !preserveBones && bone >= 0 )
 			{
 				transform = model.Bones[bone].Transform.ToWorld( transform );
 				bone = -1;
@@ -1074,11 +1099,11 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void BuildPhysics( ModelBuilder builder, ParsedModel model )
+	private static void BuildPhysics( ModelBuilder builder, ParsedModel model, bool preserveBones )
 	{
 		var bodyMap = new List<int>();
 		var bodies = new Dictionary<int, (PhysicsBodyBuilder Builder, int Index)>();
-		foreach ( var (bone, points) in CollisionHulls( model ) )
+		foreach ( var (bone, points) in CollisionHulls( model, preserveBones ) )
 		{
 			if ( !bodies.TryGetValue( bone, out var body ) )
 			{
