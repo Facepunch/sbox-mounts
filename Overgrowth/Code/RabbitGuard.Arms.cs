@@ -60,8 +60,7 @@ public sealed partial class RabbitGuard
 		var bones = Renderer.Model.Bones;
 		var chestBone = bones.GetBone( boundAnimations.TorsoBones[0] );
 		if ( !TryGetAnimatedBone( chestBone, out var chest ) ) return;
-		var basis = (chestMotion?.Solved ?? chest).Rotation * Renderer.Model.GetBoneTransform( chestBone.Index ).Rotation.Inverse;
-		var breathe = basis * new Vector3( 1f, 0f, -0.3f ).Normal * (breath * 0.2f * CharacterScale);
+		var breathe = (chestMotion?.Solved ?? chest).Rotation * boundAnimations.Head.BreathDirection * (breath * 0.2f * CharacterScale);
 
 		var dragOffset = GetDragArmOffset();
 		for ( int side = 0; side < armStates.Length; side++ )
@@ -70,23 +69,32 @@ public sealed partial class RabbitGuard
 			for ( int i = 0; i < chain.Length; i++ )
 			{
 				if ( !TryGetAnimatedBone( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
-				armPose[i] = chestMotion is { } m ? m.Solved.ToWorld( m.Animated.ToLocal( pose ) ) : pose;
+				armPose[i] = pose;
 			}
 			Vector3 Start( int i ) => armPose[i].Position - armPose[i].Rotation.Forward * (0.5f * chain[i].Length * WorldScale.z);
 			var wrist = Start( 0 );
 			var elbow = Start( 2 );
-			var animatedShoulder = Start( 4 );
-			var shoulder = animatedShoulder;
+			var shoulder = Start( 4 );
 			float upper = elbow.Distance( shoulder ), lower = wrist.Distance( elbow );
 			if ( upper <= 0 || lower <= 0 ) continue;
 			float midUpper = shoulder.Distance( Start( 3 ) ) / upper;
 			float midLower = elbow.Distance( Start( 1 ) ) / lower;
 			shoulder += breathe;
-			var authoredReach = wrist - animatedShoulder;
+			var oldShoulder = shoulder;
+			var authoredReach = wrist - shoulder;
+			if ( chestMotion is { } m )
+			{
+				// CDrawArms carries the collar, shoulder and hand with the chest. The elbow solves from its authored bend.
+				armPose[5] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[5] ) );
+				armPose[4] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[4] ) );
+				armPose[0] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[0] ) );
+				shoulder = m.Solved.PointToWorld( m.Animated.PointToLocal( shoulder ) );
+				wrist = Start( 0 );
+			}
 			if ( OnLedge ) wrist += handRelativeToBody[side];
 			if ( DragStrength > 0f && !(side == 0 ? LeftHandItem : RightHandItem).IsValid() ) wrist += dragOffset;
 			var aim = Rotation.FromToRotation( authoredReach.Normal, (wrist - shoulder).Normal );
-			elbow = shoulder + aim * (elbow - animatedShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));
+			elbow = shoulder + aim * (elbow - oldShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));
 			for ( int i = 0; i < 2; i++ )
 				elbow += shoulder + (elbow - shoulder).Normal * upper - elbow + wrist + (elbow - wrist).Normal * lower - elbow;
 
