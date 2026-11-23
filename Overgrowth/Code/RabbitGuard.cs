@@ -143,6 +143,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	TimeSince sinceEnemySeen;
 
+	public override string Faction => Factions.Citizen;
+
 	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Hostile );
 
 	protected override Relationship GetFallbackRelationship( GameObject other ) =>
