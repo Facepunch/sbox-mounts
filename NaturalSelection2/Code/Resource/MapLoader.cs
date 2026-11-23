@@ -334,10 +334,8 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			renderer.UseAnimGraph = false;
 			renderer.Sequence.Name = "opened";
 			renderer.Sequence.Looping = false;
-			var physics = go.AddComponent<ModelPhysics>();
-			physics.Renderer = renderer;
-			physics.Model = model;
-			physics.MotionEnabled = false;
+			go.Tags.Add( "world" );
+			AddAnimatedMapCollision( renderer );
 			go.AddComponent<MapDoor>().Renderer = renderer;
 			return;
 		}
@@ -425,6 +423,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		for ( int i = 0; i < clips.Length; i++ )
 			clips[i] = loader.ResolveSequenceName( clips[i] );
 
+		var moving = entity.Get( "dynamic" ).AsBool();
+		if ( !moving ) go.Tags.Add( "world" );
+
 		if ( clips.Length > 0 )
 		{
 			renderer.Sequence.Name = clips[0];
@@ -441,13 +442,18 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		// The shipped Lua enables physics only when collidable is explicitly false.
 		if ( !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool() || model.Physics is null ) return;
-		var moving = entity.Get( "dynamic" ).AsBool();
 		if ( model.Physics.Parts.Any( p => model.Bones.GetBone( p.BoneName ) is not null ) )
 		{
+			if ( !moving )
+			{
+				AddAnimatedMapCollision( renderer );
+				return;
+			}
+
 			var physics = go.AddComponent<ModelPhysics>();
 			physics.Model = model;
 			physics.Renderer = renderer;
-			physics.MotionEnabled = moving;
+			physics.MotionEnabled = true;
 		}
 		else
 		{
@@ -455,6 +461,27 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			collider.Physics = model.Physics;
 			collider.Static = !moving;
 			if ( moving ) go.AddComponent<Rigidbody>();
+		}
+	}
+
+	// These hulls follow the animation. Giving the bones rigidbodies would let the physgun unfreeze them.
+	static void AddAnimatedMapCollision( SkinnedModelRenderer renderer )
+	{
+		var model = renderer.Model;
+		if ( model.Physics is null ) return;
+		renderer.CreateBoneObjects = true;
+		var bones = model.CreateBoneObjects( renderer.GameObject );
+		foreach ( var part in model.Physics.Parts )
+		{
+			var bone = model.Bones.GetBone( part.BoneName );
+			var target = bone is null ? renderer.GameObject : bones[bone];
+			foreach ( var hull in part.Hulls )
+			{
+				var collider = target.AddComponent<HullCollider>();
+				collider.Type = HullCollider.PrimitiveType.Points;
+				collider.Points = hull.GetPoints().ToList();
+				collider.Surface = hull.Surface;
+			}
 		}
 	}
 
@@ -474,7 +501,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		if ( model is null ) return;
 
 		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = transform, IsStatic = isStatic };
-		if ( isStatic ) go.Tags.Add( "world" );
+		if ( isStatic || (entity.Name == "prop_dynamic" && !entity.Get( "dynamic" ).AsBool()) ) go.Tags.Add( "world" );
 		var renderer = go.AddComponent<ModelRenderer>();
 		renderer.Model = model;
 		if ( !shadows ) renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
