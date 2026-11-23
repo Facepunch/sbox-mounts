@@ -54,9 +54,7 @@ public sealed partial class RabbitGuard
 			bool inspecting = inspectUntil.HasValue && !enemy.IsValid() && (casualty.IsValid() || inspectPosition.HasValue);
 			float speed = Animation.MoveVelocity.WithZ( 0f ).Length / 40f;
 			float target = inspecting ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
-			duckVelocity += (target - duckAmount) * Time.Delta * 120f;
-			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
-			duckAmount += duckVelocity * Time.Delta;
+			AdvanceCrouch( target );
 		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
 		float elapsed = ReactionPhase * reactionDuration;
@@ -85,6 +83,13 @@ public sealed partial class RabbitGuard
 			duckVelocity = 0f;
 		}
 		return ReactionPhase < 1f;
+	}
+
+	void AdvanceCrouch( float target )
+	{
+		duckVelocity += (target - duckAmount) * Time.Delta * 120f;
+		duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
+		duckAmount += duckVelocity * Time.Delta;
 	}
 
 	void UpdateActiveBlock( float step )

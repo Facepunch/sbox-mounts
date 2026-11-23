@@ -14,6 +14,9 @@ public sealed partial class RabbitGuard
 	bool Held => Stance is RearHeld or RatHeldByRabbit or ArmedGrabbed or ArmedHeld or CutInHold;
 	RabbitGuard holdPartner;
 	Vector3 holdDirection;
+	Vector3 struggleVelocity, struggleDirection;
+	TimeUntil changeStruggleDirection, changeStruggleCrouch;
+	bool struggleCrouch;
 	TimeSince sinceGrab;
 	TimeUntil nextHoldSound;
 	bool restoreAgentPosition;
@@ -37,6 +40,8 @@ public sealed partial class RabbitGuard
 	void SetHoldPose( string pose, RabbitGuard partner )
 	{
 		holdPartner = partner;
+		struggleVelocity = default;
+		changeStruggleDirection = changeStruggleCrouch = 0f;
 		sinceGrab = 0f;
 		strike = null;
 		activeBlockReaction = false;
@@ -74,10 +79,13 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/cloth_foley/cloth_fabric_choke_move.xml", WorldPosition, Random.Shared.Float( 0.5f, 1f ) );
 			nextHoldSound = Random.Shared.Float( 0.3f, 0.7f );
 		}
-		var flat = separation.WithZ( 0f );
 		bool armed = PrimaryItem.IsValid();
 		bool rat = victim.boundAnimations.Species == "rat";
 		bool blade = armed && boundAnimations.WeaponLabel != "staff";
+		AdvanceCrouch( 0f );
+		if ( !blade && !executing ) victim.AdvanceStruggle();
+		else victim.AdvanceCrouch( 0f );
+		var flat = (victim.WorldPosition - WorldPosition).WithZ( 0f );
 		if ( sinceGrab > 0.1f && !executing )
 		{
 			if ( blade )
@@ -100,9 +108,16 @@ public sealed partial class RabbitGuard
 			float distance = armed ? 14f : rat ? 18f : 22f;
 			var correction = ((flat - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f * 30f * Time.Delta );
 			MoveGroundDelta( correction );
+			var previous = victim.WorldPosition;
 			victim.MoveGroundDelta( -correction );
+			if ( !blade && !executing && Time.Delta > 0f )
+			{
+				victim.struggleVelocity += (victim.WorldPosition - previous) / Time.Delta;
+				// HandleTethering normalizes velocities over two metres per second to one.
+				if ( victim.struggleVelocity.LengthSquared > 80f * 80f ) victim.struggleVelocity = victim.struggleVelocity.Normal * 40f;
+			}
 			WorldRotation = victim.WorldRotation = Rotation.LookAt( holdDirection );
-			duckAmount = victim.duckAmount = (duckAmount + victim.duckAmount) * 0.5f;
+			duckAmount = CrouchAmount = victim.duckAmount = victim.CrouchAmount = (duckAmount + victim.duckAmount) * 0.5f;
 		}
 		victim.DropHandItem();
 		if ( executing )
@@ -122,6 +137,30 @@ public sealed partial class RabbitGuard
 			if ( victim.IsValid() ) victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundSurface?.ResourceName, 1f );
 			ReleaseHold();
 		}
+	}
+
+	void AdvanceStruggle()
+	{
+		if ( changeStruggleDirection <= 0f )
+		{
+			struggleDirection = new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), 0f ).Normal;
+			changeStruggleDirection = Random.Shared.Float( 0.1f, 0.3f );
+		}
+		if ( changeStruggleCrouch <= 0f )
+		{
+			struggleCrouch = Random.Shared.Next( 2 ) == 0;
+			changeStruggleCrouch = Random.Shared.Float( 0.1f, 0.3f );
+		}
+		float speed = struggleVelocity.Length;
+		AdvanceCrouch( struggleCrouch ? 1f - 0.7f * Math.Min( 1f, speed / 200f ) : 0f );
+		float crouch = duckAmount * (boundAnimations.Species == "cat" ? 0.5f : 1f);
+		float maximum = Math.Min( 1.5f * GroundRunSpeed, Math.Max( speed * 0.98f, GroundRunSpeed * 0.4f ) );
+		bool wolf = boundAnimations.Species == "wolf";
+		if ( wolf ) maximum *= 1.5f;
+		const float acceleration = 35f * 40f;
+		if ( startled <= 0f ) struggleVelocity += struggleDirection * (0.5f * acceleration * (wolf ? 0.8f : 1f) * (1f - 0.5f * crouch) * Time.Delta);
+		struggleVelocity *= startled > 0f ? MathF.Pow( 0.95f, Time.Delta * 120f ) : MathF.Exp( -acceleration * Time.Delta / maximum );
+		MoveGroundDelta( struggleVelocity * Time.Delta );
 	}
 
 	void FinishCut( RabbitGuard victim )
