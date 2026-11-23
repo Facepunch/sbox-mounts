@@ -54,6 +54,30 @@ public sealed partial class RabbitGuard
 	// Physics::gravity is 9.8 m/s�. Retain the scene's gravity direction and zero-gravity behavior.
 	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
 
+	// CheckTerminalVelocity attenuates the whole velocity vector once per character update.
+	float terminalRemainder;
+
+	void UpdateTerminalVelocity()
+	{
+		if ( Downed || !IsAirborne || GetComponent<Rigidbody>() is not { MotionEnabled: true } body )
+		{
+			terminalRemainder = 0f;
+			return;
+		}
+
+		const float step = 4f / 120f;
+		const float threshold = 50f * 40f;
+		var velocity = body.Velocity;
+		terminalRemainder += Time.Delta;
+		while ( terminalRemainder >= step )
+		{
+			terminalRemainder -= step;
+			if ( velocity.LengthSquared > threshold * threshold )
+				velocity *= 0.99f * 0.99f * 0.99f * 0.99f;
+		}
+		if ( velocity != body.Velocity ) body.Velocity = velocity;
+	}
+
 	void UpdateLanding()
 	{
 		if ( Downed || !Networking.IsHost )
