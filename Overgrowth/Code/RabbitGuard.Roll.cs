@@ -122,6 +122,21 @@ public sealed partial class RabbitGuard
 		return false;
 	}
 
+	// UpdateRollAngle filters the advancing phase once per character update.
+	// Integrate the moving target as well as the retained angle between those updates.
+	static float SampleRollAngle( float angle, float from, float to, float delta )
+	{
+		if ( delta <= 0f ) return angle;
+		const float retention = 0.8f * 0.8f * 0.8f * 0.8f;
+		float moving = to == 1f ? Math.Min( delta, (1f - from) / RollSpeed ) : delta;
+		if ( moving > 0f )
+		{
+			float lag = (to - from) / moving * CrouchStep * retention / (1f - retention);
+			angle = to - lag + (angle - from + lag) * MathF.Pow( retention, moving / CrouchStep );
+		}
+		return to + (angle - to) * MathF.Pow( retention, (delta - moving) / CrouchStep );
+	}
+
 	void UpdateRollDisplay()
 	{
 		if ( Animation.IsGrounded && (Stance is Roll or Idle or Ready or Watch or Threat or Locomotion or PatrolIdle) )
@@ -131,11 +146,12 @@ public sealed partial class RabbitGuard
 		{
 			displayingRoll = true;
 			previousRollCenter = null;
-			rollAngle -= MathF.Round( rollAngle );
+			previousRollProgress = 0f;
+			rollAngle -= MathF.Ceiling( rollAngle - 0.5f );
 		}
-		previousRollProgress = RollProgress;
 		if ( !displayingRoll ) return;
-		rollAngle = RollProgress + (rollAngle - RollProgress) * MathF.Pow( 0.8f, Time.Delta * 120f );
+		rollAngle = SampleRollAngle( rollAngle, previousRollProgress, RollProgress, Time.Delta );
+		previousRollProgress = RollProgress;
 		if ( RollProgress >= 1f && rollAngle > 0.99999f ) { displayingRoll = false; return; }
 		if ( Stance != Roll ) return;
 		Renderer.Animation.Parameters.Set( "roll_phase", Math.Min( 1f, RollProgress * 0.5f * RollFrequency ) );
