@@ -145,8 +145,8 @@ public sealed partial class RabbitGuard
 			GoLimp();
 			return;
 		}
-		if ( Stance == "thrown" && willEscapeThrow && startled <= 0 &&
-			clip.Animation.TryGetFloatChannel( ReactionPhase, "status", "escape", out float escape ) && escape * Math.Min( 1f, throwElapsed * 5f ) >= 1f )
+		if ( Stance == "thrown" && playing == Stance && willEscapeThrow && startled <= 0 &&
+			Renderer.Animation.Debug.TryGetFloatChannel( "status", "escape", out float escape ) && escape >= 1f )
 		{
 			var previousRotation = clip.Animation.GetRootMotion( ReactionPhase ).Rotation;
 			Stance = "thrown_counter";
