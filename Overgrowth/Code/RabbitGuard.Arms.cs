@@ -60,8 +60,10 @@ public sealed partial class RabbitGuard
 			float midUpper = shoulder.Distance( Start( 3 ) ) / upper;
 			float midLower = elbow.Distance( Start( 1 ) ) / lower;
 			shoulder += breathe;
-			var aim = Rotation.FromToRotation( (wrist - animatedShoulder).Normal, (wrist - shoulder).Normal );
-			elbow = shoulder + aim * (elbow - animatedShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, wrist.Distance( animatedShoulder ) ));
+			var authoredReach = wrist - animatedShoulder;
+			if ( OnLedge ) wrist += handRelativeToBody[side];
+			var aim = Rotation.FromToRotation( authoredReach.Normal, (wrist - shoulder).Normal );
+			elbow = shoulder + aim * (elbow - animatedShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));
 			for ( int i = 0; i < 2; i++ )
 				elbow += shoulder + (elbow - shoulder).Normal * upper - elbow + wrist + (elbow - wrist).Normal * lower - elbow;
 

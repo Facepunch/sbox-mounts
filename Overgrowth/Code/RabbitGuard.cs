@@ -125,6 +125,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
+		if ( OnLedge ) UpdateLedgeFeet();
 		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
 		if ( pose is Idle or Ready or Watch && Animation.IsGrounded ) UpdateIdleFeet();
 		if ( track ) UpdateChestLook( GazeTarget.Value );

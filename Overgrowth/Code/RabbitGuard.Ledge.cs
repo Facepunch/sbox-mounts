@@ -8,10 +8,13 @@ public sealed partial class RabbitGuard
 	[Sync] string LedgeAnimation { get; set; }
 	[Sync] bool LedgeMirrored { get; set; }
 	[Sync] float LedgeHeight { get; set; }
+	[Sync] Vector3 LedgeGrabOrigin { get; set; }
+	[Sync] float LedgeGrabTime { get; set; }
+	[Sync( SyncFlags.Interpolate )] float LedgeHeightOffset { get; set; }
 	[Sync( SyncFlags.Interpolate )] float LedgePhase { get; set; }
 	Vector3 climbDirection, climbPosition;
 	internal bool OnLedge => LedgeAnimation is not null;
-	float jumpFuel, heightOffset;
+	float jumpFuel;
 	TimeSince sinceClimbLaunch;
 	bool approachingLedge, leavingLedge;
 	const float LegRadius = 18f;
@@ -142,13 +145,15 @@ public sealed partial class RabbitGuard
 			if ( velocity.z <= -600f || !FindLedge( center, velocity.z, out var wall, out float height, out var surface ) ) return false;
 			climbDirection = wall;
 			LedgeHeight = height;
+			LedgeGrabOrigin = center;
+			LedgeGrabTime = Time.Now;
 			approachingLedge = false;
 			LedgeAnimation = center.z < height - 40f ? LedgeReach : ClimbUp;
 			LedgeMirrored = LedgeAnimation == LedgeReach && Random.Shared.Next( 2 ) == 0;
 			LedgePhase = 0f;
 			float target = height - 42f;
 			climbPosition = physics.Position.WithZ( Math.Clamp( center.z, target - 4f, target + 20f ) - LegRadius );
-			heightOffset = target - climbPosition.z - LegRadius;
+			LedgeHeightOffset = target - climbPosition.z - LegRadius;
 			PlayMaterialEvent( "edge_grab", center + wall * LegRadius, surface?.ResourceName, 1f );
 			body.MotionEnabled = false;
 			body.Velocity = Vector3.Zero;
@@ -167,8 +172,8 @@ public sealed partial class RabbitGuard
 		var from = clip.Animation.GetRootMotion( LedgePhase );
 		LedgePhase = Math.Min( 1f, LedgePhase + Time.Delta / clip.Duration );
 		var to = clip.Animation.GetRootMotion( LedgePhase );
-		float correction = heightOffset * (1f - MathF.Pow( 0.98f, Time.Delta * 120f ));
-		heightOffset -= correction;
+		float correction = LedgeHeightOffset * (1f - MathF.Pow( 0.98f, Time.Delta * 120f ));
+		LedgeHeightOffset -= correction;
 		float rise = LedgeAnimation == ClimbUp ? 4f * Time.Delta : 0f;
 		climbPosition += Vector3.Up * (correction + rise) + WorldRotation * ((to.Position - from.Position) * WorldScale);
 		WorldPosition = climbPosition;
