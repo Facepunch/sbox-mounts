@@ -1,5 +1,6 @@
 using Sandbox;
 using Sandbox.Mounting;
+using Sandbox.Volumes;
 using System;
 
 namespace NS2;
@@ -21,6 +22,10 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var root = new GameObject( true, System.IO.Path.GetFileNameWithoutExtension( FilePath ) );
 		root.Scene.NavMesh.IsEnabled = true;
 		root.Scene.NavMesh.GenerateLinks = true;
+
+		var postProcessing = new GameObject( true, "NS2 post processing" ) { Parent = root };
+		postProcessing.AddComponent<PostProcessVolume>().SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Infinite };
+		postProcessing.AddComponent<Tonemapping>().Mode = Tonemapping.TonemappingMode.Linear;
 
 		BuildWorld( level, bytes, root );
 
