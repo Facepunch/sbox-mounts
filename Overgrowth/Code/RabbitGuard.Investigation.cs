@@ -50,11 +50,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( WorldPosition.DistanceSquared( point ) < 2f * 40f * 40f )
 		{
-			Movement.Stop();
-			var direction = (point - WorldPosition).WithZ( 0f );
-			if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
-			inspectUntil = Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty);
-			Stance = Ready;
+			InspectSite( point );
 		}
 		else
 		{
@@ -64,17 +60,31 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
+	void InspectSite( Vector3 point )
+	{
+		Movement.Stop();
+		var direction = (point - WorldPosition).WithZ( 0f );
+		if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
+		inspectPosition = point;
+		inspectUntil = Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty);
+		Stance = Ready;
+	}
+
 	void FinishCombat( Vector3 defeatedPosition )
 	{
 		suspicion = enemySeen = 0f;
 		investigatePoint = null;
 		urgentInvestigation = false;
-		// The sword-cleaning outcome is rerolled for an unarmed fighter.
+		var armed = PrimaryItem.IsValid();
 		int choice;
-		do choice = Random.Shared.Next( 10 ); while ( choice == 2 );
+		do choice = Random.Shared.Next( 10 );
+		while ( choice == 2 && (!armed || boundAnimations.WeaponLabel != "sword") || armed && choice is 3 or 8 );
 		switch ( choice )
 		{
 			case 4:
+				patrolWait = Random.Shared.Float( 0f, 5f );
+				waypointAnimation = null;
+				goto case 5;
 			case 5:
 				BeginAreaSearch();
 				break;
@@ -91,6 +101,7 @@ public sealed partial class RabbitGuard
 				{
 					0 => ("Data/Animations/r_actionidle_footshake.anm", 2.5f),
 					1 => ("Data/Animations/r_actionidle_yawn.anm", 5f),
+					2 => ("Data/Animations/r_swordclean.anm", Random.Shared.Float( 5f, 10f )),
 					3 => ("Data/Animations/r_crossarms_idle.anm", Random.Shared.Float( 5f, 10f )),
 					8 => ("Data/Animations/r_dialogue_handhips.anm", Random.Shared.Float( 2f, 5f )),
 					_ => ("Data/Animations/r_dialogue_kneelfist.anm", Random.Shared.Float( 2f, 5f ))

@@ -172,8 +172,14 @@ public sealed partial class RabbitGuard
 				Stance = Locomotion;
 				return;
 			}
+			var site = urgentInvestigation ? investigatePoint : null;
 			investigatePoint = null;
 			urgentInvestigation = false;
+			if ( site is { } reached )
+			{
+				InspectSite( reached );
+				return;
+			}
 			if ( FollowPatrol() ) return;
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = AlertStage > 0 ? Watch : Idle;
