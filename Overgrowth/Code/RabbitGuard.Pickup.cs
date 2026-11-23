@@ -8,7 +8,7 @@ public sealed partial class RabbitGuard
 	LevelItem soughtItem;
 	TimeUntil weaponLookTime;
 	Vector3 weaponLookPoint;
-	float seekDelay = 0.4f, seekTime;
+	float seekDelay = 0.4f, seekTime, searchRemainder;
 	bool reaching;
 	int reachAttempts;
 	[Sync] bool ReachLeft { get; set; }
@@ -59,6 +59,11 @@ public sealed partial class RabbitGuard
 		if ( !soughtItem.IsValid() )
 		{
 			if ( !enemy.IsValid() && !investigatePoint.HasValue ) return false;
+			const float tick = 4f / 120f;
+			searchRemainder += Time.Delta;
+			int polls = (int)(searchRemainder / tick);
+			if ( polls == 0 ) return false;
+			searchRemainder -= polls * tick;
 			var candidate = NearestWeapon( center, 400f );
 			if ( candidate?.StuckIn?.GetComponentInParent<RabbitGuard>() is { Unconscious: false } ) candidate = null;
 			if ( candidate is not null )
@@ -71,8 +76,7 @@ public sealed partial class RabbitGuard
 				seekDelay = 0.4f;
 				return false;
 			}
-			seekDelay -= Time.Delta;
-			if ( seekDelay >= 0f ) return false;
+			if ( !WantsToSeekWeapon( polls ) ) return false;
 			soughtItem = candidate;
 		}
 		if ( !CanPickUp( soughtItem ) || center.DistanceSquared( soughtItem.PhysicsPosition ) > 600f * 600f )
@@ -102,12 +106,24 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
+	bool WantsToSeekWeapon( int polls )
+	{
+		// CheckForNearbyWeapons subtracts one physics step per four-step NPC brain update.
+		for ( int i = 0; i < polls; i++ )
+		{
+			if ( seekDelay < 0f ) return true;
+			seekDelay -= 1f / 120f;
+		}
+		return false;
+	}
+
 	void StopSeekingWeapon()
 	{
 		if ( soughtItem.IsValid() && Movement.MoveTarget.HasValue ) ReleaseMovementInput();
 		soughtItem = null;
 		reaching = false;
 		seekDelay = 0.4f;
+		searchRemainder = 0f;
 	}
 
 	void UpdatePickupLayer()
