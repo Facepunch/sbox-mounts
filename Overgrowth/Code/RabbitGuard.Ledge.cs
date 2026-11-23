@@ -55,11 +55,22 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	internal bool PredictClimb( Vector3 edge, out Vector3 destination )
+	internal bool PredictTraversal( Vector3 edge, Vector3 goal, out Vector3 destination, out bool drop )
 	{
 		destination = default;
 		var center = edge + Vector3.Up * 100f;
-		foreach ( var contact in ClimbTrace( Scene.Trace.Sphere( 80f, center, center ) ).RunAll().OrderBy( hit => hit.HitPosition.DistanceSquared( center ) ) )
+		var contacts = ClimbTrace( Scene.Trace.Sphere( 80f, center, center ) ).RunAll();
+		drop = !contacts.Any();
+		if ( drop )
+		{
+			var direction = (goal - WorldPosition).WithZ( 0f ).Normal;
+			var over = center + direction * 160f;
+			var landing = ClimbTrace( Scene.Trace.Sphere( LegRadius, over, over + Vector3.Down * 4000f ) ).Run();
+			if ( !landing.Hit || landing.StartedSolid || landing.HitPosition.z >= WorldPosition.z ) return false;
+			destination = landing.EndPosition.WithZ( WorldPosition.z );
+			return true;
+		}
+		foreach ( var contact in contacts.OrderBy( hit => hit.HitPosition.DistanceSquared( center ) ) )
 		{
 			var wall = (contact.HitPosition - center).WithZ( 0f ).Normal;
 			if ( wall.IsNearlyZero() ) continue;

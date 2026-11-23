@@ -9,21 +9,25 @@ public sealed class CharacterNavigation : NavigationLayer
 	bool followingJump;
 	Vector3? preparedVelocity;
 	TimeUntil takeoff, checkRoute;
-	Vector3? predictedClimb;
+	Vector3? predictedClimb, runOffDirection;
+	float runOffSpeed;
+	TimeUntil runOffTimeout;
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
 
-	protected override bool UsesGround => Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
+	protected override bool UsesGround => !runOffDirection.HasValue && Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
 
 	protected override void OnUpdate()
 	{
 		if ( !Networking.IsHost ) return;
+		if ( runOffDirection.HasValue && AdvanceRunOff() ) return;
 		if ( Npc.IsAirborne ) sinceAirborne = 0f;
 		if ( Npc is RabbitGuard climber && climber.AdvanceLedge() ) return;
 		var crossing = LinkTraversal;
 		if ( Npc is RabbitGuard fighter )
 		{
 			if ( !crossing.HasValue && !followingJump ) CheckPartialRoute( fighter );
+			if ( runOffDirection.HasValue ) return;
 			bool climb = predictedClimb.HasValue || crossing?.Type == NavMeshLinkType.Climb;
 			if ( climb || crossing?.Type == NavMeshLinkType.Jump )
 			{
@@ -70,11 +74,34 @@ public sealed class CharacterNavigation : NavigationLayer
 		if ( path.Status != Sandbox.Navigation.NavMeshPathStatus.Partial || path.Points.Count == 0 ) return;
 		var edge = path.Points[^1].Position;
 		if ( edge.DistanceSquared( goal ) <= 1600f || (edge - WorldPosition).WithZ( 0f ).LengthSquared >= 800f ) return;
-		if ( fighter.PredictClimb( edge, out var end ) )
+		if ( !fighter.PredictTraversal( edge, goal, out var end, out bool drop ) ) return;
+		checkRoute = 2f;
+		if ( drop )
 		{
-			predictedClimb = end;
-			checkRoute = 2f;
+			var direction = (end - WorldPosition).WithZ( 0f ).Normal;
+			runOffSpeed = Agent.MaxSpeed;
+			runOffTimeout = 2f;
+			Npc.Launch( direction * runOffSpeed );
+			runOffDirection = direction;
 		}
+		else predictedClimb = end;
+	}
+
+	bool AdvanceRunOff()
+	{
+		var body = Npc.GetComponent<Rigidbody>();
+		if ( runOffTimeout > 0f && body.IsValid() && Npc.Health > 0 && !Npc.PhysicsCarrier.IsValid() )
+		{
+			var start = body.PhysicsBody.Position + Vector3.Up * 4f;
+			var support = Scene.Trace.Ray( start, start + Vector3.Down * 12f ).IgnoreGameObjectHierarchy( Npc.GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
+			if ( support.Hit && !support.StartedSolid )
+			{
+				body.Velocity = (runOffDirection.Value * runOffSpeed).WithZ( body.Velocity.z );
+				return true;
+			}
+		}
+		runOffDirection = null;
+		return false;
 	}
 
 	protected override void OnDisabled()
@@ -83,6 +110,7 @@ public sealed class CharacterNavigation : NavigationLayer
 		preparedVelocity = null;
 		if ( Npc is RabbitGuard fighter ) fighter.EndLedge();
 		predictedClimb = null;
+		runOffDirection = null;
 		base.OnDisabled();
 	}
 
