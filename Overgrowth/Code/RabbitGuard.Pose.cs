@@ -8,7 +8,7 @@ public sealed partial class RabbitGuard
 	Transform previousMotionRoot, currentMotionRoot;
 	float motionStep;
 	int motionSamples;
-	internal Transform? SolvedBodyTransform( int bone ) => motionSamples > 0 ? currentMotionRoot.ToWorld( currentMotionPose[bone] ) : null;
+	internal Transform? SolvedBodyTransform( int bone ) => motionSamples > 0 && currentMotionPose is not null ? currentMotionRoot.ToWorld( currentMotionPose[bone] ) : null;
 	bool[] overridden;
 	int[] poseParents, recoveryParents;
 
@@ -103,8 +103,6 @@ public sealed partial class RabbitGuard
 			int count = poseModel.BoneCount;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
-			previousMotionPose = new Transform[count];
-			currentMotionPose = new Transform[count];
 			motionSamples = 0;
 			overridden = new bool[count];
 			poseParents = new int[count];
@@ -154,6 +152,13 @@ public sealed partial class RabbitGuard
 		// Binding a graph leaves the bind pose visible until its first evaluation.
 		if ( Networking.IsHost && playing is not null && Time.Delta > 0f )
 		{
+			// Live instances can retain their skeleton cache across a reload while lacking motion history.
+			if ( currentMotionPose?.Length != solvedPose.Length || previousMotionPose?.Length != solvedPose.Length )
+			{
+				previousMotionPose = new Transform[solvedPose.Length];
+				currentMotionPose = new Transform[solvedPose.Length];
+				motionSamples = 0;
+			}
 			(previousMotionPose, currentMotionPose) = (currentMotionPose, previousMotionPose);
 			System.Array.Copy( solvedPose, currentMotionPose, solvedPose.Length );
 			previousMotionRoot = currentMotionRoot;
@@ -173,7 +178,7 @@ public sealed partial class RabbitGuard
 		{
 			var body = part.Component;
 			if ( !body.IsValid() ) continue;
-			if ( motionSamples < 2 || poseModel != target.Model )
+			if ( motionSamples < 2 || poseModel != target.Model || previousMotionPose is null || currentMotionPose is null )
 			{
 				body.Velocity = Animation.MoveVelocity;
 				body.AngularVelocity = Vector3.Zero;
