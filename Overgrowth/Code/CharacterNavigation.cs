@@ -11,6 +11,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	TimeUntil takeoff, checkRoute;
 	Vector3? predictedClimb, runOffDirection;
 	float runOffSpeed;
+	float requestedGroundSpeed;
 	TimeUntil runOffTimeout;
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
@@ -20,6 +21,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	protected override void OnUpdate()
 	{
 		if ( !Networking.IsHost ) return;
+		requestedGroundSpeed = 0f;
 		if ( runOffDirection.HasValue && AdvanceRunOff() ) return;
 		if ( Npc.IsAirborne ) sinceAirborne = 0f;
 		if ( Npc is RabbitGuard climber && climber.AdvanceLedge() ) return;
@@ -66,11 +68,18 @@ public sealed class CharacterNavigation : NavigationLayer
 			else if ( moving.InLocomotion && flat.Length > 0.6f * 40f )
 				WorldRotation = RunFacing( facing, flat.Normal, Agent.WishVelocity.WithZ( 0f ) / moving.GroundRunSpeed, Time.Delta );
 		}
-		if ( Npc is RabbitGuard { PlantMovementScale: var scale } && scale != 1f && !Npc.IsAirborne && Agent.IsValid() )
-			Agent.MaxSpeed *= scale;
+		if ( !Npc.IsAirborne && !crossing.HasValue && MoveTarget.HasValue && Agent is { Active: true } )
+			requestedGroundSpeed = Agent.MaxSpeed;
 		if ( !followingJump ) return;
 		if ( !Npc.IsAirborne ) { followingJump = false; return; }
 		Npc.Animation.Traversal = NavMeshLinkType.Jump;
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		if ( Networking.IsHost && requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne &&
+			Agent is { Active: true } && !IsTraversingLink && Npc is RabbitGuard fighter )
+			fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta );
 	}
 
 	// UpdateAnimation turns toward actual travel at ten radians per second. When the desired

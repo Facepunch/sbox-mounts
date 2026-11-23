@@ -4,6 +4,29 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	// UpdateGroundMovementControls adds acceleration before ApplyPhysics damps the body.
+	// Give the crowd the speed reachable in its next step so it can still steer around actors and walls.
+	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step )
+	{
+		if ( step <= 0f ) return;
+		const float tick = 4f / 120f, acceleration = 35f * 40f;
+		var velocity = agent.Velocity.WithZ( 0f );
+		float speed = velocity.Length;
+		float run = GroundRunSpeed;
+		float limit = Math.Clamp( speed * 0.98f, run, run * 1.5f );
+		bool wolf = boundAnimations?.Species == "wolf";
+		if ( wolf ) limit *= 1.5f;
+		float friction = acceleration / limit;
+		float crouch = 1f - duckAmount * (boundAnimations?.Species == "cat" ? 0.25f : 0.5f);
+		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
+		float terminal = requested / run * drive * tick / (MathF.Exp( friction * tick ) - 1f);
+		float response = 1f - MathF.Exp( -friction * step );
+		var direction = (agent.GetLookAhead( 40f ) - agent.AgentPosition).WithZ( 0f ).Normal;
+		agent.MaxSpeed = speed + (terminal - speed) * response;
+		// Reversing input both brakes the old motion and accelerates toward the new route.
+		agent.Acceleration = Math.Max( acceleration, (direction * terminal - velocity).Length * (response / step) );
+	}
+
 	bool MoveTowardPoint( Vector3 target, float slowRadius, float speed )
 	{
 		var intent = MovementToPoint( target, slowRadius, 0f, 0f, out var point );
