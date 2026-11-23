@@ -5,9 +5,17 @@ namespace Overgrowth;
 internal sealed class RagdollDamping : Component
 {
 	ModelPhysics physics;
+	WaterHotspot water;
 	float stillTime;
 	bool settled;
 	internal Vector3 AverageVelocity { get; private set; }
+
+	internal void EnterWater( WaterHotspot volume )
+	{
+		if ( physics.IsValid() && CharacterLoader.RagdollCenter( physics ) is { } center && volume.HeightAboveSurface( center ) < -0.8f )
+			water = volume;
+		else if ( water == volume ) water = null;
+	}
 
 	internal void Refresh()
 	{
@@ -68,7 +76,9 @@ internal sealed class RagdollDamping : Component
 		settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.
-		float rate = settled ? 0f : -MathF.Log( 1f - stillTime * 0.5f );
+		if ( !water.IsValid() || !water.Contains( this ) ) water = null;
+		float retention = (1f - stillTime * 0.5f) * (water is null ? 1f : 0.01f);
+		float rate = settled ? 0f : -MathF.Log( retention );
 		foreach ( var part in physics.Bodies )
 		{
 			var body = part.Component;
