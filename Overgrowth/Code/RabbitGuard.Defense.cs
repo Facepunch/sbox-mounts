@@ -48,10 +48,13 @@ public sealed partial class RabbitGuard
 
 	bool UpdateDefense()
 	{
-		// UpdateDuckAmount runs in movement and ground recovery. Unarmed combat AI rises toward standing.
+		// WantsToCrouch is held while checking a body, including the approach settling to a stop.
 		if ( strike is null && (ReactionPhase >= 1f || IsGetUp( Stance )) )
 		{
-			duckVelocity -= duckAmount * Time.Delta * 120f;
+			bool inspecting = inspectUntil.HasValue && !enemy.IsValid() && (casualty.IsValid() || inspectPosition.HasValue);
+			float speed = Animation.MoveVelocity.WithZ( 0f ).Length / 40f;
+			float target = inspecting ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
+			duckVelocity += (target - duckAmount) * Time.Delta * 120f;
 			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
 			duckAmount += duckVelocity * Time.Delta;
 		}

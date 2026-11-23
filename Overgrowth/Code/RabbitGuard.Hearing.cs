@@ -103,7 +103,7 @@ public sealed partial class RabbitGuard
 		if ( startled > 0 || remaining <= 0 )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
-			Stance = Watch;
+			Stance = Ready;
 		}
 		else
 		{

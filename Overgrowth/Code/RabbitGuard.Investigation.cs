@@ -38,10 +38,11 @@ public sealed partial class RabbitGuard
 		if ( startled > 0f || inspectUntil.HasValue )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
-			Stance = Watch;
+			Stance = Ready;
 			if ( inspectUntil is { } until && until <= 0f )
 			{
 				casualty = null;
+				inspectUntil = null;
 				inspectPosition = null;
 				BeginAreaSearch();
 			}
@@ -53,7 +54,7 @@ public sealed partial class RabbitGuard
 			var direction = (point - WorldPosition).WithZ( 0f );
 			if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
 			inspectUntil = Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty);
-			Stance = Watch;
+			Stance = Ready;
 		}
 		else
 		{
@@ -162,7 +163,7 @@ public sealed partial class RabbitGuard
 		if ( searchTarget is null || searchPause > 0f )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
-			Stance = Watch;
+			Stance = Ready;
 		}
 		else
 		{

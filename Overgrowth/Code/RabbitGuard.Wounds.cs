@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 
 	string WoundedPose( string pose )
 	{
-		if ( pose is not (Idle or Threat) || BloodLost <= 0f || boundAnimations.Species == "wolf" ) return pose;
+		if ( pose is not (Idle or Ready or Threat) || BloodLost <= 0f || boundAnimations.Species == "wolf" ) return pose;
 		bool severe = BloodLost > MaxHealth * 0.5f && (PrimaryItem.IsValid() || Animation.MoveVelocity.LengthSquared < 0.5f * 40f * 40f);
 		return severe ? Wounded : HalfWounded;
 	}

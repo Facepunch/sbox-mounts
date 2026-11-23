@@ -7,7 +7,7 @@ namespace Overgrowth;
 [Library( "overgrowth_turner" )]
 public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 {
-	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
+	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Ready = "ready_idle", Threat = "r_combatidlethreat", Locomotion = "movement";
 	internal const string Sweep = "r_sweep", SoccerKick = "r_soccerkick";
 	internal const string FreeAir = "jump", Roll = "roll";
 	[Property, Range( 0.01f, 100f )] public float MovementSpeed { get; set; } = 1f;
@@ -45,7 +45,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
 		}
-		else if ( plantedLegs && (Stance is not (Threat or Idle or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
+		else if ( plantedLegs && (Stance is not (Threat or Idle or Ready or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped )
@@ -93,7 +93,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateRollDisplay();
 		UpdatePatrolPose();
 		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
-		bool canLook = Stance is Idle or Watch or Threat or Locomotion || boundAnimations.AttackStates.Contains( Stance );
+		bool canLook = Stance is Idle or Ready or Watch or Threat or Locomotion || boundAnimations.AttackStates.Contains( Stance );
 		bool track = !NoLookAround && RollProgress >= 1f && canLook && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
@@ -101,21 +101,22 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateCombatPosture();
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
+		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
 		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
-		UpdateIdleBalance( pose is Threat or Idle or Watch );
-		if ( pose == Idle )
+		UpdateIdleBalance( pose is Threat or Idle or Ready or Watch );
+		if ( pose is Idle or Ready )
 		{
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "threat_coord", Math.Clamp( ThreatAmount, 0f, 1f ) );
 		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
-		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Locomotion ? MirroredStance : MirroredAction );
+		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
-		if ( pose is Idle or Watch && Animation.IsGrounded ) UpdateIdleFeet();
+		if ( pose is Idle or Ready or Watch && Animation.IsGrounded ) UpdateIdleFeet();
 		if ( track ) UpdateChestLook( GazeTarget.Value );
 		if ( headMotion is null ) DrawRestingHead();
 		UpdateArms();

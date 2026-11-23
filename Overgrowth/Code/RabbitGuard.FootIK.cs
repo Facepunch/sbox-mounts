@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 		if ( !Networking.IsHost ) return;
 		CloseAmount = PrimaryItem.IsValid() && enemy.IsValid() && enemy.GetComponent<RabbitGuard>() is not { Unconscious: true }
 			? Math.Clamp( (60f - CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) )) / 28f, 0f, 1f ) : 0f;
-		bool movement = Stance is Idle or Watch or Locomotion or Threat;
+		bool movement = Stance is Idle or Ready or Watch or Locomotion or Threat;
 		if ( !movement && strike is null ) ThreatAmount = 0;
 		float target = (movement || strike is not null) && enemy.IsValid() && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
 		float acceleration = target == 0 && ThreatAmount < 0 ? 100f : 200f;

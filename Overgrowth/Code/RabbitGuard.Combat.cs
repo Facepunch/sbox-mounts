@@ -159,7 +159,7 @@ public sealed partial class RabbitGuard
 			if ( investigatePoint.HasValue && startled > 0 )
 			{
 				Movement.Stop();
-				Stance = Watch;
+				Stance = Ready;
 				return;
 			}
 			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= arrival * arrival )
@@ -179,10 +179,10 @@ public sealed partial class RabbitGuard
 		if ( startled > 0 )
 		{
 			Movement.Stop();
-			Stance = Watch;
+			Stance = Ready;
 			return;
 		}
-		if ( Animation.IsGrounded && TryCounterThrow() ) return;
+		if ( TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
@@ -218,8 +218,8 @@ public sealed partial class RabbitGuard
 	bool TryStartStrike( float distance )
 	{
 		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		bool canStartStrike = Animation.IsGrounded && !(boundAnimations.Species == "wolf" && blockStun > 0.5f);
-		if ( !canStartStrike || !visible || !attacking || strike is not null || knifeCooldown > 0 || distance >= AttackRange || !HasSight( enemy ) ) return false;
+		if ( !visible || !attacking || strike is not null || knifeCooldown > 0 || distance >= AttackRange || !HasSight( enemy ) ) return false;
+		if ( boundAnimations.Species == "wolf" && blockStun > 0.5f ) return false;
 
 		bool close = distance < CloseAttackRange;
 		int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );

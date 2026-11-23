@@ -67,7 +67,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -174,6 +174,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		var states = names.Select( name =>
 		{
+			if ( name == RabbitGuard.Ready )
+			{
+				var species = character.Element( "tags" )?.Attribute( "species" );
+				string action = species is "cat" or "dog" or "wolf" or "rat" ? species + "_actionidle" :
+					label is "knife" or "sword" ? "r_actionidle_" + label : "r_actionidle";
+				var path = $"Data/Animations/{action}.xml";
+				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( path ), "idle", false ),
+					WithEquipment( AnimationGroup( path, mirrored: true ), "idle", true ) ) );
+			}
 			if ( name is RabbitGuard.HalfWounded or RabbitGuard.Wounded )
 			{
 				var injury = name == RabbitGuard.Wounded ? "wounded" : "halfwounded";

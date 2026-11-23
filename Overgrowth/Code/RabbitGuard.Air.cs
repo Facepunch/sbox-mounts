@@ -42,7 +42,7 @@ public sealed partial class RabbitGuard
 
 	string AirPose()
 	{
-		var pose = !Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion ? FreeAir : Stance;
+		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion ? FreeAir : Stance;
 
 		if ( pose == FreeAir )
 		{
