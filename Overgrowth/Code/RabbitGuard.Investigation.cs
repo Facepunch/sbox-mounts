@@ -140,6 +140,9 @@ public sealed partial class RabbitGuard
 				var pointOnMesh = Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( sample, new Vector3( 4f, 4f, 8f ) * 40f ) )
 					?? Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( sample, new Vector3( 8f, 8f, 32f ) * 40f ) );
 				if ( pointOnMesh is not { } point ) continue;
+				// Investigate only where the leg sphere actually touches level geometry.
+				if ( !Scene.Trace.Sphere( 0.45f * 40f, point, point ).IgnoreDynamic()
+					.WithoutTags( "trigger", "npc", "player" ).Run().Hit ) continue;
 				var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = point, Agent = agent } );
 				if ( path.Status == NavMeshPathStatus.Complete ) searchPoints.Add( new( point + Vector3.Up * 18f ) );
 			}
