@@ -46,7 +46,9 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 			body.Locking = new PhysicsLock { Pitch = true, Roll = true, Yaw = true };
 			root.AddComponent<SkulkMovement>().RunSpeed = 7.25f * MapLoader.Scale;
 			root.AddComponent<SensesLayer>();
-			root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
+			var animation = root.AddComponent<AnimationLayer>();
+			animation.EnableFootstepSounds = false;
+			animation.TurnsBody = false;
 			var npc = root.AddComponent<Skulk>();
 			npc.Faction = Factions.Monster;
 			npc.EyeHeight = 0.55f * MapLoader.Scale;
@@ -84,7 +86,9 @@ public sealed partial class Skulk : BaseNpc
 	{
 		base.OnStart();
 		mover = GetComponent<SkulkMovement>();
-		standingYaw = runningYaw = WorldRotation.Angles().yaw;
+		ViewRotation = bodyRotation = Renderer.WorldRotation;
+		standingYaw = runningYaw = bodyRotation.Angles().yaw;
+		animationTime = 0;
 		worldTag = OnWorldTag;
 		if ( Networking.IsHost ) PlayVoice( "spawn" );
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );

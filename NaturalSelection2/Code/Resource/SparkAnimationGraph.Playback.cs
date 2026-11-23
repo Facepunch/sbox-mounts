@@ -57,10 +57,10 @@ internal sealed partial class SparkAnimationGraph
 			if ( i >= 0 ) inputs[i] = Math.Max( 0, Array.IndexOf( graph.values[i], value ) );
 		}
 
-		internal void Update( float delta, GraphParameters output = null, Action<string> tag = null )
+		internal void Update( float elapsed, GraphParameters output = null, Action<string> tag = null )
 		{
 			float before = time;
-			time += delta;
+			time = elapsed;
 			Span<int> visited = stackalloc int[32];
 			foreach ( var layer in graph.layers )
 			{

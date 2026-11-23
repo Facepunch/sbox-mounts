@@ -19,6 +19,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	float speed;
 	[Sync( SyncFlags.FromHost )] public Vector3 ContactNormal { get; private set; }
 	internal Surface ContactSurface { get; private set; }
+	internal bool JustJumped => lastJump < 0.13f;
 	internal bool OnWall => ContactNormal != Vector3.Zero && ContactNormal.z < 0.5f;
 	public override bool IsMoving => Npc.Animation.MoveVelocity.Length > 4;
 	public override MovementStatus Status => MoveTarget is not { } goal ? MovementStatus.Idle :

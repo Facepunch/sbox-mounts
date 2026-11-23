@@ -783,14 +783,14 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose )
+	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose, int samplesPerFrame = 1 )
 	{
-		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose );
+		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose, samplesPerFrame );
 		else AddUncompressedFrames( addFrame, anim, model, ref r, pose );
 	}
 
 	private static void AddCompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
-		ParsedModel model, ref Reader r, Transform[] boneTransforms )
+		ParsedModel model, ref Reader r, Transform[] boneTransforms, int samplesPerFrame )
 	{
 		r.Seek( anim.CurvesOffset );
 
@@ -825,9 +825,9 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			}
 		}
 
-		for ( int frame = 0; frame < anim.NumFrames; frame++ )
+		for ( int frame = 0; frame <= (anim.NumFrames - 1) * samplesPerFrame; frame++ )
 		{
-			float t = frame / anim.FrameRate;
+			float t = frame / (anim.FrameRate * samplesPerFrame);
 
 			for ( int b = 0; b < boneTransforms.Length; b++ )
 			{
