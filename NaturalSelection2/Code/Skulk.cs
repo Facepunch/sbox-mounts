@@ -129,8 +129,15 @@ public sealed partial class Skulk : BaseNpc
 
 	protected override void Think()
 	{
-		bool wasHoldingSecondary = secondaryHeld;
-		secondaryHeld = false;
+		bool attackLeap = UpdateCombat();
+		bool travelLeap = UpdateTravel();
+		bool press = attackLeap || travelLeap;
+		if ( press && !secondaryHeld ) Leap();
+		secondaryHeld = press;
+	}
+
+	bool UpdateCombat()
+	{
 		FiringParasite = false;
 		var target = FindEnemy();
 		var aimPoint = target.IsValid() ? CalculateAimPoint( target ) : default;
@@ -142,7 +149,7 @@ public sealed partial class Skulk : BaseNpc
 		{
 			Investigate();
 			Biting = false;
-			return;
+			return false;
 		}
 
 		bool mobile = target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid();
@@ -155,30 +162,29 @@ public sealed partial class Skulk : BaseNpc
 			if ( mobile ) ApproachEnemy( target, aimPoint, distance );
 			else Movement.Stop();
 			Biting = !(mobile && TryXenocide()) && energy >= BiteEnergy && (!mobile || aimReady);
-			return;
+			return false;
 		}
 
 		Biting = false;
 		var aim = (aimPoint - EyePosition).Normal;
-		if ( mobile && LeapUnlocked && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
-			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
-		{
-			secondaryHeld = true;
-			if ( !wasHoldingSecondary )
-			{
-				var velocity = GetComponent<Rigidbody>().Velocity * 0.5f;
-				var forward = ViewRotation.Forward;
-				velocity += forward.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
-				velocity.z = (forward.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
-				mover.Leap( velocity );
-				Leaping = true;
-				leapEnds = 0.2f;
-				energy -= LeapEnergy;
-				PlayVoice( "bite_alt" );
-			}
-		}
-		else if ( !xenociding ) TryParasite();
+		bool leap = mobile && LeapUnlocked && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
+			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f;
+		if ( !leap && !xenociding ) TryParasite();
 		ApproachEnemy( target, aimPoint, distance );
+		return leap;
+	}
+
+	void Leap()
+	{
+		var velocity = GetComponent<Rigidbody>().Velocity * 0.5f;
+		var forward = ViewRotation.Forward;
+		velocity += forward.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
+		velocity.z = (forward.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
+		mover.Leap( velocity );
+		Leaping = true;
+		leapEnds = 0.2f;
+		energy -= LeapEnergy;
+		PlayVoice( "bite_alt" );
 	}
 
 	void OnWeaponTag( string tag )

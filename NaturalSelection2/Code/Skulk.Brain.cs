@@ -178,6 +178,25 @@ public sealed partial class Skulk
 		repath = 0.2f;
 	}
 
+	bool UpdateTravel()
+	{
+		if ( mover.MoveTarget is not { } goal ) return false;
+		var origin = sighted.IsValid() ? EyePosition : WorldPosition;
+		var offset = goal - origin;
+		float distance = offset.Length;
+		if ( distance > 2.5f * MapLoader.Scale && Math.Abs( offset.z ) * 1.5f > distance )
+			Animation.SetLookTarget( goal + Vector3.Up * (Math.Sign( offset.z ) * distance) );
+
+		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		var next = mover.NextCorner ?? goal;
+		mover.NearVent = locations.IsValid() && (locations.IsVent( WorldPosition ) ||
+			WorldPosition.DistanceSquared( next ) <= 25 * MapLoader.Scale * MapLoader.Scale && locations.IsVent( next ));
+		if ( !LeapUnlocked || energy <= 80 || sneaking || mover.NearVent || distance <= 3 * MapLoader.Scale ||
+			Vector3.Dot( GetComponent<Rigidbody>().Velocity.Normal, offset.Normal ) <= 0.6f ) return false;
+		Animation.SetLookTarget( EyePosition + (ViewRotation.Forward + Vector3.Up * 0.8f) * MapLoader.Scale );
+		return true;
+	}
+
 	void ApproachEnemy( GameObject target, Vector3 aimPoint, float distance )
 	{
 		if ( repath > 0 ) return;

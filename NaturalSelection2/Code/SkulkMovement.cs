@@ -27,6 +27,8 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	[Sync( SyncFlags.FromHost )] internal bool MovingInput { get; private set; }
 	[Sync( SyncFlags.FromHost )] TimeSince LastJump { get; set; } = 10;
 	internal Surface ContactSurface { get; private set; }
+	internal Vector3? NextCorner => corner < path.Points.Count ? path.Points[corner].Position : null;
+	internal bool NearVent { get; set; }
 	internal bool JustJumped => LastJump < 0.13f;
 	internal bool OnWall => ContactNormal != Vector3.Zero && ContactNormal.z < 0.5f;
 	public override bool IsMoving => Npc.Animation.MoveVelocity.Length > 4;
@@ -144,7 +146,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			var direction = wish.Normal;
 			float planarSpeed = body.Velocity.WithZ( 0 ).Length;
 			bool targetAbove = distance > 2.5f * MapLoader.Scale && wish.z * 1.5f > distance;
-			bool hopping = speed >= RunSpeed && distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
+			bool hopping = !NearVent && speed >= RunSpeed && distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
 				Vector3.Dot( body.Velocity.Normal, direction ) > 0.6f;
 			if ( (targetAbove || hopping) && !Probe( center + Vector3.Up * 2, center + Vector3.Up * Radius, Radius - 1 ).Hit )
 			{

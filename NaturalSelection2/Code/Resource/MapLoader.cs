@@ -77,9 +77,12 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				BuildEntity( entity, root, geometry, staticProps );
 		}
 
-		if ( locations.Count > 0 )
+		var ventPath = System.IO.Path.ChangeExtension( FilePath.Replace( "/maps/", "/fastload/maps/" ), "level-server-alien.tile_cache_grid" );
+		bool hasVents = Host.FileSystem.FileExists( ventPath );
+		if ( locations.Count > 0 || hasVents )
 		{
 			var map = root.AddComponent<MapLocations>();
+			if ( hasVents ) map.AlienGridPath = ventPath;
 			map.Volumes = locations.ToArray();
 			var anchors = landmarks.ToLookup( x => map.LocationAt( x.Position ) );
 			map.Destinations = locations.GroupBy( v => v.Name ).Select( group =>

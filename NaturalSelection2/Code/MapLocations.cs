@@ -9,6 +9,20 @@ public sealed class MapLocations : Component
 	public readonly record struct Destination( string Name, Vector3 Position, bool Strategic );
 	[Property] public Volume[] Volumes { get; set; } = [];
 	[Property] public Destination[] Destinations { get; set; } = [];
+	[Property] internal string AlienGridPath { get; set; }
+	AlienVentGrid vents;
+	bool readVents;
+
+	internal bool IsVent( Vector3 position )
+	{
+		if ( !readVents && AlienGridPath is not null && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
+		{
+			readVents = true;
+			try { vents = new( mount.ReadAllBytes( AlienGridPath ) ); }
+			catch ( System.Exception e ) { Log.Warning( e, $"Could not load alien navigation from {AlienGridPath}" ); }
+		}
+		return vents?.Contains( position ) == true;
+	}
 
 	readonly Dictionary<string, Destination[]> connections = new();
 	readonly Dictionary<string, Dictionary<string, int>> depths = new();
