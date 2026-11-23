@@ -47,30 +47,37 @@ public sealed partial class RabbitGuard
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
 			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Downed || guard.hearingReady > 0 ||
+			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Unconscious || guard.hearingReady > 0 ||
 				guard.WorldPosition.DistanceSquared( position ) >= range * range ) continue;
 			if ( guard.enemy.IsValid() )
 			{
-				if ( guard.enemy != source ) continue;
+				if ( guard.Fleeing || guard.enemy != source ) continue;
 				guard.ObserveTarget( source, guard.visible );
 				guard.lastSeen = guard.TargetPosition( source );
 				guard.knownCharacters[source] = guard.CharacterCenter( source );
 				guard.sinceEnemySeen = 0;
 				continue;
 			}
-			if ( guard.escortTarget.IsValid() || !awake || sound == HeardSound.ItemImpact && guard.investigatePoint.HasValue ) continue;
+			if ( guard.escortTarget.IsValid() || !awake ) continue;
+			bool searching = guard.searchUntil > 0f || guard.inspectPosition.HasValue || guard.casualty.IsValid();
+			bool investigating = searching || guard.investigatePoint.HasValue;
+			if ( investigating && sound == HeardSound.ItemImpact ) continue;
 			bool knownAlly = guard.knownCharacters.ContainsKey( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
-			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation) ) continue;
+			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation || searching) ) continue;
 			guard.suspicion = guard.CurrentSuspicion +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
 			guard.sinceSound = 0;
 			if ( guard.suspicion < 1f ) continue;
-			if ( !guard.investigatePoint.HasValue )
+			if ( !investigating )
 			{
 				guard.LookAtNotice( position, source: source );
 				guard.Speak( "suspicious" );
 				guard.startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
 			}
+			guard.casualty = null;
+			guard.inspectPosition = null;
+			guard.inspectUntil = null;
+			guard.searchUntil = 0f;
 			if ( sound == HeardSound.Voice )
 			{
 				guard.escortTarget = source;
