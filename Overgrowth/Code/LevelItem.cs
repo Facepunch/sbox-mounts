@@ -104,6 +104,14 @@ public sealed partial class LevelItem : Component
 		return lines = mount?.GetByPath( model.ResourcePath ) is ObjectLoader loader ? ItemLine.Read( loader.ItemDefinition, model ) : [];
 	}
 
+	internal Vector3 StrikeLineDirection()
+	{
+		var segments = GetLines();
+		if ( segments.Length == 0 ) return default;
+		UpdateAttachment();
+		return (WorldTransform.PointToWorld( segments[^1].End ) - WorldTransform.PointToWorld( segments[0].Start )).Normal;
+	}
+
 	internal bool TryContact( LevelItem other, out Vector3 point, out string material, out string otherMaterial )
 	{
 		UpdateAttachment();

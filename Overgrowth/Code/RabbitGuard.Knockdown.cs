@@ -25,9 +25,10 @@ public sealed partial class RabbitGuard
 	sealed class StrikeDamage : BluntDamage
 	{
 		public Vector3 Impulse { get; init; }
+		public Vector3 LineDirection { get; init; }
 	}
 
-	(Vector3 Point, Vector3 Impulse)? deathImpulse;
+	(Vector3 Point, Vector3 Impulse, Vector3 LineDirection)? deathImpulse;
 	float? injuryAge;
 	bool itemInjury;
 
@@ -111,7 +112,7 @@ public sealed partial class RabbitGuard
 		sinceKnockdown = 0;
 		if ( hit.DamageInfo is StrikeDamage ) limpStun = 0.9f;
 		var impulse = DamageImpulse( hit.DamageInfo );
-		if ( !impulse.IsNearlyZero() ) ApplyHitImpulse( ragdoll, hit.DamageInfo.Position, impulse );
+		if ( !impulse.IsNearlyZero() ) ApplyHitImpulse( ragdoll, hit.DamageInfo.Position, impulse, (hit.DamageInfo as StrikeDamage)?.LineDirection ?? default );
 	}
 
 	void GoLimp()
@@ -161,7 +162,7 @@ public sealed partial class RabbitGuard
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );
-		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse);
+		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse, (death.DamageInfo as StrikeDamage)?.LineDirection ?? default);
 		itemInjury = death.DamageInfo is ItemWound or ItemImpact && !Unconscious;
 		injuryAge = death.DamageInfo switch
 		{
@@ -200,14 +201,19 @@ public sealed partial class RabbitGuard
 					item.GameObject.SetParent( corpse, true );
 					item.StuckIn = corpseRenderer;
 				}
-			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse );
+			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
 		}
 		return corpse;
 	}
 
-	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse )
+	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )
 	{
-		float Weight( Rigidbody rb ) => rb.Mass / (rb.PhysicsBody.MassCenter.DistanceSquared( point ) + 16f);
+		float Weight( Rigidbody rb )
+		{
+			var offset = rb.PhysicsBody.MassCenter - point;
+			offset -= lineDirection * offset.Dot( lineDirection );
+			return rb.Mass / (offset.LengthSquared + 16f);
+		}
 		float total = ragdoll.Bodies.Where( b => b.Component.IsValid() ).Sum( b => Weight( b.Component ) );
 		if ( total <= 0 ) return;
 		foreach ( var body in ragdoll.Bodies )

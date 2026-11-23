@@ -482,6 +482,7 @@ public sealed partial class RabbitGuard
 		{
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
 			Impulse = strike.WorldImpact( direction, flippedAttack ) * (force * 40f / 120f),
+			LineDirection = PrimaryItem.IsValid() ? PrimaryItem.StrikeLineDirection() : default,
 			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100f * AttackDamage,
 			Origin = origin,
 			Position = position,
