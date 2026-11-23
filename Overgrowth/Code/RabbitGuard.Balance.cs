@@ -4,7 +4,8 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	Vector3 balanceOffset, balanceVelocity, balanceTarget;
+	Vector3 balanceOffset, balanceVelocity, balanceTarget, balancePosition;
+	float balanceRemainder;
 	TimeUntil nextBalanceShift;
 
 	void UpdateIdleBalance( bool standing )
@@ -13,7 +14,8 @@ public sealed partial class RabbitGuard
 		idleStance = standing ? 1f - (1f - idleStance) * MathF.Pow( 0.94f, dt * 120f ) : idleStance * MathF.Pow( 0.98f, dt * 120f );
 		if ( idleStance < 0.00001f )
 		{
-			balanceOffset = balanceVelocity = balanceTarget = default;
+			balanceOffset = balanceVelocity = balanceTarget = balancePosition = default;
+			balanceRemainder = 0f;
 			return;
 		}
 		if ( nextBalanceShift <= 0f )
@@ -22,9 +24,17 @@ public sealed partial class RabbitGuard
 			float scale = 40f * boundAnimations.CharacterScale;
 			balanceTarget = new( Random.Shared.Float( -0.05f, 0.05f ), Random.Shared.Float( -0.01f, 0.01f ) * scale, Random.Shared.Float( -0.005f, 0.005f ) * scale );
 		}
-		balanceVelocity *= MathF.Pow( 0.97f, dt * 120f );
-		balanceVelocity += (balanceTarget - balanceOffset) * (5f * dt);
-		balanceOffset += balanceVelocity * dt;
+		// aschar.as damps the center-of-mass shift once per animation update.
+		const float tick = 4f / 120f;
+		Vector3 NextVelocity() => balanceVelocity * 0.97f + (balanceTarget - balancePosition) * (5f * tick);
+		balanceRemainder += dt;
+		while ( balanceRemainder >= tick )
+		{
+			balanceVelocity = NextVelocity();
+			balancePosition += balanceVelocity * tick;
+			balanceRemainder -= tick;
+		}
+		balanceOffset = balancePosition + NextVelocity() * balanceRemainder;
 	}
 
 	void UpdateIdleFeet( RabbitMovement.Sample pose )
