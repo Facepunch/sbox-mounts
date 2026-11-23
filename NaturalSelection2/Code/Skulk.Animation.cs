@@ -6,12 +6,15 @@ public sealed partial class Skulk
 {
 	static readonly SparkAnimationGraph.PoseParameters LocomotionParameters = new( 0 ), ActionParameters = new( 1 );
 	float standingYaw, runningYaw;
-	Rotation bodyRotation;
+	const SyncFlags PoseSync = SyncFlags.FromHost | SyncFlags.Interpolate;
+	[Sync( PoseSync )] Rotation BodyRotation { get; set; }
+	[Sync( PoseSync )] float StandingOffset { get; set; }
+	[Sync( PoseSync )] float RunningOffset { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose Locomotion { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose ActionPose { get; set; }
 
-	internal Rotation ViewRotation { get; private set; }
+	[Sync( PoseSync )] internal Rotation ViewRotation { get; private set; }
 
 	// Spark's SlerpRadians advances by a fixed number of radians along the shortest arc.
 	static float ApproachAngle( float from, float to, float radians )
@@ -22,6 +25,7 @@ public sealed partial class Skulk
 
 	void TurnView()
 	{
+		if ( !Animation.IsLooking && !mover.MovingInput ) return;
 		var aim = WorldRotation.Forward;
 		if ( Animation.IsLooking )
 		{
@@ -32,44 +36,32 @@ public sealed partial class Skulk
 		var from = ViewRotation.Angles();
 		var to = Rotation.LookAt( aim ).Angles();
 		// BotMotion scales turn speed when fighting or tracking difficult targets.
-		float step = AimTurnRate * Time.Delta;
-		ViewRotation = Rotation.From( ApproachAngle( from.pitch, to.pitch, step ), ApproachAngle( from.yaw, to.yaw, step ), 0 );
+		float dt = Time.Delta is > 0 and <= 0.2f ? Time.Delta : 1f / 30;
+		float step = AimTurnRate * dt;
+		float yaw = ApproachAngle( from.yaw, to.yaw, step );
+		float pitch = ApproachAngle( from.pitch, to.pitch, step ).DegreeToRadian();
+		// BotMotion keeps the desired direction's horizontal length while easing its vertical component.
+		float horizontal = aim.Normal.WithZ( 0 ).Length;
+		ViewRotation = Rotation.From( MathF.Atan2( MathF.Sin( pitch ), horizontal ).RadianToDegree(), yaw, 0 );
 	}
 
-	void UpdateBodyRotation( Vector3 up, bool onWall )
+	void UpdateBodyRotation( Vector3 up, bool onWall, bool moving )
 	{
 		var facing = ViewRotation.Forward - up * Vector3.Dot( ViewRotation.Forward, up );
 		if ( facing.Length > 0.001f )
 		{
 			var desired = Rotation.LookAt( facing, up );
 			if ( onWall )
-				bodyRotation = Rotation.Slerp( bodyRotation, desired, Math.Clamp( Time.Delta * 5, 0, 1 ) );
+				BodyRotation = Rotation.Slerp( BodyRotation, desired, Math.Clamp( Time.Delta * 5, 0, 1 ) );
 			else
 			{
-				var angles = bodyRotation.Angles();
+				var angles = BodyRotation.Angles();
 				float tiltDelta = mover.JustJumped ? 0 : Time.Delta;
-				bodyRotation = Rotation.From( ApproachAngle( angles.pitch, 0, tiltDelta * 3 ),
+				BodyRotation = Rotation.From( ApproachAngle( angles.pitch, 0, tiltDelta * 3 ),
 					ApproachAngle( angles.yaw, desired.Angles().yaw, Time.Delta * 6 ), ApproachAngle( angles.roll, 0, tiltDelta * 5 ) );
 			}
 		}
-		Renderer.WorldRotation = bodyRotation;
-		Renderer.WorldPosition = WorldPosition + (Vector3.Up - bodyRotation.Up) * SkulkMovement.Radius;
-	}
-
-	void UpdateAnimation()
-	{
-		bool onWall = mover.OnWall;
-		var up = onWall ? mover.ContactNormal : Vector3.Up;
-		TurnView();
-		UpdateBodyRotation( up, onWall );
-
-		var movement = Animation.MoveVelocity;
-		var velocity = movement - up * Vector3.Dot( movement, up );
-		var moving = velocity.Length >= 0.1f * MapLoader.Scale;
-		var inputs = Renderer.IsValid() && Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-
-		var view = ViewRotation;
-		var yaw = bodyRotation.Angles().yaw;
+		var yaw = BodyRotation.Angles().yaw;
 		float standingOffset = 0, runningOffset = 0;
 		if ( !onWall )
 		{
@@ -83,9 +75,30 @@ public sealed partial class Skulk
 			standingYaw = yaw + standingOffset;
 			runningYaw = yaw + runningOffset;
 		}
+		StandingOffset = standingOffset % 90;
+		RunningOffset = runningOffset;
+	}
+
+	void UpdateAnimation()
+	{
+		bool onWall = mover.OnWall;
+		var up = onWall ? mover.ContactNormal : Vector3.Up;
+		var movement = Animation.MoveVelocity;
+		var velocity = movement - up * Vector3.Dot( movement, up );
+		if ( Networking.IsHost )
+		{
+			TurnView();
+			var bodyVelocity = Animation.IsGrounded ? velocity : movement;
+			UpdateBodyRotation( up, onWall, bodyVelocity.Length > 0.1f * MapLoader.Scale );
+		}
+
+		Renderer.WorldRotation = BodyRotation;
+		Renderer.WorldPosition = WorldPosition + (Vector3.Up - BodyRotation.Up) * SkulkMovement.Radius;
+		var inputs = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		var view = ViewRotation;
 		inputs?.Set( "body_pitch", -view.Angles().pitch );
-		inputs?.Set( "body_yaw", standingOffset % 90 );
-		inputs?.Set( "body_yaw_run", runningOffset );
+		inputs?.Set( "body_yaw", StandingOffset );
+		inputs?.Set( "body_yaw_run", RunningOffset );
 		inputs?.Set( "move_speed", velocity.Length / mover.RunSpeed );
 		inputs?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			MathF.Atan2( Vector3.Dot( velocity, view.Forward ), Vector3.Dot( velocity, view.Left ) ).RadianToDegree() );

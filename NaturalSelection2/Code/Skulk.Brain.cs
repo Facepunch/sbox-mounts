@@ -24,7 +24,7 @@ public sealed partial class Skulk
 	MapLocations.Destination? exploreGoal;
 	string startRoom, currentRoom;
 	TimeUntil checkRooms;
-	[Sync( SyncFlags.FromHost )] float AimTurnRate { get; set; } = 5;
+	float AimTurnRate { get; set; } = 5;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 
 	bool TrackAim( GameObject target, Vector3 aimPoint )
