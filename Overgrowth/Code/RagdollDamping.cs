@@ -2,12 +2,13 @@ using System;
 
 namespace Overgrowth;
 
-internal sealed class RagdollDamping : Component
+internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 {
 	ModelPhysics physics;
 	WaterHotspot water;
 	float stillTime;
 	bool settled;
+	Transform[] placedPose;
 	internal Vector3 AverageVelocity { get; private set; }
 
 	internal void EnterWater( WaterHotspot volume )
@@ -17,8 +18,32 @@ internal sealed class RagdollDamping : Component
 		else if ( water == volume ) water = null;
 	}
 
+	internal void SetPlacedPose()
+	{
+		placedPose = physics.Bodies.Select( part => part.Component.WorldTransform ).ToArray();
+	}
+
+	// New shapes establish contacts on their first physics step. Install the saved sleeping
+	// pose on that island, so the initial contacts cannot displace a level-authored body.
+	void IScenePhysicsEvents.PostPhysicsStep()
+	{
+		if ( placedPose is null || physics.Joints.Any( joint => !joint.Component.Body1.IsValid() ) ) return;
+		for ( int i = 0; i < physics.Bodies.Count; i++ )
+		{
+			var body = physics.Bodies[i].Component;
+			body.WorldTransform = placedPose[i];
+			body.Velocity = body.AngularVelocity = Vector3.Zero;
+		}
+		placedPose = null;
+		stillTime = 2f;
+		settled = true;
+		foreach ( var part in physics.Bodies )
+			part.Component.Sleeping = true;
+	}
+
 	internal void Refresh()
 	{
+		placedPose = null;
 		stillTime = 0f;
 		settled = false;
 		foreach ( var part in physics.Bodies )

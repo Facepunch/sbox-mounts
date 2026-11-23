@@ -233,6 +233,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					case "Invisible When Stationary": fighter.InvisibleWhenStationary = value != 0f; break;
 					}
 				}
+				if ( node.Element( "parameters" )?.Elements( "parameter" ).FirstOrDefault( p => p.Attribute( "name" ) == "dead_body" )?.Attribute( "val" ) is { Length: > 0 } body )
+					fighter.SetPlacedBodyPose( body );
 				actor.Enabled = true;
 				return;
 			case "ActorObject":

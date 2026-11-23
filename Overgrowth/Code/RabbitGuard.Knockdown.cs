@@ -222,51 +222,54 @@ public sealed partial class RabbitGuard
 	{
 		var corpse = base.CreateRagdoll();
 		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
-		{
-			var remains = corpse.GetOrAddComponent<CharacterRemains>();
-			remains.Teams = Teams;
-			remains.StaticCharacter = StaticCharacter;
-			remains.Physics = physics;
-			remains.BodySounds = bodySounds;
-			if ( !zoneKilled )
-			{
-				foreach ( var part in physics.Bodies )
-				{
-					if ( !part.Component.IsValid() ) continue;
-					part.Component.CollisionEventsEnabled = true;
-					part.Component.GetOrAddComponent<RabbitBodyContact>().Remains = remains;
-				}
-			}
-			Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
-			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
-				witness.FollowCorpse( GameObject, corpse );
-			var damping = corpse.GetOrAddComponent<RagdollDamping>();
-			damping.Reset( physics );
-			if ( Downed && ragdoll is { Active: true } )
-			{
-				var liveBodies = ragdoll.Bodies.ToDictionary( b => b.Bone, b => b.Component );
-				foreach ( var part in physics.Bodies )
-				{
-					if ( !part.Component.IsValid() || !liveBodies.TryGetValue( part.Bone, out var live ) || !live.IsValid() ) continue;
-					part.Component.WorldTransform = live.WorldTransform;
-					part.Component.Velocity = live.Velocity;
-					part.Component.AngularVelocity = live.AngularVelocity;
-				}
-			}
-			else InheritPoseMotion( physics );
-			if ( extractionDeath ) corpse.GetOrAddComponent<RagdollInjury>().QueueDeathVoice();
-			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
-				corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
-			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
-				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer || item.Holder == Renderer ).ToArray() )
-				{
-					item.GameObject.SetParent( corpse, true );
-					if ( item.StuckIn == Renderer ) item.StuckIn = corpseRenderer;
-					if ( item.Holder == Renderer ) item.Holder = corpseRenderer;
-				}
-			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
-		}
+			ConfigureCorpse( corpse, physics );
 		return corpse;
+	}
+
+	void ConfigureCorpse( GameObject corpse, ModelPhysics physics )
+	{
+		var remains = corpse.GetOrAddComponent<CharacterRemains>();
+		remains.Teams = Teams;
+		remains.StaticCharacter = StaticCharacter;
+		remains.Physics = physics;
+		remains.BodySounds = bodySounds;
+		if ( !zoneKilled )
+		{
+			foreach ( var part in physics.Bodies )
+			{
+				if ( !part.Component.IsValid() ) continue;
+				part.Component.CollisionEventsEnabled = true;
+				part.Component.GetOrAddComponent<RabbitBodyContact>().Remains = remains;
+			}
+		}
+		Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
+		foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
+			witness.FollowCorpse( GameObject, corpse );
+		var damping = corpse.GetOrAddComponent<RagdollDamping>();
+		damping.Reset( physics );
+		if ( Downed && ragdoll is { Active: true } )
+		{
+			var liveBodies = ragdoll.Bodies.ToDictionary( b => b.Bone, b => b.Component );
+			foreach ( var part in physics.Bodies )
+			{
+				if ( !part.Component.IsValid() || !liveBodies.TryGetValue( part.Bone, out var live ) || !live.IsValid() ) continue;
+				part.Component.WorldTransform = live.WorldTransform;
+				part.Component.Velocity = live.Velocity;
+				part.Component.AngularVelocity = live.AngularVelocity;
+			}
+		}
+		else InheritPoseMotion( physics );
+		if ( extractionDeath ) corpse.GetOrAddComponent<RagdollInjury>().QueueDeathVoice();
+		if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
+			corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
+		if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
+			foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer || item.Holder == Renderer ).ToArray() )
+			{
+				item.GameObject.SetParent( corpse, true );
+				if ( item.StuckIn == Renderer ) item.StuckIn = corpseRenderer;
+				if ( item.Holder == Renderer ) item.Holder = corpseRenderer;
+			}
+		if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
 	}
 
 	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )
