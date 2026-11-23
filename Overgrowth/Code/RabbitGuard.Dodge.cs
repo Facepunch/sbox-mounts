@@ -14,15 +14,34 @@ public sealed partial class RabbitGuard
 	TimeSince sinceDodgeAttempt = 0f;
 	Vector3 dodgeDirection;
 
-	void UpdateDodgeWindow( float step )
+	float dodgeRemainder;
+
+	void UpdateDodgeWindow( float delta, RabbitGuard opponent, RabbitAttack move )
 	{
-		if ( dodgeDelay is not { } delay ) return;
-		dodgeDelay = Math.Min( 1f, delay - step );
-		if ( dodgeDelay > 0f ) return;
-		dodgeDelay = null;
-		if ( dodgeRecharge > 0f || !InMovementState || !IsOnGround || !enemy.IsValid() ) return;
-		dodgeDirection = (WorldPosition - enemy.WorldPosition).Normal;
-		dodgeWindow = dodgeRecharge = 0.2f;
+		const float tick = 4f / 120f;
+		dodgeRemainder += delta;
+		while ( dodgeRemainder >= tick )
+		{
+			dodgeRemainder -= tick;
+			// UpdateActiveDodgeMechanics polls WantsToDodge separately for input and recharge.
+			if ( WantsToDodge() && dodgeRecharge <= 0f && InMovementState && IsOnGround && enemy.IsValid() )
+			{
+				dodgeDirection = (WorldPosition - enemy.WorldPosition).Normal;
+				dodgeWindow = 0.2f;
+			}
+			if ( WantsToDodge() ) dodgeRecharge = 0.2f;
+		}
+
+		bool WantsToDodge()
+		{
+			if ( dodgeDelay is null && move is { AsLayer: true } && dodgeRecharge <= 0f )
+				dodgeDelay = DefenseDelay( opponent, move );
+			if ( dodgeDelay is not { } delay ) return false;
+			dodgeDelay = Math.Min( 1f, delay - tick );
+			if ( dodgeDelay > 0f ) return false;
+			dodgeDelay = null;
+			return true;
+		}
 	}
 
 	bool TryDodge( RabbitGuard attacker, RabbitAttack move )
