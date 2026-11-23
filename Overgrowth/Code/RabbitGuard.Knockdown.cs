@@ -377,16 +377,15 @@ public sealed partial class RabbitGuard
 	(Vector3 Point, Vector3 Normal, Surface Surface)? RecoverySupport( Vector3 center )
 	{
 		const float radius = 40f;
-		var below = Scene.Trace.Ray( center, center + Vector3.Down * radius )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
+		var trace = Scene.Trace.IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" );
+		var below = trace.Ray( center, center + Vector3.Down * radius ).Run();
 		if ( below.Hit && !below.StartedSolid && below.Normal.z > 0.5f ) return (below.EndPosition, below.Normal, TerrainLoader.ContactSurface( below, below.EndPosition ));
 
 		// CanRoll checks every static contact within a one-metre sphere. A ledge can
 		// support the body even when there is no floor directly below its centre.
 		(Vector3 Point, Vector3 Normal, Surface Surface)? support = null;
 		float closest = radius * radius;
-		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).UseHitPosition().IgnoreDynamic()
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).RunAll() )
+		foreach ( var hit in trace.Sphere( radius, center, center ).UseHitPosition().RunAll() )
 		{
 			var offset = center - hit.HitPosition;
 			float distance = offset.LengthSquared;
