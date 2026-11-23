@@ -56,14 +56,12 @@ public sealed partial class RabbitGuard
 	{
 		var model = Renderer.Model;
 		if ( rig is null ) return;
-		if ( gaitModel != model || rigIndices is null )
+		EnsurePoseBuffers();
+		if ( gaitModel != model || gaitPose is null )
 		{
 			gaitModel = model;
-			rigIndices = new int[model.BoneCount];
 			gaitPose = new Transform[model.BoneCount];
 			originalGaitPose = new Transform[model.BoneCount];
-			foreach ( var bone in model.Bones.AllBones )
-				rigIndices[bone.Index] = int.Parse( bone.Name[5..] );
 		}
 
 		var basis = Renderer.WorldTransform;
@@ -97,7 +95,7 @@ public sealed partial class RabbitGuard
 
 	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null )
 		{
 			poseModel = Renderer.Model;
 			pelvisBind = poseModel.GetBoneTransform( poseModel.Bones.GetBone( boundAnimations.TorsoBones[^1] ).Index );
@@ -109,6 +107,7 @@ public sealed partial class RabbitGuard
 				hipSockets[i] = bind.Position - bind.Rotation.Forward * (thigh.Length * 0.5f);
 			}
 			int count = poseModel.BoneCount;
+			rigIndices = new int[count];
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
 			motionSamples = 0;
@@ -117,6 +116,7 @@ public sealed partial class RabbitGuard
 			recoveryParents = new int[count];
 			foreach ( var modelBone in poseModel.Bones.AllBones )
 			{
+				rigIndices[modelBone.Index] = int.Parse( modelBone.Name[5..] );
 				var parent = modelBone.Parent;
 				while ( parent is not null && boundAnimations.UnweightedBones.Contains( parent.Name ) )
 					parent = parent.Parent;

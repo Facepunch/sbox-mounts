@@ -137,11 +137,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		GraphBuilder.Node CombatStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) =>
 			graph.Selector().Add( ordinary, ordinaryPose ).Add( reflected, mirroredPose );
 
-		RabbitClip CombatClip( string name, bool mobile, XmlAsset damage, bool bothSides )
+		RabbitClip CombatClip( string name, bool mobile, XmlAsset damage, bool bothSides, RabbitClip.PoseData data = RabbitClip.PoseData.Pose )
 		{
 			var motion = mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full;
 			float min = damage?.Number( "min" ) ?? 0f, max = damage?.Number( "max" ) ?? 0f;
-			RabbitClip Side( bool left ) => library.Clip( name, motion, mirrored: left ) with { DamageMin = min, DamageMax = max };
+			RabbitClip Side( bool left ) => library.Clip( name, motion, data, left ) with { DamageMin = min, DamageMax = max };
 			return Side( false ) with { Mirrored = bothSides ? Side( true ) : null };
 		}
 		GraphBuilder.Node CombatPose( RabbitClip clip, GraphBuilder.Node time )
@@ -307,7 +307,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
-			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch );
+			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, throwClips.ContainsKey( name ) ? RabbitClip.PoseData.Feet : RabbitClip.PoseData.Pose );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( CombatPose( clip, attackPhase ) );

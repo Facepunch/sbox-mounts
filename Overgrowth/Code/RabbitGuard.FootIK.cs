@@ -155,6 +155,32 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	void UpdateThrowFeet()
+	{
+		var parameters = Renderer.Animation.Parameters;
+		parameters.TryGetFloat( "reaction_phase", out var phase );
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		if ( clip.Feet is null ) return;
+		EnsurePoseBuffers();
+		for ( int side = 0; side < 2; side++ )
+		{
+			var bone = poseModel.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
+			var foot = FootPose.Sample( clip.Feet[side], phase );
+			var target = animated;
+			if ( foot.Weight > 0f )
+			{
+				// The original applies the same pending character motion to the toe and its IK target.
+				var toe = clip.Animation.GetLocalTransform( phase, rigIndices[bone.Index] );
+				for ( var parent = bone.Parent; parent is not null; parent = parent.Parent )
+					toe = clip.Animation.GetLocalTransform( phase, rigIndices[parent.Index] ).ToWorld( toe );
+				target = animated.ToWorld( toe.ToLocal( foot.Transform ) );
+			}
+			ApplyFootTarget( side, animated, target, Math.Max( 0f, foot.Weight ), foot.Transform.Position.z / boundAnimations.MovementScale );
+		}
+		SolveGroundedLegs();
+	}
+
 	void ApplyAuthoredFoot( int side, Transform animated, FootPose foot )
 	{
 		float weight = Math.Max( 0f, foot.Weight );
