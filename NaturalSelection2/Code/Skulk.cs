@@ -80,7 +80,6 @@ public sealed partial class Skulk : BaseNpc
 	float energy = 100;
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag;
-	TimeUntil repath;
 
 	protected override void OnStart()
 	{
@@ -129,7 +128,7 @@ public sealed partial class Skulk : BaseNpc
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
-			TrackParasitedEnemy();
+			Investigate();
 			Biting = false;
 			return;
 		}
@@ -148,7 +147,8 @@ public sealed partial class Skulk : BaseNpc
 		}
 
 		Biting = false;
-		var aim = (CalculateAimPoint( target ) - EyePosition).Normal;
+		var aimPoint = CalculateAimPoint( target );
+		var aim = (aimPoint - EyePosition).Normal;
 		if ( Animation.IsGrounded && LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
 			&& (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid())
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
@@ -166,7 +166,7 @@ public sealed partial class Skulk : BaseNpc
 		}
 
 		if ( !xenociding ) TryParasite( aim );
-		Pursue( target );
+		ApproachEnemy( target, aimPoint, distance );
 	}
 
 	void OnWeaponTag( string tag )

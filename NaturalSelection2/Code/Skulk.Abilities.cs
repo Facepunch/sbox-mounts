@@ -16,49 +16,10 @@ public sealed class Parasited : Component
 public sealed partial class Skulk
 {
 	const float ParasiteEnergy = 30;
-	GameObject sighted;
-	TimeSince sightedFor;
 	TimeUntil parasiteReady, detonation;
 	bool parasiteHeld, xenociding;
 	[Sync( SyncFlags.FromHost )] bool FiringParasite { get; set; }
 	[Property] public bool XenocideUnlocked { get; set; }
-
-	GameObject FindEnemy()
-	{
-		GameObject closest = null;
-		float distance = float.PositiveInfinity;
-		foreach ( var target in Senses.VisibleHostiles )
-		{
-			float squared = WorldPosition.DistanceSquared( target.WorldPosition );
-			if ( squared >= distance ) continue;
-			closest = target;
-			distance = squared;
-		}
-		if ( sighted != closest )
-		{
-			sighted = closest;
-			sightedFor = 0;
-		}
-		return closest;
-	}
-
-	void TrackParasitedEnemy()
-	{
-		foreach ( var mark in Scene.GetAllComponents<Parasited>() )
-		{
-			if ( GetDisposition( mark.GameObject ) != Disposition.Hostile ) continue;
-			Pursue( mark.GameObject );
-			return;
-		}
-		Movement.Stop();
-	}
-
-	void Pursue( GameObject target )
-	{
-		if ( repath > 0 ) return;
-		Movement.MoveTo( target.WorldPosition, Reach * 0.6f, Movement.RunSpeed, target );
-		repath = 0.2f;
-	}
 
 	void TryParasite( Vector3 aim )
 	{
