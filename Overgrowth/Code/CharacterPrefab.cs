@@ -3,35 +3,24 @@ using System.Threading.Tasks;
 
 namespace Overgrowth;
 
-internal sealed record RabbitActor( string Title, string Path )
-{
-	internal string ModelName => $"entities/npcs/{Title.ToLowerInvariant()}";
-	internal string PrefabName => ModelName + ".prefab";
-	internal static readonly RabbitActor[] All =
-	[
-		new( "Turner", "Data/Objects/IGF_Characters/IGF_TurnerActor.xml" ),
-		new( "Rabbot", "Data/Objects/characters/rabbot_actor.xml" )
-	];
-}
-
-internal sealed class RabbitGuardPrefab( RabbitActor actor ) : ResourceLoader<GameMount>
+internal sealed class CharacterPrefab( string title, string modelName ) : ResourceLoader<GameMount>
 {
 	PrefabFile prefab;
 
 	protected override async Task<object> LoadAsync()
 	{
-		var modelPath = Host.MountedPath( actor.ModelName ) + ".vmdl";
+		var modelPath = Host.MountedPath( modelName ) + ".vmdl";
 		var loader = (CharacterLoader)Host.GetByPath( modelPath );
 		var model = (Model)await loader.GetOrCreate();
 		if ( model is null || model.IsError )
-			throw new System.IO.InvalidDataException( $"Could not build {actor.Title} prefab with missing model {modelPath}" );
-		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", actor.Title )
+			throw new System.IO.InvalidDataException( $"Could not build {title} prefab with missing model {modelPath}" );
+		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", title )
 			.WithMetadata( "Group", Host.Title ).WithMetadata( "PreviewModel", modelPath );
 		using ( builder.Scope() )
 		{
 			Game.ActiveScene.Enabled = false;
-			var go = new GameObject( true, actor.Title );
-			Configure( go, model, actor.Title, loader.HitVolumes );
+			var go = new GameObject( true, title );
+			Configure( go, model, title, loader.HitVolumes );
 		}
 		return prefab = builder.Create();
 	}

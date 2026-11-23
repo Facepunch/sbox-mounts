@@ -38,7 +38,7 @@ internal sealed class RabbitMovement
 	internal Sample Evaluate( Controls controls, float phase, bool mirrored )
 	{
 		if ( clip?.ForSide( mirrored ) is { } pose )
-			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet[0], phase ), FootPose.Sample( pose.Feet[1], phase ), pose );
+			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet?[0], phase ), FootPose.Sample( pose.Feet?[1], phase ), pose );
 		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;

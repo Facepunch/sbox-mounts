@@ -10,6 +10,7 @@ internal readonly record struct FootPose( Transform Transform, float Weight, boo
 
 	internal static FootPose Sample( FootPose[] frames, float phase )
 	{
+		if ( frames is null ) return default;
 		float index = phase * (frames.Length - 1);
 		int lower = (int)index;
 		return Blend( frames[lower], frames[Math.Min( lower + 1, frames.Length - 1 )], index - lower );
@@ -44,8 +45,7 @@ public sealed partial class RabbitGuard
 	{
 		float threat = Math.Clamp( ThreatAmount, 0, 1 );
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
-		float Frequency( string relaxed, string ready ) => (1f - threat) / boundAnimations.Clips[relaxed].Duration + threat / boundAnimations.Clips[ready].Duration;
-		float frequency = (1f - crouch) * Frequency( "r_combatidle", Threat ) + crouch * Frequency( "r_combatcrouch", "r_combatcrouchthreat" );
+		float frequency = boundAnimations.StanceIdle.Evaluate( new( 0f, 1f - crouch, threat ), stancePhase, false ).Frequency;
 		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
 		Renderer.Animation.Parameters.Set( "threat_coord", threat );

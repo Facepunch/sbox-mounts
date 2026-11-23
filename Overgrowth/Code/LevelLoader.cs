@@ -76,8 +76,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				light.Radius=(node.Number("s0")??1)*40;
 				light.LightColor=new Color(node.Number("color_r")??1,node.Number("color_g")??1,node.Number("color_b")??1);
 				return;
-			case "ActorObject" when RabbitActor.All.FirstOrDefault( a => string.Equals( file, a.Path, StringComparison.OrdinalIgnoreCase ) ) is { } definition:
-				var prefab = PrefabFile.Load( Host.MountedPath( definition.PrefabName ) );
+			case "ActorObject" when Host.GetActorPrefab( file ) is { } prefabName:
+				var prefab = PrefabFile.Load( Host.MountedPath( prefabName ) );
 				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )

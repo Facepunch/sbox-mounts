@@ -16,7 +16,7 @@ internal sealed record CharacterMorph( string Name, int Steps )
 			{
 				string name = morph.Targets[step];
 				var path = $"{modelPath[..^4]}_{name}.obj";
-				var target = ObjLoader.Load( fs, path, model.Center );
+				var target = ObjLoader.Load( fs, path, model.Center, model.FaceVertexCount );
 				// LoadObjMorph pairs expanded face corners; OBJ vertex numbering can differ.
 				if ( target.FaceVertexCount != model.FaceVertexCount )
 					throw new InvalidDataException( $"Morph topology differs from {modelPath}: {path}" );

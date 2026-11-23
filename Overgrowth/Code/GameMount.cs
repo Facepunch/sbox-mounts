@@ -62,18 +62,31 @@ public partial class GameMount : BaseGameMount
 			}
 		}
 
-		foreach ( var actor in RabbitActor.All )
-		{
-			var definition = XmlAsset.Read( FileSystem, actor.Path, "Actor" );
-			var character = Resolve( definition.Element( "Character" ).Value );
-			context.Add( ResourceType.Model, actor.ModelName, new CharacterLoader( character, true ) { Flags = ResourceFlags.DeveloperOnly } );
-			var prefab = new RabbitGuardPrefab( actor );
-			prefab.Tags.Add( "npc" );
-			context.Add( ResourceType.PrefabFile, actor.PrefabName, prefab );
-		}
-
 		IsMounted = true;
 		return Task.CompletedTask;
+	}
+
+	readonly Dictionary<string, string> actorPrefabs = new( StringComparer.OrdinalIgnoreCase );
+	internal string GetActorPrefab( string path ) => path is null ? null : actorPrefabs.GetValueOrDefault( path );
+
+	void MountActor( MountContext context, string path )
+	{
+		var actor = XmlAsset.Read( FileSystem, path, "Actor" );
+		var character = Resolve( actor.Element( "Character" ).Value );
+		const string characterRoot = "Data/Characters/";
+		var relativePath = character.StartsWith( characterRoot, StringComparison.OrdinalIgnoreCase ) ? character[characterRoot.Length..] : character;
+		var relative = Path.ChangeExtension( relativePath, null ).ToLowerInvariant();
+		var modelName = $"entities/npcs/{relative}";
+		var prefabName = modelName + ".prefab";
+		bool registered = actorPrefabs.ContainsValue( prefabName );
+		actorPrefabs[path] = prefabName;
+		if ( registered ) return;
+
+		context.Add( ResourceType.Model, modelName, new CharacterLoader( character, true ) { Flags = ResourceFlags.DeveloperOnly } );
+		var title = Path.GetFileName( relative ).Replace( '_', ' ' ).ToTitleCase();
+		var prefab = new CharacterPrefab( title, modelName );
+		prefab.Tags.Add( "npc" );
+		context.Add( ResourceType.PrefabFile, prefabName, prefab );
 	}
 
 	void MountXml( MountContext context, string path )
@@ -97,6 +110,7 @@ public partial class GameMount : BaseGameMount
 			var match = Regex.Match(line, @"^<([\w:-]+)");
 			switch (match.Groups[1].Value)
 			{
+			case "Actor": MountActor( context, path ); break;
 			case "character": context.Add(ResourceType.Model,path,new CharacterLoader(path)); break;
 			case "Object":
 				context.Add(ResourceType.Model,path,new ObjectLoader(path));
@@ -184,6 +198,7 @@ public partial class GameMount : BaseGameMount
 
 	protected override void Shutdown()
 	{
+		actorPrefabs.Clear();
 		averageColors.Clear();
 		audioMaterials.Clear();
 		soundGroups.Clear();

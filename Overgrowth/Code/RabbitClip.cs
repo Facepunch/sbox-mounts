@@ -54,7 +54,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		reader.ReadInt32(); // First key time
 		int count = reader.ReadInt32();
 		if ( count > bones || count < 0 ) throw new InvalidDataException( $"Invalid layer weights in {path}" );
-		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? reader.ReadSingle() : 1f );
+		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? reader.ReadSingle() : 0f );
 	}
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
@@ -75,7 +75,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			int time = reader.ReadInt32() - start;
 			Skip( Count() * 4L );
 			int bones = Count();
-			if ( bones != skeleton.Bones.Count ) throw new InvalidDataException( $"Incompatible skeleton in {name}" );
+			if ( bones <= 0 || bones > (reader.BaseStream.Length - reader.BaseStream.Position) / 64 ) throw new InvalidDataException( $"Incompatible skeleton in {name}" );
 			var pose = new Transform[bones];
 			Vector3 center = default;
 			for ( int b = 0; b < bones; b++ )

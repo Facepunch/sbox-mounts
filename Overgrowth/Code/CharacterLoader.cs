@@ -104,8 +104,21 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			objData.Positions[i] *= scale;
 		objData.Bounds = BBox.FromPoints( objData.Positions );
 
+		// Permanent morphs are always at full weight. Bake them into the rest mesh while
+		// keeping the original positions as the reference for expression and fist deltas.
+		var restMesh = objData;
+		if ( appearance.Attribute( "morph" ) is { } permanent && Host.FileSystem.FileExists( permanent ) )
+		{
+			var target = ObjLoader.Load( Host.FileSystem, permanent, objData.Center, objData.FaceVertexCount );
+			if ( target.FaceVertexCount != objData.FaceVertexCount )
+				throw new InvalidDataException( $"Permanent morph topology differs from {modelObjPath}: {permanent}" );
+			restMesh.Positions = target.Positions;
+			for ( int i = 0; i < restMesh.Positions.Count; i++ ) restMesh.Positions[i] *= scale;
+			restMesh.Bounds = BBox.FromPoints( restMesh.Positions );
+		}
+
 		var material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
-		var mesh = ObjLoader.CreateSkinnedMesh( objData, Path, material, weights, boneIds );
+		var mesh = ObjLoader.CreateSkinnedMesh( restMesh, Path, material, weights, boneIds );
 		CharacterMorph.AddTargets( Host.FileSystem, filePath, modelObjPath, objData, mesh, scale );
 		var builder = Model.Builder.WithName( Path ).AddMesh( mesh );
 		for ( int i = 0; i < skeleton.Bones.Count; i++ )
@@ -116,7 +129,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			builder.AddBone( $"bone_{i}", bindPose.Position, bindPose.Rotation, parent );
 		}
 
-		if ( guard ) compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, scale );
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters );
 		if ( guard )

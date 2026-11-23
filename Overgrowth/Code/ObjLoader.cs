@@ -23,7 +23,7 @@ static class ObjLoader
 		public int FaceVertexCount => FaceVertPosIndices.Count;
 	}
 
-	public static ObjData Load( BaseFileSystem fs, string path, Vector3? origin = null )
+	public static ObjData Load( BaseFileSystem fs, string path, Vector3? origin = null, int? faceCorners = null )
 	{
 		var positions = new List<Vector3>();
 		var rawPositions = new List<Vector3>();
@@ -38,7 +38,7 @@ static class ObjLoader
 		int objectCount = 0;
 
 		using var reader = new StreamReader( fs.OpenRead( path ) );
-		while ( reader.ReadLine() is { } line )
+		while ( (!faceCorners.HasValue || outPositions.Count < faceCorners.Value) && reader.ReadLine() is { } line )
 		{
 			var content = line.AsSpan();
 			int comment = content.IndexOf( '#' );
@@ -49,7 +49,7 @@ static class ObjLoader
 			switch ( s[0] )
 			{
 				case "o":
-					if ( ++objectCount > 1 )
+					if ( ++objectCount > 1 && !faceCorners.HasValue )
 						throw new InvalidDataException( $"Overgrowth requires one object per OBJ: {path}" );
 					break;
 				case "v":

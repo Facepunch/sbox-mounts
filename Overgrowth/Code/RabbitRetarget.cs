@@ -3,6 +3,7 @@ namespace Overgrowth;
 // The unmirrored, shared-hierarchy path of Animation::Retarget for the rabbit clips.
 internal sealed class RabbitRetarget
 {
+	readonly Transform[] sourceBind;
 	readonly int[] eventBones;
 	readonly SkeletonData target;
 	readonly float scale;
@@ -21,8 +22,7 @@ internal sealed class RabbitRetarget
 		var mesh = ObjLoader.Load( fs, rig.Attribute( "model_path" ) );
 		using var stream = fs.OpenRead( rig.Attribute( "bone_path" ) );
 		source = PhxbnLoader.Load( stream, mesh.FaceVertexCount );
-		if ( !source.HierParents.SequenceEqual( target.HierParents ) )
-			throw new InvalidDataException( $"Rabbit animation hierarchy differs from {rigPath}" );
+		sourceBind = source.BindPose;
 		eventBones = RabbitMirror.MatchBones( source );
 		legRatio = LegLength( target ) / LegLength( source );
 		int torso = source.IKBones["torso"].BoneId;
@@ -123,8 +123,8 @@ internal sealed class RabbitRetarget
 
 	internal Transform[] ToLocalPose( Transform[] pose )
 	{
-		var result = new Transform[pose.Length];
-		for ( int i = 0; i < pose.Length; i++ )
+		var result = new Transform[target.Bones.Count];
+		for ( int i = 0; i < result.Length; i++ )
 		{
 			int parent = target.HierParents[i];
 			if ( parent < 0 )
@@ -132,7 +132,9 @@ internal sealed class RabbitRetarget
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );
 				continue;
 			}
-			var rotation = pose[parent].Rotation.Inverse * pose[i].Rotation;
+			// Overgrowth retains authored rotations on shared bones and attaches additional joints in bind pose.
+			var rotation = i < pose.Length && parent < pose.Length ? pose[parent].Rotation.Inverse * pose[i].Rotation
+				: (parent < sourceBind.Length ? sourceBind[parent] : target.BindPose[parent]).Rotation.Inverse * target.BindPose[i].Rotation;
 			result[i] = new Transform( Vector3.Zero, rotation );
 		}
 		// Retarget's flipped-toe check rotates about the source rig's Z (s&box forward).
