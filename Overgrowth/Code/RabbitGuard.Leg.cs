@@ -22,6 +22,8 @@ public sealed partial class RabbitGuard
 {
 	readonly Transform[] legPose = new Transform[6];
 	readonly Transform[] stanceFoot = new Transform[2];
+	Transform pelvisBind;
+	Vector3[] hipSockets;
 	Vector3 hipOffset, solvedHipOffset;
 	Rotation balanceRotation = Rotation.Identity;
 	bool plantedLegs;
@@ -38,12 +40,15 @@ public sealed partial class RabbitGuard
 		Span<Vector3> hips = stackalloc Vector3[2];
 		Span<Vector3> feet = stackalloc Vector3[2];
 		Span<float> lengths = stackalloc float[2];
+		var rootBone = bones.GetBone( boundAnimations.TorsoBones[^1] );
+		var pelvis = Animated( rootBone.Name );
+		EnsurePoseBuffers();
+		var hipKey = pelvis.ToWorld( pelvisBind.ToLocal( global::Transform.Zero ) );
 		for ( int i = 0; i < 2; i++ )
 		{
 			var chain = boundAnimations.Legs[i];
-			var hip = Animated( chain[5].Bone );
 			var toe = Animated( chain[0].Bone );
-			hips[i] = hip.Position - hip.Rotation.Forward * (chain[5].Length * 0.5f);
+			hips[i] = hipKey.PointToWorld( hipSockets[i] );
 			lengths[i] = hips[i].Distance( toe.Position - toe.Rotation.Forward * (chain[0].Length * 0.5f) );
 			feet[i] = stanceFoot[i].Position - stanceFoot[i].Rotation.Forward * (chain[0].Length * 0.5f);
 		}
@@ -63,8 +68,6 @@ public sealed partial class RabbitGuard
 		float tilt = Rotation.Identity.Distance( rotation );
 		if ( tilt > maxTilt.RadianToDegree() )
 			rotation = Rotation.Slerp( Rotation.Identity, rotation, maxTilt.RadianToDegree() / tilt );
-		var rootName = boundAnimations.TorsoBones[^1];
-		var pelvis = Animated( rootName );
 		var hipRoot = pelvis.Position + pelvis.Rotation.Forward * boundAnimations.HipHalfLength;
 		var pivot = middle - hipRoot;
 		var offset = (hips[0] + hips[1]) * 0.5f - middle + pivot - rotation * pivot;
@@ -74,9 +77,9 @@ public sealed partial class RabbitGuard
 		balanceRotation = Rotation.FromAxis( leanAxis, (balanceOffset.x * 0.25f * idleStance).RadianToDegree() );
 		var shift = (across * balanceOffset.x + Vector3.Forward * balanceOffset.y).WithZ( balanceOffset.z ) * idleStance;
 		hipOffset = solvedHipOffset + shift;
-		pelvis.Position += hipOffset;
-		pelvis.Rotation = rotation * balanceRotation * pelvis.Rotation;
-		SetPoseBone( bones.GetBone( rootName ), pelvis );
+		hipKey.Position += hipOffset;
+		hipKey.Rotation = rotation * balanceRotation * hipKey.Rotation;
+		SetPoseBone( rootBone, hipKey.ToWorld( pelvisBind ) );
 		// Overgrowth translates the torso keys with the hip, then rolls the chest about its own origin.
 		for ( int i = 0; i < 2; i++ )
 		{
@@ -92,11 +95,11 @@ public sealed partial class RabbitGuard
 			SetPoseBone( bones.GetBone( name ), torso );
 		}
 		for ( int i = 0; i < 2; i++ )
-			SolveLeg( i, stanceFoot[i], hipRoot, rotation * balanceRotation );
+			SolveLeg( i, stanceFoot[i], hipKey.PointToWorld( hipSockets[i] ) );
 	}
 
 	// movementobject.cpp CDrawLegImpl. Both the thigh and the shin have two skinned segments.
-	void SolveLeg( int side, Transform foot, Vector3 pivot, Rotation pelvisRotation )
+	void SolveLeg( int side, Transform foot, Vector3 hip )
 	{
 		var chain = boundAnimations.Legs[side];
 		var bones = Renderer.Model.Bones;
@@ -106,10 +109,8 @@ public sealed partial class RabbitGuard
 			legPose[i] = Renderer.WorldTransform.ToLocal( pose );
 		}
 		Vector3 Start( int i ) => legPose[i].Position - legPose[i].Rotation.Forward * (chain[i].Length * 0.5f);
-		var hip = Start( 5 );
-		var oldEnd = Start( 0 ) - hip;
-		var oldHip = hip;
-		hip = pivot + pelvisRotation * (hip - pivot) + hipOffset;
+		var oldHip = Start( 5 );
+		var oldEnd = Start( 0 ) - oldHip;
 		var end = foot.Position - foot.Rotation.Forward * (chain[0].Length * 0.5f);
 		if ( oldEnd.IsNearlyZero() || (end - hip).IsNearlyZero() ) return;
 		var align = Rotation.FromToRotation( oldEnd.Normal, (end - hip).Normal );

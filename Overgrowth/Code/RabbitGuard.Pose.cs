@@ -97,9 +97,17 @@ public sealed partial class RabbitGuard
 
 	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || recoveryParents is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null )
 		{
 			poseModel = Renderer.Model;
+			pelvisBind = poseModel.GetBoneTransform( poseModel.Bones.GetBone( boundAnimations.TorsoBones[^1] ).Index );
+			hipSockets = new Vector3[2];
+			for ( int i = 0; i < hipSockets.Length; i++ )
+			{
+				var thigh = boundAnimations.Legs[i][5];
+				var bind = poseModel.GetBoneTransform( poseModel.Bones.GetBone( thigh.Bone ).Index );
+				hipSockets[i] = bind.Position - bind.Rotation.Forward * (thigh.Length * 0.5f);
+			}
 			int count = poseModel.BoneCount;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
