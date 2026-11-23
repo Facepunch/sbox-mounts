@@ -126,7 +126,11 @@ public sealed partial class Skulk : BaseNpc
 		}
 
 		var direction = target.WorldPosition - WorldPosition;
-		if ( direction.WithZ( 0 ).Length <= Reach && MathF.Abs( direction.z ) <= 36 )
+		var contact = target.GetComponent<Rigidbody>() is { PhysicsBody.IsValid: true } body
+			? body.FindClosestPoint( EyePosition )
+			: target.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? target.WorldPosition;
+		var distance = EyePosition.Distance( contact );
+		if ( distance <= Reach )
 		{
 			Movement.Stop();
 			if ( !direction.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction.WithZ( 0 ) );
@@ -136,8 +140,7 @@ public sealed partial class Skulk : BaseNpc
 
 		Biting = false;
 		var aim = (CalculateAimPoint( target ) - EyePosition).Normal;
-		var distance = direction.Length / MapLoader.Scale;
-		if ( LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > 5 and < 18
+		if ( LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
 			&& (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid())
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
 		{
