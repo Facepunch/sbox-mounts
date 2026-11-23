@@ -23,9 +23,23 @@ public sealed partial class RabbitGuard
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
 	float cancelDelay;
-	[Property] public LevelItem LeftHandItem { get; set; }
-	[Property] public LevelItem RightHandItem { get; set; }
+	[Property, Sync] public LevelItem LeftHandItem { get; set; }
+	[Property, Sync] public LevelItem RightHandItem { get; set; }
 	LevelItem PrimaryItem => LeftHanded ? LeftHandItem : RightHandItem;
+	void DropHandItem()
+	{
+		if ( LeftHandItem.IsValid() )
+		{
+			LeftHandItem.Drop();
+			LeftHandItem = null;
+		}
+		else if ( RightHandItem.IsValid() )
+		{
+			RightHandItem.Drop();
+			RightHandItem = null;
+		}
+	}
+
 	float RangeExtension => PrimaryItem.IsValid() ? PrimaryItem.RangeExtension : 0f;
 	float AttackRange => (1.5f + RangeExtension) * (PrimaryItem.IsValid() ? PrimaryItem.RangeMultiplier : 1f) * 40f * boundAnimations.CharacterScale;
 	float CloseAttackRange => (1f + RangeExtension * 0.5f) * 40f * boundAnimations.CharacterScale;

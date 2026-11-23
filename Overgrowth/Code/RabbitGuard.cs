@@ -32,6 +32,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost && (Unconscious || boundAnimations?.Species == "wolf") ) DropHandItem();
 		if ( Networking.IsHost && Health > 0 )
 		{
 			blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) );
@@ -51,7 +52,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
-			Renderer.ClearPhysicsBones();
+			if ( !Downed ) Renderer.ClearPhysicsBones();
 			equippedForAnimation = equipped;
 			boundAnimations = ready;
 			strike = null;

@@ -131,6 +131,8 @@ public sealed partial class RabbitGuard
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
 		if ( death.DamageInfo is FallImpactDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
+		// The engine removes the NPC on death, so release both hands before it removes the children.
+		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		lethalBlow = death.DamageInfo as StrikeDamage;
 		base.OnDeath( death );
 	}

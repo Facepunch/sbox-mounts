@@ -2,7 +2,7 @@ namespace Overgrowth;
 
 public sealed class LevelItem : Component
 {
-	[Property] public SkinnedModelRenderer Holder { get; set; }
+	[Property, Sync] public SkinnedModelRenderer Holder { get; set; }
 	[Property] public string Bone { get; set; }
 	[Property] public Transform Offset { get; set; }
 	[Property] public float RangeExtension { get; set; }
@@ -14,6 +14,38 @@ public sealed class LevelItem : Component
 	{
 		if ( Holder.IsValid() && Holder.TryGetBoneTransform( Bone, out var hand ) )
 			WorldTransform = hand.ToWorld( Offset );
+	}
+
+	Transform? lastHeldPose;
+	Vector3 carryVelocity, carryAngularVelocity;
+
+	protected override void OnFixedUpdate()
+	{
+		if ( !Networking.IsHost || !Holder.IsValid() || Time.Delta <= 0f ) return;
+		UpdateAttachment();
+		var pose = WorldTransform;
+		if ( lastHeldPose is { } previous )
+		{
+			var center = GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
+			carryVelocity = (pose.PointToWorld( center ) - previous.PointToWorld( center )) / Time.Delta;
+			var delta = Rotation.Difference( previous.Rotation, pose.Rotation );
+			var axis = new Vector3( delta.x, delta.y, delta.z ).Normal;
+			carryAngularVelocity = axis * ((delta.w < 0f ? -1f : 1f) * delta.Angle().DegreeToRadian() / Time.Delta);
+		}
+		lastHeldPose = pose;
+	}
+
+	internal void Drop()
+	{
+		UpdateAttachment();
+		Holder = null;
+		GameObject.SetParent( null, true );
+		var body = AddPhysics( GameObject, GetComponent<ModelRenderer>().Model );
+		body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
+		body.Velocity = carryVelocity;
+		body.AngularVelocity = carryAngularVelocity;
+		lastHeldPose = null;
+		carryVelocity = carryAngularVelocity = Vector3.Zero;
 	}
 
 	ItemLine[] lines;
@@ -93,7 +125,7 @@ public sealed class LevelItem : Component
 		}
 	}
 
-	internal static void AddPhysics( GameObject item, Model model )
+	internal static Rigidbody AddPhysics( GameObject item, Model model )
 	{
 		item.AddComponent<ModelCollider>().Model = model;
 		var body = item.AddComponent<Rigidbody>();
@@ -101,7 +133,8 @@ public sealed class LevelItem : Component
 		body.OverrideMassCenter = true;
 		body.MassCenterOverride = model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 		body.EnhancedCcd = true;
-		item.AddComponent<LevelItem>();
+		item.GetOrAddComponent<LevelItem>();
+		return body;
 	}
 
 	protected override void OnStart()
