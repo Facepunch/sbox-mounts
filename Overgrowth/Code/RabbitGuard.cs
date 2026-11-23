@@ -114,7 +114,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			UpdateWallPose();
 		}
 		UpdateIdleBalance( pose is Threat or Idle or Ready or Watch );
-		if ( pose is Idle or Ready )
+		if ( pose is Idle or Ready or ArmedHold or ArmedHeld )
 		{
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "threat_coord", Math.Clamp( ThreatAmount, 0f, 1f ) );

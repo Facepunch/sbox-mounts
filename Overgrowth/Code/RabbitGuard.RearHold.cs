@@ -6,9 +6,11 @@ public sealed partial class RabbitGuard
 {
 	internal const string RearHold = "r_rear_choke_struggle", RearHoldRat = "r_rear_choke_rat_struggle";
 	internal const string RearHeld = "r_rear_choked_struggle", RatHeldByRabbit = "ra_rear_choked_by_rabbit";
-	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit];
-	bool Holding => Stance is RearHold or RearHoldRat;
-	bool Held => Stance is RearHeld or RatHeldByRabbit;
+	internal const string ArmedGrab = "r_rearknifecapture", ArmedGrabbed = "r_rearknifecaptured";
+	internal const string ArmedHold = "r_rearknifecapturestance", ArmedHeld = "r_rearknifecapturedstance";
+	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit, ArmedGrab, ArmedGrabbed, ArmedHold, ArmedHeld];
+	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold;
+	bool Held => Stance is RearHeld or RatHeldByRabbit or ArmedGrabbed or ArmedHeld;
 	RabbitGuard holdPartner;
 	Vector3 holdDirection;
 	TimeSince sinceGrab;
@@ -18,10 +20,11 @@ public sealed partial class RabbitGuard
 
 	bool BeginRearHold( RabbitGuard victim, Vector3 facing )
 	{
-		if ( PrimaryItem.IsValid() || victim.Holding || victim.Held ) return false;
-		bool rat = victim.boundAnimations.Species == "rat";
-		SetHoldPose( rat ? RearHoldRat : RearHold, victim );
-		victim.SetHoldPose( rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld, this );
+		bool armed = PrimaryItem.IsValid();
+		if ( armed && boundAnimations.WeaponLabel != "staff" || victim.Holding || victim.Held ) return false;
+		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
+		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
+		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
 		breathSpeed += 2f;
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
@@ -69,10 +72,17 @@ public sealed partial class RabbitGuard
 			nextHoldSound = Random.Shared.Float( 0.3f, 0.7f );
 		}
 		var flat = separation.WithZ( 0f );
+		bool armed = PrimaryItem.IsValid();
+		bool rat = victim.boundAnimations.Species == "rat";
+		if ( sinceGrab > 0.1f )
+		{
+			Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
+			victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
+		}
 		if ( sinceGrab > 0.1f && !flat.IsNearlyZero() )
 		{
 			holdDirection = Vector3.Lerp( flat.Normal, holdDirection, MathF.Pow( 0.1f, Time.Delta * 120f ) );
-			float distance = victim.boundAnimations.Species == "rat" ? 18f : 22f;
+			float distance = armed ? 14f : rat ? 18f : 22f;
 			var correction = ((flat - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f * 30f * Time.Delta );
 			MoveGroundDelta( correction );
 			victim.MoveGroundDelta( -correction );

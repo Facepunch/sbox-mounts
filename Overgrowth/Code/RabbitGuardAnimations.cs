@@ -100,21 +100,21 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		coordinates["speed_coord"] = speed;
-		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
+		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false, bool mobile = false )
 		{
 			if ( file.EndsWith( ".anm" ) )
 			{
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
-				var key = mirrored ? name + "_mirrored" : name;
+				var key = (mobile ? name + "_mobile" : name) + (mirrored ? "_mirrored" : "");
 				if ( !clips.TryGetValue( key, out var clip ) )
-					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirrored: mirrored );
+					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full, mirrored: mirrored );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
 			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
 			inAir |= group.Element( "InAir" )?.Value == "true";
 			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
-			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored );
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored, mobile );
 			if ( inputs.Length == 1 ) return Input( inputs[0] );
 			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
@@ -259,7 +259,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 			if ( RabbitGuard.RearHoldPoses.Contains( name ) )
 			{
-				var grip = CombatClip( name, name is RabbitGuard.RearHeld or RabbitGuard.RatHeldByRabbit, null, true );
+				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
+				{
+					var file = $"Data/Animations/{name}.xml";
+					return machine.AddState( CombatStance( AnimationGroup( file, mobile: true ), AnimationGroup( file, mirrored: true, mobile: true ) ) );
+				}
+				var grip = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true );
 				return machine.AddState( CombatStance( graph.Clip( grip.Animation ), graph.Clip( grip.Mirrored.Animation ) ) );
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
