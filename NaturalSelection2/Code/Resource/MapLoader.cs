@@ -225,6 +225,18 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	{
 		var name = entity.Name;
 
+		if ( name == "ready_room_start" )
+		{
+			var spawn = new GameObject( true, name )
+			{
+				Parent = parent,
+				WorldPosition = Origin( entity ),
+				WorldRotation = Rotation.FromYaw( Angles( entity ).Yaw() )
+			};
+			spawn.AddComponent<SpawnPoint>();
+			return;
+		}
+
 		var modelPath = entity.Get( "model" ).AsString();
 		if ( !string.IsNullOrWhiteSpace( modelPath ) )
 		{
