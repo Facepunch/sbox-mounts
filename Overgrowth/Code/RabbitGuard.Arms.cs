@@ -38,7 +38,7 @@ public sealed partial class RabbitGuard
 			var hand = boundAnimations.Arms[side][0];
 			if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( hand.Bone ), out var pose ) ) return default;
 			if ( chestMotion is { } m ) pose = m.Solved.ToWorld( m.Animated.ToLocal( pose ) );
-			center += pose.Position - pose.Rotation.Forward * (0.5f * hand.Length);
+			center += pose.Position - pose.Rotation.Forward * (0.5f * hand.Length * WorldScale.z);
 			freeHands++;
 		}
 		if ( freeHands == 0 ) return default;
@@ -60,7 +60,7 @@ public sealed partial class RabbitGuard
 		var chestBone = bones.GetBone( boundAnimations.TorsoBones[0] );
 		if ( !TryGetAnimatedBone( chestBone, out var chest ) ) return;
 		var basis = (chestMotion?.Solved ?? chest).Rotation * Renderer.Model.GetBoneTransform( chestBone.Index ).Rotation.Inverse;
-		var breathe = basis * new Vector3( 1f, 0f, -0.3f ).Normal * (breath * 0.2f * boundAnimations.CharacterScale);
+		var breathe = basis * new Vector3( 1f, 0f, -0.3f ).Normal * (breath * 0.2f * CharacterScale);
 
 		var dragOffset = GetDragArmOffset();
 		for ( int side = 0; side < armStates.Length; side++ )
@@ -71,7 +71,7 @@ public sealed partial class RabbitGuard
 				if ( !TryGetAnimatedBone( bones.GetBone( chain[i].Bone ), out var pose ) ) return;
 				armPose[i] = chestMotion is { } m ? m.Solved.ToWorld( m.Animated.ToLocal( pose ) ) : pose;
 			}
-			Vector3 Start( int i ) => armPose[i].Position - armPose[i].Rotation.Forward * (0.5f * chain[i].Length);
+			Vector3 Start( int i ) => armPose[i].Position - armPose[i].Rotation.Forward * (0.5f * chain[i].Length * WorldScale.z);
 			var wrist = Start( 0 );
 			var elbow = Start( 2 );
 			var animatedShoulder = Start( 4 );
@@ -151,12 +151,12 @@ public sealed partial class RabbitGuard
 			}
 			var upperSplit = Vector3.Lerp( shoulder, mid, midUpper );
 			var lowerSplit = Vector3.Lerp( mid, end, midLower );
-			Place( 5, Start( 5 ), Start( 5 ) + armPose[5].Rotation.Forward * chain[5].Length );
+			Place( 5, Start( 5 ), Start( 5 ) + armPose[5].Rotation.Forward * chain[5].Length * WorldScale.z );
 			Place( 4, shoulder, upperSplit );
 			Place( 3, upperSplit, mid );
 			Place( 2, mid, lowerSplit );
 			Place( 1, lowerSplit, end );
-			Place( 0, end, end + handTurn * armPose[0].Rotation.Forward * chain[0].Length );
+			Place( 0, end, end + handTurn * armPose[0].Rotation.Forward * chain[0].Length * WorldScale.z );
 		}
 		armRemainder = remainder;
 		armsActive = true;

@@ -20,7 +20,7 @@ public sealed partial class LevelItem : Component
 	void UpdateAttachment()
 	{
 		if ( !Holder.IsValid() || string.IsNullOrEmpty( Bone ) || !Holder.TryGetBoneTransform( Bone, out var hand ) ) return;
-		var pose = hand.ToWorld( Offset );
+		var pose = hand.ToWorld( Offset ).WithScale( 1f );
 		if ( Holder != previousHolder || Bone != previousBone )
 		{
 			previousHolder = Holder;
@@ -163,7 +163,7 @@ public sealed partial class LevelItem : Component
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";
-		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center ) );
+		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center / actor.WorldScale.z ) );
 		attachmentComponent.UpdateAttachment();
 		if ( type == 0 )
 		{

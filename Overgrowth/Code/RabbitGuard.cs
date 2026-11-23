@@ -11,6 +11,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	internal const string Sweep = "r_sweep", SoccerKick = "r_soccerkick";
 	internal const string FreeAir = "jump", Roll = "roll";
 	[Property, Range( 0.01f, 100f )] public float MovementSpeed { get; set; } = 1f;
+	float CharacterScale => boundAnimations.CharacterScale * WorldScale.z;
 	internal float GroundRunSpeed => 8f * 40f * Math.Clamp( MovementSpeed, 0.01f, 100f );
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 

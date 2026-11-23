@@ -8,7 +8,7 @@ public sealed partial class RabbitGuard
 	void UpdateGait()
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
-		var controls = new RabbitMovement.Controls( speed / boundAnimations.CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
+		var controls = new RabbitMovement.Controls( speed / CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
 		var motion = boundAnimations.Movement;
 		float next = stridePhase + Time.Delta * motion.Evaluate( controls, stridePhase, MirroredStance ).Frequency;
 		var pose = motion.Evaluate( controls, next % 1f, MirroredStance );

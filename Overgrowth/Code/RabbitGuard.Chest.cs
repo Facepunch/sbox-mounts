@@ -93,10 +93,10 @@ public sealed partial class RabbitGuard
 		}
 		var turn = Rotation.FromAxis( basis.Up, chestAngles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, chestAngles.y.RadianToDegree() );
 		var half = Rotation.Slerp( Rotation.Identity, turn, 0.5f );
-		var extent = abdomenWorld.Rotation.Forward * boundAnimations.AbdomenHalfLength;
+		var extent = abdomenWorld.Rotation.Forward * boundAnimations.AbdomenHalfLength * WorldScale.z;
 		var bottom = abdomenWorld.Position - extent;
 		var top = abdomenWorld.Position + extent;
-		var shift = plantedLegs ? Renderer.WorldRotation * hipOffset : Vector3.Zero;
+		var shift = plantedLegs ? Renderer.WorldRotation * hipOffset * WorldScale.z : Vector3.Zero;
 		var movedTop = bottom + half * (top - bottom);
 		abdomenWorld.Position = bottom + half * extent + shift;
 		abdomenWorld.Rotation = half * abdomenWorld.Rotation;

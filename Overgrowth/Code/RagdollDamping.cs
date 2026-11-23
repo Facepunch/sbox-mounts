@@ -28,9 +28,13 @@ internal sealed class RagdollDamping : Component
 		settled = false;
 		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.Model.ResourcePath ) as CharacterLoader;
 		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
-		foreach ( var part in physics.Bodies )
+		float scale = model.WorldScale.z;
+		var parts = model.Model.Physics.Parts;
+		for ( int i = 0; i < physics.Bodies.Count; i++ )
 		{
+			var part = physics.Bodies[i];
 			if ( !part.Component.IsValid() ) continue;
+			part.Component.MassOverride = parts[i].Mass * scale * scale * scale;
 			// The source keeps mass and joints on FZX bones that have no collision geometry.
 			if ( loader?.NonCollidingBones.Contains( part.Bone ) == true )
 			{

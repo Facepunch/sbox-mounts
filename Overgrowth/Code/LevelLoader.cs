@@ -188,6 +188,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Fall Damage Multiplier": fighter.FallDamageMultiplier = Math.Max( 0.001f, value ); break;
 						case "Wearing Metal Armor": fighter.MetalArmor = value != 0f; break;
 						case "Cannot Be Disarmed": fighter.CannotBeDisarmed = value != 0f; break;
+						case "Character Scale" when value > 0f:
+							actor.LocalScale = value;
+							fighter.MovementCapsule.LocalScale = 1f / value;
+							fighter.EyeHeight *= value;
+							break;
 						case "Static": fighter.StaticCharacter = value != 0f; break;
 						case "Damage Resistance": fighter.DamageResistance = value; break;
 					case "Knockout Shield": fighter.KnockoutShield = Math.Max( 0, (int)value ); break;

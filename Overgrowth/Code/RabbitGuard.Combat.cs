@@ -45,11 +45,11 @@ public sealed partial class RabbitGuard
 	}
 
 	float RangeExtension => PrimaryItem.IsValid() ? PrimaryItem.RangeExtension : 0f;
-	float AttackRange => (1.5f + RangeExtension) * (PrimaryItem.IsValid() ? PrimaryItem.RangeMultiplier : 1f) * 40f * boundAnimations.CharacterScale;
-	float CloseAttackRange => (1f + RangeExtension * 0.5f) * 40f * boundAnimations.CharacterScale;
+	float AttackRange => (1.5f + RangeExtension) * (PrimaryItem.IsValid() ? PrimaryItem.RangeMultiplier : 1f) * 40f * CharacterScale;
+	float CloseAttackRange => (1f + RangeExtension * 0.5f) * 40f * CharacterScale;
 	float StrikeReach( RabbitGuard defender )
 	{
-		float scale = boundAnimations.CharacterScale;
+		float scale = CharacterScale;
 		float extension = 0.1f + RangeExtension;
 		if ( defender is { OnLedge: true } && WorldPosition.z > defender.WorldPosition.z ) extension += 0.5f;
 		return (1.5f + extension) * 40f * scale;

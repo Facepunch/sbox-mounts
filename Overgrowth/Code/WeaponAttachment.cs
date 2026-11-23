@@ -54,8 +54,9 @@ internal sealed class WeaponAttachment
 				return value;
 			}
 			var rotation = new Rotation( Read( 4 ), Read( 5 ), Read( 6 ), Read( 7 ) ).Normal;
-			var local = new Transform( hand.Center + new Vector3( Read( 1 ), Read( 2 ), Read( 3 ) ) / weight, rotation );
-			var target = bone.ToWorld( local.ToWorld( correction ) );
+			var local = new Transform( new Vector3( Read( 1 ), Read( 2 ), Read( 3 ) ) / weight, rotation );
+			var reference = bone.WithPosition( bone.PointToWorld( hand.Center ) ).WithScale( 1f );
+			var target = reference.ToWorld( local.ToWorld( correction ) );
 			total += weight;
 			animated = Transform.Lerp( animated, target, weight / total, true );
 		}

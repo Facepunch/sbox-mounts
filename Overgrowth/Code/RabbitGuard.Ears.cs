@@ -51,13 +51,13 @@ public sealed partial class RabbitGuard
 				ear.NextTwist = Random.Shared.Float( 0.7f, 4f );
 			}
 			ear.Twist = ear.TargetTwist + (ear.Twist - ear.TargetTwist) * MathF.Pow( 0.9f, frames );
-			var root = low.Position - low.Rotation.Forward * rig.LowerHalf;
-			var middle = high.Position - high.Rotation.Forward * rig.UpperHalf;
+			var root = low.Position - low.Rotation.Forward * rig.LowerHalf * WorldScale.z;
+			var middle = high.Position - high.Rotation.Forward * rig.UpperHalf * WorldScale.z;
 			var twist = Rotation.FromAxis( (middle - root).Normal, (side == 0 ? ear.Twist : -ear.Twist).RadianToDegree() );
 			low.Rotation = twist * low.Rotation;
 			high.Rotation = twist * twist * high.Rotation;
 			middle = root + twist * twist * (middle - root);
-			var tip = middle + high.Rotation.Forward * (2f * rig.UpperHalf);
+			var tip = middle + high.Rotation.Forward * (2f * rig.UpperHalf * WorldScale.z);
 			if ( !earsActive || secondaryReset > 0f || ear.Base.Distance( root ) > 400f )
 			{
 				ear.PreviousMiddle = ear.Middle = middle;

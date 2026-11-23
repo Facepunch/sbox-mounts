@@ -35,7 +35,7 @@ public sealed partial class RabbitGuard
 		lastHeadFacing = basis.Forward;
 		var turn = Rotation.FromAxis( basis.Up, headAngles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, headAngles.y.RadianToDegree() );
 		var half = Rotation.Slerp( Rotation.Identity, turn, 0.5f );
-		var pivot = neck.Position - neck.Rotation.Forward * boundAnimations.NeckHalfLength;
+		var pivot = neck.Position - neck.Rotation.Forward * boundAnimations.NeckHalfLength * WorldScale.z;
 
 		head.Position = pivot + half * (head.Position - pivot);
 		head.Rotation = turn * head.Rotation;
@@ -82,8 +82,8 @@ public sealed partial class RabbitGuard
 	{
 		var headBone = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
 		var rig = boundAnimations.Head;
-		var breathe = chest.Rotation * rig.BreathDirection * (breathAmount * boundAnimations.CharacterScale * 40f);
-		var extent = head.Rotation.Forward * rig.HeadHalfLength;
+		var breathe = chest.Rotation * rig.BreathDirection * (breathAmount * CharacterScale * 40f);
+		var extent = head.Rotation.Forward * rig.HeadHalfLength * WorldScale.z;
 		var skull = head.Position - extent + breathe * 0.005f;
 		var crown = head.Position + extent + breathe * 0.002f;
 		var root = chest.PointToWorld( rig.NeckRoot );
