@@ -24,6 +24,7 @@ public sealed partial class RabbitGuard
 	readonly Vector3[] plantedRoot = new Vector3[2];
 	readonly Vector3[] footOffset = new Vector3[2];
 	readonly float[] stepLift = new float[2];
+	bool hasStanceAnchors;
 	int steppingFoot;
 	float stepProgress, stancePhase;
 	[Sync] float CloseAmount { get; set; }
@@ -64,8 +65,9 @@ public sealed partial class RabbitGuard
 		if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
 			!TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
 		var root = WorldPosition;
-		if ( entering )
+		if ( entering || !hasStanceAnchors )
 		{
+			hasStanceAnchors = true;
 			plantedRoot[0] = plantedRoot[1] = root;
 			steppingFoot = -1;
 			stepProgress = 0;
@@ -113,6 +115,7 @@ public sealed partial class RabbitGuard
 
 	void ReleaseStanceFeet( float dt )
 	{
+		hasStanceAnchors = false;
 		float retain = MathF.Pow( 0.9f, dt * 120f );
 		for ( int side = 0; side < 2; side++ )
 		{
