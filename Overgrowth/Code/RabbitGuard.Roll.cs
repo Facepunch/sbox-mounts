@@ -71,8 +71,14 @@ public sealed partial class RabbitGuard
 			var terminal = RollDirection * (480f * damping / (1f + damping));
 			var difference = rollVelocity - terminal;
 			float remaining = MathF.Pow( retention, Time.Delta * 30f );
-			MoveGroundDelta( terminal * Time.Delta + difference * (retention * (1f - remaining) / (30f * (1f - retention))) );
+			var normal = MoveGroundDelta( terminal * Time.Delta + difference * (retention * (1f - remaining) / (30f * (1f - retention))) );
 			rollVelocity = terminal + difference * remaining;
+			float turn = 0.1f * Math.Clamp( (1f - normal.z) * 5f, 0f, 1f );
+			if ( turn > 0f )
+			{
+				RollDirection = InterpolateFacing( RollDirection, normal.WithZ( 0f ).Normal, 1f - MathF.Pow( 1f - turn, Time.Delta * 30f ) ).Forward;
+				RollForwardness = 1f - MathF.Abs( Vector3.Up.Cross( RollDirection ).Dot( WorldRotation.Forward ) );
+			}
 			duckVelocity = 2.5f;
 		}
 		if ( RollProgress < 0.8f ) return true;
