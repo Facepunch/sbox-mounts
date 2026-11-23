@@ -98,7 +98,7 @@ internal sealed class RabbitRetarget
 
 	internal int EventBone( int bone ) => (uint)bone < eventBones.Length ? eventBones[bone] : bone;
 
-	internal void Mirror( RabbitMirror mirror, Transform[] frame, Transform[] scratch )
+	internal void Mirror( RabbitMirror mirror, System.Span<Transform> frame, Transform[] scratch )
 	{
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip.Inverse;
 		mirror.Apply( frame, scratch, target.AnimationParents );

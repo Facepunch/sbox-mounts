@@ -1,3 +1,5 @@
+using System;
+
 namespace Overgrowth;
 
 // Animation::Retarget mirrors skin transforms in the reference rabbit rig's bind space.
@@ -63,7 +65,7 @@ internal sealed class RabbitMirror
 	internal Transform FootTarget( int anchor, Transform pose ) =>
 		Reflect( pose.ToWorld( bind[anchor] ) ).ToWorld( inverseBind[symmetry[anchor]] );
 
-	internal void Apply( Transform[] frame, Transform[] skin, int[] parents )
+	internal void Apply( Span<Transform> frame, Transform[] skin, int[] parents )
 	{
 		// On a symmetric hierarchy, the mirrored parent world transform cancels when returning to local space.
 		if ( symmetricHierarchy )
@@ -73,7 +75,7 @@ internal sealed class RabbitMirror
 				var local = Reflect( frame[i] ).ToWorld( bindChange[i] );
 				skin[symmetry[i]] = parents[i] < 0 ? local : bindChange[parents[i]].ToLocal( local );
 			}
-			skin.CopyTo( frame, 0 );
+			skin.AsSpan().CopyTo( frame );
 			return;
 		}
 		foreach ( int i in order )

@@ -291,98 +291,119 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		float spacing = Math.Clamp( shortest / 64f, 0.5f, 1000f / 120f );
 		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid / spacing );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
-		var frame = new Transform[rig.BoneCount];
-		var scratch = mirror is null ? null : new Transform[rig.BoneCount];
+		int boneCount = rig.BoneCount;
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
-		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * frame.Length] : null;
+		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * boneCount] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
 
-		int prev = -1;
-		for ( int i = 0; i <= intervals; i++ )
+		var roots = new Transform[intervals + 1];
+		var poses = System.Buffers.ArrayPool<Transform>.Shared.Rent( checked( roots.Length * boneCount ) );
+		try
 		{
-			float time = (float)i / intervals * duration;
-			while ( prev + 1 < count && keys[prev + 1].Time <= time ) prev++;
-			int Index( int index ) => loop ? (index % count + count) % count : Math.Clamp( index, 0, count - 1 );
-			var a = keys[Index( prev - 1 )]; var b = keys[Index( prev )];
-			var c = keys[Index( prev + 1 )]; var d = keys[Index( prev + 2 )];
-			float from = b.Time > time ? b.Time - duration : b.Time;
-			float to = c.Time < time ? c.Time + duration : c.Time;
-			float t = b == c || to <= from ? 0 : Math.Clamp( (time - from) / (to - from), 0, 1 );
-			for ( int channel = 0; channel < tracks.Length; channel++ )
-				if ( tracks[channel] is { } track ) track[i] = b.Status[channel] + (c.Status[channel] - b.Status[channel]) * t;
-			float t2 = t * t, t3 = t2 * t;
-			float w0 = (-t3 + 2*t2 - t) * 0.5f, w1 = (3*t3 - 5*t2 + 2) * 0.5f;
-			float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
-			for ( int channel = 0; channel < shapeTracks.Length; channel++ )
-				if ( shapeTracks[channel] is { } shape )
-					shape[i] = a.Shapes[channel] * w0 + b.Shapes[channel] * w1 + c.Shapes[channel] * w2 + d.Shapes[channel] * w3;
-			if ( weaponTrack is not null )
+			const int framesPerBatch = 64;
+			if ( roots.Length <= framesPerBatch ) SampleRange( 0, roots.Length );
+			else Sandbox.Utility.Parallel.For( 0, (roots.Length + framesPerBatch - 1) / framesPerBatch, batch =>
+				SampleRange( batch * framesPerBatch, Math.Min( (batch + 1) * framesPerBatch, roots.Length ) ) );
+
+			for ( int i = 0; i < roots.Length; i++ )
+				clip.AddFrame( poses.AsSpan( i * boneCount, boneCount ), roots[i] );
+		}
+		finally
+		{
+			System.Buffers.ArrayPool<Transform>.Shared.Return( poses );
+		}
+
+		void SampleRange( int start, int end )
+		{
+			var scratch = mirror is null ? null : new Transform[boneCount];
+			int prev = -1;
+			for ( int i = start; i < end; i++ )
 			{
-				var weapon = BlendFour( a.Weapon, b.Weapon, c.Weapon, d.Weapon, w0, w1, w2, w3 );
-				if ( mirror is not null )
+				var frame = poses.AsSpan( i * boneCount, boneCount );
+				float time = (float)i / intervals * duration;
+				while ( prev + 1 < count && keys[prev + 1].Time <= time ) prev++;
+				int Index( int index ) => loop ? (index % count + count) % count : Math.Clamp( index, 0, count - 1 );
+				var a = keys[Index( prev - 1 )]; var b = keys[Index( prev )];
+				var c = keys[Index( prev + 1 )]; var d = keys[Index( prev + 2 )];
+				float from = b.Time > time ? b.Time - duration : b.Time;
+				float to = c.Time < time ? c.Time + duration : c.Time;
+				float t = b == c || to <= from ? 0 : Math.Clamp( (time - from) / (to - from), 0, 1 );
+				for ( int channel = 0; channel < tracks.Length; channel++ )
+					if ( tracks[channel] is { } track ) track[i] = b.Status[channel] + (c.Status[channel] - b.Status[channel]) * t;
+				float t2 = t * t, t3 = t2 * t;
+				float w0 = (-t3 + 2*t2 - t) * 0.5f, w1 = (3*t3 - 5*t2 + 2) * 0.5f;
+				float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
+				for ( int channel = 0; channel < shapeTracks.Length; channel++ )
+					if ( shapeTracks[channel] is { } shape )
+						shape[i] = a.Shapes[channel] * w0 + b.Shapes[channel] * w1 + c.Shapes[channel] * w2 + d.Shapes[channel] * w3;
+				if ( weaponTrack is not null )
 				{
-					weapon = RabbitMirror.Reflect( weapon );
-					// MirrorBT flips the two item axes in matrix space after the cubic blend.
-					var basis = Matrix.CreateScale( new Vector3( 1f, -1f, -1f ) ) * Matrix.CreateRotation( weapon.Rotation );
-					weapon.Rotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
-				}
-				weaponTrack.Set( i, weapon );
-			}
-			// Child positions are reconstructed from the joint anchors after rotation.
-			// Only roots need the authored cubic translation.
-			float ab = w0 + w1, abc = ab + w2;
-			float blendB = ab > 0f ? w1 / ab : 0f, blendC = abc > 0f ? w2 / abc : 0f;
-			for ( int j = 0; j < frame.Length; j++ )
-			{
-				var rotation = ab > 0f ? MixRotation( a.Bones[j].Rotation, b.Bones[j].Rotation, blendB ) : b.Bones[j].Rotation;
-				if ( abc > 0f ) rotation = MixRotation( rotation, c.Bones[j].Rotation, blendC );
-				frame[j] = new Transform( Vector3.Zero, MixRotation( rotation, d.Bones[j].Rotation, w3 ) );
-				if ( magnitudes is not null )
-				{
-					var q = frame[j].Rotation;
-					magnitudes[i * frame.Length + (mirror?.Opposite( j ) ?? j)] = MathF.Sqrt( q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w );
-				}
-				frame[j].Rotation = frame[j].Rotation.Normal;
-				if ( skeleton.AnimationParents[j] < 0 )
-				{
-					var position = ab > 0f ? Vector3.Lerp( a.Bones[j].Position, b.Bones[j].Position, blendB, false ) : b.Bones[j].Position;
-					if ( abc > 0f ) position = Vector3.Lerp( position, c.Bones[j].Position, blendC, false );
-					frame[j].Position = Vector3.Lerp( position, d.Bones[j].Position, w3, false ) + Vector3.Lerp( b.Center, c.Center, t );
-				}
-				else
-					frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );
-			}
-			var travel = Vector3.Lerp( b.Travel, c.Travel, t );
-			float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
-			if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
-			var root = new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) );
-			clip.AddFrame( frame, mirror is null ? root : RabbitMirror.Reflect( root ) );
-			if ( sampleFeet )
-			{
-				// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
-				for ( int side = 0; side < 2; side++ )
-				{
-					FootChain? chain = null;
-					float weight = 0;
-					void Include( Key key, float w )
+					var weapon = BlendFour( a.Weapon, b.Weapon, c.Weapon, d.Weapon, w0, w1, w2, w3 );
+					if ( mirror is not null )
 					{
-						if ( key.FootBones[side] is not { } authored ) return;
-						chain = authored;
-						weight += w;
+						weapon = RabbitMirror.Reflect( weapon );
+						// MirrorBT flips the two item axes in matrix space after the cubic blend.
+						var basis = Matrix.CreateScale( new Vector3( 1f, -1f, -1f ) ) * Matrix.CreateRotation( weapon.Rotation );
+						weapon.Rotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 					}
-					Include( a, w0 );
-					Include( b, w1 );
-					Include( c, w2 );
-					Include( d, w3 );
-					if ( chain is not { } selected ) continue;
-					var target = Mix( b.ModelBones[selected.End], c.ModelBones[selected.End], t );
-					int outputSide = mirror is null ? side : 1 - side;
-					target = retarget.FootTarget( outputSide, target, mirror, selected.Anchor );
-					var offset = Vector3.Lerp( b.Center, c.Center, t );
-					target.Position += mirror is null ? offset : offset.WithY( -offset.y );
-					feet[outputSide][i] = new( target, weight, true );
+					weaponTrack.Set( i, weapon );
+				}
+				// Child positions are reconstructed from the joint anchors after rotation.
+				// Only roots need the authored cubic translation.
+				float ab = w0 + w1, abc = ab + w2;
+				float blendB = ab > 0f ? w1 / ab : 0f, blendC = abc > 0f ? w2 / abc : 0f;
+				for ( int j = 0; j < frame.Length; j++ )
+				{
+					var rotation = ab > 0f ? MixRotation( a.Bones[j].Rotation, b.Bones[j].Rotation, blendB ) : b.Bones[j].Rotation;
+					if ( abc > 0f ) rotation = MixRotation( rotation, c.Bones[j].Rotation, blendC );
+					frame[j] = new Transform( Vector3.Zero, MixRotation( rotation, d.Bones[j].Rotation, w3 ) );
+					if ( magnitudes is not null )
+					{
+						var q = frame[j].Rotation;
+						magnitudes[i * frame.Length + (mirror?.Opposite( j ) ?? j)] = MathF.Sqrt( q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w );
+					}
+					frame[j].Rotation = frame[j].Rotation.Normal;
+					if ( skeleton.AnimationParents[j] < 0 )
+					{
+						var position = ab > 0f ? Vector3.Lerp( a.Bones[j].Position, b.Bones[j].Position, blendB, false ) : b.Bones[j].Position;
+						if ( abc > 0f ) position = Vector3.Lerp( position, c.Bones[j].Position, blendC, false );
+						frame[j].Position = Vector3.Lerp( position, d.Bones[j].Position, w3, false ) + Vector3.Lerp( b.Center, c.Center, t );
+					}
+					else
+						frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );
+				}
+				var travel = Vector3.Lerp( b.Travel, c.Travel, t );
+				float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
+				if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
+				var root = new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) );
+				roots[i] = mirror is null ? root : RabbitMirror.Reflect( root );
+				if ( sampleFeet )
+				{
+					// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
+					for ( int side = 0; side < 2; side++ )
+					{
+						FootChain? chain = null;
+						float weight = 0;
+						void Include( Key key, float w )
+						{
+							if ( key.FootBones[side] is not { } authored ) return;
+							chain = authored;
+							weight += w;
+						}
+						Include( a, w0 );
+						Include( b, w1 );
+						Include( c, w2 );
+						Include( d, w3 );
+						if ( chain is not { } selected ) continue;
+						var target = Mix( b.ModelBones[selected.End], c.ModelBones[selected.End], t );
+						int outputSide = mirror is null ? side : 1 - side;
+						target = retarget.FootTarget( outputSide, target, mirror, selected.Anchor );
+						var offset = Vector3.Lerp( b.Center, c.Center, t );
+						target.Position += mirror is null ? offset : offset.WithY( -offset.y );
+						feet[outputSide][i] = new( target, weight, true );
+					}
 				}
 			}
 		}
