@@ -89,13 +89,15 @@ public class GameMount : BaseGameMount
 		return false;
 	}
 
-	private static readonly Dictionary<string, ResourceType> FileTypes = new( StringComparer.OrdinalIgnoreCase )
+	private static ResourceType GetFileType( string extension ) => extension.ToLowerInvariant() switch
 	{
-		{ ".model", ResourceType.Model },
-		{ ".dds", ResourceType.Texture },
-		{ ".material", ResourceType.Material },
-		{ ".fsb", ResourceType.Sound },
-		{ ".level", ResourceType.Scene },
+		".model" => ResourceType.Model,
+		".animation_graph" => ResourceType.AnimationGraph,
+		".dds" => ResourceType.Texture,
+		".material" => ResourceType.Material,
+		".fsb" => ResourceType.Sound,
+		".level" => ResourceType.Scene,
+		_ => ResourceType.None
 	};
 
 	protected override Task Mount( MountContext context )
@@ -105,16 +107,17 @@ public class GameMount : BaseGameMount
 
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
-			var ext = Path.GetExtension( path );
-			if ( string.IsNullOrWhiteSpace( ext ) )
-				continue;
-
-			if ( !FileTypes.TryGetValue( ext, out var resourceType ) )
-				continue;
+			var resourceType = GetFileType( Path.GetExtension( path ) );
 
 			if ( resourceType == ResourceType.Model )
 			{
 				context.Add( resourceType, path, new ModelLoader( path ) );
+			}
+			else if ( resourceType == ResourceType.AnimationGraph )
+			{
+				var model = Path.ChangeExtension( path, ".model" );
+				if ( FileSystem.FileExists( model ) )
+					context.Add( resourceType, path, new AnimationGraphLoader( model, path ) );
 			}
 			else if ( resourceType == ResourceType.Texture )
 			{
@@ -135,6 +138,7 @@ public class GameMount : BaseGameMount
 		}
 
 		SurfaceLoader.Register( context );
+		SkulkPrefab.Register( context );
 		IsMounted = true;
 
 		return Task.CompletedTask;

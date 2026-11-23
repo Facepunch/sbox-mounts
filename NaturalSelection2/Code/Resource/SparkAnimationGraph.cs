@@ -4,8 +4,8 @@ using System.Text;
 
 namespace NS2;
 
-/// <summary>The base layer of a Spark .animation_graph, as used by prop_dynamic.</summary>
-internal sealed class PropAnimationGraph
+/// <summary>Authored states, inputs and layers in a Spark .animation_graph.</summary>
+internal sealed partial class SparkAnimationGraph
 {
 	record Condition( int Input, int Comparison, double Value )
 	{
@@ -21,12 +21,15 @@ internal sealed class PropAnimationGraph
 		};
 	}
 
-	record Node( int Clip, bool WaitOnExit, bool WaitOnEnter, int[] Links, Condition[] Conditions );
-	Node[] nodes = [];
+	record Node( string Label, int Clip, bool WaitOnExit, bool WaitOnEnter, bool ExplicitEntryOnly,
+		int EnterTag, int ExitTag, float Blend, float LabelBlend, int RateInput, float Rate, int[] Links, Condition[] Conditions );
+	record Layer( Node[] Nodes, int Start );
+	Layer[] layers = [];
+	int[] inputTypes = [];
+	string[] tags = [];
 	string[] clips = [];
 	string[] inputs = [];
 	readonly Dictionary<int, string[]> values = [];
-	int start;
 
 	// PropDynamic.lua sets "animation" once. Sandbox has no power grid, so use the powered state.
 	// Resolve transitions at import time. Only props that actually change clips need a component.
@@ -42,7 +45,9 @@ internal sealed class PropAnimationGraph
 
 		var sequence = new List<string>();
 		var visited = new Dictionary<int, int>();
-		int index = start;
+		if ( layers.Length == 0 ) return ([], -1);
+		var nodes = layers[0].Nodes;
+		int index = layers[0].Start;
 		while ( (uint)index < nodes.Length )
 		{
 			if ( !visited.TryAdd( index, sequence.Count ) )
@@ -59,7 +64,7 @@ internal sealed class PropAnimationGraph
 		return (sequence.ToArray(), sequence.Count - 1);
 	}
 
-	public static PropAnimationGraph Read( byte[] bytes )
+	public static SparkAnimationGraph Read( byte[] bytes )
 	{
 		var r = new LevelReader( bytes );
 		if ( !r.ReadBytes( 3 ).Span.SequenceEqual( "ANG"u8 ) )
@@ -68,7 +73,7 @@ internal sealed class PropAnimationGraph
 		if ( version is < 4 or > 9 )
 			throw new InvalidDataException( $"Unsupported Spark animation graph version {version}." );
 
-		var graph = new PropAnimationGraph();
+		var graph = new SparkAnimationGraph();
 		while ( r.Position < bytes.Length )
 		{
 			r.End = bytes.Length;
@@ -79,19 +84,22 @@ internal sealed class PropAnimationGraph
 			{
 				case 1:
 					graph.inputs = new string[r.ReadCount( 8 )];
+					graph.inputTypes = new int[graph.inputs.Length];
 					for ( int i = 0; i < graph.inputs.Length; i++ )
 					{
-						r.Skip( 4 ); // input type
+						graph.inputTypes[i] = r.ReadInt32();
 						graph.inputs[i] = ReadString( r );
 					}
 					break;
 				case 2:
-					if ( r.ReadCount( 4 ) == 0 ) break;
-					graph.nodes = new Node[r.ReadCount( 4 )];
-					if ( graph.nodes.Length == 0 ) break;
-					graph.start = r.ReadInt32();
-					for ( int i = 0; i < graph.nodes.Length; i++ )
-						graph.nodes[i] = ReadNode( r, version );
+					graph.layers = new Layer[r.ReadCount( 4 )];
+					for ( int layer = 0; layer < graph.layers.Length; layer++ )
+					{
+						var nodes = new Node[r.ReadCount( 4 )];
+						int start = nodes.Length == 0 ? -1 : r.ReadInt32();
+						for ( int i = 0; i < nodes.Length; i++ ) nodes[i] = ReadNode( r, version );
+						graph.layers[layer] = new( nodes, start );
+					}
 					break;
 				case 4:
 					while ( r.Position < r.End )
@@ -99,6 +107,9 @@ internal sealed class PropAnimationGraph
 					break;
 				case 5:
 					graph.clips = ReadStrings( r );
+					break;
+				case 6:
+					graph.tags = ReadStrings( r );
 					break;
 			}
 			r.Position = r.End;
@@ -108,21 +119,27 @@ internal sealed class PropAnimationGraph
 
 	static Node ReadNode( LevelReader r, int version )
 	{
-		r.Skip( r.ReadCount( 1 ) ); // editor label
+		var label = ReadString( r );
 		r.Skip( 8 ); // editor position
 		bool waitOnExit = r.ReadInt32() != 0;
 		bool waitOnEnter = r.ReadInt32() != 0;
-		if ( version >= 9 ) r.Skip( 4 ); // disallow label entry
-		if ( version >= 8 ) r.Skip( 4 ); // exit tag
-		if ( version >= 5 ) r.Skip( 4 ); // enter tag
+		bool explicitOnly = version >= 9 && r.ReadInt32() != 0;
+		int enterTag = version >= 8 ? r.ReadInt32() : -1;
+		int exitTag = version >= 5 ? r.ReadInt32() : -1;
 		if ( r.ReadInt32() != 1 ) throw new InvalidDataException( "Invalid Spark graph action count." );
 		int action = r.ReadInt32();
-		int clip = -1;
+		int clip = -1, rateInput = -1;
+		float blend = 0, labelBlend = 0, rate = 1;
 		if ( action == 1 )
 		{
 			clip = r.ReadInt32();
-			r.Skip( 8 ); // transition and label blend times
-			if ( version >= 7 ) r.Skip( 12 ); // rate input and constant (1 for shipped props)
+			blend = r.ReadSingle();
+			labelBlend = r.ReadSingle();
+			if ( version >= 7 )
+			{
+				rateInput = r.ReadInt32();
+				rate = (float)BinaryPrimitives.ReadDoubleLittleEndian( r.ReadBytes( 8 ).Span );
+			}
 		}
 		else if ( action is not (0 or 2) ) throw new InvalidDataException( $"Unknown Spark graph action {action}." );
 
@@ -136,7 +153,7 @@ internal sealed class PropAnimationGraph
 			double value = version < 6 ? r.ReadInt32() : BinaryPrimitives.ReadDoubleLittleEndian( r.ReadBytes( 8 ).Span );
 			conditions[i] = new( input, comparison, value );
 		}
-		return new( clip, waitOnExit, waitOnEnter, links, conditions );
+		return new( label, clip, waitOnExit, waitOnEnter, explicitOnly, enterTag, exitTag, blend, labelBlend, rateInput, rate, links, conditions );
 	}
 
 	static string ReadString( LevelReader r ) => Encoding.UTF8.GetString( r.ReadBytes( r.ReadCount( 1 ) ).Span );

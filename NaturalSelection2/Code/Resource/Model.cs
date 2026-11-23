@@ -10,7 +10,7 @@ namespace NS2;
 /// <summary>
 /// Loads NS2 .model files (Spark engine "MDL" format).
 /// </summary>
-public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
+public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 {
 	private string FullPath { get; } = fullPath;
 	// Loaded when a model first loads, not whenever this assembly does (mounted or not)
@@ -76,6 +76,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	struct Solid
 	{
+		public string Name;
 		public int BoneIndex;
 		public Transform Transform;
 		public Vector3[] Points;   // converted to s&box space
@@ -100,6 +101,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public int Type; // 1 = animation, 2 = blend, 3 = layered
 		public int AnimationIndex;
 		public int[] Children;
+		public bool WrapParameter;
 		public int ParameterIndex; // blend nodes
 		public float ParamMin, ParamMax;
 	}
@@ -108,6 +110,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	{
 		public string Name;
 		public int AnimationNodeIndex;
+		public float Duration;
 	}
 
 	// A single keyframed curve, loaded only while its animation is being built.
@@ -122,6 +125,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	class ParsedAnimation
 	{
 		public int NumFrames;
+		public bool Additive, Looping;
 		public float FrameRate;
 		public bool Compressed;
 		public long CurvesOffset;      // file offset of curve data (compressed only)
@@ -143,7 +147,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public string[] BlendParameters = [];
 		public Joint[] Joints = [];
 		public AttachPoint[] AttachPoints = [];
-		public int CollisionRepBodyCount = -1; // body count of collision rep 0
+		public (int Start, int Count) PhysicsBodies, DamageBodies;
 		public string ExternalModel;
 	}
 
@@ -173,6 +177,11 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public void Seek( long offset )
 		{
 			if ( offset < 0 || offset > Length ) throw new InvalidDataException( "NS2 model: offset outside file" );
+			if ( count > 0 && offset >= bufferStart && offset <= bufferStart + count )
+			{
+				pos = (int)(offset - bufferStart);
+				return;
+			}
 			stream.Position = offset;
 			bufferStart = offset;
 			pos = count = 0;
@@ -327,7 +336,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				case ChunkType.AttachPoints: ReadAttachPoints( ref r, model ); break;
 				case ChunkType.Joints: ReadJoints( ref r, model ); break;
 				case ChunkType.CollisionPairs: r.Skip( (long)r.Int() * 8 ); break;
-				case ChunkType.CollisionReps: ReadCollisionReps( ref r, model, version ); break;
+				case ChunkType.CollisionReps: ReadCollisionReps( ref r, model ); break;
 				case ChunkType.BoundingBox: r.Skip( 6 * 4 ); break;
 				case ChunkType.BoneBounds:
 					for ( int i = 0; i < model.Bones.Length; i++ )
@@ -409,7 +418,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		var solids = new Solid[count];
 		for ( int i = 0; i < count; i++ )
 		{
-			r.SkipString(); // solid name
+			solids[i].Name = r.String();
 			solids[i].BoneIndex = r.Int();
 			solids[i].Transform = ConvertCoords( r.ReadCoords() );
 			_ = r.Float(); // mass
@@ -452,9 +461,11 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		for ( int i = 0; i < count; i++ )
 		{
-			r.Skip( sizeof( int ) ); // flags
+			int flags = r.Int();
 			var anim = new ParsedAnimation
 			{
+				Additive = (flags & 1) != 0,
+				Looping = (flags & 2) != 0,
 				NumFrames = r.Int(),
 				FrameRate = r.Float(),
 			};
@@ -516,7 +527,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		for ( int i = 0; i < count; i++ )
 		{
 			int type = r.Int();
-			_ = r.Int(); // flags
+			nodes[i].WrapParameter = (r.Int() & 1) != 0;
 			nodes[i].Type = type;
 			switch ( type )
 			{
@@ -547,7 +558,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		{
 			seqs[i].Name = r.String();
 			seqs[i].AnimationNodeIndex = r.Int();
-			r.Skip( sizeof( float ) ); // length (present in both supported versions)
+			seqs[i].Duration = r.Float();
 		}
 		model.Sequences = seqs;
 	}
@@ -629,25 +640,24 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Joints = joints.ToArray();
 	}
 
-	private static void ReadCollisionReps( ref Reader r, ParsedModel model, int version )
+	private static void ReadCollisionReps( ref Reader r, ParsedModel model )
 	{
-		int count = r.Int();
-		for ( int i = 0; i < count; i++ )
+		var ranges = new (int Start, int Count)[r.Int()];
+		for ( int i = 0; i < ranges.Length; i++ )
 		{
-			if ( version < 5 ) r.SkipString();
-			int bodyCount = r.Int();
-			r.Skip( (version >= 5 ? 5 : 3) * 4 );
-			if ( i == 0 ) model.CollisionRepBodyCount = bodyCount;
+			int count = r.Int();
+			ranges[i] = (r.Int(), count);
+			r.Skip( 4 * sizeof( int ) ); // joint and collision pair ranges
 		}
 
-		if ( version >= 5 )
+		if ( ranges.Length > 0 ) model.PhysicsBodies = ranges[0];
+		int names = r.Int();
+		for ( int i = 0; i < names; i++ )
 		{
-			int nameCount = r.Int();
-			for ( int i = 0; i < nameCount; i++ )
-			{
-				r.SkipString();
-				_ = r.Int();
-			}
+			var name = r.String();
+			var range = ranges[r.Int()];
+			if ( name == "default" ) model.PhysicsBodies = range;
+			if ( name == "damage" ) model.DamageBodies = range;
 		}
 	}
 
@@ -694,16 +704,16 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	Dictionary<string, string> sequenceAliases;
 	internal string ResolveSequenceName( string name ) => sequenceAliases?.GetValueOrDefault( name ) ?? name;
 
-	internal PropAnimationGraph PropGraph => field ??= LoadPropGraph();
+	internal SparkAnimationGraph PropGraph => field ??= LoadPropGraph();
 
-	PropAnimationGraph LoadPropGraph()
+	SparkAnimationGraph LoadPropGraph()
 	{
 		var path = System.IO.Path.ChangeExtension( FullPath, ".animation_graph" );
 		if ( Host.FileSystem.FileExists( path ) )
 		{
 			try
 			{
-				return PropAnimationGraph.Read( Host.ReadAllBytes( path ) );
+				return SparkAnimationGraph.Read( Host.ReadAllBytes( path ) );
 			}
 			catch ( InvalidDataException e )
 			{
@@ -712,6 +722,8 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 		return new();
 	}
+
+	internal float SequenceDuration( string name ) => Array.Find( AnimationSource().Source.Sequences, s => s.Name == name ).Duration;
 
 	private void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
 	{
@@ -765,14 +777,17 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 			var animBuilder = builder.AddAnimation( names[i] ?? $"animation_{i}", anim.FrameRate );
 
-			if ( anim.Compressed )
-				AddCompressedFrames( animBuilder, anim, model, ref r, boneTransforms );
-			else
-				AddUncompressedFrames( animBuilder, anim, model, ref r, boneTransforms );
+			DecodeFrames( frame => animBuilder.AddFrame( frame.AsSpan() ), anim, model, ref r, boneTransforms );
 		}
 	}
 
-	private static void AddCompressedFrames( AnimationBuilder animBuilder, ParsedAnimation anim,
+	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose )
+	{
+		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose );
+		else AddUncompressedFrames( addFrame, anim, model, ref r, pose );
+	}
+
+	private static void AddCompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
 		ParsedModel model, ref Reader r, Transform[] boneTransforms )
 	{
 		r.Seek( anim.CurvesOffset );
@@ -816,7 +831,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			{
 				if ( !hasCurve[b] )
 				{
-					boneTransforms[b] = model.Bones[b].LocalTransform;
+					boneTransforms[b] = anim.Additive ? Transform.Zero : model.Bones[b].LocalTransform;
 					continue;
 				}
 
@@ -826,7 +841,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				boneTransforms[b] = tx.IsValid ? tx : model.Bones[b].LocalTransform;
 			}
 
-			animBuilder.AddFrame( boneTransforms.AsSpan() );
+			addFrame( boneTransforms );
 		}
 
 		static Curve<Vector3> ReadVector3Curve( ref Reader r )
@@ -856,7 +871,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void AddUncompressedFrames( AnimationBuilder animBuilder, ParsedAnimation anim,
+	private static void AddUncompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
 		ParsedModel model, ref Reader r, Transform[] boneTransforms )
 	{
 		int boneCount = model.Bones.Length;
@@ -881,7 +896,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			{
 				if ( poses[b] is not { } blob )
 				{
-					boneTransforms[b] = model.Bones[b].LocalTransform;
+					boneTransforms[b] = anim.Additive ? Transform.Zero : model.Bones[b].LocalTransform;
 					continue;
 				}
 
@@ -892,7 +907,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				boneTransforms[b] = tx.IsValid ? tx : model.Bones[b].LocalTransform;
 			}
 
-			animBuilder.AddFrame( boneTransforms.AsSpan() );
+			addFrame( boneTransforms );
 		}
 	}
 
@@ -910,27 +925,20 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return -1;
 	}
 
+	private ModelLoader AnimationSource()
+	{
+		if ( Source.Animations.Length > 0 || string.IsNullOrEmpty( Source.ExternalModel ) ) return this;
+		var path = ResolveExternalPath( Source.ExternalModel );
+		if ( path is not null && Host.GetByPath( $"mount://{Host.Ident}/{path}.vmdl" ) is ModelLoader source ) return source;
+		Log.Warning( $"NS2 model: could not resolve external model '{Source.ExternalModel}'" );
+		return this;
+	}
+
 	protected override object Load()
 	{
 		var model = Source;
-		var animations = model;
-
-		// Skin variants store only mesh data and reference a base model for animations.
-		var animSourcePath = FullPath;
-		if ( model.Animations.Length == 0 && !string.IsNullOrEmpty( model.ExternalModel ) )
-		{
-			var externalPath = ResolveExternalPath( model.ExternalModel );
-			if ( externalPath is not null )
-			{
-				var loader = Host.GetByPath( $"mount://{Host.Ident}/{externalPath}.vmdl" ) as ModelLoader;
-				animations = loader?.Source ?? ParseFile( externalPath );
-				animSourcePath = externalPath;
-			}
-			else
-			{
-				Log.Warning( $"NS2 model: could not resolve external model '{model.ExternalModel}'" );
-			}
-		}
+		var animationSource = AnimationSource();
+		var animations = animationSource.Source;
 
 		var builder = Model.Builder.WithName( Path );
 
@@ -950,8 +958,18 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		if ( animations.Animations.Length > 0 && model.Bones.Length > 0 )
 		{
-			using var animSource = Host.FileSystem.OpenRead( animSourcePath );
+			using var animSource = Host.FileSystem.OpenRead( animationSource.FullPath );
 			BuildAnimations( builder, model, animations, animSource );
+		}
+		if ( model.DamageBodies.Count > 0 )
+		{
+			var hitboxes = builder.AddHitboxSet();
+			foreach ( var solid in model.Solids.AsSpan( model.DamageBodies.Start, model.DamageBodies.Count ) )
+			{
+				if ( (uint)solid.BoneIndex >= model.Bones.Length || solid.Points.Length < 4 ) continue;
+				var points = Array.ConvertAll( solid.Points, p => solid.Transform.PointToWorld( p ) );
+				hitboxes.AddHull( solid.Name, model.Bones[solid.BoneIndex].Name, points );
+			}
 		}
 		BuildMeshes( builder, model );
 		BuildPhysics( builder, model, animations.Animations.Length > 0 || model.Joints.Length > 0 );
@@ -1010,7 +1028,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	private Vector3[][] StaticHulls( ParsedModel model )
 	{
-		if ( model.CollisionRepBodyCount <= 0 || model.Solids.Length == 0 ) return [];
+		if ( model.PhysicsBodies.Count <= 0 || model.Solids.Length == 0 ) return [];
 		var body = new PhysicsBodyBuilder();
 		foreach ( var (_, points) in CollisionHulls( model, false ) )
 			body.AddHull( points, Transform.Zero, HullSimplification );
@@ -1092,8 +1110,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model, bool preserveBones )
 	{
-		int count = Math.Min( model.CollisionRepBodyCount, model.Solids.Length );
-		for ( int i = 0; i < count; i++ )
+		for ( int i = model.PhysicsBodies.Start; i < model.PhysicsBodies.Start + model.PhysicsBodies.Count; i++ )
 		{
 			var solid = model.Solids[i];
 			var bone = (uint)solid.BoneIndex < (uint)model.Bones.Length ? solid.BoneIndex : -1;
