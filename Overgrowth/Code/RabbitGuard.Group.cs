@@ -71,7 +71,7 @@ public sealed partial class RabbitGuard
 	{
 		// Spawn-menu fighters have no team. Authored teammates take turns engaging, as in AllyInfo.
 		if ( Teams.Length == 0 && !groupLeader.IsValid() && followerCount == 0 ) return;
-		if ( !HasCombatTarget )
+		if ( Unconscious || Health <= 0f || !HasCombatTarget )
 		{
 			if ( followerCount > 0 ) PassLeadership();
 			FollowLeader( null );

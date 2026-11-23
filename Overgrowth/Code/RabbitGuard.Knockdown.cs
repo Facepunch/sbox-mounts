@@ -93,6 +93,7 @@ public sealed partial class RabbitGuard
 				else if ( !Unconscious )
 				{
 					Unconscious = true;
+					UpdateCombatGroup();
 					sinceUnconscious = 0f;
 					if ( !holdPartner.IsValid() )
 					{
@@ -192,6 +193,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
+		UpdateCombatGroup();
 		extractionDeath = death.DamageInfo is ExtractionDamage;
 		if ( extractionDeath ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );

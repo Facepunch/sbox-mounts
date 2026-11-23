@@ -52,6 +52,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && Renderer.IsValid() &&
 			boundAnimations is not null && !StaticCharacter && !Unconscious )
 		{
+			UpdateCombatGroup();
 			TrackEnemy();
 			ScanForCharacters();
 		}
@@ -191,7 +192,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Holding || Held || LedgeAnimation is not null ) return;
 		AdvanceBlockRecoil( Time.Delta );
 		if ( AdvanceRoll() ) return;
-		UpdateCombatGroup();
 		UpdateStanceAmounts();
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;
 		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
