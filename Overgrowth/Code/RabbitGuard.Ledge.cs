@@ -27,13 +27,14 @@ public sealed partial class RabbitGuard
 		var direction = (destination - WorldPosition).WithZ( 0f ).Normal;
 		if ( boundAnimations is null || direction.IsNearlyZero() || destination.z <= WorldPosition.z ) return false;
 		var normal = GroundObject.IsValid() ? ClimbTrace( Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 12f ) ).Run().Normal : Vector3.Up;
-		velocity = direction * GroundRunSpeed + Vector3.Up * 200f;
+		float launchSpeed = JumpInitialVelocity * 40f;
+		velocity = direction * GroundRunSpeed + Vector3.Up * launchSpeed;
 		if ( !normal.IsNearlyZero() && velocity.Normal.Dot( normal ) < 0.3f )
 		{
 			var right = normal.Cross( direction ).WithZ( 0f ).Normal;
-			velocity = right.Cross( normal ).Normal * GroundRunSpeed + normal * 200f;
+			velocity = right.Cross( normal ).Normal * GroundRunSpeed + normal * launchSpeed;
 		}
-		velocity.z = Math.Min( velocity.z, 200f ) * (boundAnimations.Species == "rabbit" ? 1f : 0.6f);
+		velocity.z = Math.Min( velocity.z, launchSpeed ) * (boundAnimations.Species == "rabbit" ? 1f : 0.6f);
 		return true;
 	}
 
@@ -42,7 +43,7 @@ public sealed partial class RabbitGuard
 		approachingLedge = true;
 		climbDirection = launch.WithZ( 0f ).Normal;
 		sinceClimbLaunch = 0f;
-		jumpFuel = boundAnimations.Species == "rabbit" ? 200f : 40f;
+		jumpFuel = JumpSustain * 40f * (boundAnimations.Species == "rabbit" ? 1f : 0.2f);
 	}
 
 	bool GetLedgeHeight( Vector3 center, Vector3 wall, out float height, out Surface surface )
@@ -133,10 +134,10 @@ public sealed partial class RabbitGuard
 		if ( LedgeAnimation is null )
 		{
 			if ( sinceClimbLaunch > 2f || IsOnGround && sinceClimbLaunch > 0.1f ) { EndLedge(); return false; }
-			var velocity = body.Velocity + climbDirection * (120f * Time.Delta);
+			var velocity = body.Velocity + climbDirection * (JumpAirControl * 40f * Time.Delta);
 			if ( jumpFuel > 0f && velocity.z > 0f )
 			{
-				float burn = 400f * Time.Delta;
+				float burn = JumpSustainBoost * 40f * Time.Delta;
 				jumpFuel -= burn;
 				velocity.z += burn;
 			}

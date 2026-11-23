@@ -5,6 +5,10 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	internal const string JumpArms = "r_jump_arms";
+	[Property] public float JumpInitialVelocity { get; set; } = 5f;
+	[Property] public float JumpAirControl { get; set; } = 3f;
+	[Property] public float JumpSustain { get; set; } = 5f;
+	[Property] public float JumpSustainBoost { get; set; } = 10f;
 	[Sync] TimeSince SinceJumpPreparation { get; set; } = 10f;
 	bool jumpArmsActive;
 
@@ -129,7 +133,7 @@ public sealed partial class RabbitGuard
 				TurnInAir( velocity, Time.Delta );
 
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
-			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
+			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
 			float jumpFrequency = (1f - flail) / boundAnimations.Clips["r_jump"].Duration + flail / boundAnimations.Clips["r_flailfall"].Duration;
 			float frequency = (1f - AirTuck) * jumpFrequency + AirTuck / boundAnimations.Clips["r_tuck"].Duration;

@@ -120,12 +120,12 @@ public sealed class CharacterNavigation : NavigationLayer
 	internal bool TryJumpVelocity( Vector3 start, Vector3 end, out Vector3 velocity )
 	{
 		velocity = default;
-		const float maxVertical = 5f * 1.7f * 40f;
 		const float radius = 0.45f * 40f;
 		const float toleranceSquared = 0.5f * 40f * 40f;
 		float gravity = -Scene.PhysicsWorld.Gravity.z * RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		var delta = end - start;
 		if ( Npc is not RabbitGuard fighter ) return false;
+		float maxVertical = fighter.JumpInitialVelocity * 1.7f * 40f;
 		start += Vector3.Up * radius;
 		end += Vector3.Up * radius;
 		for ( int arc = 0; arc < 3; arc++ )
