@@ -138,7 +138,7 @@ public sealed partial class RabbitGuard
 	float RollGroundOffset( Transform localModel )
 	{
 		var model = Renderer.GameObject.Parent.WorldTransform.ToWorld( localModel );
-		float low = WorldPosition.z + 18f;
+		float low = float.PositiveInfinity;
 		foreach ( var hitbox in Renderer.Model.HitboxSet.All )
 		{
 			var bone = hitbox.Bone;
@@ -147,6 +147,8 @@ public sealed partial class RabbitGuard
 			var world = model.ToWorld( Renderer.WorldTransform.ToLocal( animated ) );
 			foreach ( var p in points ) low = Math.Min( low, world.PointToWorld( p ).z );
 		}
+		if ( float.IsPositiveInfinity( low ) ) return 0f;
+		low = Math.Min( low, WorldPosition.z + 18f );
 		return (WorldPosition.z - low - 0.8f) * (1f - MathF.Pow( MathF.Abs( 0.5f - RollProgress ) * 2f, 2f ));
 	}
 }
