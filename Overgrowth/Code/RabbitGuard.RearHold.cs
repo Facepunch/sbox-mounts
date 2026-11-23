@@ -35,6 +35,7 @@ public sealed partial class RabbitGuard
 		breathSpeed += 2f;
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
 		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundMaterialName, 1f );
+		Speak( "attack" );
 		return true;
 	}
 

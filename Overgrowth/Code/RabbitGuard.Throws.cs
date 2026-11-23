@@ -64,7 +64,7 @@ public sealed partial class RabbitGuard
 		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
 		victim.willEscapeThrow = Random.Shared.Float() < victim.ThrowCounterProbability * GameDifficulty * GameDifficulty;
 		victim.stunnedBy = null;
-		Speak( "attack" );
+		PlayAttackStart( boundAnimations.ThrowMaterialEvent );
 		return true;
 	}
 

@@ -15,6 +15,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitReaction> Reactions { get; private init; }
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
+	internal string ThrowMaterialEvent { get; private init; }
 	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
@@ -62,7 +63,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( AnimationPath( key ) )))
 			.ToDictionary( x => x.key, x => x.animation );
 		var blocked = bodyAttacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
-		var throwActions = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" ).Element( "animations" );
+		var throwAttack = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" );
+		var throwActions = throwAttack.Element( "animations" );
 		var throwClips = new[] { "throw", "thrown", "thrown_counter" }.ToDictionary( slot => slot, slot => System.IO.Path.GetFileNameWithoutExtension( throwActions.Attribute( slot ) ) );
 		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround, RabbitGuard.DodgeHigh, RabbitGuard.DodgeMiddle, RabbitGuard.DodgeLow, RabbitGuard.SpearThrow, RabbitGuard.SwordThrow, RabbitGuard.CatchFront, RabbitGuard.CatchSide] ).ToHashSet();
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
@@ -180,7 +182,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				AsLayer = flags.Attribute( "as_layer" ) == "true",
 				Unblockable = flags.Attribute( "unblockable" ) == "true",
 				FleshUnblockable = flags.Attribute( "flesh_unblockable" ) == "true",
-				Special = flags.Attribute( "special" )
+				Special = flags.Attribute( "special" ),
+				MaterialEvent = attack.Element( "materialevent" )?.Value
 			};
 		}
 		var wallRigs = new HashSet<RabbitRetarget>();
@@ -442,6 +445,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			KnifeSwings = knifeSwings,
 			Reactions = reactions,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
+			ThrowMaterialEvent = throwAttack.Element( "materialevent" )?.Value,
 		};
 	}
 

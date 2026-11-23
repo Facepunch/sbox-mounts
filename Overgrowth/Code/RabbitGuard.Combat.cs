@@ -330,7 +330,7 @@ public sealed partial class RabbitGuard
 		if ( strike.SwapStance ) MirroredStance = !MirroredStance;
 		duckAmount = strike.Height == "low" ? 1f : 0f;
 		punishGroundedTarget = null;
-		Speak( "attack" );
+		PlayAttackStart( strike.MaterialEvent );
 		AttackPhase = 0;
 		cancelDelay = 0.01f;
 		AttackHeight = GetAttackHeight( target );
@@ -518,6 +518,13 @@ public sealed partial class RabbitGuard
 		mount.EmitClashParticles( "woodspeck", point, Random.Shared.Next( a == "wood" && b == "wood" ? 5 : 10 ) );
 		mount.EmitImpactDust( "Data/Particles/impactfast.xml", point );
 		mount.EmitImpactDust( "Data/Particles/impactslow.xml", point );
+	}
+
+	void PlayAttackStart( string materialEvent )
+	{
+		Speak( "attack" );
+		if ( !string.IsNullOrEmpty( materialEvent ) )
+			PlayMaterialEvent( materialEvent, WorldPosition, GroundMaterialName, 1f );
 	}
 
 	void Speak( string cue )

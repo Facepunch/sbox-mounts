@@ -13,6 +13,7 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string ReactionP
 	internal bool Unblockable { get; init; }
 	internal bool FleshUnblockable { get; init; }
 	internal string Special { get; init; }
+	internal string MaterialEvent { get; init; }
 
 	internal Vector3 WorldImpact( Vector3 direction, bool flipped )
 	{
