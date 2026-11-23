@@ -208,24 +208,30 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			if ( visible && preferredRange > 0 )
+			if ( visible )
 			{
-				var direction = delta.WithZ( 0 ).Normal;
-				var offset = destination - direction * preferredRange + direction.Cross( Vector3.Up ) * strafeOffset;
-				if ( Movement.ProjectPoint( offset ) is { } point )
-				{
-					const float slowRadius = 0.2f * 40f;
-					float remaining = (point - WorldPosition).WithZ( 0 ).Length - slowRadius;
-					if ( remaining > 0 )
-						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * GroundRunSpeed,
-							Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
-					else Movement.Stop();
-				}
+				var intent = CombatApproach( destination, out var point );
+				if ( !intent.IsNearlyZero() )
+					Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
+						Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
 				else Movement.Stop();
 			}
 			else Movement.MoveTo( destination, 0.45f * 40, GroundRunSpeed );
 		}
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
+	}
+
+	// GetNavMeshMovement slows only the component along the line to the target.
+	Vector3 CombatApproach( Vector3 target, out Vector3 point )
+	{
+		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
+		var offset = target - toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
+		point = preferredRange > 0f ? Movement.ProjectPoint( offset ) ?? WorldPosition : target;
+		var delta = (point - WorldPosition).WithZ( 0f );
+		var direct = toward * delta.Dot( toward );
+		float slowRadius = Math.Max( 0.2f * 40f, 40f - preferredRange );
+		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
+		return intent.LengthSquared > 1f ? intent.Normal : intent;
 	}
 
 	// aschar.as UpdateAttacking and interpdirection.as, for an unarmed non-throw attack.

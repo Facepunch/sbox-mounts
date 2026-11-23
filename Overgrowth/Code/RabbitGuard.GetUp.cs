@@ -36,8 +36,12 @@ public sealed partial class RabbitGuard
 
 		lastPhysicsPose = null;
 		getUpSlot = Stance;
-		var stand = boundAnimations.Clips[getUpSlot].ForSide( MirroredAction );
-		var duration = Math.Min( 1f, stand.Duration );
+		bool rolling = getUpSlot == Roll;
+		var stand = rolling ? RollClip( 0 ) : boundAnimations.Clips[getUpSlot].ForSide( MirroredAction );
+		var other = rolling ? RollClip( 1 ) : stand;
+		float frequency = rolling ? RollFrequency : 1f / stand.Duration;
+		float fadeRate = rolling ? 2f : 1f;
+		var duration = Math.Min( 1f / fadeRate, 1f / frequency );
 		int steps = (int)MathF.Ceiling( duration * 120f );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = steps / duration };
 		clip.AddFrame( frame );
@@ -46,7 +50,12 @@ public sealed partial class RabbitGuard
 		{
 			float time = step * duration / steps;
 			for ( int i = 0; i < frame.Length; i++ )
-				frame[i] = global::Transform.Lerp( frame[i], stand.Animation.GetLocalTransform( time / stand.Duration, i ), time, false );
+			{
+				float phase = time * frequency;
+				var target = stand.Animation.GetLocalTransform( phase, i );
+				if ( rolling ) target = global::Transform.Lerp( target, other.Animation.GetLocalTransform( phase, i ), RollForwardness, false );
+				frame[i] = global::Transform.Lerp( frame[i], target, time * fadeRate, false );
+			}
 			clip.AddFrame( frame );
 		}
 		foreach ( var channel in RabbitClip.StatusChannels )
@@ -60,8 +69,13 @@ public sealed partial class RabbitGuard
 			for ( int step = 1; step <= steps; step++ )
 			{
 				float time = step * duration / steps;
-				if ( stand.Animation.TryGetFloatChannel( time / stand.Duration, set, channel, out var value ) )
-					weights[step] = time * value;
+				stand.Animation.TryGetFloatChannel( time * frequency, set, channel, out var value );
+				if ( rolling )
+				{
+					other.Animation.TryGetFloatChannel( time * frequency, set, channel, out var forward );
+					value += (forward - value) * RollForwardness;
+				}
+				weights[step] = time * fadeRate * value;
 			}
 			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( set, channel, weights );
 		}

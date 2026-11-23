@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 {
 	internal const string Idle = "r_idle", Watch = "r_dialogue_shade", Threat = "r_combatidlethreat", Locomotion = "movement";
 	internal const string Sweep = "r_sweep", SoccerKick = "r_soccerkick";
-	internal const string FreeAir = "jump";
+	internal const string FreeAir = "jump", Roll = "roll";
 	[Property, Range( 0.01f, 100f )] public float MovementSpeed { get; set; } = 1f;
 	float GroundRunSpeed => 8f * 40f * Math.Clamp( MovementSpeed, 0.01f, 100f );
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
@@ -75,12 +75,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpGraph is null )
 		{
-			if ( IsGetUp( Stance ) ) BeginGetUpBlend();
+			if ( IsGetUp( Stance ) || Stance == Roll ) BeginGetUpBlend();
 			else lastPhysicsPose = null;
 		}
-		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
+		if ( getUpGraph is not null && (Stance != getUpSlot || (getUpSlot == Roll ? RollProgress * 0.5f : ReactionPhase * boundAnimations.Clips[getUpSlot].Duration) >= getUpPose.Duration) )
 			EndGetUpBlend();
 		if ( Networking.IsHost ) UpdateGazeTarget();
+		UpdateRollDisplay();
 		UpdatePatrolPose();
 		bool track = !NoLookAround && Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
@@ -127,6 +128,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			enemySeen = 0;
 			Movement.Stop();
 		}
+		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();
 		if ( InThrow || UpdateDefense() ) return;

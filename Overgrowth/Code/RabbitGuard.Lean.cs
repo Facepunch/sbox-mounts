@@ -58,6 +58,8 @@ public sealed partial class RabbitGuard
 				rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
 			}
 		}
+		if ( displayingRoll )
+			rotation = Rotation.FromAxis( parent.Inverse * Vector3.Up.Cross( RollDirection ), (rollAngle * 6.2832f).RadianToDegree() ) * rotation;
 		if ( rotation != Rotation.Identity )
 		{
 			// FinalAnimationMatrixUpdate rotates all animated bones about their mass-weighted center.
@@ -79,6 +81,8 @@ public sealed partial class RabbitGuard
 				pose.Rotation = rotation * pose.Rotation;
 			}
 		}
+		if ( displayingRoll && RollProgress < 1f )
+			pose.Position += parent.Inverse * (Vector3.Up * RollGroundOffset( pose )) / Renderer.GameObject.Parent.WorldScale;
 		Renderer.LocalTransform = pose;
 	}
 }

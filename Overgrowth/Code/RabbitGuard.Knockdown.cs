@@ -81,6 +81,9 @@ public sealed partial class RabbitGuard
 	void GoLimp()
 	{
 		sinceKnockdown = 0;
+		displayingRoll = false;
+		rollDelay = Random.Shared.Float( 0.1f, 1f );
+		RollProgress = 1f;
 		EndGetUpBlend();
 		// Older saved instances predate the explicit prefab reference.
 		MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
@@ -130,7 +133,8 @@ public sealed partial class RabbitGuard
 	bool TryGetUp( Vector3? blockFacing = null )
 	{
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
-		if ( !blockFacing.HasValue && sinceKnockdown < 1f ) return false;
+		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && CanAttack( enemy ) && startled <= 0f;
+		if ( !blockFacing.HasValue && sinceKnockdown < 1f && (!canWakeRoll || sinceKnockdown <= 0.2f || rollDelay > 0f) ) return false;
 		Vector3 center = default, velocity = default;
 		float mass = 0;
 		int count = 0;
@@ -144,13 +148,19 @@ public sealed partial class RabbitGuard
 			count++;
 		}
 		if ( count == 0 || mass <= 0 ) return false;
-		if ( !blockFacing.HasValue && (velocity / mass).LengthSquared >= 20f * 40f * 40f ) return false;
+		velocity /= mass;
+		bool wakeRoll = !blockFacing.HasValue && (sinceKnockdown < 1f || velocity.LengthSquared >= 20f * 40f * 40f);
+		if ( wakeRoll && (!canWakeRoll || rollDelay > 0f) ) return false;
 		center /= count;
 		var extent = MovementCapsule.WorldScale;
 		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
 		var ground = Scene.Trace.Ray( center, center + Vector3.Down * 40f )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-		if ( !ground.Hit || ground.StartedSolid || ground.Normal.z <= 0.5f ) return false;
+		if ( !ground.Hit || ground.StartedSolid || ground.Normal.z <= 0.5f )
+		{
+			if ( wakeRoll ) rollDelay = 1f;
+			return false;
+		}
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.
 		var lift = capsule.Radius * (1f / ground.Normal.z - 1f);
@@ -165,13 +175,14 @@ public sealed partial class RabbitGuard
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
 		WorldPosition = floor.EndPosition;
-		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+		if ( !wakeRoll && !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;
 		var agent = GetComponent<NavMeshAgent>( true );
 		agent.Enabled = true;
 		agent.SetAgentPosition( WorldPosition );
-		StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
+		if ( wakeRoll ) StartRoll( velocity, ground.Surface?.ResourceName );
+		else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		secondaryReset = 4f * (4f / 120f);
 		awaitingThrowImpact = false;
 		throwPartner = null;
