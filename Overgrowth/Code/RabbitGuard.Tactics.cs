@@ -20,6 +20,7 @@ public sealed partial class RabbitGuard
 	TimeUntil dontAttackBefore;
 	float preferredRange;
 	float strafeOffset;
+	bool UsesPolearm => boundAnimations.WeaponLabel is "staff" or "spear";
 
 	void PickBlockFollowUp()
 	{
@@ -86,7 +87,16 @@ public sealed partial class RabbitGuard
 			var next = CombatTactic.Defend;
 			if ( GameDifficulty < 0.25f || boundAnimations.Species == "wolf" ) next = CombatTactic.Rush;
 			else if ( Random.Shared.Float() < Aggression + (!groupLeader.IsValid() && followerCount > 0 ? 0.125f : 0f) )
+			{
 				next = Random.Shared.Float() > 0.5f ? CombatTactic.Wait : CombatTactic.Rush;
+				var opponent = enemy.GetComponent<RabbitGuard>();
+				if ( !UsesPolearm && opponent.IsValid() && opponent.PrimaryItem.IsValid()
+					&& (opponent.strike?.AsLayer != false || opponent.enemy == GameObject) )
+				{
+					if ( opponent.boundAnimations.WeaponLabel == "knife" || (!PrimaryItem.IsValid() && (throwRecharge > 0f || sinceDodgeAttempt < 3f)) )
+						next = CombatTactic.Rush;
+				}
+			}
 
 			// PickAttackSubGoal commits to one ground-punish decision until the next attack
 			// or until the target has been out of ragdoll for more than 0.8 seconds.
@@ -108,7 +118,12 @@ public sealed partial class RabbitGuard
 		if ( rangeChanged || Random.Shared.Float() < Time.Delta * 120f / 150f )
 		{
 			rangeChanged = false;
-			preferredRange = tactic is CombatTactic.Defend or CombatTactic.Wait ? Random.Shared.Float( 1.5f, 3f ) * 40f : 0f;
+			preferredRange = tactic switch
+			{
+				CombatTactic.Defend or CombatTactic.Wait => Random.Shared.Float( 1.5f, 3f ) * 40f,
+				CombatTactic.Rush when UsesPolearm => 2f * 40f,
+				_ => 0f
+			};
 		}
 	}
 }

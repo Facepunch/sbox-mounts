@@ -10,7 +10,8 @@ public sealed partial class RabbitGuard
 	bool InMovementState => !Downed && !InThrow && RollProgress >= 1f && ReactionPhase >= 1f && strike?.AsLayer != false;
 
 	float? dodgeDelay;
-	TimeUntil dodgeRecharge, dodgeWindow, nextDodgeAttempt, nextSuccessfulDodge = 3f;
+	TimeUntil dodgeRecharge, dodgeWindow, nextSuccessfulDodge = 3f;
+	TimeSince sinceDodgeAttempt = 0f;
 	Vector3 dodgeDirection;
 
 	void UpdateDodgeWindow( float step )
@@ -26,13 +27,13 @@ public sealed partial class RabbitGuard
 
 	bool TryDodge( RabbitGuard attacker, RabbitAttack move )
 	{
-		if ( boundAnimations.Species == "wolf" || startled > 0f || RollProgress < 1f || nextSuccessfulDodge > 0f || nextDodgeAttempt > 0f ) return false;
+		if ( boundAnimations.Species == "wolf" || startled > 0f || RollProgress < 1f || nextSuccessfulDodge > 0f || sinceDodgeAttempt < 0.5f ) return false;
 		bool forced = InMovementState && move.FleshUnblockable &&
 			(attacker.boundAnimations.WeaponLabel == "knife" ? Random.Shared.Next( 3 ) == 0 :
 			(!PrimaryItem.IsValid() || Random.Shared.Next( 10 ) == 0) && tactic == CombatTactic.Provoke);
 		if ( !(forced && Random.Shared.Float() <= GameDifficulty) && dodgeWindow <= 0f ) return false;
 
-		nextDodgeAttempt = 0.5f;
+		sinceDodgeAttempt = 0f;
 		var toward = (attacker.WorldPosition - WorldPosition).WithZ( 0f ).Normal;
 		if ( Downed || toward.Dot( dodgeDirection ) > 0.85f ) return false;
 		var animation = move.Height switch { "high" => DodgeHigh, "medium" => DodgeMiddle, _ => DodgeLow };
