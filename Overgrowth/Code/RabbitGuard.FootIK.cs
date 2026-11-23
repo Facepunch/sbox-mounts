@@ -89,7 +89,11 @@ public sealed partial class RabbitGuard
 		var velocity = Animation.MoveVelocity + ContactVelocity;
 		float speed = velocity.Length / 40f;
 		float stepSpeed = Math.Max( 2f, speed * 1.5f + 1f );
-		float across = (right.Position - left.Position).Normal.Dot( velocity.Normal );
+		// GetIKTargetAnimPosition reads the unmodified animation matrices before character facing and lean.
+		var model = Renderer.WorldTransform;
+		var leftAnchor = pose.Left.Present ? model.PointToLocal( left.Position ) : Vector3.Zero;
+		var rightAnchor = pose.Right.Present ? model.PointToLocal( right.Position ) : Vector3.Zero;
+		float across = (rightAnchor - leftAnchor).Normal.Dot( velocity.Normal );
 		Vector3 Goal( int foot ) => speed * speed > 0.001f ? root + velocity * ((1f + (foot == 0 ? -across : across)) / 120f + 0.5f / stepSpeed) : root;
 		bool NeedsStep( int foot ) => Goal( foot ).DistanceSquared( plantedRoot[foot] ) > 4f * 4f;
 		if ( steppingFoot < 0 && (NeedsStep( 0 ) || NeedsStep( 1 )) )
