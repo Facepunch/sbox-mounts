@@ -7,6 +7,7 @@ public partial class GameMount
 	Dictionary<string, int> phonemes;
 	internal Dictionary<string, int> Phonemes => phonemes ??= VoiceTrack.ReadGroups( FileSystem.ReadAllText( Resolve( "Data/Sounds/voice/phonemes.txt" ) ) );
 	readonly Dictionary<string, XmlAsset> materials = new();
+	readonly Dictionary<string, Queue<int>> voiceHistory = new();
 	readonly Dictionary<string, (int Variants, float Volume, float Distance)> soundGroups = new();
 
 	XmlAsset ReadMaterial( string path )
@@ -52,7 +53,7 @@ public partial class GameMount
 		}
 	}
 
-	internal (SoundFile File, float Volume, float Distance) PickSound( string path )
+	internal (SoundFile File, float Volume, float Distance) PickSound( string path, bool voice = false )
 	{
 		if ( !soundGroups.TryGetValue( path, out var group ) )
 		{
@@ -60,6 +61,14 @@ public partial class GameMount
 			soundGroups[path] = group = ((int)(xml.Number( "variants" ) ?? 1), xml.Number( "volume" ) ?? 1, (xml.Number( "max_distance" ) ?? 30f) * 40f);
 		}
 		int variant = Random.Shared.Next( 1, group.Variants + 1 );
+		// MovementObject selects voices through SoundGroup::GetSoundPath and reuses that take for lip sync.
+		if ( voice && group.Variants > 1 )
+		{
+			if ( !voiceHistory.TryGetValue( path, out var recent ) ) voiceHistory[path] = recent = new();
+			while ( recent.Contains( variant ) ) variant = Random.Shared.Next( 1, group.Variants + 1 );
+			recent.Enqueue( variant );
+			if ( recent.Count > group.Variants / 2 ) recent.Dequeue();
+		}
 		var file = SoundFile.Load( MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd" );
 		return (file, group.Volume, group.Distance);
 	}
@@ -72,11 +81,7 @@ public partial class GameMount
 		var handle = Sound.PlayFile( file, Math.Min( 1f, level ) );
 		if ( handle.IsValid() )
 		{
-			// Overgrowth plays positional sound groups without geometry occlusion.
-			handle.OcclusionEnabled = false;
-			// OpenAL caps the attenuated gain at one, with a one-metre reference distance.
-			handle.MinDistance = 40f * Math.Max( 1f, level );
-			handle.Distance = distance;
+			ConfigureGroup( handle, level, distance );
 			handle.Position = position;
 			if ( parent.IsValid() )
 			{
@@ -86,5 +91,13 @@ public partial class GameMount
 			}
 		}
 		return handle;
+	}
+
+	internal static void ConfigureGroup( SoundHandle handle, float level, float distance )
+	{
+		// Overgrowth's positional sound groups use unoccluded inverse-distance attenuation.
+		handle.OcclusionEnabled = false;
+		handle.MinDistance = 40f * Math.Max( 1f, level );
+		handle.Distance = distance;
 	}
 }

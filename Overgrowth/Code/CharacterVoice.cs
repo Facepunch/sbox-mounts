@@ -15,7 +15,7 @@ internal sealed class CharacterVoice
 			mount.GetByPath( renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
 		var (group, pitch) = character.GetVoice( cue );
 		if ( group is null ) return;
-		var (file, volume, distance) = mount.PickSound( group );
+		var (file, volume, distance) = mount.PickSound( group, voice: true );
 		if ( file is not null ) play( file.ResourcePath, volume, pitch, distance );
 	}
 
@@ -25,8 +25,7 @@ internal sealed class CharacterVoice
 		if ( !handle.IsValid() ) return;
 		handle.Position = head;
 		handle.LocalTransform = new Transform( renderer.WorldTransform.PointToLocal( head ) );
-		handle.MinDistance = 40f * Math.Max( 1f, volume );
-		handle.Distance = distance;
+		GameMount.ConfigureGroup( handle, volume, distance );
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( path ) is SoundLoader sound && mount.GetByPath( renderer.Model.ResourcePath ) is CharacterLoader character &&
 			character.GetVoiceTrack( sound ) is { } recording )
