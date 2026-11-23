@@ -130,12 +130,8 @@ public sealed partial class RabbitGuard
 
 	bool CanSeeCharacter( GameObject target, RabbitGuard fighter, CharacterRemains remains = null )
 	{
-		var end = TargetPosition( target, eyes: true );
-		var rig = fighter?.boundAnimations ?? remains?.Rig;
-		if ( rig?.SightBones is { Length: > 0 } bones &&
-			(fighter?.Renderer ?? target.GetComponent<SkinnedModelRenderer>()).TryGetBoneTransform( bones[Random.Shared.Next( bones.Length )], out var bone ) )
-			end = bone.Position;
-
+		var renderer = fighter?.Renderer ?? (remains.IsValid() ? target.GetComponent<SkinnedModelRenderer>() : null);
+		var end = CharacterLoader.RandomSightPosition( renderer, fighter ) ?? TargetPosition( target, eyes: true );
 		var start = TargetPosition( GameObject, eyes: true );
 		if ( Scene.Trace.Ray( start, end )
 			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player" ).Run().Hit ) return false;

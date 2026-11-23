@@ -8,6 +8,7 @@ public sealed partial class RabbitGuard
 	Transform previousMotionRoot, currentMotionRoot;
 	float motionStep;
 	int motionSamples;
+	internal Transform? SolvedBodyTransform( int bone ) => motionSamples > 0 ? currentMotionRoot.ToWorld( currentMotionPose[bone] ) : null;
 	bool[] overridden;
 	int[] poseParents, recoveryParents;
 

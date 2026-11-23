@@ -5,6 +5,5 @@ internal sealed class CharacterRemains : Component
 {
 	internal bool StaticCharacter { get; set; }
 	internal string[] Teams { get; set; }
-	internal RabbitGuardAnimations Rig { get; set; }
 	internal ModelPhysics Physics { get; set; }
 }

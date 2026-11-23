@@ -128,10 +128,7 @@ internal sealed class RagdollInjury : Component
 			fighter.PlayLocalVoice( path, volume, pitch, distance );
 			return;
 		}
-		var rig = GetComponent<CharacterRemains>()?.Rig;
-		if ( rig is null && Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) is CharacterLoader character )
-			rig = character.GetGuardAnimations();
-		voice.Play( renderer, CharacterVoice.HeadPosition( renderer, rig ) ?? renderer.WorldPosition, path, volume, pitch, distance );
+		voice.Play( renderer, CharacterLoader.AverageChainPosition( renderer, "head" ) ?? renderer.WorldPosition, path, volume, pitch, distance );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

@@ -211,7 +211,6 @@ public sealed partial class RabbitGuard
 			var remains = corpse.GetOrAddComponent<CharacterRemains>();
 			remains.Teams = Teams;
 			remains.StaticCharacter = StaticCharacter;
-			remains.Rig = boundAnimations;
 			remains.Physics = physics;
 			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 			{

@@ -15,7 +15,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitReaction> Reactions { get; private init; }
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
-	internal string[] SightBones { get; private init; }
 	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
@@ -438,7 +437,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			KnifeSwings = knifeSwings,
 			Reactions = reactions,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
-			SightBones = Enumerable.Range( 0, weighted.Length ).Where( i => weighted[i] ).Select( i => $"bone_{i}" ).ToArray()
 		};
 	}
 

@@ -258,7 +258,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	Vector3 TargetPosition( GameObject target, bool eyes = false )
 	{
 		var fighter = target.GetComponent<RabbitGuard>();
-		if ( eyes && fighter.IsValid() && CharacterVoice.HeadPosition( fighter.Renderer, fighter.boundAnimations ) is { } head ) return head;
+		if ( eyes && fighter.IsValid() && CharacterLoader.AverageChainPosition( fighter.Renderer, "head" ) is { } head ) return head;
 		var remains = target.GetComponent<CharacterRemains>();
 		if ( (fighter is { Downed: true } || remains.IsValid()) &&
 			CharacterLoader.RagdollCenter( fighter?.ragdoll ?? remains?.Physics ) is { } center ) return center;

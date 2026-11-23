@@ -9,21 +9,6 @@ internal sealed class CharacterVoice
 	float time;
 	SoundHandle handle;
 
-	internal static Vector3? HeadPosition( SkinnedModelRenderer renderer, RabbitGuardAnimations rig )
-	{
-		if ( rig is null || !renderer.IsValid() ) return null;
-		var bone = renderer.Model.Bones.GetBone( rig.HeadBone );
-		Vector3 sum = default;
-		int count = 0;
-		while ( count < rig.Head.ChainLength && bone is not null && renderer.TryGetBoneTransform( bone, out var pose ) )
-		{
-			sum += pose.Position;
-			count++;
-			bone = bone.Parent;
-		}
-		return count > 0 ? sum / count : null;
-	}
-
 	internal static void Select( SkinnedModelRenderer renderer, string cue, Action<string, float, float, float> play )
 	{
 		if ( !renderer.IsValid() || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||

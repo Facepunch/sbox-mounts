@@ -97,14 +97,7 @@ public sealed partial class RabbitGuard
 		{
 			end = CharacterCenter( target );
 			velocity = GetVelocity( target );
-			if ( target.GetComponent<RabbitGuard>() is { boundAnimations: { } rig } other )
-			{
-				Vector3 sum = default;
-				int count = 0;
-				foreach ( var bone in rig.TorsoBones )
-					if ( other.Renderer.TryGetBoneTransform( bone, out var pose ) ) { sum += pose.Position; count++; }
-				if ( count > 0 ) end = sum / count;
-			}
+			if ( target.GetComponent<RabbitGuard>() is { } other && CharacterLoader.AverageChainPosition( other.Renderer, "torso" ) is { } torso ) end = torso;
 		}
 		item.Throw( end, velocity, Animation.MoveVelocity, fullBody );
 		if ( item == LeftHandItem ) LeftHandItem = null;
