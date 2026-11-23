@@ -287,6 +287,23 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			return;
 		}
 
+		if ( name == "ambient_sound" )
+		{
+			var go = new GameObject( true, name ) { Parent = parent, WorldPosition = Origin( entity ) };
+			var sound = go.AddComponent<MapAmbientSound>();
+			sound.EventName = entity.Get( "eventName" ).AsString();
+			sound.Radius = Math.Clamp( entity.Get( "radius" ).AsFloat(), 0, 1000 ) * Scale;
+			sound.MinDistance = Math.Clamp( entity.Get( "minFalloff" ).AsFloat(), 0, 1000 ) * Scale;
+			sound.MaxDistance = Math.Clamp( entity.Get( "maxFalloff" ).AsFloat(), 0, 1000 ) * Scale;
+			sound.Linear = entity.Get( "falloffType" ).AsInt() >= 2;
+			sound.Positional = entity.Get( "positioning" ).AsInt() < 2;
+			sound.Volume = entity.Has( "volume" ) ? Math.Clamp( entity.Get( "volume" ).AsFloat(), 0, 1 ) : 1;
+			sound.Pitch = Math.Clamp( entity.Get( "pitch" ).AsFloat(), -4, 4 );
+			sound.StartsOn = entity.Get( "startsOn" ).AsBool();
+			sound.OffOnExit = entity.Get( "offOnExit" ).AsBool();
+			return;
+		}
+
 		if ( name == "ladder" )
 		{
 			// TriggerMixin:SetBox takes half-extents in metres and raises the center

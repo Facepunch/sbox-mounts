@@ -15,6 +15,23 @@ public class GameMount : BaseGameMount
 
 	public override long? SteamAppId => appId;
 
+	internal readonly Dictionary<string, string[]> SoundBanks = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, SoundProject> soundProjects = new( StringComparer.OrdinalIgnoreCase );
+
+	internal SoundProject.Event FindSoundEvent( string name )
+	{
+		int split = name?.IndexOf( ".fev/", StringComparison.OrdinalIgnoreCase ) ?? -1;
+		if ( split < 0 ) return null;
+		var project = name[..(split + 4)];
+		if ( !soundProjects.TryGetValue( project, out var events ) )
+		{
+			if ( TryResolve( FileSystem, project, out var path ) )
+				events = SoundProject.Read( ReadAllBytes( path ), path[..path.LastIndexOf( '/' )], SoundBanks );
+			soundProjects[project] = events;
+		}
+		return events?.Events.GetValueOrDefault( name[(split + 5)..] );
+	}
+
 	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
 	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
 
@@ -22,6 +39,8 @@ public class GameMount : BaseGameMount
 	{
 		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
+		SoundBanks.Clear();
+		soundProjects.Clear();
 		ShaderDefaults.Clear();
 	}
 
@@ -103,7 +122,7 @@ public class GameMount : BaseGameMount
 			}
 			else if ( resourceType == ResourceType.Sound )
 			{
-				SoundBankLoader.AddSoundsFromBank( context, FileSystem, path );
+				SoundBanks[path] = SoundBankLoader.AddSoundsFromBank( context, FileSystem, path );
 			}
 		}
 

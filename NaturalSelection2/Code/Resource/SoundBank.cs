@@ -1,207 +1,109 @@
-﻿using System;
+using System;
 using System.Text;
 
 namespace NS2;
 
-record struct SampleInformation(
-	SoundBankLoader.SoundFormat Format,
-	long InfoOffset,
-	long DataOffset,
-	long Length = 0
-);
-
-class SoundBankLoader( string bankPath, SampleInformation info ) : ResourceLoader<GameMount>
+internal sealed class SoundBankLoader( string bankPath, SoundBankLoader.Sample sample, bool loop = false ) : ResourceLoader<GameMount>
 {
-	private string BankPath { get; init; } = bankPath;
-	private SampleInformation Info { get; init; } = info;
+	internal readonly record struct Sample( long Offset, int Bytes, int Format, int Rate, int Channels, int Frames, int LoopStart, int LoopEnd );
+	static readonly int[] Rates = [4000, 8000, 11000, 11025, 16000, 22050, 24000, 32000, 44100, 48000, 96000];
 
-	public enum SoundFormat
+	internal static string[] AddSoundsFromBank( MountContext context, BaseFileSystem fs, string bankPath )
 	{
-		None,
-		PCM8,
-		PCM16,
-		PCM24,
-		PCM32,
-		PCMFLOAT,
-		GCADPCM,
-		IMAADPCM,
-		VAG,
-		HEVAG,
-		XMA,
-		MPEG,
-		CELT,
-		AT9,
-		XWMA,
-		VORBIS
-	};
+		using var stream = fs.OpenRead( bankPath );
+		using var r = new BinaryReader( stream );
+		if ( r.ReadUInt32() != 0x35425346 ) return []; // FSB5
+		int version = r.ReadInt32(), count = r.ReadInt32();
+		int headers = r.ReadInt32(), names = r.ReadInt32(), dataSize = r.ReadInt32(), format = r.ReadInt32();
+		int headerSize = version == 0 ? 64 : 60;
+		long nameTable = (long)headerSize + headers, data = nameTable + names;
+		if ( count < 0 || count > headers / 8 || count > names / 4 || dataSize < 0 || data + dataSize > stream.Length )
+			throw new InvalidDataException( bankPath );
 
-	static ulong Bits( ulong val, int start, int len )
-	{
-		var stop = start + len;
-		var r = val & ((1UL << stop) - 1);
-		return r >> start;
+		stream.Position = headerSize;
+		var samples = new Sample[count];
+		for ( int i = 0; i < count; i++ )
+		{
+			ulong raw = r.ReadUInt64();
+			int code = (int)(raw >> 1 & 15);
+			int rate = code < Rates.Length ? Rates[code] : 0;
+			int channels = (raw >> 5 & 3) switch { 0 => 1, 1 => 2, 2 => 6, _ => 8 };
+			int start = -1, end = 0;
+			bool more = (raw & 1) != 0;
+			while ( more )
+			{
+				uint chunk = r.ReadUInt32();
+				more = (chunk & 1) != 0;
+				long next = stream.Position + ((chunk >> 1) & 0xffffff);
+				if ( next > nameTable ) throw new InvalidDataException( bankPath );
+				switch ( chunk >> 25 )
+				{
+					case 1: channels = r.ReadByte(); break;
+					case 2: rate = r.ReadInt32(); break;
+					case 3: start = r.ReadInt32(); end = r.ReadInt32() + 1; break;
+				}
+				stream.Position = next;
+			}
+			samples[i] = new( data + (long)(raw >> 7 & 0x7ffffff) * 32, 0, format, rate, channels, (int)(raw >> 34), start, end );
+		}
+
+		stream.Position = nameTable;
+		var table = r.ReadBytes( names );
+		var paths = new string[count];
+		for ( int i = 0; i < count; i++ )
+		{
+			int offset = BitConverter.ToInt32( table, i * 4 );
+			int end = Array.IndexOf( table, (byte)0, offset );
+			string name = Encoding.UTF8.GetString( table, offset, end - offset );
+			var entry = samples[i];
+			long next = i + 1 < count ? samples[i + 1].Offset : data + dataSize;
+			entry = entry with { Bytes = checked((int)(next - entry.Offset)) };
+			paths[i] = $"{bankPath}/{name}";
+			context.Add( ResourceType.Sound, paths[i], new SoundBankLoader( bankPath, entry ) );
+		}
+		return paths;
 	}
 
-	static int Frequency( ulong raw )
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
-		return raw switch
-		{
-			1 => 8000,
-			2 => 11000,
-			3 => 11025,
-			4 => 16000,
-			5 => 22050,
-			6 => 24000,
-			7 => 32000,
-			8 => 44100,
-			9 => 48000,
-			_ => throw new InvalidDataException()
-		};
-	}
-
-	public static void AddSoundsFromBank( MountContext context, BaseFileSystem fileSystem, string bankPath )
-	{
-		using var fs = fileSystem.OpenRead( bankPath );
-		using var br = new BinaryReader( fs );
-
-		// read and verify magic number
-		if ( Encoding.ASCII.GetString( br.ReadBytes( 4 ) ) != "FSB5" ) return;
-
-		// read bank header, notably contains the sound format used in the entire bank
-		var version = br.ReadUInt32();
-		var numSamples = br.ReadUInt32();
-		var sampleHeaderSize = br.ReadUInt32();
-		var nameTableSize = br.ReadUInt32();
-		var dataSize = br.ReadUInt32();
-		var mode = (SoundFormat)br.ReadUInt32();
-		fs.Seek( 32, SeekOrigin.Current ); // skip Zero, Hash, Dummy
-
-		// now there's a table of information for each sample
-		// figure out where information is stored, but leave reading the info for later
-		var samples = new List<SampleInformation>();
-		for ( var i = 0; i < numSamples; i++ )
-		{
-			var infoOffset = fs.Position;
-
-			var raw = br.ReadUInt64();
-			var nextChunk = Bits( raw, 0, 1 );
-			var dataOffset = (uint)Bits( raw, 1 + 4 + 1, 28 ) * 16;
-
-			while ( nextChunk != 0 )
-			{
-				var rawi = br.ReadUInt32();
-				nextChunk = Bits( rawi, 0, 1 );
-				var chunkSize = Bits( rawi, 1, 24 );
-				fs.Seek( (long)chunkSize, SeekOrigin.Current );
-			}
-
-			var sample = new SampleInformation(
-				mode,
-				infoOffset,
-				dataOffset
-			);
-
-			samples.Add( sample );
-		}
-
-		// before we continue reading, let's figure out how long each sample is
-		for ( var i = 0; i < numSamples; i++ )
-		{
-			var dataStart = samples[i].DataOffset;
-			long dataEnd;
-			if ( i < numSamples - 1 )
-			{
-				// the sample ends at the offset for the next sample
-				dataEnd = samples[i + 1].DataOffset;
-			}
-			else
-			{
-				// the sample ends at the end of the bank file data
-				dataEnd = sampleHeaderSize + nameTableSize + dataSize;
-			}
-			samples[i] = samples[i] with { Length = dataEnd - dataStart };
-		}
-
-		// finally, there's a table which has the name for each sample
-		// first there's a list of offsets which we skip because we're reading each name anyway
-		fs.Seek( 4 * numSamples, SeekOrigin.Current );
-		/* this is how you might want to read the name offsets:
-		var startOfNameTable = fs.Position;
-		var sampleNameOffsets = new List<long>();
-		for ( var i = 0; i < numSamples; i++ )
-		{
-			sampleNameOffsets.Add( br.ReadUInt32() );
-		}
-		*/
-
-		// now read each name in sequence and add them to the MountContext
-		for ( var i = 0; i < numSamples; i++ )
-		{
-			var nameBuilder = new StringBuilder();
-			var b = br.ReadChar();
-			do
-			{
-				nameBuilder.Append( b );
-				b = br.ReadChar();
-			} while ( b != 0 );
-
-			var path = $"{bankPath}/{nameBuilder}";
-
-			context.Add( ResourceType.Sound, path, new SoundBankLoader( bankPath, samples[i] ) );
-		}
+		type = ResourceType.Sound;
+		return !loop && name == "loop.vsnd" ? new SoundBankLoader( bankPath, sample, true ) : null;
 	}
 
 	protected override object Load()
 	{
-		using var fs = Host.FileSystem.OpenRead( BankPath );
-		using var br = new BinaryReader( fs );
-
-		// read sample information
-		fs.Seek( Info.InfoOffset, SeekOrigin.Begin );
-
-		var raw = br.ReadUInt64();
-		var nextChunk = Bits( raw, 0, 1 );
-		var frequency = Frequency( Bits( raw, 1, 4 ) );
-		var channels = (int)(Bits( raw, 1 + 4, 1 ) + 1);
-		// var samples = (int)Bits( raw, 1 + 4 + 1 + 28, 30 ); - unused
-
-		while ( nextChunk != 0 )
+		using var stream = Host.FileSystem.OpenRead( bankPath );
+		stream.Position = sample.Offset;
+		int size = sample.Format == 2 ? checked(sample.Frames * sample.Channels * 2) : sample.Bytes;
+		if ( size > sample.Bytes ) throw new InvalidDataException( bankPath );
+		var bytes = new byte[size];
+		stream.ReadExactly( bytes );
+		int start = loop ? Math.Max( 0, sample.LoopStart ) : -1;
+		int end = loop ? Math.Min( sample.LoopEnd, sample.Frames ) : 0;
+		return sample.Format switch
 		{
-			var rawi = br.ReadUInt32();
-			nextChunk = Bits( rawi, 0, 1 );
-			var chunkSize = Bits( rawi, 1, 24 );
-			var chunkType = Bits( rawi, 1 + 24, 7 );
+			11 => SoundFile.FromMp3( Path, bytes.AsSpan( 0, MpegLength( bytes ) ), new SoundFile.LoadOptions { Loop = loop, LoopStart = start, LoopEnd = end } ),
+			2 => SoundFile.FromPcm( Path, bytes, new SoundFile.PcmOptions { Channels = sample.Channels, Rate = (uint)sample.Rate, Loop = loop, LoopStart = start, LoopEnd = end } ),
+			_ => throw new NotSupportedException( $"Unsupported FSB5 codec {sample.Format} in {bankPath}" )
+		};
+	}
 
-			switch ( chunkType )
-			{
-				case 1: // CHANNELS
-					channels = br.ReadChar();
-					break;
-				case 2: // FREQUENCY
-					frequency = (int)br.ReadUInt32();
-					break;
-				default:
-					// skip this
-					fs.Seek( (long)chunkSize, SeekOrigin.Current );
-					break;
-			}
-		}
-
-		// read file data
-		byte[] fileBytes = new byte[Info.Length];
-		fs.Seek( Info.DataOffset, SeekOrigin.Begin );
-		fs.ReadExactly( fileBytes );
-
-		if ( Info.Format == SoundFormat.MPEG )
+	// Bank entries are 32-byte aligned. A short MPEG Layer II clip fails frame sync
+	// if the decoder sees bank padding after its final frame.
+	static readonly int[] Layer2Kbps = [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0];
+	static int MpegLength( ReadOnlySpan<byte> bytes )
+	{
+		int offset = 0;
+		while ( offset + 4 <= bytes.Length && bytes[offset] == 0xff && (bytes[offset + 1] & 0xfe) == 0xfc )
 		{
-			return SoundFile.FromMp3( Path, fileBytes );
+			byte header = bytes[offset + 2];
+			int rate = (header >> 2 & 3) switch { 0 => 44100, 1 => 48000, 2 => 32000, _ => 0 };
+			int bitRate = Layer2Kbps[header >> 4];
+			if ( rate == 0 || bitRate == 0 ) break;
+			int size = 144000 * bitRate / rate + (header >> 1 & 1);
+			if ( size > bytes.Length - offset ) break;
+			offset += size;
 		}
-
-		if ( Info.Format == SoundFormat.PCM16 )
-		{
-			return SoundFile.FromPcm( Path, fileBytes, new SoundFile.PcmOptions { Channels = channels, Rate = (uint)frequency, Bits = 16 } );
-		}
-
-		throw new NotImplementedException(); // NS2 only uses PCM16 (wav) and MPEG (mp3) samples.
+		return offset > 0 && bytes.Length - offset < 32 ? offset : bytes.Length;
 	}
 }
