@@ -102,6 +102,7 @@ internal sealed class CharacterAnimationLibrary
 	internal RabbitClip Clip( string name, RabbitClip.CenterMotion motion = RabbitClip.CenterMotion.Full, bool feet = false, bool mirrored = false )
 	{
 		var key = (name, motion, feet, mirrored);
+		if ( !feet && clips.TryGetValue( (name, motion, true, mirrored), out var gait ) ) return gait;
 		if ( !clips.TryGetValue( key, out var clip ) )
 			clips[key] = clip = RabbitClip.Load( fs, $"{path}/clips/{motion}/{(feet ? "gait" : "pose")}", Rig, Skeleton, name,
 				SourceFor( name ), Morphs, sampleFeet: feet, centerMotion: motion, mirror: mirrored ? Mirror : null );
