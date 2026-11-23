@@ -377,19 +377,37 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		// The shipped Lua enables physics only when collidable is explicitly false.
 		if ( !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool() || model.Physics is null ) return;
 		var moving = entity.Get( "dynamic" ).AsBool();
-		if ( model.Physics.Parts.Any( p => model.Bones.GetBone( p.BoneName ) is not null ) )
-		{
-			var physics = go.AddComponent<ModelPhysics>();
-			physics.Model = model;
-			physics.Renderer = renderer;
-			physics.MotionEnabled = moving;
-		}
-		else
+		if ( !model.Physics.Parts.Any( p => model.Bones.GetBone( p.BoneName ) is not null ) )
 		{
 			var collider = go.AddComponent<PhysicsCollider>();
 			collider.Physics = model.Physics;
 			collider.Static = !moving;
 			if ( moving ) go.AddComponent<Rigidbody>();
+			return;
+		}
+
+		if ( moving )
+		{
+			var physics = go.AddComponent<ModelPhysics>();
+			physics.Model = model;
+			physics.Renderer = renderer;
+			return;
+		}
+
+		// Kinematic props follow the animated bones in the editor and in game.
+		renderer.CreateBoneObjects = true;
+		var bones = model.CreateBoneObjects( go );
+		foreach ( var part in model.Physics.Parts )
+		{
+			var bone = model.Bones.GetBone( part.BoneName );
+			var owner = bone is null ? go : bones[bone];
+			foreach ( var hull in part.Hulls )
+			{
+				var collider = owner.AddComponent<HullCollider>();
+				collider.Type = HullCollider.PrimitiveType.Points;
+				collider.Points = hull.GetPoints().ToList();
+				collider.Surface = hull.Surface;
+			}
 		}
 	}
 
