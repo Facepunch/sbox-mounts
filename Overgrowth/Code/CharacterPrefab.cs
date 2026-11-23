@@ -20,12 +20,12 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		{
 			Game.ActiveScene.Enabled = false;
 			var go = new GameObject( true, title );
-			Configure( go, model, title, loader.HitVolumes );
+			Configure( go, model, title, loader );
 		}
 		return prefab = builder.Create();
 	}
 
-	static void Configure( GameObject go, Model model, string title, ModelHitboxes.ConvexHull[] volumes )
+	static void Configure( GameObject go, Model model, string title, CharacterLoader character )
 	{
 		go.Tags.Add( "npc" );
 		go.NetworkMode = NetworkMode.Object;
@@ -38,7 +38,7 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;
 		var hitboxes = visuals.AddComponent<ModelHitboxes>();
-		hitboxes.Hulls = volumes;
+		hitboxes.Hulls = character.HitVolumes;
 		hitboxes.Target = go;
 		hitboxes.Renderer = renderer;
 
@@ -57,6 +57,8 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		var agent = go.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
 		agent.Height = height;
+		// BrainSpeciesUpdate reserves off-mesh jump routes for rabbits.
+		agent.AllowAllLinkTypes = character.Species == "rabbit";
 		go.AddComponent<NavigationLayer>().RunSpeed = 8f * 40f;
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;

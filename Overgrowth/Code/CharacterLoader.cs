@@ -40,6 +40,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	XmlAsset characterDefinition;
 	XmlAsset Definition => characterDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "character" );
 	internal string DefaultTeams => Definition.Element( "team" )?.Value;
+	internal string Species => Definition.Element( "tags" )?.Attribute( "species" );
 	internal string Clothing => Definition.Element( "clothing" )?.Value;
 	internal string SoundMod => Definition.Element( "soundmod" )?.Value;
 
