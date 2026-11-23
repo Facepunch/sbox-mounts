@@ -112,6 +112,16 @@ public sealed partial class RabbitGuard
 
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
+			if ( enemy is not null && (!enemy.IsValid() || !IsLiveTarget( enemy ) || enemy.GetComponent<RabbitGuard>() is { Unconscious: true }) )
+			{
+				var next = seenHostiles.Keys.Where( CanAttack ).MinBy( obj => WorldPosition.DistanceSquared( TargetPosition( obj ) ) );
+				if ( next.IsValid() )
+				{
+					Remember( next, engage: false );
+					return;
+				}
+				FinishCombat( enemy.IsValid() ? TargetPosition( enemy ) : lastSeen );
+			}
 			enemy = null;
 			if ( FollowHeardVoice() ) return;
 			if ( InvestigateCasualty() ) return;

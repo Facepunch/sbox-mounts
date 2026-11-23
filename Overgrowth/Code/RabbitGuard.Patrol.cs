@@ -15,7 +15,7 @@ public sealed partial class RabbitGuard
 
 	void UpdatePatrolPose()
 	{
-		if ( Networking.IsHost && (AlertStage == 2 || investigatePoint.HasValue || escortTarget.IsValid()) && previousPatrolPoint.IsValid()
+		if ( Networking.IsHost && !wokeUp && (AlertStage == 2 || investigatePoint.HasValue || escortTarget.IsValid()) && previousPatrolPoint.IsValid()
 			&& previousPatrolPoint.Pose is "Sit" or "Sleep" or "Wounded" )
 		{
 			if ( Sleeping && !Downed && strike is null && ReactionPhase >= 1f )
@@ -26,6 +26,7 @@ public sealed partial class RabbitGuard
 				StartGetUp( front.z < 0f ? StandFromFront : StandFromBack );
 			}
 			wokeUp = true;
+			waypointAnimation = null;
 		}
 		if ( Stance != PatrolIdle || string.IsNullOrEmpty( PatrolAnimation ) ) return;
 		if ( connectedPatrolAnimation == PatrolAnimation ) return;
@@ -41,7 +42,7 @@ public sealed partial class RabbitGuard
 		if ( !Sleeping && heard > 0f && heard > enemySeen )
 			PatrolAnimation = heard > 0.5f ? "Data/Animations/r_actionidle_listen_b.anm" : "Data/Animations/r_actionidle.anm";
 		else if ( !Sleeping && enemySeen > 0f ) return false;
-		else if ( !wokeUp && waypointAnimation is not null && patrolWait > 0f ) PatrolAnimation = waypointAnimation;
+		else if ( waypointAnimation is not null && patrolWait > 0f ) PatrolAnimation = waypointAnimation;
 		else return false;
 		if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 		Stance = PatrolIdle;
@@ -57,7 +58,7 @@ public sealed partial class RabbitGuard
 		if ( (target - WorldPosition).WithZ( 0 ).LengthSquared < 40f * 40f )
 		{
 			var reached = patrolTarget;
-			waypointAnimation = reached.Pose switch
+			waypointAnimation = wokeUp ? null : reached.Pose switch
 			{
 				"Sit" => "Data/Animations/r_sit_cross_legged.anm",
 				"Sleep" => "Data/Animations/r_sleep.anm",

@@ -17,11 +17,13 @@ public sealed partial class RabbitGuard
 	readonly HashSet<RabbitGuard> knownCasualties = [];
 	RabbitGuard casualty;
 	TimeUntil? inspectUntil;
+	Vector3? inspectPosition;
 
 	void NoticeCasualty( RabbitGuard ally )
 	{
 		if ( !knownCasualties.Add( ally ) || casualty.IsValid() || enemy.IsValid() || investigatePoint.HasValue || escortTarget.IsValid() || searchUntil > 0f ) return;
 		casualty = ally;
+		inspectPosition = null;
 		inspectUntil = null;
 		startled = 1f;
 		Speak( "suspicious" );
@@ -30,8 +32,8 @@ public sealed partial class RabbitGuard
 
 	bool InvestigateCasualty()
 	{
-		if ( !casualty.IsValid() ) return false;
-		var position = TargetPosition( casualty.GameObject );
+		if ( !casualty.IsValid() && !inspectPosition.HasValue ) return false;
+		var position = casualty.IsValid() ? TargetPosition( casualty.GameObject ) : inspectPosition.Value;
 		var point = Movement.ProjectPoint( position ) ?? position;
 		if ( startled > 0f || inspectUntil.HasValue )
 		{
@@ -40,6 +42,7 @@ public sealed partial class RabbitGuard
 			if ( inspectUntil is { } until && until <= 0f )
 			{
 				casualty = null;
+				inspectPosition = null;
 				BeginAreaSearch();
 			}
 			return true;
@@ -58,6 +61,42 @@ public sealed partial class RabbitGuard
 			Stance = Locomotion;
 		}
 		return true;
+	}
+
+	void FinishCombat( Vector3 defeatedPosition )
+	{
+		suspicion = enemySeen = 0f;
+		investigatePoint = null;
+		urgentInvestigation = false;
+		// The sword-cleaning outcome is rerolled for an unarmed fighter.
+		int choice;
+		do choice = Random.Shared.Next( 10 ); while ( choice == 2 );
+		switch ( choice )
+		{
+			case 4:
+			case 5:
+				BeginAreaSearch();
+				break;
+			case 6:
+				inspectPosition = defeatedPosition;
+				inspectUntil = Random.Shared.Float( 2f, 4f );
+				break;
+			case 7:
+				inspectPosition = defeatedPosition;
+				inspectUntil = null;
+				break;
+			default:
+				(waypointAnimation, float duration) = choice switch
+				{
+					0 => ("Data/Animations/r_actionidle_footshake.anm", 2.5f),
+					1 => ("Data/Animations/r_actionidle_yawn.anm", 5f),
+					3 => ("Data/Animations/r_crossarms_idle.anm", Random.Shared.Float( 5f, 10f )),
+					8 => ("Data/Animations/r_dialogue_handhips.anm", Random.Shared.Float( 2f, 5f )),
+					_ => ("Data/Animations/r_dialogue_kneelfist.anm", Random.Shared.Float( 2f, 5f ))
+				};
+				patrolWait = duration;
+				break;
+		}
 	}
 
 	void BeginAreaSearch()

@@ -231,6 +231,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		enemy = target;
 		searchUntil = 0f;
 		casualty = null;
+		inspectPosition = null;
 		seenHostiles[target] = Time.Now;
 		escortTarget = null;
 		investigatePoint = null;
