@@ -8,7 +8,9 @@ public sealed class CharacterNavigation : NavigationLayer
 {
 	bool followingJump;
 	Vector3? preparedVelocity;
-	TimeUntil takeoff;
+	TimeUntil takeoff, checkRoute;
+	Vector3? predictedClimb;
+	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
 
 	protected override bool UsesGround => Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
@@ -18,26 +20,33 @@ public sealed class CharacterNavigation : NavigationLayer
 		if ( !Networking.IsHost ) return;
 		if ( Npc.IsAirborne ) sinceAirborne = 0f;
 		if ( Npc is RabbitGuard climber && climber.AdvanceLedge() ) return;
-		if ( LinkTraversal is { } crossing && (crossing.Type == NavMeshLinkType.Jump || crossing.Type == NavMeshLinkType.Climb) && Npc is RabbitGuard fighter )
+		var crossing = LinkTraversal;
+		if ( Npc is RabbitGuard fighter )
 		{
-			if ( sinceAirborne <= 0.1f ) return;
-			if ( !preparedVelocity.HasValue )
+			if ( !crossing.HasValue && !followingJump ) CheckPartialRoute( fighter );
+			bool climb = predictedClimb.HasValue || crossing?.Type == NavMeshLinkType.Climb;
+			if ( climb || crossing?.Type == NavMeshLinkType.Jump )
 			{
-				bool climb = crossing.Type == NavMeshLinkType.Climb;
-				Vector3 velocity;
-				bool possible = climb ? fighter.TryClimbLaunch( crossing.End, out velocity ) : TryJumpVelocity( WorldPosition, crossing.End, out velocity );
-				if ( !possible )
+				var end = predictedClimb ?? crossing.Value.End;
+				if ( sinceAirborne <= 0.1f ) return;
+				if ( !preparedVelocity.HasValue )
 				{
-					AbortLinkTraversal();
-					return;
+					Vector3 velocity;
+					if ( !(climb ? fighter.TryClimbLaunch( end, out velocity ) : TryJumpVelocity( WorldPosition, end, out velocity )) )
+					{
+						if ( crossing.HasValue ) AbortLinkTraversal();
+						predictedClimb = null;
+						return;
+					}
+					preparedVelocity = velocity;
+					takeoff = fighter.PrepareJump();
 				}
-				preparedVelocity = velocity;
-				takeoff = fighter.PrepareJump();
+				if ( takeoff > 0f ) return;
+				if ( climb ) fighter.StartLedgeApproach( preparedVelocity.Value );
+				Npc.Launch( preparedVelocity.Value );
+				predictedClimb = null;
+				followingJump = true;
 			}
-			if ( takeoff > 0f ) return;
-			if ( crossing.Type == NavMeshLinkType.Climb ) fighter.StartLedgeApproach( preparedVelocity.Value );
-			Npc.Launch( preparedVelocity.Value );
-			followingJump = true;
 		}
 		preparedVelocity = null;
 		base.OnUpdate();
@@ -46,11 +55,34 @@ public sealed class CharacterNavigation : NavigationLayer
 		Npc.Animation.Traversal = NavMeshLinkType.Jump;
 	}
 
+	void CheckPartialRoute( RabbitGuard fighter )
+	{
+		if ( StickToNavMesh || !fighter.IsOnGround || !Agent.IsValid() || MoveTarget is not { } goal )
+		{
+			predictedClimb = null;
+			return;
+		}
+		if ( predictedClimb.HasValue || checkRoute > 0f ) return;
+		checkRoute = 0.1f;
+		// Only copy the corridor when its end is within the takeoff radius.
+		if ( (Agent.GetLookAhead( 40f ) - WorldPosition).WithZ( 0f ).LengthSquared >= 800f ) return;
+		var path = Agent.GetPath();
+		if ( path.Status != Sandbox.Navigation.NavMeshPathStatus.Partial || path.Points.Count == 0 ) return;
+		var edge = path.Points[^1].Position;
+		if ( edge.DistanceSquared( goal ) <= 1600f || (edge - WorldPosition).WithZ( 0f ).LengthSquared >= 800f ) return;
+		if ( fighter.PredictClimb( edge, out var end ) )
+		{
+			predictedClimb = end;
+			checkRoute = 2f;
+		}
+	}
+
 	protected override void OnDisabled()
 	{
 		followingJump = false;
 		preparedVelocity = null;
 		if ( Npc is RabbitGuard fighter ) fighter.EndLedge();
+		predictedClimb = null;
 		base.OnDisabled();
 	}
 
