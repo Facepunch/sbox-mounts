@@ -28,7 +28,6 @@ public sealed partial class RabbitGuard
 		AttackHeight = GetAttackHeight( target ) + Random.Shared.Float( 0f, 0.2f );
 		AttackPhase = 0f;
 		preparePassed = impactPassed = false;
-		predictability = attackHistory.Record( strike );
 		Speak( "attack" );
 		PlayKnifeLayer( nextBackhand, LeftHanded, AttackHeight );
 		nextBackhand = !nextBackhand;
