@@ -116,17 +116,21 @@ public sealed partial class RabbitGuard
 				arm.PreviousWrist = arm.Wrist;
 				(arm.Elbow, arm.Wrist) = next;
 			}
-			arm.LastShoulder = shoulder;
-			arm.LastElbow = elbow;
-			arm.LastWrist = wrist;
 			var mid = arm.Elbow;
 			var end = arm.Wrist;
-			if ( armsActive && remainder > 0f )
+			if ( armsActive && remainder > 0f && dt > 0f )
 			{
-				var next = Simulate( shoulder, elbow, wrist );
+				// Simulate expects targets at the end of a full tick, including the part after this frame.
+				float ahead = (tick - remainder) / dt;
+				var next = Simulate( shoulder + (shoulder - arm.LastShoulder) * ahead,
+					elbow + (elbow - arm.LastElbow) * ahead, wrist + (wrist - arm.LastWrist) * ahead );
 				mid = Vector3.Lerp( mid, next.Elbow, remainder / tick );
 				end = Vector3.Lerp( end, next.Wrist, remainder / tick );
 			}
+
+			arm.LastShoulder = shoulder;
+			arm.LastElbow = elbow;
+			arm.LastWrist = wrist;
 
 			(Vector3 Elbow, Vector3 Wrist) Simulate( Vector3 sh, Vector3 el, Vector3 wr )
 			{

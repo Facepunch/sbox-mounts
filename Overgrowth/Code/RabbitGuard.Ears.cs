@@ -78,18 +78,20 @@ public sealed partial class RabbitGuard
 				ear.Middle = mid;
 				ear.Tip = end;
 			}
-			ear.Base = root;
-			ear.LastMiddle = middle;
-			ear.LastTip = tip;
 			var displayMiddle = ear.Middle;
 			var displayTip = ear.Tip;
-			if ( !reset && remainder > 0f )
+			if ( !reset && remainder > 0f && dt > 0f )
 			{
 				// Preview the fractional tick without advancing the Verlet history.
-				var (mid, end) = Simulate( root, middle, tip );
+				float ahead = (tick - remainder) / dt;
+				var (mid, end) = Simulate( root + (root - ear.Base) * ahead, middle + (middle - ear.LastMiddle) * ahead,
+					tip + (tip - ear.LastTip) * ahead );
 				displayMiddle = Vector3.Lerp( ear.Middle, mid, remainder / tick );
 				displayTip = Vector3.Lerp( ear.Tip, end, remainder / tick );
 			}
+			ear.Base = root;
+			ear.LastMiddle = middle;
+			ear.LastTip = tip;
 			middle = displayMiddle;
 			tip = displayTip;
 
