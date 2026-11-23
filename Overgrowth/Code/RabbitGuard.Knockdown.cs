@@ -10,6 +10,7 @@ public sealed partial class RabbitGuard
 	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }
 	[Sync] bool Downed { get; set; }
+	[Sync] bool RecoveredInAir { get; set; }
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
 	float TemporaryHealth => Math.Max( 0f, Health - recoverableDamage );
@@ -82,6 +83,7 @@ public sealed partial class RabbitGuard
 	{
 		sinceKnockdown = 0;
 		displayingRoll = false;
+		RecoveredInAir = false;
 		rollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
 		RollProgress = 1f;
 		EndGetUpBlend();
@@ -157,39 +159,64 @@ public sealed partial class RabbitGuard
 		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
 		var ground = Scene.Trace.Ray( center, center + Vector3.Down * 40f )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-		if ( !ground.Hit || ground.StartedSolid || ground.Normal.z <= 0.5f )
+		bool inAir = !ground.Hit;
+		if ( ground.StartedSolid || !inAir && ground.Normal.z <= 0.5f || inAir && (wakeRoll || blockFacing.HasValue) )
 		{
 			if ( wakeRoll ) rollDelay = 1f;
 			return false;
 		}
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.
-		var lift = capsule.Radius * (1f / ground.Normal.z - 1f);
-		var feet = ground.EndPosition + Vector3.Up * lift;
-		var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, feet + Vector3.Down )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-		if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
+		var feet = center - Vector3.Up * (0.45f * 40f);
+		if ( inAir )
+		{
+			// The loose bodies can fit in places where the standing collider cannot.
+			var clearance = Scene.Trace.Capsule( capsule, feet, feet ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			if ( clearance.StartedSolid || clearance.Hit ) return false;
+		}
+		else
+		{
+			var lift = capsule.Radius * (1f / ground.Normal.z - 1f);
+			feet = ground.EndPosition + Vector3.Up * lift;
+			var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, feet + Vector3.Down )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
+			feet = floor.EndPosition;
+		}
 
 		var (front, up) = GetTorsoDirections();
 		var facing = blockFacing ?? -up.WithZ( 0 );
 		CapturePhysicsPose();
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
-		WorldPosition = floor.EndPosition;
-		if ( !wakeRoll && !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+		WorldPosition = feet;
+		if ( !inAir && !wakeRoll && !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;
-		var agent = GetComponent<NavMeshAgent>( true );
-		agent.Enabled = true;
-		agent.SetAgentPosition( WorldPosition );
-		if ( wakeRoll )
+		if ( inAir )
 		{
-			var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
-			var flat = velocity.WithZ( 0f );
-			if ( flat.LengthSquared > 40f * 40f ) direction = (direction * 0.9f + flat.Normal).Normal;
-			StartRoll( direction, velocity, ground.Surface?.ResourceName );
+			RecoveredInAir = true;
+			Stance = Locomotion;
+			duckAmount = CrouchAmount = 1f;
+			duckVelocity = 0f;
+			ReactionPhase = 1f;
+			Launch( velocity );
+			BeginFallBlend();
 		}
-		else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
+		else
+		{
+			var agent = GetComponent<NavMeshAgent>( true );
+			agent.Enabled = true;
+			agent.SetAgentPosition( WorldPosition );
+			if ( wakeRoll )
+			{
+				var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
+				var flat = velocity.WithZ( 0f );
+				if ( flat.LengthSquared > 40f * 40f ) direction = (direction * 0.9f + flat.Normal).Normal;
+				StartRoll( direction, velocity, ground.Surface?.ResourceName );
+			}
+			else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
+		}
 		secondaryReset = 4f * (4f / 120f);
 		awaitingThrowImpact = false;
 		throwPartner = null;

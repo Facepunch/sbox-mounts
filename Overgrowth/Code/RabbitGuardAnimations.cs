@@ -88,6 +88,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var mirroredPose = graph.BoolParameter( "mirrored_pose" );
 		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
 		var flinchWeight = graph.FloatParameter( "block_flinch" );
+		var fallPoseWeight = graph.FloatParameter( "fall_pose_weight" );
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
@@ -290,6 +291,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
+		var fallPose = graph.ExternalGraphSlot( RabbitGuard.FallRecovery );
+		output = graph.Blend( output, fallPose, fallPoseWeight );
 		var patrolGraphs = new Dictionary<string, Graph>( System.StringComparer.OrdinalIgnoreCase );
 		Graph LoadPatrolGraph( string file )
 		{

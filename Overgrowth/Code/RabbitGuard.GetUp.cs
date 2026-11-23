@@ -9,7 +9,8 @@ public sealed partial class RabbitGuard
 	Transform[] lastPhysicsPose;
 	Graph getUpGraph;
 	Clip getUpPose;
-
+	internal const string FallRecovery = "fall_recovery";
+	float fallBlendAge, fallPoseWeight;
 
 	void CapturePhysicsPose()
 	{
@@ -24,7 +25,7 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	void BeginGetUpBlend()
+	Transform[] TakeLocalPhysicsPose()
 	{
 		var rig = boundAnimations.Rig;
 		var frame = new Transform[rig.BoneCount];
@@ -35,6 +36,34 @@ public sealed partial class RabbitGuard
 		}
 
 		lastPhysicsPose = null;
+		return frame;
+	}
+
+	void BeginFallBlend()
+	{
+		getUpSlot = FallRecovery;
+		fallBlendAge = 0f;
+		fallPoseWeight = 1f;
+		var clip = new ClipBuilder { Skeleton = boundAnimations.Rig };
+		clip.AddFrame( TakeLocalPhysicsPose() );
+		ConnectRecoveryPose( clip );
+		Renderer.Animation.Parameters.Set( "fall_pose_weight", fallPoseWeight );
+	}
+
+	void UpdateFallBlend()
+	{
+		fallBlendAge += Time.Delta;
+		// Each source animation update blends the previous result toward the live pose.
+		const float fade = 4f;
+		fallPoseWeight *= MathF.Pow( Math.Max( 0f, 1f - fallBlendAge * fade ), Time.Delta * 30f );
+		Renderer.Animation.Parameters.Set( "fall_pose_weight", fallPoseWeight );
+		if ( fallBlendAge >= 1f / fade ) EndGetUpBlend();
+	}
+
+	void BeginGetUpBlend()
+	{
+		var rig = boundAnimations.Rig;
+		var frame = TakeLocalPhysicsPose();
 		getUpSlot = Stance;
 		bool rolling = getUpSlot == Roll;
 		var stand = rolling ? RollClip( 0 ) : boundAnimations.Clips[getUpSlot].ForSide( MirroredAction );
@@ -79,8 +108,13 @@ public sealed partial class RabbitGuard
 			}
 			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( set, channel, weights );
 		}
+		ConnectRecoveryPose( clip );
+	}
+
+	void ConnectRecoveryPose( ClipBuilder clip )
+	{
 		getUpPose = clip.Create();
-		var graph = new GraphBuilder().WithSkeleton( rig );
+		var graph = new GraphBuilder().WithSkeleton( boundAnimations.Rig );
 		getUpGraph = graph.Create( graph.Clip( getUpPose, new() { Looping = false, SampleRootMotion = false } ) );
 		Renderer.Animation.ExternalGraphs.Connect( getUpSlot, getUpGraph );
 	}
@@ -91,6 +125,7 @@ public sealed partial class RabbitGuard
 		if ( getUpGraph is null ) return;
 		if ( Renderer.IsValid() )
 		{
+			if ( getUpSlot == FallRecovery ) Renderer.Animation.Parameters.Set( "fall_pose_weight", 0f );
 			if ( Renderer.Animation.ExternalGraphs.IsConnected( getUpSlot ) )
 				Renderer.Animation.ExternalGraphs.Disconnect( getUpSlot );
 		}
