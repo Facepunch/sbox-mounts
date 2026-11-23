@@ -108,9 +108,7 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( CombatAllowed && wasAwake && !Unconscious && !StaticCharacter && !enemy.IsValid() && !Investigating &&
-			!escortTarget.IsValid() && !soughtItem.IsValid() && !Held && !Holding )
-			BeginAreaSearch();
+		if ( wasAwake ) InvestigatePatrolDamage();
 		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage);
 		if ( hitVoice ) Speak( "hit" );
 

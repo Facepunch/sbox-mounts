@@ -43,7 +43,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					if ( thrower.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( thrower );
 					var hit = trace.Run();
 					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
-					if ( !fighter.DefendThrownItem( this, body, thrower ) )
+					if ( !fighter.DefendThrownItem( this, body ) )
 						HitFighter( fighter, body, thrower, hit, sample, end, line );
 					thrower = null;
 					flyingStraight = false;

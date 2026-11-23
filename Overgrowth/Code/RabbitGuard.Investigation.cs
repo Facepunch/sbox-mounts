@@ -118,6 +118,13 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	void InvestigatePatrolDamage()
+	{
+		if ( CombatAllowed && !Unconscious && !StaticCharacter && !enemy.IsValid() && !Investigating &&
+			!escortTarget.IsValid() && !soughtItem.IsValid() && !Held && !Holding )
+			BeginAreaSearch();
+	}
+
 	void BeginAreaSearch()
 	{
 		searchPoints.Clear();
