@@ -15,12 +15,17 @@ public partial class MaterialLoader( string filePath ) : ResourceLoader<GameMoun
 
 	private static Material ModelMaterial => field ??= Material.Load( "shaders/ns2/shaders/model.vmat" );
 
+	string surfaceName;
+	internal string SurfaceName => surfaceName ??= SurfaceLoader.Normalize( Find( Parse( Host.ReadAllBytes( FilePath ) ), "surface" ).String );
+
 	protected override object Load()
 	{
 		var properties = Parse( Host.ReadAllBytes( FilePath ) );
 		var shader = Find( properties, "shader" ).String;
 		var material = SelectShader( shader ).CreateCopy( Path );
 
+		surfaceName = SurfaceLoader.Normalize( Find( properties, "surface" ).String );
+		material.Attributes.Set( "PhysicsSurfaceProperties", SurfaceLoader.PathFor( surfaceName ) );
 		ApplyShaderDefaults( material, shader, properties );
 
 		foreach ( var property in properties )

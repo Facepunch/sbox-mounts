@@ -55,6 +55,14 @@ public class GameMount : BaseGameMount
 		IsInstalled = FileSystem is not null;
 	}
 
+	internal Surface MaterialSurface( string relative )
+	{
+		if ( relative?.StartsWith( "ns2/", StringComparison.OrdinalIgnoreCase ) == true ) relative = relative[4..];
+		var name = TryResolve( FileSystem, relative, out var path ) && GetByPath( $"mount://ns2/{path}.vmat" ) is MaterialLoader loader
+			? loader.SurfaceName : "metal";
+		return GameResource.Load<Surface>( SurfaceLoader.PathFor( name ) );
+	}
+
 	internal byte[] ReadAllBytes( string path )
 	{
 		using var stream = FileSystem.OpenRead( path );
@@ -126,6 +134,7 @@ public class GameMount : BaseGameMount
 			}
 		}
 
+		SurfaceLoader.Register( context );
 		IsMounted = true;
 
 		return Task.CompletedTask;

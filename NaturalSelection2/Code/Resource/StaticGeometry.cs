@@ -15,27 +15,44 @@ internal sealed class StaticGeometry
 		(int)MathF.Floor( position.x / 1024f ), (int)MathF.Floor( position.y / 1024f ), (int)MathF.Floor( position.z / 1024f ) );
 
 	readonly PhysicsBodyBuilder collision = new() { Mass = 1000 };
+	readonly List<Surface> surfaces = [];
+	readonly Dictionary<Surface, PhysicsBodyBuilder> hullBodies = [];
 	bool hasCollision;
 
-	public void AddCollisionMesh( List<Vector3> vertices, List<uint> indices )
+	public byte SurfaceIndex( Surface surface )
 	{
-		collision.AddMesh( CollectionsMarshal.AsSpan( vertices ), CollectionsMarshal.AsSpan( indices ), [] );
+		int index = surfaces.IndexOf( surface );
+		if ( index >= 0 ) return checked((byte)index);
+		surfaces.Add( surface );
+		return checked((byte)(surfaces.Count - 1));
+	}
+
+	public void AddCollisionMesh( List<Vector3> vertices, List<uint> indices, List<byte> triangleSurfaces )
+	{
+		collision.AddMesh( CollectionsMarshal.AsSpan( vertices ), CollectionsMarshal.AsSpan( indices ), CollectionsMarshal.AsSpan( triangleSurfaces ) );
 		hasCollision = true;
 	}
 
-	public void AddHulls( Vector3[][] hulls, Transform transform )
+	public void AddHulls( Vector3[][] hulls, Transform transform, Surface surface )
 	{
+		if ( hulls.Length == 0 ) return;
+		if ( !hullBodies.TryGetValue( surface, out var body ) )
+			hullBodies[surface] = body = new PhysicsBodyBuilder { Surface = surface };
 		foreach ( var hull in hulls )
 		{
 			// The hull builder takes uniform scale. Apply per-axis scale to the vertices
 			// while they're still close to the origin to keep small hulls accurate.
 			var points = transform.Scale == Vector3.One ? hull : Array.ConvertAll( hull, p => p * transform.Scale );
-			collision.AddHull( points, new Transform( transform.Position, transform.Rotation ) );
-			hasCollision = true;
+			body.AddHull( points, new Transform( transform.Position, transform.Rotation ) );
 		}
 	}
 
-	public PhysicsGroupDescription CreatePhysics( string path ) => hasCollision ? PhysicsGroupDescription.Create( $"{path}/world.vphys", [collision] ) : null;
+	public PhysicsGroupDescription CreatePhysics( string path )
+	{
+		List<PhysicsBodyBuilder> bodies = [.. hullBodies.Values];
+		if ( hasCollision ) bodies.Add( collision );
+		return bodies.Count > 0 ? PhysicsGroupDescription.Create( $"{path}/world.vphys", bodies, surfaces ) : null;
+	}
 
 	public void Add( Part part, Transform transform, bool shadows )
 	{

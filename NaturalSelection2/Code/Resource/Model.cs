@@ -979,7 +979,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	internal sealed record StaticProp( StaticGeometry.Part[] Parts, Model Translucent, Vector3[][] Hulls );
+	internal sealed record StaticProp( StaticGeometry.Part[] Parts, Model Translucent, Vector3[][] Hulls, Surface Surface );
 
 	internal StaticProp BuildStaticProp()
 	{
@@ -1005,7 +1005,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		// Simplify in model space once so repeated placements use the same convex surface.
 		var hulls = StaticHulls( model );
-		return new( parts.ToArray(), translucent?.Create(), hulls );
+		return new( parts.ToArray(), translucent?.Create(), hulls, hulls.Length > 0 ? CollisionSurface( model ) : null );
 	}
 
 	private Vector3[][] StaticHulls( ParsedModel model )
@@ -1107,15 +1107,30 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void BuildPhysics( ModelBuilder builder, ParsedModel model, bool preserveBones )
+	// Spark hulls do not carry render-face indices. Use the largest face set with an authored material.
+	private Surface CollisionSurface( ParsedModel model )
 	{
+		int largest = -1;
+		string material = null;
+		foreach ( var set in model.FaceSets )
+		{
+			if ( set.NumFaces <= largest || (uint)set.MaterialIndex >= (uint)model.Materials.Length ) continue;
+			largest = set.NumFaces;
+			material = model.Materials[set.MaterialIndex];
+		}
+		return Host.MaterialSurface( material );
+	}
+
+	private void BuildPhysics( ModelBuilder builder, ParsedModel model, bool preserveBones )
+	{
+		Surface surface = null;
 		var bodyMap = new List<int>();
 		var bodies = new Dictionary<int, (PhysicsBodyBuilder Builder, int Index)>();
 		foreach ( var (bone, points) in CollisionHulls( model, preserveBones ) )
 		{
 			if ( !bodies.TryGetValue( bone, out var body ) )
 			{
-				body = (builder.AddBody( boneName: bone >= 0 ? model.Bones[bone].Name : "" ), bodies.Count);
+				body = (builder.AddBody( surface: surface ??= CollisionSurface( model ), boneName: bone >= 0 ? model.Bones[bone].Name : "" ), bodies.Count);
 				bodies.Add( bone, body );
 			}
 			body.Builder.AddHull( points, Transform.Zero, HullSimplification );

@@ -118,6 +118,8 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var collisionVertex = new int[data.Positions.Length];
 		Array.Fill( collisionVertex, -1 );
 		var allIndices = new List<uint>();
+		var triangleSurfaces = new List<byte>();
+		var collisionMaterials = new Dictionary<int, byte>();
 
 		var materials = new Dictionary<int, Material>();
 		foreach ( var tri in data.Triangles )
@@ -148,6 +150,16 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				var key = (matIndex, shadowOnly, cell);
 				if ( !byMaterial.TryGetValue( key, out list ) )
 					byMaterial[key] = list = [];
+			}
+
+			if ( solid )
+			{
+				if ( !collisionMaterials.TryGetValue( matIndex, out var index ) )
+				{
+					var path = (uint)matIndex < (uint)data.Materials.Length ? data.Materials[matIndex] : null;
+					collisionMaterials[matIndex] = index = geometry.SurfaceIndex( Host.MaterialSurface( path ) );
+				}
+				triangleSurfaces.Add( index );
 			}
 
 			var n = faceNormal[tri.Face];
@@ -222,7 +234,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		}
 
 		if ( allIndices.Count > 0 )
-			geometry.AddCollisionMesh( allVertices, allIndices );
+			geometry.AddCollisionMesh( allVertices, allIndices, triangleSurfaces );
 
 		if ( hasBlockers )
 		{
@@ -493,7 +505,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var transform = new Transform( Origin( entity ), Angles( entity ), ScaleOf( entity ) );
 		if ( isStatic )
 		{
-			if ( collidable ) geometry.AddHulls( prop.Hulls, transform );
+			if ( collidable ) geometry.AddHulls( prop.Hulls, transform, prop.Surface );
 			foreach ( var part in prop.Parts )
 				geometry.Add( part, transform, shadows );
 		}
