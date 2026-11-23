@@ -65,6 +65,7 @@ public sealed partial class RabbitGuard
 			ReleaseHold();
 			return;
 		}
+		if ( Held || Stance != CutFromHold ) recentChoke = 0.5f;
 		if ( !Holding ) return;
 		var victim = holdPartner;
 		var separation = victim.WorldPosition - WorldPosition;
@@ -134,6 +135,7 @@ public sealed partial class RabbitGuard
 		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * Time.Delta } );
 		if ( !victim.IsValid() || victim.Downed || victim.Unconscious )
 		{
+			if ( victim.IsValid() ) chokeVictim = victim.GameObject;
 			if ( victim.IsValid() ) victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundMaterialName, 1f );
 			ReleaseHold();
 		}
@@ -169,6 +171,7 @@ public sealed partial class RabbitGuard
 		var point = head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
 		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", point );
 		var damage = new ExecutionDamage { Damage = victim.Health, Position = point, Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
+		chokeVictim = victim.GameObject;
 		damage.Tags.Add( "slash" );
 		damage.Tags.Add( "nevergib" );
 		((IDamageable)victim).OnDamage( damage );

@@ -110,10 +110,10 @@ static class RagdollBuilder
 				pose = pose.WithPosition( weightedCenter / totalVolume );
 			}
 			sourcePoses[i] = pose;
+			if ( assigned[i] ) bodyCenters.Add( i, pose.Position );
 			if ( fixedBones[i] || !assigned[i] )
 				continue;
 			bodyIds[i] = bodyCount++;
-			bodyCenters.Add( i, pose.Position );
 			var bindPose = skeleton.BindPose[i];
 			var body = builder.AddBody( masses[i], boneName: $"bone_{i}" ).SetBindPose( bindPose );
 			foreach ( var shape in shapes[i] )

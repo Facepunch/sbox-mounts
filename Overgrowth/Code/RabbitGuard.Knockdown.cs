@@ -180,11 +180,13 @@ public sealed partial class RabbitGuard
 		{
 			var remains = corpse.GetOrAddComponent<CharacterRemains>();
 			remains.Teams = Teams;
+			remains.StaticCharacter = StaticCharacter;
 			remains.Rig = boundAnimations;
 			remains.Physics = physics;
 			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 			{
 				if ( witness.knownCasualties.Remove( GameObject ) ) witness.knownCasualties.Add( corpse );
+				if ( witness.chokeVictim == GameObject ) witness.chokeVictim = corpse;
 				if ( witness.casualty == GameObject ) witness.casualty = corpse;
 				if ( witness.escortTarget == GameObject ) witness.escortTarget = corpse;
 			}

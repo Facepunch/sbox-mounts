@@ -1,0 +1,154 @@
+using System;
+using Sandbox.Npcs;
+using Sandbox.Physics;
+
+namespace Overgrowth;
+
+public sealed partial class RabbitGuard
+{
+	static readonly string[] DragParts = ["head", "leftarm", "rightarm", "left_leg", "right_leg"];
+	TimeUntil dragWindow, dragSlideSound, recentChoke;
+	GameObject chokeVictim;
+	ModelPhysics draggedPhysics;
+	Rigidbody draggedBody;
+	Vector3 localDragPoint, dragTarget;
+	PhysicsBody dragAnchor;
+	Sandbox.Physics.ControlJoint dragJoint;
+	[Sync( SyncFlags.Interpolate )] Vector3 DragPoint { get; set; }
+	[Sync( SyncFlags.Interpolate )] float DragStrength { get; set; }
+
+	void BeginBodyInspection( float seconds )
+	{
+		inspectUntil = seconds;
+		dragWindow = seconds + 2f;
+	}
+
+	void UpdateBodyDrag()
+	{
+		if ( !Investigating || dragWindow <= 0f || !IsOnGround || Downed || StaticCharacter || Holding || Held || strike is not null || InThrow )
+		{
+			ReleaseBodyDrag();
+			return;
+		}
+		if ( draggedPhysics is null )
+		{
+			if ( currentKnifeLayer is { Active: true } ) return;
+			FindBodyToDrag();
+			if ( draggedBody.IsValid() && flinching )
+			{
+				flinching = false;
+				flinchFadeOut = 4f;
+			}
+		}
+		if ( !draggedPhysics.IsValid() || !draggedPhysics.Active || !draggedBody.IsValid() || !draggedBody.PhysicsBody.IsValid() )
+		{
+			ReleaseBodyDrag();
+			return;
+		}
+
+		var body = draggedBody.PhysicsBody;
+		DragPoint = body.Transform.PointToWorld( localDragPoint );
+		var hand = CharacterCenter( GameObject ) + WorldRotation.Forward * 12f + WorldRotation.Right * (MirroredStance ? -6f : 6f)
+			+ Vector3.Up * (4f - duckAmount * 8f);
+		var delta = (DragPoint - hand).WithZ( 0f );
+		if ( delta.Length > 8f )
+		{
+			var pull = delta.Normal * ((delta.Length - 8f) * 5f * DragStrength);
+			if ( pull.LengthSquared > 0.2f * 40f * 40f ) { ReleaseBodyDrag(); return; }
+			MoveGroundDelta( pull * Time.Delta );
+		}
+		float blend = 1f - MathF.Pow( 0.95f, Time.Delta * 120f );
+		if ( DragStrength > 0.3f )
+		{
+			dragTarget = Vector3.Lerp( dragTarget, hand, blend );
+			if ( dragJoint is null )
+			{
+				dragAnchor = new PhysicsBody( body.World ) { BodyType = PhysicsBodyType.Keyframed, AutoSleep = false };
+				dragAnchor.Position = DragPoint;
+				dragJoint = PhysicsJoint.CreateControl( new PhysicsPoint( dragAnchor ), new PhysicsPoint( body, localDragPoint ) );
+				// Bullet's point constraint corrects 20% of position error each 120 Hz step, with a 3 kg m/s impulse limit.
+				dragJoint.MaxVelocityForce = 3f * 40f * 120f;
+				dragJoint.MaxVelocityTorque = 0f;
+			}
+			body.Sleeping = false;
+			dragJoint.LinearVelocity = (dragTarget - DragPoint) * (0.2f * 120f);
+		}
+		else dragTarget = DragPoint;
+
+		float previous = DragStrength;
+		DragStrength += (1f - DragStrength) * blend;
+		if ( previous < 0.7f && DragStrength >= 0.7f ) PlayCombatSound( "Data/Sounds/hit/grip.xml", WorldPosition );
+		var carrier = draggedPhysics.GetComponentInParent<RabbitGuard>();
+		var target = carrier.IsValid() ? carrier.GameObject : draggedPhysics.GameObject;
+		var toward = (TargetPosition( target ) - WorldPosition).WithZ( 0f ).Normal;
+		if ( !toward.IsNearlyZero() ) WorldRotation = InterpolateFacing( WorldRotation.Forward, toward, blend );
+		var damping = draggedPhysics.GetComponent<RagdollDamping>();
+		damping?.Refresh();
+		float volume = (damping?.AverageVelocity.Length ?? 0f) * (0.4f / 40f);
+		if ( volume > 0.2f && dragSlideSound <= 0f )
+		{
+			PlayMaterialEvent( "slide", WorldPosition, GroundMaterialName, volume );
+			dragSlideSound = Random.Shared.Float( 0.3f, 0.6f );
+		}
+	}
+
+	void FindBodyToDrag()
+	{
+		var center = CharacterCenter( GameObject );
+		ModelPhysics closest = null;
+		float best = 98f * 98f; // two metres plus the leg sphere radius
+		foreach ( var model in Scene.GetAllComponents<ModelPhysics>() )
+		{
+			if ( !model.Active ) continue;
+			var fighter = model.GetComponentInParent<RabbitGuard>();
+			if ( fighter.IsValid() ? !fighter.Unconscious || fighter.StaticCharacter : model.GetComponent<CharacterRemains>() is not { StaticCharacter: false } ) continue;
+			var other = fighter.IsValid() ? fighter.GameObject : model.GameObject;
+			float d = center.DistanceSquared( TargetPosition( other ) );
+			if ( d >= best ) continue;
+			best = d;
+			closest = model;
+		}
+		if ( !closest.IsValid() ) return;
+		bool ThreatNearby( GameObject other ) => CanAttack( other ) && center.DistanceSquared( CharacterCenter( other ) ) <= 418f * 418f;
+		if ( recentChoke <= 0f && (Scene.GetAllComponents<BaseNpc>().Any( n => ThreatNearby( n.GameObject ) ) ||
+			Scene.GetAllComponents<PlayerController>().Any( p => ThreatNearby( p.GameObject ) )) ) return;
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( closest.Model.ResourcePath ) is not CharacterLoader character ) return;
+		var owner = closest.GetComponentInParent<RabbitGuard>();
+		bool useHead = chokeVictim.IsValid() && chokeVictim == (owner.IsValid() ? owner.GameObject : closest.GameObject);
+		best = useHead ? float.PositiveInfinity : 0.2f * 1.5f * 40f * 40f;
+		foreach ( var part in DragParts )
+		{
+			int id = character.AttachmentBone( part, 0, false );
+			var bone = closest.Model.Bones.GetBone( $"bone_{id}" );
+			if ( bone is null || !closest.Renderer.TryGetBoneTransform( bone, out var pose ) ) continue;
+			var point = pose.PointToWorld( character.AttachmentCenters.GetValueOrDefault( id ) );
+			float d = point.DistanceSquared( center );
+			if ( d > best ) continue;
+			// Fixed end bones share their parent's rigidbody in both physics rigs.
+			Rigidbody body = null;
+			while ( bone is not null && !body.IsValid() )
+			{
+				foreach ( var rb in closest.Bodies )
+					if ( rb.Bone == bone.Index ) { body = rb.Component; break; }
+				bone = bone.Parent;
+			}
+			if ( !body.IsValid() || !body.PhysicsBody.IsValid() ) continue;
+			best = d;
+			draggedBody = body;
+			draggedPhysics = closest;
+			localDragPoint = body.PhysicsBody.Transform.PointToLocal( point );
+			if ( useHead ) { chokeVictim = null; break; }
+		}
+	}
+
+	void ReleaseBodyDrag()
+	{
+		dragJoint?.Remove();
+		dragJoint = null;
+		dragAnchor?.Remove();
+		dragAnchor = null;
+		draggedPhysics = null;
+		draggedBody = null;
+		if ( Networking.IsHost ) DragStrength = 0f;
+	}
+}

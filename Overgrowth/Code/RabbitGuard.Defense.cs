@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard
 			flinching = false;
 			flinchFadeOut = 4f;
 		}
-		if ( !flinching && !settled && ReactionPhase >= 1f && !InThrow && !Downed && NeedsCombatPose() )
+		if ( !flinching && !settled && !draggedBody.IsValid() && ReactionPhase >= 1f && !InThrow && !Downed && NeedsCombatPose() )
 		{
 			flinching = true;
 			MirroredFlinch = MirroredStance;

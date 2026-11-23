@@ -7,6 +7,20 @@ internal sealed class RagdollDamping : Component
 	ModelPhysics physics;
 	float stillTime;
 	bool settled;
+	internal Vector3 AverageVelocity { get; private set; }
+
+	internal void Refresh()
+	{
+		stillTime = 0f;
+		settled = false;
+		foreach ( var part in physics.Bodies )
+		{
+			if ( !part.Component.IsValid() ) continue;
+			part.Component.LinearDamping = part.Component.AngularDamping = 0f;
+			part.Component.Sleeping = false;
+		}
+	}
+
 	internal void Reset( ModelPhysics model )
 	{
 		physics = model;
@@ -43,9 +57,10 @@ internal sealed class RagdollDamping : Component
 			mass += body.Mass;
 			awake |= !body.Sleeping;
 		}
+		AverageVelocity = mass > 0f ? momentum / mass : Vector3.Zero;
 		if ( mass <= 0f || (settled && !awake) ) return;
 		if ( settled ) stillTime = 0f;
-		stillTime = (momentum / mass).Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
+		stillTime = AverageVelocity.Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
 		settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.

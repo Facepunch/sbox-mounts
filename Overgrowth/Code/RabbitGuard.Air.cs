@@ -152,15 +152,19 @@ public sealed partial class RabbitGuard
 	{
 		var direction = velocity.WithZ( 0f ).Normal;
 		if ( direction.IsNearlyZero() ) return;
-		var from = WorldRotation.Forward.WithZ( 0f ).Normal;
+		float blend = 1f - MathF.Pow( 0.85f, delta * 120f );
+		FaceInAir( InterpolateFacing( WorldRotation.Forward.WithZ( 0f ).Normal, direction, blend ) );
+	}
+
+	static Rotation InterpolateFacing( Vector3 from, Vector3 direction, float blend )
+	{
 		// InterpDirections takes a perpendicular path when the two facings are nearly opposite.
 		if ( direction.Dot( from ) < -0.8f )
 		{
 			var perpendicular = Vector3.Up.Cross( direction );
 			from = perpendicular.Dot( from ) < 0f ? -perpendicular : perpendicular;
 		}
-		float oldWeight = MathF.Pow( 0.85f, delta * 120f );
-		FaceInAir( Rotation.LookAt( direction * (1f - oldWeight) + from * oldWeight ) );
+		return Rotation.LookAt( Vector3.Lerp( from, direction, blend ) );
 	}
 
 	void FaceInAir( Rotation facing )

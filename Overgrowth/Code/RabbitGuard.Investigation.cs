@@ -68,7 +68,7 @@ public sealed partial class RabbitGuard
 		var direction = (point - WorldPosition).WithZ( 0f );
 		if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
 		inspectPosition = point;
-		inspectUntil = Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty);
+		BeginBodyInspection( Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty) );
 		Stance = Ready;
 	}
 
@@ -92,7 +92,7 @@ public sealed partial class RabbitGuard
 				break;
 			case 6:
 				inspectPosition = defeatedPosition;
-				inspectUntil = Random.Shared.Float( 2f, 4f );
+				BeginBodyInspection( Random.Shared.Float( 2f, 4f ) );
 				break;
 			case 7:
 				inspectPosition = defeatedPosition;

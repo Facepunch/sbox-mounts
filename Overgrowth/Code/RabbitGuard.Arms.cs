@@ -27,6 +27,26 @@ public sealed partial class RabbitGuard
 		SolveArms( dt, velocity, breathAmount, loose );
 	}
 
+	Vector3 GetDragArmOffset()
+	{
+		if ( DragStrength <= 0f ) return default;
+		Vector3 center = default;
+		int freeHands = 0;
+		for ( int side = 0; side < 2; side++ )
+		{
+			if ( (side == 0 ? LeftHandItem : RightHandItem).IsValid() ) continue;
+			var hand = boundAnimations.Arms[side][0];
+			if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( hand.Bone ), out var pose ) ) return default;
+			if ( chestMotion is { } m ) pose = m.Solved.ToWorld( m.Animated.ToLocal( pose ) );
+			center += pose.Position - pose.Rotation.Forward * (0.5f * hand.Length);
+			freeHands++;
+		}
+		if ( freeHands == 0 ) return default;
+		var offset = DragPoint - center / freeHands;
+		if ( freeHands == 1 ) offset += Vector3.Up * 4f + WorldRotation.Left * (LeftHandItem.IsValid() ? -2f : 2f);
+		return offset.WithZ( Math.Max( offset.z, -2f ) ) * DragStrength;
+	}
+
 	void SolveArms( float dt, Vector3 velocity, float breath, float loose )
 	{
 		// MovementObject advances an ordinary NPC's secondary animation every four 120 Hz ticks.
@@ -42,6 +62,7 @@ public sealed partial class RabbitGuard
 		var basis = (chestMotion?.Solved ?? chest).Rotation * Renderer.Model.GetBoneTransform( chestBone.Index ).Rotation.Inverse;
 		var breathe = basis * new Vector3( 1f, 0f, -0.3f ).Normal * (breath * 0.2f * boundAnimations.CharacterScale);
 
+		var dragOffset = GetDragArmOffset();
 		for ( int side = 0; side < armStates.Length; side++ )
 		{
 			var chain = boundAnimations.Arms[side];
@@ -62,6 +83,7 @@ public sealed partial class RabbitGuard
 			shoulder += breathe;
 			var authoredReach = wrist - animatedShoulder;
 			if ( OnLedge ) wrist += handRelativeToBody[side];
+			if ( DragStrength > 0f && !(side == 0 ? LeftHandItem : RightHandItem).IsValid() ) wrist += dragOffset;
 			var aim = Rotation.FromToRotation( authoredReach.Normal, (wrist - shoulder).Normal );
 			elbow = shoulder + aim * (elbow - animatedShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));
 			for ( int i = 0; i < 2; i++ )
