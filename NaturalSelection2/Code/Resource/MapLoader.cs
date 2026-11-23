@@ -288,7 +288,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				if ( !staticProps.TryGetValue( modelPath, out var prop ) )
 				{
 					var loader = Host.GetByPath( ModelPath( modelPath ) ) as ModelLoader;
-					staticProps[modelPath] = prop = loader?.StaticMapProp;
+					staticProps[modelPath] = prop = loader?.BuildStaticProp();
 					if ( prop?.Translucent is not null ) renderModels.Add( prop.Translucent );
 				}
 				if ( prop is not null )

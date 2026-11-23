@@ -273,13 +273,15 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
+	private ParsedModel Source => field ??= ParseFile( FullPath );
+
 	private ParsedModel ParseFile( string path )
 	{
 		using var stream = Host.FileSystem.OpenRead( path );
 		return Parse( stream );
 	}
 
-	private static ParsedModel Parse( Stream stream, bool staticProp = false )
+	private static ParsedModel Parse( Stream stream )
 	{
 		var r = new Reader( stream );
 		r.Check( 4 );
@@ -300,12 +302,6 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			long chunkEnd = r.Offset + chunkLen;
 			if ( chunkLen < 0 || chunkEnd > r.Length )
 				throw new InvalidDataException( $"NS2 model: chunk {chunkId} overruns file" );
-
-			if ( staticProp && chunkId is not (ChunkType.Vertices or ChunkType.Indices or ChunkType.FaceSets or ChunkType.Materials or ChunkType.Bones or ChunkType.Solids or ChunkType.CollisionReps or ChunkType.Joints) )
-			{
-				r.Skip( chunkLen );
-				continue;
-			}
 
 			switch ( chunkId )
 			{
@@ -682,34 +678,34 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	static Rotation ToRotation( Quaternion q ) => new( q.X, q.Y, q.Z, q.W );
 
-	private static void BuildAnimations( ModelBuilder builder, ParsedModel model, Stream animSource )
+	private static void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
 	{
-		if ( model.Animations.Length == 0 || model.Bones.Length == 0 )
+		if ( animations.Animations.Length == 0 || model.Bones.Length == 0 )
 			return;
 
 		// Name animations after sequences where possible:
 		// sequence → node → first type-1 descendant → animation
-		var names = new string[model.Animations.Length];
-		foreach ( var seq in model.Sequences )
+		var names = new string[animations.Animations.Length];
+		foreach ( var seq in animations.Sequences )
 		{
-			int animIndex = ResolveAnimation( model.AnimationNodes, seq.AnimationNodeIndex );
+			int animIndex = ResolveAnimation( animations.AnimationNodes, seq.AnimationNodeIndex );
 			if ( animIndex >= 0 && animIndex < names.Length && names[animIndex] is null )
 				names[animIndex] = seq.Name;
 		}
 
 		// The rest are blend-node poses — name them "{parameter}_{value}" (e.g. arc_yaw_-90)
 		// from the blend node that references them so they're usable in animgraphs.
-		foreach ( var node in model.AnimationNodes )
+		foreach ( var node in animations.AnimationNodes )
 		{
 			if ( node.Type != 2 || node.Children is not { Length: > 0 } )
 				continue;
 
-			var param = (uint)node.ParameterIndex < (uint)model.BlendParameters.Length
-				? model.BlendParameters[node.ParameterIndex] : $"blend{node.ParameterIndex}";
+			var param = (uint)node.ParameterIndex < (uint)animations.BlendParameters.Length
+				? animations.BlendParameters[node.ParameterIndex] : $"blend{node.ParameterIndex}";
 
 			for ( int k = 0; k < node.Children.Length; k++ )
 			{
-				int animIndex = ResolveAnimation( model.AnimationNodes, node.Children[k] );
+				int animIndex = ResolveAnimation( animations.AnimationNodes, node.Children[k] );
 				if ( animIndex < 0 || animIndex >= names.Length || names[animIndex] is not null )
 					continue;
 
@@ -723,9 +719,9 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		var boneTransforms = new Transform[model.Bones.Length];
 		var r = new Reader( animSource );
 
-		for ( int i = 0; i < model.Animations.Length; i++ )
+		for ( int i = 0; i < animations.Animations.Length; i++ )
 		{
-			var anim = model.Animations[i];
+			var anim = animations.Animations[i];
 			if ( anim.NumFrames <= 0 || anim.FrameRate <= 0 )
 				continue;
 
@@ -878,24 +874,19 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	protected override object Load()
 	{
-		var model = ParseFile( FullPath );
+		var model = Source;
+		var animations = model;
 
 		// Skin variants store only mesh data and reference a base model for animations.
 		var animSourcePath = FullPath;
-		if ( !string.IsNullOrEmpty( model.ExternalModel ) )
+		if ( model.Animations.Length == 0 && !string.IsNullOrEmpty( model.ExternalModel ) )
 		{
 			var externalPath = ResolveExternalPath( model.ExternalModel );
 			if ( externalPath is not null )
 			{
-				var external = ParseFile( externalPath );
-				if ( model.Animations.Length == 0 && external.Animations.Length > 0 )
-				{
-					model.Animations = external.Animations;
-					model.AnimationNodes = external.AnimationNodes;
-					model.Sequences = external.Sequences;
-					model.BlendParameters = external.BlendParameters;
-					animSourcePath = externalPath;
-				}
+				var loader = Host.GetByPath( $"mount://{Host.Ident}/{externalPath}.vmdl" ) as ModelLoader;
+				animations = loader?.Source ?? ParseFile( externalPath );
+				animSourcePath = externalPath;
 			}
 			else
 			{
@@ -919,10 +910,10 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			builder.AddBone( bone.Name, bone.Transform.Position, bone.Transform.Rotation, parentName );
 		}
 
-		if ( model.Animations.Length > 0 && model.Bones.Length > 0 )
+		if ( animations.Animations.Length > 0 && model.Bones.Length > 0 )
 		{
 			using var animSource = Host.FileSystem.OpenRead( animSourcePath );
-			BuildAnimations( builder, model, animSource );
+			BuildAnimations( builder, model, animations, animSource );
 		}
 		BuildMeshes( builder, model );
 		BuildPhysics( builder, model );
@@ -952,13 +943,9 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	internal sealed record StaticProp( StaticGeometry.Part[] Parts, Model Translucent, Vector3[][] Hulls );
 
-	// Map loading can reuse the same decoded prop across levels, like the normal model loader.
-	internal StaticProp StaticMapProp => field ??= ReadStaticProp();
-
-	private StaticProp ReadStaticProp()
+	internal StaticProp BuildStaticProp()
 	{
-		using var stream = Host.FileSystem.OpenRead( FullPath );
-		var model = Parse( stream, staticProp: true );
+		var model = Source;
 		var parts = new List<StaticGeometry.Part>();
 		ModelBuilder translucent = null;
 
