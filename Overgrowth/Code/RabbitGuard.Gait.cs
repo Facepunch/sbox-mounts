@@ -28,28 +28,39 @@ public sealed partial class RabbitGuard
 		}
 		SolveStance();
 
-		if ( Networking.IsHost && IsOnGround )
+		if ( IsOnGround ) PlayCycleSteps( pose.Events, stridePhase, next, Vector3.Down );
+		stridePhase = next % 1;
+	}
+
+	void PlayCycleSteps( RabbitClip clip, float start, float end, Vector3 surfaceDirection )
+	{
+		if ( !Networking.IsHost || clip.Steps.Count == 0 ) return;
+		// AnimationReader activates the nearest authored clip's events in [start, end), including wraps.
+		for ( int cycle = 0; cycle < end; cycle++ )
 		{
-			var dominant = pose.Events;
-			foreach ( var step in dominant.Steps )
+			foreach ( var step in clip.Steps )
 			{
-				float contact = step.Phase <= stridePhase ? step.Phase + 1 : step.Phase;
-				if ( contact > next ) continue;
+				float contact = cycle + step.Phase;
+				if ( contact < start || contact >= end ) continue;
 				var position = Renderer.TryGetBoneTransform( $"bone_{step.Bone}", out var bone ) ? bone.Position : WorldPosition;
 				if ( !HandleFootstep( step.Event, position ) ) continue;
-				var floor = Scene.Trace.Ray( position + Vector3.Up * 12, position + Vector3.Down * 48 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-				if ( floor.Hit )
-					PlayFootContact( step.Event, floor, step.Event.Contains( "crouch" ) ? 3f : 5f );
+				var hit = Scene.Trace.Ray( position - surfaceDirection * 12f, position + surfaceDirection * 48f )
+					.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+				if ( hit.Hit ) PlayFootContact( step.Event, hit, step.Event.Contains( "crouch" ) ? 3f : 5f );
 			}
 		}
-		stridePhase = next % 1;
 	}
 
 	void PlayFootContact( string step, in SceneTraceResult hit, float gain )
 	{
 		var surface = TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName;
-		PlayMaterialEvent( step, hit.EndPosition, surface, gain );
 		EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
+		if ( boundAnimations.Species == "cat" )
+		{
+			if ( IsAudibleStep( step ) ) (step, gain) = ("leftcrouchwalkstep", 1f);
+			else gain = 0.3f;
+		}
+		PlayMaterialEvent( step, hit.EndPosition, surface, gain );
 	}
 
 	void EmitFootParticle( int side, string action, string surface, in SceneTraceResult hit )

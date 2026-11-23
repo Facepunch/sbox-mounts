@@ -76,7 +76,10 @@ public sealed partial class RabbitGuard
 			GroundSpeed = velocity.Length
 		};
 		if ( playing != Wall ) airPhase = 0f;
-		airPhase = (airPhase + Time.Delta * boundAnimations.WallMovement.Evaluate( controls, airPhase, false ).Frequency) % 1f;
+		var motion = boundAnimations.WallMovement.Evaluate( controls, airPhase, false );
+		float next = airPhase + Time.Delta * motion.Frequency;
+		PlayCycleSteps( motion.Events, airPhase, next, WallDirection );
+		airPhase = next % 1f;
 		Renderer.Animation.Parameters.Set( "wall_speed_coord", controls.Speed );
 		Renderer.Animation.Parameters.Set( "wall_dir_coord", controls.Direction );
 		Renderer.Animation.Parameters.Set( "air_phase", airPhase );
