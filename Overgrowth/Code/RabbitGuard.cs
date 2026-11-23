@@ -84,7 +84,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			ScanForCharacters();
 		}
 		if ( !Downed ) base.OnUpdate();
-		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
+		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) AdvanceThrowPair();
 		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
 		if ( Downed || Health < 1 )
 		{

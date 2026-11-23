@@ -16,6 +16,7 @@ public sealed partial class RabbitGuard
 	Rotation throwFacing;
 	Vector3 alignmentOffset;
 	float alignmentYaw, throwElapsed, fadeElapsed;
+	double throwEntryTime;
 	float queuedThrowDamage;
 	RabbitGuard throwDamageAttacker;
 
@@ -96,6 +97,28 @@ public sealed partial class RabbitGuard
 		alignmentYaw = entry.Rotation.Yaw();
 		fadeElapsed = 0f;
 		cancelDelay = 0.01f;
+	}
+
+	// Both renderers must enter before either role consumes root motion. Think can start
+	// the pair after the defender has already updated for this frame.
+	void AdvanceThrowPair()
+	{
+		if ( playing != Stance )
+		{
+			EnterThrowPose();
+			if ( throwPartner.IsValid() && throwPartner.InThrow && throwPartner.playing != throwPartner.Stance )
+				throwPartner.EnterThrowPose();
+		}
+		if ( Time.NowDouble > throwEntryTime ) UpdateThrow();
+	}
+
+	void EnterThrowPose()
+	{
+		Renderer.Animation.Parameters.Set( "mirrored_pose", MirroredAction );
+		Renderer.Animation.Parameters.Set( "reaction_phase", ReactionPhase );
+		Renderer.Animation.Parameters.Set( "stance", Stance );
+		playing = Stance;
+		throwEntryTime = Time.NowDouble;
 	}
 
 	void UpdateThrow()
