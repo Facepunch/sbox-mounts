@@ -16,6 +16,39 @@ public sealed class LevelItem : Component
 			WorldTransform = hand.ToWorld( Offset );
 	}
 
+	ItemLine[] lines;
+	ItemLine[] GetLines()
+	{
+		if ( lines is not null ) return lines;
+		var model = GetComponent<ModelRenderer>().Model;
+		var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
+		return lines = mount?.GetByPath( model.ResourcePath ) is ObjectLoader loader ? ItemLine.Read( loader.ItemDefinition, model ) : [];
+	}
+
+	internal bool TryContact( LevelItem other, out Vector3 point, out string material, out string otherMaterial )
+	{
+		UpdateAttachment();
+		other.UpdateAttachment();
+		float closest = float.PositiveInfinity;
+		point = default;
+		material = otherMaterial = null;
+		foreach ( var a in GetLines() )
+		{
+			var segment = a.ToWorld( WorldTransform );
+			foreach ( var b in other.GetLines() )
+			{
+				var (first, second) = ItemLine.Closest( segment, b.ToWorld( other.WorldTransform ) );
+				float distance = first.DistanceSquared( second );
+				if ( distance >= closest ) continue;
+				closest = distance;
+				point = (first + second) * 0.5f;
+				material = a.Material;
+				otherMaterial = b.Material;
+			}
+		}
+		return material is not null;
+	}
+
 	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, XmlAsset connection )
 	{
 		if ( mount.GetByPath( actor.Renderer.Model.ResourcePath ) is not CharacterLoader character ||
@@ -43,7 +76,7 @@ public sealed class LevelItem : Component
 		int bone = character.AttachmentBone( chain, depth, mirrored );
 		if ( bone < 0 ) return;
 		var grip = ItemGrip.Read( mount.FileSystem, mount.Resolve( anim ), bone, mirrored, type != 2, chain == "hip", character.AttachmentScale );
-		var center = -(model.GetAttachment( "asset_origin" )?.Position ?? Vector3.Zero);
+		var center = -(model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
 		item.SetParent( actor.GameObject, true );
 		var attachmentComponent = item.AddComponent<LevelItem>();
 		attachmentComponent.Holder = actor.Renderer;
@@ -66,7 +99,7 @@ public sealed class LevelItem : Component
 		var body = item.AddComponent<Rigidbody>();
 		body.MassOverride = model.Physics.Parts[0].Mass;
 		body.OverrideMassCenter = true;
-		body.MassCenterOverride = model.GetAttachment( "mass_center" )?.Position ?? Vector3.Zero;
+		body.MassCenterOverride = model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 		body.EnhancedCcd = true;
 		item.AddComponent<LevelItem>();
 	}

@@ -61,7 +61,7 @@ public sealed class ImpactDust : Component
 		WorldRotation = Rotation.FromRoll( angle + remainder * spin * 0.3f / MathF.Sqrt( (simulated + step) * definition.Expansion ) );
 	}
 
-	static Vector3 Wind( Vector3 p, float time )
+	internal static Vector3 Wind( Vector3 p, float time )
 	{
 		float x = p.y + time * 0.7f, y = p.z + time * 0.3f, z = p.x + time * 0.5f;
 		return new Vector3( MathF.Sin( x * 1.6f ) + MathF.Cos( y * 0.5f ) + MathF.Sin( z * 1.2f ),

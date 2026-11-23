@@ -112,7 +112,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
 		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
-		if ( move.Unblockable || move.FleshUnblockable ) return false;
+		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
 		bool active = activeBlock > 0;

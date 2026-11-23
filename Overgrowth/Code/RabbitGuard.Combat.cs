@@ -98,8 +98,11 @@ public sealed partial class RabbitGuard
 						bool smaller = boundAnimations.Species == "dog" && species is not ("dog" or "wolf") || species == "rat" && boundAnimations.Species != "rat";
 						blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
 					}
+					if ( !strike.FleshUnblockable ) PlayBluntImpact( "hit_block", pos );
+					else if ( PrimaryItem.IsValid() && blockingOpponent.IsValid() && blockingOpponent.PrimaryItem.IsValid() &&
+						PrimaryItem.TryContact( blockingOpponent.PrimaryItem, out var contact, out var a, out var b ) )
+						PlayWeaponClash( contact, a, b );
 					blockingOpponent = null;
-					PlayBluntImpact( "hit_block", pos );
 				}
 				else TryHit( clip, impact.Bone );
 			}
@@ -350,6 +353,30 @@ public sealed partial class RabbitGuard
 		mount.PlayGroup( $"Data/Sounds/hit/{group}.xml", position );
 		mount.EmitImpactDust( "Data/Particles/impactfast.xml", position );
 		mount.EmitImpactDust( "Data/Particles/impactslow.xml", position );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayWeaponClash( Vector3 point, string a, string b )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		var group = (a, b) switch
+		{
+			("metal", "metal") => "weapon_metal_hit_metal_strong",
+			("wood", "wood") => "weapon_staff_hit_staff_strong",
+			_ => "weapon_staff_hit_metal_strong"
+		};
+		mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
+		if ( a == "metal" && b == "metal" )
+		{
+			int count = Random.Shared.Next( 20 );
+			mount.EmitClashParticles( "metalspark", point, count );
+			mount.EmitClashParticles( "metalflash", point, count );
+			mount.EmitClashFlash( point );
+			return;
+		}
+		mount.EmitClashParticles( "woodspeck", point, Random.Shared.Next( a == "wood" && b == "wood" ? 5 : 10 ) );
+		mount.EmitImpactDust( "Data/Particles/impactfast.xml", point );
+		mount.EmitImpactDust( "Data/Particles/impactslow.xml", point );
 	}
 
 	void Speak( string cue )
