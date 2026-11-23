@@ -203,7 +203,7 @@ public sealed partial class RabbitGuard
 			duckVelocity = 3f;
 		}
 		bool quiet = boundAnimations.Species == "cat";
-		if ( !hard || FootWaterDepth() < 0.25f )
+		if ( !hard || WaterDepthAt( WorldPosition ) < 0.25f )
 		{
 			if ( !quiet || hard )
 				ReportBodySound( hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );

@@ -17,9 +17,8 @@ public sealed partial class RabbitGuard
 		if ( fighter == this ) return;
 		float impulse = BodyImpactImpulse( collision ) / 40f;
 		var point = collision.Contact.Point;
-		if ( awaitingThrowImpact && fighter is null ) ApplyThrowImpact( point );
 		if ( !IsValid || Health <= 0f ) return;
-		if ( impulse <= 0.1f ) return;
+		if ( impulse <= 0.1f && !awaitingThrowImpact ) return;
 		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface )?.ResourceName;
 		float hardness = (Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount)?.MaterialHardness( surface ) ?? 1f;
 		if ( impulse * hardness * (head ? 5f : 1f) > 5f )
@@ -32,6 +31,15 @@ public sealed partial class RabbitGuard
 			if ( !IsValid || Health <= 0f ) return;
 			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", point );
 		}
+		if ( impulse <= 1f && !awaitingThrowImpact ) return;
+		var center = CharacterCenter( GameObject );
+		if ( WaterDepthAt( center - Vector3.Up * LegRadius ) >= 0.2f ) return;
+		if ( awaitingThrowImpact && fighter is null )
+		{
+			ApplyThrowImpact( point );
+			if ( !IsValid || Health <= 0f ) return;
+		}
+
 		// Collided shares these cooldowns with upright landings, but thresholds are in impulse units.
 		if ( impulse > 4f && bodyFall <= 0f )
 		{
@@ -59,7 +67,7 @@ public sealed partial class RabbitGuard
 			PlayMaterialEvent( "bodyfall_light", point, surface, 0.4f );
 		}
 		else return;
-		ReportSound( GameObject, point, HeardSound.LoudFoley, 5f );
+		ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
 	}
 
 	// Box3D's begin-touch notification can contain just the last solver substep's impulse.

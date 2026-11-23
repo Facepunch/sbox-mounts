@@ -14,7 +14,7 @@ public sealed partial class RabbitGuard
 	// HandleAnimationMaterialEvent layers mud over the ground sound in very shallow water.
 	bool HandleFootstep( string step, Vector3 position )
 	{
-		float depth = FootWaterDepth();
+		float depth = WaterDepthAt( WorldPosition );
 		if ( depth > 0f )
 		{
 			ReportSound( GameObject, position, HeardSound.Footstep, 5f );
@@ -35,9 +35,8 @@ public sealed partial class RabbitGuard
 	}
 
 	// The root is at the feet. These sound rules only distinguish the first 0.4 metres.
-	float FootWaterDepth()
+	float WaterDepthAt( Vector3 feet )
 	{
-		var feet = WorldPosition;
 		var top = feet + Vector3.Up * 16f;
 		var water = Scene.Trace.WithTag( "water" ).HitTriggersOnly();
 		if ( !water.Ray( feet, top ).Run().StartedSolid ) return 0f;
