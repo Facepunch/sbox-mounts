@@ -61,7 +61,7 @@ public sealed partial class RabbitGuard
 
 	internal void HitByItem( LevelItem item, GameObject attacker, Vector3 point, Vector3 velocity, float mass, string label, bool cut, bool embedded )
 	{
-		var force = (velocity - Animation.MoveVelocity) * mass;
+		var force = (velocity - BodyVelocity) * mass;
 		var impulse = force * (200f / 120f);
 		float strength = force.Length / 40f;
 		string species = boundAnimations?.Species;

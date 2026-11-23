@@ -315,10 +315,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
 	}
 
+	Vector3 BodyVelocity => Downed && ragdoll.IsValid() ? CharacterLoader.RagdollVelocity( ragdoll ) ?? Vector3.Zero : Animation.MoveVelocity;
+
 	static Vector3 TargetVelocity( GameObject target )
 	{
-		if ( target.GetComponent<RabbitGuard>() is { Downed: true } fighter && fighter.ragdoll.IsValid() )
-			return CharacterLoader.RagdollVelocity( fighter.ragdoll ) ?? Vector3.Zero;
+		if ( target.GetComponent<RabbitGuard>() is { } fighter ) return fighter.BodyVelocity;
 		return GetVelocity( target );
 	}
 
