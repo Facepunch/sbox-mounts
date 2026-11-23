@@ -12,6 +12,7 @@ public sealed partial class RabbitGuard
 	float IdleLookInertia => CombatPosture || NoticeLookOverride ? 0f : idleStance * (0.98f + 0.02f * MathF.Sin( Time.Now ));
 	float HeadLookWeight => Math.Max( 0f, 1f - flipLookFade ) * (flinchSpring > 0.1f ? Math.Clamp( 1f - flinchSpring * 0.5f, 0f, 1f ) : 1f);
 	TimeUntil nextLook;
+	TimeUntil nextChokeLook;
 	Vector3 noticePosition;
 	GameObject noticeSource;
 	TimeUntil noticeLook;
@@ -52,7 +53,26 @@ public sealed partial class RabbitGuard
 				+ (WorldRotation.Forward + heading.Normal) * (0.5f * 100f * 40f);
 		}
 
-		var target = CanAttack( enemy ) ? enemy : escortTarget;
+		if ( Held && holdPartner.IsValid() )
+		{
+			NoticeLookOverride = false;
+			if ( nextChokeLook <= 0f )
+			{
+				nextChokeLook = Random.Shared.Float( 0.1f, 0.3f );
+				var look = new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -0.2f, 0.2f ) );
+				GazeTarget = CharacterCenter( GameObject ) + look * (100f * 40f);
+			}
+			return;
+		}
+		if ( weaponLookTime > 0f )
+		{
+			NoticeLookOverride = false;
+			GazeTarget = weaponLookPoint;
+			return;
+		}
+		var target = currentKnifeLayer is { Active: true } && strikeTarget.IsValid() ? strikeTarget
+			: DrawAnimation == ThrowLayer && handThrowLookTarget.IsValid() ? handThrowLookTarget
+			: CanAttack( enemy ) ? enemy : escortTarget;
 		if ( !target.IsValid() ) target = idleLookCharacter;
 		if ( noticeSource.IsValid() && IsIgnoredPlayer( noticeSource ) ) noticeLook = 0f;
 		NoticeLookOverride = noticeLook > 0f;

@@ -66,6 +66,7 @@ public sealed partial class RabbitGuard
 				if ( DrawWeight <= 0f || Downed )
 				{
 					DrawAnimation = null;
+					handThrowLookTarget = null;
 					itemThrowTarget = null;
 					drawing = null;
 				}

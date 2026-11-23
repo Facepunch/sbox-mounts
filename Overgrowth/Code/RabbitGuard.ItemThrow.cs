@@ -6,7 +6,7 @@ public sealed partial class RabbitGuard
 {
 	internal const string ThrowLayer = "r_knifethrowlayer";
 	internal const string SpearThrow = "r_spearthrow", SwordThrow = "r_dogswordthrow";
-	GameObject itemThrowTarget, bodyThrowTarget;
+	GameObject itemThrowTarget, bodyThrowTarget, handThrowLookTarget;
 	bool IsThrowingItem => Stance is SpearThrow or SwordThrow && ReactionPhase < 1f;
 
 	bool BeginItemThrow()
@@ -39,6 +39,7 @@ public sealed partial class RabbitGuard
 			return true;
 		}
 		DrawLeft = LeftHanded || secondary && label is ("sword" or "rapier");
+		handThrowLookTarget = target;
 		DrawAnimation = ThrowLayer;
 		drawElapsed = 0f;
 		return true;

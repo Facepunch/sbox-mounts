@@ -6,6 +6,8 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	LevelItem soughtItem;
+	TimeUntil weaponLookTime;
+	Vector3 weaponLookPoint;
 	float seekDelay = 0.4f, seekTime;
 	bool reaching;
 	int reachAttempts;
@@ -69,8 +71,12 @@ public sealed partial class RabbitGuard
 		var point = soughtItem.PhysicsPosition;
 		if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 0f, GroundRunSpeed );
 		Stance = Animation.MoveVelocity.WithZ( 0f ).Length < 5f ? Threat : Locomotion;
-		if ( center.DistanceSquared( point ) < 80f * 80f )
-			duckAmount = Math.Max( duckAmount, 1f - (point - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
+		if ( NearestWeapon( center, 80f ) is { } nearby )
+		{
+			weaponLookTime = 2f / 30f;
+			weaponLookPoint = nearby.PhysicsPosition;
+			duckAmount = Math.Max( duckAmount, 1f - (weaponLookPoint - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
+		}
 
 		ReachLeft = RightHandItem.IsValid() || (LeftHanded && !LeftHandItem.IsValid());
 		var hand = boundAnimations.Arms[ReachLeft ? 0 : 1][0].Bone;
