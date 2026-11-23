@@ -47,7 +47,7 @@ public sealed partial class RabbitGuard
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
 			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Unconscious || guard.hearingReady > 0 ||
+			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Unconscious || guard.StaticCharacter || guard.hearingReady > 0 ||
 				guard.WorldPosition.DistanceSquared( position ) >= range * range ) continue;
 			if ( guard.enemy.IsValid() )
 			{

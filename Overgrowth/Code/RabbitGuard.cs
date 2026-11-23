@@ -17,6 +17,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Sync] public int AlertStage { get; private set; }
 	[Property] public bool InvisibleWhenStationary { get; set; }
 	[Property] public bool NoLookAround { get; set; }
+	[Property] public bool StaticCharacter { get; set; }
 	[Property] public bool AlwaysUnaware { get; set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
@@ -154,6 +155,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		if ( StaticCharacter )
+		{
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			if ( !previousPatrolPoint.IsValid() && PatrolStart.IsValid() && (PatrolStart.WorldPosition - WorldPosition).WithZ( 0 ).LengthSquared < 40f * 40f )
+				FollowPatrol();
+			return;
+		}
 		if ( Holding || Held || LedgeAnimation is not null ) return;
 		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
 		{
@@ -234,7 +242,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());
 
 	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
-		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true })
+		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true } or RabbitGuard { StaticCharacter: true })
 		&& GetDisposition( other ) == Disposition.Hostile;
 
 	// MovementObject follows the mean physics-bone position while ragdolled. Here the
@@ -278,7 +286,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void NoticeAttacker( GameObject attacker )
 	{
-		if ( !CanAttack( enemy ) && CanAttack( attacker ) )
+		if ( !StaticCharacter && !CanAttack( enemy ) && CanAttack( attacker ) )
 			Remember( attacker, engage: false );
 	}
 

@@ -102,7 +102,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			foreach(var child in node.Children) Place(child, jumpNodes, patrolPoints, actors);
 			return;
 		}
-		var file=node.Attribute("type_file");
+		var file = node.Attribute( "type_file" )?.Replace( '\\', '/' );
 		var name = node.Attribute( "name" ) ?? System.IO.Path.GetFileNameWithoutExtension( file ) ?? node.Name;
 		var transform = new Transform( Vector( node, "t", 0 ) * 40, Orientation( node ), Vector( node, "s", 1 ) );
 		GameObject Object() => new GameObject( true, name ) { WorldTransform = transform };
@@ -184,6 +184,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Fall Damage Multiplier": fighter.FallDamageMultiplier = Math.Max( 0.001f, value ); break;
 						case "Wearing Metal Armor": fighter.MetalArmor = value != 0f; break;
 						case "Cannot Be Disarmed": fighter.CannotBeDisarmed = value != 0f; break;
+						case "Static": fighter.StaticCharacter = value != 0f; break;
 						case "Damage Resistance": fighter.DamageResistance = value; break;
 					case "Knockout Shield": fighter.KnockoutShield = Math.Max( 0, (int)value ); break;
 						case "Attack Knockback": fighter.AttackKnockback = Math.Max( 0f, value ); break;
