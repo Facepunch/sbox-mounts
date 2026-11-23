@@ -46,7 +46,7 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 		}
 		sounds.Add( "marine/common/jump" );
 		foreach ( var id in sounds )
-			context.Add( ResourceType.GameResource, SoundPath( id ), new SurfaceSoundLoader( id ) );
+			context.Add( ResourceType.GameResource, SoundPath( id ), new SparkSoundLoader( id ) );
 	}
 
 	protected override object Load()
@@ -78,7 +78,7 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 	}
 }
 
-internal sealed class SurfaceSoundLoader( string id ) : ResourceLoader<GameMount>
+internal sealed class SparkSoundLoader( string id ) : ResourceLoader<GameMount>
 {
 	protected override object Load()
 	{

@@ -13,6 +13,7 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 	internal static void Register( MountContext context )
 	{
 		context.Add( ResourceType.AnimationGraph, WorldGraph, new AnimationGraphLoader( ModelFile, WorldGraph, npcPlayback: true ) );
+		Skulk.RegisterSounds( context );
 		var loader = new SkulkPrefab();
 		loader.Tags.Add( "npc" );
 		context.Add( ResourceType.PrefabFile, "entities/npcs/skulk.prefab", loader );
@@ -67,7 +68,7 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 }
 
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
-public sealed class Skulk : BaseNpc
+public sealed partial class Skulk : BaseNpc
 {
 	const float Reach = 1.42f * MapLoader.Scale;
 	[Sync( SyncFlags.FromHost )] string State { get; set; } = "idle";
@@ -78,6 +79,8 @@ public sealed class Skulk : BaseNpc
 	protected override void OnStart()
 	{
 		base.OnStart();
+		worldTag = OnWorldTag;
+		if ( Networking.IsHost ) PlayVoice( "spawn" );
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			world = new( model.PropGraph, model );
@@ -93,6 +96,7 @@ public sealed class Skulk : BaseNpc
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Networking.IsHost && Health > 0 ) UpdateFlinch();
 
 		var move = State == "run" ? "run" : "idle";
 		var activity = State == "bite" ? "primary" : "none";
@@ -106,12 +110,12 @@ public sealed class Skulk : BaseNpc
 			weapon.Update( Time.Delta, tag: weaponTag );
 		}
 		var inputs = Renderer.IsValid() && Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		world?.Update( Time.Delta, inputs );
-		if ( inputs is null ) return;
+
 		var velocity = Animation.MoveVelocity;
-		inputs.Set( "move_speed", velocity.Length / Movement.RunSpeed );
-		inputs.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
+		inputs?.Set( "move_speed", velocity.Length / Movement.RunSpeed );
+		inputs?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			System.MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Right ) ).RadianToDegree() );
+		world?.Update( Time.Delta, inputs, Health > 0 && !Application.IsDedicatedServer && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null );
 	}
 
 	protected override void Think()
@@ -147,22 +151,29 @@ public sealed class Skulk : BaseNpc
 		// BiteLeap checks a 1.2m square with nine box traces, center first, preferring players.
 		const float step = 1.2f * MapLoader.Scale / 3;
 		System.ReadOnlySpan<int> order = [4, 1, 3, 5, 7, 0, 2, 6, 8];
-		SceneTraceResult hit = default;
+		PlayVoice( "bite" );
+		SceneTraceResult hit = default, center = default;
 		IDamageable victim = null;
 		foreach ( var cell in order )
 		{
 			var start = EyePosition + WorldRotation.Right * ((cell % 3 - 1) * step) + WorldRotation.Up * ((cell / 3 - 1) * step);
 			var trace = Scene.Trace.Ray( start, start + WorldRotation.Forward * Reach ).Size( step )
 				.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
+			if ( cell == 4 ) center = trace;
 			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || GetDisposition( trace.GameObject.Root ) != Disposition.Hostile ) continue;
 			if ( Vector3.Dot( trace.HitPosition - EyePosition, WorldRotation.Forward ) <= 0.1f * MapLoader.Scale ) continue;
 			bool player = trace.GameObject.GetComponentInParent<PlayerController>() is not null;
 			if ( victim is null || player ) (hit, victim) = (trace, target);
 			if ( player ) break;
 		}
+		if ( victim is null ) hit = center;
+		if ( hit.Hit ) PlayBiteImpact( hit );
 		if ( victim is null ) return;
+		var npc = victim as BaseNpc;
+		bool alive = npc.IsValid() && npc.Health > 0;
 		var damage = new DamageInfo { Damage = 75, Attacker = GameObject, Weapon = GameObject, Origin = EyePosition, Position = hit.HitPosition };
 		damage.Tags.Add( "bite" );
 		victim.OnDamage( damage );
+		if ( alive && (!npc.IsValid() || npc.Health <= 0) ) PlayVoice( "bite_kill" );
 	}
 }
