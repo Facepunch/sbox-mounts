@@ -269,7 +269,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			bool focus = distance <= 4000 && MathF.Abs( angles.yaw ) <= 36 && MathF.Abs( angles.pitch ) <= 36;
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
-			if ( !HasSight( candidate ) ) continue;
+			if ( !CanSeeCharacter( candidate, ally ) ) continue;
 			if ( fallenAlly )
 			{
 				NoticeCasualty( ally );
@@ -297,5 +297,16 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )
 		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( other ).WithoutTags( "trigger" ).Run().Hit;
+
+	bool CanSeeCharacter( GameObject target, RabbitGuard fighter )
+	{
+		var end = TargetPosition( target, eyes: true );
+		if ( fighter?.boundAnimations?.SightBones is { Length: > 0 } bones &&
+			fighter.Renderer.TryGetBoneTransform( bones[Random.Shared.Next( bones.Length )], out var bone ) )
+			end = bone.Position;
+
+		return !Scene.Trace.Ray( TargetPosition( GameObject, eyes: true ), end )
+			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player" ).Run().Hit;
+	}
 
 }
