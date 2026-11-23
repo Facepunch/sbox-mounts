@@ -195,7 +195,7 @@ public sealed partial class RabbitGuard
 		if ( other == "dog" && species is not ("dog" or "wolf") ) cost += 0.5f;
 		if ( species == "rat" && other != "rat" ) cost += 0.5f;
 		bool sizeAdvantage = cost > 1f;
-		if ( strike is not null && incomingWeapon && blockingWeapon ) cost += 0.5f;
+		if ( InAttackState && incomingWeapon && blockingWeapon ) cost += 0.5f;
 		if ( move.Special == "legcannon" && !TrainingThrows )
 		{
 			blockHealth = 0f;
@@ -211,7 +211,7 @@ public sealed partial class RabbitGuard
 		if ( TrainingThrows ) blockHealth = 1f;
 		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || guardBroken ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
-		bool canDefend = species == "dog" || (startled <= 0f && (strike is null || armedParry) && WorldRotation.Forward.Dot( direction ) <= 0f);
+		bool canDefend = species == "dog" || (startled <= 0f && (!InAttackState || armedParry) && WorldRotation.Forward.Dot( direction ) <= 0f);
 		bool parried = WorldScale.z >= 0.8f && (TrainingThrows || wolfAdvantage || canDefend && (sharp <= 0f || armedParry));
 		if ( !parried && (!incomingWeapon || attacker.boundAnimations.WeaponLabel != "spear") ) return false;
 		if ( parried && wolfAdvantage && blockStun <= 0f )
