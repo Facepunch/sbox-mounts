@@ -107,7 +107,7 @@ public sealed partial class RabbitGuard
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void EmitSurfaceParticle( string path, Vector3 position, float speed, Color tint )
+	internal static void EmitSurfaceParticle( string path, Vector3 position, float speed, Color tint )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
 			mount.EmitBillboard( path, position, Vector3.Up * speed, tint );

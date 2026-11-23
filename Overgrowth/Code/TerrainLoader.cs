@@ -32,13 +32,21 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 		return hit.Surface;
 	}
 
-	internal static Surface ContactSurface( ModelCollider collider, Vector3 point, Surface fallback )
+	internal static Surface ContactSurface( ModelCollider collider, Vector3 point, Surface fallback ) =>
+		ContactSurface( collider, point, fallback, out _ );
+
+	internal static Surface ContactSurface( ModelCollider collider, Vector3 point, Surface fallback, out SceneTraceResult terrainHit )
 	{
+		terrainHit = default;
 		if ( LoaderFor( collider )?.materials is not { } terrain ) return fallback;
 		// Terrain::GetUVAtPoint casts vertically when the contact supplies no triangle.
 		var span = Vector3.Up * 40000f;
 		foreach ( var hit in collider.Scene.Trace.Ray( point + span, point - span ).IgnoreDynamic().RunAll() )
-			if ( hit.Collider == collider ) return terrain.At( hit.Triangle, collider.WorldTransform.PointToLocal( hit.EndPosition ) ) ?? fallback;
+			if ( hit.Collider == collider )
+			{
+				terrainHit = hit;
+				return terrain.At( hit.Triangle, collider.WorldTransform.PointToLocal( hit.EndPosition ) ) ?? fallback;
+			}
 		return fallback;
 	}
 

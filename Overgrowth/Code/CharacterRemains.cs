@@ -19,7 +19,8 @@ internal sealed class CharacterRemains : Component
 			RabbitGuard.WaterDepthAt( Scene, center - Vector3.Up * 18f ) >= 0.2f ) return;
 
 		var point = collision.Contact.Point;
-		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface );
+		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface, out var terrainHit );
+		RabbitBodyContact.EmitSkid( surface?.ResourceName, point, terrainHit );
 		if ( BodySounds.PlayRagdoll( impulse, point, surface?.ResourceName, PlayBodySound ) )
 			RabbitGuard.ReportSound( GameObject, center, RabbitGuard.HeardSound.LoudFoley, 5f );
 	}
