@@ -7,8 +7,10 @@ internal sealed class RabbitMirror
 	readonly Transform[] inverseBind;
 	readonly int[] symmetry;
 	readonly int[] order;
+	readonly Transform[] bindChange;
+	readonly bool symmetricHierarchy;
 
-	internal RabbitMirror( SkeletonData source, float scale )
+	internal RabbitMirror( SkeletonData source, float scale, int[] animationParents )
 	{
 		bind = source.BindPose.Select( tx => tx.WithPosition( tx.Position * scale ) ).ToArray();
 		inverseBind = bind.Select( tx => tx.ToLocal( Transform.Zero ) ).ToArray();
@@ -20,6 +22,9 @@ internal sealed class RabbitMirror
 		}
 		order = Enumerable.Range( 0, bind.Length ).OrderBy( Depth ).ToArray();
 		symmetry = MatchBones( source );
+		bindChange = Enumerable.Range( 0, bind.Length ).Select( i => Reflect( inverseBind[i] ).ToWorld( bind[symmetry[i]] ) ).ToArray();
+		symmetricHierarchy = Enumerable.Range( 0, bind.Length ).All( i =>
+			animationParents[symmetry[i]] == (animationParents[i] < 0 ? -1 : symmetry[animationParents[i]]) );
 	}
 
 	internal static int[] MatchBones( SkeletonData source )
@@ -53,13 +58,24 @@ internal sealed class RabbitMirror
 	}
 
 	internal int Opposite( int bone ) => symmetry[bone];
-	internal Transform BindChange( int bone ) => Reflect( inverseBind[bone] ).ToWorld( bind[symmetry[bone]] );
+	internal Transform BindChange( int bone ) => bindChange[bone];
 
 	internal Transform FootTarget( int anchor, Transform pose ) =>
 		Reflect( pose.ToWorld( bind[anchor] ) ).ToWorld( inverseBind[symmetry[anchor]] );
 
 	internal void Apply( Transform[] frame, Transform[] skin, int[] parents )
 	{
+		// On a symmetric hierarchy, the mirrored parent world transform cancels when returning to local space.
+		if ( symmetricHierarchy )
+		{
+			for ( int i = 0; i < frame.Length; i++ )
+			{
+				var local = Reflect( frame[i] ).ToWorld( bindChange[i] );
+				skin[symmetry[i]] = parents[i] < 0 ? local : bindChange[parents[i]].ToLocal( local );
+			}
+			skin.CopyTo( frame, 0 );
+			return;
+		}
 		foreach ( int i in order )
 		{
 			if ( parents[i] >= 0 ) frame[i] = frame[parents[i]].ToWorld( frame[i] );

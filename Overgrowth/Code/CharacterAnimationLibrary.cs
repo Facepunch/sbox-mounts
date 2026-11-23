@@ -38,7 +38,7 @@ internal sealed class CharacterAnimationLibrary
 		referenceRig = mapping["Data/Animations/r_ledge.anm"].Last();
 		sources[referenceRig] = new RabbitRetarget( fs, referenceRig, skeleton, scale, out var referenceSkeleton );
 		var mirror = Mirror = referenceSkeleton.HierParents.SequenceEqual( skeleton.HierParents )
-			? new RabbitMirror( referenceSkeleton, scale ) : new RabbitMirror( skeleton, 1f );
+			? new RabbitMirror( referenceSkeleton, scale, skeleton.AnimationParents ) : new RabbitMirror( skeleton, 1f, skeleton.AnimationParents );
 		if ( morphs.Any( m => m.Steps == 1 ) )
 			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
 		if ( morphs.Any( m => m.Steps > 1 ) )
