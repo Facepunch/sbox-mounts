@@ -71,6 +71,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateMorphs();
 		UpdatePickupLayer();
 		UpdateWeaponDraw();
+		UpdateJumpArms();
 		UpdatePainFlinch();
 		UpdateKnifeLayers();
 		UpdateLanding();

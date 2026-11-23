@@ -4,6 +4,29 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	internal const string JumpArms = "r_jump_arms";
+	[Sync] TimeSince SinceJumpPreparation { get; set; } = 10f;
+	bool jumpArmsActive;
+
+	internal float PrepareJump()
+	{
+		SinceJumpPreparation = 0f;
+		duckVelocity = 30f * (1f - duckAmount * 0.6f);
+		return boundAnimations?.Species is "wolf" or "dog" ? 0.1f : 0.04f;
+	}
+
+	void UpdateJumpArms()
+	{
+		var duration = boundAnimations.Clips[JumpArms].Duration;
+		float age = SinceJumpPreparation;
+		float peak = Math.Min( 1f, (duration + 1f / 120f) * 2f );
+		float opacity = age < duration ? Math.Min( 1f, (age + 1f / 120f) * 2f ) : Math.Max( 0f, peak - (age - duration) * 2f );
+		if ( opacity <= 0f && !jumpArmsActive ) return;
+		Renderer.Animation.Parameters.Set( "jump_arm_phase", Math.Clamp( age / duration, 0f, 1f ) );
+		Renderer.Animation.Parameters.Set( "jump_arm_weight", opacity * 0.5f );
+		jumpArmsActive = opacity > 0f;
+	}
+
 	[Sync] bool LeftFootJump { get; set; }
 	bool nextJumpUsesLeft, keepJumpFacing;
 	float jumpLaunch, airPhase, pendingTuck;
@@ -80,6 +103,7 @@ public sealed partial class RabbitGuard
 				airPhase = 0;
 				if ( Networking.IsHost && jumping )
 				{
+					breathSpeed += 2f;
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
 					ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );

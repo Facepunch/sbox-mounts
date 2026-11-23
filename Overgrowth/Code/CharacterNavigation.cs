@@ -7,18 +7,32 @@ namespace Overgrowth;
 public sealed class CharacterNavigation : NavigationLayer
 {
 	bool followingJump;
+	Vector3? preparedVelocity;
+	TimeUntil takeoff;
+	TimeSince sinceAirborne = 0f;
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost && LinkTraversal is { } crossing && crossing.Type == NavMeshLinkType.Jump )
+		if ( !Networking.IsHost ) return;
+		if ( Npc.IsAirborne ) sinceAirborne = 0f;
+		if ( LinkTraversal is { } crossing && crossing.Type == NavMeshLinkType.Jump && Npc is RabbitGuard fighter )
 		{
-			if ( TryJumpVelocity( WorldPosition, crossing.End, out var velocity ) )
+			if ( sinceAirborne <= 0.1f ) return;
+			if ( !preparedVelocity.HasValue )
 			{
-				Npc.Launch( velocity );
-				followingJump = true;
+				if ( !TryJumpVelocity( WorldPosition, crossing.End, out var velocity ) )
+				{
+					AbortLinkTraversal();
+					return;
+				}
+				preparedVelocity = velocity;
+				takeoff = fighter.PrepareJump();
 			}
-			else AbortLinkTraversal();
+			if ( takeoff > 0f ) return;
+			Npc.Launch( preparedVelocity.Value );
+			followingJump = true;
 		}
+		preparedVelocity = null;
 		base.OnUpdate();
 		if ( !followingJump ) return;
 		if ( !Npc.IsAirborne ) { followingJump = false; return; }
@@ -28,6 +42,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	protected override void OnDisabled()
 	{
 		followingJump = false;
+		preparedVelocity = null;
 		base.OnDisabled();
 	}
 

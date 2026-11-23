@@ -82,6 +82,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var painParameters = painMask.ToDictionary( group => group.Name, group => graph.FloatParameter( group.Name ) );
 		var pickupPhase = graph.FloatParameter( "pickup_phase" );
+		var jumpArmPhase = graph.FloatParameter( "jump_arm_phase" );
+		var jumpArmWeight = graph.FloatParameter( "jump_arm_weight" );
 		var drawPhase = graph.FloatParameter( "draw_phase" );
 		var drawWeights = RabbitGuard.DrawAnimations.SelectMany( draw => new[] { RabbitGuard.DrawLayer( draw, false ), RabbitGuard.DrawLayer( draw, true ) } )
 			.ToDictionary( name => name, name => graph.FloatParameter( name ) );
@@ -320,6 +322,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new RabbitEar( $"bone_{root}", $"bone_{tip}", HalfLength( root ), HalfLength( tip ) );
 		} ).ToArray();
 		var output = machine.Build();
+		var jumpArms = clips[RabbitGuard.JumpArms] = library.Clip( RabbitGuard.JumpArms );
+		output = graph.Layers( output ).AddLayer( graph.TimeControlledClip( jumpArms.Animation, jumpArmPhase, new() { SampleRootMotion = false } ),
+			new() { BoneMask = graph.BoneMask( RabbitGuard.JumpArms ), Weight = jumpArmWeight, IgnoreEvents = true } );
 		if ( flinchPath is not null )
 		{
 			var flinch = clips["block_flinch"] = CombatClip( System.IO.Path.GetFileNameWithoutExtension( flinchPath ), false, null, true );
