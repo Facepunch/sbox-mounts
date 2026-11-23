@@ -81,6 +81,7 @@ public sealed partial class LevelItem : Component
 	{
 		UpdateAttachment();
 		Holder = null;
+		StuckIn = null;
 		GameObject.SetParent( null, true );
 		var body = AddPhysics( GameObject, GetComponent<ModelRenderer>().Model );
 		body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
@@ -169,6 +170,8 @@ public sealed partial class LevelItem : Component
 		attachmentComponent.pendingEmbed = null;
 		attachmentComponent.thrower = null;
 		attachmentComponent.flyingStraight = false;
+		attachmentComponent.lastHeldPose = null;
+		attachmentComponent.carryVelocity = attachmentComponent.carryAngularVelocity = Vector3.Zero;
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";
 		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center / actor.WorldScale.z ) );

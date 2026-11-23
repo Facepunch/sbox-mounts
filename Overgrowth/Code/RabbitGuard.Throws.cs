@@ -115,6 +115,14 @@ public sealed partial class RabbitGuard
 			awaitingThrowImpact = true;
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			if ( KnockoutShield == 0 && TrainingThrows ) recoverableDamage = Math.Max( 0f, Health - 0.1f );
+			var partner = throwPartner;
+			foreach ( var stuck in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
+			{
+				if ( !stuck.IsValid() || !stuck.StuckIn.IsValid() ) continue;
+				(partner.IsValid() ? partner : this).ExtractWeapon( stuck, lift: false );
+				if ( partner.IsValid() && !partner.PrimaryItem.IsValid() ) partner.TakeWeapon( stuck );
+			}
+			if ( !IsValid || Health <= 0f ) return;
 			if ( PrimaryItem is { IsValid: true } weapon && (startled > 0f || boundAnimations.Species is not ("dog" or "cat")) )
 			{
 				DropHandItem();

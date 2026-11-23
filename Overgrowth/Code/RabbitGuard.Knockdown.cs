@@ -32,12 +32,14 @@ public sealed partial class RabbitGuard
 	(Vector3 Point, Vector3 Impulse, Vector3 LineDirection)? deathImpulse;
 	float? injuryAge;
 	bool itemInjury;
+	bool extractionDeath;
 
 	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
 	{
 		StrikeDamage strike => strike.Impulse,
 		ItemWound wound => wound.Impulse,
 		ItemImpact impact => impact.Impulse,
+		ExtractionDamage extraction => extraction.Impulse,
 		ExecutionDamage => WorldRotation.Forward * (1000f * 40f / 120f),
 		_ => default
 	};
@@ -61,7 +63,7 @@ public sealed partial class RabbitGuard
 		base.OnDamaged( hit );
 		if ( hit.DamageInfo is BloodDamage && hit.AcceptedDamage > 0f )
 		{
-			FlinchFromCut();
+			if ( hit.DamageInfo is not ExtractionDamage ) FlinchFromCut();
 			ApplyBloodLoss( hit.AcceptedDamage );
 		}
 		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
@@ -174,6 +176,8 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
+		extractionDeath = death.DamageInfo is ExtractionDamage;
+		if ( extractionDeath ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
@@ -182,6 +186,7 @@ public sealed partial class RabbitGuard
 		itemInjury = death.DamageInfo is ItemWound or ItemImpact && !Unconscious;
 		injuryAge = death.DamageInfo switch
 		{
+			ExtractionDamage => null,
 			ExecutionDamage => 0f,
 			ItemWound or ItemImpact when !Unconscious => Random.Shared.Float( 0f, 12f ),
 			BloodDamage when !Unconscious => Random.Shared.Float( 5f, 8f ),
@@ -209,6 +214,7 @@ public sealed partial class RabbitGuard
 			}
 			var damping = corpse.GetOrAddComponent<RagdollDamping>();
 			damping.Reset( physics );
+			if ( extractionDeath ) corpse.GetOrAddComponent<RagdollInjury>().QueueDeathVoice();
 			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
 				corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
 			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )

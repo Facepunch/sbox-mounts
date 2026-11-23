@@ -18,6 +18,10 @@ internal sealed class RagdollInjury : Component
 	static readonly float[] ItemVoiceTimes = [0.2f, 2f, 5f];
 	int nextVoice;
 	bool voiced;
+	TimeUntil? deathVoice;
+
+	internal void AdvanceInjuryAge( float seconds ) => injuryAge += seconds;
+	internal void QueueDeathVoice() => deathVoice = 0.4f;
 
 	protected override void OnStart()
 	{
@@ -61,7 +65,13 @@ internal sealed class RagdollInjury : Component
 
 	protected override void OnFixedUpdate()
 	{
-		if ( !Networking.IsHost || injuryPose is null || !physics.IsValid() ) return;
+		if ( !Networking.IsHost ) return;
+		if ( deathVoice is { } delay && delay <= 0f )
+		{
+			deathVoice = null;
+			CharacterVoice.Select( GetComponent<SkinnedModelRenderer>(), "death", PlayVoice );
+		}
+		if ( injuryPose is null || !physics.IsValid() ) return;
 		Vector3 momentum = default;
 		float mass = 0f;
 		foreach ( var part in physics.Bodies )

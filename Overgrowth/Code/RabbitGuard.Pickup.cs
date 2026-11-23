@@ -131,6 +131,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( item.Hands > FreeHands || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return false;
 		var position = item.PhysicsPosition;
+		if ( item.StuckIn.IsValid() && item.StuckIn != Renderer ) ExtractWeapon( item, lift: true );
 		bool left = PrimaryItem.IsValid() ? !LeftHanded : LeftHanded;
 		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, left );
 		if ( item.Holder != Renderer ) return false;

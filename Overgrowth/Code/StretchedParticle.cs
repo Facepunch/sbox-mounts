@@ -48,7 +48,7 @@ public sealed class StretchedParticle : Component
 		{
 			position += velocity * tick;
 			velocity *= particle.Inertia;
-			velocity += (Vector3.Down * (392f * particle.Gravity) + ImpactDust.Wind( position / 40f, Time.Now - remainder ) * (40f * particle.Wind)) * tick;
+			velocity += (Vector3.Down * (392f * particle.Gravity) + BillboardParticle.Wind( position / 40f, Time.Now - remainder ) * (40f * particle.Wind)) * tick;
 			remainder -= tick;
 		}
 		WorldPosition = position + velocity * remainder;

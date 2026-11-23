@@ -4,8 +4,52 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	[ConVar( "overgrowth_blood", Help = "Overgrowth blood effects. Set to 0 to disable." )]
+	public static int BloodLevel { get; set; } = 2;
+	[ConVar( "overgrowth_blood_color", Help = "Tint for Overgrowth blood particles and decals." )]
+	public static Color BloodColor { get; set; } = new( 0.4f, 0f, 0f );
+
 	sealed class ItemWound : BloodDamage { public Vector3 Impulse { get; init; } }
 	sealed class ItemImpact : BluntDamage { public Vector3 Impulse { get; init; } }
+	sealed class ExtractionDamage : BloodDamage { public Vector3 Impulse { get; init; } }
+
+	void ExtractWeapon( LevelItem item, bool lift )
+	{
+		var renderer = item.StuckIn;
+		var wounded = renderer.GetComponentInParent<RabbitGuard>();
+		var physics = renderer.GetComponent<ModelPhysics>();
+		var point = item.PhysicsPosition;
+		item.Drop();
+		PlayExtractionEffect( point, wounded.IsValid() && wounded.Health > 0f );
+		var impulse = lift ? Vector3.Up * (1000f * 40f / 120f) : Vector3.Zero;
+		if ( physics is { Active: true } )
+		{
+			physics.GetComponent<RagdollDamping>()?.Refresh();
+			physics.GetComponent<RagdollInjury>()?.AdvanceInjuryAge( 6f );
+		}
+		if ( wounded.IsValid() && wounded.Health > 0f )
+		{
+			bool protectedByShield = wounded.boundAnimations?.Species is ("wolf" or "dog") && wounded.KnockoutShield > 1;
+			wounded.KnockoutShield = protectedByShield ? wounded.KnockoutShield - 1 : 0;
+			var damage = new ExtractionDamage { Damage = protectedByShield ? 10f : 10000f, Position = point,
+				Attacker = wounded != this ? GameObject : null, Weapon = item.GameObject, Impulse = impulse };
+			damage.Tags.Add( "slash" );
+			damage.Tags.Add( "nevergib" );
+			((IDamageable)wounded).OnDamage( damage );
+			if ( !wounded.IsValid() || wounded.Health <= 0f ) return;
+		}
+		if ( lift && physics is { Active: true } ) ApplyHitImpulse( physics, point, impulse );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayExtractionEffect( Vector3 point, bool alive )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		mount.PlayGroup( "Data/Sounds/weapon_foley/pickup/knife_remove.xml", point, 0.5f );
+		if ( BloodLevel == 0 ) return;
+		mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, Vector3.Up * 40f, BloodColor );
+		if ( alive ) mount.EmitBillboard( "Data/Particles/bloodsplat.xml", point, Vector3.Up * 40f, BloodColor );
+	}
 
 	internal void HitByItem( LevelItem item, GameObject attacker, Vector3 point, Vector3 velocity, float mass, string label, bool cut, bool embedded )
 	{
