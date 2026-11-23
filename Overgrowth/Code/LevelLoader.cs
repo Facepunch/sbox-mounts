@@ -132,6 +132,12 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					if ( parameter.Number( "val" ) is not { } value ) continue;
 					switch ( parameter.Attribute( "name" ) )
 					{
+						case "Focus FOV horizontal": fighter.FocusVision = fighter.FocusVision.WithX( value ); break;
+						case "Focus FOV vertical": fighter.FocusVision = fighter.FocusVision.WithY( value ); break;
+						case "Focus FOV distance": fighter.FocusVision = fighter.FocusVision.WithZ( value ); break;
+						case "Peripheral FOV horizontal": fighter.PeripheralVision = fighter.PeripheralVision.WithX( value ); break;
+						case "Peripheral FOV vertical": fighter.PeripheralVision = fighter.PeripheralVision.WithY( value ); break;
+						case "Peripheral FOV distance": fighter.PeripheralVision = fighter.PeripheralVision.WithZ( value ); break;
 						case "Block Skill": fighter.BlockSkill = Math.Clamp( value, 0f, 1f ); break;
 						case "Aggression": fighter.Aggression = Math.Clamp( value, 0f, 1f ); break;
 						case "Ground Aggression": fighter.GroundAggression = Math.Clamp( value, 0f, 1f ); break;
