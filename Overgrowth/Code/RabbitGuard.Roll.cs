@@ -38,9 +38,18 @@ public sealed partial class RabbitGuard
 		BeginRecovery( 2f );
 		Renderer.Animation.Parameters.Set( "stance", Roll );
 		playing = Roll;
-		bool quiet = boundAnimations.Species == "cat";
-		PlayMaterialEvent( "roll", WorldPosition, surface, quiet ? 0.5f : 1f );
-		if ( !quiet ) ReportBodySound( HeardSound.Footstep, 2f );
+		float depth = WaterDepthAt( WorldPosition );
+		if ( depth < 0.1f )
+		{
+			bool quiet = boundAnimations.Species == "cat";
+			PlayMaterialEvent( "roll", WorldPosition, surface, quiet ? 0.5f : 1f );
+			if ( !quiet ) ReportBodySound( HeardSound.Footstep, 2f );
+		}
+		if ( depth > 0f && depth < 0.4f )
+		{
+			PlayWaterSound( "mud_slide_roll", CharacterCenter( GameObject ) );
+			ReportBodySound( HeardSound.Footstep, 2f );
+		}
 	}
 
 	bool AdvanceRoll()
