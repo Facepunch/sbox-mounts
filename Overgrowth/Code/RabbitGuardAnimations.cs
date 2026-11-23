@@ -7,6 +7,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
 	internal string[] RollClips { get; private init; }
+	internal RabbitMovement AirMovement { get; private init; }
+	internal RabbitRetarget AirRig { get; private init; }
 	internal RabbitMovement WallMovement { get; private init; }
 	internal RabbitRetarget WallRig { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
@@ -186,6 +188,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				MaterialEvent = attack.Element( "materialevent" )?.Value
 			};
 		}
+		var airRigs = new HashSet<RabbitRetarget>();
+		var air = RabbitMovement.Load( fs, AnimationPath( "jump" ), name =>
+		{
+			airRigs.Add( library.SourceFor( name ) );
+			return library.Clip( name, RabbitClip.CenterMotion.None ) with { Mirrored = library.Clip( name, RabbitClip.CenterMotion.None, mirrored: true ) };
+		} );
+		var airRig = airRigs.Count == 1 ? airRigs.First() : null;
+		airRig?.PrepareMirroredJoints( library.Mirror );
+
 		var wallRigs = new HashSet<RabbitRetarget>();
 		var wall = RabbitMovement.Load( fs, AnimationPath( "wall" ), name =>
 		{
@@ -230,8 +241,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, coordinates["air_phase"], false ) );
 			if ( name == RabbitGuard.FreeAir )
 			{
-				var jump = AnimationPath( "jump" );
-				return machine.AddState( graph.Blend( AnimationGroup( jump, "air_phase" ), AnimationGroup( jump, "air_phase", mirrored: true ), leftFootJump ) );
+				GraphBuilder.Node Jump( bool mirrored ) => air.Build( graph, label => coordinates[label], coordinates["air_phase"], mirrored );
+				return machine.AddState( graph.Blend( Jump( false ), Jump( true ), leftFootJump ) );
 			}
 			if ( name == RabbitGuard.Threat )
 			{
@@ -440,6 +451,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
 			WeaponLabel = label,
 			WallMovement = wall,
+			AirMovement = air,
+			AirRig = airRig,
 			WallRig = wallRigs.Count == 1 ? wallRigs.First() : null,
 			PainMask = painMask,
 			KnifeSwings = knifeSwings,

@@ -295,7 +295,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
-		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * boneCount] : null;
+		float[] magnitudes = sampleFeet || centerMotion == CenterMotion.None ? new float[(intervals + 1) * boneCount] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
 
 		var roots = new Transform[intervals + 1];

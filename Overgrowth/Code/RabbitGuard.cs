@@ -139,6 +139,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			UpdateTorsoControl( needsCombatPose );
 		}
 		UpdateBreathing( Time.Delta );
+		hasGaitPose = false;
 		var pose = AirPose();
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
@@ -149,7 +150,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "stance", playing );
 			return;
 		}
-		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
 		if ( pose == Wall )
 		{

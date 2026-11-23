@@ -9,11 +9,14 @@ internal sealed class RabbitMovement
 {
 	internal readonly record struct Controls( float Speed, float Height, float Threat, float Close = 0f )
 	{
+		internal float Tuck { get; init; }
+		internal float Flail { get; init; }
+		internal float Up { get; init; }
 		internal float Direction { get; init; }
 		internal float? GroundSpeed { get; init; }
 	}
 	internal readonly record struct Sample( float Frequency, float Lift, FootPose Left, FootPose Right, RabbitClip Events );
-	sealed record Child( float Coordinate, float? GroundSpeed, float Bounce, RabbitMovement Motion );
+	sealed record Child( float Coordinate, float? GroundSpeed, float Bounce, string TimeCoordinate, RabbitMovement Motion );
 
 	readonly RabbitClip clip;
 	readonly string label;
@@ -26,7 +29,7 @@ internal sealed class RabbitMovement
 		if ( path.EndsWith( ".anm" ) ) return new( load( Path.GetFileNameWithoutExtension( path ) ) );
 		var group = XmlAsset.Read( fs, path, "SyncedAnimationGroup" );
 		var children = group.Element( "Animations" ).Elements( "Animation" ).Select( x => new Child(
-			x.Number( "coord" ).Value, x.Number( "ground_speed" ), x.Number( "run_bounce" ) ?? 0f,
+			x.Number( "coord" ).Value, x.Number( "ground_speed" ), x.Number( "run_bounce" ) ?? 0f, x.Attribute( "time_coord_label" ),
 			Load( fs, x.Attribute( "path" ), load ) ) ).OrderBy( x => x.Coordinate ).ToArray();
 		return new( group.Element( "CoordLabel" ).Value, children );
 	}
@@ -35,13 +38,13 @@ internal sealed class RabbitMovement
 	{
 		if ( clip is not null ) return graph.TimeControlledClip( clip.ForSide( mirrored ).Animation, phase, new() { SampleRootMotion = false } );
 		var blend = graph.BlendSpace( parameter( label ), looping: false );
-		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, phase, mirrored ) );
+		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, child.TimeCoordinate is null ? phase : parameter( child.TimeCoordinate ), mirrored ) );
 		return blend;
 	}
 
 	(Child First, Child Second, float Weight) Inputs( Controls controls )
 	{
-		float coord = label switch { "speed_coord" => controls.Speed, "dir_coord" => controls.Direction, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
+		float coord = label switch { "tuck_coord" => controls.Tuck, "flail_coord" => controls.Flail, "speed_coord" => controls.Speed, "dir_coord" => controls.Direction, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
 		var a = children[Math.Max( 0, hi - 1 )];
@@ -51,20 +54,21 @@ internal sealed class RabbitMovement
 		return (a, b, (coord - a.Coordinate) / (b.Coordinate - a.Coordinate));
 	}
 
-	internal readonly record struct PoseInput( RabbitClip Clip, float Weight );
+	internal readonly record struct PoseInput( RabbitClip Clip, float Weight, float Phase = 0f );
 
 	// Emit the active leaves followed by their parent blends, once per pose.
-	internal void CollectPoseInputs( Controls controls, bool mirrored, List<PoseInput> inputs )
+	internal void CollectPoseInputs( Controls controls, float phase, bool mirrored, List<PoseInput> inputs )
 	{
 		if ( clip is not null )
 		{
-			inputs.Add( new( clip.ForSide( mirrored ), 0f ) );
+			inputs.Add( new( clip.ForSide( mirrored ), 0f, phase ) );
 			return;
 		}
 		var (a, b, weight) = Inputs( controls );
-		a.Motion.CollectPoseInputs( controls, mirrored, inputs );
+		float Phase( Child child ) => child.TimeCoordinate == "up_coord" ? controls.Up : phase;
+		a.Motion.CollectPoseInputs( controls, Phase( a ), mirrored, inputs );
 		if ( b is null ) return;
-		b.Motion.CollectPoseInputs( controls, mirrored, inputs );
+		b.Motion.CollectPoseInputs( controls, Phase( b ), mirrored, inputs );
 		inputs.Add( new( null, weight ) );
 	}
 

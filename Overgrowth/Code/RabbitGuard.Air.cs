@@ -114,6 +114,7 @@ public sealed partial class RabbitGuard
 
 		if ( pose == FreeAir )
 		{
+			if ( playing == FreeAir ) ReadAirPose();
 			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir )
 			{
@@ -136,8 +137,8 @@ public sealed partial class RabbitGuard
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
 			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
-			float jumpFrequency = (1f - flail) / boundAnimations.Clips["r_jump"].Duration + flail / boundAnimations.Clips["r_flailfall"].Duration;
-			float frequency = (1f - AirTuck) * jumpFrequency + AirTuck / boundAnimations.Clips["r_tuck"].Duration;
+			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = AirTuck };
+			float frequency = boundAnimations.AirMovement.Evaluate( controls, airPhase, LeftFootJump ).Frequency;
 			Renderer.Animation.Parameters.Set( "tuck_coord", AirTuck );
 			airPhase = (airPhase + Time.Delta * frequency) % 1f;
 			Renderer.Animation.Parameters.Set( "up_coord", Math.Clamp( 0.5f - up * 0.5f, 0f, 1f ) );
@@ -146,6 +147,17 @@ public sealed partial class RabbitGuard
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		return pose;
+	}
+
+	void ReadAirPose()
+	{
+		var parameters = Renderer.Animation.Parameters;
+		parameters.TryGetFloat( "air_phase", out var phase );
+		parameters.TryGetFloat( "flail_coord", out var flail );
+		parameters.TryGetFloat( "up_coord", out var up );
+		parameters.TryGetFloat( "tuck_coord", out var tuck );
+		parameters.TryGetFloat( "left_foot_jump", out var mirrored );
+		ReadMovementPose( boundAnimations.AirMovement, boundAnimations.AirRig, new() { Flail = flail, Up = up, Tuck = tuck }, phase, mirrored > 0.5f );
 	}
 
 	void TurnInAir( Vector3 velocity, float delta )

@@ -20,15 +20,15 @@ public sealed partial class RabbitGuard
 	(Rotation Unit, Rotation Raw)[] gaitBlend = [];
 
 	// Apply only the rotation difference so AG2 transitions and additive layers survive.
-	Rotation GaitBlendCorrection( float phase, int bone, int bones )
+	Rotation GaitBlendCorrection( int bone, int bones )
 	{
 		int count = 0;
 		foreach ( var input in gaitInputs )
 		{
 			if ( input.Clip is { } clip )
 			{
-				var unit = clip.Animation.GetLocalTransform( phase, bone ).Rotation;
-				gaitBlend[count++] = (unit, clip.RawRotation( unit, phase, bone, bones ));
+				var unit = clip.Animation.GetLocalTransform( input.Phase, bone ).Rotation;
+				gaitBlend[count++] = (unit, clip.RawRotation( unit, input.Phase, bone, bones ));
 				continue;
 			}
 			var b = gaitBlend[--count];
@@ -68,7 +68,7 @@ public sealed partial class RabbitGuard
 
 		var basis = Renderer.WorldTransform;
 		gaitInputs.Clear();
-		movement.CollectPoseInputs( controls, mirrored, gaitInputs );
+		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
 		if ( gaitBlend.Length < gaitInputs.Count ) gaitBlend = new (Rotation, Rotation)[gaitInputs.Count];
 		foreach ( var bone in model.Bones.AllBones )
 		{
@@ -77,7 +77,7 @@ public sealed partial class RabbitGuard
 			originalGaitPose[bone.Index] = pose;
 			var parent = bone.Parent;
 			var local = parent is null ? pose : originalGaitPose[parent.Index].ToLocal( pose );
-			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( phase, rigIndices[bone.Index], model.BoneCount );
+			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( rigIndices[bone.Index], model.BoneCount );
 			if ( parent is not null )
 			{
 				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, mirrored );
