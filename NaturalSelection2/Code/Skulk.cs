@@ -113,6 +113,7 @@ public sealed partial class Skulk : BaseNpc
 				Detonate();
 				return;
 			}
+			Regenerate();
 			UpdateFlinch();
 			energy = Math.Min( 100, energy + Time.Delta * 10 );
 			if ( Leaping && leapEnds <= 0 ) Leaping = false;

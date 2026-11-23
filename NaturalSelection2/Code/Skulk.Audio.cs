@@ -83,6 +83,7 @@ public sealed partial class Skulk
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
+		ConsumeArmor( e.AcceptedDamage );
 		var fraction = e.AcceptedDamage / MaxHealth;
 		damageFraction += fraction;
 		flinchIntensity = Math.Clamp( flinchIntensity + fraction / 0.2f, 0.2f, 1 );
