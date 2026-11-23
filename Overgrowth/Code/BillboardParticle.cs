@@ -104,7 +104,7 @@ public sealed class BillboardParticle : Component
 		collided = true;
 		float width = size * 0.5f * definition.DecalScale;
 		var go = new GameObject( false, "Overgrowth blood spatter" ) { NetworkMode = NetworkMode.Never,
-			WorldPosition = hit.EndPosition, WorldRotation = Rotation.LookAt( hit.Normal ) };
+			WorldPosition = hit.EndPosition, WorldRotation = Rotation.LookAt( -hit.Normal ) };
 		var decal = go.AddComponent<Decal>();
 		decal.Decals = [definition.Decal];
 		decal.Size = width;
