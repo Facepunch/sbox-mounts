@@ -18,6 +18,8 @@ public sealed partial class RabbitGuard
 		lastPhysicsPose ??= new Transform[bones.Count];
 		foreach ( var bone in bones )
 			lastPhysicsPose[bone.Index] = Renderer.TryGetBoneTransform( bone, out var world ) ? world : model.ToWorld( bone.LocalTransform );
+		if ( Renderer.GetComponent<ModelPhysics>() is { Active: true } physics )
+			CharacterLoader.FromModel( physics.Model )?.CaptureRagdollBones( physics, lastPhysicsPose );
 	}
 
 	void BeginRecovery( float rate )

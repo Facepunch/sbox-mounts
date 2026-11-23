@@ -154,6 +154,17 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return count > 0 ? sum / count : null;
 	}
 
+	internal void CaptureRagdollBones( ModelPhysics physics, Transform[] worldPose )
+	{
+		foreach ( var part in physics.Bodies )
+			if ( part.Component.IsValid() ) worldPose[part.Bone] = part.Component.WorldTransform;
+
+		// Overgrowth's fixed physics bones follow their simulated ancestor at their bind offset.
+		foreach ( var point in bodyPoints )
+			if ( point.Bone.Index != point.Body )
+				worldPose[point.Bone.Index] = worldPose[point.Body].ToWorld( point.BodyOffset );
+	}
+
 	internal static Vector3? UprightCenterOfMass( RabbitGuard fighter )
 	{
 		var renderer = fighter.Renderer;
