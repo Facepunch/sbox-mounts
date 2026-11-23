@@ -155,8 +155,9 @@ public sealed partial class Skulk : BaseNpc
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
 		{
 			var velocity = Animation.MoveVelocity * 0.5f;
-			velocity += aim.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
-			velocity.z = (aim.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
+			var forward = ViewRotation.Forward;
+			velocity += forward.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
+			velocity.z = (forward.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
 			Movement.Stop();
 			mover.Leap( velocity );
 			Leaping = true;

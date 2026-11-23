@@ -13,13 +13,16 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	NavMeshPath path;
 	int corner, lastFeeler = -1;
 	TimeUntil rescan, detach;
-	TimeSince lostWall, lastJump = 10, lastWallJump = 10, sinceLanding;
+	TimeSince lostWall, lastWallJump = 10, sinceLanding;
 	float lastFallSpeed;
 	bool touchedWall;
 	float speed;
 	[Sync( SyncFlags.FromHost )] public Vector3 ContactNormal { get; private set; }
+	[Sync( SyncFlags.FromHost )] internal bool Jumping { get; private set; }
+	[Sync( SyncFlags.FromHost )] internal bool MovingInput { get; private set; }
+	[Sync( SyncFlags.FromHost )] TimeSince LastJump { get; set; } = 10;
 	internal Surface ContactSurface { get; private set; }
-	internal bool JustJumped => lastJump < 0.13f;
+	internal bool JustJumped => LastJump < 0.13f;
 	internal bool OnWall => ContactNormal != Vector3.Zero && ContactNormal.z < 0.5f;
 	public override bool IsMoving => Npc.Animation.MoveVelocity.Length > 4;
 	public override MovementStatus Status => MoveTarget is not { } goal ? MovementStatus.Idle :
@@ -65,6 +68,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 
 	internal void Leap( Vector3 velocity )
 	{
+		Jumping = true;
 		detach = 0.2f;
 		ContactNormal = Vector3.Zero;
 		body.Gravity = true;
@@ -77,6 +81,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		var center = WorldPosition + Vector3.Up * Radius;
 		var goal = MoveTarget;
 		var wish = goal is { } point && WorldPosition.Distance( point ) > StopDistance ? point - WorldPosition : Vector3.Zero;
+		MovingInput = !wish.IsNearlyZero();
 		var floor = Probe( center + Vector3.Up * 2, center - Vector3.Up * 6, Radius - 1 );
 		bool wasSupported = ContactNormal != Vector3.Zero;
 		float distance = wish.Length;
@@ -102,6 +107,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		}
 
 		bool supportedNow = ContactNormal != Vector3.Zero;
+		if ( supportedNow ) Jumping = false;
 		Npc.Animation.IsGrounded = supportedNow;
 		body.Gravity = !supportedNow;
 		if ( !supportedNow ) lastFallSpeed = Math.Max( lastFallSpeed, -body.Velocity.z );
@@ -123,7 +129,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			bool targetAbove = distance > 2.5f * MapLoader.Scale && wish.z * 1.5f > distance;
 			bool hopping = distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
 				Vector3.Dot( body.Velocity.Normal, direction ) > 0.6f;
-			if ( (targetAbove || hopping) && lastJump > 0.25f && (!OnWall || lastWallJump >= 0.4f)
+			if ( (targetAbove || hopping) && LastJump > 0.25f && (!OnWall || lastWallJump >= 0.4f)
 				&& !Probe( center + Vector3.Up * 2, center + Vector3.Up * Radius, Radius - 1 ).Hit )
 			{
 				Jump( direction, planarSpeed );
@@ -202,9 +208,9 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			boost = Math.Max( 0.05f, 7 * (1 - Math.Clamp( planarSpeed / (8.5f * MapLoader.Scale), 0, 1 )) );
 			vertical += 2.15f * direction.z;
 		}
-		if ( lastJump > 1.5f ) boost *= 0.5f;
+		if ( LastJump > 1.5f ) boost *= 0.5f;
 		var velocity = body.Velocity.WithZ( vertical * MapLoader.Scale ) + direction.WithZ( 0 ).Normal * (boost * MapLoader.Scale);
-		lastJump = 0;
+		LastJump = 0;
 		Leap( velocity );
 		var npc = (Skulk)Npc;
 		float fraction = velocity.WithZ( 0 ).Length / (11 * MapLoader.Scale);

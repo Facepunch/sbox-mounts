@@ -29,12 +29,13 @@ public sealed partial class Skulk
 		parasiteReady = 0.54f;
 		energy -= ParasiteEnergy;
 		PlayVoice( "parasite" );
-		var ray = Scene.Trace.Ray( EyePosition, EyePosition + aim * (1000 * MapLoader.Scale) )
+		var forward = ViewRotation.Forward;
+		var ray = Scene.Trace.Ray( EyePosition, EyePosition + forward * (1000 * MapLoader.Scale) )
 			.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes();
 		var hit = ray.Run();
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is null )
 		{
-			var extent = new Vector3( aim.WithX( 0 ).Length, aim.WithY( 0 ).Length, aim.WithZ( 0 ).Length ) * (0.15f * MapLoader.Scale);
+			var extent = new Vector3( forward.WithX( 0 ).Length, forward.WithY( 0 ).Length, forward.WithZ( 0 ).Length ) * (0.15f * MapLoader.Scale);
 			hit = ray.Size( -extent, extent ).Run();
 		}
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is not Component victim || GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;
