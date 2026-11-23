@@ -1,3 +1,4 @@
+using System;
 using Sandbox.Npcs;
 using Sandbox.Npcs.Layers;
 
@@ -70,15 +71,22 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
 public sealed partial class Skulk : BaseNpc
 {
+	const float BiteEnergy = 5.85f;
+	const float LeapEnergy = 45;
 	const float Reach = 1.42f * MapLoader.Scale;
-	[Sync( SyncFlags.FromHost )] string State { get; set; } = "idle";
+	[Property] public bool LeapUnlocked { get; set; } = true;
+	[Sync( SyncFlags.FromHost )] bool Biting { get; set; }
+	[Sync( SyncFlags.FromHost )] bool Leaping { get; set; }
+	TimeUntil leapEnds;
+	float energy = 100;
 	SparkAnimationGraph.Playback world, weapon;
-	System.Action<string> weaponTag;
+	Action<string> weaponTag;
 	TimeUntil repath;
 
 	protected override void OnStart()
 	{
 		base.OnStart();
+		standingYaw = runningYaw = WorldRotation.Angles().yaw;
 		worldTag = OnWorldTag;
 		if ( Networking.IsHost ) PlayVoice( "spawn" );
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
@@ -96,44 +104,52 @@ public sealed partial class Skulk : BaseNpc
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( Networking.IsHost && Health > 0 ) UpdateFlinch();
-
-		var move = State == "run" ? "run" : "idle";
-		var activity = State == "bite" ? "primary" : "none";
-		world?.Set( "alive", Health > 0 ? 1 : 0 );
-		world?.Set( "move", move );
-		world?.Set( "activity", activity );
-		if ( weapon is not null && Health > 0 )
+		if ( Networking.IsHost && Health > 0 )
 		{
-			weapon.Set( "move", move );
-			weapon.Set( "activity", activity );
-			weapon.Update( Time.Delta, tag: weaponTag );
+			UpdateFlinch();
+			energy = Math.Min( 100, energy + Time.Delta * 10 );
+			if ( Leaping && leapEnds <= 0 ) Leaping = false;
 		}
-		var inputs = Renderer.IsValid() && Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 
-		var velocity = Animation.MoveVelocity;
-		inputs?.Set( "move_speed", velocity.Length / Movement.RunSpeed );
-		inputs?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
-			System.MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Right ) ).RadianToDegree() );
-		world?.Update( Time.Delta, inputs, Health > 0 && !Application.IsDedicatedServer && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null );
+		UpdateAnimation();
 	}
 
 	protected override void Think()
 	{
 		var target = Senses.VisibleHostiles.FirstOrDefault();
+		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
-			State = "idle";
+			Biting = false;
 			return;
 		}
 
 		var direction = target.WorldPosition - WorldPosition;
-		if ( direction.WithZ( 0 ).Length <= Reach && System.MathF.Abs( direction.z ) <= 36 )
+		if ( direction.WithZ( 0 ).Length <= Reach && MathF.Abs( direction.z ) <= 36 )
 		{
 			Movement.Stop();
 			if ( !direction.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction.WithZ( 0 ) );
-			State = "bite";
+			Biting = energy >= BiteEnergy;
+			return;
+		}
+
+		Biting = false;
+		var aim = (CalculateAimPoint( target ) - EyePosition).Normal;
+		var distance = direction.Length / MapLoader.Scale;
+		if ( LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > 5 and < 18
+			&& (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid())
+			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
+		{
+			var velocity = Animation.MoveVelocity * 0.5f;
+			velocity += aim.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
+			velocity.z = (aim.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
+			Movement.Stop();
+			Launch( velocity );
+			Leaping = true;
+			leapEnds = 0.2f;
+			energy -= LeapEnergy;
+			PlayVoice( "bite_alt" );
 			return;
 		}
 
@@ -142,26 +158,27 @@ public sealed partial class Skulk : BaseNpc
 			Movement.MoveTo( target.WorldPosition, Reach * 0.6f, Movement.RunSpeed, target );
 			repath = 0.2f;
 		}
-		State = Movement.IsMoving ? "run" : "idle";
 	}
 
 	void OnWeaponTag( string tag )
 	{
 		if ( tag != "hit" ) return;
+		energy = Math.Max( 0, energy - BiteEnergy );
 		// BiteLeap checks a 1.2m square with nine box traces, center first, preferring players.
 		const float step = 1.2f * MapLoader.Scale / 3;
 		System.ReadOnlySpan<int> order = [4, 1, 3, 5, 7, 0, 2, 6, 8];
 		PlayVoice( "bite" );
 		SceneTraceResult hit = default, center = default;
 		IDamageable victim = null;
+		var view = ViewRotation;
 		foreach ( var cell in order )
 		{
-			var start = EyePosition + WorldRotation.Right * ((cell % 3 - 1) * step) + WorldRotation.Up * ((cell / 3 - 1) * step);
-			var trace = Scene.Trace.Ray( start, start + WorldRotation.Forward * Reach ).Size( step )
+			var start = EyePosition + view.Right * ((cell % 3 - 1) * step) + view.Up * ((cell / 3 - 1) * step);
+			var trace = Scene.Trace.Ray( start, start + view.Forward * Reach ).Size( step )
 				.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 			if ( cell == 4 ) center = trace;
 			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || GetDisposition( trace.GameObject.Root ) != Disposition.Hostile ) continue;
-			if ( Vector3.Dot( trace.HitPosition - EyePosition, WorldRotation.Forward ) <= 0.1f * MapLoader.Scale ) continue;
+			if ( Vector3.Dot( trace.HitPosition - EyePosition, view.Forward ) <= 0.1f * MapLoader.Scale ) continue;
 			bool player = trace.GameObject.GetComponentInParent<PlayerController>() is not null;
 			if ( victim is null || player ) (hit, victim) = (trace, target);
 			if ( player ) break;
