@@ -10,7 +10,7 @@ internal sealed class RagdollInjury : Component
 	RagdollFallPose injuryPose;
 	float injuryAge, writheTime;
 	float initialStun;
-	float injuryMouth;
+	float injuryMouth, mouthRemainder;
 	[Sync( SyncFlags.Interpolate )] internal float MouthOpening { get; private set; }
 	RabbitGuard fighter;
 	float displayedMouth;
@@ -58,7 +58,7 @@ internal sealed class RagdollInjury : Component
 		injuryPose = pose;
 		injuryAge = age;
 		writheTime = 0f;
-		MouthOpening = injuryMouth = 0f;
+		MouthOpening = injuryMouth = mouthRemainder = 0f;
 		nextVoice = itemInjury ? 0 : ItemVoiceTimes.Length;
 		initialStun = itemInjury ? 0.9f : 0f;
 	}
@@ -91,9 +91,7 @@ internal sealed class RagdollInjury : Component
 		float speed = momentum.Length / (mass * 40f);
 		float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
 		strength = Math.Max( 0f, strength - (fighter.IsValid() ? fighter.RagdollStun : Math.Max( 0f, initialStun - writheTime )) );
-		float open = MathF.Sin( Time.Now * 4f ) * 0.5f + MathF.Sin( Time.Now * 6.3f ) * 0.5f;
-		injuryMouth += (open - injuryMouth) * (1f - MathF.Pow( 1f - strength, Time.Delta * 120f ));
-		MouthOpening = Math.Max( 0f, injuryMouth );
+		UpdateInjuredMouth( Time.Now, Time.Delta, strength );
 		if ( strength > 0f )
 		{
 			float phase = (writheTime / injuryPose.Writhe.Clip.Duration) % 1f;
@@ -104,6 +102,21 @@ internal sealed class RagdollInjury : Component
 		injuryMotor.Apply( physics, strength );
 		if ( injuryAge < 12f ) return;
 		Enabled = false;
+	}
+
+	// SetActiveRagdollInjuredPose blends once per character update, independently of the physics rate.
+	void UpdateInjuredMouth( float time, float delta, float strength )
+	{
+		const float step = 4f / 120f;
+		mouthRemainder += delta;
+		while ( mouthRemainder >= step )
+		{
+			mouthRemainder -= step;
+			float sampleTime = time - mouthRemainder;
+			float target = (MathF.Sin( sampleTime * 4f ) + MathF.Sin( sampleTime * 6.3f )) * 0.5f;
+			injuryMouth += (target - injuryMouth) * strength;
+		}
+		MouthOpening = Math.Max( 0f, injuryMouth );
 	}
 
 	protected override void OnDisabled()
