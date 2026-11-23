@@ -167,7 +167,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
 		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && CanAttack( enemy ) && startled <= 0f;
-		if ( !blockFacing.HasValue && sinceKnockdown < 1f && (!canWakeRoll || sinceKnockdown <= 0.2f || rollDelay > 0f) ) return false;
+		if ( !blockFacing.HasValue && sinceKnockdown < 1f && !canWakeRoll ) return false;
 		Vector3 center = default, velocity = default;
 		float mass = 0;
 		int count = 0;
@@ -183,18 +183,18 @@ public sealed partial class RabbitGuard
 		if ( count == 0 || mass <= 0 ) return false;
 		velocity /= mass;
 		bool wakeRoll = !blockFacing.HasValue && (sinceKnockdown < 1f || velocity.LengthSquared >= 20f * 40f * 40f);
-		if ( wakeRoll && (!canWakeRoll || rollDelay > 0f) ) return false;
+		if ( wakeRoll && !canWakeRoll ) return false;
 		center /= count;
 		var extent = MovementCapsule.WorldScale;
 		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
-		var ground = Scene.Trace.Ray( center, center + Vector3.Down * 40f )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-		bool inAir = !ground.Hit;
-		if ( ground.StartedSolid || !inAir && ground.Normal.z <= 0.5f || inAir && (wakeRoll || blockFacing.HasValue) )
+		var ground = RecoverySupport( center );
+		bool inAir = !ground.HasValue;
+		if ( inAir && (wakeRoll || blockFacing.HasValue) )
 		{
 			if ( wakeRoll ) rollDelay = 1f;
 			return false;
 		}
+		if ( wakeRoll && (sinceKnockdown <= 0.2f || rollDelay > 0f) ) return false;
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.
 		var feet = center - Vector3.Up * (0.45f * 40f);
@@ -206,9 +206,10 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
-			var lift = capsule.Radius * (1f / ground.Normal.z - 1f);
-			feet = ground.EndPosition + Vector3.Up * lift;
-			var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, feet + Vector3.Down )
+			var support = ground.Value;
+			var lift = capsule.Radius * (1f / support.Normal.z - 1f);
+			feet = support.Point + Vector3.Up * lift;
+			var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, support.Point + Vector3.Down )
 				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
 			feet = floor.EndPosition;
@@ -243,7 +244,7 @@ public sealed partial class RabbitGuard
 				var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
 				var flat = velocity.WithZ( 0f );
 				if ( flat.LengthSquared > 40f * 40f ) direction = (direction * 0.9f + flat.Normal).Normal;
-				StartRoll( direction, velocity, ground.Surface?.ResourceName );
+				StartRoll( direction, velocity, ground?.Surface?.ResourceName );
 			}
 			else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		}
@@ -252,6 +253,29 @@ public sealed partial class RabbitGuard
 		throwPartner = null;
 		Downed = false;
 		return true;
+	}
+
+	(Vector3 Point, Vector3 Normal, Surface Surface)? RecoverySupport( Vector3 center )
+	{
+		const float radius = 40f;
+		var below = Scene.Trace.Ray( center, center + Vector3.Down * radius )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
+		if ( below.Hit && !below.StartedSolid && below.Normal.z > 0.5f ) return (below.HitPosition, below.Normal, below.Surface);
+
+		// CanRoll checks every static contact within a one-metre sphere. A ledge can
+		// support the body even when there is no floor directly below its centre.
+		(Vector3 Point, Vector3 Normal, Surface Surface)? support = null;
+		float closest = radius * radius;
+		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).IgnoreDynamic()
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).RunAll() )
+		{
+			var offset = center - hit.HitPosition;
+			float distance = offset.LengthSquared;
+			if ( distance >= closest || offset.Normal.z <= 0.5f ) continue;
+			support = (hit.HitPosition, offset.Normal, hit.Surface);
+			closest = distance;
+		}
+		return support;
 	}
 
 	void StartGetUp( string stance )
