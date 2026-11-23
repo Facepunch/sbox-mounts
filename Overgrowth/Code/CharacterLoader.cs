@@ -106,7 +106,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		ReadBoneMasses( skeleton, rig );
 		modelCenter ??= ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
 		var graphPath = heldModel is null ? Path : Path + "/equipped/" + key["mount://overgrowth/".Length..];
-		return animationGraphs[key] = RabbitGuardAnimations.Create( Host.FileSystem, graphPath, filePath, skeleton, ScaleSkeleton( appearance, skeleton ), modelCenter.Value, item );
+		return animationGraphs[key] = RabbitGuardAnimations.Create( Host.FileSystem, graphPath, filePath, skeleton, ScaleSkeleton( appearance, skeleton ), modelCenter.Value, Host.AttackReactions, item );
 	}
 
 	ObjLoader.ObjData ReadMesh( XmlAsset appearance, ObjLoader.ObjData reference, string skeletonModelPath, out string modelObjPath )

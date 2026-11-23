@@ -10,10 +10,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
 	internal (string Name, float Weight)[] PainMask { get; private init; }
+	internal Dictionary<string, RabbitReaction> Reactions { get; private init; }
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string[] SightBones { get; private init; }
-	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, XmlAsset item = null )
+	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, IEnumerable<string> incomingReactions, XmlAsset item = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
 		var bones = new SkeletonBuilder();
@@ -96,8 +97,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
-		var reactionAssets = attacks.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value.Element( "reaction" ).Value, "reaction" ) );
-		var reactions = reactionAssets.ToDictionary( kv => kv.Key, kv => kv.Value.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray() );
+		var overridesByPath = item?.Element( "reaction_override" )?.Elements( "reaction" )
+			.ToDictionary( entry => entry.Attribute( "old" ), entry => entry.Attribute( "new" ) );
+		var reactions = incomingReactions.ToDictionary( file => file, file =>
+			RabbitReaction.Read( fs, overridesByPath?.GetValueOrDefault( file ) ?? file ) );
 		string Guard( XmlAsset attack )
 		{
 			var flags = attack.Element( "flags" );
@@ -114,7 +117,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var blocked = bodyAttacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
 		var throwActions = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" ).Element( "animations" );
 		var throwClips = new[] { "throw", "thrown", "thrown_counter" }.ToDictionary( slot => slot, slot => System.IO.Path.GetFileNameWithoutExtension( throwActions.Attribute( slot ) ) );
-		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
+		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
+		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
+		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
@@ -193,13 +198,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} );
 		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
 		movementRig?.PrepareMirroredJoints( mirror );
-		RabbitAttack ReadMove( XmlAsset attack, XmlAsset reaction, RabbitAttack.Pose[] poses )
+		RabbitAttack ReadMove( XmlAsset attack, RabbitAttack.Pose[] poses )
 		{
 			var block = attack.Element( "block_damage" );
 			var direction = attack.Element( "impact_dir" );
 			var flags = attack.Element( "flags" );
-			return new RabbitAttack( poses, reaction.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray(), block.Number( "min" ).Value, block.Number( "max" ).Value, System.IO.Path.GetFileNameWithoutExtension( attack.Element( "animations" ).Attribute( "blocked" ) ), Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
-				new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true", reaction.Element( "flags" )?.Attribute( "mirrored" ) )
+			return new RabbitAttack( poses, attack.Element( "reaction" ).Value, block.Number( "min" ).Value, block.Number( "max" ).Value, System.IO.Path.GetFileNameWithoutExtension( attack.Element( "animations" ).Attribute( "blocked" ) ), Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
+				new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true" )
 			{
 				SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
 				SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
@@ -252,7 +257,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 						.Select( x => LoadPose( x.Attribute( "path" ), x.Number( "coord" ).Value ) ).OrderBy( p => p.Height ).ToArray()
 					: [LoadPose( pathToAnimation, 0 )];
 
-				moves[name] = ReadMove( attack, reactionAssets[name], poses );
+				moves[name] = ReadMove( attack, poses );
 				if ( poses.Length == 1 )
 					return machine.AddState( CombatPose( poses[0].Clip, attackPhase ) );
 
@@ -349,8 +354,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var animation = XmlAsset.Read( fs, $"Data/Animations/{name}.xml", "SyncedAnimationGroup" );
 			var poses = animation.Element( "Animations" ).Elements( "Animation" ).Select( a =>
 				new RabbitAttack.Pose( a.Number( "coord" ).Value, CombatClip( System.IO.Path.GetFileNameWithoutExtension( a.Attribute( "path" ) ), false, attack.Element( "damage" ), true ) ) ).ToArray();
-			var reaction = XmlAsset.Read( fs, attack.Element( "reaction" ).Value, "reaction" );
-			knifeSwings[name] = ReadMove( attack, reaction, poses ) with { AsLayer = true };
+			knifeSwings[name] = ReadMove( attack, poses ) with { AsLayer = true };
 			var controls = swingParameters[name];
 			GraphBuilder.Node Side( bool left )
 			{
@@ -405,6 +409,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			WeaponLabel = label,
 			PainMask = painMask,
 			KnifeSwings = knifeSwings,
+			Reactions = reactions,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
 			SightBones = Enumerable.Range( 0, weighted.Length ).Where( i => weighted[i] ).Select( i => $"bone_{i}" ).ToArray()
 		};

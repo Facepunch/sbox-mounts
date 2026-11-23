@@ -196,8 +196,15 @@ public partial class GameMount : BaseGameMount
 		return average;
 	}
 
+	string[] attackReactions;
+	// A defender can receive attacks from any character's move set.
+	internal string[] AttackReactions => attackReactions ??= FileSystem.FindFile( "Data/Attacks", "*.xml", true )
+		.Select( name => XmlAsset.Parse( FileSystem.ReadAllText( $"Data/Attacks/{name}" ) ).Element( "attack" )?.Element( "reaction" )?.Value )
+		.Where( path => !string.IsNullOrEmpty( path ) ).Distinct().ToArray();
+
 	protected override void Shutdown()
 	{
+		attackReactions = null;
 		actorPrefabs.Clear();
 		averageColors.Clear();
 		materials.Clear();

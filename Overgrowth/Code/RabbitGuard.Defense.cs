@@ -172,11 +172,22 @@ public sealed partial class RabbitGuard
 			return true;
 		}
 
-		// Reaction::GetAnimPath partitions the severity range in XML order.
-		var animation = move.Reactions[(int)((1f - blockHealth) * 0.999f * move.Reactions.Length)];
-		if ( !boundAnimations.Clips.TryGetValue( animation, out var clip ) ) return false;
-		bool mirroredReaction = move.Direction != "front" && attacker.flippedAttack;
-		MirroredAction = MirroredStance = move.ReactionMirror == "maybe" ? MirroredStance : (move.ReactionMirror == "true") != mirroredReaction;
+		string animation;
+		bool reflected;
+		if ( species == "wolf" )
+		{
+			animation = KnockoutShield < initialKnockoutShield / 2 ? "w_slashedrighthard" : "w_slashedright";
+			reflected = move.Direction == "left";
+		}
+		else
+		{
+			var reaction = boundAnimations.Reactions[move.ReactionPath];
+			animation = reaction.AtSeverity( 1f - blockHealth );
+			bool mirroredHit = move.Direction != "front" && attacker.flippedAttack;
+			reflected = reaction.Mirrored == "maybe" ? MirroredStance : (reaction.Mirrored == "true") != mirroredHit;
+		}
+		var clip = boundAnimations.Clips[animation];
+		MirroredAction = MirroredStance = reflected;
 		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
 		if ( cost > 1f ) ReceiveBlockImpact( attacker, move, 2f );
 		Speak( "block_hit" );
