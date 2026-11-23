@@ -14,7 +14,6 @@ public sealed partial class RabbitGuard
 	float rollFallSpeed;
 	[Sync] bool RecoveringRoll { get; set; }
 	bool displayingRoll;
-	ModelHitboxes rollHitboxes;
 
 	RabbitClip RollClip( int index ) => boundAnimations.Clips[boundAnimations.RollClips[index] + (MirroredAction ? "_mirrored" : "")];
 	float RollFrequency => (1f - RollForwardness) / RollClip( 0 ).Duration + RollForwardness / RollClip( 1 ).Duration;
@@ -107,17 +106,15 @@ public sealed partial class RabbitGuard
 
 	float RollGroundOffset( Transform localModel )
 	{
-		rollHitboxes ??= Renderer.GetComponent<ModelHitboxes>();
-		if ( !rollHitboxes.IsValid() ) return 0f;
 		var model = Renderer.GameObject.Parent.WorldTransform.ToWorld( localModel );
 		float low = WorldPosition.z + 18f;
-		foreach ( var hull in rollHitboxes.Hulls )
+		foreach ( var hitbox in Renderer.Model.HitboxSet.All )
 		{
-			if ( !boundAnimations.RollBones.Contains( hull.BoneName ) ) continue;
-			var bone = Renderer.Model.Bones.GetBone( hull.BoneName );
+			var bone = hitbox.Bone;
+			if ( bone is null || !boundAnimations.RollBones.Contains( bone.Name ) || hitbox.Shape is not IReadOnlyList<Vector3> points ) continue;
 			if ( !TryGetAnimatedBone( bone, out var animated ) ) continue;
 			var world = model.ToWorld( Renderer.WorldTransform.ToLocal( animated ) );
-			foreach ( var p in hull.Points ) low = Math.Min( low, world.PointToWorld( p ).z );
+			foreach ( var p in points ) low = Math.Min( low, world.PointToWorld( p ).z );
 		}
 		return (WorldPosition.z - low - 0.8f) * (1f - MathF.Pow( MathF.Abs( 0.5f - RollProgress ) * 2f, 2f ));
 	}
