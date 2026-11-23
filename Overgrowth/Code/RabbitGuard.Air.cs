@@ -16,6 +16,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateLanding()
 	{
+		if ( Networking.IsHost ) UpdateWallContact();
 		if ( Downed || !Networking.IsHost )
 		{
 			airVelocity = null;
@@ -59,12 +60,14 @@ public sealed partial class RabbitGuard
 	{
 		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion ? FreeAir : Stance;
 
+		if ( pose == FreeAir && !WallDirection.IsNearlyZero() ) return Wall;
+
 		if ( pose == FreeAir )
 		{
 			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir )
 			{
-				bool jumping = Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
+				bool jumping = playing != Wall && Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
 				jumpLaunch = jumping ? 1f : 0f;
 				airPhase = 0;
 				if ( Networking.IsHost && jumping )

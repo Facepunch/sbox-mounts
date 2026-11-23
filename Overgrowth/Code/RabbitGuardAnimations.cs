@@ -7,6 +7,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
 	internal string[] RollClips { get; private init; }
+	internal RabbitMovement WallMovement { get; private init; }
+	internal RabbitRetarget WallRig { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
 	internal (string Name, float Weight)[] PainMask { get; private init; }
@@ -67,10 +69,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
+		var wallSpeed = graph.FloatParameter( "wall_speed_coord" );
+		var wallDirection = graph.FloatParameter( "wall_dir_coord", -1f, 1f );
 		var speed = graph.FloatParameter( "ground_speed" );
 		var mirroredPose = graph.BoolParameter( "mirrored_pose" );
 		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
@@ -172,6 +176,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				Special = flags.Attribute( "special" )
 			};
 		}
+		var wallRigs = new HashSet<RabbitRetarget>();
+		var wall = RabbitMovement.Load( fs, AnimationPath( "wall" ), name =>
+		{
+			wallRigs.Add( library.SourceFor( name ) );
+			return library.Clip( name, feet: true );
+		} );
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.Ready )
@@ -200,6 +210,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				var roll = AnimationPath( "roll" );
 				return machine.AddState( MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) );
 			}
+			if ( name == RabbitGuard.Wall )
+				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, coordinates["air_phase"], false ) );
 			if ( name == RabbitGuard.FreeAir )
 			{
 				var jump = AnimationPath( "jump" );
@@ -393,6 +405,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
 				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
 			WeaponLabel = label,
+			WallMovement = wall,
+			WallRig = wallRigs.Count == 1 ? wallRigs.First() : null,
 			PainMask = painMask,
 			KnifeSwings = knifeSwings,
 			Reactions = reactions,

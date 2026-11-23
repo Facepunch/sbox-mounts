@@ -106,6 +106,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		var displayPose = WoundedPose( pose );
 		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
+		if ( pose == Wall )
+		{
+			if ( playing == Wall ) ReadWallPose();
+			UpdateWallPose();
+		}
 		UpdateIdleBalance( pose is Threat or Idle or Ready or Watch );
 		if ( pose is Idle or Ready )
 		{

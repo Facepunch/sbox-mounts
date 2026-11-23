@@ -7,7 +7,11 @@ namespace Overgrowth;
 // The pose, contact weights and footstep events all follow the same authored blend tree.
 internal sealed class RabbitMovement
 {
-	internal readonly record struct Controls( float Speed, float Height, float Threat, float Close = 0f );
+	internal readonly record struct Controls( float Speed, float Height, float Threat, float Close = 0f )
+	{
+		internal float Direction { get; init; }
+		internal float? GroundSpeed { get; init; }
+	}
 	internal readonly record struct Sample( float Frequency, float Lift, FootPose Left, FootPose Right, RabbitClip Events );
 	sealed record Child( float Coordinate, float? GroundSpeed, float Bounce, RabbitMovement Motion );
 
@@ -37,7 +41,7 @@ internal sealed class RabbitMovement
 
 	(Child First, Child Second, float Weight) Inputs( Controls controls )
 	{
-		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
+		float coord = label switch { "speed_coord" => controls.Speed, "dir_coord" => controls.Direction, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
 		var a = children[Math.Max( 0, hi - 1 )];
@@ -72,7 +76,7 @@ internal sealed class RabbitMovement
 		Sample EvaluateChild( Child child )
 		{
 			var sample = child.Motion.Evaluate( controls, phase, mirrored );
-			float frequency = sample.Frequency * (child.GroundSpeed.HasValue ? controls.Speed / child.GroundSpeed.Value : 1f);
+			float frequency = sample.Frequency * (child.GroundSpeed.HasValue ? (controls.GroundSpeed ?? controls.Speed) / child.GroundSpeed.Value : 1f);
 			float rate = Math.Max( 2f, frequency );
 			float t = phase % 0.5f / rate;
 			return sample with { Frequency = frequency, Lift = sample.Lift + child.Bounce * 392f * t * (0.5f / rate - t) };

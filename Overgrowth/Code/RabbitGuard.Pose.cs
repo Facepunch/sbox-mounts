@@ -38,8 +38,18 @@ public sealed partial class RabbitGuard
 	// joint length. AG2 blends translations as well as rotations, so restore the joints here.
 	void ReadGaitPose()
 	{
+		var parameters = Renderer.Animation.Parameters;
+		parameters.TryGetFloat( "stride_phase", out float phase );
+		parameters.TryGetFloat( "ground_speed", out float speed );
+		parameters.TryGetFloat( "tall_coord", out float height );
+		parameters.TryGetFloat( "threat_coord", out float threat );
+		parameters.TryGetFloat( "close_coord", out float close );
+		ReadMovementPose( boundAnimations.Movement, boundAnimations.MovementRig, new( speed, height, threat, close ), phase, MirroredStance );
+	}
+
+	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored )
+	{
 		var model = Renderer.Model;
-		var rig = boundAnimations.MovementRig;
 		if ( rig is null ) return;
 		if ( gaitModel != model || rigIndices is null )
 		{
@@ -52,14 +62,8 @@ public sealed partial class RabbitGuard
 		}
 
 		var basis = Renderer.WorldTransform;
-		var parameters = Renderer.Animation.Parameters;
-		parameters.TryGetFloat( "stride_phase", out float phase );
-		parameters.TryGetFloat( "ground_speed", out float speed );
-		parameters.TryGetFloat( "tall_coord", out float height );
-		parameters.TryGetFloat( "threat_coord", out float threat );
-		parameters.TryGetFloat( "close_coord", out float close );
 		gaitInputs.Clear();
-		boundAnimations.Movement.CollectPoseInputs( new( speed, height, threat, close ), MirroredStance, gaitInputs );
+		movement.CollectPoseInputs( controls, mirrored, gaitInputs );
 		if ( gaitBlend.Length < gaitInputs.Count ) gaitBlend = new (Rotation, Rotation)[gaitInputs.Count];
 		foreach ( var bone in model.Bones.AllBones )
 		{
@@ -71,7 +75,7 @@ public sealed partial class RabbitGuard
 			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( phase, rigIndices[bone.Index], model.BoneCount );
 			if ( parent is not null )
 			{
-				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, MirroredStance );
+				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, mirrored );
 				local = gaitPose[parent.Index].ToWorld( local );
 			}
 			gaitPose[bone.Index] = local;
