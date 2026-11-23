@@ -99,11 +99,29 @@ public sealed partial class RabbitGuard
 		return ReactionPhase < 1f;
 	}
 
-	void AdvanceCrouch( float target )
+	void AdvanceCrouch( float target ) => AdvanceCrouchSpring( target, Time.Delta );
+
+	// UpdateDuckAmount updates velocity before position once per four game ticks.
+	// Taking a fractional power of that update preserves both the pose and momentum between ticks.
+	const float CrouchStep = 4f / 120f;
+	const float CrouchDamping = 0.89f * 0.89f * 0.89f * 0.89f;
+	const float CrouchImpulse = 120f * CrouchStep * CrouchDamping;
+	const float CrouchTraceHalf = (1f - CrouchStep * CrouchImpulse + CrouchDamping) * 0.5f;
+	static readonly float CrouchSine = MathF.Sqrt( CrouchDamping - CrouchTraceHalf * CrouchTraceHalf );
+	static readonly float CrouchAngle = MathF.Atan2( CrouchSine, CrouchTraceHalf );
+
+	void AdvanceCrouchSpring( float target, float delta )
 	{
-		duckVelocity += (target - duckAmount) * Time.Delta * 120f;
-		duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
-		duckAmount += duckVelocity * Time.Delta;
+		float offset = duckAmount - target;
+		if ( offset == 0f && duckVelocity == 0f ) return;
+		float nextVelocity = CrouchDamping * duckVelocity - CrouchImpulse * offset;
+		float nextOffset = offset + CrouchStep * nextVelocity;
+		float steps = delta / CrouchStep;
+		float decay = MathF.Pow( CrouchDamping, steps * 0.5f );
+		float next = decay * MathF.Sin( steps * CrouchAngle ) / CrouchSine;
+		float current = decay * MathF.Cos( steps * CrouchAngle ) - next * CrouchTraceHalf;
+		duckAmount = target + current * offset + next * nextOffset;
+		duckVelocity = current * duckVelocity + next * nextVelocity;
 	}
 
 	void UpdateActiveBlock( float step )
