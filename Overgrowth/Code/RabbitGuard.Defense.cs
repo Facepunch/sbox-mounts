@@ -203,11 +203,12 @@ public sealed partial class RabbitGuard
 			}
 		}
 		blockHealth = Math.Max( wolfAdvantage && move.Special != "legcannon" ? 0.1f : 0f, blockHealth - blockDamage * cost );
-		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || WorldScale.z < 0.8f || blockHealth <= 0f ) return false;
+		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || blockHealth <= 0f ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
-		if ( !wolfAdvantage && move.SharpMax > 0f && !armedParry ) return false;
-		if ( !wolfAdvantage && species != "dog" && (startled > 0 || strike is not null && !armedParry || WorldRotation.Forward.Dot( direction ) > 0f) ) return false;
-		if ( wolfAdvantage && blockStun <= 0f )
+		bool canDefend = species == "dog" || (startled <= 0f && (strike is null || armedParry) && WorldRotation.Forward.Dot( direction ) <= 0f);
+		bool parried = WorldScale.z >= 0.8f && (wolfAdvantage || canDefend && (move.SharpMax <= 0f || armedParry));
+		if ( !parried && (!incomingWeapon || attacker.boundAnimations.WeaponLabel != "spear") ) return false;
+		if ( parried && wolfAdvantage && blockStun <= 0f )
 		{
 			Speak( "block_hit" );
 			return true;
@@ -230,6 +231,8 @@ public sealed partial class RabbitGuard
 		var clip = boundAnimations.Clips[animation];
 		MirroredAction = MirroredStance = reflected;
 		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
+		// A spear can force the authored hit reaction even when its damage gets through.
+		if ( !parried ) return false;
 		if ( sizeAdvantage ) ReceiveBlockImpact( attacker, move, 2f );
 		Speak( "block_hit" );
 		return true;
