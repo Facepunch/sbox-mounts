@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	TimeUntil rollDelay;
+	float rollAfterRagdollDelay;
 	Vector3 rollVelocity;
 	[Sync] Vector3 RollDirection { get; set; }
 	[Sync( SyncFlags.Interpolate )] float RollProgress { get; set; } = 1f;

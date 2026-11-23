@@ -19,6 +19,8 @@ public sealed partial class RabbitGuard
 	[Property] public int KnockoutShield { get; set; }
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown, fallAge, sinceUnconscious;
+	float earliestRollAge;
+
 	TimeUntil limpStun;
 	internal float RagdollStun => Math.Max( 0f, limpStun );
 	float knockoutVoiceDelay;
@@ -112,7 +114,7 @@ public sealed partial class RabbitGuard
 			GoLimp();
 		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 
-		sinceKnockdown = 0;
+		RestartRecovery();
 		if ( hit.DamageInfo is StrikeDamage )
 		{
 			blockHealth = 0f;
@@ -130,13 +132,18 @@ public sealed partial class RabbitGuard
 			if ( boundAnimations.FallPose is { Writhe: not null } pose )
 				ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, 0f, false );
 		}
+		RestartRecovery( 1f );
+	}
+
+	void RestartRecovery( float earliestRoll = 0.2f )
+	{
 		sinceKnockdown = 0f;
-		rollDelay = Math.Max( (float)rollDelay, 1f );
+		earliestRollAge = earliestRoll;
 	}
 
 	void GoLimp()
 	{
-		sinceKnockdown = 0f;
+		RestartRecovery();
 		if ( Downed && ragdoll is { Active: true } )
 		{
 			ragdoll.GetComponent<RagdollDamping>()?.Refresh();
@@ -147,7 +154,7 @@ public sealed partial class RabbitGuard
 		limpStun = 0f;
 		displayingRoll = false;
 		RecoveredInAir = false;
-		rollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
+		rollAfterRagdollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
 		RollProgress = 1f;
 		EndRecovery();
 		// Older saved instances predate the explicit prefab reference.
@@ -264,8 +271,6 @@ public sealed partial class RabbitGuard
 	bool TryGetUp( Vector3? blockFacing = null )
 	{
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
-		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && HasCombatTarget && startled <= 0f;
-		if ( !blockFacing.HasValue && sinceKnockdown < 1f && !canWakeRoll ) return false;
 		Vector3 velocity = default;
 		float mass = 0;
 		foreach ( var body in ragdoll.Bodies )
@@ -278,7 +283,7 @@ public sealed partial class RabbitGuard
 		if ( mass <= 0 ) return false;
 		velocity /= mass;
 		bool wakeRoll = !blockFacing.HasValue && (sinceKnockdown < 1f || velocity.LengthSquared >= 20f * 40f * 40f);
-		if ( wakeRoll && !canWakeRoll ) return false;
+		if ( wakeRoll && boundAnimations.Species == "wolf" ) return false;
 		if ( CharacterLoader.RagdollCenter( ragdoll ) is not { } center ) return false;
 		var extent = MovementCapsule.WorldScale;
 		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
@@ -286,10 +291,11 @@ public sealed partial class RabbitGuard
 		bool inAir = !ground.HasValue;
 		if ( inAir && (wakeRoll || blockFacing.HasValue) )
 		{
-			if ( wakeRoll ) rollDelay = 1f;
+			if ( wakeRoll ) rollAfterRagdollDelay = Math.Max( rollAfterRagdollDelay, (float)sinceKnockdown + 1f );
 			return false;
 		}
-		if ( wakeRoll && (sinceKnockdown <= 0.2f || rollDelay > 0f) ) return false;
+		if ( wakeRoll && (!Sandbox.Npcs.NpcConVars.Enabled || !HasCombatTarget || startled > 0f ||
+			sinceKnockdown < earliestRollAge || sinceKnockdown <= rollAfterRagdollDelay) ) return false;
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.
 		var feet = center - Vector3.Up * (0.45f * 40f);
