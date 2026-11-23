@@ -38,7 +38,11 @@ public sealed partial class LevelItem : Component
 		if ( !Networking.IsHost || Time.Delta <= 0f ) return;
 		if ( !Holder.IsValid() )
 		{
-			if ( flyingStraight ) AlignWithFlight( GetComponent<Rigidbody>() );
+			if ( thrower is not null && GetComponent<Rigidbody>() is { } body )
+			{
+				if ( flyingStraight ) AlignWithFlight( body );
+				TraceFlight( body );
+			}
 			return;
 		}
 		UpdateAttachment();
@@ -134,6 +138,7 @@ public sealed partial class LevelItem : Component
 		if ( item.GetComponent<Rigidbody>() is { } body ) body.Enabled = false;
 		item.SetParent( actor.GameObject, true );
 		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
+		attachmentComponent.thrower = null;
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";

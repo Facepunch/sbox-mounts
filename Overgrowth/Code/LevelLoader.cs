@@ -156,6 +156,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Peripheral FOV horizontal": fighter.PeripheralVision = fighter.PeripheralVision.WithX( value ); break;
 						case "Peripheral FOV vertical": fighter.PeripheralVision = fighter.PeripheralVision.WithY( value ); break;
 						case "Peripheral FOV distance": fighter.PeripheralVision = fighter.PeripheralVision.WithZ( value ); break;
+						case "Weapon Catch Skill": fighter.WeaponCatchSkill = Math.Clamp( value, 0f, 1f ); break;
 						case "Block Skill": fighter.BlockSkill = Math.Clamp( value, 0f, 1f ); break;
 						case "Aggression": fighter.Aggression = Math.Clamp( value, 0f, 1f ); break;
 						case "Ground Aggression": fighter.GroundAggression = Math.Clamp( value, 0f, 1f ); break;

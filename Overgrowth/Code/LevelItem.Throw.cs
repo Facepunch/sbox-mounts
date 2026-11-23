@@ -5,6 +5,34 @@ namespace Overgrowth;
 public sealed partial class LevelItem : Component.ICollisionListener
 {
 	bool flyingStraight;
+	GameObject thrower;
+	Transform previousFlightPose;
+
+	void TraceFlight( Rigidbody body )
+	{
+		var pose = WorldTransform;
+		if ( body.Velocity.LengthSquared > 40f * 40f )
+		{
+			for ( int i = 0; i <= 8; i++ )
+			{
+				var sample = global::Transform.Lerp( previousFlightPose, pose, i / 8f, true );
+				foreach ( var line in GetLines() )
+				{
+					var (start, end) = line.ToWorld( sample );
+					var trace = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes();
+					if ( thrower.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( thrower );
+					var hit = trace.Run();
+					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
+					fighter.DefendThrownItem( this, body, thrower );
+					thrower = null;
+					flyingStraight = false;
+					return;
+				}
+			}
+		}
+		if ( body.Sleeping ) thrower = null;
+		previousFlightPose = pose;
+	}
 
 	void ICollisionListener.OnCollisionStart( Collision collision ) => flyingStraight = false;
 
@@ -20,7 +48,9 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	internal void Throw( Vector3 target, Vector3 velocity, Vector3 throwerVelocity, bool fullBody )
 	{
+		thrower = Holder.GetComponentInParent<RabbitGuard>().GameObject;
 		Drop();
+		previousFlightPose = WorldTransform;
 		var body = GetComponent<Rigidbody>();
 		var delta = target - PhysicsPosition;
 		float mass = body.MassOverride;
