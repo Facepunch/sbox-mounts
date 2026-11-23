@@ -179,25 +179,22 @@ public sealed partial class RabbitGuard
 			if ( FollowHeardVoice() ) return;
 			if ( InvestigateCasualty() ) return;
 			if ( !investigatePoint.HasValue && SearchArea() ) return;
-			float arrival = urgentInvestigation ? MathF.Sqrt( 2f ) * 40f : 40f;
 			if ( investigatePoint.HasValue && startled > 0 )
 			{
 				Movement.Stop();
 				Stance = Ready;
 				return;
 			}
-			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= arrival * arrival )
+			if ( investigatePoint is { } point )
 			{
-				Stance = ApproachInvestigation( point, urgentInvestigation ? 40f : 0f, urgentInvestigation ? 0.7f : 0.2f ) ? Locomotion : Ready;
-				return;
-			}
-			var site = urgentInvestigation ? investigatePoint : null;
-			investigatePoint = null;
-			urgentInvestigation = false;
-			if ( site is { } reached )
-			{
-				InspectSite( reached );
-				return;
+				if ( ApproachSite( point, urgentInvestigation, urgentInvestigation ? 0.7f : 0.2f ) is not { } reached ) return;
+				investigatePoint = null;
+				if ( urgentInvestigation )
+				{
+					urgentInvestigation = false;
+					InspectSite( reached );
+					return;
+				}
 			}
 			if ( FollowPatrol() ) return;
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
@@ -215,9 +212,10 @@ public sealed partial class RabbitGuard
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
-		bool investigating = !visible && sinceEnemySeen > 2f;
-		if ( investigating && distance < 40f )
+		if ( !visible && sinceEnemySeen > 2f )
 		{
+			var lastKnown = observedTarget == enemy && observationCount > 0 ? RecallTarget( Time.Now ).Position : destination;
+			if ( ApproachSite( lastKnown, false, 1f ) is null ) return;
 			enemy = null;
 			BeginAreaSearch();
 			SearchArea();
@@ -231,15 +229,11 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			if ( !investigating )
-			{
-				var intent = ChaseApproach( destination, out var point );
-				if ( !intent.IsNearlyZero() )
-					Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
-						visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
-				else Movement.Stop();
-			}
-			else Movement.MoveTo( destination, 0.45f * 40, GroundRunSpeed );
+			var intent = ChaseApproach( destination, out var point );
+			if ( !intent.IsNearlyZero() )
+				Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
+					visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
+			else Movement.Stop();
 		}
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}

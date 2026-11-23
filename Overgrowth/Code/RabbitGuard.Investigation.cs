@@ -36,7 +36,6 @@ public sealed partial class RabbitGuard
 	{
 		if ( !casualty.IsValid() && !inspectPosition.HasValue ) return false;
 		var position = casualty.IsValid() ? TargetPosition( casualty ) : inspectPosition.Value;
-		var point = Movement.ProjectPoint( position ) ?? position;
 		if ( startled > 0f || inspectUntil.HasValue )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
@@ -50,15 +49,22 @@ public sealed partial class RabbitGuard
 			}
 			return true;
 		}
-		if ( WorldPosition.DistanceSquared( point ) < 2f * 40f * 40f )
-		{
-			InspectSite( point );
-		}
-		else
-		{
-			Stance = ApproachInvestigation( point, 40f, 0.7f ) ? Locomotion : Ready;
-		}
+		if ( ApproachSite( position, true, 0.7f ) is { } reached ) InspectSite( reached );
 		return true;
+	}
+
+	Vector3? ApproachSite( Vector3 target, bool urgent, float speed )
+	{
+		var point = Movement.ProjectPoint( target ) ?? target;
+		var corner = NextPathCorner( point, out var end );
+		// The AI checks the reachable end of the route, including for a partial path.
+		if ( end is { } reached && (Movement.ProjectPoint( WorldPosition ) ?? WorldPosition).DistanceSquared( reached ) < (urgent ? 2f : 1f) * 40f * 40f )
+			return reached;
+		if ( moveDelay > 0f ) point = corner = WorldPosition;
+		var toward = (point - WorldPosition).WithZ( 0f ).Normal;
+		var intent = PathSteering( corner, toward, urgent ? 40f : 0f, ref point );
+		Stance = MoveWithIntent( point, intent, speed ) ? Locomotion : Ready;
+		return null;
 	}
 
 	void InspectSite( Vector3 point )
@@ -179,7 +185,7 @@ public sealed partial class RabbitGuard
 		else
 		{
 			var dest = searchTarget.Position - Vector3.Up * 18f;
-			Stance = ApproachInvestigation( dest, 0f, 0.4f ) ? Locomotion : Ready;
+			Stance = MoveTowardPoint( moveDelay > 0f ? WorldPosition : dest, 0f, 0.4f ) ? Locomotion : Ready;
 		}
 		return true;
 	}

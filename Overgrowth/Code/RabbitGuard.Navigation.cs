@@ -7,6 +7,11 @@ public sealed partial class RabbitGuard
 	bool MoveTowardPoint( Vector3 target, float slowRadius, float speed )
 	{
 		var intent = MovementToPoint( target, slowRadius, 0f, 0f, out var point );
+		return MoveWithIntent( point, intent, speed );
+	}
+
+	bool MoveWithIntent( Vector3 point, Vector3 intent, float speed )
+	{
 		if ( intent.IsNearlyZero() )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
@@ -16,20 +21,22 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	bool ApproachInvestigation( Vector3 target, float slowRadius, float speed ) =>
-		moveDelay > 0f ? MoveTowardPoint( WorldPosition, 0f, speed ) : MoveTowardPoint( target, slowRadius, speed );
-
 	Vector3 MovementToPoint( Vector3 target, float slowRadius, float preferredRange, float strafeOffset, out Vector3 point )
 	{
 		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
 		point = Movement.ProjectPoint( target ) ?? target;
-		var corner = NextPathCorner( point );
+		var corner = NextPathCorner( point, out _ );
 		if ( corner.DistanceSquared( target ) < preferredRange * preferredRange )
 		{
 			var offset = -toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
 			point = WalkableRay( point, point + offset );
-			corner = NextPathCorner( point );
+			corner = NextPathCorner( point, out _ );
 		}
+		return PathSteering( corner, toward, slowRadius, ref point );
+	}
+
+	Vector3 PathSteering( Vector3 corner, Vector3 toward, float slowRadius, ref Vector3 point )
+	{
 		var delta = (corner - WorldPosition).WithZ( 0f );
 		var direct = toward * delta.Dot( toward );
 		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
@@ -40,10 +47,11 @@ public sealed partial class RabbitGuard
 		return intent;
 	}
 
-	Vector3 NextPathCorner( Vector3 goal )
+	Vector3 NextPathCorner( Vector3 goal, out Vector3? end )
 	{
 		var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal, Agent = GetComponent<NavMeshAgent>() } );
-		if ( !path.IsValid || path.Points.Count < 2 ) return goal;
+		end = path.IsValid && path.Points.Count > 0 ? path.Points[^1].Position : null;
+		if ( !end.HasValue || path.Points.Count < 2 ) return end ?? goal;
 		for ( int i = 1; i < path.Points.Count - 1; i++ )
 		{
 			var corner = path.Points[i].Position;
