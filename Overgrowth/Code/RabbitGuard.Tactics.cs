@@ -37,6 +37,7 @@ public sealed partial class RabbitGuard
 	enum AirResponse { None, Hold, Evade, Counter, KnockOffLedge }
 	AirResponse airResponse;
 	GameObject airborneOpponent;
+	int legCannonHits;
 
 	bool RespondToAirborneTarget( float distance )
 	{
@@ -59,7 +60,7 @@ public sealed partial class RabbitGuard
 		{
 			airborneOpponent = enemy;
 			float skill = 1f - 0.9f * MathF.Pow( 1f - GameDifficulty, 2f );
-			airResponse = Random.Shared.Float() < BlockSkill * skill ? AirResponse.Evade :
+			airResponse = Random.Shared.Float() < BlockSkill * skill + legCannonHits * 0.25f ? AirResponse.Evade :
 				Random.Shared.Float() < Aggression * skill ? AirResponse.Counter : AirResponse.Hold;
 			rangeChanged = true;
 		}

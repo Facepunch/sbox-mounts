@@ -198,6 +198,7 @@ public sealed partial class RabbitGuard
 		if ( InAttackState && incomingWeapon && blockingWeapon ) cost += 0.5f;
 		if ( move.Special == "legcannon" && !TrainingThrows )
 		{
+			legCannonHits++;
 			blockHealth = 0f;
 			if ( species != "wolf" ) KnockoutShield = Math.Max( 0, KnockoutShield - 2 );
 			else if ( KnockoutShield == 1 )
