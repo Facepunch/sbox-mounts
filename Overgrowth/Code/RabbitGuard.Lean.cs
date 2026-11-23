@@ -74,7 +74,7 @@ public sealed partial class RabbitGuard
 				var pivotOffset = pose.Rotation * (pose.Scale * localCenter);
 				pose.Position += pivotOffset - rotation * pivotOffset;
 				pose.Rotation = rotation * pose.Rotation;
-				if ( displayingRoll && RollProgress < 1f )
+				if ( displayingRoll && RollProgress < 1f && HasGroundSupport )
 				{
 					var groundOffset = Vector3.Up * RollGroundOffset( pose );
 					var parentTransform = Renderer.GameObject.Parent.WorldTransform;
