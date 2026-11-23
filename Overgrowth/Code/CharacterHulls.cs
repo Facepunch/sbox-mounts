@@ -4,7 +4,7 @@ namespace Overgrowth;
 internal static class CharacterHulls
 {
 	internal static ModelHitboxes.ConvexHull[] Load( BaseFileSystem fs, string path, Vector3 center, float scale,
-		SkeletonData skeleton, Dictionary<int, Vector3> bodyCenters )
+		SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters )
 	{
 		var mesh = ObjLoader.Load( fs, path );
 		var vertices = mesh.RawPositions.Select( v => (new Vector3( v.z, v.x, v.y ) * 40f - center) * scale ).ToArray();
@@ -33,8 +33,10 @@ internal static class CharacterHulls
 		// Each eligible physics bone nominates its nearest piece. When two bones
 		// nominate the same piece, the closer bone owns it.
 		var owners = new Dictionary<int, (int Bone, float Distance)>();
-		foreach ( var (bone, position) in bodyCenters )
+		foreach ( var (bone, centerInfo) in bodyCenters )
 		{
+			if ( centerInfo.Fixed ) continue;
+			var position = centerInfo.Position;
 			int nearest = 0;
 			for ( int i = 1; i < centers.Length; i++ )
 				if ( position.DistanceSquared( centers[i] ) < position.DistanceSquared( centers[nearest] ) ) nearest = i;

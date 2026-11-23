@@ -194,7 +194,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		if ( guard )
 		{
 			animationRig = skeleton;
-			AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value ) );
+			AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
 			var hullPath = modelObjPath[..^4] + "_hulls.obj";
 			if ( Host.FileSystem.FileExists( hullPath ) )
 				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );

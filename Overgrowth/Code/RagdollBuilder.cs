@@ -11,10 +11,12 @@ static class RagdollBuilder
 	const float Degrees = 180f / MathF.PI;
 	static readonly Vector3[] SpherePoints = CreateSpherePoints();
 
+	internal readonly record struct BoneCenter( Vector3 Position, bool Fixed );
+
 	record struct Shape( string Kind, FzxObject Object );
 	record struct Joint( int A, int B, int Type, Vector3 Anchor, Vector3 Axis, float[] Limits );
 
-	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, Vector3> bodyCenters, out List<int> nonCollidingBones )
+	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, BoneCenter> bodyCenters, out List<int> nonCollidingBones )
 	{
 		int count = skeleton.Bones.Count;
 		if ( skeleton.BoneMass.Count != count )
@@ -110,7 +112,7 @@ static class RagdollBuilder
 				pose = pose.WithPosition( weightedCenter / totalVolume );
 			}
 			sourcePoses[i] = pose;
-			if ( assigned[i] ) bodyCenters.Add( i, pose.Position );
+			if ( assigned[i] ) bodyCenters.Add( i, new( pose.Position, fixedBones[i] ) );
 			if ( fixedBones[i] || !assigned[i] )
 				continue;
 			bodyIds[i] = bodyCount++;
