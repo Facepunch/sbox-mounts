@@ -91,7 +91,9 @@ public sealed partial class RabbitGuard
 				float power = 0.5f * MathF.Pow( 4f, opponent.predictability );
 				if ( tactic == CombatTactic.Provoke ) power += 1f;
 				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration / opponent.AttackSpeed;
-				if ( Random.Shared.Float() > 1f - MathF.Pow( 1f - BlockSkill, power ) ) blockDelay += 0.4f;
+				float chance = 1f - MathF.Pow( 1f - BlockSkill, power );
+				if ( groupLeader.IsValid() ) chance *= 0.5f;
+				if ( Random.Shared.Float() > chance ) blockDelay += 0.4f;
 			}
 		}
 		if ( blockDelay is not { } delay ) return;

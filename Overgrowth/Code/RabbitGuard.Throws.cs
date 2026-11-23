@@ -117,6 +117,7 @@ public sealed partial class RabbitGuard
 		if ( ReactionPhase < 1f && !cancel && (Stance == "throw" || throwElapsed < 0.6f) ) return;
 		ReactionPhase = 1f;
 		throwPartner = null;
+		if ( Stance == "throw" ) EndGroupAttack();
 		Stance = Threat;
 	}
 

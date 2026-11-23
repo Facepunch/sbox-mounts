@@ -127,6 +127,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			enemySeen = 0;
 			Movement.Stop();
 		}
+		UpdateCombatGroup();
 		UpdateStanceAmounts();
 		if ( InThrow || UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 && !Sleeping )

@@ -98,6 +98,7 @@ public sealed partial class RabbitGuard
 	{
 		ReleaseProceduralPose();
 		EndGetUpBlend();
+		FollowLeader( null );
 		base.OnDisabled();
 	}
 }

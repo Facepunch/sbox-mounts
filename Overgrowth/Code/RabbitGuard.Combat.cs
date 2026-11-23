@@ -98,6 +98,7 @@ public sealed partial class RabbitGuard
 			}
 			if ( AttackPhase < 1f && !CanEndAttack( AnimationCanCancel ) ) return;
 			strike = null;
+			EndGroupAttack();
 			Stance = Threat;
 			return;
 		}

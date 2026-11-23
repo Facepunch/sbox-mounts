@@ -37,7 +37,7 @@ public sealed partial class RabbitGuard
 		{
 			nextTactic = Random.Shared.Float( 0.35f, 1.25f );
 			var next = CombatTactic.Defend;
-			if ( Random.Shared.Float() < Aggression )
+			if ( Random.Shared.Float() < Aggression + (!groupLeader.IsValid() && followerCount > 0 ? 0.125f : 0f) )
 				next = Random.Shared.Float() > 0.5f ? CombatTactic.Wait : CombatTactic.Rush;
 
 			// PickAttackSubGoal commits to one ground-punish decision until the next attack
@@ -49,7 +49,7 @@ public sealed partial class RabbitGuard
 			}
 			else if ( sinceTargetDown > 0.8f ) punishGroundedTarget = null;
 			if ( distance > 4f * 40f || (next == CombatTactic.Rush && punishGroundedTarget == false)
-				|| (dontAttackBefore > 0f && next is CombatTactic.Rush or CombatTactic.Wait) )
+				|| ((groupLeader.IsValid() || dontAttackBefore > 0f) && next is CombatTactic.Rush or CombatTactic.Wait) )
 				next = CombatTactic.Provoke;
 
 			rangeChanged |= next != tactic;
