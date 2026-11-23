@@ -118,21 +118,9 @@ public sealed partial class RabbitGuard
 		best = useHead ? float.PositiveInfinity : 0.2f * 1.5f * 40f * 40f;
 		foreach ( var part in DragParts )
 		{
-			int id = character.AttachmentBone( part, 0, false );
-			var bone = closest.Model.Bones.GetBone( $"bone_{id}" );
-			if ( bone is null || !closest.Renderer.TryGetBoneTransform( bone, out var pose ) ) continue;
-			var point = pose.PointToWorld( character.AttachmentCenters.GetValueOrDefault( id ) );
+			if ( character.RagdollGrip( closest, part, out var body ) is not { } point || !body.PhysicsBody.IsValid() ) continue;
 			float d = point.DistanceSquared( center );
 			if ( d > best ) continue;
-			// Fixed end bones share their parent's rigidbody in both physics rigs.
-			Rigidbody body = null;
-			while ( bone is not null && !body.IsValid() )
-			{
-				foreach ( var rb in closest.Bodies )
-					if ( rb.Bone == bone.Index ) { body = rb.Component; break; }
-				bone = bone.Parent;
-			}
-			if ( !body.IsValid() || !body.PhysicsBody.IsValid() ) continue;
 			best = d;
 			draggedBody = body;
 			draggedPhysics = closest;

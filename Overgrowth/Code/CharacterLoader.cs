@@ -38,21 +38,34 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	BodyPoint[] bodyPoints = [];
 	readonly Dictionary<string, BodyPoint[]> chainCenters = new();
 
-	// Native queries use Bullet object origins. The rendered joint pivot can be
-	// several units from that origin, especially on large and fixed bones.
+	// BulletObject::GetPosition returns the bone midpoint, including on fixed bones.
+	// GetTransform exposes the underlying Bullet origin used by the vision hull instead.
 	static Transform? BodyTransform( BodyPoint point, SkinnedModelRenderer renderer, ModelPhysics physics, RabbitGuard fighter )
 	{
 		if ( physics is { Active: true } )
 		{
-			foreach ( var part in physics.Bodies )
-				if ( part.Bone == point.Body && part.Component.IsValid() )
-					return part.Component.WorldTransform.ToWorld( point.BodyOffset );
-			return null;
+			return RagdollBone( point, physics, out _ );
 		}
-		Transform pose;
-		if ( fighter?.SolvedBodyTransform( point.Bone.Index ) is { } solved ) pose = solved;
-		else if ( !renderer.TryGetBoneTransform( point.Bone, out pose ) ) return null;
-		return pose.WithPosition( pose.PointToWorld( point.Center ) );
+		return fighter?.SolvedBodyTransform( point.Bone.Index ) ??
+			(renderer.TryGetBoneTransform( point.Bone, out var pose ) ? pose : null);
+	}
+
+	static Transform? RagdollBone( BodyPoint point, ModelPhysics physics, out Rigidbody body )
+	{
+		foreach ( var part in physics.Bodies )
+		{
+			if ( part.Bone != point.Body || !part.Component.IsValid() ) continue;
+			body = part.Component;
+			return body.WorldTransform.ToWorld( point.BodyOffset );
+		}
+		body = null;
+		return null;
+	}
+
+	internal Vector3? RagdollGrip( ModelPhysics physics, string chain, out Rigidbody body )
+	{
+		body = null;
+		return chainCenters.TryGetValue( chain, out var bones ) && bones.Length > 0 ? RagdollBone( bones[0], physics, out body )?.Position : null;
 	}
 
 	static CharacterLoader FromRenderer( SkinnedModelRenderer renderer ) => renderer.IsValid() && renderer.Model is not null
@@ -96,7 +109,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		foreach ( var point in points )
 		{
 			if ( BodyTransform( point, renderer, physics, fighter ) is not { } pose ) continue;
-			position += pose.Position;
+			position += pose.PointToWorld( point.Center );
 			forward += pose.Rotation.Forward;
 			left += pose.Rotation.Left;
 			up += pose.Rotation.Up;
@@ -350,7 +363,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				if ( parent < 0 ) continue;
 				int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
 				var group = ragdollCenters.GetValueOrDefault( index );
-				var local = skeleton.BindPose[parent].PointToLocal( point.Position );
+				var local = skeleton.BindPose[parent].PointToLocal( skeleton.BindPose[id].Position );
 				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ), point.Mass );
 				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
 			}
