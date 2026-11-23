@@ -12,6 +12,7 @@ internal sealed partial class SoundProject
 	internal sealed record Layer( int Definition, bool Loop, float Volume, float Pitch )
 	{
 		internal Playlist Playlist { get; set; }
+		internal bool LoopsWave => Loop && Playlist.Settings.IntervalMax <= 0 && Playlist.Waves.Length == 1;
 		internal Envelope[] Envelopes { get; set; } = [];
 	}
 	internal sealed record Wave( string Path, int Weight );

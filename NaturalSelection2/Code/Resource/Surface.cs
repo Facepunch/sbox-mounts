@@ -94,7 +94,8 @@ internal sealed class SparkSoundLoader( string id ) : ResourceLoader<GameMount>
 		sound.Pitch = new RangedFloat( MathF.Pow( 2, pitch - variation ), MathF.Pow( 2, pitch + variation ) );
 		foreach ( var wave in layer.Playlist.Waves )
 		{
-			var file = SoundFile.Load( $"mount://ns2/{wave.Path}.vsnd" );
+			var path = $"mount://ns2/{wave.Path}.vsnd";
+			var file = SoundFile.Load( layer.LoopsWave ? $"{path}/loop.vsnd" : path );
 			if ( file is not null ) sound.Sounds.Add( file );
 		}
 		return sound;

@@ -118,6 +118,7 @@ public sealed partial class Skulk : BaseNpc
 			if ( Leaping && leapEnds <= 0 ) Leaping = false;
 		}
 
+		UpdateDashSound();
 		UpdateAnimation();
 	}
 

@@ -209,7 +209,7 @@ public sealed class MapAmbientSound : Component
 			var waves = layer.Playlist.Waves;
 			if ( waves.Length == 0 ) { ended = true; return; }
 			var wave = waves[Choose( waves )];
-			bool continuous = layer.Loop && !periodic && waves.Length == 1;
+			bool continuous = layer.LoopsWave;
 			var path = $"mount://ns2/{wave.Path}.vsnd";
 			var file = SoundFile.Load( continuous ? $"{path}/loop.vsnd" : path );
 			if ( file is null || !file.IsValidForPlayback ) { ended = true; return; }

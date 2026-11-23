@@ -14,7 +14,7 @@ public sealed partial class Skulk
 		static void Add( MountContext mount, string id ) => mount.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
 		Add( context, "alien/common/xenocide_start" );
 		Add( context, "alien/common/xenocide_end" );
-		foreach ( var cue in new[] { "spawn", "death", "bite", "jump", "jump_good", "jump_best", "land", "bite_alt", "parasite", "bite_kill", "wound", "wound_serious", "bite_hit_marine" } )
+		foreach ( var cue in new[] { "spawn", "death", "bite", "jump", "jump_good", "jump_best", "land", "bite_alt", "parasite", "bite_kill", "wound", "wound_serious", "bite_hit_marine", "full_speed" } )
 			Add( context, $"alien/skulk/{cue}" );
 		foreach ( var material in new[] { "metal", "thin_metal", "organic", "rock" } )
 		{
@@ -24,10 +24,42 @@ public sealed partial class Skulk
 		}
 	}
 
-	static void PlayLocal( string id, Vector3 position )
+	SoundHandle dash;
+	TimeSince dashStarted;
+	bool dashing;
+
+	void UpdateDashSound()
+	{
+		if ( Application.IsDedicatedServer ) return;
+		bool fast = Health > 0 && Animation.MoveVelocity.WithZ( 0 ).Length > 8.7f * MapLoader.Scale;
+		if ( fast != dashing )
+		{
+			dashing = fast;
+			dashStarted = 0;
+			if ( !fast ) StopDash();
+		}
+		if ( !fast || dashStarted <= 1 ) return;
+		if ( dash is null ) dash = PlayLocal( "alien/skulk/full_speed", WorldPosition );
+		if ( dash is not null ) dash.Position = WorldPosition;
+	}
+
+	void StopDash()
+	{
+		dash?.Stop();
+		dash = null;
+	}
+
+	protected override void OnDisabled()
+	{
+		StopDash();
+		dashing = false;
+		base.OnDisabled();
+	}
+
+	static SoundHandle PlayLocal( string id, Vector3 position )
 	{
 		var sound = GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{id}.sound" );
-		if ( sound is not null ) Sound.Play( sound, position );
+		return sound is not null ? Sound.Play( sound, position ) : null;
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
