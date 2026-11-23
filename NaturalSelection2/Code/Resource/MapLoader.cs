@@ -325,10 +325,12 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			return;
 		}
 
-		var modelPath = entity.Get( "model" ).AsString();
+		// ResourcePoint.lua supplies this model at spawn. The level only stores the placement.
+		var modelPath = name == "resource_point"
+			? "models/misc/resource_nozzle/resource_nozzle.model" : entity.Get( "model" ).AsString();
 		if ( !string.IsNullOrWhiteSpace( modelPath ) )
 		{
-			if ( name == "prop_static" )
+			if ( name is "prop_static" or "resource_point" )
 			{
 				if ( !staticProps.TryGetValue( modelPath, out var prop ) )
 				{
