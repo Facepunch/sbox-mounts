@@ -26,7 +26,7 @@ public sealed partial class RabbitGuard
 		float dt = Time.Delta;
 		// ActiveBlocking lasts .2 seconds; the spring stays raised for .3 from activation.
 		bool raised = activeBlock > -0.1f;
-		float target = raised ? 1f : 0f;
+		float target = raised ? 1f : plantDepth * Math.Min( 1f, Animation.MoveVelocity.Length / 40f );
 		flinchVelocity += (target - flinchSpring) * dt * (raised ? 300f : 150f);
 		flinchSpring += dt * flinchVelocity;
 		flinchVelocity *= MathF.Pow( raised ? 0.8f : 0.86f, dt * 120f );

@@ -74,7 +74,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			connectedPatrolAnimation = null;
 			playing = null;
 		}
-		if ( Networking.IsHost ) UpdateBlockFlinch();
+		if ( Networking.IsHost )
+		{
+			if ( !Downed ) UpdatePlantContact();
+			else plantDepth = 0f;
+			UpdateBlockFlinch();
+		}
 		Renderer.Animation.Parameters.Set( "mirrored_flinch", MirroredFlinch );
 		Renderer.Animation.Parameters.Set( "block_flinch", FlinchWeight );
 		UpdateMorphs();

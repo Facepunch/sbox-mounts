@@ -55,6 +55,8 @@ public sealed class CharacterNavigation : NavigationLayer
 		}
 		preparedVelocity = null;
 		base.OnUpdate();
+		if ( Npc is RabbitGuard { PlantMovementScale: var scale } && scale != 1f && !Npc.IsAirborne && Agent.IsValid() )
+			Agent.MaxSpeed *= scale;
 		if ( !followingJump ) return;
 		if ( !Npc.IsAirborne ) { followingJump = false; return; }
 		Npc.Animation.Traversal = NavMeshLinkType.Jump;

@@ -7,6 +7,37 @@ internal static class PlantHull
 {
 	internal const string Tag = "overgrowth_plant";
 
+	internal static float ContactDepth( Scene scene, Vector3 center, float radius )
+	{
+		// Bullet reports separated closest points too. Its narrow phase accepts the sphere margin
+		// again as separation, plus 2% of its bounding-sphere radius. The broad phase uses its AABB.
+		const float breakingThreshold = 0.02f;
+		float contactRange = 2f + breakingThreshold * MathF.Sqrt( 3f );
+		var trace = scene.Trace.Sphere( radius * 0.8f * contactRange, center, center ).WithTag( Tag ).HitTriggers();
+		var first = trace.Run().Collider;
+		if ( !first.IsValid() ) return 0f;
+
+		float RequiredRadius( Collider collider )
+		{
+			var gap = (collider.GetWorldBounds().ClosestPoint( center ) - center).Abs();
+			float boxRadius = Math.Max( gap.x, Math.Max( gap.y, gap.z ) ) - breakingThreshold * 40f;
+			float hullRadius = collider.FindClosestPoint( center ).Distance( center ) / contactRange;
+			return Math.Max( boxRadius, hullRadius );
+		}
+
+		float requiredRadius = RequiredRadius( first );
+		if ( requiredRadius <= radius * 0.2f ) return 1f;
+		foreach ( var hit in trace.RunAll() )
+		{
+			if ( hit.Collider.IsValid() && hit.Collider != first )
+				requiredRadius = Math.Min( requiredRadius, RequiredRadius( hit.Collider ) );
+		}
+		if ( requiredRadius <= radius * 0.2f ) return 1f;
+		if ( requiredRadius <= radius * 0.4f ) return 0.75f;
+		if ( requiredRadius <= radius * 0.6f ) return 0.5f;
+		return requiredRadius <= radius * 0.8f ? 0.25f : 0f;
+	}
+
 	internal static List<Vector3> Load( GameMount mount, string model, string colorMap, ObjLoader.ObjData mesh )
 	{
 		var cache = Path.ChangeExtension( model, null ) + "_" + Path.GetFileNameWithoutExtension( colorMap ) + ".hull";

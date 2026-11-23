@@ -40,17 +40,13 @@ public partial class GameMount
 		var entry = events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
 			?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
 		if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
-		var handle = PlayGroup( group, position, gain );
+		var handle = PlayGroup( group, position, gain, entry.Attribute( "attached" ) == "true" ? actor : null );
 		if ( !handle.IsValid() ) return;
 		if ( useMaterialDistance )
 		{
 			float distance = entry.Number( "max_distance" ) ?? ReadMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
 			if ( distance > 0 ) handle.Distance = distance * gain * 40f;
 		}
-		if ( entry.Attribute( "attached" ) != "true" ) return;
-		handle.Parent = actor;
-		handle.LocalTransform = actor.WorldTransform.ToLocal( new Transform( position ) );
-		handle.FollowParent = true;
 	}
 
 	internal (SoundFile File, float Volume, float Distance) PickSound( string path )
@@ -65,7 +61,7 @@ public partial class GameMount
 		return (file, group.Volume, group.Distance);
 	}
 
-	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f )
+	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f, GameObject parent = null )
 	{
 		var (file, volume, distance) = PickSound( path );
 		if ( file is null ) return null;
@@ -77,6 +73,12 @@ public partial class GameMount
 			handle.MinDistance = 40f * Math.Max( 1f, level );
 			handle.Distance = distance;
 			handle.Position = position;
+			if ( parent.IsValid() )
+			{
+				handle.Parent = parent;
+				handle.LocalTransform = parent.WorldTransform.ToLocal( new Transform( position ) );
+				handle.FollowParent = true;
+			}
 		}
 		return handle;
 	}
