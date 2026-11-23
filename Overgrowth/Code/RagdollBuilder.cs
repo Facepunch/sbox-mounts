@@ -14,7 +14,7 @@ static class RagdollBuilder
 	record struct Shape( string Kind, FzxObject Object );
 	record struct Joint( int A, int B, int Type, Vector3 Anchor, Vector3 Axis, float[] Limits );
 
-	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, Vector3> bodyCenters )
+	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, Vector3> bodyCenters, out List<int> nonCollidingBones )
 	{
 		int count = skeleton.Bones.Count;
 		if ( skeleton.BoneMass.Count != count )
@@ -90,7 +90,7 @@ static class RagdollBuilder
 		var bodyIds = Enumerable.Repeat( -1, count ).ToArray();
 		var sourcePoses = new Transform[count];
 		int bodyCount = 0;
-		int nonColliding = 0;
+		nonCollidingBones = [];
 		int ellipsoids = 0;
 		for ( int i = 0; i < count; i++ )
 		{
@@ -122,7 +122,7 @@ static class RagdollBuilder
 			if ( shapes[i].Count == 0 )
 			{
 				if ( hasFzx )
-					nonColliding++;
+					nonCollidingBones.Add( i );
 				var bone = skeleton.Bones[i];
 				body.AddCapsule( new Capsule( bindPose.PointToLocal( Convert( skeleton.Points[bone.A] ) * scale ),
 					bindPose.PointToLocal( Convert( skeleton.Points[bone.B] ) * scale ), 0.05f * Units ) );
@@ -181,8 +181,8 @@ static class RagdollBuilder
 					throw new InvalidDataException( $"Unknown Overgrowth joint type {source.Type}." );
 			}
 		}
-		if ( angularJoints > 0 || ellipsoids > 0 || nonColliding > 0 )
-			Log.Warning( $"Overgrowth physics {fzxPath}: {angularJoints} three-axis limits use swing/twist joints; {ellipsoids} ellipsoids use convex hulls; {nonColliding} source non-colliding capsules retain collisions because model-builder body filters are unavailable." );
+		if ( angularJoints > 0 || ellipsoids > 0 )
+			Log.Warning( $"Overgrowth physics {fzxPath}: {angularJoints} three-axis limits use swing/twist joints; {ellipsoids} ellipsoids use convex hulls." );
 		return shapes.Where( (_, i) => bodyIds[i] >= 0 ).Select( x => Math.Max( 1, x.Count ) ).ToArray();
 
 		int Parent( int bone, int steps )

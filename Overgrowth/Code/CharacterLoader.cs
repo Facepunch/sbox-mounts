@@ -9,6 +9,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	RabbitGuardAnimations compiledAnimations;
 	Vector3? modelCenter;
 	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
+	internal HashSet<int> NonCollidingBones { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
 	XmlAsset characterDefinition;
@@ -140,7 +141,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		}
 
 
-		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters );
+		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters, out var nonCollidingBones );
 		if ( guard )
 		{
 			var hullPath = modelObjPath[..^4] + "_hulls.obj";
@@ -148,6 +149,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
 		}
 		var model = builder.Create();
+		NonCollidingBones = nonCollidingBones.Select( id => model.Bones.GetBone( $"bone_{id}" ).Index ).ToHashSet();
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );
 		for ( int i = 0; i < shapeCounts.Length; i++ )
