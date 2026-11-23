@@ -181,7 +181,7 @@ public sealed partial class RabbitGuard
 
 			bool close = distance < 40f * boundAnimations.CharacterScale;
 			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
-			Stance = (airResponse == AirResponse.Counter ? 0 : Random.Shared.Next( 3 )) switch
+			Stance = (airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 )) switch
 			{
 				1 when enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
 				1 when !IsCrouching( enemy ) => close ? Jab : Roundhouse,
