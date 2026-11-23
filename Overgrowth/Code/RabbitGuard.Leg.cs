@@ -89,8 +89,11 @@ public sealed partial class RabbitGuard
 			if ( i == 0 )
 			{
 				var raw = Renderer.WorldTransform.ToWorld( Animated( name ) );
-				torso.Rotation = balanceRotation * torso.Rotation;
-				headMotion = chestMotion = (raw, Renderer.WorldTransform.ToWorld( torso ));
+				var translated = Renderer.WorldTransform.ToWorld( torso );
+				torso = torso.RotateAround( boundAnimations.Torso.BalancePivot( torso ), balanceRotation );
+				var balanced = Renderer.WorldTransform.ToWorld( torso );
+				headMotion = (raw, balanced);
+				chestMotion = (raw, translated, balanced);
 			}
 			SetPoseBone( bones.GetBone( name ), torso );
 		}

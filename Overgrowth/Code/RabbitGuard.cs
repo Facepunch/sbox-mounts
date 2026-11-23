@@ -145,7 +145,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdatePatrolPose();
 		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
 		bool canLook = DragStrength <= 0f && (GazeMovementState || boundAnimations.AttackStates.Contains( Stance ));
-		headMotion = chestMotion = null;
+		headMotion = null;
+		chestMotion = null;
 		if ( Networking.IsHost )
 		{
 			bool needsCombatPose = NeedsCombatPose();

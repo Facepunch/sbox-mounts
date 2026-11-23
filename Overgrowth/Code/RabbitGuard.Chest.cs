@@ -7,6 +7,10 @@ internal sealed class RabbitTorso( Transform hipBind, Transform abdomenBind, Tra
 {
 	readonly Vector3 stomachOnHip = hipBind.PointToLocal( abdomenBind.Position - abdomenBind.Rotation.Forward * abdomenHalf );
 
+	readonly Vector3 keyOnChest = chestBind.PointToLocal( Vector3.Zero );
+
+	internal Vector3 BalancePivot( Transform chest ) => chest.PointToWorld( keyOnChest );
+
 	internal Transform Abdomen( Transform hip, Transform chest )
 	{
 		var stomach = hip.PointToWorld( stomachOnHip );
@@ -199,11 +203,15 @@ public sealed partial class RabbitGuard
 		abdomenWorld.Position = bottom + half * extent + shift;
 		abdomenWorld.Rotation = half * abdomenWorld.Rotation;
 		chestWorld.Position = movedTop + turn * (chestWorld.Position - top) + shift;
-		chestWorld.Rotation = turn * (plantedLegs ? Renderer.WorldRotation * balanceRotation * Renderer.WorldRotation.Inverse : Rotation.Identity) * chestWorld.Rotation;
+		chestWorld.Rotation = turn * chestWorld.Rotation;
+		var balance = plantedLegs ? Renderer.WorldRotation * balanceRotation * Renderer.WorldRotation.Inverse : Rotation.Identity;
+		var pivot = boundAnimations.Torso.BalancePivot( chestWorld );
+		var balanced = chestWorld.RotateAround( pivot, balance );
 		SetPoseBone( abdomen, Renderer.WorldTransform.ToLocal( abdomenWorld ) );
-		SetPoseBone( chest, Renderer.WorldTransform.ToLocal( chestWorld ) );
-		chestMotion = (animatedChest, chestWorld);
-		UpdateHeadLook( headDirection, animatedChest, chestWorld, headWorld );
+		SetPoseBone( chest, Renderer.WorldTransform.ToLocal( balanced ) );
+		var handTarget = PatrolRest == RestPose.None ? chestWorld : animatedChest.WithPosition( animatedChest.Position + shift );
+		chestMotion = (animatedChest, handTarget, balanced);
+		UpdateHeadLook( headDirection, animatedChest, chestWorld, headWorld, pivot, balance, balanced );
 		chestActive = true;
 	}
 	Vector2 SampleChestSpring( Vector2 wanted, float idle, float dt, bool reset )

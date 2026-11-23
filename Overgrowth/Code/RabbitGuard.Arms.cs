@@ -12,7 +12,7 @@ public sealed partial class RabbitGuard
 
 	readonly ArmState[] armStates = [new(), new()];
 	readonly Transform[] armPose = new Transform[6];
-	(Transform Animated, Transform Solved)? chestMotion;
+	(Transform Animated, Transform HandTarget, Transform Solved)? chestMotion;
 	bool armsActive;
 	TimeUntil secondaryReset;
 	float armRemainder;
@@ -37,7 +37,7 @@ public sealed partial class RabbitGuard
 			if ( (side == 0 ? LeftHandItem : RightHandItem).IsValid() ) continue;
 			var hand = boundAnimations.Arms[side][0];
 			if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( hand.Bone ), out var pose ) ) return default;
-			if ( chestMotion is { } m ) pose = m.Solved.ToWorld( m.Animated.ToLocal( pose ) );
+			if ( chestMotion is { } m ) pose = m.HandTarget.ToWorld( m.Animated.ToLocal( pose ) );
 			center += pose.Position - pose.Rotation.Forward * (0.5f * hand.Length * WorldScale.z);
 			freeHands++;
 		}
@@ -83,10 +83,10 @@ public sealed partial class RabbitGuard
 			var authoredReach = wrist - shoulder;
 			if ( chestMotion is { } m )
 			{
-				// CDrawArms carries the collar, shoulder and hand with the chest. The elbow solves from its authored bend.
+				// The chest carries the shoulder. The hand target receives gaze and hip translation before the elbow solve.
 				armPose[5] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[5] ) );
 				armPose[4] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[4] ) );
-				if ( PatrolRest == RestPose.None ) armPose[0] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[0] ) );
+				armPose[0] = m.HandTarget.ToWorld( m.Animated.ToLocal( armPose[0] ) );
 				shoulder = m.Solved.PointToWorld( m.Animated.PointToLocal( shoulder ) );
 				wrist = Start( 0 );
 			}

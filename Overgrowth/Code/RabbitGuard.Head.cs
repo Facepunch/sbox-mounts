@@ -15,7 +15,7 @@ public sealed partial class RabbitGuard
 	float lastHeadYaw, inheritedHeadYaw;
 
 	// CDoHeadIKImpl, with the combat spring settings from FinalAnimationMatrixUpdate.
-	void UpdateHeadLook( Vector3 headDirection, Transform animatedChest, Transform chest, Transform animatedHead )
+	void UpdateHeadLook( Vector3 headDirection, Transform animatedChest, Transform chest, Transform animatedHead, Vector3 balancePivot, Rotation balance, Transform balancedChest )
 	{
 		var bones = Renderer.Model.Bones;
 		var headBone = bones.GetBone( boundAnimations.HeadBone );
@@ -41,7 +41,7 @@ public sealed partial class RabbitGuard
 		head.Position = pivot + half * (head.Position - pivot);
 		head.Rotation = turn * head.Rotation;
 		neck.Rotation = half * neck.Rotation;
-		DrawHead( chest, animatedHead, head, neck );
+		DrawHead( balancedChest, animatedHead, head.RotateAround( balancePivot, balance ), neck );
 	}
 
 	Vector2 SampleHeadSpring( Vector2 wanted, Rotation basis, float idle, float dt, bool reset )
