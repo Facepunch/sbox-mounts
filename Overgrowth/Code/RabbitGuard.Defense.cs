@@ -108,7 +108,7 @@ public sealed partial class RabbitGuard
 		blockDelay = Math.Min( 1f, delay - step );
 		if ( blockDelay > 0f ) return;
 		blockDelay = null;
-		if ( !IsOnGround || InThrow || Unconscious || currentKnifeLayer is { Active: true } || (strike is not null && blockStun <= 0) ) return;
+		if ( !IsOnGround || RollProgress < 1f || InThrow || Unconscious || currentKnifeLayer is { Active: true } || (strike is not null && blockStun <= 0) ) return;
 		activeBlock = 0.2f;
 		blockRecharge = 0.4f;
 	}

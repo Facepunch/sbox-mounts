@@ -20,7 +20,8 @@ public sealed partial class RabbitGuard
 		dodgeDelay = Math.Min( 1f, delay - step );
 		if ( dodgeDelay > 0f ) return;
 		dodgeDelay = null;
-		if ( dodgeRecharge > 0f || !InMovementState || !IsOnGround || !enemy.IsValid() ) return;
+		if ( dodgeRecharge > 0f || !InMovementState || !IsOnGround || Holding || Held ||
+			draggedBody.IsValid() || bodyDragger.IsValid() || !enemy.IsValid() ) return;
 		dodgeDirection = (WorldPosition - enemy.WorldPosition).Normal;
 		dodgeWindow = dodgeRecharge = 0.2f;
 	}
