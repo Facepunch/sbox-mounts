@@ -40,7 +40,8 @@ public sealed partial class RabbitGuard
 
 		head.Position = pivot + half * (head.Position - pivot);
 		head.Rotation = turn * head.Rotation;
-		DrawHead( chest, animatedHead, head, animatedNeck );
+		neck.Rotation = half * neck.Rotation;
+		DrawHead( chest, animatedHead, head, neck );
 	}
 
 	Vector2 SampleHeadSpring( Vector2 wanted, Rotation basis, float idle, float dt, bool reset )
