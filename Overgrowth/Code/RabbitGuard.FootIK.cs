@@ -162,23 +162,25 @@ public sealed partial class RabbitGuard
 
 	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ));
 
-	void UpdateCombatIK()
+	void UpdateActionIK( string pose )
 	{
 		var parameters = Renderer.Animation.Parameters;
-		parameters.TryGetFloat( boundAnimations.AttackStates.Contains( Stance ) ? "attack_phase" : "reaction_phase", out var phase );
+		bool ledge = pose == LedgeAnimation;
+		string phaseChannel = ledge ? "ledge_phase" : boundAnimations.AttackStates.Contains( pose ) ? "attack_phase" : "reaction_phase";
+		parameters.TryGetFloat( phaseChannel, out var phase );
 		RabbitAttack.Blend blend;
-		if ( boundAnimations.Attacks.TryGetValue( Stance, out var attack ) )
+		if ( boundAnimations.Attacks.TryGetValue( pose, out var attack ) )
 		{
 			parameters.TryGetFloat( "attack_height_coord", out var height );
 			blend = attack.Sample( height, MirroredAction );
 		}
 		else
 		{
-			var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+			var clip = boundAnimations.Clips[pose].ForSide( ledge ? LedgeMirrored : MirroredAction );
 			blend = new( clip, clip, 0f );
 		}
 		EnsurePoseBuffers();
-		bool grounded = HasGroundSupport && blend.Lower.Feet is not null && blend.Upper.Feet is not null;
+		bool grounded = !ledge && HasGroundSupport && blend.Lower.Feet is not null && blend.Upper.Feet is not null;
 		for ( int side = 0; side < 2; side++ )
 		{
 			if ( grounded )
@@ -194,7 +196,7 @@ public sealed partial class RabbitGuard
 			if ( hand.Weight <= 0f ) continue;
 			var wrist = poseModel.Bones.GetBone( boundAnimations.Arms[side][0].Bone );
 			if ( TryGetAnimatedBone( wrist, out var handBone ) )
-				combatHandTargets[side] = new( PlaceTarget( wrist, handBone, hand.Transform ), Math.Clamp( hand.Weight, 0f, 1f ) * (1f - rollIKFade), true );
+				actionHandTargets[side] = new( PlaceTarget( wrist, handBone, hand.Transform ), Math.Clamp( hand.Weight, 0f, 1f ) * (1f - rollIKFade), true );
 		}
 		if ( grounded ) SolveGroundedLegs();
 

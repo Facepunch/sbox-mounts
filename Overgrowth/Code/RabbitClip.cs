@@ -142,11 +142,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	static string MirroredChannel( string label ) => label.EndsWith( "_l" ) ? label[..^1] + "r" :
 		label.EndsWith( "_r" ) ? label[..^1] + "l" : RabbitMirror.SwapSide( label );
 
-	internal enum PoseData { Pose, Blend, Gait, CombatIK }
+	internal enum PoseData { Pose, Blend, Gait, ActionIK }
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, PoseData data, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
-		bool sampleFeet = data is PoseData.Gait or PoseData.CombatIK;
+		bool sampleFeet = data is PoseData.Gait or PoseData.ActionIK;
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
 		int count = Count();
@@ -224,7 +224,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 				if ( label.StartsWith( "unsheathe", StringComparison.Ordinal ) ) drawTime = time * 0.001f;
 			}
-			var limbBones = sampleFeet ? new LimbChain?[data == PoseData.CombatIK ? 4 : 2] : null;
+			var limbBones = sampleFeet ? new LimbChain?[data == PoseData.ActionIK ? 4 : 2] : null;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
@@ -314,7 +314,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		LimbPose[][] feet = sampleFeet ? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
-		LimbPose[][] hands = data == PoseData.CombatIK && keys.Any( key => key.LimbBones[2].HasValue || key.LimbBones[3].HasValue )
+		LimbPose[][] hands = data == PoseData.ActionIK && keys.Any( key => key.LimbBones[2].HasValue || key.LimbBones[3].HasValue )
 			? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
 		float[] magnitudes = data is PoseData.Blend or PoseData.Gait ? new float[(intervals + 1) * boneCount] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;

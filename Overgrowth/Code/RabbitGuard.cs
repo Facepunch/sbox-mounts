@@ -186,8 +186,9 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();
-		Array.Clear( combatHandTargets );
-		if ( playing == Stance && UsesCombatIK ) UpdateCombatIK();
+		Array.Clear( actionHandTargets );
+		if ( playing == pose && (OnLedge || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
+		if ( OnLedge ) Renderer.Animation.Parameters.Set( "ledge_phase", LedgePhase );
 		if ( boundAnimations.IdlePoses.TryGetValue( displayPose, out var idle ) )
 		{
 			bool entering = playing != displayPose;

@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 	}
 
 	readonly ArmState[] armStates = [new(), new()];
-	readonly LimbPose[] combatHandTargets = new LimbPose[2];
+	readonly LimbPose[] actionHandTargets = new LimbPose[2];
 	readonly Transform[] armPose = new Transform[6];
 	(Transform Animated, Transform HandTarget, Transform Solved)? chestMotion;
 	bool armsActive;
@@ -91,7 +91,7 @@ public sealed partial class RabbitGuard
 				shoulder = m.Solved.PointToWorld( m.Animated.PointToLocal( shoulder ) );
 				wrist = Start( 0 );
 			}
-			if ( combatHandTargets[side] is { Weight: > 0f } hand )
+			if ( actionHandTargets[side] is { Weight: > 0f } hand )
 			{
 				// FinalAnimationMatrixUpdate mixes hand keys in the skeleton's bind frame before CDrawArms.
 				var bind = Renderer.Model.GetBoneTransform( bones.GetBone( chain[0].Bone ).Index );
