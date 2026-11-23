@@ -127,19 +127,21 @@ public sealed partial class RabbitGuard
 			knee = middle + half;
 			ankle = middle - half;
 		}
-		void Place( int index, Vector3 from, Vector3 to )
+		void Place( int index, Vector3 from, Vector3 to, Rotation turn )
 		{
-			var original = legPose[index].Rotation;
-			var rotation = Rotation.FromToRotation( original.Forward, (to - from).Normal ) * original;
-			SetPoseBone( bones.GetBone( chain[index].Bone ), new Transform( (from + to) * 0.5f, rotation ) );
+			SetPoseBone( bones.GetBone( chain[index].Bone ), new Transform( (from + to) * 0.5f, turn * legPose[index].Rotation ) );
 		}
-		var midThigh = Vector3.Lerp( hip, knee, chain[5].Length / thigh );
-		var midShin = Vector3.Lerp( knee, ankle, chain[3].Length / shin );
-		Place( 5, hip, midThigh );
-		Place( 4, midThigh, knee );
-		Place( 3, knee, midShin );
-		Place( 2, midShin, ankle );
-		Place( 1, ankle, end );
+		// RotateBonesToMatchVec turns both segments together, preserving their authored relative rotation.
+		void PlacePair( int index, Vector3 from, Vector3 to, float length )
+		{
+			var middle = Vector3.Lerp( from, to, chain[index].Length / length );
+			var turn = Rotation.FromToRotation( legPose[index].Rotation.Forward, (to - from).Normal );
+			Place( index, from, middle, turn );
+			Place( index - 1, middle, to, turn );
+		}
+		PlacePair( 5, hip, knee, thigh );
+		PlacePair( 3, knee, ankle, shin );
+		Place( 1, ankle, end, Rotation.FromToRotation( legPose[1].Rotation.Forward, (end - ankle).Normal ) );
 		SetPoseBone( bones.GetBone( chain[0].Bone ), foot );
 		plantedLegs = true;
 	}
