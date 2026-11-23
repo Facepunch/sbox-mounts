@@ -18,7 +18,7 @@ public sealed partial class RabbitGuard
 		float impulse = BodyImpactImpulse( collision ) / 40f;
 		var point = collision.Contact.Point;
 		if ( !IsValid || Health <= 0f ) return;
-		if ( impulse <= 0.1f && !awaitingThrowImpact ) return;
+		if ( impulse <= 0.1f ) return;
 		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface )?.ResourceName;
 		float hardness = (Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount)?.MaterialHardness( surface ) ?? 1f;
 		if ( impulse * hardness * (head ? 5f : 1f) > 5f )
@@ -31,10 +31,10 @@ public sealed partial class RabbitGuard
 			if ( !IsValid || Health <= 0f ) return;
 			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", point );
 		}
-		if ( bodyDragger.IsValid() || (impulse <= 1f && !awaitingThrowImpact) ) return;
+		if ( bodyDragger.IsValid() || (impulse <= 1f && queuedThrowDamage <= 0f) ) return;
 		var center = CharacterCenter( GameObject );
 		if ( WaterDepthAt( center - Vector3.Up * LegRadius ) >= 0.2f ) return;
-		if ( awaitingThrowImpact && fighter is null )
+		if ( queuedThrowDamage > 0f )
 		{
 			ApplyThrowImpact( point );
 			if ( !IsValid || Health <= 0f ) return;

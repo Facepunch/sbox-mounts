@@ -16,7 +16,14 @@ public sealed partial class RabbitGuard
 	Rotation throwFacing;
 	Vector3 alignmentOffset;
 	float alignmentYaw, throwElapsed, fadeElapsed;
-	bool awaitingThrowImpact;
+	float queuedThrowDamage;
+	RabbitGuard throwDamageAttacker;
+
+	void QueueThrowDamage( RabbitGuard attacker )
+	{
+		queuedThrowDamage += 25f;
+		throwDamageAttacker = attacker;
+	}
 
 	bool TryCounterThrow()
 	{
@@ -58,6 +65,7 @@ public sealed partial class RabbitGuard
 		StartThrowAction( "throw", victim, MirroredStance );
 		victim.InterruptWeaponLayers();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
+		victim.QueueThrowDamage( this );
 		victim.MirroredStance = MirroredAction;
 		var entry = victim.boundAnimations.Clips["thrown"].ForSide( MirroredAction ).Animation.GetRootMotion( 0f );
 		victim.alignmentOffset = WorldRotation * (entry.Position * victim.WorldScale) - facing;
@@ -113,7 +121,6 @@ public sealed partial class RabbitGuard
 		throwFacing = WorldRotation;
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
 		{
-			awaitingThrowImpact = true;
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			if ( KnockoutShield == 0 && TrainingThrows ) recoverableDamage = Math.Max( 0f, Health - 0.1f );
 			var partner = throwPartner;
@@ -143,6 +150,8 @@ public sealed partial class RabbitGuard
 		{
 			var previousRotation = clip.Animation.GetRootMotion( ReactionPhase ).Rotation;
 			Stance = "thrown_counter";
+			queuedThrowDamage = 0f;
+			throwDamageAttacker = null;
 			fadeElapsed = 0f;
 			var counter = boundAnimations.Clips[Stance].ForSide( MirroredAction );
 			reactionDuration = counter.Duration;
@@ -163,9 +172,9 @@ public sealed partial class RabbitGuard
 
 	void ApplyThrowImpact( Vector3 point )
 	{
-		awaitingThrowImpact = false;
-		var damage = new BluntDamage { Damage = 25f, Position = point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
-		throwPartner = null;
+		var damage = new BluntDamage { Damage = queuedThrowDamage, Position = point, Attacker = throwDamageAttacker.IsValid() ? throwDamageAttacker.GameObject : null };
+		queuedThrowDamage = 0f;
+		throwDamageAttacker = null;
 		if ( ThrowTrainer )
 		{
 			PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", WorldPosition );

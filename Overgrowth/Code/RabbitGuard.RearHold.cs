@@ -30,6 +30,7 @@ public sealed partial class RabbitGuard
 		victim.InterruptWeaponLayers();
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
+		victim.QueueThrowDamage( this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
 		breathSpeed += 2f;

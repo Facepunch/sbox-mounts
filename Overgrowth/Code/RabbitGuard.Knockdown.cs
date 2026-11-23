@@ -359,7 +359,6 @@ public sealed partial class RabbitGuard
 			else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		}
 		secondaryReset = 4f * (4f / 120f);
-		awaitingThrowImpact = false;
 		throwPartner = null;
 		Downed = false;
 		return true;
