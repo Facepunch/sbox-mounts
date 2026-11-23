@@ -6,6 +6,14 @@ public sealed partial class RabbitGuard
 {
 	Vector3 runGroundNormal;
 
+	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
+	static Vector3 GroundDirection( Vector3 direction, Vector3 normal )
+	{
+		var left = normal.Cross( Vector3.Forward ).Normal;
+		var tangent = left * direction.y + left.Cross( normal ) * direction.x;
+		return (direction * tangent.WithZ( 0f ).Length).WithZ( tangent.z );
+	}
+
 	Vector3 FloorNormal()
 	{
 		var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
@@ -26,8 +34,7 @@ public sealed partial class RabbitGuard
 		var ground = FloorNormal();
 		runGroundNormal = runGroundNormal.IsNearlyZero() || speed < 0.01f ? ground
 			: Vector3.Lerp( ground, runGroundNormal, MathF.Pow( 0.9f, step / tick ) ).Normal;
-		var left = runGroundNormal.Cross( Vector3.Forward ).Normal;
-		var tangent = left * direction.y + left.Cross( runGroundNormal ) * direction.x;
+		var tangent = GroundDirection( direction, runGroundNormal );
 		float input = requested / run;
 		float slopeLimit = run * (1f - 0.7f * Math.Clamp( tangent.z * input, -1f, 1f ));
 		float limit = Math.Min( run * 1.5f, Math.Max( agent.Velocity.Length * 0.98f, slopeLimit ) );

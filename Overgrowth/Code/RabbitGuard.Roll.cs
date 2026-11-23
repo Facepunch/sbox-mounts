@@ -85,7 +85,7 @@ public sealed partial class RabbitGuard
 			// Integrate the original four-tick NPC step at the host frame rate.
 			float damping = MathF.Pow( 0.95f, 4f );
 			float retention = damping * damping;
-			var terminal = RollDirection * (480f * damping / (1f + damping));
+			var terminal = GroundDirection( RollDirection, FloorNormal() ) * (480f * damping / (1f + damping));
 			var difference = rollVelocity - terminal;
 			float remaining = MathF.Pow( retention, Time.Delta * 30f );
 			var normal = MoveGroundDelta( terminal * Time.Delta + difference * (retention * (1f - remaining) / (30f * (1f - retention))) );
