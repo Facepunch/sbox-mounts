@@ -63,7 +63,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( !TakeWeapon( item ) ) return false;
 		BeginReaction( attacker, position, animation, boundAnimations.Clips[animation] );
-		blockVelocity = recoil.WithZ( 0f );
+		combatVelocity = recoil.WithZ( 0f );
 		PlayGrabSound( item, position, 1f );
 		return true;
 	}

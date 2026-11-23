@@ -208,7 +208,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( Holding || Held || LedgeAnimation is not null ) return;
-		AdvanceBlockRecoil( Time.Delta );
+		AdvanceCombatMomentum( Time.Delta );
 		if ( AdvanceRoll() ) return;
 		UpdateStanceAmounts();
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;

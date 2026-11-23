@@ -8,7 +8,6 @@ public sealed partial class RabbitGuard
 	internal const string SwordSlashRight = "sword_slash_right";
 	RabbitAttack strike;
 	GameObject strikeTarget;
-	Vector3 strikeVelocity;
 	[Property, Range( 0.1f, 2f )] public float AttackSpeed { get; set; } = 1f;
 	[Property] public float AttackDamage { get; set; } = 1f;
 	[Property] public float AttackKnockback { get; set; } = 1f;
@@ -93,7 +92,6 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is { AsLayer: false } )
 		{
-			AdvanceStrikeMomentum( Time.Delta );
 			float previousHeight = AttackHeight;
 			Vector3 targetOffset = default;
 			if ( strikeTarget.IsValid() )
@@ -329,8 +327,7 @@ public sealed partial class RabbitGuard
 			return true;
 		}
 		strikeTarget = target;
-		strikeVelocity = Animation.MoveVelocity.WithZ( 0f );
-		Movement.Stop();
+		StopForCombat();
 		Stance = choice;
 		if ( strike.Direction != "front" )
 			MirroredStance = mirrored != (strike.Direction == "left");
@@ -351,27 +348,6 @@ public sealed partial class RabbitGuard
 	// GetNavMeshMovement slows only the component along the line to the target.
 	Vector3 CombatApproach( Vector3 target, out Vector3 point ) =>
 		MovementToPoint( target, Math.Max( 8f, 40f - preferredRange ), preferredRange, strafeOffset, out point );
-
-	// MovementObject integrates the damped velocity alongside the clip's root motion.
-	void AdvanceStrikeMomentum( float dt )
-	{
-		if ( strikeVelocity.IsNearlyZero() || dt <= 0f ) return;
-		if ( !IsOnGround )
-		{
-			if ( GetComponent<Rigidbody>() is { MotionEnabled: true } body )
-				body.Velocity += strikeVelocity;
-			strikeVelocity = default;
-			return;
-		}
-
-		const float tick = 4f / 120f;
-		const float damping = 0.95f * 0.95f * 0.95f * 0.95f;
-		float retained = MathF.Pow( damping, dt / tick );
-		float travelTime = tick * damping * (1f - retained) / (1f - damping);
-		if ( travelTime <= 0f ) return;
-		MoveGroundDelta( strikeVelocity * travelTime, out var slide );
-		strikeVelocity = slide.WithZ( 0f ) * (retained / travelTime);
-	}
 
 	void AdjustStrikeSpacing( Vector3 offset, bool ragdolled, bool beforeImpact )
 	{

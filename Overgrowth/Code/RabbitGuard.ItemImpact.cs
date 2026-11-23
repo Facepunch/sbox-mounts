@@ -66,7 +66,7 @@ public sealed partial class RabbitGuard
 		float strength = force.Length / 40f;
 		string species = boundAnimations?.Species;
 		bool wasAwake = !Unconscious;
-		blockVelocity += force.WithZ( 0f ) * 0.1f;
+		combatVelocity += force.WithZ( 0f ) * 0.1f;
 		if ( cut )
 		{
 			var sound = mass < 1f ? (embedded ? "weapon_foley/impact/weapon_knife_hit" : "weapon_foley/impact/weapon_knife_hit_neck") : mass < 3f ? "hit/hit_medium" : "hit/hit_hard";

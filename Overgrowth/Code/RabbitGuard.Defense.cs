@@ -18,7 +18,6 @@ public sealed partial class RabbitGuard
 	float duckAmount, duckVelocity;
 	float reactionDuration;
 	bool activeBlockReaction;
-	Vector3 blockVelocity;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
 	void UpdateBlockFlinch()
@@ -245,24 +244,14 @@ public sealed partial class RabbitGuard
 	{
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 		var recoil = move.WorldImpact( direction, attacker.flippedAttack ) * strength;
-		blockVelocity += recoil.WithZ( 0f ) * (2f * 40f);
+		combatVelocity += recoil.WithZ( 0f ) * (2f * 40f);
 		ApplyBlockTilt( recoil * (move.Height == "low" ? -20f : 20f) );
-	}
-
-	void AdvanceBlockRecoil( float dt )
-	{
-		if ( blockVelocity.LengthSquared < 0.000001f ) return;
-		// UpdateHitReaction damps velocity before the four-tick movement step.
-		float retention = MathF.Pow( 0.95f, 4f );
-		float remaining = MathF.Pow( retention, dt * 30f );
-		MoveGroundDelta( blockVelocity * (retention * (1f - remaining) / (30f * (1f - retention))) );
-		blockVelocity *= remaining;
 	}
 
 	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false )
 	{
 		strike = null;
-		Movement.Stop();
+		StopForCombat();
 		var facing = (source - WorldPosition).WithZ( 0 );
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 		NoticeAttacker( attacker );

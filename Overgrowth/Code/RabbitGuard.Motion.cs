@@ -2,6 +2,36 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	Vector3 combatVelocity;
+
+	void StopForCombat()
+	{
+		if ( GetComponent<NavMeshAgent>() is { Active: true } agent )
+			combatVelocity += agent.Velocity.WithZ( 0f );
+		Movement.Stop();
+	}
+
+	// MovementObject integrates the damped velocity alongside the clip's root motion.
+	void AdvanceCombatMomentum( float dt )
+	{
+		if ( combatVelocity.IsNearlyZero() || dt <= 0f ) return;
+		if ( !IsOnGround )
+		{
+			if ( GetComponent<Rigidbody>() is { MotionEnabled: true } body )
+				body.Velocity += combatVelocity;
+			combatVelocity = default;
+			return;
+		}
+
+		const float tick = 4f / 120f;
+		const float damping = 0.95f * 0.95f * 0.95f * 0.95f;
+		float retained = System.MathF.Pow( damping, dt / tick );
+		float travelTime = tick * damping * (1f - retained) / (1f - damping);
+		if ( travelTime <= 0f ) return;
+		MoveGroundDelta( combatVelocity * travelTime, out var slide );
+		combatVelocity = slide.WithZ( 0f ) * (retained / travelTime);
+	}
+
 	// Paired actors move through one another while their throw clips align.
 	SceneTrace IgnoreFighters( SceneTrace trace )
 	{

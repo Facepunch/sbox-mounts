@@ -166,7 +166,7 @@ public sealed partial class RabbitGuard
 		// Older saved instances predate the explicit prefab reference.
 		MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
 		Movement.Stop();
-		blockVelocity = default;
+		combatVelocity = default;
 		Movement.Enabled = false;
 		MovementCapsule.Enabled = false;
 		strike = null;
