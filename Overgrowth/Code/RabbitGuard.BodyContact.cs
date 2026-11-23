@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 			if ( !IsValid || Health <= 0f ) return;
 			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", point );
 		}
-		if ( bodyDragger.IsValid() || (impulse <= 1f && queuedThrowDamage <= 0f) ) return;
+		if ( zoneKilled || bodyDragger.IsValid() || (impulse <= 1f && queuedThrowDamage <= 0f) ) return;
 		var center = CharacterCenter( GameObject );
 		if ( WaterDepthAt( center - Vector3.Up * LegRadius ) >= 0.2f ) return;
 		if ( queuedThrowDamage > 0f )

@@ -137,6 +137,9 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				volume.Scale = 4f * 40f;
 				volume.Static = volume.IsTrigger = true;
 				volume.Enabled = true;
+				var hotspot = water.AddComponent<WaterHotspot>();
+				hotspot.Volume = volume;
+				hotspot.Lethal = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Lethal" ) == true;
 				return;
 			case "PathPointObject" when int.TryParse( node.Attribute( "id" ), out int pointId ):
 				var point = Object().AddComponent<PatrolPoint>();

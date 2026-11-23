@@ -108,7 +108,7 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact);
+		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage);
 		if ( hitVoice ) Speak( "hit" );
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
@@ -360,6 +360,7 @@ public sealed partial class RabbitGuard
 		}
 		secondaryReset = 4f * (4f / 120f);
 		throwPartner = null;
+		if ( Sparring ) zoneKilled = false;
 		Downed = false;
 		return true;
 	}
