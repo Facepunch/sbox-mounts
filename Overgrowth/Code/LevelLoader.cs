@@ -7,6 +7,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 {
 	sealed class Actors
 	{
+		public Dictionary<int, List<int>> BalanceFaces;
 		public readonly List<(RabbitGuard Guard, int Waypoint)> Guards = [];
 		public readonly Dictionary<int, RabbitGuard> Characters = [];
 		public readonly HashSet<int> PlayerIds = [];
@@ -34,7 +35,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 		var jumpNodes = new Dictionary<int, XmlAsset>();
 		var patrolPoints = new Dictionary<int, (PatrolPoint Point, XmlAsset Node)>();
-		var actors = new Actors();
+		var actors = new Actors { BalanceFaces = BalanceSurface.ReadLevel( Host.FileSystem, levelPath ) };
 		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, actors);
 		foreach ( var (id, item, model) in actors.Items )
 		{
@@ -252,6 +253,12 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		if ( model is not { IsError: false } ) return;
 		var go = Object();
 		AddModel( go, model, node.Name == "EnvObject" );
+		if ( node.Name == "EnvObject" && int.TryParse( node.Attribute( "id" ), out int objectId ) && actors.BalanceFaces.TryGetValue( objectId, out var marked )
+			&& Host.GetByPath( model.ResourcePath ) is ObjectLoader loader )
+		{
+			var vertices = loader.ReadBalanceTriangles( marked );
+			if ( vertices.Length > 0 ) go.AddComponent<BalanceSurface>().Vertices = vertices;
+		}
 		if ( node.Name == "ItemObject" )
 			actors.Items.Add( (int.TryParse( node.Attribute( "id" ), out var itemId ) ? itemId : -1, go, model) );
 	}

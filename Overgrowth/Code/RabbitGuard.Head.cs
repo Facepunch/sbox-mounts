@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard
 		var neckBone = headBone.Parent;
 		if ( !TryGetAnimatedBone( neckBone, out var animatedNeck ) ) return;
 		var head = chest.ToWorld( animatedChest.ToLocal( animatedHead ) );
+		head.Position -= Renderer.WorldRotation * footBalanceOffset * (0.1f * WorldScale.z);
 		var neck = chest.ToWorld( animatedChest.ToLocal( animatedNeck ) );
 		var basis = head.Rotation * Renderer.Model.GetBoneTransform( headBone.Index ).Rotation.Inverse;
 		var look = basis.Inverse * headDirection;

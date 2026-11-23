@@ -7,6 +7,20 @@ namespace Overgrowth;
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
 	XmlAsset itemDefinition;
+	(string Path, Vector3 CacheCenter)? collisionMesh;
+
+	internal Vector3[] ReadBalanceTriangles( List<int> marked )
+	{
+		// Cached engine models can be available before Load runs on this loader instance.
+		if ( collisionMesh is null )
+		{
+			var model = Host.Resolve( XmlAsset.Read( Host.FileSystem, filePath, "Object" ).Element( "Model" ).Value );
+			var collision = System.IO.Path.ChangeExtension( model, null ) + "_col.obj";
+			collisionMesh = Host.FileSystem.FileExists( collision ) ? (collision, ObjLoader.Load( Host.FileSystem, model ).Center) : (model, Vector3.Zero);
+		}
+		var (path, center) = collisionMesh.Value;
+		return BalanceSurface.ReadTriangles( Host.FileSystem, path, center, marked );
+	}
 	internal List<Vector3> PlantPoints { get; private set; }
 	internal List<Vector3> PlantCloud { get; private set; }
 	internal ItemSharpness Sharpness { get; private set; }
@@ -57,7 +71,9 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		else if ( collision )
 		{
 			var collisionPath = System.IO.Path.ChangeExtension( modelPath, null ) + "_col.obj";
-			var shape = Host.FileSystem.FileExists( collisionPath ) ? ObjLoader.Load( Host.FileSystem, collisionPath, data.Center ) : data;
+			bool separate = Host.FileSystem.FileExists( collisionPath );
+			collisionMesh = separate ? (collisionPath, data.Center) : (modelPath, Vector3.Zero);
+			var shape = separate ? ObjLoader.Load( Host.FileSystem, collisionPath, data.Center ) : data;
 			builder.AddCollisionMesh( shape.Positions, shape.Indices );
 		}
 

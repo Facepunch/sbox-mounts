@@ -184,6 +184,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( pose != Threat ) ReleaseStanceFeet( Time.Delta );
+		UpdateBalanceSupport();
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();

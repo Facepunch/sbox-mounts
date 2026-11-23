@@ -198,7 +198,7 @@ public sealed partial class RabbitGuard
 		var extent = abdomenWorld.Rotation.Forward * boundAnimations.AbdomenHalfLength * WorldScale.z;
 		var bottom = abdomenWorld.Position - extent;
 		var top = abdomenWorld.Position + extent;
-		var shift = plantedLegs ? Renderer.WorldRotation * hipOffset * WorldScale.z : Vector3.Zero;
+		var shift = plantedLegs ? Renderer.WorldRotation * (hipOffset + footBalanceOffset * 0.5f) * WorldScale.z : Vector3.Zero;
 		var movedTop = bottom + half * (top - bottom);
 		abdomenWorld.Position = bottom + half * extent + shift;
 		abdomenWorld.Rotation = half * abdomenWorld.Rotation;

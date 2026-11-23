@@ -100,6 +100,7 @@ public sealed partial class RabbitGuard
 				wrist = Start( 0 );
 			}
 			if ( OnLedge ) wrist += handRelativeToBody[side];
+			wrist += Renderer.WorldRotation * footBalanceOffset * (0.5f * WorldScale.z);
 			if ( DragStrength > 0f && !(side == 0 ? LeftHandItem : RightHandItem).IsValid() ) wrist += dragOffset;
 			var aim = Rotation.FromToRotation( authoredReach.Normal, (wrist - shoulder).Normal );
 			elbow = shoulder + aim * (elbow - oldShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));

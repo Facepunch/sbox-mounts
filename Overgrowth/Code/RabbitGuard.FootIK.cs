@@ -10,6 +10,36 @@ public sealed partial class RabbitGuard
 	readonly Vector3[] plantedRoot = new Vector3[2];
 	readonly Vector3[] footOffset = new Vector3[2];
 	readonly float[] stepLift = new float[2];
+	Vector3? balanceContact;
+	Vector3 footBalanceOffset;
+	readonly float[] supportLimits = new float[8];
+	static readonly Vector3[] SupportDirections = Enumerable.Range( 0, 8 )
+		.Select( i => Rotation.FromAxis( Vector3.Up, (3.1417f * 0.25f * i).RadianToDegree() ) * Vector3.Left ).ToArray();
+
+	void UpdateBalanceSupport()
+	{
+		balanceContact = null;
+		footBalanceOffset = Vector3.Zero;
+		if ( !HasGroundSupport || !Scene.GetAllComponents<BalanceSurface>().Any() ) return;
+		var center = WorldPosition + Vector3.Up * LegRadius;
+		var navPoint = Movement.MoveTarget.HasValue && !InThrow && RollProgress >= 1f ? Scene.NavMesh.GetClosestPoint( center, 40f ) : null;
+		bool onNav = navPoint is { } point && point != center && MathF.Abs( point.z - center.z ) <= 40f && (point - center).WithZ( 0f ).LengthSquared < 16f;
+		var start = center + Vector3.Up * (onNav ? 40f : 4f);
+		var end = center + Vector3.Down * (onNav ? 60f : boundAnimations.Species == "wolf" ? 20f : 8f);
+		var total = Vector3.Zero;
+		int count = 0;
+		foreach ( var surface in Scene.GetAllComponents<BalanceSurface>() )
+			surface.CollectContacts( start, end, LegRadius, ref total, ref count );
+		if ( count == 0 ) return;
+		var contact = total / count;
+		balanceContact = contact;
+		for ( int i = 0; i < SupportDirections.Length; i++ )
+		{
+			var direction = SupportDirections[i];
+			var hit = Scene.Trace.Sphere( 2f, contact + direction * 16f, contact ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
+			supportLimits[i] = hit.Hit ? hit.EndPosition.Dot( direction ) - 2f : float.PositiveInfinity;
+		}
+	}
 	bool hasStanceAnchors;
 	int steppingFoot;
 	float stepProgress, stancePhase;
@@ -137,6 +167,7 @@ public sealed partial class RabbitGuard
 	// CDoFootIK carries the unsupported foot by the correction applied to its planted partner.
 	void SolveGroundedLegs()
 	{
+		if ( balanceContact.HasValue ) footBalanceOffset = (groundCorrection[0].GetValueOrDefault() + groundCorrection[1].GetValueOrDefault()) * 0.5f;
 		for ( int side = 0; side < 2; side++ )
 			if ( groundCorrection[side] is { } offset && !groundCorrection[1 - side].HasValue )
 				stanceFoot[1 - side].Position += offset;
@@ -248,20 +279,32 @@ public sealed partial class RabbitGuard
 		{
 			// CDoFootIKImpl sweeps a 0.05 m sphere from 0.2 m above to 0.6 m below the animated foot.
 			var check = target.Position + footOffset[side];
-			var trace = Scene.Trace.Sphere( 2f, check + Vector3.Up * 8f, check + Vector3.Down * 24f )
+			var trace = balanceContact.HasValue ? default : Scene.Trace.Sphere( 2f, check + Vector3.Up * 8f, check + Vector3.Down * 24f )
 				.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
-			if ( trace.Hit && !trace.StartedSolid )
+			if ( balanceContact.HasValue || trace.Hit && !trace.StartedSolid )
 			{
-				float height = trace.EndPosition.z - 0.4f;
+				float height = (balanceContact ?? trace.EndPosition).z - 0.4f;
 				float inertia = MathF.Pow( 0.8f, Time.Delta * 120f );
 				if ( groundHeight[side] is { } old )
 					height += (Math.Clamp( old, height - 4f, height + 4f ) - height) * inertia;
 				groundHeight[side] = height;
-				var tilt = Rotation.FromToRotation( Vector3.Up, trace.Normal );
-				footRotation[side] = RabbitClip.MixRotation( tilt, footRotation[side], inertia );
 				float lift = authoredHeight - 2f;
-				result.Position += footOffset[side].WithZ( height + lift + stepLift[side] - target.Position.z ) * weight;
-				result.Rotation = RabbitClip.MixRotation( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ).Normal * result.Rotation;
+				var position = target.Position.WithZ( height + lift + stepLift[side] );
+				if ( balanceContact.HasValue )
+				{
+					for ( int i = 0; i < SupportDirections.Length; i++ )
+					{
+						var dir = SupportDirections[i];
+						position -= dir * Math.Max( 0f, position.Dot( dir ) - supportLimits[i] );
+					}
+				}
+				else
+				{
+					var tilt = Rotation.FromToRotation( Vector3.Up, trace.Normal );
+					footRotation[side] = RabbitClip.MixRotation( tilt, footRotation[side], inertia );
+					result.Rotation = RabbitClip.MixRotation( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ).Normal * result.Rotation;
+				}
+				result.Position += (position - target.Position + footOffset[side].WithZ( 0f )) * weight;
 				contact = true;
 			}
 		}

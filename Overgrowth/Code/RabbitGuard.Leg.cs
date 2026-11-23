@@ -50,6 +50,7 @@ public sealed partial class RabbitGuard
 			var toe = Animated( chain[0].Bone );
 			hips[i] = hipKey.PointToWorld( hipSockets[i] );
 			lengths[i] = hips[i].Distance( toe.Position - toe.Rotation.Forward * (chain[0].Length * 0.5f) );
+			hips[i] += footBalanceOffset * 0.7f;
 			feet[i] = stanceFoot[i].Position - stanceFoot[i].Rotation.Forward * (chain[0].Length * 0.5f);
 		}
 		var middle = (hips[0] + hips[1]) * 0.5f;
@@ -68,7 +69,7 @@ public sealed partial class RabbitGuard
 		float tilt = Rotation.Identity.Distance( rotation );
 		if ( tilt > maxTilt.RadianToDegree() )
 			rotation = Rotation.Slerp( Rotation.Identity, rotation, maxTilt.RadianToDegree() / tilt );
-		var hipRoot = pelvis.Position + pelvis.Rotation.Forward * boundAnimations.HipHalfLength;
+		var hipRoot = pelvis.Position + pelvis.Rotation.Forward * boundAnimations.HipHalfLength + footBalanceOffset * 0.7f;
 		var pivot = middle - hipRoot;
 		var offset = (hips[0] + hips[1]) * 0.5f - middle + pivot - rotation * pivot;
 		solvedHipOffset = plantedLegs ? Vector3.Lerp( offset, solvedHipOffset, MathF.Pow( 0.95f, Time.Delta * 120f ) ) : offset;
@@ -77,7 +78,7 @@ public sealed partial class RabbitGuard
 		balanceRotation = Rotation.FromAxis( leanAxis, (balanceOffset.x * 0.25f * idleStance).RadianToDegree() );
 		var shift = (across * balanceOffset.x + Vector3.Forward * balanceOffset.y).WithZ( balanceOffset.z ) * idleStance;
 		hipOffset = solvedHipOffset + shift;
-		hipKey.Position += hipOffset;
+		hipKey.Position += hipOffset + footBalanceOffset * 0.7f;
 		hipKey.Rotation = rotation * balanceRotation * hipKey.Rotation;
 		SetPoseBone( rootBone, hipKey.ToWorld( pelvisBind ) );
 		// Overgrowth translates the torso keys with the hip, then rolls the chest about its own origin.
@@ -85,7 +86,7 @@ public sealed partial class RabbitGuard
 		{
 			var name = boundAnimations.TorsoBones[i];
 			var torso = Animated( name );
-			torso.Position += hipOffset;
+			torso.Position += hipOffset + footBalanceOffset * 0.5f;
 			if ( i == 0 )
 			{
 				var raw = Renderer.WorldTransform.ToWorld( Animated( name ) );
