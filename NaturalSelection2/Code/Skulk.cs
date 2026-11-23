@@ -37,18 +37,14 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 			root.AddComponent<ModelHitboxes>().Renderer = renderer;
 			var hull = new GameObject( root, true, "Collider" );
 			hull.Tags.Add( "playercontroller" );
-			var box = hull.AddComponent<BoxCollider>();
-			box.Center = Vector3.Up * 18;
-			box.Scale = new Vector3( 36 );
+			var sphere = hull.AddComponent<SphereCollider>();
+			sphere.Center = Vector3.Up * SkulkMovement.Radius;
+			sphere.Radius = SkulkMovement.Radius;
 			var body = root.AddComponent<Rigidbody>();
-			body.MotionEnabled = false;
+			body.MassOverride = 45;
 			body.EnableImpactDamage = false;
-			body.Locking = new PhysicsLock { Pitch = true, Roll = true };
-			var agent = root.AddComponent<NavMeshAgent>();
-			agent.Radius = 18;
-			agent.Height = 36;
-			agent.Acceleration = 2000;
-			root.AddComponent<NavigationLayer>().RunSpeed = 7.25f * MapLoader.Scale;
+			body.Locking = new PhysicsLock { Pitch = true, Roll = true, Yaw = true };
+			root.AddComponent<SkulkMovement>().RunSpeed = 7.25f * MapLoader.Scale;
 			root.AddComponent<SensesLayer>();
 			root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 			var npc = root.AddComponent<Skulk>();
@@ -77,6 +73,7 @@ public sealed partial class Skulk : BaseNpc
 	[Property] public bool LeapUnlocked { get; set; } = true;
 	[Sync( SyncFlags.FromHost )] bool Biting { get; set; }
 	[Sync( SyncFlags.FromHost )] bool Leaping { get; set; }
+	SkulkMovement mover;
 	TimeUntil leapEnds;
 	float energy = 100;
 	SparkAnimationGraph.Playback world, weapon;
@@ -86,6 +83,7 @@ public sealed partial class Skulk : BaseNpc
 	protected override void OnStart()
 	{
 		base.OnStart();
+		mover = GetComponent<SkulkMovement>();
 		standingYaw = runningYaw = WorldRotation.Angles().yaw;
 		worldTag = OnWorldTag;
 		if ( Networking.IsHost ) PlayVoice( "spawn" );
@@ -140,7 +138,7 @@ public sealed partial class Skulk : BaseNpc
 
 		Biting = false;
 		var aim = (CalculateAimPoint( target ) - EyePosition).Normal;
-		if ( LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
+		if ( Animation.IsGrounded && LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
 			&& (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid())
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
 		{
@@ -148,7 +146,7 @@ public sealed partial class Skulk : BaseNpc
 			velocity += aim.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
 			velocity.z = (aim.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
 			Movement.Stop();
-			Launch( velocity );
+			mover.Leap( velocity );
 			Leaping = true;
 			leapEnds = 0.2f;
 			energy -= LeapEnergy;
@@ -180,7 +178,7 @@ public sealed partial class Skulk : BaseNpc
 			var trace = Scene.Trace.Ray( start, start + view.Forward * Reach ).Size( step )
 				.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 			if ( cell == 4 ) center = trace;
-			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || GetDisposition( trace.GameObject.Root ) != Disposition.Hostile ) continue;
+			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || GetDisposition( (target as Component)?.GameObject ?? trace.GameObject ) != Disposition.Hostile ) continue;
 			if ( Vector3.Dot( trace.HitPosition - EyePosition, view.Forward ) <= 0.1f * MapLoader.Scale ) continue;
 			bool player = trace.GameObject.GetComponentInParent<PlayerController>() is not null;
 			if ( victim is null || player ) (hit, victim) = (trace, target);

@@ -17,7 +17,15 @@ public sealed partial class Skulk
 
 	void UpdateAnimation()
 	{
-		var velocity = Animation.MoveVelocity.WithZ( 0 );
+		var onWall = mover.OnWall;
+		var velocity = onWall ? Animation.MoveVelocity : Animation.MoveVelocity.WithZ( 0 );
+		var up = onWall ? mover.ContactNormal : Vector3.Up;
+		var facing = WorldRotation.Forward - up * Vector3.Dot( WorldRotation.Forward, up );
+		if ( facing.IsNearlyZero( 0.01f ) ) facing = Vector3.Up - up * up.z;
+		var rotation = Rotation.LookAt( facing, up );
+		Renderer.WorldRotation = rotation;
+		Renderer.WorldPosition = WorldPosition + (Vector3.Up - up) * SkulkMovement.Radius;
+		world?.Set( "onwall", onWall ? 1 : 0 );
 		var moving = velocity.Length >= 0.1f * MapLoader.Scale;
 		var move = Leaping ? "leap" : !Animation.IsGrounded ? "jump" : moving ? "run" : "idle";
 		var activity = Biting ? "primary" : "none";
@@ -44,7 +52,7 @@ public sealed partial class Skulk
 		inputs?.Set( "body_pitch", -angles.pitch );
 		inputs?.Set( "body_yaw", -standingOffset );
 		inputs?.Set( "body_yaw_run", -runningOffset );
-		inputs?.Set( "move_speed", velocity.Length / Movement.RunSpeed );
+		inputs?.Set( "move_speed", velocity.Length / mover.RunSpeed );
 		inputs?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			MathF.Atan2( Vector3.Dot( velocity, view.Forward ), Vector3.Dot( velocity, view.Right ) ).RadianToDegree() );
 		world?.Update( Time.Delta, inputs, Health > 0 && !Application.IsDedicatedServer && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null );

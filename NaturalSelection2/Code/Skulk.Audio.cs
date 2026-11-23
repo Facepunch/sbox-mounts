@@ -36,14 +36,17 @@ public sealed partial class Skulk
 	void OnWorldTag( string tag )
 	{
 		if ( tag is not ("step" or "step_run" or "step_sprint") ) return;
-		var surface = GroundSurface;
+		var surface = mover.ContactSurface;
 		if ( Networking.IsHost )
 		{
-			if ( !IsOnGround ) return;
+			if ( !Animation.IsGrounded ) return;
 		}
 		else
 		{
-			var ground = Scene.Trace.Ray( WorldPosition + Vector3.Up * 4, WorldPosition + Vector3.Down * 8 )
+			var up = mover.ContactNormal;
+			if ( up.IsNearlyZero() ) return;
+			var center = WorldPosition + Vector3.Up * SkulkMovement.Radius;
+			var ground = Scene.Trace.Ray( center + up * 2, center - up * 8 ).Radius( SkulkMovement.Radius - 1 )
 				.IgnoreGameObjectHierarchy( GameObject ).Run();
 			if ( !ground.Hit ) return;
 			surface = ground.Surface;
