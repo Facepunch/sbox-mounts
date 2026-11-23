@@ -5,6 +5,32 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	float stridePhase;
+	bool walkingSinceLanding;
+	readonly Vector3[] lastSkidPosition = new Vector3[2];
+
+	void UpdateFootSkids( string pose )
+	{
+		if ( !Networking.IsHost ) return;
+		if ( !Animation.IsGrounded )
+		{
+			walkingSinceLanding = false;
+			return;
+		}
+		if ( pose is not (Idle or Ready or Watch or Threat or Locomotion or HalfWounded or Wounded or Roll) ) return;
+		if ( Movement.MoveTarget.HasValue && GetComponent<NavMeshAgent>() is { } agent && !agent.WishVelocity.IsNearlyZero() )
+			walkingSinceLanding = true;
+		if ( walkingSinceLanding && Animation.MoveVelocity.LengthSquared >= 0.3f * 40f * 40f ) return;
+		for ( int side = 0; side < 2; side++ )
+		{
+			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+			if ( SolvedBodyTransform( bone.Index ) is not { } foot || lastSkidPosition[side].DistanceSquared( foot.Position ) <= 4f * 4f ) continue;
+			lastSkidPosition[side] = foot.Position;
+			var hit = Scene.Trace.Ray( foot.Position + Vector3.Up * 12f, foot.Position + Vector3.Down * 48f )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			if ( hit.Hit ) EmitFootParticle( side, "skid", TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName, hit );
+		}
+	}
+
 	void UpdateGait()
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
