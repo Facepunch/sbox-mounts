@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	float stridePhase;
+	RabbitMovement.Sample evaluatedGait;
 	bool walkingSinceLanding;
 	readonly Vector3[] lastSkidPosition = new Vector3[2];
 
@@ -37,7 +38,10 @@ public sealed partial class RabbitGuard
 		var controls = new RabbitMovement.Controls( speed / CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
 		var motion = boundAnimations.Movement;
 		float next = stridePhase + Time.Delta * motion.Evaluate( controls, stridePhase, MirroredStance ).Frequency;
-		var pose = motion.Evaluate( controls, next % 1f, MirroredStance );
+		var queued = motion.Evaluate( controls, next % 1f, MirroredStance );
+		// IK reads the last evaluated graph pose. The new parameters are consumed after OnUpdate.
+		var pose = playing == Locomotion && evaluatedGait.Events is not null ? evaluatedGait : queued;
+		evaluatedGait = queued;
 		UpdateBodyLean( pose.Lift );
 		Renderer.Animation.Parameters.Set( "ground_speed", controls.Speed );
 		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );
@@ -54,7 +58,7 @@ public sealed partial class RabbitGuard
 		}
 		SolveGroundedLegs();
 
-		if ( IsOnGround ) PlayCycleSteps( pose.Events, stridePhase, next, Vector3.Down );
+		if ( IsOnGround ) PlayCycleSteps( queued.Events, stridePhase, next, Vector3.Down );
 		stridePhase = next % 1;
 	}
 
