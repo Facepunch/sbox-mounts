@@ -21,8 +21,21 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			go.AddComponent<DirectionalLight>().SkyColor = Color.White * 0.35f;
 		}
 		var jumpNodes = new Dictionary<int, XmlAsset>();
-		foreach(var child in level.Children) Place(child, jumpNodes);
+		var patrolPoints = new Dictionary<int, (PatrolPoint Point, XmlAsset Node)>();
+		var patrolStarts = new List<(RabbitGuard Guard, int Id)>();
+		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, patrolStarts);
 		PlaceJumpLinks( jumpNodes );
+		foreach ( var (point, node) in patrolPoints.Values )
+			foreach ( var id in Connections( node ) )
+				if ( patrolPoints.TryGetValue( id, out var next ) ) point.Connections.Add( next.Point );
+		foreach ( var (guard, id) in patrolStarts )
+			if ( patrolPoints.TryGetValue( id, out var start ) ) guard.PatrolStart = start.Point;
+	}
+
+	static IEnumerable<int> Connections( XmlAsset node )
+	{
+		foreach ( var connection in node.Element( "Connections" )?.Elements( "Connection" ) ?? [] )
+			if ( int.TryParse( connection.Attribute( "id" ), out int id ) ) yield return id;
 	}
 
 	static void PlaceJumpLinks( Dictionary<int, XmlAsset> nodes )
@@ -46,7 +59,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 	}
 
-	void Place(XmlAsset node, Dictionary<int, XmlAsset> jumpNodes)
+	void Place( XmlAsset node, Dictionary<int, XmlAsset> jumpNodes,
+		Dictionary<int, (PatrolPoint Point, XmlAsset Node)> patrolPoints, List<(RabbitGuard Guard, int Id)> patrolStarts )
 	{
 		if ( node.Name == "NavmeshConnectionObject" && int.TryParse( node.Attribute( "id" ), out int id ) )
 		{
@@ -55,7 +69,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 		if(node.Name is "Group" or "Prefab" || node.Attribute("t0") is null)
 		{
-			foreach(var child in node.Children) Place(child, jumpNodes);
+			foreach(var child in node.Children) Place(child, jumpNodes, patrolPoints, patrolStarts);
 			return;
 		}
 		var file=node.Attribute("type_file");
@@ -65,6 +79,12 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 
 		switch(node.Name)
 		{
+			case "PathPointObject" when int.TryParse( node.Attribute( "id" ), out int pointId ):
+				var point = Object().AddComponent<PatrolPoint>();
+				point.Wait = node.Element( "parameters" )?.Elements( "parameter" )
+					.FirstOrDefault( p => p.Attribute( "name" ) == "Wait" )?.Number( "val" );
+				patrolPoints[pointId] = (point, node);
+				return;
 			case "SpawnPoint":
 				Object().AddComponent<SpawnPoint>();
 				return;
@@ -80,6 +100,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				var prefab = PrefabFile.Load( Host.MountedPath( prefabName ) );
 				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
+				int start = Connections( node ).FirstOrDefault( -1 );
+				if ( start >= 0 ) patrolStarts.Add( (fighter, start) );
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
 					if ( parameter.Number( "val" ) is not { } value ) continue;

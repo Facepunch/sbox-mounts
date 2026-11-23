@@ -129,6 +129,7 @@ public sealed partial class RabbitGuard
 			}
 			investigatePoint = null;
 			urgentInvestigation = false;
+			if ( FollowPatrol() ) return;
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = AlertStage > 0 ? Watch : Idle;
 			return;
