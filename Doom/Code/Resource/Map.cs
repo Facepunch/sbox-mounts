@@ -20,6 +20,8 @@ public partial class MapLoader( string wadName, MapData map ) : SceneLoader<Game
 	/// <summary>The mounted WAD this map comes from.</summary>
 	public string WadName { get; } = wadName;
 
+	public override string Title => Host?.GetMapTitle( WadName, Map.Name );
+
 	/// <summary>The map's WAD and its base, for resolving textures, sprites and sounds.</summary>
 	protected WadStack Wads { get; private set; }
 

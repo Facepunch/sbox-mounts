@@ -31,6 +31,9 @@ public abstract partial class GameMount : BaseGameMount
 	/// <summary>The lookup chain for a mounted WAD (the WAD itself, then its base). Null if it isn't mounted.</summary>
 	public WadStack GetWads( string wad ) => _stacks.GetValueOrDefault( wad );
 
+	/// <summary>A map's display title (Hangar for doom's E1M1), or null if it has none.</summary>
+	public virtual string GetMapTitle( string wad, string mapName ) => null;
+
 	public virtual string GetSkyTexture( string mapName )
 	{
 		if ( mapName.Length == 4 && mapName[0] == 'E' && mapName[2] == 'M' && char.IsAsciiDigit( mapName[1] ) )
@@ -105,7 +108,7 @@ public abstract partial class GameMount : BaseGameMount
 	private static string WadName( string file ) => Path.GetFileNameWithoutExtension( file ).ToLowerInvariant();
 }
 
-public class DoomMount : GameMount
+public partial class DoomMount : GameMount
 {
 	public override string Ident => "doom";
 	public override string Title => "DOOM + DOOM II";

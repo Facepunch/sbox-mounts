@@ -2,6 +2,7 @@
   "Title": "Doom",
   "Type": "addon",
   "Org": "local",
+  "OrgTitle": null,
   "Ident": "doom",
   "Schema": 1,
   "IncludeSourceFiles": false,
