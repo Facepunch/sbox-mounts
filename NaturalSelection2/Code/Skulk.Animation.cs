@@ -28,12 +28,13 @@ public sealed partial class Skulk
 		world?.Set( "onwall", onWall ? 1 : 0 );
 		var moving = velocity.Length >= 0.1f * MapLoader.Scale;
 		var move = Leaping ? "leap" : !Animation.IsGrounded ? "jump" : moving ? "run" : "idle";
-		var activity = Biting ? "primary" : "none";
+		var activity = Biting || FiringParasite ? "primary" : "none";
 		world?.Set( "alive", Health > 0 ? 1 : 0 );
 		world?.Set( "move", move );
 		world?.Set( "activity", activity );
 		if ( weapon is not null && Health > 0 )
 		{
+			weapon.Set( "ability", parasiteHeld ? "parasite" : "bite" );
 			weapon.Set( "move", move );
 			weapon.Set( "activity", activity );
 			weapon.Update( Time.Delta, tag: weaponTag );

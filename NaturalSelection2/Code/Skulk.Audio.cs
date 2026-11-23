@@ -12,7 +12,9 @@ public sealed partial class Skulk
 	internal static void RegisterSounds( MountContext context )
 	{
 		static void Add( MountContext mount, string id ) => mount.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
-		foreach ( var cue in new[] { "spawn", "death", "bite", "bite_alt", "bite_kill", "wound", "wound_serious", "bite_hit_marine" } )
+		Add( context, "alien/common/xenocide_start" );
+		Add( context, "alien/common/xenocide_end" );
+		foreach ( var cue in new[] { "spawn", "death", "bite", "bite_alt", "parasite", "bite_kill", "wound", "wound_serious", "bite_hit_marine" } )
 			Add( context, $"alien/skulk/{cue}" );
 		foreach ( var material in new[] { "metal", "thin_metal", "organic", "rock" } )
 		{

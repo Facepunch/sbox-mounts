@@ -104,6 +104,11 @@ public sealed partial class Skulk : BaseNpc
 		base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 )
 		{
+			if ( xenociding && detonation <= 0 )
+			{
+				Detonate();
+				return;
+			}
 			UpdateFlinch();
 			energy = Math.Min( 100, energy + Time.Delta * 10 );
 			if ( Leaping && leapEnds <= 0 ) Leaping = false;
@@ -114,11 +119,12 @@ public sealed partial class Skulk : BaseNpc
 
 	protected override void Think()
 	{
-		var target = Senses.VisibleHostiles.FirstOrDefault();
+		FiringParasite = false;
+		var target = FindEnemy();
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			TrackParasitedEnemy();
 			Biting = false;
 			return;
 		}
@@ -132,7 +138,7 @@ public sealed partial class Skulk : BaseNpc
 		{
 			Movement.Stop();
 			if ( !direction.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction.WithZ( 0 ) );
-			Biting = energy >= BiteEnergy;
+			Biting = !TryXenocide() && energy >= BiteEnergy;
 			return;
 		}
 
@@ -154,16 +160,14 @@ public sealed partial class Skulk : BaseNpc
 			return;
 		}
 
-		if ( repath <= 0 )
-		{
-			Movement.MoveTo( target.WorldPosition, Reach * 0.6f, Movement.RunSpeed, target );
-			repath = 0.2f;
-		}
+		if ( !xenociding ) TryParasite( aim );
+		Pursue( target );
 	}
 
 	void OnWeaponTag( string tag )
 	{
-		if ( tag != "hit" ) return;
+		if ( tag == "attack_end" ) parasiteHeld = false;
+		if ( tag != "hit" || parasiteHeld ) return;
 		energy = Math.Max( 0, energy - BiteEnergy );
 		// BiteLeap checks a 1.2m square with nine box traces, center first, preferring players.
 		const float step = 1.2f * MapLoader.Scale / 3;
@@ -189,9 +193,7 @@ public sealed partial class Skulk : BaseNpc
 		if ( victim is null ) return;
 		var npc = victim as BaseNpc;
 		bool alive = npc.IsValid() && npc.Health > 0;
-		var damage = new DamageInfo { Damage = 75, Attacker = GameObject, Weapon = GameObject, Origin = EyePosition, Position = hit.HitPosition };
-		damage.Tags.Add( "bite" );
-		victim.OnDamage( damage );
+		DealDamage( victim, 75, hit.HitPosition, "bite" );
 		if ( alive && (!npc.IsValid() || npc.Health <= 0) ) PlayVoice( "bite_kill" );
 	}
 }
