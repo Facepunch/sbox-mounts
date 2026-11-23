@@ -105,7 +105,10 @@ public class GameMount : BaseGameMount
 		if ( FileSystem is null )
 			return Task.CompletedTask;
 
-		SkulkPrefab.Register( context );
+		Skulk.RegisterSounds( context );
+		AlienPrefab.Register( context, "Skulk", Skulk.Configure );
+		Onos.RegisterSounds( context );
+		AlienPrefab.Register( context, "Onos", Onos.Configure );
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
 			var resourceType = GetFileType( Path.GetExtension( path ) );

@@ -75,7 +75,6 @@ internal sealed partial class SparkAnimationGraph
 				ref var track = ref tracks[layer.Index];
 				track.Current = track.Previous = new( -1, 0, 1 );
 				track.State = -1;
-				if ( layer.Start >= 0 ) Enter( layer, ref track, layer.Start, false, null );
 			}
 		}
 
@@ -120,8 +119,12 @@ internal sealed partial class SparkAnimationGraph
 			foreach ( var layer in graph.layers )
 			{
 				ref var track = ref tracks[layer.Index];
-				if ( track.State < 0 ) continue;
 				int count = 0;
+				if ( track.State < 0 )
+				{
+					if ( layer.Start < 0 ) continue;
+					Enter( layer, ref track, layer.Start, false, tag );
+				}
 				while ( Next( layer, track, out int dest, out bool byLabel ) )
 				{
 					Enter( layer, ref track, dest, byLabel, tag );
