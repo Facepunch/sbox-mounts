@@ -17,6 +17,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Sync] public int AlertStage { get; private set; }
 	[Property] public bool InvisibleWhenStationary { get; set; }
 	[Property] public bool NoLookAround { get; set; }
+	[Property] public bool AlwaysUnaware { get; set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
 	string playing;
@@ -175,14 +176,17 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	// NeedsCombatPose considers every hostile seen in the last second, including those outside the current goal.
 	readonly Dictionary<GameObject, float> seenHostiles = new();
 
+	bool IsUnaware => AlwaysUnaware || startled > 0f ||
+		!enemy.IsValid() && !escortTarget.IsValid() && !soughtItem.IsValid();
+
 	bool NeedsCombatPose()
 	{
 		if ( startled > 0 ) return false;
 		foreach ( var (other, seen) in seenHostiles )
 		{
 			if ( Time.Now - seen >= 1f || !CanAttack( other ) ) continue;
-			if ( other.GetComponent<RabbitGuard>() is { } rabbit && (!rabbit.enemy.IsValid() || rabbit.startled > 0) ) continue;
-			if ( WorldPosition.DistanceSquared( TargetPosition( other ) ) < 200f * 200f ) return true;
+			if ( other.GetComponent<RabbitGuard>() is { IsUnaware: true } ) continue;
+			if ( CharacterCenter( GameObject ).DistanceSquared( CharacterCenter( other ) ) < 200f * 200f ) return true;
 		}
 		return false;
 	}
