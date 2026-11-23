@@ -15,7 +15,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		var modelPath = filePath;
 		var material = Material.Load( "materials/default/white.vmat" );
 		var collision = false;
-		string sharpnessMap = null;
+		string sharpnessMap = null, surfacePath = null;
 
 
 		if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
@@ -30,6 +30,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 
 			modelPath = Host.Resolve( root.Element( "Model" )?.Value );
 			if ( item ) sharpnessMap = root.Element( "SharpnessMap" )?.Value;
+			surfacePath = Host.Resolve( root.Element( "MaterialPath" )?.Value ?? "Data/Materials/default.xml" );
 			material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
 			var flags = root.Element( "flags" );
 			var bushCollision = (string)flags?.Attribute( "bush_collision" ) == "true";
@@ -42,10 +43,13 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		if ( !string.IsNullOrWhiteSpace( sharpnessMap ) ) Sharpness = new( Host, sharpnessMap, data );
 		var builder = Model.Builder.WithName( Path )
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );
+		var surface = surfacePath is null ? null : GameResource.Load<Surface>( Host.MountedPath( System.IO.Path.ChangeExtension( surfacePath, ".surface" ) ) );
+		if ( surface is not null )
+			builder.WithSurface( surface.ResourcePath );
 		builder.AddTraceMesh( data.Positions, data.Indices );
 
 		if ( item )
-			AddItemPhysics( builder, itemDefinition, modelPath, data );
+			AddItemPhysics( builder, itemDefinition, modelPath, data, surface );
 		else if ( collision )
 		{
 			var collisionPath = System.IO.Path.ChangeExtension( modelPath, null ) + "_col.obj";
@@ -56,7 +60,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		return builder.Create();
 	}
 
-	void AddItemPhysics( ModelBuilder builder, XmlAsset definition, string modelPath, ObjLoader.ObjData display )
+	void AddItemPhysics( ModelBuilder builder, XmlAsset definition, string modelPath, ObjLoader.ObjData display, Surface surface )
 	{
 		var massText = definition.Element( "physics" )?.Attribute( "mass" )?.Split( ' ', System.StringSplitOptions.RemoveEmptyEntries );
 		var mass = massText is { Length: > 0 } ? float.Parse( massText[0], CultureInfo.InvariantCulture ) : 1f;
@@ -81,7 +85,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		}
 		else points = display.Positions.Distinct().ToArray();
 
-		builder.AddBody( mass ).AddHull( points );
+		builder.AddBody( mass ).SetSurface( surface ).AddHull( points );
 		builder.AddAttachment( "asset_origin", -display.Center, Rotation.Identity );
 		builder.AddAttachment( "mass_center", center, Rotation.Identity );
 		foreach ( var point in definition.Element( "points" )?.Children ?? [] )

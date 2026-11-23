@@ -110,6 +110,9 @@ public partial class GameMount : BaseGameMount
 			var match = Regex.Match(line, @"^<([\w:-]+)");
 			switch (match.Groups[1].Value)
 			{
+			case "material" when path.StartsWith( "Data/Materials/", StringComparison.OrdinalIgnoreCase ):
+				context.Add( ResourceType.GameResource, Path.ChangeExtension( path, ".surface" ), new SurfaceLoader( path ) );
+				break;
 			case "Actor": MountActor( context, path ); break;
 			case "character": context.Add(ResourceType.Model,path,new CharacterLoader(path)); break;
 			case "Object":
