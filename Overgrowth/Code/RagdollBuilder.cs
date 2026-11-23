@@ -163,8 +163,9 @@ static class RagdollBuilder
 					builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB );
 					break;
 				case 0:
+					// Bullet measures A relative to B; the engine hinge measures B relative to A.
 					builder.AddHingeJoint( bodyIds[a], bodyIds[b], frameA, frameB )
-						.WithTwistLimit( Math.Min( source.Limits[0], source.Limits[1] ) * Degrees, Math.Max( source.Limits[0], source.Limits[1] ) * Degrees );
+						.WithTwistLimit( -Math.Max( source.Limits[0], source.Limits[1] ) * Degrees, -Math.Min( source.Limits[0], source.Limits[1] ) * Degrees );
 					break;
 				case 1:
 					var limits = source.Limits;
