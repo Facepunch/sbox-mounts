@@ -18,6 +18,7 @@ public sealed partial class RabbitGuard
 	float duckAmount, duckVelocity;
 	float reactionDuration;
 	bool activeBlockReaction;
+	Vector3 blockVelocity;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
 	void UpdateBlockFlinch()
@@ -75,6 +76,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateActiveBlock( float step )
 	{
+		if ( boundAnimations.Species == "wolf" ) return;
 		if ( blockDelay is null && startled <= 0 && blockRecharge <= 0 && CanAttack( enemy ) &&
 			enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
 		{
@@ -171,8 +173,27 @@ public sealed partial class RabbitGuard
 		bool mirroredReaction = move.Direction != "front" && attacker.flippedAttack;
 		MirroredAction = MirroredStance = move.ReactionMirror == "maybe" ? MirroredStance : (move.ReactionMirror == "true") != mirroredReaction;
 		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
+		if ( cost > 1f ) ReceiveBlockImpact( attacker, move, 2f );
 		Speak( "block_hit" );
 		return true;
+	}
+
+	void ReceiveBlockImpact( RabbitGuard attacker, RabbitAttack move, float strength )
+	{
+		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
+		var recoil = move.WorldImpact( direction, attacker.flippedAttack ) * strength;
+		blockVelocity += recoil.WithZ( 0f ) * (2f * 40f);
+		ApplyBlockTilt( recoil * (move.Height == "low" ? -20f : 20f) );
+	}
+
+	void AdvanceBlockRecoil( float dt )
+	{
+		if ( blockVelocity.LengthSquared < 0.000001f ) return;
+		// UpdateHitReaction damps velocity before the four-tick movement step.
+		float retention = MathF.Pow( 0.95f, 4f );
+		float remaining = MathF.Pow( retention, dt * 30f );
+		MoveGroundDelta( blockVelocity * (retention * (1f - remaining) / (30f * (1f - retention))) );
+		blockVelocity *= remaining;
 	}
 
 	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false )

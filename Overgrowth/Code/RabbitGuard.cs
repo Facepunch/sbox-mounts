@@ -140,6 +140,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 				seenHostiles[enemy] = Time.Now;
 			}
 		}
+		AdvanceBlockRecoil( Time.Delta );
 		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();

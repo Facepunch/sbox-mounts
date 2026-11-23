@@ -86,10 +86,11 @@ public sealed partial class RabbitGuard
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
 					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
 					{
-						var direction = (CharacterCenter( blockingOpponent.GameObject ) - CharacterCenter( GameObject )).Normal;
 						stunnedBy = blockingOpponent;
 						blockStun = 0.5f;
-						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction, flippedAttack ) * (strike.Height == "low" ? -20f : 20f) );
+						var species = blockingOpponent.boundAnimations.Species;
+						bool smaller = boundAnimations.Species == "dog" && species is not ("dog" or "wolf") || species == "rat" && boundAnimations.Species != "rat";
+						blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
 					}
 					blockingOpponent = null;
 					PlayBluntImpact( "hit_block", pos );
