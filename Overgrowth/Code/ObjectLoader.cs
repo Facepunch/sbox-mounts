@@ -6,6 +6,8 @@ namespace Overgrowth;
 
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
+	internal XmlAsset ItemSlot( string name ) => XmlAsset.Read( Host.FileSystem, filePath, "item" ).Element( name );
+
 	protected override object Load()
 	{
 		var modelPath = filePath;
@@ -76,6 +78,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		else points = display.Positions.Distinct().ToArray();
 
 		builder.AddBody( mass ).AddHull( points );
+		builder.AddAttachment( "asset_origin", -display.Center, Rotation.Identity );
 		builder.AddAttachment( "mass_center", center, Rotation.Identity );
 		foreach ( var point in definition.Element( "points" )?.Children ?? [] )
 		{

@@ -50,7 +50,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w );
 	}
 
-	static (int Version, bool Centered, bool Loop, int Start, int Duration) ReadHeader( BinaryReader reader, string name )
+	internal static (int Version, bool Centered, bool Loop, int Start, int Duration) ReadHeader( BinaryReader reader, string name )
 	{
 		int version = reader.ReadInt32();
 		if ( version is < 5 or > 10 ) throw new InvalidDataException( $"Unsupported ANM version {version} in {name}" );
@@ -59,6 +59,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int start = reader.ReadInt32();
 		int duration = reader.ReadInt32() - start;
 		return (version, centered, loop, start, duration);
+	}
+
+	internal static Transform ReadMatrix( BinaryReader reader, float[] matrix )
+	{
+		for ( int j = 0; j < 16; j++ ) matrix[j] = reader.ReadSingle();
+		var q = PhxbnLoader.QuatFromMatrix( matrix[0], matrix[4], matrix[8], matrix[1], matrix[5], matrix[9], matrix[2], matrix[6], matrix[10] );
+		return new Transform( new Vector3( matrix[14], matrix[12], matrix[13] ) * 40f, new Rotation( q.z, q.x, q.y, q.w ) );
 	}
 
 	// The flinch pose has the same authored bone mask on both keyframes.
@@ -96,9 +103,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			Vector3 center = default;
 			for ( int b = 0; b < bones; b++ )
 			{
-				for ( int j = 0; j < 16; j++ ) matrix[j] = reader.ReadSingle();
-				var q = PhxbnLoader.QuatFromMatrix( matrix[0], matrix[4], matrix[8], matrix[1], matrix[5], matrix[9], matrix[2], matrix[6], matrix[10] );
-				pose[b] = new Transform( new Vector3( matrix[14], matrix[12], matrix[13] ) * 40, new Rotation( q.z, q.x, q.y, q.w ) );
+				pose[b] = ReadMatrix( reader, matrix );
 				center += pose[b].Position;
 			}
 			if ( version >= 7 ) Skip( Count() * (version >= 8 ? 72L : 64L) );

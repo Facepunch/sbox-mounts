@@ -10,7 +10,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		public readonly List<(RabbitGuard Guard, int Waypoint)> Guards = [];
 		public string[] PlayerTeams = [];
 		public readonly List<(int Id, GameObject Object, Model Model)> Items = [];
-		public readonly HashSet<int> AttachedItems = [];
+		public readonly Dictionary<int, (RabbitGuard Actor, XmlAsset Connection)> AttachedItems = [];
 	}
 
 	protected override void BuildScene()
@@ -33,7 +33,10 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		var actors = new Actors();
 		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, actors);
 		foreach ( var (id, item, model) in actors.Items )
-			if ( !actors.AttachedItems.Contains( id ) ) LevelItem.AddPhysics( item, model );
+		{
+			if ( !actors.AttachedItems.TryGetValue( id, out var link ) ) LevelItem.AddPhysics( item, model );
+			else if ( link.Actor.IsValid() ) LevelItem.Attach( Host, item, model, link.Actor, link.Connection );
+		}
 		PlaceJumpLinks( jumpNodes );
 		foreach ( var (point, node) in patrolPoints.Values )
 			foreach ( var id in Connections( node ) )
@@ -99,9 +102,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		var transform = new Transform( Vector( node, "t", 0 ) * 40, Orientation( node ), Vector( node, "s", 1 ) );
 		GameObject Object() => new GameObject( true, name ) { WorldTransform = transform };
 
-		if ( node.Name == "ActorObject" )
+		void ConnectItems( RabbitGuard actor )
+		{
 			foreach ( var link in node.Element( "ItemConnections" )?.Elements( "ItemConnection" ) ?? [] )
-				if ( int.TryParse( link.Attribute( "id" ), out int itemId ) ) actors.AttachedItems.Add( itemId );
+				if ( int.TryParse( link.Attribute( "id" ), out int itemId ) ) actors.AttachedItems[itemId] = (actor, link);
+		}
 
 		switch(node.Name)
 		{
@@ -118,6 +123,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				Object().AddComponent<SpawnPoint>();
 				return;
 			case "ActorObject" when node.Attribute("is_player")=="1":
+				ConnectItems( null );
 				actors.PlayerTeams = GetTeams( node, file );
 				Object().AddComponent<SpawnPoint>();
 				return;
@@ -132,6 +138,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
 				int start = Connections( node ).FirstOrDefault( -1 );
 				actors.Guards.Add( (fighter, start) );
+				ConnectItems( fighter );
 				fighter.Teams = GetTeams( node, file );
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
@@ -169,6 +176,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				actor.Enabled = true;
 				return;
 			case "ActorObject":
+				ConnectItems( null );
 				if(string.IsNullOrEmpty(file)||!Host.FileSystem.FileExists(file))return;
 				file=XmlAsset.Read(Host.FileSystem,file,"Actor").Element("Character")?.Value;
 				break;

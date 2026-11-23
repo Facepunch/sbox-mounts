@@ -8,6 +8,30 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 {
 	RabbitGuardAnimations compiledAnimations;
 	Vector3? modelCenter;
+	Dictionary<string, int> attachmentBones;
+	int[] attachmentParents, attachmentSymmetry;
+	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
+
+	void SetAttachmentRig( SkeletonData rig )
+	{
+		attachmentBones = rig.IKBones.ToDictionary( entry => entry.Key, entry => entry.Value.BoneId );
+		attachmentParents = rig.HierParents.ToArray();
+		attachmentSymmetry = RabbitMirror.MatchBones( rig );
+	}
+
+	internal int AttachmentBone( string label, int depth, bool mirrored )
+	{
+		if ( attachmentBones is null ) SetAttachmentRig( ReadSkeleton( ReadAppearance() ).Skeleton );
+		if ( !attachmentBones.TryGetValue( label, out var bone ) )
+		{
+			if ( label != "hip" || !attachmentBones.TryGetValue( "torso", out bone ) ) return -1;
+			depth += 2;
+		}
+		while ( depth-- > 0 && bone >= 0 ) bone = attachmentParents[bone];
+		return mirrored && bone >= 0 ? attachmentSymmetry[bone] : bone;
+	}
+
+	internal float AttachmentScale => (ReadAppearance().Number( "default_scale" ) ?? 1f) / (ReadAppearance().Number( "model_scale" ) ?? 1f);
 	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
 	internal HashSet<int> NonCollidingBones { get; private set; } = [];
 	const float Scale = 40f;
@@ -103,6 +127,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		modelCenter = objData.Center;
 
 		ReadBoneMasses( skeleton, rig );
+		if ( guard ) SetAttachmentRig( skeleton );
 
 		var weights = skeleton.BoneWeights ?? Array.Empty<Vector4>();
 		var boneIds = skeleton.BoneIds ?? Array.Empty<Vector4>();
@@ -144,6 +169,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters, out var nonCollidingBones );
 		if ( guard )
 		{
+			AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value ) );
 			var hullPath = modelObjPath[..^4] + "_hulls.obj";
 			if ( Host.FileSystem.FileExists( hullPath ) )
 				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
