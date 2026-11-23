@@ -196,6 +196,11 @@ public partial class GameMount : BaseGameMount
 		return average;
 	}
 
+	string[] weaponFlinches;
+	internal string[] WeaponFlinches => weaponFlinches ??= FileSystem.FindFile( "Data/Items", "*.xml", true )
+		.Select( name => XmlAsset.Parse( FileSystem.ReadAllText( $"Data/Items/{name}" ) ).Element( "item" )?.Element( "anim_override" )?.Attribute( "blockflinch" ) )
+		.Where( path => !string.IsNullOrEmpty( path ) ).Distinct().ToArray();
+
 	string[] attackReactions;
 	// A defender can receive attacks from any character's move set.
 	internal string[] AttackReactions => attackReactions ??= FileSystem.FindFile( "Data/Attacks", "*.xml", true )
@@ -204,7 +209,7 @@ public partial class GameMount : BaseGameMount
 
 	protected override void Shutdown()
 	{
-		attackReactions = null;
+		attackReactions = weaponFlinches = null;
 		actorPrefabs.Clear();
 		averageColors.Clear();
 		materials.Clear();

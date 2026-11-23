@@ -81,7 +81,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? Math.Clamp( reader.ReadSingle(), 0f, 1f ) : 0f );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
@@ -305,9 +305,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		var min = damage?.Number( "min" ) ?? 0;
-		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet ) { GrabTime = grabTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

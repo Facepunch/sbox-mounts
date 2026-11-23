@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>, IHotloadManaged
 {
 	readonly Dictionary<string, RabbitGuardAnimations> animationGraphs = new();
+	CharacterAnimationLibrary animationLibrary;
 	Vector3? modelCenter;
 	Dictionary<string, int> attachmentBones;
 	int[] attachmentParents, attachmentSymmetry;
@@ -93,7 +94,11 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	}
 
 	// Generated clips and event metadata must be rebuilt together after a code reload.
-	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state ) => animationGraphs.Clear();
+	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
+	{
+		animationGraphs.Clear();
+		animationLibrary = null;
+	}
 
 	internal RabbitGuardAnimations GetGuardAnimations( Model heldModel = null )
 	{
@@ -101,12 +106,16 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var key = heldModel?.ResourcePath ?? "";
 		if ( animationGraphs.TryGetValue( key, out var existing ) ) return existing;
 		var item = heldModel is null ? null : (Host.GetByPath( key ) as ObjectLoader)?.ItemDefinition;
-		var appearance = ReadAppearance();
-		var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
-		ReadBoneMasses( skeleton, rig );
-		modelCenter ??= ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
+		if ( animationLibrary is null )
+		{
+			var appearance = ReadAppearance();
+			var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
+			ReadBoneMasses( skeleton, rig );
+			modelCenter ??= ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
+			animationLibrary = new( Host, Path, Definition, skeleton, ScaleSkeleton( appearance, skeleton ) );
+		}
 		var graphPath = heldModel is null ? Path : Path + "/equipped/" + key["mount://overgrowth/".Length..];
-		return animationGraphs[key] = RabbitGuardAnimations.Create( Host.FileSystem, graphPath, filePath, skeleton, ScaleSkeleton( appearance, skeleton ), modelCenter.Value, Host.AttackReactions, item );
+		return animationGraphs[key] = RabbitGuardAnimations.Create( Host, graphPath, Definition, animationLibrary, modelCenter.Value, item );
 	}
 
 	ObjLoader.ObjData ReadMesh( XmlAsset appearance, ObjLoader.ObjData reference, string skeletonModelPath, out string modelObjPath )

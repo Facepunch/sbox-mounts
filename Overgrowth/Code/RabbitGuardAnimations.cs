@@ -14,62 +14,18 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string[] SightBones { get; private init; }
-	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, IEnumerable<string> incomingReactions, XmlAsset item = null )
+	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
-		var bones = new SkeletonBuilder();
-		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
-		{
-			int parent = skeleton.AnimationParents[i];
-			var local = parent < 0 ? skeleton.BindPose[i] : skeleton.BindPose[parent].ToLocal( skeleton.BindPose[i] );
-			bones.AddBone( $"bone_{i}", local, parent < 0 ? null : $"bone_{parent}" );
-		}
-
-		var mapping = XmlAsset.Read( fs, "Data/Animations/retarget.xml", "retarget" ).Elements( "rig" )
-			.SelectMany( rig => rig.Elements( "anim" ).Select( anim => (anim.Value, Rig: rig.Attribute( "path" )) ) )
-			.ToLookup( entry => entry.Value, entry => entry.Rig, System.StringComparer.OrdinalIgnoreCase );
-		var sources = new Dictionary<string, RabbitRetarget>();
-		var referenceRig = mapping["Data/Animations/r_ledge.anm"].Last();
-		sources[referenceRig] = new RabbitRetarget( fs, referenceRig, skeleton, scale, out var referenceSkeleton );
-		var mirror = referenceSkeleton.HierParents.SequenceEqual( skeleton.HierParents )
-			? new RabbitMirror( referenceSkeleton, scale ) : new RabbitMirror( skeleton, 1f );
-		RabbitRetarget SourceFor( string name )
-		{
-			var sourcePath = mapping[$"Data/Animations/{name}.anm"].LastOrDefault() ?? referenceRig;
-			if ( !sources.TryGetValue( sourcePath, out var source ) )
-				sources[sourcePath] = source = new RabbitRetarget( fs, sourcePath, skeleton, scale, out _ );
-			return source;
-		}
-
-		var character = XmlAsset.Read( fs, characterPath, "character" );
-		var morphs = CharacterMorph.Read( character );
+		var fs = mount.FileSystem;
+		var rig = library.Rig;
+		var skeleton = library.Skeleton;
+		var scale = library.Scale;
+		var morphs = library.Morphs;
+		var painMask = library.PainMask;
 		var overrides = item?.Element( "anim_override" );
-		var characterAnimations = character.Element( "animations" );
-		string AnimationPath( string slot ) => overrides?.Attribute( slot ) ?? characterAnimations.Attribute( slot );
-		if ( morphs.Any( m => m.Steps == 1 ) )
-			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
-		if ( morphs.Any( m => m.Steps > 1 ) )
-			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
-		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
+		string AnimationPath( string slot ) => overrides?.Attribute( slot ) ?? character.Element( "animations" ).Attribute( slot );
 		var flinchPath = AnimationPath( "blockflinch" );
-		if ( flinchPath is not null )
-		{
-			var mask = RabbitClip.ReadLayerMask( fs, flinchPath, skeleton.Bones.Count );
-			foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = 1f;
-			bones.AddBoneMask( "block_flinch", mask, defaultFloatChannelWeight: 0f );
-		}
-		var pain = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_painflinch.anm", skeleton.Bones.Count );
-		foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) pain[shape.Name] = 1f;
-		pain["rightarm_blend"] = 1f;
-		// The flinch asset contains one pose. Group equal weights so overlapping
-		// cuts can compose their masks without allocating another graph per hit.
-		var painMask = pain.Values.Distinct().Where( weight => weight > 0f ).Order()
-			.Select( (weight, i) => (Name: $"pain_{i}", Weight: weight) ).ToArray();
-		foreach ( var group in painMask )
-			bones.AddBoneMask( group.Name, pain.ToDictionary( pair => pair.Key, pair => pair.Value == group.Weight ? 1f : 0f ), defaultFloatChannelWeight: 0f );
-		var pickupMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count );
-		bones.AddBoneMask( "pickup_right", pickupMask, defaultFloatChannelWeight: 0f );
-		bones.AddBoneMask( "pickup_left", pickupMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value ), defaultFloatChannelWeight: 0f );
 		var attackSlots = new Dictionary<string, string>
 		{
 			[RabbitGuard.Kick] = "stationary", [RabbitGuard.Knee] = "stationary_close",
@@ -86,20 +42,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool usesKnife = layeredSlots.Count > 0;
 		var bodyAttacks = attacks.Where( pair => !layeredSlots.Contains( pair.Key ) ).ToDictionary();
 		string[] knifeLayers = usesKnife ? ["r_knifeslash", "r_knifebackslash"] : [];
-		if ( usesKnife )
-		{
-			var mask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_knifeslash.anm", skeleton.Bones.Count );
-			var left = mask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value );
-			foreach ( var shape in morphs.Where( shape => shape.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = left[shape.Name] = 1f;
-			mask["rightarm_blend"] = left["leftarm_blend"] = 1f;
-			bones.AddBoneMask( "knife_right", mask, defaultFloatChannelWeight: 0f );
-			bones.AddBoneMask( "knife_left", left, defaultFloatChannelWeight: 0f );
-		}
-		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		var overridesByPath = item?.Element( "reaction_override" )?.Elements( "reaction" )
 			.ToDictionary( entry => entry.Attribute( "old" ), entry => entry.Attribute( "new" ) );
-		var reactions = incomingReactions.ToDictionary( file => file, file =>
+		var reactions = mount.AttackReactions.ToDictionary( file => file, file =>
 			RabbitReaction.Read( fs, overridesByPath?.GetValueOrDefault( file ) ?? file ) );
 		string Guard( XmlAsset attack )
 		{
@@ -150,7 +96,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
 				var key = mirrored ? name + "_mirrored" : name;
 				if ( !clips.TryGetValue( key, out var clip ) )
-					clips[key] = clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, centerMotion: inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirror: mirrored ? mirror : null );
+					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirrored: mirrored );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
@@ -169,11 +115,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 		RabbitClip CombatClip( string name, bool mobile, XmlAsset damage, bool bothSides )
 		{
-			var source = SourceFor( name );
-			var center = mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full;
-			RabbitClip Build( RabbitMirror reflect ) => RabbitClip.Load( fs, path, rig, skeleton, name, source, morphs, damage, centerMotion: center, mirror: reflect );
-			var clip = Build( null );
-			return bothSides ? clip with { Mirrored = Build( mirror ) } : clip;
+			var motion = mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full;
+			float min = damage?.Number( "min" ) ?? 0f, max = damage?.Number( "max" ) ?? 0f;
+			RabbitClip Side( bool left ) => library.Clip( name, motion, mirrored: left ) with { DamageMin = min, DamageMax = max };
+			return Side( false ) with { Mirrored = bothSides ? Side( true ) : null };
 		}
 		GraphBuilder.Node CombatPose( RabbitClip clip, GraphBuilder.Node time )
 		{
@@ -187,17 +132,17 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var movementRigs = new HashSet<RabbitRetarget>();
 		var movement = RabbitMovement.Load( fs, AnimationPath( "movement" ), name =>
 		{
-			var source = SourceFor( name );
+			var source = library.SourceFor( name );
 			movementRigs.Add( source );
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
 			{
-				RabbitClip LoadCycle( RabbitMirror side ) => RabbitClip.Load( fs, path, rig, skeleton, name, source, morphs, sampleFeet: true, mirror: side );
-				clips[name] = cycle = LoadCycle( null ) with { Mirrored = LoadCycle( mirror ) };
+				RabbitClip LoadCycle( bool left ) => library.Clip( name, feet: true, mirrored: left );
+				clips[name] = cycle = LoadCycle( false ) with { Mirrored = LoadCycle( true ) };
 			}
 			return cycle;
 		} );
 		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
-		movementRig?.PrepareMirroredJoints( mirror );
+		movementRig?.PrepareMirroredJoints( library.Mirror );
 		RabbitAttack ReadMove( XmlAsset attack, RabbitAttack.Pose[] poses )
 		{
 			var block = attack.Element( "block_damage" );
@@ -337,7 +282,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var flinch = clips["block_flinch"] = CombatClip( System.IO.Path.GetFileNameWithoutExtension( flinchPath ), false, null, true );
 
 			var layer = graph.Blend( graph.Clip( flinch.Animation ), graph.Clip( flinch.Mirrored.Animation ), graph.Switch( mirroredFlinch, 1f, 0f ) );
-			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
+			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( flinchPath ),
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
 		var pickup = clips["pickup"] = CombatClip( "r_pickup", false, null, true );
@@ -389,13 +334,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( patrolGraphs.TryGetValue( file, out var cached ) ) return cached;
 			if ( !fs.FileExists( file ) ) return null;
 			var name = file["Data/Animations/".Length..^4];
-			var clip = RabbitClip.Load( fs, path + "/patrol", rig, skeleton, name, SourceFor( name ), morphs );
+			var clip = library.Clip( name );
 			var builder = new GraphBuilder().WithSkeleton( rig );
 			return patrolGraphs[file] = builder.Create( builder.Clip( clip.Animation, new() { Looping = clip.Looping, SampleRootMotion = false } ) );
 		}
 		RagdollFallPose.Layer FallLayer( string name )
 		{
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs );
+			var clip = library.Clip( name );
 			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
