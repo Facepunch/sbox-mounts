@@ -80,7 +80,7 @@ public sealed partial class RabbitGuard
 		airVelocity = null;
 		ApplyLandingShock( velocity );
 		if ( !IsValid || Health < 1f || Downed ) return;
-		if ( strike is { AsLayer: false } || Stance == "throw" )
+		if ( MathF.Abs( rollAngle - 0.5f ) < 0.3f || strike is { AsLayer: false } || Stance == "throw" )
 		{
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			GoLimp();
@@ -212,6 +212,7 @@ public sealed partial class RabbitGuard
 			if ( quiet ) gain *= 0.5f;
 			if ( gain > 0.2f ) PlayMaterialEvent( "slide", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, gain );
 		}
+		if ( InspectingBody ) duckVelocity = Math.Max( 6f, duckVelocity );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

@@ -46,14 +46,15 @@ public sealed partial class RabbitGuard
 		FlinchWeight = flinchFade * flinchOpacity;
 	}
 
+	bool InspectingBody => inspectUntil.HasValue && !enemy.IsValid() && (casualty.IsValid() || inspectPosition.HasValue);
+
 	bool UpdateDefense()
 	{
 		// WantsToCrouch is held while checking a body, including the approach settling to a stop.
 		if ( strike is not { AsLayer: false } && (ReactionPhase >= 1f || IsGetUp( Stance )) )
 		{
-			bool inspecting = inspectUntil.HasValue && !enemy.IsValid() && (casualty.IsValid() || inspectPosition.HasValue);
 			float speed = Animation.MoveVelocity.WithZ( 0f ).Length / 40f;
-			float target = inspecting ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
+			float target = InspectingBody ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
 			if ( draggedBody.IsValid() && DragStrength < 0.7f ) target = 1f;
 			if ( currentKnifeLayer is { Active: true } && strikeTarget.IsValid() )
 				target = Math.Max( target, Math.Clamp( -GetAttackHeight( strikeTarget ), 0f, 1f ) );
