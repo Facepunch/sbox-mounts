@@ -443,6 +443,7 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
+		if ( rabbit is not null && rabbit.holdPartner.IsValid() && rabbit.holdPartner != this ) rabbit.ReleaseHold();
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware );
 		var direction = offset.Normal;
 		if ( strike.SharpMax > 0f )
