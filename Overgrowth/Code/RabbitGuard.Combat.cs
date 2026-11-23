@@ -92,7 +92,7 @@ public sealed partial class RabbitGuard
 						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction, flippedAttack ) * (strike.Height == "low" ? -20f : 20f) );
 					}
 					blockingOpponent = null;
-					PlayCombatSound( "Data/Sounds/hit/hit_block.xml", pos );
+					PlayBluntImpact( "hit_block", pos );
 				}
 				else TryHit( clip, impact.Bone );
 			}
@@ -308,7 +308,7 @@ public sealed partial class RabbitGuard
 		if ( rabbit is not null && rabbit.TryPassiveBlock( this, strike ) )
 		{
 			ReportSound( enemy, position, HeardSound.Combat, 10f );
-			PlayCombatSound( "Data/Sounds/hit/hit_normal.xml", position );
+			PlayBluntImpact( "hit_normal", position );
 			return;
 		}
 		var victim = enemy.GetComponentInParent<IDamageable>();
@@ -335,7 +335,16 @@ public sealed partial class RabbitGuard
 		var group = "hit_normal";
 		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
 		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
-		PlayCombatSound( $"Data/Sounds/hit/{group}.xml", damage.Position );
+		PlayBluntImpact( group, damage.Position );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayBluntImpact( string group, Vector3 position )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		mount.PlayGroup( $"Data/Sounds/hit/{group}.xml", position );
+		mount.EmitImpactDust( "Data/Particles/impactfast.xml", position );
+		mount.EmitImpactDust( "Data/Particles/impactslow.xml", position );
 	}
 
 	void Speak( string cue )
