@@ -101,11 +101,14 @@ public sealed partial class RabbitGuard
 		GazeTarget = NoticeLookOverride ? noticePosition : target.IsValid() && !IsIgnoredPlayer( target ) ? TargetPosition( target, eyes: true ) : idleLookTarget;
 	}
 
+	GameObject CombatFootStanceTarget( float speed, bool needsCombatPose ) => needsCombatPose && speed < 5f * 40f
+		&& boundAnimations.Species != "wolf" && weaponLookTime <= 0f ? ForcedLookTarget() : null;
+
 	void UpdateTorsoControl( bool needsCombatPose )
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
 		bool movement = Stance is Idle or Ready or Watch or Threat or Locomotion;
-		bool fightStance = movement && needsCombatPose && !AlwaysUnaware && speed < 200f && weaponLookTime <= 0f && boundAnimations.Species != "wolf";
+		bool fightStance = movement && CombatFootStanceTarget( speed, needsCombatPose ).IsValid();
 		if ( fightStance ) stanceMoveFade = 1f;
 		bool throwing = DrawAnimation == ThrowLayer;
 		bool stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||

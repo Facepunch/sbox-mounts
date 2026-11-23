@@ -226,16 +226,17 @@ public sealed partial class RabbitGuard
 		if ( Stance == Roll ) return;
 		if ( TryStartStrike() ) return;
 
+		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
+		var footStanceTarget = CombatFootStanceTarget( speed, NeedsCombatPose() );
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
 			var intent = ChaseApproach( destination, out var point );
 			if ( !intent.IsNearlyZero() )
-				Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
-					visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
+				Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed, footStanceTarget );
 			else Movement.Stop();
 		}
-		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
+		Stance = !Movement.MoveTarget.HasValue || footStanceTarget.IsValid() || speed <= 0.6f * 40f ? Threat : Locomotion;
 	}
 
 	bool InAttackState => strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem;
