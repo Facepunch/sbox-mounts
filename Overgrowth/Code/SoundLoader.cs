@@ -5,6 +5,7 @@ namespace Overgrowth;
 
 public class SoundLoader( string filePath ) : ResourceLoader<GameMount>
 {
+	internal string LipSyncPath => System.IO.Path.ChangeExtension( filePath, ".txt" );
 	protected override object Load()
 	{
 		var bytes = Host.FileSystem.ReadAllBytes( filePath ).ToArray();

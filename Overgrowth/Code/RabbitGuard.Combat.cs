@@ -473,14 +473,30 @@ public sealed partial class RabbitGuard
 			mount.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
 		var (group, pitch) = character.GetVoice( cue );
 		if ( group is null ) return;
-		var (file, volume, _) = mount.PickSound( group );
-		if ( file is not null ) PlayVoice( file.ResourcePath, volume, pitch );
+		var (file, volume, distance) = mount.PickSound( group );
+		if ( file is not null ) PlayVoice( file.ResourcePath, volume, pitch, distance );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayVoice( string path, float volume, float pitch )
+	void PlayVoice( string path, float volume, float pitch, float distance )
 	{
-		if ( Renderer.IsValid() ) Renderer.SpeakSound( SoundFile.Load( path ), volume, pitch );
+		if ( !Renderer.IsValid() ) return;
+		var handle = Renderer.SpeakSound( SoundFile.Load( path ), Math.Min( 1f, volume ), pitch );
+		if ( !handle.IsValid() ) return;
+		var head = TargetPosition( GameObject, eyes: true );
+		handle.Position = head;
+		handle.Parent = GameObject;
+		handle.LocalTransform = new Transform( WorldTransform.PointToLocal( head ) );
+		handle.MinDistance = 40f * Math.Max( 1f, volume );
+		handle.Distance = distance;
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
+			mount.GetByPath( path ) is SoundLoader sound && mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character &&
+			character.GetVoiceTrack( sound ) is { } track )
+		{
+			voiceTrack = track;
+			voiceFrame = 0;
+			voiceTime = track.Frames[0].Time;
+		}
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

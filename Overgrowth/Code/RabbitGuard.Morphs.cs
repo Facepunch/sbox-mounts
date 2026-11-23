@@ -8,10 +8,55 @@ public sealed partial class RabbitGuard
 	float blinkPhase = 1f, blinkAmount, restingBlink, targetRestingBlink;
 	Vector3 eyeOffset;
 	TimeUntil nextEyeOffset;
+	[Property, Sync] public bool Talking { get; set; }
+	static readonly string[] MouthShapes = ["ah", "oh", "w", "mouth_open"];
+	readonly float[] restMouth = new float[4], targetMouth = new float[4];
+	TimeUntil nextMouthPose;
+	float talkingAmount, voiceTime;
+	VoiceTrack voiceTrack;
+	int voiceFrame;
+
+	void UpdateMouth()
+	{
+		float dt = Time.Delta;
+		talkingAmount = Math.Clamp( talkingAmount + dt * (Talking && !Unconscious ? 20f : -5f), 0f, 1f );
+		if ( !Unconscious && nextMouthPose <= 0f )
+		{
+			nextMouthPose = Random.Shared.Float( 0.2f, 1f );
+			for ( int i = 0; i < targetMouth.Length; i++ )
+				targetMouth[i] = Math.Max( 0f, Random.Shared.Float( -8f, 1f ) ) * 0.2f;
+		}
+		Span<float> talk = stackalloc float[4];
+		talk.Clear();
+		if ( talkingAmount > 0f )
+		{
+			float t = Time.Now;
+			talk[0] = (MathF.Sin( t * 33f ) * 0.5f + 0.5f) * 0.3f;
+			talk[1] = ((MathF.Sin( t * 9f ) + MathF.Sin( t * 13f )) * 0.25f + 0.5f) * 0.7f;
+			talk[2] = (MathF.Sin( t * 22.5f ) * 0.5f + 0.5f) * 0.3f;
+			talk[3] = (MathF.Sin( t * 18f ) * 0.5f + 0.5f) * 0.3f;
+		}
+		float inertia = MathF.Pow( 0.97f, dt * 120f );
+		for ( int i = 0; i < MouthShapes.Length; i++ )
+		{
+			restMouth[i] = targetMouth[i] + (restMouth[i] - targetMouth[i]) * inertia;
+			Renderer.Morphs.Set( MouthShapes[i], Math.Max( restMouth[i], talk[i] * talkingAmount ), 0f );
+		}
+		if ( voiceTrack is null ) return;
+		while ( voiceFrame < voiceTrack.Frames.Length && voiceTrack.Frames[voiceFrame].Time < voiceTime ) voiceFrame++;
+		if ( voiceFrame == voiceTrack.Frames.Length ) { voiceTrack = null; return; }
+		for ( int i = 0; i < voiceTrack.Shapes.Length; i++ )
+		{
+			var name = voiceTrack.Shapes[i];
+			Renderer.Morphs.Set( name, (Renderer.Morphs.Get( name ) + voiceTrack.Frames[voiceFrame].Weights[i]) * 0.5f, 0f );
+		}
+		voiceTime += dt;
+	}
 
 	void UpdateMorphs()
 	{
 		if ( Renderer.Model.Morphs.Count == 0 ) return;
+		UpdateMouth();
 		if ( !Unconscious && GazeTarget is { } target && boundAnimations.Head.Eyes is { } eyes
 			&& Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) )
 		{

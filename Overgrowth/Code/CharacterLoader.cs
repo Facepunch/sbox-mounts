@@ -44,6 +44,15 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal string Species => Definition.Element( "tags" )?.Attribute( "species" );
 	internal string Clothing => Definition.Element( "clothing" )?.Value;
 	internal string SoundMod => Definition.Element( "soundmod" )?.Value;
+	readonly Dictionary<string, VoiceTrack> voiceTracks = new();
+
+	internal VoiceTrack GetVoiceTrack( SoundLoader sound )
+	{
+		var path = sound.LipSyncPath;
+		if ( voiceTracks.TryGetValue( path, out var track ) ) return track;
+		return voiceTracks[path] = Definition.Element( "visemes" ) is { } visemes && Host.FileSystem.FileExists( path )
+			? VoiceTrack.Read( Host.FileSystem.ReadAllText( path ), Host.Phonemes, visemes ) : null;
+	}
 
 	internal (string Group, float Pitch) GetVoice( string cue )
 	{

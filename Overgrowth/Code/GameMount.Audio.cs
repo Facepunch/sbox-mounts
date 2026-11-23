@@ -4,6 +4,8 @@ namespace Overgrowth;
 
 public partial class GameMount
 {
+	Dictionary<string, int> phonemes;
+	internal Dictionary<string, int> Phonemes => phonemes ??= VoiceTrack.ReadGroups( FileSystem.ReadAllText( Resolve( "Data/Sounds/voice/phonemes.txt" ) ) );
 	readonly Dictionary<string, XmlAsset> materials = new();
 	readonly Dictionary<string, (int Variants, float Volume, float Distance)> soundGroups = new();
 

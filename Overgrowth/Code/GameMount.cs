@@ -233,5 +233,6 @@ public partial class GameMount : BaseGameMount
 		averageColors.Clear();
 		materials.Clear();
 		soundGroups.Clear();
+		phonemes = null;
 	}
 }
