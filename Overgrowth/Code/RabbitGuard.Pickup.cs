@@ -124,6 +124,7 @@ public sealed partial class RabbitGuard
 
 	void TryGrab()
 	{
+		if ( FreeHands <= 0 || Unconscious || Held || Holding || draggedBody.IsValid() || bodyDragger.IsValid() ) return;
 		var hand = boundAnimations.Arms[ReachLeft ? 0 : 1][0].Bone;
 		if ( Renderer.TryGetBoneTransform( hand, out var palm ) && NearestWeapon( palm.Position, 36f ) is { } item && TakeWeapon( item ) )
 		{

@@ -30,6 +30,7 @@ public sealed partial class RabbitGuard
 	internal bool EquipsForAnimation( LevelItem item ) => PrimaryItem == item && equippedForAnimation == item;
 	void DropHandItem()
 	{
+		reaching = false;
 		if ( LeftHandItem.IsValid() )
 		{
 			seekTime = 0f;
