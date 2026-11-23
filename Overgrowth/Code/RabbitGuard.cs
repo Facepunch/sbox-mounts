@@ -70,6 +70,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateMorphs();
 		UpdatePickupLayer();
 		UpdatePainFlinch();
+		UpdateKnifeLayers();
 		UpdateLanding();
 		if ( Downed )
 		{

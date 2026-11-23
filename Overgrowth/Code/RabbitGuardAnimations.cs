@@ -10,6 +10,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
 	internal (string Name, float Weight)[] PainMask { get; private init; }
+	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string[] SightBones { get; private init; }
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, XmlAsset item = null )
@@ -68,8 +69,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var pickupMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count );
 		bones.AddBoneMask( "pickup_right", pickupMask, defaultFloatChannelWeight: 0f );
 		bones.AddBoneMask( "pickup_left", pickupMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value ), defaultFloatChannelWeight: 0f );
-		var rig = bones.Create( path + "/rabbit.skel" );
-		var graph = new GraphBuilder().WithSkeleton( rig );
 		var attackSlots = new Dictionary<string, string>
 		{
 			[RabbitGuard.Kick] = "stationary", [RabbitGuard.Knee] = "stationary_close",
@@ -82,6 +81,21 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, weaponAttacks?.Attribute( kv.Value ) ?? characterAttacks.Attribute( kv.Value ), "attack" ) );
 		var label = item?.Element( "label" )?.Value;
 		if ( label is "sword" or "rapier" ) attacks[RabbitGuard.SwordSlashRight] = XmlAsset.Read( fs, "Data/Attacks/smallswordslashright.xml", "attack" );
+		var layeredSlots = attacks.Where( pair => pair.Value.Element( "flags" ).Attribute( "as_layer" ) == "true" ).Select( pair => pair.Key ).ToHashSet();
+		bool usesKnife = layeredSlots.Count > 0;
+		var bodyAttacks = attacks.Where( pair => !layeredSlots.Contains( pair.Key ) ).ToDictionary();
+		string[] knifeLayers = usesKnife ? ["r_knifeslash", "r_knifebackslash"] : [];
+		if ( usesKnife )
+		{
+			var mask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_knifeslash.anm", skeleton.Bones.Count );
+			var left = mask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value );
+			foreach ( var shape in morphs.Where( shape => shape.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = left[shape.Name] = 1f;
+			mask["rightarm_blend"] = left["leftarm_blend"] = 1f;
+			bones.AddBoneMask( "knife_right", mask, defaultFloatChannelWeight: 0f );
+			bones.AddBoneMask( "knife_left", left, defaultFloatChannelWeight: 0f );
+		}
+		var rig = bones.Create( path + "/rabbit.skel" );
+		var graph = new GraphBuilder().WithSkeleton( rig );
 		var reactionAssets = attacks.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value.Element( "reaction" ).Value, "reaction" ) );
 		var reactions = reactionAssets.ToDictionary( kv => kv.Key, kv => kv.Value.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray() );
 		string Guard( XmlAsset attack )
@@ -97,11 +111,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			let key = heightName + side + "block"
 			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( AnimationPath( key ) )))
 			.ToDictionary( x => x.key, x => x.animation );
-		var blocked = attacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
+		var blocked = bodyAttacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
 		var throwActions = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" ).Element( "animations" );
 		var throwClips = new[] { "throw", "thrown", "thrown_counter" }.ToDictionary( slot => slot, slot => System.IO.Path.GetFileNameWithoutExtension( throwActions.Attribute( slot ) ) );
 		var reactionNames = reactions.Values.SelectMany( names => names ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. attacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -114,6 +128,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var pickupPhase = graph.FloatParameter( "pickup_phase" );
 		var pickupRight = graph.FloatParameter( "pickup_right" );
 		var pickupLeft = graph.FloatParameter( "pickup_left" );
+		var backhandNewest = usesKnife ? graph.BoolParameter( "knife_backhand_newest" ) : default;
+		var swingParameters = knifeLayers.ToDictionary( name => name, name => (
+			Phase: graph.FloatParameter( name + "_phase" ), Height: graph.FloatParameter( name + "_height" ),
+			Weight: graph.FloatParameter( name + "_weight" ), Left: graph.BoolParameter( name + "_left" ) ) );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
@@ -175,6 +193,22 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} );
 		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
 		movementRig?.PrepareMirroredJoints( mirror );
+		RabbitAttack ReadMove( XmlAsset attack, XmlAsset reaction, RabbitAttack.Pose[] poses )
+		{
+			var block = attack.Element( "block_damage" );
+			var direction = attack.Element( "impact_dir" );
+			var flags = attack.Element( "flags" );
+			return new RabbitAttack( poses, reaction.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray(), block.Number( "min" ).Value, block.Number( "max" ).Value, System.IO.Path.GetFileNameWithoutExtension( attack.Element( "animations" ).Attribute( "blocked" ) ), Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
+				new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true", reaction.Element( "flags" )?.Attribute( "mirrored" ) )
+			{
+				SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
+				SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
+				AsLayer = flags.Attribute( "as_layer" ) == "true",
+				Unblockable = flags.Attribute( "unblockable" ) == "true",
+				FleshUnblockable = flags.Attribute( "flesh_unblockable" ) == "true",
+				Special = flags.Attribute( "special" )
+			};
+		}
 		var states = names.Select( name =>
 		{
 			if ( name == RabbitGuard.PatrolIdle )
@@ -201,7 +235,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				GraphBuilder.Node Gait( bool mirrored ) => movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase, mirrored );
 				return machine.AddState( MovementStance( Gait( false ), Gait( true ) ) );
 			}
-			if ( attacks.TryGetValue( name, out var attack ) )
+			if ( bodyAttacks.TryGetValue( name, out var attack ) )
 			{
 				var pathToAnimation = attack.Element( "animations" ).Attribute( "unblocked" );
 				var damage = attack.Element( "damage" );
@@ -218,18 +252,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 						.Select( x => LoadPose( x.Attribute( "path" ), x.Number( "coord" ).Value ) ).OrderBy( p => p.Height ).ToArray()
 					: [LoadPose( pathToAnimation, 0 )];
 
-				var block = attack.Element( "block_damage" );
-				var direction = attack.Element( "impact_dir" );
-				var flags = attack.Element( "flags" );
-				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
-					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true", reactionAssets[name].Element( "flags" )?.Attribute( "mirrored" ) )
-				{
-					SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
-					SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
-					Unblockable = flags.Attribute( "unblockable" ) == "true",
-					FleshUnblockable = flags.Attribute( "flesh_unblockable" ) == "true",
-					Special = flags.Attribute( "special" )
-				};
+				moves[name] = ReadMove( attack, reactionAssets[name], poses );
 				if ( poses.Length == 1 )
 					return machine.AddState( CombatPose( poses[0].Clip, attackPhase ) );
 
@@ -318,6 +341,40 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var layer = graph.TimeControlledClip( pose.Animation, pickupPhase, new() { SampleRootMotion = false } );
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( side ), Weight = weight, IgnoreEvents = true } );
 		}
+		var knifeSwings = new Dictionary<string, RabbitAttack>();
+		var swingNodes = new Dictionary<string, (GraphBuilder.Node Pose, GraphBuilder.Node Mask)>();
+		foreach ( string name in knifeLayers )
+		{
+			var attack = XmlAsset.Read( fs, $"Data/Attacks/{name[2..]}.xml", "attack" );
+			var animation = XmlAsset.Read( fs, $"Data/Animations/{name}.xml", "SyncedAnimationGroup" );
+			var poses = animation.Element( "Animations" ).Elements( "Animation" ).Select( a =>
+				new RabbitAttack.Pose( a.Number( "coord" ).Value, CombatClip( System.IO.Path.GetFileNameWithoutExtension( a.Attribute( "path" ) ), false, attack.Element( "damage" ), true ) ) ).ToArray();
+			var reaction = XmlAsset.Read( fs, attack.Element( "reaction" ).Value, "reaction" );
+			knifeSwings[name] = ReadMove( attack, reaction, poses ) with { AsLayer = true };
+			var controls = swingParameters[name];
+			GraphBuilder.Node Side( bool left )
+			{
+				var blend = graph.BlendSpace( controls.Height, looping: false );
+				foreach ( var pose in poses ) blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.ForSide( left ).Animation, controls.Phase, new() { SampleRootMotion = false } ) );
+				return blend;
+			}
+			swingNodes[name] = (graph.Blend( Side( false ), Side( true ), graph.Switch( controls.Left, 1f, 0f ) ),
+				graph.BoneMaskSwitch( controls.Left, graph.BoneMask( "knife_left" ), graph.BoneMask( "knife_right" ), new() { SwitchDynamically = true, BlendTime = 0f } ));
+		}
+		if ( usesKnife )
+		{
+			// AnimationClient applies the newest layer first. Adjacent swings overlap during their fades.
+			var layers = graph.Layers( output );
+			void AddSwing( string name, GraphBuilder.Node weight ) => layers.AddLayer( swingNodes[name].Pose,
+				new() { BoneMask = swingNodes[name].Mask, Weight = weight, IgnoreEvents = true } );
+			var forehandWeight = swingParameters["r_knifeslash"].Weight;
+			var zero = graph.Constant( 0f );
+			AddSwing( "r_knifeslash", graph.Switch( backhandNewest, zero, forehandWeight ) );
+			AddSwing( "r_knifebackslash", swingParameters["r_knifebackslash"].Weight );
+			AddSwing( "r_knifeslash", graph.Switch( backhandNewest, forehandWeight, zero ) );
+			output = layers;
+		}
+		foreach ( var slot in layeredSlots ) moves[slot] = knifeSwings["r_knifeslash"];
 		var painClip = clips["pain"] = CombatClip( "r_painflinch", false, null, false );
 		var painPose = graph.Clip( painClip.Animation, new() { SampleRootMotion = false } );
 		foreach ( var group in painMask )
@@ -338,7 +395,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, stanceIdle, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, stanceIdle, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ) ),
 			RollBones = rollBones,
@@ -347,6 +404,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
 			WeaponLabel = label,
 			PainMask = painMask,
+			KnifeSwings = knifeSwings,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
 			SightBones = Enumerable.Range( 0, weighted.Length ).Where( i => weighted[i] ).Select( i => $"bone_{i}" ).ToArray()
 		};

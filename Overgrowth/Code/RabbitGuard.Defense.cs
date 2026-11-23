@@ -110,6 +110,7 @@ public sealed partial class RabbitGuard
 
 	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
+		FadeKnifeAttack();
 		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
 		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
 		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
@@ -149,6 +150,7 @@ public sealed partial class RabbitGuard
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
+		FadeKnifeAttack();
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
 		var species = boundAnimations?.Species;
 		var other = attacker.boundAnimations.Species;

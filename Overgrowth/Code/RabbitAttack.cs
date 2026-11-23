@@ -6,6 +6,7 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactio
 
 	internal float SharpMin { get; init; }
 	internal float SharpMax { get; init; }
+	internal bool AsLayer { get; init; }
 	internal bool Unblockable { get; init; }
 	internal bool FleshUnblockable { get; init; }
 	internal string Special { get; init; }

@@ -69,7 +69,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateCombat()
 	{
-		if ( strike is not null )
+		if ( strike is { AsLayer: false } )
 		{
 			float previousHeight = AttackHeight;
 			if ( enemy.IsValid() )
@@ -197,16 +197,14 @@ public sealed partial class RabbitGuard
 		if ( visible ) UpdateTactic( distance );
 		if ( Stance == Roll ) return;
 		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		if ( visible && attacking && distance < AttackRange && HasSight( enemy ) )
+		if ( visible && attacking && strike is null && knifeCooldown <= 0 && distance < AttackRange && HasSight( enemy ) )
 		{
-			Movement.Stop();
-
 			bool close = distance < CloseAttackRange;
 			int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
 			bool mirrored = Random.Shared.Next( 2 ) == 0;
 			var label = boundAnimations.WeaponLabel;
 			if ( label == "sword" && attackClass == 0 ) attackClass = 1;
-			Stance = attackClass switch
+			var choice = attackClass switch
 			{
 				1 or 2 when (label is "sword" or "rapier") && mirrored == LeftHanded => SwordSlashRight,
 				1 when !PrimaryItem.IsValid() && enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
@@ -214,7 +212,14 @@ public sealed partial class RabbitGuard
 				2 => Sweep,
 				_ => close ? Knee : Kick
 			};
-			strike = boundAnimations.Attacks[Stance];
+			strike = boundAnimations.Attacks[choice];
+			if ( strike.AsLayer )
+			{
+				BeginKnifeAttack();
+				return;
+			}
+			Movement.Stop();
+			Stance = choice;
 			if ( strike.Direction != "front" )
 				MirroredStance = mirrored != (strike.Direction == "left");
 			MirroredAction = MirroredStance;
