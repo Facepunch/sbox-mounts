@@ -121,12 +121,12 @@ internal sealed class RabbitRetarget
 
 	internal Vector3 ScaleOffset( Vector3 offset ) => offset * (legRatio * scale);
 
-	internal Transform[] ToLocalPose( Transform[] pose )
+	internal Transform[] ToLocalPose( Transform[] pose, int[] rotationParents = null )
 	{
 		var result = new Transform[target.Bones.Count];
 		for ( int i = 0; i < result.Length; i++ )
 		{
-			int parent = target.HierParents[i];
+			int parent = rotationParents is null ? target.HierParents[i] : rotationParents[i];
 			if ( parent < 0 )
 			{
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );

@@ -73,7 +73,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? reader.ReadSingle() : 0f );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null, int[] rotationParents = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
@@ -197,7 +197,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
 			}
 			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
-			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
+			keys[k] = new( time, retarget.ToLocalPose( pose, rotationParents ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their

@@ -18,7 +18,8 @@ public sealed partial class RabbitGuard
 	[Property] public float DamageResistance { get; set; } = 1f;
 	[Property] public int KnockoutShield { get; set; }
 	ModelPhysics ragdoll;
-	TimeSince sinceKnockdown;
+	TimeSince sinceKnockdown, fallAge, sinceUnconscious;
+	TimeUntil limpStun;
 	class BluntDamage : DamageInfo;
 	sealed class StrikeDamage : BluntDamage
 	{
@@ -61,7 +62,11 @@ public sealed partial class RabbitGuard
 			if ( TemporaryHealth <= 0f )
 			{
 				if ( Sparring ) recoverableDamage = 0f;
-				else Unconscious = true;
+				else if ( !Unconscious )
+				{
+					Unconscious = true;
+					sinceUnconscious = 0f;
+				}
 			}
 		}
 		var attacker = hit.Instigator;
@@ -76,12 +81,17 @@ public sealed partial class RabbitGuard
 		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 
 		sinceKnockdown = 0;
-		if ( hit.DamageInfo is StrikeDamage blow ) ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
+		if ( hit.DamageInfo is StrikeDamage blow )
+		{
+			limpStun = 0.9f;
+			ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
+		}
 	}
 
 	void GoLimp()
 	{
-		sinceKnockdown = 0;
+		sinceKnockdown = fallAge = 0;
+		limpStun = 0f;
 		displayingRoll = false;
 		RecoveredInAir = false;
 		rollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
@@ -249,6 +259,6 @@ public sealed partial class RabbitGuard
 			front += bone.Rotation.Up;
 			up += bone.Rotation.Forward;
 		}
-		return (front, up);
+		return (front / boundAnimations.TorsoBones.Length, up / boundAnimations.TorsoBones.Length);
 	}
 }

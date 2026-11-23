@@ -5,6 +5,7 @@ namespace Overgrowth;
 internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, RabbitMovement StanceIdle, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitHead Head, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
 {
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
+	internal RagdollFallPose FallPose { get; private init; }
 	internal string[] RollClips { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
@@ -303,8 +304,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var builder = new GraphBuilder().WithSkeleton( rig );
 			return patrolGraphs[file] = builder.Create( builder.Clip( clip.Animation, new() { Looping = clip.Looping, SampleRootMotion = false } ) );
 		}
+		RagdollFallPose.Layer FallLayer( string name )
+		{
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, rotationParents: parents );
+			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
+			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
+		}
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, stanceIdle, movementRig, moves, attacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
+			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ) ),
 			RollBones = rollBones,
 			RollClips = XmlAsset.Read( fs, character.Element( "animations" ).Attribute( "roll" ), "SyncedAnimationGroup" )
 				.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
