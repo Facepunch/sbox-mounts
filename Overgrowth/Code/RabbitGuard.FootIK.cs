@@ -165,7 +165,16 @@ public sealed partial class RabbitGuard
 	void ApplyFootTarget( int side, Transform animated, Transform target, float weight, float authoredHeight )
 	{
 		weight *= 1f - rollIKFade;
-		var result = global::Transform.Lerp( animated, target, weight, false );
+		var result = animated;
+		if ( weight == 1f ) result = target;
+		else if ( weight > 0f )
+		{
+			// CDoFootIK blends the transforms that deform the bind pose, then places the toe bone.
+			var toe = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+			var bind = Renderer.Model.GetBoneTransform( toe.Index );
+			var inverseBind = bind.ToLocal( global::Transform.Zero );
+			result = global::Transform.Lerp( animated.ToWorld( inverseBind ), target.ToWorld( inverseBind ), weight, false ).ToWorld( bind );
+		}
 		var original = result.Position;
 		bool contact = false;
 		if ( weight > 0f )
