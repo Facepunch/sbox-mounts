@@ -12,7 +12,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	/// </summary>
 	string FilePath { get; } = filePath;
 
-	const float Scale = 40.0f;
+	internal const float Scale = 40.0f;
 
 	readonly List<Model> renderModels = [];
 	readonly HashSet<PhysicsGroupDescription> physicsResources = [];
@@ -278,6 +278,26 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				WorldRotation = Rotation.FromYaw( Angles( entity ).Yaw() )
 			};
 			spawn.AddComponent<SpawnPoint>();
+			return;
+		}
+
+		if ( name == "door" )
+		{
+			var skin = entity.Get( "clean" ).AsBool() ? "door_clean" : "door";
+			var model = Model.Load( ModelPath( $"models/misc/door/{skin}.model" ) );
+			if ( model is null || model.IsError ) return;
+
+			var go = new GameObject( true, name ) { Parent = parent, WorldTransform = new Transform( Origin( entity ), Angles( entity ) ) };
+			var renderer = go.AddComponent<SkinnedModelRenderer>();
+			renderer.Model = model;
+			renderer.UseAnimGraph = false;
+			renderer.Sequence.Name = "opened";
+			renderer.Sequence.Looping = false;
+			var physics = go.AddComponent<ModelPhysics>();
+			physics.Renderer = renderer;
+			physics.Model = model;
+			physics.MotionEnabled = false;
+			go.AddComponent<MapDoor>().Renderer = renderer;
 			return;
 		}
 
