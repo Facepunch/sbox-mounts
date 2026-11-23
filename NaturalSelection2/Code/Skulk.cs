@@ -174,7 +174,7 @@ public sealed partial class Skulk : BaseNpc
 				PlayVoice( "bite_alt" );
 			}
 		}
-		else if ( !xenociding ) TryParasite( aim );
+		else if ( !xenociding ) TryParasite();
 		ApproachEnemy( target, aimPoint, distance );
 	}
 

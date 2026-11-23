@@ -21,10 +21,9 @@ public sealed partial class Skulk
 	bool FiringParasite { get; set; }
 	[Property] public bool XenocideUnlocked { get; set; }
 
-	void TryParasite( Vector3 aim )
+	void TryParasite()
 	{
 		if ( parasiteHeld || parasiteReady > 0 || sightedFor <= 1 || energy <= (LeapUnlocked ? LeapEnergy + ParasiteEnergy : 60) ) return;
-		if ( Vector3.Dot( ViewRotation.Forward, aim ) <= 0.95f ) return;
 		FiringParasite = parasiteHeld = true;
 		parasiteReady = 0.54f;
 		energy -= ParasiteEnergy;
