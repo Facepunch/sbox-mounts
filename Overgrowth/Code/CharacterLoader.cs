@@ -85,6 +85,13 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return BodyTransform( points[Random.Shared.Next( points.Length )], renderer, renderer.GetComponent<ModelPhysics>(), fighter )?.Position;
 	}
 
+	internal Vector3? ChainOrigin( RabbitGuard fighter, string chain )
+	{
+		if ( !chainCenters.TryGetValue( chain, out var points ) || points.Length == 0 ) return null;
+		var tip = points[0];
+		return BodyTransform( tip, fighter.Renderer, null, fighter )?.PointToWorld( tip.Center );
+	}
+
 	internal static Vector3? AverageChainPosition( SkinnedModelRenderer renderer, string chain )
 	{
 		if ( FromRenderer( renderer ) is not { } character || !character.chainCenters.TryGetValue( chain, out var points ) ) return null;

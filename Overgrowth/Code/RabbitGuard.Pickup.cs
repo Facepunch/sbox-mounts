@@ -17,8 +17,21 @@ public sealed partial class RabbitGuard
 
 	int FreeHands => 2 - (LeftHandItem.IsValid() ? LeftHandItem.Hands : 0) - (RightHandItem.IsValid() ? RightHandItem.Hands : 0);
 
-	bool CanPickUp( LevelItem item ) => item.IsValid() && item.Active && !item.Holder.IsValid() &&
-		item.Definition?.Element( "type" )?.Value != "misc" && item.Hands <= FreeHands;
+	bool CanPickUp( LevelItem item )
+	{
+		if ( !item.IsValid() || !item.Active || item.Definition?.Element( "type" )?.Value == "misc" || item.Hands > FreeHands ) return false;
+		if ( !item.Holder.IsValid() ) return true;
+		return item.Holder.GetComponentInParent<RabbitGuard>() is { Unconscious: true } ||
+			item.Holder.GetComponentInParent<CharacterRemains>().IsValid();
+	}
+
+	bool PickupLeft => RightHandItem.IsValid() || (LeftHanded && !LeftHandItem.IsValid());
+
+	LevelItem WeaponAtHand( bool left )
+	{
+		var palm = CharacterLoader.FromModel( Renderer.Model )?.ChainOrigin( this, left ? "leftarm" : "rightarm" );
+		return palm.HasValue ? NearestWeapon( palm.Value, 36f ) : null;
+	}
 
 	LevelItem NearestWeapon( Vector3 position, float radius )
 	{
@@ -78,10 +91,9 @@ public sealed partial class RabbitGuard
 			duckAmount = Math.Max( duckAmount, 1f - (weaponLookPoint - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
 		}
 
-		ReachLeft = RightHandItem.IsValid() || (LeftHanded && !LeftHandItem.IsValid());
-		var hand = boundAnimations.Arms[ReachLeft ? 0 : 1][0].Bone;
-		if ( !reaching && Renderer.TryGetBoneTransform( hand, out var palm ) && NearestWeapon( palm.Position, 36f ) is not null )
+		if ( !reaching && WeaponAtHand( PickupLeft ) is not null )
 		{
+			ReachLeft = PickupLeft;
 			reaching = true;
 			reachAttempts = 0;
 			ReachPhase = 0f;
@@ -125,8 +137,7 @@ public sealed partial class RabbitGuard
 	void TryGrab()
 	{
 		if ( FreeHands <= 0 || Unconscious || Held || Holding || draggedBody.IsValid() || bodyDragger.IsValid() ) return;
-		var hand = boundAnimations.Arms[ReachLeft ? 0 : 1][0].Bone;
-		if ( Renderer.TryGetBoneTransform( hand, out var palm ) && NearestWeapon( palm.Position, 36f ) is { } item && TakeWeapon( item ) )
+		if ( WeaponAtHand( PickupLeft ) is { } item && TakeWeapon( item ) )
 		{
 			StopSeekingWeapon();
 			return;

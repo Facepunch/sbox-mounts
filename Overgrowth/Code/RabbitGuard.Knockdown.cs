@@ -248,10 +248,11 @@ public sealed partial class RabbitGuard
 			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
 				corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
 			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
-				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
+				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer || item.Holder == Renderer ).ToArray() )
 				{
 					item.GameObject.SetParent( corpse, true );
-					item.StuckIn = corpseRenderer;
+					if ( item.StuckIn == Renderer ) item.StuckIn = corpseRenderer;
+					if ( item.Holder == Renderer ) item.Holder = corpseRenderer;
 				}
 			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
 		}

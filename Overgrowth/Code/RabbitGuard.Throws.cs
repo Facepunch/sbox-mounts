@@ -145,11 +145,7 @@ public sealed partial class RabbitGuard
 			if ( PrimaryItem is { IsValid: true } weapon && (startled > 0f || boundAnimations.Species is not ("dog" or "cat")) )
 			{
 				DropHandItem();
-				if ( throwPartner.IsValid() && throwPartner.TakeWeapon( weapon ) )
-				{
-					if ( LeftHandItem == weapon ) LeftHandItem = null;
-					if ( RightHandItem == weapon ) RightHandItem = null;
-				}
+				if ( throwPartner.IsValid() ) throwPartner.TakeWeapon( weapon );
 			}
 			Stance = Threat;
 			ReactionPhase = 1f;

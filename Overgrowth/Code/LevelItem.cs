@@ -181,6 +181,14 @@ public sealed partial class LevelItem : Component
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.lastHeldPose = null;
 		attachmentComponent.carryVelocity = attachmentComponent.carryAngularVelocity = Vector3.Zero;
+		if ( attachmentComponent.Holder.IsValid() && attachmentComponent.Holder != actor.Renderer &&
+			attachmentComponent.Holder.GetComponentInParent<RabbitGuard>() is { } previous )
+		{
+			if ( previous.LeftHandItem == attachmentComponent ) previous.LeftHandItem = null;
+			if ( previous.RightHandItem == attachmentComponent ) previous.RightHandItem = null;
+			if ( previous.LeftHipWeapon == attachmentComponent ) previous.LeftHipWeapon = null;
+			if ( previous.RightHipWeapon == attachmentComponent ) previous.RightHipWeapon = null;
+		}
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";
 		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center / actor.WorldScale.z ) );
