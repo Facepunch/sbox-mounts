@@ -30,8 +30,8 @@ public sealed partial class RabbitGuard
 	{
 		float Interest( GameObject actor ) => actor.IsValid() && !IsIgnoredPlayer( actor )
 			? 40f / Math.Max( 40f, WorldPosition.Distance( TargetPosition( actor ) ) ) : 0f;
-		float pick = Random.Shared.Float() * Math.Max( 1f, 0.5f + knownCharacters.Sum( Interest ) );
-		foreach ( var actor in knownCharacters )
+		float pick = Random.Shared.Float() * Math.Max( 1f, 0.5f + knownCharacters.Keys.Sum( Interest ) );
+		foreach ( var actor in knownCharacters.Keys )
 		{
 			pick -= Interest( actor );
 			if ( pick < 0f ) return actor;

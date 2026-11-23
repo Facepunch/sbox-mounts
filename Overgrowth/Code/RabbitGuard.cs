@@ -136,6 +136,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( visible )
 			{
 				lastSeen = TargetPosition( enemy );
+				knownCharacters[enemy] = CharacterCenter( enemy );
 				sinceEnemySeen = 0;
 				seenHostiles[enemy] = Time.Now;
 			}
@@ -244,12 +245,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void Remember( GameObject target, bool engage = true )
 	{
-		if ( knownCharacters.Add( target ) && engage && !enemy.IsValid() && !escortTarget.IsValid() )
+		if ( !knownCharacters.ContainsKey( target ) && engage && !enemy.IsValid() && !escortTarget.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );
 		}
 		enemy = target;
+		knownCharacters[target] = CharacterCenter( target );
 		searchUntil = 0f;
 		casualty = null;
 		inspectPosition = null;

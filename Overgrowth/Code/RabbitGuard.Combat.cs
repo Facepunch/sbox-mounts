@@ -112,16 +112,15 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
+		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
+		{
+			Remember( closest, engage: false );
+			visible = CanSeeCharacter( closest, closest.GetComponent<RabbitGuard>() );
+		}
 		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
 			if ( enemy is not null && (!enemy.IsValid() || !IsLiveTarget( enemy ) || enemy.GetComponent<RabbitGuard>() is { Unconscious: true }) )
 			{
-				var next = seenHostiles.Keys.Where( CanAttack ).MinBy( obj => WorldPosition.DistanceSquared( TargetPosition( obj ) ) );
-				if ( next.IsValid() )
-				{
-					Remember( next, engage: false );
-					return;
-				}
 				FinishCombat( enemy.IsValid() ? TargetPosition( enemy ) : lastSeen );
 			}
 			enemy = null;

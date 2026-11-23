@@ -51,11 +51,12 @@ public sealed partial class RabbitGuard
 			{
 				if ( guard.enemy != source ) continue;
 				guard.lastSeen = guard.TargetPosition( source );
+				guard.knownCharacters[source] = guard.CharacterCenter( source );
 				guard.sinceEnemySeen = 0;
 				continue;
 			}
 			if ( guard.escortTarget.IsValid() || !awake ) continue;
-			bool knownAlly = guard.knownCharacters.Contains( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
+			bool knownAlly = guard.knownCharacters.ContainsKey( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
 			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation) ) continue;
 			guard.suspicion = guard.CurrentSuspicion +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
