@@ -119,20 +119,29 @@ public sealed partial class RabbitGuard
 	void TryGrab()
 	{
 		var hand = boundAnimations.Arms[ReachLeft ? 0 : 1][0].Bone;
-		if ( Renderer.TryGetBoneTransform( hand, out var palm ) && NearestWeapon( palm.Position, 36f ) is { } item &&
-			Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+		if ( Renderer.TryGetBoneTransform( hand, out var palm ) && NearestWeapon( palm.Position, 36f ) is { } item && TakeWeapon( item ) )
 		{
-			var position = item.PhysicsPosition;
-			LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, ReachLeft );
-			if ( item.Holder == Renderer )
-			{
-				bool soft = item.Definition.Element( "physics" )?.Attribute( "sound_modifier" ) == "soft";
-				PlayCombatSound( soft ? "Data/Sounds/weapon_foley/impact/soft_bag_on_soft.xml" : "Data/Sounds/weapon_foley/grab/weapon_grap_metal_leather_glove.xml", position, 0.5f );
-				StopSeekingWeapon();
-				return;
-			}
+			StopSeekingWeapon();
+			return;
 		}
 		if ( ++reachAttempts > 4 ) reaching = false;
+	}
+
+	bool TakeWeapon( LevelItem item )
+	{
+		if ( item.Hands > FreeHands || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return false;
+		var position = item.PhysicsPosition;
+		bool left = PrimaryItem.IsValid() ? !LeftHanded : LeftHanded;
+		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, left );
+		if ( item.Holder != Renderer ) return false;
+		PlayGrabSound( item, position, 0.5f );
+		return true;
+	}
+
+	void PlayGrabSound( LevelItem item, Vector3 position, float gain )
+	{
+		bool soft = item.Definition.Element( "physics" )?.Attribute( "sound_modifier" ) == "soft";
+		PlayCombatSound( soft ? "Data/Sounds/weapon_foley/impact/soft_bag_on_soft.xml" : "Data/Sounds/weapon_foley/grab/weapon_grap_metal_leather_glove.xml", position, gain );
 	}
 }
 

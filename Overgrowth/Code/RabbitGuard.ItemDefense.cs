@@ -27,7 +27,6 @@ public sealed partial class RabbitGuard
 			flinchFadeOut = 4f;
 			return true;
 		}
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return false;
 		var incoming = body.Velocity.WithZ( 0f ).Normal;
 		var toward = (position - WorldPosition).WithZ( 0f ).Normal;
 		var recoil = (body.Velocity - Animation.MoveVelocity) * (body.Mass * 0.1f);
@@ -37,14 +36,10 @@ public sealed partial class RabbitGuard
 			animation = CatchSide;
 			MirroredAction = Vector3.Up.Cross( toward ).Dot( incoming ) < 0f;
 		}
+		if ( !TakeWeapon( item ) ) return false;
 		BeginReaction( attacker, position, animation, boundAnimations.Clips[animation] );
 		blockVelocity = recoil.WithZ( 0f );
-		bool left = PrimaryItem.IsValid() ? !LeftHanded : LeftHanded;
-		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, left );
-		var sound = item.Definition.Element( "physics" )?.Attribute( "sound_modifier" ) == "soft"
-			? "Data/Sounds/weapon_foley/impact/soft_bag_on_soft.xml" : "Data/Sounds/weapon_foley/grab/weapon_grap_metal_leather_glove.xml";
-		PlayCombatSound( sound, position, 1f );
-		PlayCombatSound( sound, position, 0.5f );
+		PlayGrabSound( item, position, 1f );
 		return true;
 	}
 }

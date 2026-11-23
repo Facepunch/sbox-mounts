@@ -115,6 +115,15 @@ public sealed partial class RabbitGuard
 			awaitingThrowImpact = true;
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			if ( KnockoutShield == 0 && TrainingThrows ) recoverableDamage = Math.Max( 0f, Health - 0.1f );
+			if ( PrimaryItem is { IsValid: true } weapon && (startled > 0f || boundAnimations.Species is not ("dog" or "cat")) )
+			{
+				DropHandItem();
+				if ( throwPartner.IsValid() && throwPartner.TakeWeapon( weapon ) )
+				{
+					if ( LeftHandItem == weapon ) LeftHandItem = null;
+					if ( RightHandItem == weapon ) RightHandItem = null;
+				}
+			}
 			Stance = Threat;
 			ReactionPhase = 1f;
 			GoLimp();
