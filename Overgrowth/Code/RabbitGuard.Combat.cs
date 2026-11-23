@@ -142,9 +142,7 @@ public sealed partial class RabbitGuard
 						blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
 					}
 					if ( !strike.FleshUnblockable ) PlayBluntImpact( "hit_block", pos );
-					else if ( PrimaryItem.IsValid() && blockingOpponent.IsValid() && blockingOpponent.PrimaryItem.IsValid() &&
-						PrimaryItem.TryContact( blockingOpponent.PrimaryItem, out var contact, out var a, out var b ) )
-						PlayWeaponClash( contact, a, b );
+					else if ( blockingOpponent.IsValid() ) blockingOpponent.ClashWith( PrimaryItem );
 					blockingOpponent = null;
 				}
 				else TryHit( clip, impact.Bone );
@@ -452,7 +450,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( rabbit is not null && rabbit.holdPartner.IsValid() && rabbit.holdPartner != this ) rabbit.ReleaseHold();
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware );
-		if ( !parried && wasUnaware && rabbit.boundAnimations.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
+		if ( !parried && wasUnaware && rabbit.boundAnimations?.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
 			rabbit.ReceiveSurpriseSwordHit();
 		var direction = offset.Normal;
 		if ( strike.SharpMax > 0f )
@@ -460,20 +458,20 @@ public sealed partial class RabbitGuard
 			ApplySharpHit( clip, position, direction, rabbit, parried );
 			return;
 		}
-		if ( parried )
-		{
-			ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
-			PlayBluntImpact( "hit_normal", position );
-			return;
-		}
-		var npc = strikeTarget.GetComponent<BaseNpc>();
-		ApplyStrikeImpulse( clip, position, direction );
-		if ( strikeTarget.IsValid() ) ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
+		bool armored = rabbit is { MetalArmor: true };
 		var group = "hit_normal";
-		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
-		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
+		if ( !parried )
+		{
+			var npc = strikeTarget.GetComponent<BaseNpc>();
+			ApplyStrikeImpulse( clip, position, direction );
+			if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
+			else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
+			if ( rabbit.IsValid() && strike is not null ) rabbit.TryDisarm( strike.WorldImpact( direction, flippedAttack ) );
+		}
 		PlayBluntImpact( group, position );
-		if ( rabbit.IsValid() && strike is not null ) rabbit.TryDisarm( strike.WorldImpact( direction, flippedAttack ) );
+		if ( armored && Random.Shared.Next( 3 ) != 0 )
+			PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_staff_hit_metal_strong.xml", position );
+		if ( strikeTarget.IsValid() ) ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
 	}
 
 	void ApplyStrikeImpulse( RabbitClip clip, Vector3 position, Vector3 direction )
@@ -507,6 +505,12 @@ public sealed partial class RabbitGuard
 		mount.PlayGroup( $"Data/Sounds/hit/{group}.xml", position );
 		mount.EmitImpactDust( "Data/Particles/impactfast.xml", position );
 		mount.EmitImpactDust( "Data/Particles/impactslow.xml", position );
+	}
+
+	void ClashWith( LevelItem other )
+	{
+		if ( other.IsValid() && PrimaryItem.IsValid() && PrimaryItem.TryContact( other, out var point, out var a, out var b ) )
+			PlayWeaponClash( point, a, b );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

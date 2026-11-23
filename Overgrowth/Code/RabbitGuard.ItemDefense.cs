@@ -17,8 +17,7 @@ public sealed partial class RabbitGuard
 		MirroredAction = MirroredStance;
 		if ( FreeHands < item.Hands )
 		{
-			if ( PrimaryItem.IsValid() && PrimaryItem.TryContact( item, out var contact, out var a, out var b ) )
-				PlayWeaponClash( contact, a, b );
+			ClashWith( item );
 			body.Velocity = Animation.MoveVelocity;
 			body.AngularVelocity = new Vector3( Random.Shared.Float( -20f, 20f ), Random.Shared.Float( -20f, 20f ), Random.Shared.Float( -20f, 20f ) );
 			var height = Random.Shared.Next( 3 ) switch { 0 => "low", 1 => "med", _ => "high" };

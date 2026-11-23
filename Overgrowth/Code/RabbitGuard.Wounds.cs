@@ -110,8 +110,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( parried && defender.IsValid() && (defender.PrimaryItem.IsValid() || defender.MetalArmor) )
 		{
-			if ( PrimaryItem.IsValid() && defender.PrimaryItem.IsValid() && PrimaryItem.TryContact( defender.PrimaryItem, out var point, out var a, out var b ) )
-				PlayWeaponClash( point, a, b );
+			defender.ClashWith( PrimaryItem );
 			if ( !defender.PrimaryItem.IsValid() || Random.Shared.Next( 2 ) == 0 )
 			{
 				PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", position );
@@ -132,7 +131,7 @@ public sealed partial class RabbitGuard
 			}
 		}
 		if ( target.IsValid() ) ReportSound( target, position, HeardSound.Combat, 2f );
-		if ( defender.IsValid() ) defender.TryDisarm( strike.WorldImpact( direction, flippedAttack ) );
+		if ( defender.IsValid() ) defender.TryDisarm( strike.WorldImpact( direction, flippedAttack ), PrimaryItem );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -143,10 +142,11 @@ public sealed partial class RabbitGuard
 		mount.MetalSparks( position );
 	}
 
-	void TryDisarm( Vector3 direction )
+	void TryDisarm( Vector3 direction, LevelItem strikingWeapon = null )
 	{
 		var item = LeftHandItem.IsValid() ? LeftHandItem : RightHandItem;
 		if ( !item.IsValid() || CannotBeDisarmed || Random.Shared.Float() >= 0.2f ) return;
+		ClashWith( strikingWeapon );
 		DropHandItem();
 		var body = item.GetComponent<Rigidbody>();
 		body.Velocity = direction * 200f;
