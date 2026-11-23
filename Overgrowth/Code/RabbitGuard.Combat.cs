@@ -431,8 +431,10 @@ public sealed partial class RabbitGuard
 		var offset = strikeTarget.IsValid() ? CharacterCenter( strikeTarget ) - origin : Vector3.Zero;
 		bool reached = InStrikeReach( strikeTarget, offset );
 		var rabbit = reached ? strikeTarget.GetComponent<RabbitGuard>() : null;
+		bool wasUnaware = rabbit?.IsUnaware == true;
 		if ( rabbit is not null )
 		{
+			if ( rabbit.boundAnimations?.Species == "wolf" && !rabbit.knownCharacters.ContainsKey( GameObject ) ) rabbit.blockStun = 1f;
 			rabbit.NoticeAttacker( GameObject );
 			if ( rabbit.Downed || rabbit.RollProgress < 1f || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
 		}
@@ -441,7 +443,7 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
-		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike );
+		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware );
 		var direction = offset.Normal;
 		if ( strike.SharpMax > 0f )
 		{

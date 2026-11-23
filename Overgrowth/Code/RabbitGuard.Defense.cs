@@ -173,7 +173,7 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
+	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move, bool wasUnaware )
 	{
 		FadeKnifeAttack();
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
@@ -181,14 +181,27 @@ public sealed partial class RabbitGuard
 		var other = attacker.boundAnimations.Species;
 		bool wolfAdvantage = species == "wolf" && other != "wolf";
 		float blockDamage = Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage );
+		bool blockingWeapon = PrimaryItem.IsValid() && boundAnimations?.WeaponLabel != "knife" && !wasUnaware;
+		bool incomingWeapon = attacker.PrimaryItem.IsValid() && attacker.boundAnimations.WeaponLabel != "knife";
+		bool armedParry = incomingWeapon && (blockingWeapon || MetalArmor);
 		float cost = 1f;
 		if ( other == "dog" && species is not ("dog" or "wolf") ) cost += 0.5f;
 		if ( species == "rat" && other != "rat" ) cost += 0.5f;
+		bool sizeAdvantage = cost > 1f;
+		if ( strike is not null && incomingWeapon && blockingWeapon ) cost += 0.5f;
+		if ( move.Special == "legcannon" )
+		{
+			blockHealth = 0f;
+			if ( species != "wolf" ) KnockoutShield = Math.Max( 0, KnockoutShield - 2 );
+			else if ( KnockoutShield == 1 )
+			{
+				recoverableDamage = Health;
+				KnockoutShield = 0;
+			}
+		}
 		blockHealth = Math.Max( wolfAdvantage && move.Special != "legcannon" ? 0.1f : 0f, blockHealth - blockDamage * cost );
-		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || !IsOnGround || WorldScale.z < 0.8f || blockHealth <= 0f ) return false;
+		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || WorldScale.z < 0.8f || blockHealth <= 0f ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
-		bool blockingWeapon = PrimaryItem.IsValid() && boundAnimations.WeaponLabel != "knife" && startled <= 0f;
-		bool armedParry = attacker.PrimaryItem.IsValid() && attacker.boundAnimations.WeaponLabel != "knife" && (blockingWeapon || MetalArmor);
 		if ( !wolfAdvantage && move.SharpMax > 0f && !armedParry ) return false;
 		if ( !wolfAdvantage && species != "dog" && (startled > 0 || strike is not null && !armedParry || WorldRotation.Forward.Dot( direction ) > 0f) ) return false;
 		if ( wolfAdvantage && blockStun <= 0f )
@@ -214,7 +227,7 @@ public sealed partial class RabbitGuard
 		var clip = boundAnimations.Clips[animation];
 		MirroredAction = MirroredStance = reflected;
 		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
-		if ( cost > 1f ) ReceiveBlockImpact( attacker, move, 2f );
+		if ( sizeAdvantage ) ReceiveBlockImpact( attacker, move, 2f );
 		Speak( "block_hit" );
 		return true;
 	}
