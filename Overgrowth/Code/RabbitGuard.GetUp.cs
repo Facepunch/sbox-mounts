@@ -129,6 +129,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( Renderer.IsValid() ) Renderer.ClearPhysicsBones();
 		armsActive = earsActive = plantedLegs = chestActive = false;
+		ClearFootContacts();
 		ResetBodyLean();
 	}
 

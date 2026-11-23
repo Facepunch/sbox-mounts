@@ -130,6 +130,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			}
 			return;
 		}
+		if ( !Animation.IsGrounded ) ClearFootContacts();
 		if ( !Networking.IsHost && lastPhysicsPose is not null && recoveryRate == 0f )
 		{
 			if ( RecoveredInAir ) BeginRecovery( 4f );

@@ -123,6 +123,12 @@ public sealed partial class RabbitGuard
 		SolveStance();
 	}
 
+	void ClearFootContacts()
+	{
+		Array.Clear( groundHeight );
+		Array.Fill( footRotation, Rotation.Identity );
+	}
+
 	void ReleaseStanceFeet( float dt )
 	{
 		hasStanceAnchors = false;
@@ -163,7 +169,6 @@ public sealed partial class RabbitGuard
 				contact = true;
 			}
 		}
-		if ( !contact ) groundHeight[side] = null;
 		var basis = Renderer.WorldTransform;
 		stanceFoot[side] = basis.ToLocal( result );
 		groundCorrection[side] = contact ? stanceFoot[side].Position - basis.PointToLocal( original ) : null;
