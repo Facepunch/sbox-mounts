@@ -145,7 +145,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
 		bool canLook = DragStrength <= 0f && (GazeMovementState || boundAnimations.AttackStates.Contains( Stance ));
 		headMotion = chestMotion = null;
-		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		if ( Networking.IsHost )
 		{
 			bool needsCombatPose = NeedsCombatPose();
@@ -166,6 +165,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
+		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		if ( pose == Wall )
 		{
 			if ( playing == Wall ) ReadWallPose();

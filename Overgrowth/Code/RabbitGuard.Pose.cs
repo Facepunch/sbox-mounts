@@ -49,7 +49,8 @@ public sealed partial class RabbitGuard
 		parameters.TryGetFloat( "tall_coord", out float height );
 		parameters.TryGetFloat( "threat_coord", out float threat );
 		parameters.TryGetFloat( "close_coord", out float close );
-		ReadMovementPose( boundAnimations.Movement, boundAnimations.MovementRig, new( speed, height, threat, close ), phase, MirroredStance );
+		parameters.TryGetBool( "mirrored_pose", out bool mirrored );
+		ReadMovementPose( boundAnimations.Movement, boundAnimations.MovementRig, new( speed, height, threat, close ), phase, mirrored );
 	}
 
 	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored )
