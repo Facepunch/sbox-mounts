@@ -103,7 +103,11 @@ internal sealed class CharacterAnimationLibrary
 	{
 		var key = (name, motion, data, mirrored);
 		if ( data != RabbitClip.PoseData.Gait && clips.TryGetValue( (name, motion, RabbitClip.PoseData.Gait, mirrored), out var gait ) ) return gait;
-		if ( data == RabbitClip.PoseData.Pose && clips.TryGetValue( (name, motion, RabbitClip.PoseData.Blend, mirrored), out var blend ) ) return blend;
+		if ( data == RabbitClip.PoseData.Pose )
+		{
+			if ( clips.TryGetValue( (name, motion, RabbitClip.PoseData.ActionIK, mirrored), out var action ) ) return action;
+			if ( clips.TryGetValue( (name, motion, RabbitClip.PoseData.Blend, mirrored), out var blend ) ) return blend;
+		}
 		if ( !clips.TryGetValue( key, out var clip ) )
 			clips[key] = clip = RabbitClip.Load( fs, $"{path}/clips/{motion}/{data.ToString().ToLowerInvariant()}", Rig, Skeleton, name,
 				SourceFor( name ), Morphs, data: data, centerMotion: motion, mirror: mirrored ? Mirror : null );

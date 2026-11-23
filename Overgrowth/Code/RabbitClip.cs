@@ -146,7 +146,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, PoseData data, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
-		bool sampleFeet = data is PoseData.Gait or PoseData.ActionIK;
+		bool sampleLimbs = data is PoseData.Gait or PoseData.ActionIK;
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
 		int count = Count();
@@ -224,7 +224,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 				if ( label.StartsWith( "unsheathe", StringComparison.Ordinal ) ) drawTime = time * 0.001f;
 			}
-			var limbBones = sampleFeet ? new LimbChain?[data == PoseData.ActionIK ? 4 : 2] : null;
+			var limbBones = sampleLimbs ? new LimbChain?[4] : null;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
@@ -238,7 +238,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
 				int limb = label switch { "left_leg" => 0, "right_leg" => 1, "leftarm" => 2, "rightarm" => 3, _ => -1 };
-				if ( sampleFeet && (uint)limb < limbBones.Length && length > 0 ) limbBones[limb] = new( anchor, end );
+				if ( sampleLimbs && (uint)limb < limbBones.Length && length > 0 ) limbBones[limb] = new( anchor, end );
 			}
 			int shapes = Count();
 			var shapeWeights = new float[morphs.Length];
@@ -293,7 +293,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				CenterMotion.Extract => retarget.ScaleOffset( savedCenter ),
 				_ => Vector3.Zero
 			};
-			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, limbBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleLimbs ? pose : null, limbBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -313,8 +313,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int boneCount = rig.BoneCount;
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
-		LimbPose[][] feet = sampleFeet ? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
-		LimbPose[][] hands = data == PoseData.ActionIK && keys.Any( key => key.LimbBones[2].HasValue || key.LimbBones[3].HasValue )
+		LimbPose[][] feet = sampleLimbs ? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
+		LimbPose[][] hands = sampleLimbs && keys.Any( key => key.LimbBones[2].HasValue || key.LimbBones[3].HasValue )
 			? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
 		float[] magnitudes = data is PoseData.Blend or PoseData.Gait ? new float[(intervals + 1) * boneCount] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
@@ -400,7 +400,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
 				var root = new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) );
 				roots[i] = mirror is null ? root : RabbitMirror.Reflect( root );
-				if ( sampleFeet )
+				if ( sampleLimbs )
 				{
 					// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
 					for ( int limb = 0; limb < (hands is null ? 2 : 4); limb++ )
