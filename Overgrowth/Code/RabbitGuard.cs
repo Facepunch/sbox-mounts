@@ -69,6 +69,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
 			// Overgrowth reseeds secondary motion for four animation updates after a discontinuity.
 			secondaryReset = 4f * (4f / 120f);
+			motionSamples = 0;
 			leanBones = null;
 			Renderer.Animation.Graph = ready.Graph;
 			connectedPatrolAnimation = null;

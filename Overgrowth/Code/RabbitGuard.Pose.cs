@@ -4,6 +4,10 @@ public sealed partial class RabbitGuard
 {
 	Model poseModel;
 	Transform[] animationPose, solvedPose;
+	Transform[] previousMotionPose, currentMotionPose;
+	Transform previousMotionRoot, currentMotionRoot;
+	float motionStep;
+	int motionSamples;
 	bool[] overridden;
 	int[] poseParents, recoveryParents;
 
@@ -98,6 +102,9 @@ public sealed partial class RabbitGuard
 			int count = poseModel.BoneCount;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
+			previousMotionPose = new Transform[count];
+			currentMotionPose = new Transform[count];
+			motionSamples = 0;
 			overridden = new bool[count];
 			poseParents = new int[count];
 			recoveryParents = new int[count];
@@ -143,7 +150,42 @@ public sealed partial class RabbitGuard
 			overridden[i] = false;
 		}
 		if ( recoveryRate > 0f ) BlendRecoveryPose();
+		// Binding a graph leaves the bind pose visible until its first evaluation.
+		if ( Networking.IsHost && playing is not null && Time.Delta > 0f )
+		{
+			(previousMotionPose, currentMotionPose) = (currentMotionPose, previousMotionPose);
+			System.Array.Copy( solvedPose, currentMotionPose, solvedPose.Length );
+			previousMotionRoot = currentMotionRoot;
+			currentMotionRoot = model;
+			motionStep = Time.Delta;
+			motionSamples = System.Math.Min( 2, motionSamples + 1 );
+		}
 		foreach ( var bone in poseModel.Bones.AllBones )
 			Renderer.SetBoneTransform( bone, solvedPose[bone.Index] );
+	}
+
+	// RiggedObject gives the physics bodies the velocity between its last two solved
+	// animation frames. Display-only breathing and changes of renderer graph are excluded.
+	void InheritPoseMotion( ModelPhysics target )
+	{
+		foreach ( var part in target.Bodies )
+		{
+			var body = part.Component;
+			if ( !body.IsValid() ) continue;
+			if ( motionSamples < 2 || poseModel != target.Model )
+			{
+				body.Velocity = Animation.MoveVelocity;
+				body.AngularVelocity = Vector3.Zero;
+				continue;
+			}
+			var from = previousMotionRoot.ToWorld( previousMotionPose[part.Bone] );
+			var to = currentMotionRoot.ToWorld( currentMotionPose[part.Bone] );
+			var center = body.PhysicsBody.LocalMassCenter;
+			// Physics local mass centers are already scaled when the collider is built.
+			body.Velocity = (to.Position - from.Position + to.Rotation * center - from.Rotation * center) / motionStep;
+			var turn = to.Rotation * from.Rotation.Inverse;
+			var axis = new Vector3( turn.x, turn.y, turn.z ).Normal;
+			body.AngularVelocity = axis * ((turn.w < 0f ? -1f : 1f) * turn.Angle().DegreeToRadian() / motionStep);
+		}
 	}
 }

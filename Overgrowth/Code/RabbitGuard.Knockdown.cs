@@ -136,8 +136,14 @@ public sealed partial class RabbitGuard
 
 	void GoLimp()
 	{
+		sinceKnockdown = 0f;
+		if ( Downed && ragdoll is { Active: true } )
+		{
+			ragdoll.GetComponent<RagdollDamping>()?.Refresh();
+			return;
+		}
 		EndLedge();
-		sinceKnockdown = fallAge = sinceRagdollImpact = 0;
+		fallAge = sinceRagdollImpact = 0;
 		limpStun = 0f;
 		displayingRoll = false;
 		RecoveredInAir = false;
@@ -159,6 +165,8 @@ public sealed partial class RabbitGuard
 		ragdoll.CopyBonesFrom( Renderer, true );
 		ReleaseProceduralPose();
 		ragdoll.Enabled = true;
+		InheritPoseMotion( ragdoll );
+		motionSamples = 0;
 		ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 		foreach ( var part in ragdoll.Bodies )
 		{
@@ -214,6 +222,18 @@ public sealed partial class RabbitGuard
 			}
 			var damping = corpse.GetOrAddComponent<RagdollDamping>();
 			damping.Reset( physics );
+			if ( Downed && ragdoll is { Active: true } )
+			{
+				var liveBodies = ragdoll.Bodies.ToDictionary( b => b.Bone, b => b.Component );
+				foreach ( var part in physics.Bodies )
+				{
+					if ( !part.Component.IsValid() || !liveBodies.TryGetValue( part.Bone, out var live ) || !live.IsValid() ) continue;
+					part.Component.WorldTransform = live.WorldTransform;
+					part.Component.Velocity = live.Velocity;
+					part.Component.AngularVelocity = live.AngularVelocity;
+				}
+			}
+			else InheritPoseMotion( physics );
 			if ( extractionDeath ) corpse.GetOrAddComponent<RagdollInjury>().QueueDeathVoice();
 			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
 				corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
