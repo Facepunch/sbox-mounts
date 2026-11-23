@@ -17,11 +17,12 @@ public sealed partial class RabbitGuard
 	bool TryCounterThrow()
 	{
 		if ( !wantsBlockThrow || throwRecharge > 0 ) return false;
-		var reach = (boundAnimations.CharacterScale + 0.45f) * 40f;
+		var reach = CloseAttackRange + 0.45f * 40f;
+		var center = CharacterCenter( GameObject );
 		var victim = Scene.GetAllComponents<RabbitGuard>()
-			.Where( g => g.Active && g.stunnedBy == this && g.blockStun > 0 && !g.Downed && CanAttack( g.GameObject ) )
-			.MinBy( g => g.WorldPosition.DistanceSquared( WorldPosition ) );
-		if ( !victim.IsValid() || victim.WorldPosition.DistanceSquared( WorldPosition ) > reach * reach ) return false;
+			.Where( g => g.Active && g.stunnedBy == this && g.blockStun > 0 && !g.Downed && g.boundAnimations?.Species != "wolf" && CanAttack( g.GameObject ) )
+			.MinBy( g => CharacterCenter( g.GameObject ).DistanceSquared( center ) );
+		if ( !victim.IsValid() || CharacterCenter( victim.GameObject ).DistanceSquared( center ) > reach * reach ) return false;
 		var facing = (victim.WorldPosition - WorldPosition).WithZ( 0 );
 		if ( facing.IsNearlyZero() ) return false;
 
