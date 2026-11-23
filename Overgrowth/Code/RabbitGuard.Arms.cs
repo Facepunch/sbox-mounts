@@ -24,6 +24,7 @@ public sealed partial class RabbitGuard
 		var velocity = Animation.MoveVelocity;
 		float speedRatio = Math.Clamp( velocity.Length / GroundRunSpeed, 0f, 1f );
 		float loose = Animation.IsGrounded ? (CombatPosture ? 0f : 1f - speedRatio) : 0.7f;
+		if ( RollProgress < 1f ) loose = 0f;
 		SolveArms( dt, velocity, breathAmount, loose );
 	}
 
