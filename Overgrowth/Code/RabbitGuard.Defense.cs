@@ -131,7 +131,7 @@ public sealed partial class RabbitGuard
 			}
 			else
 			{
-				EndGetUpBlend();
+				EndRecovery();
 				CapturePhysicsPose();
 				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 				StartGetUp( BlockFromGround );

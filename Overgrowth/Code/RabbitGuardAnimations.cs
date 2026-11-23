@@ -89,7 +89,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var mirroredPose = graph.BoolParameter( "mirrored_pose" );
 		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
 		var flinchWeight = graph.FloatParameter( "block_flinch" );
-		var fallPoseWeight = graph.FloatParameter( "fall_pose_weight" );
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
@@ -161,7 +160,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.Roll )
 			{
 				var roll = character.Element( "animations" ).Attribute( "roll" );
-				return machine.AddState( graph.ExternalGraphSlot( name, MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) ) );
+				return machine.AddState( MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) );
 			}
 			if ( name == RabbitGuard.FreeAir )
 			{
@@ -220,8 +219,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( CombatPose( clip, attackPhase ) );
-			if ( RabbitGuard.IsGetUp( name ) )
-				return machine.AddState( graph.ExternalGraphSlot( name, CombatPose( clip, reactionPhase ) ) );
 			if ( throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || guards.ContainsKey( name ) )
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
@@ -234,7 +231,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			string target = names[i];
 			var condition = graph.IdCompare( stance, target );
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
-			// Get-up already blends from the captured ragdoll pose inside its graph slot.
+			// Get-up already blends from the captured ragdoll pose after the full body is posed.
 			float duration = target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			foreach ( var previous in states )
@@ -292,8 +289,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
-		var fallPose = graph.ExternalGraphSlot( RabbitGuard.FallRecovery );
-		output = graph.Blend( output, fallPose, fallPoseWeight );
 		var patrolGraphs = new Dictionary<string, Graph>( System.StringComparer.OrdinalIgnoreCase );
 		Graph LoadPatrolGraph( string file )
 		{

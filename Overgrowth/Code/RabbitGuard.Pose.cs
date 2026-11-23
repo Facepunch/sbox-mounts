@@ -5,7 +5,7 @@ public sealed partial class RabbitGuard
 	Model poseModel;
 	Transform[] animationPose, solvedPose;
 	bool[] overridden;
-	int[] poseParents;
+	int[] poseParents, recoveryParents;
 
 	Transform[] gaitPose, originalGaitPose;
 	int[] rigIndices;
@@ -85,9 +85,9 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	void SetPoseBone( BoneCollection.Bone bone, Transform modelSpace )
+	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || poseParents is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null )
 		{
 			poseModel = Renderer.Model;
 			int count = poseModel.BoneCount;
@@ -95,17 +95,24 @@ public sealed partial class RabbitGuard
 			solvedPose = new Transform[count];
 			overridden = new bool[count];
 			poseParents = new int[count];
+			recoveryParents = new int[count];
 			foreach ( var modelBone in poseModel.Bones.AllBones )
 			{
 				var parent = modelBone.Parent;
 				while ( parent is not null && boundAnimations.UnweightedBones.Contains( parent.Name ) )
 					parent = parent.Parent;
+				recoveryParents[modelBone.Index] = parent?.Index ?? -1;
 				// DrawArms and DrawHead also carry their unweighted child joints.
 				bool followsEnd = parent is not null && (parent.Name == boundAnimations.HeadBone || boundAnimations.Arms.Any( arm => arm[0].Bone == parent.Name ));
 				poseParents[modelBone.Index] = followsEnd || !boundAnimations.UnweightedBones.Contains( modelBone.Name )
 					? parent?.Index ?? -1 : -1;
 			}
 		}
+	}
+
+	void SetPoseBone( BoneCollection.Bone bone, Transform modelSpace )
+	{
+		EnsurePoseBuffers();
 		solvedPose[bone.Index] = modelSpace;
 		overridden[bone.Index] = true;
 	}
@@ -128,8 +135,10 @@ public sealed partial class RabbitGuard
 					? solvedPose[parent].ToWorld( animationPose[parent].ToLocal( animationPose[i] ) )
 					: animationPose[i];
 			}
-			Renderer.SetBoneTransform( bone, solvedPose[i] );
 			overridden[i] = false;
 		}
+		if ( recoveryRate > 0f ) BlendRecoveryPose();
+		foreach ( var bone in poseModel.Bones.AllBones )
+			Renderer.SetBoneTransform( bone, solvedPose[bone.Index] );
 	}
 }

@@ -1,138 +1,81 @@
 using System;
-using Sandbox.Animation;
 
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	string getUpSlot;
-	Transform[] lastPhysicsPose;
-	Graph getUpGraph;
-	Clip getUpPose;
-	internal const string FallRecovery = "fall_recovery";
-	float fallBlendAge, fallPoseWeight;
+	// Recovery is the last full-body pose operation in FinalAnimationMatrixUpdate.
+	// Blend the solved animation (including IK and roll), in the skeleton's weighted parent space.
+	Transform[] lastPhysicsPose, recoveryPose;
+	float recoveryRate;
+	TimeSince sinceRecovery;
+	int recoveryStep;
 
 	void CapturePhysicsPose()
 	{
-		var rig = boundAnimations.Rig;
-		lastPhysicsPose ??= new Transform[rig.BoneCount];
-		foreach ( var bone in rig.Bones )
-		{
-			if ( Renderer.TryGetBoneTransform( bone.Name, out var world ) )
-				lastPhysicsPose[bone.Index] = world;
-			else
-				lastPhysicsPose[bone.Index] = Renderer.WorldTransform.ToWorld( bone.Transform );
-		}
+		EnsurePoseBuffers();
+		var model = Renderer.WorldTransform;
+		var bones = poseModel.Bones.AllBones;
+		lastPhysicsPose ??= new Transform[bones.Count];
+		foreach ( var bone in bones )
+			lastPhysicsPose[bone.Index] = Renderer.TryGetBoneTransform( bone, out var world ) ? world : model.ToWorld( bone.LocalTransform );
 	}
 
-	Transform[] TakeLocalPhysicsPose()
+	void BeginRecovery( float rate )
 	{
-		var rig = boundAnimations.Rig;
-		var frame = new Transform[rig.BoneCount];
-		foreach ( var bone in rig.Bones )
-		{
-			var parent = bone.ParentIndex < 0 ? Renderer.WorldTransform : lastPhysicsPose[bone.ParentIndex];
-			frame[bone.Index] = parent.ToLocal( lastPhysicsPose[bone.Index] );
-		}
-
+		if ( lastPhysicsPose is null ) return;
+		recoveryPose = lastPhysicsPose;
 		lastPhysicsPose = null;
-		return frame;
-	}
-
-	void BeginFallBlend()
-	{
-		getUpSlot = FallRecovery;
-		fallBlendAge = 0f;
-		fallPoseWeight = 1f;
-		var clip = new ClipBuilder { Skeleton = boundAnimations.Rig };
-		clip.AddFrame( TakeLocalPhysicsPose() );
-		ConnectRecoveryPose( clip );
-		Renderer.Animation.Parameters.Set( "fall_pose_weight", fallPoseWeight );
-	}
-
-	void UpdateFallBlend()
-	{
-		fallBlendAge += Time.Delta;
-		// Each source animation update blends the previous result toward the live pose.
-		const float fade = 4f;
-		fallPoseWeight *= MathF.Pow( Math.Max( 0f, 1f - fallBlendAge * fade ), Time.Delta * 30f );
-		Renderer.Animation.Parameters.Set( "fall_pose_weight", fallPoseWeight );
-		if ( fallBlendAge >= 1f / fade ) EndGetUpBlend();
-	}
-
-	void BeginGetUpBlend()
-	{
-		var rig = boundAnimations.Rig;
-		var frame = TakeLocalPhysicsPose();
-		getUpSlot = Stance;
-		bool rolling = getUpSlot == Roll;
-		var stand = rolling ? RollClip( 0 ) : boundAnimations.Clips[getUpSlot].ForSide( MirroredAction );
-		var other = rolling ? RollClip( 1 ) : stand;
-		float frequency = rolling ? RollFrequency : 1f / stand.Duration;
-		float fadeRate = rolling ? 2f : 1f;
-		var duration = Math.Min( 1f / fadeRate, 1f / frequency );
-		int steps = (int)MathF.Ceiling( duration * 120f );
-		var clip = new ClipBuilder { Skeleton = rig, FrameRate = steps / duration };
-		clip.AddFrame( frame );
-		// aschar.as blends from the previous result towards the moving stand pose in parent space.
-		for ( int step = 1; step <= steps; step++ )
+		recoveryRate = rate;
+		recoveryStep = 0;
+		sinceRecovery = 0;
+		var model = Renderer.WorldTransform;
+		var bones = poseModel.Bones.AllBones;
+		// The collider has just moved to its standing origin. Keep the visible skeleton in place.
+		for ( int i = bones.Count - 1; i >= 0; i-- )
 		{
-			float time = step * duration / steps;
-			for ( int i = 0; i < frame.Length; i++ )
-			{
-				float phase = time * frequency;
-				var target = stand.Animation.GetLocalTransform( phase, i );
-				if ( rolling ) target = global::Transform.Lerp( target, other.Animation.GetLocalTransform( phase, i ), RollForwardness, false );
-				frame[i] = global::Transform.Lerp( frame[i], target, time * fadeRate, false );
-			}
-			clip.AddFrame( frame );
+			var bone = bones[i];
+			var world = recoveryPose[bone.Index];
+			Renderer.SetBoneTransform( bone, model.ToLocal( world ) );
+			int parent = recoveryParents[bone.Index];
+			recoveryPose[bone.Index] = parent >= 0 ? recoveryPose[parent].ToLocal( world ) : world.WithPosition( world.Position - WorldPosition );
 		}
-		foreach ( var channel in RabbitClip.StatusChannels )
-			AddTrack( "status", channel );
-		foreach ( var morph in boundAnimations.Morphs )
-			AddTrack( morph.Steps == 1 ? "MorphChannel" : "multistep", morph.Name );
-
-		void AddTrack( string set, string channel )
-		{
-			var weights = new float[steps + 1];
-			for ( int step = 1; step <= steps; step++ )
-			{
-				float time = step * duration / steps;
-				stand.Animation.TryGetFloatChannel( time * frequency, set, channel, out var value );
-				if ( rolling )
-				{
-					other.Animation.TryGetFloatChannel( time * frequency, set, channel, out var forward );
-					value += (forward - value) * RollForwardness;
-				}
-				weights[step] = time * fadeRate * value;
-			}
-			if ( weights.Any( w => w != 0f ) ) clip.AddFloatChannelTrack( set, channel, weights );
-		}
-		ConnectRecoveryPose( clip );
 	}
 
-	void ConnectRecoveryPose( ClipBuilder clip )
+	void BlendRecoveryPose()
 	{
-		getUpPose = clip.Create();
-		var graph = new GraphBuilder().WithSkeleton( boundAnimations.Rig );
-		getUpGraph = graph.Create( graph.Clip( getUpPose, new() { Looping = false, SampleRootMotion = false } ) );
-		Renderer.Animation.ExternalGraphs.Connect( getUpSlot, getUpGraph );
+		const float rate = 30f; // Four 120 Hz ticks per nearby NPC animation update.
+		float age = sinceRecovery;
+		if ( age >= 1f / recoveryRate ) { EndRecovery(); return; }
+		float frame = age * rate;
+		int step = (int)frame;
+		var model = Renderer.WorldTransform;
+		var bones = poseModel.Bones.AllBones;
+		// Iterate children first so the parent's target is still its unblended model-space pose.
+		for ( int i = bones.Count - 1; i >= 0; i-- )
+		{
+			int index = bones[i].Index, parent = recoveryParents[index];
+			var target = parent >= 0 ? solvedPose[parent].ToLocal( solvedPose[index] ) : model.ToWorld( solvedPose[index] );
+			if ( parent < 0 ) target.Position -= WorldPosition;
+			ref var previous = ref recoveryPose[index];
+			for ( int tick = recoveryStep + 1; tick <= step; tick++ )
+				previous = global::Transform.Lerp( previous, target, Weight( tick ), false );
+			var pose = global::Transform.Lerp( previous, target, Weight( step + 1 ) * (frame - step), false );
+			solvedPose[index] = parent >= 0 ? pose : model.ToLocal( pose.WithPosition( pose.Position + WorldPosition ) );
+		}
+		foreach ( var bone in bones )
+		{
+			int parent = recoveryParents[bone.Index];
+			if ( parent >= 0 ) solvedPose[bone.Index] = solvedPose[parent].ToWorld( solvedPose[bone.Index] );
+		}
+		recoveryStep = step;
+		float Weight( int tick ) => Math.Min( 1f, (tick / rate + 1f / 120f) * recoveryRate );
 	}
 
-	void EndGetUpBlend()
+	void EndRecovery()
 	{
-		lastPhysicsPose = null;
-		if ( getUpGraph is null ) return;
-		if ( Renderer.IsValid() )
-		{
-			if ( getUpSlot == FallRecovery ) Renderer.Animation.Parameters.Set( "fall_pose_weight", 0f );
-			if ( Renderer.Animation.ExternalGraphs.IsConnected( getUpSlot ) )
-				Renderer.Animation.ExternalGraphs.Disconnect( getUpSlot );
-		}
-		getUpGraph.Dispose();
-		getUpPose.Dispose();
-		getUpGraph = null;
-		getUpPose = null;
+		lastPhysicsPose = recoveryPose = null;
+		recoveryRate = 0f;
 	}
 
 	// ModelPhysics drives only bones with bodies. Every other bone must inherit its parent again.
@@ -146,7 +89,7 @@ public sealed partial class RabbitGuard
 	protected override void OnDisabled()
 	{
 		ReleaseProceduralPose();
-		EndGetUpBlend();
+		EndRecovery();
 		FollowLeader( null );
 		base.OnDisabled();
 	}

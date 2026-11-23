@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard
 			duckVelocity = 0f;
 		}
 		Movement.Stop();
-		if ( lastPhysicsPose is not null ) BeginGetUpBlend();
+		BeginRecovery( 2f );
 		Renderer.Animation.Parameters.Set( "stance", Roll );
 		playing = Roll;
 		bool quiet = boundAnimations.Species == "cat";

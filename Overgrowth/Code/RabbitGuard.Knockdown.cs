@@ -96,7 +96,7 @@ public sealed partial class RabbitGuard
 		RecoveredInAir = false;
 		rollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
 		RollProgress = 1f;
-		EndGetUpBlend();
+		EndRecovery();
 		// Older saved instances predate the explicit prefab reference.
 		MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
 		Movement.Stop();
@@ -211,7 +211,7 @@ public sealed partial class RabbitGuard
 			duckVelocity = 0f;
 			ReactionPhase = 1f;
 			Launch( velocity );
-			BeginFallBlend();
+			BeginRecovery( 4f );
 		}
 		else
 		{
@@ -240,7 +240,7 @@ public sealed partial class RabbitGuard
 		duckAmount = 1f;
 		duckVelocity = 0f;
 		Stance = stance;
-		if ( lastPhysicsPose is not null ) BeginGetUpBlend();
+		BeginRecovery( 1f );
 		Renderer.Animation.Parameters.Set( "stance", Stance );
 		Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
 		playing = Stance;

@@ -69,20 +69,17 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( Networking.IsHost ) TryGetUp();
 			else
 			{
-				if ( getUpGraph is not null ) EndGetUpBlend();
+				if ( recoveryRate > 0f ) EndRecovery();
 				CapturePhysicsPose();
 			}
 			return;
 		}
-		if ( !Networking.IsHost && lastPhysicsPose is not null && getUpGraph is null )
+		if ( !Networking.IsHost && lastPhysicsPose is not null && recoveryRate == 0f )
 		{
-			if ( RecoveredInAir ) BeginFallBlend();
-			else if ( IsGetUp( Stance ) || Stance == Roll ) BeginGetUpBlend();
+			if ( RecoveredInAir ) BeginRecovery( 4f );
+			else if ( IsGetUp( Stance ) || Stance == Roll ) BeginRecovery( Stance == Roll ? 2f : 1f );
 			else lastPhysicsPose = null;
 		}
-		if ( getUpGraph is not null && getUpSlot == FallRecovery ) UpdateFallBlend();
-		else if ( getUpGraph is not null && (Stance != getUpSlot || (getUpSlot == Roll ? RollProgress * 0.5f : ReactionPhase * boundAnimations.Clips[getUpSlot].Duration) >= getUpPose.Duration) )
-			EndGetUpBlend();
 		if ( Networking.IsHost ) UpdateGazeTarget();
 		UpdateRollDisplay();
 		UpdatePatrolPose();
