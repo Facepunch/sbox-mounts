@@ -91,17 +91,22 @@ public sealed partial class RabbitGuard
 		if ( strike is { AsLayer: false } )
 		{
 			float previousHeight = AttackHeight;
+			Vector3 targetOffset = default;
 			if ( strikeTarget.IsValid() )
 			{
 				AttackHeight = GetAttackHeight( strikeTarget );
-				var direction = strikeTarget.GetComponent<RabbitGuard>() is { IsDodging: true } ? WorldRotation.Forward
-					: CharacterCenter( strikeTarget ) - CharacterCenter( GameObject );
-				TurnDuringStrike( direction );
+				targetOffset = CharacterCenter( strikeTarget ) - CharacterCenter( GameObject );
+				TurnDuringStrike( strikeTarget.GetComponent<RabbitGuard>() is { IsDodging: true } ? WorldRotation.Forward : targetOffset );
 			}
 			bool blocked = Stance == strike.Blocked;
 			var blockClip = blocked ? boundAnimations.Clips[Stance].ForSide( MirroredAction ) : null;
 			var blend = blocked ? new RabbitAttack.Blend( blockClip, blockClip, 0f ) : strike.Sample( AttackHeight, MirroredAction );
 			var clip = blend.Events;
+			if ( strikeTarget.IsValid() )
+			{
+				bool beforeImpact = !blocked && clip.Impact is { } hit && AttackPhase < hit.Time / clip.Duration;
+				AdjustStrikeSpacing( targetOffset, strikeTarget.GetComponent<RabbitGuard>() is { Downed: true }, beforeImpact );
+			}
 			var previous = !blocked && previousHeight != AttackHeight ? strike.Sample( previousHeight, MirroredAction ) : blend;
 			var from = previous.Motion( AttackPhase );
 			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * AttackSpeed * blend.Frequency );
@@ -350,6 +355,27 @@ public sealed partial class RabbitGuard
 		float slowRadius = Math.Max( 0.2f * 40f, 40f - preferredRange );
 		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
 		return intent.LengthSquared > 1f ? intent.Normal : intent;
+	}
+
+	void AdjustStrikeSpacing( Vector3 offset, bool ragdolled, bool beforeImpact )
+	{
+		float distance = offset.Length;
+		if ( distance <= 0f ) return;
+		float correction, strength;
+		if ( ragdolled && distance < LegRadius * 2f )
+		{
+			correction = distance - LegRadius * 2f;
+			strength = 0.1f;
+		}
+		else if ( beforeImpact && distance > LegRadius * 3f && distance < LegRadius * 3f + 40f && GameDifficulty < 0.5f )
+		{
+			correction = distance - LegRadius * 3f;
+			strength = 0.1f * (1f - GameDifficulty * 2f);
+		}
+		else return;
+		// An AI script tick moves ten percent of the remaining distance at 30 Hz.
+		float blend = 1f - MathF.Pow( 1f - strength, Time.Delta * 30f );
+		MoveGroundDelta( offset * (correction * blend / distance) );
 	}
 
 	void TurnDuringStrike( Vector3 direction )
