@@ -16,6 +16,24 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	(BoneCollection.Bone Bone, Vector3 Center)[] physicsCenters = [];
 
+	// Fixed FZX bones keep their bind-space offset from the nearest simulated ancestor.
+	// Store their mean once so a ragdoll query only visits each live body once.
+	readonly Dictionary<int, (Vector3 Center, int Count)> ragdollCenters = new();
+
+	internal static Vector3? RagdollCenter( ModelPhysics physics )
+	{
+		if ( !physics.IsValid() || physics.Model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( physics.Model.ResourcePath ) is not CharacterLoader character ) return null;
+		Vector3 sum = default;
+		int count = 0;
+		foreach ( var part in physics.Bodies )
+		{
+			if ( !part.Component.IsValid() || !character.ragdollCenters.TryGetValue( part.Bone, out var group ) ) continue;
+			sum += part.Component.WorldTransform.PointToWorld( group.Center ) * group.Count;
+			count += group.Count;
+		}
+		return count > 0 ? sum / count : null;
+	}
+
 	internal static Vector3? AverageBodyPosition( SkinnedModelRenderer renderer )
 	{
 		if ( !renderer.IsValid() || renderer.Model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) is not CharacterLoader character ) return null;
@@ -216,7 +234,21 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
 		}
 		var model = builder.Create();
-		if ( guard ) physicsCenters = AttachmentCenters.Select( pair => (model.Bones.GetBone( $"bone_{pair.Key}" ), pair.Value) ).ToArray();
+		if ( guard )
+		{
+			physicsCenters = AttachmentCenters.Select( pair => (model.Bones.GetBone( $"bone_{pair.Key}" ), pair.Value) ).ToArray();
+			ragdollCenters.Clear();
+			foreach ( var (id, point) in bodyCenters )
+			{
+				int parent = id;
+				while ( parent >= 0 && (!bodyCenters.TryGetValue( parent, out var body ) || body.Fixed) ) parent = skeleton.HierParents[parent];
+				if ( parent < 0 ) continue;
+				int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
+				var group = ragdollCenters.GetValueOrDefault( index );
+				var local = skeleton.BindPose[parent].PointToLocal( point.Position );
+				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
+			}
+		}
 		NonCollidingBones = nonCollidingBones.Select( id => model.Bones.GetBone( $"bone_{id}" ).Index ).ToHashSet();
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );

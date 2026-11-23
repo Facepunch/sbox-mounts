@@ -219,23 +219,20 @@ public sealed partial class RabbitGuard
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
 		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && HasCombatTarget && startled <= 0f;
 		if ( !blockFacing.HasValue && sinceKnockdown < 1f && !canWakeRoll ) return false;
-		Vector3 center = default, velocity = default;
+		Vector3 velocity = default;
 		float mass = 0;
-		int count = 0;
 		foreach ( var body in ragdoll.Bodies )
 		{
 			var rb = body.Component;
 			if ( !rb.IsValid() ) continue;
-			center += rb.WorldPosition;
 			velocity += rb.Velocity * rb.Mass;
 			mass += rb.Mass;
-			count++;
 		}
-		if ( count == 0 || mass <= 0 ) return false;
+		if ( mass <= 0 ) return false;
 		velocity /= mass;
 		bool wakeRoll = !blockFacing.HasValue && (sinceKnockdown < 1f || velocity.LengthSquared >= 20f * 40f * 40f);
 		if ( wakeRoll && !canWakeRoll ) return false;
-		center /= count;
+		if ( CharacterLoader.RagdollCenter( ragdoll ) is not { } center ) return false;
 		var extent = MovementCapsule.WorldScale;
 		var capsule = new Capsule( MovementCapsule.Start * extent, MovementCapsule.End * extent, MovementCapsule.Radius * extent.x );
 		var ground = RecoverySupport( center );
