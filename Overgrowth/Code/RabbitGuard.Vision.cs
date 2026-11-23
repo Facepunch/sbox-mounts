@@ -8,6 +8,8 @@ public sealed partial class RabbitGuard
 	// Horizontal and vertical half angles in radians, followed by distance in metres.
 	[Property] public Vector3 FocusVision { get; set; } = new( 3.1417f * 0.2f, 3.1417f * 0.2f, 100f );
 	[Property] public Vector3 PeripheralVision { get; set; } = new( 3.1417f * 0.45f, 3.1417f * 0.45f, 4f );
+	[Property] public bool Omniscient { get; set; }
+	bool noticedAllCharacters;
 	VisionHull focusHull, peripheralHull;
 	readonly record struct KnownCharacter( Vector3 Position, bool Awake, bool Hostile );
 	readonly Dictionary<GameObject, KnownCharacter> knownCharacters = [];
@@ -76,8 +78,22 @@ public sealed partial class RabbitGuard
 		return (head.Position, head.Direction( offset.Forward ), head.Direction( offset.Left ), head.Direction( offset.Up ));
 	}
 
+	IEnumerable<GameObject> Characters() => Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
+			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
+			.Concat( Scene.GetAllComponents<CharacterRemains>().Select( remains => remains.GameObject ) );
+
 	void TrackEnemy()
 	{
+		if ( Omniscient && !noticedAllCharacters )
+		{
+			foreach ( var actor in Characters() )
+			{
+				if ( actor == GameObject || IsIgnoredPlayer( actor ) ) continue;
+				if ( !enemy.IsValid() && CanAttack( actor ) ) Remember( actor );
+				else NoticeCharacter( actor );
+			}
+		}
+		noticedAllCharacters = Omniscient;
 		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
 		{
 			seenHostiles.Remove( enemy );
@@ -88,7 +104,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( IsKnownThreat( enemy ) && !Sleeping )
 		{
-			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
+			visible = Omniscient || CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
 			if ( visible )
 			{
 				ObserveTarget( enemy, true );
@@ -120,12 +136,9 @@ public sealed partial class RabbitGuard
 		float attention = 0f;
 		bool detectedEnemy = false;
 		knownCasualties.RemoveWhere( ally => !ally.IsValid() || ally.GetComponent<RabbitGuard>() is { Unconscious: false } );
-		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
-			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
-			.Concat( Scene.GetAllComponents<CharacterRemains>().Select( remains => remains.GameObject ) );
-		var view = GetViewBasis();
+		var view = Omniscient ? default : GetViewBasis();
 		var observer = CharacterCenter( GameObject );
-		foreach ( var candidate in candidates )
+		foreach ( var candidate in Characters() )
 		{
 			var ally = candidate.GetComponent<RabbitGuard>();
 			if ( candidate == GameObject || IsIgnoredPlayer( candidate ) ) continue;
@@ -140,10 +153,13 @@ public sealed partial class RabbitGuard
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			bool hidden = concealed && ally.duckAmount >= 0.5f
 				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
-			var local = center - view.Position;
-			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
-			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
-			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally, remains ) ) continue;
+			if ( !Omniscient )
+			{
+				var local = center - view.Position;
+				local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
+				if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
+				if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally, remains ) ) continue;
+			}
 			if ( friendly || known ) NoticeCharacter( candidate );
 			if ( friendly )
 			{

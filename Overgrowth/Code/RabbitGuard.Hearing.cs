@@ -101,7 +101,7 @@ public sealed partial class RabbitGuard
 		if ( enemy.IsValid() )
 		{
 			if ( Fleeing || enemy != source ) return;
-			ObserveTarget( source, visible );
+			ObserveTarget( source, Omniscient || visible );
 			lastSeen = TargetPosition( source );
 			NoticeCharacter( source );
 			sinceEnemySeen = 0;
