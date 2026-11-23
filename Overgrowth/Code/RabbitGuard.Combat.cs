@@ -214,7 +214,7 @@ public sealed partial class RabbitGuard
 			repath = 0.2f;
 			if ( !investigating )
 			{
-				var intent = CombatApproach( ChaseDestination( destination ), out var point );
+				var intent = ChaseApproach( destination, out var point );
 				if ( !intent.IsNearlyZero() )
 					Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
 						visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
@@ -257,14 +257,19 @@ public sealed partial class RabbitGuard
 
 	bool TryStartStrike()
 	{
-		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
+		bool attacking = airResponse is AirResponse.Counter or AirResponse.KnockOffLedge || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
 		if ( !attacking || strike is not null || knifeCooldown > 0 ) return false;
 		if ( boundAnimations.Species == "wolf" && blockStun > 0.5f ) return false;
 
 		var target = FindStrikeTarget( out float distance );
 		if ( !target.IsValid() ) return false;
 		bool close = distance < CloseAttackRange;
-		int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
+		int attackClass = airResponse switch
+		{
+			AirResponse.KnockOffLedge => 0,
+			AirResponse.Counter => 1,
+			_ => Random.Shared.Next( 3 )
+		};
 		bool mirrored = Random.Shared.Next( 2 ) == 0;
 		var label = boundAnimations.WeaponLabel;
 		if ( label == "sword" && attackClass == 0 ) attackClass = 1;

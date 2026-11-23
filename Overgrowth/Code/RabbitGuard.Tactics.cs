@@ -34,12 +34,19 @@ public sealed partial class RabbitGuard
 		nextTactic = 1f;
 	}
 
-	enum AirResponse { None, Hold, Evade, Counter }
+	enum AirResponse { None, Hold, Evade, Counter, KnockOffLedge }
 	AirResponse airResponse;
 	GameObject airborneOpponent;
 
 	bool RespondToAirborneTarget( float distance )
 	{
+		if ( boundAnimations.Species != "wolf" && enemy.GetComponent<RabbitGuard>() is { OnLedge: true, Downed: false } )
+		{
+			airResponse = AirResponse.KnockOffLedge;
+			airborneOpponent = null;
+			preferredRange = 0f;
+			return true;
+		}
 		bool airborne = (GameDifficulty > 0.25f || (followerCount == 0 && !groupLeader.IsValid())) && boundAnimations.Species != "wolf" && enemy.GetComponent<RabbitGuard>() is not { Downed: true } && TargetIsAirborne( enemy );
 		if ( !airborne )
 		{
