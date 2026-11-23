@@ -338,7 +338,7 @@ public sealed partial class RabbitGuard
 		AttackHeight = GetAttackHeight( target );
 		impactPassed = false;
 		preparePassed = false;
-		predictability = attackHistory.Record( strike );
+		predictability = attackHistory.Record( strike, flippedAttack );
 		return true;
 	}
 

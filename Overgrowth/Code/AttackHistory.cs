@@ -7,14 +7,16 @@ internal sealed class AttackHistory
 {
 	readonly Dictionary<(RabbitAttack From, RabbitAttack To), float> transitions = new();
 	RabbitAttack previous;
+	string previousDirection;
 	TimeSince elapsed;
 
-	internal float Record( RabbitAttack move )
+	internal float Record( RabbitAttack move, bool flipped )
 	{
+		var direction = flipped ? move.Direction switch { "left" => "right", "right" => "left", _ => move.Direction } : move.Direction;
 		float score = 0.5f;
 		if ( previous is not null )
 		{
-			score += Similarity( previous.Direction, move.Direction, "left", "right" );
+			score += Similarity( previousDirection, direction, "left", "right" );
 			score += Similarity( previous.Height, move.Height, "low", "high" );
 			score += previous == move ? 0.15f : -0.15f;
 			if ( elapsed < 2f )
@@ -32,6 +34,7 @@ internal sealed class AttackHistory
 			}
 		}
 		previous = move;
+		previousDirection = direction;
 		elapsed = 0;
 		return score;
 	}
