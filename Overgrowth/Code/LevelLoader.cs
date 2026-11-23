@@ -132,6 +132,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					if ( parameter.Number( "val" ) is not { } value ) continue;
 					switch ( parameter.Attribute( "name" ) )
 					{
+						case "Hearing Modifier": fighter.HearingModifier = value; break;
 						case "Focus FOV horizontal": fighter.FocusVision = fighter.FocusVision.WithX( value ); break;
 						case "Focus FOV vertical": fighter.FocusVision = fighter.FocusVision.WithY( value ); break;
 						case "Focus FOV distance": fighter.FocusVision = fighter.FocusVision.WithZ( value ); break;

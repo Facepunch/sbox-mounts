@@ -112,6 +112,11 @@ public sealed partial class RabbitGuard
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayMaterialEvent( string step, Vector3 point, string surface, float gain )
 	{
+		if ( boundAnimations?.Species == "cat" )
+		{
+			if ( IsAudibleStep( step ) ) (step, gain) = ("leftcrouchwalkstep", 1f);
+			else if ( step is "leftcrouchwalkstep" or "rightcrouchwalkstep" ) gain = 0.3f;
+		}
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character )
 			mount.PlayMaterialEvent( character, GameObject, surface, step, point, gain );

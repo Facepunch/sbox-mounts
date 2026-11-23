@@ -226,7 +226,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void Remember( GameObject target, bool engage = true )
 	{
-		if ( engage && !enemy.IsValid() && !escortTarget.IsValid() )
+		if ( knownCharacters.Add( target ) && engage && !enemy.IsValid() && !escortTarget.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );

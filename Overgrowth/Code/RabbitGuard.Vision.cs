@@ -9,6 +9,7 @@ public sealed partial class RabbitGuard
 	[Property] public Vector3 FocusVision { get; set; } = new( 3.1417f * 0.2f, 3.1417f * 0.2f, 100f );
 	[Property] public Vector3 PeripheralVision { get; set; } = new( 3.1417f * 0.45f, 3.1417f * 0.45f, 4f );
 	VisionHull focusHull, peripheralHull;
+	readonly HashSet<GameObject> knownCharacters = [];
 
 	static bool InView( ref VisionHull hull, Vector3 settings, Vector3 center )
 	{
@@ -46,6 +47,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( strike is not null ) return;
 		visible = false;
+		knownCharacters.RemoveWhere( other => !other.IsValid() );
 		foreach ( var (other, seen) in seenHostiles )
 			if ( !other.IsValid() || Time.Now - seen >= 1f ) seenHostiles.Remove( other );
 		GameObject closest = null;
@@ -58,10 +60,11 @@ public sealed partial class RabbitGuard
 		foreach ( var candidate in candidates )
 		{
 			var ally = candidate.GetComponent<RabbitGuard>();
-			bool fallenAlly = ally is { Unconscious: true } && ally != this && GetDisposition( candidate ) == Disposition.Friendly;
-			if ( !fallenAlly && !CanAttack( candidate ) ) continue;
+			if ( candidate == GameObject || IsIgnoredPlayer( candidate ) ) continue;
+			bool friendly = GetDisposition( candidate ) == Disposition.Friendly;
+			if ( !friendly && !CanAttack( candidate ) ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
-			bool concealed = !fallenAlly && ally is { InvisibleWhenStationary: true };
+			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			if ( concealed && ally.duckAmount >= 0.5f
 				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
 			var center = TargetPosition( candidate ) + (ally is { Downed: true } ? Vector3.Zero : Vector3.Up * 18f);
@@ -69,9 +72,10 @@ public sealed partial class RabbitGuard
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
 			if ( !CanSeeCharacter( candidate, ally ) ) continue;
-			if ( fallenAlly )
+			if ( friendly )
 			{
-				NoticeCasualty( ally );
+				knownCharacters.Add( candidate );
+				if ( ally is { Unconscious: true } ) NoticeCasualty( ally );
 				continue;
 			}
 			seenHostiles[candidate] = Time.Now;

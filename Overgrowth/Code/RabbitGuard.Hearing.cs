@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	enum HeardSound { Footstep, LoudFoley, Combat, Voice }
+	[Property] public float HearingModifier { get; set; } = 1f;
 	GameObject escortTarget;
 	float suspicion;
 	TimeSince sinceSound;
@@ -13,6 +14,11 @@ public sealed partial class RabbitGuard
 	void ReportFootstep( string step, Vector3 position )
 	{
 		if ( !Networking.IsHost ) return;
+		if ( boundAnimations?.Species == "cat" && IsAudibleStep( step ) )
+		{
+			ReportSound( GameObject, position, HeardSound.Footstep, 2f );
+			return;
+		}
 		switch ( step )
 		{
 			case "leftrunstep": case "rightrunstep":
@@ -27,13 +33,19 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	static bool IsAudibleStep( string step ) => step is "leftrunstep" or "rightrunstep" or "leftwalkstep" or "rightwalkstep"
+		or "leftstep" or "rightstep" or "leftwallstep" or "rightwallstep";
+
 	void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
 	{
-		// Rabbit hearing doubles the event radius. Overgrowth expresses the radius in metres.
-		float range = radius * 2f * 40f;
+		if ( !source.IsValid() || IsIgnoredPlayer( source ) ) return;
+		// AISound broadcasts to character spheres within twice the event radius.
+		float broadcastRange = (2f * radius + 0.5f) * 40f;
+		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && IsLiveTarget( source );
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
-			if ( !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Downed || guard.hearingReady > 0 ||
+			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
+			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Downed || guard.hearingReady > 0 ||
 				guard.WorldPosition.DistanceSquared( position ) >= range * range ) continue;
 			if ( guard.enemy.IsValid() )
 			{
@@ -42,7 +54,9 @@ public sealed partial class RabbitGuard
 				guard.sinceEnemySeen = 0;
 				continue;
 			}
-			if ( guard.escortTarget.IsValid() || (sound != HeardSound.Voice && !guard.CanAttack( source )) ) continue;
+			if ( guard.escortTarget.IsValid() || !awake ) continue;
+			bool knownAlly = guard.knownCharacters.Contains( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
+			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation) ) continue;
 			guard.suspicion = guard.CurrentSuspicion +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
 			guard.sinceSound = 0;
@@ -67,6 +81,12 @@ public sealed partial class RabbitGuard
 	bool FollowHeardVoice()
 	{
 		if ( !escortTarget.IsValid() ) return false;
+		if ( IsIgnoredPlayer( escortTarget ) )
+		{
+			escortTarget = null;
+			Movement.Stop();
+			return false;
+		}
 		var position = TargetPosition( escortTarget );
 		if ( !IsLiveTarget( escortTarget ) )
 		{
