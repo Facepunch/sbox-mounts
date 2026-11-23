@@ -2,7 +2,7 @@ using System;
 
 namespace Overgrowth;
 
-public sealed class ClashParticle : Component
+public sealed class StretchedParticle : Component
 {
 	internal sealed record Definition( Sprite Sprite, Color Tint, bool Additive, float MinSize, float MaxSize,
 		float Inertia, float Gravity, float Wind, float SizeDecay, float OpacityDecay );
@@ -12,13 +12,13 @@ public sealed class ClashParticle : Component
 	Vector3 position, velocity;
 	float diameter, age, remainder;
 
-	internal static void Emit( Definition particle, Vector3 point )
+	internal static void Emit( Definition particle, Vector3 point, Vector3 velocity, string name )
 	{
-		var go = new GameObject( false, "Weapon clash particle" ) { WorldPosition = point, NetworkMode = NetworkMode.Never };
-		var effect = go.AddComponent<ClashParticle>();
+		var go = new GameObject( false, name ) { WorldPosition = point, NetworkMode = NetworkMode.Never };
+		var effect = go.AddComponent<StretchedParticle>();
 		effect.particle = particle;
 		effect.position = point;
-		effect.velocity = new Vector3( Random.Shared.Float( -200f, 200f ), Random.Shared.Float( -200f, 200f ), Random.Shared.Float( -200f, 200f ) );
+		effect.velocity = velocity;
 		effect.diameter = Random.Shared.Float( particle.MinSize, particle.MaxSize ) * 40f;
 		effect.sprite = go.AddComponent<SpriteRenderer>();
 		effect.sprite.Sprite = particle.Sprite;
@@ -71,7 +71,7 @@ public sealed class ClashParticle : Component
 
 public partial class GameMount
 {
-	readonly Dictionary<string, ClashParticle.Definition> clashParticles = new();
+	readonly Dictionary<string, StretchedParticle.Definition> stretchedParticles = new();
 	float? clashFlashRadius;
 
 	internal void MetalSparks( Vector3 point )
@@ -95,7 +95,17 @@ public partial class GameMount
 	internal void EmitClashParticles( string name, Vector3 point, int count )
 	{
 		if ( count == 0 ) return;
-		if ( !clashParticles.TryGetValue( name, out var particle ) )
+		var particle = GetStretchedParticle( name );
+		for ( int i = 0; i < count; i++ )
+		{
+			var velocity = new Vector3( Random.Shared.Float( -200f, 200f ), Random.Shared.Float( -200f, 200f ), Random.Shared.Float( -200f, 200f ) );
+			StretchedParticle.Emit( particle, point, velocity, "Weapon clash particle" );
+		}
+	}
+
+	internal StretchedParticle.Definition GetStretchedParticle( string name )
+	{
+		if ( !stretchedParticles.TryGetValue( name, out var particle ) )
 		{
 			var root = XmlAsset.Read( FileSystem, $"Data/Particles/{name}.xml", "particle" );
 			var texture = root.Element( "textures" );
@@ -106,8 +116,8 @@ public partial class GameMount
 			particle = new( Sprite.FromTexture( LoadTexture( texture.Attribute( "color_map" ) ) ), tint, texture.Attribute( "shader" ) == "glowsprite",
 				size.Number( "min" ).Value, size.Number( "max" ).Value, behavior.Number( "inertia" ).Value, behavior.Number( "gravity" ).Value,
 				behavior.Number( "wind" ).Value, behavior.Number( "size_decay_rate" ).Value, behavior.Number( "opacity_decay_rate" ).Value );
-			clashParticles.Add( name, particle );
+			stretchedParticles.Add( name, particle );
 		}
-		for ( int i = 0; i < count; i++ ) ClashParticle.Emit( particle, point );
+		return particle;
 	}
 }

@@ -8,6 +8,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 {
 	XmlAsset itemDefinition;
 	internal List<Vector3> PlantPoints { get; private set; }
+	internal List<Vector3> PlantCloud { get; private set; }
 	internal ItemSharpness Sharpness { get; private set; }
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 
@@ -41,7 +42,8 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		}
 
 		var data = ObjLoader.Load( Host.FileSystem, modelPath );
-		if ( plantColorMap is not null ) PlantPoints = PlantHull.Load( Host, modelPath, plantColorMap, data );
+		if ( plantColorMap is not null )
+			(PlantPoints, PlantCloud) = PlantHull.Load( Host, modelPath, plantColorMap, data );
 		if ( !string.IsNullOrWhiteSpace( sharpnessMap ) ) Sharpness = new( Host, sharpnessMap, data );
 		var builder = Model.Builder.WithName( Path )
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );
