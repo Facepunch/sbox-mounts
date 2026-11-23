@@ -187,6 +187,7 @@ public sealed partial class RabbitGuard
 				if ( part.Bone == head.Index ) listener.Head = true;
 		}
 		Downed = true;
+		if ( holdPartner.IsValid() ) ReleaseHold();
 	}
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
