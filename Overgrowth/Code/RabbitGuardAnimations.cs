@@ -89,6 +89,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
+		coordinates["speed_coord"] = speed;
 		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
 		{
 			if ( file.EndsWith( ".anm" ) )
@@ -110,6 +111,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return blend;
 		}
 		var ordinaryPose = graph.Not( mirroredPose );
+		GraphBuilder.Node WithEquipment( GraphBuilder.Node pose, string slot, bool mirrored )
+		{
+			var path = item?.Element( "anim_blend" )?.Attribute( slot );
+			if ( path is null ) return pose;
+			var layer = AnimationGroup( path, "stride_phase", mirrored: mirrored );
+			var mask = mount.WeaponStances[path].Mask( graph, coordinates, mirrored );
+			return graph.Layers( pose ).AddLayer( layer, new() { BoneMask = mask, Weight = graph.Constant( 1f ), IgnoreEvents = true } );
+		}
 		GraphBuilder.Node CombatStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) =>
 			graph.Selector().Add( ordinary, ordinaryPose ).Add( reflected, mirroredPose );
 
@@ -164,7 +173,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.PatrolIdle )
 				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( "Data/Animations/r_relaxidle.xml" ) ) );
 			if ( name == RabbitGuard.Idle )
-				return machine.AddState( MovementStance( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ) ) );
+				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), "idle", false ),
+					WithEquipment( AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ), "idle", true ) ) );
 			if ( name == RabbitGuard.Roll )
 			{
 				var roll = AnimationPath( "roll" );
@@ -178,11 +188,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			if ( name == RabbitGuard.Threat )
 			{
 				var idle = AnimationPath( "idle" );
-				return machine.AddState( MovementStance( AnimationGroup( idle, "stride_phase" ), AnimationGroup( idle, "stride_phase", mirrored: true ) ) );
+				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( idle, "stride_phase" ), "idle", false ),
+					WithEquipment( AnimationGroup( idle, "stride_phase", mirrored: true ), "idle", true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
 			{
-				GraphBuilder.Node Gait( bool mirrored ) => movement.Build( graph, label => label == "speed_coord" ? speed : coordinates[label], phase, mirrored );
+				GraphBuilder.Node Gait( bool mirrored ) => WithEquipment( movement.Build( graph, label => coordinates[label], phase, mirrored ), "movement", mirrored );
 				return machine.AddState( MovementStance( Gait( false ), Gait( true ) ) );
 			}
 			if ( bodyAttacks.TryGetValue( name, out var attack ) )

@@ -77,16 +77,51 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	}
 
 	// Read the authored first-key weights of a constant-mask animation layer.
-	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones )
+	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones, RabbitMirror mirror = null, IReadOnlySet<string> floatChannels = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( path ) );
-		ReadHeader( reader, path );
+		var (version, _, _, _, _) = ReadHeader( reader, path );
 		if ( reader.ReadInt32() <= 0 ) throw new InvalidDataException( $"Empty layer {path}" );
 		reader.ReadInt32(); // First key time
 		int count = reader.ReadInt32();
 		if ( count > bones || count < 0 ) throw new InvalidDataException( $"Invalid layer weights in {path}" );
-		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? Math.Clamp( reader.ReadSingle(), 0f, 1f ) : 0f );
+		var mask = Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{mirror?.Opposite( i ) ?? i}", i => i < count ? Math.Clamp( reader.ReadSingle(), 0f, 1f ) : 0f );
+		if ( floatChannels is null ) return mask;
+
+		void Skip( long bytes ) => reader.BaseStream.Position += bytes;
+		string Label() => Encoding.UTF8.GetString( reader.ReadBytes( reader.ReadInt32() ) );
+		Skip( reader.ReadInt32() * 64L );
+		int items = version >= 7 ? reader.ReadInt32() : 0;
+		for ( int i = 0; i < items; ++i )
+		{
+			Skip( 64 );
+			if ( version < 8 ) continue;
+			int relative = reader.ReadInt32();
+			if ( reader.ReadSingle() > 0f && i == 0 && (uint)relative < bones )
+				foreach ( var name in WeaponPoseTrack.Names( mirror?.Opposite( relative ) ?? relative ) ) mask[name] = 1f;
+		}
+		if ( version >= 9 && reader.ReadBoolean() ) Skip( 64 );
+		int events = reader.ReadInt32();
+		for ( int i = 0; i < events; ++i ) { Skip( 4 ); Skip( reader.ReadInt32() ); }
+		int ik = reader.ReadInt32();
+		for ( int i = 0; i < ik; ++i ) { Skip( 24 ); Skip( reader.ReadInt32() * 4L ); Skip( reader.ReadInt32() ); }
+		void ReadChannels( int length )
+		{
+			for ( int i = 0; i < length; ++i )
+			{
+				Skip( 4 );
+				var label = Label();
+				if ( mirror is not null ) label = MirroredChannel( label );
+				if ( floatChannels.Contains( label ) ) mask[label] = 1f;
+			}
+		}
+		ReadChannels( reader.ReadInt32() );
+		if ( version >= 6 ) ReadChannels( reader.ReadInt32() );
+		return mask;
 	}
+
+	static string MirroredChannel( string label ) => label.EndsWith( "_l" ) ? label[..^1] + "r" :
+		label.EndsWith( "_r" ) ? label[..^1] + "l" : RabbitMirror.SwapSide( label );
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
@@ -333,8 +368,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		{
 			if ( shapeTracks[i] is not { } values ) continue;
 			var label = morphs[i].Name;
-			if ( mirror is not null && (label.EndsWith( "_l" ) || label.EndsWith( "_r" )) )
-				label = label[..^1] + (label[^1] == 'l' ? "r" : "l");
+			if ( mirror is not null ) label = MirroredChannel( label );
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}

@@ -47,6 +47,15 @@ internal sealed class CharacterAnimationLibrary
 		foreach ( var hand in new[] { "leftarm", "rightarm" } )
 			if ( skeleton.IKBones.TryGetValue( hand, out var chain ) )
 				bones.AddFloatChannelSet( $"item_bone_{chain.BoneId}", WeaponPoseTrack.Names( chain.BoneId ) );
+		var floatChannels = morphs.Select( m => m.Name ).Concat( RabbitClip.StatusChannels ).ToHashSet();
+		foreach ( var stance in mount.WeaponStances.Values.Where( stance => stance.IsClip ) )
+		{
+			foreach ( bool mirrored in new[] { false, true } )
+			{
+				var mask = RabbitClip.ReadLayerMask( fs, stance.Path, skeleton.Bones.Count, mirrored ? mirror : null, floatChannels );
+				bones.AddBoneMask( stance.MaskName( mirrored ), mask, defaultFloatChannelWeight: 0f );
+			}
+		}
 		foreach ( var flinch in mount.WeaponFlinches.Append( character.Element( "animations" ).Attribute( "blockflinch" ) ).Where( file => file is not null ).Distinct() )
 		{
 			var mask = RabbitClip.ReadLayerMask( fs, flinch, skeleton.Bones.Count );

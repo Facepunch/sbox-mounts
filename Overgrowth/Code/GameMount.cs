@@ -197,9 +197,24 @@ public partial class GameMount : BaseGameMount
 	}
 
 	string[] weaponFlinches;
-	internal string[] WeaponFlinches => weaponFlinches ??= FileSystem.FindFile( "Data/Items", "*.xml", true )
-		.Select( name => XmlAsset.Parse( FileSystem.ReadAllText( $"Data/Items/{name}" ) ).Element( "item" )?.Element( "anim_override" )?.Attribute( "blockflinch" ) )
-		.Where( path => !string.IsNullOrEmpty( path ) ).Distinct().ToArray();
+	internal string[] WeaponFlinches { get { ReadWeaponAnimations(); return weaponFlinches; } }
+	readonly Dictionary<string, WeaponStance> weaponStances = new();
+	internal IReadOnlyDictionary<string, WeaponStance> WeaponStances { get { ReadWeaponAnimations(); return weaponStances; } }
+
+	void ReadWeaponAnimations()
+	{
+		if ( weaponFlinches is not null ) return;
+		var flinches = new HashSet<string>();
+		foreach ( var file in FileSystem.FindFile( "Data/Items", "*.xml", true ) )
+		{
+			var item = XmlAsset.Parse( FileSystem.ReadAllText( $"Data/Items/{file}" ) ).Element( "item" );
+			if ( item?.Element( "anim_override" )?.Attribute( "blockflinch" ) is { } flinch ) flinches.Add( flinch );
+			if ( item?.Element( "anim_blend" ) is not { } blend ) continue;
+			foreach ( var slot in new[] { "idle", "movement" } )
+				if ( blend.Attribute( slot ) is { } path ) WeaponStance.Load( FileSystem, path, weaponStances );
+		}
+		weaponFlinches = flinches.ToArray();
+	}
 
 	string[] attackReactions;
 	// A defender can receive attacks from any character's move set.
@@ -210,6 +225,7 @@ public partial class GameMount : BaseGameMount
 	protected override void Shutdown()
 	{
 		attackReactions = weaponFlinches = null;
+		weaponStances.Clear();
 		actorPrefabs.Clear();
 		averageColors.Clear();
 		materials.Clear();
