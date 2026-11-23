@@ -72,6 +72,8 @@ public partial class GameMount
 		var handle = Sound.PlayFile( file, Math.Min( 1f, level ) );
 		if ( handle.IsValid() )
 		{
+			// Overgrowth plays positional sound groups without geometry occlusion.
+			handle.OcclusionEnabled = false;
 			// OpenAL caps the attenuated gain at one, with a one-metre reference distance.
 			handle.MinDistance = 40f * Math.Max( 1f, level );
 			handle.Distance = distance;
