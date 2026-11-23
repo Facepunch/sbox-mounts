@@ -50,8 +50,9 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "knife_backhand_newest", reverse );
 	}
 
-	void FadeKnifeAttack()
+	void InterruptWeaponLayers()
 	{
+		if ( DrawAnimation == ThrowLayer ) fadingThrow = true;
 		if ( currentKnifeLayer is { Active: true, Fading: false } ) FadeKnifeLayer();
 	}
 
@@ -88,13 +89,13 @@ public sealed partial class RabbitGuard
 			if ( !Networking.IsHost || strike != move || currentKnifeLayer != layer ) return;
 			AttackPhase = layer.Phase;
 			var clip = blend.Events;
-			if ( !preparePassed && clip.Prepare is { } prep && layer.Phase >= prep.Time / clip.Duration )
+			if ( layer.Active && !preparePassed && clip.Prepare is { } prep && layer.Phase >= prep.Time / clip.Duration )
 			{
 				preparePassed = true;
 				if ( strikeTarget.IsValid() && InStrikeReach( strikeTarget, CharacterCenter( strikeTarget ) - CharacterCenter( GameObject ) ) )
 					strikeTarget.GetComponent<RabbitGuard>()?.TryActiveBlock( this, move );
 			}
-			if ( !impactPassed && clip.Impact is { } hit && layer.Phase >= hit.Time / clip.Duration )
+			if ( layer.Active && !impactPassed && clip.Impact is { } hit && layer.Phase >= hit.Time / clip.Duration )
 			{
 				impactPassed = true;
 				TryHit( clip, hit.Bone );

@@ -100,7 +100,7 @@ public sealed partial class RabbitGuard
 			velocity = GetVelocity( target );
 			if ( target.GetComponent<RabbitGuard>() is { } other && CharacterLoader.AverageChainPosition( other.Renderer, "torso" ) is { } torso ) end = torso;
 		}
-		item.Throw( end, velocity, Animation.MoveVelocity, fullBody );
+		item.Throw( this, end, velocity, fullBody );
 		if ( item == LeftHandItem ) LeftHandItem = null;
 		else RightHandItem = null;
 		seekTime = 0f;

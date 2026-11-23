@@ -14,6 +14,7 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] float DrawPhase { get; set; }
 	[Sync( SyncFlags.Interpolate )] float DrawWeight { get; set; }
 	float drawElapsed;
+	bool fadingThrow;
 	LevelItem drawing;
 	string appliedDrawLayer, appliedDrawAnimation;
 	bool appliedDrawLeft;
@@ -59,13 +60,15 @@ public sealed partial class RabbitGuard
 				var clip = boundAnimations.Clips[DrawAnimation];
 				drawElapsed += Time.Delta;
 				DrawPhase = Math.Min( 1f, drawElapsed / clip.Duration );
-				DrawWeight = Math.Clamp( Math.Min( (drawElapsed + 1f / 120f) * 8f, 1f - (drawElapsed - clip.Duration) * 8f ), 0f, 1f );
-				if ( !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
+				if ( fadingThrow ) DrawWeight = Math.Max( 0f, DrawWeight - 4f * Time.Delta );
+				else DrawWeight = Math.Clamp( Math.Min( (drawElapsed + 1f / 120f) * 8f, 1f - (drawElapsed - clip.Duration) * 8f ), 0f, 1f );
+				if ( DrawWeight > 0f && !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
 					ReleaseThrownItem( release.Left );
 				if ( !Downed && clip.DrawTime is { } grab && drawElapsed >= grab ) TakeDrawnWeapon();
 				if ( DrawWeight <= 0f || Downed )
 				{
 					DrawAnimation = null;
+					fadingThrow = false;
 					handThrowLookTarget = null;
 					itemThrowTarget = null;
 					drawing = null;

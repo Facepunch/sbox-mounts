@@ -60,7 +60,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		body.AngularVelocity = Vector3.Zero;
 	}
 
-	internal void Throw( Vector3 target, Vector3 velocity, Vector3 throwerVelocity, bool fullBody )
+	internal void Throw( RabbitGuard owner, Vector3 target, Vector3 velocity, bool fullBody )
 	{
 		// The native item body hits the environment. Characters are tested against the animated hulls.
 		var world = Scene.PhysicsWorld;
@@ -68,7 +68,8 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		if ( rules.GetCollisionRule( ThrownItem, FighterHull ) != CollisionRules.Result.Ignore )
 			world.CollisionRules = new ItemCollisionRules( rules );
 		Tags.Add( ThrownItem );
-		thrower = Holder.GetComponentInParent<RabbitGuard>().GameObject;
+		thrower = owner.GameObject;
+		var throwerVelocity = owner.Animation.MoveVelocity;
 		Drop();
 		previousFlightPose = WorldTransform;
 		var body = GetComponent<Rigidbody>();

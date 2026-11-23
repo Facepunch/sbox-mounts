@@ -56,6 +56,7 @@ public sealed partial class RabbitGuard
 		WorldRotation = Rotation.LookAt( facing );
 		enemy = victim.GameObject;
 		StartThrowAction( "throw", victim, MirroredStance );
+		victim.InterruptWeaponLayers();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
 		victim.MirroredStance = MirroredAction;
 		var entry = victim.boundAnimations.Clips["thrown"].ForSide( MirroredAction ).Animation.GetRootMotion( 0f );

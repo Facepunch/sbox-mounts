@@ -133,6 +133,7 @@ public sealed partial class RabbitGuard
 				if ( blocked )
 				{
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
+					if ( blockingOpponent.IsValid() ) blockingOpponent.InterruptWeaponLayers();
 					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
 					{
 						stunnedBy = blockingOpponent;
@@ -457,6 +458,7 @@ public sealed partial class RabbitGuard
 		bool wasUnaware = rabbit?.IsUnaware == true;
 		if ( rabbit is not null )
 		{
+			rabbit.InterruptWeaponLayers();
 			if ( rabbit.boundAnimations?.Species == "wolf" && !rabbit.knownCharacters.ContainsKey( GameObject ) ) rabbit.blockStun = 1f;
 			rabbit.NoticeAttacker( GameObject );
 			if ( rabbit.Downed || rabbit.RollProgress < 1f || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;

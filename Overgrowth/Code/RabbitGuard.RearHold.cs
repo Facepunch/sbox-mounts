@@ -27,6 +27,7 @@ public sealed partial class RabbitGuard
 	{
 		bool armed = PrimaryItem.IsValid();
 		if ( victim.Holding || victim.Held ) return false;
+		victim.InterruptWeaponLayers();
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
