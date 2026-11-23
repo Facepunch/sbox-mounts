@@ -47,45 +47,50 @@ public sealed partial class RabbitGuard
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
 			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range <= 0f || !guard.Active || guard.GameObject == source || guard.Health < 1 || guard.Unconscious || guard.StaticCharacter || guard.hearingReady > 0 ||
-				guard.WorldPosition.DistanceSquared( position ) >= range * range ) continue;
-			if ( guard.enemy.IsValid() )
-			{
-				if ( guard.Fleeing || guard.enemy != source ) continue;
-				guard.ObserveTarget( source, guard.visible );
-				guard.lastSeen = guard.TargetPosition( source );
-				guard.NoticeCharacter( source );
-				guard.sinceEnemySeen = 0;
-				continue;
-			}
-			if ( guard.escortTarget.IsValid() || !awake ) continue;
-			bool investigating = guard.Investigating;
-			if ( investigating && sound == HeardSound.ItemImpact ) continue;
-			bool knownAlly = guard.knownCharacters.ContainsKey( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
-			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || investigating && (!guard.investigatePoint.HasValue || guard.urgentInvestigation)) ) continue;
-			guard.suspicion = guard.CurrentSuspicion +
-				(sound == HeardSound.Footstep ? 0.3f : 1f);
-			guard.sinceSound = 0;
-			if ( guard.suspicion < 1f ) continue;
-			if ( !investigating )
-			{
-				guard.LookAtNotice( position, source: source );
-				guard.Speak( "suspicious" );
-				guard.startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
-			}
-			guard.casualty = null;
-			guard.inspectPosition = null;
-			guard.inspectUntil = null;
-			guard.searchUntil = 0f;
-			if ( sound == HeardSound.Voice )
-			{
-				guard.escortTarget = source;
-				guard.investigatePoint = null;
-			}
-			else guard.investigatePoint = guard.Movement.ProjectPoint( position );
-			guard.urgentInvestigation = sound is HeardSound.Combat or HeardSound.ItemImpact;
-			guard.AlertStage = 1;
+			if ( range > 0f && guard.WorldPosition.DistanceSquared( position ) < range * range )
+				guard.Hear( source, position, sound, awake );
 		}
+	}
+
+	void Hear( GameObject source, Vector3 position, HeardSound sound, bool awake )
+	{
+		if ( !Active || GameObject == source || Health < 1 || Unconscious || StaticCharacter || hearingReady > 0 ) return;
+		if ( enemy.IsValid() )
+		{
+			if ( Fleeing || enemy != source ) return;
+			ObserveTarget( source, visible );
+			lastSeen = TargetPosition( source );
+			NoticeCharacter( source );
+			sinceEnemySeen = 0;
+			return;
+		}
+		if ( escortTarget.IsValid() || !awake ) return;
+		bool investigating = Investigating;
+		if ( investigating && sound == HeardSound.ItemImpact ) return;
+		bool knownAlly = knownCharacters.ContainsKey( source ) && GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
+		if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || investigating && (!investigatePoint.HasValue || urgentInvestigation)) ) return;
+		suspicion = CurrentSuspicion +
+			(sound == HeardSound.Footstep ? 0.3f : 1f);
+		sinceSound = 0;
+		if ( suspicion < 1f ) return;
+		if ( !investigating )
+		{
+			LookAtNotice( position, source: source );
+			Speak( "suspicious" );
+			startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
+		}
+		casualty = null;
+		inspectPosition = null;
+		inspectUntil = null;
+		searchUntil = 0f;
+		if ( sound == HeardSound.Voice )
+		{
+			escortTarget = source;
+			investigatePoint = null;
+		}
+		else investigatePoint = Movement.ProjectPoint( position );
+		urgentInvestigation = sound is HeardSound.Combat or HeardSound.ItemImpact;
+		AlertStage = 1;
 	}
 
 	bool FollowHeardVoice()

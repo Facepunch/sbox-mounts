@@ -70,7 +70,7 @@ public sealed partial class RabbitGuard
 		}
 
 		// aschar.as HandleFootStance leads the swinging foot by half a step while the other stays planted.
-		var velocity = Animation.MoveVelocity.WithZ( 0 );
+		var velocity = Animation.MoveVelocity.WithZ( 0 ) + ContactVelocity;
 		float speed = velocity.Length / 40f;
 		float stepSpeed = Math.Max( 2f, speed * 1.5f + 1f );
 		float across = (right.Position - left.Position).Normal.Dot( velocity.Normal );

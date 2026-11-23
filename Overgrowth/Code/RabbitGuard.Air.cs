@@ -232,6 +232,11 @@ internal sealed class RabbitAirContact : Component, Component.ICollisionListener
 {
 	[Property] public RabbitGuard Fighter { get; set; }
 
+	protected override void OnFixedUpdate()
+	{
+		if ( Fighter.IsValid() ) Fighter.UpdateCharacterContacts();
+	}
+
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
 		if ( Fighter.IsValid() ) Fighter.OnAirContact( collision );

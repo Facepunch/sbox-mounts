@@ -34,7 +34,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	int[] attachmentParents, attachmentSymmetry;
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
 
-	readonly record struct BodyPoint( BoneCollection.Bone Bone, Vector3 Center, int Body, Transform BodyOffset );
+	readonly record struct BodyPoint( BoneCollection.Bone Bone, Vector3 Center, int Body, Transform BodyOffset, float Mass );
 	BodyPoint[] bodyPoints = [];
 	readonly Dictionary<string, BodyPoint[]> chainCenters = new();
 
@@ -120,6 +120,21 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			count += group.Count;
 		}
 		return count > 0 ? sum / count : null;
+	}
+
+	internal static Vector3? UprightCenterOfMass( RabbitGuard fighter )
+	{
+		var renderer = fighter.Renderer;
+		if ( FromRenderer( renderer ) is not { } character ) return null;
+		Vector3 sum = default;
+		float mass = 0f;
+		foreach ( var point in character.bodyPoints )
+		{
+			if ( BodyTransform( point, renderer, null, fighter ) is not { } pose ) continue;
+			sum += pose.Position * point.Mass;
+			mass += point.Mass;
+		}
+		return mass > 0f ? sum / mass : null;
 	}
 
 	internal static Vector3? AverageBodyPosition( SkinnedModelRenderer renderer )
@@ -336,7 +351,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
 				var group = ragdollCenters.GetValueOrDefault( index );
 				var local = skeleton.BindPose[parent].PointToLocal( point.Position );
-				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ) );
+				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ), point.Mass );
 				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
 			}
 			this.bodyPoints = bodyPoints.Values.ToArray();
