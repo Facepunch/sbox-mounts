@@ -34,9 +34,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	int[] attachmentParents, attachmentSymmetry;
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
 
-	(BoneCollection.Bone Bone, Vector3 Center)[] physicsCenters = [];
 	readonly record struct BodyPoint( BoneCollection.Bone Bone, Vector3 Center, int Body, Transform BodyOffset );
-	BodyPoint[] sightPoints = [];
+	BodyPoint[] bodyPoints = [];
 	readonly Dictionary<string, BodyPoint[]> chainCenters = new();
 
 	// Native queries use Bullet object origins. The rendered joint pivot can be
@@ -61,7 +60,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal static Vector3? RandomSightPosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
 	{
-		if ( FromRenderer( renderer )?.sightPoints is not { Length: > 0 } points ) return null;
+		if ( FromRenderer( renderer )?.bodyPoints is not { Length: > 0 } points ) return null;
 		return BodyTransform( points[Random.Shared.Next( points.Length )], renderer, renderer.GetComponent<ModelPhysics>(), fighter )?.Position;
 	}
 
@@ -125,13 +124,15 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal static Vector3? AverageBodyPosition( SkinnedModelRenderer renderer )
 	{
-		if ( !renderer.IsValid() || renderer.Model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) is not CharacterLoader character ) return null;
+		if ( FromRenderer( renderer ) is not { } character ) return null;
+		if ( renderer.GetComponent<ModelPhysics>() is { Active: true } physics ) return RagdollCenter( physics );
+		var fighter = renderer.GetComponentInParent<RabbitGuard>();
 		Vector3 sum = default;
 		int count = 0;
-		foreach ( var (bone, center) in character.physicsCenters )
+		foreach ( var point in character.bodyPoints )
 		{
-			if ( !renderer.TryGetBoneTransform( bone, out var pose ) ) continue;
-			sum += pose.PointToWorld( center );
+			if ( BodyTransform( point, renderer, null, fighter ) is not { } pose ) continue;
+			sum += pose.Position;
 			count++;
 		}
 		return count > 0 ? sum / count : null;
@@ -325,7 +326,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var model = builder.Create();
 		if ( guard )
 		{
-			physicsCenters = AttachmentCenters.Select( pair => (model.Bones.GetBone( $"bone_{pair.Key}" ), pair.Value) ).ToArray();
 			ragdollCenters.Clear();
 			var bodyPoints = new Dictionary<int, BodyPoint>();
 			foreach ( var (id, point) in bodyCenters )
@@ -339,7 +339,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ) );
 				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
 			}
-			sightPoints = bodyPoints.Values.ToArray();
+			this.bodyPoints = bodyPoints.Values.ToArray();
 			chainCenters.Clear();
 			foreach ( var (name, chain) in skeleton.IKBones )
 			{
