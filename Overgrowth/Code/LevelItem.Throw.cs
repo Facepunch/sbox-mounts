@@ -10,6 +10,13 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	bool flyingStraight;
 	GameObject thrower;
 	Transform previousFlightPose;
+	internal GameObject ThrownBy => thrower;
+
+	internal void MarkThrowSafe()
+	{
+		thrower = null;
+		flyingStraight = false;
+	}
 
 	sealed class ItemCollisionRules : CollisionRules
 	{

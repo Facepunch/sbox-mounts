@@ -95,7 +95,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( !BindAnimations() ) return;
 		if ( Networking.IsHost )
 		{
-			if ( !Downed ) UpdatePlantContact();
+			if ( !Downed )
+			{
+				UpdatePlantContact();
+				CheckIncomingWeapons();
+			}
 			else plantDepth = 0f;
 			UpdateBlockFlinch();
 		}
