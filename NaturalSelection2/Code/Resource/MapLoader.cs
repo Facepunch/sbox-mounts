@@ -247,11 +247,13 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 	Material ResolveMaterial( string[] materials, int index )
 	{
-		if ( (uint)index >= (uint)materials.Length || string.IsNullOrWhiteSpace( materials[index] ) )
-			return Material.Load( "materials/dev/primary_white.vmat" );
+		if ( (uint)index < (uint)materials.Length && GameMount.TryResolve( Host.FileSystem, materials[index], out var path ) )
+		{
+			var material = Material.Load( $"mount://{Host.Ident}/{path}.vmat" );
+			if ( material is { IsValid: true, IsError: false } ) return material;
+		}
 
-		var material = Material.Load( $"mount://{Host.Ident}/ns2/{materials[index]}.vmat" );
-		return material is not null && material.IsValid ? material : Material.Load( "materials/dev/primary_white.vmat" );
+		return Material.Load( "materials/dev/primary_white.vmat" );
 	}
 
 	static bool InRange( LevelMesh.Tri tri, int count ) =>
