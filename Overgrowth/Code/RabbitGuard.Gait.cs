@@ -52,9 +52,7 @@ public sealed partial class RabbitGuard
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
 			var foot = side == 0 ? pose.Left : pose.Right;
-			float weight = Math.Max( 0f, foot.Weight );
-			var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
-			ApplyFootTarget( side, animated, target, weight, foot.Transform.Position.z / boundAnimations.MovementScale );
+			ApplyAuthoredFoot( side, animated, foot );
 		}
 		SolveGroundedLegs();
 

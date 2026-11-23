@@ -153,17 +153,21 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var stanceWeight = graph.Switch( mirroredPose, 1f, 0f );
 		GraphBuilder.Node MovementStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) => graph.Blend( ordinary, reflected, stanceWeight );
 
-		var movementRigs = new HashSet<RabbitRetarget>();
-		var movement = RabbitMovement.Load( fs, AnimationPath( "movement" ), name =>
+		RabbitClip GroundClip( string name )
 		{
-			var source = library.SourceFor( name );
-			movementRigs.Add( source );
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
 			{
 				RabbitClip LoadCycle( bool left ) => library.Clip( name, data: RabbitClip.PoseData.Gait, mirrored: left );
 				clips[name] = cycle = LoadCycle( false ) with { Mirrored = LoadCycle( true ) };
 			}
 			return cycle;
+		}
+		var stanceIdle = RabbitMovement.Load( fs, AnimationPath( "idle" ), GroundClip );
+		var movementRigs = new HashSet<RabbitRetarget>();
+		var movement = RabbitMovement.Load( fs, AnimationPath( "movement" ), name =>
+		{
+			movementRigs.Add( library.SourceFor( name ) );
+			return GroundClip( name );
 		} );
 		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
 		movementRig?.PrepareMirroredJoints( library.Mirror );
@@ -253,9 +257,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			if ( name == RabbitGuard.Threat )
 			{
-				var idle = AnimationPath( "idle" );
-				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( idle, "stride_phase" ), "idle", false ),
-					WithEquipment( AnimationGroup( idle, "stride_phase", mirrored: true ), "idle", true ) ) );
+				GraphBuilder.Node Idle( bool mirrored ) => WithEquipment( stanceIdle.Build( graph, label => coordinates[label], phase, mirrored ), "idle", mirrored );
+				return machine.AddState( MovementStance( Idle( false ), Idle( true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
 			{
@@ -314,7 +317,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
-		var stanceIdle = RabbitMovement.Load( fs, AnimationPath( "idle" ), name => clips[name] );
 		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
 		var patrolState = states[System.Array.IndexOf( names, RabbitGuard.PatrolIdle )];
 		for ( int i = 0; i < states.Length; i++ )

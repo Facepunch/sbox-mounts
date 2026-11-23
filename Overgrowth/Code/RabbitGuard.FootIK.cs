@@ -28,6 +28,7 @@ public sealed partial class RabbitGuard
 	bool hasStanceAnchors;
 	int steppingFoot;
 	float stepProgress, stancePhase;
+	RabbitMovement.Sample evaluatedStance;
 	[Sync] float CloseAmount { get; set; }
 	[Sync] float ThreatAmount { get; set; }
 	[Sync] float CrouchAmount { get; set; }
@@ -58,8 +59,12 @@ public sealed partial class RabbitGuard
 	{
 		float threat = ThreatAmount;
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
-		float frequency = boundAnimations.StanceIdle.Evaluate( new( 0f, 1f - crouch, threat, CloseAmount ), stancePhase, false ).Frequency;
+		var controls = new RabbitMovement.Controls( 0f, 1f - crouch, threat, CloseAmount );
+		float frequency = boundAnimations.StanceIdle.Evaluate( controls, stancePhase, MirroredStance ).Frequency;
 		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;
+		var queued = boundAnimations.StanceIdle.Evaluate( controls, stancePhase, MirroredStance );
+		var pose = entering || evaluatedStance.Events is null ? queued : evaluatedStance;
+		evaluatedStance = queued;
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
 		Renderer.Animation.Parameters.Set( "threat_coord", threat );
 		Renderer.Animation.Parameters.Set( "tall_coord", 1f - crouch );
@@ -109,7 +114,7 @@ public sealed partial class RabbitGuard
 			var target = side == steppingFoot ? Vector3.Lerp( plantedRoot[side], Goal( side ), stepProgress ) : plantedRoot[side];
 			stepLift[side] = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
 			footOffset[side] = target - root;
-			PlantFoot( side, foot );
+			ApplyAuthoredFoot( side, foot, side == 0 ? pose.Left : pose.Right );
 		}
 		SolveGroundedLegs();
 	}
@@ -142,6 +147,13 @@ public sealed partial class RabbitGuard
 
 	void PlantFoot( int side, Transform foot ) =>
 		ApplyFootTarget( side, foot, foot, 1f, foot.Position.z - WorldPosition.z );
+
+	void ApplyAuthoredFoot( int side, Transform animated, FootPose foot )
+	{
+		float weight = Math.Max( 0f, foot.Weight );
+		var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
+		ApplyFootTarget( side, animated, target, weight, foot.Transform.Position.z / boundAnimations.MovementScale );
+	}
 
 	void ApplyFootTarget( int side, Transform animated, Transform target, float weight, float authoredHeight )
 	{
