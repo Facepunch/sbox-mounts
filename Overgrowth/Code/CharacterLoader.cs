@@ -344,7 +344,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				ScaleSkeleton( appearance, skeleton );
 				animationRig = skeleton;
 			}
-			animationLibrary = new( Host, Path, Definition, animationRig, AttachmentScale );
+			animationLibrary = Host.GetAnimationLibrary( Path, Definition, animationRig, AttachmentScale );
 		}
 		var graphPath = heldModel is null ? Path : Path + "/equipped/" + key["mount://overgrowth/".Length..];
 		return animationGraphs[key] = RabbitGuardAnimations.Create( Host, graphPath, Definition, animationLibrary, modelCenter.Value, item );

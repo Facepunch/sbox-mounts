@@ -17,13 +17,13 @@ internal sealed class CharacterAnimationLibrary
 	readonly Dictionary<string, RabbitRetarget> sources = new();
 	readonly Dictionary<(string Name, RabbitClip.CenterMotion Motion, bool Feet, bool Mirrored), RabbitClip> clips = new();
 
-	internal CharacterAnimationLibrary( GameMount mount, string path, XmlAsset character, SkeletonData skeleton, float scale )
+	internal CharacterAnimationLibrary( GameMount mount, string path, XmlAsset character, SkeletonData skeleton, float scale, CharacterMorph[] morphs )
 	{
 		fs = mount.FileSystem;
 		this.path = path;
 		Skeleton = skeleton;
 		Scale = scale;
-		var morphs = Morphs = CharacterMorph.Read( character );
+		Morphs = morphs;
 		var bones = new SkeletonBuilder();
 		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
 		{
@@ -107,5 +107,21 @@ internal sealed class CharacterAnimationLibrary
 			clips[key] = clip = RabbitClip.Load( fs, $"{path}/clips/{motion}/{(feet ? "gait" : "pose")}", Rig, Skeleton, name,
 				SourceFor( name ), Morphs, sampleFeet: feet, centerMotion: motion, mirror: mirrored ? Mirror : null );
 		return clip;
+	}
+}
+
+public partial class GameMount
+{
+	// Appearance and AI can differ while the target rig, its masks and its float channels are identical.
+	readonly Dictionary<(string Skeleton, float Scale, string BlockFlinch, string Morphs), CharacterAnimationLibrary> animationLibraries = new();
+
+	internal CharacterAnimationLibrary GetAnimationLibrary( string path, XmlAsset character, SkeletonData rig, float scale )
+	{
+		var morphs = CharacterMorph.Read( character );
+		var key = (Resolve( character.Element( "appearance" ).Attribute( "skeleton" ) ), scale,
+			character.Element( "animations" ).Attribute( "blockflinch" ), string.Join( ';', morphs.Select( m => $"{m.Name}:{m.Steps}" ) ));
+		if ( !animationLibraries.TryGetValue( key, out var library ) )
+			animationLibraries[key] = library = new( this, path, character, rig, scale, morphs );
+		return library;
 	}
 }

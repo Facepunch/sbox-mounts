@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace Overgrowth;
 
-public partial class GameMount : BaseGameMount
+public partial class GameMount : BaseGameMount, IHotloadManaged
 {
 	public override string Ident => "overgrowth";
 	public override string Title => "Overgrowth";
@@ -225,9 +225,12 @@ public partial class GameMount : BaseGameMount
 		.Select( name => XmlAsset.Parse( FileSystem.ReadAllText( $"Data/Attacks/{name}" ) ).Element( "attack" )?.Element( "reaction" )?.Value )
 		.Where( path => !string.IsNullOrEmpty( path ) ).Distinct().ToArray();
 
+	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state ) => animationLibraries.Clear();
+
 	protected override void Shutdown()
 	{
 		attackReactions = weaponFlinches = null;
+		animationLibraries.Clear();
 		weaponStances.Clear();
 		actorPrefabs.Clear();
 		averageColors.Clear();
