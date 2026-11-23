@@ -26,7 +26,8 @@ public sealed partial class RabbitGuard
 	bool chestActive;
 	float previousYaw, stanceLook, stanceMoveFade, layerAttackFade, idleStance;
 	[Sync( SyncFlags.Interpolate )] float TorsoControl { get; set; }
-	Vector2 chestAngles, chestVelocity;
+	Vector2 chestAngles, chestVelocity, previousChestTarget;
+	float chestRemainder;
 
 	GameObject ChooseLookTarget()
 	{
@@ -153,7 +154,6 @@ public sealed partial class RabbitGuard
 			|| !TryGetAnimatedBone( bones.GetBone( boundAnimations.HeadBone ), out var headWorld ) ) return;
 		var animatedChest = chestWorld;
 		var basis = chestWorld.Rotation * Renderer.Model.GetBoneTransform( chest.Index ).Rotation.Inverse;
-		float frames = Time.Delta * 120f;
 		// Overgrowth keeps the springs running when a throw, flip or hit disables gaze.
 		float weight = target.HasValue ? TorsoControl : 0f;
 		var headDirection = target is { } point ? (point - TargetPosition( GameObject, eyes: true )).Normal : Vector3.Zero;
@@ -164,15 +164,8 @@ public sealed partial class RabbitGuard
 		previousYaw = Math.Clamp( yaw, -1f, 1f );
 		var wanted = new Vector2( previousYaw * weight, idleStance * MathF.Asin( look.z * weight ) * weight );
 		wanted += new Vector2( Random.Shared.Float( -0.005f, 0.005f ), Random.Shared.Float( -0.005f, 0.005f ) );
-		if ( !chestActive || secondaryReset > 0f ) { chestAngles = wanted; chestVelocity = default; }
-		else
-		{
-			float idle = IdleLookInertia;
-			chestVelocity *= MathF.Pow( 0.93f + 0.06f * idle, frames );
-			chestVelocity += (wanted - chestAngles) * ((0.5f - 0.47f * idle) * frames);
-			chestAngles += chestVelocity * Time.Delta;
-		}
-		var turn = Rotation.FromAxis( basis.Up, chestAngles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, chestAngles.y.RadianToDegree() );
+		var angles = SampleChestSpring( wanted, IdleLookInertia, Time.Delta, !chestActive || secondaryReset > 0f );
+		var turn = Rotation.FromAxis( basis.Up, angles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, angles.y.RadianToDegree() );
 		var half = Rotation.Slerp( Rotation.Identity, turn, 0.5f );
 		var extent = abdomenWorld.Rotation.Forward * boundAnimations.AbdomenHalfLength * WorldScale.z;
 		var bottom = abdomenWorld.Position - extent;
@@ -189,4 +182,30 @@ public sealed partial class RabbitGuard
 		UpdateHeadLook( headDirection, animatedChest, chestWorld, headWorld );
 		chestActive = true;
 	}
+	Vector2 SampleChestSpring( Vector2 wanted, float idle, float dt, bool reset )
+	{
+		const float tick = 4f / 120f;
+		if ( reset )
+		{
+			previousChestTarget = chestAngles = wanted;
+			chestVelocity = default;
+			chestRemainder = 0f;
+			return chestAngles;
+		}
+
+		float damping = MathF.Pow( 0.93f + 0.06f * idle, 4f );
+		float stiffness = (0.5f - 0.47f * idle) * 4f;
+		Vector2 NextVelocity( Vector2 target ) => chestVelocity * damping + (target - chestAngles) * stiffness;
+
+		float elapsed = chestRemainder + dt;
+		for ( float time = tick - chestRemainder; elapsed >= tick; time += tick, elapsed -= tick )
+		{
+			chestVelocity = NextVelocity( Vector2.Lerp( previousChestTarget, wanted, time / dt ) );
+			chestAngles += chestVelocity * tick;
+		}
+		previousChestTarget = wanted;
+		chestRemainder = elapsed;
+		return chestAngles + NextVelocity( wanted ) * elapsed;
+	}
+
 }
