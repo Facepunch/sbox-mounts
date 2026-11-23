@@ -75,8 +75,15 @@ public sealed partial class RabbitGuard
 			if ( PatrolPlayer )
 				leader = knownCharacters.Keys.Where( x => x.IsValid() && x.GetComponent<PlayerController>().IsValid() && !IsIgnoredPlayer( x ) )
 					.MinBy( x => x.WorldPosition.DistanceSquared( WorldPosition ) );
-			if ( !leader.IsValid() || !knownCharacters.ContainsKey( leader ) ) return WaitAtPatrolPoint();
-			FollowCharacter( TargetPosition( leader ) );
+			if ( !leader.IsValid() || !knownCharacters.ContainsKey( leader ) )
+			{
+				unassignedPatrol = !PatrolCharacter.IsValid() && !PatrolPlayer;
+				if ( TryPatrolSeparation( null, false ) ) return true;
+				return WaitAtPatrolPoint();
+			}
+			var position = TargetPosition( leader );
+			if ( TryPatrolSeparation( position, true ) ) return true;
+			FollowCharacter( position );
 			return true;
 		}
 
@@ -101,8 +108,37 @@ public sealed partial class RabbitGuard
 			return WaitAtPatrolPoint();
 		}
 
+		if ( TryPatrolSeparation( target, false ) ) return true;
 		if ( Movement.MoveTarget != target ) Movement.MoveTo( target, 0f, 0.2f * GroundRunSpeed );
 		Stance = Locomotion;
+		return true;
+	}
+
+	bool TryPatrolSeparation( Vector3? target, bool following )
+	{
+		var separation = TeammateSeparation();
+		if ( separation.IsNearlyZero() && yieldToTeammate <= 0f ) return false;
+		Vector3 intent = default;
+		if ( target.HasValue && yieldToTeammate <= 0f )
+		{
+			var delta = (target.Value - WorldPosition).WithZ( 0f ) / 40f;
+			if ( following ) delta = delta.Normal * Math.Max( 0f, delta.Length - 2f );
+			intent = (delta + separation).ClampLength( 1f );
+			if ( !following && intent.LengthSquared > 0.2f ) intent = intent.Normal * 0.2f;
+		}
+		// GetPatrolMovement adds separation again after limiting the path-following speed.
+		intent += separation;
+		float speed = Math.Min( 1f, intent.Length );
+		if ( speed > 0f )
+		{
+			Movement.MoveTo( WorldPosition + intent.Normal * (speed * 40f), 0f, speed * GroundRunSpeed );
+			Stance = target.HasValue ? Locomotion : Threat;
+		}
+		else
+		{
+			Movement.Stop();
+			Stance = Idle;
+		}
 		return true;
 	}
 }

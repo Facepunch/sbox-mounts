@@ -156,7 +156,7 @@ public sealed partial class RabbitGuard
 		FaceInAir( InterpolateFacing( direction, WorldRotation.Forward.WithZ( 0f ).Normal, retention ) );
 	}
 
-	static Rotation InterpolateFacing( Vector3 from, Vector3 direction, float blend )
+	internal static Rotation InterpolateFacing( Vector3 from, Vector3 direction, float blend )
 	{
 		// InterpDirections takes a perpendicular path when the two facings are nearly opposite.
 		if ( direction.Dot( from ) < -0.8f )

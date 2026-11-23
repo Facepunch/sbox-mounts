@@ -355,7 +355,11 @@ public sealed partial class RabbitGuard
 		var direct = toward * delta.Dot( toward );
 		float slowRadius = Math.Max( 0.2f * 40f, 40f - preferredRange );
 		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
-		return intent.LengthSquared > 1f ? intent.Normal : intent;
+		var separation = TeammateSeparation();
+		intent += separation;
+		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
+		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
+		return intent;
 	}
 
 	void AdjustStrikeSpacing( Vector3 offset, bool ragdolled, bool beforeImpact )

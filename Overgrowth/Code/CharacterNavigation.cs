@@ -54,7 +54,14 @@ public sealed class CharacterNavigation : NavigationLayer
 			}
 		}
 		preparedVelocity = null;
+		var facing = WorldRotation.Forward;
 		base.OnUpdate();
+		if ( Npc is RabbitGuard { IsBackingAway: true } && Agent.IsValid() && !Npc.IsAirborne )
+		{
+			var flat = Agent.Velocity.WithZ( 0f );
+			if ( flat.LengthSquared > 0.001f * 40f * 40f )
+				WorldRotation = RabbitGuard.InterpolateFacing( facing, -flat.Normal, 1f - MathF.Pow( 0.95f, Time.Delta * 120f ) );
+		}
 		if ( Npc is RabbitGuard { PlantMovementScale: var scale } && scale != 1f && !Npc.IsAirborne && Agent.IsValid() )
 			Agent.MaxSpeed *= scale;
 		if ( !followingJump ) return;

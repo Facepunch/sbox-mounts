@@ -160,6 +160,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void Think()
 	{
+		unassignedPatrol = false;
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
 		if ( StaticCharacter )
 		{
