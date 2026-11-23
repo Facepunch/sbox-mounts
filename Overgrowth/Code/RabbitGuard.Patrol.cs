@@ -3,6 +3,8 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[Property] public PatrolPoint PatrolStart { get; set; }
+	[Property] public RabbitGuard PatrolCharacter { get; set; }
+	[Property] public bool PatrolPlayer { get; set; }
 	PatrolPoint previousPatrolPoint;
 	PatrolPoint patrolTarget;
 	TimeUntil patrolWait;
@@ -52,7 +54,17 @@ public sealed partial class RabbitGuard
 	bool FollowPatrol()
 	{
 		if ( !patrolTarget.IsValid() ) patrolTarget = PatrolStart;
-		if ( !patrolTarget.IsValid() || patrolWait > 0f || enemySeen > 0.1f || CurrentSuspicion > 0.1f ) return WaitAtPatrolPoint();
+		if ( patrolWait > 0f || enemySeen > 0.1f || CurrentSuspicion > 0.1f ) return WaitAtPatrolPoint();
+		if ( !patrolTarget.IsValid() )
+		{
+			var leader = PatrolCharacter.IsValid() ? PatrolCharacter.GameObject : null;
+			if ( PatrolPlayer )
+				leader = knownCharacters.Keys.Where( x => x.IsValid() && x.GetComponent<PlayerController>().IsValid() && !IsIgnoredPlayer( x ) )
+					.MinBy( x => x.WorldPosition.DistanceSquared( WorldPosition ) );
+			if ( !leader.IsValid() || !knownCharacters.ContainsKey( leader ) ) return WaitAtPatrolPoint();
+			FollowCharacter( TargetPosition( leader ) );
+			return true;
+		}
 
 		var target = patrolTarget.WorldPosition;
 		if ( (target - WorldPosition).WithZ( 0 ).LengthSquared < 40f * 40f )

@@ -8,6 +8,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 	sealed class Actors
 	{
 		public readonly List<(RabbitGuard Guard, int Waypoint)> Guards = [];
+		public readonly Dictionary<int, RabbitGuard> Characters = [];
+		public readonly HashSet<int> PlayerIds = [];
 		public string[] PlayerTeams = [];
 		public readonly List<(int Id, GameObject Object, Model Model)> Items = [];
 		public readonly Dictionary<int, (RabbitGuard Actor, XmlAsset Connection)> AttachedItems = [];
@@ -46,6 +48,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		{
 			guard.AlliedToPlayer = guard.Teams.Any( actors.PlayerTeams.Contains );
 			if ( patrolPoints.TryGetValue( id, out var start ) ) guard.PatrolStart = start.Point;
+			else if ( actors.Characters.TryGetValue( id, out var leader ) && leader != guard ) guard.PatrolCharacter = leader;
+			else if ( actors.PlayerIds.Contains( id ) ) guard.PatrolPlayer = true;
 		}
 	}
 
@@ -126,6 +130,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			case "ActorObject" when node.Attribute("is_player")=="1":
 				ConnectItems( null );
 				actors.PlayerTeams = GetTeams( node, file );
+				if ( int.TryParse( node.Attribute( "id" ), out int playerId ) ) actors.PlayerIds.Add( playerId );
 				Object().AddComponent<SpawnPoint>();
 				return;
 			case "DynamicLightObject":
@@ -139,6 +144,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
 				int start = Connections( node ).FirstOrDefault( -1 );
 				actors.Guards.Add( (fighter, start) );
+				if ( int.TryParse( node.Attribute( "id" ), out int actorId ) ) actors.Characters[actorId] = fighter;
 				ConnectItems( fighter );
 				fighter.AlwaysAfraidOnSight = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "scared" ) == true;
 				fighter.Teams = GetTeams( node, file );

@@ -109,6 +109,12 @@ public sealed partial class RabbitGuard
 			return false;
 		}
 
+		FollowCharacter( position );
+		return true;
+	}
+
+	void FollowCharacter( Vector3 position )
+	{
 		const float radius = 2f * 40f;
 		float remaining = (position - WorldPosition).WithZ( 0 ).Length - radius;
 		if ( startled > 0 || remaining <= 0 )
@@ -125,6 +131,5 @@ public sealed partial class RabbitGuard
 			}
 			Stance = Locomotion;
 		}
-		return true;
 	}
 }
