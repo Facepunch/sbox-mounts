@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	float underwaterBreath = 10f;
+	TimeUntil nextWadingSound, nextSplashSound;
 	bool zoneKilled;
 	sealed class WaterDamage : BluntDamage;
 
@@ -12,8 +13,12 @@ public sealed partial class RabbitGuard
 	{
 		if ( Health <= 0f || boundAnimations is null || !Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) ) return;
 		var headPoint = head.Position - head.Rotation.Forward * (boundAnimations.Head.HeadHalfLength * WorldScale.z);
-		underwaterBreath = water.HeightAboveSurface( headPoint ) < 0f ? underwaterBreath - dt : 10f;
-		float height = water.HeightAboveSurface( CharacterCenter( GameObject ) );
+		float headHeight = water.HeightAboveSurface( headPoint );
+		underwaterBreath = headHeight < 0f ? underwaterBreath - dt : 10f;
+		var center = CharacterCenter( GameObject );
+		float height = water.HeightAboveSurface( center );
+		var velocity = Downed && ragdoll.IsValid() && ragdoll.GetComponent<RagdollDamping>() is { } damping ? damping.AverageVelocity : Animation.MoveVelocity;
+		UpdateWaterSounds( center, LegRadius / 40f - height, headHeight, velocity / 40f );
 		if ( height < 0.1f )
 		{
 			float depth = Math.Min( 1f, 0.1f - height );
@@ -34,6 +39,29 @@ public sealed partial class RabbitGuard
 		}
 		// Both wet hotspot scripts also damage every overlapping fighter marked by a lethal volume.
 		if ( water.Lethal && IsValid && Health > 0f ) TakeWaterDamage();
+	}
+
+	void UpdateWaterSounds( Vector3 center, float depth, float headHeight, Vector3 velocity )
+	{
+		float speed = velocity.Length;
+		if ( depth < 2f && speed > 4f && (!IsOnGround || Downed || RollProgress < 1f) && nextSplashSound <= 0f )
+		{
+			nextSplashSound = 0.5f;
+			PlayWaterSound( "bodyfall_water", center );
+			ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
+		}
+		if ( depth > 0.25f && headHeight > -0.2f && speed > 1f && nextWadingSound <= 0f )
+		{
+			nextWadingSound = 0.3f / (1f + velocity.WithZ( 0f ).Length * 0.05f);
+			PlayWaterSound( depth > 0.7f ? "wading_through_water" : "steps_water", center );
+		}
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayWaterSound( string group, Vector3 position )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlayGroup( $"Data/Sounds/water_foley/{group}.xml", position, parent: GameObject );
 	}
 
 	void TakeWaterDamage()
