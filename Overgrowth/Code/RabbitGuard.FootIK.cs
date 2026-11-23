@@ -90,7 +90,7 @@ public sealed partial class RabbitGuard
 				plantedRoot[steppingFoot] = Goal( steppingFoot );
 				var contact = (steppingFoot == 0 ? left : right).Position + (plantedRoot[steppingFoot] - root).WithZ( 0f );
 				var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
-					.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+					.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
 				if ( Networking.IsHost && floor.Hit )
 				{
 					var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
@@ -136,7 +136,7 @@ public sealed partial class RabbitGuard
 			// CDoFootIKImpl sweeps a 0.05 m sphere from 0.2 m above to 0.6 m below the animated foot.
 			var check = target.Position + footOffset[side];
 			var trace = Scene.Trace.Sphere( 2f, check + Vector3.Up * 8f, check + Vector3.Down * 24f )
-				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+				.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
 			if ( trace.Hit && !trace.StartedSolid )
 			{
 				float height = trace.EndPosition.z - 0.4f;
