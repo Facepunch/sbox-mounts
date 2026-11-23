@@ -10,9 +10,9 @@ public sealed partial class RabbitGuard
 	TimeSince sinceWallContact;
 	Rotation wallExitFacing;
 
-	void UpdateWallContact()
+	void UpdateWallContact( bool grounded )
 	{
-		if ( Animation.IsGrounded || Downed )
+		if ( grounded || Downed )
 		{
 			WallDirection = default;
 			touchedWall = false;

@@ -56,9 +56,9 @@ public sealed partial class RabbitGuard
 
 	void UpdateLanding()
 	{
-		if ( Networking.IsHost ) UpdateWallContact();
 		if ( Downed || !Networking.IsHost )
 		{
+			if ( Networking.IsHost ) UpdateWallContact( false );
 			airVelocity = null;
 			pendingTuck = 0f;
 			return;
@@ -71,6 +71,7 @@ public sealed partial class RabbitGuard
 			grounded = floor.Hit && !floor.StartedSolid;
 		}
 		ThrowGrounded = InThrow && grounded;
+		UpdateWallContact( grounded );
 		if ( !grounded )
 		{
 			AirTuck = Math.Max( pendingTuck, airVelocity.HasValue ? AirTuck * MathF.Pow( 0.98f, Time.Delta * 120f ) : 0f );
