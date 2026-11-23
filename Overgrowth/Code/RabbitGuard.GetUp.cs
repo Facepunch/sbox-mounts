@@ -7,8 +7,7 @@ public sealed partial class RabbitGuard
 	// Recovery is the last full-body pose operation in FinalAnimationMatrixUpdate.
 	// Blend the solved animation (including IK and roll), in the skeleton's weighted parent space.
 	Transform[] lastPhysicsPose, recoveryPose;
-	float recoveryRate;
-	TimeSince sinceRecovery;
+	float recoveryRate, recoveryAge;
 	int recoveryStep;
 
 	void CapturePhysicsPose()
@@ -28,7 +27,7 @@ public sealed partial class RabbitGuard
 		lastPhysicsPose = null;
 		recoveryRate = rate;
 		recoveryStep = 0;
-		sinceRecovery = 0;
+		recoveryAge = 0f;
 		var model = Renderer.WorldTransform;
 		var bones = poseModel.Bones.AllBones;
 		// The collider has just moved to its standing origin. Keep the visible skeleton in place.
@@ -45,9 +44,9 @@ public sealed partial class RabbitGuard
 	void BlendRecoveryPose()
 	{
 		const float rate = 30f; // Four 120 Hz ticks per nearby NPC animation update.
-		float age = sinceRecovery;
-		if ( age >= 1f / recoveryRate ) { EndRecovery(); return; }
-		float frame = age * rate;
+		if ( recoveryAge >= 1f / recoveryRate ) { EndRecovery(); return; }
+		float frame = recoveryAge * rate;
+		recoveryAge += Time.Delta;
 		int step = (int)frame;
 		var model = Renderer.WorldTransform;
 		var bones = poseModel.Bones.AllBones;
