@@ -70,6 +70,7 @@ public sealed partial class RabbitGuard
 			damage.Tags.Add( "slash" );
 			damage.Tags.Add( "nevergib" );
 			var faces = CutSurface( defender, position );
+			if ( faces is { Count: > 0 } ) defender.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
 			bool awake = defender.IsValid() && !defender.Unconscious;
 			bool heavy = !allowHeavy || strike.HeavyCut;
 			victim.OnDamage( damage );
@@ -151,7 +152,7 @@ public sealed partial class RabbitGuard
 		if ( defender.IsValid() ) defender.TryDisarm( strike.WorldImpact( direction, flippedAttack ), PrimaryItem );
 	}
 
-	List<Vector3> CutSurface( RabbitGuard victim, Vector3 point )
+	List<CharacterSurface.Cut> CutSurface( RabbitGuard victim, Vector3 point )
 	{
 		if ( strike.CutPlane is not { } cut || !victim.IsValid() ||
 			CharacterLoader.FromModel( victim.Renderer.Model ) is not { } character ) return null;
@@ -163,14 +164,14 @@ public sealed partial class RabbitGuard
 		return character.Surface.CutFaces( victim.Renderer, tilt * (forward * cut.x + right * cut.y + Vector3.Up * cut.z), point, tilt * forward );
 	}
 
-	void EmitCutParticles( List<Vector3> faces, bool light )
+	void EmitCutParticles( List<CharacterSurface.Cut> faces, bool light )
 	{
 		var clouds = new List<Vector3>();
 		var splats = new List<Vector3>();
 		foreach ( var face in faces )
 		{
-			if ( Random.Shared.Next( 10 ) == 0 ) clouds.Add( face );
-			if ( light && Random.Shared.Next( 40 ) == 0 ) splats.Add( face );
+			if ( Random.Shared.Next( 10 ) == 0 ) clouds.Add( face.Center );
+			if ( light && Random.Shared.Next( 40 ) == 0 ) splats.Add( face.Center );
 		}
 		if ( clouds.Count + splats.Count > 0 ) PlayCutParticles( clouds.ToArray(), splats.ToArray() );
 	}

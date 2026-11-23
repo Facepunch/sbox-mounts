@@ -219,6 +219,7 @@ public sealed partial class RabbitGuard
 			remains.Teams = Teams;
 			remains.StaticCharacter = StaticCharacter;
 			remains.Physics = physics;
+			Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
 			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 			{
 				if ( witness.knownCasualties.Remove( GameObject ) ) witness.knownCasualties.Add( corpse );

@@ -64,6 +64,9 @@ PS
 	Texture2D g_tNormal < Channel( RGBA, Box( NormalMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	Texture2D g_tPalette < Channel( RGBA, Box( PaletteMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	Texture2D g_tTranslucency < Channel( RGBA, Box( TranslucencyMap ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
+	Texture2D g_tCutMask < Attribute( "CutMask" ); SrgbRead( false ); >;
+	bool g_bHasCuts < Attribute( "HasCuts" ); Default( 0 ); >;
+	float3 g_vCutTint < Attribute( "CutTint" ); Default3( 0.4, 0, 0 ); >;
 	float g_flKind < Default( 0 ); >;
 	float g_flTangentSpace < Default( 0 ); >;
 	float g_flClampTexture < Default( 0 ); >;
@@ -197,6 +200,15 @@ PS
 			float4 palette = SampleMap( g_tPalette, uv );
 			float other = max( 0, 1 - palette.x - palette.y - palette.z - palette.w );
 			color.rgb *= palette.x * g_vPalette0 + palette.y * g_vPalette1 + palette.z * g_vPalette2 + palette.w * g_vPalette3 + other * g_vPalette4;
+		}
+		if ( g_bHasCuts )
+		{
+			float2 mask = g_tCutMask.SampleLevel( g_sClamp, uv, 0 ).rg;
+			float amount = saturate( mask.r * 5.0 );
+			float wet = lerp( max( 0.0, mask.g * 1.4 - 0.4 ), 0.4, color.a );
+			float4 oldBlood = float4( g_vCutTint * (0.8 * wet + 0.2), wet );
+			float4 newBlood = float4( color.rgb * g_vCutTint, wet * 0.5 + 0.5 );
+			color = lerp( color, lerp( oldBlood, newBlood, (1.0 - wet) * 0.5 ), amount );
 		}
 		Material m = Material::Init();
 		m.Albedo = color.rgb;

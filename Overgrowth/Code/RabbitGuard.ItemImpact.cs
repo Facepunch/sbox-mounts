@@ -5,9 +5,17 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[ConVar( "overgrowth_blood", Help = "Overgrowth blood effects. Set to 0 to disable." )]
-	public static int BloodLevel { get; set; } = 2;
+	public static int BloodLevel
+	{
+		get;
+		set { field = value; CutMarks.RefreshAppearance(); }
+	} = 2;
 	[ConVar( "overgrowth_blood_color", Help = "Tint for Overgrowth blood particles and decals." )]
-	public static Color BloodColor { get; set; } = new( 0.4f, 0f, 0f );
+	public static Color BloodColor
+	{
+		get;
+		set { field = value; CutMarks.RefreshAppearance(); }
+	} = new( 0.4f, 0f, 0f );
 
 	sealed class ItemWound : BloodDamage { public Vector3 Impulse { get; init; } }
 	sealed class ItemImpact : BluntDamage { public Vector3 Impulse { get; init; } }
