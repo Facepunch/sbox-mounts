@@ -38,6 +38,15 @@ public sealed class MapLocations : Component
 		return null;
 	}
 
+	Vector3? Project( Destination destination )
+	{
+		// A tech point can sit above another floor. Prefer a walkable approach on its own level.
+		var bounds = BBox.FromPositionAndSize( destination.Position, new Vector3( 8, 8, 2 ) * MapLoader.Scale );
+		var sameFloor = Scene.NavMesh.GetClosestPoint( bounds );
+		if ( sameFloor is { } point && LocationAt( point ) == destination.Name ) return point;
+		return Scene.NavMesh.GetClosestPoint( destination.Position );
+	}
+
 	internal Destination[] Neighbors( string room )
 	{
 		var nav = Scene.NavMesh;
@@ -49,12 +58,12 @@ public sealed class MapLocations : Component
 		}
 		if ( connections.TryGetValue( room, out var neighbors ) ) return neighbors;
 		var source = Destinations.First( x => x.Name == room );
-		var start = nav.GetClosestPoint( source.Position );
+		var start = Project( source );
 		if ( start is null ) return [];
 		List<Destination> reachable = [];
 		foreach ( var destination in Destinations )
 		{
-			if ( destination.Name == room || nav.GetClosestPoint( destination.Position ) is not { } endpoint ) continue;
+			if ( destination.Name == room || Project( destination ) is not { } endpoint ) continue;
 			var path = nav.CalculatePath( new() { Start = start.Value, Target = endpoint } );
 			if ( path.Status != NavMeshPathStatus.Complete || path.Points.Count == 0 ||
 				LocationAt( path.Points[0].Position ) != room || LocationAt( path.Points[^1].Position ) != destination.Name ) continue;
