@@ -124,6 +124,7 @@ PS
 	Texture2D g_tBlendMap    < Channel( RGBA, Box( BlendMap ),    Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tOverlayMap  < Channel( RGBA, Box( OverlayMap ),  Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
+	float g_flNs2Dissolve < Attribute( "Ns2Dissolve" ); Default1( 0.0 ); >;
 	float g_flHiddenAmount < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
 	float g_flGlowIntensity< UiGroup( ",0/,0/0" ); Default1( 1.0 ); Range1( 0, 16 ); >;
 	float g_flHighlight    < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
@@ -142,7 +143,7 @@ PS
 		uv.x = ( col + uv.x ) / g_flNumColumns;
 		uv.y = ( row + uv.y ) / g_flNumRows;
 
-		float f = 1.0 - g_flHiddenAmount;
+		float f = 1.0 - max( g_flHiddenAmount, g_flNs2Dissolve );
 		float param = Tex2DS( g_tBlendMap, g_sWrap, uv ).a;
 
 		float opacity = 1.0 - pow( abs( param ), 2.5 );

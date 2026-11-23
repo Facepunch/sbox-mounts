@@ -78,7 +78,13 @@ public sealed partial class Skulk
 		Health = 0;
 	}
 
-	protected override GameObject CreateRagdoll() => xenociding && detonation <= 0 ? null : base.CreateRagdoll();
+	protected override GameObject CreateRagdoll()
+	{
+		if ( xenociding && detonation <= 0 ) return null;
+		var corpse = base.CreateRagdoll();
+		if ( corpse.IsValid() ) corpse.AddComponent<SkulkCorpse>().Age = 0;
+		return corpse;
+	}
 
 	void DealDamage( IDamageable victim, float amount, Vector3 position, string tag )
 	{
