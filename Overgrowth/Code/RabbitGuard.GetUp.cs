@@ -50,25 +50,72 @@ public sealed partial class RabbitGuard
 		int step = (int)frame;
 		var model = Renderer.WorldTransform;
 		var bones = poseModel.Bones.AllBones;
-		// Iterate children first so the parent's target is still its unblended model-space pose.
-		for ( int i = bones.Count - 1; i >= 0; i-- )
-		{
-			int index = bones[i].Index, parent = recoveryParents[index];
-			var target = parent >= 0 ? solvedPose[parent].ToLocal( solvedPose[index] ) : model.ToWorld( solvedPose[index] );
-			if ( parent < 0 ) target.Position -= WorldPosition;
-			ref var previous = ref recoveryPose[index];
-			for ( int tick = recoveryStep + 1; tick <= step; tick++ )
-				previous = global::Transform.Lerp( previous, target, Weight( tick ), false );
-			var pose = global::Transform.Lerp( previous, target, Weight( step + 1 ) * (frame - step), false );
-			solvedPose[index] = parent >= 0 ? pose : model.ToLocal( pose.WithPosition( pose.Position + WorldPosition ) );
-		}
 		foreach ( var bone in bones )
 		{
-			int parent = recoveryParents[bone.Index];
-			if ( parent >= 0 ) solvedPose[bone.Index] = solvedPose[parent].ToWorld( solvedPose[bone.Index] );
+			int i = bone.Index, parent = recoveryParents[i];
+			var target = parent >= 0 ? RelativeBonePose( solvedPose[parent], solvedPose[i] ) : model.ToWorld( solvedPose[i] );
+			if ( parent < 0 ) target.Position -= WorldPosition;
+			animationPose[i] = target;
 		}
-		recoveryStep = step;
+
+		bool advanced = recoveryStep < step;
+		while ( recoveryStep < step )
+		{
+			Sample( Weight( ++recoveryStep ) );
+			// The native script writes world matrices to ragdoll_pose and reads them back
+			// next tick. Its close-angle quaternion blend can yield a non-unit rotation.
+			foreach ( var bone in bones )
+			{
+				var pose = solvedPose[bone.Index];
+				var q = pose.Rotation;
+				// For matrix trace > 0, QuaternionFromMat4 extracts (w * xyz, 1 - dot(xyz, xyz)).
+				// The other three branches recover the original quaternion up to a common factor.
+				float xyz = q.x * q.x + q.y * q.y + q.z * q.z;
+				var rotation = xyz < 0.75f ? new Rotation( q.x * q.w, q.y * q.w, q.z * q.w, 1f - xyz ) : q;
+				recoveryPose[bone.Index] = pose.WithRotation( rotation.Normal );
+			}
+			for ( int i = bones.Count - 1; i >= 0; i-- )
+			{
+				int index = bones[i].Index, parent = recoveryParents[index];
+				if ( parent >= 0 ) recoveryPose[index] = recoveryPose[parent].ToLocal( recoveryPose[index] );
+			}
+		}
+		float fraction = frame - step;
+		if ( fraction > 0f || !advanced ) Sample( Weight( step + 1 ) * fraction );
+		foreach ( var bone in bones )
+		{
+			var pose = solvedPose[bone.Index];
+			solvedPose[bone.Index] = model.ToLocal( pose.WithPosition( pose.Position + WorldPosition ) );
+		}
+
+		void Sample( float weight )
+		{
+			foreach ( var bone in bones )
+			{
+				int i = bone.Index, parent = recoveryParents[i];
+				var previous = recoveryPose[i];
+				var target = animationPose[i];
+				var relative = new Transform( Vector3.Lerp( previous.Position, target.Position, weight ),
+					RabbitClip.MixRotation( previous.Rotation, target.Rotation, weight ), Vector3.Lerp( previous.Scale, target.Scale, weight ) );
+				if ( parent >= 0 )
+				{
+					var above = solvedPose[parent];
+					relative = new Transform( above.Position + above.Rotation.Normal * (relative.Position * above.Scale),
+						above.Rotation * relative.Rotation, above.Scale * relative.Scale );
+				}
+				solvedPose[i] = relative;
+			}
+		}
+
 		float Weight( int tick ) => Math.Min( 1f, (tick / rate + 1f / 120f) * recoveryRate );
+	}
+
+	// BoneTransform uses the conjugate for orientation and a unit rotation for points.
+	static Transform RelativeBonePose( Transform parent, Transform child )
+	{
+		var inverse = parent.Rotation.Conjugate;
+		return new( inverse.Normal * (child.Position - parent.Position) / parent.Scale,
+			inverse * child.Rotation, child.Scale / parent.Scale );
 	}
 
 	void EndRecovery()
