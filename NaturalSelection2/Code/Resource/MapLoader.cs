@@ -253,7 +253,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			if ( material is { IsValid: true, IsError: false } ) return material;
 		}
 
-		return Material.Load( "materials/dev/primary_white.vmat" );
+		return Material.Load( "materials/ns2/missing_world.vmat" );
 	}
 
 	static bool InRange( LevelMesh.Tri tri, int count ) =>

@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/complex.shader"
+	TextureColor "materials/dev/primary_white_color.tga"
+	g_vColorTint "[0.016 0.016 0.016 1.0]"
+	TextureRoughness "[0.32 0.32 0.32 1.0]"
+}
