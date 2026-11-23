@@ -13,12 +13,12 @@ public sealed partial class RabbitGuard
 	TimeUntil fleeUpdate;
 	Vector3? fleeDestination;
 
-	bool HasCombatTarget => !Fleeing && CanAttack( enemy );
+	bool HasCombatTarget => !Fleeing && IsKnownThreat( enemy );
 	bool Fleeing => fleeFrom.IsValid() && fleeFrom == enemy;
 
 	bool Flee()
 	{
-		if ( !CanAttack( enemy ) ) { fleeFrom = null; return false; }
+		if ( !IsKnownThreat( enemy ) ) { fleeFrom = null; return false; }
 		if ( !Fleeing && Health <= MaxHealth * AfraidAtHealthLevel ) fleeFrom = enemy;
 		if ( !Fleeing ) return false;
 		if ( startled > 0f )
