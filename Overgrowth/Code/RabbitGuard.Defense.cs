@@ -119,7 +119,7 @@ public sealed partial class RabbitGuard
 		if ( Downed || IsGetUp( Stance ) )
 		{
 			throwRecharge = Math.Max( (float)throwRecharge, 1f );
-			var direction = (TargetPosition( GameObject ) - attacker.WorldPosition).Normal;
+			var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 			var facing = move.WorldImpact( direction, attacker.flippedAttack ).WithZ( 0 );
 			if ( Downed )
 			{

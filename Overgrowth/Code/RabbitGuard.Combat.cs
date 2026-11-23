@@ -65,7 +65,7 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < ContactRange && HasSight( enemy ) &&
+				if ( CanAttack( enemy ) && CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) < ContactRange && HasSight( enemy ) &&
 					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
 				{
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
 					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
 					{
-						var direction = (TargetPosition( blockingOpponent.GameObject ) - WorldPosition).Normal;
+						var direction = (CharacterCenter( blockingOpponent.GameObject ) - CharacterCenter( GameObject )).Normal;
 						stunnedBy = blockingOpponent;
 						blockStun = 0.5f;
 						blockingOpponent.ApplyBlockTilt( strike.WorldImpact( direction, flippedAttack ) * (strike.Height == "low" ? -20f : 20f) );
@@ -156,7 +156,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
-		var delta = destination - WorldPosition;
+		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
 		if ( !visible && distance < 40 )
 		{
@@ -291,7 +291,9 @@ public sealed partial class RabbitGuard
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
-		bool reached = CanAttack( enemy ) && WorldPosition.Distance( TargetPosition( enemy ) ) < ContactRange && HasSight( enemy );
+		var origin = CharacterCenter( GameObject );
+		var offset = enemy.IsValid() ? CharacterCenter( enemy ) - origin : Vector3.Zero;
+		bool reached = CanAttack( enemy ) && offset.LengthSquared < ContactRange * ContactRange && HasSight( enemy );
 		var rabbit = reached ? enemy.GetComponent<RabbitGuard>() : null;
 		if ( rabbit is not null )
 		{
@@ -311,7 +313,7 @@ public sealed partial class RabbitGuard
 		}
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
-		var direction = (TargetPosition( enemy ) - WorldPosition).Normal;
+		var direction = offset.Normal;
 		float force = strike.Force * AttackKnockback;
 		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
 			force *= 1f - Math.Clamp( defender.TemporaryHealth / defender.MaxHealth, 0f, 1f ) * 0.5f;
@@ -320,7 +322,7 @@ public sealed partial class RabbitGuard
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
 			Impulse = strike.WorldImpact( direction, flippedAttack ) * (force * 40f / 120f),
 			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100f * AttackDamage,
-			Origin = WorldPosition,
+			Origin = origin,
 			Position = position,
 			Attacker = GameObject,
 			Weapon = GameObject

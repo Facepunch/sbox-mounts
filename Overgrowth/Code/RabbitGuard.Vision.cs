@@ -66,7 +66,7 @@ public sealed partial class RabbitGuard
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			if ( concealed && ally.duckAmount >= 0.5f
 				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
-			var center = TargetPosition( candidate ) + (ally is { Downed: true } ? Vector3.Zero : Vector3.Up * 18f);
+			var center = CharacterCenter( candidate );
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
