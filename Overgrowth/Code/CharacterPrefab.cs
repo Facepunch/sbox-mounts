@@ -41,7 +41,6 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		renderer.Animation.Parameters.Set( "tall_coord", 1f, persist: true );
 		visuals.AddComponent<CutMarks>();
 		var hitboxes = visuals.AddComponent<ModelHitboxes>();
-		hitboxes.Hulls = character.HitVolumes;
 		hitboxes.Target = go;
 		hitboxes.Renderer = renderer;
 

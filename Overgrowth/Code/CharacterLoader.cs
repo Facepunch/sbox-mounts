@@ -178,15 +178,12 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return count > 0 ? sum / count : null;
 	}
 
-	void SetBodyRig( Model model, SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters, string modelPath, Vector3 center, float scale )
+	void SetBodyRig( Model model, SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters )
 	{
 		NonCollidingBones = bodyCenters.Where( x => x.Value.NonColliding ).Select( x => model.Bones.GetBone( $"bone_{x.Key}" ).Index ).ToHashSet();
 		if ( !guard ) return;
 		animationRig = skeleton;
 		SetAttachmentRig( skeleton );
-		var hullPath = modelPath[..^4] + "_hulls.obj";
-		if ( Host.FileSystem.FileExists( hullPath ) )
-			HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, center, scale, skeleton, bodyCenters );
 		AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
 		ragdollCenters.Clear();
 		forceLevers = new Vector3[model.BoneCount];
@@ -229,7 +226,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		Surface = new CharacterSurface( mesh, skeleton, scale );
 		var centers = RagdollBuilder.ReadCenters( Host.FileSystem, skeleton, System.IO.Path.ChangeExtension( modelPath, ".fzx" ),
 			reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
-		SetBodyRig( model, skeleton, centers, modelPath, mesh.Center, scale );
+		SetBodyRig( model, skeleton, centers );
 	}
 
 	void SetAttachmentRig( SkeletonData rig )
@@ -254,7 +251,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal CharacterSurface Surface { get; private set; }
 
 	internal float AttachmentScale => (ReadAppearance().Number( "default_scale" ) ?? 1f) / (ReadAppearance().Number( "model_scale" ) ?? 1f);
-	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
 	internal HashSet<int> NonCollidingBones { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
@@ -411,8 +407,12 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters );
+		var hullPath = modelObjPath[..^4] + "_hulls.obj";
+		if ( guard && Host.FileSystem.FileExists( hullPath ) )
+			CharacterHulls.Add( builder.AddHitboxSet(), Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
+
 		var model = builder.Create();
-		SetBodyRig( model, skeleton, bodyCenters, modelObjPath, objData.Center, scale );
+		SetBodyRig( model, skeleton, bodyCenters );
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );
 		for ( int i = 0; i < shapeCounts.Length; i++ )

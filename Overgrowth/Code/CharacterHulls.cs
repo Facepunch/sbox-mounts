@@ -3,7 +3,7 @@ namespace Overgrowth;
 
 internal static class CharacterHulls
 {
-	internal static ModelHitboxes.ConvexHull[] Load( BaseFileSystem fs, string path, Vector3 center, float scale,
+	internal static void Add( HitboxSetBuilder set, BaseFileSystem fs, string path, Vector3 center, float scale,
 		SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters )
 	{
 		var mesh = ObjLoader.Load( fs, path );
@@ -45,11 +45,16 @@ internal static class CharacterHulls
 				owners[nearest] = (bone, distance);
 		}
 
-		return owners.Select( pair => new ModelHitboxes.ConvexHull
+		foreach ( var (piece, owner) in owners )
 		{
-			BoneName = $"bone_{pair.Value.Bone}",
-			Points = groups[pair.Key].Select( p => skeleton.BindPose[pair.Value.Bone].PointToLocal( p ) ).ToArray(),
-			SurfaceName = "flesh"
-		} ).ToArray();
+			var bone = $"bone_{owner.Bone}";
+			var points = groups[piece];
+			if ( points.Length < 4 ) continue;
+			var bindPose = skeleton.BindPose[owner.Bone];
+			for ( int i = 0; i < points.Length; i++ )
+				points[i] = bindPose.PointToLocal( points[i] );
+
+			set.AddHull( bone, bone, points ).WithSurface( "flesh" );
+		}
 	}
 }
