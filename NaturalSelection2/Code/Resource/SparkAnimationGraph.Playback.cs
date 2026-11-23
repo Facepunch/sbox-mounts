@@ -26,15 +26,26 @@ internal sealed partial class SparkAnimationGraph
 			internal void Write( PoseParameters layer, GraphParameters output, float time )
 			{
 				float weight = Blend > 0 ? Math.Clamp( (time - Current.Start) / Blend, 0, 1 ) : 1;
-				if ( (layer.Index == 0 && Previous.Clip < 0) || (layer.Index > 0 && Current.Clip < 0) ) weight = 1;
+				var previous = Previous;
+				if ( layer.Index == 0 )
+				{
+					if ( previous.Clip < 0 ) weight = 1;
+				}
+				else if ( weight < 1 && Current.Clip >= 0 )
+				{
+					// Spark accumulates both action clips onto a copy of the base, then blends back toward the base.
+					weight = 1 - weight;
+				}
+				else
+				{
+					previous = previous with { Clip = -1 };
+					weight = 1;
+				}
 				output.Set( layer.Current, (float)(Current.Clip + 1) );
 				output.Set( layer.Time, Current.Seconds( time ) );
 				output.Set( layer.Weight, weight );
-				if ( weight < 1 )
-				{
-					output.Set( layer.Previous, (float)(Previous.Clip + 1) );
-					output.Set( layer.PreviousTime, Previous.Seconds( time ) );
-				}
+				output.Set( layer.Previous, (float)(previous.Clip + 1) );
+				if ( previous.Clip >= 0 ) output.Set( layer.PreviousTime, previous.Seconds( time ) );
 			}
 		}
 

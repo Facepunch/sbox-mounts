@@ -19,15 +19,17 @@ internal sealed partial class SparkAnimationGraph
 			if ( layer.Start < 0 ) continue;
 			var control = controls[layer.Index];
 			var used = layer.Nodes.Select( n => n.Clip ).Where( c => c >= 0 ).Distinct().Order().ToArray();
-			var previous = Sample( control.Previous, control.PreviousTime );
-			var current = Sample( control.Current, control.Time );
-			output = graph.Blend( previous, current, control.Weight );
+			var current = Sample( control.Current, control.Time, output );
+			if ( layer.Index == 0 )
+				output = graph.Blend( Sample( control.Previous, control.PreviousTime, output ), current, control.Weight );
+			else
+				output = graph.Blend( output, Sample( control.Previous, control.PreviousTime, current ), control.Weight );
 
-			GraphBuilder.Node Sample( GraphBuilder.Node selection, GraphBuilder.Node seconds )
+			GraphBuilder.Node Sample( GraphBuilder.Node selection, GraphBuilder.Node seconds, GraphBuilder.Node incoming )
 			{
-				var options = graph.BlendSpace( selection ).Add( 0, output );
+				var options = graph.BlendSpace( selection ).Add( 0, incoming );
 				foreach ( int clip in used )
-					options.Add( clip + 1, sequence( clips[clip], output, seconds ) ?? output );
+					options.Add( clip + 1, sequence( clips[clip], incoming, seconds ) ?? incoming );
 				return options;
 			}
 		}
