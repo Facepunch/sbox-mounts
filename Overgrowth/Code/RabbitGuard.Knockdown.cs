@@ -62,6 +62,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
+		bool wasAwake = !Unconscious;
 		base.OnDamaged( hit );
 		if ( hit.DamageInfo is BloodDamage && hit.AcceptedDamage > 0f )
 		{
@@ -107,7 +108,8 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact) ) Speak( "hit" );
+		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact);
+		if ( hitVoice ) Speak( "hit" );
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
