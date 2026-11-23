@@ -136,8 +136,11 @@ public sealed partial class RabbitGuard
 			(fighter?.Renderer ?? target.GetComponent<SkinnedModelRenderer>()).TryGetBoneTransform( bones[Random.Shared.Next( bones.Length )], out var bone ) )
 			end = bone.Position;
 
-		return !Scene.Trace.Ray( TargetPosition( GameObject, eyes: true ), end )
-			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player" ).Run().Hit;
+		var start = TargetPosition( GameObject, eyes: true );
+		if ( Scene.Trace.Ray( start, end )
+			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player" ).Run().Hit ) return false;
+		var plant = Scene.Trace.Ray( start, end ).WithTag( PlantHull.Tag ).HitTriggers().Run();
+		return !plant.Hit || plant.EndPosition.DistanceSquared( end ) <= 32f * 32f;
 	}
 
 }

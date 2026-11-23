@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
 	XmlAsset itemDefinition;
+	internal List<Vector3> PlantPoints { get; private set; }
 	internal ItemSharpness Sharpness { get; private set; }
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 
@@ -15,7 +16,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		var modelPath = filePath;
 		var material = Material.Load( "materials/default/white.vmat" );
 		var collision = false;
-		string sharpnessMap = null, surfacePath = null;
+		string sharpnessMap = null, surfacePath = null, plantColorMap = null;
 
 
 		if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
@@ -36,10 +37,11 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 			var bushCollision = (string)flags?.Attribute( "bush_collision" ) == "true";
 			collision = !item && !bushCollision && (string)flags?.Attribute( "no_collision" ) != "true";
 			if ( !item && bushCollision )
-				Log.Warning( $"Overgrowth asset {filePath}: bush physics has not been ported; no substitute collider will be generated." );
+				plantColorMap = root.Element( "ColorMap" )?.Value;
 		}
 
 		var data = ObjLoader.Load( Host.FileSystem, modelPath );
+		if ( plantColorMap is not null ) PlantPoints = PlantHull.Load( Host, modelPath, plantColorMap, data );
 		if ( !string.IsNullOrWhiteSpace( sharpnessMap ) ) Sharpness = new( Host, sharpnessMap, data );
 		var builder = Model.Builder.WithName( Path )
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );

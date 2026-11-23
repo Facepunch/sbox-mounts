@@ -217,9 +217,19 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 			actors.Items.Add( (int.TryParse( node.Attribute( "id" ), out var itemId ) ? itemId : -1, go, model) );
 	}
 
-	static void AddModel(GameObject go,Model model,bool solid)
+	void AddModel(GameObject go,Model model,bool solid)
 	{
 		go.AddComponent<ModelRenderer>().Model=model;
+		if ( solid && Host.GetByPath( model.ResourcePath ) is ObjectLoader { PlantPoints: { Count: >= 4 } points } )
+		{
+			go.Tags.Add( PlantHull.Tag, "trigger" );
+			var plant = go.AddComponent<HullCollider>( false );
+			plant.Type = HullCollider.PrimitiveType.Points;
+			plant.Points = points;
+			plant.Static = plant.IsTrigger = true;
+			plant.Enabled = true;
+			return;
+		}
 		if(!solid || model.Physics is null || model.Physics.Parts.Count==0)return;
 		go.Tags.Add("world");
 		var collider=go.AddComponent<ModelCollider>();
