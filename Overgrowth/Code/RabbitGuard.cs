@@ -106,6 +106,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateLanding();
 		if ( Downed )
 		{
+			UpdateBreathing( Time.Delta );
 			if ( Networking.IsHost ) TryGetUp();
 			else
 			{

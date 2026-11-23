@@ -17,12 +17,16 @@ public sealed partial class RabbitGuard
 
 	void UpdateBreathing( float dt )
 	{
-		float speedRatio = Animation.MoveVelocity.Length / GroundRunSpeed;
+		var velocity = Downed && ragdoll.IsValid() && ragdoll.GetComponent<RagdollDamping>() is { } body ? body.AverageVelocity : Animation.MoveVelocity;
+		float speedRatio = velocity.Length / GroundRunSpeed;
 		if ( CombatPosture ) speedRatio = (1f + speedRatio) * 0.5f;
 		float target = 0.9f + 4f * speedRatio;
 		breathSpeed = Math.Min( 5f, target + (breathSpeed - target) * MathF.Pow( 0.999f - 0.009f * speedRatio, dt * 120f ) );
+		float previous = breathTime;
 		breathTime += dt * breathSpeed;
 		breathAmount = (MathF.Sin( breathTime ) * 0.5f + 0.5f) * (0.5f + 0.1f * breathSpeed);
+		if ( (int)(breathTime / MathF.Tau + 0.6f) != (int)(previous / MathF.Tau + 0.6f) )
+			Scene.GetAllComponents<ColdBreath>().FirstOrDefault()?.Exhale( Renderer, velocity );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

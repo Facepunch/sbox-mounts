@@ -18,6 +18,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 	protected override void BuildScene()
 	{
 		var level = XmlAsset.Parse( Host.FileSystem.ReadAllText( levelPath ) );
+		if ( level.Element( "LevelScriptParameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "cold_breath" ) == true )
+			new GameObject( true, "Cold breath" ).AddComponent<ColdBreath>();
 		if ( level.Element( "Terrain" ) is { } terrain && terrain.Element("Heightmap") is not null )
 		{
 			var model = Model.Load( Host.MountedPath(levelPath) + ".vmdl" );

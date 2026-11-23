@@ -6,7 +6,7 @@ public sealed class BillboardParticle : Component
 {
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
-		float OpacityDecay, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent );
+		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -39,7 +39,7 @@ public sealed class BillboardParticle : Component
 		effect.Lifetime = float.MaxValue;
 		go.Enabled = true;
 		cloud.particle = effect.Emit( position, 0f );
-		cloud.Draw( position, cloud.diameter, cloud.opacity, cloud.angle );
+		cloud.Draw( position, cloud.diameter, definition.OpacityRampTime > 0f ? 0f : cloud.opacity, cloud.angle );
 		effect.OnPreStep = cloud.Simulate;
 	}
 
@@ -52,6 +52,8 @@ public sealed class BillboardParticle : Component
 		float alpha = definition.Persistence is { } persistence
 			? Math.Min( 1f, persistence / (ratio * ratio) ) * Math.Min( (age + 0.05f) * 10f, 1f ) * opacity - 0.1f
 			: opacity - age * definition.OpacityDecay;
+		if ( definition.Persistence is null && age < definition.OpacityRampTime )
+			alpha *= age / definition.OpacityRampTime;
 		if ( alpha <= 0f || size <= 0f )
 		{
 			GameObject.Destroy();
@@ -163,7 +165,7 @@ public partial class GameMount
 				behavior.Number( "inertia" ).Value, behavior.Number( "wind" ).Value,
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
 				behavior.Number( "gravity" ) ?? 0f, behavior.Number( "size_decay_rate" ) ?? 0f, behavior.Number( "opacity_decay_rate" ) ?? 0f,
-				decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ) );
+				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ) );
 			billboards.Add( path, definition );
 		}
 		BillboardParticle.Emit( definition, position, velocity, tint );
