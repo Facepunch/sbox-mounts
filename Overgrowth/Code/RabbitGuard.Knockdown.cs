@@ -27,6 +27,7 @@ public sealed partial class RabbitGuard
 	}
 
 	(Vector3 Point, Vector3 Impulse)? deathImpulse;
+	float? injuryAge;
 
 	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
 	{
@@ -154,6 +155,13 @@ public sealed partial class RabbitGuard
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );
 		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse);
+		injuryAge = death.DamageInfo switch
+		{
+			ExecutionDamage => 0f,
+			ItemWound or ItemImpact when !Unconscious => Random.Shared.Float( 0f, 12f ),
+			BloodDamage when !Unconscious => Random.Shared.Float( 5f, 8f ),
+			_ => null
+		};
 		base.OnDeath( death );
 	}
 
@@ -162,7 +170,10 @@ public sealed partial class RabbitGuard
 		var corpse = base.CreateRagdoll();
 		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
 		{
-			corpse.GetOrAddComponent<RagdollDamping>().Reset( physics );
+			var damping = corpse.GetOrAddComponent<RagdollDamping>();
+			damping.Reset( physics );
+			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
+				damping.StartInjury( pose, age );
 			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
 				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
 				{

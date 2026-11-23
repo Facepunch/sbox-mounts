@@ -4,7 +4,7 @@ using System;
 
 namespace Overgrowth;
 
-internal sealed record RagdollFallPose( int[] Parents, RagdollFallPose.Layer Flail, RagdollFallPose.Layer Fetal, RagdollFallPose.Layer Catch )
+internal sealed record RagdollFallPose( int[] Parents, RagdollFallPose.Layer Flail, RagdollFallPose.Layer Fetal, RagdollFallPose.Layer Catch, RagdollFallPose.Layer Writhe )
 {
 	internal sealed record Layer( RabbitClip Clip, float[] Weights );
 
@@ -23,10 +23,7 @@ internal sealed record RagdollFallPose( int[] Parents, RagdollFallPose.Layer Fla
 
 public sealed partial class RabbitGuard
 {
-	Rotation[] fallRotations;
-	float[] fallWeights;
-	int[] fallBoneIds;
-	Model fallModel;
+	readonly RagdollMotorPose fallMotor = new();
 	readonly List<(Vector3 Normal, float Depth)> fallContacts = [];
 
 	Vector3 FallDanger( Vector3 center )
@@ -86,48 +83,8 @@ public sealed partial class RabbitGuard
 			float front = Math.Max( 0f, GetTorsoDirections().Front.Dot( danger.Normal ) ) * protect;
 			float fade = Math.Min( 1f, (float)fallAge * 4f );
 			float phase = ((float)fallAge / pose.Flail.Clip.Duration) % 1f;
-			var model = Renderer.Model;
-			if ( fallModel != model || fallBoneIds is null )
-			{
-				fallModel = model;
-				fallBoneIds = new int[model.BoneCount];
-				foreach ( var bone in model.Bones.AllBones ) fallBoneIds[bone.Index] = int.Parse( bone.Name.AsSpan( 5 ) );
-				fallRotations = new Rotation[model.BoneCount];
-				fallWeights = new float[model.BoneCount];
-			}
-			foreach ( var bone in model.Bones.AllBones )
-			{
-				int id = fallBoneIds[bone.Index];
-				var local = pose.Sample( id, phase, protect * fade, front * fade, out fallWeights[bone.Index] );
-				int parent = pose.Parents[id];
-				fallRotations[id] = parent < 0 ? local : fallRotations[parent] * local;
-			}
+			fallMotor.Sample( Renderer.Model, pose, phase, protect * fade, front * fade );
 		}
-
-		foreach ( var joint in ragdoll.Joints )
-		{
-			var weight = strength > 0f ? strength * Math.Max( fallWeights[joint.Body1.Bone], fallWeights[joint.Body2.Bone] ) : 0f;
-			var target = Rotation.Identity;
-			if ( weight > 0f )
-			{
-				var first = fallRotations[fallBoneIds[joint.Body1.Bone]] * joint.LocalFrame1.Rotation;
-				var second = fallRotations[fallBoneIds[joint.Body2.Bone]] * joint.LocalFrame2.Rotation;
-				target = first.Inverse * second;
-			}
-			// Map Overgrowth's per-step angular error correction onto the joint's position drive.
-			float frequency = 0.2f * 120f * weight / MathF.Tau;
-			if ( joint.Component is BallJoint ball )
-			{
-				ball.Frequency = frequency;
-				ball.TargetRotation = target;
-				ball.Motor = weight > 0f ? BallJoint.MotorMode.TargetRotation : BallJoint.MotorMode.Disabled;
-			}
-			else if ( joint.Component is HingeJoint hinge )
-			{
-				hinge.Frequency = frequency;
-				hinge.TargetAngle = MathX.DeltaDegrees( 0f, (2f * MathF.Atan2( target.z, target.w )).RadianToDegree() );
-				hinge.Motor = weight > 0f ? HingeJoint.MotorMode.TargetAngle : HingeJoint.MotorMode.Disabled;
-			}
-		}
+		fallMotor.Apply( ragdoll, strength );
 	}
 }
