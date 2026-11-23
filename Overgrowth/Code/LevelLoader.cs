@@ -140,7 +140,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				return;
 			case "ActorObject" when Host.GetActorPrefab( file ) is { } prefabName:
 				var prefab = PrefabFile.Load( Host.MountedPath( prefabName ) );
-				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
+				// MovementObject stores the leg-sphere center and projects editor facing onto the ground plane.
+				var facing = (transform.Rotation.Forward * transform.Scale.x).WithZ( 0f ).Normal;
+				var placement = new Transform( transform.Position + Vector3.Down * RabbitGuard.LegRadius,
+					Rotation.LookAt( facing.IsNearlyZero() ? Vector3.Left : facing ) );
+				var actor = GameObject.Clone( prefab, placement, startEnabled: false, name: name );
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
 				int start = Connections( node ).FirstOrDefault( -1 );
 				actors.Guards.Add( (fighter, start) );
@@ -194,8 +198,6 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					case "Invisible When Stationary": fighter.InvisibleWhenStationary = value != 0f; break;
 					}
 				}
-				var renderer = fighter.Renderer;
-				actor.WorldPosition = transform.PointToWorld( Vector3.Up * renderer.Model.Bounds.Mins.z );
 				actor.Enabled = true;
 				return;
 			case "ActorObject":

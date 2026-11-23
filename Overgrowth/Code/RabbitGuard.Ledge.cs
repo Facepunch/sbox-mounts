@@ -17,7 +17,7 @@ public sealed partial class RabbitGuard
 	float jumpFuel;
 	TimeSince sinceClimbLaunch;
 	bool approachingLedge, leavingLedge;
-	const float LegRadius = 18f;
+	internal const float LegRadius = 18f;
 
 	SceneTrace ClimbTrace( SceneTrace trace ) => trace.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().WithoutTags( "npc", "player", "trigger" );
 
