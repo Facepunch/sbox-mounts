@@ -66,7 +66,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround, RabbitGuard.DodgeHigh, RabbitGuard.DodgeMiddle, RabbitGuard.DodgeLow] ).ToHashSet();
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -170,6 +171,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		var states = names.Select( name =>
 		{
+			if ( name is RabbitGuard.HalfWounded or RabbitGuard.Wounded )
+			{
+				var injury = name == RabbitGuard.Wounded ? "wounded" : "halfwounded";
+				var path = $"Data/Animations/r_{injury}{(item is null ? "idle" : "armed")}.xml";
+				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( path ), "idle", false ),
+					WithEquipment( AnimationGroup( path, mirrored: true ), "idle", true ) ) );
+			}
 			if ( name == RabbitGuard.PatrolIdle )
 				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( "Data/Animations/r_relaxidle.xml" ) ) );
 			if ( name == RabbitGuard.Idle )
@@ -247,7 +255,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			foreach ( var previous in states )
 			{
 				if ( previous == states[i] ) continue;
-				bool landing = previous == airState && target is RabbitGuard.Idle or RabbitGuard.Threat or RabbitGuard.Locomotion;
+				bool landing = previous == airState && target is RabbitGuard.Idle or RabbitGuard.Threat or RabbitGuard.Locomotion or RabbitGuard.HalfWounded or RabbitGuard.Wounded;
 				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
 				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = waking ? 0.05f : landing ? 0.1f : duration } );
 			}

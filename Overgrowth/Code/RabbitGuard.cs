@@ -100,15 +100,20 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateCombatPosture();
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
+		var displayPose = WoundedPose( pose );
 		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
 		UpdateIdleBalance( pose is Threat or Idle or Watch );
-		if ( pose == Idle ) Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
+		if ( pose == Idle )
+		{
+			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
+			Renderer.Animation.Parameters.Set( "threat_coord", Math.Clamp( ThreatAmount, 0f, 1f ) );
+		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Locomotion ? MirroredStance : MirroredAction );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
-		if ( pose == Threat ) UpdateStanceFeet( playing != Threat );
+		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
 		if ( pose is Idle or Watch && Animation.IsGrounded ) UpdateIdleFeet();
 		if ( track ) UpdateChestLook( GazeTarget.Value );
 		if ( headMotion is null ) DrawRestingHead();
@@ -123,8 +128,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "attack_phase", AttackPhase );
 		}
 		if ( ReactionPhase < 1f ) Renderer.Animation.Parameters.Set( "reaction_phase", ReactionPhase );
-		if ( playing == pose ) return;
-		playing = pose;
+		if ( playing == displayPose ) return;
+		playing = displayPose;
 		Renderer.Animation.Parameters.Set( "stance", playing );
 	}
 

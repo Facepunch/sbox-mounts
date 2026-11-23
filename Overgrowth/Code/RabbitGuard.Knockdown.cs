@@ -54,7 +54,7 @@ public sealed partial class RabbitGuard
 		if ( sparringKnockout )
 		{
 			Health = MaxHealth;
-			bloodLost = 0f;
+			BloodLost = 0f;
 			recoverableDamage = 0f;
 			Unconscious = false;
 		}

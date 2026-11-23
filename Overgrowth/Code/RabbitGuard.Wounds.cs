@@ -6,7 +6,15 @@ public sealed partial class RabbitGuard
 {
 	[Property] public bool MetalArmor { get; set; }
 	[Property] public bool CannotBeDisarmed { get; set; }
-	float bloodLost;
+	[Sync] float BloodLost { get; set; }
+	internal const string HalfWounded = "half_wounded_idle", Wounded = "wounded_idle";
+
+	string WoundedPose( string pose )
+	{
+		if ( pose is not (Idle or Threat) || BloodLost <= 0f || boundAnimations.Species == "wolf" ) return pose;
+		bool severe = BloodLost > MaxHealth * 0.5f && (PrimaryItem.IsValid() || Animation.MoveVelocity.LengthSquared < 0.5f * 40f * 40f);
+		return severe ? Wounded : HalfWounded;
+	}
 	int initialKnockoutShield;
 	sealed class BloodDamage : DamageInfo;
 
@@ -40,8 +48,8 @@ public sealed partial class RabbitGuard
 	{
 		float permanent = Health + amount;
 		float temporary = permanent - recoverableDamage;
-		bloodLost += amount;
-		float blood = MaxHealth - bloodLost;
+		BloodLost += amount;
+		float blood = MaxHealth - BloodLost;
 		Health = permanent > blood ? permanent - 0.5f * amount : permanent;
 		recoverableDamage = Math.Max( 0f, Health - temporary );
 		if ( blood <= 0f && !Unconscious ) Health = 0f;
@@ -98,7 +106,7 @@ public sealed partial class RabbitGuard
 			}
 			if ( !defender.IsValid() ) return;
 			if ( label is "sword" or "rapier" or "big_sword" ) defender.KnockoutShield = Math.Max( 0, defender.KnockoutShield - 1 );
-			if ( species == "wolf" && defender.KnockoutShield == 0 ) defender.bloodLost = defender.MaxHealth;
+			if ( species == "wolf" && defender.KnockoutShield == 0 ) defender.BloodLost = defender.MaxHealth;
 		}
 		if ( parried && defender.IsValid() && (defender.PrimaryItem.IsValid() || defender.MetalArmor) )
 		{
@@ -118,9 +126,9 @@ public sealed partial class RabbitGuard
 			else if ( species == "wolf" && defender.IsValid() )
 			{
 				int shield = defender.initialKnockoutShield;
-				if ( shield > 0 ) defender.bloodLost = Math.Max( defender.bloodLost, defender.MaxHealth * (1f - (defender.KnockoutShield + 0.5f) / shield) );
+				if ( shield > 0 ) defender.BloodLost = Math.Max( defender.BloodLost, defender.MaxHealth * (1f - (defender.KnockoutShield + 0.5f) / shield) );
 				Cut( 0.1f );
-				if ( defender.IsValid() ) defender.KnockoutShield = Math.Min( defender.KnockoutShield, Math.Max( 0, (int)(shield * (1f - defender.bloodLost / defender.MaxHealth)) ) );
+				if ( defender.IsValid() ) defender.KnockoutShield = Math.Min( defender.KnockoutShield, Math.Max( 0, (int)(shield * (1f - defender.BloodLost / defender.MaxHealth)) ) );
 			}
 		}
 		if ( target.IsValid() ) ReportSound( target, position, HeardSound.Combat, 2f );
