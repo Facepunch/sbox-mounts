@@ -42,6 +42,7 @@ public sealed partial class RabbitGuard
 		dodgeWindow = 0f;
 		nextSuccessfulDodge = 3f;
 		wantsBlockThrow = true;
+		attacker.dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
 		attacker.stunnedBy = this;
 		attacker.blockStun = attacker.boundAnimations.Species == "wolf" ? 1f : 0.5f;
 		return true;
