@@ -142,7 +142,7 @@ public sealed partial class RabbitGuard
 		if ( IsIgnoredPlayer( escortTarget ) )
 		{
 			escortTarget = null;
-			Movement.Stop();
+			ReleaseMovementInput();
 			return false;
 		}
 		var position = TargetPosition( escortTarget );
@@ -165,7 +165,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( startled > 0f )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Ready;
 			return;
 		}

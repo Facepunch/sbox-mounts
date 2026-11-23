@@ -43,6 +43,19 @@ public sealed partial class RabbitGuard
 		agent.Acceleration = Math.Max( acceleration, (direction * terminal - velocity).Length * (response / step) );
 	}
 
+	void ReleaseMovementInput()
+	{
+		if ( Movement is CharacterNavigation navigation ) navigation.ReleaseInput();
+		else Movement.Stop();
+	}
+
+	internal void AdvanceBraking( ref Vector3 velocity, float step, Vector3 origin )
+	{
+		float limit = Math.Clamp( velocity.Length * 0.98f, GroundRunSpeed, GroundRunSpeed * 1.5f );
+		if ( boundAnimations?.Species == "wolf" ) limit *= 1.5f;
+		AdvanceMomentum( ref velocity, step, MathF.Exp( -(35f * 40f) / (30f * limit) ), origin );
+	}
+
 	bool MoveTowardPoint( Vector3 target, float slowRadius, float speed )
 	{
 		var intent = MovementToPoint( target, slowRadius, 0f, 0f, out var point );
@@ -53,7 +66,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( intent.IsNearlyZero() )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			return false;
 		}
 		Movement.MoveTo( point, 0f, intent.Length * speed * GroundRunSpeed );

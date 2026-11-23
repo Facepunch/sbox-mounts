@@ -104,7 +104,7 @@ public sealed partial class RabbitGuard
 
 	void StopSeekingWeapon()
 	{
-		if ( soughtItem.IsValid() && Movement.MoveTarget.HasValue ) Movement.Stop();
+		if ( soughtItem.IsValid() && Movement.MoveTarget.HasValue ) ReleaseMovementInput();
 		soughtItem = null;
 		reaching = false;
 		seekDelay = 0.4f;

@@ -38,7 +38,7 @@ public sealed partial class RabbitGuard
 		var position = casualty.IsValid() ? TargetPosition( casualty ) : inspectPosition.Value;
 		if ( startled > 0f || inspectUntil.HasValue )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Ready;
 			if ( inspectUntil is { } until && until <= 0f )
 			{
@@ -69,7 +69,7 @@ public sealed partial class RabbitGuard
 
 	void InspectSite( Vector3 point )
 	{
-		Movement.Stop();
+		ReleaseMovementInput();
 		var direction = (point - WorldPosition).WithZ( 0f );
 		if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
 		inspectPosition = point;
@@ -182,7 +182,7 @@ public sealed partial class RabbitGuard
 		if ( searchTarget is not null && moveDelay <= 0.1f ) LookAtNotice( searchTarget.Position, 1f );
 		if ( searchTarget is null )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Ready;
 		}
 		else

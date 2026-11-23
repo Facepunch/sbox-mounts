@@ -182,7 +182,7 @@ public sealed partial class RabbitGuard
 			if ( !investigatePoint.HasValue && SearchArea() ) return;
 			if ( investigatePoint.HasValue && startled > 0 )
 			{
-				Movement.Stop();
+				ReleaseMovementInput();
 				Stance = Ready;
 				return;
 			}
@@ -198,14 +198,14 @@ public sealed partial class RabbitGuard
 				}
 			}
 			if ( FollowPatrol() ) return;
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			Stance = AlertStage > 0 ? Watch : Idle;
 			return;
 		}
 
 		if ( startled > 0 )
 		{
-			Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Ready;
 			return;
 		}
@@ -235,7 +235,7 @@ public sealed partial class RabbitGuard
 			var intent = ChaseApproach( destination, out var point );
 			if ( !intent.IsNearlyZero() )
 				Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed, footStanceTarget );
-			else Movement.Stop();
+			else ReleaseMovementInput();
 		}
 		Stance = !Movement.MoveTarget.HasValue || footStanceTarget.IsValid() || speed <= 0.6f * 40f ? Threat : Locomotion;
 	}

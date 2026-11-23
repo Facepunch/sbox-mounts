@@ -51,7 +51,7 @@ public sealed partial class RabbitGuard
 		else if ( !Sleeping && enemySeen > 0f ) return false;
 		else if ( waypointAnimation is not null && patrolWait > 0f ) PatrolAnimation = waypointAnimation;
 		else return false;
-		if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+		ReleaseMovementInput();
 		Stance = PatrolIdle;
 		return true;
 	}
@@ -143,7 +143,7 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
-			Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Idle;
 		}
 		return true;

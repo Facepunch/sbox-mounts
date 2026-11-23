@@ -12,11 +12,34 @@ public sealed class CharacterNavigation : NavigationLayer
 	Vector3? predictedClimb, runOffDirection;
 	float runOffSpeed;
 	float requestedGroundSpeed;
+	Vector3 brakingVelocity;
+	internal Vector3 BrakingVelocity => brakingVelocity;
 	TimeUntil runOffTimeout;
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
 
 	protected override bool UsesGround => !runOffDirection.HasValue && Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
+
+	internal void ReleaseInput()
+	{
+		if ( !MoveTarget.HasValue ) return;
+		var velocity = Agent is { Active: true } && !IsTraversingLink ? Agent.Velocity.WithZ( 0f ) : default;
+		base.Stop();
+		brakingVelocity = velocity;
+	}
+
+	public override void Stop()
+	{
+		brakingVelocity = default;
+		base.Stop();
+	}
+
+	public override void MoveTo( Vector3 target, float stopDistance = 10f, float? speed = null, GameObject faceTarget = null )
+	{
+		if ( !brakingVelocity.IsNearlyZero() && Agent is { Active: true } ) Agent.Velocity = brakingVelocity;
+		brakingVelocity = default;
+		base.MoveTo( target, stopDistance, speed, faceTarget );
+	}
 
 	protected override void OnUpdate()
 	{
@@ -58,9 +81,10 @@ public sealed class CharacterNavigation : NavigationLayer
 		preparedVelocity = null;
 		var facing = WorldRotation.Forward;
 		base.OnUpdate();
+		if ( !brakingVelocity.IsNearlyZero() ) Npc.Animation.SetMove( brakingVelocity );
 		if ( Npc is RabbitGuard moving && Agent.IsValid() && !Npc.IsAirborne )
 		{
-			var flat = Agent.Velocity.WithZ( 0f );
+			var flat = (Agent.Velocity + brakingVelocity).WithZ( 0f );
 			if ( moving.IsBackingAway && flat.LengthSquared > 0.001f * 40f * 40f )
 				WorldRotation = RabbitGuard.InterpolateFacing( facing, -flat.Normal, 1f - MathF.Pow( 0.95f, Time.Delta * 120f ) );
 			else if ( moving.StanceFacing( facing, flat.Length ) is { } stanceFacing )
@@ -77,8 +101,10 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	protected override void OnFixedUpdate()
 	{
-		if ( Networking.IsHost && requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne &&
-			Agent is { Active: true } && !IsTraversingLink && Npc is RabbitGuard fighter )
+		if ( !Networking.IsHost || Npc is not RabbitGuard fighter ) return;
+		if ( !brakingVelocity.IsNearlyZero() && Agent is { Active: true } )
+			fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, Agent.AgentPosition );
+		else if ( requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne && Agent is { Active: true } && !IsTraversingLink )
 			fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta );
 	}
 
@@ -146,6 +172,8 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	protected override void OnDisabled()
 	{
+		requestedGroundSpeed = 0f;
+		brakingVelocity = default;
 		followingJump = false;
 		preparedVelocity = null;
 		if ( Npc is RabbitGuard fighter ) fighter.EndLedge();

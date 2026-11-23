@@ -23,7 +23,7 @@ public sealed partial class RabbitGuard
 		if ( !Fleeing ) return false;
 		if ( startled > 0f )
 		{
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			ReleaseMovementInput();
 			Stance = Ready;
 			return true;
 		}
@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 			fleeDestination = away.IsNearlyZero() ? null : RetreatDestination( away );
 		}
 		if ( fleeDestination is { } point ) MoveTowardPoint( point, 0f, 1f );
-		else if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+		else ReleaseMovementInput();
 		Stance = Locomotion;
 		return true;
 	}

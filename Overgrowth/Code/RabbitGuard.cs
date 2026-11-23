@@ -214,6 +214,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;
 		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
+		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length > 0.6f * 40f )
+			Stance = Locomotion;
 	}
 
 	// NeedsCombatPose considers every hostile seen in the last second, including those outside the current goal.
