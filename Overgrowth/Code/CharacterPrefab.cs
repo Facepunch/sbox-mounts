@@ -59,7 +59,7 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		agent.Height = height;
 		// BrainSpeciesUpdate reserves off-mesh jump routes for rabbits.
 		agent.AllowAllLinkTypes = character.Species == "rabbit";
-		go.AddComponent<NavigationLayer>().RunSpeed = 8f * 40f;
+		go.AddComponent<CharacterNavigation>().RunSpeed = 8f * 40f;
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;
 		var npc = go.AddComponent<RabbitGuard>();
