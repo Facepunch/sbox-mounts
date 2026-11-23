@@ -51,6 +51,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			secondaryReset = 4f * (4f / 120f);
 			leanBones = null;
 			Renderer.Animation.Graph = ready.Graph;
+			connectedPatrolAnimation = null;
 			playing = null;
 		}
 		if ( Networking.IsHost ) UpdateBlockFlinch();
@@ -76,6 +77,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
 			EndGetUpBlend();
 		if ( Networking.IsHost ) UpdateGazeTarget();
+		UpdatePatrolPose();
 		bool track = Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;

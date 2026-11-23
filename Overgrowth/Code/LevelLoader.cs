@@ -81,8 +81,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		{
 			case "PathPointObject" when int.TryParse( node.Attribute( "id" ), out int pointId ):
 				var point = Object().AddComponent<PatrolPoint>();
-				point.Wait = node.Element( "parameters" )?.Elements( "parameter" )
-					.FirstOrDefault( p => p.Attribute( "name" ) == "Wait" )?.Number( "val" );
+				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
+				{
+					if ( parameter.Attribute( "name" ) == "Wait" ) point.Wait = parameter.Number( "val" );
+					if ( parameter.Attribute( "name" ) == "Type" ) point.Pose = parameter.Attribute( "val" );
+				}
 				patrolPoints[pointId] = (point, node);
 				return;
 			case "SpawnPoint":
