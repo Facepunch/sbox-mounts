@@ -127,6 +127,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				fighter.Teams = GetTeams( node, file );
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
+					if ( parameter.Attribute( "name" ) == "No Look Around" )
+						fighter.NoLookAround = parameter.Attribute( "type" ) != "int" || parameter.Number( "val" ) != 0f;
 					if ( parameter.Number( "val" ) is not { } value ) continue;
 					switch ( parameter.Attribute( "name" ) )
 					{
@@ -142,6 +144,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Throw Counter Probability": fighter.ThrowCounterProbability = Math.Clamp( value, 0f, 1f ); break;
 						case "Block Follow-up": fighter.BlockFollowUp = Math.Clamp( value, 0f, 1f ); break;
 						case "Left handed": fighter.LeftHanded = value != 0f; break;
+					case "Invisible When Stationary": fighter.InvisibleWhenStationary = value != 0f; break;
 					}
 				}
 				var renderer = fighter.Renderer;

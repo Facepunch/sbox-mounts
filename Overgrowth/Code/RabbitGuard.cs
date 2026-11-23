@@ -15,6 +15,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	internal const string Kick = "r_frontkick", Knee = "r_kneestrike", Jab = "r_jab", Roundhouse = "r_roundhouse";
 
 	[Sync] public int AlertStage { get; private set; }
+	[Property] public bool InvisibleWhenStationary { get; set; }
+	[Property] public bool NoLookAround { get; set; }
 	TimeUntil nextVisionCheck = 1f;
 	float enemySeen;
 	string playing;
@@ -80,7 +82,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			EndGetUpBlend();
 		if ( Networking.IsHost ) UpdateGazeTarget();
 		UpdatePatrolPose();
-		bool track = Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
+		bool track = !NoLookAround && Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
 		UpdateCombatPosture();
@@ -252,6 +254,10 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( !CanAttack( candidate ) ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
+			var hidden = candidate.GetComponent<RabbitGuard>();
+			bool concealed = hidden is { InvisibleWhenStationary: true };
+			if ( concealed && hidden.duckAmount >= 0.5f
+				&& hidden.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
 			var delta = TargetPosition( candidate, eyes: true ) - EyePosition;
 			float distance = delta.Length;
 			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
@@ -260,7 +266,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( !focus && !peripheral ) continue;
 			if ( !HasSight( candidate ) ) continue;
 			seenHostiles[candidate] = Time.Now;
-			attention += (0.5f - 0.4f * MathF.Sqrt( separation ) / 4000f) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f);
+			attention += (0.5f - 0.4f * MathF.Sqrt( separation ) / 4000f) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f) * (concealed ? 0.3f : 1f);
 			if ( candidate == enemy ) visible = true;
 			if ( separation < nearest )
 			{
