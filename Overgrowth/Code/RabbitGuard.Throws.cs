@@ -83,7 +83,7 @@ public sealed partial class RabbitGuard
 	{
 		throwPartner = partner;
 		strike = null;
-		Movement.Stop();
+		BeginPairedMovement();
 		Stance = action;
 		MirroredAction = mirrored;
 		ReactionPhase = 0f;

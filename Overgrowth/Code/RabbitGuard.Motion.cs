@@ -3,6 +3,25 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	Vector3 combatVelocity;
+	bool restoreAgentPosition;
+
+	// Paired clips drive both roots. The nav agent would also ease them towards its sampled floor.
+	void BeginPairedMovement()
+	{
+		Movement.Stop();
+		if ( GetComponent<NavMeshAgent>( true ) is not { UpdatePosition: true } agent ) return;
+		restoreAgentPosition = true;
+		agent.UpdatePosition = false;
+	}
+
+	void EndPairedMovement()
+	{
+		if ( !restoreAgentPosition ) return;
+		restoreAgentPosition = false;
+		if ( GetComponent<NavMeshAgent>( true ) is not { } agent ) return;
+		agent.SetAgentPosition( WorldPosition );
+		agent.UpdatePosition = true;
+	}
 
 	void StopForCombat()
 	{

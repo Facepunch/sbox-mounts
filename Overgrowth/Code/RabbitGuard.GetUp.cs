@@ -144,7 +144,7 @@ public sealed partial class RabbitGuard
 		motionSamples = 0;
 		if ( bodyDragger.IsValid() ) bodyDragger.ReleaseBodyDrag();
 		ReleaseBodyDrag();
-		RestoreHoldMovement();
+		EndPairedMovement();
 		ReleaseProceduralPose();
 		EndRecovery();
 		FollowLeader( null );

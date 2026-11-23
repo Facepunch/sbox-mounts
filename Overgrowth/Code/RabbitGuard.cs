@@ -92,6 +92,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
+		if ( restoreAgentPosition && (Downed || Health <= 0f || !(InThrow || Held || Holding)) ) EndPairedMovement();
 		if ( Downed || Health < 1 )
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();

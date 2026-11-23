@@ -19,7 +19,6 @@ public sealed partial class RabbitGuard
 	bool struggleCrouch;
 	TimeSince sinceGrab;
 	TimeUntil nextHoldSound;
-	bool restoreAgentPosition;
 	sealed class HoldDamage : BluntDamage;
 	sealed class ExecutionDamage : DamageInfo;
 
@@ -51,13 +50,7 @@ public sealed partial class RabbitGuard
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
 		MirroredAction = MirroredStance;
-		Movement.Stop();
-		if ( GetComponent<NavMeshAgent>() is { UpdatePosition: true } agent )
-		{
-			// The pair controls its spacing. Crowd separation would push the actors apart.
-			restoreAgentPosition = true;
-			agent.UpdatePosition = false;
-		}
+		BeginPairedMovement();
 		Stance = pose;
 	}
 
@@ -195,7 +188,7 @@ public sealed partial class RabbitGuard
 	{
 		var partner = holdPartner;
 		holdPartner = null;
-		RestoreHoldMovement();
+		EndPairedMovement();
 		bool fall = Held && !Downed && Health > 0f && sinceGrab > 0.1f;
 		if ( Held || Holding )
 		{
@@ -206,12 +199,4 @@ public sealed partial class RabbitGuard
 		if ( fall ) GoLimp();
 	}
 
-	void RestoreHoldMovement()
-	{
-		if ( !restoreAgentPosition ) return;
-		restoreAgentPosition = false;
-		if ( GetComponent<NavMeshAgent>( true ) is not { } agent ) return;
-		agent.SetAgentPosition( WorldPosition );
-		agent.UpdatePosition = true;
-	}
 }
