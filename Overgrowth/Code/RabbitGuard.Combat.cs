@@ -297,6 +297,8 @@ public sealed partial class RabbitGuard
 
 		var target = FindStrikeTarget( out float distance );
 		if ( !target.IsValid() ) return false;
+		// GetAttackDirection falls back to the unit facing vector when the opponent dodges.
+		if ( target.GetComponent<RabbitGuard>() is { IsDodging: true } ) distance = 40f;
 		bool close = distance < CloseAttackRange;
 		int attackClass = airResponse switch
 		{
