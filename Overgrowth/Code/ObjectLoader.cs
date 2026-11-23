@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
 	XmlAsset itemDefinition;
+	internal ItemSharpness Sharpness { get; private set; }
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 
 	protected override object Load()
@@ -14,6 +15,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		var modelPath = filePath;
 		var material = Material.Load( "materials/default/white.vmat" );
 		var collision = false;
+		string sharpnessMap = null;
 
 
 		if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
@@ -27,6 +29,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 			}
 
 			modelPath = Host.Resolve( root.Element( "Model" )?.Value );
+			if ( item ) sharpnessMap = root.Element( "SharpnessMap" )?.Value;
 			material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
 			var flags = root.Element( "flags" );
 			var bushCollision = (string)flags?.Attribute( "bush_collision" ) == "true";
@@ -36,6 +39,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		}
 
 		var data = ObjLoader.Load( Host.FileSystem, modelPath );
+		if ( !string.IsNullOrWhiteSpace( sharpnessMap ) ) Sharpness = new( Host, sharpnessMap, data );
 		var builder = Model.Builder.WithName( Path )
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );
 		builder.AddTraceMesh( data.Positions, data.Indices );

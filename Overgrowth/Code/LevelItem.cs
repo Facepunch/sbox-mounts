@@ -8,7 +8,14 @@ public sealed partial class LevelItem : Component
 	[Property] public float RangeExtension { get; set; }
 	[Property] public float RangeMultiplier { get; set; } = 1f;
 
-	protected override void OnPreRender() => UpdateAttachment();
+	[Sync] internal SkinnedModelRenderer StuckIn { get; set; }
+
+	protected override void OnPreRender()
+	{
+		if ( StuckIn.IsValid() && StuckIn.TryGetBoneTransform( Bone, out var bone ) )
+			WorldTransform = bone.ToWorld( Offset );
+		else UpdateAttachment();
+	}
 
 	void UpdateAttachment()
 	{
@@ -138,6 +145,7 @@ public sealed partial class LevelItem : Component
 		if ( item.GetComponent<Rigidbody>() is { } body ) body.Enabled = false;
 		item.SetParent( actor.GameObject, true );
 		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
+		attachmentComponent.StuckIn = null;
 		attachmentComponent.thrower = null;
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.Holder = actor.Renderer;

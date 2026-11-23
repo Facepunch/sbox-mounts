@@ -16,7 +16,7 @@ public sealed partial class RabbitGuard
 		return severe ? Wounded : HalfWounded;
 	}
 	int initialKnockoutShield;
-	sealed class BloodDamage : DamageInfo;
+	class BloodDamage : DamageInfo;
 
 	readonly List<float> painStarts = new();
 

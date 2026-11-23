@@ -31,6 +31,8 @@ public sealed partial class RabbitGuard
 	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
 	{
 		StrikeDamage strike => strike.Impulse,
+		ItemWound wound => wound.Impulse,
+		ItemImpact impact => impact.Impulse,
 		ExecutionDamage => WorldRotation.Forward * (1000f * 40f / 120f),
 		_ => default
 	};
@@ -160,6 +162,12 @@ public sealed partial class RabbitGuard
 		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
 		{
 			corpse.GetOrAddComponent<RagdollDamping>().Reset( physics );
+			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
+				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
+				{
+					item.GameObject.SetParent( corpse, true );
+					item.StuckIn = corpseRenderer;
+				}
 			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse );
 		}
 		return corpse;

@@ -14,9 +14,8 @@ public sealed partial class RabbitGuard
 		if ( followerCount > 0 || groupLeader.IsValid() ) chance *= 0.4f;
 		if ( Random.Shared.Float() >= chance * WeaponCatchSkill * (0.5f + 0.5f * GameDifficulty) ) return false;
 		var position = item.PhysicsPosition;
-		int free = 2 - (LeftHandItem.IsValid() ? LeftHandItem.Hands : 0) - (RightHandItem.IsValid() ? RightHandItem.Hands : 0);
 		MirroredAction = MirroredStance;
-		if ( free < item.Hands )
+		if ( FreeHands < item.Hands )
 		{
 			if ( PrimaryItem.IsValid() && PrimaryItem.TryContact( item, out var contact, out var a, out var b ) )
 				PlayWeaponClash( contact, a, b );

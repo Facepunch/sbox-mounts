@@ -1,12 +1,25 @@
 using System;
+using Sandbox.Physics;
 
 namespace Overgrowth;
 
 public sealed partial class LevelItem : Component.ICollisionListener
 {
+	internal const string FighterHull = "overgrowth_fighter_hull";
+	const string ThrownItem = "overgrowth_thrown_item";
 	bool flyingStraight;
 	GameObject thrower;
 	Transform previousFlightPose;
+
+	sealed class ItemCollisionRules : CollisionRules
+	{
+		internal ItemCollisionRules( CollisionRules original )
+		{
+			Defaults = new( original.Defaults );
+			Pairs = new( original.Pairs ) { [(ThrownItem, FighterHull)] = Result.Ignore };
+			OnValidate();
+		}
+	}
 
 	void TraceFlight( Rigidbody body )
 	{
@@ -23,7 +36,8 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					if ( thrower.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( thrower );
 					var hit = trace.Run();
 					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
-					fighter.DefendThrownItem( this, body, thrower );
+					if ( !fighter.DefendThrownItem( this, body, thrower ) )
+						HitFighter( fighter, body, thrower, hit, sample, end, line );
 					thrower = null;
 					flyingStraight = false;
 					return;
@@ -48,6 +62,12 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	internal void Throw( Vector3 target, Vector3 velocity, Vector3 throwerVelocity, bool fullBody )
 	{
+		// The native item body hits the environment. Characters are tested against the animated hulls.
+		var world = Scene.PhysicsWorld;
+		var rules = world.CollisionRules;
+		if ( rules.GetCollisionRule( ThrownItem, FighterHull ) != CollisionRules.Result.Ignore )
+			world.CollisionRules = new ItemCollisionRules( rules );
+		Tags.Add( ThrownItem );
 		thrower = Holder.GetComponentInParent<RabbitGuard>().GameObject;
 		Drop();
 		previousFlightPose = WorldTransform;

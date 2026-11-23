@@ -53,6 +53,7 @@ public sealed partial class RabbitGuard
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( LevelItem.FighterHull );
 		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.
 		FatalImpactSpeed = 0f;
 		initialKnockoutShield = KnockoutShield;
