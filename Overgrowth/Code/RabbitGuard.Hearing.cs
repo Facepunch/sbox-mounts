@@ -115,21 +115,12 @@ public sealed partial class RabbitGuard
 
 	void FollowCharacter( Vector3 position )
 	{
-		const float radius = 2f * 40f;
-		float remaining = (position - WorldPosition).WithZ( 0 ).Length - radius;
-		if ( startled > 0 || remaining <= 0 )
+		if ( startled > 0f )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = Ready;
+			return;
 		}
-		else
-		{
-			if ( repath <= 0 )
-			{
-				Movement.MoveTo( position, radius, Math.Min( remaining / 40f, 1f ) * GroundRunSpeed );
-				repath = 0.2f;
-			}
-			Stance = Locomotion;
-		}
+		Stance = MoveTowardPoint( position, 80f, 1f ) ? Locomotion : Ready;
 	}
 }

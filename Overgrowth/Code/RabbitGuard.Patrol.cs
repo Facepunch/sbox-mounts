@@ -117,9 +117,9 @@ public sealed partial class RabbitGuard
 	bool TryPatrolSeparation( Vector3? target, bool following )
 	{
 		var separation = TeammateSeparation();
-		if ( separation.IsNearlyZero() && yieldToTeammate <= 0f ) return false;
+		if ( separation.IsNearlyZero() && moveDelay <= 0f ) return false;
 		Vector3 intent = default;
-		if ( target.HasValue && yieldToTeammate <= 0f )
+		if ( target.HasValue && moveDelay <= 0f )
 		{
 			var delta = (target.Value - WorldPosition).WithZ( 0f ) / 40f;
 			if ( following ) delta = delta.Normal * Math.Max( 0f, delta.Length - 2f );

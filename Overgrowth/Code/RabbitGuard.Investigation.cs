@@ -12,7 +12,7 @@ public sealed partial class RabbitGuard
 	}
 
 	readonly List<SearchPoint> searchPoints = [];
-	TimeUntil searchUntil, searchPause;
+	TimeUntil searchUntil;
 	SearchPoint searchTarget;
 	readonly HashSet<GameObject> knownCasualties = [];
 	GameObject casualty;
@@ -56,8 +56,7 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
-			if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 40f, GroundRunSpeed * 0.7f );
-			Stance = Locomotion;
+			Stance = ApproachInvestigation( point, 40f, 0.7f ) ? Locomotion : Ready;
 		}
 		return true;
 	}
@@ -118,7 +117,6 @@ public sealed partial class RabbitGuard
 		searchPoints.Clear();
 		searchTarget = null;
 		searchUntil = 10f + Random.Shared.Float( 0.35f, 1.25f );
-		searchPause = 0;
 	}
 
 	bool SearchArea()
@@ -152,11 +150,11 @@ public sealed partial class RabbitGuard
 			point.SeenTime += Time.Delta * 3f;
 			if ( point.SeenTime < 1f ) continue;
 			searchPoints.RemoveAt( i );
-			searchPause = Random.Shared.Float( 0.2f, 0.6f );
+			moveDelay = Random.Shared.Float( 0.2f, 0.6f );
 			if ( point == searchTarget ) searchTarget = null;
 		}
 
-		if ( searchPause <= 0.1f && (repath <= 0f || searchTarget is null) )
+		if ( moveDelay <= 0.1f && (repath <= 0f || searchTarget is null) )
 		{
 			float shortest = float.PositiveInfinity;
 			searchTarget = null;
@@ -172,8 +170,8 @@ public sealed partial class RabbitGuard
 			}
 			repath = 0.2f;
 		}
-		if ( searchTarget is not null && searchPause <= 0.1f ) LookAtNotice( searchTarget.Position, 1f );
-		if ( searchTarget is null || searchPause > 0f )
+		if ( searchTarget is not null && moveDelay <= 0.1f ) LookAtNotice( searchTarget.Position, 1f );
+		if ( searchTarget is null )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = Ready;
@@ -181,8 +179,7 @@ public sealed partial class RabbitGuard
 		else
 		{
 			var dest = searchTarget.Position - Vector3.Up * 18f;
-			if ( Movement.MoveTarget != dest ) Movement.MoveTo( dest, 0f, GroundRunSpeed * 0.4f );
-			Stance = Locomotion;
+			Stance = ApproachInvestigation( dest, 0f, 0.4f ) ? Locomotion : Ready;
 		}
 		return true;
 	}

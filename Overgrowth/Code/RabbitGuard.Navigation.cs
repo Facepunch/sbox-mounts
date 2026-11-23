@@ -4,6 +4,54 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	bool MoveTowardPoint( Vector3 target, float slowRadius, float speed )
+	{
+		var intent = MovementToPoint( target, slowRadius, 0f, 0f, out var point );
+		if ( intent.IsNearlyZero() )
+		{
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			return false;
+		}
+		Movement.MoveTo( point, 0f, intent.Length * speed * GroundRunSpeed );
+		return true;
+	}
+
+	bool ApproachInvestigation( Vector3 target, float slowRadius, float speed ) =>
+		moveDelay > 0f ? MoveTowardPoint( WorldPosition, 0f, speed ) : MoveTowardPoint( target, slowRadius, speed );
+
+	Vector3 MovementToPoint( Vector3 target, float slowRadius, float preferredRange, float strafeOffset, out Vector3 point )
+	{
+		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
+		point = Movement.ProjectPoint( target ) ?? target;
+		var corner = NextPathCorner( point );
+		if ( corner.DistanceSquared( target ) < preferredRange * preferredRange )
+		{
+			var offset = -toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
+			point = WalkableRay( point, point + offset );
+			corner = NextPathCorner( point );
+		}
+		var delta = (corner - WorldPosition).WithZ( 0f );
+		var direct = toward * delta.Dot( toward );
+		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
+		var separation = TeammateSeparation();
+		intent += separation;
+		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
+		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
+		return intent;
+	}
+
+	Vector3 NextPathCorner( Vector3 goal )
+	{
+		var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal, Agent = GetComponent<NavMeshAgent>() } );
+		if ( !path.IsValid || path.Points.Count < 2 ) return goal;
+		for ( int i = 1; i < path.Points.Count - 1; i++ )
+		{
+			var corner = path.Points[i].Position;
+			if ( (corner - WorldPosition).WithZ( 0f ).LengthSquared > 40f * 40f ) return corner;
+		}
+		return path.Points[^1].Position;
+	}
+
 	Vector3 SlideOnNavMesh( Vector3 start, Vector3 end )
 	{
 		var nav = Scene.NavMesh;

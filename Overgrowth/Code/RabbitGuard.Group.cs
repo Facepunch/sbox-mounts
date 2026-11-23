@@ -7,7 +7,7 @@ public sealed partial class RabbitGuard
 {
 	RabbitGuard groupLeader;
 	int followerCount;
-	TimeUntil yieldToTeammate, backAwayUntil;
+	TimeUntil moveDelay, backAwayUntil;
 	readonly HashSet<GameObject> nearbyTeammates = new();
 
 	Vector3 TeammateSeparation()
@@ -31,9 +31,9 @@ public sealed partial class RabbitGuard
 			float distance = away.Length;
 			if ( distance <= 0f || distance >= range ) continue;
 			force += away * ((range - distance) / (range * distance));
-			if ( yieldToTeammate <= 0f )
+			if ( moveDelay <= 0f )
 			{
-				if ( ally.IsValid() ) ally.yieldToTeammate = 1f;
+				if ( ally.IsValid() ) ally.moveDelay = 1f;
 				backAwayUntil = 1f;
 			}
 		}

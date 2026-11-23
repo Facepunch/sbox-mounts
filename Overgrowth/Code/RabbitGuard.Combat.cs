@@ -188,8 +188,7 @@ public sealed partial class RabbitGuard
 			}
 			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= arrival * arrival )
 			{
-				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, arrival, (urgentInvestigation ? 0.7f : 0.2f) * GroundRunSpeed );
-				Stance = Locomotion;
+				Stance = ApproachInvestigation( point, urgentInvestigation ? 40f : 0f, urgentInvestigation ? 0.7f : 0.2f ) ? Locomotion : Ready;
 				return;
 			}
 			var site = urgentInvestigation ? investigatePoint : null;
@@ -345,39 +344,8 @@ public sealed partial class RabbitGuard
 	}
 
 	// GetNavMeshMovement slows only the component along the line to the target.
-	Vector3 CombatApproach( Vector3 target, out Vector3 point )
-	{
-		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
-		point = Movement.ProjectPoint( target ) ?? target;
-		var corner = NextCombatCorner( point );
-		if ( corner.DistanceSquared( target ) < preferredRange * preferredRange )
-		{
-			var offset = -toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
-			point = WalkableRay( point, point + offset );
-			corner = NextCombatCorner( point );
-		}
-		var delta = (corner - WorldPosition).WithZ( 0f );
-		var direct = toward * delta.Dot( toward );
-		float slowRadius = Math.Max( 0.2f * 40f, 40f - preferredRange );
-		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
-		var separation = TeammateSeparation();
-		intent += separation;
-		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
-		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
-		return intent;
-	}
-
-	Vector3 NextCombatCorner( Vector3 goal )
-	{
-		var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal, Agent = GetComponent<NavMeshAgent>() } );
-		if ( !path.IsValid || path.Points.Count < 2 ) return goal;
-		for ( int i = 1; i < path.Points.Count - 1; i++ )
-		{
-			var corner = path.Points[i].Position;
-			if ( (corner - WorldPosition).WithZ( 0f ).LengthSquared > 40f * 40f ) return corner;
-		}
-		return path.Points[^1].Position;
-	}
+	Vector3 CombatApproach( Vector3 target, out Vector3 point ) =>
+		MovementToPoint( target, Math.Max( 8f, 40f - preferredRange ), preferredRange, strafeOffset, out point );
 
 	void AdjustStrikeSpacing( Vector3 offset, bool ragdolled, bool beforeImpact )
 	{

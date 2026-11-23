@@ -33,10 +33,7 @@ public sealed partial class RabbitGuard
 			var away = (CharacterCenter( GameObject ) - CharacterCenter( enemy )).WithZ( 0f ).Normal;
 			fleeDestination = away.IsNearlyZero() ? null : RetreatDestination( away );
 		}
-		if ( fleeDestination is { } point )
-		{
-			if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 0f, GroundRunSpeed );
-		}
+		if ( fleeDestination is { } point ) MoveTowardPoint( point, 0f, 1f );
 		else if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 		Stance = Locomotion;
 		return true;
