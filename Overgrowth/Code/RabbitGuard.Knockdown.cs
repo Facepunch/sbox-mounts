@@ -20,6 +20,7 @@ public sealed partial class RabbitGuard
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown, fallAge, sinceUnconscious;
 	TimeUntil limpStun;
+	float knockoutVoiceDelay;
 	class BluntDamage : DamageInfo;
 	sealed class StrikeDamage : BluntDamage
 	{
@@ -86,6 +87,11 @@ public sealed partial class RabbitGuard
 				{
 					Unconscious = true;
 					sinceUnconscious = 0f;
+					if ( !holdPartner.IsValid() )
+					{
+						knockoutVoiceDelay = 0.4f;
+						ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+					}
 				}
 			}
 		}

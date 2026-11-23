@@ -37,6 +37,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost && (Unconscious || boundAnimations?.Species == "wolf") ) DropHandItem();
 		if ( Networking.IsHost && Health > 0 )
 		{
+			if ( knockoutVoiceDelay > 0f )
+			{
+				knockoutVoiceDelay -= Time.Delta;
+				if ( knockoutVoiceDelay <= 0f && Unconscious ) Speak( "death" );
+			}
 			blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) );
 			recoverableDamage = Math.Max( 0f, recoverableDamage - MaxHealth * 0.05f * Time.Delta );
 		}
