@@ -97,6 +97,7 @@ public sealed partial class RabbitGuard
 				arm.ElbowOffset = arm.WristOffset = arm.PreviousElbowOffset = arm.PreviousWristOffset = default;
 			}
 			Renderer.Animation.Debug.TryGetFloatChannel( "status", side == 0 ? "leftarm_blend" : "rightarm_blend", out var weight );
+			if ( OnLedge ) weight = 1f;
 			for ( int step = 0; step < steps; step++ )
 			{
 				float fraction = ((step + 1) * tick - armRemainder) / dt;
