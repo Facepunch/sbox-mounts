@@ -54,7 +54,7 @@ public sealed partial class RabbitGuard
 				if ( guard.Fleeing || guard.enemy != source ) continue;
 				guard.ObserveTarget( source, guard.visible );
 				guard.lastSeen = guard.TargetPosition( source );
-				guard.knownCharacters[source] = guard.CharacterCenter( source );
+				guard.NoticeCharacter( source );
 				guard.sinceEnemySeen = 0;
 				continue;
 			}

@@ -169,12 +169,11 @@ public sealed partial class RabbitGuard
 			Remember( closest, engage: false );
 			visible = CanSeeCharacter( closest, closest.GetComponent<RabbitGuard>() );
 		}
-		if ( !CanAttack( enemy ) || (!visible && sinceEnemySeen > 12f) )
+		if ( !IsKnownThreat( enemy ) || (!visible && sinceEnemySeen > 12f) )
 		{
-			if ( enemy is not null && (!enemy.IsValid() || !IsLiveTarget( enemy ) || enemy.GetComponent<RabbitGuard>() is { Unconscious: true }) )
-			{
-				FinishCombat( enemy.IsValid() ? TargetPosition( enemy ) : lastSeen );
-			}
+			if ( enemy is not null && !enemy.IsValid() ) FinishCombat( lastSeen );
+			else if ( enemy.IsValid() && knownCharacters.TryGetValue( enemy, out var memory ) && !memory.Awake )
+				FinishCombat( memory.Position );
 			enemy = null;
 			if ( FollowHeardVoice() ) return;
 			if ( InvestigateCasualty() ) return;

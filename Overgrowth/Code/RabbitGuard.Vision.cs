@@ -9,17 +9,30 @@ public sealed partial class RabbitGuard
 	[Property] public Vector3 FocusVision { get; set; } = new( 3.1417f * 0.2f, 3.1417f * 0.2f, 100f );
 	[Property] public Vector3 PeripheralVision { get; set; } = new( 3.1417f * 0.45f, 3.1417f * 0.45f, 4f );
 	VisionHull focusHull, peripheralHull;
-	readonly Dictionary<GameObject, Vector3> knownCharacters = [];
+	readonly record struct KnownCharacter( Vector3 Position, bool Awake, bool Hostile );
+	readonly Dictionary<GameObject, KnownCharacter> knownCharacters = [];
+
+	void NoticeCharacter( GameObject actor )
+	{
+		var npc = actor.GetComponent<BaseNpc>();
+		if ( npc is RabbitGuard { StaticCharacter: true } ) return;
+		bool awake = IsLiveTarget( actor ) && npc is not ({ Health: < 1 } or RabbitGuard { Unconscious: true }) &&
+			!actor.GetComponent<CharacterRemains>().IsValid();
+		knownCharacters[actor] = new( CharacterCenter( actor ), awake, GetDisposition( actor ) == Disposition.Hostile );
+	}
+
+	bool IsKnownThreat( GameObject actor ) => actor.IsValid() && !IsIgnoredPlayer( actor ) &&
+		(knownCharacters.TryGetValue( actor, out var memory ) ? memory is { Awake: true, Hostile: true } : CanAttack( actor ));
 
 	GameObject ClosestKnownThreat()
 	{
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		var center = CharacterCenter( GameObject );
-		foreach ( var (other, position) in knownCharacters )
+		foreach ( var (other, memory) in knownCharacters )
 		{
-			if ( !CanAttack( other ) ) continue;
-			float distance = center.DistanceSquared( position );
+			if ( !other.IsValid() || IsIgnoredPlayer( other ) || !memory.Hostile || !memory.Awake ) continue;
+			float distance = center.DistanceSquared( memory.Position );
 			if ( distance >= nearest ) continue;
 			nearest = distance;
 			closest = other;
@@ -68,28 +81,31 @@ public sealed partial class RabbitGuard
 			if ( candidate == GameObject || IsIgnoredPlayer( candidate ) ) continue;
 			var remains = candidate.GetComponent<CharacterRemains>();
 			bool friendly = remains.IsValid() || GetDisposition( candidate ) == Disposition.Friendly;
-			if ( !friendly && !CanAttack( candidate ) ) continue;
+			bool threat = !friendly && CanAttack( candidate );
+			bool known = knownCharacters.ContainsKey( candidate );
+			if ( !friendly && !threat && !known ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
-			if ( concealed && ally.duckAmount >= 0.5f
-				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
+			bool hidden = concealed && ally.duckAmount >= 0.5f
+				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
+			if ( hidden && !known ) continue;
 			var center = CharacterCenter( candidate );
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
 			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally, remains ) ) continue;
+			if ( friendly || known ) NoticeCharacter( candidate );
 			if ( friendly )
 			{
-				knownCharacters[candidate] = center;
 				if ( ally is { Unconscious: true } || remains.IsValid() ) NoticeCasualty( candidate );
 				continue;
 			}
+			if ( !threat || hidden ) continue;
 			seenHostiles[candidate] = Time.Now;
 			if ( !enemy.IsValid() && !escortTarget.IsValid() )
 			{
 				LookAtNotice( center + GetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
 			}
-			if ( knownCharacters.ContainsKey( candidate ) ) knownCharacters[candidate] = center;
 			bool patrolling = !enemy.IsValid() && !escortTarget.IsValid() && !Investigating;
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (patrolling ? 1f : 3f) * (concealed ? 0.3f : 1f);
 			if ( separation < nearest )
@@ -104,7 +120,7 @@ public sealed partial class RabbitGuard
 			if ( enemySeen >= 1f )
 			{
 				if ( !enemy.IsValid() ) Remember( closest );
-				else knownCharacters[closest] = CharacterCenter( closest );
+				else NoticeCharacter( closest );
 			}
 			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
 				investigatePoint = Movement.ProjectPoint( WorldPosition + (TargetPosition( closest ) - WorldPosition).Normal * 120f );

@@ -51,9 +51,9 @@ public sealed partial class RabbitGuard
 		var center = CharacterCenter( GameObject );
 		float nearest = 30f * 40f * (30f * 40f);
 		GameObject closest = null;
-		foreach ( var actor in knownCharacters.Keys )
+		foreach ( var (actor, memory) in knownCharacters )
 		{
-			if ( !actor.IsValid() || IsIgnoredPlayer( actor ) || GetDisposition( actor ) != Sandbox.Npcs.Disposition.Hostile ) continue;
+			if ( !memory.Hostile || !actor.IsValid() || IsIgnoredPlayer( actor ) ) continue;
 			float distance = center.DistanceSquared( CharacterCenter( actor ) );
 			if ( distance >= nearest ) continue;
 			nearest = distance;

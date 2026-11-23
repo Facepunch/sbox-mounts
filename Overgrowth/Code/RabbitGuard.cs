@@ -191,14 +191,14 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			enemySeen = 0;
 			Movement.Stop();
 		}
-		if ( CanAttack( enemy ) && !Sleeping )
+		if ( IsKnownThreat( enemy ) && !Sleeping )
 		{
 			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
 			if ( visible )
 			{
 				ObserveTarget( enemy, true );
 				lastSeen = TargetPosition( enemy );
-				knownCharacters[enemy] = CharacterCenter( enemy );
+				NoticeCharacter( enemy );
 				sinceEnemySeen = 0;
 				seenHostiles[enemy] = Time.Now;
 			}
@@ -303,7 +303,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		ObserveTarget( target, true );
 		enemy = target;
-		knownCharacters[target] = CharacterCenter( target );
+		NoticeCharacter( target );
 		searchUntil = 0f;
 		casualty = null;
 		inspectPosition = null;
