@@ -22,6 +22,8 @@ public sealed partial class RabbitGuard
 	readonly float?[] groundHeight = new float?[2];
 	readonly Rotation[] footRotation = [Rotation.Identity, Rotation.Identity];
 	readonly Vector3[] plantedRoot = new Vector3[2];
+	readonly Vector3[] footOffset = new Vector3[2];
+	readonly float[] stepLift = new float[2];
 	int steppingFoot;
 	float stepProgress, stancePhase;
 	[Sync] float CloseAmount { get; set; }
@@ -102,11 +104,21 @@ public sealed partial class RabbitGuard
 		{
 			var foot = side == 0 ? left : right;
 			var target = side == steppingFoot ? Vector3.Lerp( plantedRoot[side], Goal( side ), stepProgress ) : plantedRoot[side];
-			float lift = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
-			foot.Position += (target - root).WithZ( lift );
+			stepLift[side] = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
+			footOffset[side] = target - root;
 			PlantFoot( side, foot );
 		}
 		SolveStance();
+	}
+
+	void ReleaseStanceFeet( float dt )
+	{
+		float retain = MathF.Pow( 0.9f, dt * 120f );
+		for ( int side = 0; side < 2; side++ )
+		{
+			footOffset[side] *= retain;
+			stepLift[side] *= retain;
+		}
 	}
 
 	void PlantFoot( int side, Transform foot ) =>
@@ -119,7 +131,8 @@ public sealed partial class RabbitGuard
 		if ( weight > 0f )
 		{
 			// CDoFootIKImpl sweeps a 0.05 m sphere from 0.2 m above to 0.6 m below the animated foot.
-			var trace = Scene.Trace.Sphere( 2f, target.Position + Vector3.Up * 8f, target.Position + Vector3.Down * 24f )
+			var check = target.Position + footOffset[side];
+			var trace = Scene.Trace.Sphere( 2f, check + Vector3.Up * 8f, check + Vector3.Down * 24f )
 				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 			if ( trace.Hit && !trace.StartedSolid )
 			{
@@ -131,7 +144,7 @@ public sealed partial class RabbitGuard
 				var tilt = Rotation.FromToRotation( Vector3.Up, trace.Normal );
 				footRotation[side] = Rotation.Lerp( tilt, footRotation[side], inertia );
 				float lift = authoredHeight - 2f;
-				result.Position += Vector3.Up * ((height + lift - target.Position.z) * weight);
+				result.Position += footOffset[side].WithZ( height + lift + stepLift[side] - target.Position.z ) * weight;
 				result.Rotation = Rotation.Lerp( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ) * result.Rotation;
 				contact = true;
 			}

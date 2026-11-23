@@ -106,6 +106,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdateLanding();
 		if ( Downed )
 		{
+			ReleaseStanceFeet( Time.Delta );
 			UpdateBreathing( Time.Delta );
 			if ( Networking.IsHost ) TryGetUp();
 			else
@@ -161,6 +162,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
+		if ( pose != Threat ) ReleaseStanceFeet( Time.Delta );
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();
