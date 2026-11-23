@@ -8,7 +8,7 @@ public sealed partial class Skulk
 	Rotation bodyRotation;
 	TimeSince animationTime;
 
-	Rotation ViewRotation { get; set; }
+	internal Rotation ViewRotation { get; private set; }
 
 	// Spark's SlerpRadians advances by a fixed number of radians along the shortest arc.
 	static float ApproachAngle( float from, float to, float radians )

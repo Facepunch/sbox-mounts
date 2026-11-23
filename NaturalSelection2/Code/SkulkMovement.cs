@@ -133,20 +133,58 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			var tangent = wish - ContactNormal * Vector3.Dot( wish, ContactNormal );
 			if ( OnWall && !wish.IsNearlyZero() && tangent.Length < wish.Length * 0.25f )
 				tangent = Vector3.Up - ContactNormal * ContactNormal.z;
-			var wanted = tangent.Normal * (wish.IsNearlyZero() ? 0 : speed);
 			var velocity = body.Velocity - ContactNormal * Vector3.Dot( body.Velocity, ContactNormal );
-			body.Velocity = Vector3.Lerp( velocity, wanted, Math.Clamp( Time.Delta * 13, 0, 1 ) ) - ContactNormal * 12;
+			body.Velocity = GroundVelocity( velocity, tangent.Normal, speed, sinceLanding, Time.Delta ) - ContactNormal * 12;
 			if ( !wish.WithZ( 0 ).IsNearlyZero() )
 				WorldRotation = Rotation.LookAt( wish.WithZ( 0 ) );
 		}
-		if ( !supportedNow && !wish.IsNearlyZero() )
+		else
 		{
-			var lateral = body.Velocity.WithZ( 0 );
-			var direction = wish.WithZ( 0 ).Normal;
-			float add = Math.Clamp( speed - Vector3.Dot( lateral, direction ), 0, 9 * speed * Time.Delta );
-			body.Velocity += direction * add;
+			var forward = ((Skulk)Npc).ViewRotation.Forward.WithZ( 0 ).Normal;
+			body.Velocity = AirVelocity( body.Velocity, wish.WithZ( 0 ).Normal, forward, RunSpeed, Time.Delta );
 		}
 		Npc.Animation.SetMove( body.Velocity );
+	}
+
+	static Vector3 GroundVelocity( Vector3 velocity, Vector3 along, float speed, float groundedFor, float dt )
+	{
+		float contact = 1 - MathF.Cos( Math.Clamp( groundedFor * 10, 0, 1 ) * MathF.PI / 2 );
+		float friction = velocity.Length * (0.055f + contact * (11 - 0.055f));
+		if ( along.IsNearlyZero() && velocity.Length < 4 * MapLoader.Scale )
+			friction = Math.Max( friction, 6 * MapLoader.Scale );
+		velocity -= velocity.Normal * Math.Min( velocity.Length, friction * dt );
+		float add = Math.Clamp( speed - Vector3.Dot( velocity, along ), 0, contact * 13 * speed * dt );
+		return velocity + along * add;
+	}
+
+	static Vector3 AirVelocity( Vector3 current, Vector3 direction, Vector3 forward, float runSpeed, float dt )
+	{
+		const float scale = MapLoader.Scale;
+		var flat = current.WithZ( 0 );
+		flat -= flat * Math.Min( 1, 0.055f * dt * flat.Length / Math.Max( 0.001f, current.Length ) );
+		float initial = flat.Length;
+
+		var left = Vector3.Cross( Vector3.Up, forward );
+		float ahead = Vector3.Dot( direction, forward );
+		float strafe = Vector3.Dot( direction, left );
+		var wish = direction;
+		if ( Math.Abs( ahead ) > 0.0001f && ahead * Vector3.Dot( forward, flat.Normal ) >= -0.8f )
+		{
+			float lateral = Vector3.Dot( flat, left );
+			wish = Math.Abs( strafe ) > 0.0001f ? left * Math.Sign( strafe )
+				: Math.Abs( lateral ) > 0.2f * runSpeed ? -left * Math.Sign( lateral ) : Vector3.Zero;
+		}
+		float veer = Math.Clamp( 1.3f * scale - Vector3.Dot( flat, wish ), 0, 27 * 1.3f * scale * dt );
+		if ( ahead >= 0.99999f )
+			flat = (flat + forward * (54 * scale * dt)).Normal * initial;
+		flat += wish * veer;
+
+		flat += flat.Normal * (Math.Max( 0, -current.z ) * dt * 0.34f);
+		flat = flat.Normal * Math.Min( flat.Length, initial + 0.54f * scale * dt );
+		float max = Math.Max( flat.Length, runSpeed );
+		float fraction = Math.Min( 1, flat.Length / runSpeed );
+		flat += direction * (9 * scale * (1 - fraction * fraction) * dt);
+		return (flat.Normal * Math.Min( flat.Length, max )).WithZ( current.z );
 	}
 
 	void Jump( Vector3 direction, float planarSpeed )
