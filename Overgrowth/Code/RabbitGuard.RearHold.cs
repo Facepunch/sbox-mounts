@@ -28,6 +28,7 @@ public sealed partial class RabbitGuard
 		bool armed = PrimaryItem.IsValid();
 		if ( victim.Holding || victim.Held ) return false;
 		victim.InterruptWeaponLayers();
+		victim.EndRoll();
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
 		victim.QueueThrowDamage( this );

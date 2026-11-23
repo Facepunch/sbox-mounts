@@ -65,6 +65,7 @@ public sealed partial class RabbitGuard
 		StartThrowAction( "throw", victim, MirroredStance );
 		IncreaseBreathing( 2f );
 		victim.InterruptWeaponLayers();
+		victim.EndRoll();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
 		victim.QueueThrowDamage( this );
 		victim.MirroredStance = MirroredAction;

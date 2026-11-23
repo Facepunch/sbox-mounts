@@ -168,11 +168,7 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
-			if ( RollProgress < 1f )
-			{
-				RollProgress = 1f;
-				RollDirection = default;
-			}
+			EndRoll();
 			MirroredAction = MirroredStance;
 			BeginReaction( attacker.GameObject, attacker.WorldPosition, slot, guard, activeBlock: true );
 		}

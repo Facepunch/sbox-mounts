@@ -18,6 +18,12 @@ public sealed partial class RabbitGuard
 	RabbitClip RollClip( int index ) => boundAnimations.Clips[boundAnimations.RollClips[index] + (MirroredAction ? "_mirrored" : "")];
 	float RollFrequency => (1f - RollForwardness) / RollClip( 0 ).Duration + RollForwardness / RollClip( 1 ).Duration;
 
+	void EndRoll()
+	{
+		RollProgress = 1f;
+		RollDirection = default;
+	}
+
 	void StartRoll( Vector3 direction, Vector3 velocity, string surface )
 	{
 		rollVelocity = velocity.WithZ( 0f );
