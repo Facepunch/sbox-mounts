@@ -162,10 +162,17 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	public override string Faction => Factions.Citizen;
 
-	protected override void SetupRelationships() => SetRelationship( Factions.Player, Disposition.Hostile );
+	[Property] public string[] Teams { get; set; } = [];
+	[Property] public bool AlliedToPlayer { get; set; }
 
-	protected override Relationship GetFallbackRelationship( GameObject other ) =>
-		new( other.GetComponent<BaseNpc>().IsValid() ? Disposition.Hostile : Disposition.Neutral );
+	protected override void SetupRelationships() => SetRelationship( Factions.Player, AlliedToPlayer ? Disposition.Friendly : Disposition.Hostile );
+
+	protected override Relationship GetFallbackRelationship( GameObject other )
+	{
+		var npc = other.GetComponent<BaseNpc>();
+		if ( npc is RabbitGuard guard && Teams.Length > 0 && Teams.Any( guard.Teams.Contains ) ) return new( Disposition.Friendly );
+		return new( npc.IsValid() ? Disposition.Hostile : Disposition.Neutral );
+	}
 
 	static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget &&
 		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());

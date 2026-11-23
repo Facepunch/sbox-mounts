@@ -5,6 +5,12 @@ namespace Overgrowth;
 
 internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 {
+	sealed class Actors
+	{
+		public readonly List<(RabbitGuard Guard, int Waypoint)> Guards = [];
+		public string[] PlayerTeams = [];
+	}
+
 	protected override void BuildScene()
 	{
 		var level = XmlAsset.Parse( Host.FileSystem.ReadAllText( levelPath ) );
@@ -22,14 +28,26 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 		var jumpNodes = new Dictionary<int, XmlAsset>();
 		var patrolPoints = new Dictionary<int, (PatrolPoint Point, XmlAsset Node)>();
-		var patrolStarts = new List<(RabbitGuard Guard, int Id)>();
-		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, patrolStarts);
+		var actors = new Actors();
+		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, actors);
 		PlaceJumpLinks( jumpNodes );
 		foreach ( var (point, node) in patrolPoints.Values )
 			foreach ( var id in Connections( node ) )
 				if ( patrolPoints.TryGetValue( id, out var next ) ) point.Connections.Add( next.Point );
-		foreach ( var (guard, id) in patrolStarts )
+		foreach ( var (guard, id) in actors.Guards )
+		{
+			guard.AlliedToPlayer = guard.Teams.Any( actors.PlayerTeams.Contains );
 			if ( patrolPoints.TryGetValue( id, out var start ) ) guard.PatrolStart = start.Point;
+		}
+	}
+
+	string[] GetTeams( XmlAsset actor, string file )
+	{
+		var teams = actor.Element( "parameters" )?.Elements( "parameter" ).FirstOrDefault( p => p.Attribute( "name" ) == "Teams" )?.Attribute( "val" );
+		if ( teams is null && Host.GetActorPrefab( file ) is { } prefab &&
+			Host.GetByPath( Host.MountedPath( System.IO.Path.ChangeExtension( prefab, ".vmdl" ) ) ) is CharacterLoader character )
+			teams = character.DefaultTeams;
+		return teams?.Split( ',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries ) ?? [];
 	}
 
 	static IEnumerable<int> Connections( XmlAsset node )
@@ -60,7 +78,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 	}
 
 	void Place( XmlAsset node, Dictionary<int, XmlAsset> jumpNodes,
-		Dictionary<int, (PatrolPoint Point, XmlAsset Node)> patrolPoints, List<(RabbitGuard Guard, int Id)> patrolStarts )
+		Dictionary<int, (PatrolPoint Point, XmlAsset Node)> patrolPoints, Actors actors )
 	{
 		if ( node.Name == "NavmeshConnectionObject" && int.TryParse( node.Attribute( "id" ), out int id ) )
 		{
@@ -69,7 +87,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 		if(node.Name is "Group" or "Prefab" || node.Attribute("t0") is null)
 		{
-			foreach(var child in node.Children) Place(child, jumpNodes, patrolPoints, patrolStarts);
+			foreach(var child in node.Children) Place(child, jumpNodes, patrolPoints, actors);
 			return;
 		}
 		var file=node.Attribute("type_file");
@@ -92,6 +110,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				Object().AddComponent<SpawnPoint>();
 				return;
 			case "ActorObject" when node.Attribute("is_player")=="1":
+				actors.PlayerTeams = GetTeams( node, file );
 				Object().AddComponent<SpawnPoint>();
 				return;
 			case "DynamicLightObject":
@@ -104,7 +123,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				var actor = GameObject.Clone( prefab, transform, startEnabled: false, name: name );
 				var fighter = actor.GetComponent<RabbitGuard>( includeDisabled: true );
 				int start = Connections( node ).FirstOrDefault( -1 );
-				if ( start >= 0 ) patrolStarts.Add( (fighter, start) );
+				actors.Guards.Add( (fighter, start) );
+				fighter.Teams = GetTeams( node, file );
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
 					if ( parameter.Number( "val" ) is not { } value ) continue;

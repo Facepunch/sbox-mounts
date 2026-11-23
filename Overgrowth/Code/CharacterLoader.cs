@@ -13,6 +13,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	(XmlAsset Groups, float Pitch)? voice;
 	XmlAsset characterDefinition;
 	XmlAsset Definition => characterDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "character" );
+	internal string DefaultTeams => Definition.Element( "team" )?.Value;
 	internal string Clothing => Definition.Element( "clothing" )?.Value;
 	internal string SoundMod => Definition.Element( "soundmod" )?.Value;
 
