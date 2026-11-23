@@ -469,13 +469,14 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		if ( rabbit is not null && rabbit.holdPartner.IsValid() && rabbit.holdPartner != this ) rabbit.ReleaseHold();
-		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware );
+		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
+		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware, sharp );
 		if ( !parried && wasUnaware && rabbit.boundAnimations?.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
 			rabbit.ReceiveSurpriseSwordHit();
 		var direction = offset.Normal;
-		if ( strike.SharpMax > 0f )
+		if ( sharp > 0f )
 		{
-			ApplySharpHit( clip, position, direction, rabbit, parried );
+			ApplySharpHit( clip, position, direction, rabbit, parried, sharp );
 			return;
 		}
 		bool armored = rabbit is { MetalArmor: true };

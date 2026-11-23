@@ -55,11 +55,10 @@ public sealed partial class RabbitGuard
 		if ( blood <= 0f && !Unconscious ) Health = 0f;
 	}
 
-	void ApplySharpHit( RabbitClip clip, Vector3 position, Vector3 direction, RabbitGuard defender, bool parried )
+	void ApplySharpHit( RabbitClip clip, Vector3 position, Vector3 direction, RabbitGuard defender, bool parried, float sharp )
 	{
 		var label = boundAnimations.WeaponLabel;
 		bool knife = label == "knife";
-		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
 		var target = strikeTarget;
 		var victim = target.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
@@ -78,9 +77,19 @@ public sealed partial class RabbitGuard
 		{
 			if ( defender is { MetalArmor: true } )
 			{
-				if ( !knife ) PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", position );
-				Cut( knife ? sharp * AttackDamage * 0.5f : 0.3f );
-				if ( Random.Shared.Next( 2 ) == 0 ) PlayArmorImpact( position, !knife );
+				if ( knife )
+				{
+					if ( Random.Shared.Next( 2 ) == 0 ) PlayArmorImpact( position, false );
+					Cut( sharp * AttackDamage * 0.5f );
+				}
+				else
+				{
+					PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", position );
+					bool bledOut = defender.BloodLost > defender.MaxHealth;
+					Cut( 0.3f );
+					if ( (bledOut || defender.IsValid() && defender.BloodLost < defender.MaxHealth) && Random.Shared.Next( 2 ) == 0 )
+						PlayArmorImpact( position, true );
+				}
 			}
 			else
 			{

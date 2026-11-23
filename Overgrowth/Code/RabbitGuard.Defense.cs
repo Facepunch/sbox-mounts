@@ -180,7 +180,7 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move, bool wasUnaware )
+	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move, bool wasUnaware, float sharp )
 	{
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
 		var species = boundAnimations?.Species;
@@ -211,7 +211,7 @@ public sealed partial class RabbitGuard
 		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || guardBroken ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 		bool canDefend = species == "dog" || (startled <= 0f && (strike is null || armedParry) && WorldRotation.Forward.Dot( direction ) <= 0f);
-		bool parried = WorldScale.z >= 0.8f && (TrainingThrows || wolfAdvantage || canDefend && (move.SharpMax <= 0f || armedParry));
+		bool parried = WorldScale.z >= 0.8f && (TrainingThrows || wolfAdvantage || canDefend && (sharp <= 0f || armedParry));
 		if ( !parried && (!incomingWeapon || attacker.boundAnimations.WeaponLabel != "spear") ) return false;
 		if ( parried && wolfAdvantage && blockStun <= 0f )
 		{
