@@ -2,7 +2,7 @@ using System;
 
 namespace Overgrowth;
 
-internal sealed record RabbitHead( Vector3 NeckRoot, float HeadHalfLength, Vector3 BreathDirection, int ChainLength );
+internal sealed record RabbitHead( Vector3 NeckRoot, float HeadHalfLength, Vector3 BreathDirection, int ChainLength, EyeRig Eyes );
 
 public sealed partial class RabbitGuard
 {

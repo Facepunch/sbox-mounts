@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>, IHotloadManaged
 {
 	RabbitGuardAnimations compiledAnimations;
+	Vector3? modelCenter;
 	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
@@ -74,22 +75,30 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		{
 			// The mounted model can survive code hotload even when its animation data has been invalidated.
 			var appearance = ReadAppearance();
-			var (skeleton, rig, _, _) = ReadSkeleton( appearance );
+			var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
 			ReadBoneMasses( skeleton, rig );
-			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, ScaleSkeleton( appearance, skeleton ) );
+			if ( !modelCenter.HasValue )
+				modelCenter = ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
+			compiledAnimations = RabbitGuardAnimations.Create( Host.FileSystem, Path, filePath, skeleton, ScaleSkeleton( appearance, skeleton ), modelCenter.Value );
 		}
 		return compiledAnimations;
+	}
+
+	ObjLoader.ObjData ReadMesh( XmlAsset appearance, ObjLoader.ObjData reference, string skeletonModelPath, out string modelObjPath )
+	{
+		var objXmlPath = Host.Resolve( appearance.Attribute( "obj_path" ) );
+		modelObjPath = Host.Resolve( XmlAsset.Read( Host.FileSystem, objXmlPath, "Object" ).Element( "Model" )?.Value );
+		return string.Equals( modelObjPath, skeletonModelPath, StringComparison.OrdinalIgnoreCase )
+			? reference : ObjLoader.Load( Host.FileSystem, modelObjPath );
 	}
 
 	protected override object Load()
 	{
 		var appearance = ReadAppearance();
 		var objectPath = appearance.Attribute( "obj_path" );
-		var objXmlPath = Host.Resolve( objectPath );
 		var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
-		var modelObjPath = Host.Resolve( XmlAsset.Read( Host.FileSystem, objXmlPath, "Object" ).Element( "Model" )?.Value );
-		var objData = string.Equals( modelObjPath, skeletonModelPath, StringComparison.OrdinalIgnoreCase )
-			? reference : ObjLoader.Load( Host.FileSystem, modelObjPath );
+		var objData = ReadMesh( appearance, reference, skeletonModelPath, out var modelObjPath );
+		modelCenter = objData.Center;
 
 		ReadBoneMasses( skeleton, rig );
 
