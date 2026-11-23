@@ -86,12 +86,14 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		else points = display.Positions.Distinct().ToArray();
 
 		builder.AddBody( mass ).SetSurface( surface ).AddHull( points );
-		builder.AddAttachment( "asset_origin", -display.Center, Rotation.Identity );
-		builder.AddAttachment( "mass_center", center, Rotation.Identity );
+		const string root = "root";
+		builder.AddBone( root, Vector3.Zero, Rotation.Identity );
+		builder.AddAttachment( "asset_origin", -display.Center, Rotation.Identity, root );
+		builder.AddAttachment( "mass_center", center, Rotation.Identity, root );
 		foreach ( var point in definition.Element( "points" )?.Children ?? [] )
 		{
 			var position = new Vector3( point.Number( "z" ) ?? 0f, point.Number( "x" ) ?? 0f, point.Number( "y" ) ?? 0f );
-			builder.AddAttachment( point.Name, position * 40f - display.Center, Rotation.Identity );
+			builder.AddAttachment( point.Name, position * 40f - display.Center, Rotation.Identity, root );
 		}
 	}
 }
