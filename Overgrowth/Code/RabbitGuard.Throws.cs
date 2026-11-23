@@ -90,12 +90,6 @@ public sealed partial class RabbitGuard
 			Stance = Threat;
 			ReactionPhase = 1f;
 			GoLimp();
-			foreach ( var body in ragdoll.Bodies )
-			{
-				if ( !body.Component.IsValid() ) continue;
-				body.Component.CollisionEventsEnabled = true;
-				body.Component.GameObject.GetOrAddComponent<ThrownBodyContact>().Owner = this;
-			}
 			return;
 		}
 		if ( Stance == "thrown" && willEscapeThrow && startled <= 0 &&
@@ -121,23 +115,11 @@ public sealed partial class RabbitGuard
 		Stance = Threat;
 	}
 
-	internal void OnThrownBodyContact( Collision collision )
+	void ApplyThrowImpact( Vector3 point )
 	{
-		if ( !Networking.IsHost || !Downed || !awaitingThrowImpact || collision.Other.IsTrigger ) return;
-		var other = collision.Other.GameObject;
-		if ( other.IsValid() && other.GetComponentInParent<RabbitGuard>() is not null ) return;
 		awaitingThrowImpact = false;
-		var damage = new BluntDamage { Damage = 25f, Position = collision.Contact.Point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
+		var damage = new BluntDamage { Damage = 25f, Position = point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
 		throwPartner = null;
 		((IDamageable)this).OnDamage( damage );
-	}
-}
-
-internal sealed class ThrownBodyContact : Component, Component.ICollisionListener
-{
-	internal RabbitGuard Owner { get; set; }
-	void ICollisionListener.OnCollisionStart( Collision collision )
-	{
-		if ( Owner.IsValid() ) Owner.OnThrownBodyContact( collision );
 	}
 }

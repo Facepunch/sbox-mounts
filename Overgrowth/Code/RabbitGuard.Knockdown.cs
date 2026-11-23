@@ -114,6 +114,12 @@ public sealed partial class RabbitGuard
 		ReleaseProceduralPose();
 		ragdoll.Enabled = true;
 		ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
+		foreach ( var part in ragdoll.Bodies )
+		{
+			if ( !part.Component.IsValid() ) continue;
+			part.Component.CollisionEventsEnabled = true;
+			part.Component.GetOrAddComponent<RabbitBodyContact>().Fighter = this;
+		}
 		Downed = true;
 	}
 
