@@ -16,6 +16,9 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	TimeSince lostWall, lastWallJump = 10, sinceLanding;
 	float lastFallSpeed;
 	bool touchedWall;
+	Vector3? lastFloor, pinOrigin;
+	TimeSince pinnedFor;
+	TimeUntil returningToFloor;
 	float speed;
 	[Sync( SyncFlags.FromHost )] public Vector3 ContactNormal { get; private set; }
 	[Sync( SyncFlags.FromHost )] internal bool Jumping { get; private set; }
@@ -82,6 +85,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		var goal = MoveTarget;
 		var wish = goal is { } point && WorldPosition.Distance( point ) > StopDistance ? point - WorldPosition : Vector3.Zero;
 		MovingInput = !wish.IsNearlyZero();
+		if ( returningToFloor > 0 && lastFloor is { } floorPoint ) wish = floorPoint - WorldPosition;
 		var floor = Probe( center + Vector3.Up * 2, center - Vector3.Up * 6, Radius - 1 );
 		bool wasSupported = ContactNormal != Vector3.Zero;
 		float distance = wish.Length;
@@ -107,6 +111,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		}
 
 		bool supportedNow = ContactNormal != Vector3.Zero;
+		CheckWallProgress( MovingInput );
 		if ( supportedNow ) Jumping = false;
 		Npc.Animation.IsGrounded = supportedNow;
 		body.Gravity = !supportedNow;
@@ -150,6 +155,26 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			body.Velocity = AirVelocity( body.Velocity, wish.WithZ( 0 ).Normal, forward, RunSpeed, Time.Delta );
 		}
 		Npc.Animation.SetMove( body.Velocity );
+	}
+
+	void CheckWallProgress( bool trying )
+	{
+		if ( !OnWall )
+		{
+			if ( ContactNormal != Vector3.Zero ) lastFloor = WorldPosition;
+			pinOrigin = null;
+			return;
+		}
+		if ( !trying || pinOrigin is not { } start || start.Distance( WorldPosition ) > 0.75f * MapLoader.Scale )
+		{
+			pinOrigin = WorldPosition;
+			pinnedFor = 0;
+			return;
+		}
+		if ( pinnedFor <= 4 ) return;
+		pinnedFor = 0;
+		if ( lastFloor is { } floor && (floor - WorldPosition).WithZ( 0 ).Length < 6 * MapLoader.Scale )
+			returningToFloor = detach = 1;
 	}
 
 	static Vector3 GroundVelocity( Vector3 velocity, Vector3 along, float speed, float groundedFor, float dt )
