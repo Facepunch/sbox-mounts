@@ -36,7 +36,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		var postProcessing = new GameObject( true, "NS2 post processing" ) { Parent = root };
 		postProcessing.AddComponent<PostProcessVolume>().SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Infinite };
-		postProcessing.AddComponent<Tonemapping>().Mode = Tonemapping.TonemappingMode.Linear;
+		var tonemapping = postProcessing.AddComponent<Tonemapping>();
+		tonemapping.Mode = Tonemapping.TonemappingMode.Linear;
+		tonemapping.AutoExposureEnabled = false;
 
 		var geometry = new StaticGeometry();
 		var world = new GameObject( true, "worldspawn" ) { Parent = root, IsStatic = true };
@@ -316,7 +318,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		{
 			BuildSkybox( entity, parent );
 		}
-		else if ( name.StartsWith( "light", StringComparison.OrdinalIgnoreCase ) )
+		else if ( name is "light_point" or "light_spot" )
 		{
 			BuildLight( entity, parent );
 		}
@@ -437,15 +439,10 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 	void BuildLight( LevelEntity entity, GameObject parent )
 	{
-		// A Spark ambient volume light shades from six directional colours over a radius; s&box has
-		// no equivalent, and a global AmbientLight would flood the whole map, so it is dropped.
-		if ( entity.Name.Equals( "light_ambient", StringComparison.OrdinalIgnoreCase ) )
-			return;
-
 		var color = entity.Has( "color" ) ? ToColor( entity.Get( "color" ).AsVector3() ) : Color.White;
 		float intensity = entity.Has( "intensity" ) ? MathF.Max( entity.Get( "intensity" ).AsFloat(), 0f ) : 1f;
-		float radius = entity.Has( "distance" ) ? entity.Get( "distance" ).AsFloat() * Scale : 512f;
-		if ( radius <= 0f ) radius = 512f;
+		float radius = (entity.Has( "distance" ) ? entity.Get( "distance" ).AsFloat() : 2f) * Scale;
+		if ( radius <= 0f || intensity <= 0f ) return;
 		bool shadows = entity.Has( "casts_shadows" ) && entity.Get( "casts_shadows" ).AsBool();
 		bool specular = !entity.Has( "specular" ) || entity.Get( "specular" ).AsBool();
 
@@ -466,16 +463,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		if ( entity.Name.Equals( "light_spot", StringComparison.OrdinalIgnoreCase ) )
 		{
 			var gobo = entity.Get( "gobo_texture" ).AsString();
-			SpotLight spot;
-			if ( string.IsNullOrWhiteSpace( gobo ) )
-				spot = go.AddComponent<SpotLight>();
-			else
-			{
-				var projected = go.AddComponent<ProjectedSpotLight>( false );
-				projected.TexturePath = $"mount://{Host.Ident}/ns2/{gobo}.vtex";
-				projected.Enabled = true;
-				spot = projected;
-			}
+			var spot = go.AddComponent<ProjectedSpotLight>( false );
+			if ( GameMount.TryResolve( Host.FileSystem, gobo, out var texturePath ) )
+				spot.TexturePath = $"mount://{Host.Ident}/{texturePath}.vtex";
 			spot.LightColor = radiance;
 			spot.Radius = radius;
 			spot.Attenuation = attenuation;
@@ -492,6 +482,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 			spot.ConeOuter = outer;
 			spot.ConeInner = inner;
+			spot.Enabled = true;
 		}
 		else
 		{

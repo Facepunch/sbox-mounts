@@ -20,6 +20,7 @@ public class GameMount : BaseGameMount
 
 	protected override void Shutdown()
 	{
+		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
 		ShaderDefaults.Clear();
 	}
