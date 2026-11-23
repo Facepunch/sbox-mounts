@@ -11,6 +11,9 @@ public sealed partial class RabbitGuard
 	[Sync] float AirTuck { get; set; }
 	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
 
+	// Physics::gravity is 9.8 m/s². Retain the scene's gravity direction and zero-gravity behavior.
+	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
+
 	void UpdateLanding()
 	{
 		if ( Downed || !Networking.IsHost )

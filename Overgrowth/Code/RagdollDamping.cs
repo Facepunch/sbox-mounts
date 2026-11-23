@@ -13,9 +13,11 @@ internal sealed class RagdollDamping : Component
 		physics = model;
 		stillTime = 0f;
 		settled = false;
+		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		foreach ( var part in physics.Bodies )
 		{
 			if ( !part.Component.IsValid() ) continue;
+			part.Component.GravityScale = gravityScale;
 			part.Component.LinearDamping = part.Component.AngularDamping = 0f;
 			part.Component.Sleeping = false;
 		}

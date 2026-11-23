@@ -98,7 +98,7 @@ public sealed partial class RabbitGuard
 			rollFallSpeed = -0.5f * 40f;
 		}
 		var previous = previousRollCenter.Value + Vector3.Up * (rollFallSpeed * Time.Delta);
-		rollFallSpeed += Scene.PhysicsWorld.Gravity.z * Time.Delta;
+		rollFallSpeed += Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld ) * Time.Delta;
 		var delta = previous - center;
 		var offset = delta.WithZ( 0f ) * MathF.Pow( 1f - RollProgress, 2f ) + Vector3.Up * Math.Max( 0f, delta.z );
 		previousRollCenter = center + offset;

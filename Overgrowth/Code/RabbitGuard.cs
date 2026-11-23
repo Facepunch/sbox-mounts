@@ -51,6 +51,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations() is not { } ready ) return;
 			Renderer.ClearPhysicsBones();
 			boundAnimations = ready;
+			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
 			// Overgrowth reseeds secondary motion for four animation updates after a discontinuity.
 			secondaryReset = 4f * (4f / 120f);
 			leanBones = null;
