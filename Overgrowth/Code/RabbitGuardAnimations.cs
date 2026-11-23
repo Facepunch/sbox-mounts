@@ -16,7 +16,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string ThrowMaterialEvent { get; private init; }
-	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null )
+	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null, string stanceOverride = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
 		var fs = mount.FileSystem;
@@ -26,7 +26,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var morphs = library.Morphs;
 		var painMask = library.PainMask;
 		var overrides = item?.Element( "anim_override" );
-		string AnimationPath( string slot ) => overrides?.Attribute( slot ) ?? character.Element( "animations" ).Attribute( slot );
+		string AnimationPath( string slot ) => overrides?.Attribute( slot ) ?? (slot == "idle" ? stanceOverride : null) ?? character.Element( "animations" ).Attribute( slot );
 		var flinchPath = AnimationPath( "blockflinch" );
 		var attackSlots = new Dictionary<string, string>
 		{

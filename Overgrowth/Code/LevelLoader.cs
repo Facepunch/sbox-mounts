@@ -181,6 +181,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				fighter.MetalArmor = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Armor" && p.Attribute( "val" ) == "metal" ) == true;
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
+					if ( parameter.Attribute( "name" ) == "Unarmed Stance Override" )
+						fighter.UnarmedStanceOverride = parameter.Attribute( "val" );
 					if ( parameter.Attribute( "name" ) == "Stick To Nav Mesh" && fighter.GetComponent<CharacterNavigation>( true ) is { } navigation )
 						navigation.StickToNavMesh = parameter.Attribute( "type" ) != "int" || parameter.Number( "val" ) != 0f;
 					if ( parameter.Attribute( "name" ) == "No Look Around" )

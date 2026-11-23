@@ -18,6 +18,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Sync] public int AlertStage { get; private set; }
 	[Property] public bool InvisibleWhenStationary { get; set; }
 	[Property] public bool NoLookAround { get; set; }
+	[Property, Sync] public string UnarmedStanceOverride { get; set; }
 	[Property] public bool StaticCharacter { get; set; }
 	[Property] public bool AlwaysUnaware { get; set; }
 	TimeUntil nextVisionCheck = 1f;
@@ -26,6 +27,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Sync] string Stance { get; set; } = Idle;
 	RabbitGuardAnimations boundAnimations;
 	LevelItem equippedForAnimation;
+	string boundStanceOverride;
 
 	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
 	{
@@ -37,11 +39,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	bool BindAnimations()
 	{
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
-		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped && !IsThrowingItem )
+		if ( boundAnimations is null || Renderer.Animation.Graph is null || boundStanceOverride != UnarmedStanceOverride || equippedForAnimation != equipped && !IsThrowingItem )
 		{
-			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return false;
+			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model, UnarmedStanceOverride ) is not { } ready ) return false;
 			if ( !Downed ) Renderer.ClearPhysicsBones();
 			equippedForAnimation = equipped;
+			boundStanceOverride = UnarmedStanceOverride;
 			boundAnimations = ready;
 			strike = null;
 			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
