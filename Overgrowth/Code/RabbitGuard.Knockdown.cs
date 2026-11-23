@@ -173,7 +173,7 @@ public sealed partial class RabbitGuard
 			var damping = corpse.GetOrAddComponent<RagdollDamping>();
 			damping.Reset( physics );
 			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
-				damping.StartInjury( pose, age );
+				corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age );
 			if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
 				foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
 				{

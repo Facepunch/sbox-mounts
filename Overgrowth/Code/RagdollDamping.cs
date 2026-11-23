@@ -7,22 +7,9 @@ internal sealed class RagdollDamping : Component
 	ModelPhysics physics;
 	float stillTime;
 	bool settled;
-	RagdollMotorPose injuryMotor;
-	RagdollFallPose injuryPose;
-	float injuryAge, writheTime;
-
-	internal void StartInjury( RagdollFallPose pose, float age )
-	{
-		injuryPose = pose;
-		injuryAge = age;
-		writheTime = 0f;
-		injuryMotor ??= new();
-	}
-
 	internal void Reset( ModelPhysics model )
 	{
 		physics = model;
-		injuryPose = null;
 		stillTime = 0f;
 		settled = false;
 		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.Model.ResourcePath ) as CharacterLoader;
@@ -57,23 +44,6 @@ internal sealed class RagdollDamping : Component
 			awake |= !body.Sleeping;
 		}
 		if ( mass <= 0f || (settled && !awake) ) return;
-		if ( injuryPose is not null )
-		{
-			writheTime += Time.Delta;
-			injuryAge += Time.Delta;
-			float speed = momentum.Length / (mass * 40f);
-			float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
-			if ( strength > 0f )
-			{
-				float phase = (writheTime / injuryPose.Writhe.Clip.Duration) % 1f;
-				injuryMotor.Sample( physics.Model, injuryPose, phase, 0f, 0f, injured: true );
-				foreach ( var part in physics.Bodies )
-					if ( part.Component.IsValid() && part.Component.Sleeping ) part.Component.Sleeping = false;
-			}
-			injuryMotor.Apply( physics, strength );
-			if ( injuryAge < 12f ) return;
-			injuryPose = null;
-		}
 		if ( settled ) stillTime = 0f;
 		stillTime = (momentum / mass).Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
 		settled = stillTime >= 2f;
