@@ -366,6 +366,7 @@ public sealed partial class RabbitGuard
 	{
 		// Overgrowth targets the mean position of the rig's physics bones.
 		var model = target.GetComponent<BaseNpc>()?.Renderer;
+		if ( CharacterLoader.AverageBodyPosition( model ) is { } average ) return (average.z - WorldPosition.z) / 40f - 0.9f;
 		float sum = 0;
 		int count = 0;
 		if ( model.IsValid() && model.Model?.Physics is { } physics )

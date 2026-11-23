@@ -251,19 +251,9 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	{
 		var fighter = target.GetComponent<RabbitGuard>();
 		if ( eyes && fighter.IsValid() && CharacterVoice.HeadPosition( fighter.Renderer, fighter.boundAnimations ) is { } head ) return head;
-		var physics = fighter.IsValid() ? (fighter.Downed ? fighter.ragdoll : null) : target.GetComponent<CharacterRemains>()?.Physics;
-		if ( physics.IsValid() )
-		{
-			Vector3 sum = default;
-			int count = 0;
-			foreach ( var body in physics.Bodies )
-			{
-				if ( !body.Component.IsValid() ) continue;
-				sum += body.Component.WorldPosition;
-				count++;
-			}
-			if ( count > 0 ) return sum / count;
-		}
+		var remains = target.GetComponent<CharacterRemains>();
+		if ( (fighter is { Downed: true } || remains.IsValid()) &&
+			CharacterLoader.AverageBodyPosition( fighter?.Renderer ?? remains?.Physics?.Renderer ) is { } center ) return center;
 		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
 	}
 

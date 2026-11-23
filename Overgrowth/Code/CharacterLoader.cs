@@ -14,6 +14,22 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	int[] attachmentParents, attachmentSymmetry;
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
 
+	(BoneCollection.Bone Bone, Vector3 Center)[] physicsCenters = [];
+
+	internal static Vector3? AverageBodyPosition( SkinnedModelRenderer renderer )
+	{
+		if ( !renderer.IsValid() || renderer.Model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) is not CharacterLoader character ) return null;
+		Vector3 sum = default;
+		int count = 0;
+		foreach ( var (bone, center) in character.physicsCenters )
+		{
+			if ( !renderer.TryGetBoneTransform( bone, out var pose ) ) continue;
+			sum += pose.PointToWorld( center );
+			count++;
+		}
+		return count > 0 ? sum / count : null;
+	}
+
 	void SetAttachmentRig( SkeletonData rig )
 	{
 		attachmentBones = rig.IKBones.ToDictionary( entry => entry.Key, entry => entry.Value.BoneId );
@@ -200,6 +216,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
 		}
 		var model = builder.Create();
+		if ( guard ) physicsCenters = AttachmentCenters.Select( pair => (model.Bones.GetBone( $"bone_{pair.Key}" ), pair.Value) ).ToArray();
 		NonCollidingBones = nonCollidingBones.Select( id => model.Bones.GetBone( $"bone_{id}" ).Index ).ToHashSet();
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );
