@@ -14,7 +14,7 @@ public sealed partial class RabbitGuard
 
 	bool BeginItemThrow()
 	{
-		if ( Downed || InThrow || IsTethered || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } || (!Animation.IsGrounded && RollProgress >= 1f) ||
+		if ( Downed || InThrow || IsTethered || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } ||
 			!HasCombatTarget || !PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();
@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 		}
 		pendingRollThrow = null;
 		itemThrowTarget = target;
-		if ( RollProgress >= 1f && label is ("big_sword" or "spear" or "staff") )
+		if ( Animation.IsGrounded && RollProgress >= 1f && label is ("big_sword" or "spear" or "staff") )
 		{
 			bodyThrowTarget = target;
 			Stance = label == "big_sword" ? SwordThrow : SpearThrow;
