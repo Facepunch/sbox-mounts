@@ -104,7 +104,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( IsKnownThreat( enemy ) && !Sleeping )
 		{
-			visible = Omniscient || CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
+			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
 			if ( visible )
 			{
 				ObserveTarget( enemy, true );
@@ -202,6 +202,7 @@ public sealed partial class RabbitGuard
 
 	bool CanSeeCharacter( GameObject target, RabbitGuard fighter, CharacterRemains remains = null )
 	{
+		if ( Omniscient ) return true;
 		remains ??= target.GetComponent<CharacterRemains>();
 		var renderer = fighter?.Renderer ?? (remains.IsValid() ? target.GetComponent<SkinnedModelRenderer>() : null);
 		var end = CharacterLoader.RandomSightPosition( renderer, fighter ) ?? TargetPosition( target, eyes: true );
