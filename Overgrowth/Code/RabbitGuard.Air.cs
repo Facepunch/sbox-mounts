@@ -36,8 +36,23 @@ public sealed partial class RabbitGuard
 		}
 		if ( airVelocity is not { } velocity ) return;
 		airVelocity = null;
+		ApplyLandingShock( velocity );
+		if ( !IsValid || Health < 1f || Downed ) return;
 		if ( strike is not null || Stance == "throw" ) GoLimp();
 		else Land( velocity );
+	}
+
+	sealed class LandingDamage : BluntDamage;
+
+	void ApplyLandingShock( Vector3 velocity )
+	{
+		float multiplier = Math.Max( 0.001f, FallDamageMultiplier );
+		float excess = -velocity.z / 40f * multiplier - 30f;
+		if ( excess <= 0f ) return;
+		((IDamageable)this).OnDamage( new LandingDamage { Damage = excess * 10f, Position = WorldPosition } );
+		if ( !IsValid || Health < 1f ) return;
+		PlayCombatSound( Unconscious || Downed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_medium_juicy.xml", WorldPosition );
+		if ( Unconscious && !Downed ) GoLimp();
 	}
 
 	string AirPose()

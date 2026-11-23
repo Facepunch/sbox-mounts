@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 		hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
 		if ( hit.DamageInfo is BluntDamage )
 		{
-			if ( KnockoutShield > 0 ) hit.AcceptedDamage = 0f;
+			if ( KnockoutShield > 0 && hit.DamageInfo is not LandingDamage ) hit.AcceptedDamage = 0f;
 			// HandleRagdollImpact applies the damage a second time if the startled fighter is still awake.
 			if ( hit.DamageInfo is StrikeDamage && startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth )
 				hit.AcceptedDamage *= 2f;
@@ -67,7 +67,11 @@ public sealed partial class RabbitGuard
 			recoverableDamage = Math.Min( Health, recoverableDamage + hit.AcceptedDamage * ((1f - PermanentDamageFraction) / PermanentDamageFraction) );
 			if ( TemporaryHealth <= 0f )
 			{
-				if ( Sparring ) recoverableDamage = 0f;
+				if ( Sparring )
+				{
+					recoverableDamage = 0f;
+					sparringKnockout = true;
+				}
 				else if ( !Unconscious )
 				{
 					Unconscious = true;
@@ -136,7 +140,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
-		if ( death.DamageInfo is FallImpactDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
+		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		lethalBlow = death.DamageInfo as StrikeDamage;

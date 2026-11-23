@@ -53,6 +53,8 @@ public sealed partial class RabbitGuard
 	protected override void OnStart()
 	{
 		base.OnStart();
+		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.
+		FatalImpactSpeed = 0f;
 		initialKnockoutShield = KnockoutShield;
 		if ( Networking.IsHost ) MirroredStance = LeftHanded;
 	}
