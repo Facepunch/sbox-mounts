@@ -132,7 +132,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			var direction = wish.Normal;
 			float planarSpeed = body.Velocity.WithZ( 0 ).Length;
 			bool targetAbove = distance > 2.5f * MapLoader.Scale && wish.z * 1.5f > distance;
-			bool hopping = distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
+			bool hopping = speed >= RunSpeed && distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
 				Vector3.Dot( body.Velocity.Normal, direction ) > 0.6f;
 			if ( (targetAbove || hopping) && LastJump > 0.25f && (!OnWall || lastWallJump >= 0.4f)
 				&& !Probe( center + Vector3.Up * 2, center + Vector3.Up * Radius, Radius - 1 ).Hit )

@@ -91,6 +91,7 @@ public sealed partial class Skulk : BaseNpc
 		standingYaw = runningYaw = bodyRotation.Angles().yaw;
 		if ( !Networking.IsHost ) return;
 		AnimationTime = 0;
+		sneaky = Random.Shared.Next( 2 ) == 0;
 		worldTag = OnWorldTag;
 		PlayVoice( "spawn" );
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );

@@ -97,7 +97,7 @@ public sealed partial class Skulk
 			return;
 		}
 		if ( world is null ) return;
-		var tag = Health > 0 && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null;
+		var tag = Health > 0 && !sneaking && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null;
 		world.Set( "onwall", onWall ? 1 : 0 );
 
 		bool idle = !mover.MovingInput && (Animation.IsGrounded ? velocity : movement).Length < 0.1f * MapLoader.Scale;

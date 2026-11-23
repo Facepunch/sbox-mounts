@@ -13,6 +13,9 @@ public sealed partial class Skulk
 	float aimScale = 1;
 	TimeUntil dealtDamage;
 	TimeUntil acquired, sampleAim, aimPenalty;
+	TimeSince sinceFought = 10;
+	bool sneaky, sneaking;
+	Stimulus? lastHeard;
 	Vector3 samplePosition;
 	[Sync( SyncFlags.FromHost )] float AimTurnRate { get; set; } = 5;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
@@ -47,19 +50,12 @@ public sealed partial class Skulk
 
 	GameObject FindEnemy()
 	{
-		GameObject closest = null;
-		float distance = float.PositiveInfinity;
-		foreach ( var target in Senses.VisibleHostiles )
-		{
-			float squared = WorldPosition.DistanceSquared( target.WorldPosition );
-			if ( squared >= distance ) continue;
-			closest = target;
-			distance = squared;
-		}
-
+		var closest = Senses.FindBestTarget();
 		if ( aimPenalty <= 0 ) aimScale = 1;
 		if ( closest.IsValid() )
 		{
+			sneaking = false;
+			sinceFought = 0;
 			TrackAim( closest );
 			remembered = closest;
 			lastSeenPosition = closest.WorldPosition;
@@ -80,22 +76,38 @@ public sealed partial class Skulk
 		foreach ( var mark in Scene.GetAllComponents<Parasited>() )
 		{
 			if ( GetDisposition( mark.GameObject ) != Disposition.Hostile ) continue;
+			sneaking = false;
 			Pursue( mark.WorldPosition );
 			return;
 		}
+		if ( Senses.Disturbance is { Kind: StimulusKinds.Gunshot } shot && shot != lastHeard )
+		{
+			lastHeard = shot;
+			if ( shot.Source.IsValid() && GetDisposition( shot.Source ) == Disposition.Hostile &&
+				WorldPosition.Distance( shot.Position ) <= 14 * MapLoader.Scale )
+			{
+				remembered = shot.Source;
+				lastSeenPosition = shot.Position;
+				sinceSeen = 0;
+				repath = 0;
+			}
+		}
 		if ( remembered.IsValid() && sinceSeen <= 5 )
 		{
+			float distance = WorldPosition.Distance( lastSeenPosition ) / MapLoader.Scale;
+			sneaking = sneaky && sinceFought >= 10 && distance is > 4 and < 20 && !GetComponent<Parasited>().IsValid();
 			Pursue( lastSeenPosition );
 			return;
 		}
 		remembered = null;
+		sneaking = false;
 		Movement.Stop();
 	}
 
 	void Pursue( Vector3 point )
 	{
 		if ( repath > 0 ) return;
-		Movement.MoveTo( point, Reach * 0.6f, Movement.RunSpeed );
+		Movement.MoveTo( point, Reach * 0.6f, Movement.RunSpeed * (sneaking ? 0.5931035f : 1) );
 		repath = 0.2f;
 	}
 
