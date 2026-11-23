@@ -53,7 +53,9 @@ public sealed partial class RabbitGuard
 			ear.Twist = ear.TargetTwist + (ear.Twist - ear.TargetTwist) * MathF.Pow( 0.9f, frames );
 			var root = low.Position - low.Rotation.Forward * rig.LowerHalf * WorldScale.z;
 			var middle = high.Position - high.Rotation.Forward * rig.UpperHalf * WorldScale.z;
-			var twist = Rotation.FromAxis( (middle - root).Normal, (side == 0 ? ear.Twist : -ear.Twist).RadianToDegree() );
+			float twistAmount = side == 0 ? ear.Twist : -ear.Twist;
+			if ( boundAnimations.Species != "rabbit" ) twistAmount *= 0.3f;
+			var twist = Rotation.FromAxis( (middle - root).Normal, twistAmount.RadianToDegree() );
 			low.Rotation = twist * low.Rotation;
 			high.Rotation = twist * twist * high.Rotation;
 			middle = root + twist * twist * (middle - root);
@@ -86,6 +88,11 @@ public sealed partial class RabbitGuard
 					mid = center - half;
 					end = center + half;
 				}
+				if ( RollProgress < 1f && Animation.IsGrounded )
+				{
+					mid = SweepEar( basePoint, mid );
+					end = SweepEar( mid, end );
+				}
 				ear.PreviousMiddle = ear.Middle;
 				ear.PreviousTip = ear.Tip;
 				ear.Middle = mid;
@@ -111,5 +118,18 @@ public sealed partial class RabbitGuard
 		}
 		earRemainder = remainder;
 		earsActive = true;
+	}
+
+	Vector3 SweepEar( Vector3 start, Vector3 end )
+	{
+		const float radius = 0.03f * 40f;
+		slideContacts.Clear();
+		foreach ( var hit in Scene.Trace.Sphere( radius, start, end ).IgnoreDynamic().IgnoreKeyframed()
+			.WithoutTags( "trigger" ).UseHitPosition().RunAll() )
+		{
+			float depth = radius - hit.Normal.Dot( end - hit.HitPosition );
+			if ( depth > 0f ) slideContacts.Add( (hit.Normal, depth) );
+		}
+		return end + SphereSlideOffset();
 	}
 }

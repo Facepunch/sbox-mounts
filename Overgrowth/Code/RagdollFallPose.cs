@@ -25,7 +25,7 @@ public sealed partial class RabbitGuard
 {
 	readonly RagdollMotorPose fallMotor = new();
 	internal RagdollInjury ActiveInjury { get; set; }
-	readonly List<(Vector3 Normal, float Depth)> fallContacts = [];
+	readonly List<(Vector3 Normal, float Depth)> slideContacts = [];
 
 	Vector3 FallDanger( Vector3 center )
 	{
@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 		for ( float radius = range / 4f; radius <= range; radius *= 2f )
 		{
 			var trace = Scene.Trace.IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).UseHitPosition( true );
-			fallContacts.Clear();
+			slideContacts.Clear();
 			foreach ( var overlap in trace.Sphere( radius, center, center ).RunAll() )
 			{
 				// Initial overlaps return a contact point. Recover the surface normal with a ray.
@@ -41,16 +41,26 @@ public sealed partial class RabbitGuard
 				var hit = trace.Ray( center, overlap.HitPosition + toward ).Run();
 				if ( !hit.Hit || hit.StartedSolid ) continue;
 				float depth = radius - hit.Normal.Dot( center - hit.HitPosition );
-				if ( depth > 0f ) fallContacts.Add( (hit.Normal, depth) );
+				if ( depth > 0f ) slideContacts.Add( (hit.Normal, depth) );
 			}
-			if ( fallContacts.Count == 0 ) continue;
-			fallContacts.Sort( static (a, b) => b.Depth.CompareTo( a.Depth ) );
-			Vector3 slide = default;
-			foreach ( var contact in fallContacts )
-				slide += contact.Normal * Math.Max( 0f, contact.Depth - contact.Normal.Dot( slide ) );
+			if ( slideContacts.Count == 0 ) continue;
+			var slide = SphereSlideOffset();
 			return -slide - slide.Normal * (range - radius);
 		}
 		return default;
+	}
+
+	// BulletWorld::ApplySphereSlide resolves the deepest contact plane first.
+	Vector3 SphereSlideOffset()
+	{
+		slideContacts.Sort( static (a, b) => b.Depth.CompareTo( a.Depth ) );
+		Vector3 offset = default;
+		foreach ( var contact in slideContacts )
+		{
+			float depth = contact.Depth - contact.Normal.Dot( offset );
+			if ( depth > 0.00001f * 40f ) offset += contact.Normal * depth;
+		}
+		return offset;
 	}
 
 	protected override void OnFixedUpdate()
