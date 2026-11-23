@@ -65,6 +65,11 @@ public sealed partial class RabbitGuard
 		var from = clip.GetRootMotion( ReactionPhase );
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
+		if ( IsGetUp( Stance ) && ReactionPhase >= 1f )
+		{
+			duckAmount = CrouchAmount = 1f;
+			duckVelocity = 0f;
+		}
 		return ReactionPhase < 1f;
 	}
 
