@@ -190,24 +190,30 @@ public sealed partial class Skulk : BaseNpc
 		SceneTraceResult hit = default, center = default;
 		IDamageable victim = null;
 		var view = ViewRotation;
+		var forward = view.Forward.WithZ( 0 ).Normal;
 		foreach ( var cell in order )
 		{
-			var start = EyePosition + view.Right * ((cell % 3 - 1) * step) + view.Up * ((cell / 3 - 1) * step);
+			var start = EyePosition + view.Left * ((cell % 3 - 1) * step) + view.Up * ((cell / 3 - 1) * step);
 			var trace = Scene.Trace.Ray( start, start + view.Forward * Reach ).Size( step )
 				.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 			if ( cell == 4 ) center = trace;
 			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || GetDisposition( (target as Component)?.GameObject ?? trace.GameObject ) != Disposition.Hostile ) continue;
-			if ( Vector3.Dot( trace.HitPosition - EyePosition, view.Forward ) <= 0.1f * MapLoader.Scale ) continue;
+			if ( Vector3.Dot( trace.EndPosition - EyePosition, forward ) <= 0.1f * MapLoader.Scale ) continue;
 			bool player = trace.GameObject.GetComponentInParent<PlayerController>() is not null;
 			if ( victim is null || player ) (hit, victim) = (trace, target);
 			if ( player ) break;
 		}
-		if ( victim is null ) hit = center;
+		if ( victim is null )
+		{
+			hit = center;
+			if ( hit.GameObject?.GetComponentInParent<IDamageable>() is Component candidate && GetDisposition( candidate.GameObject ) == Disposition.Hostile )
+				victim = (IDamageable)candidate;
+		}
 		if ( hit.Hit ) PlayBiteImpact( hit );
 		if ( victim is null ) return;
 		var npc = victim as BaseNpc;
 		bool alive = npc.IsValid() && npc.Health > 0;
-		DealDamage( victim, 75, hit.HitPosition, "bite" );
+		DealDamage( victim, 75, hit.EndPosition, "bite" );
 		if ( alive && (!npc.IsValid() || npc.Health <= 0) ) PlayVoice( "bite_kill" );
 	}
 }
