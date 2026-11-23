@@ -60,6 +60,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( !enemy.IsValid() && !investigatePoint.HasValue ) return false;
 			var candidate = NearestWeapon( center, 400f );
+			if ( candidate?.StuckIn?.GetComponentInParent<RabbitGuard>() is { Unconscious: false } ) candidate = null;
 			if ( candidate is not null )
 			{
 				var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = candidate.PhysicsPosition, Agent = GetComponent<NavMeshAgent>() } );
@@ -91,7 +92,7 @@ public sealed partial class RabbitGuard
 			duckAmount = Math.Max( duckAmount, 1f - (weaponLookPoint - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
 		}
 
-		if ( !reaching && WeaponAtHand( PickupLeft ) is not null )
+		if ( RollProgress >= 1f && !reaching && WeaponAtHand( PickupLeft ) is not null )
 		{
 			ReachLeft = PickupLeft;
 			reaching = true;
@@ -137,12 +138,14 @@ public sealed partial class RabbitGuard
 	void TryGrab()
 	{
 		if ( FreeHands <= 0 || Unconscious || Held || Holding || draggedBody.IsValid() || bodyDragger.IsValid() ) return;
-		if ( WeaponAtHand( PickupLeft ) is { } item && TakeWeapon( item ) )
-		{
-			StopSeekingWeapon();
-			return;
-		}
-		if ( ++reachAttempts > 4 ) reaching = false;
+		if ( !GrabWeaponAtHand() && ++reachAttempts > 4 ) reaching = false;
+	}
+
+	bool GrabWeaponAtHand()
+	{
+		if ( WeaponAtHand( PickupLeft ) is not { } item || !TakeWeapon( item ) ) return false;
+		StopSeekingWeapon();
+		return true;
 	}
 
 	bool TakeWeapon( LevelItem item )
