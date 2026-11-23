@@ -5,7 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[Sync] bool LeftFootJump { get; set; }
-	bool nextJumpUsesLeft;
+	bool nextJumpUsesLeft, keepJumpFacing;
 	float jumpLaunch, airPhase, pendingTuck;
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
@@ -76,6 +76,7 @@ public sealed partial class RabbitGuard
 			{
 				bool jumping = playing != Wall && Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
 				jumpLaunch = jumping ? 1f : 0f;
+				if ( playing != Wall ) keepJumpFacing = jumping && velocity.WithZ( 0f ).Length <= 0.4f;
 				airPhase = 0;
 				if ( Networking.IsHost && jumping )
 				{
@@ -85,6 +86,9 @@ public sealed partial class RabbitGuard
 					PlayMaterialEvent( "jump", WorldPosition, GroundSurface?.ResourceName, boundAnimations.Species == "cat" ? 0.5f : 1f );
 				}
 			}
+			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
+				TurnInAir( velocity, Time.Delta );
+
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
 			float up = Math.Min( 1.5f, velocity.z / 5f + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
@@ -98,6 +102,28 @@ public sealed partial class RabbitGuard
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		return pose;
+	}
+
+	void TurnInAir( Vector3 velocity, float delta )
+	{
+		var direction = velocity.WithZ( 0f ).Normal;
+		if ( direction.IsNearlyZero() ) return;
+		var from = WorldRotation.Forward.WithZ( 0f ).Normal;
+		// InterpDirections takes a perpendicular path when the two facings are nearly opposite.
+		if ( direction.Dot( from ) < -0.8f )
+		{
+			var perpendicular = Vector3.Up.Cross( direction );
+			from = perpendicular.Dot( from ) < 0f ? -perpendicular : perpendicular;
+		}
+		float oldWeight = MathF.Pow( 0.85f, delta * 120f );
+		FaceInAir( Rotation.LookAt( direction * (1f - oldWeight) + from * oldWeight ) );
+	}
+
+	void FaceInAir( Rotation facing )
+	{
+		// Rotating the interpolated GameObject would put its rendered position back into the physics body.
+		if ( GetComponent<Rigidbody>()?.PhysicsBody is { MotionEnabled: true } body ) body.Rotation = facing;
+		else WorldRotation = facing;
 	}
 
 	internal void OnAirContact( Collision collision )

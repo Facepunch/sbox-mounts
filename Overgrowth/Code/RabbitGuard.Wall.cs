@@ -39,7 +39,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( direction.IsNearlyZero() || touchedWall && sinceWallContact > 0.1f && velocity.z < -4f * 40f )
 		{
-			if ( touchedWall ) WorldRotation = wallExitFacing;
+			if ( touchedWall ) FaceInAir( wallExitFacing );
 			WallDirection = default;
 			return;
 		}
@@ -51,9 +51,10 @@ public sealed partial class RabbitGuard
 			PlayMaterialEvent( "leftwallstep", center + direction * legRadius, surface, boundAnimations.Species == "cat" ? 0.5f : 1f );
 		}
 		WallDirection = direction;
-		WorldRotation = Rotation.LookAt( direction.WithZ( 0f ) );
-		var exit = WorldRotation.Forward + velocity.WithZ( 0f ) * (0.25f / 40f);
-		wallExitFacing = exit.IsNearlyZero() ? WorldRotation : Rotation.LookAt( exit );
+		var facing = Rotation.LookAt( direction.WithZ( 0f ) );
+		FaceInAir( facing );
+		var exit = facing.Forward + velocity.WithZ( 0f ) * (0.25f / 40f);
+		wallExitFacing = exit.IsNearlyZero() ? facing : Rotation.LookAt( exit );
 	}
 
 	void ReadWallPose()
