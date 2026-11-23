@@ -9,7 +9,8 @@ public sealed class BillboardParticle : Component
 		float OpacityDecay, DecalDefinition Decal, float DecalScale, string MaterialEvent );
 
 	Definition definition;
-	SpriteRenderer renderer;
+	ParticleSpriteRenderer renderer;
+	Particle particle;
 	float diameter, opacity, spin, angle, age, simulated;
 	Vector3 velocity, position;
 	Color tint;
@@ -27,19 +28,23 @@ public sealed class BillboardParticle : Component
 		cloud.position = position;
 		cloud.velocity = velocity;
 		cloud.tint = definition.Color * tint;
-		cloud.renderer = go.AddComponent<SpriteRenderer>();
+		var effect = go.AddComponent<ParticleEffect>();
+		cloud.renderer = go.AddComponent<ParticleSpriteRenderer>();
 		cloud.renderer.Sprite = definition.Sprite;
-		cloud.renderer.Size = cloud.diameter;
-		cloud.renderer.Color = cloud.tint.WithAlpha( cloud.opacity );
-		go.WorldRotation = Rotation.FromRoll( cloud.angle );
-		cloud.renderer.AlphaCutoff = 0f;
 		cloud.renderer.Lighting = true;
+		// envobject fades across 0.2 to 2.2 metres at the camera.
+		cloud.renderer.CameraFadeNear = 8f;
+		cloud.renderer.CameraFadeFar = 88f;
+		// Simulate ends the effect when its authored size or opacity reaches zero.
+		effect.Lifetime = float.MaxValue;
 		go.Enabled = true;
+		cloud.particle = effect.Emit( position, 0f );
+		cloud.Draw( position, cloud.diameter, cloud.opacity, cloud.angle );
+		effect.OnPreStep = cloud.Simulate;
 	}
 
-	protected override void OnUpdate()
+	void Simulate( float dt )
 	{
-		float dt = Time.Delta;
 		if ( dt <= 0f ) return;
 		age += dt;
 		float size = SizeAt( age );
@@ -52,8 +57,6 @@ public sealed class BillboardParticle : Component
 			GameObject.Destroy();
 			return;
 		}
-		renderer.Size = size;
-		renderer.Color = tint.WithAlpha( alpha );
 		const float step = 1f / 120f;
 		while ( simulated + step <= age )
 		{
@@ -65,8 +68,30 @@ public sealed class BillboardParticle : Component
 			if ( !collided && definition.Decal is not null ) CheckCollision( last, SizeAt( simulated ) );
 		}
 		float remainder = age - simulated;
-		WorldPosition = position + velocity * remainder;
-		WorldRotation = Rotation.FromRoll( angle + remainder * spin * 0.3f * diameter / SizeAt( simulated + step ) );
+		Draw( position + velocity * remainder, size, alpha, angle + remainder * spin * 0.3f * diameter / SizeAt( simulated + step ) );
+	}
+
+	void Draw( Vector3 center, float size, float alpha, float roll )
+	{
+		renderer.DepthFeather = size;
+		var camera = Scene.Camera;
+		if ( camera.IsValid() )
+		{
+			var toward = camera.WorldPosition - center;
+			float distance = toward.Length;
+			if ( distance > 0f )
+			{
+				// Particle::Draw offsets toward the eye by half the radius, preserving projected size.
+				float fraction = Math.Min( 1f, size * 0.25f / distance );
+				center += toward * fraction;
+				size *= 1f - fraction;
+			}
+		}
+		particle.Position = center;
+		particle.Size = size;
+		particle.Angles = new Angles( 0f, 0f, roll );
+		particle.Color = tint.WithAlpha( 1f );
+		particle.Alpha = alpha;
 	}
 
 	float SizeAt( float time ) => definition.Expansion > 0f
