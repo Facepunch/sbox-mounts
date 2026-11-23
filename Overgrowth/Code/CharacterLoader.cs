@@ -75,7 +75,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal static CharacterLoader FromModel( Model model )
 	{
 		if ( model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
-		if ( loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
+		if ( loader.Surface is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
 		return loader;
 	}
 
@@ -225,6 +225,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var mesh = ReadMesh( appearance, reference, skeletonModelPath, out var modelPath );
 		modelCenter = mesh.Center;
 		var scale = ScaleSkeleton( appearance, skeleton );
+		FixZeroWeights( skeleton, skeleton.BoneWeights, skeleton.BoneIds, reference );
+		Surface = new CharacterSurface( mesh, skeleton, scale );
 		var centers = RagdollBuilder.ReadCenters( Host.FileSystem, skeleton, System.IO.Path.ChangeExtension( modelPath, ".fzx" ),
 			reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
 		SetBodyRig( model, skeleton, centers, modelPath, mesh.Center, scale );
@@ -248,6 +250,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		while ( depth-- > 0 && bone >= 0 ) bone = attachmentParents[bone];
 		return mirrored && bone >= 0 ? attachmentSymmetry[bone] : bone;
 	}
+
+	internal CharacterSurface Surface { get; private set; }
 
 	internal float AttachmentScale => (ReadAppearance().Number( "default_scale" ) ?? 1f) / (ReadAppearance().Number( "model_scale" ) ?? 1f);
 	internal ModelHitboxes.ConvexHull[] HitVolumes { get; private set; } = [];
@@ -375,6 +379,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		FixZeroWeights( skeleton, weights, boneIds, reference );
 
 		float scale = ScaleSkeleton( appearance, skeleton );
+		if ( guard ) Surface = new CharacterSurface( objData, skeleton, scale );
 		for ( int i = 0; i < objData.Positions.Count; i++ )
 			objData.Positions[i] *= scale;
 		objData.Bounds = BBox.FromPoints( objData.Positions );

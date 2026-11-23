@@ -63,13 +63,21 @@ public sealed partial class RabbitGuard
 		var victim = target.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var weapon = PrimaryItem.IsValid() ? PrimaryItem.GameObject : GameObject;
-		void Cut( float amount )
+		void Cut( float amount, bool allowHeavy = false )
 		{
 			if ( !target.IsValid() || amount <= 0f ) return;
 			var damage = new BloodDamage { Damage = amount * 100f, Origin = CharacterCenter( GameObject ), Position = position, Attacker = GameObject, Weapon = weapon };
 			damage.Tags.Add( "slash" );
 			damage.Tags.Add( "nevergib" );
+			var faces = CutSurface( defender, position );
+			bool awake = defender.IsValid() && !defender.Unconscious;
+			bool heavy = !allowHeavy || strike.HeavyCut;
 			victim.OnDamage( damage );
+			if ( faces is { Count: > 0 } )
+			{
+				bool knockedOut = awake && (!defender.IsValid() || defender.Health <= 0f || defender.Unconscious);
+				EmitCutParticles( faces, knockedOut || !heavy );
+			}
 		}
 
 		string species = defender?.boundAnimations?.Species;
@@ -80,7 +88,7 @@ public sealed partial class RabbitGuard
 				if ( knife )
 				{
 					if ( Random.Shared.Next( 2 ) == 0 ) PlayArmorImpact( position, false );
-					Cut( sharp * AttackDamage * 0.5f );
+					Cut( sharp * AttackDamage * 0.5f, true );
 				}
 				else
 				{
@@ -98,7 +106,7 @@ public sealed partial class RabbitGuard
 					sharp *= 0.5f;
 					if ( label != "big_sword" ) sharp = Math.Min( 0.5f, sharp );
 				}
-				Cut( sharp * AttackDamage );
+				Cut( sharp * AttackDamage, true );
 			}
 		}
 
@@ -141,6 +149,39 @@ public sealed partial class RabbitGuard
 		}
 		if ( target.IsValid() ) ReportSound( target, position, HeardSound.Combat, 2f );
 		if ( defender.IsValid() ) defender.TryDisarm( strike.WorldImpact( direction, flippedAttack ), PrimaryItem );
+	}
+
+	List<Vector3> CutSurface( RabbitGuard victim, Vector3 point )
+	{
+		if ( strike.CutPlane is not { } cut || !victim.IsValid() ||
+			CharacterLoader.FromModel( victim.Renderer.Model ) is not { } character ) return null;
+		if ( flippedAttack ) cut.y *= -1f;
+		var forward = WorldRotation.Forward;
+		var right = new Vector3( forward.y, -forward.x, forward.z );
+		float angle = GetAttackHeight( victim.GameObject ) * 0.5f;
+		var tilt = Rotation.FromAxis( right, angle.RadianToDegree() );
+		return character.Surface.CutFaces( victim.Renderer, tilt * (forward * cut.x + right * cut.y + Vector3.Up * cut.z), point, tilt * forward );
+	}
+
+	void EmitCutParticles( List<Vector3> faces, bool light )
+	{
+		var clouds = new List<Vector3>();
+		var splats = new List<Vector3>();
+		foreach ( var face in faces )
+		{
+			if ( Random.Shared.Next( 10 ) == 0 ) clouds.Add( face );
+			if ( light && Random.Shared.Next( 40 ) == 0 ) splats.Add( face );
+		}
+		if ( clouds.Count + splats.Count > 0 ) PlayCutParticles( clouds.ToArray(), splats.ToArray() );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayCutParticles( Vector3[] clouds, Vector3[] splats )
+	{
+		if ( BloodLevel == 0 || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		Vector3 Velocity( float speed ) => new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ) ) * speed;
+		foreach ( var point in clouds ) mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, Velocity( 40f ), BloodColor );
+		foreach ( var point in splats ) mount.EmitBillboard( "Data/Particles/bloodsplat.xml", point, Velocity( 80f ), BloodColor );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

@@ -164,12 +164,16 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		movementRig?.PrepareMirroredJoints( library.Mirror );
 		RabbitAttack ReadMove( XmlAsset attack, RabbitAttack.Pose[] poses )
 		{
+			var cut = attack.Element( "cut_plane" );
 			var block = attack.Element( "block_damage" );
 			var direction = attack.Element( "impact_dir" );
 			var flags = attack.Element( "flags" );
 			return new RabbitAttack( poses, attack.Element( "reaction" ).Value, block.Number( "min" ).Value, block.Number( "max" ).Value, System.IO.Path.GetFileNameWithoutExtension( attack.Element( "animations" ).Attribute( "blocked" ) ), Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
 				new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true" )
 			{
+				CutPlane = cut is null ? null : new Vector3( cut.Number( "z" ) ?? 0f, cut.Number( "x" ) ?? 0f, cut.Number( "y" ) ?? 0f ).Normal,
+				// attacks.cpp tests strcmp's nonzero result, so the "light" token selects _heavy.
+				HeavyCut = cut?.Attribute( "type" ) is null or "light",
 				SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
 				SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
 				AsLayer = flags.Attribute( "as_layer" ) == "true",
