@@ -48,6 +48,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			recoverableDamage = Math.Max( 0f, recoverableDamage - MaxHealth * 0.05f * Time.Delta );
 		}
 		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
+		// UpdateBrain samples the surroundings while a conscious fighter is busy with an action.
+		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && Renderer.IsValid() &&
+			boundAnimations is not null && !StaticCharacter && !Unconscious )
+		{
+			TrackEnemy();
+			ScanForCharacters();
+		}
 		if ( !Downed ) base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
@@ -89,13 +96,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdatePainFlinch();
 		UpdateKnifeLayers();
 		UpdateLanding();
-		// The navigation schedule pauses off the ground. Overgrowth's conscious brain still sees
-		// nearby opponents when falling or ragdolled, including before it chooses a wake-up roll.
-		if ( Networking.IsHost && NpcConVars.Enabled && (Downed || IsAirborne) && !Unconscious && !StaticCharacter && !Held && !Holding )
-		{
-			TrackEnemy();
-			ScanForCharacters();
-		}
 		if ( Downed )
 		{
 			if ( Networking.IsHost ) TryGetUp();
@@ -189,13 +189,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( Holding || Held || LedgeAnimation is not null ) return;
-		TrackEnemy();
 		AdvanceBlockRecoil( Time.Delta );
 		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;
-		ScanForCharacters();
 		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
 	}

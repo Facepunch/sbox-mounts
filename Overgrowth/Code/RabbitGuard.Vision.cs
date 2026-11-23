@@ -111,7 +111,6 @@ public sealed partial class RabbitGuard
 
 	void UpdateAwareness()
 	{
-		if ( strike is not null ) return;
 		foreach ( var other in knownCharacters.Keys )
 			if ( !other.IsValid() ) knownCharacters.Remove( other );
 		foreach ( var (other, seen) in seenHostiles )
@@ -130,10 +129,11 @@ public sealed partial class RabbitGuard
 			var ally = candidate.GetComponent<RabbitGuard>();
 			if ( candidate == GameObject || IsIgnoredPlayer( candidate ) ) continue;
 			var remains = candidate.GetComponent<CharacterRemains>();
+			if ( ally is { StaticCharacter: true } || remains is { StaticCharacter: true } ) continue;
 			bool friendly = GetDisposition( candidate ) == Disposition.Friendly;
 			bool threat = !friendly && CanAttack( candidate );
 			bool known = knownCharacters.ContainsKey( candidate );
-			if ( !friendly && !threat && !known && !remains.IsValid() ) continue;
+			if ( !friendly && !threat && !known ) continue;
 			var center = CharacterCenter( candidate );
 			float separation = observer.DistanceSquared( center );
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
@@ -144,7 +144,7 @@ public sealed partial class RabbitGuard
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
 			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally, remains ) ) continue;
-			if ( friendly || known || remains.IsValid() ) NoticeCharacter( candidate );
+			if ( friendly || known ) NoticeCharacter( candidate );
 			if ( friendly )
 			{
 				if ( ally is { Unconscious: true } || remains.IsValid() ) NoticeCasualty( candidate );
