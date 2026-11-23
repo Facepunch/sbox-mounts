@@ -20,16 +20,20 @@ public partial class ModelLoader
 				var anim = source.Animations[node.AnimationIndex];
 				if ( anim.Tags.Length == 0 || anim.NumFrames == 0 ) return;
 				float period = anim.NumFrames / anim.FrameRate;
-				float cycle = anim.Looping ? MathF.Floor( from / period ) * period : 0;
+				float cycleStart = anim.Looping ? MathF.Floor( from / period ) * period : 0;
+				float start = from - cycleStart, end = to - cycleStart;
+				float cycle = 0;
 				do
 				{
 					foreach ( var marker in anim.Tags )
 					{
 						float at = marker.Time + cycle;
-						if ( at >= from && at < to && !Contains( at, marker.Name ) ) tags.Add( (at, marker.Name) );
+						if ( marker.Time >= start && marker.Time < end && !Contains( at, marker.Name ) ) tags.Add( (at, marker.Name) );
 					}
+					start -= period;
+					end -= period;
 					cycle += period;
-				} while ( anim.Looping && cycle < to );
+				} while ( anim.Looping && end >= 0 );
 				return;
 			}
 			if ( node.Type == 3 )
