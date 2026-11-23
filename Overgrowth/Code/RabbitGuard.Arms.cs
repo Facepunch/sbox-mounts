@@ -87,7 +87,7 @@ public sealed partial class RabbitGuard
 				// CDrawArms carries the collar, shoulder and hand with the chest. The elbow solves from its authored bend.
 				armPose[5] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[5] ) );
 				armPose[4] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[4] ) );
-				armPose[0] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[0] ) );
+				if ( PatrolRest == RestPose.None ) armPose[0] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[0] ) );
 				shoulder = m.Solved.PointToWorld( m.Animated.PointToLocal( shoulder ) );
 				wrist = Start( 0 );
 			}

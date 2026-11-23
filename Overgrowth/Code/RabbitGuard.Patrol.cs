@@ -15,13 +15,14 @@ public sealed partial class RabbitGuard
 	[Sync] string PatrolAnimation { get; set; }
 	string waypointAnimation;
 	bool wokeUp;
-	bool Sleeping => !wokeUp && previousPatrolPoint.IsValid() && previousPatrolPoint.Pose is "Sleep" or "Wounded";
+	enum RestPose { None, Sitting, Sleeping }
+	[Sync] RestPose PatrolRest { get; set; }
+	bool Sleeping => PatrolRest == RestPose.Sleeping;
 	string connectedPatrolAnimation;
 
 	void UpdatePatrolPose()
 	{
-		if ( Networking.IsHost && !wokeUp && (AlertStage == 2 || investigatePoint.HasValue || escortTarget.IsValid()) && previousPatrolPoint.IsValid()
-			&& previousPatrolPoint.Pose is "Sit" or "Sleep" or "Wounded" )
+		if ( Networking.IsHost && PatrolRest != RestPose.None && (AlertStage == 2 || Investigating || escortTarget.IsValid() || soughtItem.IsValid()) )
 		{
 			if ( Sleeping && !Downed && !Held && strike is null && ReactionPhase >= 1f )
 			{
@@ -30,6 +31,7 @@ public sealed partial class RabbitGuard
 				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 				StartGetUp( front.z < 0f ? StandFromFront : StandFromBack );
 			}
+			PatrolRest = RestPose.None;
 			wokeUp = true;
 			waypointAnimation = null;
 		}
@@ -91,6 +93,11 @@ public sealed partial class RabbitGuard
 		if ( (target - WorldPosition).WithZ( 0 ).LengthSquared < 40f * 40f )
 		{
 			var reached = patrolTarget;
+			if ( !wokeUp )
+			{
+				if ( reached.Pose == "Sit" ) PatrolRest = RestPose.Sitting;
+				if ( reached.Pose is "Sleep" or "Wounded" ) PatrolRest = RestPose.Sleeping;
+			}
 			waypointAnimation = wokeUp ? null : reached.Pose switch
 			{
 				"Sit" => "Data/Animations/r_sit_cross_legged.anm",

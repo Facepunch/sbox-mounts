@@ -119,11 +119,12 @@ public sealed partial class RabbitGuard
 		return InterpolateFacing( facing, direction, 1f - MathF.Pow( 0.9f, Time.Delta * 120f ) );
 	}
 
+	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle or RearHeld or RatHeldByRabbit or ArmedHeld;
+
 	void UpdateTorsoControl( bool needsCombatPose )
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
-		bool movement = Stance is Idle or Ready or Watch or Threat or Locomotion;
-		bool fightStance = movement && CombatFootStanceTarget( speed, needsCombatPose ).IsValid();
+		bool fightStance = GazeMovementState && CombatFootStanceTarget( speed, needsCombatPose ).IsValid();
 		if ( fightStance ) stanceMoveFade = 1f;
 		bool throwing = HasThrowLayer;
 		bool stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||
@@ -133,14 +134,14 @@ public sealed partial class RabbitGuard
 		float frames = Time.Delta * 120f;
 		float retain = MathF.Pow( 0.9f, frames ), release = MathF.Pow( 0.95f, frames );
 		float stanceTarget = stanceMove ? 0.5f : stanceMoveFade;
-		stanceLook = movement && RollProgress >= 1f ? stanceTarget + (stanceLook - stanceTarget) * retain : 0f;
+		stanceLook = GazeMovementState && RollProgress >= 1f ? stanceTarget + (stanceLook - stanceTarget) * retain : 0f;
 		stanceMoveFade = Math.Max( 0f, stanceMoveFade - Time.Delta );
 
 		layerAttackFade = knifeCooldown > 0f ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
 		float control = Math.Min( HeadLookWeight, Math.Max( 0.35f, stanceLook ) ) * (1f - layerAttackFade) * (1f - duckAmount * 0.5f);
 		// UpdateHeadLook seeds the throw blend from the knife attack fade on each update.
 		float throwFade = throwing ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
-		TorsoControl = movement && Animation.IsGrounded && !OnLedge ? control + (0.5f - control) * throwFade : 0f;
+		TorsoControl = GazeMovementState && Animation.IsGrounded && !OnLedge ? control + (0.5f - control) * throwFade : 0f;
 	}
 
 	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
