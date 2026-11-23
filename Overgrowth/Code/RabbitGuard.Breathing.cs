@@ -9,10 +9,9 @@ public sealed partial class RabbitGuard
 	[Sync] bool CombatPosture { get; set; }
 	TimeUntil leaveCombatPosture;
 
-	void UpdateCombatPosture()
+	void UpdateCombatPosture( bool needsCombatPose )
 	{
-		if ( !Networking.IsHost ) return;
-		if ( strike is not null || Stance == "throw" || NeedsCombatPose() ) leaveCombatPosture = 2f;
+		if ( strike is not null || Stance == "throw" || needsCombatPose ) leaveCombatPosture = 2f;
 		CombatPosture = leaveCombatPosture > 0f;
 	}
 

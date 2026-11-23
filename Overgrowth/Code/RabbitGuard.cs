@@ -115,7 +115,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
 		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
-		UpdateCombatPosture();
+		if ( Networking.IsHost )
+		{
+			bool needsCombatPose = NeedsCombatPose();
+			UpdateCombatPosture( needsCombatPose );
+			UpdateTorsoControl( needsCombatPose );
+		}
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
 		if ( pose == Ready && CombatPosture ) pose = Threat;

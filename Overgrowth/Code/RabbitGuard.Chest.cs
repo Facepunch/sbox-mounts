@@ -24,7 +24,8 @@ public sealed partial class RabbitGuard
 		noticeLook = duration;
 	}
 	bool chestActive;
-	float previousYaw, stanceLook, idleStance;
+	float previousYaw, stanceLook, stanceMoveFade, layerAttackFade, idleStance;
+	[Sync( SyncFlags.Interpolate )] float TorsoControl { get; set; }
 	Vector2 chestAngles, chestVelocity;
 
 	GameObject ChooseLookTarget()
@@ -79,6 +80,30 @@ public sealed partial class RabbitGuard
 		GazeTarget = NoticeLookOverride ? noticePosition : target.IsValid() && !IsIgnoredPlayer( target ) ? TargetPosition( target, eyes: true ) : idleLookTarget;
 	}
 
+	void UpdateTorsoControl( bool needsCombatPose )
+	{
+		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
+		bool movement = Stance is Idle or Ready or Watch or Threat or Locomotion;
+		bool fightStance = movement && needsCombatPose && !AlwaysUnaware && speed < 200f && weaponLookTime <= 0f && boundAnimations.Species != "wolf";
+		if ( fightStance ) stanceMoveFade = 1f;
+		bool throwing = DrawAnimation == ThrowLayer;
+		bool stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||
+			speed < 24f && Movement.MoveTarget.HasValue || currentKnifeLayer is { Active: true } ||
+			throwing && speed < 48f || unassignedPatrol && speed * speed > 1.6f;
+
+		float frames = Time.Delta * 120f;
+		float retain = MathF.Pow( 0.9f, frames ), release = MathF.Pow( 0.95f, frames );
+		float stanceTarget = stanceMove ? 0.5f : stanceMoveFade;
+		stanceLook = movement && RollProgress >= 1f ? stanceTarget + (stanceLook - stanceTarget) * retain : 0f;
+		stanceMoveFade = Math.Max( 0f, stanceMoveFade - Time.Delta );
+
+		layerAttackFade = knifeCooldown > 0f ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
+		float control = Math.Min( HeadLookWeight, Math.Max( 0.35f, stanceLook ) ) * (1f - layerAttackFade) * (1f - duckAmount * 0.5f);
+		// UpdateHeadLook seeds the throw blend from the knife attack fade on each update.
+		float throwFade = throwing ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
+		TorsoControl = movement && Animation.IsGrounded && !OnLedge ? control + (0.5f - control) * throwFade : 0f;
+	}
+
 	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
 	void UpdateChestLook( Vector3 target )
 	{
@@ -91,10 +116,7 @@ public sealed partial class RabbitGuard
 		var animatedChest = chestWorld;
 		var basis = chestWorld.Rotation * Renderer.Model.GetBoneTransform( chest.Index ).Rotation.Inverse;
 		float frames = Time.Delta * 120f;
-		bool stance = Stance == Threat;
-		stanceLook = (stance ? 0.5f : 0f) + (stanceLook - (stance ? 0.5f : 0f)) * MathF.Pow( 0.9f, frames );
-		float weight = Animation.IsGrounded && !boundAnimations.AttackStates.Contains( Stance )
-			? Math.Min( HeadLookWeight, Math.Max( 0.35f, stanceLook ) ) * (1f - CrouchAmount * 0.5f) : 0f;
+		float weight = TorsoControl;
 		var headDirection = (target - TargetPosition( GameObject, eyes: true )).Normal;
 		var look = basis.Inverse * headDirection;
 		float yaw = MathF.Abs( look.z ) > 0.9f ? previousYaw : MathF.Atan2( look.y, look.x );
