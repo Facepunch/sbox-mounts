@@ -4,7 +4,10 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	const float RollSpeed = 2f;
 	float rollAfterRagdollDelay;
+	int rollCrouchTicks;
+	float rollCrouchRemainder;
 	Vector3 rollVelocity;
 	[Sync] Vector3 RollDirection { get; set; }
 	[Sync( SyncFlags.Interpolate )] float RollProgress { get; set; } = 1f;
@@ -43,6 +46,8 @@ public sealed partial class RabbitGuard
 		Stance = Roll;
 		RecoveringRoll = lastPhysicsPose is not null;
 		RollProgress = 0f;
+		rollCrouchTicks = 0;
+		rollCrouchRemainder = 0f;
 		ReactionPhase = 1f;
 		if ( lastPhysicsPose is not null )
 		{
@@ -68,18 +73,32 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	// The spring runs before UpdateRollDuckAmount. Only the original NPC ticks
+	// reset its velocity, including when several ticks fall inside one host frame.
+	void AdvanceRollCrouch( float delta, float groundTarget )
+	{
+		while ( delta > 0f )
+		{
+			float phase = rollCrouchTicks * CrouchStep * RollSpeed;
+			float step = Math.Min( delta, CrouchStep - rollCrouchRemainder );
+			AdvanceCrouchSpring( phase < 0.8f ? 1f : groundTarget, step );
+			delta -= step;
+			rollCrouchRemainder += step;
+			if ( rollCrouchRemainder < CrouchStep - 0.000001f ) break;
+			rollCrouchRemainder = 0f;
+			phase = ++rollCrouchTicks * CrouchStep * RollSpeed;
+			if ( phase < 0.95f ) duckVelocity = 2.5f;
+			if ( phase <= 1f ) duckAmount = Math.Min( 1.25f, duckAmount );
+		}
+		CrouchAmount = duckAmount;
+	}
+
 	bool AdvanceRoll()
 	{
-		if ( RollProgress >= 1f ) return false;
 		if ( soughtItem.IsValid() && !Unconscious && !draggedBody.IsValid() && !bodyDragger.IsValid() && FreeHands > 0 )
 			GrabWeaponAtHand();
-		RollProgress = Math.Min( 1f, RollProgress + Time.Delta * 2f );
-		if ( RollProgress < 0.8f )
-		{
-			duckVelocity += (1f - duckAmount) * Time.Delta * 120f;
-			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
-			duckAmount = Math.Min( 1.25f, duckAmount + duckVelocity * Time.Delta );
-		}
+		AdvanceRollCrouch( Time.Delta, GroundCrouchTarget() );
+		RollProgress = Math.Min( 1f, RollProgress + Time.Delta * RollSpeed );
 		if ( RollProgress < 0.95f )
 		{
 			// UpdateRollVelocity accelerates, then ApplyPhysics damps the grounded body.
@@ -97,7 +116,6 @@ public sealed partial class RabbitGuard
 				RollDirection = InterpolateFacing( RollDirection, normal.WithZ( 0f ).Normal, 1f - MathF.Pow( 1f - turn, Time.Delta * 30f ) ).Forward;
 				RollForwardness = 1f - MathF.Abs( Vector3.Up.Cross( RollDirection ).Dot( WorldRotation.Forward ) );
 			}
-			duckVelocity = 2.5f;
 		}
 		if ( RollProgress < 0.8f ) return true;
 		if ( Stance == Roll ) Stance = Locomotion;
