@@ -88,6 +88,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDisabled()
 	{
+		RestoreHoldMovement();
 		ReleaseProceduralPose();
 		EndRecovery();
 		FollowLeader( null );

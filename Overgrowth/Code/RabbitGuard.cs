@@ -42,6 +42,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
 		if ( !Downed ) base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
+		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
 		if ( Downed || Health < 1 )
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
@@ -145,6 +146,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		if ( Holding || Held ) return;
 		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
 		{
 			seenHostiles.Remove( enemy );

@@ -69,7 +69,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.Roll, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -257,6 +257,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( blend );
 			}
 
+			if ( RabbitGuard.RearHoldPoses.Contains( name ) )
+			{
+				var grip = CombatClip( name, name is RabbitGuard.RearHeld or RabbitGuard.RatHeldByRabbit, null, true );
+				return machine.AddState( CombatStance( graph.Clip( grip.Animation ), graph.Clip( grip.Mirrored.Animation ) ) );
+			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
 			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch );

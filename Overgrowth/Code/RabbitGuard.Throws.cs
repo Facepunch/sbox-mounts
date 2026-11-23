@@ -44,7 +44,8 @@ public sealed partial class RabbitGuard
 		if ( stunned is null )
 		{
 			if ( MathF.Abs( victim.WorldPosition.z - WorldPosition.z ) >= 0.4f * 40f ) return false;
-			if ( victim.boundAnimations.Species is not ("dog" or "wolf") && (victim.Sleeping || victim.WorldRotation.Forward.Dot( facing ) > 0f) ) return false;
+			if ( victim.boundAnimations.Species is not ("dog" or "wolf") && (victim.Sleeping || victim.WorldRotation.Forward.Dot( facing ) > 0f) )
+				return BeginRearHold( victim, facing );
 			victim.startled = 1f;
 		}
 		else throwRecharge = 5f;

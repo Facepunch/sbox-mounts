@@ -6,6 +6,7 @@ public sealed partial class RabbitGuard
 	SceneTrace IgnoreFighters( SceneTrace trace )
 	{
 		trace = trace.IgnoreGameObjectHierarchy( GameObject );
+		if ( holdPartner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( holdPartner.GameObject );
 		return InThrow && throwPartner.IsValid() ? trace.IgnoreGameObjectHierarchy( throwPartner.GameObject ) : trace;
 	}
 
