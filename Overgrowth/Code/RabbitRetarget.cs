@@ -105,16 +105,16 @@ internal sealed class RabbitRetarget
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip;
 	}
 
-	internal Transform FootTarget( int side, Transform pose, RabbitMirror mirror, int anchor )
+	internal Transform LimbTarget( int side, Transform pose, RabbitMirror mirror, int anchor, bool foot )
 	{
 		pose.Position = ScaleOffset( pose.Position + hipOffset );
 		if ( mirror is not null )
 		{
-			pose = mirror.FootTarget( anchor, pose );
-			pose.Rotation *= ToeFlip;
+			pose = mirror.LimbTarget( anchor, pose );
+			if ( foot ) pose.Rotation *= ToeFlip;
 		}
 		// Retarget applies each flipped-toe correction to the left IK target.
-		if ( side == 0 )
+		if ( foot && side == 0 )
 			foreach ( int _ in flippedToes ) pose.Rotation *= ToeFlip;
 		return pose;
 	}

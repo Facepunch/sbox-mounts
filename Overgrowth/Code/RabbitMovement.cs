@@ -16,7 +16,7 @@ internal sealed class RabbitMovement
 		internal float Direction { get; init; }
 		internal float? GroundSpeed { get; init; }
 	}
-	internal readonly record struct Sample( float Frequency, float Lift, FootPose Left, FootPose Right, RabbitClip Events );
+	internal readonly record struct Sample( float Frequency, float Lift, LimbPose Left, LimbPose Right, RabbitClip Events );
 	sealed record Child( float Coordinate, float? GroundSpeed, float Bounce, string TimeCoordinate, RabbitMovement Motion );
 
 	readonly RabbitClip clip;
@@ -82,7 +82,7 @@ internal sealed class RabbitMovement
 	internal Sample Evaluate( Controls controls, float phase, bool mirrored )
 	{
 		if ( clip?.ForSide( mirrored ) is { } pose )
-			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet?[0], phase ), FootPose.Sample( pose.Feet?[1], phase ), pose );
+			return new( 1f / pose.Duration, 0f, LimbPose.Sample( pose.Feet?[0], phase ), LimbPose.Sample( pose.Feet?[1], phase ), pose );
 		var (a, b, w) = Inputs( controls );
 		Sample EvaluateChild( Child child )
 		{
@@ -96,6 +96,6 @@ internal sealed class RabbitMovement
 		if ( b is null ) return first;
 		var second = EvaluateChild( b );
 		return new( first.Frequency + (second.Frequency - first.Frequency) * w, first.Lift + (second.Lift - first.Lift) * w,
-			FootPose.Blend( first.Left, second.Left, w ), FootPose.Blend( first.Right, second.Right, w ), w <= 0.5f ? first.Events : second.Events );
+			LimbPose.Blend( first.Left, second.Left, w ), LimbPose.Blend( first.Right, second.Right, w ), w <= 0.5f ? first.Events : second.Events );
 	}
 }

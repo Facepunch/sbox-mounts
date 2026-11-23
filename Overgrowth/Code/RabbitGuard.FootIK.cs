@@ -2,21 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-internal readonly record struct FootPose( Transform Transform, float Weight, bool Present )
-{
-	internal static FootPose Blend( FootPose a, FootPose b, float fraction ) =>
-		new( !a.Present ? b.Transform : !b.Present ? a.Transform : Transform.Lerp( a.Transform, b.Transform, fraction, false ),
-			a.Weight + (b.Weight - a.Weight) * fraction, a.Present || b.Present );
-
-	internal static FootPose Sample( FootPose[] frames, float phase )
-	{
-		if ( frames is null ) return default;
-		float index = phase * (frames.Length - 1);
-		int lower = (int)index;
-		return Blend( frames[lower], frames[Math.Min( lower + 1, frames.Length - 1 )], index - lower );
-	}
-}
-
 public sealed partial class RabbitGuard
 {
 	readonly float?[] groundHeight = new float?[2];
@@ -175,9 +160,9 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	bool UsesCombatFeet => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ));
+	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ));
 
-	void UpdateCombatFeet()
+	void UpdateCombatIK()
 	{
 		var parameters = Renderer.Animation.Parameters;
 		parameters.TryGetFloat( boundAnimations.AttackStates.Contains( Stance ) ? "attack_phase" : "reaction_phase", out var phase );
@@ -192,35 +177,50 @@ public sealed partial class RabbitGuard
 			var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
 			blend = new( clip, clip, 0f );
 		}
-		if ( blend.Lower.Feet is null || blend.Upper.Feet is null ) return;
 		EnsurePoseBuffers();
+		bool grounded = HasGroundSupport && blend.Lower.Feet is not null && blend.Upper.Feet is not null;
 		for ( int side = 0; side < 2; side++ )
 		{
-			var bone = poseModel.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
-			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
-			var foot = FootPose.Sample( blend.Lower.Feet[side], phase );
-			if ( blend.Weight > 0f ) foot = FootPose.Blend( foot, FootPose.Sample( blend.Upper.Feet[side], phase ), blend.Weight );
-			var target = animated;
-			if ( foot.Weight > 0f )
+			if ( grounded )
 			{
-				// The original applies the same pending character motion to the toe and its IK target.
-				Transform Local( BoneCollection.Bone joint )
-				{
-					int index = rigIndices[joint.Index];
-					var lower = blend.Lower.Animation.GetLocalTransform( phase, index );
-					return blend.Weight > 0f ? global::Transform.Lerp( lower, blend.Upper.Animation.GetLocalTransform( phase, index ), blend.Weight, false ) : lower;
-				}
-				var toe = Local( bone );
-				for ( var parent = bone.Parent; parent is not null; parent = parent.Parent )
-					toe = Local( parent ).ToWorld( toe );
-				target = animated.ToWorld( toe.ToLocal( foot.Transform ) );
+				var toe = poseModel.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+				if ( !TryGetAnimatedBone( toe, out var animated ) ) return;
+				var foot = SampleTarget( blend.Lower.Feet[side], blend.Upper.Feet[side] );
+				var target = foot.Weight > 0f ? PlaceTarget( toe, animated, foot.Transform ) : animated;
+				ApplyFootTarget( side, animated, target, Math.Max( 0f, foot.Weight ), foot.Transform.Position.z / boundAnimations.MovementScale );
 			}
-			ApplyFootTarget( side, animated, target, Math.Max( 0f, foot.Weight ), foot.Transform.Position.z / boundAnimations.MovementScale );
+
+			var hand = SampleTarget( blend.Lower.Hands?[side], blend.Upper.Hands?[side] );
+			if ( hand.Weight <= 0f ) continue;
+			var wrist = poseModel.Bones.GetBone( boundAnimations.Arms[side][0].Bone );
+			if ( TryGetAnimatedBone( wrist, out var handBone ) )
+				combatHandTargets[side] = new( PlaceTarget( wrist, handBone, hand.Transform ), Math.Clamp( hand.Weight, 0f, 1f ) * (1f - rollIKFade), true );
 		}
-		SolveGroundedLegs();
+		if ( grounded ) SolveGroundedLegs();
+
+		LimbPose SampleTarget( LimbPose[] lower, LimbPose[] upper )
+		{
+			var first = LimbPose.Sample( lower, phase );
+			return blend.Weight > 0f ? LimbPose.Blend( first, LimbPose.Sample( upper, phase ), blend.Weight ) : first;
+		}
+
+		// The original applies the same pending character motion to the bone and its IK target.
+		Transform PlaceTarget( BoneCollection.Bone bone, Transform animated, Transform target )
+		{
+			Transform Local( BoneCollection.Bone joint )
+			{
+				int index = rigIndices[joint.Index];
+				var lower = blend.Lower.Animation.GetLocalTransform( phase, index );
+				return blend.Weight > 0f ? global::Transform.Lerp( lower, blend.Upper.Animation.GetLocalTransform( phase, index ), blend.Weight, false ) : lower;
+			}
+			var reference = Local( bone );
+			for ( var parent = bone.Parent; parent is not null; parent = parent.Parent )
+				reference = Local( parent ).ToWorld( reference );
+			return animated.ToWorld( reference.ToLocal( target ) );
+		}
 	}
 
-	void ApplyAuthoredFoot( int side, Transform animated, FootPose foot )
+	void ApplyAuthoredFoot( int side, Transform animated, LimbPose foot )
 	{
 		float weight = Math.Max( 0f, foot.Weight );
 		var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
