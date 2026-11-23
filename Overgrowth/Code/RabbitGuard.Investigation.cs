@@ -14,20 +14,20 @@ public sealed partial class RabbitGuard
 	readonly List<SearchPoint> searchPoints = [];
 	TimeUntil searchUntil, searchPause;
 	SearchPoint searchTarget;
-	readonly HashSet<RabbitGuard> knownCasualties = [];
-	RabbitGuard casualty;
+	readonly HashSet<GameObject> knownCasualties = [];
+	GameObject casualty;
 	TimeUntil? inspectUntil;
 	Vector3? inspectPosition;
 	bool Investigating => investigatePoint.HasValue || casualty.IsValid() || inspectPosition.HasValue || searchUntil > 0f;
 
-	void NoticeCasualty( RabbitGuard ally )
+	void NoticeCasualty( GameObject ally )
 	{
 		if ( !knownCasualties.Add( ally ) || enemy.IsValid() || Investigating || escortTarget.IsValid() ) return;
 		casualty = ally;
 		inspectPosition = null;
 		inspectUntil = null;
 		startled = 1f;
-		LookAtNotice( TargetPosition( ally.GameObject ), 1f );
+		LookAtNotice( TargetPosition( ally ), 1f );
 		Speak( "suspicious" );
 		ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 	}
@@ -35,7 +35,7 @@ public sealed partial class RabbitGuard
 	bool InvestigateCasualty()
 	{
 		if ( !casualty.IsValid() && !inspectPosition.HasValue ) return false;
-		var position = casualty.IsValid() ? TargetPosition( casualty.GameObject ) : inspectPosition.Value;
+		var position = casualty.IsValid() ? TargetPosition( casualty ) : inspectPosition.Value;
 		var point = Movement.ProjectPoint( position ) ?? position;
 		if ( startled > 0f || inspectUntil.HasValue )
 		{

@@ -99,10 +99,10 @@ public sealed partial class RabbitGuard
 		}
 		var position = TargetPosition( escortTarget );
 		var leader = escortTarget.GetComponent<RabbitGuard>();
-		if ( !IsLiveTarget( escortTarget ) || leader is { Unconscious: true } )
+		if ( !IsLiveTarget( escortTarget ) || leader is { Unconscious: true } || escortTarget.GetComponent<CharacterRemains>().IsValid() )
 		{
 			LookAtNotice( position, 1f );
-			casualty = leader;
+			casualty = escortTarget;
 			inspectPosition = position;
 			inspectUntil = null;
 			escortTarget = null;

@@ -176,6 +176,16 @@ public sealed partial class RabbitGuard
 		var corpse = base.CreateRagdoll();
 		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
 		{
+			var remains = corpse.GetOrAddComponent<CharacterRemains>();
+			remains.Teams = Teams;
+			remains.Rig = boundAnimations;
+			remains.Physics = physics;
+			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
+			{
+				if ( witness.knownCasualties.Remove( GameObject ) ) witness.knownCasualties.Add( corpse );
+				if ( witness.casualty == GameObject ) witness.casualty = corpse;
+				if ( witness.escortTarget == GameObject ) witness.escortTarget = corpse;
+			}
 			var damping = corpse.GetOrAddComponent<RagdollDamping>();
 			damping.Reset( physics );
 			if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )

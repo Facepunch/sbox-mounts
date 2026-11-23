@@ -69,15 +69,17 @@ public sealed partial class RabbitGuard
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		float attention = 0f;
-		knownCasualties.RemoveWhere( ally => !ally.IsValid() || !ally.Unconscious );
+		knownCasualties.RemoveWhere( ally => !ally.IsValid() || ally.GetComponent<RabbitGuard>() is { Unconscious: false } );
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
-			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
+			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
+			.Concat( Scene.GetAllComponents<CharacterRemains>().Where( remains => remains.Teams?.Any( Teams.Contains ) == true ).Select( remains => remains.GameObject ) );
 		var view = GetViewBasis();
 		foreach ( var candidate in candidates )
 		{
 			var ally = candidate.GetComponent<RabbitGuard>();
 			if ( candidate == GameObject || IsIgnoredPlayer( candidate ) ) continue;
-			bool friendly = GetDisposition( candidate ) == Disposition.Friendly;
+			var remains = candidate.GetComponent<CharacterRemains>();
+			bool friendly = remains.IsValid() || GetDisposition( candidate ) == Disposition.Friendly;
 			if ( !friendly && !CanAttack( candidate ) ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
@@ -87,11 +89,11 @@ public sealed partial class RabbitGuard
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
-			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally ) ) continue;
+			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally, remains ) ) continue;
 			if ( friendly )
 			{
 				knownCharacters[candidate] = center;
-				if ( ally is { Unconscious: true } ) NoticeCasualty( ally );
+				if ( ally is { Unconscious: true } || remains.IsValid() ) NoticeCasualty( candidate );
 				continue;
 			}
 			seenHostiles[candidate] = Time.Now;
@@ -126,11 +128,12 @@ public sealed partial class RabbitGuard
 	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )
 		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( other ).WithoutTags( "trigger" ).Run().Hit;
 
-	bool CanSeeCharacter( GameObject target, RabbitGuard fighter )
+	bool CanSeeCharacter( GameObject target, RabbitGuard fighter, CharacterRemains remains = null )
 	{
 		var end = TargetPosition( target, eyes: true );
-		if ( fighter?.boundAnimations?.SightBones is { Length: > 0 } bones &&
-			fighter.Renderer.TryGetBoneTransform( bones[Random.Shared.Next( bones.Length )], out var bone ) )
+		var rig = fighter?.boundAnimations ?? remains?.Rig;
+		if ( rig?.SightBones is { Length: > 0 } bones &&
+			(fighter?.Renderer ?? target.GetComponent<SkinnedModelRenderer>()).TryGetBoneTransform( bones[Random.Shared.Next( bones.Length )], out var bone ) )
 			end = bone.Position;
 
 		return !Scene.Trace.Ray( TargetPosition( GameObject, eyes: true ), end )

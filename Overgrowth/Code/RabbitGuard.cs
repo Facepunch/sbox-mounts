@@ -241,7 +241,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	// navigation root stays parked until recovery, so observers read the bodies directly.
 	Vector3 TargetPosition( GameObject target, bool eyes = false )
 	{
-		if ( eyes && target.GetComponent<RabbitGuard>() is { boundAnimations: { } rig } fighter && fighter.Renderer.IsValid() )
+		var fighter = target.GetComponent<RabbitGuard>();
+		if ( eyes && fighter is { boundAnimations: { } rig } && fighter.Renderer.IsValid() )
 		{
 			var bone = fighter.Renderer.Model.Bones.GetBone( rig.HeadBone );
 			Vector3 sum = default;
@@ -254,7 +255,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			}
 			if ( count > 0 ) return sum / count;
 		}
-		if ( target.GetComponent<RabbitGuard>() is { Downed: true, ragdoll: { } physics } )
+		var physics = fighter.IsValid() ? (fighter.Downed ? fighter.ragdoll : null) : target.GetComponent<CharacterRemains>()?.Physics;
+		if ( physics.IsValid() )
 		{
 			Vector3 sum = default;
 			int count = 0;
@@ -271,7 +273,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	// Standing navigation roots are at the feet. MovementObject.position is at
 	// the leg sphere center until the ragdoll takes over.
-	Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true }
+	Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true } || target.GetComponent<CharacterRemains>().IsValid()
 		? TargetPosition( target ) : target.WorldPosition + Vector3.Up * (0.45f * 40f);
 
 	void NoticeAttacker( GameObject attacker )
