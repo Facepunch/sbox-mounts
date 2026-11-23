@@ -53,8 +53,10 @@ internal sealed class RagdollInjury : Component
 	{
 		Enabled = true;
 		physics = model;
-		damping = GetComponent<RagdollDamping>();
+		damping = GetComponent<RagdollDamping>( true );
+		damping.Refresh();
 		damping.Enabled = false;
+		SetAutoSleep( false );
 		injuryPose = pose;
 		injuryAge = age;
 		writheTime = 0f;
@@ -96,11 +98,9 @@ internal sealed class RagdollInjury : Component
 		{
 			float phase = (writheTime / injuryPose.Writhe.Clip.Duration) % 1f;
 			injuryMotor.Sample( physics.Model, injuryPose, phase, 0f, 0f, injured: true );
-			foreach ( var part in physics.Bodies )
-				if ( part.Component.IsValid() && part.Component.Sleeping ) part.Component.Sleeping = false;
 		}
 		injuryMotor.Apply( physics, strength );
-		if ( injuryAge < 12f ) return;
+		if ( injuryAge <= 12f ) return;
 		Enabled = false;
 	}
 
@@ -126,8 +126,19 @@ internal sealed class RagdollInjury : Component
 		injuryPose = null;
 		MouthOpening = 0f;
 		if ( voiced ) StopVoice();
-		if ( physics.IsValid() ) injuryMotor.Apply( physics, 0f );
+		if ( physics.IsValid() )
+		{
+			injuryMotor.Apply( physics, 0f );
+			SetAutoSleep( true );
+		}
 		if ( damping.IsValid() ) damping.Enabled = true;
+	}
+
+	void SetAutoSleep( bool enabled )
+	{
+		foreach ( var part in physics.Bodies )
+			if ( part.Component.IsValid() && part.Component.PhysicsBody is { IsValid: true } body )
+				body.AutoSleep = enabled;
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
