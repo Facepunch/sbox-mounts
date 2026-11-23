@@ -27,16 +27,17 @@ public partial class ModelLoader
 		{
 			if ( node.Type != 2 ) continue;
 			var name = animations.BlendParameters[node.ParameterIndex];
-			if ( !parameters.ContainsKey( name ) ) parameters.Add( name, graph.FloatParameter( name, node.ParamMin, node.ParamMax ) );
+			if ( !parameters.ContainsKey( name ) ) parameters.Add( name, graph.FloatParameter( definition.PoseInputName( name ), node.ParamMin, node.ParamMax ) );
 		}
 		var reader = new Reader( source );
 		var frame = new Transform[model.Bones.Length];
-		return definition.Compile( graph, parameters, SequencePose, graphPath );
+		return definition.Compile( graph, SequencePose, graphPath );
 
 		GraphBuilder.Node SequencePose( string name, GraphBuilder.Node incoming )
 		{
 			int i = Array.FindIndex( animations.Sequences, s => s.Name == name );
-			if ( i < 0 ) throw new InvalidDataException( $"Graph references missing sequence '{name}' in {FullPath}" );
+			// Spark enters the state and clears the active sequence when the model lacks that name.
+			if ( i < 0 ) return null;
 			return Apply( Pose( animations.Sequences[i].AnimationNodeIndex, incoming ), incoming );
 		}
 
@@ -49,6 +50,7 @@ public partial class ModelLoader
 			if ( node.Type == 1 )
 			{
 				var anim = animations.Animations[node.AnimationIndex];
+				if ( anim.NumFrames == 0 ) return (incoming ?? graph.ReferencePose(), false);
 				if ( !clips.TryGetValue( node.AnimationIndex, out var clip ) )
 				{
 					var builder = new ClipBuilder { Skeleton = skeleton, FrameRate = anim.FrameRate, IsAdditive = anim.Additive };

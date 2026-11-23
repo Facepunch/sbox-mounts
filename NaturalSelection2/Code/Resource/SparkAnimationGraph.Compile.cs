@@ -6,16 +6,18 @@ namespace NS2;
 
 internal sealed partial class SparkAnimationGraph
 {
+	internal string PoseInputName( string name ) => inputs.Contains( name, StringComparer.OrdinalIgnoreCase ) ? $"pose_{name}" : name;
+
 	// Spark tries the explicit links first, then other states bearing the same label.
-	internal Graph Compile( GraphBuilder graph, Dictionary<string, GraphBuilder.Node> poseParameters, Func<string, GraphBuilder.Node, GraphBuilder.Node> sequence, string path )
+	internal Graph Compile( GraphBuilder graph, Func<string, GraphBuilder.Node, GraphBuilder.Node> sequence, string path )
 	{
 		var parameters = new GraphBuilder.Node[inputs.Length];
 		for ( int i = 0; i < inputs.Length; i++ )
 			parameters[i] = inputTypes[i] switch
 			{
 				1 => graph.BoolParameter( inputs[i] ),
-				2 => graph.IdParameter( inputs[i], values[i] ),
-				_ => poseParameters.TryGetValue( inputs[i], out var input ) ? input : graph.FloatParameter( inputs[i] )
+				2 => graph.AddControlParameter( inputs[i], GraphBuilder.NodeKind.Id, new() { Options = values[i], DefaultID = values[i].FirstOrDefault() ?? "" } ),
+				_ => graph.FloatParameter( inputs[i] )
 			};
 
 		GraphBuilder.Node ConditionFor( Condition c )
@@ -41,7 +43,7 @@ internal sealed partial class SparkAnimationGraph
 		GraphBuilder.Node output = null;
 		foreach ( var layer in layers )
 		{
-			if ( layer.Nodes.Length == 0 ) continue;
+			if ( layer.Start < 0 ) continue;
 			var machine = graph.StateMachine();
 			var states = new State[layer.Nodes.Length];
 			var conditions = new GraphBuilder.Node[states.Length];
@@ -66,7 +68,14 @@ internal sealed partial class SparkAnimationGraph
 			for ( int i = 0; i < states.Length; i++ )
 			{
 				var from = layer.Nodes[i];
-				foreach ( var dest in from.Links ) Link( dest, false );
+				GraphBuilder.Node explicitMatch = null;
+				foreach ( var dest in from.Links )
+				{
+					Link( dest, false );
+					var target = layer.Nodes[dest];
+					if ( from.Clip >= 0 && (from.WaitOnExit || target.WaitOnEnter) )
+						explicitMatch = explicitMatch is null ? conditions[dest] : graph.Or( explicitMatch, conditions[dest] );
+				}
 				if ( from.Label.Length == 0 ) continue;
 				for ( int j = 0; j < states.Length; j++ )
 					if ( j != i && !layer.Nodes[j].ExplicitEntryOnly && layer.Nodes[j].Label == from.Label && !from.Links.Contains( j ) ) Link( j, true );
@@ -75,12 +84,15 @@ internal sealed partial class SparkAnimationGraph
 				{
 					if ( i == dest ) return;
 					var to = layer.Nodes[dest];
-					var duration = byLabel ? to.LabelBlend : to.Blend;
-					if ( to.RateInput < 0 ) duration = to.Rate > 0 ? duration / to.Rate : 0;
+					float blend = byLabel ? to.LabelBlend : to.Blend;
+					float duration = to.Rate != 0 ? blend / to.Rate : 0;
+					var rate = to.RateInput < 0 ? null : parameters[to.RateInput];
+					var durationOverride = rate is null ? null : graph.Divide( graph.Constant( blend ), rate );
 					var test = conditions[dest];
 					if ( from.Clip >= 0 && (from.WaitOnExit || to.WaitOnEnter) )
-						test = graph.And( test, machine.Completed( states[i], duration ) );
-					machine.AddTransition( states[i], states[dest], test, new GraphBuilder.TransitionSettings { Duration = duration } );
+						test = graph.And( test, machine.Completed( states[i], to.Blend * to.Rate, rate is null ? null : graph.Multiply( rate, to.Blend ) ) );
+					if ( byLabel && explicitMatch is not null ) test = graph.And( test, graph.Not( explicitMatch ) );
+					machine.AddTransition( states[i], states[dest], test, new GraphBuilder.TransitionSettings { Duration = duration, DurationOverride = durationOverride } );
 				}
 			}
 			output = output is null ? machine.Build() : graph.Layers( output ).AddLayer( machine );
