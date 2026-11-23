@@ -11,6 +11,7 @@ public sealed partial class RabbitGuard
 
 	GameObject fleeFrom;
 	TimeUntil fleeUpdate;
+	Vector3? fleeDestination;
 
 	bool HasCombatTarget => !Fleeing && CanAttack( enemy );
 	bool Fleeing => fleeFrom.IsValid() && fleeFrom == enemy;
@@ -28,39 +29,23 @@ public sealed partial class RabbitGuard
 		}
 		if ( fleeUpdate <= 0f )
 		{
-			fleeUpdate = Random.Shared.Float( 0.2f, 0.5f );
-			var away = (WorldPosition - enemy.WorldPosition).WithZ( 0f ).Normal;
-			if ( !away.IsNearlyZero() && RetreatDestination( away ) is { } point )
-				Movement.MoveTo( point, 0f, GroundRunSpeed );
-			else Movement.Stop();
+			fleeUpdate = Random.Shared.Float( 0.2f, 2f );
+			var away = (CharacterCenter( GameObject ) - CharacterCenter( enemy )).WithZ( 0f ).Normal;
+			fleeDestination = away.IsNearlyZero() ? null : RetreatDestination( away );
 		}
+		if ( fleeDestination is { } point )
+		{
+			if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 0f, GroundRunSpeed );
+		}
+		else if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 		Stance = Locomotion;
 		return true;
 	}
 
 	Vector3? RetreatDestination( Vector3 away )
 	{
-		// NavRaycastSlide projects the remaining ray along each obstruction. The mount
-		// has world sweeps and path queries, so constrain the result to a connected corridor.
-		var center = WorldPosition + Vector3.Up * 24f;
-		var end = center + away * 40000f;
-		for ( int i = 0; i <= 4; i++ )
-		{
-			var hit = ClimbTrace( Scene.Trace.Sphere( 18f, center, end ) ).Run();
-			if ( !hit.Hit ) { center = end; break; }
-			if ( hit.StartedSolid ) break;
-			center = hit.EndPosition + hit.Normal;
-			var normal = hit.Normal.WithZ( 0f ).Normal;
-			if ( normal.IsNearlyZero() ) break;
-			end -= normal * normal.Dot( end - center );
-			if ( center.DistanceSquared( end ) < 1f ) break;
-		}
 		var nav = Scene.NavMesh;
-		var point = nav.GetClosestPoint( center ) ?? nav.GetClosestPoint( WorldPosition + away * GroundRunSpeed );
-		if ( point is null ) return null;
-		var path = nav.CalculatePath( new() { Start = WorldPosition, Target = point.Value, Agent = GetComponent<NavMeshAgent>() } );
-		if ( !path.IsValid || path.Points.Count < 2 ) return null;
-		var corner = path.Points[1].Position;
-		return (corner - WorldPosition).Dot( away ) > 0f ? corner : null;
+		if ( nav.GetClosestPoint( WorldPosition ) is not { } start ) return null;
+		return SlideOnNavMesh( start, start + away * 40000f );
 	}
 }

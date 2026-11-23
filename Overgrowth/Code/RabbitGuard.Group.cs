@@ -40,27 +40,9 @@ public sealed partial class RabbitGuard
 		var flat = force.WithZ( 0f );
 		if ( flat.IsNearlyZero() ) return default;
 
-		// The public nav query returns corridor corners. Only the straight, reachable
-		// portion of this short step contributes to the original repulsor force.
-		var end = WorldPosition + flat * 40f;
-		var limited = flat * (flat.Length / force.Length);
-		if ( Scene.NavMesh.GetClosestEdge( WorldPosition, flat.Length * 40f ) is null ) return limited;
-		bool Reachable( float fraction )
-		{
-			var target = Vector3.Lerp( WorldPosition, end, fraction );
-			var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = target } );
-			return path.IsValid && path.Points.Count <= 2 && path.Points.Count > 0 &&
-				(path.Points[^1].Position - target).WithZ( 0f ).LengthSquared < 0.0001f;
-		}
-		if ( Reachable( 1f ) ) return limited;
-		float low = 0f, high = 1f;
-		while ( (high - low) * flat.Length * 40f > 0.05f )
-		{
-			float mid = (low + high) * 0.5f;
-			if ( Reachable( mid ) ) low = mid;
-			else high = mid;
-		}
-		return limited * low;
+		var clipped = WalkableRay( WorldPosition, WorldPosition + flat * 40f );
+		float reachable = (clipped - WorldPosition).WithZ( 0f ).Length;
+		return flat * (reachable / (40f * force.Length));
 	}
 
 	bool unassignedPatrol;
