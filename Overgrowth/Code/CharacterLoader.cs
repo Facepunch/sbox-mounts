@@ -311,6 +311,9 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal HashSet<int> NonCollidingBones { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;
+	CharacterMorph[] handShapes;
+	internal CharacterMorph[] HandShapes => handShapes ??= CharacterMorph.Read( Definition ).Where( m => m.Name is "fist_l" or "fist_r" ).ToArray();
+
 	XmlAsset characterDefinition;
 	XmlAsset Definition => characterDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "character" );
 	internal string DefaultTeams => Definition.Element( "team" )?.Value;

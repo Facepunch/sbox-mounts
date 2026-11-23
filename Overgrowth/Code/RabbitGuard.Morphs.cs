@@ -76,6 +76,7 @@ public sealed partial class RabbitGuard
 		}
 		foreach ( var shape in boundAnimations.Morphs )
 		{
+			if ( Downed && (shape.Name is "fist_l" or "fist_r") && Renderer.GetComponent<RagdollHands>().IsValid() ) continue;
 			bool gripping = shape.Name == "fist_l" && LeftHandItem.IsValid() || shape.Name == "fist_r" && RightHandItem.IsValid();
 			if ( shape.Steps == 1 )
 			{
@@ -84,9 +85,7 @@ public sealed partial class RabbitGuard
 				continue;
 			}
 			Renderer.Animation.Debug.TryGetFloatChannel( "multistep", shape.Name, out float weight );
-			float phase = (gripping ? 1f : Math.Clamp( weight, 0f, 1f )) * shape.Steps;
-			for ( int i = 0; i < shape.Steps; i++ )
-				Renderer.Morphs.Set( shape.Targets[i], Math.Max( 0f, 1f - MathF.Abs( phase - i - 1f ) ), 0f );
+			shape.Apply( Renderer, gripping ? 1f : weight );
 		}
 
 		// UpdateBlink modulates the sine blink with a slower, independently changing resting eyelid.

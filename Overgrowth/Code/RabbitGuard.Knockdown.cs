@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard
 	[ConVar( "overgrowth_sparring", ConVarFlags.Replicated, Help = "Overgrowth fighters recover their health on a lethal hit and can keep fighting." )]
 	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }
-	[Sync] bool Downed { get; set; }
+	[Sync] internal bool Downed { get; private set; }
 	[Sync] bool RecoveredInAir { get; set; }
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
@@ -175,6 +175,7 @@ public sealed partial class RabbitGuard
 		ragdoll.Renderer = Renderer;
 		ragdoll.Model = Renderer.Model;
 		ragdoll.IgnoreRoot = true;
+		ragdoll.GetOrAddComponent<RagdollHands>().Begin( Renderer );
 		ragdoll.CopyBonesFrom( Renderer, true );
 		ReleaseProceduralPose();
 		ragdoll.Enabled = true;
@@ -245,6 +246,7 @@ public sealed partial class RabbitGuard
 		Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
 		foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 			witness.FollowCorpse( GameObject, corpse );
+		corpse.GetOrAddComponent<RagdollHands>().Begin( Renderer, Downed ? Renderer.GetComponent<RagdollHands>()?.Current : null );
 		var damping = corpse.GetOrAddComponent<RagdollDamping>();
 		damping.Reset( physics );
 		if ( Downed && ragdoll is { Active: true } )

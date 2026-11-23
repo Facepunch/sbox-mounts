@@ -96,6 +96,7 @@ public sealed partial class RabbitGuard
 			fallMotor.Sample( Renderer.Model, pose, phase, protect * fade, front * fade );
 		}
 		else strength = 0f;
+		ragdoll.GetComponent<RagdollHands>()?.Advance( pose.Flail.Clip, fallAge, Time.Delta, strength );
 		fallMotor.Apply( ragdoll, strength );
 	}
 }

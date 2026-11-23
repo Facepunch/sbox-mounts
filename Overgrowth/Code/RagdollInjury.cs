@@ -99,6 +99,7 @@ internal sealed class RagdollInjury : Component
 			float phase = (writheTime / injuryPose.Writhe.Clip.Duration) % 1f;
 			injuryMotor.Sample( physics.Model, injuryPose, phase, 0f, 0f, injured: true );
 		}
+		physics.GetComponent<RagdollHands>()?.Advance( injuryPose.Writhe.Clip, writheTime, Time.Delta, strength );
 		injuryMotor.Apply( physics, strength );
 		if ( injuryAge <= 12f ) return;
 		Enabled = false;
