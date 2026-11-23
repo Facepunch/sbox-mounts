@@ -11,6 +11,19 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 {
 	internal float? LimpTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
+	// AG2 stores unit rotations. SyncedAnimationGroup mixes the original magnitudes
+	// before retargeting, including the drift introduced by cubic interpolation.
+	float[] RotationMagnitudes { get; init; }
+	internal Rotation RawRotation( Rotation unit, float phase, int bone, int bones )
+	{
+		int last = RotationMagnitudes.Length / bones - 1;
+		float sample = phase * last;
+		int frame = (int)sample;
+		float a = RotationMagnitudes[frame * bones + bone];
+		float b = RotationMagnitudes[Math.Min( frame + 1, last ) * bones + bone];
+		float m = a + (b - a) * (sample - frame);
+		return new( unit.x * m, unit.y * m, unit.z * m, unit.w * m );
+	}
 	internal RabbitClip ForSide( bool mirrored ) => mirrored ? Mirrored ?? this : this;
 
 	internal static string[] StatusChannels => ["escape", "cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
@@ -23,15 +36,18 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	// The subsequent two stages of its cubic blend consume that magnitude as well.
 	static Transform Mix( Transform a, Transform b, float t )
 	{
-		var first = a.Rotation;
-		var next = b.Rotation;
+		return new( Vector3.Lerp( a.Position, b.Position, t, false ), MixRotation( a.Rotation, b.Rotation, t ) );
+	}
+
+	internal static Rotation MixRotation( Rotation first, Rotation next, float t )
+	{
 		float dot = first.x * next.x + first.y * next.y + first.z * next.z + first.w * next.w;
-		if ( MathF.Abs( dot ) < 0.99f ) return Transform.Lerp( a, b, t, false );
+		if ( MathF.Abs( dot ) < 0.99f ) return Rotation.Slerp( first, next, t, false );
 
 		float w = dot < 0f ? -t : t;
-		return new Transform( Vector3.Lerp( a.Position, b.Position, t, false ), new Rotation(
+		return new Rotation(
 			first.x * (1f - t) + next.x * w, first.y * (1f - t) + next.y * w,
-			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w ) );
+			first.z * (1f - t) + next.z * w, first.w * (1f - t) + next.w * w );
 	}
 
 	static (int Version, bool Centered, bool Loop, int Start, int Duration) ReadHeader( BinaryReader reader, string name )
@@ -203,6 +219,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
+		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * frame.Length] : null;
 
 		for ( int i = 0; i <= intervals; i++ )
 		{
@@ -227,6 +244,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				var pose = w0 + w1 > 0 ? Mix( a.Bones[j], b.Bones[j], w1 / (w0 + w1) ) : b.Bones[j];
 				if ( w0 + w1 + w2 > 0 ) pose = Mix( pose, c.Bones[j], w2 / (w0 + w1 + w2) );
 				frame[j] = Mix( pose, d.Bones[j], w3 );
+				if ( magnitudes is not null )
+				{
+					var q = frame[j].Rotation;
+					magnitudes[i * frame.Length + (mirror?.Opposite( j ) ?? j)] = MathF.Sqrt( q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w );
+				}
 				frame[j].Rotation = frame[j].Rotation.Normal;
 				if ( skeleton.HierParents[j] < 0 )
 					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
@@ -278,7 +300,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet ) { LimpTime = limpTime };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet ) { LimpTime = limpTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

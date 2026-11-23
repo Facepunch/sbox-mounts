@@ -11,6 +11,28 @@ public sealed partial class RabbitGuard
 	int[] rigIndices;
 	Model gaitModel;
 	bool hasGaitPose;
+	readonly List<RabbitMovement.PoseInput> gaitInputs = [];
+	(Rotation Unit, Rotation Raw)[] gaitBlend = [];
+
+	// Apply only the rotation difference so AG2 transitions and additive layers survive.
+	Rotation GaitBlendCorrection( float phase, int bone, int bones )
+	{
+		int count = 0;
+		foreach ( var input in gaitInputs )
+		{
+			if ( input.Clip is { } clip )
+			{
+				var unit = clip.Animation.GetLocalTransform( phase, bone ).Rotation;
+				gaitBlend[count++] = (unit, clip.RawRotation( unit, phase, bone, bones ));
+				continue;
+			}
+			var b = gaitBlend[--count];
+			var a = gaitBlend[count - 1];
+			var raw = RabbitClip.MixRotation( a.Raw, b.Raw, input.Weight );
+			gaitBlend[count - 1] = (Rotation.Slerp( a.Unit, b.Unit, input.Weight ), raw);
+		}
+		return gaitBlend[0].Unit.Inverse * gaitBlend[0].Raw.Normal;
+	}
 
 	// SyncedAnimationGroup blends clips authored for the same rig before Retarget enforces each
 	// joint length. AG2 blends translations as well as rotations, so restore the joints here.
@@ -30,18 +52,28 @@ public sealed partial class RabbitGuard
 		}
 
 		var basis = Renderer.WorldTransform;
+		var parameters = Renderer.Animation.Parameters;
+		parameters.TryGetFloat( "stride_phase", out float phase );
+		parameters.TryGetFloat( "ground_speed", out float speed );
+		parameters.TryGetFloat( "tall_coord", out float height );
+		parameters.TryGetFloat( "threat_coord", out float threat );
+		gaitInputs.Clear();
+		boundAnimations.Movement.CollectPoseInputs( new( speed, height, threat ), MirroredStance, gaitInputs );
+		if ( gaitBlend.Length < gaitInputs.Count ) gaitBlend = new (Rotation, Rotation)[gaitInputs.Count];
 		foreach ( var bone in model.Bones.AllBones )
 		{
 			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
 			var pose = basis.ToLocal( world );
 			originalGaitPose[bone.Index] = pose;
-			if ( bone.Parent is { } parent )
+			var parent = bone.Parent;
+			var local = parent is null ? pose : originalGaitPose[parent.Index].ToLocal( pose );
+			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( phase, rigIndices[bone.Index], model.BoneCount );
+			if ( parent is not null )
 			{
-				var local = originalGaitPose[parent.Index].ToLocal( pose );
 				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, MirroredStance );
-				pose = gaitPose[parent.Index].ToWorld( local );
+				local = gaitPose[parent.Index].ToWorld( local );
 			}
-			gaitPose[bone.Index] = pose;
+			gaitPose[bone.Index] = local;
 		}
 		hasGaitPose = true;
 	}

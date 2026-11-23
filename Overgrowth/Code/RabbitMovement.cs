@@ -35,15 +35,40 @@ internal sealed class RabbitMovement
 		return blend;
 	}
 
-	internal Sample Evaluate( Controls controls, float phase, bool mirrored )
+	(Child First, Child Second, float Weight) Inputs( Controls controls )
 	{
-		if ( clip?.ForSide( mirrored ) is { } pose )
-			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet?[0], phase ), FootPose.Sample( pose.Feet?[1], phase ), pose );
 		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
 		var a = children[Math.Max( 0, hi - 1 )];
 		var b = children[hi];
+		if ( coord <= a.Coordinate ) return (a, null, 0f);
+		if ( coord >= b.Coordinate ) return (b, null, 0f);
+		return (a, b, (coord - a.Coordinate) / (b.Coordinate - a.Coordinate));
+	}
+
+	internal readonly record struct PoseInput( RabbitClip Clip, float Weight );
+
+	// Emit the active leaves followed by their parent blends, once per pose.
+	internal void CollectPoseInputs( Controls controls, bool mirrored, List<PoseInput> inputs )
+	{
+		if ( clip is not null )
+		{
+			inputs.Add( new( clip.ForSide( mirrored ), 0f ) );
+			return;
+		}
+		var (a, b, weight) = Inputs( controls );
+		a.Motion.CollectPoseInputs( controls, mirrored, inputs );
+		if ( b is null ) return;
+		b.Motion.CollectPoseInputs( controls, mirrored, inputs );
+		inputs.Add( new( null, weight ) );
+	}
+
+	internal Sample Evaluate( Controls controls, float phase, bool mirrored )
+	{
+		if ( clip?.ForSide( mirrored ) is { } pose )
+			return new( 1f / pose.Duration, 0f, FootPose.Sample( pose.Feet?[0], phase ), FootPose.Sample( pose.Feet?[1], phase ), pose );
+		var (a, b, w) = Inputs( controls );
 		Sample EvaluateChild( Child child )
 		{
 			var sample = child.Motion.Evaluate( controls, phase, mirrored );
@@ -52,10 +77,8 @@ internal sealed class RabbitMovement
 			float t = phase % 0.5f / rate;
 			return sample with { Frequency = frequency, Lift = sample.Lift + child.Bounce * 392f * t * (0.5f / rate - t) };
 		}
-		if ( coord <= a.Coordinate ) return EvaluateChild( a );
-		if ( coord >= b.Coordinate ) return EvaluateChild( b );
-		float w = (coord - a.Coordinate) / (b.Coordinate - a.Coordinate);
 		var first = EvaluateChild( a );
+		if ( b is null ) return first;
 		var second = EvaluateChild( b );
 		return new( first.Frequency + (second.Frequency - first.Frequency) * w, first.Lift + (second.Lift - first.Lift) * w,
 			FootPose.Blend( first.Left, second.Left, w ), FootPose.Blend( first.Right, second.Right, w ), w <= 0.5f ? first.Events : second.Events );
