@@ -198,6 +198,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	void SetBodyRig( Model model, SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters )
 	{
+		overlappingBodies = null;
 		NonCollidingBones = bodyCenters.Where( x => x.Value.NonColliding ).Select( x => model.Bones.GetBone( $"bone_{x.Key}" ).Index ).ToHashSet();
 		if ( !guard ) return;
 		animationRig = skeleton;
@@ -269,6 +270,44 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal CharacterSurface Surface { get; private set; }
 
 	internal float AttachmentScale => (ReadAppearance().Number( "default_scale" ) ?? 1f) / (ReadAppearance().Number( "model_scale" ) ?? 1f);
+	(int A, int B)[] overlappingBodies;
+
+	internal void FilterRagdollContacts( ModelPhysics physics )
+	{
+		overlappingBodies ??= FindOverlaps();
+		foreach ( var (a, b) in overlappingBodies )
+		{
+			var body = physics.Bodies[a].Component;
+			var other = physics.Bodies[b].Component.GameObject;
+			if ( !body.GetComponents<PhysicsFilter>().Any( filter => filter.Body == other ) )
+				body.AddComponent<PhysicsFilter>().Body = other;
+		}
+
+		(int, int)[] FindOverlaps()
+		{
+			// Skeleton::AddNullConstraints checks unconnected collision shapes in the bind pose.
+			// CheckOverlap can place B relative to A without moving either simulated body.
+			var description = physics.Model.Physics;
+			var connected = description.Joints.Select( joint => (Math.Min( joint.Body1, joint.Body2 ), Math.Max( joint.Body1, joint.Body2 )) ).ToHashSet();
+			var result = new List<(int, int)>();
+			for ( int a = 0; a < physics.Bodies.Count; a++ )
+			{
+				var first = physics.Bodies[a];
+				if ( NonCollidingBones.Contains( first.Bone ) ) continue;
+				var body = first.Component.PhysicsBody;
+				var basis = body.Transform.WithScale( first.Component.WorldScale );
+				for ( int b = a + 1; b < physics.Bodies.Count; b++ )
+				{
+					var second = physics.Bodies[b];
+					if ( connected.Contains( (a, b) ) || NonCollidingBones.Contains( second.Bone ) ) continue;
+					var relative = description.Parts[a].Transform.ToLocal( description.Parts[b].Transform );
+					if ( body.CheckOverlap( second.Component.PhysicsBody, basis.ToWorld( relative ) ) ) result.Add( (a, b) );
+				}
+			}
+			return result.ToArray();
+		}
+	}
+
 	internal HashSet<int> NonCollidingBones { get; private set; } = [];
 	const float Scale = 40f;
 	(XmlAsset Groups, float Pitch)? voice;

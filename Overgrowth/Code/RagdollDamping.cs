@@ -60,6 +60,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		stillTime = 0f;
 		settled = false;
 		var loader = CharacterLoader.FromModel( model.Model );
+		loader?.FilterRagdollContacts( model );
 		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		float scale = model.WorldScale.z;
 		var parts = model.Model.Physics.Parts;
