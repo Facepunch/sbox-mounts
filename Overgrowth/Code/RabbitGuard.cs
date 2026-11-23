@@ -83,7 +83,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			TrackEnemy();
 			ScanForCharacters();
 		}
-		if ( !Downed ) base.OnUpdate();
+		if ( !Downed )
+		{
+			base.OnUpdate();
+			if ( Networking.IsHost && NpcConVars.Enabled && IsAirborne && Health > 0f && Renderer.IsValid() &&
+				boundAnimations is not null && !Downed && !StaticCharacter && !Holding && !Held && LedgeAnimation is null )
+				AdvanceAirborneAction();
+		}
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
 		if ( Downed || Health < 1 )
@@ -196,6 +202,19 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( playing == displayPose ) return;
 		playing = displayPose;
 		Renderer.Animation.Parameters.Set( "stance", playing );
+	}
+
+	// Ground schedules pause in flight, but Overgrowth keeps the active animation and its events running.
+	void AdvanceAirborneAction()
+	{
+		AdvanceCombatMomentum( Time.Delta );
+		if ( InThrow || AdvanceItemThrow() ) return;
+		if ( ReactionPhase < 1f )
+		{
+			if ( !UpdateDefense() ) Stance = Ready;
+			return;
+		}
+		if ( strike is { AsLayer: false } ) UpdateCombat();
 	}
 
 	protected override void Think()
