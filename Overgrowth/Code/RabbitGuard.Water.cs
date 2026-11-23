@@ -47,21 +47,14 @@ public sealed partial class RabbitGuard
 		if ( depth < 2f && speed > 4f && (!IsOnGround || Downed || RollProgress < 1f) && nextSplashSound <= 0f )
 		{
 			nextSplashSound = 0.5f;
-			PlayWaterSound( "bodyfall_water", center );
+			PlayAttachedSound( "Data/Sounds/water_foley/bodyfall_water.xml", center );
 			ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
 		}
 		if ( depth > 0.25f && headHeight > -0.2f && speed > 1f && nextWadingSound <= 0f )
 		{
 			nextWadingSound = 0.3f / (1f + velocity.WithZ( 0f ).Length * 0.05f);
-			PlayWaterSound( depth > 0.7f ? "wading_through_water" : "steps_water", center );
+			PlayAttachedSound( depth > 0.7f ? "Data/Sounds/water_foley/wading_through_water.xml" : "Data/Sounds/water_foley/steps_water.xml", center );
 		}
-	}
-
-	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayWaterSound( string group, Vector3 position )
-	{
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-			mount.PlayGroup( $"Data/Sounds/water_foley/{group}.xml", position, parent: GameObject );
 	}
 
 	void TakeWaterDamage()

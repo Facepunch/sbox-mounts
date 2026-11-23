@@ -160,7 +160,7 @@ public sealed partial class RabbitGuard
 			// SwapAnimation retains the outgoing reader's last sampled rotation.
 			var counterRoot = counter.Animation.GetRootMotion( ReactionPhase );
 			alignmentYaw += (previousRotation.Inverse * counterRoot.Rotation).Yaw();
-			PlayCombatSound( "Data/Sounds/weapon_foley/swoosh/weapon_whoos_big.xml", WorldPosition );
+			PlayAttachedSound( "Data/Sounds/weapon_foley/swoosh/weapon_whoos_big.xml", CharacterCenter( GameObject ) );
 		}
 		bool cancel = playing == Stance && AnimationCanCancel;
 		cancel = Stance == "throw" ? CanEndAttack( cancel ) : cancel && throwElapsed > 0.1f;

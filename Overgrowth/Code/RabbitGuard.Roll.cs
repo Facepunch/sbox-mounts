@@ -47,7 +47,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( depth > 0f && depth < 0.4f )
 		{
-			PlayWaterSound( "mud_slide_roll", CharacterCenter( GameObject ) );
+			PlayAttachedSound( "Data/Sounds/water_foley/mud_slide_roll.xml", CharacterCenter( GameObject ) );
 			ReportBodySound( HeardSound.Footstep, 2f );
 		}
 	}

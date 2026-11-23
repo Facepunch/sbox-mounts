@@ -22,7 +22,7 @@ public sealed partial class RabbitGuard
 			bool run = step is "leftrunstep" or "rightrunstep";
 			if ( run || step is "leftwalkstep" or "rightwalkstep" or "leftcrouchwalkstep" or "rightcrouchwalkstep" )
 			{
-				PlayMudStep( run );
+				PlayAttachedSound( run ? "Data/Sounds/water_foley/mud_fs_run.xml" : "Data/Sounds/water_foley/mud_fs_walk.xml", CharacterCenter( GameObject ) );
 				if ( depth > 0.1f )
 				{
 					if ( run ) ReportSound( GameObject, position, HeardSound.Footstep, 5f );
@@ -45,11 +45,10 @@ public sealed partial class RabbitGuard
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMudStep( bool run )
+	void PlayAttachedSound( string group, Vector3 position )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-			mount.PlayGroup( run ? "Data/Sounds/water_foley/mud_fs_run.xml" : "Data/Sounds/water_foley/mud_fs_walk.xml",
-				WorldPosition + Vector3.Up * LegRadius, parent: GameObject );
+			mount.PlayGroup( group, position, parent: GameObject );
 	}
 
 	void ReportFootstep( string step, Vector3 position )
