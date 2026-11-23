@@ -22,17 +22,19 @@ public sealed partial class RabbitGuard
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaged( hit );
-		if ( Sparring && Health < 1f && hit.AcceptedDamage > 0 ) Health = MaxHealth;
+		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
+		if ( sparringKnockout ) Health = MaxHealth;
 		if ( Health < 1f ) return;
 		if ( hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
 		var attacker = hit.Instigator;
 
 		NoticeAttacker( attacker );
+		if ( !Downed ) Speak( "hit" );
+
+		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
+		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
 		if ( !Downed )
-		{
 			GoLimp();
-			Speak( "hit" );
-		}
 
 		sinceKnockdown = 0;
 		if ( hit.DamageInfo is StrikeDamage blow ) ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
