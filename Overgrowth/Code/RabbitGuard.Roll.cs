@@ -50,6 +50,7 @@ public sealed partial class RabbitGuard
 			duckVelocity = 0f;
 		}
 		Movement.Stop();
+		walkingSinceLanding = false;
 		BeginRecovery( 2f );
 		Renderer.Animation.Parameters.Set( "stance", Roll );
 		playing = Roll;
