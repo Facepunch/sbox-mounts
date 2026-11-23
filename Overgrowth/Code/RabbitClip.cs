@@ -10,6 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal float? GrabTime { get; init; }
+	internal (float Time, bool Left)? WeaponRelease { get; init; }
 	internal float? DrawTime { get; init; }
 	internal float? LimpTime { get; init; }
 	internal float? CutTime { get; init; }
@@ -133,6 +134,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
 		var channels = StatusChannels;
+		(float Time, bool Left)? weaponRelease = null;
 		float? limpTime = null, grabTime = null, drawTime = null, cutTime = null;
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
@@ -192,6 +194,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				switch ( label )
 				{
+					case "leftweaponrelease": case "rightweaponrelease": weaponRelease = (time * 0.001f, label == "leftweaponrelease"); break;
 					case "grabitem": grabTime = time * 0.001f; break;
 					case "golimp": limpTime = time * 0.001f; break;
 					case "throatcut": cutTime = time * 0.001f; break;
@@ -376,7 +379,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { WeaponRelease = weaponRelease, GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

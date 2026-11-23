@@ -1,6 +1,6 @@
 namespace Overgrowth;
 
-public sealed class LevelItem : Component
+public sealed partial class LevelItem : Component
 {
 	[Property, Sync] public SkinnedModelRenderer Holder { get; set; }
 	[Property, Sync] public string Bone { get; set; }

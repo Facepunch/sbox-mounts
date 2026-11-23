@@ -85,7 +85,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var jumpArmPhase = graph.FloatParameter( "jump_arm_phase" );
 		var jumpArmWeight = graph.FloatParameter( "jump_arm_weight" );
 		var drawPhase = graph.FloatParameter( "draw_phase" );
-		var drawWeights = RabbitGuard.DrawAnimations.SelectMany( draw => new[] { RabbitGuard.DrawLayer( draw, false ), RabbitGuard.DrawLayer( draw, true ) } )
+		var drawWeights = RabbitGuard.HandAnimations.SelectMany( draw => new[] { RabbitGuard.DrawLayer( draw, false ), RabbitGuard.DrawLayer( draw, true ) } )
 			.ToDictionary( name => name, name => graph.FloatParameter( name ) );
 		var pickupRight = graph.FloatParameter( "pickup_right" );
 		var pickupLeft = graph.FloatParameter( "pickup_left" );
@@ -349,7 +349,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
 		var pickup = clips["pickup"] = CombatClip( "r_pickup", false, null, true );
-		foreach ( var draw in RabbitGuard.DrawAnimations )
+		foreach ( var draw in RabbitGuard.HandAnimations )
 		{
 			var drawClip = clips[draw] = CombatClip( draw, false, null, true );
 			foreach ( bool left in new[] { false, true } )

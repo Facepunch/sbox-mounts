@@ -50,7 +50,7 @@ internal sealed class CharacterAnimationLibrary
 		var floatChannels = morphs.Select( m => m.Name ).Concat( RabbitClip.StatusChannels ).ToHashSet();
 		bones.AddBoneMask( RabbitGuard.JumpArms, RabbitClip.ReadLayerMask( fs, $"Data/Animations/{RabbitGuard.JumpArms}.anm",
 			skeleton.Bones.Count, floatChannels: floatChannels, bindItem: false ), defaultFloatChannelWeight: 0f );
-		foreach ( var draw in RabbitGuard.DrawAnimations )
+		foreach ( var draw in RabbitGuard.HandAnimations )
 			foreach ( bool mirrored in new[] { false, true } )
 			{
 				var mask = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{draw}.anm", skeleton.Bones.Count, mirrored ? mirror : null, floatChannels, bindItem: false );
