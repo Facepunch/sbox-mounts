@@ -75,8 +75,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( getUpGraph is not null && (Stance != getUpSlot || ReactionPhase * boundAnimations.Clips[getUpSlot].Duration >= getUpPose.Duration) )
 			EndGetUpBlend();
-		if ( Networking.IsHost ) GazeTarget = visible && enemy.IsValid() ? TargetPosition( enemy, eyes: true ) : null;
-		bool track = Animation.IsGrounded && Stance is Threat or Locomotion && GazeTarget.HasValue;
+		if ( Networking.IsHost ) UpdateGazeTarget();
+		bool track = Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
 		UpdateCombatPosture();
@@ -174,6 +174,19 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	// navigation root stays parked until recovery, so observers read the bodies directly.
 	Vector3 TargetPosition( GameObject target, bool eyes = false )
 	{
+		if ( eyes && target.GetComponent<RabbitGuard>() is { boundAnimations: { } rig } fighter && fighter.Renderer.IsValid() )
+		{
+			var bone = fighter.Renderer.Model.Bones.GetBone( rig.HeadBone );
+			Vector3 sum = default;
+			int count = 0;
+			while ( count < rig.Head.ChainLength && bone is not null && fighter.Renderer.TryGetBoneTransform( bone, out var pose ) )
+			{
+				sum += pose.Position;
+				count++;
+				bone = bone.Parent;
+			}
+			if ( count > 0 ) return sum / count;
+		}
 		if ( target.GetComponent<RabbitGuard>() is { Downed: true, ragdoll: { } physics } )
 		{
 			Vector3 sum = default;

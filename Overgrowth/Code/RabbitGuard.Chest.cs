@@ -5,9 +5,27 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[Sync] Vector3? GazeTarget { get; set; }
+	Vector3? idleLookTarget;
+	TimeUntil nextLook;
 	bool chestActive;
 	float previousYaw, stanceLook, idleStance;
 	Vector2 chestAngles, chestVelocity;
+
+	void UpdateGazeTarget()
+	{
+		if ( nextLook <= 0f || !idleLookTarget.HasValue )
+		{
+			nextLook = Random.Shared.Float( 0.8f, 2f );
+			// Sampling the forward half-circle is equivalent to reflecting a uniform heading into it.
+			var heading = Rotation.FromYaw( Random.Shared.Float( -90f, 90f ) ) * WorldRotation.Forward.WithZ( 0f ).Normal;
+			heading.z = Random.Shared.Float( -0.3f, 0.3f );
+			idleLookTarget = WorldPosition + Vector3.Up * (0.45f * 40f)
+				+ (WorldRotation.Forward + heading.Normal) * (0.5f * 100f * 40f);
+		}
+
+		var target = visible && CanAttack( enemy ) ? enemy : escortTarget;
+		GazeTarget = target.IsValid() ? TargetPosition( target, eyes: true ) : idleLookTarget;
+	}
 
 	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
 	void UpdateChestLook( Vector3 target )

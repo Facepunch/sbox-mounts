@@ -248,7 +248,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		// DrawHead uses the torso chain's starting offset as its breathing reference bone.
 		int torsoStart = new[] { "leftarm", "rightarm", "left_leg", "right_leg", "head", "leftear", "rightear" }.Sum( label => skeleton.IKBones[label].ChainLength );
 		var breathDirection = chestBind.Rotation.Inverse * skeleton.BindPose[torsoStart].Rotation * new Vector3( 1f, 0f, -0.3f ).Normal;
-		var headRig = new RabbitHead( neckRoot, HalfLength( head ), breathDirection );
+		var headRig = new RabbitHead( neckRoot, HalfLength( head ), breathDirection, skeleton.IKBones["head"].ChainLength );
 		var ears = new[] { "leftear", "rightear" }.Select( label =>
 		{
 			int tip = skeleton.IKBones[label].BoneId, root = parents[tip];
