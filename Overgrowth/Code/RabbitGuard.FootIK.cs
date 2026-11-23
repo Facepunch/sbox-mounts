@@ -20,6 +20,7 @@ internal readonly record struct FootPose( Transform Transform, float Weight, boo
 public sealed partial class RabbitGuard
 {
 	readonly float?[] groundHeight = new float?[2];
+	readonly Vector3?[] groundCorrection = new Vector3?[2];
 	readonly Rotation[] footRotation = [Rotation.Identity, Rotation.Identity];
 	readonly Vector3[] plantedRoot = new Vector3[2];
 	readonly Vector3[] footOffset = new Vector3[2];
@@ -110,6 +111,15 @@ public sealed partial class RabbitGuard
 			footOffset[side] = target - root;
 			PlantFoot( side, foot );
 		}
+		SolveGroundedLegs();
+	}
+
+	// CDoFootIK carries the unsupported foot by the correction applied to its planted partner.
+	void SolveGroundedLegs()
+	{
+		for ( int side = 0; side < 2; side++ )
+			if ( groundCorrection[side] is { } offset && !groundCorrection[1 - side].HasValue )
+				stanceFoot[1 - side].Position += offset;
 		SolveStance();
 	}
 
@@ -130,6 +140,7 @@ public sealed partial class RabbitGuard
 	void ApplyFootTarget( int side, Transform animated, Transform target, float weight, float authoredHeight )
 	{
 		var result = global::Transform.Lerp( animated, target, weight, false );
+		var original = result.Position;
 		bool contact = false;
 		if ( weight > 0f )
 		{
@@ -153,6 +164,8 @@ public sealed partial class RabbitGuard
 			}
 		}
 		if ( !contact ) groundHeight[side] = null;
-		stanceFoot[side] = Renderer.WorldTransform.ToLocal( result );
+		var basis = Renderer.WorldTransform;
+		stanceFoot[side] = basis.ToLocal( result );
+		groundCorrection[side] = contact ? stanceFoot[side].Position - basis.PointToLocal( original ) : null;
 	}
 }

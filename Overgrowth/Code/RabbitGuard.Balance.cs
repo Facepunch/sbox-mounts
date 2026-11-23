@@ -35,6 +35,6 @@ public sealed partial class RabbitGuard
 			if ( !TryGetAnimatedBone( bone, out var foot ) ) return;
 			PlantFoot( side, foot );
 		}
-		SolveStance();
+		SolveGroundedLegs();
 	}
 }

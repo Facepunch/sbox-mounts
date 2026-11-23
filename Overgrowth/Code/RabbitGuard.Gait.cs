@@ -52,7 +52,7 @@ public sealed partial class RabbitGuard
 			var target = weight > 0f ? Renderer.WorldTransform.ToWorld( foot.Transform ) : animated;
 			ApplyFootTarget( side, animated, target, weight, foot.Transform.Position.z / boundAnimations.MovementScale );
 		}
-		SolveStance();
+		SolveGroundedLegs();
 
 		if ( IsOnGround ) PlayCycleSteps( pose.Events, stridePhase, next, Vector3.Down );
 		stridePhase = next % 1;
