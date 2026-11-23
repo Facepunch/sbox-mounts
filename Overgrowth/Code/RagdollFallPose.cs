@@ -56,6 +56,7 @@ public sealed partial class RabbitGuard
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		UpdateCharacterContacts();
 		if ( Networking.IsHost && (dragWindow > 0f || draggedPhysics is not null) ) UpdateBodyDrag();
 		if ( Downed && Networking.IsHost && ActiveInjury is not { Active: true } ) DriveFallingPose();
 	}
@@ -84,6 +85,7 @@ public sealed partial class RabbitGuard
 			float phase = ((float)fallAge / pose.Flail.Clip.Duration) % 1f;
 			fallMotor.Sample( Renderer.Model, pose, phase, protect * fade, front * fade );
 		}
+		else strength = 0f;
 		fallMotor.Apply( ragdoll, strength );
 	}
 }

@@ -11,17 +11,27 @@ static class RagdollBuilder
 	const float Degrees = 180f / MathF.PI;
 	static readonly Vector3[] SpherePoints = CreateSpherePoints();
 
-	internal readonly record struct BoneCenter( Vector3 Position, bool Fixed, float Mass );
+	internal readonly record struct BoneCenter( Vector3 Position, bool Fixed, float Mass, bool NonColliding );
 
 	record struct Shape( string Kind, FzxObject Object );
 	record struct Joint( int A, int B, int Type, Vector3 Anchor, Vector3 Axis, float[] Limits );
 
-	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, BoneCenter> bodyCenters, out List<int> nonCollidingBones )
+	static int Ancestor( SkeletonData skeleton, int bone, int steps )
+	{
+		for ( int i = 0; i < steps && bone >= 0; i++ )
+			bone = skeleton.HierParents[bone];
+		return bone;
+	}
+
+	internal static Dictionary<int, BoneCenter> ReadCenters( BaseFileSystem fs, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale )
+		=> ReadCenters( fs, skeleton, fzxPath, center, scale, massScale, out _ );
+
+	static Dictionary<int, BoneCenter> ReadCenters( BaseFileSystem fs, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out List<Shape>[] shapes )
 	{
 		int count = skeleton.Bones.Count;
 		if ( skeleton.BoneMass.Count != count )
 			throw new InvalidDataException( "Overgrowth skeleton has no authored bone masses." );
-		var shapes = Enumerable.Range( 0, count ).Select( _ => new List<Shape>() ).ToArray();
+		shapes = Enumerable.Range( 0, count ).Select( _ => new List<Shape>() ).ToArray();
 		bool hasFzx = fs.FileExists( fzxPath );
 		if ( hasFzx )
 			LoadShapes( FzxLoader.Load( fs, fzxPath ), skeleton, shapes );
@@ -40,17 +50,54 @@ static class RagdollBuilder
 		}
 		foreach ( var label in new[] { "left_leg", "right_leg" } )
 			if ( skeleton.IKBones.TryGetValue( label, out var leg ) )
-				FixBone( leg.BoneId, Parent( leg.BoneId, 1 ) );
+				FixBone( leg.BoneId, Ancestor( skeleton, leg.BoneId, 1 ) );
 		foreach ( var label in new[] { "leftarm", "rightarm" } )
 		{
 			if ( !skeleton.IKBones.TryGetValue( label, out var arm ) )
 				continue;
-			int recipient = Parent( arm.BoneId, 3 );
+			int recipient = Ancestor( skeleton, arm.BoneId, 3 );
 			for ( int i = 0; i < count; i++ )
-				if ( i == arm.BoneId || Parent( i, 1 ) == arm.BoneId || Parent( i, 2 ) == arm.BoneId )
+				if ( i == arm.BoneId || Ancestor( skeleton, i, 1 ) == arm.BoneId || Ancestor( skeleton, i, 2 ) == arm.BoneId )
 					FixBone( i, recipient );
 		}
 
+		var bodyCenters = new Dictionary<int, BoneCenter>();
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( !assigned[i] ) continue;
+			var pose = skeleton.BindPose[i];
+			if ( shapes[i].Count > 0 )
+			{
+				var weightedCenter = Vector3.Zero;
+				float totalVolume = 0;
+				foreach ( var shape in shapes[i] )
+				{
+					float volume = Volume( shape, scale );
+					weightedCenter += (Convert( shape.Object.Position ) - center) * scale * volume;
+					totalVolume += volume;
+				}
+				if ( !float.IsFinite( totalVolume ) || totalVolume <= 0 )
+					throw new InvalidDataException( $"Invalid Overgrowth shape volume for bone {i} in {fzxPath}." );
+				pose = pose.WithPosition( weightedCenter / totalVolume );
+			}
+			bodyCenters.Add( i, new( pose.Position, fixedBones[i], masses[i], hasFzx && !fixedBones[i] && shapes[i].Count == 0 ) );
+		}
+		return bodyCenters;
+
+		void FixBone( int bone, int recipient )
+		{
+			if ( bone < 0 || recipient < 0 )
+				throw new InvalidDataException( "Overgrowth fixed bone has no mass recipient." );
+			fixedBones[bone] = true;
+			masses[recipient] += originalMasses[bone];
+		}
+	}
+
+	public static int[] Add( BaseFileSystem fs, ModelBuilder builder, SkeletonData skeleton, string fzxPath, Vector3 center, float scale, float massScale, out Dictionary<int, BoneCenter> bodyCenters )
+	{
+		int count = skeleton.Bones.Count;
+		var centers = ReadCenters( fs, skeleton, fzxPath, center, scale, massScale, out var shapes );
+		bodyCenters = centers;
 		var joints = new Dictionary<(int, int), Joint>();
 		for ( int a = 0; a < count; a++ )
 			for ( int b = a + 1; b < count; b++ )
@@ -62,7 +109,7 @@ static class RagdollBuilder
 		var tail = new HashSet<int>();
 		if ( skeleton.IKBones.TryGetValue( "tail", out var tailChain ) )
 			for ( int i = 0; i < tailChain.ChainLength; i++ )
-				tail.Add( Parent( tailChain.BoneId, i ) );
+				tail.Add( Ancestor( skeleton, tailChain.BoneId, i ) );
 		foreach ( var source in skeleton.Joints )
 		{
 			if ( source.BoneA == source.BoneB )
@@ -88,43 +135,21 @@ static class RagdollBuilder
 				new Joint( source.BoneA, source.BoneB, source.Type, Convert( skeleton.Points[point] ) * scale, Convert( source.Axis ) / Units, limits );
 		}
 
-		bodyCenters = new();
 		var bodyIds = Enumerable.Repeat( -1, count ).ToArray();
-		var sourcePoses = new Transform[count];
 		int bodyCount = 0;
-		nonCollidingBones = [];
 		int ellipsoids = 0;
 		for ( int i = 0; i < count; i++ )
 		{
-			var pose = skeleton.BindPose[i];
-			if ( shapes[i].Count > 0 )
-			{
-				var weightedCenter = Vector3.Zero;
-				float totalVolume = 0;
-				foreach ( var shape in shapes[i] )
-				{
-					float volume = Volume( shape, scale );
-					weightedCenter += (Convert( shape.Object.Position ) - center) * scale * volume;
-					totalVolume += volume;
-				}
-				if ( !float.IsFinite( totalVolume ) || totalVolume <= 0 )
-					throw new InvalidDataException( $"Invalid Overgrowth shape volume for bone {i} in {fzxPath}." );
-				pose = pose.WithPosition( weightedCenter / totalVolume );
-			}
-			sourcePoses[i] = pose;
-			if ( assigned[i] ) bodyCenters.Add( i, new( pose.Position, fixedBones[i], masses[i] ) );
-			if ( fixedBones[i] || !assigned[i] )
+			if ( !centers.TryGetValue( i, out var info ) || info.Fixed )
 				continue;
 			bodyIds[i] = bodyCount++;
 			var bindPose = skeleton.BindPose[i];
-			var body = builder.AddBody( masses[i], boneName: $"bone_{i}" ).SetBindPose( bindPose );
+			var body = builder.AddBody( info.Mass, boneName: $"bone_{i}" ).SetBindPose( bindPose );
 			foreach ( var shape in shapes[i] )
 				if ( AddShape( body, shape, bindPose, center, scale ) )
 					ellipsoids++;
 			if ( shapes[i].Count == 0 )
 			{
-				if ( hasFzx )
-					nonCollidingBones.Add( i );
 				var bone = skeleton.Bones[i];
 				body.AddCapsule( new Capsule( bindPose.PointToLocal( Convert( skeleton.Points[bone.A] ) * scale ),
 					bindPose.PointToLocal( Convert( skeleton.Points[bone.B] ) * scale ), 0.05f * Units ) );
@@ -149,7 +174,7 @@ static class RagdollBuilder
 			}
 			else if ( source.Type == 1 )
 			{
-				var x = (sourcePoses[source.A].Position - source.Anchor).Normal;
+				var x = (centers[source.A].Position - source.Anchor).Normal;
 				var right = Vector3.Cross( x, new Vector3( 0.000003f, 0.0001f, 1.0001f ) ).Normal;
 				var up = Vector3.Cross( x, right ).Normal;
 				right = Vector3.Cross( x, up ).Normal;
@@ -188,22 +213,9 @@ static class RagdollBuilder
 			Log.Warning( $"Overgrowth physics {fzxPath}: {angularJoints} three-axis limits use swing/twist joints; {ellipsoids} ellipsoids use convex hulls." );
 		return shapes.Where( (_, i) => bodyIds[i] >= 0 ).Select( x => Math.Max( 1, x.Count ) ).ToArray();
 
-		int Parent( int bone, int steps )
-		{
-			for ( int i = 0; i < steps && bone >= 0; i++ )
-				bone = skeleton.HierParents[bone];
-			return bone;
-		}
-		void FixBone( int bone, int recipient )
-		{
-			if ( bone < 0 || recipient < 0 )
-				throw new InvalidDataException( "Overgrowth fixed bone has no mass recipient." );
-			fixedBones[bone] = true;
-			masses[recipient] += originalMasses[bone];
-		}
 		int ResolveFixed( int bone )
 		{
-			while ( bone >= 0 && fixedBones[bone] && assigned[bone] )
+			while ( bone >= 0 && centers.TryGetValue( bone, out var info ) && info.Fixed )
 				bone = skeleton.HierParents[bone];
 			return bone;
 		}

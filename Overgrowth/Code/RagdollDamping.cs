@@ -26,7 +26,7 @@ internal sealed class RagdollDamping : Component
 		physics = model;
 		stillTime = 0f;
 		settled = false;
-		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.Model.ResourcePath ) as CharacterLoader;
+		var loader = CharacterLoader.FromModel( model.Model );
 		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		float scale = model.WorldScale.z;
 		var parts = model.Model.Physics.Parts;

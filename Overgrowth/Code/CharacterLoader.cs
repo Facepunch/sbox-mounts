@@ -68,8 +68,16 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return chainCenters.TryGetValue( chain, out var bones ) && bones.Length > 0 ? RagdollBone( bones[0], physics, out body )?.Position : null;
 	}
 
-	static CharacterLoader FromRenderer( SkinnedModelRenderer renderer ) => renderer.IsValid() && renderer.Model is not null
-		? Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) as CharacterLoader : null;
+	static CharacterLoader FromRenderer( SkinnedModelRenderer renderer ) => renderer.IsValid() ? FromModel( renderer.Model ) : null;
+
+	bool IsGuard => guard;
+
+	internal static CharacterLoader FromModel( Model model )
+	{
+		if ( model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
+		if ( loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
+		return loader;
+	}
 
 	internal static Vector3? RandomSightPosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
 	{
@@ -123,7 +131,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal static Vector3? RagdollCenter( ModelPhysics physics )
 	{
-		if ( !physics.IsValid() || physics.Model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( physics.Model.ResourcePath ) is not CharacterLoader character ) return null;
+		if ( !physics.IsValid() || FromModel( physics.Model ) is not { } character ) return null;
 		Vector3 sum = default;
 		int count = 0;
 		foreach ( var part in physics.Bodies )
@@ -164,6 +172,56 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			count++;
 		}
 		return count > 0 ? sum / count : null;
+	}
+
+	void SetBodyRig( Model model, SkeletonData skeleton, Dictionary<int, RagdollBuilder.BoneCenter> bodyCenters, string modelPath, Vector3 center, float scale )
+	{
+		NonCollidingBones = bodyCenters.Where( x => x.Value.NonColliding ).Select( x => model.Bones.GetBone( $"bone_{x.Key}" ).Index ).ToHashSet();
+		if ( !guard ) return;
+		animationRig = skeleton;
+		SetAttachmentRig( skeleton );
+		var hullPath = modelPath[..^4] + "_hulls.obj";
+		if ( Host.FileSystem.FileExists( hullPath ) )
+			HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, center, scale, skeleton, bodyCenters );
+		AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
+		ragdollCenters.Clear();
+		var bodyPoints = new Dictionary<int, BodyPoint>();
+		foreach ( var (id, point) in bodyCenters )
+		{
+			int parent = id;
+			while ( parent >= 0 && (!bodyCenters.TryGetValue( parent, out var body ) || body.Fixed) ) parent = skeleton.HierParents[parent];
+			if ( parent < 0 ) continue;
+			int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
+			var group = ragdollCenters.GetValueOrDefault( index );
+			var local = skeleton.BindPose[parent].PointToLocal( skeleton.BindPose[id].Position );
+			bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ), point.Mass );
+			ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
+		}
+		this.bodyPoints = bodyPoints.Values.ToArray();
+		chainCenters.Clear();
+		foreach ( var (name, chain) in skeleton.IKBones )
+		{
+			var points = new List<BodyPoint>( chain.ChainLength );
+			int bone = chain.BoneId;
+			for ( int i = 0; i < chain.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
+				if ( bodyPoints.TryGetValue( bone, out var point ) ) points.Add( point );
+			chainCenters[name] = points.ToArray();
+		}
+	}
+
+	// A refreshed mount can receive a model still held by a live NPC. Recreate its CPU
+	// rig without generating another render mesh, physics model or animation graph.
+	void RestoreBodyRig( Model model )
+	{
+		var appearance = ReadAppearance();
+		var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
+		ReadBoneMasses( skeleton, rig );
+		var mesh = ReadMesh( appearance, reference, skeletonModelPath, out var modelPath );
+		modelCenter = mesh.Center;
+		var scale = ScaleSkeleton( appearance, skeleton );
+		var centers = RagdollBuilder.ReadCenters( Host.FileSystem, skeleton, System.IO.Path.ChangeExtension( modelPath, ".fzx" ),
+			reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f );
+		SetBodyRig( model, skeleton, centers, modelPath, mesh.Center, scale );
 	}
 
 	void SetAttachmentRig( SkeletonData rig )
@@ -303,7 +361,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		modelCenter = objData.Center;
 
 		ReadBoneMasses( skeleton, rig );
-		if ( guard ) SetAttachmentRig( skeleton );
 
 		var weights = skeleton.BoneWeights ?? Array.Empty<Vector4>();
 		var boneIds = skeleton.BoneIds ?? Array.Empty<Vector4>();
@@ -342,43 +399,9 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		}
 
 
-		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters, out var nonCollidingBones );
-		if ( guard )
-		{
-			animationRig = skeleton;
-			AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
-			var hullPath = modelObjPath[..^4] + "_hulls.obj";
-			if ( Host.FileSystem.FileExists( hullPath ) )
-				HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, objData.Center, scale, skeleton, bodyCenters );
-		}
+		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters );
 		var model = builder.Create();
-		if ( guard )
-		{
-			ragdollCenters.Clear();
-			var bodyPoints = new Dictionary<int, BodyPoint>();
-			foreach ( var (id, point) in bodyCenters )
-			{
-				int parent = id;
-				while ( parent >= 0 && (!bodyCenters.TryGetValue( parent, out var body ) || body.Fixed) ) parent = skeleton.HierParents[parent];
-				if ( parent < 0 ) continue;
-				int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
-				var group = ragdollCenters.GetValueOrDefault( index );
-				var local = skeleton.BindPose[parent].PointToLocal( skeleton.BindPose[id].Position );
-				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ), point.Mass );
-				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
-			}
-			this.bodyPoints = bodyPoints.Values.ToArray();
-			chainCenters.Clear();
-			foreach ( var (name, chain) in skeleton.IKBones )
-			{
-				var points = new List<BodyPoint>( chain.ChainLength );
-				int bone = chain.BoneId;
-				for ( int i = 0; i < chain.ChainLength && bone >= 0; i++, bone = skeleton.HierParents[bone] )
-					if ( bodyPoints.TryGetValue( bone, out var point ) ) points.Add( point );
-				chainCenters[name] = points.ToArray();
-			}
-		}
-		NonCollidingBones = nonCollidingBones.Select( id => model.Bones.GetBone( $"bone_{id}" ).Index ).ToHashSet();
+		SetBodyRig( model, skeleton, bodyCenters, modelObjPath, objData.Center, scale );
 		if ( model.Physics is null || model.Physics.Parts.Count != shapeCounts.Length )
 			throw new InvalidDataException( $"Unable to create Overgrowth ragdoll bodies: {filePath}" );
 		for ( int i = 0; i < shapeCounts.Length; i++ )

@@ -60,8 +60,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
 		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped && !IsThrowingItem )
 		{
-			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
-			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
+			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
 			if ( !Downed ) Renderer.ClearPhysicsBones();
 			equippedForAnimation = equipped;
 			boundAnimations = ready;

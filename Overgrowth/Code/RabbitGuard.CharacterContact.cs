@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 
 	bool CanTouchCharacters => !Downed && !Unconscious && !InThrow && Health > 0 && boundAnimations is not null && contactReady <= 0f;
 
-	internal void UpdateCharacterContacts()
+	void UpdateCharacterContacts()
 	{
 		if ( !Networking.IsHost || !CanTouchCharacters ) return;
 		ContactVelocity = Animation.IsGrounded ? ContactVelocity * MathF.Pow( 0.9f, Time.Delta * 120f ) : default;

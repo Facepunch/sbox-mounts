@@ -112,7 +112,7 @@ public sealed partial class RabbitGuard
 		bool ThreatNearby( GameObject other ) => CanAttack( other ) && center.DistanceSquared( CharacterCenter( other ) ) <= 418f * 418f;
 		if ( recentChoke <= 0f && (Scene.GetAllComponents<BaseNpc>().Any( n => ThreatNearby( n.GameObject ) ) ||
 			Scene.GetAllComponents<PlayerController>().Any( p => ThreatNearby( p.GameObject ) )) ) return;
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( closest.Model.ResourcePath ) is not CharacterLoader character ) return;
+		if ( CharacterLoader.FromModel( closest.Model ) is not { } character ) return;
 		var owner = closest.GetComponentInParent<RabbitGuard>();
 		bool useHead = chokeVictim.IsValid() && chokeVictim == (owner.IsValid() ? owner.GameObject : closest.GameObject);
 		best = useHead ? float.PositiveInfinity : 0.2f * 1.5f * 40f * 40f;

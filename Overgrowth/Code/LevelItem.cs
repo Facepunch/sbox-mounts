@@ -139,7 +139,7 @@ public sealed partial class LevelItem : Component
 
 	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, int type, bool mirrored, string attachmentPath = null )
 	{
-		if ( mount.GetByPath( actor.Renderer.Model.ResourcePath ) is not CharacterLoader character ||
+		if ( CharacterLoader.FromModel( actor.Renderer.Model ) is not { } character ||
 			mount.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return;
 		string anim, chain;
 		int depth = 0;
