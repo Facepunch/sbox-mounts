@@ -6,6 +6,9 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	RabbitAttack strike;
+	[Property, Range( 0.1f, 2f )] public float AttackSpeed { get; set; } = 1f;
+	[Property] public float AttackDamage { get; set; } = 1f;
+	[Property] public float AttackKnockback { get; set; } = 1f;
 	[Property] public bool LeftHanded { get; set; }
 	[Sync] bool MirroredStance { get; set; }
 	[Sync] bool MirroredAction { get; set; }
@@ -57,7 +60,7 @@ public sealed partial class RabbitGuard
 			var clip = blend.Events;
 			var previous = !blocked && previousHeight != AttackHeight ? strike.Sample( previousHeight, MirroredAction ) : blend;
 			var from = previous.Motion( AttackPhase );
-			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * blend.Frequency );
+			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * AttackSpeed * blend.Frequency );
 			ApplyRootMotion( from, blend.Motion( AttackPhase ) );
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
@@ -278,14 +281,14 @@ public sealed partial class RabbitGuard
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var direction = (TargetPosition( enemy ) - WorldPosition).Normal;
-		float force = strike.Force;
+		float force = strike.Force * AttackKnockback;
 		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
 			force *= 1f - Math.Clamp( defender.Health / defender.MaxHealth, 0f, 1f ) * 0.5f;
 		var damage = new StrikeDamage
 		{
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
 			Impulse = strike.WorldImpact( direction, flippedAttack ) * (force * 40f / 120f),
-			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100,
+			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100f * AttackDamage,
 			Origin = WorldPosition,
 			Position = position,
 			Attacker = GameObject,

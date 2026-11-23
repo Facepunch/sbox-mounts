@@ -48,7 +48,7 @@ public sealed partial class RabbitGuard
 		Stance = action;
 		MirroredAction = mirrored;
 		ReactionPhase = 0f;
-		reactionDuration = boundAnimations.Clips[action].Duration;
+		reactionDuration = boundAnimations.Clips[action].Duration / (action == "throw" ? AttackSpeed : 1f);
 		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation ) navigation.HoldMovement( reactionDuration );
 		activeBlockReaction = false;
 		throwFacing = WorldRotation;
@@ -67,7 +67,7 @@ public sealed partial class RabbitGuard
 		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
 		var from = clip.Animation.GetRootMotion( ReactionPhase );
 		throwElapsed += Time.Delta;
-		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / clip.Duration );
+		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		var to = clip.Animation.GetRootMotion( ReactionPhase );
 		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
 		bool firstCounterFrame = Stance == "thrown_counter" && fadeElapsed == 0f;

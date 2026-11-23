@@ -87,6 +87,10 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					{
 						case "Block Skill": fighter.BlockSkill = Math.Clamp( value, 0f, 1f ); break;
 						case "Aggression": fighter.Aggression = Math.Clamp( value, 0f, 1f ); break;
+						case "Ground Aggression": fighter.GroundAggression = Math.Clamp( value, 0f, 1f ); break;
+						case "Attack Speed": fighter.AttackSpeed = Math.Clamp( value, 0.1f, 2f ); break;
+						case "Attack Damage": fighter.AttackDamage = Math.Max( 0f, value ); break;
+						case "Attack Knockback": fighter.AttackKnockback = Math.Max( 0f, value ); break;
 						case "Throw Counter Probability": fighter.ThrowCounterProbability = Math.Clamp( value, 0f, 1f ); break;
 						case "Block Follow-up": fighter.BlockFollowUp = Math.Clamp( value, 0f, 1f ); break;
 						case "Left handed": fighter.LeftHanded = value != 0f; break;

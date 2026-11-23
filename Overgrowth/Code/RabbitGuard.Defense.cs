@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard
 			{
 				float power = 0.5f * MathF.Pow( 4f, opponent.predictability );
 				if ( tactic == CombatTactic.Provoke ) power += 1f;
-				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration;
+				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration / opponent.AttackSpeed;
 				if ( Random.Shared.Float() > 1f - MathF.Pow( 1f - BlockSkill, power ) ) blockDelay += 0.4f;
 			}
 		}
@@ -138,7 +138,7 @@ public sealed partial class RabbitGuard
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
-		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) );
+		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, attacker.AttackDamage ) );
 		var direction = (WorldPosition - attacker.WorldPosition).Normal;
 		if ( Downed || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
 			blockHealth <= 0 || WorldRotation.Forward.Dot( direction ) > 0 ) return false;
