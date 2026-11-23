@@ -19,14 +19,35 @@ public sealed partial class RabbitGuard
 		if ( !wantsBlockThrow || throwRecharge > 0 || knifeCooldown > 0f ) return false;
 		var reach = CloseAttackRange + 0.45f * 40f;
 		var center = CharacterCenter( GameObject );
-		var victim = Scene.GetAllComponents<RabbitGuard>()
-			.Where( g => g.Active && g.stunnedBy == this && g.blockStun > 0 && !g.Downed && g.boundAnimations?.Species != "wolf" && CanAttack( g.GameObject ) )
-			.MinBy( g => CharacterCenter( g.GameObject ).DistanceSquared( center ) );
-		if ( !victim.IsValid() || CharacterCenter( victim.GameObject ).DistanceSquared( center ) > reach * reach ) return false;
+		RabbitGuard stunned = null, unaware = null;
+		float stunnedDistance = reach * reach, unawareDistance = AttackRange * AttackRange;
+		foreach ( var other in Scene.GetAllComponents<RabbitGuard>() )
+		{
+			if ( !other.Active || other.Downed || other.boundAnimations is null || !CanAttack( other.GameObject ) ) continue;
+			float distance = CharacterCenter( other.GameObject ).DistanceSquared( center );
+			if ( distance <= stunnedDistance && other.stunnedBy == this && other.blockStun > 0f && other.boundAnimations.Species != "wolf" )
+			{
+				stunned = other;
+				stunnedDistance = distance;
+			}
+			if ( distance <= unawareDistance && other.IsUnaware )
+			{
+				unaware = other;
+				unawareDistance = distance;
+			}
+		}
+		var victim = stunned ?? unaware;
+		if ( victim is null ) return false;
 		var facing = (victim.WorldPosition - WorldPosition).WithZ( 0 );
 		if ( facing.IsNearlyZero() ) return false;
 
-		throwRecharge = 5f;
+		if ( stunned is null )
+		{
+			if ( MathF.Abs( victim.WorldPosition.z - WorldPosition.z ) >= 0.4f * 40f ) return false;
+			if ( victim.boundAnimations.Species is not ("dog" or "wolf") && (victim.Sleeping || victim.WorldRotation.Forward.Dot( facing ) > 0f) ) return false;
+			victim.startled = 1f;
+		}
+		else throwRecharge = 5f;
 		WorldRotation = Rotation.LookAt( facing );
 		enemy = victim.GameObject;
 		StartThrowAction( "throw", victim, MirroredStance );
