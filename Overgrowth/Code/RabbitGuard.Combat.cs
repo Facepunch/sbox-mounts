@@ -52,6 +52,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnStart()
 	{
+		patrolOrigin = WorldTransform;
 		base.OnStart();
 		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( LevelItem.FighterHull );
 		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.

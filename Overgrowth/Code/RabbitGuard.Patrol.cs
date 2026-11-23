@@ -1,3 +1,5 @@
+using System;
+
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
@@ -8,6 +10,7 @@ public sealed partial class RabbitGuard
 	PatrolPoint previousPatrolPoint;
 	PatrolPoint patrolTarget;
 	TimeUntil patrolWait;
+	Transform? patrolOrigin;
 	internal const string PatrolIdle = "patrol_idle";
 	[Sync] string PatrolAnimation { get; set; }
 	string waypointAnimation;
@@ -54,6 +57,17 @@ public sealed partial class RabbitGuard
 	bool FollowPatrol()
 	{
 		if ( !patrolTarget.IsValid() ) patrolTarget = PatrolStart;
+		if ( patrolWait > 0f && patrolTarget.IsValid() && patrolTarget.Connections.Count == 0 && patrolOrigin is { } origin )
+		{
+			var offset = origin.Position - WorldPosition;
+			if ( offset.LengthSquared < 120f * 120f )
+			{
+				float steps = Time.Delta * 30f;
+				MoveGroundDelta( offset.WithZ( 0 ) * (1f - MathF.Pow( 0.95f, steps )) );
+				var facing = Vector3.Lerp( origin.Rotation.Forward, WorldRotation.Forward, MathF.Pow( 0.9f, steps ) ).WithZ( 0 );
+				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+			}
+		}
 		if ( patrolWait > 0f || enemySeen > 0.1f || CurrentSuspicion > 0.1f ) return WaitAtPatrolPoint();
 		if ( !patrolTarget.IsValid() )
 		{
