@@ -55,19 +55,25 @@ public sealed partial class RabbitGuard
 		CrouchAmount = duckAmount;
 	}
 
-	void UpdateStanceFeet( bool entering )
+	RabbitMovement.Sample QueueIdlePose( RabbitMovement tree, bool mirrored, bool entering )
 	{
 		float threat = ThreatAmount;
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
 		var controls = new RabbitMovement.Controls( 0f, 1f - crouch, threat, CloseAmount );
-		float frequency = boundAnimations.StanceIdle.Evaluate( controls, stancePhase, MirroredStance ).Frequency;
-		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;
-		var queued = boundAnimations.StanceIdle.Evaluate( controls, stancePhase, MirroredStance );
+		var current = tree.Evaluate( controls, stancePhase, mirrored );
+		float next = stancePhase + Time.Delta * current.Frequency;
+		stancePhase = entering ? 0f : tree.Looping ? next % 1f : Math.Min( next, 1f );
+		var queued = tree.Evaluate( controls, stancePhase, mirrored );
 		var pose = entering || evaluatedStance.Events is null ? queued : evaluatedStance;
 		evaluatedStance = queued;
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
 		Renderer.Animation.Parameters.Set( "threat_coord", threat );
 		Renderer.Animation.Parameters.Set( "tall_coord", 1f - crouch );
+		return pose;
+	}
+
+	void UpdateStanceFeet( RabbitMovement.Sample pose, bool entering )
+	{
 		if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
 			!TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
 		var root = WorldPosition;
@@ -144,9 +150,6 @@ public sealed partial class RabbitGuard
 			stepLift[side] *= retain;
 		}
 	}
-
-	void PlantFoot( int side, Transform foot ) =>
-		ApplyFootTarget( side, foot, foot, 1f, foot.Position.z - WorldPosition.z );
 
 	void ApplyAuthoredFoot( int side, Transform animated, FootPose foot )
 	{

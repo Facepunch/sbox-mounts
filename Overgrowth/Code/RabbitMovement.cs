@@ -22,8 +22,14 @@ internal sealed class RabbitMovement
 	readonly RabbitClip clip;
 	readonly string label;
 	readonly Child[] children;
-	RabbitMovement( RabbitClip clip ) => this.clip = clip;
-	RabbitMovement( string label, Child[] children ) => (this.label, this.children) = (label, children);
+	internal bool Looping { get; }
+	RabbitMovement( RabbitClip clip ) => (this.clip, Looping) = (clip, clip.Looping);
+	RabbitMovement( string label, Child[] children )
+	{
+		this.label = label;
+		Looping = children[^1].Motion.Looping;
+		this.children = children.OrderBy( child => child.Coordinate ).ToArray();
+	}
 
 	internal static RabbitMovement Load( BaseFileSystem fs, string path, Func<string, RabbitClip> load )
 	{
@@ -31,7 +37,7 @@ internal sealed class RabbitMovement
 		var group = XmlAsset.Read( fs, path, "SyncedAnimationGroup" );
 		var children = group.Element( "Animations" ).Elements( "Animation" ).Select( x => new Child(
 			x.Number( "coord" ).Value, x.Number( "ground_speed" ), x.Number( "run_bounce" ) ?? 0f, x.Attribute( "time_coord_label" ),
-			Load( fs, x.Attribute( "path" ), load ) ) ).OrderBy( x => x.Coordinate ).ToArray();
+			Load( fs, x.Attribute( "path" ), load ) ) ).ToArray();
 		return new( group.Element( "CoordLabel" ).Value, children );
 	}
 

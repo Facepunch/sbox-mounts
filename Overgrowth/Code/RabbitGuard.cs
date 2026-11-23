@@ -172,7 +172,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			UpdateWallPose();
 		}
 		UpdateIdleBalance( pose is Threat or Idle or Ready or Watch );
-		if ( pose is Idle or Ready or ArmedHold or ArmedHeld )
+		if ( pose is ArmedHold or ArmedHeld )
 		{
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );
@@ -184,8 +184,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();
-		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
-		if ( pose is Idle or Ready or Watch && Animation.IsGrounded ) UpdateIdleFeet();
+		if ( boundAnimations.IdlePoses.TryGetValue( displayPose, out var idle ) )
+		{
+			bool entering = playing != displayPose;
+			var sample = QueueIdlePose( idle, displayPose != Watch && MirroredStance, entering );
+			if ( pose == Threat ) UpdateStanceFeet( sample, entering );
+			else if ( Animation.IsGrounded ) UpdateIdleFeet( sample );
+		}
 		UpdateChestLook( !NoLookAround && RollProgress >= 1f && canLook ? GazeTarget : null );
 		if ( headMotion is null ) DrawRestingHead();
 		UpdateArms();

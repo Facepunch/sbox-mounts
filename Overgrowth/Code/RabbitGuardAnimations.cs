@@ -2,7 +2,7 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, RabbitMovement StanceIdle, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitHead Head, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
+internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitMovement> IdlePoses, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitHead Head, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
 {
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
@@ -162,7 +162,24 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			return cycle;
 		}
-		var stanceIdle = RabbitMovement.Load( fs, AnimationPath( "idle" ), GroundClip );
+		var species = character.Element( "tags" )?.Attribute( "species" );
+		string action = species is "cat" or "dog" or "wolf" or "rat" ? species + "_actionidle" :
+			label is "knife" or "sword" ? "r_actionidle_" + label : "r_actionidle";
+		RabbitMovement IdleTree( string file ) => RabbitMovement.Load( fs, file, GroundClip );
+		var idlePoses = new Dictionary<string, RabbitMovement>
+		{
+			[RabbitGuard.Idle] = IdleTree( "Data/Animations/r_relaxidle.xml" ),
+			[RabbitGuard.Ready] = IdleTree( $"Data/Animations/{action}.xml" ),
+			[RabbitGuard.Watch] = IdleTree( $"Data/Animations/{RabbitGuard.Watch}.anm" ),
+			[RabbitGuard.Threat] = IdleTree( AnimationPath( "idle" ) )
+		};
+		foreach ( var pose in wounded )
+		{
+			var injury = pose == RabbitGuard.Wounded ? "wounded" : "halfwounded";
+			idlePoses[pose] = IdleTree( $"Data/Animations/r_{injury}{(item is null ? "idle" : "armed")}.xml" );
+		}
+		GraphBuilder.Node IdlePose( RabbitMovement tree, bool mirrored ) =>
+			WithEquipment( tree.Build( graph, coord => coordinates[coord], phase, mirrored ), "idle", mirrored );
 		var movementRigs = new HashSet<RabbitRetarget>();
 		var movement = RabbitMovement.Load( fs, AnimationPath( "movement" ), name =>
 		{
@@ -216,27 +233,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} );
 		var states = names.Select( name =>
 		{
-			if ( name == RabbitGuard.Ready )
+			if ( idlePoses.TryGetValue( name, out var idle ) )
 			{
-				var species = character.Element( "tags" )?.Attribute( "species" );
-				string action = species is "cat" or "dog" or "wolf" or "rat" ? species + "_actionidle" :
-					label is "knife" or "sword" ? "r_actionidle_" + label : "r_actionidle";
-				var path = $"Data/Animations/{action}.xml";
-				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( path ), "idle", false ),
-					WithEquipment( AnimationGroup( path, mirrored: true ), "idle", true ) ) );
-			}
-			if ( name is RabbitGuard.HalfWounded or RabbitGuard.Wounded )
-			{
-				var injury = name == RabbitGuard.Wounded ? "wounded" : "halfwounded";
-				var path = $"Data/Animations/r_{injury}{(item is null ? "idle" : "armed")}.xml";
-				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( path ), "idle", false ),
-					WithEquipment( AnimationGroup( path, mirrored: true ), "idle", true ) ) );
+				if ( name == RabbitGuard.Watch ) return machine.AddState( idle.Build( graph, coord => coordinates[coord], phase, false ) );
+				return machine.AddState( MovementStance( IdlePose( idle, false ), IdlePose( idle, true ) ) );
 			}
 			if ( name == RabbitGuard.PatrolIdle )
 				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( "Data/Animations/r_relaxidle.xml" ) ) );
-			if ( name == RabbitGuard.Idle )
-				return machine.AddState( MovementStance( WithEquipment( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), "idle", false ),
-					WithEquipment( AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ), "idle", true ) ) );
 			if ( name == RabbitGuard.Roll )
 			{
 				GraphBuilder.Node Roll( bool mirrored ) => roll.Build( graph, label => coordinates.GetValueOrDefault( label ), coordinates["roll_phase"], mirrored );
@@ -254,11 +257,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			{
 				GraphBuilder.Node Jump( bool mirrored ) => air.Build( graph, label => coordinates[label], coordinates["air_phase"], mirrored );
 				return machine.AddState( graph.Blend( Jump( false ), Jump( true ), leftFootJump ) );
-			}
-			if ( name == RabbitGuard.Threat )
-			{
-				GraphBuilder.Node Idle( bool mirrored ) => WithEquipment( stanceIdle.Build( graph, label => coordinates[label], phase, mirrored ), "idle", mirrored );
-				return machine.AddState( MovementStance( Idle( false ), Idle( true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
 			{
@@ -451,7 +449,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, stanceIdle, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ), FallLayer( "r_writhe" ) ),
 			RollBones = rollBones,

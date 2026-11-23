@@ -27,13 +27,13 @@ public sealed partial class RabbitGuard
 		balanceOffset += balanceVelocity * dt;
 	}
 
-	void UpdateIdleFeet()
+	void UpdateIdleFeet( RabbitMovement.Sample pose )
 	{
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !TryGetAnimatedBone( bone, out var foot ) ) return;
-			PlantFoot( side, foot );
+			ApplyAuthoredFoot( side, foot, side == 0 ? pose.Left : pose.Right );
 		}
 		SolveGroundedLegs();
 	}
