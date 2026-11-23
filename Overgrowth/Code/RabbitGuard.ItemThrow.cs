@@ -14,7 +14,7 @@ public sealed partial class RabbitGuard
 
 	bool BeginItemThrow()
 	{
-		if ( Downed || InThrow || Held || Holding || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } || (!Animation.IsGrounded && RollProgress >= 1f) ||
+		if ( Downed || InThrow || IsTethered || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } || (!Animation.IsGrounded && RollProgress >= 1f) ||
 			!HasCombatTarget || !PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();

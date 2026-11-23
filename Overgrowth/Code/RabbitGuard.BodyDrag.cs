@@ -12,6 +12,7 @@ public sealed partial class RabbitGuard
 	RabbitGuard bodyDragger;
 	ModelPhysics draggedPhysics;
 	Rigidbody draggedBody;
+	bool IsTethered => Holding || Held || draggedBody.IsValid() || bodyDragger.IsValid();
 	Vector3 localDragPoint, dragTarget;
 	PhysicsBody dragAnchor;
 	Sandbox.Physics.ControlJoint dragJoint;

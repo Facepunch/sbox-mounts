@@ -137,7 +137,7 @@ public sealed partial class RabbitGuard
 
 	void TryGrab()
 	{
-		if ( FreeHands <= 0 || Unconscious || Held || Holding || draggedBody.IsValid() || bodyDragger.IsValid() ) return;
+		if ( FreeHands <= 0 || Unconscious || IsTethered ) return;
 		if ( !GrabWeaponAtHand() && ++reachAttempts > 4 ) reaching = false;
 	}
 

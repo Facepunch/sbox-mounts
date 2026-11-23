@@ -18,7 +18,7 @@ public sealed partial class RabbitGuard
 
 	void CheckIncomingWeapons()
 	{
-		if ( Unconscious || Held || Holding || draggedBody.IsValid() || bodyDragger.IsValid() ) return;
+		if ( Unconscious || IsTethered ) return;
 		bool canCatch = activeBlock > 0f || boundAnimations.Species == "cat";
 		if ( !canCatch && !MetalArmor ) return;
 		var center = CharacterCenter( GameObject );

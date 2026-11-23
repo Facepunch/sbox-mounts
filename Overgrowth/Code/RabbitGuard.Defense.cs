@@ -5,7 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	[Property, Range( 0f, 1f )] public float BlockSkill { get; set; } = 0.5f;
-	TimeUntil blockRecharge, activeBlock;
+	TimeUntil blockRecharge, activeBlock, blockFlinchRaised;
 	float? blockDelay;
 	float flinchSpring, flinchVelocity, flinchFade, flinchFadeOut, flinchOpacity;
 	bool flinching;
@@ -24,7 +24,7 @@ public sealed partial class RabbitGuard
 	{
 		float dt = Time.Delta;
 		// ActiveBlocking lasts .2 seconds; the spring stays raised for .3 from activation.
-		bool raised = activeBlock > -0.1f;
+		bool raised = blockFlinchRaised > 0f;
 		float target = raised ? 1f : plantDepth * Math.Min( 1f, Animation.MoveVelocity.Length / 40f );
 		flinchVelocity += (target - flinchSpring) * dt * (raised ? 300f : 150f);
 		flinchSpring += dt * flinchVelocity;
@@ -97,6 +97,13 @@ public sealed partial class RabbitGuard
 
 	void UpdateActiveBlock( float step )
 	{
+		if ( IsTethered )
+		{
+			if ( activeBlock > 0f ) blockRecharge = 0.2f;
+			else if ( blockRecharge > 0f ) blockRecharge += step;
+			activeBlock = 0f;
+			return;
+		}
 		if ( boundAnimations.Species == "wolf" ) return;
 		if ( startled <= 0f && HasCombatTarget && enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
 		{
@@ -110,6 +117,7 @@ public sealed partial class RabbitGuard
 		blockDelay = null;
 		if ( !IsOnGround || RollProgress < 1f || InThrow || Unconscious || currentKnifeLayer is { Active: true } || (strike is not null && blockStun <= 0) ) return;
 		activeBlock = 0.2f;
+		blockFlinchRaised = 0.3f;
 		blockRecharge = 0.4f;
 	}
 
