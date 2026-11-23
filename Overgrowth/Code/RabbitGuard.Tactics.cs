@@ -76,7 +76,7 @@ public sealed partial class RabbitGuard
 				if ( direction.LengthSquared > 0.2f )
 				{
 					StartRoll( direction, Animation.MoveVelocity, GroundMaterialName );
-					breathSpeed += 1f;
+					IncreaseBreathing( 1f );
 				}
 			}
 		}

@@ -123,7 +123,7 @@ public sealed partial class RabbitGuard
 				airPhase = 0;
 				if ( Networking.IsHost && jumping )
 				{
-					breathSpeed += 2f;
+					IncreaseBreathing( 2f );
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
 					ReportBodySound( HeardSound.Footstep, 2f );

@@ -17,7 +17,6 @@ public sealed partial class RabbitGuard
 
 	void UpdateBreathing( float dt )
 	{
-		if ( playing != Stance && (Stance == "throw" || boundAnimations.Attacks.ContainsKey( Stance )) ) breathSpeed += 2f;
 		float speedRatio = Animation.MoveVelocity.Length / GroundRunSpeed;
 		if ( CombatPosture ) speedRatio = (1f + speedRatio) * 0.5f;
 		float target = 0.9f + 4f * speedRatio;
@@ -25,6 +24,9 @@ public sealed partial class RabbitGuard
 		breathTime += dt * breathSpeed;
 		breathAmount = (MathF.Sin( breathTime ) * 0.5f + 0.5f) * (0.5f + 0.1f * breathSpeed);
 	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void IncreaseBreathing( float amount ) => breathSpeed += amount;
 
 	// DisplayMatrixUpdate offsets individual bones after the complete IK hierarchy has been posed.
 	void ApplyDisplayBreath()

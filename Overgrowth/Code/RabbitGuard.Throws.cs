@@ -63,6 +63,7 @@ public sealed partial class RabbitGuard
 		WorldRotation = Rotation.LookAt( facing );
 		enemy = victim.GameObject;
 		StartThrowAction( "throw", victim, MirroredStance );
+		IncreaseBreathing( 2f );
 		victim.InterruptWeaponLayers();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
 		victim.QueueThrowDamage( this );

@@ -315,6 +315,9 @@ public sealed partial class RabbitGuard
 			_ => close ? Knee : Kick
 		};
 		strike = boundAnimations.Attacks[choice];
+		punishGroundedTarget = null;
+		// The original adds exertion on attack selection and again on entering the full-body attack state.
+		IncreaseBreathing( strike.AsLayer ? 2f : 4f );
 		if ( strike.AsLayer )
 		{
 			BeginKnifeAttack( target );
@@ -329,7 +332,6 @@ public sealed partial class RabbitGuard
 		flippedAttack = strike.Direction == "front" ? !MirroredStance : MirroredStance;
 		if ( strike.SwapStance ) MirroredStance = !MirroredStance;
 		duckAmount = strike.Height == "low" ? 1f : 0f;
-		punishGroundedTarget = null;
 		PlayAttackStart( strike.MaterialEvent );
 		AttackPhase = 0;
 		cancelDelay = 0.01f;

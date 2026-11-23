@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 		victim.QueueThrowDamage( this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
-		breathSpeed += 2f;
+		IncreaseBreathing( 2f );
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
 		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundMaterialName, 1f );
 		Speak( "attack" );
