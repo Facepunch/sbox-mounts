@@ -87,8 +87,9 @@ public sealed partial class RabbitGuard
 		return false;
 	}
 
-	bool FindLedge( Vector3 center, float verticalSpeed, out Vector3 wall, out float height, out Surface surface )
+	bool FindLedge( Vector3 center, float verticalSpeed, out Vector3 wall, out float height, out Surface surface, out SceneTraceResult contact )
 	{
+		contact = default;
 		wall = default;
 		height = 0f;
 		surface = null;
@@ -102,6 +103,7 @@ public sealed partial class RabbitGuard
 				if ( offset.Normal.z < -0.7f || offset.WithZ( 0f ).IsNearlyZero() || offset.LengthSquared >= best ) continue;
 				wall = offset.WithZ( 0f ).Normal;
 				best = offset.LengthSquared;
+				contact = hit;
 			}
 		}
 		if ( wall.IsNearlyZero() ) return false;
@@ -143,7 +145,9 @@ public sealed partial class RabbitGuard
 			}
 			body.Velocity = velocity;
 			var center = physics.Position + Vector3.Up * LegRadius;
-			if ( velocity.z <= -600f || !FindLedge( center, velocity.z, out var wall, out float height, out var surface ) ) return false;
+			if ( velocity.z <= -600f || !FindLedge( center, velocity.z, out var wall, out float height, out var surface, out var contact ) ) return false;
+			if ( SelectBodyImpact( velocity.Dot( wall ) / 40f ) is { } impact )
+				PlayMaterialEvent( impact, contact.HitPosition, TerrainLoader.ContactSurface( contact, contact.HitPosition )?.ResourceName, 1f );
 			climbDirection = wall;
 			LedgeHeight = height;
 			LedgeGrabOrigin = center;

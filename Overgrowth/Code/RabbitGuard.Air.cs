@@ -193,13 +193,19 @@ public sealed partial class RabbitGuard
 		float impact = before.Distance( collision.Self.Body.Velocity ) / 40f;
 		flinchSpring = Math.Max( flinchSpring, Math.Min( 1f, impact * 2f - 1f ) );
 		pendingTuck = Math.Max( pendingTuck, Math.Min( 0.4f, impact * 0.1f ) );
+		if ( SelectBodyImpact( impact ) is { } sound )
+			PlayMaterialEvent( sound, collision.Contact.Point, TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName, 1f );
+	}
+
+	string SelectBodyImpact( float impact )
+	{
 		string sound;
 		if ( impact > 12f && bodySounds.Normal <= 0f ) { sound = "bodyfall"; bodySounds.Normal = 0.6f; }
 		else if ( impact > 6f && bodySounds.Heavy <= 0f ) { sound = "bodyfall_heavy"; bodySounds.Heavy = 0.2f; }
 		else if ( impact > 4f && bodySounds.Medium <= 0f ) { sound = "bodyfall_medium"; bodySounds.Medium = 0.2f; }
 		else if ( impact > 2f && bodySounds.Light <= 0f ) { sound = "bodyfall_light"; bodySounds.Light = 0.2f; }
-		else return;
-		PlayMaterialEvent( sound, collision.Contact.Point, TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName, 1f );
+		else return null;
+		return sound;
 	}
 
 	void Land( Vector3 airVelocity )
