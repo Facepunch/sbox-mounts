@@ -51,7 +51,7 @@ public sealed partial class RabbitGuard
 
 	void InterruptWeaponLayers()
 	{
-		if ( DrawAnimation == ThrowLayer ) fadingThrow = true;
+		if ( HasThrowLayer ) fadingThrow = true;
 		if ( currentKnifeLayer is { Active: true, Fading: false } ) FadeKnifeLayer();
 	}
 

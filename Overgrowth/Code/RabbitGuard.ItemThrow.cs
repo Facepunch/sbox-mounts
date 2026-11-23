@@ -4,31 +4,36 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	internal const string ThrowLayer = "r_knifethrowlayer";
+	internal const string ThrowLayer = "r_knifethrowlayer", FlipThrowLayer = "r_knifethrowfliplayer";
 	internal const string SpearThrow = "r_spearthrow", SwordThrow = "r_dogswordthrow";
 	GameObject itemThrowTarget, bodyThrowTarget, handThrowLookTarget;
+	GameObject pendingRollThrow;
+	TimeUntil rollThrowExpires;
+	bool HasThrowLayer => DrawAnimation is ThrowLayer or FlipThrowLayer;
 	bool IsThrowingItem => Stance is SpearThrow or SwordThrow && ReactionPhase < 1f;
 
 	bool BeginItemThrow()
 	{
-		if ( Downed || InThrow || Held || Holding || IsThrowingItem || IsGetUp( Stance ) || RollProgress < 1f || strike is { AsLayer: false } || !Animation.IsGrounded ||
+		if ( Downed || InThrow || Held || Holding || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } || (!Animation.IsGrounded && RollProgress >= 1f) ||
 			!HasCombatTarget || !PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();
-		var delta = CharacterCenter( enemy ) - CharacterCenter( GameObject );
-		if ( boundAnimations.Species == "cat" )
+		var target = rollThrowExpires > 0f ? pendingRollThrow : null;
+		if ( !target.IsValid() )
 		{
-			if ( !secondary && label != "knife" || Random.Shared.Float() >= Aggression * GameDifficulty * 0.04f ) return false;
-			var velocity = GetVelocity( enemy );
-			bool fleeing = delta.LengthSquared > 220f * 220f && velocity.LengthSquared >= 30f * 40f * 40f &&
-				enemy.WorldRotation.Forward.Dot( WorldRotation.Forward ) >= 0f && delta.Dot( velocity ) >= 0f;
-			if ( !fleeing && delta.LengthSquared <= 500f * 500f && !(delta.LengthSquared > 100f * 100f && TargetIsAirborne( enemy ) && enemy.GetComponent<RabbitGuard>() is not { Downed: true }) ) return false;
+			if ( !WantsItemThrow( label, secondary ) ) return false;
+			target = SelectThrowTarget( label );
+			if ( !target.IsValid() ) return false;
 		}
-		else if ( boundAnimations.Species != "dog" || delta.LengthSquared <= 400f * 400f ) return false;
-		var target = SelectThrowTarget( label );
-		if ( !target.IsValid() ) return false;
+		if ( RollProgress <= 0.5f )
+		{
+			if ( pendingRollThrow != target || rollThrowExpires <= 0f ) rollThrowExpires = 1f;
+			pendingRollThrow = target;
+			return true;
+		}
+		pendingRollThrow = null;
 		itemThrowTarget = target;
-		if ( label is "big_sword" or "spear" or "staff" )
+		if ( RollProgress >= 1f && label is ("big_sword" or "spear" or "staff") )
 		{
 			bodyThrowTarget = target;
 			Stance = label == "big_sword" ? SwordThrow : SpearThrow;
@@ -40,8 +45,23 @@ public sealed partial class RabbitGuard
 		}
 		DrawLeft = LeftHanded || secondary && label is ("sword" or "rapier");
 		handThrowLookTarget = target;
-		DrawAnimation = ThrowLayer;
+		DrawAnimation = RollProgress < 1f ? FlipThrowLayer : ThrowLayer;
 		drawElapsed = 0f;
+		return true;
+	}
+
+	bool WantsItemThrow( string label, bool secondary )
+	{
+		var delta = CharacterCenter( enemy ) - CharacterCenter( GameObject );
+		if ( boundAnimations.Species == "cat" )
+		{
+			if ( !secondary && label != "knife" || Random.Shared.Float() >= Aggression * GameDifficulty * 0.04f ) return false;
+			var velocity = GetVelocity( enemy );
+			bool fleeing = delta.LengthSquared > 220f * 220f && velocity.LengthSquared >= 30f * 40f * 40f &&
+				enemy.WorldRotation.Forward.Dot( WorldRotation.Forward ) >= 0f && delta.Dot( velocity ) >= 0f;
+			if ( !fleeing && delta.LengthSquared <= 500f * 500f && !(delta.LengthSquared > 100f * 100f && TargetIsAirborne( enemy ) && enemy.GetComponent<RabbitGuard>() is not { Downed: true }) ) return false;
+		}
+		else if ( boundAnimations.Species != "dog" || delta.LengthSquared <= 400f * 400f ) return false;
 		return true;
 	}
 

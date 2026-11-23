@@ -5,7 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	const string DrawAcross = "r_knifeunsheathe", DrawSameSide = "r_knifeunsheathesameside";
-	internal static readonly string[] HandAnimations = [DrawAcross, DrawSameSide, ThrowLayer];
+	internal static readonly string[] HandAnimations = [DrawAcross, DrawSameSide, ThrowLayer, FlipThrowLayer];
 	internal static string DrawLayer( string animation, bool left ) => left ? animation + "_left" : animation + "_right";
 	[Property, Sync] public LevelItem LeftHipWeapon { get; set; }
 	[Property, Sync] public LevelItem RightHipWeapon { get; set; }
@@ -62,7 +62,7 @@ public sealed partial class RabbitGuard
 				DrawPhase = Math.Min( 1f, drawElapsed / clip.Duration );
 				if ( fadingThrow ) DrawWeight = Math.Max( 0f, DrawWeight - 4f * Time.Delta );
 				else DrawWeight = Math.Clamp( Math.Min( (drawElapsed + 1f / 120f) * 8f, 1f - (drawElapsed - clip.Duration) * 8f ), 0f, 1f );
-				if ( DrawWeight > 0f && !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
+				if ( (!fadingThrow || DrawWeight > 0f) && !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
 					ReleaseThrownItem( release.Left );
 				if ( !Downed && clip.DrawTime is { } grab && drawElapsed >= grab ) TakeDrawnWeapon();
 				if ( DrawWeight <= 0f || Downed )

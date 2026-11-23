@@ -93,7 +93,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		var target = currentKnifeLayer is { Active: true } && strikeTarget.IsValid() ? strikeTarget
-			: DrawAnimation == ThrowLayer && handThrowLookTarget.IsValid() ? handThrowLookTarget
+			: HasThrowLayer && handThrowLookTarget.IsValid() ? handThrowLookTarget
 			: ForcedLookTarget();
 		if ( !target.IsValid() ) target = idleLookCharacter;
 		if ( noticeSource.IsValid() && IsIgnoredPlayer( noticeSource ) ) noticeLook = 0f;
@@ -108,7 +108,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( Stance is not (Threat or Locomotion or Ready or Idle) || RollProgress < 1f || draggedBody.IsValid() ) return null;
 		bool swiping = currentKnifeLayer is { Active: true };
-		bool throwing = DrawAnimation == ThrowLayer;
+		bool throwing = HasThrowLayer;
 		if ( Stance != Threat && !swiping && !(throwing && speed < 48f) ) return null;
 		var target = swiping && strikeTarget.IsValid() ? strikeTarget : ForcedLookTarget();
 		if ( !target.IsValid() && throwing ) target = handThrowLookTarget;
@@ -124,7 +124,7 @@ public sealed partial class RabbitGuard
 		bool movement = Stance is Idle or Ready or Watch or Threat or Locomotion;
 		bool fightStance = movement && CombatFootStanceTarget( speed, needsCombatPose ).IsValid();
 		if ( fightStance ) stanceMoveFade = 1f;
-		bool throwing = DrawAnimation == ThrowLayer;
+		bool throwing = HasThrowLayer;
 		bool stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||
 			speed < 24f && Movement.MoveTarget.HasValue || currentKnifeLayer is { Active: true } ||
 			throwing && speed < 48f || unassignedPatrol && speed * speed > 1.6f;
