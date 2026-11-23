@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace NS2;
 
-public class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
+public partial class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 {
 	/// <summary>
 	/// Path relative to the game's install root

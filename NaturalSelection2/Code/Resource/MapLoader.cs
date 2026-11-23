@@ -44,6 +44,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var world = new GameObject( true, "worldspawn" ) { Parent = root, IsStatic = true };
 		world.Tags.Add( "world" );
 		BuildWorld( level, bytes, world, geometry );
+		var decals = new Dictionary<string, DecalDefinition>( StringComparer.OrdinalIgnoreCase );
 		var staticProps = new Dictionary<string, ModelLoader.StaticProp>( StringComparer.OrdinalIgnoreCase );
 
 		foreach ( var entity in level.Entities )
@@ -58,7 +59,10 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 					continue;
 			}
 
-			BuildEntity( entity, root, geometry, staticProps );
+			if ( entity.Name == "decal" )
+				AddDecal( entity, root, decals );
+			else
+				BuildEntity( entity, root, geometry, staticProps );
 		}
 
 		geometry.Build( world, FilePath, renderModels );
@@ -540,6 +544,36 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			path += ".model";
 
 		return $"mount://{Host.Ident}/ns2/{path}.vmdl";
+	}
+
+	void AddDecal( LevelEntity entity, GameObject parent, Dictionary<string, DecalDefinition> definitions )
+	{
+		if ( !Graphics.IsAvailable ) return;
+
+		var material = entity.Get( "material" ).AsString();
+		var size = entity.Get( "extents" ).AsVector3() * (2 * Scale);
+		if ( size.x <= 0 || size.y <= 0 || size.z <= 0 ) return;
+		if ( string.IsNullOrEmpty( material ) ) return;
+		if ( !definitions.TryGetValue( material, out var definition ) )
+		{
+			definition = GameMount.TryResolve( Host.FileSystem, material, out var path )
+				? GameResource.Load<DecalDefinition>( $"mount://{Host.Ident}/{path}.vmat/projected.decal" ) : null;
+			definitions[material] = definition;
+		}
+		if ( definition?.ColorTexture is null ) return;
+
+		// Spark projects along -Y and maps X/Z to increasing U/V.
+		var go = new GameObject( true, "decal" )
+		{
+			Parent = parent,
+			WorldPosition = Origin( entity ),
+			WorldRotation = Angles( entity ) * Rotation.LookAt( Vector3.Down, Vector3.Backward )
+		};
+		var decal = go.AddComponent<Decal>();
+		decal.Decals = [definition];
+		decal.Size = new Vector2( size.x, size.z );
+		decal.Depth = size.y;
+		decal.Rotation = 0;
 	}
 
 	static Vector3 Origin( LevelEntity entity )
