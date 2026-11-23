@@ -5,7 +5,9 @@ namespace NS2;
 
 public sealed partial class Skulk
 {
-	GameObject sighted, remembered;
+	GameObject sighted, remembered, tracked;
+	TimeSince sinceTracked;
+	readonly List<(GameObject Target, float LastTracked)> recentTargets = [];
 	Vector3 lastSeenPosition;
 	TimeSince sightedFor, sinceSeen;
 	TimeUntil nextJuke, repath;
@@ -25,16 +27,35 @@ public sealed partial class Skulk
 	[Sync( SyncFlags.FromHost )] float AimTurnRate { get; set; } = 5;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 
-	void TrackAim( GameObject target )
+	bool TrackAim( GameObject target, Vector3 aimPoint )
 	{
 		float tier = Math.Clamp( AimSkillTier, 1, 7 ) / 7f;
-		if ( sighted != target )
+		var offset = aimPoint - EyePosition;
+		// BotAim passes the Skulk's configured FOV (105) directly to IsPointInCone's cosine.
+		if ( offset.LengthSquared > 4 * MapLoader.Scale * MapLoader.Scale &&
+			Vector3.Dot( ViewRotation.Forward, offset.Normal ) <= MathF.Cos( 105 ) ) return false;
+
+		if ( tracked != target || sinceTracked > 0.5f )
 		{
-			float delay = 0.325f - 0.14f * tier;
-			// The previous opponent can be reacquired faster after a brief obstruction.
-			acquired = remembered == target && sinceSeen < 1.5f ? delay * 0.3f : delay;
+			if ( tracked.IsValid() && sinceTracked < 1.5f )
+				recentTargets.Add( (tracked, Time.Now - sinceTracked) );
+
+			bool reacquiring = false;
+			for ( int i = recentTargets.Count - 1; i >= 0; i-- )
+			{
+				var entry = recentTargets[i];
+				if ( Time.Now - entry.LastTracked < 1.5f && entry.Target.IsValid() )
+				{
+					if ( entry.Target != target ) continue;
+					reacquiring = true;
+				}
+				recentTargets.RemoveAt( i );
+			}
+			acquired = (0.325f - 0.14f * tier) * (reacquiring ? 0.3f : 1);
+			tracked = target;
 			sampleAim = 0;
 		}
+		sinceTracked = 0;
 		if ( sampleAim <= 0 )
 		{
 			samplePosition = target.WorldPosition;
@@ -51,28 +72,26 @@ public sealed partial class Skulk
 				sampleAim = 0;
 			}
 		}
+		return acquired <= 0;
 	}
 
 	GameObject FindEnemy()
 	{
 		var closest = Senses.FindBestTarget();
-		if ( aimPenalty <= 0 ) aimScale = 1;
 		if ( closest.IsValid() )
 		{
 			sneaking = false;
 			sinceFought = 0;
-			TrackAim( closest );
 			remembered = closest;
 			lastSeenPosition = closest.WorldPosition;
 			sinceSeen = 0;
 		}
 		if ( sighted != closest )
 		{
+			if ( !sighted.IsValid() || !closest.IsValid() ) sightedFor = 0;
 			sighted = closest;
-			sightedFor = 0;
 			repath = 0;
 		}
-		AimTurnRate = aimScale * (underFire > 0 || dealtDamage > 0 ? 5.5f : 5);
 		return closest;
 	}
 

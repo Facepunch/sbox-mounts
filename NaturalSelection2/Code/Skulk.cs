@@ -133,6 +133,10 @@ public sealed partial class Skulk : BaseNpc
 		secondaryHeld = false;
 		FiringParasite = false;
 		var target = FindEnemy();
+		var aimPoint = target.IsValid() ? CalculateAimPoint( target ) : default;
+		if ( aimPenalty <= 0 ) aimScale = 1;
+		bool aimReady = target.IsValid() && TrackAim( target, aimPoint );
+		AimTurnRate = aimScale * (underFire > 0 || dealtDamage > 0 ? 5.5f : 5);
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
@@ -141,7 +145,6 @@ public sealed partial class Skulk : BaseNpc
 			return;
 		}
 
-		var aimPoint = CalculateAimPoint( target );
 		bool mobile = target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid();
 		var contact = target.GetComponent<Rigidbody>() is { PhysicsBody.IsValid: true } body
 			? body.FindClosestPoint( EyePosition )
@@ -151,7 +154,7 @@ public sealed partial class Skulk : BaseNpc
 		{
 			if ( mobile ) ApproachEnemy( target, aimPoint, distance );
 			else Movement.Stop();
-			Biting = !(mobile && TryXenocide()) && energy >= BiteEnergy && (!mobile || acquired <= 0);
+			Biting = !(mobile && TryXenocide()) && energy >= BiteEnergy && (!mobile || aimReady);
 			return;
 		}
 
