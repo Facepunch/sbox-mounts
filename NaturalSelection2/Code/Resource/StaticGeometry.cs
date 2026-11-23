@@ -62,9 +62,12 @@ internal sealed class StaticGeometry
 		}
 	}
 
+	private static bool IsMirrored( Transform transform ) => transform.Scale.x * transform.Scale.y * transform.Scale.z < 0;
+
 	private static void BuildBatch( GameObject parent, string name, Material material, bool shadows, ReadOnlySpan<Fragment> batch, List<Model> models )
 	{
-		var ranges = new Dictionary<Part, (int Vertex, int Index)>();
+		var vertexOffsets = new Dictionary<Part, int>();
+		var indexOffsets = new Dictionary<(Part, bool), int>();
 		var vertices = new List<WorldVertex>();
 		var indices = new List<int>();
 		var info = new List<AggregateFragmentInfo>( batch.Length );
@@ -72,10 +75,20 @@ internal sealed class StaticGeometry
 		foreach ( var fragment in batch )
 		{
 			var part = fragment.Part;
-			if ( ranges.TryAdd( part, (vertices.Count, indices.Count) ) )
-			{
+			if ( vertexOffsets.TryAdd( part, vertices.Count ) )
 				vertices.AddRange( part.Vertices );
+
+			var mirrored = IsMirrored( fragment.Transform );
+			if ( indexOffsets.TryAdd( (part, mirrored), indices.Count ) )
+			{
+				int start = indices.Count;
 				indices.AddRange( part.Indices );
+				if ( mirrored )
+				{
+					// Aggregate fragments share a draw call, so culling cannot flip per placement.
+					for ( int i = start; i < indices.Count; i += 3 )
+						(indices[i + 1], indices[i + 2]) = (indices[i + 2], indices[i + 1]);
+				}
 			}
 			info.Add( new( part.Bounds ) { LocalTransform = fragment.Transform } );
 			bounds = bounds.AddBBox( part.Bounds.Transform( fragment.Transform ) );
@@ -89,8 +102,8 @@ internal sealed class StaticGeometry
 		for ( int i = 1; i < batch.Length; i++ )
 		{
 			var part = batch[i].Part;
-			var range = ranges[part];
-			mesh.AddSubMesh( material, range.Index, part.Indices.Length, range.Vertex, part.Vertices.Length );
+			var index = indexOffsets[(part, IsMirrored( batch[i].Transform ))];
+			mesh.AddSubMesh( material, index, part.Indices.Length, vertexOffsets[part], part.Vertices.Length );
 		}
 
 		var model = Model.Builder.WithName( name ).WithViewBounds( bounds ).AddMesh( mesh ).Create();
