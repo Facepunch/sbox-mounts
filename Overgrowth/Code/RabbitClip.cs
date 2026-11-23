@@ -299,10 +299,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * frame.Length] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
 
+		int prev = -1;
 		for ( int i = 0; i <= intervals; i++ )
 		{
 			float time = (float)i / intervals * duration;
-			int prev = Array.FindLastIndex( keys, x => x.Time <= time );
+			while ( prev + 1 < count && keys[prev + 1].Time <= time ) prev++;
 			int Index( int index ) => loop ? (index % count + count) % count : Math.Clamp( index, 0, count - 1 );
 			var a = keys[Index( prev - 1 )]; var b = keys[Index( prev )];
 			var c = keys[Index( prev + 1 )]; var d = keys[Index( prev + 2 )];
@@ -329,9 +330,15 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				weaponTrack.Set( i, weapon );
 			}
+			// Child positions are reconstructed from the joint anchors after rotation.
+			// Only roots need the authored cubic translation.
+			float ab = w0 + w1, abc = ab + w2;
+			float blendB = ab > 0f ? w1 / ab : 0f, blendC = abc > 0f ? w2 / abc : 0f;
 			for ( int j = 0; j < frame.Length; j++ )
 			{
-				frame[j] = BlendFour( a.Bones[j], b.Bones[j], c.Bones[j], d.Bones[j], w0, w1, w2, w3 );
+				var rotation = ab > 0f ? MixRotation( a.Bones[j].Rotation, b.Bones[j].Rotation, blendB ) : b.Bones[j].Rotation;
+				if ( abc > 0f ) rotation = MixRotation( rotation, c.Bones[j].Rotation, blendC );
+				frame[j] = new Transform( Vector3.Zero, MixRotation( rotation, d.Bones[j].Rotation, w3 ) );
 				if ( magnitudes is not null )
 				{
 					var q = frame[j].Rotation;
@@ -339,7 +346,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				frame[j].Rotation = frame[j].Rotation.Normal;
 				if ( skeleton.AnimationParents[j] < 0 )
-					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
+				{
+					var position = ab > 0f ? Vector3.Lerp( a.Bones[j].Position, b.Bones[j].Position, blendB, false ) : b.Bones[j].Position;
+					if ( abc > 0f ) position = Vector3.Lerp( position, c.Bones[j].Position, blendC, false );
+					frame[j].Position = Vector3.Lerp( position, d.Bones[j].Position, w3, false ) + Vector3.Lerp( b.Center, c.Center, t );
+				}
 				else
 					frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );
 			}
