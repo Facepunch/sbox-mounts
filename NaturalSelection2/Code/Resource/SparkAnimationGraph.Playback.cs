@@ -12,7 +12,6 @@ internal sealed partial class SparkAnimationGraph
 		readonly ModelLoader model;
 		readonly int[] sequences;
 		readonly float[] durations;
-		readonly bool[] loops;
 		readonly List<(float Time, string Name)> markers = [];
 		readonly Track[] tracks;
 		float time;
@@ -70,7 +69,6 @@ internal sealed partial class SparkAnimationGraph
 			this.model = model;
 			sequences = Array.ConvertAll( graph.clips, model.SequenceIndex );
 			durations = Array.ConvertAll( sequences, model.SequenceDuration );
-			loops = Array.ConvertAll( sequences, model.SequenceLoops );
 			tracks = new Track[graph.layers.Length];
 			foreach ( var layer in graph.layers )
 			{
@@ -138,17 +136,7 @@ internal sealed partial class SparkAnimationGraph
 		void EmitMarkers( Sample sample, float before, GraphParameters pose, Action<string> emit )
 		{
 			if ( sample.Clip < 0 ) return;
-			float from = sample.Seconds( before ), to = sample.Seconds( time );
-			float duration = durations[sample.Clip];
-			bool loop = loops[sample.Clip] && duration > 0;
-			float start = loop ? from % duration : from;
-			float end = loop ? to % duration : to;
-			if ( start <= duration && (end > duration || (end <= start && end > 0)) ) emit( "end" );
-			if ( end > 0 && (start <= 0 || end <= start) ) emit( "start" );
-
-			markers.Clear();
-			model.CollectTags( sequences[sample.Clip], pose, from, to, markers );
-			foreach ( var marker in markers ) emit( marker.Name );
+			model.EmitSequenceTags( sequences[sample.Clip], pose, sample.Seconds( before ), sample.Seconds( time ), markers, emit );
 		}
 
 		bool Next( Layer layer, Track track, out int dest, out bool byLabel )

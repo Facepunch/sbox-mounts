@@ -6,11 +6,29 @@ namespace NS2;
 public partial class ModelLoader
 {
 	// Spark collects tags from every nonzero contributor to a blended pose.
-	internal void CollectTags( int sequence, GraphParameters pose, float from, float to, List<(float Time, string Name)> tags )
+	internal void EmitSequenceTags( int sequence, GraphParameters pose, float from, float to, List<(float Time, string Name)> tags, Action<string> emit )
 	{
 		if ( sequence < 0 || to <= from ) return;
 		var source = AnimationSource().Source;
-		Visit( source.Sequences[sequence].AnimationNodeIndex );
+		ref var seq = ref source.Sequences[sequence];
+		bool loop = seq.Duration > 0 && (seq.Looping ??= Loops( seq.AnimationNodeIndex ));
+		float start = loop ? from % seq.Duration : from;
+		float end = loop ? to % seq.Duration : to;
+		if ( start <= seq.Duration && (end > seq.Duration || (end <= start && end > 0)) ) emit( "end" );
+		if ( end > 0 && (start <= 0 || end <= start) ) emit( "start" );
+
+		tags.Clear();
+		Visit( seq.AnimationNodeIndex );
+		foreach ( var marker in tags ) emit( marker.Name );
+
+		bool Loops( int index )
+		{
+			var node = source.AnimationNodes[index];
+			if ( node.Type == 1 ) return source.Animations[node.AnimationIndex].Looping;
+			foreach ( var child in node.Children )
+				if ( Loops( child ) ) return true;
+			return false;
+		}
 
 		void Visit( int index )
 		{

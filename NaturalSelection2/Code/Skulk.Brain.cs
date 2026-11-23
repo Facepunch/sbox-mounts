@@ -7,7 +7,7 @@ public sealed partial class Skulk
 {
 	GameObject sighted, remembered, tracked;
 	TimeSince sinceTracked;
-	readonly List<(GameObject Target, float LastTracked)> recentTargets = [];
+	List<(GameObject Target, float LastTracked)> recentTargets;
 	Vector3 lastSeenPosition;
 	TimeSince sightedFor, sinceSeen;
 	TimeUntil nextJuke, repath;
@@ -38,10 +38,10 @@ public sealed partial class Skulk
 		if ( tracked != target || sinceTracked > 0.5f )
 		{
 			if ( tracked.IsValid() && sinceTracked < 1.5f )
-				recentTargets.Add( (tracked, Time.Now - sinceTracked) );
+				(recentTargets ??= []).Add( (tracked, Time.Now - sinceTracked) );
 
 			bool reacquiring = false;
-			for ( int i = recentTargets.Count - 1; i >= 0; i-- )
+			for ( int i = (recentTargets?.Count ?? 0) - 1; i >= 0; i-- )
 			{
 				var entry = recentTargets[i];
 				if ( Time.Now - entry.LastTracked < 1.5f && entry.Target.IsValid() )

@@ -111,6 +111,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public string Name;
 		public int AnimationNodeIndex;
 		public float Duration;
+		public bool? Looping;
 	}
 
 	// A single keyframed curve, loaded only while its animation is being built.
@@ -724,22 +725,6 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	internal int SequenceIndex( string name ) => Array.FindIndex( AnimationSource().Source.Sequences,
 		s => string.Equals( s.Name, name, StringComparison.OrdinalIgnoreCase ) );
-
-	internal bool SequenceLoops( int index )
-	{
-		if ( index < 0 ) return false;
-		var model = AnimationSource().Source;
-		return Loops( model.Sequences[index].AnimationNodeIndex );
-
-		bool Loops( int nodeIndex )
-		{
-			var node = model.AnimationNodes[nodeIndex];
-			if ( node.Type == 1 ) return model.Animations[node.AnimationIndex].Looping;
-			foreach ( var child in node.Children )
-				if ( Loops( child ) ) return true;
-			return false;
-		}
-	}
 
 	internal float SequenceDuration( int index ) => index >= 0 ? AnimationSource().Source.Sequences[index].Duration : 0;
 
