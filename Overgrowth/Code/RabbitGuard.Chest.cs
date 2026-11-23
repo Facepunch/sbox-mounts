@@ -13,10 +13,12 @@ public sealed partial class RabbitGuard
 	float HeadLookWeight => Math.Max( 0f, 1f - flipLookFade ) * (flinchSpring > 0.1f ? Math.Clamp( 1f - flinchSpring * 0.5f, 0f, 1f ) : 1f);
 	TimeUntil nextLook;
 	Vector3 noticePosition;
+	GameObject noticeSource;
 	TimeUntil noticeLook;
 
-	void LookAtNotice( Vector3 position, float duration = 2f )
+	void LookAtNotice( Vector3 position, float duration = 2f, GameObject source = null )
 	{
+		noticeSource = source;
 		noticePosition = position;
 		noticeLook = duration;
 	}
@@ -50,8 +52,9 @@ public sealed partial class RabbitGuard
 				+ (WorldRotation.Forward + heading.Normal) * (0.5f * 100f * 40f);
 		}
 
-		var target = visible && CanAttack( enemy ) ? enemy : escortTarget;
+		var target = CanAttack( enemy ) ? enemy : escortTarget;
 		if ( !target.IsValid() ) target = idleLookCharacter;
+		if ( noticeSource.IsValid() && IsIgnoredPlayer( noticeSource ) ) noticeLook = 0f;
 		NoticeLookOverride = noticeLook > 0f;
 		GazeTarget = NoticeLookOverride ? noticePosition : target.IsValid() && !IsIgnoredPlayer( target ) ? TargetPosition( target, eyes: true ) : idleLookTarget;
 	}

@@ -63,7 +63,7 @@ public sealed partial class RabbitGuard
 			if ( guard.suspicion < 1f ) continue;
 			if ( !guard.investigatePoint.HasValue )
 			{
-				guard.LookAtNotice( position );
+				guard.LookAtNotice( position, source: source );
 				guard.Speak( "suspicious" );
 				guard.startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
 			}

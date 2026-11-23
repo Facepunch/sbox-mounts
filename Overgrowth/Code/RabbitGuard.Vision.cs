@@ -78,6 +78,12 @@ public sealed partial class RabbitGuard
 				continue;
 			}
 			seenHostiles[candidate] = Time.Now;
+			if ( !enemy.IsValid() && !escortTarget.IsValid() )
+			{
+				var velocity = candidate.GetComponent<BaseNpc>()?.Animation.MoveVelocity
+					?? candidate.GetComponent<PlayerController>()?.Velocity ?? Vector3.Zero;
+				LookAtNotice( center + velocity * (float)nextVisionCheck, source: candidate );
+			}
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f) * (concealed ? 0.3f : 1f);
 			if ( separation < nearest )
 			{
