@@ -2,8 +2,22 @@ using System;
 
 namespace Overgrowth;
 
-public sealed partial class LevelItem
+public sealed partial class LevelItem : Component.ICollisionListener
 {
+	bool flyingStraight;
+
+	void ICollisionListener.OnCollisionStart( Collision collision ) => flyingStraight = false;
+
+	void AlignWithFlight( Rigidbody body )
+	{
+		if ( !body.IsValid() || body.Velocity.IsNearlyZero() || GetLines() is not [var first, ..] ) return;
+		var physics = body.PhysicsBody;
+		if ( !physics.IsValid() ) return;
+		var axis = physics.Rotation * (first.End - first.Start).Normal;
+		physics.Rotation = Rotation.FromToRotation( axis, body.Velocity.Normal ) * physics.Rotation;
+		body.AngularVelocity = Vector3.Zero;
+	}
+
 	internal void Throw( Vector3 target, Vector3 velocity, Vector3 throwerVelocity, bool fullBody )
 	{
 		Drop();
@@ -21,6 +35,13 @@ public sealed partial class LevelItem
 			launch = FlightPath.Velocity( delta + velocity * time, gravity, speed, up, 0f, out time );
 		if ( launch == Vector3.Zero ) launch = horizontal * speed + Vector3.Up * up;
 		body.Velocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
+		flyingStraight = fullBody && Definition.Element( "label" )?.Value is ("spear" or "staff");
+		if ( flyingStraight )
+		{
+			body.CollisionEventsEnabled = true;
+			AlignWithFlight( body );
+			return;
+		}
 		if ( time <= 0f || mass <= 0f ) return;
 		float turns = MathF.Floor( time * 2f / mass ) * 2f * MathF.PI;
 		var direction = delta.Normal;

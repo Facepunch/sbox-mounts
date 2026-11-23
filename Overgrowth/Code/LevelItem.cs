@@ -35,7 +35,12 @@ public sealed partial class LevelItem : Component
 
 	protected override void OnFixedUpdate()
 	{
-		if ( !Networking.IsHost || !Holder.IsValid() || Time.Delta <= 0f ) return;
+		if ( !Networking.IsHost || Time.Delta <= 0f ) return;
+		if ( !Holder.IsValid() )
+		{
+			if ( flyingStraight ) AlignWithFlight( GetComponent<Rigidbody>() );
+			return;
+		}
 		UpdateAttachment();
 		var pose = WorldTransform;
 		if ( lastHeldPose is { } previous )
@@ -129,6 +134,7 @@ public sealed partial class LevelItem : Component
 		if ( item.GetComponent<Rigidbody>() is { } body ) body.Enabled = false;
 		item.SetParent( actor.GameObject, true );
 		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
+		attachmentComponent.flyingStraight = false;
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";
 		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center ) );

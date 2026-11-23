@@ -5,14 +5,15 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	internal const string ThrowLayer = "r_knifethrowlayer";
-	GameObject itemThrowTarget;
+	internal const string SpearThrow = "r_spearthrow", SwordThrow = "r_dogswordthrow";
+	GameObject itemThrowTarget, bodyThrowTarget;
+	bool IsThrowingItem => Stance is SpearThrow or SwordThrow && ReactionPhase < 1f;
 
 	bool BeginItemThrow()
 	{
-		if ( Downed || InThrow || Held || Holding || strike is not null || !Animation.IsGrounded ||
+		if ( Downed || InThrow || Held || Holding || IsThrowingItem || IsGetUp( Stance ) || RollProgress < 1f || strike is { AsLayer: false } || !Animation.IsGrounded ||
 			!CanAttack( enemy ) || !PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
-		if ( label is "big_sword" or "spear" or "staff" ) return false;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();
 		var delta = CharacterCenter( enemy ) - CharacterCenter( GameObject );
 		if ( boundAnimations.Species == "cat" )
@@ -26,10 +27,38 @@ public sealed partial class RabbitGuard
 		else if ( boundAnimations.Species != "dog" || delta.LengthSquared <= 400f * 400f ) return false;
 		var target = SelectThrowTarget( label );
 		if ( !target.IsValid() ) return false;
+		itemThrowTarget = target;
+		if ( label is "big_sword" or "spear" or "staff" )
+		{
+			bodyThrowTarget = target;
+			Stance = label == "big_sword" ? SwordThrow : SpearThrow;
+			MirroredAction = MirroredStance;
+			MirroredStance = !MirroredStance;
+			ReactionPhase = 0f;
+			Movement.Stop();
+			return true;
+		}
 		DrawLeft = LeftHanded || secondary && label is ("sword" or "rapier");
 		DrawAnimation = ThrowLayer;
 		drawElapsed = 0f;
-		itemThrowTarget = target;
+		return true;
+	}
+
+	bool AdvanceItemThrow()
+	{
+		if ( !IsThrowingItem ) return false;
+		if ( bodyThrowTarget.IsValid() ) TurnDuringStrike( TargetPosition( bodyThrowTarget ) - WorldPosition );
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		var from = clip.Animation.GetRootMotion( ReactionPhase );
+		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / clip.Duration );
+		ApplyRootMotion( from, clip.Animation.GetRootMotion( ReactionPhase ) );
+		if ( itemThrowTarget is not null && clip.WeaponRelease is { } release && ReactionPhase * clip.Duration >= release.Time )
+			ReleaseThrownItem( release.Left, true );
+		if ( ReactionPhase >= 1f )
+		{
+			bodyThrowTarget = null;
+			Stance = Ready;
+		}
 		return true;
 	}
 
@@ -77,9 +106,9 @@ public sealed partial class RabbitGuard
 				if ( count > 0 ) end = sum / count;
 			}
 		}
+		item.Throw( end, velocity, Animation.MoveVelocity, fullBody );
 		if ( item == LeftHandItem ) LeftHandItem = null;
 		else RightHandItem = null;
 		seekTime = 0f;
-		item.Throw( end, velocity, Animation.MoveVelocity, fullBody );
 	}
 }

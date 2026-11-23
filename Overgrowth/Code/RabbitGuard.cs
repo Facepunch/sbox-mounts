@@ -50,7 +50,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		else if ( plantedLegs && (Stance is not (Threat or Idle or Ready or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
-		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped )
+		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped && !IsThrowingItem )
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
@@ -171,7 +171,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();
-		if ( InThrow || UpdateDefense() ) return;
+		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 && !Sleeping )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
