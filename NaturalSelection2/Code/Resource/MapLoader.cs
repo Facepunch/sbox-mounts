@@ -329,6 +329,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			if ( model is null || model.IsError ) return;
 
 			var go = new GameObject( true, name ) { Parent = parent, WorldTransform = new Transform( Origin( entity ), Angles( entity ) ) };
+			go.Tags.Add( "map_protected" );
 			var renderer = go.AddComponent<SkinnedModelRenderer>();
 			renderer.Model = model;
 			renderer.UseAnimGraph = false;
@@ -418,6 +419,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	{
 		// PropDynamic.lua stores the editor scale but never applies it to the model.
 		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = new Transform( Origin( entity ), Angles( entity ) ) };
+		go.Tags.Add( "map_protected" );
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = false;
@@ -475,6 +477,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = transform, IsStatic = isStatic };
 		if ( isStatic ) go.Tags.Add( "world" );
+		if ( entity.Name == "prop_dynamic" ) go.Tags.Add( "map_protected" );
 		var renderer = go.AddComponent<ModelRenderer>();
 		renderer.Model = model;
 		if ( !shadows ) renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
