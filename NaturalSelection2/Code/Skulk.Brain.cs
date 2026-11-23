@@ -115,7 +115,7 @@ public sealed partial class Skulk
 	{
 		if ( repath > 0 ) return;
 		float scale = MapLoader.Scale;
-		if ( distance <= 5 * scale || distance >= 45 * scale ||
+		if ( distance >= 45 * scale ||
 			(!target.GetComponent<PlayerController>().IsValid() && !target.GetComponent<BaseNpc>().IsValid()) )
 		{
 			Pursue( target.WorldPosition );
@@ -123,7 +123,12 @@ public sealed partial class Skulk
 		}
 
 		var velocity = target.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
-		var lead = velocity.Length > 4 * scale ? velocity * 0.6f : Vector3.Zero;
+		var lead = velocity.Length > 4 * scale ? velocity * (0.6f * Math.Min( distance / scale, 1 )) : Vector3.Zero;
+		if ( distance <= 5 * scale )
+		{
+			Pursue( target.WorldPosition + lead );
+			return;
+		}
 		if ( nextJuke <= 0 )
 		{
 			jukeSide = -Math.Sign( jukeSide ) * Random.Shared.Float( 0.3f, 1 );

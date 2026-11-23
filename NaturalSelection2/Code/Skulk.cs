@@ -77,6 +77,7 @@ public sealed partial class Skulk : BaseNpc
 	[Property] public bool LeapUnlocked { get; set; } = true;
 	bool Biting { get; set; }
 	bool Leaping { get; set; }
+	bool secondaryHeld;
 	SkulkMovement mover;
 	TimeUntil leapEnds;
 	float energy = 100;
@@ -128,6 +129,8 @@ public sealed partial class Skulk : BaseNpc
 
 	protected override void Think()
 	{
+		bool wasHoldingSecondary = secondaryHeld;
+		secondaryHeld = false;
 		FiringParasite = false;
 		var target = FindEnemy();
 		Animation.SetLookTarget( target );
@@ -138,40 +141,40 @@ public sealed partial class Skulk : BaseNpc
 			return;
 		}
 
-		var direction = target.WorldPosition - WorldPosition;
+		var aimPoint = CalculateAimPoint( target );
+		bool mobile = target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid();
 		var contact = target.GetComponent<Rigidbody>() is { PhysicsBody.IsValid: true } body
 			? body.FindClosestPoint( EyePosition )
 			: target.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? target.WorldPosition;
 		var distance = EyePosition.Distance( contact );
-		if ( distance <= Reach )
+		if ( distance < 1.4f * MapLoader.Scale )
 		{
-			Movement.Stop();
-			if ( !direction.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction.WithZ( 0 ) );
-			Biting = !TryXenocide() && energy >= BiteEnergy && acquired <= 0;
+			if ( mobile ) ApproachEnemy( target, aimPoint, distance );
+			else Movement.Stop();
+			Biting = !(mobile && TryXenocide()) && energy >= BiteEnergy && (!mobile || acquired <= 0);
 			return;
 		}
 
 		Biting = false;
-		var aimPoint = CalculateAimPoint( target );
 		var aim = (aimPoint - EyePosition).Normal;
-		if ( Animation.IsGrounded && LeapUnlocked && !Leaping && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
-			&& (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid())
+		if ( mobile && LeapUnlocked && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f )
 		{
-			var velocity = Animation.MoveVelocity * 0.5f;
-			var forward = ViewRotation.Forward;
-			velocity += forward.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
-			velocity.z = (forward.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
-			Movement.Stop();
-			mover.Leap( velocity );
-			Leaping = true;
-			leapEnds = 0.2f;
-			energy -= LeapEnergy;
-			PlayVoice( "bite_alt" );
-			return;
+			secondaryHeld = true;
+			if ( !wasHoldingSecondary )
+			{
+				var velocity = GetComponent<Rigidbody>().Velocity * 0.5f;
+				var forward = ViewRotation.Forward;
+				velocity += forward.WithZ( 0 ).Normal * (7.6f * MapLoader.Scale);
+				velocity.z = (forward.z + 0.5f) * (10.8f * MapLoader.Scale) + Math.Min( 0, velocity.z );
+				mover.Leap( velocity );
+				Leaping = true;
+				leapEnds = 0.2f;
+				energy -= LeapEnergy;
+				PlayVoice( "bite_alt" );
+			}
 		}
-
-		if ( !xenociding ) TryParasite( aim );
+		else if ( !xenociding ) TryParasite( aim );
 		ApproachEnemy( target, aimPoint, distance );
 	}
 
