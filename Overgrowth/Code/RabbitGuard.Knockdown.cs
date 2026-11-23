@@ -258,14 +258,20 @@ public sealed partial class RabbitGuard
 	{
 		float Weight( Rigidbody rb )
 		{
-			var offset = rb.PhysicsBody.MassCenter - point;
+			var offset = rb.WorldPosition - point;
 			offset -= lineDirection * offset.Dot( lineDirection );
 			return rb.Mass / (offset.LengthSquared + 16f);
 		}
 		float total = ragdoll.Bodies.Where( b => b.Component.IsValid() ).Sum( b => Weight( b.Component ) );
-		if ( total <= 0 ) return;
+		if ( total <= 0 || CharacterLoader.FromModel( ragdoll.Model ) is not { } character ) return;
 		foreach ( var body in ragdoll.Bodies )
-			if ( body.Component.IsValid() ) body.Component.ApplyImpulse( impulse * (Weight( body.Component ) / total) );
+		{
+			var rb = body.Component;
+			if ( !rb.IsValid() ) continue;
+			// BulletObject passes the bone midpoint in body-local coordinates as Bullet's torque arm.
+			var lever = character.RagdollForceLever( body.Bone ) * rb.WorldScale;
+			rb.ApplyImpulseAt( rb.PhysicsBody.MassCenter + lever, impulse * (Weight( rb ) / total) );
+		}
 	}
 
 	bool TryGetUp( Vector3? blockFacing = null )
