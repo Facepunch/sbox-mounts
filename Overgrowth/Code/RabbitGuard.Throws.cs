@@ -4,6 +4,10 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	[ConVar( "overgrowth_tutorials", ConVarFlags.Replicated, Help = "Enable tutorial-specific behavior for Overgrowth characters." )]
+	public static bool Tutorials { get; set; } = true;
+	[Property] public bool ThrowTrainer { get; set; }
+	bool TrainingThrows => ThrowTrainer && Tutorials;
 	[Property, Range( 0f, 1f )] public float ThrowCounterProbability { get; set; } = 0.4f;
 	bool InThrow => Stance is "throw" or "thrown" or "thrown_counter";
 	bool wantsBlockThrow, willEscapeThrow;
@@ -110,6 +114,7 @@ public sealed partial class RabbitGuard
 		{
 			awaitingThrowImpact = true;
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
+			if ( KnockoutShield == 0 && TrainingThrows ) recoverableDamage = Math.Max( 0f, Health - 0.1f );
 			Stance = Threat;
 			ReactionPhase = 1f;
 			GoLimp();
@@ -143,6 +148,11 @@ public sealed partial class RabbitGuard
 		awaitingThrowImpact = false;
 		var damage = new BluntDamage { Damage = 25f, Position = point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
 		throwPartner = null;
+		if ( ThrowTrainer )
+		{
+			PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", WorldPosition );
+			PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_metal_hit_metal.xml", WorldPosition );
+		}
 		((IDamageable)this).OnDamage( damage );
 	}
 }

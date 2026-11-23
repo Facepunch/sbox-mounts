@@ -141,7 +141,7 @@ public sealed partial class RabbitGuard
 		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
 		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
 		if ( TryDodge( attacker, move ) ) return false;
-		bool active = activeBlock > 0f || boundAnimations.Species == "cat" && hitsOnGround > 0;
+		bool active = TrainingThrows || activeBlock > 0f || boundAnimations.Species == "cat" && hitsOnGround > 0;
 		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
 		if ( Downed || IsGetUp( Stance ) || RollProgress < 1f ) throwRecharge = Math.Max( (float)throwRecharge, 1f );
 		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
@@ -196,7 +196,7 @@ public sealed partial class RabbitGuard
 		if ( species == "rat" && other != "rat" ) cost += 0.5f;
 		bool sizeAdvantage = cost > 1f;
 		if ( strike is not null && incomingWeapon && blockingWeapon ) cost += 0.5f;
-		if ( move.Special == "legcannon" )
+		if ( move.Special == "legcannon" && !TrainingThrows )
 		{
 			blockHealth = 0f;
 			if ( species != "wolf" ) KnockoutShield = Math.Max( 0, KnockoutShield - 2 );
@@ -207,10 +207,12 @@ public sealed partial class RabbitGuard
 			}
 		}
 		blockHealth = Math.Max( wolfAdvantage && move.Special != "legcannon" ? 0.1f : 0f, blockHealth - blockDamage * cost );
-		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || blockHealth <= 0f ) return false;
+		bool guardBroken = blockHealth <= 0f;
+		if ( TrainingThrows ) blockHealth = 1f;
+		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || BloodLost >= MaxHealth || !IsOnGround || guardBroken ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 		bool canDefend = species == "dog" || (startled <= 0f && (strike is null || armedParry) && WorldRotation.Forward.Dot( direction ) <= 0f);
-		bool parried = WorldScale.z >= 0.8f && (wolfAdvantage || canDefend && (move.SharpMax <= 0f || armedParry));
+		bool parried = WorldScale.z >= 0.8f && (TrainingThrows || wolfAdvantage || canDefend && (move.SharpMax <= 0f || armedParry));
 		if ( !parried && (!incomingWeapon || attacker.boundAnimations.WeaponLabel != "spear") ) return false;
 		if ( parried && wolfAdvantage && blockStun <= 0f )
 		{

@@ -159,6 +159,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						navigation.StickToNavMesh = parameter.Attribute( "type" ) != "int" || parameter.Number( "val" ) != 0f;
 					if ( parameter.Attribute( "name" ) == "No Look Around" )
 						fighter.NoLookAround = parameter.Attribute( "type" ) != "int" || parameter.Number( "val" ) != 0f;
+					if ( parameter.Attribute( "name" ) == "Throw Trainer" )
+						fighter.ThrowTrainer = parameter.Attribute( "type" ) != "int" || parameter.Number( "val" ) != 0f;
 					if ( parameter.Number( "val" ) is not { } value ) continue;
 					switch ( parameter.Attribute( "name" ) )
 					{
