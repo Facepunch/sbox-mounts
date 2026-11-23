@@ -10,6 +10,7 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] float RollProgress { get; set; } = 1f;
 	[Sync] float RollForwardness { get; set; }
 	float rollAngle = 1f, previousRollProgress = 1f;
+	float rollIKFade;
 	Vector3? previousRollCenter;
 	float rollFallSpeed;
 	[Sync] bool RecoveringRoll { get; set; }
@@ -104,6 +105,8 @@ public sealed partial class RabbitGuard
 
 	void UpdateRollDisplay()
 	{
+		if ( Animation.IsGrounded && (Stance is Roll or Idle or Ready or Watch or Threat or Locomotion or PatrolIdle) )
+			rollIKFade = Math.Clamp( rollIKFade + (RollProgress < 0.8f ? 5f : -5f) * Time.Delta, 0f, 1f );
 		if ( Downed || RollDirection.IsNearlyZero() ) { displayingRoll = false; rollAngle = 1f; return; }
 		if ( RollProgress < 1f && (!displayingRoll || RollProgress < previousRollProgress) )
 		{

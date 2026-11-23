@@ -145,6 +145,7 @@ public sealed partial class RabbitGuard
 
 	void ApplyFootTarget( int side, Transform animated, Transform target, float weight, float authoredHeight )
 	{
+		weight *= 1f - rollIKFade;
 		var result = global::Transform.Lerp( animated, target, weight, false );
 		var original = result.Position;
 		bool contact = false;
