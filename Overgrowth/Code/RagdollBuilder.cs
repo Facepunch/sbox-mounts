@@ -174,7 +174,8 @@ static class RagdollBuilder
 			}
 			else if ( source.Type == 1 )
 			{
-				var x = (centers[source.A].Position - source.Anchor).Normal;
+				// AddAngleConstraints uses the display transform of the surviving body.
+				var x = (skeleton.BindPose[a].Position - source.Anchor).Normal;
 				var right = Vector3.Cross( x, new Vector3( 0.000003f, 0.0001f, 1.0001f ) ).Normal;
 				var up = Vector3.Cross( x, right ).Normal;
 				right = Vector3.Cross( x, up ).Normal;
@@ -198,8 +199,9 @@ static class RagdollBuilder
 					var limits = source.Limits;
 					float swing = Math.Max( Math.Max( Math.Abs( limits[2] ), Math.Abs( limits[3] ) ),
 						Math.Max( Math.Abs( limits[4] ), Math.Abs( limits[5] ) ) ) * Degrees;
-					builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB ).WithSwingLimit( swing )
-						.WithTwistLimit( Math.Min( limits[0], limits[1] ) * Degrees, Math.Max( limits[0], limits[1] ) * Degrees );
+					var joint = builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB ).WithSwingLimit( swing );
+					// Bullet's first Euler angle and the engine's twist have opposite signs.
+					if ( limits[0] <= limits[1] ) joint.WithTwistLimit( -limits[1] * Degrees, -limits[0] * Degrees );
 					angularJoints++;
 					break;
 				case 2:
