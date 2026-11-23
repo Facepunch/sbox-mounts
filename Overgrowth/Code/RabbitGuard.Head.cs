@@ -6,7 +6,11 @@ internal sealed record RabbitHead( Vector3 NeckRoot, float HeadHalfLength, Vecto
 
 public sealed partial class RabbitGuard
 {
-	Vector2 headAngles, headVelocity, headAcceleration;
+	record struct HeadSpring( Vector2 Angles, Vector2 Velocity, Vector2 Acceleration );
+	HeadSpring headSpring;
+	float headRemainder;
+	Rotation previousHeadBasis;
+	Vector2 previousHeadTarget;
 	Vector3 lastHeadFacing;
 	float lastHeadYaw, inheritedHeadYaw;
 
@@ -29,12 +33,8 @@ public sealed partial class RabbitGuard
 		float weight = headDirection == Vector3.Zero ? 0f : HeadLookWeight;
 		float pitch = Math.Clamp( MathF.Asin( Math.Clamp( look.z * weight, -1f, 1f ) ) - 0.2f, -0.8f, 0.8f );
 		var wanted = new Vector2( lastHeadYaw * weight + Random.Shared.Float( -0.001f, 0.001f ), pitch * weight + Random.Shared.Float( -0.001f, 0.001f ) );
-		var previous = basis.Inverse * lastHeadFacing;
-		if ( MathF.Abs( previous.Normal.z ) <= 0.9f ) inheritedHeadYaw = MathF.Atan2( previous.y, previous.x );
-		var offset = new Vector2( inheritedHeadYaw, MathF.Asin( Math.Clamp( previous.z, -1f, 1f ) ) );
-		AdvanceHeadSpring( wanted, offset * (1f - flipLookFade), IdleLookInertia, Time.Delta, !chestActive || secondaryReset > 0f );
-		lastHeadFacing = basis.Forward;
-		var turn = Rotation.FromAxis( basis.Up, headAngles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, headAngles.y.RadianToDegree() );
+		var angles = SampleHeadSpring( wanted, basis, IdleLookInertia, Time.Delta, !chestActive || secondaryReset > 0f );
+		var turn = Rotation.FromAxis( basis.Up, angles.x.RadianToDegree() ) * Rotation.FromAxis( basis.Right, angles.y.RadianToDegree() );
 		var half = Rotation.Slerp( Rotation.Identity, turn, 0.5f );
 		var pivot = neck.Position - neck.Rotation.Forward * boundAnimations.NeckHalfLength * WorldScale.z;
 
@@ -43,15 +43,48 @@ public sealed partial class RabbitGuard
 		DrawHead( chest, animatedHead, head, animatedNeck );
 	}
 
-	void AdvanceHeadSpring( Vector2 wanted, Vector2 offset, float idle, float dt, bool reset )
+	Vector2 SampleHeadSpring( Vector2 wanted, Rotation basis, float idle, float dt, bool reset )
 	{
+		const float tick = 4f / 120f;
 		if ( reset )
 		{
-			headAngles = wanted;
-			headAcceleration = headVelocity = default;
-			return;
+			headSpring = new( wanted, default, default );
+			lastHeadFacing = basis.Forward;
+			headRemainder = 0f;
 		}
-		float frames = dt * 120f;
+		else
+		{
+			float elapsed = headRemainder + dt;
+			for ( float time = tick - headRemainder; elapsed >= tick; time += tick, elapsed -= tick )
+			{
+				float t = time / dt;
+				var frame = Rotation.Slerp( previousHeadBasis, basis, t );
+				var offset = InheritedOffset( frame, ref inheritedHeadYaw );
+				headSpring = AdvanceHeadSpring( headSpring, Vector2.Lerp( previousHeadTarget, wanted, t ), offset, idle );
+				lastHeadFacing = frame.Forward;
+			}
+			headRemainder = elapsed;
+		}
+		previousHeadBasis = basis;
+		previousHeadTarget = wanted;
+		if ( headRemainder == 0f ) return headSpring.Angles;
+
+		float yaw = inheritedHeadYaw;
+		var preview = AdvanceHeadSpring( headSpring, wanted, InheritedOffset( basis, ref yaw ), idle );
+		return Vector2.Lerp( headSpring.Angles, preview.Angles, headRemainder / tick );
+	}
+
+	Vector2 InheritedOffset( Rotation basis, ref float yaw )
+	{
+		var previous = basis.Inverse * lastHeadFacing;
+		if ( MathF.Abs( previous.Normal.z ) <= 0.9f ) yaw = MathF.Atan2( previous.y, previous.x );
+		return new Vector2( yaw, MathF.Asin( Math.Clamp( previous.z, -1f, 1f ) ) ) * (1f - flipLookFade);
+	}
+
+	static HeadSpring AdvanceHeadSpring( HeadSpring state, Vector2 wanted, Vector2 offset, float idle )
+	{
+		const float frames = 4f, dt = frames / 120f;
+		var (headAngles, headVelocity, headAcceleration) = state;
 		headAcceleration *= MathF.Pow( 0.95f * idle, frames );
 		var desired = (wanted - headAngles) * (0.8f + 0.2f * idle);
 		headAcceleration = desired + (headAcceleration - desired) * MathF.Pow( 0.99f * idle, frames );
@@ -68,6 +101,7 @@ public sealed partial class RabbitGuard
 		}
 		headAngles.x = Advance( headAngles.x, headVelocity.x, wanted.x, offset.x );
 		headAngles.y = Advance( headAngles.y, headVelocity.y, wanted.y, offset.y );
+		return new( headAngles, headVelocity, headAcceleration );
 	}
 
 	void DrawRestingHead()
