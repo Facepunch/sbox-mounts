@@ -135,6 +135,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
 			if ( visible )
 			{
+				ObserveTarget( enemy, true );
 				lastSeen = TargetPosition( enemy );
 				knownCharacters[enemy] = CharacterCenter( enemy );
 				sinceEnemySeen = 0;
@@ -250,6 +251,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			startled = 1f;
 			Speak( "engage" );
 		}
+		ObserveTarget( target, true );
 		enemy = target;
 		knownCharacters[target] = CharacterCenter( target );
 		searchUntil = 0f;

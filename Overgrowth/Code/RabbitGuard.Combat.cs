@@ -158,17 +158,12 @@ public sealed partial class RabbitGuard
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
-		if ( !visible && distance < 40 )
+		bool investigating = !visible && sinceEnemySeen > 2f;
+		if ( investigating && distance < 40f )
 		{
-			if ( sinceEnemySeen >= 2f )
-			{
-				enemy = null;
-				BeginAreaSearch();
-				SearchArea();
-				return;
-			}
-			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
-			Stance = sinceEnemySeen < 2f ? Threat : Watch;
+			enemy = null;
+			BeginAreaSearch();
+			SearchArea();
 			return;
 		}
 
@@ -209,12 +204,12 @@ public sealed partial class RabbitGuard
 		if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			if ( visible )
+			if ( !investigating )
 			{
-				var intent = CombatApproach( destination, out var point );
+				var intent = CombatApproach( ChaseDestination( destination ), out var point );
 				if ( !intent.IsNearlyZero() )
 					Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed,
-						Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
+						visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
 				else Movement.Stop();
 			}
 			else Movement.MoveTo( destination, 0.45f * 40, GroundRunSpeed );
