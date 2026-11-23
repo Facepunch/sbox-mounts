@@ -46,7 +46,6 @@ public sealed partial class RabbitGuard
 	void UpdateAwareness()
 	{
 		if ( strike is not null ) return;
-		visible = false;
 		knownCharacters.RemoveWhere( other => !other.IsValid() );
 		foreach ( var (other, seen) in seenHostiles )
 			if ( !other.IsValid() || Time.Now - seen >= 1f ) seenHostiles.Remove( other );
@@ -71,7 +70,7 @@ public sealed partial class RabbitGuard
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
-			if ( !CanSeeCharacter( candidate, ally ) ) continue;
+			if ( candidate == enemy ? !visible : !CanSeeCharacter( candidate, ally ) ) continue;
 			if ( friendly )
 			{
 				knownCharacters.Add( candidate );
@@ -80,7 +79,6 @@ public sealed partial class RabbitGuard
 			}
 			seenHostiles[candidate] = Time.Now;
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f) * (concealed ? 0.3f : 1f);
-			if ( candidate == enemy ) visible = true;
 			if ( separation < nearest )
 			{
 				closest = candidate;

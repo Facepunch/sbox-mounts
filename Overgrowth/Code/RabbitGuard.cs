@@ -130,6 +130,16 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			enemySeen = 0;
 			Movement.Stop();
 		}
+		if ( CanAttack( enemy ) && !Sleeping )
+		{
+			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
+			if ( visible )
+			{
+				lastSeen = TargetPosition( enemy );
+				sinceEnemySeen = 0;
+				seenHostiles[enemy] = Time.Now;
+			}
+		}
 		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();
