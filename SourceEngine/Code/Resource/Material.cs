@@ -57,6 +57,7 @@ internal sealed partial class SourceMaterialBuilder
 			"eyes" or "eyerefract" => CreateEye( shaderName == "eyerefract", parameters, resourceName ),
 			"unlittwotexture" => CreateTwoTexture( parameters, transforms, animation, resourceName ),
 			"modulate" => CreateModulate( parameters, transforms, alpha, animation, resourceName ),
+			"shatteredglass" => CreateShatteredGlass( resourceName ),
 			"teeth" => CreateTeeth( parameters, resourceName ),
 			"refract" or "core" => CreateRefract( shaderName == "core", resourceName, screenOverlay: screenOverlay ),
 			"aftershock" => CreateRefract( false, resourceName, aftershock: true ),
@@ -72,6 +73,16 @@ internal sealed partial class SourceMaterialBuilder
 		material.Set( "g_bFogEnabled", !screenOverlay && !parameters.Boolean( "$nofog" ) );
 		material.Attributes.Set( "PhysicsSurfaceProperties", Host.GetSurfaceBindingName( parameters.String( "$surfaceprop", "default" ), FullPath ) );
 		UpdateProbeUsage( material );
+		return material;
+	}
+
+	private Material CreateShatteredGlass( string name )
+	{
+		var material = CreateShaderMaterial( "shaders/source1/shatteredglass.shader", name );
+		material.SetFeature( "F_TRANSLUCENT", 1 );
+		material.SetFeature( "F_RENDER_BACKFACES", 1 );
+		LoadSurfaceTexture( parameters.String( "$basetexture" ), 0, null ).Bind( material, "g_tColor" );
+		material.Set( "g_tEdge", Texture.White );
 		return material;
 	}
 

@@ -18,6 +18,9 @@ partial class MapLoader
 			{
 				switch ( component )
 				{
+					case SourceGlassPane pane:
+						pane.OnBreak = BuildOutput( entity, "OnBreak", true );
+						break;
 					case Door door:
 						door.OnOpen = BuildOutput( entity, "OnOpen", true );
 						door.OnClose = BuildOutput( entity, "OnClose", false );
@@ -35,6 +38,7 @@ partial class MapLoader
 						continue;
 					var supported = ioEntities.TryGetValue( entity, out var component ) && (component is Door
 						&& (key.Equals( "OnOpen", StringComparison.OrdinalIgnoreCase ) || key.Equals( "OnClose", StringComparison.OrdinalIgnoreCase ))
+						|| component is SourceGlassPane && key.Equals( "OnBreak", StringComparison.OrdinalIgnoreCase )
 						|| component is Button && key.Equals( "OnPressed", StringComparison.OrdinalIgnoreCase ));
 					if ( !supported )
 						warnings.Add( $"Entity '{entity.Get( "classname" )}' output '{key}' has no native component/Doo event; omitted." );
@@ -47,7 +51,7 @@ partial class MapLoader
 			foreach ( var (_, value) in source.KeyValues.Where( entry => entry.Key.Equals( output, StringComparison.OrdinalIgnoreCase ) ) )
 			{
 				var connection = BspEntityConnection.Read( output, value );
-				if ( connection.FireCount > 0 || connection.Parameter.Length > 0 )
+				if ( connection.FireCount > 0 || (connection.Parameter.Length > 0 && !connection.Input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )) )
 				{
 					warnings.Add( $"Output '{output}' to '{connection.Target}.{connection.Input}' requires a parameter or finite fire count not supported by native Doo events; omitted." );
 					continue;
@@ -57,7 +61,7 @@ partial class MapLoader
 					warnings.Add( $"Output '{output}' target '{connection.Target}' has no imported native receiver; omitted." );
 				foreach ( var target in targets )
 				{
-					var action = BuildInput( target, connection.Input, hasUser );
+					var action = BuildInput( target, connection.Input, hasUser, connection.Parameter );
 					if ( action is not null ) actions.Add( (connection.Delay, action) );
 					else warnings.Add( $"Input '{connection.Input}' on '{target.GetType().Name}' is not supported by the engine's public Doo methods; omitted." );
 				}
@@ -80,8 +84,22 @@ partial class MapLoader
 			return BspEntityConnection.ResolveTargets( source, name, ioEntities.Keys ).Select( entity => ioEntities[entity] );
 		}
 
-		private static Doo.Block BuildInput( Component target, string input, bool hasUser )
+		private static Doo.Block BuildInput( Component target, string input, bool hasUser, string parameter )
 		{
+			if ( target is SourceGlassPane )
+			{
+				var restore = input.Equals( "Restore", StringComparison.OrdinalIgnoreCase );
+				Vector3 area = default;
+				if ( !restore && !(input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase ) && Vector3.TryParse( parameter, out area )) )
+					return null;
+				return new Doo.InvokeBlock
+				{
+					InvokeType = Doo.InvokeType.Member,
+					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
+					Member = $"{typeof( SourceGlassPane ).FullName}.{(restore ? nameof( SourceGlassPane.Restore ) : nameof( SourceGlassPane.ShatterAt ))}",
+					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
+				};
+			}
 			if ( target is not Door ) return null;
 			var method = input.ToLowerInvariant() switch
 			{

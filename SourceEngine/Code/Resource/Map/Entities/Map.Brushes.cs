@@ -64,6 +64,52 @@ partial class MapLoader
 		private readonly Dictionary<int, Model> brushModels = [];
 		private readonly Dictionary<int, List<Model>> shadowBrushModels = [];
 		private GameObject brushParent;
+		// VBSP writes these four corners for the visible face, including oblique windows.
+		private bool TryBuildGlassPane( MapEntity entity, GameObject instance, BspModel model )
+		{
+			var lower = entity.Vector( "lowerleft" );
+			var across = entity.Vector( "lowerright" ) - lower;
+			var up = entity.Vector( "upperleft" ) - lower;
+			if ( entity.Integer( "error" ) != 0 || across.Length < 1 || up.Length < 1 )
+				return false;
+
+			var surface = new GameObject( false, "Glass pane" ) { Parent = instance };
+			surface.LocalPosition = lower + across * 0.5f - entity.Vector( "origin" );
+			surface.LocalRotation = Rotation.LookAt( Vector3.Cross( across, up ).Normal, up.Normal );
+			var pane = surface.AddComponent<SourceGlassPane>( false );
+			pane.Width = across.Length;
+			pane.Height = up.Length;
+			pane.Fragility = entity.Number( "fragility", 100 );
+			pane.IntactBrush = instance.GetComponent<ModelRenderer>();
+			pane.ContentMount = owner.Host.Ident;
+			for ( int i = model.FirstFace; i < model.FirstFace + model.FaceCount; i++ )
+			{
+				var tex = bsp.TexInfos[bsp.Faces[i].TexInfo];
+				if ( (tex.Flags & 0x80) != 0 ) continue;
+				var data = bsp.TexDatas[tex.TexData];
+				var path = VmtFile.NormalizePath( bsp.GetTexDataString( tex.TexData ), ".vmt" );
+				var resolved = owner.Host.GetContentPath( path, owner.ContentRoot )
+					?? owner.Host.GetContentPath( GetBaseMaterialPath( path[..^4] ) + ".vmt" );
+				if ( resolved is null ) continue;
+				var file = resolved[($"mount://{owner.Host.Ident}/").Length..];
+				var vmt = owner.Host.GetSourceMaterial( file ).Source;
+				if ( VmtFile.SelectParameters( vmt ).TryGetValue( "$crackmaterial", out var cracked )
+					&& owner.Host.GetContentPath( VmtFile.NormalizePath( cracked, ".vmt" ), owner.ContentRoot ) is { } crackPath )
+					pane.CrackMaterial = crackPath + ".vmat";
+				Vector2 UV( Vector3 position ) => new(
+					(Vector3.Dot( position, new Vector3( tex.TextureVecsS.x, tex.TextureVecsS.y, tex.TextureVecsS.z ) ) + tex.TextureVecsS.w) / Math.Max( 1, data.Width ),
+					(Vector3.Dot( position, new Vector3( tex.TextureVecsT.x, tex.TextureVecsT.y, tex.TextureVecsT.z ) ) + tex.TextureVecsT.w) / Math.Max( 1, data.Height ) );
+				pane.UvOrigin = UV( lower );
+				pane.UvAcross = UV( lower + across ) - pane.UvOrigin;
+				pane.UvUp = UV( lower + up ) - pane.UvOrigin;
+				break;
+			}
+			RegisterEntityIO( entity, pane );
+			pane.Enabled = true;
+			surface.Enabled = true;
+			return true;
+		}
+
 		public void BuildBrush( MapEntity entity, BrushEntityLoader loader )
 		{
 			var path = entity.Get( "model" );
@@ -98,6 +144,10 @@ partial class MapLoader
 				renderer.Tint = prop.Tint;
 				renderer.Enabled = visible;
 			}
+			if ( !skybox && className == "func_breakable_surf" && entity.Integer( "surfacetype" ) == 0
+				&& TryBuildGlassPane( entity, instance, bsp.Models[index] ) )
+				return;
+
 			var moving = !skybox && loader.AddInteraction( this, entity, instance, bsp.Models[index] );
 			instance.IsStatic = !moving;
 			if ( loader.IsSolid( entity ) )
