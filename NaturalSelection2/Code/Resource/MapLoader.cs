@@ -14,12 +14,23 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 	const float Scale = 40.0f;
 
+	readonly List<Model> renderModels = [];
+	readonly HashSet<PhysicsGroupDescription> physicsResources = [];
+
+	protected override void OnSceneUnloaded()
+	{
+		renderModels.Clear();
+		physicsResources.Clear();
+	}
+
 	protected override void BuildScene()
 	{
 		var bytes = Host.ReadAllBytes( FilePath );
 		var level = LevelFile.Read( bytes );
 
 		var root = new GameObject( true, System.IO.Path.GetFileNameWithoutExtension( FilePath ) );
+		// SceneLoader serializes the children of this temporary scene. Activate their physics and rendering on the real load.
+		root.Scene.Enabled = false;
 		root.Scene.NavMesh.IsEnabled = true;
 		root.Scene.NavMesh.GenerateLinks = true;
 
@@ -27,7 +38,11 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		postProcessing.AddComponent<PostProcessVolume>().SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Infinite };
 		postProcessing.AddComponent<Tonemapping>().Mode = Tonemapping.TonemappingMode.Linear;
 
-		BuildWorld( level, bytes, root );
+		var geometry = new StaticGeometry();
+		var world = new GameObject( true, "worldspawn" ) { Parent = root, IsStatic = true };
+		world.Tags.Add( "world" );
+		BuildWorld( level, bytes, world, geometry );
+		var staticProps = new Dictionary<string, ModelLoader.StaticProp>( StringComparer.OrdinalIgnoreCase );
 
 		var models = new Dictionary<string, Model>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var entity in level.Entities )
@@ -42,11 +57,14 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 					continue;
 			}
 
-			BuildEntity( entity, root, models );
+			BuildEntity( entity, root, models, geometry, staticProps );
 		}
+
+		geometry.Build( world, FilePath, renderModels );
+		AddPhysics( world, geometry.CreatePhysics( FilePath ) );
 	}
 
-	void BuildWorld( LevelFile level, byte[] bytes, GameObject parent )
+	void BuildWorld( LevelFile level, byte[] bytes, GameObject go, StaticGeometry geometry )
 	{
 		if ( level.WorldMesh.Length <= 0 )
 			return;
@@ -90,12 +108,13 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			faceHasNormal[tri.Face] = true;
 		}
 
-		var byMaterial = new Dictionary<(int Material, bool ShadowOnly), List<WorldVertex>>();
+		var byMaterial = new Dictionary<(int Material, bool ShadowOnly, Vector3Int Cell), List<WorldVertex>>();
 		var allVertices = new List<Vector3>();
-		var allIndices = new List<int>();
-		var traceVertices = new List<Vector3>();
-		var traceIndices = new List<int>();
+		var collisionVertex = new int[data.Positions.Length];
+		Array.Fill( collisionVertex, -1 );
+		var allIndices = new List<uint>();
 
+		var materials = new Dictionary<int, Material>();
 		foreach ( var tri in data.Triangles )
 		{
 			if ( (uint)tri.Face >= (uint)faceCount || !faceHasNormal[tri.Face] || !InRange( tri, data.Positions.Length ) )
@@ -109,10 +128,22 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				continue;
 
 			int matIndex = data.FaceMaterial[tri.Face];
-			var key = (matIndex, shadowOnly);
 			List<WorldVertex> list = null;
-			if ( !hidden && !byMaterial.TryGetValue( key, out list ) )
-				byMaterial[key] = list = new List<WorldVertex>();
+			if ( !hidden )
+			{
+				if ( !materials.TryGetValue( matIndex, out var material ) )
+					materials[matIndex] = material = ResolveMaterial( data.Materials, matIndex );
+
+				Vector3Int cell = default;
+				if ( !shadowOnly && !material.Flags.IsTranslucent )
+				{
+					var center = (data.Positions[tri.V0] + data.Positions[tri.V1] + data.Positions[tri.V2]) / 3f;
+					cell = StaticGeometry.Cell( ConvertPosition( center ) );
+				}
+				var key = (matIndex, shadowOnly, cell);
+				if ( !byMaterial.TryGetValue( key, out list ) )
+					byMaterial[key] = list = [];
+			}
 
 			var n = faceNormal[tri.Face];
 			var tangent = Swizzle( faceUAxis[tri.Face].Normal );
@@ -131,17 +162,15 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				var worldPos = Swizzle( pos ) * Scale;
 				list?.Add( new WorldVertex( worldPos, Swizzle( normal ), tangent, uv ) );
 
-				if ( Application.IsEditor && !hidden && !shadowOnly )
-				{
-					traceVertices.Add( worldPos );
-					traceIndices.Add( traceIndices.Count );
-				}
-
 				if ( !solid )
 					continue;
 
-				allVertices.Add( worldPos );
-				allIndices.Add( allIndices.Count );
+				if ( collisionVertex[index] < 0 )
+				{
+					collisionVertex[index] = allVertices.Count;
+					allVertices.Add( worldPos );
+				}
+				allIndices.Add( (uint)collisionVertex[index] );
 			}
 		}
 
@@ -151,6 +180,8 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var builder = Model.Builder.WithName( $"ns2_world_{System.IO.Path.GetFileNameWithoutExtension( FilePath )}" );
 		var shadowBuilder = Model.Builder.WithName( $"ns2_shadows_{System.IO.Path.GetFileNameWithoutExtension( FilePath )}" );
 
+		bool hasSurfaces = false;
+		bool hasBlockers = false;
 		foreach ( var (key, verts) in byMaterial )
 		{
 			if ( verts.Count == 0 )
@@ -160,48 +191,53 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			for ( int i = 0; i < verts.Count; i++ )
 				bounds = bounds.AddPoint( verts[i].position );
 
-			var material = ResolveMaterial( data.Materials, key.Material );
-			var mesh = new Mesh( material ) { Bounds = bounds };
-
+			var material = materials[key.Material];
 			var indices = new int[verts.Count];
 			for ( int i = 0; i < indices.Length; i++ ) indices[i] = i;
 
+			if ( !key.ShadowOnly && !material.Flags.IsTranslucent )
+			{
+				geometry.Add( new( material, verts.ToArray(), indices, bounds ), Transform.Zero, true );
+				continue;
+			}
+
+			hasBlockers |= key.ShadowOnly;
+			hasSurfaces |= !key.ShadowOnly;
+			var mesh = new Mesh( material ) { Bounds = bounds };
 			mesh.CreateVertexBuffer( verts.Count, verts );
 			mesh.CreateIndexBuffer( indices.Length, indices );
 			(key.ShadowOnly ? shadowBuilder : builder).AddMesh( mesh );
 		}
 
-		if ( allVertices.Count > 0 )
-			builder.AddCollisionMesh( allVertices, allIndices );
-
-		// trace mesh from render geometry so editor traces (selection etc.) hit what you see
-		if ( traceVertices.Count > 0 )
-			builder.AddTraceMesh( traceVertices, traceIndices );
-
-		bool hasVisibleGeometry = byMaterial.Keys.Any( key => !key.ShadowOnly );
-		bool hasWorldModel = hasVisibleGeometry || allVertices.Count > 0;
-		var model = hasWorldModel ? builder.Create() : null;
-		if ( hasWorldModel && model is null )
-			return;
-
-		var go = new GameObject( true, "worldspawn" ) { Parent = parent };
-		if ( hasVisibleGeometry )
-			go.AddComponent<ModelRenderer>().Model = model;
-
-		if ( allVertices.Count > 0 )
+		if ( hasSurfaces )
 		{
-			var collider = go.AddComponent<ModelCollider>();
-			collider.Model = model;
-			collider.Static = true;
+			var model = builder.Create();
+			renderModels.Add( model );
+			go.AddComponent<ModelRenderer>().Model = model;
 		}
 
-		if ( byMaterial.Keys.Any( key => key.ShadowOnly ) )
+		if ( allIndices.Count > 0 )
+			geometry.AddCollisionMesh( allVertices, allIndices );
+
+		if ( hasBlockers )
 		{
-			var shadows = new GameObject( true, "NS2 shadow blockers" ) { Parent = go };
+			var shadows = new GameObject( true, "NS2 shadow blockers" ) { Parent = go, IsStatic = true };
+			shadows.Tags.Add( "world" );
 			var renderer = shadows.AddComponent<ModelRenderer>();
 			renderer.Model = shadowBuilder.Create();
+			renderModels.Add( renderer.Model );
 			renderer.RenderType = ModelRenderer.ShadowRenderType.ShadowsOnly;
 		}
+	}
+
+	void AddPhysics( GameObject go, PhysicsGroupDescription physics )
+	{
+		if ( physics is null || physics.Parts.Count == 0 ) return;
+		physicsResources.Add( physics );
+		var collider = go.AddComponent<PhysicsCollider>( false );
+		collider.Physics = physics;
+		collider.Static = true;
+		collider.Enabled = true;
 	}
 
 	Material ResolveMaterial( string[] materials, int index )
@@ -228,7 +264,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		return new Vector3( 0f, inv2 * v.z, -inv2 * v.y );
 	}
 
-	void BuildEntity( LevelEntity entity, GameObject parent, Dictionary<string, Model> models )
+	void BuildEntity( LevelEntity entity, GameObject parent, Dictionary<string, Model> models, StaticGeometry geometry, Dictionary<string, ModelLoader.StaticProp> staticProps )
 	{
 		var name = entity.Name;
 
@@ -247,11 +283,24 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var modelPath = entity.Get( "model" ).AsString();
 		if ( !string.IsNullOrWhiteSpace( modelPath ) )
 		{
-			if ( !models.TryGetValue( modelPath, out var model ) )
-				models[modelPath] = model = LoadModel( modelPath );
+			if ( name == "prop_static" )
+			{
+				if ( !staticProps.TryGetValue( modelPath, out var prop ) )
+				{
+					var loader = Host.GetByPath( ModelPath( modelPath ) ) as ModelLoader;
+					staticProps[modelPath] = prop = loader?.StaticMapProp;
+					if ( prop?.Translucent is not null ) renderModels.Add( prop.Translucent );
+				}
+				if ( prop is not null )
+					BuildProp( entity, parent, prop.Translucent, null, geometry, prop );
+				return;
+			}
 
-			if ( model is not null )
-				BuildProp( entity, parent, model );
+			if ( !models.TryGetValue( modelPath, out var model ) )
+				models[modelPath] = model = Model.Load( ModelPath( modelPath ) );
+
+			if ( model is not null && !model.IsError )
+				BuildProp( entity, parent, model, model.Physics, geometry, null );
 		}
 		else if ( name.Equals( "skybox", StringComparison.OrdinalIgnoreCase ) )
 		{
@@ -290,27 +339,31 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		skybox.SkyIndirectLighting = false;
 	}
 
-	static void BuildProp( LevelEntity entity, GameObject parent, Model model )
+	void BuildProp( LevelEntity entity, GameObject parent, Model model, PhysicsGroupDescription physics, StaticGeometry geometry, ModelLoader.StaticProp prop )
 	{
-		var go = new GameObject( true, entity.Name )
+		bool isStatic = prop is not null;
+		bool collidable = !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool();
+		bool shadows = !entity.Has( "castsShadows" ) || entity.Get( "castsShadows" ).AsBool();
+		var transform = new Transform( Origin( entity ), Angles( entity ), ScaleOf( entity ) );
+		if ( isStatic )
 		{
-			Parent = parent,
-			WorldPosition = Origin( entity ),
-			WorldRotation = Angles( entity ),
-			WorldScale = ScaleOf( entity )
-		};
-
-		var renderer = go.AddComponent<ModelRenderer>();
-		renderer.Model = model;
-		if ( entity.Has( "castsShadows" ) && !entity.Get( "castsShadows" ).AsBool() )
-			renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
-
-		if ( !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool() )
-		{
-			var collider = go.AddComponent<ModelCollider>();
-			collider.Model = model;
-			collider.Static = true;
+			if ( collidable ) geometry.AddHulls( prop.Hulls, transform );
+			foreach ( var part in prop.Parts )
+				geometry.Add( part, transform, shadows );
 		}
+
+		if ( !collidable ) physics = null;
+		if ( model is null && physics is null ) return;
+
+		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = transform, IsStatic = isStatic };
+		if ( isStatic ) go.Tags.Add( "world" );
+		if ( model is not null )
+		{
+			var renderer = go.AddComponent<ModelRenderer>();
+			renderer.Model = model;
+			if ( !shadows ) renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
+		}
+		AddPhysics( go, physics );
 	}
 
 	// Spark attenuates point/spot lights as saturate( 1 - d/R )^2 (renderer/Lighting.hlsl,
@@ -401,14 +454,13 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		}
 	}
 
-	Model LoadModel( string path )
+	string ModelPath( string path )
 	{
 		path = path.Replace( '\\', '/' );
 		if ( !path.EndsWith( ".model", StringComparison.OrdinalIgnoreCase ) )
 			path += ".model";
 
-		var model = Model.Load( $"mount://{Host.Ident}/ns2/{path}.vmdl" );
-		return model is not null && !model.IsError ? model : null;
+		return $"mount://{Host.Ident}/ns2/{path}.vmdl";
 	}
 
 	static Vector3 Origin( LevelEntity entity )

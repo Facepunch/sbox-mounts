@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers.Binary;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -279,7 +279,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return Parse( stream );
 	}
 
-	private static ParsedModel Parse( Stream stream )
+	private static ParsedModel Parse( Stream stream, bool staticProp = false )
 	{
 		var r = new Reader( stream );
 		r.Check( 4 );
@@ -300,6 +300,12 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			long chunkEnd = r.Offset + chunkLen;
 			if ( chunkLen < 0 || chunkEnd > r.Length )
 				throw new InvalidDataException( $"NS2 model: chunk {chunkId} overruns file" );
+
+			if ( staticProp && chunkId is not (ChunkType.Vertices or ChunkType.Indices or ChunkType.FaceSets or ChunkType.Materials or ChunkType.Bones or ChunkType.Solids or ChunkType.CollisionReps or ChunkType.Joints) )
+			{
+				r.Skip( chunkLen );
+				continue;
+			}
 
 			switch ( chunkId )
 			{
@@ -944,68 +950,103 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
+	internal sealed record StaticProp( StaticGeometry.Part[] Parts, Model Translucent, Vector3[][] Hulls );
+
+	// Map loading can reuse the same decoded prop across levels, like the normal model loader.
+	internal StaticProp StaticMapProp => field ??= ReadStaticProp();
+
+	private StaticProp ReadStaticProp()
+	{
+		using var stream = Host.FileSystem.OpenRead( FullPath );
+		var model = Parse( stream, staticProp: true );
+		var parts = new List<StaticGeometry.Part>();
+		ModelBuilder translucent = null;
+
+		foreach ( var (_, material, vertices, indices, bounds) in MeshParts( model ) )
+		{
+			var data = Array.ConvertAll( vertices, v => new WorldVertex( v.position, v.normal, v.tangent, v.texcoord ) { color = v.color } );
+			if ( !material.Flags.IsTranslucent )
+			{
+				parts.Add( new( material, data, indices, bounds ) );
+				continue;
+			}
+
+			translucent ??= Model.Builder.WithName( $"{FullPath}/translucent" );
+			var mesh = new Mesh( material ) { Bounds = bounds };
+			mesh.CreateVertexBuffer( data.Length, data );
+			mesh.CreateIndexBuffer( indices.Length, indices );
+			translucent.AddMesh( mesh );
+		}
+
+		// Simplify in model space once so repeated placements use the same convex surface.
+		var hulls = StaticHulls( model );
+		return new( parts.ToArray(), translucent?.Create(), hulls );
+	}
+
+	private Vector3[][] StaticHulls( ParsedModel model )
+	{
+		if ( model.CollisionRepBodyCount <= 0 || model.Solids.Length == 0 ) return [];
+		var body = new PhysicsBodyBuilder();
+		foreach ( var (_, points) in CollisionHulls( model ) )
+			body.AddHull( points, Transform.Zero, HullSimplification );
+
+		var physics = PhysicsGroupDescription.Create( $"{FullPath}/hulls.vphys", [body] );
+		return physics.Parts.SelectMany( part => part.Hulls ).Select( hull => hull.GetPoints().ToArray() ).ToArray();
+	}
+
+	private IEnumerable<(FaceSet Set, Material Material, SkinnedVertex[] Vertices, int[] Indices, BBox Bounds)> MeshParts( ParsedModel model )
+	{
+		var remap = new int[model.Vertices.Length];
+		Array.Fill( remap, -1 );
+		foreach ( var set in model.FaceSets )
+		{
+			if ( set.NumFaces == 0 ) continue;
+			var vertices = new List<SkinnedVertex>();
+			var indices = new int[set.NumFaces * 3];
+			var bounds = new BBox { Mins = float.MaxValue, Maxs = float.MinValue };
+			int first = set.FirstFace * 3;
+			for ( int i = 0; i < indices.Length; i++ )
+			{
+				int index = model.Indices[first + i];
+				if ( remap[index] < 0 )
+				{
+					var v = model.Vertices[index];
+					remap[index] = vertices.Count;
+					vertices.Add( v );
+					bounds = bounds.AddPoint( v.position );
+				}
+				indices[i] = remap[index];
+			}
+
+			for ( int i = 0; i < indices.Length; i++ )
+				remap[model.Indices[first + i]] = -1;
+
+			var name = (uint)set.MaterialIndex < (uint)model.Materials.Length ? model.Materials[set.MaterialIndex] : null;
+			yield return (set, ResolveMaterial( name ), vertices.ToArray(), indices, bounds);
+		}
+	}
+
 	private void BuildMeshes( ModelBuilder builder, ParsedModel model )
 	{
-		var vertices = model.Vertices;
-		var indices = model.Indices;
-		var marker = new byte[vertices.Length];
-		var remap = new int[vertices.Length];
-
-		foreach ( var faceSet in model.FaceSets )
+		foreach ( var (set, material, vertices, indices, bounds) in MeshParts( model ) )
 		{
-			Array.Clear( marker, 0, marker.Length );
-
-			var submeshIndices = indices.AsSpan( faceSet.FirstFace * 3, faceSet.NumFaces * 3 );
-			var uniqueIndices = new int[submeshIndices.Length];
-			var uniqueCount = 0;
-			for ( int i = 0; i < submeshIndices.Length; i++ )
+			var palette = set.BonePalette;
+			for ( int i = 0; i < vertices.Length; i++ )
 			{
-				var idx = submeshIndices[i];
-				if ( marker[idx] == 0 )
-				{
-					marker[idx] = 1;
-					uniqueIndices[uniqueCount++] = idx;
-				}
+				var b = vertices[i].blendIndices;
+				vertices[i].blendIndices = new Color32(
+					(byte)(b.r < palette.Length ? palette[b.r] : 255),
+					(byte)(b.g < palette.Length ? palette[b.g] : 255),
+					(byte)(b.b < palette.Length ? palette[b.b] : 255),
+					(byte)(b.a < palette.Length ? palette[b.a] : 255) );
 			}
-
-			for ( int i = 0; i < uniqueCount; i++ ) remap[uniqueIndices[i]] = i;
-
-			var palette = faceSet.BonePalette;
-			var bounds = new BBox { Mins = float.MaxValue, Maxs = float.MinValue };
-			var subVertices = new SkinnedVertex[uniqueCount];
-			for ( int i = 0; i < uniqueCount; i++ )
-			{
-				var v = vertices[uniqueIndices[i]];
-				v.blendIndices = new Color32(
-					(byte)(v.blendIndices.r < palette.Length ? palette[v.blendIndices.r] : 255),
-					(byte)(v.blendIndices.g < palette.Length ? palette[v.blendIndices.g] : 255),
-					(byte)(v.blendIndices.b < palette.Length ? palette[v.blendIndices.b] : 255),
-					(byte)(v.blendIndices.a < palette.Length ? palette[v.blendIndices.a] : 255)
-				);
-				subVertices[i] = v;
-				bounds = bounds.AddPoint( v.position );
-			}
-
-			var remappedIndices = new int[submeshIndices.Length];
-			for ( int i = 0; i < submeshIndices.Length; i++ ) remappedIndices[i] = remap[submeshIndices[i]];
-
-			var materialName = faceSet.MaterialIndex >= 0 && faceSet.MaterialIndex < model.Materials.Length
-				? model.Materials[faceSet.MaterialIndex] : null;
-			var mesh = new Mesh( ResolveMaterial( materialName ) )
-			{
-				Bounds = bounds
-			};
-			mesh.CreateVertexBuffer( subVertices.Length, subVertices );
-			mesh.CreateIndexBuffer( remappedIndices.Length, remappedIndices );
+			var mesh = new Mesh( material ) { Bounds = bounds };
+			mesh.CreateVertexBuffer( vertices.Length, vertices );
+			mesh.CreateIndexBuffer( indices.Length, indices );
 			builder.AddMesh( mesh );
 		}
 	}
 
-	// Material names include their .material extension and are relative to the
-	// game root, so they need the ns2/ content folder prefixing - except for the
-	// handful that already carry it. A few models reference materials that were
-	// never shipped, so ask the mount whether it registered one before asking
-	// the engine to load it.
 	private Material ResolveMaterial( string name )
 	{
 		if ( string.IsNullOrWhiteSpace( name ) )
@@ -1017,59 +1058,50 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return Host.GetByPath( path ) is null ? DefaultMaterial : Material.Load( path );
 	}
 
-	private static void BuildPhysics( ModelBuilder builder, ParsedModel model )
+	private static readonly PhysicsBodyBuilder.HullSimplify HullSimplification = new()
 	{
-		if ( model.CollisionRepBodyCount <= 0 || model.Solids.Length == 0 )
-			return;
+		AngleTolerance = 0.1f,
+		DistanceTolerance = 0.1f,
+		Method = PhysicsBodyBuilder.SimplifyMethod.QEM
+	};
 
-		var bodyMap = new Dictionary<int, int>();
-		var builders = new Dictionary<int, (PhysicsBodyBuilder Builder, int Index)>();
-
-		int builderIndex = 0;
-		int bodyCount = Math.Min( model.CollisionRepBodyCount, model.Solids.Length );
-
-		for ( int i = 0; i < bodyCount; i++ )
+	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model )
+	{
+		int count = Math.Min( model.CollisionRepBodyCount, model.Solids.Length );
+		for ( int i = 0; i < count; i++ )
 		{
 			var solid = model.Solids[i];
-			var boneIndex = solid.BoneIndex;
-			var points = solid.Points.ToArray();
+			var bone = (uint)solid.BoneIndex < (uint)model.Bones.Length ? solid.BoneIndex : -1;
 			var transform = solid.Transform;
-
-			if ( boneIndex >= model.Bones.Length )
-				boneIndex = -1;
-
-			if ( model.Joints.Length == 0 )
+			if ( model.Joints.Length == 0 && bone >= 0 )
 			{
-				if ( boneIndex >= 0 )
-					transform = model.Bones[boneIndex].Transform.ToWorld( transform );
-
-				boneIndex = -1;
+				transform = model.Bones[bone].Transform.ToWorld( transform );
+				bone = -1;
 			}
+			yield return (bone, Array.ConvertAll( solid.Points, p => transform.PointToWorld( p ) ));
+		}
+	}
 
-			if ( !builders.TryGetValue( boneIndex, out var body ) )
+	private static void BuildPhysics( ModelBuilder builder, ParsedModel model )
+	{
+		var bodyMap = new List<int>();
+		var bodies = new Dictionary<int, (PhysicsBodyBuilder Builder, int Index)>();
+		foreach ( var (bone, points) in CollisionHulls( model ) )
+		{
+			if ( !bodies.TryGetValue( bone, out var body ) )
 			{
-				body = (builder.AddBody(), builderIndex++);
-				builders[boneIndex] = body;
+				body = (builder.AddBody( boneName: bone >= 0 ? model.Bones[bone].Name : "" ), bodies.Count);
+				bodies.Add( bone, body );
 			}
-
-			for ( int v = 0; v < points.Length; v++ )
-				points[v] = transform.PointToWorld( points[v] );
-
-			bodyMap[i] = body.Index;
-
-			body.Builder.BoneName = boneIndex >= 0 ? model.Bones[boneIndex].Name : "";
-			body.Builder.AddHull( points, Transform.Zero, new PhysicsBodyBuilder.HullSimplify
-			{
-				AngleTolerance = 0.1f,
-				DistanceTolerance = 0.1f,
-				Method = PhysicsBodyBuilder.SimplifyMethod.QEM
-			} );
+			body.Builder.AddHull( points, Transform.Zero, HullSimplification );
+			bodyMap.Add( body.Index );
 		}
 
 		foreach ( var joint in model.Joints )
 		{
-			if ( !bodyMap.TryGetValue( joint.Body0, out var body0 ) ) continue;
-			if ( !bodyMap.TryGetValue( joint.Body1, out var body1 ) ) continue;
+			if ( (uint)joint.Body0 >= (uint)bodyMap.Count || (uint)joint.Body1 >= (uint)bodyMap.Count ) continue;
+			var body0 = bodyMap[joint.Body0];
+			var body1 = bodyMap[joint.Body1];
 
 			if ( body0 == body1 )
 				continue;
