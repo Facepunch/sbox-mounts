@@ -52,7 +52,7 @@ public sealed partial class RabbitGuard
 			Movement.Stop();
 			var direction = (point - WorldPosition).WithZ( 0f );
 			if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
-			inspectUntil = Random.Shared.Float( 2f, 4f );
+			inspectUntil = Random.Shared.Float( 2f, 4f ) * (1f - 0.5f * GameDifficulty);
 			Stance = Watch;
 		}
 		else

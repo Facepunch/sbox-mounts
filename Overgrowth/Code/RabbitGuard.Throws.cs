@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 		var entry = victim.boundAnimations.Clips["thrown"].ForSide( MirroredAction ).Animation.GetRootMotion( 0f );
 		victim.alignmentOffset = WorldRotation * (entry.Position * victim.WorldScale) - facing;
 		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
-		victim.willEscapeThrow = Random.Shared.Float() < victim.ThrowCounterProbability;
+		victim.willEscapeThrow = Random.Shared.Float() < victim.ThrowCounterProbability * GameDifficulty * GameDifficulty;
 		victim.stunnedBy = null;
 		Speak( "attack" );
 		return true;

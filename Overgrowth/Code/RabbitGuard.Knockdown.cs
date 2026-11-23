@@ -82,7 +82,7 @@ public sealed partial class RabbitGuard
 	{
 		sinceKnockdown = 0;
 		displayingRoll = false;
-		rollDelay = Random.Shared.Float( 0.1f, 1f );
+		rollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
 		RollProgress = 1f;
 		EndGetUpBlend();
 		// Older saved instances predate the explicit prefab reference.

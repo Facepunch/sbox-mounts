@@ -4,6 +4,10 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	[ConVar( "overgrowth_difficulty", ConVarFlags.Replicated, Help = "Overgrowth AI difficulty from 0 (easiest) to 1 (original)." )]
+	public static float Difficulty { get; set; } = 1f;
+	static float GameDifficulty => Math.Clamp( Difficulty, 0f, 1f );
+
 	enum CombatTactic { Rush, Wait, Defend, Provoke }
 	[Property, Range( 0f, 1f )] public float Aggression { get; set; } = 0.5f;
 	[Property, Range( 0f, 1f )] public float GroundAggression { get; set; } = 0.5f;
@@ -35,7 +39,7 @@ public sealed partial class RabbitGuard
 
 	bool RespondToAirborneTarget( float distance )
 	{
-		bool airborne = boundAnimations.Species != "wolf" && enemy.GetComponent<RabbitGuard>() is not { Downed: true } && TargetIsAirborne( enemy );
+		bool airborne = (GameDifficulty > 0.25f || (followerCount == 0 && !groupLeader.IsValid())) && boundAnimations.Species != "wolf" && enemy.GetComponent<RabbitGuard>() is not { Downed: true } && TargetIsAirborne( enemy );
 		if ( !airborne )
 		{
 			if ( airResponse != AirResponse.None ) nextTactic = 0f;
@@ -46,8 +50,9 @@ public sealed partial class RabbitGuard
 		if ( airborneOpponent != enemy )
 		{
 			airborneOpponent = enemy;
-			airResponse = Random.Shared.Float() < BlockSkill ? AirResponse.Evade :
-				Random.Shared.Float() < Aggression ? AirResponse.Counter : AirResponse.Hold;
+			float skill = 1f - 0.9f * MathF.Pow( 1f - GameDifficulty, 2f );
+			airResponse = Random.Shared.Float() < BlockSkill * skill ? AirResponse.Evade :
+				Random.Shared.Float() < Aggression * skill ? AirResponse.Counter : AirResponse.Hold;
 			rangeChanged = true;
 		}
 		if ( airResponse == AirResponse.Counter ) preferredRange = 0f;
@@ -77,9 +82,10 @@ public sealed partial class RabbitGuard
 		if ( RespondToAirborneTarget( distance ) ) return;
 		if ( nextTactic <= 0 )
 		{
-			nextTactic = Random.Shared.Float( 0.35f, 1.25f );
+			nextTactic = GameDifficulty >= 0.25f ? Random.Shared.Float( 0.35f, 1.25f ) : 0f;
 			var next = CombatTactic.Defend;
-			if ( Random.Shared.Float() < Aggression + (!groupLeader.IsValid() && followerCount > 0 ? 0.125f : 0f) )
+			if ( GameDifficulty < 0.25f || boundAnimations.Species == "wolf" ) next = CombatTactic.Rush;
+			else if ( Random.Shared.Float() < Aggression + (!groupLeader.IsValid() && followerCount > 0 ? 0.125f : 0f) )
 				next = Random.Shared.Float() > 0.5f ? CombatTactic.Wait : CombatTactic.Rush;
 
 			// PickAttackSubGoal commits to one ground-punish decision until the next attack
@@ -87,7 +93,7 @@ public sealed partial class RabbitGuard
 			if ( enemy.GetComponent<RabbitGuard>() is { Downed: true } )
 			{
 				sinceTargetDown = 0;
-				punishGroundedTarget ??= Random.Shared.Float() < GroundAggression;
+				punishGroundedTarget ??= Random.Shared.Float() < GroundAggression * GameDifficulty;
 			}
 			else if ( sinceTargetDown > 0.8f ) punishGroundedTarget = null;
 			if ( distance > 4f * 40f || (next == CombatTactic.Rush && punishGroundedTarget == false)

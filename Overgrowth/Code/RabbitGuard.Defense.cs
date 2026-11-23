@@ -93,6 +93,7 @@ public sealed partial class RabbitGuard
 				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration / opponent.AttackSpeed;
 				float chance = 1f - MathF.Pow( 1f - BlockSkill, power );
 				if ( groupLeader.IsValid() ) chance *= 0.5f;
+				chance *= 0.1f + 0.9f * GameDifficulty * GameDifficulty;
 				if ( Random.Shared.Float() > chance ) blockDelay += 0.4f;
 			}
 		}
