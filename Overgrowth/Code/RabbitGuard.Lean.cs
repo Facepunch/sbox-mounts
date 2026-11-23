@@ -50,13 +50,8 @@ public sealed partial class RabbitGuard
 			rotation = Rotation.FromAxis( (parent.Inverse * Vector3.Up.Cross( tilt )).Normal, tilt.Length );
 		if ( Animation.IsGrounded && Renderer.Animation.Debug.TryGetFloatChannel( "status", "groundconform", out float conform ) && conform > 0f )
 		{
-			var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
-				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-			if ( floor.Hit && !floor.StartedSolid )
-			{
-				var slope = Rotation.FromToRotation( parent.Inverse * Vector3.Up, parent.Inverse * floor.Normal );
-				rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
-			}
+			var slope = Rotation.FromToRotation( parent.Inverse * Vector3.Up, parent.Inverse * FloorNormal() );
+			rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
 		}
 		if ( displayingRoll )
 			rotation = Rotation.FromAxis( parent.Inverse * Vector3.Up.Cross( RollDirection ), (rollAngle * 6.2832f).RadianToDegree() ) * rotation;

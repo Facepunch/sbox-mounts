@@ -4,6 +4,15 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	Vector3 runGroundNormal;
+
+	Vector3 FloorNormal()
+	{
+		var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+		return floor.Hit && !floor.StartedSolid ? floor.Normal : Vector3.Up;
+	}
+
 	// UpdateGroundMovementControls adds acceleration before ApplyPhysics damps the body.
 	// Give the crowd the speed reachable in its next step so it can still steer around actors and walls.
 	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step )
@@ -13,15 +22,22 @@ public sealed partial class RabbitGuard
 		var velocity = agent.Velocity.WithZ( 0f );
 		float speed = velocity.Length;
 		float run = GroundRunSpeed;
-		float limit = Math.Clamp( speed * 0.98f, run, run * 1.5f );
+		var direction = (agent.GetLookAhead( 40f ) - agent.AgentPosition).WithZ( 0f ).Normal;
+		var ground = FloorNormal();
+		runGroundNormal = runGroundNormal.IsNearlyZero() || speed < 0.01f ? ground
+			: Vector3.Lerp( ground, runGroundNormal, MathF.Pow( 0.9f, step / tick ) ).Normal;
+		var left = runGroundNormal.Cross( Vector3.Forward ).Normal;
+		var tangent = left * direction.y + left.Cross( runGroundNormal ) * direction.x;
+		float input = requested / run;
+		float slopeLimit = run * (1f - 0.7f * Math.Clamp( tangent.z * input, -1f, 1f ));
+		float limit = Math.Min( run * 1.5f, Math.Max( agent.Velocity.Length * 0.98f, slopeLimit ) );
 		bool wolf = boundAnimations?.Species == "wolf";
 		if ( wolf ) limit *= 1.5f;
 		float friction = acceleration / limit;
 		float crouch = 1f - duckAmount * (boundAnimations?.Species == "cat" ? 0.25f : 0.5f);
 		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
-		float terminal = requested / run * drive * tick / (MathF.Exp( friction * tick ) - 1f);
+		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (MathF.Exp( friction * tick ) - 1f);
 		float response = 1f - MathF.Exp( -friction * step );
-		var direction = (agent.GetLookAhead( 40f ) - agent.AgentPosition).WithZ( 0f ).Normal;
 		agent.MaxSpeed = speed + (terminal - speed) * response;
 		// Reversing input both brakes the old motion and accelerates toward the new route.
 		agent.Acceleration = Math.Max( acceleration, (direction * terminal - velocity).Length * (response / step) );
