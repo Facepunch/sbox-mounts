@@ -436,7 +436,7 @@ public sealed partial class RabbitGuard
 		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
 		if ( rabbit.IsValid() && boundAnimations.Species == "wolf" ) rabbit.Stab( position, offset.Normal, true );
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware, sharp );
-		if ( wasUnaware && rabbit.boundAnimations?.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
+		if ( !parried && wasUnaware && rabbit.boundAnimations?.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
 			rabbit.ReceiveSurpriseSwordHit();
 		var direction = offset.Normal;
 		if ( sharp > 0f )
