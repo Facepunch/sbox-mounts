@@ -7,6 +7,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
 	internal RabbitRetarget RollRig { get; private init; }
+	internal RabbitTorso Torso { get; private init; }
+	internal string[] TailBones { get; private init; }
 	internal RabbitMovement RollMovement { get; private init; }
 	internal RabbitMovement AirMovement { get; private init; }
 	internal RabbitRetarget AirRig { get; private init; }
@@ -337,18 +339,16 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var weighted = skeleton.AnimationWeightedBones ?? skeleton.GetWeightedBones();
 		var unweighted = Enumerable.Range( 0, weighted.Length ).Where( i => !weighted[i] ).Select( i => $"bone_{i}" ).ToHashSet();
 		var parents = skeleton.AnimationParents;
-		var rollBones = new HashSet<string>();
-		foreach ( var key in new[] { "left_leg", "right_leg", "torso", "head", "leftarm", "rightarm" } )
+		IEnumerable<string> ChainBones( string label )
 		{
-			var chain = skeleton.IKBones[key];
-			for ( int i = 0, b = chain.BoneId; i < chain.ChainLength && b >= 0; i++, b = parents[b] ) rollBones.Add( $"bone_{b}" );
+			if ( !skeleton.IKBones.TryGetValue( label, out var chain ) ) yield break;
+			for ( int i = 0, b = chain.BoneId; i < chain.ChainLength && b >= 0; i++, b = parents[b] ) yield return $"bone_{b}";
 		}
+		var rollBones = new[] { "left_leg", "right_leg", "torso", "head", "leftarm", "rightarm" }.SelectMany( ChainBones ).ToHashSet();
 		var torso = skeleton.IKBones["torso"];
-		var torsoBones = new List<string>();
-		for ( int i = 0, bone = torso.BoneId; i < torso.ChainLength && bone >= 0; i++, bone = parents[bone] )
-			torsoBones.Add( $"bone_{bone}" );
+		var torsoBones = ChainBones( "torso" ).ToArray();
 		int hip = torso.BoneId;
-		for ( int i = 1; i < torsoBones.Count; i++ ) hip = parents[hip];
+		for ( int i = 1; i < torsoBones.Length; i++ ) hip = parents[hip];
 		float HalfLength( int bone )
 		{
 			var (a, b) = skeleton.Bones[bone];
@@ -449,8 +449,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
-		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones.ToArray(), [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
+		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones, [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
+			Torso = new( skeleton.BindPose[hip], skeleton.BindPose[parents[torso.BoneId]], chestBind, HalfLength( parents[torso.BoneId] ), HalfLength( torso.BoneId ) ),
+			TailBones = ChainBones( "tail" ).ToArray(),
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ), FallLayer( "r_writhe" ) ),
 			RollBones = rollBones,
 			RollMovement = roll,

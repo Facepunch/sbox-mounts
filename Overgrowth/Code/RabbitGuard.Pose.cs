@@ -11,6 +11,8 @@ public sealed partial class RabbitGuard
 	internal Transform? SolvedBodyTransform( int bone ) => motionSamples > 0 && currentMotionPose is not null ? currentMotionRoot.ToWorld( currentMotionPose[bone] ) : null;
 	bool[] overridden;
 	int[] poseParents, recoveryParents;
+	(int Hip, int Abdomen, int Chest) torsoIndices;
+	int[] tailIndices;
 
 	Transform[] gaitPose, originalGaitPose;
 	int[] rigIndices;
@@ -96,10 +98,14 @@ public sealed partial class RabbitGuard
 
 	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null || tailIndices is null )
 		{
 			poseModel = Renderer.Model;
-			pelvisBind = poseModel.GetBoneTransform( poseModel.Bones.GetBone( boundAnimations.TorsoBones[^1] ).Index );
+			var torso = boundAnimations.TorsoBones;
+			int BoneIndex( string name ) => poseModel.Bones.GetBone( name ).Index;
+			torsoIndices = (BoneIndex( torso[^1] ), BoneIndex( torso[1] ), BoneIndex( torso[0] ));
+			tailIndices = boundAnimations.TailBones.Select( BoneIndex ).ToArray();
+			pelvisBind = poseModel.GetBoneTransform( torsoIndices.Hip );
 			hipSockets = new Vector3[2];
 			for ( int i = 0; i < hipSockets.Length; i++ )
 			{
@@ -157,6 +163,11 @@ public sealed partial class RabbitGuard
 			}
 			overridden[i] = false;
 		}
+		var (hip, abdomen, chest) = torsoIndices;
+		solvedPose[abdomen] = boundAnimations.Torso.Abdomen( solvedPose[hip], solvedPose[chest] );
+		solvedPose[hip] = RabbitTorso.Hip( animationPose[hip], solvedPose[hip] );
+		foreach ( int tail in tailIndices )
+			solvedPose[tail] = solvedPose[hip].ToWorld( animationPose[hip].ToLocal( animationPose[tail] ) );
 		if ( recoveryRate > 0f )
 			BlendRecoveryPose( Networking.IsHost && RecoveringRoll && RollProgress < 1f ? rollVelocity : Animation.MoveVelocity );
 		// Binding a graph leaves the bind pose visible until its first evaluation.

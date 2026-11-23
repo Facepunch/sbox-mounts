@@ -2,6 +2,29 @@ using System;
 
 namespace Overgrowth;
 
+// CDrawBodyImpl joins the hip and chest keys at the stomach and ribs.
+internal sealed class RabbitTorso( Transform hipBind, Transform abdomenBind, Transform chestBind, float abdomenHalf, float chestHalf )
+{
+	readonly Vector3 stomachOnHip = hipBind.PointToLocal( abdomenBind.Position - abdomenBind.Rotation.Forward * abdomenHalf );
+
+	internal Transform Abdomen( Transform hip, Transform chest )
+	{
+		var stomach = hip.PointToWorld( stomachOnHip );
+		var ribs = chest.Position - chest.Rotation.Forward * chestHalf;
+		var hipKey = hip.Rotation * hipBind.Rotation.Inverse;
+		var chestKey = chest.Rotation * chestBind.Rotation.Inverse;
+		var rotation = Rotation.Slerp( hipKey, chestKey, 0.5f ) * abdomenBind.Rotation;
+		return new( (stomach + ribs) * 0.5f, Rotation.FromToRotation( rotation.Forward, (ribs - stomach).Normal ) * rotation );
+	}
+
+	// The hip aims along its solved axis while retaining the twist from the clip.
+	internal static Transform Hip( Transform animated, Transform key )
+	{
+		var turn = Rotation.FromToRotation( animated.Rotation.Forward, key.Rotation.Forward );
+		return key.WithRotation( turn * animated.Rotation );
+	}
+}
+
 public sealed partial class RabbitGuard
 {
 	[Sync] Vector3? GazeTarget { get; set; }
