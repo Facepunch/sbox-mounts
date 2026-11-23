@@ -49,11 +49,14 @@ public sealed partial class RabbitGuard
 	bool UpdateDefense()
 	{
 		// WantsToCrouch is held while checking a body, including the approach settling to a stop.
-		if ( strike is null && (ReactionPhase >= 1f || IsGetUp( Stance )) )
+		if ( strike is not { AsLayer: false } && (ReactionPhase >= 1f || IsGetUp( Stance )) )
 		{
 			bool inspecting = inspectUntil.HasValue && !enemy.IsValid() && (casualty.IsValid() || inspectPosition.HasValue);
 			float speed = Animation.MoveVelocity.WithZ( 0f ).Length / 40f;
 			float target = inspecting ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
+			if ( draggedBody.IsValid() && DragStrength < 0.7f ) target = 1f;
+			if ( currentKnifeLayer is { Active: true } && strikeTarget.IsValid() )
+				target = Math.Max( target, Math.Clamp( -GetAttackHeight( strikeTarget ), 0f, 1f ) );
 			AdvanceCrouch( target );
 		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;

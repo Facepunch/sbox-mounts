@@ -36,8 +36,14 @@ public sealed partial class RabbitGuard
 			? Math.Clamp( (60f - CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) )) / 28f, 0f, 1f ) : 0f;
 		bool movement = Stance is Idle or Ready or Watch or Locomotion or Threat;
 		if ( !movement && strike is null ) ThreatAmount = 0;
-		float target = (movement || strike is not null) && HasCombatTarget && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
-		float acceleration = target == 0 && ThreatAmount < 0 ? 100f : 200f;
+		float target = 0f;
+		if ( movement || strike is not null )
+		{
+			if ( HasCombatTarget && WantsToAttack ) target = 1f;
+			else if ( Investigating && dragWindow > 0f && !NeedsCombatPose() &&
+				(!PrimaryItem.IsValid() || boundAnimations.WeaponLabel is not ("big_sword" or "spear" or "staff")) ) target = -1f;
+		}
+		float acceleration = target < 0f || target == 0f && ThreatAmount < 0f ? 100f : PrimaryItem.IsValid() ? 150f : 200f;
 		threatVelocity += (target - ThreatAmount) * Time.Delta * acceleration;
 		threatVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
 		ThreatAmount += threatVelocity * Time.Delta;
@@ -46,7 +52,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateStanceFeet( bool entering )
 	{
-		float threat = Math.Clamp( ThreatAmount, 0, 1 );
+		float threat = ThreatAmount;
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
 		float frequency = boundAnimations.StanceIdle.Evaluate( new( 0f, 1f - crouch, threat, CloseAmount ), stancePhase, false ).Frequency;
 		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;

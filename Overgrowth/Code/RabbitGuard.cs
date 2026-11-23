@@ -125,7 +125,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose is Idle or Ready or ArmedHold or ArmedHeld )
 		{
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
-			Renderer.Animation.Parameters.Set( "threat_coord", Math.Clamp( ThreatAmount, 0f, 1f ) );
+			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );
 		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );

@@ -292,11 +292,12 @@ public sealed partial class RabbitGuard
 		return best;
 	}
 
+	bool WantsToAttack => startled <= 0f && !(boundAnimations.Species == "wolf" && blockStun > 0.5f)
+		&& (airResponse is AirResponse.Counter or AirResponse.KnockOffLedge || airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
+
 	bool TryStartStrike()
 	{
-		bool attacking = airResponse is AirResponse.Counter or AirResponse.KnockOffLedge || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		if ( !attacking || strike is not null || knifeCooldown > 0 ) return false;
-		if ( boundAnimations.Species == "wolf" && blockStun > 0.5f ) return false;
+		if ( !WantsToAttack || strike is not null || knifeCooldown > 0 ) return false;
 
 		var target = FindStrikeTarget( out float distance );
 		if ( !target.IsValid() ) return false;
