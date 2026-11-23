@@ -94,7 +94,9 @@ public sealed partial class RabbitGuard
 			if ( strikeTarget.IsValid() )
 			{
 				AttackHeight = GetAttackHeight( strikeTarget );
-				TurnDuringStrike( TargetPosition( strikeTarget ) - WorldPosition );
+				var direction = strikeTarget.GetComponent<RabbitGuard>() is { IsDodging: true } ? WorldRotation.Forward
+					: CharacterCenter( strikeTarget ) - CharacterCenter( GameObject );
+				TurnDuringStrike( direction );
 			}
 			bool blocked = Stance == strike.Blocked;
 			var blockClip = blocked ? boundAnimations.Clips[Stance].ForSide( MirroredAction ) : null;
@@ -350,21 +352,14 @@ public sealed partial class RabbitGuard
 		return intent.LengthSquared > 1f ? intent.Normal : intent;
 	}
 
-	// aschar.as UpdateAttacking and interpdirection.as, for an unarmed non-throw attack.
 	void TurnDuringStrike( Vector3 direction )
 	{
-		var target = direction.WithZ( 0 ).Normal;
+		var target = direction.WithZ( 0f ).Normal;
 		if ( target.IsNearlyZero() ) return;
-
-		var facing = WorldRotation.Forward;
-		if ( facing.Dot( target ) < -0.8f )
-		{
-			var perpendicular = Vector3.Up.Cross( facing );
-			target = perpendicular.Dot( target ) < 0f ? -perpendicular : perpendicular;
-		}
-
-		float inertia = MathF.Pow( 0.9f, Time.Delta * 120f );
-		WorldRotation = Rotation.LookAt( facing * inertia + target * (1f - inertia) );
+		bool armed = PrimaryItem.IsValid();
+		if ( armed && boundAnimations.WeaponLabel == "spear" ) target = Rotation.FromYaw( 0.05f.RadianToDegree() ) * target;
+		float blend = 1f - MathF.Pow( armed ? 0.8f : 0.9f, Time.Delta * 120f );
+		WorldRotation = InterpolateFacing( WorldRotation.Forward, target, blend );
 	}
 
 	float GetAttackHeight( GameObject target )
