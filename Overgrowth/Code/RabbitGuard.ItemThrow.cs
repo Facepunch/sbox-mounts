@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 		if ( boundAnimations.Species == "cat" )
 		{
 			if ( !secondary && label != "knife" || Random.Shared.Float() >= Aggression * GameDifficulty * 0.04f ) return false;
-			var velocity = GetVelocity( enemy );
+			var velocity = TargetVelocity( enemy );
 			bool fleeing = delta.LengthSquared > 220f * 220f && velocity.LengthSquared >= 30f * 40f * 40f &&
 				enemy.WorldRotation.Forward.Dot( WorldRotation.Forward ) >= 0f && delta.Dot( velocity ) >= 0f;
 			if ( !fleeing && delta.LengthSquared <= 500f * 500f && !(delta.LengthSquared > 100f * 100f && TargetIsAirborne( enemy ) && enemy.GetComponent<RabbitGuard>() is not { Downed: true }) ) return false;
@@ -117,7 +117,7 @@ public sealed partial class RabbitGuard
 		if ( target.IsValid() )
 		{
 			end = CharacterCenter( target );
-			velocity = GetVelocity( target );
+			velocity = TargetVelocity( target );
 			if ( target.GetComponent<RabbitGuard>() is { } other && CharacterLoader.AverageChainPosition( other.Renderer, "torso" ) is { } torso ) end = torso;
 		}
 		item.Throw( this, end, velocity, fullBody );

@@ -22,7 +22,7 @@ public sealed partial class RabbitGuard
 
 		latestObservation = (latestObservation + 1) % targetHistory.Length;
 		observationCount = Math.Min( observationCount + 1, targetHistory.Length );
-		targetHistory[latestObservation] = new( Time.Now, CharacterCenter( target ), moving ? GetVelocity( target ) : Vector3.Zero );
+		targetHistory[latestObservation] = new( Time.Now, CharacterCenter( target ), moving ? TargetVelocity( target ) : Vector3.Zero );
 		nextObservation = 4f / 120f;
 	}
 

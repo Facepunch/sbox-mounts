@@ -152,7 +152,7 @@ public sealed partial class RabbitGuard
 			float separation = observer.DistanceSquared( center );
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			bool hidden = concealed && ally.duckAmount >= 0.5f
-				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
+				&& TargetVelocity( candidate ).LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
 			if ( !Omniscient )
 			{
 				var local = center - view.Position;
@@ -177,7 +177,7 @@ public sealed partial class RabbitGuard
 			seenHostiles[candidate] = Time.Now;
 			if ( !enemy.IsValid() && !escortTarget.IsValid() )
 			{
-				LookAtNotice( center + GetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
+				LookAtNotice( center + TargetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
 			}
 			bool patrolling = !enemy.IsValid() && !escortTarget.IsValid() && !Investigating;
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (patrolling ? 1f : 3f) * (concealed ? 0.3f : 1f);

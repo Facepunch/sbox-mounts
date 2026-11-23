@@ -315,6 +315,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
 	}
 
+	static Vector3 TargetVelocity( GameObject target )
+	{
+		if ( target.GetComponent<RabbitGuard>() is { Downed: true } fighter && fighter.ragdoll.IsValid() )
+			return CharacterLoader.RagdollVelocity( fighter.ragdoll ) ?? Vector3.Zero;
+		return GetVelocity( target );
+	}
+
 	// Standing navigation roots are at the feet. MovementObject.position is at
 	// the leg sphere center until the ragdoll takes over.
 	Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true } || target.GetComponent<CharacterRemains>().IsValid()
