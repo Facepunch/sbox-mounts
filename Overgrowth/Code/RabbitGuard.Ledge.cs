@@ -97,13 +97,19 @@ public sealed partial class RabbitGuard
 		{
 			var origin = center + Vector3.Up * (12f * i);
 			float best = float.PositiveInfinity;
+			float nearest = float.PositiveInfinity;
 			foreach ( var hit in ClimbTrace( Scene.Trace.Sphere( LegRadius * 1.5f, origin, origin ) ).RunAll() )
 			{
 				var offset = hit.HitPosition - origin;
-				if ( offset.Normal.z < -0.7f || offset.WithZ( 0f ).IsNearlyZero() || offset.LengthSquared >= best ) continue;
+				float distance = offset.LengthSquared;
+				if ( distance < nearest )
+				{
+					contact = hit;
+					nearest = distance;
+				}
+				if ( offset.Normal.z < -0.7f || offset.WithZ( 0f ).IsNearlyZero() || distance >= best ) continue;
 				wall = offset.WithZ( 0f ).Normal;
-				best = offset.LengthSquared;
-				contact = hit;
+				best = distance;
 			}
 		}
 		if ( wall.IsNearlyZero() ) return false;
