@@ -8,6 +8,7 @@ public sealed partial class RabbitGuard
 	TimeUntil patrolWait;
 	internal const string PatrolIdle = "patrol_idle";
 	[Sync] string PatrolAnimation { get; set; }
+	string waypointAnimation;
 	bool wokeUp;
 	bool Sleeping => !wokeUp && previousPatrolPoint.IsValid() && previousPatrolPoint.Pose is "Sleep" or "Wounded";
 	string connectedPatrolAnimation;
@@ -36,7 +37,12 @@ public sealed partial class RabbitGuard
 
 	bool WaitAtPatrolPoint()
 	{
-		if ( wokeUp || PatrolAnimation is null || patrolWait <= 0f || enemySeen > 0f ) return false;
+		float heard = CurrentSuspicion;
+		if ( !Sleeping && heard > 0f && heard > enemySeen )
+			PatrolAnimation = heard > 0.5f ? "Data/Animations/r_actionidle_listen_b.anm" : "Data/Animations/r_actionidle.anm";
+		else if ( !Sleeping && enemySeen > 0f ) return false;
+		else if ( !wokeUp && waypointAnimation is not null && patrolWait > 0f ) PatrolAnimation = waypointAnimation;
+		else return false;
 		if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 		Stance = PatrolIdle;
 		return true;
@@ -45,14 +51,13 @@ public sealed partial class RabbitGuard
 	bool FollowPatrol()
 	{
 		if ( !patrolTarget.IsValid() ) patrolTarget = PatrolStart;
-		if ( !patrolTarget.IsValid() ) return false;
-		if ( patrolWait > 0f || enemySeen > 0.1f ) return WaitAtPatrolPoint();
+		if ( !patrolTarget.IsValid() || patrolWait > 0f || enemySeen > 0.1f || CurrentSuspicion > 0.1f ) return WaitAtPatrolPoint();
 
 		var target = patrolTarget.WorldPosition;
 		if ( (target - WorldPosition).WithZ( 0 ).LengthSquared < 40f * 40f )
 		{
 			var reached = patrolTarget;
-			PatrolAnimation = reached.Pose switch
+			waypointAnimation = reached.Pose switch
 			{
 				"Sit" => "Data/Animations/r_sit_cross_legged.anm",
 				"Sleep" => "Data/Animations/r_sleep.anm",

@@ -8,6 +8,7 @@ public sealed partial class RabbitGuard
 	GameObject escortTarget;
 	float suspicion;
 	TimeSince sinceSound;
+	float CurrentSuspicion => Math.Max( 0f, suspicion - (float)sinceSound * 0.1f );
 
 	void ReportFootstep( string step, Vector3 position )
 	{
@@ -42,12 +43,13 @@ public sealed partial class RabbitGuard
 				continue;
 			}
 			if ( guard.escortTarget.IsValid() || (sound != HeardSound.Voice && !guard.CanAttack( source )) ) continue;
-			guard.suspicion = Math.Max( 0f, guard.suspicion - (float)guard.sinceSound * 0.1f ) +
+			guard.suspicion = guard.CurrentSuspicion +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
 			guard.sinceSound = 0;
 			if ( guard.suspicion < 1f ) continue;
 			if ( !guard.investigatePoint.HasValue )
 			{
+				guard.LookAtNotice( position );
 				guard.Speak( "suspicious" );
 				guard.startled = sound == HeardSound.Voice ? Random.Shared.Float( 1.2f, 1.5f ) : 1f;
 			}

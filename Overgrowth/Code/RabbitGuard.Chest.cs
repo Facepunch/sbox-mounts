@@ -7,6 +7,14 @@ public sealed partial class RabbitGuard
 	[Sync] Vector3? GazeTarget { get; set; }
 	Vector3? idleLookTarget;
 	TimeUntil nextLook;
+	Vector3 noticePosition;
+	TimeUntil noticeLook;
+
+	void LookAtNotice( Vector3 position )
+	{
+		noticePosition = position;
+		noticeLook = 2f;
+	}
 	bool chestActive;
 	float previousYaw, stanceLook, idleStance;
 	Vector2 chestAngles, chestVelocity;
@@ -24,7 +32,7 @@ public sealed partial class RabbitGuard
 		}
 
 		var target = visible && CanAttack( enemy ) ? enemy : escortTarget;
-		GazeTarget = target.IsValid() ? TargetPosition( target, eyes: true ) : idleLookTarget;
+		GazeTarget = noticeLook > 0f ? noticePosition : target.IsValid() ? TargetPosition( target, eyes: true ) : idleLookTarget;
 	}
 
 	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
