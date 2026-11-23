@@ -19,6 +19,8 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var level = LevelFile.Read( bytes );
 
 		var root = new GameObject( true, System.IO.Path.GetFileNameWithoutExtension( FilePath ) );
+		root.Scene.NavMesh.IsEnabled = true;
+		root.Scene.NavMesh.GenerateLinks = true;
 
 		BuildWorld( level, bytes, root );
 
