@@ -96,7 +96,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
 		}
-		else if ( (!InThrow && Stance is not (Threat or Idle or Ready or Watch or Locomotion)) || !PoseGrounded ) plantedLegs = false;
+		else if ( (!InThrow && Stance is not (Threat or Idle or Ready or Watch or Locomotion)) || !HasGroundSupport ) plantedLegs = false;
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( !BindAnimations() ) return;
 		if ( Networking.IsHost )
@@ -130,7 +130,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			}
 			return;
 		}
-		if ( !PoseGrounded ) ClearFootContacts();
+		if ( !HasGroundSupport ) ClearFootContacts();
 		if ( !Networking.IsHost && lastPhysicsPose is not null && recoveryRate == 0f )
 		{
 			if ( RecoveredInAir ) BeginRecovery( 4f );
@@ -184,7 +184,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();
-		if ( InThrow && playing == Stance && PoseGrounded ) UpdateThrowFeet();
+		if ( InThrow && playing == Stance && HasGroundSupport ) UpdateThrowFeet();
 		if ( boundAnimations.IdlePoses.TryGetValue( displayPose, out var idle ) )
 		{
 			bool entering = playing != displayPose;

@@ -25,7 +25,7 @@ public sealed partial class RabbitGuard
 		var velocity = Animation.MoveVelocity / 40f;
 		float frames = dt * 120f;
 		Vector3 target;
-		if ( PoseGrounded )
+		if ( HasGroundSupport )
 		{
 			bool moving = Stance is Locomotion or Threat && !velocity.WithZ( 0 ).IsNearlyZero();
 			accelTilt = moving ? Vector3.Lerp( (velocity - previousVelocity) / dt, accelTilt, MathF.Pow( 0.95f, frames ) )
@@ -40,7 +40,7 @@ public sealed partial class RabbitGuard
 			target = velocity.WithZ( 0 ) * 2f + flail * (10f * Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ));
 			target *= MathF.Sqrt( Math.Min( 1f, MathF.Abs( velocity.z ) / 8f ) ) * MathF.Sign( velocity.z );
 		}
-		tilt = Vector3.Lerp( target, tilt, MathF.Pow( PoseGrounded ? 0.9f : 0.95f, frames ) );
+		tilt = Vector3.Lerp( target, tilt, MathF.Pow( HasGroundSupport ? 0.9f : 0.95f, frames ) );
 		var neutral = neutralModel ??= Renderer.LocalTransform;
 		var pose = neutral;
 		pose.Position += Vector3.Up * lift;
@@ -48,7 +48,7 @@ public sealed partial class RabbitGuard
 		var parent = Renderer.GameObject.Parent.WorldRotation;
 		if ( tilt.LengthSquared > 0.000001f )
 			rotation = Rotation.FromAxis( (parent.Inverse * Vector3.Up.Cross( tilt )).Normal, tilt.Length );
-		if ( PoseGrounded && Renderer.Animation.Debug.TryGetFloatChannel( "status", "groundconform", out float conform ) && conform > 0f )
+		if ( HasGroundSupport && Renderer.Animation.Debug.TryGetFloatChannel( "status", "groundconform", out float conform ) && conform > 0f )
 		{
 			var slope = Rotation.FromToRotation( parent.Inverse * Vector3.Up, parent.Inverse * FloorNormal() );
 			rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
