@@ -221,12 +221,7 @@ public sealed partial class RabbitGuard
 			remains.Physics = physics;
 			Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
 			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
-			{
-				if ( witness.knownCasualties.Remove( GameObject ) ) witness.knownCasualties.Add( corpse );
-				if ( witness.chokeVictim == GameObject ) witness.chokeVictim = corpse;
-				if ( witness.casualty == GameObject ) witness.casualty = corpse;
-				if ( witness.escortTarget == GameObject ) witness.escortTarget = corpse;
-			}
+				witness.FollowCorpse( GameObject, corpse );
 			var damping = corpse.GetOrAddComponent<RagdollDamping>();
 			damping.Reset( physics );
 			if ( Downed && ragdoll is { Active: true } )

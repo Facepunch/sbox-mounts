@@ -236,6 +236,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override Relationship GetFallbackRelationship( GameObject other )
 	{
+		if ( other.GetComponent<CharacterRemains>() is { } remains )
+			return new( remains.Teams?.Any( Teams.Contains ) == true ? Disposition.Friendly : Disposition.Hostile );
 		var npc = other.GetComponent<BaseNpc>();
 		if ( npc is RabbitGuard guard && Teams.Length > 0 && Teams.Any( guard.Teams.Contains ) ) return new( Disposition.Friendly );
 		return new( npc.IsValid() ? Disposition.Hostile : Disposition.Neutral );
@@ -245,7 +247,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());
 
 	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
-		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true } or RabbitGuard { StaticCharacter: true })
+		&& !other.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true } or RabbitGuard { StaticCharacter: true })
 		&& GetDisposition( other ) == Disposition.Hostile;
 
 	// MovementObject follows the mean physics-bone position while ragdolled. Here the
