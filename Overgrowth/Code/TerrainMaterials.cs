@@ -35,7 +35,9 @@ internal sealed class TerrainMaterials( ImageSampler weights, Surface[] layers, 
 		builder.AddCollisionMesh( points, indices, materials );
 	}
 
-	internal Surface At( int triangle, Vector3 point )
+	internal Surface At( int triangle, Vector3 point ) => UvAt( triangle, point ) is { } uv ? layers[LayerAt( uv )] : null;
+
+	internal Vector2? UvAt( int triangle, Vector3 point )
 	{
 		if ( physicsFaces is null || (uint)triangle >= physicsFaces.Length ) return null;
 		int start = physicsFaces[triangle];
@@ -53,7 +55,6 @@ internal sealed class TerrainMaterials( ImageSampler weights, Surface[] layers, 
 			float w = ab.Cross( delta ).Dot( normal ) / area;
 			barycentric = new( Math.Clamp( 1f - v - w, 0f, 1f ), Math.Clamp( v, 0f, 1f ), Math.Clamp( w, 0f, 1f ) );
 		}
-		var uv = (uvs[a] * barycentric.x + uvs[b] * barycentric.y + uvs[c] * barycentric.z) / (barycentric.x + barycentric.y + barycentric.z);
-		return layers[LayerAt( uv )];
+		return (uvs[a] * barycentric.x + uvs[b] * barycentric.y + uvs[c] * barycentric.z) / (barycentric.x + barycentric.y + barycentric.z);
 	}
 }

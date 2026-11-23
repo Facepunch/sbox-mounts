@@ -1,27 +1,40 @@
+using System;
+
 namespace Overgrowth;
 
 // Model::ReadFromFile, as embedded after the six-byte terrain cache header.
 internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount>
 {
 	TerrainMaterials materials;
+	string colorMap;
+	ImageSampler terrainColor;
 
-	static TerrainMaterials MaterialsFor( ModelCollider collider )
+	static TerrainLoader LoaderFor( ModelCollider collider )
 	{
 		var path = collider?.Model?.ResourcePath;
 		if ( path?.StartsWith( "mount://overgrowth/data/levels/", System.StringComparison.OrdinalIgnoreCase ) != true ) return null;
-		return (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( path ) as TerrainLoader)?.materials;
+		return Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( path ) as TerrainLoader;
+	}
+
+	internal static Color ContactColor( in SceneTraceResult hit )
+	{
+		if ( hit.Collider is not ModelCollider collider || LoaderFor( collider ) is not { colorMap: not null, materials: { } terrain } loader ||
+			terrain.UvAt( hit.Triangle, collider.WorldTransform.PointToLocal( hit.EndPosition ) ) is not { } uv ) return Color.White;
+		loader.terrainColor ??= new ImageSampler( loader.Host, loader.colorMap );
+		var pixel = loader.terrainColor.Sample( uv );
+		return new( MathF.Pow( pixel.r / 255f, 2.2f ), MathF.Pow( pixel.g / 255f, 2.2f ), MathF.Pow( pixel.b / 255f, 2.2f ) );
 	}
 
 	internal static Surface ContactSurface( in SceneTraceResult hit, Vector3 point )
 	{
-		if ( hit.Collider is ModelCollider collider && MaterialsFor( collider ) is { } terrain )
+		if ( hit.Collider is ModelCollider collider && LoaderFor( collider )?.materials is { } terrain )
 			return terrain.At( hit.Triangle, collider.WorldTransform.PointToLocal( point ) ) ?? hit.Surface;
 		return hit.Surface;
 	}
 
 	internal static Surface ContactSurface( ModelCollider collider, Vector3 point, Surface fallback )
 	{
-		if ( MaterialsFor( collider ) is not { } terrain ) return fallback;
+		if ( LoaderFor( collider )?.materials is not { } terrain ) return fallback;
 		// Terrain::GetUVAtPoint casts vertically when the contact supplies no triangle.
 		var span = Vector3.Up * 40000f;
 		foreach ( var hit in collider.Scene.Trace.Ray( point + span, point - span ).IgnoreDynamic().RunAll() )
@@ -39,7 +52,10 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 			? MaterialLoader.CreateMaterial( Path + "/terrain.vmat", true )
 			: Material.Create( Path + "/terrain.vmat", "simple_color" );
 		if ( terrain.Element( "ColorMap" ) is { Value.Length: > 0 } color )
+		{
+			colorMap = color.Value;
 			mat.Set( detailed ? "g_tColor" : "Color", Host.LoadTexture( color.Value ) );
+		}
 		if ( detailed )
 		{
 			mat.Set( "g_flTerrain", 1f );

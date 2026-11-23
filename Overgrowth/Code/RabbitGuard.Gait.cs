@@ -39,9 +39,38 @@ public sealed partial class RabbitGuard
 				if ( !HandleFootstep( step.Event, position ) ) continue;
 				var floor = Scene.Trace.Ray( position + Vector3.Up * 12, position + Vector3.Down * 48 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 				if ( floor.Hit )
-					PlayMaterialEvent( step.Event, floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, step.Event.Contains( "crouch" ) ? 3f : 5f );
+					PlayFootContact( step.Event, floor, step.Event.Contains( "crouch" ) ? 3f : 5f );
 			}
 		}
 		stridePhase = next % 1;
+	}
+
+	void PlayFootContact( string step, in SceneTraceResult hit, float gain )
+	{
+		var surface = TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName;
+		PlayMaterialEvent( step, hit.EndPosition, surface, gain );
+		EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
+	}
+
+	void EmitFootParticle( int side, string action, string surface, in SceneTraceResult hit )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount || mount.MaterialParticle( surface, action ) is not { } path ) return;
+		var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
+		if ( !Renderer.TryGetBoneTransform( bone, out var foot ) ) return;
+		float speed = Animation.MoveVelocity.Length;
+		if ( motionSamples >= 2 && motionStep > 0f )
+		{
+			var previous = previousMotionRoot.ToWorld( previousMotionPose[bone.Index] );
+			foot = currentMotionRoot.ToWorld( currentMotionPose[bone.Index] );
+			speed = foot.Position.Distance( previous.Position ) / motionStep;
+		}
+		EmitSurfaceParticle( path, foot.Position + Vector3.Down * 4f, Math.Min( 40f, speed ), TerrainLoader.ContactColor( hit ) );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void EmitSurfaceParticle( string path, Vector3 position, float speed, Color tint )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.EmitBillboard( path, position, Vector3.Up * speed, tint );
 	}
 }

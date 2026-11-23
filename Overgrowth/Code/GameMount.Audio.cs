@@ -16,6 +16,9 @@ public partial class GameMount
 		return xml;
 	}
 
+	internal string MaterialParticle( string surface, string action ) =>
+		ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" )?.Element( "particles" )?.Element( action )?.Attribute( "path" );
+
 	internal float MaterialHardness( string surface ) =>
 		ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" )?.Element( "physics" )?.Number( "hardness" ) ?? 1f;
 
