@@ -175,25 +175,44 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	void UpdateThrowFeet()
+	bool UsesCombatFeet => InThrow || boundAnimations?.AttackStates.Contains( Stance ) == true;
+
+	void UpdateCombatFeet()
 	{
 		var parameters = Renderer.Animation.Parameters;
-		parameters.TryGetFloat( "reaction_phase", out var phase );
-		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
-		if ( clip.Feet is null ) return;
+		parameters.TryGetFloat( InThrow ? "reaction_phase" : "attack_phase", out var phase );
+		RabbitAttack.Blend blend;
+		if ( boundAnimations.Attacks.TryGetValue( Stance, out var attack ) )
+		{
+			parameters.TryGetFloat( "attack_height_coord", out var height );
+			blend = attack.Sample( height, MirroredAction );
+		}
+		else
+		{
+			var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+			blend = new( clip, clip, 0f );
+		}
+		if ( blend.Lower.Feet is null || blend.Upper.Feet is null ) return;
 		EnsurePoseBuffers();
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = poseModel.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
-			var foot = FootPose.Sample( clip.Feet[side], phase );
+			var foot = FootPose.Sample( blend.Lower.Feet[side], phase );
+			if ( blend.Weight > 0f ) foot = FootPose.Blend( foot, FootPose.Sample( blend.Upper.Feet[side], phase ), blend.Weight );
 			var target = animated;
 			if ( foot.Weight > 0f )
 			{
 				// The original applies the same pending character motion to the toe and its IK target.
-				var toe = clip.Animation.GetLocalTransform( phase, rigIndices[bone.Index] );
+				Transform Local( BoneCollection.Bone joint )
+				{
+					int index = rigIndices[joint.Index];
+					var lower = blend.Lower.Animation.GetLocalTransform( phase, index );
+					return blend.Weight > 0f ? global::Transform.Lerp( lower, blend.Upper.Animation.GetLocalTransform( phase, index ), blend.Weight, false ) : lower;
+				}
+				var toe = Local( bone );
 				for ( var parent = bone.Parent; parent is not null; parent = parent.Parent )
-					toe = clip.Animation.GetLocalTransform( phase, rigIndices[parent.Index] ).ToWorld( toe );
+					toe = Local( parent ).ToWorld( toe );
 				target = animated.ToWorld( toe.ToLocal( foot.Transform ) );
 			}
 			ApplyFootTarget( side, animated, target, Math.Max( 0f, foot.Weight ), foot.Transform.Position.z / boundAnimations.MovementScale );

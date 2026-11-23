@@ -273,7 +273,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				RabbitAttack.Pose LoadPose( string file, float coordinate )
 				{
 					var clipName = System.IO.Path.GetFileNameWithoutExtension( file );
-					var animation = CombatClip( clipName, attack.Element( "flags" ).Attribute( "mobile" ) == "true", damage, true );
+					var animation = CombatClip( clipName, attack.Element( "flags" ).Attribute( "mobile" ) == "true", damage, true, RabbitClip.PoseData.Feet );
 					return new( coordinate, animation );
 				}
 
@@ -309,7 +309,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
-			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, throwClips.ContainsKey( name ) ? RabbitClip.PoseData.Feet : RabbitClip.PoseData.Pose );
+			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, throwClips.ContainsKey( name ) || blocked.ContainsValue( name ) ? RabbitClip.PoseData.Feet : RabbitClip.PoseData.Pose );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( CombatPose( clip, attackPhase ) );
