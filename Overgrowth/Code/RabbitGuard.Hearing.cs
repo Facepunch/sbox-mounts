@@ -11,6 +11,48 @@ public sealed partial class RabbitGuard
 	TimeSince sinceSound;
 	float CurrentSuspicion => Math.Max( 0f, suspicion - (float)sinceSound * 0.1f );
 
+	// HandleAnimationMaterialEvent layers mud over the ground sound in very shallow water.
+	bool HandleFootstep( string step, Vector3 position )
+	{
+		float depth = FootWaterDepth();
+		if ( depth > 0f )
+		{
+			ReportSound( GameObject, position, HeardSound.Footstep, 5f );
+			if ( depth >= 0.4f ) return false;
+			bool run = step is "leftrunstep" or "rightrunstep";
+			if ( run || step is "leftwalkstep" or "rightwalkstep" or "leftcrouchwalkstep" or "rightcrouchwalkstep" )
+			{
+				PlayMudStep( run );
+				if ( depth > 0.1f )
+				{
+					if ( run ) ReportSound( GameObject, position, HeardSound.Footstep, 5f );
+					return false;
+				}
+			}
+		}
+		ReportFootstep( step, position );
+		return true;
+	}
+
+	// The root is at the feet. These sound rules only distinguish the first 0.4 metres.
+	float FootWaterDepth()
+	{
+		var feet = WorldPosition;
+		var top = feet + Vector3.Up * 16f;
+		var water = Scene.Trace.WithTag( "water" ).HitTriggersOnly();
+		if ( !water.Ray( feet, top ).Run().StartedSolid ) return 0f;
+		var surface = water.Ray( top, feet ).Run();
+		return surface.StartedSolid ? 0.4f : (surface.EndPosition.z - feet.z) / 40f;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayMudStep( bool run )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlayGroup( run ? "Data/Sounds/water_foley/mud_fs_run.xml" : "Data/Sounds/water_foley/mud_fs_walk.xml",
+				WorldPosition + Vector3.Up * LegRadius, parent: GameObject );
+	}
+
 	void ReportFootstep( string step, Vector3 position )
 	{
 		if ( !Networking.IsHost ) return;

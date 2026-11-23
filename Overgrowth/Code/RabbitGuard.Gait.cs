@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard
 				float contact = step.Phase <= stridePhase ? step.Phase + 1 : step.Phase;
 				if ( contact > next ) continue;
 				var position = Renderer.TryGetBoneTransform( $"bone_{step.Bone}", out var bone ) ? bone.Position : WorldPosition;
-				ReportFootstep( step.Event, position );
+				if ( !HandleFootstep( step.Event, position ) ) continue;
 				var floor = Scene.Trace.Ray( position + Vector3.Up * 12, position + Vector3.Down * 48 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 				if ( floor.Hit )
 					PlayMaterialEvent( step.Event, floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, step.Event.Contains( "crouch" ) ? 3f : 5f );

@@ -203,9 +203,12 @@ public sealed partial class RabbitGuard
 			duckVelocity = 3f;
 		}
 		bool quiet = boundAnimations.Species == "cat";
-		if ( !quiet || hard )
-			ReportBodySound( hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
-		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, quiet ? 0.5f : 1f );
+		if ( !hard || FootWaterDepth() < 0.25f )
+		{
+			if ( !quiet || hard )
+				ReportBodySound( hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
+			PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, quiet ? 0.5f : 1f );
+		}
 		if ( hard )
 		{
 			float slide = 1f - (-airVelocity.Normal).Dot( floor.Normal );
