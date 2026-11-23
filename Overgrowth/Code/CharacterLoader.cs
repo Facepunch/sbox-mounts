@@ -189,7 +189,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			HitVolumes = CharacterHulls.Load( Host.FileSystem, hullPath, center, scale, skeleton, bodyCenters );
 		AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
 		ragdollCenters.Clear();
-		forceLevers = new Vector3[model.Bones.Count];
+		forceLevers = new Vector3[model.BoneCount];
 		var bodyPoints = new Dictionary<int, BodyPoint>();
 		foreach ( var (id, point) in bodyCenters )
 		{
