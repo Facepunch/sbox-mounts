@@ -283,7 +283,7 @@ public sealed partial class RabbitGuard
 		var direction = (TargetPosition( enemy ) - WorldPosition).Normal;
 		float force = strike.Force * AttackKnockback;
 		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
-			force *= 1f - Math.Clamp( defender.Health / defender.MaxHealth, 0f, 1f ) * 0.5f;
+			force *= 1f - Math.Clamp( defender.TemporaryHealth / defender.MaxHealth, 0f, 1f ) * 0.5f;
 		var damage = new StrikeDamage
 		{
 			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).

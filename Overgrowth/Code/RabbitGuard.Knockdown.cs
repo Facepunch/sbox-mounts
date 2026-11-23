@@ -10,6 +10,11 @@ public sealed partial class RabbitGuard
 	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }
 	[Sync] bool Downed { get; set; }
+	[Sync] bool Unconscious { get; set; }
+	float recoverableDamage;
+	float TemporaryHealth => Math.Max( 0f, Health - recoverableDamage );
+	const float PermanentDamageFraction = 0.4f;
+	[Property] public float DamageResistance { get; set; } = 1f;
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown;
 	sealed class StrikeDamage : DamageInfo
@@ -19,13 +24,41 @@ public sealed partial class RabbitGuard
 
 	StrikeDamage lethalBlow;
 
+	protected override void OnDamaging( Component.IDamageable.DamageEvent hit )
+	{
+		base.OnDamaging( hit );
+		hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
+		if ( hit.DamageInfo is StrikeDamage )
+		{
+			// HandleRagdollImpact applies the damage a second time if the startled fighter is still awake.
+			if ( startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth )
+				hit.AcceptedDamage *= 2f;
+			hit.AcceptedDamage *= PermanentDamageFraction;
+		}
+	}
+
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaged( hit );
 		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
-		if ( sparringKnockout ) Health = MaxHealth;
+		if ( sparringKnockout )
+		{
+			Health = MaxHealth;
+			recoverableDamage = 0f;
+			Unconscious = false;
+		}
 		if ( Health < 1f ) return;
-		if ( hit.AcceptedDamage <= 0 || !Renderer.IsValid() ) return;
+		if ( !Renderer.IsValid() ) return;
+		if ( hit.AcceptedDamage <= 0 && hit.DamageInfo is not StrikeDamage { Damage: 0f } ) return;
+		if ( hit.DamageInfo is StrikeDamage && !sparringKnockout )
+		{
+			recoverableDamage = Math.Min( Health, recoverableDamage + hit.AcceptedDamage * ((1f - PermanentDamageFraction) / PermanentDamageFraction) );
+			if ( TemporaryHealth <= 0f )
+			{
+				if ( Sparring ) recoverableDamage = 0f;
+				else Unconscious = true;
+			}
+		}
 		var attacker = hit.Instigator;
 
 		NoticeAttacker( attacker );
@@ -87,7 +120,7 @@ public sealed partial class RabbitGuard
 
 	bool TryGetUp( Vector3? blockFacing = null )
 	{
-		if ( !ragdoll.IsValid() || boundAnimations is null ) return false;
+		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
 		if ( !blockFacing.HasValue && sinceKnockdown < 1f ) return false;
 		Vector3 center = default, velocity = default;
 		float mass = 0;

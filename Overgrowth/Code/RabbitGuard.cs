@@ -27,6 +27,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost && Health > 0 )
+		{
+			blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) );
+			recoverableDamage = Math.Max( 0f, recoverableDamage - MaxHealth * 0.05f * Time.Delta );
+		}
 		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
 		if ( !Downed ) base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
@@ -162,7 +167,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());
 
 	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
-		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not { Health: < 1 }
+		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true })
 		&& GetDisposition( other ) == Disposition.Hostile;
 
 	// MovementObject follows the mean physics-bone position while ragdolled. Here the

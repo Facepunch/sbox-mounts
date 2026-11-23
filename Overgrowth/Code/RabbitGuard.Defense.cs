@@ -54,7 +54,6 @@ public sealed partial class RabbitGuard
 			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
 			duckAmount += duckVelocity * Time.Delta;
 		}
-		blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( Health / 100f, 0f, 1f ) );
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
 		float elapsed = ReactionPhase * reactionDuration;
 		if ( !IsGetUp( Stance ) && (elapsed > (activeBlockReaction ? 0.2f : 0.6f) || elapsed > 0.1f && AnimationCanCancel) )
@@ -138,7 +137,8 @@ public sealed partial class RabbitGuard
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
-		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, attacker.AttackDamage ) );
+		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
+		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage ) );
 		var direction = (WorldPosition - attacker.WorldPosition).Normal;
 		if ( Downed || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
 			blockHealth <= 0 || WorldRotation.Forward.Dot( direction ) > 0 ) return false;
