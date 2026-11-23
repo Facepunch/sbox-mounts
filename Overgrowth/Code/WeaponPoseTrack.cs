@@ -13,7 +13,7 @@ internal sealed class WeaponPoseTrack( int bone, int frames )
 
 	internal void Set( int frame, Transform pose )
 	{
-		var q = pose.Rotation.Normal;
+		var q = pose.Rotation;
 		float dot = previous.x * q.x + previous.y * q.y + previous.z * q.z + previous.w * q.w;
 		float sign = dot < 0f ? -1f : 1f;
 		previous = new Rotation( q.x * sign, q.y * sign, q.z * sign, q.w * sign );

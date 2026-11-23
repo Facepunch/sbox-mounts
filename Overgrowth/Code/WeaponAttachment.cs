@@ -7,11 +7,13 @@ internal sealed class WeaponAttachment
 	readonly record struct Hand( string Bone, string Set, string[] Channels, Vector3 Center );
 	readonly Hand[] hands;
 	readonly Transform correction;
+	readonly Vector3 modelOffset;
 
-	WeaponAttachment( Hand[] hands, Transform correction )
+	WeaponAttachment( Hand[] hands, Transform correction, Vector3 modelOffset )
 	{
 		this.hands = hands;
 		this.correction = correction;
+		this.modelOffset = modelOffset;
 	}
 
 	internal static WeaponAttachment Create( LevelItem item )
@@ -32,11 +34,10 @@ internal sealed class WeaponAttachment
 			Transform Read( string path ) => ItemGrip.Read( mount.FileSystem, mount.Resolve( path ), bone, mirrored, true, false, 1f );
 			correction = correction.ToWorld( Read( basePath ).ToLocal( Read( grip.Attribute( "anim" ) ) ) );
 		}
-		var center = -(item.GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
-		correction.Position = correction.PointToWorld( center );
+		var modelOffset = -(item.GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
 		var hands = new[] { right, left }.Where( i => i >= 0 ).Distinct().Select( i => new Hand(
 			$"bone_{i}", $"item_bone_{i}", WeaponPoseTrack.Names( i ), character.AttachmentCenters.GetValueOrDefault( i ) ) ).ToArray();
-		return new( hands, correction );
+		return new( hands, correction, modelOffset );
 	}
 
 	internal Transform Sample( SkinnedModelRenderer holder, Transform grip )
@@ -53,10 +54,13 @@ internal sealed class WeaponAttachment
 				graph.TryGetFloatChannel( hand.Set, hand.Channels[channel], out var value );
 				return value;
 			}
-			var rotation = new Rotation( Read( 4 ), Read( 5 ), Read( 6 ), Read( 7 ) ).Normal;
-			var local = new Transform( new Vector3( Read( 1 ), Read( 2 ), Read( 3 ) ) / weight, rotation );
+			var rotation = new Rotation( Read( 4 ) / weight, Read( 5 ) / weight, Read( 6 ) / weight, Read( 7 ) / weight );
+			var position = new Vector3( Read( 1 ), Read( 2 ), Read( 3 ) ) / weight;
+			// The sampled quaternion can be non-unit. RiggedObject applies the grip axes before extracting the item's rotation.
+			var basis = Matrix.CreateRotation( correction.Rotation ) * Matrix.CreateRotation( rotation );
+			Rotation itemRotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 			var reference = bone.WithPosition( bone.PointToWorld( hand.Center ) ).WithScale( 1f );
-			var target = reference.ToWorld( local.ToWorld( correction ) );
+			var target = reference.ToWorld( new Transform( position + rotation * correction.Position + itemRotation * modelOffset, itemRotation ) );
 			total += weight;
 			animated = Transform.Lerp( animated, target, weight / total, true );
 		}

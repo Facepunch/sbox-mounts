@@ -323,7 +323,9 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( mirror is not null )
 				{
 					weapon = RabbitMirror.Reflect( weapon );
-					weapon.Rotation *= Rotation.FromAxis( Vector3.Forward, 180f );
+					// MirrorBT flips the two item axes in matrix space after the cubic blend.
+					var basis = Matrix.CreateScale( new Vector3( 1f, -1f, -1f ) ) * Matrix.CreateRotation( weapon.Rotation );
+					weapon.Rotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 				}
 				weaponTrack.Set( i, weapon );
 			}
