@@ -4,6 +4,30 @@ namespace Overgrowth;
 
 public sealed partial class LevelItem
 {
+	Vector3 incomingVelocity;
+	Transform? pendingEmbed;
+
+	void ICollisionListener.OnCollisionStart( Collision collision )
+	{
+		if ( !Networking.IsHost || collision.Other.IsTrigger || Holder.IsValid() || StuckIn.IsValid() || pendingEmbed.HasValue ) return;
+		flyingStraight = false;
+		var body = collision.Self.Body;
+		if ( !body.IsValid() || !body.MotionEnabled || collision.Other.GameObject?.GetComponentInParent<RabbitGuard>() is not null ) return;
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
+			!mount.AllowsPenetration( collision.Other.Surface?.ResourceName ) || incomingVelocity.IsNearlyZero() ) return;
+		var model = GetComponent<ModelRenderer>().Model;
+		if ( mount.GetByPath( model.ResourcePath ) is not ObjectLoader { Sharpness: { } sharpness } ) return;
+		var pose = new Transform( body.Position, body.Rotation, WorldScale );
+		var contact = collision.Contact;
+		var vertex = sharpness.ClosestVertex( pose.PointToLocal( contact.Point ) );
+		var point = pose.PointToWorld( vertex.Position );
+		var direction = (point - body.MassCenter).Normal;
+		var normal = contact.Normal;
+		if ( normal.Dot( body.MassCenter - contact.Point ) < 0f ) normal = -normal;
+		if ( vertex.Sharpness <= 0.3f || direction.Dot( incomingVelocity.Normal ) <= 0.7f || direction.Dot( normal ) >= -0.5f ) return;
+		pendingEmbed = pose.WithPosition( pose.Position + contact.Point - point - normal * (6f * MathF.Sqrt( body.Mass )) );
+	}
+
 	void HitFighter( RabbitGuard fighter, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 end, ItemLine line )
 	{
 		var velocity = body.Velocity;

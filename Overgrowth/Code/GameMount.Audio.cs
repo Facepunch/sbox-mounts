@@ -17,6 +17,8 @@ public partial class GameMount
 	internal float MaterialHardness( string surface ) =>
 		ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" )?.Element( "physics" )?.Number( "hardness" ) ?? 1f;
 
+	internal bool AllowsPenetration( string surface ) => ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" )?.Element( "physics" )?.Number( "sharp_penetration" ) > 0f;
+
 	internal void PlayMaterialEvent( CharacterLoader character, GameObject actor, string surface, string step, Vector3 position, float gain )
 	{
 		var floor = ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );

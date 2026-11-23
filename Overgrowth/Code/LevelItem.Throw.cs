@@ -48,7 +48,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		previousFlightPose = pose;
 	}
 
-	void ICollisionListener.OnCollisionStart( Collision collision ) => flyingStraight = false;
+
 
 	void AlignWithFlight( Rigidbody body )
 	{
@@ -84,7 +84,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		for ( int i = 0; i < 3; i++ )
 			launch = FlightPath.Velocity( delta + velocity * time, gravity, speed, up, 0f, out time );
 		if ( launch == Vector3.Zero ) launch = horizontal * speed + Vector3.Up * up;
-		body.Velocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
+		body.Velocity = incomingVelocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
 		flyingStraight = fullBody && Definition.Element( "label" )?.Value is ("spear" or "staff");
 		if ( flyingStraight )
 		{

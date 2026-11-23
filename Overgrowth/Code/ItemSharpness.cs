@@ -16,17 +16,20 @@ internal sealed class ItemSharpness
 			.GroupBy( v => v.Position ).Select( g => (g.Key, g.Average( v => sample( v.UV ) )) ).ToArray();
 	}
 
-	internal float At( Vector3 localPoint )
+	internal float At( Vector3 localPoint ) => ClosestVertex( localPoint ).Sharpness;
+
+	internal (Vector3 Position, float Sharpness) ClosestVertex( Vector3 localPoint )
 	{
-		float best = float.PositiveInfinity, sharpness = 0f;
+		float best = float.PositiveInfinity;
+		(Vector3 Position, float Sharpness) closest = default;
 		foreach ( var vertex in vertices )
 		{
 			float distance = vertex.Position.DistanceSquared( localPoint );
 			if ( distance >= best ) continue;
 			best = distance;
-			sharpness = vertex.Sharpness;
+			closest = vertex;
 		}
-		return sharpness;
+		return closest;
 	}
 
 	static Func<Vector2, float> ReadSampler( GameMount mount, string path )

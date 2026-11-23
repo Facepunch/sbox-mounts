@@ -45,7 +45,19 @@ public sealed partial class LevelItem : Component
 		if ( !Networking.IsHost || Time.Delta <= 0f ) return;
 		if ( !Holder.IsValid() )
 		{
-			if ( thrower is not null && GetComponent<Rigidbody>() is { } body )
+			if ( GetComponent<Rigidbody>() is not { Enabled: true } body ) return;
+			if ( pendingEmbed is { } stuck )
+			{
+				pendingEmbed = null;
+				body.Velocity = body.AngularVelocity = Vector3.Zero;
+				body.Enabled = false;
+				GetComponent<ModelCollider>().Enabled = false;
+				WorldTransform = stuck;
+				thrower = null;
+				return;
+			}
+			incomingVelocity = body.Velocity;
+			if ( thrower is not null )
 			{
 				if ( flyingStraight ) AlignWithFlight( body );
 				TraceFlight( body );
@@ -72,7 +84,7 @@ public sealed partial class LevelItem : Component
 		GameObject.SetParent( null, true );
 		var body = AddPhysics( GameObject, GetComponent<ModelRenderer>().Model );
 		body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
-		body.Velocity = carryVelocity;
+		body.Velocity = incomingVelocity = carryVelocity;
 		body.AngularVelocity = carryAngularVelocity;
 		lastHeldPose = null;
 		carryVelocity = carryAngularVelocity = Vector3.Zero;
@@ -146,6 +158,7 @@ public sealed partial class LevelItem : Component
 		item.SetParent( actor.GameObject, true );
 		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
 		attachmentComponent.StuckIn = null;
+		attachmentComponent.pendingEmbed = null;
 		attachmentComponent.thrower = null;
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.Holder = actor.Renderer;
@@ -177,6 +190,7 @@ public sealed partial class LevelItem : Component
 		body.OverrideMassCenter = true;
 		body.MassCenterOverride = model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 		body.EnhancedCcd = true;
+		body.CollisionEventsEnabled = true;
 		body.Enabled = collider.Enabled = true;
 		item.GetOrAddComponent<LevelItem>();
 		return body;
