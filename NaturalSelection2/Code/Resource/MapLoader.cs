@@ -47,6 +47,8 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var decals = new Dictionary<string, DecalDefinition>( StringComparer.OrdinalIgnoreCase );
 		var staticProps = new Dictionary<string, ModelLoader.StaticProp>( StringComparer.OrdinalIgnoreCase );
 
+		List<MapLocations.Volume> locations = [];
+		List<(Vector3 Position, int Priority)> landmarks = [];
 		foreach ( var entity in level.Entities )
 		{
 			if ( level.Groups.TryGetValue( entity.GroupId, out var group ) )
@@ -59,12 +61,35 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 					continue;
 			}
 
+			if ( entity.Name == "location" )
+			{
+				var name = entity.Get( "name" ).AsString();
+				var half = ScaleOf( entity ) * (0.2395f * Scale);
+				if ( !string.IsNullOrWhiteSpace( name ) && half.x > 0 && half.y > 0 && half.z > 0 )
+					locations.Add( new( name, new Transform( Origin( entity ) + Vector3.Up * half.z, Angles( entity ), half ) ) );
+				continue;
+			}
+			int priority = entity.Name switch { "tech_point" => 3, "resource_point" => 2, "power_point" => 1, _ => 0 };
+			if ( priority > 0 ) landmarks.Add( (Origin( entity ), priority) );
 			if ( entity.Name == "decal" )
 				AddDecal( entity, root, decals );
 			else
 				BuildEntity( entity, root, geometry, staticProps );
 		}
 
+		if ( locations.Count > 0 )
+		{
+			var map = root.AddComponent<MapLocations>();
+			map.Volumes = locations.ToArray();
+			var anchors = landmarks.ToLookup( x => map.LocationAt( x.Position ) );
+			map.Destinations = locations.GroupBy( v => v.Name ).Select( group =>
+			{
+				var anchor = anchors[group.Key].OrderByDescending( x => x.Priority ).FirstOrDefault();
+				var position = anchor.Priority > 0 ? anchor.Position
+					: group.Aggregate( Vector3.Zero, (sum, v) => sum + v.Bounds.Position.WithZ( 0 ) ) / group.Count();
+				return new MapLocations.Destination( group.Key, position, anchor.Priority >= 2 );
+			} ).ToArray();
+		}
 		geometry.Build( world, FilePath, renderModels );
 		AddPhysics( world, geometry.CreatePhysics( FilePath ) );
 	}
