@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard
 	sealed class EarState
 	{
 		public Vector3 Base, Middle, Tip, PreviousMiddle, PreviousTip;
-		public Vector3 LastMiddle, LastTip, MiddleOffset, TipOffset, PreviousMiddleOffset, PreviousTipOffset;
+		public Vector3 LastMiddle, LastTip, MiddleOffset, TipOffset;
 		public float Twist, TargetTwist;
 		public TimeUntil NextTwist;
 	}
@@ -60,11 +60,12 @@ public sealed partial class RabbitGuard
 			high.Rotation = twist * twist * high.Rotation;
 			middle = root + twist * twist * (middle - root);
 			var tip = middle + high.Rotation.Forward * (2f * rig.UpperHalf * WorldScale.z);
-			if ( !earsActive || secondaryReset > 0f || ear.Base.Distance( root ) > 400f )
+			bool reset = !earsActive || secondaryReset > 0f || ear.Base.Distance( root ) > 400f;
+			if ( reset )
 			{
 				ear.PreviousMiddle = ear.Middle = middle;
 				ear.PreviousTip = ear.Tip = tip;
-				ear.PreviousMiddleOffset = ear.MiddleOffset = ear.PreviousTipOffset = ear.TipOffset = Vector3.Zero;
+				ear.MiddleOffset = ear.TipOffset = Vector3.Zero;
 			}
 			else for ( int step = 0; step < steps; step++ )
 			{
@@ -72,6 +73,31 @@ public sealed partial class RabbitGuard
 				var basePoint = Vector3.Lerp( ear.Base, root, fraction );
 				var middlePoint = Vector3.Lerp( ear.LastMiddle, middle, fraction );
 				var tipPoint = Vector3.Lerp( ear.LastTip, tip, fraction );
+				var (mid, end) = Simulate( basePoint, middlePoint, tipPoint );
+				ear.PreviousMiddle = ear.Middle;
+				ear.PreviousTip = ear.Tip;
+				ear.Middle = mid;
+				ear.Tip = end;
+				ear.MiddleOffset = mid - middlePoint;
+				ear.TipOffset = end - tipPoint;
+			}
+			ear.Base = root;
+			ear.LastMiddle = middle;
+			ear.LastTip = tip;
+			var middleOffset = ear.MiddleOffset;
+			var tipOffset = ear.TipOffset;
+			if ( !reset && remainder > 0f )
+			{
+				// Preview the fractional tick without advancing the Verlet history.
+				var (mid, end) = Simulate( root, middle, tip );
+				middleOffset = Vector3.Lerp( middleOffset, mid - middle, remainder / tick );
+				tipOffset = Vector3.Lerp( tipOffset, end - tip, remainder / tick );
+			}
+			middle += middleOffset;
+			tip += tipOffset;
+
+			(Vector3, Vector3) Simulate( Vector3 basePoint, Vector3 middlePoint, Vector3 tipPoint )
+			{
 				const float inertia = 0.95f * 0.95f * 0.95f * 0.95f;
 				Vector3 Advance( Vector3 current, Vector3 old ) => current + ((current - old - velocity) * inertia + velocity) * (0.95f * 0.95f);
 				var mid = Advance( ear.Middle, ear.PreviousMiddle );
@@ -93,20 +119,8 @@ public sealed partial class RabbitGuard
 					mid = SweepEar( basePoint, mid );
 					end = SweepEar( mid, end );
 				}
-				ear.PreviousMiddle = ear.Middle;
-				ear.PreviousTip = ear.Tip;
-				ear.Middle = mid;
-				ear.Tip = end;
-				ear.PreviousMiddleOffset = ear.MiddleOffset;
-				ear.PreviousTipOffset = ear.TipOffset;
-				ear.MiddleOffset = mid - middlePoint;
-				ear.TipOffset = end - tipPoint;
+				return (mid, end);
 			}
-			ear.Base = root;
-			ear.LastMiddle = middle;
-			ear.LastTip = tip;
-			middle += Vector3.Lerp( ear.PreviousMiddleOffset, ear.MiddleOffset, remainder / tick );
-			tip += Vector3.Lerp( ear.PreviousTipOffset, ear.TipOffset, remainder / tick );
 			void Place( BoneCollection.Bone bone, Transform pose, Vector3 a, Vector3 b )
 			{
 				pose.Position = (a + b) * 0.5f;
