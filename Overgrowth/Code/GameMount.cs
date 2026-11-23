@@ -200,7 +200,7 @@ public partial class GameMount : BaseGameMount
 	{
 		actorPrefabs.Clear();
 		averageColors.Clear();
-		audioMaterials.Clear();
+		materials.Clear();
 		soundGroups.Clear();
 	}
 }

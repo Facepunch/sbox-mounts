@@ -4,18 +4,34 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	internal void OnRagdollContact( Collision collision )
+	[Property, Range( 0f, 10f )] public float FallDamageMultiplier { get; set; } = 1f;
+	TimeSince sinceRagdollImpact;
+	sealed class FallImpactDamage : BluntDamage;
+
+	internal void OnRagdollContact( Collision collision, bool head )
 	{
 		if ( !Networking.IsHost || !Downed || collision.Other.IsTrigger ) return;
 		var other = collision.Other.GameObject;
 		if ( !other.IsValid() ) return;
 		var fighter = other.GetComponentInParent<RabbitGuard>();
 		if ( fighter == this ) return;
-		if ( awaitingThrowImpact && fighter is null ) ApplyThrowImpact( collision.Contact.Point );
-		if ( !IsValid || Health <= 0f ) return;
 		float impulse = BodyImpactImpulse( collision ) / 40f;
 		var point = collision.Contact.Point;
 		var surface = collision.Other.Surface?.ResourceName;
+		if ( awaitingThrowImpact && fighter is null ) ApplyThrowImpact( point );
+		if ( !IsValid || Health <= 0f ) return;
+		if ( impulse <= 0.1f ) return;
+		float hardness = (Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount)?.MaterialHardness( surface ) ?? 1f;
+		if ( impulse * hardness * (head ? 5f : 1f) > 5f )
+		{
+			float multiplier = Math.Max( 0.001f, FallDamageMultiplier );
+			KnockoutShield = Math.Max( 0, KnockoutShield - (int)((float)sinceRagdollImpact * 2f * multiplier) );
+			sinceRagdollImpact = 0f;
+			bool awake = !Unconscious;
+			((IDamageable)this).OnDamage( new FallImpactDamage { Damage = impulse * 0.5f * multiplier, Position = point } );
+			if ( !IsValid || Health <= 0f ) return;
+			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", point );
+		}
 		// Collided shares these cooldowns with upright landings, but thresholds are in impulse units.
 		if ( impulse > 4f && bodyFall <= 0f )
 		{
@@ -69,9 +85,10 @@ public sealed partial class RabbitGuard
 internal sealed class RabbitBodyContact : Component, Component.ICollisionListener
 {
 	internal RabbitGuard Fighter { get; set; }
+	internal bool Head { get; set; }
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
-		if ( Fighter.IsValid() ) Fighter.OnRagdollContact( collision );
+		if ( Fighter.IsValid() ) Fighter.OnRagdollContact( collision, Head );
 	}
 }

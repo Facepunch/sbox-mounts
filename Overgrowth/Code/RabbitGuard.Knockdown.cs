@@ -90,7 +90,7 @@ public sealed partial class RabbitGuard
 
 	void GoLimp()
 	{
-		sinceKnockdown = fallAge = 0;
+		sinceKnockdown = fallAge = sinceRagdollImpact = 0;
 		limpStun = 0f;
 		displayingRoll = false;
 		RecoveredInAir = false;
@@ -117,14 +117,20 @@ public sealed partial class RabbitGuard
 		foreach ( var part in ragdoll.Bodies )
 		{
 			if ( !part.Component.IsValid() ) continue;
+			part.Component.EnableImpactDamage = false;
 			part.Component.CollisionEventsEnabled = true;
-			part.Component.GetOrAddComponent<RabbitBodyContact>().Fighter = this;
+			var listener = part.Component.GetOrAddComponent<RabbitBodyContact>();
+			listener.Fighter = this;
+			var head = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
+			for ( int i = 0; head is not null && i < boundAnimations.Head.ChainLength; i++, head = head.Parent )
+				if ( part.Bone == head.Index ) listener.Head = true;
 		}
 		Downed = true;
 	}
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
+		if ( death.DamageInfo is FallImpactDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
 		lethalBlow = death.DamageInfo as StrikeDamage;
 		base.OnDeath( death );
 	}

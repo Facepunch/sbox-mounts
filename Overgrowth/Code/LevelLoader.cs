@@ -145,6 +145,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Attack Speed": fighter.AttackSpeed = Math.Clamp( value, 0.1f, 2f ); break;
 					case "Movement Speed": fighter.MovementSpeed = Math.Clamp( value, 0.01f, 100f ); break;
 						case "Attack Damage": fighter.AttackDamage = Math.Max( 0f, value ); break;
+						case "fall_damage_mult" when !node.Element( "parameters" ).Elements( "parameter" ).Any( x => x.Attribute( "name" ) == "Fall Damage Multiplier" ):
+						case "Fall Damage Multiplier": fighter.FallDamageMultiplier = Math.Max( 0.001f, value ); break;
 						case "Damage Resistance": fighter.DamageResistance = value; break;
 					case "Knockout Shield": fighter.KnockoutShield = Math.Max( 0, (int)value ); break;
 						case "Attack Knockback": fighter.AttackKnockback = Math.Max( 0f, value ); break;

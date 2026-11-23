@@ -4,21 +4,24 @@ namespace Overgrowth;
 
 public partial class GameMount
 {
-	readonly Dictionary<string, XmlAsset> audioMaterials = new();
+	readonly Dictionary<string, XmlAsset> materials = new();
 	readonly Dictionary<string, (int Variants, float Volume)> soundGroups = new();
 
-	XmlAsset AudioMaterial( string path )
+	XmlAsset ReadMaterial( string path )
 	{
-		if ( !audioMaterials.TryGetValue( path, out var xml ) )
-			audioMaterials[path] = xml = FileSystem.FileExists( path ) ? XmlAsset.Read( FileSystem, path, "material" ) : null;
+		if ( !materials.TryGetValue( path, out var xml ) )
+			materials[path] = xml = FileSystem.FileExists( path ) ? XmlAsset.Read( FileSystem, path, "material" ) : null;
 		return xml;
 	}
 
+	internal float MaterialHardness( string surface ) =>
+		ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" )?.Element( "physics" )?.Number( "hardness" ) ?? 1f;
+
 	internal void PlayMaterialEvent( CharacterLoader character, GameObject actor, string surface, string step, Vector3 position, float gain )
 	{
-		var floor = AudioMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? AudioMaterial( "Data/Materials/default.xml" );
+		var floor = ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );
 		Play( floor, character.SoundMod );
-		if ( character.Clothing is { Length: > 0 } clothing ) Play( AudioMaterial( clothing ), null );
+		if ( character.Clothing is { Length: > 0 } clothing ) Play( ReadMaterial( clothing ), null );
 
 		void Play( XmlAsset material, string mod )
 		{
@@ -28,7 +31,7 @@ public partial class GameMount
 			if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
 			var handle = PlayGroup( group, position, gain );
 			if ( !handle.IsValid() ) return;
-			float distance = entry.Number( "max_distance" ) ?? AudioMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
+			float distance = entry.Number( "max_distance" ) ?? ReadMaterial( "Data/Materials/base.xml" )?.Element( "events" )?.Element( step )?.Number( "max_distance" ) ?? 0f;
 			if ( distance > 0 ) handle.Distance = distance * gain * 40f;
 			if ( entry.Attribute( "attached" ) != "true" ) return;
 			handle.Parent = actor;
