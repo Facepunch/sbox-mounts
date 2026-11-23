@@ -60,7 +60,7 @@ public sealed partial class RabbitGuard
 		var label = boundAnimations.WeaponLabel;
 		bool knife = label == "knife";
 		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
-		var target = enemy;
+		var target = strikeTarget;
 		var victim = target.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var weapon = PrimaryItem.IsValid() ? PrimaryItem.GameObject : GameObject;

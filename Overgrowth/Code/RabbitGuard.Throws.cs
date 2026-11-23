@@ -16,7 +16,7 @@ public sealed partial class RabbitGuard
 
 	bool TryCounterThrow()
 	{
-		if ( !wantsBlockThrow || throwRecharge > 0 ) return false;
+		if ( !wantsBlockThrow || throwRecharge > 0 || knifeCooldown > 0f ) return false;
 		var reach = CloseAttackRange + 0.45f * 40f;
 		var center = CharacterCenter( GameObject );
 		var victim = Scene.GetAllComponents<RabbitGuard>()

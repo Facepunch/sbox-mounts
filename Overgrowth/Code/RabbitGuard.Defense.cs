@@ -63,7 +63,7 @@ public sealed partial class RabbitGuard
 		if ( activeBlockReaction && elapsed > 0.1f && Animation.IsGrounded && startled <= 0f )
 		{
 			if ( TryCounterThrow() ) return true;
-			if ( CanAttack( enemy ) && TryStartStrike( CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) ) )
+			if ( CanAttack( enemy ) && TryStartStrike() )
 			{
 				activeBlockReaction = false;
 				ReactionPhase = 1f;

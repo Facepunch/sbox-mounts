@@ -18,13 +18,14 @@ public sealed partial class RabbitGuard
 	TimeUntil knifeCooldown;
 	KnifeLayer currentKnifeLayer;
 
-	void BeginKnifeAttack()
+	void BeginKnifeAttack( GameObject target )
 	{
+		strikeTarget = target;
 		var layer = nextBackhand ? backhand : forehand;
 		strike = boundAnimations.KnifeSwings[layer.Name];
 		if ( MirroredStance ) MirroredStance = LeftHanded;
 		flippedAttack = LeftHanded;
-		AttackHeight = GetAttackHeight( enemy ) + Random.Shared.Float( 0f, 0.2f );
+		AttackHeight = GetAttackHeight( target ) + Random.Shared.Float( 0f, 0.2f );
 		AttackPhase = 0f;
 		preparePassed = impactPassed = false;
 		predictability = attackHistory.Record( strike );
@@ -90,8 +91,8 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && clip.Prepare is { } prep && layer.Phase >= prep.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( enemy ) && CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) < ContactRange && HasSight( enemy ) )
-					enemy.GetComponent<RabbitGuard>()?.TryActiveBlock( this, move );
+				if ( CanAttack( strikeTarget ) && CharacterCenter( GameObject ).Distance( CharacterCenter( strikeTarget ) ) < ContactRange && HasSight( strikeTarget ) )
+					strikeTarget.GetComponent<RabbitGuard>()?.TryActiveBlock( this, move );
 			}
 			if ( !impactPassed && clip.Impact is { } hit && layer.Phase >= hit.Time / clip.Duration )
 			{

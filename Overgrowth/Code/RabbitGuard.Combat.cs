@@ -7,6 +7,7 @@ public sealed partial class RabbitGuard
 {
 	internal const string SwordSlashRight = "sword_slash_right";
 	RabbitAttack strike;
+	GameObject strikeTarget;
 	[Property, Range( 0.1f, 2f )] public float AttackSpeed { get; set; } = 1f;
 	[Property] public float AttackDamage { get; set; } = 1f;
 	[Property] public float AttackKnockback { get; set; } = 1f;
@@ -73,10 +74,10 @@ public sealed partial class RabbitGuard
 		if ( strike is { AsLayer: false } )
 		{
 			float previousHeight = AttackHeight;
-			if ( enemy.IsValid() )
+			if ( strikeTarget.IsValid() )
 			{
-				AttackHeight = GetAttackHeight( enemy );
-				TurnDuringStrike( TargetPosition( enemy ) - WorldPosition );
+				AttackHeight = GetAttackHeight( strikeTarget );
+				TurnDuringStrike( TargetPosition( strikeTarget ) - WorldPosition );
 			}
 			bool blocked = Stance == strike.Blocked;
 			var blockClip = blocked ? boundAnimations.Clips[Stance].ForSide( MirroredAction ) : null;
@@ -89,8 +90,8 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( enemy ) && CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) < ContactRange && HasSight( enemy ) &&
-					enemy.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
+				if ( CanAttack( strikeTarget ) && CharacterCenter( GameObject ).Distance( CharacterCenter( strikeTarget ) ) < ContactRange && HasSight( strikeTarget ) &&
+					strikeTarget.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
 				{
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
 					blockingOpponent = defender;
@@ -197,7 +198,7 @@ public sealed partial class RabbitGuard
 
 		if ( visible ) UpdateTactic( distance );
 		if ( Stance == Roll ) return;
-		if ( TryStartStrike( distance ) ) return;
+		if ( TryStartStrike() ) return;
 
 		if ( repath <= 0 )
 		{
@@ -215,12 +216,44 @@ public sealed partial class RabbitGuard
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}
 
-	bool TryStartStrike( float distance )
+	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.
+	// The chosen target remains bound to this strike while the AI continues tracking its chase target.
+	GameObject FindStrikeTarget( out float distance )
+	{
+		var center = CharacterCenter( GameObject );
+		float range = AttackRange;
+		float nearest = range * range;
+		int bestPriority = int.MaxValue;
+		GameObject best = null;
+		void Consider( GameObject candidate )
+		{
+			if ( candidate == best || !CanAttack( candidate ) ) return;
+			var guard = candidate.GetComponent<RabbitGuard>();
+			int priority = guard?.strike is { AsLayer: false } ? 0 : guard is { Downed: true } ? 2 : 1;
+			float separation = center.DistanceSquared( CharacterCenter( candidate ) );
+			if ( priority > bestPriority || separation > range * range || (priority == bestPriority && separation >= nearest) || !HasSight( candidate ) ) return;
+			best = candidate;
+			nearest = separation;
+			bestPriority = priority;
+		}
+		Consider( enemy );
+		foreach ( var hit in Scene.FindInPhysics( new Sphere( center, range ) ) )
+		{
+			var candidate = hit.GetComponentInParent<BaseNpc>()?.GameObject ?? hit.GetComponentInParent<PlayerController>()?.GameObject;
+			if ( candidate.IsValid() ) Consider( candidate );
+		}
+		distance = MathF.Sqrt( nearest );
+		return best;
+	}
+
+	bool TryStartStrike()
 	{
 		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		if ( !visible || !attacking || strike is not null || knifeCooldown > 0 || distance >= AttackRange || !HasSight( enemy ) ) return false;
+		if ( !attacking || strike is not null || knifeCooldown > 0 ) return false;
 		if ( boundAnimations.Species == "wolf" && blockStun > 0.5f ) return false;
 
+		var target = FindStrikeTarget( out float distance );
+		if ( !target.IsValid() ) return false;
 		bool close = distance < CloseAttackRange;
 		int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
 		bool mirrored = Random.Shared.Next( 2 ) == 0;
@@ -229,17 +262,18 @@ public sealed partial class RabbitGuard
 		var choice = attackClass switch
 		{
 			1 or 2 when (label is "sword" or "rapier") && mirrored == LeftHanded => SwordSlashRight,
-			1 when !PrimaryItem.IsValid() && enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
-			1 when PrimaryItem.IsValid() || !IsCrouching( enemy ) => close ? Jab : Roundhouse,
+			1 when !PrimaryItem.IsValid() && target.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
+			1 when PrimaryItem.IsValid() || !IsCrouching( target ) => close ? Jab : Roundhouse,
 			2 => Sweep,
 			_ => close ? Knee : Kick
 		};
 		strike = boundAnimations.Attacks[choice];
 		if ( strike.AsLayer )
 		{
-			BeginKnifeAttack();
+			BeginKnifeAttack( target );
 			return true;
 		}
+		strikeTarget = target;
 		Movement.Stop();
 		Stance = choice;
 		if ( strike.Direction != "front" )
@@ -252,7 +286,7 @@ public sealed partial class RabbitGuard
 		Speak( "attack" );
 		AttackPhase = 0;
 		cancelDelay = 0.01f;
-		AttackHeight = GetAttackHeight( enemy );
+		AttackHeight = GetAttackHeight( target );
 		impactPassed = false;
 		preparePassed = false;
 		predictability = attackHistory.Record( strike );
@@ -329,15 +363,15 @@ public sealed partial class RabbitGuard
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
 		var origin = CharacterCenter( GameObject );
-		var offset = enemy.IsValid() ? CharacterCenter( enemy ) - origin : Vector3.Zero;
-		bool reached = CanAttack( enemy ) && offset.LengthSquared < ContactRange * ContactRange && HasSight( enemy );
-		var rabbit = reached ? enemy.GetComponent<RabbitGuard>() : null;
+		var offset = strikeTarget.IsValid() ? CharacterCenter( strikeTarget ) - origin : Vector3.Zero;
+		bool reached = CanAttack( strikeTarget ) && offset.LengthSquared < ContactRange * ContactRange && HasSight( strikeTarget );
+		var rabbit = reached ? strikeTarget.GetComponent<RabbitGuard>() : null;
 		if ( rabbit is not null )
 		{
 			rabbit.NoticeAttacker( GameObject );
 			if ( rabbit.Downed || rabbit.RollProgress < 1f || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
 		}
-		if ( !reached || AvoidsStrike( enemy, strike.Height ) )
+		if ( !reached || AvoidsStrike( strikeTarget, strike.Height ) )
 		{
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
@@ -351,13 +385,13 @@ public sealed partial class RabbitGuard
 		}
 		if ( parried )
 		{
-			ReportSound( enemy, position, HeardSound.Combat, 10f );
+			ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
 			PlayBluntImpact( "hit_normal", position );
 			return;
 		}
-		var npc = enemy.GetComponent<BaseNpc>();
+		var npc = strikeTarget.GetComponent<BaseNpc>();
 		ApplyStrikeImpulse( clip, position, direction );
-		if ( enemy.IsValid() ) ReportSound( enemy, position, HeardSound.Combat, 10f );
+		if ( strikeTarget.IsValid() ) ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
 		var group = "hit_normal";
 		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
 		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
@@ -367,11 +401,11 @@ public sealed partial class RabbitGuard
 
 	void ApplyStrikeImpulse( RabbitClip clip, Vector3 position, Vector3 direction )
 	{
-		var victim = enemy.GetComponentInParent<IDamageable>();
+		var victim = strikeTarget.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var origin = CharacterCenter( GameObject );
 		float force = strike.Force * AttackKnockback;
-		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
+		if ( strikeTarget.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
 			force *= 1f - Math.Clamp( defender.TemporaryHealth / defender.MaxHealth, 0f, 1f ) * 0.5f;
 		var damage = new StrikeDamage
 		{
