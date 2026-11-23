@@ -237,10 +237,10 @@ public sealed partial class RabbitGuard
 					height += (Math.Clamp( old, height - 4f, height + 4f ) - height) * inertia;
 				groundHeight[side] = height;
 				var tilt = Rotation.FromToRotation( Vector3.Up, trace.Normal );
-				footRotation[side] = Rotation.Lerp( tilt, footRotation[side], inertia );
+				footRotation[side] = RabbitClip.MixRotation( tilt, footRotation[side], inertia );
 				float lift = authoredHeight - 2f;
 				result.Position += footOffset[side].WithZ( height + lift + stepLift[side] - target.Position.z ) * weight;
-				result.Rotation = Rotation.Lerp( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ) * result.Rotation;
+				result.Rotation = RabbitClip.MixRotation( Rotation.Identity, footRotation[side], weight * Math.Max( 0f, 1f - lift / 10f ) ).Normal * result.Rotation;
 				contact = true;
 			}
 		}
