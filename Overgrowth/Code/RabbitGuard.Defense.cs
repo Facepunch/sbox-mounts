@@ -77,35 +77,41 @@ public sealed partial class RabbitGuard
 	void UpdateActiveBlock( float step )
 	{
 		if ( boundAnimations.Species == "wolf" ) return;
-		if ( blockDelay is null && startled <= 0 && blockRecharge <= 0 && CanAttack( enemy ) &&
-			enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
+		if ( startled <= 0f && CanAttack( enemy ) && enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
 		{
-			// AnimationReader searches all synced poses for the next event, using the first pose as its clock.
-			float next = float.PositiveInfinity;
-			foreach ( var pose in move.Poses )
-			{
-				if ( pose.Clip.Prepare is not { } prepare ) continue;
-				float phase = prepare.Time / pose.Clip.Duration;
-				if ( phase > opponent.AttackPhase ) next = Math.Min( next, phase );
-			}
-			if ( float.IsFinite( next ) )
-			{
-				float power = 0.5f * MathF.Pow( 4f, opponent.predictability );
-				if ( tactic == CombatTactic.Provoke ) power += 1f;
-				blockDelay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration / opponent.AttackSpeed;
-				float chance = 1f - MathF.Pow( 1f - BlockSkill, power );
-				if ( groupLeader.IsValid() ) chance *= 0.5f;
-				chance *= 0.1f + 0.9f * GameDifficulty * GameDifficulty;
-				if ( Random.Shared.Float() > chance ) blockDelay += 0.4f;
-			}
+			if ( move.AsLayer && dodgeDelay is null && dodgeRecharge <= 0f ) dodgeDelay = DefenseDelay( opponent, move );
+			if ( !move.AsLayer && blockDelay is null && blockRecharge <= 0f ) blockDelay = DefenseDelay( opponent, move );
 		}
+		UpdateDodgeWindow( step );
 		if ( blockDelay is not { } delay ) return;
 		blockDelay = Math.Min( 1f, delay - step );
 		if ( blockDelay > 0f ) return;
 		blockDelay = null;
-		if ( !IsOnGround || InThrow || (strike is not null && blockStun <= 0) ) return;
+		if ( !IsOnGround || InThrow || Unconscious || currentKnifeLayer is { Active: true } || (strike is not null && blockStun <= 0) ) return;
 		activeBlock = 0.2f;
 		blockRecharge = 0.4f;
+	}
+
+	float? DefenseDelay( RabbitGuard opponent, RabbitAttack move )
+	{
+		// AnimationReader finds the next prepare event across every pose in the synced group.
+		float next = float.PositiveInfinity;
+		foreach ( var pose in move.Poses )
+		{
+			if ( pose.Clip.Prepare is not { } prepare ) continue;
+			float phase = prepare.Time / pose.Clip.Duration;
+			if ( phase > opponent.AttackPhase ) next = Math.Min( next, phase );
+		}
+		if ( !float.IsFinite( next ) ) return null;
+		float power = 0.5f * MathF.Pow( 4f, opponent.predictability ) + (tactic == CombatTactic.Provoke ? 1f : 0f);
+		float chance = 1f - MathF.Pow( 1f - BlockSkill, power );
+		if ( !move.AsLayer )
+		{
+			if ( groupLeader.IsValid() ) chance *= 0.5f;
+			chance *= 0.1f + 0.9f * GameDifficulty * GameDifficulty;
+		}
+		float delay = (next - opponent.AttackPhase) * move.Poses[0].Clip.Duration / (move.AsLayer ? 1f : opponent.AttackSpeed);
+		return Random.Shared.Float() > chance ? delay + 0.4f : delay;
 	}
 
 	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move )
@@ -113,6 +119,7 @@ public sealed partial class RabbitGuard
 		FadeKnifeAttack();
 		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
 		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
+		if ( TryDodge( attacker, move ) ) return false;
 		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;

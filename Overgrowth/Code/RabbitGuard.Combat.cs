@@ -311,7 +311,7 @@ public sealed partial class RabbitGuard
 	static bool TargetIsAirborne( GameObject target ) => target.GetComponent<BaseNpc>() is { IsAirborne: true }
 		|| target.GetComponent<PlayerController>() is { IsOnGround: false };
 
-	static bool AvoidsStrike( GameObject target, string height ) => height switch
+	static bool AvoidsStrike( GameObject target, string height ) => target.GetComponent<RabbitGuard>() is { IsDodging: true } || height switch
 	{
 		"high" => IsCrouching( target ),
 		"low" => TargetIsAirborne( target ),

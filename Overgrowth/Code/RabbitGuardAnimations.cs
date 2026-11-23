@@ -63,7 +63,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var blocked = bodyAttacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
 		var throwActions = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" ).Element( "animations" );
 		var throwClips = new[] { "throw", "thrown", "thrown_counter" }.ToDictionary( slot => slot, slot => System.IO.Path.GetFileNameWithoutExtension( throwActions.Attribute( slot ) ) );
-		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround] ).ToHashSet();
+		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround, RabbitGuard.DodgeHigh, RabbitGuard.DodgeMiddle, RabbitGuard.DodgeLow] ).ToHashSet();
 		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Roll, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
@@ -231,7 +231,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var condition = graph.IdCompare( stance, target );
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
 			// Get-up already blends from the captured ragdoll pose after the full body is posed.
-			float duration = target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
+			float duration = RabbitGuard.IsDodge( target ) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			foreach ( var previous in states )
 			{
