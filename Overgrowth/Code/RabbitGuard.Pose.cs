@@ -148,7 +148,8 @@ public sealed partial class RabbitGuard
 			}
 			overridden[i] = false;
 		}
-		if ( recoveryRate > 0f ) BlendRecoveryPose();
+		if ( recoveryRate > 0f )
+			BlendRecoveryPose( Networking.IsHost && RecoveringRoll && RollProgress < 1f ? rollVelocity : Animation.MoveVelocity );
 		// Binding a graph leaves the bind pose visible until its first evaluation.
 		if ( Networking.IsHost && playing is not null && Time.Delta > 0f )
 		{

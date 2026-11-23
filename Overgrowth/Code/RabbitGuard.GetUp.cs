@@ -7,6 +7,7 @@ public sealed partial class RabbitGuard
 	// Recovery is the last full-body pose operation in FinalAnimationMatrixUpdate.
 	// Blend the solved animation (including IK and roll), in the skeleton's weighted parent space.
 	Transform[] lastPhysicsPose, recoveryPose;
+	Vector3 recoveryOrigin;
 	float recoveryRate, recoveryAge;
 	int recoveryStep;
 
@@ -30,6 +31,7 @@ public sealed partial class RabbitGuard
 		recoveryRate = rate;
 		recoveryStep = 0;
 		recoveryAge = 0f;
+		recoveryOrigin = WorldPosition;
 		var model = Renderer.WorldTransform;
 		var bones = poseModel.Bones.AllBones;
 		// The collider has just moved to its standing origin. Keep the visible skeleton in place.
@@ -39,11 +41,11 @@ public sealed partial class RabbitGuard
 			var world = recoveryPose[bone.Index];
 			Renderer.SetBoneTransform( bone, model.ToLocal( world ) );
 			int parent = recoveryParents[bone.Index];
-			recoveryPose[bone.Index] = parent >= 0 ? recoveryPose[parent].ToLocal( world ) : world.WithPosition( world.Position - WorldPosition );
+			recoveryPose[bone.Index] = parent >= 0 ? recoveryPose[parent].ToLocal( world ) : world.WithPosition( world.Position - recoveryOrigin );
 		}
 	}
 
-	void BlendRecoveryPose()
+	void BlendRecoveryPose( Vector3 velocity )
 	{
 		const float rate = 30f; // Four 120 Hz ticks per nearby NPC animation update.
 		if ( recoveryAge >= 1f / recoveryRate ) { EndRecovery(); return; }
@@ -56,14 +58,14 @@ public sealed partial class RabbitGuard
 		{
 			int i = bone.Index, parent = recoveryParents[i];
 			var target = parent >= 0 ? RelativeBonePose( solvedPose[parent], solvedPose[i] ) : model.ToWorld( solvedPose[i] );
-			if ( parent < 0 ) target.Position -= WorldPosition;
+			if ( parent < 0 ) target.Position -= recoveryOrigin;
 			animationPose[i] = target;
 		}
 
 		bool advanced = recoveryStep < step;
 		while ( recoveryStep < step )
 		{
-			Sample( Weight( ++recoveryStep ) );
+			Sample( Weight( ++recoveryStep ), velocity / rate );
 			// The native script writes world matrices to ragdoll_pose and reads them back
 			// next tick. Its close-angle quaternion blend can yield a non-unit rotation.
 			foreach ( var bone in bones )
@@ -83,19 +85,21 @@ public sealed partial class RabbitGuard
 			}
 		}
 		float fraction = frame - step;
-		if ( fraction > 0f || !advanced ) Sample( Weight( step + 1 ) * fraction );
+		if ( fraction > 0f || !advanced ) Sample( Weight( step + 1 ) * fraction, velocity * (fraction / rate) );
 		foreach ( var bone in bones )
 		{
 			var pose = solvedPose[bone.Index];
-			solvedPose[bone.Index] = model.ToLocal( pose.WithPosition( pose.Position + WorldPosition ) );
+			solvedPose[bone.Index] = model.ToLocal( pose.WithPosition( pose.Position + recoveryOrigin ) );
 		}
 
-		void Sample( float weight )
+		void Sample( float weight, Vector3 displacement )
 		{
 			foreach ( var bone in bones )
 			{
 				int i = bone.Index, parent = recoveryParents[i];
 				var previous = recoveryPose[i];
+				// FinalAnimationMatrixUpdate carries the old world pose by the fighter's velocity.
+				if ( parent < 0 ) previous.Position += displacement;
 				var target = animationPose[i];
 				var relative = new Transform( Vector3.Lerp( previous.Position, target.Position, weight ),
 					RabbitClip.MixRotation( previous.Rotation, target.Rotation, weight ), Vector3.Lerp( previous.Scale, target.Scale, weight ) );
