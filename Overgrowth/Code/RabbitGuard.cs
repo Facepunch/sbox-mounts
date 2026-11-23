@@ -90,6 +90,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdatePainFlinch();
 		UpdateKnifeLayers();
 		UpdateLanding();
+		// The navigation schedule pauses off the ground. Overgrowth's conscious brain still sees
+		// nearby opponents when falling or ragdolled, including before it chooses a wake-up roll.
+		if ( Networking.IsHost && NpcConVars.Enabled && (Downed || IsAirborne) && !Unconscious && !StaticCharacter && !Held && !Holding )
+		{
+			TrackEnemy();
+			ScanForCharacters();
+		}
 		if ( Downed )
 		{
 			if ( Networking.IsHost ) TryGetUp();
@@ -183,36 +190,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( Holding || Held || LedgeAnimation is not null ) return;
-		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
-		{
-			seenHostiles.Remove( enemy );
-			enemy = null;
-			visible = false;
-			enemySeen = 0;
-			Movement.Stop();
-		}
-		if ( IsKnownThreat( enemy ) && !Sleeping )
-		{
-			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
-			if ( visible )
-			{
-				ObserveTarget( enemy, true );
-				lastSeen = TargetPosition( enemy );
-				NoticeCharacter( enemy );
-				sinceEnemySeen = 0;
-				seenHostiles[enemy] = Time.Now;
-			}
-		}
+		TrackEnemy();
 		AdvanceBlockRecoil( Time.Delta );
 		if ( AdvanceRoll() ) return;
 		UpdateCombatGroup();
 		UpdateStanceAmounts();
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense() ) return;
-		if ( nextVisionCheck <= 0 && !Sleeping )
-		{
-			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
-			UpdateAwareness();
-		}
+		ScanForCharacters();
 		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
 	}

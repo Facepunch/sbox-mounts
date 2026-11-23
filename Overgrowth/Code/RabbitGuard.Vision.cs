@@ -60,6 +60,39 @@ public sealed partial class RabbitGuard
 		return (head.Position, head.Direction( offset.Forward ), head.Direction( offset.Left ), head.Direction( offset.Up ));
 	}
 
+	void TrackEnemy()
+	{
+		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
+		{
+			seenHostiles.Remove( enemy );
+			enemy = null;
+			visible = false;
+			enemySeen = 0;
+			Movement.Stop();
+		}
+		if ( IsKnownThreat( enemy ) && !Sleeping )
+		{
+			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
+			if ( visible )
+			{
+				ObserveTarget( enemy, true );
+				lastSeen = TargetPosition( enemy );
+				NoticeCharacter( enemy );
+				sinceEnemySeen = 0;
+				seenHostiles[enemy] = Time.Now;
+			}
+		}
+	}
+
+	void ScanForCharacters()
+	{
+		if ( nextVisionCheck <= 0 && !Sleeping )
+		{
+			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
+			UpdateAwareness();
+		}
+	}
+
 	void UpdateAwareness()
 	{
 		if ( strike is not null ) return;
@@ -75,6 +108,7 @@ public sealed partial class RabbitGuard
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
 			.Concat( Scene.GetAllComponents<CharacterRemains>().Where( remains => remains.Teams?.Any( Teams.Contains ) == true ).Select( remains => remains.GameObject ) );
 		var view = GetViewBasis();
+		var observer = CharacterCenter( GameObject );
 		foreach ( var candidate in candidates )
 		{
 			var ally = candidate.GetComponent<RabbitGuard>();
@@ -84,12 +118,12 @@ public sealed partial class RabbitGuard
 			bool threat = !friendly && CanAttack( candidate );
 			bool known = knownCharacters.ContainsKey( candidate );
 			if ( !friendly && !threat && !known ) continue;
-			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
+			var center = CharacterCenter( candidate );
+			float separation = observer.DistanceSquared( center );
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			bool hidden = concealed && ally.duckAmount >= 0.5f
 				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
 			if ( hidden && !known ) continue;
-			var center = CharacterCenter( candidate );
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
@@ -123,7 +157,7 @@ public sealed partial class RabbitGuard
 				else NoticeCharacter( closest );
 			}
 			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
-				investigatePoint = Movement.ProjectPoint( WorldPosition + (TargetPosition( closest ) - WorldPosition).Normal * 120f );
+				investigatePoint = Movement.ProjectPoint( observer + (CharacterCenter( closest ) - observer).Normal * 120f );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
 		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;
