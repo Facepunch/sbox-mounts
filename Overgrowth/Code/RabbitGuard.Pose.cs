@@ -57,8 +57,9 @@ public sealed partial class RabbitGuard
 		parameters.TryGetFloat( "ground_speed", out float speed );
 		parameters.TryGetFloat( "tall_coord", out float height );
 		parameters.TryGetFloat( "threat_coord", out float threat );
+		parameters.TryGetFloat( "close_coord", out float close );
 		gaitInputs.Clear();
-		boundAnimations.Movement.CollectPoseInputs( new( speed, height, threat ), MirroredStance, gaitInputs );
+		boundAnimations.Movement.CollectPoseInputs( new( speed, height, threat, close ), MirroredStance, gaitInputs );
 		if ( gaitBlend.Length < gaitInputs.Count ) gaitBlend = new (Rotation, Rotation)[gaitInputs.Count];
 		foreach ( var bone in model.Bones.AllBones )
 		{

@@ -5,6 +5,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	internal const string SwordSlashRight = "sword_slash_right";
 	RabbitAttack strike;
 	[Property, Range( 0.1f, 2f )] public float AttackSpeed { get; set; } = 1f;
 	[Property] public float AttackDamage { get; set; } = 1f;
@@ -180,17 +181,21 @@ public sealed partial class RabbitGuard
 			Movement.Stop();
 
 			bool close = distance < CloseAttackRange;
-			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
-			Stance = (airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 )) switch
+			int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
+			bool mirrored = Random.Shared.Next( 2 ) == 0;
+			var label = boundAnimations.WeaponLabel;
+			if ( label == "sword" && attackClass == 0 ) attackClass = 1;
+			Stance = attackClass switch
 			{
-				1 when enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
-				1 when !IsCrouching( enemy ) => close ? Jab : Roundhouse,
+				1 or 2 when (label is "sword" or "rapier") && mirrored == LeftHanded => SwordSlashRight,
+				1 when !PrimaryItem.IsValid() && enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
+				1 when PrimaryItem.IsValid() || !IsCrouching( enemy ) => close ? Jab : Roundhouse,
 				2 => Sweep,
 				_ => close ? Knee : Kick
 			};
 			strike = boundAnimations.Attacks[Stance];
 			if ( strike.Direction != "front" )
-				MirroredStance = (Random.Shared.Next( 2 ) == 0) != (strike.Direction == "left");
+				MirroredStance = mirrored != (strike.Direction == "left");
 			MirroredAction = MirroredStance;
 			flippedAttack = strike.Direction == "front" ? !MirroredStance : MirroredStance;
 			if ( strike.SwapStance ) MirroredStance = !MirroredStance;

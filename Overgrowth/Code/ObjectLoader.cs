@@ -6,22 +6,22 @@ namespace Overgrowth;
 
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
-	internal XmlAsset ItemSlot( string name ) => XmlAsset.Read( Host.FileSystem, filePath, "item" ).Element( name );
+	XmlAsset itemDefinition;
+	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 
 	protected override object Load()
 	{
 		var modelPath = filePath;
 		var material = Material.Load( "materials/default/white.vmat" );
 		var collision = false;
-		XmlAsset itemDefinition = null;
+
 
 		if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
 		{
-			var root = XmlAsset.Read( Host.FileSystem, filePath, item ? "item" : "Object" );
+			var root = item ? ItemDefinition : XmlAsset.Read( Host.FileSystem, filePath, "Object" );
 			var objectPath = filePath;
 			if ( item )
 			{
-				itemDefinition = root;
 				objectPath = Host.Resolve( root.Element( "appearance" )?.Attribute( "obj_path" ) );
 				root = XmlAsset.Read( Host.FileSystem, objectPath, "Object" );
 			}
@@ -40,7 +40,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );
 		builder.AddTraceMesh( data.Positions, data.Indices );
 
-		if ( itemDefinition is not null )
+		if ( item )
 			AddItemPhysics( builder, itemDefinition, modelPath, data );
 		else if ( collision )
 		{

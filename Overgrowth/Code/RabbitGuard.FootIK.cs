@@ -24,6 +24,7 @@ public sealed partial class RabbitGuard
 	readonly Vector3[] plantedPosition = new Vector3[2];
 	int steppingFoot;
 	float stepProgress, stancePhase;
+	[Sync] float CloseAmount { get; set; }
 	[Sync] float ThreatAmount { get; set; }
 	[Sync] float CrouchAmount { get; set; }
 	float threatVelocity;
@@ -31,6 +32,8 @@ public sealed partial class RabbitGuard
 	void UpdateStanceAmounts()
 	{
 		if ( !Networking.IsHost ) return;
+		CloseAmount = PrimaryItem.IsValid() && enemy.IsValid() && enemy.GetComponent<RabbitGuard>() is not { Unconscious: true }
+			? Math.Clamp( (60f - CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) )) / 28f, 0f, 1f ) : 0f;
 		bool movement = Stance is Idle or Watch or Locomotion or Threat;
 		if ( !movement && strike is null ) ThreatAmount = 0;
 		float target = (movement || strike is not null) && enemy.IsValid() && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
@@ -45,7 +48,7 @@ public sealed partial class RabbitGuard
 	{
 		float threat = Math.Clamp( ThreatAmount, 0, 1 );
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
-		float frequency = boundAnimations.StanceIdle.Evaluate( new( 0f, 1f - crouch, threat ), stancePhase, false ).Frequency;
+		float frequency = boundAnimations.StanceIdle.Evaluate( new( 0f, 1f - crouch, threat, CloseAmount ), stancePhase, false ).Frequency;
 		stancePhase = entering ? 0f : (stancePhase + Time.Delta * frequency) % 1f;
 		Renderer.Animation.Parameters.Set( "stride_phase", stancePhase );
 		Renderer.Animation.Parameters.Set( "threat_coord", threat );

@@ -9,8 +9,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal string[] RollClips { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
+	internal string WeaponLabel { get; private init; }
 	internal string[] SightBones { get; private init; }
-	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter )
+	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, XmlAsset item = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
 		var bones = new SkeletonBuilder();
@@ -39,12 +40,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 		var character = XmlAsset.Read( fs, characterPath, "character" );
 		var morphs = CharacterMorph.Read( character );
+		var overrides = item?.Element( "anim_override" );
+		var characterAnimations = character.Element( "animations" );
+		string AnimationPath( string slot ) => overrides?.Attribute( slot ) ?? characterAnimations.Attribute( slot );
 		if ( morphs.Any( m => m.Steps == 1 ) )
 			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
 		if ( morphs.Any( m => m.Steps > 1 ) )
 			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
 		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
-		var flinchPath = character.Element( "animations" ).Attribute( "blockflinch" );
+		var flinchPath = AnimationPath( "blockflinch" );
 		if ( flinchPath is not null )
 		{
 			var mask = RabbitClip.ReadLayerMask( fs, flinchPath, skeleton.Bones.Count );
@@ -61,7 +65,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		};
 
 		var characterAttacks = character.Element( "attacks" );
-		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, characterAttacks.Attribute( kv.Value ), "attack" ) );
+		var weaponAttacks = item?.Element( "attack_override" );
+		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, weaponAttacks?.Attribute( kv.Value ) ?? characterAttacks.Attribute( kv.Value ), "attack" ) );
+		var label = item?.Element( "label" )?.Value;
+		if ( label is "sword" or "rapier" ) attacks[RabbitGuard.SwordSlashRight] = XmlAsset.Read( fs, "Data/Attacks/smallswordslashright.xml", "attack" );
 		var reactionAssets = attacks.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value.Element( "reaction" ).Value, "reaction" ) );
 		var reactions = reactionAssets.ToDictionary( kv => kv.Key, kv => kv.Value.Elements( "reaction" ).Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Value ) ).ToArray() );
 		string Guard( XmlAsset attack )
@@ -75,7 +82,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var guards = (from heightName in new[] { "low", "med", "high" }
 			from side in new[] { "left", "right" }
 			let key = heightName + side + "block"
-			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( character.Element( "animations" ).Attribute( key ) )))
+			select (key, animation: System.IO.Path.GetFileNameWithoutExtension( AnimationPath( key ) )))
 			.ToDictionary( x => x.key, x => x.animation );
 		var blocked = attacks.ToDictionary( kv => kv.Key, kv => System.IO.Path.GetFileNameWithoutExtension( kv.Value.Element( "animations" ).Attribute( "blocked" ) ) );
 		var throwActions = XmlAsset.Read( fs, "Data/Attacks/throw.xml", "attack" ).Element( "animations" );
@@ -94,7 +101,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
-		var coordinates = new[] { "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
 		{
@@ -138,7 +145,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		GraphBuilder.Node MovementStance( GraphBuilder.Node ordinary, GraphBuilder.Node reflected ) => graph.Blend( ordinary, reflected, stanceWeight );
 
 		var movementRigs = new HashSet<RabbitRetarget>();
-		var movement = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "movement" ), name =>
+		var movement = RabbitMovement.Load( fs, AnimationPath( "movement" ), name =>
 		{
 			var source = SourceFor( name );
 			movementRigs.Add( source );
@@ -159,17 +166,17 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( MovementStance( AnimationGroup( "Data/Animations/r_relaxidle.xml" ), AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ) ) );
 			if ( name == RabbitGuard.Roll )
 			{
-				var roll = character.Element( "animations" ).Attribute( "roll" );
+				var roll = AnimationPath( "roll" );
 				return machine.AddState( MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) );
 			}
 			if ( name == RabbitGuard.FreeAir )
 			{
-				var jump = character.Element( "animations" ).Attribute( "jump" );
+				var jump = AnimationPath( "jump" );
 				return machine.AddState( graph.Blend( AnimationGroup( jump, "air_phase" ), AnimationGroup( jump, "air_phase", mirrored: true ), leftFootJump ) );
 			}
 			if ( name == RabbitGuard.Threat )
 			{
-				var idle = character.Element( "animations" ).Attribute( "idle" );
+				var idle = AnimationPath( "idle" );
 				return machine.AddState( MovementStance( AnimationGroup( idle, "stride_phase" ), AnimationGroup( idle, "stride_phase", mirrored: true ) ) );
 			}
 			if ( name == RabbitGuard.Locomotion )
@@ -223,7 +230,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
-		var stanceIdle = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "idle" ), name => clips[name] );
+		var stanceIdle = RabbitMovement.Load( fs, AnimationPath( "idle" ), name => clips[name] );
 		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
 		var patrolState = states[System.Array.IndexOf( names, RabbitGuard.PatrolIdle )];
 		for ( int i = 0; i < states.Length; i++ )
@@ -309,9 +316,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			PatrolGraph = LoadPatrolGraph,
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ) ),
 			RollBones = rollBones,
-			RollClips = XmlAsset.Read( fs, character.Element( "animations" ).Attribute( "roll" ), "SyncedAnimationGroup" )
+			RollClips = XmlAsset.Read( fs, AnimationPath( "roll" ), "SyncedAnimationGroup" )
 				.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
 				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
+			WeaponLabel = label,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
 			SightBones = Enumerable.Range( 0, weighted.Length ).Where( i => weighted[i] ).Select( i => $"bone_{i}" ).ToArray()
 		};

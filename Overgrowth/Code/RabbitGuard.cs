@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	string playing;
 	[Sync] string Stance { get; set; } = Idle;
 	RabbitGuardAnimations boundAnimations;
+	LevelItem equippedForAnimation;
 
 	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
 	{
@@ -45,12 +46,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		else if ( plantedLegs && (Stance is not (Threat or Idle or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
-		if ( boundAnimations is null || Renderer.Animation.Graph is null )
+		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
+		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped )
 		{
 			var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
-			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations() is not { } ready ) return;
+			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is not CharacterLoader loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
 			Renderer.ClearPhysicsBones();
+			equippedForAnimation = equipped;
 			boundAnimations = ready;
+			strike = null;
 			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
 			// Overgrowth reseeds secondary motion for four animation updates after a discontinuity.
 			secondaryReset = 4f * (4f / 120f);
@@ -88,6 +92,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		bool track = !NoLookAround && RollProgress >= 1f && canLook && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
+		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		UpdateCombatPosture();
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();

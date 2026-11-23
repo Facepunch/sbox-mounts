@@ -7,7 +7,7 @@ namespace Overgrowth;
 // The pose, contact weights and footstep events all follow the same authored blend tree.
 internal sealed class RabbitMovement
 {
-	internal readonly record struct Controls( float Speed, float Height, float Threat );
+	internal readonly record struct Controls( float Speed, float Height, float Threat, float Close = 0f );
 	internal readonly record struct Sample( float Frequency, float Lift, FootPose Left, FootPose Right, RabbitClip Events );
 	sealed record Child( float Coordinate, float? GroundSpeed, float Bounce, RabbitMovement Motion );
 
@@ -37,7 +37,7 @@ internal sealed class RabbitMovement
 
 	(Child First, Child Second, float Weight) Inputs( Controls controls )
 	{
-		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, _ => throw new InvalidDataException( label ) };
+		float coord = label switch { "speed_coord" => controls.Speed, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
 		var a = children[Math.Max( 0, hi - 1 )];

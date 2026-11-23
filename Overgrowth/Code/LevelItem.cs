@@ -35,7 +35,7 @@ public sealed class LevelItem : Component
 		}
 		else
 		{
-			var slot = loader.ItemSlot( type == 0 ? "grip" : "sheathe" );
+			var slot = loader.ItemDefinition.Element( type == 0 ? "grip" : "sheathe" );
 			anim = slot?.Attribute( "anim" );
 			chain = slot?.Attribute( "ik_attach" );
 		}
@@ -52,7 +52,7 @@ public sealed class LevelItem : Component
 		attachmentComponent.UpdateAttachment();
 		if ( type == 0 )
 		{
-			var range = loader.ItemSlot( "range" );
+			var range = loader.ItemDefinition.Element( "range" );
 			attachmentComponent.RangeExtension = range?.Number( "extend" ) ?? 0f;
 			attachmentComponent.RangeMultiplier = range?.Number( "multiply" ) ?? 1f;
 			if ( mirrored ) actor.LeftHandItem = attachmentComponent;
