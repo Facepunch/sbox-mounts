@@ -3,6 +3,32 @@ namespace Overgrowth;
 // Model::ReadFromFile, as embedded after the six-byte terrain cache header.
 internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount>
 {
+	TerrainMaterials materials;
+
+	static TerrainMaterials MaterialsFor( ModelCollider collider )
+	{
+		var path = collider?.Model?.ResourcePath;
+		if ( path?.StartsWith( "mount://overgrowth/data/levels/", System.StringComparison.OrdinalIgnoreCase ) != true ) return null;
+		return (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( path ) as TerrainLoader)?.materials;
+	}
+
+	internal static Surface ContactSurface( in SceneTraceResult hit, Vector3 point )
+	{
+		if ( hit.Collider is ModelCollider collider && MaterialsFor( collider ) is { } terrain )
+			return terrain.At( hit.Triangle, collider.WorldTransform.PointToLocal( point ) ) ?? hit.Surface;
+		return hit.Surface;
+	}
+
+	internal static Surface ContactSurface( ModelCollider collider, Vector3 point, Surface fallback )
+	{
+		if ( MaterialsFor( collider ) is not { } terrain ) return fallback;
+		// Terrain::GetUVAtPoint casts vertically when the contact supplies no triangle.
+		var span = Vector3.Up * 40000f;
+		foreach ( var hit in collider.Scene.Trace.Ray( point + span, point - span ).IgnoreDynamic().RunAll() )
+			if ( hit.Collider == collider ) return terrain.At( hit.Triangle, collider.WorldTransform.PointToLocal( hit.EndPosition ) ) ?? fallback;
+		return fallback;
+	}
+
 	protected override object Load()
 	{
 		var terrain=XmlAsset.Read(Host.FileSystem,levelPath,"Terrain");
@@ -21,11 +47,26 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 			MaterialLoader.ApplyDetailMaps( Host, mat, terrain );
 		}
 		var builder=Model.Builder.WithName(Path);
+		Model Complete( Mesh mesh, Vector3[] positions, int[] indices, Vector2[] uvs )
+		{
+			builder.AddMesh( mesh );
+			if ( detailed )
+			{
+				var surfaces = terrain.Element( "DetailMaps" ).Elements( "DetailMap" ).Select( layer =>
+					GameResource.Load<Surface>( Host.MountedPath( System.IO.Path.ChangeExtension( layer.Attribute( "materialpath" ) ?? "Data/Materials/default.xml", ".surface" ) ) ) ).ToArray();
+				materials = new( new ImageSampler( Host, terrain.Element( "WeightMap" ).Value ), surfaces, positions, uvs, indices );
+				materials.AddCollision( builder );
+			}
+			else builder.AddCollisionMesh( positions, indices );
+			var model = builder.Create();
+			materials?.Bind( model );
+			return model;
+		}
 		if(terrain.Element("ModelOverride") is {Value.Length:>0} replacement)
 		{
 			if ( detailed ) mat.Set( "g_flTerrain", 2f );
 			var data=ObjLoader.Load(Host.FileSystem,Host.Resolve(replacement.Value),Vector3.Zero);
-			return builder.AddMesh(ObjLoader.CreateMesh(data,Path,mat)).AddCollisionMesh(data.Positions,data.Indices).Create();
+			return Complete( ObjLoader.CreateMesh( data, Path, mat ), data.Positions.ToArray(), data.Indices.ToArray(), data.UVs.ToArray() );
 		}
 		using var stream=Host.FileSystem.OpenRead(heightmap+".cache");
 		using var reader=new BinaryReader(stream);
@@ -77,7 +118,7 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 		mesh.CreateVertexBuffer(vertices.Length,vertices);
 		mesh.CreateIndexBuffer(indices.Length,indices);
 		mesh.Bounds=BBox.FromPoints(positions);
-		return builder.AddMesh(mesh).AddCollisionMesh(positions,indices).Create();
+		return Complete( mesh, positions, indices, detailed ? vertices.Select( v => v.texcoord ).ToArray() : null );
 	}
 
 	struct TerrainVertex

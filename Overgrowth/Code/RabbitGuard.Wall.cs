@@ -26,7 +26,7 @@ public sealed partial class RabbitGuard
 		var nearest = float.PositiveInfinity;
 		Vector3 direction = default;
 		string surface = null;
-		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).IgnoreDynamic()
+		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).UseHitPosition().IgnoreDynamic()
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).RunAll() )
 		{
 			var offset = hit.HitPosition - center;
@@ -35,7 +35,7 @@ public sealed partial class RabbitGuard
 			if ( offset.LengthSquared >= nearest ) continue;
 			nearest = offset.LengthSquared;
 			direction = normal;
-			surface = hit.Surface?.ResourceName;
+			surface = TerrainLoader.ContactSurface( hit, hit.HitPosition )?.ResourceName;
 		}
 		if ( direction.IsNearlyZero() || touchedWall && sinceWallContact > 0.1f && velocity.z < -4f * 40f )
 		{

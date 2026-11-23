@@ -51,12 +51,12 @@ public sealed partial class RabbitGuard
 		height = 0f;
 		surface = null;
 		var over = center + wall * 20f;
-		var down = ClimbTrace( Scene.Trace.Cylinder( 40f, LegRadius, over + Vector3.Up * 100f, over + Vector3.Up * 20f ) ).Run();
+		var down = ClimbTrace( Scene.Trace.Cylinder( 40f, LegRadius, over + Vector3.Up * 100f, over + Vector3.Up * 20f ) ).UseHitPosition().Run();
 		if ( !down.Hit || down.StartedSolid ) return false;
 		var clear = down.EndPosition + Vector3.Up * 2.8f;
 		if ( ClimbTrace( Scene.Trace.Cylinder( 40f, LegRadius, clear, clear ) ).Run().Hit ) return false;
 		height = down.EndPosition.z - 20f;
-		surface = down.Surface;
+		surface = TerrainLoader.ContactSurface( down, down.HitPosition );
 		return true;
 	}
 

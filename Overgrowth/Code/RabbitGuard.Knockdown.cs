@@ -309,19 +309,19 @@ public sealed partial class RabbitGuard
 		const float radius = 40f;
 		var below = Scene.Trace.Ray( center, center + Vector3.Down * radius )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
-		if ( below.Hit && !below.StartedSolid && below.Normal.z > 0.5f ) return (below.HitPosition, below.Normal, below.Surface);
+		if ( below.Hit && !below.StartedSolid && below.Normal.z > 0.5f ) return (below.EndPosition, below.Normal, TerrainLoader.ContactSurface( below, below.EndPosition ));
 
 		// CanRoll checks every static contact within a one-metre sphere. A ledge can
 		// support the body even when there is no floor directly below its centre.
 		(Vector3 Point, Vector3 Normal, Surface Surface)? support = null;
 		float closest = radius * radius;
-		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).IgnoreDynamic()
+		foreach ( var hit in Scene.Trace.Sphere( radius, center, center ).UseHitPosition().IgnoreDynamic()
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).RunAll() )
 		{
 			var offset = center - hit.HitPosition;
 			float distance = offset.LengthSquared;
 			if ( distance >= closest || offset.Normal.z <= 0.5f ) continue;
-			support = (hit.HitPosition, offset.Normal, hit.Surface);
+			support = (hit.HitPosition, offset.Normal, TerrainLoader.ContactSurface( hit, hit.HitPosition ));
 			closest = distance;
 		}
 		return support;

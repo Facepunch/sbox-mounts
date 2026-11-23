@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 		holdDirection = facing.Normal;
 		breathSpeed += 2f;
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
-		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundSurface?.ResourceName, 1f );
+		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundMaterialName, 1f );
 		return true;
 	}
 
@@ -134,7 +134,7 @@ public sealed partial class RabbitGuard
 		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * Time.Delta } );
 		if ( !victim.IsValid() || victim.Downed || victim.Unconscious )
 		{
-			if ( victim.IsValid() ) victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundSurface?.ResourceName, 1f );
+			if ( victim.IsValid() ) victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundMaterialName, 1f );
 			ReleaseHold();
 		}
 	}

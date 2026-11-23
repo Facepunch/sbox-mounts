@@ -17,10 +17,10 @@ public sealed partial class RabbitGuard
 		if ( fighter == this ) return;
 		float impulse = BodyImpactImpulse( collision ) / 40f;
 		var point = collision.Contact.Point;
-		var surface = collision.Other.Surface?.ResourceName;
 		if ( awaitingThrowImpact && fighter is null ) ApplyThrowImpact( point );
 		if ( !IsValid || Health <= 0f ) return;
 		if ( impulse <= 0.1f ) return;
+		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface )?.ResourceName;
 		float hardness = (Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount)?.MaterialHardness( surface ) ?? 1f;
 		if ( impulse * hardness * (head ? 5f : 1f) > 5f )
 		{

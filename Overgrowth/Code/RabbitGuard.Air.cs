@@ -4,6 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	string GroundMaterialName => TerrainLoader.ContactSurface( GroundObject?.GetComponent<ModelCollider>(), WorldPosition, GroundSurface )?.ResourceName;
 	internal const string JumpArms = "r_jump_arms";
 	[Property] public float JumpInitialVelocity { get; set; } = 5f;
 	[Property] public float JumpAirControl { get; set; } = 3f;
@@ -126,7 +127,7 @@ public sealed partial class RabbitGuard
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
 					ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );
-					PlayMaterialEvent( "jump", WorldPosition, GroundSurface?.ResourceName, boundAnimations.Species == "cat" ? 0.5f : 1f );
+					PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.Species == "cat" ? 0.5f : 1f );
 				}
 			}
 			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
@@ -182,7 +183,7 @@ public sealed partial class RabbitGuard
 		else if ( impact > 4f && mediumFall <= 0f ) { sound = "bodyfall_medium"; mediumFall = 0.2f; }
 		else if ( impact > 2f && lightFall <= 0f ) { sound = "bodyfall_light"; lightFall = 0.2f; }
 		else return;
-		PlayMaterialEvent( sound, collision.Contact.Point, collision.Other.Surface?.ResourceName, 1f );
+		PlayMaterialEvent( sound, collision.Contact.Point, TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName, 1f );
 	}
 
 	void Land( Vector3 airVelocity )
@@ -199,13 +200,13 @@ public sealed partial class RabbitGuard
 		bool quiet = boundAnimations.Species == "cat";
 		if ( !quiet || hard )
 			ReportSound( GameObject, WorldPosition, hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
-		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, floor.Surface?.ResourceName, quiet ? 0.5f : 1f );
+		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, quiet ? 0.5f : 1f );
 		if ( hard )
 		{
 			float slide = 1f - (-airVelocity.Normal).Dot( floor.Normal );
 			float gain = Math.Min( 1f, slide * slide * (airVelocity.Length / 40f) * 0.2f );
 			if ( quiet ) gain *= 0.5f;
-			if ( gain > 0.2f ) PlayMaterialEvent( "slide", floor.EndPosition, floor.Surface?.ResourceName, gain );
+			if ( gain > 0.2f ) PlayMaterialEvent( "slide", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, gain );
 		}
 	}
 

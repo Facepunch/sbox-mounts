@@ -14,7 +14,7 @@ public sealed partial class LevelItem
 		flyingStraight = false;
 		var body = collision.Self.Body;
 		if ( !body.IsValid() || !body.MotionEnabled || collision.Other.GameObject?.GetComponentInParent<RabbitGuard>() is not null ) return;
-		var surface = collision.Other.Surface?.ResourceName;
+		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName;
 		var point = collision.Contact.Point;
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		if ( mount.AllowsPenetration( surface ) && !incomingVelocity.IsNearlyZero() )

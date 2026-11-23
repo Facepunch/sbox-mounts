@@ -74,7 +74,7 @@ public sealed partial class RabbitGuard
 				var direction = CombatApproach( TargetPosition( enemy ), out _ );
 				if ( direction.LengthSquared > 0.2f )
 				{
-					StartRoll( direction, Animation.MoveVelocity, GroundSurface?.ResourceName );
+					StartRoll( direction, Animation.MoveVelocity, GroundMaterialName );
 					breathSpeed += 1f;
 				}
 			}

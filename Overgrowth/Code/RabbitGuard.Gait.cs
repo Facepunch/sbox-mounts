@@ -39,7 +39,7 @@ public sealed partial class RabbitGuard
 				ReportFootstep( step.Event, position );
 				var floor = Scene.Trace.Ray( position + Vector3.Up * 12, position + Vector3.Down * 48 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 				if ( floor.Hit )
-					PlayMaterialEvent( step.Event, floor.EndPosition, floor.Surface?.ResourceName, step.Event.Contains( "crouch" ) ? 3f : 5f );
+					PlayMaterialEvent( step.Event, floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, step.Event.Contains( "crouch" ) ? 3f : 5f );
 			}
 		}
 		stridePhase = next % 1;

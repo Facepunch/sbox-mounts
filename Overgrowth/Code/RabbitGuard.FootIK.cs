@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard
 					var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
 					var step = (steppingFoot == 0 ? "left" : "right") + gait + "step";
 					ReportFootstep( step, floor.EndPosition );
-					PlayMaterialEvent( step, floor.EndPosition, floor.Surface?.ResourceName, speed < 2f ? 3f : 5f );
+					PlayMaterialEvent( step, floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, speed < 2f ? 3f : 5f );
 				}
 				steppingFoot = NeedsStep( 1 - steppingFoot ) ? 1 - steppingFoot : -1;
 				stepProgress = 0;
