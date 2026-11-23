@@ -10,6 +10,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
 	internal float? GrabTime { get; init; }
+	internal float? DrawTime { get; init; }
 	internal float? LimpTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
 	// AG2 stores unit rotations. SyncedAnimationGroup mixes the original magnitudes
@@ -77,7 +78,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	}
 
 	// Read the authored first-key weights of a constant-mask animation layer.
-	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones, RabbitMirror mirror = null, IReadOnlySet<string> floatChannels = null )
+	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones, RabbitMirror mirror = null, IReadOnlySet<string> floatChannels = null, bool bindItem = true )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( path ) );
 		var (version, _, _, _, _) = ReadHeader( reader, path );
@@ -97,7 +98,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			Skip( 64 );
 			if ( version < 8 ) continue;
 			int relative = reader.ReadInt32();
-			if ( reader.ReadSingle() > 0f && i == 0 && (uint)relative < bones )
+			if ( reader.ReadSingle() > 0f && bindItem && i == 0 && (uint)relative < bones )
 				foreach ( var name in WeaponPoseTrack.Names( mirror?.Opposite( relative ) ?? relative ) ) mask[name] = 1f;
 		}
 		if ( version >= 9 && reader.ReadBoolean() ) Skip( 64 );
@@ -131,7 +132,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
 		var channels = StatusChannels;
-		float? limpTime = null, grabTime = null;
+		float? limpTime = null, grabTime = null, drawTime = null;
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
@@ -197,6 +198,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 					case "attackblocked": blocked = new( time * 0.001f, bone ); break;
 				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
+				if ( label.StartsWith( "unsheathe", StringComparison.Ordinal ) ) drawTime = time * 0.001f;
 			}
 			var footBones = sampleFeet ? new FootChain?[2] : null;
 			int ik = Count();
@@ -372,7 +374,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

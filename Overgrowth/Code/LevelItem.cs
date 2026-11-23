@@ -141,6 +141,12 @@ public sealed class LevelItem : Component
 			if ( mirrored ) actor.LeftHandItem = attachmentComponent;
 			else actor.RightHandItem = attachmentComponent;
 		}
+		else if ( type == 1 && loader.ItemDefinition.Element( "type" )?.Value == "weapon" && loader.ItemDefinition.Element( "label" )?.Value != "scabbard" )
+		{
+			// In the asset's default sheathed pose the weapon hangs on the left hip.
+			if ( mirrored ) actor.RightHipWeapon = attachmentComponent;
+			else actor.LeftHipWeapon = attachmentComponent;
+		}
 	}
 
 	internal static Rigidbody AddPhysics( GameObject item, Model model )

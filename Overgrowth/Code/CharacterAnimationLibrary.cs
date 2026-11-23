@@ -48,6 +48,12 @@ internal sealed class CharacterAnimationLibrary
 			if ( skeleton.IKBones.TryGetValue( hand, out var chain ) )
 				bones.AddFloatChannelSet( $"item_bone_{chain.BoneId}", WeaponPoseTrack.Names( chain.BoneId ) );
 		var floatChannels = morphs.Select( m => m.Name ).Concat( RabbitClip.StatusChannels ).ToHashSet();
+		foreach ( var draw in RabbitGuard.DrawAnimations )
+			foreach ( bool mirrored in new[] { false, true } )
+			{
+				var mask = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{draw}.anm", skeleton.Bones.Count, mirrored ? mirror : null, floatChannels, bindItem: false );
+				bones.AddBoneMask( RabbitGuard.DrawLayer( draw, mirrored ), mask, defaultFloatChannelWeight: 0f );
+			}
 		foreach ( var stance in mount.WeaponStances.Values.Where( stance => stance.IsClip ) )
 		{
 			foreach ( bool mirrored in new[] { false, true } )

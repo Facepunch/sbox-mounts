@@ -78,6 +78,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
 		var painParameters = painMask.ToDictionary( group => group.Name, group => graph.FloatParameter( group.Name ) );
 		var pickupPhase = graph.FloatParameter( "pickup_phase" );
+		var drawPhase = graph.FloatParameter( "draw_phase" );
+		var drawWeights = RabbitGuard.DrawAnimations.SelectMany( draw => new[] { RabbitGuard.DrawLayer( draw, false ), RabbitGuard.DrawLayer( draw, true ) } )
+			.ToDictionary( name => name, name => graph.FloatParameter( name ) );
 		var pickupRight = graph.FloatParameter( "pickup_right" );
 		var pickupLeft = graph.FloatParameter( "pickup_left" );
 		var backhandNewest = usesKnife ? graph.BoolParameter( "knife_backhand_newest" ) : default;
@@ -305,6 +308,16 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				Weight = flinchWeight, IgnoreEvents = true } );
 		}
 		var pickup = clips["pickup"] = CombatClip( "r_pickup", false, null, true );
+		foreach ( var draw in RabbitGuard.DrawAnimations )
+		{
+			var drawClip = clips[draw] = CombatClip( draw, false, null, true );
+			foreach ( bool left in new[] { false, true } )
+			{
+				var name = RabbitGuard.DrawLayer( draw, left );
+				var pose = graph.TimeControlledClip( drawClip.ForSide( left ).Animation, drawPhase, new() { SampleRootMotion = false } );
+				output = graph.Layers( output ).AddLayer( pose, new() { BoneMask = graph.BoneMask( name ), Weight = drawWeights[name], IgnoreEvents = true } );
+			}
+		}
 		foreach ( var (side, pose, weight) in new[] { ("pickup_right", pickup, pickupRight), ("pickup_left", pickup.Mirrored, pickupLeft) } )
 		{
 			var layer = graph.TimeControlledClip( pose.Animation, pickupPhase, new() { SampleRootMotion = false } );
