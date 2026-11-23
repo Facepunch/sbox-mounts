@@ -22,8 +22,13 @@ public sealed partial class RabbitGuard
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
 	float cancelDelay;
-	float AttackRange => 1.5f * 40f * boundAnimations.CharacterScale;
-	float ContactRange => 1.6f * 40f * boundAnimations.CharacterScale;
+	[Property] public LevelItem LeftHandItem { get; set; }
+	[Property] public LevelItem RightHandItem { get; set; }
+	LevelItem PrimaryItem => LeftHanded ? LeftHandItem : RightHandItem;
+	float RangeExtension => PrimaryItem.IsValid() ? PrimaryItem.RangeExtension : 0f;
+	float AttackRange => (1.5f + RangeExtension) * (PrimaryItem.IsValid() ? PrimaryItem.RangeMultiplier : 1f) * 40f * boundAnimations.CharacterScale;
+	float CloseAttackRange => (1f + RangeExtension * 0.5f) * 40f * boundAnimations.CharacterScale;
+	float ContactRange => (1.6f + RangeExtension) * 40f * boundAnimations.CharacterScale;
 	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
 
 	protected override void OnStart()
@@ -174,7 +179,7 @@ public sealed partial class RabbitGuard
 		{
 			Movement.Stop();
 
-			bool close = distance < 40f * boundAnimations.CharacterScale;
+			bool close = distance < CloseAttackRange;
 			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
 			Stance = (airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 )) switch
 			{

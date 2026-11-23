@@ -5,6 +5,8 @@ public sealed class LevelItem : Component
 	[Property] public SkinnedModelRenderer Holder { get; set; }
 	[Property] public string Bone { get; set; }
 	[Property] public Transform Offset { get; set; }
+	[Property] public float RangeExtension { get; set; }
+	[Property] public float RangeMultiplier { get; set; } = 1f;
 
 	protected override void OnPreRender() => UpdateAttachment();
 
@@ -48,6 +50,14 @@ public sealed class LevelItem : Component
 		attachmentComponent.Bone = $"bone_{bone}";
 		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center ) );
 		attachmentComponent.UpdateAttachment();
+		if ( type == 0 )
+		{
+			var range = loader.ItemSlot( "range" );
+			attachmentComponent.RangeExtension = range?.Number( "extend" ) ?? 0f;
+			attachmentComponent.RangeMultiplier = range?.Number( "multiply" ) ?? 1f;
+			if ( mirrored ) actor.LeftHandItem = attachmentComponent;
+			else actor.RightHandItem = attachmentComponent;
+		}
 	}
 
 	internal static void AddPhysics( GameObject item, Model model )

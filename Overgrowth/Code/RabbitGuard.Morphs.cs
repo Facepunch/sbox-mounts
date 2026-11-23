@@ -38,9 +38,15 @@ public sealed partial class RabbitGuard
 		}
 		foreach ( var shape in boundAnimations.Morphs )
 		{
-			if ( shape.Steps == 1 ) continue;
+			bool gripping = shape.Name == "fist_l" && LeftHandItem.IsValid() || shape.Name == "fist_r" && RightHandItem.IsValid();
+			if ( shape.Steps == 1 )
+			{
+				if ( gripping ) Renderer.Morphs.Set( shape.Name, 1f, 0f );
+				else if ( shape.Name is "fist_l" or "fist_r" ) Renderer.Morphs.Clear( shape.Name, 0f );
+				continue;
+			}
 			Renderer.Animation.Debug.TryGetFloatChannel( "multistep", shape.Name, out float weight );
-			float phase = Math.Clamp( weight, 0f, 1f ) * shape.Steps;
+			float phase = (gripping ? 1f : Math.Clamp( weight, 0f, 1f )) * shape.Steps;
 			for ( int i = 0; i < shape.Steps; i++ )
 				Renderer.Morphs.Set( shape.Targets[i], Math.Max( 0f, 1f - MathF.Abs( phase - i - 1f ) ), 0f );
 		}
