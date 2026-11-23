@@ -9,6 +9,7 @@ internal sealed class RabbitMovement
 {
 	internal readonly record struct Controls( float Speed, float Height, float Threat, float Close = 0f )
 	{
+		internal float ForwardRoll { get; init; }
 		internal float Tuck { get; init; }
 		internal float Flail { get; init; }
 		internal float Up { get; init; }
@@ -38,13 +39,13 @@ internal sealed class RabbitMovement
 	{
 		if ( clip is not null ) return graph.TimeControlledClip( clip.ForSide( mirrored ).Animation, phase, new() { SampleRootMotion = false } );
 		var blend = graph.BlendSpace( parameter( label ), looping: false );
-		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, child.TimeCoordinate is null ? phase : parameter( child.TimeCoordinate ), mirrored ) );
+		foreach ( var child in children ) blend.Add( child.Coordinate, child.Motion.Build( graph, parameter, child.TimeCoordinate is null ? phase : parameter( child.TimeCoordinate ) ?? phase, mirrored ) );
 		return blend;
 	}
 
 	(Child First, Child Second, float Weight) Inputs( Controls controls )
 	{
-		float coord = label switch { "tuck_coord" => controls.Tuck, "flail_coord" => controls.Flail, "speed_coord" => controls.Speed, "dir_coord" => controls.Direction, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
+		float coord = label switch { "forward_roll_coord" => controls.ForwardRoll, "tuck_coord" => controls.Tuck, "flail_coord" => controls.Flail, "speed_coord" => controls.Speed, "dir_coord" => controls.Direction, "tall_coord" => controls.Height, "threat_coord" => controls.Threat, "close_coord" => controls.Close, _ => throw new InvalidDataException( label ) };
 		var hi = 0;
 		while ( hi < children.Length - 1 && children[hi].Coordinate < coord ) hi++;
 		var a = children[Math.Max( 0, hi - 1 )];

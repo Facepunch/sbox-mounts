@@ -15,8 +15,16 @@ public sealed partial class RabbitGuard
 	[Sync] bool RecoveringRoll { get; set; }
 	bool displayingRoll;
 
-	RabbitClip RollClip( int index ) => boundAnimations.Clips[boundAnimations.RollClips[index] + (MirroredAction ? "_mirrored" : "")];
-	float RollFrequency => (1f - RollForwardness) / RollClip( 0 ).Duration + RollForwardness / RollClip( 1 ).Duration;
+	float RollFrequency => boundAnimations.RollMovement.Evaluate( new() { ForwardRoll = RollForwardness }, 0f, MirroredAction ).Frequency;
+
+	void ReadRollPose()
+	{
+		var parameters = Renderer.Animation.Parameters;
+		parameters.TryGetFloat( "roll_phase", out var phase );
+		parameters.TryGetFloat( "forward_roll_coord", out var forward );
+		parameters.TryGetBool( "mirrored_pose", out var mirrored );
+		ReadMovementPose( boundAnimations.RollMovement, boundAnimations.RollRig, new() { ForwardRoll = forward }, phase, mirrored );
+	}
 
 	void EndRoll()
 	{

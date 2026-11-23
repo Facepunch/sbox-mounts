@@ -6,7 +6,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 {
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
-	internal string[] RollClips { get; private init; }
+	internal RabbitRetarget RollRig { get; private init; }
+	internal RabbitMovement RollMovement { get; private init; }
 	internal RabbitMovement AirMovement { get; private init; }
 	internal RabbitRetarget AirRig { get; private init; }
 	internal RabbitMovement WallMovement { get; private init; }
@@ -159,7 +160,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			movementRigs.Add( source );
 			if ( !clips.TryGetValue( name, out var cycle ) || cycle.Feet is null )
 			{
-				RabbitClip LoadCycle( bool left ) => library.Clip( name, feet: true, mirrored: left );
+				RabbitClip LoadCycle( bool left ) => library.Clip( name, data: RabbitClip.PoseData.Gait, mirrored: left );
 				clips[name] = cycle = LoadCycle( false ) with { Mirrored = LoadCycle( true ) };
 			}
 			return cycle;
@@ -188,20 +189,26 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				MaterialEvent = attack.Element( "materialevent" )?.Value
 			};
 		}
-		var airRigs = new HashSet<RabbitRetarget>();
-		var air = RabbitMovement.Load( fs, AnimationPath( "jump" ), name =>
+		(RabbitMovement Movement, RabbitRetarget Rig) LoadBlendedMovement( string action, RabbitClip.CenterMotion motion )
 		{
-			airRigs.Add( library.SourceFor( name ) );
-			return library.Clip( name, RabbitClip.CenterMotion.None ) with { Mirrored = library.Clip( name, RabbitClip.CenterMotion.None, mirrored: true ) };
-		} );
-		var airRig = airRigs.Count == 1 ? airRigs.First() : null;
-		airRig?.PrepareMirroredJoints( library.Mirror );
-
+			var sources = new HashSet<RabbitRetarget>();
+			var tree = RabbitMovement.Load( fs, AnimationPath( action ), name =>
+			{
+				sources.Add( library.SourceFor( name ) );
+				RabbitClip Side( bool mirrored ) => library.Clip( name, motion, RabbitClip.PoseData.Blend, mirrored );
+				return Side( false ) with { Mirrored = Side( true ) };
+			} );
+			var source = sources.Count == 1 ? sources.First() : null;
+			source?.PrepareMirroredJoints( library.Mirror );
+			return (tree, source);
+		}
+		var (air, airRig) = LoadBlendedMovement( "jump", RabbitClip.CenterMotion.None );
+		var (roll, rollRig) = LoadBlendedMovement( "roll", RabbitClip.CenterMotion.Full );
 		var wallRigs = new HashSet<RabbitRetarget>();
 		var wall = RabbitMovement.Load( fs, AnimationPath( "wall" ), name =>
 		{
 			wallRigs.Add( library.SourceFor( name ) );
-			return library.Clip( name, feet: true );
+			return library.Clip( name, data: RabbitClip.PoseData.Gait );
 		} );
 		var states = names.Select( name =>
 		{
@@ -228,8 +235,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 					WithEquipment( AnimationGroup( "Data/Animations/r_relaxidle.xml", mirrored: true ), "idle", true ) ) );
 			if ( name == RabbitGuard.Roll )
 			{
-				var roll = AnimationPath( "roll" );
-				return machine.AddState( MovementStance( AnimationGroup( roll, "roll_phase" ), AnimationGroup( roll, "roll_phase", mirrored: true ) ) );
+				GraphBuilder.Node Roll( bool mirrored ) => roll.Build( graph, label => coordinates.GetValueOrDefault( label ), coordinates["roll_phase"], mirrored );
+				return machine.AddState( MovementStance( Roll( false ), Roll( true ) ) );
 			}
 			if ( name is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach )
 			{
@@ -446,9 +453,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			PatrolGraph = LoadPatrolGraph,
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ), FallLayer( "r_writhe" ) ),
 			RollBones = rollBones,
-			RollClips = XmlAsset.Read( fs, AnimationPath( "roll" ), "SyncedAnimationGroup" )
-				.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
-				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
+			RollMovement = roll,
+			RollRig = rollRig,
 			WeaponLabel = label,
 			WallMovement = wall,
 			AirMovement = air,

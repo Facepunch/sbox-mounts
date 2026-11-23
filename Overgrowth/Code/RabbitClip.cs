@@ -126,8 +126,11 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	static string MirroredChannel( string label ) => label.EndsWith( "_l" ) ? label[..^1] + "r" :
 		label.EndsWith( "_r" ) ? label[..^1] + "l" : RabbitMirror.SwapSide( label );
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
+	internal enum PoseData { Pose, Blend, Gait }
+
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, PoseData data, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
+		bool sampleFeet = data == PoseData.Gait;
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
 		int count = Count();
@@ -295,7 +298,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
-		float[] magnitudes = sampleFeet || centerMotion == CenterMotion.None ? new float[(intervals + 1) * boneCount] : null;
+		float[] magnitudes = data != PoseData.Pose ? new float[(intervals + 1) * boneCount] : null;
 		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
 
 		var roots = new Transform[intervals + 1];

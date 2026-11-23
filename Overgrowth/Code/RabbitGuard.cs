@@ -126,6 +126,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			else lastPhysicsPose = null;
 		}
 		if ( Networking.IsHost ) UpdateGazeTarget();
+		hasGaitPose = false;
+		if ( Stance == Roll && playing == Roll ) ReadRollPose();
 		UpdateRollDisplay();
 		UpdatePatrolPose();
 		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
@@ -139,7 +141,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			UpdateTorsoControl( needsCombatPose );
 		}
 		UpdateBreathing( Time.Delta );
-		hasGaitPose = false;
 		var pose = AirPose();
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );

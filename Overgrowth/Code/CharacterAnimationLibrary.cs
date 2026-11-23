@@ -15,7 +15,7 @@ internal sealed class CharacterAnimationLibrary
 	readonly string path, referenceRig;
 	readonly ILookup<string, string> mapping;
 	readonly Dictionary<string, RabbitRetarget> sources = new();
-	readonly Dictionary<(string Name, RabbitClip.CenterMotion Motion, bool Feet, bool Mirrored), RabbitClip> clips = new();
+	readonly Dictionary<(string Name, RabbitClip.CenterMotion Motion, RabbitClip.PoseData Data, bool Mirrored), RabbitClip> clips = new();
 
 	internal CharacterAnimationLibrary( GameMount mount, string path, XmlAsset character, SkeletonData skeleton, float scale, CharacterMorph[] morphs )
 	{
@@ -99,13 +99,14 @@ internal sealed class CharacterAnimationLibrary
 		return source;
 	}
 
-	internal RabbitClip Clip( string name, RabbitClip.CenterMotion motion = RabbitClip.CenterMotion.Full, bool feet = false, bool mirrored = false )
+	internal RabbitClip Clip( string name, RabbitClip.CenterMotion motion = RabbitClip.CenterMotion.Full, RabbitClip.PoseData data = RabbitClip.PoseData.Pose, bool mirrored = false )
 	{
-		var key = (name, motion, feet, mirrored);
-		if ( !feet && clips.TryGetValue( (name, motion, true, mirrored), out var gait ) ) return gait;
+		var key = (name, motion, data, mirrored);
+		if ( data != RabbitClip.PoseData.Gait && clips.TryGetValue( (name, motion, RabbitClip.PoseData.Gait, mirrored), out var gait ) ) return gait;
+		if ( data == RabbitClip.PoseData.Pose && clips.TryGetValue( (name, motion, RabbitClip.PoseData.Blend, mirrored), out var blend ) ) return blend;
 		if ( !clips.TryGetValue( key, out var clip ) )
-			clips[key] = clip = RabbitClip.Load( fs, $"{path}/clips/{motion}/{(feet ? "gait" : "pose")}", Rig, Skeleton, name,
-				SourceFor( name ), Morphs, sampleFeet: feet, centerMotion: motion, mirror: mirrored ? Mirror : null );
+			clips[key] = clip = RabbitClip.Load( fs, $"{path}/clips/{motion}/{data.ToString().ToLowerInvariant()}", Rig, Skeleton, name,
+				SourceFor( name ), Morphs, data: data, centerMotion: motion, mirror: mirrored ? Mirror : null );
 		return clip;
 	}
 }
