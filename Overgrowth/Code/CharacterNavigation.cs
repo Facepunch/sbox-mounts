@@ -56,17 +56,36 @@ public sealed class CharacterNavigation : NavigationLayer
 		preparedVelocity = null;
 		var facing = WorldRotation.Forward;
 		base.OnUpdate();
-		if ( Npc is RabbitGuard { IsBackingAway: true } && Agent.IsValid() && !Npc.IsAirborne )
+		if ( Npc is RabbitGuard moving && Agent.IsValid() && !Npc.IsAirborne )
 		{
 			var flat = Agent.Velocity.WithZ( 0f );
-			if ( flat.LengthSquared > 0.001f * 40f * 40f )
+			if ( moving.IsBackingAway && flat.LengthSquared > 0.001f * 40f * 40f )
 				WorldRotation = RabbitGuard.InterpolateFacing( facing, -flat.Normal, 1f - MathF.Pow( 0.95f, Time.Delta * 120f ) );
+			else if ( moving.InLocomotion && flat.Length > 0.6f * 40f )
+				WorldRotation = RunFacing( facing, flat.Normal, Agent.WishVelocity.WithZ( 0f ) / moving.GroundRunSpeed, Time.Delta );
 		}
 		if ( Npc is RabbitGuard { PlantMovementScale: var scale } && scale != 1f && !Npc.IsAirborne && Agent.IsValid() )
 			Agent.MaxSpeed *= scale;
 		if ( !followingJump ) return;
 		if ( !Npc.IsAirborne ) { followingJump = false; return; }
 		Npc.Animation.Traversal = NavMeshLinkType.Jump;
+	}
+
+	// UpdateAnimation turns toward actual travel at ten radians per second. When the desired
+	// route is behind the character it leads the turn, even while the body is still coasting.
+	internal static Rotation RunFacing( Vector3 facing, Vector3 travel, Vector3 intent, float delta )
+	{
+		var look = intent + travel * 0.1f;
+		bool reversing = facing.Dot( look ) < 0f;
+		var target = reversing ? look : travel;
+		// Measure angles in the authored X/Z plane to retain the turn direction at a half-turn.
+		float angle = MathF.Atan2( facing.x, facing.y );
+		float turn = MathF.Atan2( target.x, target.y ) - angle;
+		if ( turn > MathF.PI ) turn -= MathF.Tau;
+		else if ( turn < -MathF.PI ) turn += MathF.Tau;
+		if ( reversing ) turn = Math.Clamp( turn, -0.6f * MathF.PI, 0.6f * MathF.PI );
+		angle += Math.Clamp( turn, -10f * delta, 10f * delta );
+		return Rotation.LookAt( new Vector3( MathF.Sin( angle ), MathF.Cos( angle ), 0f ) );
 	}
 
 	void CheckPartialRoute( RabbitGuard fighter )

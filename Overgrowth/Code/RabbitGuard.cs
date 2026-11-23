@@ -25,6 +25,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	float enemySeen;
 	string playing;
 	[Sync] string Stance { get; set; } = Idle;
+	internal bool InLocomotion => Stance == Locomotion;
 	RabbitGuardAnimations boundAnimations;
 	LevelItem equippedForAnimation;
 	string boundStanceOverride;
