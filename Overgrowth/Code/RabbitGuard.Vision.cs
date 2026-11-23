@@ -118,6 +118,7 @@ public sealed partial class RabbitGuard
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		float attention = 0f;
+		bool detectedEnemy = false;
 		knownCasualties.RemoveWhere( ally => !ally.IsValid() || ally.GetComponent<RabbitGuard>() is { Unconscious: false } );
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
@@ -139,7 +140,6 @@ public sealed partial class RabbitGuard
 			bool concealed = !friendly && ally is { InvisibleWhenStationary: true };
 			bool hidden = concealed && ally.duckAmount >= 0.5f
 				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f;
-			if ( hidden && !known ) continue;
 			var local = center - view.Position;
 			local = new( local.Dot( view.Forward ), local.Dot( view.Left ), local.Dot( view.Up ) );
 			if ( !InView( ref focusHull, FocusVision, local ) && !InView( ref peripheralHull, PeripheralVision, local ) ) continue;
@@ -150,7 +150,14 @@ public sealed partial class RabbitGuard
 				if ( ally is { Unconscious: true } || remains.IsValid() ) NoticeCasualty( candidate );
 				continue;
 			}
-			if ( !threat || hidden ) continue;
+			if ( !threat ) continue;
+			if ( separation < nearest )
+			{
+				closest = candidate;
+				nearest = separation;
+			}
+			if ( hidden ) continue;
+			detectedEnemy = true;
 			seenHostiles[candidate] = Time.Now;
 			if ( !enemy.IsValid() && !escortTarget.IsValid() )
 			{
@@ -158,15 +165,11 @@ public sealed partial class RabbitGuard
 			}
 			bool patrolling = !enemy.IsValid() && !escortTarget.IsValid() && !Investigating;
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (patrolling ? 1f : 3f) * (concealed ? 0.3f : 1f);
-			if ( separation < nearest )
-			{
-				closest = candidate;
-				nearest = separation;
-			}
+
 		}
+		enemySeen = detectedEnemy ? Math.Min( 1f, enemySeen + attention ) : Math.Max( 0f, enemySeen - 0.05f );
 		if ( closest.IsValid() )
 		{
-			enemySeen = Math.Min( 1f, enemySeen + attention );
 			if ( enemySeen >= 1f )
 			{
 				if ( !enemy.IsValid() ) Remember( closest );
@@ -175,7 +178,6 @@ public sealed partial class RabbitGuard
 			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
 				investigatePoint = Movement.ProjectPoint( observer + (CharacterCenter( closest ) - observer).Normal * 120f );
 		}
-		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
 		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;
 	}
 
