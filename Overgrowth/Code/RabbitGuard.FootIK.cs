@@ -175,12 +175,12 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	bool UsesCombatFeet => InThrow || boundAnimations?.AttackStates.Contains( Stance ) == true;
+	bool UsesCombatFeet => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ));
 
 	void UpdateCombatFeet()
 	{
 		var parameters = Renderer.Animation.Parameters;
-		parameters.TryGetFloat( InThrow ? "reaction_phase" : "attack_phase", out var phase );
+		parameters.TryGetFloat( boundAnimations.AttackStates.Contains( Stance ) ? "attack_phase" : "reaction_phase", out var phase );
 		RabbitAttack.Blend blend;
 		if ( boundAnimations.Attacks.TryGetValue( Stance, out var attack ) )
 		{

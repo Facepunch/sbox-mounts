@@ -6,6 +6,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 {
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
+	internal IReadOnlySet<string> ReactionStates { get; private init; }
 	internal RabbitRetarget RollRig { get; private init; }
 	internal RabbitTorso Torso { get; private init; }
 	internal string[] TailBones { get; private init; }
@@ -233,6 +234,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			wallRigs.Add( library.SourceFor( name ) );
 			return library.Clip( name, data: RabbitClip.PoseData.Gait );
 		} );
+		var reactionStates = reactionNames.Concat( guards.Keys ).Concat( throwClips.Keys ).ToHashSet();
 		var states = names.Select( name =>
 		{
 			if ( idlePoses.TryGetValue( name, out var idle ) )
@@ -309,11 +311,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
-			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, throwClips.ContainsKey( name ) || blocked.ContainsValue( name ) ? RabbitClip.PoseData.Feet : RabbitClip.PoseData.Pose );
+			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, RabbitClip.PoseData.Feet );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
 				return machine.AddState( CombatPose( clip, attackPhase ) );
-			if ( throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || guards.ContainsKey( name ) )
+			if ( reactionStates.Contains( name ) )
 				return machine.AddState( CombatPose( clip, reactionPhase ) );
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
@@ -457,6 +459,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			RollBones = rollBones,
 			RollMovement = roll,
 			RollRig = rollRig,
+			ReactionStates = reactionStates,
 			WeaponLabel = label,
 			WallMovement = wall,
 			AirMovement = air,
