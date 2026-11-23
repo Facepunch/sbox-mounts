@@ -74,12 +74,7 @@ public sealed partial class RabbitGuard
 		{
 			float horizon = Math.Min( 8f, distance / (GroundRunSpeed * 0.8f) + elapsed );
 			var predicted = origin + observation.Velocity * horizon;
-			// The mount can query traversable paths. Only lead along a direct, connected corridor.
-			var path = Scene.NavMesh.CalculatePath( new() { Start = origin, Target = predicted } );
-			if ( !path.IsValid || path.Points.Count < 2 ) break;
-			var next = path.Points[1].Position;
-			if ( next == destination ) break;
-			destination = next;
+			destination = SlideOnNavMesh( origin, predicted );
 			distance = center.Distance( destination );
 		}
 		return destination;

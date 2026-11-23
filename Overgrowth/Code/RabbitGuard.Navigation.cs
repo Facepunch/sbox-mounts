@@ -37,10 +37,10 @@ public sealed partial class RabbitGuard
 			nav.GetClosestPoint( from + delta, 40f ) is { } surface &&
 			(surface - to).WithZ( 0f ).LengthSquared < 0.0001f ) return surface;
 
-		bool Reach( Vector3 target, out Vector3 reached )
+		bool Reach( Vector3 start, Vector3 target, out Vector3 reached )
 		{
-			reached = from;
-			var path = nav.CalculatePath( new() { Start = from, Target = target } );
+			reached = start;
+			var path = nav.CalculatePath( new() { Start = start, Target = target } );
 			if ( !path.IsValid || path.Points.Count < 1 ) return false;
 			reached = path.Points[^1].Position;
 			if ( (reached - target).WithZ( 0f ).LengthSquared > 0.0001f ) return false;
@@ -52,15 +52,18 @@ public sealed partial class RabbitGuard
 			}
 			return true;
 		}
-		if ( Reach( to, out var end ) ) return end;
-		float low = 0f, high = 1f;
-		var hit = from;
-		while ( (high - low) * length > 0.05f )
+		// A long ray can cross a slope outside the goal search's vertical snap range.
+		// Continue each successful subsegment from its surface height before testing the rest.
+		Vector3 Advance( Vector3 start, Vector3 target )
 		{
-			float mid = (low + high) * 0.5f;
-			if ( Reach( from + delta * mid, out var point ) ) { low = mid; hit = point; }
-			else high = mid;
+			if ( Reach( start, target.WithZ( start.z ), out var end ) ) return end;
+			var step = (target - start).WithZ( 0f );
+			if ( step.Length <= 0.05f ) return start;
+			var mid = start + step * 0.5f;
+			var reached = Advance( start, mid );
+			if ( (reached - mid).WithZ( 0f ).LengthSquared > 0.0001f ) return reached;
+			return Advance( reached, target );
 		}
-		return hit;
+		return Advance( from, to );
 	}
 }
