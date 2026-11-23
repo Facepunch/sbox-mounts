@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/gaussianblury.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flBlurRadius "0.0"
+	g_flScaleFactorY "1.0"
+	g_flRcpFrameY "1.0"
+}

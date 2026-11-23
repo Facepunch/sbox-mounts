@@ -1,11 +1,9 @@
 #ifndef NS2_HLSL
 #define NS2_HLSL
 
-// Spark authors distances in metres, s&box works in inches. Anything the
-// original writes as a world distance - depth fades, vertex displacement,
-// laser spacing - has to be scaled by this rather than silently retuned.
+// Match the mount geometry scale for shader distances authored in metres.
 #ifndef NS2_METRE
-#define NS2_METRE 39.3701
+#define NS2_METRE 40.0
 #endif
 
 //=============================================================================
@@ -21,15 +19,8 @@
 // s&box is a linear PBR renderer with a metalness/roughness workflow, so every
 // port converts spec/gloss to metal/rough with the standard glTF solver below.
 //
-// Colour space: Spark samples albedo/specular/normal maps raw and only applies
-// an sRGB decode to inputs flagged srgb="true" (emissive and friends). Its
-// final tone map then does pow( colour, 1/gamma ). Feeding the raw sample into
-// s&box's linear albedo and letting s&box encode at the end reproduces that
-// exact round trip, so albedo is deliberately NOT linearised here.
-// -- CORRECTED: s&box lights in linear and encodes on output, so the raw
-// gamma sample must be decoded first or everything reads far too bright.
-// Ns2ApplySpecularGloss does that decode for every port; mounted DDS textures
-// arrive as UNORM so the GPU will not do it for us.
+// Mounted UNORM textures with an sRGB input are decoded when sampled.
+// The shared lighting conversion also decodes raw albedo and specular inputs.
 //=============================================================================
 
 #define NS2_DIELECTRIC_SPECULAR 0.04
@@ -129,7 +120,7 @@ void Ns2ApplyTranslucentGlass( inout Material m, float3 specular, float gloss, f
 {
 	Ns2ApplySpecularGloss( m, float3( 0.0, 0.0, 0.0 ), specular, gloss );
 
-	m.Emission = Ns2SrgbToLinear( saturate( emissive ) ) * opacity;
+	m.Emission = emissive * opacity;
 	m.Opacity = 1.0;
 	m.AmbientOcclusion = 1.0;
 	m.TintMask = 1.0;

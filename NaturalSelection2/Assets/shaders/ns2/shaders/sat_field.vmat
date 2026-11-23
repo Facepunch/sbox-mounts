@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/sat_field.shader"
+	Glowpoints "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+	MaskMap "[1 1 1 1]"
+}

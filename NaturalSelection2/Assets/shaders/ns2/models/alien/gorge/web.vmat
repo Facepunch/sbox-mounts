@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/models/alien/gorge/web.shader"
+	AlbedoMap "[1 1 1 1]"
+	g_flHighlight "0.0"
+	g_flTextureIndex "0"
+	g_flNumRows "1"
+	g_flNumColumns "2"
+}

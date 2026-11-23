@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/materials/editor/editor_background.shader"
+	g_vColor1 "[0 0 0]"
+	g_vColor2 "[0 0 0]"
+}

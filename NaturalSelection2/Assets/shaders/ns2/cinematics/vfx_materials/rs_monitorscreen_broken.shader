@@ -103,10 +103,10 @@ PS
 	Texture2D g_tAlbedoMap   < Channel( RGBA, Box( AlbedoMap ),   Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tNormalMap   < Channel( RGBA, Box( NormalMap ),   Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tSpecularMap < Channel( RGBA, Box( SpecularMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tNoiseTex    < Channel( RGBA, Box( NoiseTex ),    Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tLcdTex      < Channel( RGBA, Box( LcdTex ),      Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tMaskTex     < Channel( RGBA, Box( MaskTex ),     Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tUvTex       < Channel( RGBA, Box( UvTex ),       Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tNoisetex    < Channel( RGBA, Box( NoiseTex ),    Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tLcdtex      < Channel( RGBA, Box( LcdTex ),      Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tMasktex     < Channel( RGBA, Box( MaskTex ),     Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tUvtex       < Channel( RGBA, Box( UvTex ),       Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
 	float g_flEmissiveStrength    < UiGroup( ",0/,0/0" ); Default1( 0.0 );  Range1( 0, 100 ); >;
 	float g_flEmissiveMod         < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 100 ); >;
@@ -114,7 +114,7 @@ PS
 	float g_flDistortionIntensity < UiGroup( ",0/,0/0" ); Default1( 0.01 ); Range1( 0, 1 ); >;
 	float g_flScanlineIntensity   < UiGroup( ",0/,0/0" ); Default1( 0.8 );  Range1( 0, 1 ); >;
 	float g_flShowDecals          < UiGroup( ",0/,0/0" ); Default1( 0.0 );  Range1( 0, 1 ); >;
-	float g_flAnimationSpeed      < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 64 ); >;
+	float g_flAnimationspeed      < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 64 ); >;
 	float g_flHorizontalFrames    < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 1, 64 ); >;
 	float g_flVerticalFrames      < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 1, 64 ); >;
 	float g_flSmoothBlending      < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 1 ); >;
@@ -133,21 +133,21 @@ PS
 		const float noisemult = 0.65;
 		const float ScanlineScale = 1.0 / 64.0;
 
-		float ts = g_flAnimationSpeed;
+		float ts = g_flAnimationspeed;
 		float2 uv = i.vTextureCoords.xy;
 		float distanceMetres = length( i.vPositionWithOffsetWs.xyz ) / NS2_UNITS_PER_METRE;
 
-		float2 brokenUV = Tex2DS( g_tUvTex, g_sWrap, uv ).rg;
+		float2 brokenUV = Tex2DS( g_tUvtex, g_sWrap, uv ).rg;
 		float brokenUVmask = 1.0 - ( brokenUV.r + brokenUV.g );
 
 		float scanlines = saturate( abs( frac( uv.y / ScanlineScale + ( 1.0 - g_flTime ) ) - 0.5 ) + ( g_flScanlineIntensity / brokenUVmask ) );
 
 		float2 psjitter = floor( g_flTime * ts ) / ts + ( g_flTime * 0.024 + float2( -0.005, -0.3 ) );
-		float3 uvjitter = Tex2DS( g_tNoiseTex, g_sWrap, uv * 2.0 + Tex2DS( g_tNoiseTex, g_sWrap, psjitter ).rg ).rgb;
-		float2 distortionUV = float2( Tex2DS( g_tNoiseTex, g_sWrap, float2( uv.g, psjitter.r ) ).b, 0.0 ) * uvjitter.b * g_flDistortionIntensity;
+		float3 uvjitter = Tex2DS( g_tNoisetex, g_sWrap, uv * 2.0 + Tex2DS( g_tNoisetex, g_sWrap, psjitter ).rg ).rgb;
+		float2 distortionUV = float2( Tex2DS( g_tNoisetex, g_sWrap, float2( uv.g, psjitter.r ) ).b, 0.0 ) * uvjitter.b * g_flDistortionIntensity;
 
-		float timestephard = floor( g_flTime * g_flAnimationSpeed );
-		float timestepsoft = g_flTime * g_flAnimationSpeed;
+		float timestephard = floor( g_flTime * g_flAnimationspeed );
+		float timestepsoft = g_flTime * g_flAnimationspeed;
 		float timesteps = lerp( timestephard, timestepsoft, g_flSmoothBlending );
 
 		float2 frames = float2( floor( g_flHorizontalFrames ), floor( g_flVerticalFrames ) );
@@ -166,12 +166,12 @@ PS
 			Tex2DS( g_tAlbedoMap, g_sWrap, UV2 ).rgb,
 			frac( timesteps ) ) * saturate( uvjitter.r + noisemult );
 
-		float3 lcdpattern = Tex2DS( g_tLcdTex, g_sWrap, uv * 512.0 ).rgb * subUvLerp * 3.0;
+		float3 lcdpattern = Tex2DS( g_tLcdtex, g_sWrap, uv * 512.0 ).rgb * subUvLerp * 3.0;
 
 		float3 screenblend = lerp( lcdpattern, subUvLerp, DistanceBlend( 2.0, 2.0, distanceMetres ) );
 		float3 scanlineblend = lerp( screenblend * scanlines, screenblend, DistanceBlend( 4.0, 10.0, distanceMetres ) );
 
-		float4 mask = Tex2DS( g_tMaskTex, g_sWrap, uv );
+		float4 mask = Tex2DS( g_tMasktex, g_sWrap, uv );
 		float3 brokentexture = ( scanlineblend * mask.rgb ) * mask.a;
 
 		float4 normal = Tex2DS( g_tNormalMap, g_sWrap, uv );

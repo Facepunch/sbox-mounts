@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/mixedexostatus.shader"
+	EmissiveMap "[1 1 1 1]"
+	AlternateMap "[1 1 1 1]"
+	g_flBaseIsArm "0"
+	g_flAlternateIsArm "0"
+}

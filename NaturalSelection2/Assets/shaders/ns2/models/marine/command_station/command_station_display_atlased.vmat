@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/models/marine/command_station/command_station_display_atlased.shader"
+	EmissiveMap "[1 1 1 1]"
+	WelcomeEmissiveMap "[1 1 1 1]"
+	LockedEmissiveMap "[1 1 1 1]"
+	g_flHiddenAmount "0.0"
+	g_flTimeStateChanged "0.0"
+	g_flState "1.0"
+	g_flTextureIndex "0"
+	g_flNumRows "2"
+	g_flNumColumns "1"
+}

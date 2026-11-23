@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/boneshield.shader"
+	EmissiveMap1 "[1 1 1 1]"
+	MaskMap "[1 1 1 1]"
+	g_vTint "[0 0 0]"
+	g_vEm1Coord "[0 0]"
+	g_vEm2Coord "[0 0]"
+	g_vMaskCoord "[0 0]"
+	g_flEmissiveMod "0"
+	g_flAddBlending "0"
+	g_flMaskOpacity "0"
+}

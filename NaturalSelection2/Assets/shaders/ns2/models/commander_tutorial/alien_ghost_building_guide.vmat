@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/models/commander_tutorial/alien_ghost_building_guide.shader"
+	SmokeMap "[1 1 1 1]"
+	g_vPulseColor "[1.0 0.7333 0.3569]"
+}

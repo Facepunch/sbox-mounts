@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/heal_view.shader"
+	NoiseMap "[1 1 1 1]"
+	g_flHealTime "0"
+}

@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/highlightmodel.shader"
+	g_flIntensity "0.0"
+}

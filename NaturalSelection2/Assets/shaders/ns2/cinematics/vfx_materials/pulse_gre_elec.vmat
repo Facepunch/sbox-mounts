@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/pulse_gre_elec.shader"
+	EmissiveMap "[1 1 1 1]"
+	CloudMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	g_flElecAmount "1.0"
+}

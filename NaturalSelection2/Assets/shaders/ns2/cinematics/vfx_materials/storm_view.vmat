@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/storm_view.shader"
+	NoiseMap "[1 1 1 1]"
+	g_flStartTime "0.0"
+	g_flIntensity "1.0"
+}

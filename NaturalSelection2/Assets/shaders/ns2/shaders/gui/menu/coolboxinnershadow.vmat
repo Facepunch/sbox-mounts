@@ -1,0 +1,15 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/coolboxinnershadow.shader"
+	g_vBoxSize "[128 128]"
+	g_vSurfaceSize "[132 132]"
+	g_flOpacity "1.0"
+	g_vStrokeColor "[0.553 0.588 0.627 0.5]"
+	g_flStrokeWidth "2"
+	g_vDropShadowColor "[0.027 0.039 0.059 0.5]"
+	g_vDropShadowRadius "[20 20]"
+	g_vDropShadowCSqr "[32.08001667 32.08001667]"
+	g_flInnerShadowOpacity "0.75"
+	g_vInnerShadowRadius "[20 20]"
+	g_vInnerShadowCSqr "[32.08001667 32.08001667]"
+}

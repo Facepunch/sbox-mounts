@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/placement_valid.shader"
+	NormalMap "[1 1 1 1]"
+	g_vTint "[0 0 0]"
+	g_flEdge "3"
+}

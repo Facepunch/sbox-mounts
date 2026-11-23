@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/exoscreen.shader"
+	AlbedoMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	SpecularMap "[1 1 1 1]"
+	EmissiveMap "[1 1 1 1]"
+	BlendMap "[1 1 1 1]"
+	ExoMap "[1 1 1 1]"
+	ScanlinesMap "[1 1 1 1]"
+	g_flDissolveAmount "0.0"
+	g_flCloseAmount "0.0"
+}

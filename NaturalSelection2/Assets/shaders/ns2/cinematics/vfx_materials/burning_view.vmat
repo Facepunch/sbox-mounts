@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/burning_view.shader"
+	Glowpoints "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+}

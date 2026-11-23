@@ -18,14 +18,7 @@
 // fragments facing away from the viewer". Refraction is the only tool this
 // shader has, so distance is expressed purely as how much the web bends light.
 //
-// The naming is inverted from what you would expect. "visibility" is 0 when
-// the web is CLOSE (inside fullVisDist) and 1 when it is far away (beyond
-// noVisDist), and the distortion is multiplied by (1 - visibility). So a
-// nearby web distorts fully and a distant one not at all - the value is really
-// "how faded out this is". fullVisDist 2.5 and noVisDist 5.0 are metres.
-//
-// The branch is dropped: outside the range (1 - visibility) is already zero,
-// so the guard only saved Spark a texture fetch.
+// Spark enables distortion only inside the distance transition.
 //=============================================================================
 
 HEADER
@@ -112,17 +105,20 @@ PS
 	Texture2D g_tNormalMap  < Channel( RGBA, Box( NormalMap ),  Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tOpacityMap < Channel( RGBA, Box( OpacityMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
-	// Spark authors these in metres; s&box works in inches, so 5.0m and 2.5m.
-	float g_flNoVisDist < UiGroup( ",0/,0/0" ); Default1( 196.8505 ); Range1( 0, 1024 ); >;
-	float g_flFullVisDist < UiGroup( ",0/,0/0" ); Default1( 98.4253 ); Range1( 0, 1024 ); >;
+	// Keep material overrides in the authored units.
+	float g_flNoVisDist < UiGroup( ",0/,0/0" ); Default1( 5.0 ); Range1( 0, 1024 ); >;
+	float g_flFullVisDist < UiGroup( ",0/,0/0" ); Default1( 2.5 ); Range1( 0, 1024 ); >;
 	float g_flDistortionIntensity < UiGroup( ",0/,0/0" ); Default1( 0.25 ); Range1( 0, 1 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		float2 uv = i.vTextureCoords.xy;
 
-		float dist = distance( i.vPositionWithOffsetWs.xyz + g_vCameraPositionWs, g_vCameraPositionWs );
+		float dist = distance( i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz, g_vCameraPositionWs ) / NS2_METRE;
 		float visibility = saturate( ( dist - g_flFullVisDist ) / ( g_flNoVisDist - g_flFullVisDist ) );
+
+		if ( visibility <= 0 || visibility >= 1 )
+			return float4( Ns2SampleScene( i.vPositionSs.xy ), 1 );
 
 		float3 tsNormal = Ns2DecodeNormal( Tex2DS( g_tNormalMap, g_sWrap, uv ) );
 

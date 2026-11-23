@@ -71,7 +71,7 @@ float3 Ns2SampleScene( float2 vPositionSs )
 // distances at which the bias is full and zero are converted here rather than
 // being silently retuned. NS2_METRE lives in ns2.hlsl.
 #ifndef NS2_METRE
-#define NS2_METRE 39.3701
+#define NS2_METRE 40.0
 #endif
 
 // Mirrors PerformRefraction's single sample path, including the depth test that

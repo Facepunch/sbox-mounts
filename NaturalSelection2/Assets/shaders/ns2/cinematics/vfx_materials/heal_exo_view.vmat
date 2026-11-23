@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/heal_exo_view.shader"
+	NoiseMap "[1 1 1 1]"
+	Particles "[1 1 1 1]"
+	g_flTimeLastHealed "0"
+}

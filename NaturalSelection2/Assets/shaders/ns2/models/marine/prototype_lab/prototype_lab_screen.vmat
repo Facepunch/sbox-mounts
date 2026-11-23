@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/models/alien/whip/ball.shader"
+	EmissiveMap "[1 1 1 1]"
+	g_flHiddenAmount "0.0"
+}

@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/undercity/undercity_fakeatmospherics.shader"
+	g_flDecals "0.0"
+}

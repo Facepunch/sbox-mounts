@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/materials/skulk_challenge/guide_line.shader"
+	EmissiveMap "[1 1 1 1]"
+}

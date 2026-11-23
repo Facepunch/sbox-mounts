@@ -1,0 +1,17 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/wet.shader"
+	EmissiveMap1 "[1 1 1 1]"
+	EmissiveMap2 "[1 1 1 1]"
+	MaskMap "[1 1 1 1]"
+	RefractMap "[1 1 1 1]"
+	g_vTint "[0 0 0]"
+	g_vEm1Coord "[0 0 0 0]"
+	g_vEm2Coord "[0 0 0 0]"
+	g_vMaskCoord "[0 0 0 0]"
+	g_vNormCoord "[0 0 0 0]"
+	g_vNorm2Coord "[0 0 0 0]"
+	g_flNormIntensity "0.10"
+	g_flDarkenGround "0"
+	g_flScale "0"
+}

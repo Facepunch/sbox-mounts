@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/ui/badges/nsl_open_tournament_2019_animated.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flFrameCount "30"
+}

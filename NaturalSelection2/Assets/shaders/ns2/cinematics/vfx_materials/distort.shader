@@ -1,31 +1,3 @@
-//=============================================================================
-// Port of NS2 ns2/cinematics/vfx_materials/distort.surface_shader
-//
-//     float3 tsNormal = DecodeNormal( tex2D(normalMap, input.texCoord) );
-//     float3 vsNormal = tsNormal.x * input.vsTangent +
-//                       tsNormal.y * input.vsBinormal +
-//                       tsNormal.z * input.vsNormal;
-//     vsNormal = normalize(vsNormal);
-//     float anim = (1 + cos(time * 5)) * 0.5;
-//     float intensity = 1 - distortAmount;
-//     if (intensity > 0.95) intensity = 1 - ((intensity - 0.95) / 0.05);
-//     float distortionScalar = intensity * intensity * 0.15;
-//     material.ssDistortion = vsNormal.xy * float2(1, -1) * distortionScalar * (0.8 + anim);
-//
-// This is the alien cloaking shimmer. distortAmount is driven per-entity by
-// the game: standing still it is 1, at full cloaked movement speed it is 0.7.
-//
-// The fold at 0.95 is the interesting bit and is easy to misread. intensity is
-// 1 - distortAmount, so a perfectly still cloaked player has intensity 0 and no
-// distortion at all - fully invisible. As they move, intensity climbs and the
-// shimmer grows. The fold then catches the far end of the range and ramps it
-// back down to zero, so an entity with distortAmount near 0 also disappears.
-// Only the middle of the range shimmers, which is what makes cloak readable.
-//
-// Unlike the other refractors this one writes the explicit float2(1, -1) sign
-// flip, which confirms the screen-space Y convention in ns2_refract.hlsl.
-//=============================================================================
-
 HEADER
 {
 	Description = "NS2 Distort";
@@ -56,11 +28,13 @@ COMMON
 struct VertexInput
 {
 	#include "common/vertexinput.hlsl"
+	float4 vColor : COLOR0 < Semantic( Color ); >;
 };
 
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
+	float4 vColor : COLOR0;
 };
 
 VS
@@ -69,7 +43,9 @@ VS
 
 	PixelInput MainVs( VertexInput v )
 	{
-		return FinalizeVertex( ProcessVertex( v ) );
+		PixelInput i = ProcessVertex( v );
+		i.vColor = v.vColor;
+		return FinalizeVertex( i );
 	}
 }
 
@@ -107,31 +83,36 @@ PS
 	CreateInputTexture2D( NormalMap, Linear, 8, "NormalizeNormals", "_normal", ",0/,0/0", Default3( 0.5, 0.5, 1.0 ) );
 	Texture2D g_tNormalMap < Channel( RGBA, Box( NormalMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
+	CreateInputTexture2D( EmissiveMap, Linear, 8, "None", "_emissive", ",0/,0/0", Default3( 0, 0, 0 ) );
+	Texture2D g_tEmissiveMap < Channel( RGBA, Box( EmissiveMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	float g_flMaxRange < Default1( 0 ); >;
 	float g_flDistortAmount < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
-		float2 uv = i.vTextureCoords.xy;
+		float3 view = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz - g_vCameraPositionWs;
+		float3 up = g_vCameraUpDirWs;
+		float3 forward = g_vCameraDirWs;
+		float3 right = cross( forward, up );
+		float2 lateral = float2( dot( right, view ), dot( up, view ) ) / NS2_METRE;
+		float depth = dot( forward, view ) / NS2_METRE;
+		float fade = g_flMaxRange == 0 ? 0 : smoothstep( 1, 0.5, 0.33 * length( lateral ) ) * ( 1 - saturate( ( depth - 2 ) / g_flMaxRange ) );
+		float intensity = 1 - g_flDistortAmount;
+		if ( intensity + fade <= 0 )
+			return float4( Ns2SampleScene( i.vPositionSs.xy ), 1 );
 
-		float3 tsNormal = Ns2DecodeNormal( Tex2DS( g_tNormalMap, g_sWrap, uv ) );
-
-		float3 wsPerturb = normalize(
-			tsNormal.x * i.vTangentUWs.xyz +
-			tsNormal.y * i.vTangentVWs.xyz +
-			tsNormal.z * i.vNormalWs.xyz );
-
-		float3 vsPerturb = Vector3WsToVs( wsPerturb );
-
-		float anim = ( 1.0 + cos( g_flTime * 5.0 ) ) * 0.5;
-
-		float intensity = 1.0 - g_flDistortAmount;
-		if ( intensity > 0.95 )
-			intensity = 1.0 - ( ( intensity - 0.95 ) / 0.05 );
-
-		float distortionScalar = intensity * intensity * 0.15;
-
-		float2 distortion = float2( vsPerturb.x, -vsPerturb.y ) * distortionScalar * ( 0.8 + anim );
-
-		return float4( Ns2Refract( i.vPositionSs.xy, i.vPositionSs.z, distortion, float3( 1.0, 1.0, 1.0 ), 1.0 ), 1.0 );
+		float2 tangent = float2( dot( right, i.vTangentUWs ), dot( up, i.vTangentUWs ) );
+		float wave = 0.5 * intensity * cos( 2 * g_flTime + 3 * tangent.x );
+		float limit = ( fade + intensity ) * 0.03;
+		float normalX = Ns2DecodeNormal( Tex2DS( g_tNormalMap, g_sWrap, i.vTextureCoords.xy ) ).x;
+		// Spark evaluates the binormal expression after a terminating semicolon.
+		float2 distortion = clamp( tangent * wave, -limit, limit ) * normalX;
+		float z = dot( normalize( i.vNormalWs ), forward );
+		float fresnel = pow( saturate( -z ), 1.5 * ( 1.8 - intensity ) );
+		float3 transmission = max( 0.25, 1 - fade * 0.8 - 1.4 * intensity * fresnel ) * i.vColor.rgb;
+		float3 glow = saturate( Tex2DS( g_tEmissiveMap, g_sWrap, i.vTextureCoords.xy ).rgb );
+		float edge = -0.84 * z;
+		float3 emission = max( 0, fade - 0.4 ) * ( glow * 0.5 + 0.01 * edge * edge * edge );
+		return float4( Ns2Refract( i.vPositionSs.xy, i.vPositionSs.z, distortion, transmission, 1 ) + emission, 1 );
 	}
 }

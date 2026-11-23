@@ -1,0 +1,17 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/rs_hologram_animated.shader"
+	EmissiveMap "[1 1 1 1]"
+	FlickerMap "[1 1 1 1]"
+	g_flEmissiveStrength "0.0"
+	g_flEmissiveMod "1.0"
+	g_flDistortionIntensity "0.01"
+	g_flScanlineIntensity "0.8"
+	g_flShowDecals "0.0"
+	g_flAnimationspeed "1.0"
+	g_flHorizontalFrames "1"
+	g_flVerticalFrames "1"
+	g_flSmoothBlending "1"
+	Noisetex "[1 1 1 1]"
+	Lcdtex "[1 1 1 1]"
+}

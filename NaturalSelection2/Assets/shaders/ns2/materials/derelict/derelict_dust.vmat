@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/materials/derelict/derelict_dust.shader"
+	EmissiveMap "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+	g_flXScroll "0"
+	g_flYScroll "0"
+}

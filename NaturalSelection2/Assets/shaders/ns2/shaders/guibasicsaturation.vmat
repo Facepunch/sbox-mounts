@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guibasicsaturation.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flSaturation "1.0"
+}

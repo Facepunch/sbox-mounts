@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/models/commander_tutorial/big_arrow_alien_cyst.shader"
+	AlbedoMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	SpecularMap "[1 1 1 1]"
+	EmissiveMap "[1 1 1 1]"
+	g_flFade "1"
+	SmokeMap "[1 1 1 1]"
+}

@@ -134,8 +134,8 @@ PS
 	Texture2D g_tMaskMap     < Channel( RGBA, Box( MaskMap ),     Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tHeatMap     < Channel( RGBA, Box( HeatMap ),     Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
-	float g_flHeatAmountLeft  < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
-	float g_flHeatAmountRight < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
+	float g_flHeatAmountleft  < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
+	float g_flHeatAmountright < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
 
 	static const float NS2_UNITS_PER_METRE = 40.0;
 
@@ -153,7 +153,7 @@ PS
 		float4 specularGloss = Tex2DS( g_tSpecularMap, g_sWrap, uv );
 
 		float depth = ( osPosition.z * 2.0 - 2.5 ) * 0.5 - 0.5;
-		float heatAmount = osPosition.x < 0.0 ? g_flHeatAmountRight : g_flHeatAmountLeft;
+		float heatAmount = osPosition.x < 0.0 ? g_flHeatAmountright : g_flHeatAmountleft;
 
 		float detailNoise = Tex2DS( g_tNoiseMap, g_sWrap, uv * 10.0 ).r * detailNoiseAmount + ( 1.0 - detailNoiseAmount );
 		float3 tint = Ns2SrgbToLinear( Tex2DS( g_tHeatMap, g_sClamp, float2( heatAmount + depth, 0.0 ) ).rgb ) * heatAmount * detailNoise;

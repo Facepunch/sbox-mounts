@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/seasonal/holiday2012/materials/effects/snow_splat.shader"
+	AlbedoMap "[1 1 1 1]"
+	g_flIntensity "1.0"
+}

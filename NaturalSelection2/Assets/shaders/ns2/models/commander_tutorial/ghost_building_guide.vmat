@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/models/commander_tutorial/ghost_building_guide.shader"
+	ScanLinesMap "[1 1 1 1]"
+}

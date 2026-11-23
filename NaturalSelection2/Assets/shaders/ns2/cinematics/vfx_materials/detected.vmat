@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/detected.shader"
+	ScanMap "[1 1 1 1]"
+	g_flTimeDetected "1.0"
+}

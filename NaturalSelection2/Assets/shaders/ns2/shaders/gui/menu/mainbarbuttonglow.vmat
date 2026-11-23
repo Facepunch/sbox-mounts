@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/mainbarbuttonglow.shader"
+	BaseTexture "[1 1 1 1]"
+	g_vTextColor "[1 1 1 1]"
+	InnerGlowBlur "[1 1 1 1]"
+	g_vInnerGlowColor "[1 1 1 1]"
+	OuterGlowBlur "[1 1 1 1]"
+	g_vOuterGlowColor "[1 1 1 1]"
+}

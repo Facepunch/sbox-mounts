@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/serverentryselected.shader"
+	g_vSurfaceSize "[132 132]"
+	g_flOpacity "0.43"
+	g_vBoxSize "[300 300]"
+	g_flStrokeWidth "2"
+	g_vStrokeColor "[0 0.921569 1]"
+	g_flFillOpacity "0.51"
+	g_vGradColor1 "[0.0549 0.2863 0.3725]"
+	g_vGradColor2 "[0.1294 0.3569 0.4471]"
+}

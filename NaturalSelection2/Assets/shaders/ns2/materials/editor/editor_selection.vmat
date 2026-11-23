@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/materials/editor/editor_selection.shader"
+	g_vColor "[0 0 0]"
+}

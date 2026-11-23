@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/models/commander_tutorial/big_arrow_broken.shader"
+	GlowMap "[1 1 1 1]"
+	ScanLinesMap "[1 1 1 1]"
+	g_vTintColor "[1 1 1]"
+	g_flFade "0.5"
+}

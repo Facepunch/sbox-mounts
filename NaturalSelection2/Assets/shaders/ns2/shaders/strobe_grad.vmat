@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/strobe_grad.shader"
+	AlbedoMap "[1 1 1 1]"
+	EmissiveMap "[1 1 1 1]"
+	ScrollingMask "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+}

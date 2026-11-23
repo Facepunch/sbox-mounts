@@ -1,0 +1,15 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guialienobjectivedisplay.shader"
+	BaseTexture "[1 1 1 1]"
+	WavyMask "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+	SmokeMask "[1 1 1 1]"
+	g_flCorrectionX "0"
+	g_flCorrectionY "0"
+	FadeMap "[1 1 1 1]"
+	g_flStartTime "0"
+	g_flEndTime "1"
+	g_flStartOpacity "0"
+	g_flEndOpacity "0"
+}

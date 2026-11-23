@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/models/marine/armory/health_indicator.shader"
+	ScanMap "[1 1 1 1]"
+	CircuitMap "[1 1 1 1]"
+	GlowcircuitMap "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+}

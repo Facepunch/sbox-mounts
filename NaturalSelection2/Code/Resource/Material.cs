@@ -65,20 +65,26 @@ public class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 		if ( property.Key == "shader" || !property.String.EndsWith( ".dds", StringComparison.OrdinalIgnoreCase ) )
 			return;
 
-		SetTexture( material, property.Key, $"ns2/{property.String}" );
+		SetTexture( material, property.Key, property.String );
 	}
 
-	private void SetTexture( Material material, string key, string path )
+	private void SetTexture( Material material, string key, string relative )
 	{
-		var texture = Texture.Load( $"mount://{Host.Ident}/{path}.vtex", false );
+		relative = relative.Replace( '\\', '/' );
+		var path = $"mount://{Host.Ident}/ns2/{relative}.vtex";
+		if ( Host.GetByPath( path ) is null )
+		{
+			path = $"mount://{Host.Ident}/core/{relative}.vtex";
+			if ( Host.GetByPath( path ) is null )
+				return;
+		}
+
+		var texture = Texture.Load( path, false );
 		if ( texture is not null )
-			material.Set( Pascal( key ), texture );
+			material.Set( $"g_t{Pascal( key )}", texture );
 	}
 
-	// A .material only lists the inputs it overrides; everything else falls back to the default
-	// declared inside the .surface_shader, e.g. digital_infestation never names a texture at all
-	// and relies entirely on the two defaults in its shader. 31 of NS2's 291 surface shaders ship
-	// defaults like this, so read them back out of the shader source and fill in the gaps.
+	// Spark materials inherit unspecified inputs from their surface shader.
 	private void ApplyShaderDefaults( Material material, string shader, Property[] properties )
 	{
 		foreach ( var (key, path) in ShaderDefaults( shader ) )
@@ -111,12 +117,7 @@ public class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 
 		foreach ( Match match in TextureInput.Matches( fs.ReadAllText( source ) ) )
 		{
-			var texture = match.Groups[2].Value.Replace( '\\', '/' );
-
-			// Shader defaults are written relative to the ns2/ or core/ tree they live in, the same
-			// way the mount registers them, so keep whichever branch actually holds the file.
-			if ( GameMount.TryResolve( fs, texture, out var path ) )
-				defaults.Add( (match.Groups[1].Value, path) );
+			defaults.Add( (match.Groups[1].Value, match.Groups[2].Value.Trim()) );
 		}
 
 		return [.. defaults];

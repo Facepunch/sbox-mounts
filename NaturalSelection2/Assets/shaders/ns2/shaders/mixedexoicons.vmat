@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/mixedexoicons.shader"
+	EmissiveMap "[1 1 1 1]"
+	AlternateMap "[1 1 1 1]"
+	g_flHiddenAmount "0.0"
+}

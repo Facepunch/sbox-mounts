@@ -103,12 +103,10 @@ PS
 	{
 		Material m = Material::Init();
 
-		// i.vPositionWithOffsetWs is camera relative.
-		float3 vPositionWs = i.vPositionWithOffsetWs.xyz + g_vCameraPositionWs;
+		// Restore absolute world coordinates before projecting terrain UVs.
+		float3 vPositionWs = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 
-		// 39.37 / 128 metres is one repeat per 128 inches, and s&box is already
-		// in inches, so the unit conversion cancels.
-		float2 uv = vPositionWs.xy / 128.0;
+		float2 uv = vPositionWs.xy * ( 0.307578125 / NS2_METRE );
 
 		float4 albedo = Tex2DS( g_tAlbedoMap, g_sWrap, uv );
 		float4 normal = Tex2DS( g_tNormalMap, g_sWrap, uv );

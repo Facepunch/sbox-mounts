@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guialiencommanderbuttonhighlight.shader"
+	BaseTexture "[1 1 1 1]"
+	SmokeTexture "[1 1 1 1]"
+	g_flFadeInTime "0"
+	g_flFadeOutTime "0"
+	g_flFadeOutWeight "0"
+	g_flTimeOffset "0"
+}

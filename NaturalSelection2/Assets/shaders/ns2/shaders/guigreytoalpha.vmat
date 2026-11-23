@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guigreytoalpha.shader"
+	BaseTexture "[1 1 1 1]"
+}

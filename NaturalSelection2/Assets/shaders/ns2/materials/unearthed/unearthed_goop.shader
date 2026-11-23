@@ -101,7 +101,7 @@ VS
 
 		// Spark: material.wsOffset = wsNormal * (sin(time * 0.4) * WaveIntensity),
 		// authored in metres.
-		o.vPositionWs.xyz += o.vNormalWs.xyz * ( sin( g_flTime * 0.4 ) * g_flWaveIntensity * 39.3701 );
+		o.vPositionWs.xyz += o.vNormalWs.xyz * ( sin( g_flTime * 0.4 ) * g_flWaveIntensity * 40.0 );
 		o.vPositionPs = Position3WsToPs( o.vPositionWs.xyz );
 
 		return FinalizeVertex( o );
@@ -136,7 +136,7 @@ PS
 		Material m = Material::Init();
 
 		float2 uv = i.vTextureCoords.xy;
-		float3 vPositionWs = i.vPositionWithOffsetWs.xyz + g_vCameraPositionWs;
+		float3 vPositionWs = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 
 		// Spark projects onto its horizontal plane, XZ in a Y-up world.
 		float2 worldUv = vPositionWs.xy * g_flSurfaceScale;

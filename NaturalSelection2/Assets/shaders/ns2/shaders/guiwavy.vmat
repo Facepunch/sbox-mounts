@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guiwavy.shader"
+	BaseTexture "[1 1 1 1]"
+	WavyMask "[1 1 1 1]"
+}

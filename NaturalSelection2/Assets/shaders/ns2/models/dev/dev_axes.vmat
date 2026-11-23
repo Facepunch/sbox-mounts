@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/models/dev/dev_axes.shader"
+
+}

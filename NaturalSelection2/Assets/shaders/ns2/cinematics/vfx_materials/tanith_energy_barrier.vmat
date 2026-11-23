@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/tanith_energy_barrier.shader"
+	EmissiveMap "[1 1 1 1]"
+	CloudMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+}

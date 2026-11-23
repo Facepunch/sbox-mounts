@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/parasited.shader"
+	AlbedoMap "[1 1 1 1]"
+	RefractMap "[1 1 1 1]"
+	g_flScaleFactor "1.0"
+}

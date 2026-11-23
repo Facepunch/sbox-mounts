@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/flipbook.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flFramesPerSecond "1"
+	g_flHorizontalFrames "1"
+	g_flVerticalFrames "1"
+	g_flNumFrames "1"
+}

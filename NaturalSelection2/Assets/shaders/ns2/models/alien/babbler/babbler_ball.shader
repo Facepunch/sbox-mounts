@@ -95,10 +95,13 @@ PS
 	Texture2D g_tSpecularMap < Channel( RGBA, Box( SpecularMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tEmissiveMap < Channel( RGBA, Box( EmissiveMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
+	float g_flHiddenAmount < Default1( 0 ); >;
 	float g_flHighlight < UiGroup( ",0/,0/0" ); Default1( 0.0 ); Range1( 0, 1 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
+		float opacity = 1 - g_flHiddenAmount;
+		clip( opacity - 0.5 );
 		Material m = Material::Init();
 
 		float2 uv = i.vTextureCoords.xy;
@@ -110,7 +113,7 @@ PS
 
 		Ns2ApplySpecularGloss( m, albedo * i.vTintColor.rgb, specularGloss.rgb, specularGloss.a );
 
-		m.Emission = Ns2SrgbToLinear( emissive ) * ( 1.2 + cos( g_flTime * 5.0 ) ) * 10.0;
+		m.Emission = Ns2SrgbToLinear( emissive ) * ( 1.2 + cos( g_flTime * 5.0 ) ) * 10.0 * opacity;
 
 		m.Opacity = 1.0;
 		m.AmbientOcclusion = 1.0;

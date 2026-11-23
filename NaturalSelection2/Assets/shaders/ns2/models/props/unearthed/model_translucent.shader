@@ -86,7 +86,7 @@ VS
 	#include "common/vertex.hlsl"
 
 	// Spark authors wsOffset in metres; s&box works in inches, so -0.0015m.
-	float g_flWsOffset < UiGroup( ",0/,0/0" ); Default1( -0.05906 ); Range1( -4, 4 ); >;
+	float g_flWsOffset < UiGroup( ",0/,0/0" ); Default1( -0.06 ); Range1( -4, 4 ); >;
 
 	PixelInput MainVs( VertexInput v )
 	{
@@ -124,10 +124,10 @@ PS
 	RenderState( DepthWriteEnable, false );
 	RenderState( BlendEnable, true );
 	RenderState( SrcBlend, ONE );
-	RenderState( DstBlend, ONE );
+	RenderState( DstBlend, ZERO );
 	RenderState( BlendOp, ADD );
 	RenderState( SrcBlendAlpha, ONE );
-	RenderState( DstBlendAlpha, ONE );
+	RenderState( DstBlendAlpha, ZERO );
 	RenderState( BlendOpAlpha, ADD );
 
 	SamplerState g_sWrap < Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
@@ -170,7 +170,7 @@ PS
 		m.TextureCoords = uv;
 
 		// lerp( 0.04, 0, 1 - g ) is just 0.04 * g.
-		float2 distortion = Ns2DistortionToScreen( tsNormal * 0.04 * opacityMap.g, i.vTangentUWs.xyz, i.vTangentVWs.xyz );
+		float2 distortion = tsNormal.xy * ( 0.04 * opacityMap.g );
 
 		float3 refracted = Ns2Refract( i.vPositionSs.xy, i.vPositionSs.z, distortion, g_vTransmissionColor, opacity );
 

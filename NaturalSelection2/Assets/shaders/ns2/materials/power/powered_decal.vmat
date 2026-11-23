@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/materials/power/powered_decal.shader"
+	MaskMap "[1 1 1 1]"
+	MaskMap2 "[1 1 1 1]"
+	g_vOsOrigin "[0 0 0]"
+}

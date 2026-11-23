@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/bilebomb_exoview.shader"
+	AlbedoMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	EmissiveMap "[1 1 1 1]"
+	ShaderMask "[1 1 1 1]"
+}

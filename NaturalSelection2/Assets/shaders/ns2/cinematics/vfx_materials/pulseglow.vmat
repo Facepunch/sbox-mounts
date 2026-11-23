@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/pulseglow.shader"
+	g_vGlowColor "[1 1 1]"
+	g_flFrequency "1"
+	g_flStartTime "0"
+}

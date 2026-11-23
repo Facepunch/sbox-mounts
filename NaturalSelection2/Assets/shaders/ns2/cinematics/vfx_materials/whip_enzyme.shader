@@ -1,0 +1,63 @@
+HEADER
+{
+	Description = "NS2 whip_enzyme";
+}
+FEATURES
+{
+	#include "common/features.hlsl"
+}
+MODES
+{
+	Forward();
+	Depth( S_MODE_DEPTH );
+}
+COMMON
+{
+	#define CUSTOM_MATERIAL_INPUTS
+	#include "common/shared.hlsl"
+}
+struct VertexInput
+{
+	#include "common/vertexinput.hlsl"
+	float4 vColor : COLOR0 < Semantic( Color ); >;
+};
+struct PixelInput
+{
+	#include "common/pixelinput.hlsl"
+	float4 vColor : COLOR0;
+};
+VS
+{
+	#include "ns2/surface_vertex.hlsl"
+}
+PS
+{
+	#include "ns2/surface_lighting.hlsl"
+
+	CreateInputTexture2D( NoiseMap, Linear, 8, "None", "_noiseMap", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
+	Texture2D g_tNoiseMap < Channel( RGBA, Box( NoiseMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	float g_flEnzymeTime < Default1( 0 ); >;
+
+	float4 MainPs( PixelInput i ) : SV_Target0
+	{
+		float3 emission = 0;
+		float3 sparkAlbedo = 0;
+		float3 sparkSpecular = 0;
+		float sparkGloss = 0;
+		float3 sparkNormal = float3( 0, 0, 1 );
+		float opacity = 1;
+		const float3 tint = float3( 5, 0, 0 );
+		float t = g_flTime - g_flEnzymeTime;
+		float3 noise = Tex2DS( g_tNoiseMap, g_sWrap,
+							   ( i.vTextureCoords.xy + float2( g_flTime * -.07, g_flTime * .1 ) ) * float2( 3, 3.5 ) )
+						   .rgb;
+		float3 noise2 = Tex2DS( g_tNoiseMap, g_sWrap,
+								( i.vTextureCoords.xy + float2( g_flTime * .17, g_flTime * -.1 ) ) * float2( 5, 5.3 ) )
+							.rgb;
+		emission = ( noise2 * noise ) * tint + float3( 3, 0, 0 );
+		sparkAlbedo = ( noise2 * noise ) * tint;
+		opacity = ( noise2.r * noise.r );
+		clip( opacity - 0.5 );
+		return ShadeSparkSurface( i, sparkAlbedo, sparkSpecular, sparkGloss, sparkNormal, emission * opacity );
+	}
+}

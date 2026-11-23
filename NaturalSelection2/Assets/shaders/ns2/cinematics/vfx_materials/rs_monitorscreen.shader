@@ -116,8 +116,8 @@ PS
 	Texture2D g_tAlbedoMap   < Channel( RGBA, Box( AlbedoMap ),   Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tNormalMap   < Channel( RGBA, Box( NormalMap ),   Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	Texture2D g_tSpecularMap < Channel( RGBA, Box( SpecularMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tNoiseTex    < Channel( RGBA, Box( NoiseTex ),    Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	Texture2D g_tLcdTex      < Channel( RGBA, Box( LcdTex ),      Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tNoisetex    < Channel( RGBA, Box( NoiseTex ),    Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tLcdtex      < Channel( RGBA, Box( LcdTex ),      Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 
 	float g_flEmissiveStrength    < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 100 ); >;
 	float g_flEmissiveMod         < UiGroup( ",0/,0/0" ); Default1( 1.0 );  Range1( 0, 100 ); >;
@@ -147,11 +147,11 @@ PS
 		float scanlines = saturate( abs( frac( uv.y / ScanlineScale + ( 1.0 - g_flTime ) ) - 0.5 ) + g_flScanlineIntensity );
 
 		float2 psjitter = floor( g_flTime * ts ) / ts + ( g_flTime * 0.028 + float2( -0.005, -0.3 ) );
-		float3 uvjitter = Tex2DS( g_tNoiseTex, g_sWrap, uv * 2.0 + Tex2DS( g_tNoiseTex, g_sWrap, psjitter ).rg ).rgb;
-		float2 distortionUV = float2( Tex2DS( g_tNoiseTex, g_sWrap, float2( uv.g, psjitter.r ) ).b, 0.0 ) * uvjitter.b * g_flDistortionIntensity;
+		float3 uvjitter = Tex2DS( g_tNoisetex, g_sWrap, uv * 2.0 + Tex2DS( g_tNoisetex, g_sWrap, psjitter ).rg ).rgb;
+		float2 distortionUV = float2( Tex2DS( g_tNoisetex, g_sWrap, float2( uv.g, psjitter.r ) ).b, 0.0 ) * uvjitter.b * g_flDistortionIntensity;
 
 		float3 screentex = Tex2DS( g_tAlbedoMap, g_sWrap, uv - abs( distortionUV ) ).rgb * saturate( uvjitter.r + noisemult );
-		float3 lcdpattern = Tex2DS( g_tLcdTex, g_sWrap, uv * 512.0 ).rgb * screentex * 3.0;
+		float3 lcdpattern = Tex2DS( g_tLcdtex, g_sWrap, uv * 512.0 ).rgb * screentex * 3.0;
 
 		float3 screenblend = lerp( lcdpattern, screentex, DistanceBlend( 2.0, 2.0, distanceMetres ) );
 		float3 scanlineblend = lerp( screenblend * scanlines, screenblend, DistanceBlend( 4.0, 10.0, distanceMetres ) );

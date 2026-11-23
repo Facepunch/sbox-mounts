@@ -1,0 +1,17 @@
+Layer0
+{
+	shader "shaders/ns2/models/alien/alien_atlased.shader"
+	AlbedoMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	SpecularMap "[1 1 1 1]"
+	EmissiveMap "[1 1 1 1]"
+	BlendMap "[1 1 1 1]"
+	OverlayMap "[1 1 1 1]"
+	g_flHiddenAmount "0.0"
+	g_flGlowIntensity "1.0"
+	g_flHighlight "0.0"
+	g_flOutline "0.0"
+	g_flTextureIndex "0"
+	g_flNumRows "1"
+	g_flNumColumns "2"
+}

@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/hallucination.shader"
+	GreebMap "[1 1 1 1]"
+	CircuitMap "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+}

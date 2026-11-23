@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/badgeslotglimmer.shader"
+	BaseTexture "[1 1 1 1]"
+	ScanlinesTexture "[1 1 1 1]"
+	g_flAValue "0"
+	g_flBValue "0"
+	g_flCValue "0"
+	g_flTimeOffset "0"
+}

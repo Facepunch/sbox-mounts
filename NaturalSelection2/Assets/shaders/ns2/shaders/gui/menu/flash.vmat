@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/flash.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flMultAmount "1.0"
+	g_flScreenAmount "0.0"
+}

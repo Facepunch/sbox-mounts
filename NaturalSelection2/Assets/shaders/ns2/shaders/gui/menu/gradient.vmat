@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/gradient.shader"
+	g_vColor1 "[1 1 1 1]"
+	g_vColor1Origin "[0 0]"
+	g_vColor2 "[0 0 0 1]"
+	g_vColor2Origin "[0 1]"
+}

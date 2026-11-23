@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/tanith/asteroid_belt.shader"
+	EmissiveMap "[1 1 1 1]"
+	NoiseMap "[1 1 1 1]"
+	g_flEmissiveStrength "1"
+	g_flOpacityStrength "1"
+}

@@ -122,7 +122,7 @@ PS
 
 		float2 uv = i.vTextureCoords.xy;
 
-		float3 emissive = Tex2DS( g_tEmissiveMap, g_sWrap, uv ).rgb;
+		float3 emissive = SrgbGammaToLinear( Tex2DS( g_tEmissiveMap, g_sWrap, uv ).rgb );
 		float opacity = Tex2DS( g_tOpacityMap, g_sWrap, uv ).r;
 
 		Ns2ApplyTranslucentGlass( m, g_vSpecular, g_flGloss, emissive, opacity );

@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/skybox_dark.shader"
+	EmissiveMap "[1 1 1 1]"
+}

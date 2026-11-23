@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guiplaymenublur.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flRcpFrameX "0.0"
+	g_flRcpFrameY "0.0"
+	g_flResScale "0.0"
+	g_flXFactor "0.0"
+	g_flYFactor "0.0"
+	g_flBlurRadius "0.0"
+}

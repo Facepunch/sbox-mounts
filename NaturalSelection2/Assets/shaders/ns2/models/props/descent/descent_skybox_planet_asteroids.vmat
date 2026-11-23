@@ -1,0 +1,5 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/descent/descent_skybox_planet_asteroids.shader"
+	AlbedoMap "[1 1 1 1]"
+}

@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/animated_model.shader"
+	AlbedoMap "[1 1 1 1]"
+	g_flNumFrames "1"
+	g_flFramesPerSecond "30"
+}

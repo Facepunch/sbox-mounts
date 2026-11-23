@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/cloaked.shader"
+	NoiseMap "[1 1 1 1]"
+	g_flCloakAmount "0.0"
+}

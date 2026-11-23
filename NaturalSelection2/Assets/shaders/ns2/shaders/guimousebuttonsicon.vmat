@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guimousebuttonsicon.shader"
+	BaseTexture "[1 1 1 1]"
+	g_flRIntensity "0"
+	g_flGIntensity "0"
+	g_flBIntensity "0"
+}

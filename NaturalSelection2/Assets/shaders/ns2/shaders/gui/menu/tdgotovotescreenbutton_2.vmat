@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/tdgotovotescreenbutton_2.shader"
+	BaseTexture "[1 1 1 1]"
+	g_vIndexSize "[3 7]"
+	g_vLeftTextureIndex "[0 0]"
+	g_vMiddleTextureIndex "[0 0]"
+	g_flGradientDiv "0.5"
+	g_flSlope "1"
+	g_flGradientBorderThickness "0.007"
+}

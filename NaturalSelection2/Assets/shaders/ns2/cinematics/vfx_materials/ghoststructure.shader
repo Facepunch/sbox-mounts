@@ -121,7 +121,7 @@ PS
 
 		const float3 tint = float3( 2.0, 5.0, 5.0 );
 
-		float3 positionWs = i.vPositionWithOffsetWs.xyz + g_vCameraPositionWs;
+		float3 positionWs = i.vPositionWithOffsetWs.xyz + g_vHighPrecisionLightingOffsetWs.xyz;
 		float heightMetres = positionWs.z / NS2_UNITS_PER_METRE;
 
 		float3 normalWs = normalize( i.vNormalWs );

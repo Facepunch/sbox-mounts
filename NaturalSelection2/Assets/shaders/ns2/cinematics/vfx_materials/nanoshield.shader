@@ -81,7 +81,7 @@ VS
 		PixelInput o = ProcessVertex( v );
 
 		// Spark: material.wsOffset = input.wsNormal * 0.08 (metres -> inches).
-		o.vPositionWs.xyz += o.vNormalWs.xyz * ( 0.08 * 39.3701 );
+		o.vPositionWs.xyz += o.vNormalWs.xyz * ( 0.08 * 40.0 );
 		o.vPositionPs = Position3WsToPs( o.vPositionWs.xyz );
 
 		return FinalizeVertex( o );

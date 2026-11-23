@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/skulkview.shader"
+	MaterialAlbedoMap "[1 1 1 1]"
+	MaterialNormalMap "[1 1 1 1]"
+	MaterialSpecularMap "[1 1 1 1]"
+	BloodMap "[1 1 1 1]"
+	g_flAttackTime "0"
+}

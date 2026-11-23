@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/materials/unearthed/rs_subuv.shader"
+	SubUVMap "[1 1 1 1]"
+	NormalMap "[1 1 1 1]"
+	SpecularMap "[1 1 1 1]"
+	g_flEmissiveStrength "0.0"
+	g_flShowDecals "0.0"
+	g_flAnimationspeed "1.0"
+	g_flHorizontalFrames "1"
+	g_flVerticalFrames "1"
+	g_flSmoothBlending "1"
+}

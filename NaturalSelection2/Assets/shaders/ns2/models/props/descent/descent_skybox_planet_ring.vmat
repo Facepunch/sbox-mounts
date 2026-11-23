@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/descent/descent_skybox_planet_ring.shader"
+	EmissiveMap "[1 1 1 1]"
+	CloudMap "[1 1 1 1]"
+}

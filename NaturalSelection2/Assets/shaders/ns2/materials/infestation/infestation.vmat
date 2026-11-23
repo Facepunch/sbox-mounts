@@ -1,0 +1,4 @@
+Layer0
+{
+	shader "shaders/ns2/materials/infestation/infestation.shader"
+}

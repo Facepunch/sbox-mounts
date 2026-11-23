@@ -9,6 +9,6 @@ Layer0
 	NoiseMap "[0.000000 0.000000 0.000000]"
 	MaskMap "[0.000000 0.000000 0.000000]"
 	HeatMap "[0.000000 0.000000 0.000000]"
-	g_flHeatAmountLeft "0.000"
-	g_flHeatAmountRight "0.000"
+	g_flHeatAmountleft "0.000"
+	g_flHeatAmountright "0.000"
 }

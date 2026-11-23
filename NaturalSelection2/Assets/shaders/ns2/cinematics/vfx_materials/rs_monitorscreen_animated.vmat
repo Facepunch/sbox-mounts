@@ -13,7 +13,7 @@ Layer0
 	g_flDistortionIntensity "0.010"
 	g_flScanlineIntensity "0.800"
 	g_flShowDecals "0.000"
-	g_flAnimationSpeed "1.000"
+	g_flAnimationspeed "1.000"
 	g_flHorizontalFrames "1.000"
 	g_flVerticalFrames "1.000"
 	g_flSmoothBlending "1.000"

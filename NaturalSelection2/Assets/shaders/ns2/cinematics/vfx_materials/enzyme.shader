@@ -9,7 +9,7 @@
 //
 //     material.emissive = (noise2 * noise) * tint + float4(1, 0, 0, 1);
 //     material.albedo   = (noise2 * noise) * tint;
-//     material.opacity  = (noise2 * noise);
+//     material.opacity  = (noise2.r * noise.r);
 //
 // The red enzyme film that coats an infested alien. One noise texture sampled
 // twice at different scales and scrolled in opposing directions, multiplied

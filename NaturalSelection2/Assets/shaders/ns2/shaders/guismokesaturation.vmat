@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guismokesaturation.shader"
+	BaseTexture "[1 1 1 1]"
+	Noise "[1 1 1 1]"
+	g_flCorrectionX "0.5"
+	g_flCorrectionY "0.5"
+	g_flSaturation "1.0"
+	g_flTimeOffset "1.0"
+}

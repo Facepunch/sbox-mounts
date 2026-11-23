@@ -1,0 +1,17 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/serverbrowserbox.shader"
+	g_vSurfaceSize "[132 132]"
+	g_flOpacity "1"
+	g_vBoxSize "[128 128]"
+	g_vTabSize "[64 32]"
+	g_flStrokeWidth "2"
+	g_vStrokeColor "[0.5529411765 0.5882352941 0.6274509804 0.5]"
+	g_vGradColor1 "[0 0 0 0]"
+	g_vGradColor2 "[0.1490196078 0.168627451 0.2078431373 1.0]"
+	g_flShadowRadius "15"
+	g_vShadowColor "[0.0274509804 0.0392156863 0.0588235294 0.5]"
+	g_vShadowOffset "[0 7.5]"
+	g_flGlowRadius "10"
+	g_vGlowColor "[0.6705882353 0.7411764706 0.8 0.1]"
+}

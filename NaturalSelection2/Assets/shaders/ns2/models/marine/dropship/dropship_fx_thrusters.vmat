@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/models/marine/dropship/dropship_fx_thrusters.shader"
+	EmissiveMap "[1 1 1 1]"
+	MaskMap "[1 1 1 1]"
+}

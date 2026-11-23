@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/guiobjectivedisplay.shader"
+	BaseTexture "[1 1 1 1]"
+	ScanlineTex "[1 1 1 1]"
+	Mask "[1 1 1 1]"
+	TransitionMap "[1 1 1 1]"
+	g_flStartTime "0"
+	g_flEndTime "1"
+	g_flStartPosition "2"
+	g_flEndPosition "2"
+}

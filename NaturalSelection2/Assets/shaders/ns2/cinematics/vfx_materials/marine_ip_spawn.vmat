@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/marine_ip_spawn.shader"
+	ScanMap "[1 1 1 1]"
+	ScanMap2 "[1 1 1 1]"
+	MaskMap "[1 1 1 1]"
+	MaskMap2 "[1 1 1 1]"
+	MaskMap3 "[1 1 1 1]"
+	OverlayMap "[1 1 1 1]"
+	g_flSpawnProgress "0"
+}

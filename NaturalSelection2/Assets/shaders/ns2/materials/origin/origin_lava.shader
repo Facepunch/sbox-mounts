@@ -104,7 +104,7 @@ VS
 
 		// Spark: material.wsOffset = wsNormal * (sin(time * 0.4) * WaveIntensity),
 		// authored in metres.
-		o.vPositionWs.xyz += o.vNormalWs.xyz * ( sin( g_flTime * 0.4 ) * g_flWaveIntensity * 39.3701 );
+		o.vPositionWs.xyz += o.vNormalWs.xyz * ( sin( g_flTime * 0.4 ) * g_flWaveIntensity * 40.0 );
 		o.vPositionPs = Position3WsToPs( o.vPositionWs.xyz );
 
 		return FinalizeVertex( o );

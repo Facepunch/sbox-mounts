@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/gui/menu/diagonalsbox.shader"
+	g_vSurfaceSize "[132 132]"
+	g_flLineWidth "10.0"
+	g_flXFactor "1.0"
+}

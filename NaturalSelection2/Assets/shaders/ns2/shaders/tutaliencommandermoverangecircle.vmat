@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/tutaliencommandermoverangecircle.shader"
+	EmissiveMap "[1 1 1 1]"
+	g_flStartTime "0"
+	g_flFadeInTime "0"
+	g_flFadeOutTime "0"
+	g_flFadeOutInfluence "0"
+}
