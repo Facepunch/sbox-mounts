@@ -347,9 +347,15 @@ public sealed partial class RabbitGuard
 	Vector3 CombatApproach( Vector3 target, out Vector3 point )
 	{
 		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
-		var offset = target - toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
-		point = preferredRange > 0f ? Movement.ProjectPoint( offset ) ?? WorldPosition : target;
-		var delta = (point - WorldPosition).WithZ( 0f );
+		point = Movement.ProjectPoint( target ) ?? target;
+		var corner = NextCombatCorner( point );
+		if ( corner.DistanceSquared( target ) < preferredRange * preferredRange )
+		{
+			var offset = -toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
+			point = WalkableRay( point, point + offset );
+			corner = NextCombatCorner( point );
+		}
+		var delta = (corner - WorldPosition).WithZ( 0f );
 		var direct = toward * delta.Dot( toward );
 		float slowRadius = Math.Max( 0.2f * 40f, 40f - preferredRange );
 		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
@@ -358,6 +364,18 @@ public sealed partial class RabbitGuard
 		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
 		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
 		return intent;
+	}
+
+	Vector3 NextCombatCorner( Vector3 goal )
+	{
+		var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal, Agent = GetComponent<NavMeshAgent>() } );
+		if ( !path.IsValid || path.Points.Count < 2 ) return goal;
+		for ( int i = 1; i < path.Points.Count - 1; i++ )
+		{
+			var corner = path.Points[i].Position;
+			if ( (corner - WorldPosition).WithZ( 0f ).LengthSquared > 40f * 40f ) return corner;
+		}
+		return path.Points[^1].Position;
 	}
 
 	void AdjustStrikeSpacing( Vector3 offset, bool ragdolled, bool beforeImpact )
