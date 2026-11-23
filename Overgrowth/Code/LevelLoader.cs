@@ -89,6 +89,18 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 	}
 
+	readonly Dictionary<string, bool> waterHotspots = new( StringComparer.OrdinalIgnoreCase );
+
+	bool IsWaterHotspot( string file )
+	{
+		if ( string.IsNullOrWhiteSpace( file ) ) return false;
+		if ( waterHotspots.TryGetValue( file, out var water ) ) return water;
+		var path = Host.Resolve( file );
+		var script = Host.FileSystem.FileExists( path )
+			? XmlAsset.Parse( Host.FileSystem.ReadAllText( path ) ).Element( "Hotspot" )?.Element( "Script" )?.Value : null;
+		return waterHotspots[file] = script is "hotspots/wet_cube.as" or "hotspots/wet_cylinder.as";
+	}
+
 	void Place( XmlAsset node, Dictionary<int, XmlAsset> jumpNodes,
 		Dictionary<int, (PatrolPoint Point, XmlAsset Node)> patrolPoints, Actors actors )
 	{
@@ -115,6 +127,15 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 
 		switch(node.Name)
 		{
+			case "Hotspot" when IsWaterHotspot( file ):
+				// Hotspot::UpdateCollisionShape uses a four-metre box for both water scripts.
+				var water = Object();
+				water.Tags.Add( "water" );
+				var volume = water.AddComponent<BoxCollider>( false );
+				volume.Scale = 4f * 40f;
+				volume.Static = volume.IsTrigger = true;
+				volume.Enabled = true;
+				return;
 			case "PathPointObject" when int.TryParse( node.Attribute( "id" ), out int pointId ):
 				var point = Object().AddComponent<PatrolPoint>();
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
