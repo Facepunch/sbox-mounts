@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	enum HeardSound { Footstep, LoudFoley, Combat, Voice, ItemImpact }
+	internal enum HeardSound { Footstep, LoudFoley, Combat, Voice, ItemImpact }
 	[Property] public float HearingModifier { get; set; } = 1f;
 	GameObject escortTarget;
 	float suspicion;
@@ -35,10 +35,12 @@ public sealed partial class RabbitGuard
 	}
 
 	// The root is at the feet. These sound rules only distinguish the first 0.4 metres.
-	float WaterDepthAt( Vector3 feet )
+	float WaterDepthAt( Vector3 feet ) => WaterDepthAt( Scene, feet );
+
+	internal static float WaterDepthAt( Scene scene, Vector3 feet )
 	{
 		var top = feet + Vector3.Up * 16f;
-		var water = Scene.Trace.WithTag( "water" ).HitTriggersOnly();
+		var water = scene.Trace.WithTag( "water" ).HitTriggersOnly();
 		if ( !water.Ray( feet, top ).Run().StartedSolid ) return 0f;
 		var surface = water.Ray( top, feet ).Run();
 		return surface.StartedSolid ? 0.4f : (surface.EndPosition.z - feet.z) / 40f;
@@ -80,17 +82,17 @@ public sealed partial class RabbitGuard
 
 	void ReportBodySound( HeardSound sound, float radius ) => ReportSound( GameObject, CharacterCenter( GameObject ), sound, radius );
 
-	void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
+	internal static void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
 	{
 		if ( !source.IsValid() || IsIgnoredPlayer( source ) ) return;
 		// AISound broadcasts to character spheres within twice the event radius.
 		float broadcastRange = (sound == HeardSound.ItemImpact ? radius : 2f * radius + 0.5f) * 40f;
-		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && IsLiveTarget( source );
-		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
+		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && !source.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( source );
+		foreach ( var guard in source.Scene.GetAllComponents<RabbitGuard>() )
 		{
 			if ( guard.Unconscious || !guard.Active || guard.StaticCharacter ) continue;
 			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range > 0f && CharacterCenter( guard.GameObject ).DistanceSquared( position ) < range * range )
+			if ( range > 0f && guard.CharacterCenter( guard.GameObject ).DistanceSquared( position ) < range * range )
 				guard.Hear( source, position, sound, awake );
 		}
 	}

@@ -40,34 +40,8 @@ public sealed partial class RabbitGuard
 			if ( !IsValid || Health <= 0f ) return;
 		}
 
-		// Collided shares these cooldowns with upright landings, but thresholds are in impulse units.
-		if ( impulse > 4f && bodyFall <= 0f )
-		{
-			bodyFall = 0.6f;
-			PlayMaterialEvent( "bodyfall", point, surface, 1f );
-		}
-		else if ( impulse > 3f && heavyFall <= 0f )
-		{
-			heavyFall = 0.2f;
-			PlayMaterialEvent( "bodyfall_heavy", point, surface, 0.8f );
-			if ( bodyFall <= 0f )
-			{
-				bodyFall = 0.6f;
-				PlayMaterialEvent( "bodyfall", point, surface, 1f );
-			}
-		}
-		else if ( impulse > 2f && mediumFall <= 0f )
-		{
-			mediumFall = 0.2f;
-			PlayMaterialEvent( "bodyfall_medium", point, surface, 0.6f );
-		}
-		else if ( impulse > 1f && lightFall <= 0f )
-		{
-			lightFall = 0.2f;
-			PlayMaterialEvent( "bodyfall_light", point, surface, 0.4f );
-		}
-		else return;
-		ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
+		if ( bodySounds.PlayRagdoll( impulse, point, surface, PlayMaterialEvent ) )
+			ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
 	}
 
 	// Box3D's begin-touch notification can contain just the last solver substep's impulse.
@@ -90,13 +64,52 @@ public sealed partial class RabbitGuard
 	}
 }
 
+internal struct BodyFallSounds
+{
+	internal TimeUntil Normal, Heavy, Medium, Light;
+
+	internal bool PlayRagdoll( float impulse, Vector3 point, string surface, Action<string, Vector3, string, float> play )
+	{
+		// Collided shares these cooldowns with upright landings, but thresholds are in impulse units.
+		if ( impulse > 4f && Normal <= 0f )
+		{
+			Normal = 0.6f;
+			play( "bodyfall", point, surface, 1f );
+		}
+		else if ( impulse > 3f && Heavy <= 0f )
+		{
+			Heavy = 0.2f;
+			play( "bodyfall_heavy", point, surface, 0.8f );
+			if ( Normal <= 0f )
+			{
+				Normal = 0.6f;
+				play( "bodyfall", point, surface, 1f );
+			}
+		}
+		else if ( impulse > 2f && Medium <= 0f )
+		{
+			Medium = 0.2f;
+			play( "bodyfall_medium", point, surface, 0.6f );
+		}
+		else if ( impulse > 1f && Light <= 0f )
+		{
+			Light = 0.2f;
+			play( "bodyfall_light", point, surface, 0.4f );
+		}
+		else return false;
+		return true;
+	}
+}
+
 internal sealed class RabbitBodyContact : Component, Component.ICollisionListener
 {
 	internal RabbitGuard Fighter { get; set; }
 	internal bool Head { get; set; }
+	internal CharacterRemains Remains { get; set; }
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
 		if ( Fighter.IsValid() ) Fighter.OnRagdollContact( collision, Head );
+		else if ( Remains.IsValid() ) Remains.OnBodyContact( collision );
 	}
 }

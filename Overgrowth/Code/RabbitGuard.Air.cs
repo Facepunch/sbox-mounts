@@ -47,7 +47,7 @@ public sealed partial class RabbitGuard
 	float jumpLaunch, airPhase, pendingTuck;
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
-	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
+	BodyFallSounds bodySounds;
 	[Sync] bool ThrowGrounded { get; set; }
 	bool HasGroundSupport => InThrow ? ThrowGrounded : Animation.IsGrounded;
 
@@ -198,10 +198,10 @@ public sealed partial class RabbitGuard
 		flinchSpring = Math.Max( flinchSpring, Math.Min( 1f, impact * 2f - 1f ) );
 		pendingTuck = Math.Max( pendingTuck, Math.Min( 0.4f, impact * 0.1f ) );
 		string sound;
-		if ( impact > 12f && bodyFall <= 0f ) { sound = "bodyfall"; bodyFall = 0.6f; }
-		else if ( impact > 6f && heavyFall <= 0f ) { sound = "bodyfall_heavy"; heavyFall = 0.2f; }
-		else if ( impact > 4f && mediumFall <= 0f ) { sound = "bodyfall_medium"; mediumFall = 0.2f; }
-		else if ( impact > 2f && lightFall <= 0f ) { sound = "bodyfall_light"; lightFall = 0.2f; }
+		if ( impact > 12f && bodySounds.Normal <= 0f ) { sound = "bodyfall"; bodySounds.Normal = 0.6f; }
+		else if ( impact > 6f && bodySounds.Heavy <= 0f ) { sound = "bodyfall_heavy"; bodySounds.Heavy = 0.2f; }
+		else if ( impact > 4f && bodySounds.Medium <= 0f ) { sound = "bodyfall_medium"; bodySounds.Medium = 0.2f; }
+		else if ( impact > 2f && bodySounds.Light <= 0f ) { sound = "bodyfall_light"; bodySounds.Light = 0.2f; }
 		else return;
 		PlayMaterialEvent( sound, collision.Contact.Point, TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName, 1f );
 	}

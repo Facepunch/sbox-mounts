@@ -134,6 +134,11 @@ public sealed partial class RabbitGuard
 			if ( owner.bodyDragger.IsValid() ) owner.bodyDragger.ReleaseBodyDrag();
 			owner.bodyDragger = this;
 		}
+		else if ( draggedPhysics.IsValid() && draggedPhysics.GetComponent<CharacterRemains>() is { } remains )
+		{
+			if ( remains.Dragger.IsValid() ) remains.Dragger.ReleaseBodyDrag();
+			remains.Dragger = this;
+		}
 	}
 
 	void ReleaseBodyDrag()
@@ -144,6 +149,8 @@ public sealed partial class RabbitGuard
 		dragAnchor = null;
 		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponentInParent<RabbitGuard>() is { } owner && owner.bodyDragger == this )
 			owner.bodyDragger = null;
+		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponent<CharacterRemains>() is { } remains && remains.Dragger == this )
+			remains.Dragger = null;
 		draggedPhysics = null;
 		draggedBody = null;
 		if ( Networking.IsHost ) DragStrength = 0f;

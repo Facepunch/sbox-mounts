@@ -227,6 +227,16 @@ public sealed partial class RabbitGuard
 			remains.Teams = Teams;
 			remains.StaticCharacter = StaticCharacter;
 			remains.Physics = physics;
+			remains.BodySounds = bodySounds;
+			if ( !zoneKilled )
+			{
+				foreach ( var part in physics.Bodies )
+				{
+					if ( !part.Component.IsValid() ) continue;
+					part.Component.CollisionEventsEnabled = true;
+					part.Component.GetOrAddComponent<RabbitBodyContact>().Remains = remains;
+				}
+			}
 			Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
 			foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 				witness.FollowCorpse( GameObject, corpse );
