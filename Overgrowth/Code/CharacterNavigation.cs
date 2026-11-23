@@ -61,6 +61,8 @@ public sealed class CharacterNavigation : NavigationLayer
 			var flat = Agent.Velocity.WithZ( 0f );
 			if ( moving.IsBackingAway && flat.LengthSquared > 0.001f * 40f * 40f )
 				WorldRotation = RabbitGuard.InterpolateFacing( facing, -flat.Normal, 1f - MathF.Pow( 0.95f, Time.Delta * 120f ) );
+			else if ( moving.StanceFacing( facing, flat.Length ) is { } stanceFacing )
+				WorldRotation = stanceFacing;
 			else if ( moving.InLocomotion && flat.Length > 0.6f * 40f )
 				WorldRotation = RunFacing( facing, flat.Normal, Agent.WishVelocity.WithZ( 0f ) / moving.GroundRunSpeed, Time.Delta );
 		}

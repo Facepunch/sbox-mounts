@@ -104,6 +104,20 @@ public sealed partial class RabbitGuard
 	GameObject CombatFootStanceTarget( float speed, bool needsCombatPose ) => needsCombatPose && speed < 5f * 40f
 		&& boundAnimations.Species != "wolf" && weaponLookTime <= 0f ? ForcedLookTarget() : null;
 
+	internal Rotation? StanceFacing( Vector3 facing, float speed )
+	{
+		if ( Stance is not (Threat or Locomotion or Ready or Idle) || RollProgress < 1f || draggedBody.IsValid() ) return null;
+		bool swiping = currentKnifeLayer is { Active: true };
+		bool throwing = DrawAnimation == ThrowLayer;
+		if ( Stance != Threat && !swiping && !(throwing && speed < 48f) ) return null;
+		var target = swiping && strikeTarget.IsValid() ? strikeTarget : ForcedLookTarget();
+		if ( !target.IsValid() && throwing ) target = handThrowLookTarget;
+		if ( !target.IsValid() ) return null;
+		var direction = (target.WorldPosition - WorldPosition).WithZ( 0f ).Normal;
+		if ( direction.IsNearlyZero() || (speed <= 40f && !swiping && !throwing) ) return Rotation.LookAt( facing );
+		return InterpolateFacing( facing, direction, 1f - MathF.Pow( 0.9f, Time.Delta * 120f ) );
+	}
+
 	void UpdateTorsoControl( bool needsCombatPose )
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
