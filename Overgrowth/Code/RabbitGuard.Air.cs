@@ -48,6 +48,8 @@ public sealed partial class RabbitGuard
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
 	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
+	[Sync] bool ThrowGrounded { get; set; }
+	bool PoseGrounded => InThrow ? ThrowGrounded : Animation.IsGrounded;
 
 	// Physics::gravity is 9.8 m/s�. Retain the scene's gravity direction and zero-gravity behavior.
 	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
@@ -68,6 +70,7 @@ public sealed partial class RabbitGuard
 				.WithCollisionRules( Tags ).Run();
 			grounded = floor.Hit && !floor.StartedSolid;
 		}
+		ThrowGrounded = InThrow && grounded;
 		if ( !grounded )
 		{
 			AirTuck = Math.Max( pendingTuck, airVelocity.HasValue ? AirTuck * MathF.Pow( 0.98f, Time.Delta * 120f ) : 0f );
