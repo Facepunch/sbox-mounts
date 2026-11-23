@@ -67,6 +67,7 @@ public sealed partial class RabbitGuard
 	{
 		patrolOrigin = WorldTransform;
 		base.OnStart();
+		if ( Renderer.IsValid() && Renderer.Model is not null ) BindAnimations();
 		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( LevelItem.FighterHull );
 		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.
 		FatalImpactSpeed = 0f;

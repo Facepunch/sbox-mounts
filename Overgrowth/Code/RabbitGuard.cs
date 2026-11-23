@@ -34,6 +34,29 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		strike = null;
 	}
 
+	bool BindAnimations()
+	{
+		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
+		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped && !IsThrowingItem )
+		{
+			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return false;
+			if ( !Downed ) Renderer.ClearPhysicsBones();
+			equippedForAnimation = equipped;
+			boundAnimations = ready;
+			strike = null;
+			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
+			// Overgrowth reseeds secondary motion for four animation updates after a discontinuity.
+			secondaryReset = 4f * (4f / 120f);
+			motionSamples = 0;
+			leanBones = null;
+			Renderer.Animation.Graph = ready.Graph;
+			Renderer.Animation.Parameters.Set( "tall_coord", 1f, persist: true );
+			connectedPatrolAnimation = null;
+			playing = null;
+		}
+		return true;
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( Networking.IsHost && (Unconscious || boundAnimations?.Species == "wolf") ) DropHandItem();
@@ -65,23 +88,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		else if ( plantedLegs && (Stance is not (Threat or Idle or Ready or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
-		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
-		if ( boundAnimations is null || Renderer.Animation.Graph is null || equippedForAnimation != equipped && !IsThrowingItem )
-		{
-			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model ) is not { } ready ) return;
-			if ( !Downed ) Renderer.ClearPhysicsBones();
-			equippedForAnimation = equipped;
-			boundAnimations = ready;
-			strike = null;
-			if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) body.GravityScale = FallGravityScale( Scene.PhysicsWorld );
-			// Overgrowth reseeds secondary motion for four animation updates after a discontinuity.
-			secondaryReset = 4f * (4f / 120f);
-			motionSamples = 0;
-			leanBones = null;
-			Renderer.Animation.Graph = ready.Graph;
-			connectedPatrolAnimation = null;
-			playing = null;
-		}
+		if ( !BindAnimations() ) return;
 		if ( Networking.IsHost )
 		{
 			if ( !Downed ) UpdatePlantContact();
