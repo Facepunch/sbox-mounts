@@ -325,6 +325,7 @@ public sealed partial class RabbitGuard
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
 		WorldPosition = feet;
+		rollAngle = 1f;
 		if ( !inAir && !wakeRoll && !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 		MovementCapsule.Enabled = true;
 		Movement.Enabled = true;

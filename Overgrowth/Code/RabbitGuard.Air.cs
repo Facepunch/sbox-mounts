@@ -192,6 +192,7 @@ public sealed partial class RabbitGuard
 
 	void Land( Vector3 airVelocity )
 	{
+		rollAngle = 1f;
 		var floor = Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 32f )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 		if ( !floor.Hit ) return;
