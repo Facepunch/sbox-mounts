@@ -9,28 +9,34 @@ public sealed partial class RabbitGuard
 	[Sync] Vector3 RollDirection { get; set; }
 	[Sync( SyncFlags.Interpolate )] float RollProgress { get; set; } = 1f;
 	[Sync] float RollForwardness { get; set; }
-	float rollAngle = 1f;
+	float rollAngle = 1f, previousRollProgress = 1f;
+	Vector3? previousRollCenter;
+	float rollFallSpeed;
+	[Sync] bool RecoveringRoll { get; set; }
 	bool displayingRoll;
 	ModelHitboxes rollHitboxes;
 
 	RabbitClip RollClip( int index ) => boundAnimations.Clips[boundAnimations.RollClips[index] + (MirroredAction ? "_mirrored" : "")];
 	float RollFrequency => (1f - RollForwardness) / RollClip( 0 ).Duration + RollForwardness / RollClip( 1 ).Duration;
 
-	void StartRoll( Vector3 velocity, string surface )
+	void StartRoll( Vector3 direction, Vector3 velocity, string surface )
 	{
 		rollVelocity = velocity.WithZ( 0f );
-		var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
-		if ( rollVelocity.LengthSquared > 40f * 40f ) direction = (direction * 0.9f + rollVelocity.Normal).Normal;
+
 		RollDirection = direction.LengthSquared > 0.2f ? direction.Normal : WorldRotation.Forward.WithZ( 0f ).Normal;
 		RollForwardness = 1f - MathF.Abs( Vector3.Up.Cross( RollDirection ).Dot( WorldRotation.Forward ) );
 		MirroredAction = !MirroredStance;
 		Stance = Roll;
+		RecoveringRoll = lastPhysicsPose is not null;
 		RollProgress = 0f;
 		ReactionPhase = 1f;
-		duckAmount = 1f;
-		duckVelocity = 0f;
+		if ( lastPhysicsPose is not null )
+		{
+			duckAmount = 1f;
+			duckVelocity = 0f;
+		}
 		Movement.Stop();
-		BeginGetUpBlend();
+		if ( lastPhysicsPose is not null ) BeginGetUpBlend();
 		Renderer.Animation.Parameters.Set( "stance", Roll );
 		playing = Roll;
 		bool quiet = boundAnimations.Species == "cat";
@@ -42,6 +48,12 @@ public sealed partial class RabbitGuard
 	{
 		if ( RollProgress >= 1f ) return false;
 		RollProgress = Math.Min( 1f, RollProgress + Time.Delta * 2f );
+		if ( RollProgress < 0.8f )
+		{
+			duckVelocity += (1f - duckAmount) * Time.Delta * 120f;
+			duckVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
+			duckAmount = Math.Min( 1.25f, duckAmount + duckVelocity * Time.Delta );
+		}
 		if ( RollProgress < 0.95f )
 		{
 			// UpdateRollVelocity accelerates, then ApplyPhysics damps the grounded body.
@@ -63,13 +75,34 @@ public sealed partial class RabbitGuard
 	void UpdateRollDisplay()
 	{
 		if ( Downed || RollDirection.IsNearlyZero() ) { displayingRoll = false; rollAngle = 1f; return; }
-		if ( RollProgress < 1f && !displayingRoll ) { displayingRoll = true; rollAngle = 0f; }
+		if ( RollProgress < 1f && (!displayingRoll || RollProgress < previousRollProgress) )
+		{
+			displayingRoll = true;
+			previousRollCenter = null;
+			rollAngle -= MathF.Round( rollAngle );
+		}
+		previousRollProgress = RollProgress;
 		if ( !displayingRoll ) return;
 		rollAngle = RollProgress + (rollAngle - RollProgress) * MathF.Pow( 0.8f, Time.Delta * 120f );
 		if ( RollProgress >= 1f && rollAngle > 0.99999f ) { displayingRoll = false; return; }
 		if ( Stance != Roll ) return;
 		Renderer.Animation.Parameters.Set( "roll_phase", Math.Min( 1f, RollProgress * 0.5f * RollFrequency ) );
 		Renderer.Animation.Parameters.Set( "forward_roll_coord", RollForwardness );
+	}
+
+	Vector3 RollCenterOffset( Vector3 center )
+	{
+		if ( !previousRollCenter.HasValue || RecoveringRoll )
+		{
+			previousRollCenter = center;
+			rollFallSpeed = -0.5f * 40f;
+		}
+		var previous = previousRollCenter.Value + Vector3.Up * (rollFallSpeed * Time.Delta);
+		rollFallSpeed += Scene.PhysicsWorld.Gravity.z * Time.Delta;
+		var delta = previous - center;
+		var offset = delta.WithZ( 0f ) * MathF.Pow( 1f - RollProgress, 2f ) + Vector3.Up * Math.Max( 0f, delta.z );
+		previousRollCenter = center + offset;
+		return offset;
 	}
 
 	float RollGroundOffset( Transform localModel )

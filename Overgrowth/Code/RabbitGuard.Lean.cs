@@ -79,10 +79,16 @@ public sealed partial class RabbitGuard
 				var pivotOffset = pose.Rotation * (pose.Scale * localCenter);
 				pose.Position += pivotOffset - rotation * pivotOffset;
 				pose.Rotation = rotation * pose.Rotation;
+				if ( displayingRoll && RollProgress < 1f )
+				{
+					var groundOffset = Vector3.Up * RollGroundOffset( pose );
+					var parentTransform = Renderer.GameObject.Parent.WorldTransform;
+					var relativeCenter = parentTransform.PointToWorld( pose.PointToWorld( localCenter ) ) - WorldPosition + groundOffset;
+					var offset = groundOffset + RollCenterOffset( relativeCenter );
+					pose.Position += parent.Inverse * offset / parentTransform.Scale;
+				}
 			}
 		}
-		if ( displayingRoll && RollProgress < 1f )
-			pose.Position += parent.Inverse * (Vector3.Up * RollGroundOffset( pose )) / Renderer.GameObject.Parent.WorldScale;
 		Renderer.LocalTransform = pose;
 	}
 }

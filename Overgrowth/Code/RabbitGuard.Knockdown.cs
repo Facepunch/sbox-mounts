@@ -181,7 +181,13 @@ public sealed partial class RabbitGuard
 		var agent = GetComponent<NavMeshAgent>( true );
 		agent.Enabled = true;
 		agent.SetAgentPosition( WorldPosition );
-		if ( wakeRoll ) StartRoll( velocity, ground.Surface?.ResourceName );
+		if ( wakeRoll )
+		{
+			var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
+			var flat = velocity.WithZ( 0f );
+			if ( flat.LengthSquared > 40f * 40f ) direction = (direction * 0.9f + flat.Normal).Normal;
+			StartRoll( direction, velocity, ground.Surface?.ResourceName );
+		}
 		else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		secondaryReset = 4f * (4f / 120f);
 		awaitingThrowImpact = false;

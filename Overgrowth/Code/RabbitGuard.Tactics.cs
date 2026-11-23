@@ -29,10 +29,52 @@ public sealed partial class RabbitGuard
 		nextTactic = 1f;
 	}
 
+	enum AirResponse { None, Hold, Evade, Counter }
+	AirResponse airResponse;
+	GameObject airborneOpponent;
+
+	bool RespondToAirborneTarget( float distance )
+	{
+		bool airborne = boundAnimations.Species != "wolf" && enemy.GetComponent<RabbitGuard>() is not { Downed: true } && TargetIsAirborne( enemy );
+		if ( !airborne )
+		{
+			if ( airResponse != AirResponse.None ) nextTactic = 0f;
+			airResponse = AirResponse.None;
+			airborneOpponent = null;
+			return false;
+		}
+		if ( airborneOpponent != enemy )
+		{
+			airborneOpponent = enemy;
+			airResponse = Random.Shared.Float() < BlockSkill ? AirResponse.Evade :
+				Random.Shared.Float() < Aggression ? AirResponse.Counter : AirResponse.Hold;
+			rangeChanged = true;
+		}
+		if ( airResponse == AirResponse.Counter ) preferredRange = 0f;
+		if ( airResponse == AirResponse.Evade )
+		{
+			if ( rangeChanged || Random.Shared.Float() < Time.Delta * 120f / 150f )
+				preferredRange = Random.Shared.Float( 3f, 4f ) * 40f;
+			if ( distance * distance < 8f * 40f * 40f && RollProgress >= 1f )
+			{
+				strafeOffset = strafeOffset > 0f ? 200f : -200f;
+				var direction = CombatApproach( TargetPosition( enemy ), out _ );
+				if ( direction.LengthSquared > 0.2f )
+				{
+					StartRoll( direction, Animation.MoveVelocity, GroundSurface?.ResourceName );
+					breathSpeed += 1f;
+				}
+			}
+		}
+		rangeChanged = false;
+		return true;
+	}
+
 	void UpdateTactic( float distance )
 	{
 		if ( Random.Shared.Float() < Time.Delta * 120f / 150f )
 			strafeOffset = Random.Shared.Float( -0.2f, 0.2f ) * 40f;
+		if ( RespondToAirborneTarget( distance ) ) return;
 		if ( nextTactic <= 0 )
 		{
 			nextTactic = Random.Shared.Float( 0.35f, 1.25f );

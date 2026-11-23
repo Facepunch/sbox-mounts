@@ -137,7 +137,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
 			UpdateAwareness();
 		}
-		if ( !IsGetUp( Stance ) ) hitsOnGround = 0;
+		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
 	}
 

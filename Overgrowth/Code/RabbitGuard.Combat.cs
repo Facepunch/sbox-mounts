@@ -173,14 +173,15 @@ public sealed partial class RabbitGuard
 		}
 
 		if ( visible ) UpdateTactic( distance );
-		bool attacking = tactic is CombatTactic.Rush or CombatTactic.Wait;
+		if ( Stance == Roll ) return;
+		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
 		if ( visible && attacking && distance < AttackRange && HasSight( enemy ) )
 		{
 			Movement.Stop();
 
 			bool close = distance < 40f * boundAnimations.CharacterScale;
 			// enemycontrol.as ChooseAttack, followed by aschar.as GetAttackPath for an unarmed fighter.
-			Stance = Random.Shared.Next( 3 ) switch
+			Stance = (airResponse == AirResponse.Counter ? 0 : Random.Shared.Next( 3 )) switch
 			{
 				1 when enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
 				1 when !IsCrouching( enemy ) => close ? Jab : Roundhouse,
@@ -276,10 +277,13 @@ public sealed partial class RabbitGuard
 	static bool IsCrouching( GameObject target ) => target.GetComponent<RabbitGuard>() is { duckAmount: >= 0.5f }
 		|| target.GetComponent<PlayerController>() is { IsDucking: true };
 
+	static bool TargetIsAirborne( GameObject target ) => target.GetComponent<BaseNpc>() is { IsAirborne: true }
+		|| target.GetComponent<PlayerController>() is { IsOnGround: false };
+
 	static bool AvoidsStrike( GameObject target, string height ) => height switch
 	{
 		"high" => IsCrouching( target ),
-		"low" => target.GetComponent<BaseNpc>() is { IsAirborne: true } || target.GetComponent<PlayerController>() is { IsOnGround: false },
+		"low" => TargetIsAirborne( target ),
 		_ => false
 	};
 
@@ -292,7 +296,7 @@ public sealed partial class RabbitGuard
 		if ( rabbit is not null )
 		{
 			rabbit.NoticeAttacker( GameObject );
-			if ( rabbit.Downed || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
+			if ( rabbit.Downed || rabbit.RollProgress < 1f || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
 		}
 		if ( !reached || AvoidsStrike( enemy, strike.Height ) )
 		{

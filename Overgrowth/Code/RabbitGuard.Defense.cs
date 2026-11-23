@@ -147,7 +147,7 @@ public sealed partial class RabbitGuard
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
 		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage ) );
 		var direction = (WorldPosition - attacker.WorldPosition).Normal;
-		if ( Downed || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
+		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
 			blockHealth <= 0 || WorldRotation.Forward.Dot( direction ) > 0 ) return false;
 
 		// Reaction::GetAnimPath partitions the severity range in XML order.
