@@ -1,0 +1,16 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/hive_chunks.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	EmissiveMap "[0.000000 0.000000 0.000000]"
+	FireglowMap "[0.000000 0.000000 0.000000]"
+	BlendMap "[1.000000 1.000000 1.000000]"
+	OverlayMap "[1.000000 1.000000 1.000000]"
+
+	g_flHiddenAmount "0.000"
+	g_flGlowIntensity "1.000"
+	g_vTint "[1.000000 1.000000 1.000000 1.000000]"
+}

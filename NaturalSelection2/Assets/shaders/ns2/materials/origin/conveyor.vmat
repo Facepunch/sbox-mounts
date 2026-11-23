@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/materials/origin/conveyor.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flScroll "0.000"
+}

@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/weaponview_emissive.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flHighlight "0.000"
+	g_flDarken "0.000"
+}

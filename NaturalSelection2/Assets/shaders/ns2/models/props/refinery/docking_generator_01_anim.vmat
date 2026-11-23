@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/refinery/docking_generator_01_anim.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+}

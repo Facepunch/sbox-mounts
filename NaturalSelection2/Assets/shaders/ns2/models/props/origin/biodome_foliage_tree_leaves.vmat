@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/origin/biodome_foliage_tree_leaves.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	OpacityMap "[1.000000 1.000000 1.000000]"
+}

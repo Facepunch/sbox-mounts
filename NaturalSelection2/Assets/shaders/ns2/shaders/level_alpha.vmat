@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/level_alpha.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	OpacityMap "[1.000000 1.000000 1.000000 1.000000]"
+}

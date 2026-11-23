@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/shiner.shader"
+
+	g_vGlowColor "[1.000000 1.000000 1.000000 1.000000]"
+	g_flGlowAlpha "1.000"
+	g_flStartTime "0.000"
+}

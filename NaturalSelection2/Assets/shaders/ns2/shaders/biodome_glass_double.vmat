@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/biodome_glass_double.shader"
+
+	g_vSpecular "[2.000000 2.000000 2.000000]"
+	g_flGloss "0.250"
+	g_vEmissive "[0.001000 0.001000 0.001000]"
+}

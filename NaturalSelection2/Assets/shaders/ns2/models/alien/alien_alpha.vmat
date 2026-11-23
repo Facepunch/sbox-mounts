@@ -1,0 +1,17 @@
+Layer0
+{
+	shader "shaders/ns2/models/alien/alien_alpha.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	OpacityMap "[1.000000 1.000000 1.000000 1.000000]"
+	BlendMap "[1.000000 1.000000 1.000000 1.000000]"
+	OverlayMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flHiddenAmount "0.000"
+	g_flGlowIntensity "1.000"
+	g_flHighlight "0.000"
+	g_flOutline "0.000"
+}

@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/materials/unearthed/unearthed_goofall.shader"
+
+	GooTexture "materials/default/default_color.tga"
+	NoiseTexture "[0.000000 0.000000 0.000000 0.000000]"
+	NormalTexture "materials/default/default_normal.tga"
+	SpecularTexture "[0.000000 0.000000 0.000000 0.000000]"
+	g_vTint "[1.000000 1.000000 1.000000]"
+	g_flDecals "0.000"
+}

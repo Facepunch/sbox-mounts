@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/refract_normal.shader"
+
+	NormalMap "[0.500000 0.500000 1.000000]"
+}

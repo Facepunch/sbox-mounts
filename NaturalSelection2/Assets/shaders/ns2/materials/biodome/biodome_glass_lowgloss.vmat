@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/materials/biodome/biodome_glass_lowgloss.shader"
+
+	g_vSpecular "[0.200000 0.200000 0.200000]"
+	g_flGloss "0.050"
+	g_vEmissive "[0.001000 0.001000 0.001000]"
+}

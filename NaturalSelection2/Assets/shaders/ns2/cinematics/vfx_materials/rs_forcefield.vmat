@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/rs_forcefield.shader"
+
+	Noisetex "[0.000000 0.000000 0.000000]"
+	g_vLaserColor "[40.000000 1.000000 0.000000]"
+	g_vGlowCorrection "[0.712600 0.115200 0.072200]"
+	g_vNoiseColor "[1.000000 0.020000 0.000000]"
+	g_flNoiseScale "0.400"
+	g_flDistortionIntensity "0.015"
+	g_flNoiseMidpoint "0.750"
+	g_flLaserDistance "0.200"
+}

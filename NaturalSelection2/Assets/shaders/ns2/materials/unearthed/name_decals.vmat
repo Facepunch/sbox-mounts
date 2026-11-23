@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/materials/unearthed/name_decals.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	g_vDecalColor "[1.000000 1.000000 1.000000 1.000000]"
+}

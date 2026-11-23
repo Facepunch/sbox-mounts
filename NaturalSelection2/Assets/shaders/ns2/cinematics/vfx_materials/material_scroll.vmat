@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/material_scroll.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flDecals "0.000"
+	g_flSpeed "0.030"
+	g_flSpeedY "0.010"
+}

@@ -33,7 +33,7 @@ See the full [Mount API docs](https://sbox.game/dev/doc/game-mounts/) to learn m
 | DOOM + DOOM II | `doom` | Doom | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | Sprites, thing prefabs, skies |
 | Serious Sam HD: The First Encounter | `ss_hd_tfe` | Serious Engine 3 | ✅ | ✅ | ❌ | ⚠️ | ✅ | ✅ | |
 | Serious Sam HD: The Second Encounter | `ss_hd_tse` | Serious Engine 3 | ✅ | ✅ | ❌ | ⚠️ | ✅ | ✅ | |
-| Natural Selection 2 | `ns2` | Spark | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| Natural Selection 2 | `ns2` | Spark | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Skyboxes |
 
 Notes:
 
@@ -47,7 +47,7 @@ Notes:
   `tnt.wad`, `nerve.wad`, `sigil.wad` and `sigil2.wad`.
 - **Serious Engine 3** — materials are built into each model rather than mounted as standalone resources;
   models import without animations.
-- **Natural Selection 2** — `.level` maps are not supported.
+- **Natural Selection 2** — `.level` maps load as scenes with world geometry, props, lights, collision and authored skyboxes.
 - **Not yet enabled** — mounts for Heretic + Hexen, Call of Duty (2003), Jedi Outcast and Jedi Academy exist in
   the code but are commented out.
 

@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/model_alpha_double.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	OpacityMap "[1.000000 1.000000 1.000000]"
+	g_flDecals "1.000"
+}

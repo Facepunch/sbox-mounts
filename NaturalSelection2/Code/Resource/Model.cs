@@ -87,7 +87,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public string Name;
 		public int Body0, Body1;
 		public Transform Frame0, Frame1;
-		public float SwingMin, SwingMax, TwistMin, TwistMax;
+		public Vector3 Minimum, Maximum;
 	}
 
 	struct AttachPoint
@@ -345,7 +345,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var tangent = r.ReadVector3();
 			r.Skip( 12 ); // binormal
 			var texcoord = new Vector2( r.Float(), r.Float() );
-			r.Skip( 4 ); // color
+			var color = ConvertColor( (uint)r.Int() );
 			float w0 = r.Float(); int b0 = r.Int();
 			float w1 = r.Float(); int b1 = r.Int();
 			float w2 = r.Float(); int b2 = r.Int();
@@ -356,6 +356,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				ConvertDirection( normal ),
 				ConvertDirection( tangent ),
 				texcoord,
+				color,
 				new Color32( (byte)b0, (byte)b1, (byte)b2, (byte)b3 ),
 				NormalizeWeights( w0, w1, w2, w3 )
 			);
@@ -597,12 +598,8 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			if ( r.Int() != 0 )
 				continue;
 
-			float swingMin = r.Float();
-			float twistMin = r.Float();
-			_ = r.Float();
-			float swingMax = r.Float();
-			float twistMax = r.Float();
-			_ = r.Float();
+			var minimum = r.ReadVector3();
+			var maximum = r.ReadVector3();
 			joints.Add( new Joint
 			{
 				Name = name,
@@ -610,10 +607,8 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				Body1 = body1,
 				Frame0 = frame0,
 				Frame1 = frame1,
-				SwingMin = swingMin,
-				TwistMin = twistMin,
-				SwingMax = swingMax,
-				TwistMax = twistMax,
+				Minimum = minimum,
+				Maximum = maximum,
 			} );
 		}
 		model.Joints = joints.ToArray();
@@ -996,9 +991,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 			var materialName = faceSet.MaterialIndex >= 0 && faceSet.MaterialIndex < model.Materials.Length
 				? model.Materials[faceSet.MaterialIndex] : null;
-			var material = string.IsNullOrWhiteSpace( materialName )
-				? DefaultMaterial : Material.Load( $"mount://{Host.Ident}/ns2/{materialName}.vmat" );
-			var mesh = new Mesh( material )
+			var mesh = new Mesh( ResolveMaterial( materialName ) )
 			{
 				Bounds = bounds
 			};
@@ -1006,6 +999,22 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			mesh.CreateIndexBuffer( remappedIndices.Length, remappedIndices );
 			builder.AddMesh( mesh );
 		}
+	}
+
+	// Material names include their .material extension and are relative to the
+	// game root, so they need the ns2/ content folder prefixing - except for the
+	// handful that already carry it. A few models reference materials that were
+	// never shipped, so ask the mount whether it registered one before asking
+	// the engine to load it.
+	private Material ResolveMaterial( string name )
+	{
+		if ( string.IsNullOrWhiteSpace( name ) )
+			return DefaultMaterial;
+
+		var relative = name.StartsWith( "ns2/", StringComparison.OrdinalIgnoreCase ) ? name : $"ns2/{name}";
+		var path = $"mount://{Host.Ident}/{relative}.vmat";
+
+		return Host.GetByPath( path ) is null ? DefaultMaterial : Material.Load( path );
 	}
 
 	private static void BuildPhysics( ModelBuilder builder, ParsedModel model )
@@ -1068,14 +1077,131 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var frame0 = model.Solids[joint.Body0].Transform.ToWorld( joint.Frame0 );
 			var frame1 = model.Solids[joint.Body1].Transform.ToWorld( joint.Frame1 );
 
-			float swing = MathF.Max( MathF.Abs( joint.SwingMin ), MathF.Abs( joint.SwingMax ) ).RadianToDegree();
-			float twistLow = -MathF.Max( joint.TwistMin, joint.TwistMax ).RadianToDegree();
-			float twistHigh = -MathF.Min( joint.TwistMin, joint.TwistMax ).RadianToDegree();
+			var limits = GetJointLimits( joint.Minimum, joint.Maximum );
+			frame0.Rotation *= limits.Basis;
+			frame1.Rotation *= limits.Basis;
 
-			builder.AddBallJoint( body0, body1, frame0, frame1 )
-				.WithSwingLimit( swing )
-				.WithTwistLimit( twistLow, twistHigh );
+			if ( limits.Revolute )
+			{
+				var hinge = builder.AddHingeJoint( body0, body1, frame0, frame1 );
+				if ( limits.EnableTwistLimit )
+					hinge.WithTwistLimit( limits.Twist.x, limits.Twist.y );
+			}
+			else
+			{
+				float swing = MathF.Max( limits.Swing.x, limits.Swing.y );
+				if ( swing == 0 && limits.Twist == Vector2.Zero )
+				{
+					builder.AddFixedJoint( body0, body1, frame0, frame1 );
+					continue;
+				}
+				var ball = builder.AddBallJoint( body0, body1, frame0, frame1 );
+				if ( swing < 180 )
+					ball.WithSwingLimit( Math.Clamp( swing, 0, 89.1f ) );
+				if ( limits.Twist.y - limits.Twist.x < 360 )
+					ball.WithTwistLimit( limits.Twist.x, limits.Twist.y );
+			}
 		}
+	}
+
+	private const float JointLimitEpsilon = 1.1920929e-7f;
+	private const float MinimumSwingLimit = 0.01f;
+
+	private static (Rotation Basis, Vector2 Twist, Vector2 Swing, bool Revolute, bool EnableTwistLimit) GetJointLimits( Vector3 minimum, Vector3 maximum )
+	{
+		if ( float.IsNaN( minimum.x ) || float.IsNaN( minimum.y ) || float.IsNaN( minimum.z )
+			|| float.IsNaN( maximum.x ) || float.IsNaN( maximum.y ) || float.IsNaN( maximum.z )
+			|| minimum.x > maximum.x || minimum.y > maximum.y || minimum.z > maximum.z )
+			throw new InvalidDataException( "NS2 model: invalid joint angular limits" );
+
+		var range = maximum - minimum;
+		int lockedAxes = (range.x < JointLimitEpsilon ? 1 : 0)
+			+ (range.y < JointLimitEpsilon ? 1 : 0)
+			+ (range.z < JointLimitEpsilon ? 1 : 0);
+
+		if ( lockedAxes == 3 )
+			return (Rotation.Identity, Vector2.Zero, Vector2.Zero, false, false);
+
+		bool revolute = lockedAxes == 2;
+		int twistAxis = SelectJointTwistAxis( minimum, maximum, lockedAxes );
+		var rebase = Rotation.Identity;
+		if ( twistAxis == 1 )
+		{
+			rebase = Rotation.FromAxis( Vector3.Up, -90 );
+			if ( revolute )
+				rebase *= Rotation.FromAxis( Vector3.Forward, -90 );
+		}
+		else if ( twistAxis == 2 )
+		{
+			rebase = Rotation.FromAxis( Vector3.Left, 90 );
+		}
+
+		var basis = ConvertRotation( rebase ) * Rotation.LookAt( Vector3.Up, Vector3.Left );
+		if ( twistAxis < 0 )
+			return (basis, new( -180, 180 ), revolute ? Vector2.Zero : new( 180, 180 ), revolute, false);
+
+		var (twistMinimum, twistMaximum, swingMinimum, swingMaximum) = twistAxis switch
+		{
+			0 => (minimum.x, maximum.x, new Vector2( minimum.y, minimum.z ), new Vector2( maximum.y, maximum.z )),
+			1 => (minimum.y, maximum.y, new Vector2( minimum.x, minimum.z ), new Vector2( maximum.x, maximum.z )),
+			_ => (minimum.z, maximum.z, new Vector2( minimum.y, minimum.x ), new Vector2( maximum.y, maximum.x ))
+		};
+		var twist = GetTwistLimit( twistMinimum, twistMaximum, revolute );
+		var swing = Vector2.Zero;
+		if ( !revolute )
+		{
+			swing.x = GetSwingLimit( swingMinimum.x, swingMaximum.x );
+			swing.y = GetSwingLimit( swingMinimum.y, swingMaximum.y );
+		}
+		return (basis, twist, swing, revolute, revolute);
+	}
+
+	private static int SelectJointTwistAxis( Vector3 minimum, Vector3 maximum, int lockedAxes )
+	{
+		bool freeX = float.IsNegativeInfinity( minimum.x ) || float.IsPositiveInfinity( maximum.x );
+		bool freeY = float.IsNegativeInfinity( minimum.y ) || float.IsPositiveInfinity( maximum.y );
+		bool freeZ = float.IsNegativeInfinity( minimum.z ) || float.IsPositiveInfinity( maximum.z );
+
+		if ( lockedAxes == 2 )
+		{
+			if ( !freeX && maximum.x - minimum.x >= JointLimitEpsilon )
+				return 0;
+			if ( !freeY && maximum.y - minimum.y >= JointLimitEpsilon )
+				return 1;
+			return freeZ ? -1 : 2;
+		}
+
+		var midpoint = minimum + maximum;
+		var asymmetry = new Vector3( MathF.Abs( midpoint.x ), MathF.Abs( midpoint.y ), MathF.Abs( midpoint.z ) );
+		float asymmetrySquared = asymmetry.LengthSquared;
+		float other = asymmetry.y > asymmetry.z ? asymmetry.y : asymmetry.z;
+		if ( !freeX && ( asymmetry.x > other || asymmetrySquared < JointLimitEpsilon ) )
+			return 0;
+
+		other = asymmetry.x > asymmetry.z ? asymmetry.x : asymmetry.z;
+		if ( !freeY && ( other < asymmetry.y || asymmetrySquared < JointLimitEpsilon ) )
+			return 1;
+
+		return freeZ ? -1 : 2;
+	}
+
+	private static Vector2 GetTwistLimit( float minimum, float maximum, bool revolute )
+	{
+		if ( float.IsNegativeInfinity( minimum ) || float.IsPositiveInfinity( maximum ) )
+			return new( -180, 180 );
+		if ( !revolute && maximum - minimum < JointLimitEpsilon )
+			return Vector2.Zero;
+		return new( minimum.RadianToDegree(), maximum.RadianToDegree() );
+	}
+
+	private static float GetSwingLimit( float minimum, float maximum )
+	{
+		float limit = MathF.Max( MathF.Abs( minimum ), MathF.Abs( maximum ) );
+		if ( float.IsPositiveInfinity( limit ) )
+			return 180;
+		if ( limit < JointLimitEpsilon )
+			return 0;
+		return MathF.Max( limit, MinimumSwingLimit ).RadianToDegree();
 	}
 
 	// Trace mesh from render geometry (bind pose) so editor traces hit what you see
@@ -1119,6 +1245,9 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	private static Vector3 ConvertPosition( Vector3 v ) => new Vector3( v.z, v.x, v.y ) * Scale;
+
+	private static Color32 ConvertColor( uint c ) =>
+		new Color32( (byte)(c >> 16), (byte)(c >> 8), (byte)c, (byte)(c >> 24) );
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]
 	private static Vector3 ConvertDirection( Vector3 v ) => new( v.z, v.x, v.y );
@@ -1173,12 +1302,13 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	}
 
 	[StructLayout( LayoutKind.Sequential )]
-	private struct SkinnedVertex( Vector3 position, Vector3 normal, Vector3 tangent, Vector2 texcoord, Color32 blendIndices, Color32 blendWeights )
+	private struct SkinnedVertex( Vector3 position, Vector3 normal, Vector3 tangent, Vector2 texcoord, Color32 color, Color32 blendIndices, Color32 blendWeights )
 	{
 		[VertexLayout.Position] public Vector3 position = position;
 		[VertexLayout.Normal] public Vector3 normal = normal;
 		[VertexLayout.Tangent] public Vector3 tangent = tangent;
 		[VertexLayout.TexCoord] public Vector2 texcoord = texcoord;
+		[VertexLayout.Color] public Color32 color = color;
 		[VertexLayout.BlendIndices] public Color32 blendIndices = blendIndices;
 		[VertexLayout.BlendWeight] public Color32 blendWeights = blendWeights;
 
@@ -1188,6 +1318,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			new( VertexAttributeType.Normal, VertexAttributeFormat.Float32, 3 ),
 			new( VertexAttributeType.Tangent, VertexAttributeFormat.Float32, 3 ),
 			new( VertexAttributeType.TexCoord, VertexAttributeFormat.Float32, 2 ),
+			new( VertexAttributeType.Color, VertexAttributeFormat.UInt8, 4 ),
 			new( VertexAttributeType.BlendIndices, VertexAttributeFormat.UInt8, 4 ),
 			new( VertexAttributeType.BlendWeights, VertexAttributeFormat.UInt8, 4 )
 		];

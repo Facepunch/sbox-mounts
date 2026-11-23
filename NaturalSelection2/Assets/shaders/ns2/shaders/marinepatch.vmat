@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/marinepatch.shader"
+
+	Atlas "materials/default/default_color.tga"
+	OpacityMap "[1.000000 1.000000 1.000000 1.000000]"
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	g_flNumRows "4.000"
+	g_flNumColumns "4.000"
+	g_flPatchIndex "0.000"
+	g_flHiddenAmount "0.000"
+	g_flHighlight "0.000"
+}

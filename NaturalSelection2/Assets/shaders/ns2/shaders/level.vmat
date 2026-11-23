@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/level.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+}

@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/models/marine/command_station/command_station_display.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	WelcomeEmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	LockedEmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flHiddenAmount "0.000"
+	g_flState "1.000"
+	g_flTimeStateChanged "0.000"
+}

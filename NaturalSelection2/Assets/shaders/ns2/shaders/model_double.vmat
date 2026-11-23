@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/model_double.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	g_flDecals "0.000"
+}

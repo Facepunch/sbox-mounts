@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/descent_gravity.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	CloudMap "[0.000000 0.000000 0.000000 0.000000]"
+	MaskMap "[0.000000 0.000000 0.000000 0.000000]"
+	NormalMap "materials/default/default_normal.tga"
+	g_flEmissiveMod "1.000"
+}

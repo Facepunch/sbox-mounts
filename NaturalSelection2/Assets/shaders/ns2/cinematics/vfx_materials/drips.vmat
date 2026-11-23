@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/drips.shader"
+
+	MaskMap "[0.000000 0.000000 0.000000 0.000000]"
+}

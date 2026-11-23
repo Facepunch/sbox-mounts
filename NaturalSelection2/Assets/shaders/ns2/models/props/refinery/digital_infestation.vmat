@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/refinery/digital_infestation.shader"
+
+	InfestMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flEmissiveMod "1.000"
+}

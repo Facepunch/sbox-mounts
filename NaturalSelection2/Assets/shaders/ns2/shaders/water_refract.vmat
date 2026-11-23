@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/water_refract.shader"
+
+	NormalMap "[0.500000 0.500000 1.000000]"
+	g_vTransmissionColor "[1.000000 1.000000 1.000000]"
+	g_flScale1 "0.010"
+	g_flScale2 "0.010"
+	g_flSpeed1 "0.100"
+	g_flSpeed2 "0.100"
+}

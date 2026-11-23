@@ -1,0 +1,16 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/2em_1norm_scroll_refract_tint_opaque.shader"
+
+	EmissiveMap1 "[0.000000 0.000000 0.000000]"
+	EmissiveMap2 "[0.000000 0.000000 0.000000]"
+	RefractMap "[0.500000 0.500000 1.000000]"
+	g_vTint "[1.000000 1.000000 1.000000]"
+	g_vEm1Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vEm2Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vNormCoord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vNorm2Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_flNormIntensity "0.100"
+	g_flAddBlending "0.000"
+	g_flIntensity "1.000"
+}

@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/minigun_overheat.shader"
+
+	NoiseMap "[0.000000 0.000000 0.000000]"
+	MaskMap "[0.000000 0.000000 0.000000]"
+
+	g_flHeatingValue "0.000"
+}

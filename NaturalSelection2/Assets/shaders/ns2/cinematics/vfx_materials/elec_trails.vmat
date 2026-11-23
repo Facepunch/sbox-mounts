@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/elec_trails.shader"
+
+	NoiseMap "[0.000000 0.000000 0.000000 0.000000]"
+	MaskMap "[0.000000 0.000000 0.000000 0.000000]"
+	SeqMask "[0.000000 0.000000 0.000000 0.000000]"
+}

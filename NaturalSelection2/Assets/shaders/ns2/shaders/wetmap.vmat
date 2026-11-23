@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/wetmap.shader"
+
+	WetnessMap "[0.000000 0.000000 0.000000]"
+	g_flWetnessMult "1.000"
+}

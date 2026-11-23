@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/terrain.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	g_flDecals "0.000"
+}

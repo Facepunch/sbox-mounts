@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/emissive.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	g_flHiddenAmount "0.000"
+}

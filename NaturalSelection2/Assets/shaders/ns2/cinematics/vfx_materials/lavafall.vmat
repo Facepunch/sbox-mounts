@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/lavafall.shader"
+
+	Glowpoints "[0.000000 0.000000 0.000000]"
+	NoiseMap "[0.000000 0.000000 0.000000]"
+}

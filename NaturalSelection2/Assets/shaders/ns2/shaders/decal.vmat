@@ -1,0 +1,11 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/decal.shader"
+
+	AlbedoMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	OpacityMap "[1.000000 1.000000 1.000000 1.000000]"
+	g_flEndTime "0.000"
+	g_flScale "0.000"
+}

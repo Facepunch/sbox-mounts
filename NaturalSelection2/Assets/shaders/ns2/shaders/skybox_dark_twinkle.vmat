@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/skybox_dark_twinkle.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	TwinkleMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flTwinkleSpeed "1.000"
+}

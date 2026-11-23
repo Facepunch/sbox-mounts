@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/docking/docking_shower_fx_01.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	MaskMap "[0.000000 0.000000 0.000000 0.000000]"
+}

@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/unearthed/unearthed_hologram.shader"
+
+	AlphaTexture "materials/default/default_color.tga"
+	g_flScanlineScale "10.000"
+	g_flOpacity "0.500"
+	g_flDecals "0.000"
+}

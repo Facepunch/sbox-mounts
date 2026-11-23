@@ -1,0 +1,12 @@
+Layer0
+{
+	shader "shaders/ns2/models/hologram_two_sided.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	FlickerMap "[1.000000 1.000000 1.000000]"
+
+	g_flXScroll "0.000"
+	g_flYScroll "0.000"
+	g_flFlickerSpeed "0.000"
+	g_flEmissiveMod "1.000"
+}

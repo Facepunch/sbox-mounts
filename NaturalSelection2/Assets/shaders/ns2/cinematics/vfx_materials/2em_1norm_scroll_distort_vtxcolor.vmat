@@ -1,0 +1,14 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/2em_1norm_scroll_distort_vtxcolor.shader"
+
+	EmissiveMap1 "[0.000000 0.000000 0.000000]"
+	EmissiveMap2 "[0.000000 0.000000 0.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	g_vTransmissionColor "[1.000000 1.000000 1.000000]"
+	g_vTint "[1.000000 1.000000 1.000000]"
+	g_vEm1Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vEm2Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vNormCoord "[1.000000 1.000000 0.000000 0.000000]"
+	g_flNormIntensity "0.100"
+}

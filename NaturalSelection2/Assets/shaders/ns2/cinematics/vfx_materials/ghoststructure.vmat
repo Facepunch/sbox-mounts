@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/ghoststructure.shader"
+
+	ScanMap "[0.000000 0.000000 0.000000]"
+	CircuitMap "[0.000000 0.000000 0.000000]"
+	GlowcircuitMap "[0.000000 0.000000 0.000000]"
+	NoiseMap "[0.000000 0.000000 0.000000]"
+}

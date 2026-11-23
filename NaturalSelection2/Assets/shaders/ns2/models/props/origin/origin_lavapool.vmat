@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/models/props/origin/origin_lavapool.shader"
+
+	Glowpoints "[0.000000 0.000000 0.000000]"
+	NoiseMap "[0.000000 0.000000 0.000000]"
+}

@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/fusion_tanith.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	NormalMap "materials/default/default_normal.tga"
+}

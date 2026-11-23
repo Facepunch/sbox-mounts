@@ -1,3 +1,5 @@
+using System;
+
 namespace NS2;
 
 /// <summary>
@@ -31,12 +33,31 @@ public class GameMount : BaseGameMount
 		return bytes;
 	}
 
-	private static readonly Dictionary<string, ResourceType> FileTypes = new()
+	private static readonly string[] Branches = ["ns2", "core"];
+
+	/// <summary>Spark resolves content against ns2 first, then core.</summary>
+	internal static bool TryResolve( BaseFileSystem fs, string relative, out string path )
+	{
+		if ( !string.IsNullOrWhiteSpace( relative ) )
+		{
+			foreach ( var branch in Branches )
+			{
+				path = $"{branch}/{relative}".Replace( '\\', '/' );
+				if ( fs.FileExists( path ) ) return true;
+			}
+		}
+
+		path = null;
+		return false;
+	}
+
+	private static readonly Dictionary<string, ResourceType> FileTypes = new( StringComparer.OrdinalIgnoreCase )
 	{
 		{ ".model", ResourceType.Model },
 		{ ".dds", ResourceType.Texture },
 		{ ".material", ResourceType.Material },
 		{ ".fsb", ResourceType.Sound },
+		{ ".level", ResourceType.Scene },
 	};
 
 	protected override Task Mount( MountContext context )
@@ -46,7 +67,7 @@ public class GameMount : BaseGameMount
 
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
-			var ext = Path.GetExtension( path )?.ToLower();
+			var ext = Path.GetExtension( path );
 			if ( string.IsNullOrWhiteSpace( ext ) )
 				continue;
 
@@ -64,6 +85,10 @@ public class GameMount : BaseGameMount
 			else if ( resourceType == ResourceType.Material )
 			{
 				context.Add( resourceType, path, new MaterialLoader( path ) );
+			}
+			else if ( resourceType == ResourceType.Scene )
+			{
+				context.Add( resourceType, path, new MapLoader( path ) );
 			}
 			else if ( resourceType == ResourceType.Sound )
 			{

@@ -1,0 +1,14 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/sprinklers.shader"
+
+	EmissiveMap1 "[0.000000 0.000000 0.000000 0.000000]"
+	EmissiveMap2 "[0.000000 0.000000 0.000000 0.000000]"
+	RefractMap "materials/default/default_normal.tga"
+	g_vTint "[1.000000 1.000000 1.000000]"
+	g_vEm1Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vEm2Coord "[1.000000 1.000000 0.000000 0.000000]"
+	g_vNormCoord "[1.000000 1.000000 0.000000 0.000000]"
+	g_flNormIntensity "0.100"
+	g_flFresnelPower "1.000"
+}

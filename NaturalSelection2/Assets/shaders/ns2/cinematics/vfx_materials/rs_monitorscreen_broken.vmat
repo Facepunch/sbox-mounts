@@ -1,0 +1,22 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/rs_monitorscreen_broken.shader"
+
+	AlbedoMap "[1.000000 1.000000 1.000000]"
+	NormalMap "[0.500000 0.500000 1.000000]"
+	SpecularMap "[0.000000 0.000000 0.000000 0.000000]"
+	NoiseTex "[0.000000 0.000000 0.000000]"
+	LcdTex "[0.333000 0.333000 0.333000]"
+	MaskTex "[1.000000 1.000000 1.000000 1.000000]"
+	UvTex "[0.000000 0.000000 0.000000]"
+	g_flEmissiveStrength "0.000"
+	g_flEmissiveMod "1.000"
+	g_flAlbedoStrength "1.000"
+	g_flDistortionIntensity "0.010"
+	g_flScanlineIntensity "0.800"
+	g_flShowDecals "0.000"
+	g_flAnimationSpeed "1.000"
+	g_flHorizontalFrames "1.000"
+	g_flVerticalFrames "1.000"
+	g_flSmoothBlending "1.000"
+}

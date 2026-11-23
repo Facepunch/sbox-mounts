@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/materials/unearthed/unearthed_goop.shader"
+
+	GooTexture "[1.000000 1.000000 1.000000]"
+	FlowmapTexture "[0.400000 0.400000 0.000000]"
+	FlowmapNoise "[0.000000 0.000000 0.000000]"
+	NormalTexture "[0.500000 0.500000 1.000000]"
+	g_vTint "[1.000000 1.000000 1.000000]"
+	g_flFlowSpeed "0.500"
+	g_flSurfaceScale "0.250"
+	g_flWaveIntensity "0.020"
+}

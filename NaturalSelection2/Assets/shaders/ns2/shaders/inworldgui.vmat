@@ -1,0 +1,6 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/inworldgui.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+}

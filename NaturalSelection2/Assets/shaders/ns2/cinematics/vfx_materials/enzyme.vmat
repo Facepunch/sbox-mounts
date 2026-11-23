@@ -1,0 +1,7 @@
+Layer0
+{
+	shader "shaders/ns2/cinematics/vfx_materials/enzyme.shader"
+
+	NoiseMap "[0.000000 0.000000 0.000000 0.000000]"
+	g_flEnzymeTime "0.000"
+}

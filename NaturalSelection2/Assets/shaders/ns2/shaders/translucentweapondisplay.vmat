@@ -1,0 +1,9 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/translucentweapondisplay.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+
+	g_flBaseDarkenFactor "0.850"
+	g_flMaxDarkenFactor "0.950"
+}

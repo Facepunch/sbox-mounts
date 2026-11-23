@@ -1,0 +1,10 @@
+Layer0
+{
+	shader "shaders/ns2/models/alien/gorge/web_distort.shader"
+
+	NormalMap "[0.500000 0.500000 1.000000]"
+	OpacityMap "[1.000000 1.000000 1.000000]"
+	g_flNoVisDist "196.851"
+	g_flFullVisDist "98.425"
+	g_flDistortionIntensity "0.250"
+}

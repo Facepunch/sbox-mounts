@@ -1,0 +1,138 @@
+//=============================================================================
+// Port of NS2 ns2/models/props/refinery/refinery_glass_greasy.surface_shader
+//
+//     material.albedo   = tex2D(emissiveMap, input.texCoord).rgb;
+//     material.tsNormal = DecodeNormal( tex2D(normalMap, input.texCoord) );
+//     material.specular = 200 * tex2D(emissiveMap, input.texCoord).rgb;
+//     material.gloss    = 10.075;
+//     material.emissive = tex2D(emissiveMap, input.texCoord).rgb;
+//     material.opacity  = tex2D(opacityMap, input.texCoord).r;
+//
+// <param name="translucent">true</param>, so this is additive - see the
+// Ns2ApplyTranslucentGlass notes in ns2.hlsl.
+//
+// Structurally ayumi_ice01 with the dials turned up. The x200 specular means
+// anything that is not pure black clamps to a full mirror, and the gloss of
+// 10.075 is well outside the nominal 0-1 range, which drives the roughness
+// solver to almost zero for a razor sharp reflection. Together that is the
+// "greasy" look: a smeared mirror wherever the emissive map is non-zero.
+//
+// models/props/tanith/tanith_glass_greasy.surface_shader is byte for byte the
+// same shader and is ported separately so the material paths keep resolving.
+//=============================================================================
+
+HEADER
+{
+	Description = "NS2 Refinery Glass Greasy";
+}
+
+FEATURES
+{
+	#include "common/features.hlsl"
+}
+
+MODES
+{
+	Forward();
+	Depth( S_MODE_DEPTH );
+	ToolsShadingComplexity( "tools_shading_complexity.shader" );
+}
+
+COMMON
+{
+	#ifndef S_ALPHA_TEST
+	#define S_ALPHA_TEST 0
+	#endif
+
+	#ifndef S_TRANSLUCENT
+	#define S_TRANSLUCENT 1
+	#endif
+
+	#include "common/shared.hlsl"
+
+	#define CUSTOM_MATERIAL_INPUTS
+}
+
+struct VertexInput
+{
+	#include "common/vertexinput.hlsl"
+};
+
+struct PixelInput
+{
+	#include "common/pixelinput.hlsl"
+};
+
+VS
+{
+	#include "common/vertex.hlsl"
+
+	PixelInput MainVs( VertexInput v )
+	{
+		return FinalizeVertex( ProcessVertex( v ) );
+	}
+}
+
+PS
+{
+	// Depth and blend state are set explicitly below. sbox_pixel.fxc installs its
+	// own translucent depth/blend state unless told not to, and a duplicate
+	// RenderState does not override the earlier one - it compiles to a different
+	// state entirely - so the guards are required, not just tidiness.
+	//
+	// S_TRANSLUCENT is also what emits BoolAttribute( translucent, true ), which
+	// is what puts the surface in the translucent pass. Without it the draw
+	// happens in the opaque pass, where the framebuffer copy and depth chain have
+	// not been resolved yet, and sampling them just smears the colour buffer.
+	#define DEPTH_STATE_ALREADY_SET 1
+	#define BLEND_MODE_ALREADY_SET 1
+	#ifndef S_TRANSLUCENT
+	#define S_TRANSLUCENT 1
+	#endif
+	#include "common/pixel.hlsl"
+	#include "ns2/ns2.hlsl"
+
+	RenderState( DepthEnable, true );
+	RenderState( DepthFunc, GREATER_EQUAL );
+	RenderState( DepthWriteEnable, false );
+	RenderState( BlendEnable, true );
+	RenderState( SrcBlend, ONE );
+	RenderState( DstBlend, ONE );
+	RenderState( BlendOp, ADD );
+	RenderState( SrcBlendAlpha, ONE );
+	RenderState( DstBlendAlpha, ONE );
+	RenderState( BlendOpAlpha, ADD );
+
+	SamplerState g_sWrap < Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
+
+	CreateInputTexture2D( NormalMap,   Linear, 8, "NormalizeNormals", "_normal",   ",0/,0/0", Default3( 0.5, 0.5, 1.0 ) );
+	CreateInputTexture2D( EmissiveMap, Linear, 8, "None",             "_emissive", ",0/,0/0", Default3( 0.0, 0.0, 0.0 ) );
+	CreateInputTexture2D( OpacityMap,  Linear, 8, "None",             "_opacity",  ",0/,0/0", Default3( 1.0, 1.0, 1.0 ) );
+
+	Texture2D g_tNormalMap   < Channel( RGBA, Box( NormalMap ),   Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tEmissiveMap < Channel( RGBA, Box( EmissiveMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	Texture2D g_tOpacityMap  < Channel( RGBA, Box( OpacityMap ),  Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+
+	float g_flSpecularScale < UiGroup( ",0/,0/0" ); Default1( 200.0 ); Range1( 0, 256 ); >;
+	float g_flGloss < UiGroup( ",0/,0/0" ); Default1( 10.075 ); Range1( 0, 16 ); >;
+
+	float4 MainPs( PixelInput i ) : SV_Target0
+	{
+		Material m = Material::Init();
+
+		float2 uv = i.vTextureCoords.xy;
+
+		float3 emissive = Tex2DS( g_tEmissiveMap, g_sWrap, uv ).rgb;
+		float opacity = Tex2DS( g_tOpacityMap, g_sWrap, uv ).r;
+
+		Ns2ApplyTranslucentGlass( m, emissive * g_flSpecularScale, g_flGloss, emissive, opacity );
+
+		float4 normal = Tex2DS( g_tNormalMap, g_sWrap, uv );
+		m.Normal = TransformNormal( Ns2DecodeNormal( normal ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
+		m.WorldTangentU = i.vTangentUWs;
+		m.WorldTangentV = i.vTangentVWs;
+		m.TextureCoords = uv;
+
+		return ShadingModelStandard::Shade( i, m );
+	}
+}

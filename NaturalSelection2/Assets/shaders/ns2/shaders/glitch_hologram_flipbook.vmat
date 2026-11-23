@@ -1,0 +1,15 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/glitch_hologram_flipbook.shader"
+
+	EmissiveMap "[0.000000 0.000000 0.000000 0.000000]"
+	FlickerMap "[1.000000 1.000000 1.000000 1.000000]"
+	g_flAnimationspeed "1.000"
+	g_flHorizontalFrames "1.000"
+	g_flVerticalFrames "1.000"
+	g_flFlickerSpeed "0.000"
+	g_flGlitchSpeed "2.000"
+	g_flHiddenAmount "0.000"
+	g_flEmissiveMod "1.000"
+	g_flSmoothBlending "1.000"
+}

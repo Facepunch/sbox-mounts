@@ -1,0 +1,8 @@
+Layer0
+{
+	shader "shaders/ns2/shaders/glass_refract.shader"
+
+	NormalMap "[0.500000 0.500000 1.000000]"
+	g_vTransmissionColor "[1.000000 1.000000 1.000000]"
+	g_flDistortionScale "0.010"
+}

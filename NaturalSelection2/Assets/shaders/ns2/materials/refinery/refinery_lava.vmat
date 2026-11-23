@@ -1,0 +1,13 @@
+Layer0
+{
+	shader "shaders/ns2/materials/refinery/refinery_lava.shader"
+
+	LavaTexture "[0.000000 0.000000 0.000000]"
+	NoiseTexture "[0.000000 0.000000 0.000000]"
+	g_vSurfaceTint "[0.100000 0.020000 0.000000]"
+	g_vSurfaceTintDark "[0.000000 0.000000 0.000000]"
+	g_flGlowIntensity "1.000"
+	g_flScrollSpeedMultiplier "1.000"
+	g_flDecals "0.000"
+	g_flWaveIntensity "0.050"
+}
