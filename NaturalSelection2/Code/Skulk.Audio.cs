@@ -25,6 +25,7 @@ public sealed partial class Skulk
 	}
 
 	SoundHandle dash;
+	SoundHandle xenocideCharge;
 	TimeSince dashStarted;
 	bool dashing;
 
@@ -52,6 +53,7 @@ public sealed partial class Skulk
 	protected override void OnDisabled()
 	{
 		StopDash();
+		xenocideCharge?.Stop();
 		dashing = false;
 		base.OnDisabled();
 	}
@@ -64,6 +66,12 @@ public sealed partial class Skulk
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayCombatSound( string id, Vector3 position ) => PlayLocal( id, position );
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayXenocideCharge()
+	{
+		xenocideCharge = GameObject.PlaySound( GameResource.Load<SoundEvent>( "mount://ns2/sounds/alien/common/xenocide_start.sound" ) );
+	}
 
 	internal void PlayMovementSound( string cue ) => PlayCombatSound( $"alien/skulk/{cue}", WorldPosition );
 

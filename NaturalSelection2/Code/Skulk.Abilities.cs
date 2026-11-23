@@ -54,7 +54,7 @@ public sealed partial class Skulk
 			if ( ++nearby < 2 ) continue;
 			xenociding = true;
 			detonation = 2;
-			PlayCombatSound( "alien/common/xenocide_start", EyePosition );
+			PlayXenocideCharge();
 			return true;
 		}
 		return false;
@@ -63,8 +63,8 @@ public sealed partial class Skulk
 	void Detonate()
 	{
 		const float radius = 14 * MapLoader.Scale;
-		var center = WorldPosition + Vector3.Up * SkulkMovement.Radius;
-		PlayCombatSound( "alien/common/xenocide_end", center );
+		var center = WorldPosition + Vector3.Up * (0.5f * MapLoader.Scale);
+		PlayCombatSound( "alien/common/xenocide_end", WorldPosition );
 		var damaged = new HashSet<Component>();
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, radius ) ).ToArray() )
 		{
