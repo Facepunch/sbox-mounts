@@ -8,6 +8,7 @@ public sealed partial class RabbitGuard
 	TimeUntil blockRecharge, activeBlock, blockFlinchRaised;
 	float? blockDelay;
 	float flinchSpring, flinchVelocity, flinchFade, flinchFadeOut, flinchOpacity;
+	float flinchRemainder, displayedFlinch;
 	bool flinching;
 	[Sync] bool MirroredFlinch { get; set; }
 	[Sync( SyncFlags.Interpolate )] float FlinchWeight { get; set; }
@@ -26,9 +27,19 @@ public sealed partial class RabbitGuard
 		// ActiveBlocking lasts .2 seconds; the spring stays raised for .3 from activation.
 		bool raised = blockFlinchRaised > 0f;
 		float target = raised ? 1f : plantDepth * Math.Min( 1f, Animation.MoveVelocity.Length / 40f );
-		flinchVelocity += (target - flinchSpring) * dt * (raised ? 300f : 150f);
-		flinchSpring += dt * flinchVelocity;
-		flinchVelocity *= MathF.Pow( raised ? 0.8f : 0.86f, dt * 120f );
+		const float tick = 4f / 120f;
+		float stiffness = raised ? 300f : 150f;
+		float damping = MathF.Pow( raised ? 0.8f : 0.86f, 4f );
+		flinchRemainder += dt;
+		while ( flinchRemainder >= tick )
+		{
+			flinchVelocity = Math.Clamp( flinchVelocity + (target - flinchSpring) * tick * stiffness, -1e16f, 1e16f );
+			if ( MathF.Abs( flinchVelocity ) < 1e-14f ) { flinchVelocity = 0f; flinchSpring = target; }
+			flinchSpring += flinchVelocity * tick;
+			flinchVelocity *= damping;
+			flinchRemainder -= tick;
+		}
+		displayedFlinch = flinchSpring + (flinchVelocity + (target - flinchSpring) * tick * stiffness) * flinchRemainder;
 		bool settled = MathF.Abs( flinchSpring ) < 0.01f && MathF.Abs( flinchVelocity ) < 0.01f;
 		if ( flinching && settled )
 		{
@@ -40,7 +51,7 @@ public sealed partial class RabbitGuard
 			flinching = true;
 			MirroredFlinch = MirroredStance;
 		}
-		if ( flinching ) flinchOpacity = Math.Clamp( flinchSpring, 0.00001f, 1f );
+		if ( flinching ) flinchOpacity = Math.Clamp( displayedFlinch, 0.00001f, 1f );
 		flinchFade = Math.Clamp( flinchFade + dt * (flinching ? 10f : -flinchFadeOut), 0f, 1f );
 		FlinchWeight = flinchFade * flinchOpacity;
 	}
