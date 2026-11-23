@@ -8,6 +8,16 @@ public sealed partial class RabbitGuard
 	[Sync] TimeSince SinceJumpPreparation { get; set; } = 10f;
 	bool jumpArmsActive;
 
+	TimeUntil jumpNodeDelay;
+	internal bool CanLaunchJump( bool climb ) => boundAnimations is { Species: not "wolf" } && (climb || jumpNodeDelay <= 0f);
+
+	internal void AnnounceTargetedJump()
+	{
+		if ( !HasCombatTarget || enemy.GetComponent<RabbitGuard>() is not { } target || !target.enemy.IsValid() ) return;
+		var separation = (target.WorldPosition - target.TargetPosition( target.enemy )).WithZ( 0f );
+		if ( separation.LengthSquared < 400f * 400f ) target.jumpNodeDelay = 10f;
+	}
+
 	internal float PrepareJump()
 	{
 		SinceJumpPreparation = 0f;

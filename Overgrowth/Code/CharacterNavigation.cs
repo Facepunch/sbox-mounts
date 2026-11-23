@@ -36,13 +36,14 @@ public sealed class CharacterNavigation : NavigationLayer
 				if ( !preparedVelocity.HasValue )
 				{
 					Vector3 velocity;
-					if ( !(climb ? fighter.TryClimbLaunch( end, out velocity ) : TryJumpVelocity( WorldPosition, end, out velocity )) )
+					if ( !fighter.CanLaunchJump( climb ) || !(climb ? fighter.TryClimbLaunch( end, out velocity ) : TryJumpVelocity( WorldPosition, end, out velocity )) )
 					{
 						if ( crossing.HasValue ) AbortLinkTraversal();
 						predictedClimb = null;
 						return;
 					}
 					preparedVelocity = velocity;
+					if ( !climb ) fighter.AnnounceTargetedJump();
 					takeoff = fighter.PrepareJump();
 				}
 				if ( takeoff > 0f ) return;
