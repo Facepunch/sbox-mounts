@@ -5,6 +5,7 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string ReactionP
 	internal sealed record Pose( float Height, RabbitClip Clip );
 
 	internal Vector3? CutPlane { get; init; }
+	internal bool? LightStab { get; init; }
 	internal bool HeavyCut { get; init; }
 	internal float SharpMin { get; init; }
 	internal float SharpMax { get; init; }

@@ -2,7 +2,7 @@ using System;
 
 namespace Overgrowth;
 
-public sealed class CutMarks : Component, Component.INetworkSnapshot
+public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 {
 	Bitmap bitmap;
 	Texture texture;
@@ -16,15 +16,7 @@ public sealed class CutMarks : Component, Component.INetworkSnapshot
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void DrawLines( Vector4[] lines, int seed )
 	{
-		var renderer = GetComponent<SkinnedModelRenderer>();
-		if ( bitmap is null )
-		{
-			var color = renderer.Model.Materials[0].GetTexture( "g_tColor" );
-			bitmap = new Bitmap( Math.Max( 1, color.Width / 4 ), Math.Max( 1, color.Height / 4 ) );
-			bitmap.Clear( Color.Transparent );
-			ConfigurePen();
-		}
-
+		var renderer = PrepareBitmap();
 		var size = new Vector2( bitmap.Width, bitmap.Height );
 		var random = new Random( seed );
 		foreach ( var line in lines )
@@ -36,6 +28,19 @@ public sealed class CutMarks : Component, Component.INetworkSnapshot
 			}
 		}
 		Upload( renderer );
+	}
+
+	SkinnedModelRenderer PrepareBitmap()
+	{
+		var renderer = GetComponent<SkinnedModelRenderer>();
+		if ( bitmap is null )
+		{
+			var color = renderer.Model.Materials[0].GetTexture( "g_tColor" );
+			bitmap = new Bitmap( Math.Max( 1, color.Width / 4 ), Math.Max( 1, color.Height / 4 ) );
+			bitmap.Clear( Color.Transparent );
+			ConfigurePen();
+		}
+		return renderer;
 	}
 
 	void INetworkSnapshot.WriteSnapshot( ref ByteStream writer )

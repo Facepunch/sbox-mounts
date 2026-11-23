@@ -105,6 +105,15 @@ public sealed partial class LevelItem : Component
 		return lines = mount?.GetByPath( model.ResourcePath ) is ObjectLoader loader ? ItemLine.Read( loader.ItemDefinition, model ) : [];
 	}
 
+	internal Vector3 StabDirection()
+	{
+		var segments = GetLines();
+		if ( segments.Length == 0 ) return default;
+		UpdateAttachment();
+		var last = segments[^1].ToWorld( WorldTransform );
+		return (last.End - last.Start).Normal;
+	}
+
 	internal Vector3 StrikeLineDirection()
 	{
 		var segments = GetLines();

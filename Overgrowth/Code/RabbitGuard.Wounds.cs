@@ -69,6 +69,11 @@ public sealed partial class RabbitGuard
 			var damage = new BloodDamage { Damage = amount * 100f, Origin = CharacterCenter( GameObject ), Position = position, Attacker = GameObject, Weapon = weapon };
 			damage.Tags.Add( "slash" );
 			damage.Tags.Add( "nevergib" );
+			if ( strike.LightStab is { } light && defender.IsValid() && PrimaryItem.IsValid() )
+			{
+				var axis = PrimaryItem.StabDirection();
+				if ( !axis.IsNearlyZero() ) defender.Stab( PrimaryItem.PhysicsPosition - axis * 200f, axis, light );
+			}
 			var faces = CutSurface( defender, position );
 			if ( faces is { Count: > 0 } ) defender.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
 			bool awake = defender.IsValid() && !defender.Unconscious;
@@ -180,9 +185,8 @@ public sealed partial class RabbitGuard
 	void PlayCutParticles( Vector3[] clouds, Vector3[] splats )
 	{
 		if ( BloodLevel == 0 || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
-		Vector3 Velocity( float speed ) => new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ) ) * speed;
-		foreach ( var point in clouds ) mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, Velocity( 40f ), BloodColor );
-		foreach ( var point in splats ) mount.EmitBillboard( "Data/Particles/bloodsplat.xml", point, Velocity( 80f ), BloodColor );
+		foreach ( var point in clouds ) mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, ParticleScatter() * 40f, BloodColor );
+		foreach ( var point in splats ) mount.EmitBillboard( "Data/Particles/bloodsplat.xml", point, ParticleScatter() * 80f, BloodColor );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

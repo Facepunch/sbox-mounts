@@ -27,7 +27,7 @@ internal sealed class CharacterSurface
 
 	internal readonly record struct Cut( Vector3 Center, Vector2 Start, Vector2 End );
 
-	internal List<Cut> CutFaces( SkinnedModelRenderer renderer, Vector3 plane, Vector3 point, Vector3 facing )
+	Vector3[] Pose( SkinnedModelRenderer renderer )
 	{
 		var palette = new Transform[inverseBind.Length];
 		for ( int i = 0; i < palette.Length; i++ )
@@ -46,6 +46,13 @@ internal sealed class CharacterSurface
 			}
 		}
 
+		return posed;
+	}
+
+	internal List<Cut> CutFaces( SkinnedModelRenderer renderer, Vector3 plane, Vector3 point, Vector3 facing )
+	{
+		var posed = Pose( renderer );
+		if ( posed.Length == 0 ) return [];
 		var hits = new List<Cut>();
 		for ( int depth = 0; depth <= 4; depth++ )
 		{
@@ -77,4 +84,32 @@ internal sealed class CharacterSurface
 		}
 		return hits;
 	}
+
+	// Every candidate face has a corner near the infinite weapon line. The original
+	// widens its threshold until it finds five faces, including on the far side.
+	internal List<int> StabFaces( SkinnedModelRenderer renderer, Vector3 point, Vector3 direction, out Vector3[] posed, out float size )
+	{
+		posed = Pose( renderer );
+		size = 0f;
+		if ( posed.Length == 0 ) return [];
+		var distances = new float[posed.Length];
+		for ( int i = 0; i < posed.Length; i++ )
+		{
+			var offset = posed[i] - point;
+			distances[i] = (offset - direction * offset.Dot( direction )).LengthSquared;
+		}
+		var hits = new List<int>();
+		for ( int depth = 0; depth <= 12; depth++ )
+		{
+			float threshold = System.MathF.Pow( 0.001f, 1f / (depth * 0.3f + 1f) ) * 1600f;
+			hits.Clear();
+			for ( int i = 0; i < indices.Length; i += 3 )
+				if ( distances[indices[i]] < threshold || distances[indices[i + 1]] < threshold || distances[indices[i + 2]] < threshold ) hits.Add( i );
+			size = (depth + 1) * 4f;
+			if ( hits.Count >= 5 ) break;
+		}
+		return hits;
+	}
+
+	internal (Vector3 Position, Vector2 UV) CornerAt( int corner, Vector3[] posed ) => (posed[indices[corner]], uv[corner]);
 }

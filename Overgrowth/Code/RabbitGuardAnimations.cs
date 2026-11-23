@@ -174,6 +174,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				CutPlane = cut is null ? null : new Vector3( cut.Number( "z" ) ?? 0f, cut.Number( "x" ) ?? 0f, cut.Number( "y" ) ?? 0f ).Normal,
 				// attacks.cpp tests strcmp's nonzero result, so the "light" token selects _heavy.
 				HeavyCut = cut?.Attribute( "type" ) is null or "light",
+				LightStab = attack.Element( "stab_dir" ) is { } stab ? stab.Attribute( "type" ) is not (null or "light") : null,
 				SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
 				SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
 				AsLayer = flags.Attribute( "as_layer" ) == "true",
