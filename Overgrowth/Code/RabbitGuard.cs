@@ -230,6 +230,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		enemy = target;
 		searchUntil = 0f;
+		casualty = null;
 		seenHostiles[target] = Time.Now;
 		escortTarget = null;
 		investigatePoint = null;
@@ -249,16 +250,18 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		float attention = 0f;
+		knownCasualties.RemoveWhere( ally => !ally.IsValid() || !ally.Unconscious );
 		var candidates = Scene.GetAllComponents<BaseNpc>().Select( npc => npc.GameObject )
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) );
 		foreach ( var candidate in candidates )
 		{
-			if ( !CanAttack( candidate ) ) continue;
+			var ally = candidate.GetComponent<RabbitGuard>();
+			bool fallenAlly = ally is { Unconscious: true } && ally != this && GetDisposition( candidate ) == Disposition.Friendly;
+			if ( !fallenAlly && !CanAttack( candidate ) ) continue;
 			float separation = WorldPosition.DistanceSquared( TargetPosition( candidate ) );
-			var hidden = candidate.GetComponent<RabbitGuard>();
-			bool concealed = hidden is { InvisibleWhenStationary: true };
-			if ( concealed && hidden.duckAmount >= 0.5f
-				&& hidden.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
+			bool concealed = !fallenAlly && ally is { InvisibleWhenStationary: true };
+			if ( concealed && ally.duckAmount >= 0.5f
+				&& ally.Animation.MoveVelocity.LengthSquared <= 0.1f * 40f * 40f && separation >= 4f * 40f * 40f ) continue;
 			var delta = TargetPosition( candidate, eyes: true ) - EyePosition;
 			float distance = delta.Length;
 			var angles = (WorldRotation.Inverse * delta).EulerAngles.Normal;
@@ -266,6 +269,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			bool peripheral = distance <= 160 && MathF.Abs( angles.yaw ) <= 81 && MathF.Abs( angles.pitch ) <= 81;
 			if ( !focus && !peripheral ) continue;
 			if ( !HasSight( candidate ) ) continue;
+			if ( fallenAlly )
+			{
+				NoticeCasualty( ally );
+				continue;
+			}
 			seenHostiles[candidate] = Time.Now;
 			attention += (0.5f - 0.4f * MathF.Sqrt( separation ) / 4000f) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f) * (concealed ? 0.3f : 1f);
 			if ( candidate == enemy ) visible = true;

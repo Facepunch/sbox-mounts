@@ -14,6 +14,51 @@ public sealed partial class RabbitGuard
 	readonly List<SearchPoint> searchPoints = [];
 	TimeUntil searchUntil, searchPause;
 	SearchPoint searchTarget;
+	readonly HashSet<RabbitGuard> knownCasualties = [];
+	RabbitGuard casualty;
+	TimeUntil? inspectUntil;
+
+	void NoticeCasualty( RabbitGuard ally )
+	{
+		if ( !knownCasualties.Add( ally ) || casualty.IsValid() || enemy.IsValid() || investigatePoint.HasValue || escortTarget.IsValid() || searchUntil > 0f ) return;
+		casualty = ally;
+		inspectUntil = null;
+		startled = 1f;
+		Speak( "suspicious" );
+		ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+	}
+
+	bool InvestigateCasualty()
+	{
+		if ( !casualty.IsValid() ) return false;
+		var position = TargetPosition( casualty.GameObject );
+		var point = Movement.ProjectPoint( position ) ?? position;
+		if ( startled > 0f || inspectUntil.HasValue )
+		{
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+			Stance = Watch;
+			if ( inspectUntil is { } until && until <= 0f )
+			{
+				casualty = null;
+				BeginAreaSearch();
+			}
+			return true;
+		}
+		if ( WorldPosition.DistanceSquared( point ) < 2f * 40f * 40f )
+		{
+			Movement.Stop();
+			var direction = (point - WorldPosition).WithZ( 0f );
+			if ( !direction.IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction );
+			inspectUntil = Random.Shared.Float( 2f, 4f );
+			Stance = Watch;
+		}
+		else
+		{
+			if ( Movement.MoveTarget != point ) Movement.MoveTo( point, 40f, GroundRunSpeed * 0.7f );
+			Stance = Locomotion;
+		}
+		return true;
+	}
 
 	void BeginAreaSearch()
 	{

@@ -114,6 +114,7 @@ public sealed partial class RabbitGuard
 		{
 			enemy = null;
 			if ( FollowHeardVoice() ) return;
+			if ( InvestigateCasualty() ) return;
 			if ( !investigatePoint.HasValue && SearchArea() ) return;
 			float arrival = urgentInvestigation ? MathF.Sqrt( 2f ) * 40f : 40f;
 			if ( investigatePoint.HasValue && startled > 0 )
