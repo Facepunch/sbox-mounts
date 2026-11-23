@@ -5,7 +5,7 @@ namespace NS2;
 
 public partial class ModelLoader
 {
-	internal Graph BuildGraph( SparkAnimationGraph definition, string graphPath )
+	internal Graph BuildGraph( SparkAnimationGraph definition, string graphPath, bool npcPlayback )
 	{
 		var model = Source;
 		var animSource = AnimationSource();
@@ -27,24 +27,25 @@ public partial class ModelLoader
 		{
 			if ( node.Type != 2 ) continue;
 			var name = animations.BlendParameters[node.ParameterIndex];
-			if ( !parameters.ContainsKey( name ) ) parameters.Add( name, graph.FloatParameter( definition.PoseInputName( name ), node.ParamMin, node.ParamMax ) );
+			if ( !parameters.ContainsKey( name ) ) parameters.Add( name, graph.FloatParameter( npcPlayback ? name : definition.PoseInputName( name ), node.ParamMin, node.ParamMax ) );
 		}
 		var reader = new Reader( source );
 		var frame = new Transform[model.Bones.Length];
-		return definition.Compile( graph, SequencePose, graphPath );
+		return npcPlayback ? definition.CompilePlayback( graph, SequencePose, graphPath )
+			: definition.Compile( graph, (name, incoming) => SequencePose( name, incoming, null ), graphPath );
 
-		GraphBuilder.Node SequencePose( string name, GraphBuilder.Node incoming )
+		GraphBuilder.Node SequencePose( string name, GraphBuilder.Node incoming, GraphBuilder.Node seconds )
 		{
-			int i = Array.FindIndex( animations.Sequences, s => s.Name == name );
+			int i = SequenceIndex( name );
 			// Spark enters the state and clears the active sequence when the model lacks that name.
 			if ( i < 0 ) return null;
-			return Apply( Pose( animations.Sequences[i].AnimationNodeIndex, incoming ), incoming );
+			return Apply( Pose( animations.Sequences[i].AnimationNodeIndex, incoming, seconds ), incoming );
 		}
 
 		GraphBuilder.Node Apply( (GraphBuilder.Node Node, bool Additive) pose, GraphBuilder.Node incoming ) =>
 			pose.Additive ? graph.Layers( incoming ?? graph.ReferencePose() ).AddLayer( pose.Node, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive } ) : pose.Node;
 
-		(GraphBuilder.Node Node, bool Additive) Pose( int index, GraphBuilder.Node incoming )
+		(GraphBuilder.Node Node, bool Additive) Pose( int index, GraphBuilder.Node incoming, GraphBuilder.Node seconds )
 		{
 			var node = animations.AnimationNodes[index];
 			if ( node.Type == 1 )
@@ -62,15 +63,19 @@ public partial class ModelLoader
 					if ( builder.FrameCount == 1 ) builder.AddFrame( frame );
 					clips[node.AnimationIndex] = clip = builder.Create( $"{Path}/clip_{node.AnimationIndex}.anim" );
 				}
-				var sampled = graph.Clip( clip, new() { Looping = anim.Looping, SampleRootMotion = false } );
+				if ( seconds is null )
+					return (graph.Clip( clip, new() { Looping = anim.Looping, SampleRootMotion = false } ), anim.Additive);
+				var time = anim.NumFrames <= 1 ? graph.Constant( 0f ) : graph.Multiply( seconds, anim.FrameRate / (anim.NumFrames - 1) );
+				time = anim.Looping ? graph.Subtract( time, graph.Floor( time ) ) : graph.Clamp( time, 0, 1 );
+				var sampled = graph.TimeControlledClip( clip, time, new() { SampleRootMotion = false } );
 				return (sampled, anim.Additive);
 			}
 
 			if ( node.Children.Length == 0 ) return (incoming ?? graph.ReferencePose(), false);
-			if ( node.Children.Length == 1 ) return Pose( node.Children[0], incoming );
+			if ( node.Children.Length == 1 ) return Pose( node.Children[0], incoming, seconds );
 			if ( node.Type == 2 )
 			{
-				var sources = Array.ConvertAll( node.Children, child => Pose( child, incoming ) );
+				var sources = Array.ConvertAll( node.Children, child => Pose( child, incoming, seconds ) );
 				bool additive = sources.All( s => s.Additive );
 				var input = parameters[animations.BlendParameters[node.ParameterIndex]];
 				if ( node.WrapParameter && node.ParamMax > node.ParamMin )
@@ -89,7 +94,7 @@ public partial class ModelLoader
 			}
 
 			foreach ( var child in node.Children )
-				incoming = Apply( Pose( child, incoming ), incoming );
+				incoming = Apply( Pose( child, incoming, seconds ), incoming );
 			return (incoming, false);
 		}
 	}

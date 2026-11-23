@@ -105,6 +105,7 @@ public class GameMount : BaseGameMount
 		if ( FileSystem is null )
 			return Task.CompletedTask;
 
+		SkulkPrefab.Register( context );
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
 			var resourceType = GetFileType( Path.GetExtension( path ) );
@@ -116,7 +117,7 @@ public class GameMount : BaseGameMount
 			else if ( resourceType == ResourceType.AnimationGraph )
 			{
 				var model = Path.ChangeExtension( path, ".model" );
-				if ( FileSystem.FileExists( model ) )
+				if ( GetByPath( $"mount://{Ident}/{path}.ag" ) is null && FileSystem.FileExists( model ) )
 					context.Add( resourceType, path, new AnimationGraphLoader( model, path ) );
 			}
 			else if ( resourceType == ResourceType.Texture )
@@ -138,7 +139,6 @@ public class GameMount : BaseGameMount
 		}
 
 		SurfaceLoader.Register( context );
-		SkulkPrefab.Register( context );
 		IsMounted = true;
 
 		return Task.CompletedTask;

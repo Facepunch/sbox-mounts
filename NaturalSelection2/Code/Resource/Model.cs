@@ -126,6 +126,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	{
 		public int NumFrames;
 		public bool Additive, Looping;
+		public (float Time, string Name)[] Tags = [];
 		public float FrameRate;
 		public bool Compressed;
 		public long CurvesOffset;      // file offset of curve data (compressed only)
@@ -501,11 +502,9 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			if ( version > 2 )
 			{
 				int numTags = r.Int();
+				anim.Tags = new (float, string)[numTags];
 				for ( int j = 0; j < numTags; j++ )
-				{
-					_ = r.Int(); // frame
-					r.SkipString();
-				}
+					anim.Tags[j] = (r.Int() / anim.FrameRate, r.String());
 			}
 
 			anims[i] = anim;
@@ -723,7 +722,10 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return new();
 	}
 
-	internal float SequenceDuration( string name ) => Array.Find( AnimationSource().Source.Sequences, s => s.Name == name ).Duration;
+	internal int SequenceIndex( string name ) => Array.FindIndex( AnimationSource().Source.Sequences,
+		s => string.Equals( s.Name, name, StringComparison.OrdinalIgnoreCase ) );
+
+	internal float SequenceDuration( int index ) => index >= 0 ? AnimationSource().Source.Sequences[index].Duration : 0;
 
 	private void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
 	{

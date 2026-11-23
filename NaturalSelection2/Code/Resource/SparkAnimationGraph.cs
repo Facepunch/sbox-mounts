@@ -21,9 +21,18 @@ internal sealed partial class SparkAnimationGraph
 		};
 	}
 
-	record Node( string Label, int Clip, bool WaitOnExit, bool WaitOnEnter, bool ExplicitEntryOnly,
+	enum ActionType { Keep, Play, Clear }
+
+	record Node( string Label, ActionType Action, int Clip, bool WaitOnExit, bool WaitOnEnter, bool ExplicitEntryOnly,
 		int EnterTag, int ExitTag, float Blend, float LabelBlend, int RateInput, float Rate, int[] Links, Condition[] Conditions );
-	record Layer( Node[] Nodes, int Start );
+	record Layer( Node[] Nodes, int Start, int Index )
+	{
+		public string Current { get; } = $"spark_{Index}_clip";
+		public string Time { get; } = $"spark_{Index}_time";
+		public string Previous { get; } = $"spark_{Index}_previous";
+		public string PreviousTime { get; } = $"spark_{Index}_previous_time";
+		public string Weight { get; } = $"spark_{Index}_weight";
+	}
 	Layer[] layers = [];
 	int[] inputTypes = [];
 	string[] tags = [];
@@ -98,7 +107,7 @@ internal sealed partial class SparkAnimationGraph
 						var nodes = new Node[r.ReadCount( 4 )];
 						int start = nodes.Length == 0 ? -1 : r.ReadInt32();
 						for ( int i = 0; i < nodes.Length; i++ ) nodes[i] = ReadNode( r, version );
-						graph.layers[layer] = new( nodes, start );
+						graph.layers[layer] = new( nodes, start, layer );
 					}
 					break;
 				case 4:
@@ -153,7 +162,7 @@ internal sealed partial class SparkAnimationGraph
 			double value = version < 6 ? r.ReadInt32() : BinaryPrimitives.ReadDoubleLittleEndian( r.ReadBytes( 8 ).Span );
 			conditions[i] = new( input, comparison, value );
 		}
-		return new( label, clip, waitOnExit, waitOnEnter, explicitOnly, enterTag, exitTag, blend, labelBlend, rateInput, rate, links, conditions );
+		return new( label, (ActionType)action, clip, waitOnExit, waitOnEnter, explicitOnly, enterTag, exitTag, blend, labelBlend, rateInput, rate, links, conditions );
 	}
 
 	static string ReadString( LevelReader r ) => Encoding.UTF8.GetString( r.ReadBytes( r.ReadCount( 1 ) ).Span );
