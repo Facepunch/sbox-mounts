@@ -89,6 +89,6 @@ public sealed partial class RabbitGuard
 				}
 			}
 		}
-		Renderer.LocalTransform = pose;
+		Renderer.LocalTransform = OnLedge ? ApplyLedgeLean( pose, dt ) : pose;
 	}
 }

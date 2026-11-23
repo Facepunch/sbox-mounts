@@ -7,6 +7,7 @@ public sealed partial class RabbitGuard
 	internal const string ClimbUp = "r_ledge_climb_fast", LedgeReach = "r_ledge_barely_reach";
 	[Sync] string LedgeAnimation { get; set; }
 	[Sync] bool LedgeMirrored { get; set; }
+	[Sync] float LedgeHeight { get; set; }
 	[Sync( SyncFlags.Interpolate )] float LedgePhase { get; set; }
 	Vector3 climbDirection, climbPosition;
 	internal bool OnLedge => LedgeAnimation is not null;
@@ -140,6 +141,7 @@ public sealed partial class RabbitGuard
 			var center = physics.Position + Vector3.Up * LegRadius;
 			if ( velocity.z <= -600f || !FindLedge( center, velocity.z, out var wall, out float height, out var surface ) ) return false;
 			climbDirection = wall;
+			LedgeHeight = height;
 			approachingLedge = false;
 			LedgeAnimation = center.z < height - 40f ? LedgeReach : ClimbUp;
 			LedgeMirrored = LedgeAnimation == LedgeReach && Random.Shared.Next( 2 ) == 0;
