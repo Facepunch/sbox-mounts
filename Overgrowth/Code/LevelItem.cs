@@ -48,6 +48,11 @@ public sealed class LevelItem : Component
 		carryVelocity = carryAngularVelocity = Vector3.Zero;
 	}
 
+	internal Vector3 PhysicsPosition => WorldTransform.PointToWorld( GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero );
+	internal int Hands => Definition?.Element( "grip" )?.Number( "hands" ) is { } hands ? (int)hands : 1;
+	XmlAsset itemDefinition;
+	internal XmlAsset Definition => itemDefinition ??= (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader)?.ItemDefinition;
+
 	ItemLine[] lines;
 	ItemLine[] GetLines()
 	{
@@ -81,19 +86,16 @@ public sealed class LevelItem : Component
 		return material is not null;
 	}
 
-	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, XmlAsset connection )
+	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, int type, bool mirrored, string attachmentPath = null )
 	{
 		if ( mount.GetByPath( actor.Renderer.Model.ResourcePath ) is not CharacterLoader character ||
 			mount.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return;
-		var type = connection.Number( "type" ) ?? 0;
-		bool mirrored = connection.Number( "mirrored" ) == 1;
 		string anim, chain;
 		int depth = 0;
 		if ( type == 2 )
 		{
-			var path = connection.Attribute( "attachment" );
-			if ( string.IsNullOrEmpty( path ) ) return;
-			var attachment = XmlAsset.Read( mount.FileSystem, mount.Resolve( path ), "attachment" );
+			if ( string.IsNullOrEmpty( attachmentPath ) ) return;
+			var attachment = XmlAsset.Read( mount.FileSystem, mount.Resolve( attachmentPath ), "attachment" );
 			anim = attachment.Element( "anim" )?.Value;
 			chain = attachment.Element( "attach" )?.Attribute( "ik_chain" );
 			depth = (int)(attachment.Element( "attach" )?.Number( "bone" ) ?? 0);
@@ -109,8 +111,10 @@ public sealed class LevelItem : Component
 		if ( bone < 0 ) return;
 		var grip = ItemGrip.Read( mount.FileSystem, mount.Resolve( anim ), bone, mirrored, type != 2, chain == "hip", character.AttachmentScale );
 		var center = -(model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
+		if ( item.GetComponent<ModelCollider>() is { } collider ) collider.Enabled = false;
+		if ( item.GetComponent<Rigidbody>() is { } body ) body.Enabled = false;
 		item.SetParent( actor.GameObject, true );
-		var attachmentComponent = item.AddComponent<LevelItem>();
+		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
 		attachmentComponent.Holder = actor.Renderer;
 		attachmentComponent.Bone = $"bone_{bone}";
 		attachmentComponent.Offset = grip.WithPosition( character.AttachmentCenters.GetValueOrDefault( bone ) + grip.PointToWorld( center ) );
@@ -127,12 +131,14 @@ public sealed class LevelItem : Component
 
 	internal static Rigidbody AddPhysics( GameObject item, Model model )
 	{
-		item.AddComponent<ModelCollider>().Model = model;
-		var body = item.AddComponent<Rigidbody>();
+		var collider = item.GetComponent<ModelCollider>( true ) ?? item.AddComponent<ModelCollider>();
+		collider.Model = model;
+		var body = item.GetComponent<Rigidbody>( true ) ?? item.AddComponent<Rigidbody>();
 		body.MassOverride = model.Physics.Parts[0].Mass;
 		body.OverrideMassCenter = true;
 		body.MassCenterOverride = model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 		body.EnhancedCcd = true;
+		body.Enabled = collider.Enabled = true;
 		item.GetOrAddComponent<LevelItem>();
 		return body;
 	}

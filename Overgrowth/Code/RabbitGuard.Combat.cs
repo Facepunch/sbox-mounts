@@ -30,11 +30,13 @@ public sealed partial class RabbitGuard
 	{
 		if ( LeftHandItem.IsValid() )
 		{
+			seekTime = 0f;
 			LeftHandItem.Drop();
 			LeftHandItem = null;
 		}
 		else if ( RightHandItem.IsValid() )
 		{
+			seekTime = 0f;
 			RightHandItem.Drop();
 			RightHandItem = null;
 		}
@@ -135,6 +137,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
+		if ( SeekWeapon() ) return;
 		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
 		{
 			Remember( closest, engage: false );
@@ -411,9 +414,9 @@ public sealed partial class RabbitGuard
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayCombatSound( string group, Vector3 position )
+	void PlayCombatSound( string group, Vector3 position, float gain = 1f )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-			mount.PlayGroup( group, position );
+			mount.PlayGroup( group, position, gain );
 	}
 }

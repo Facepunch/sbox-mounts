@@ -35,7 +35,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		foreach ( var (id, item, model) in actors.Items )
 		{
 			if ( !actors.AttachedItems.TryGetValue( id, out var link ) ) LevelItem.AddPhysics( item, model );
-			else if ( link.Actor.IsValid() ) LevelItem.Attach( Host, item, model, link.Actor, link.Connection );
+			else if ( link.Actor.IsValid() ) LevelItem.Attach( Host, item, model, link.Actor, (int)(link.Connection.Number( "type" ) ?? 0),
+				link.Connection.Number( "mirrored" ) == 1, link.Connection.Attribute( "attachment" ) );
 		}
 		PlaceJumpLinks( jumpNodes );
 		foreach ( var (point, node) in patrolPoints.Values )

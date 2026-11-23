@@ -55,6 +55,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = 1f;
 			bones.AddBoneMask( "block_flinch", mask, defaultFloatChannelWeight: 0f );
 		}
+		var pickupMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count );
+		bones.AddBoneMask( "pickup_right", pickupMask, defaultFloatChannelWeight: 0f );
+		bones.AddBoneMask( "pickup_left", pickupMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value ), defaultFloatChannelWeight: 0f );
 		var rig = bones.Create( path + "/rabbit.skel" );
 		var graph = new GraphBuilder().WithSkeleton( rig );
 		var attackSlots = new Dictionary<string, string>
@@ -97,6 +100,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
 		var flinchWeight = graph.FloatParameter( "block_flinch" );
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
+		var pickupPhase = graph.FloatParameter( "pickup_phase" );
+		var pickupRight = graph.FloatParameter( "pickup_right" );
+		var pickupLeft = graph.FloatParameter( "pickup_left" );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
 		var moves = new Dictionary<string, RabbitAttack>();
@@ -295,6 +301,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var layer = graph.Blend( graph.Clip( flinch.Animation ), graph.Clip( flinch.Mirrored.Animation ), graph.Switch( mirroredFlinch, 1f, 0f ) );
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( "block_flinch" ),
 				Weight = flinchWeight, IgnoreEvents = true } );
+		}
+		var pickup = clips["pickup"] = CombatClip( "r_pickup", false, null, true );
+		foreach ( var (side, pose, weight) in new[] { ("pickup_right", pickup, pickupRight), ("pickup_left", pickup.Mirrored, pickupLeft) } )
+		{
+			var layer = graph.TimeControlledClip( pose.Animation, pickupPhase, new() { SampleRootMotion = false } );
+			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( side ), Weight = weight, IgnoreEvents = true } );
 		}
 		var patrolGraphs = new Dictionary<string, Graph>( System.StringComparer.OrdinalIgnoreCase );
 		Graph LoadPatrolGraph( string file )

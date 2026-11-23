@@ -9,6 +9,7 @@ internal sealed record Step( float Phase, string Event, int Bone );
 
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, FootPose[][] Feet )
 {
+	internal float? GrabTime { get; init; }
 	internal float? LimpTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
 	// AG2 stores unit rotations. SyncedAnimationGroup mixes the original magnitudes
@@ -77,7 +78,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		reader.ReadInt32(); // First key time
 		int count = reader.ReadInt32();
 		if ( count > bones || count < 0 ) throw new InvalidDataException( $"Invalid layer weights in {path}" );
-		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? reader.ReadSingle() : 0f );
+		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? Math.Clamp( reader.ReadSingle(), 0f, 1f ) : 0f );
 	}
 
 	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null, int[] rotationParents = null )
@@ -88,7 +89,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
 		var channels = StatusChannels;
-		float? limpTime = null;
+		float? limpTime = null, grabTime = null;
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
@@ -131,6 +132,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				switch ( label )
 				{
+					case "grabitem": grabTime = time * 0.001f; break;
 					case "golimp": limpTime = time * 0.001f; break;
 					case "attackimpact": impact = new( time * 0.001f, bone ); break;
 					case "blockprepare": prepare = new( time * 0.001f, bone ); break;
@@ -305,7 +307,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		}
 		var min = damage?.Number( "min" ) ?? 0;
 		var max = damage?.Number( "max" ) ?? 0;
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet ) { LimpTime = limpTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, min, max, steps, feet ) { GrabTime = grabTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{
