@@ -8,7 +8,7 @@ public sealed partial class RabbitGuard
 	{
 		public Vector3 Elbow, Wrist, PreviousElbow, PreviousWrist;
 		public Vector3 LastShoulder, LastElbow, LastWrist;
-		public Vector3 ElbowOffset, WristOffset, PreviousElbowOffset, PreviousWristOffset;
+		public Vector3 ElbowOffset, WristOffset;
 	}
 
 	readonly ArmState[] armStates = [new(), new()];
@@ -103,7 +103,7 @@ public sealed partial class RabbitGuard
 			{
 				arm.Elbow = arm.PreviousElbow = elbow;
 				arm.Wrist = arm.PreviousWrist = wrist;
-				arm.ElbowOffset = arm.WristOffset = arm.PreviousElbowOffset = arm.PreviousWristOffset = default;
+				arm.ElbowOffset = arm.WristOffset = default;
 			}
 			Renderer.Animation.Debug.TryGetFloatChannel( "status", side == 0 ? "leftarm_blend" : "rightarm_blend", out var weight );
 			if ( OnLedge ) weight = 1f;
@@ -113,6 +113,27 @@ public sealed partial class RabbitGuard
 				var sh = Vector3.Lerp( arm.LastShoulder, shoulder, fraction );
 				var el = Vector3.Lerp( arm.LastElbow, elbow, fraction );
 				var wr = Vector3.Lerp( arm.LastWrist, wrist, fraction );
+				var next = Simulate( sh, el, wr );
+				arm.PreviousElbow = arm.Elbow;
+				arm.PreviousWrist = arm.Wrist;
+				(arm.Elbow, arm.Wrist) = next;
+				arm.ElbowOffset = arm.Elbow - el;
+				arm.WristOffset = arm.Wrist - wr;
+			}
+			arm.LastShoulder = shoulder;
+			arm.LastElbow = elbow;
+			arm.LastWrist = wrist;
+			var mid = elbow + arm.ElbowOffset;
+			var end = wrist + arm.WristOffset;
+			if ( armsActive && remainder > 0f )
+			{
+				var next = Simulate( shoulder, elbow, wrist );
+				mid = Vector3.Lerp( mid, next.Elbow, remainder / tick );
+				end = Vector3.Lerp( end, next.Wrist, remainder / tick );
+			}
+
+			(Vector3 Elbow, Vector3 Wrist) Simulate( Vector3 sh, Vector3 el, Vector3 wr )
+			{
 				var move = velocity * tick;
 				const float drag = 0.92f * 0.92f * 0.92f * 0.92f;
 				var simulatedElbow = arm.Elbow + (arm.Elbow - arm.PreviousElbow - move) * drag + move;
@@ -131,20 +152,10 @@ public sealed partial class RabbitGuard
 				var center = (simulatedElbow + simulatedWrist) * 0.5f;
 				float strength = 0.75f * (1f - overrideWeight);
 				var elbowOffset = sh + (simulatedElbow - sh).Normal * upper - simulatedElbow + center + half - simulatedElbow;
-				arm.PreviousElbow = arm.Elbow;
-				arm.PreviousWrist = arm.Wrist;
-				arm.Elbow = simulatedElbow + (elbowOffset + hingeOffset * 0.5f) * strength;
-				arm.Wrist = simulatedWrist + (center - half - simulatedWrist - hingeOffset * 0.5f) * strength;
-				arm.PreviousElbowOffset = arm.ElbowOffset;
-				arm.PreviousWristOffset = arm.WristOffset;
-				arm.ElbowOffset = arm.Elbow - el;
-				arm.WristOffset = arm.Wrist - wr;
+				return (simulatedElbow + (elbowOffset + hingeOffset * 0.5f) * strength,
+					simulatedWrist + (center - half - simulatedWrist - hingeOffset * 0.5f) * strength);
 			}
-			arm.LastShoulder = shoulder;
-			arm.LastElbow = elbow;
-			arm.LastWrist = wrist;
-			var mid = elbow + Vector3.Lerp( arm.PreviousElbowOffset, arm.ElbowOffset, remainder / tick );
-			var end = wrist + Vector3.Lerp( arm.PreviousWristOffset, arm.WristOffset, remainder / tick );
+
 			var handTurn = Rotation.FromToRotation( (elbow - wrist).Normal, (mid - end).Normal );
 			// Simulation points retain their velocity; the displayed bones always keep their lengths.
 			var forearm = (end - mid).Normal;
