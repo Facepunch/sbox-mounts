@@ -34,7 +34,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		Joints = 14,         // ragdoll joints; flag==0 → 6 float limits
 		CollisionPairs = 15, // disabled body collision pairs
 		CollisionReps = 16,
-		BoundingBox = 17,    // 6 floats: mins, maxs
+		BoundingBox = 17,    // model-space center and half-extents
 		BoneBounds = 18,     // per-bone AABBs (requires Bones read first)
 		ExternalModel = 19,  // path of base model supplying animation data
 	}
@@ -63,6 +63,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public int Parent;
 		public Transform Transform;      // model-space (parents applied)
 		public Transform LocalTransform; // parent-relative bind pose
+		public BBox Bounds;              // bone-local render bounds
 	}
 
 	struct FaceSet
@@ -328,7 +329,14 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				case ChunkType.CollisionPairs: r.Skip( (long)r.Int() * 8 ); break;
 				case ChunkType.CollisionReps: ReadCollisionReps( ref r, model, version ); break;
 				case ChunkType.BoundingBox: r.Skip( 6 * 4 ); break;
-				case ChunkType.BoneBounds: r.Skip( (long)model.Bones.Length * 6 * 4 ); break;
+				case ChunkType.BoneBounds:
+					for ( int i = 0; i < model.Bones.Length; i++ )
+					{
+						var center = ConvertPosition( r.ReadVector3() );
+						var extent = ConvertPosition( r.ReadVector3() );
+						model.Bones[i].Bounds = new BBox( center - extent, center + extent );
+					}
+					break;
 				case ChunkType.ExternalModel: model.ExternalModel = r.String(); break;
 				default: throw new InvalidDataException( $"NS2 model: unknown chunk {chunkId}" );
 			}
@@ -937,7 +945,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		{
 			var parentName = bone.Parent >= 0 && bone.Parent < model.Bones.Length
 				? model.Bones[bone.Parent].Name : null;
-			builder.AddBone( bone.Name, bone.Transform.Position, bone.Transform.Rotation, parentName );
+			builder.AddBone( bone.Name, bone.Transform.Position, bone.Transform.Rotation, bone.Bounds, parentName );
 		}
 
 		if ( animations.Animations.Length > 0 && model.Bones.Length > 0 )
