@@ -352,12 +352,31 @@ public sealed partial class RabbitGuard
 	(Vector3 Front, Vector3 Up) GetTorsoDirections()
 	{
 		Vector3 front = default, up = default;
+		int count = 0;
 		foreach ( var name in boundAnimations.TorsoBones )
 		{
-			if ( !Renderer.TryGetBoneTransform( name, out var bone ) ) continue;
-			front += bone.Rotation.Up;
-			up += bone.Rotation.Forward;
+			var bone = Renderer.Model.Bones.GetBone( name );
+			if ( TorsoBoneRotation( bone ) is not { } orientation ) continue;
+			front += orientation.Up;
+			up += orientation.Forward;
+			count++;
 		}
-		return (front / boundAnimations.TorsoBones.Length, up / boundAnimations.TorsoBones.Length);
+		return count == 0 ? default : (front / count, up / count);
+	}
+
+	Rotation? TorsoBoneRotation( BoneCollection.Bone bone )
+	{
+		if ( !Downed || !ragdoll.IsValid() )
+			return Renderer.TryGetBoneTransform( bone, out var world ) ? world.Rotation : null;
+
+		// WakeUp reads physics directly. Fixed bones inherit their parent's bind-space offset.
+		var relative = Rotation.Identity;
+		for ( ; bone is not null; bone = bone.Parent )
+		{
+			foreach ( var part in ragdoll.Bodies )
+				if ( part.Bone == bone.Index && part.Component.IsValid() ) return part.Component.WorldRotation * relative;
+			relative = bone.LocalTransform.Rotation * relative;
+		}
+		return null;
 	}
 }
