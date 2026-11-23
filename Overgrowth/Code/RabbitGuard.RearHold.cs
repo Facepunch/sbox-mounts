@@ -96,6 +96,15 @@ public sealed partial class RabbitGuard
 				victim.Stance = CutInHold;
 				reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
 				ReactionPhase = victim.ReactionPhase = 0f;
+				if ( CharacterLoader.FromModel( victim.Renderer.Model ) is { } character )
+				{
+					var faces = character.Surface.CutFaces( victim.Renderer, Vector3.Up, PrimaryItem.PhysicsPosition, -WorldRotation.Forward );
+					if ( faces.Count > 0 )
+					{
+						victim.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
+						EmitCutParticles( faces, false );
+					}
+				}
 				executing = true;
 			}
 			else
