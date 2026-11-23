@@ -357,7 +357,17 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		if ( entity.Name.Equals( "light_spot", StringComparison.OrdinalIgnoreCase ) )
 		{
-			var spot = go.AddComponent<SpotLight>();
+			var gobo = entity.Get( "gobo_texture" ).AsString();
+			SpotLight spot;
+			if ( string.IsNullOrWhiteSpace( gobo ) )
+				spot = go.AddComponent<SpotLight>();
+			else
+			{
+				var projected = go.AddComponent<ProjectedSpotLight>( false );
+				projected.TexturePath = $"mount://{Host.Ident}/ns2/{gobo}.vtex";
+				projected.Enabled = true;
+				spot = projected;
+			}
 			spot.LightColor = radiance;
 			spot.Radius = radius;
 			spot.Attenuation = attenuation;
