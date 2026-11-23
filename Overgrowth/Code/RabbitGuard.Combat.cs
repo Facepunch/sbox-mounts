@@ -520,7 +520,7 @@ public sealed partial class RabbitGuard
 
 	void Speak( string cue )
 	{
-		if ( cue is "attack" or "engage" ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+		if ( cue is "attack" or "engage" ) ReportBodySound( HeardSound.Voice, 10f );
 		CharacterVoice.Select( Renderer, cue, PlayVoice );
 	}
 

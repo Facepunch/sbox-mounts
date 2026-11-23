@@ -98,7 +98,7 @@ public sealed partial class RabbitGuard
 					if ( !holdPartner.IsValid() )
 					{
 						knockoutVoiceDelay = 0.4f;
-						ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+						ReportBodySound( HeardSound.Voice, 10f );
 					}
 				}
 			}
@@ -195,7 +195,7 @@ public sealed partial class RabbitGuard
 	{
 		UpdateCombatGroup();
 		extractionDeath = death.DamageInfo is ExtractionDamage;
-		if ( extractionDeath ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+		if ( extractionDeath ) ReportBodySound( HeardSound.Voice, 10f );
 		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();

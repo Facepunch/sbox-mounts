@@ -38,6 +38,8 @@ public sealed partial class RabbitGuard
 
 	internal void ReportItemImpact( Vector3 point ) => ReportSound( GameObject, point, HeardSound.ItemImpact, 10f );
 
+	void ReportBodySound( HeardSound sound, float radius ) => ReportSound( GameObject, CharacterCenter( GameObject ), sound, radius );
+
 	void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
 	{
 		if ( !source.IsValid() || IsIgnoredPlayer( source ) ) return;
@@ -46,8 +48,9 @@ public sealed partial class RabbitGuard
 		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && IsLiveTarget( source );
 		foreach ( var guard in Scene.GetAllComponents<RabbitGuard>() )
 		{
+			if ( guard.Unconscious || !guard.Active || guard.StaticCharacter ) continue;
 			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range > 0f && guard.WorldPosition.DistanceSquared( position ) < range * range )
+			if ( range > 0f && CharacterCenter( guard.GameObject ).DistanceSquared( position ) < range * range )
 				guard.Hear( source, position, sound, awake );
 		}
 	}

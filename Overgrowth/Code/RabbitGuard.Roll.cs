@@ -41,7 +41,7 @@ public sealed partial class RabbitGuard
 		playing = Roll;
 		bool quiet = boundAnimations.Species == "cat";
 		PlayMaterialEvent( "roll", WorldPosition, surface, quiet ? 0.5f : 1f );
-		if ( !quiet ) ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );
+		if ( !quiet ) ReportBodySound( HeardSound.Footstep, 2f );
 	}
 
 	bool AdvanceRoll()

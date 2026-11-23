@@ -76,7 +76,7 @@ public sealed partial class RabbitGuard
 		if ( wasAwake && species is ("dog" or "wolf") )
 		{
 			Speak( "hit" );
-			ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+			ReportBodySound( HeardSound.Voice, 10f );
 			startled = 1f;
 			NoticeAttacker( attacker );
 			if ( species == "wolf" ) return;
@@ -116,7 +116,7 @@ public sealed partial class RabbitGuard
 			if ( cut && IsValid && Health > 0f ) Damage( new ItemWound { Impulse = impulse }, strength / 50f );
 		}
 		if ( !IsValid || Health < 1f ) return;
-		if ( wasAwake ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+		if ( wasAwake ) ReportBodySound( HeardSound.Voice, 10f );
 		if ( !Downed ) GoLimp();
 		blockHealth = 0f;
 		limpStun = 0.9f;

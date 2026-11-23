@@ -126,7 +126,7 @@ public sealed partial class RabbitGuard
 					breathSpeed += 2f;
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
-					ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );
+					ReportBodySound( HeardSound.Footstep, 2f );
 					PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.Species == "cat" ? 0.5f : 1f );
 				}
 			}
@@ -204,7 +204,7 @@ public sealed partial class RabbitGuard
 		}
 		bool quiet = boundAnimations.Species == "cat";
 		if ( !quiet || hard )
-			ReportSound( GameObject, WorldPosition, hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
+			ReportBodySound( hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
 		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, TerrainLoader.ContactSurface( floor, floor.EndPosition )?.ResourceName, quiet ? 0.5f : 1f );
 		if ( hard )
 		{

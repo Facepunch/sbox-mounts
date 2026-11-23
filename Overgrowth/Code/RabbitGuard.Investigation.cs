@@ -29,7 +29,7 @@ public sealed partial class RabbitGuard
 		startled = 1f;
 		LookAtNotice( TargetPosition( ally ), 1f );
 		Speak( "suspicious" );
-		ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
+		ReportBodySound( HeardSound.Voice, 10f );
 	}
 
 	bool InvestigateCasualty()
