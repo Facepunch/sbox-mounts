@@ -83,7 +83,9 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost ) UpdateGazeTarget();
 		UpdateRollDisplay();
 		UpdatePatrolPose();
-		bool track = !NoLookAround && Animation.IsGrounded && Stance is Idle or Watch or Threat or Locomotion && GazeTarget.HasValue;
+		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
+		bool canLook = Stance is Idle or Watch or Threat or Locomotion || boundAnimations.AttackStates.Contains( Stance );
+		bool track = !NoLookAround && RollProgress >= 1f && canLook && GazeTarget.HasValue;
 		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
 		UpdateCombatPosture();
