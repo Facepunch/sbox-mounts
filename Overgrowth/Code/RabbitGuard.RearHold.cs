@@ -8,20 +8,22 @@ public sealed partial class RabbitGuard
 	internal const string RearHeld = "r_rear_choked_struggle", RatHeldByRabbit = "ra_rear_choked_by_rabbit";
 	internal const string ArmedGrab = "r_rearknifecapture", ArmedGrabbed = "r_rearknifecaptured";
 	internal const string ArmedHold = "r_rearknifecapturestance", ArmedHeld = "r_rearknifecapturedstance";
-	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit, ArmedGrab, ArmedGrabbed, ArmedHold, ArmedHeld];
-	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold;
-	bool Held => Stance is RearHeld or RatHeldByRabbit or ArmedGrabbed or ArmedHeld;
+	internal const string CutFromHold = "r_throatcutter", CutInHold = "r_throatcuttee";
+	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit, ArmedGrab, ArmedGrabbed, ArmedHold, ArmedHeld, CutFromHold, CutInHold];
+	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold || Stance == CutFromHold && holdPartner.IsValid();
+	bool Held => Stance is RearHeld or RatHeldByRabbit or ArmedGrabbed or ArmedHeld or CutInHold;
 	RabbitGuard holdPartner;
 	Vector3 holdDirection;
 	TimeSince sinceGrab;
 	TimeUntil nextHoldSound;
 	bool restoreAgentPosition;
 	sealed class HoldDamage : BluntDamage;
+	sealed class ExecutionDamage : DamageInfo;
 
 	bool BeginRearHold( RabbitGuard victim, Vector3 facing )
 	{
 		bool armed = PrimaryItem.IsValid();
-		if ( armed && boundAnimations.WeaponLabel != "staff" || victim.Holding || victim.Held ) return false;
+		if ( victim.Holding || victim.Held ) return false;
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
@@ -61,7 +63,8 @@ public sealed partial class RabbitGuard
 		if ( !Holding ) return;
 		var victim = holdPartner;
 		var separation = victim.WorldPosition - WorldPosition;
-		if ( !wantsBlockThrow || throwRecharge > 0f || MathF.Abs( separation.z ) > 0.4f * 40f )
+		bool executing = Stance == CutFromHold;
+		if ( !executing && (!wantsBlockThrow || throwRecharge > 0f || MathF.Abs( separation.z ) > 0.4f * 40f) )
 		{
 			ReleaseHold();
 			return;
@@ -74,10 +77,22 @@ public sealed partial class RabbitGuard
 		var flat = separation.WithZ( 0f );
 		bool armed = PrimaryItem.IsValid();
 		bool rat = victim.boundAnimations.Species == "rat";
-		if ( sinceGrab > 0.1f )
+		bool blade = armed && boundAnimations.WeaponLabel != "staff";
+		if ( sinceGrab > 0.1f && !executing )
 		{
-			Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
-			victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
+			if ( blade )
+			{
+				Stance = CutFromHold;
+				victim.Stance = CutInHold;
+				reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
+				ReactionPhase = victim.ReactionPhase = 0f;
+				executing = true;
+			}
+			else
+			{
+				Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
+				victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
+			}
 		}
 		if ( sinceGrab > 0.1f && !flat.IsNearlyZero() )
 		{
@@ -90,6 +105,15 @@ public sealed partial class RabbitGuard
 			duckAmount = victim.duckAmount = (duckAmount + victim.duckAmount) * 0.5f;
 		}
 		victim.DropHandItem();
+		if ( executing )
+		{
+			float elapsed = ReactionPhase * reactionDuration + Time.Delta;
+			ReactionPhase = Math.Min( 1f, elapsed / reactionDuration );
+			victim.ReactionPhase = Math.Min( 1f, elapsed / victim.boundAnimations.Clips[CutInHold].Duration );
+			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut ) FinishCut( victim );
+			return;
+		}
+		if ( blade ) return;
 		victim.KnockoutShield = 0;
 		float rate = 0.7f - 0.4f * GameDifficulty + (victim.boundAnimations.Species == "rat" ? 0.4f : 0f);
 		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * Time.Delta } );
@@ -100,13 +124,29 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	void FinishCut( RabbitGuard victim )
+	{
+		var head = victim.Renderer.Model.Bones.GetBone( victim.boundAnimations.HeadBone )?.Parent;
+		var point = head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
+		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", point );
+		var damage = new ExecutionDamage { Damage = victim.Health, Position = point, Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
+		damage.Tags.Add( "slash" );
+		damage.Tags.Add( "nevergib" );
+		((IDamageable)victim).OnDamage( damage );
+		ReleaseHold();
+	}
+
 	void ReleaseHold()
 	{
 		var partner = holdPartner;
 		holdPartner = null;
 		RestoreHoldMovement();
 		bool fall = Held && !Downed && Health > 0f && sinceGrab > 0.1f;
-		if ( Held || Holding ) Stance = Threat;
+		if ( Held || Holding )
+		{
+			Stance = Threat;
+			ReactionPhase = 1f;
+		}
 		if ( partner.IsValid() && partner.holdPartner == this ) partner.ReleaseHold();
 		if ( fall ) GoLimp();
 	}

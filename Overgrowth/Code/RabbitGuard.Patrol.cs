@@ -18,7 +18,7 @@ public sealed partial class RabbitGuard
 		if ( Networking.IsHost && !wokeUp && (AlertStage == 2 || investigatePoint.HasValue || escortTarget.IsValid()) && previousPatrolPoint.IsValid()
 			&& previousPatrolPoint.Pose is "Sit" or "Sleep" or "Wounded" )
 		{
-			if ( Sleeping && !Downed && strike is null && ReactionPhase >= 1f )
+			if ( Sleeping && !Downed && !Held && strike is null && ReactionPhase >= 1f )
 			{
 				var (front, up) = GetTorsoDirections();
 				var facing = -up.WithZ( 0 );

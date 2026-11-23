@@ -26,12 +26,19 @@ public sealed partial class RabbitGuard
 		public Vector3 Impulse { get; init; }
 	}
 
-	StrikeDamage lethalBlow;
+	(Vector3 Point, Vector3 Impulse)? deathImpulse;
+
+	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
+	{
+		StrikeDamage strike => strike.Impulse,
+		ExecutionDamage => WorldRotation.Forward * (1000f * 40f / 120f),
+		_ => default
+	};
 
 	protected override void OnDamaging( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaging( hit );
-		hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
+		if ( hit.DamageInfo is not ExecutionDamage ) hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
 		if ( hit.DamageInfo is BluntDamage )
 		{
 			if ( KnockoutShield > 0 && hit.DamageInfo is not LandingDamage ) hit.AcceptedDamage = 0f;
@@ -83,7 +90,7 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage) ) Speak( "hit" );
+		if ( !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage) ) Speak( "hit" );
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
@@ -92,11 +99,9 @@ public sealed partial class RabbitGuard
 		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 
 		sinceKnockdown = 0;
-		if ( hit.DamageInfo is StrikeDamage blow )
-		{
-			limpStun = 0.9f;
-			ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
-		}
+		if ( hit.DamageInfo is StrikeDamage ) limpStun = 0.9f;
+		var impulse = DamageImpulse( hit.DamageInfo );
+		if ( !impulse.IsNearlyZero() ) ApplyHitImpulse( ragdoll, hit.DamageInfo.Position, impulse );
 	}
 
 	void GoLimp()
@@ -144,7 +149,8 @@ public sealed partial class RabbitGuard
 		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
-		lethalBlow = death.DamageInfo as StrikeDamage;
+		var impulse = DamageImpulse( death.DamageInfo );
+		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse);
 		base.OnDeath( death );
 	}
 
@@ -154,7 +160,7 @@ public sealed partial class RabbitGuard
 		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
 		{
 			corpse.GetOrAddComponent<RagdollDamping>().Reset( physics );
-			if ( lethalBlow is not null ) ApplyHitImpulse( physics, lethalBlow.Position, lethalBlow.Impulse );
+			if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse );
 		}
 		return corpse;
 	}

@@ -12,6 +12,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal float? GrabTime { get; init; }
 	internal float? DrawTime { get; init; }
 	internal float? LimpTime { get; init; }
+	internal float? CutTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
 	// AG2 stores unit rotations. SyncedAnimationGroup mixes the original magnitudes
 	// before retargeting, including the drift introduced by cubic interpolation.
@@ -132,7 +133,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		if ( count == 0 || duration <= 0 ) throw new InvalidDataException( $"Empty animation {name}" );
 		var keys = new Key[count];
 		var channels = StatusChannels;
-		float? limpTime = null, grabTime = null, drawTime = null;
+		float? limpTime = null, grabTime = null, drawTime = null, cutTime = null;
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
@@ -193,6 +194,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				{
 					case "grabitem": grabTime = time * 0.001f; break;
 					case "golimp": limpTime = time * 0.001f; break;
+					case "throatcut": cutTime = time * 0.001f; break;
 					case "attackimpact": impact = new( time * 0.001f, bone ); break;
 					case "blockprepare": prepare = new( time * 0.001f, bone ); break;
 					case "attackblocked": blocked = new( time * 0.001f, bone ); break;
@@ -374,7 +376,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

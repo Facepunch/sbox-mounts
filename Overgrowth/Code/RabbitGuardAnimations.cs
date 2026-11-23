@@ -259,6 +259,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 			if ( RabbitGuard.RearHoldPoses.Contains( name ) )
 			{
+				if ( name is RabbitGuard.CutFromHold or RabbitGuard.CutInHold )
+				{
+					var cut = clips[name] = CombatClip( name, name == RabbitGuard.CutInHold, null, true );
+					return machine.AddState( CombatPose( cut, reactionPhase ) );
+				}
 				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
 				{
 					var file = $"Data/Animations/{name}.xml";
