@@ -46,18 +46,8 @@ public sealed partial class RabbitGuard
 	}
 
 	// CDoFootIK probes the ground again just below the swept sphere, resolving all contact planes.
-	Vector3 FootSurfaceNormal( Vector3 spherePosition )
-	{
-		var center = spherePosition + Vector3.Down * 0.4f;
-		slideContacts.Clear();
-		foreach ( var hit in Scene.Trace.Sphere( 2f, center, center ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).UseHitPosition().RunAll() )
-		{
-			var separation = center - hit.HitPosition;
-			float distance = separation.Length;
-			if ( distance > 0f && distance < 2f ) slideContacts.Add( (separation / distance, 2f - distance) );
-		}
-		return SphereSlideOffset().Normal;
-	}
+	Vector3 FootSurfaceNormal( Vector3 spherePosition ) => SlideSphere( spherePosition + Vector3.Down * 0.4f, 2f ).Normal;
+
 	bool hasStanceAnchors;
 	int steppingFoot;
 	float stepProgress, stancePhase;

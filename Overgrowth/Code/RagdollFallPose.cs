@@ -32,22 +32,40 @@ public sealed partial class RabbitGuard
 		const float range = 4f * 40f;
 		for ( float radius = range / 4f; radius <= range; radius *= 2f )
 		{
-			var trace = Scene.Trace.IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).UseHitPosition( true );
-			slideContacts.Clear();
-			foreach ( var overlap in trace.Sphere( radius, center, center ).RunAll() )
-			{
-				// Initial overlaps return a contact point. Recover the surface normal with a ray.
-				var toward = (overlap.HitPosition - center).Normal;
-				var hit = trace.Ray( center, overlap.HitPosition + toward ).Run();
-				if ( !hit.Hit || hit.StartedSolid ) continue;
-				float depth = radius - hit.Normal.Dot( center - hit.HitPosition );
-				if ( depth > 0f ) slideContacts.Add( (hit.Normal, depth) );
-			}
+			var slide = SlideSphere( center, radius );
 			if ( slideContacts.Count == 0 ) continue;
-			var slide = SphereSlideOffset();
 			return -slide - slide.Normal * (range - radius);
 		}
 		return default;
+	}
+
+	Vector3 SlideSphere( Vector3 center, float radius )
+	{
+		slideContacts.Clear();
+		var trace = Scene.Trace.IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).UseHitPosition();
+		foreach ( var hit in trace.Sphere( radius, center, center ).RunAll() )
+		{
+			var separation = center - hit.HitPosition;
+			float distance = separation.Length;
+			if ( distance <= 0f || distance >= radius ) continue;
+			var normal = separation / distance;
+			// A mesh overlap can report a neighbouring triangle edge even on a flat tessellated floor.
+			if ( hit.Triangle >= 0 )
+			{
+				var surface = trace.Ray( center, hit.HitPosition - normal ).Run();
+				if ( surface.Hit && !surface.StartedSolid && surface.Shape == hit.Shape )
+				{
+					var face = trace.Ray( center, center - surface.Normal * radius ).Run();
+					if ( face.Hit && face.Shape == hit.Shape && !face.StartedSolid && face.Normal.Dot( surface.Normal ) > 0.9999f )
+					{
+						slideContacts.Add( (face.Normal, radius - face.Normal.Dot( center - face.HitPosition )) );
+						continue;
+					}
+				}
+			}
+			slideContacts.Add( (normal, radius - separation.Dot( normal )) );
+		}
+		return SphereSlideOffset();
 	}
 
 	// BulletWorld::ApplySphereSlide resolves the deepest contact plane first.
