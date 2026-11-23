@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard
 		if ( !toward.IsNearlyZero() ) WorldRotation = InterpolateFacing( WorldRotation.Forward, toward, blend );
 		var damping = draggedPhysics.GetComponent<RagdollDamping>();
 		damping?.Refresh();
-		float volume = (damping?.AverageVelocity.Length ?? 0f) * (0.4f / 40f);
+		float volume = (CharacterLoader.RagdollVelocity( draggedPhysics )?.Length ?? 0f) * (0.4f / 40f);
 		if ( volume > 0.2f && dragSlideSound <= 0f )
 		{
 			PlayMaterialEvent( "slide", WorldPosition, GroundMaterialName, volume );

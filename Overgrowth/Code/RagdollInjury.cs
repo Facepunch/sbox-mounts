@@ -74,15 +74,7 @@ internal sealed class RagdollInjury : Component
 			CharacterVoice.Select( GetComponent<SkinnedModelRenderer>(), "death", PlayVoice );
 		}
 		if ( injuryPose is null || !physics.IsValid() ) return;
-		Vector3 momentum = default;
-		float mass = 0f;
-		foreach ( var part in physics.Bodies )
-		{
-			if ( !part.Component.IsValid() ) continue;
-			momentum += part.Component.Velocity * part.Component.Mass;
-			mass += part.Component.Mass;
-		}
-		if ( mass <= 0f ) return;
+		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
 		writheTime += Time.Delta;
 		injuryAge += Time.Delta;
 		while ( nextVoice < ItemVoiceTimes.Length && writheTime >= ItemVoiceTimes[nextVoice] && injuryAge < 12f )
@@ -90,7 +82,7 @@ internal sealed class RagdollInjury : Component
 			CharacterVoice.Select( physics.Renderer, "death", PlayVoice );
 			nextVoice++;
 		}
-		float speed = momentum.Length / (mass * 40f);
+		float speed = velocity.Length / 40f;
 		float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
 		strength = Math.Max( 0f, strength - (fighter.IsValid() ? fighter.RagdollStun : Math.Max( 0f, initialStun - writheTime )) );
 		UpdateInjuredMouth( Time.Now, Time.Delta, strength );

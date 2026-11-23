@@ -140,6 +140,22 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal Vector3 RagdollForceLever( int bone ) => forceLevers[bone];
 
+	// RiggedObject::GetAvgVelocity weights the linked physics bodies by mass.
+	internal static Vector3? RagdollVelocity( ModelPhysics physics )
+	{
+		Vector3 momentum = default;
+		float mass = 0f;
+		foreach ( var part in physics.Bodies )
+		{
+			var body = part.Component;
+			if ( !body.IsValid() ) continue;
+			float bodyMass = body.Mass;
+			momentum += body.Velocity * bodyMass;
+			mass += bodyMass;
+		}
+		return mass > 0f ? momentum / mass : null;
+	}
+
 	internal static Vector3? RagdollCenter( ModelPhysics physics )
 	{
 		if ( !physics.IsValid() || FromModel( physics.Model ) is not { } character ) return null;

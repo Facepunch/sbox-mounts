@@ -17,7 +17,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateBreathing( float dt )
 	{
-		var velocity = Downed && ragdoll.IsValid() && ragdoll.GetComponent<RagdollDamping>() is { } body ? body.AverageVelocity : Animation.MoveVelocity;
+		var velocity = Downed && ragdoll.IsValid() ? CharacterLoader.RagdollVelocity( ragdoll ) ?? Vector3.Zero : Animation.MoveVelocity;
 		float speedRatio = velocity.Length / GroundRunSpeed;
 		if ( CombatPosture ) speedRatio = (1f + speedRatio) * 0.5f;
 		float target = 0.9f + 4f * speedRatio;

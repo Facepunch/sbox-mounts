@@ -9,7 +9,6 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	float stillTime;
 	bool settled;
 	Transform[] placedPose;
-	internal Vector3 AverageVelocity { get; private set; }
 
 	internal void EnterWater( WaterHotspot volume )
 	{
@@ -84,21 +83,10 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	protected override void OnFixedUpdate()
 	{
 		if ( IsProxy || !physics.IsValid() || !physics.Active ) return;
-		Vector3 momentum = default;
-		float mass = 0f;
-		bool awake = false;
-		foreach ( var part in physics.Bodies )
-		{
-			var body = part.Component;
-			if ( !body.IsValid() ) continue;
-			momentum += body.Velocity * body.Mass;
-			mass += body.Mass;
-			awake |= !body.Sleeping;
-		}
-		AverageVelocity = mass > 0f ? momentum / mass : Vector3.Zero;
-		if ( mass <= 0f || (settled && !awake) ) return;
+		if ( settled && !physics.Bodies.Any( part => part.Component.IsValid() && !part.Component.Sleeping ) ) return;
+		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
 		if ( settled ) stillTime = 0f;
-		stillTime = AverageVelocity.Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
+		stillTime = velocity.Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
 		settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.

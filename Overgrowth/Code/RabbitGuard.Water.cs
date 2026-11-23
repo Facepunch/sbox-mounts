@@ -17,7 +17,7 @@ public sealed partial class RabbitGuard
 		underwaterBreath = headHeight < 0f ? underwaterBreath - dt : 10f;
 		var center = CharacterCenter( GameObject );
 		float height = water.HeightAboveSurface( center );
-		var velocity = Downed && ragdoll.IsValid() && ragdoll.GetComponent<RagdollDamping>() is { } damping ? damping.AverageVelocity : Animation.MoveVelocity;
+		var velocity = Downed && ragdoll.IsValid() ? CharacterLoader.RagdollVelocity( ragdoll ) ?? Vector3.Zero : Animation.MoveVelocity;
 		UpdateWaterSounds( center, LegRadius / 40f - height, headHeight, velocity / 40f );
 		if ( height < 0.1f )
 		{

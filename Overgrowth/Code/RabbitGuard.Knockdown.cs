@@ -297,17 +297,7 @@ public sealed partial class RabbitGuard
 	bool TryGetUp( Vector3? blockFacing = null )
 	{
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
-		Vector3 velocity = default;
-		float mass = 0;
-		foreach ( var body in ragdoll.Bodies )
-		{
-			var rb = body.Component;
-			if ( !rb.IsValid() ) continue;
-			velocity += rb.Velocity * rb.Mass;
-			mass += rb.Mass;
-		}
-		if ( mass <= 0 ) return false;
-		velocity /= mass;
+		if ( CharacterLoader.RagdollVelocity( ragdoll ) is not { } velocity ) return false;
 		bool wakeRoll = !blockFacing.HasValue && (sinceKnockdown < 1f || velocity.LengthSquared >= 20f * 40f * 40f);
 		if ( wakeRoll && boundAnimations.Species == "wolf" ) return false;
 		if ( CharacterLoader.RagdollCenter( ragdoll ) is not { } center ) return false;

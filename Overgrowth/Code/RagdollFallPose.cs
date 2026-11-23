@@ -74,17 +74,8 @@ public sealed partial class RabbitGuard
 	void DriveFallingPose()
 	{
 		if ( !ragdoll.IsValid() || boundAnimations?.FallPose is not { } pose ) return;
-		Vector3 momentum = default;
-		float mass = 0f;
-		foreach ( var body in ragdoll.Bodies )
-		{
-			var rb = body.Component;
-			if ( !rb.IsValid() ) continue;
-			momentum += rb.Velocity * rb.Mass;
-			mass += rb.Mass;
-		}
-		if ( mass <= 0f ) return;
-		float strength = Math.Max( 0f, Math.Min( 0.8f, momentum.Length / mass / 400f ) - RagdollStun );
+		if ( CharacterLoader.RagdollVelocity( ragdoll ) is not { } velocity ) return;
+		float strength = Math.Max( 0f, Math.Min( 0.8f, velocity.Length / 400f ) - RagdollStun );
 		if ( Unconscious ) strength *= Math.Clamp( 1f - (float)sinceUnconscious, 0f, 1f );
 		if ( strength > 0f && CharacterLoader.RagdollCenter( ragdoll ) is { } center )
 		{
