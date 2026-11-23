@@ -72,31 +72,23 @@ public sealed partial class Skulk
 	void OnWorldTag( string tag )
 	{
 		if ( tag is not ("step" or "step_run" or "step_sprint") ) return;
-		var surface = mover.ContactSurface;
-		if ( Networking.IsHost )
-		{
-			if ( !Animation.IsGrounded ) return;
-		}
-		else
-		{
-			var up = mover.ContactNormal;
-			if ( up.IsNearlyZero() ) return;
-			var center = WorldPosition + Vector3.Up * SkulkMovement.Radius;
-			var ground = Scene.Trace.Ray( center + up * 2, center - up * 8 ).Radius( SkulkMovement.Radius - 1 )
-				.IgnoreGameObjectHierarchy( GameObject ).Run();
-			if ( !ground.Hit ) return;
-			surface = ground.Surface;
-		}
-		var material = surface?.ResourceName switch
+		if ( !Animation.IsGrounded ) return;
+		var material = mover.ContactSurface?.ResourceName switch
 		{
 			"ns2_rock" => "rock",
 			"ns2_organic" or "ns2_infestation" => "organic",
 			"ns2_thin_metal" or "ns2_light_metal" => "thin_metal",
 			_ => "metal"
 		};
+		PlayFootstep( material, WorldPosition );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
+	void PlayFootstep( string material, Vector3 position )
+	{
 		var listener = Scene.Camera?.GetComponentInParent<PlayerController>();
 		var cue = !listener.IsValid() || GetDisposition( listener.GameObject ) == Disposition.Hostile ? "skulk_step_for_enemy" : "skulk_step";
-		PlayLocal( $"materials/{material}/{cue}", WorldPosition );
+		PlayLocal( $"materials/{material}/{cue}", position );
 	}
 
 	void PlayBiteImpact( SceneTraceResult hit )

@@ -27,6 +27,11 @@ internal sealed partial class SparkAnimationGraph
 		int EnterTag, int ExitTag, float Blend, float LabelBlend, int RateInput, float Rate, int[] Links, Condition[] Conditions );
 	record Layer( Node[] Nodes, int Start, int Index )
 	{
+		public PoseParameters Parameters { get; } = new( Index );
+	}
+
+	internal record PoseParameters( int Index )
+	{
 		public string Current { get; } = $"spark_{Index}_clip";
 		public string Time { get; } = $"spark_{Index}_time";
 		public string Previous { get; } = $"spark_{Index}_previous";

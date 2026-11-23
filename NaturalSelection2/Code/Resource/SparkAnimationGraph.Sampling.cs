@@ -9,9 +9,9 @@ internal sealed partial class SparkAnimationGraph
 	internal Graph CompilePlayback( GraphBuilder graph, Func<string, GraphBuilder.Node, GraphBuilder.Node, GraphBuilder.Node> sequence, string path )
 	{
 		var controls = layers.Select( layer => (
-			Current: graph.FloatParameter( layer.Current ), Time: graph.FloatParameter( layer.Time ),
-			Previous: graph.FloatParameter( layer.Previous ), PreviousTime: graph.FloatParameter( layer.PreviousTime ),
-			Weight: graph.FloatParameter( layer.Weight )) ).ToArray();
+			Current: graph.FloatParameter( layer.Parameters.Current ), Time: graph.FloatParameter( layer.Parameters.Time ),
+			Previous: graph.FloatParameter( layer.Parameters.Previous ), PreviousTime: graph.FloatParameter( layer.Parameters.PreviousTime ),
+			Weight: graph.FloatParameter( layer.Parameters.Weight )) ).ToArray();
 
 		var output = graph.ReferencePose();
 		foreach ( var layer in layers )

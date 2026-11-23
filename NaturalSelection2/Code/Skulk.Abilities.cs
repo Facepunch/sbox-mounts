@@ -18,7 +18,7 @@ public sealed partial class Skulk
 	const float ParasiteEnergy = 30;
 	TimeUntil parasiteReady, detonation;
 	bool parasiteHeld, xenociding;
-	[Sync( SyncFlags.FromHost )] bool FiringParasite { get; set; }
+	bool FiringParasite { get; set; }
 	[Property] public bool XenocideUnlocked { get; set; }
 
 	void TryParasite( Vector3 aim )

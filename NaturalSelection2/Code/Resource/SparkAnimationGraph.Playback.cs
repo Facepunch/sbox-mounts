@@ -16,9 +16,32 @@ internal sealed partial class SparkAnimationGraph
 		readonly Track[] tracks;
 		float time;
 
-		record struct Sample( int Clip, float Start, float Rate )
+		internal readonly record struct Sample( int Clip, float Start, float Rate )
 		{
 			public readonly float Seconds( float time ) => (time - Start) * Rate;
+		}
+
+		internal readonly record struct LayerPose( Sample Current, Sample Previous, float Blend )
+		{
+			internal void Write( PoseParameters layer, GraphParameters output, float time )
+			{
+				float weight = Blend > 0 ? Math.Clamp( (time - Current.Start) / Blend, 0, 1 ) : 1;
+				if ( (layer.Index == 0 && Previous.Clip < 0) || (layer.Index > 0 && Current.Clip < 0) ) weight = 1;
+				output.Set( layer.Current, (float)(Current.Clip + 1) );
+				output.Set( layer.Time, Current.Seconds( time ) );
+				output.Set( layer.Weight, weight );
+				if ( weight < 1 )
+				{
+					output.Set( layer.Previous, (float)(Previous.Clip + 1) );
+					output.Set( layer.PreviousTime, Previous.Seconds( time ) );
+				}
+			}
+		}
+
+		internal LayerPose GetPose( int layer )
+		{
+			ref var track = ref tracks[layer];
+			return new( track.Current, track.Previous, track.Blend );
 		}
 
 		struct Track
@@ -90,17 +113,7 @@ internal sealed partial class SparkAnimationGraph
 					visited[count++] = dest;
 				}
 
-				if ( output is null ) continue;
-				float weight = track.Blend > 0 ? Math.Clamp( (time - track.Current.Start) / track.Blend, 0, 1 ) : 1;
-				if ( (layer.Index == 0 && track.Previous.Clip < 0) || (layer.Index > 0 && track.Current.Clip < 0) ) weight = 1;
-				output.Set( layer.Current, (float)(track.Current.Clip + 1) );
-				output.Set( layer.Time, track.Current.Seconds( time ) );
-				output.Set( layer.Weight, weight );
-				if ( weight < 1 )
-				{
-					output.Set( layer.Previous, (float)(track.Previous.Clip + 1) );
-					output.Set( layer.PreviousTime, track.Previous.Seconds( time ) );
-				}
+				if ( output is not null ) GetPose( layer.Index ).Write( layer.Parameters, output, time );
 			}
 		}
 

@@ -75,8 +75,8 @@ public sealed partial class Skulk : BaseNpc
 	const float LeapEnergy = 45;
 	const float Reach = 1.42f * MapLoader.Scale;
 	[Property] public bool LeapUnlocked { get; set; } = true;
-	[Sync( SyncFlags.FromHost )] bool Biting { get; set; }
-	[Sync( SyncFlags.FromHost )] bool Leaping { get; set; }
+	bool Biting { get; set; }
+	bool Leaping { get; set; }
 	SkulkMovement mover;
 	TimeUntil leapEnds;
 	float energy = 100;
@@ -89,13 +89,14 @@ public sealed partial class Skulk : BaseNpc
 		mover = GetComponent<SkulkMovement>();
 		ViewRotation = bodyRotation = Renderer.WorldRotation;
 		standingYaw = runningYaw = bodyRotation.Angles().yaw;
-		animationTime = 0;
+		if ( !Networking.IsHost ) return;
+		AnimationTime = 0;
 		worldTag = OnWorldTag;
-		if ( Networking.IsHost ) PlayVoice( "spawn" );
+		PlayVoice( "spawn" );
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			world = new( model.PropGraph, model );
-		if ( Networking.IsHost && mount?.GetByPath( "mount://ns2/ns2/models/alien/skulk/skulk_view.model.vmdl" ) is ModelLoader viewModel )
+		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/skulk/skulk_view.model.vmdl" ) is ModelLoader viewModel )
 		{
 			weapon = new( viewModel.PropGraph, viewModel );
 			weaponTag = OnWeaponTag;

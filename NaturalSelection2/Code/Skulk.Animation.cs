@@ -4,9 +4,12 @@ namespace NS2;
 
 public sealed partial class Skulk
 {
+	static readonly SparkAnimationGraph.PoseParameters LocomotionParameters = new( 0 ), ActionParameters = new( 1 );
 	float standingYaw, runningYaw;
 	Rotation bodyRotation;
-	TimeSince animationTime;
+	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose Locomotion { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose ActionPose { get; set; }
 
 	internal Rotation ViewRotation { get; private set; }
 
@@ -62,21 +65,7 @@ public sealed partial class Skulk
 
 		var movement = Animation.MoveVelocity;
 		var velocity = movement - up * Vector3.Dot( movement, up );
-		world?.Set( "onwall", onWall ? 1 : 0 );
 		var moving = velocity.Length >= 0.1f * MapLoader.Scale;
-		bool idle = !mover.MovingInput && (Animation.IsGrounded ? velocity : movement).Length < 0.1f * MapLoader.Scale;
-		var move = Leaping ? "leap" : mover.Jumping ? "jump" : idle ? "idle" : "run";
-		var activity = Biting || FiringParasite ? "primary" : "none";
-		world?.Set( "alive", Health > 0 ? 1 : 0 );
-		world?.Set( "move", move );
-		world?.Set( "activity", activity );
-		if ( weapon is not null && Health > 0 )
-		{
-			weapon.Set( "ability", parasiteHeld ? "parasite" : "bite" );
-			weapon.Set( "move", move );
-			weapon.Set( "activity", activity );
-			weapon.Update( animationTime, tag: weaponTag );
-		}
 		var inputs = Renderer.IsValid() && Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 
 		var view = ViewRotation;
@@ -100,6 +89,32 @@ public sealed partial class Skulk
 		inputs?.Set( "move_speed", velocity.Length / mover.RunSpeed );
 		inputs?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			MathF.Atan2( Vector3.Dot( velocity, view.Forward ), Vector3.Dot( velocity, view.Left ) ).RadianToDegree() );
-		world?.Update( animationTime, inputs, Health > 0 && !Application.IsDedicatedServer && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null );
+		if ( !Networking.IsHost )
+		{
+			if ( inputs is null ) return;
+			Locomotion.Write( LocomotionParameters, inputs, AnimationTime );
+			ActionPose.Write( ActionParameters, inputs, AnimationTime );
+			return;
+		}
+		if ( world is null ) return;
+		var tag = Health > 0 && velocity.Length > 0.75f * MapLoader.Scale ? worldTag : null;
+		world.Set( "onwall", onWall ? 1 : 0 );
+
+		bool idle = !mover.MovingInput && (Animation.IsGrounded ? velocity : movement).Length < 0.1f * MapLoader.Scale;
+		var move = Leaping ? "leap" : mover.Jumping ? "jump" : idle ? "idle" : "run";
+		var activity = Biting || FiringParasite ? "primary" : "none";
+		world.Set( "alive", Health > 0 ? 1 : 0 );
+		world.Set( "move", move );
+		world.Set( "activity", activity );
+		if ( weapon is not null && Health > 0 )
+		{
+			weapon.Set( "ability", parasiteHeld ? "parasite" : "bite" );
+			weapon.Set( "move", move );
+			weapon.Set( "activity", activity );
+			weapon.Update( AnimationTime, tag: weaponTag );
+		}
+		world.Update( AnimationTime, inputs, tag );
+		Locomotion = world.GetPose( 0 );
+		ActionPose = world.GetPose( 1 );
 	}
 }
