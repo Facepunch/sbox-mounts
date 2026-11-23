@@ -48,8 +48,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( StaticCharacter ) return;
 		Hear( other.GameObject, CharacterCenter( GameObject ) + toward * (5f * 40f), HeardSound.Footstep, true );
-		WorldPosition += offset;
-		if ( GetComponent<NavMeshAgent>() is { Active: true } agent && !IsAirborne ) agent.SetAgentPosition( WorldPosition );
+		TranslateRoot( offset );
 		ContactVelocity += offset * (120f * 0.15f);
 	}
 }

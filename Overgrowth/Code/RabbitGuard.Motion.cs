@@ -12,6 +12,23 @@ public sealed partial class RabbitGuard
 		Movement.Stop();
 	}
 
+	internal Vector3 TakeCombatVelocity()
+	{
+		var velocity = combatVelocity;
+		combatVelocity = default;
+		return velocity;
+	}
+
+	// The crowd simulates ahead of the displayed root. Apply a contact or clip displacement to both origins.
+	void TranslateRoot( Vector3 delta )
+	{
+		if ( delta == Vector3.Zero ) return;
+		var agent = GetComponent<NavMeshAgent>();
+		WorldPosition += delta;
+		if ( agent is { Active: true } && !IsAirborne )
+			agent.SetAgentPosition( agent.IsNavigating ? agent.AgentPosition + delta : WorldPosition );
+	}
+
 	// MovementObject integrates the damped velocity alongside the clip's root motion.
 	void AdvanceCombatMomentum( float dt ) =>
 		AdvanceMomentum( ref combatVelocity, dt, 0.95f * 0.95f * 0.95f * 0.95f );
@@ -75,8 +92,12 @@ public sealed partial class RabbitGuard
 		var move = new CharacterControllerHelper( trace, position + lift, displacement );
 		move.TryMove( 1f );
 		slide = move.Velocity;
-		WorldPosition = move.Position - lift;
-		GetComponent<NavMeshAgent>()?.SetAgentPosition( WorldPosition );
+		if ( origin.HasValue )
+		{
+			WorldPosition = move.Position - lift;
+			GetComponent<NavMeshAgent>()?.SetAgentPosition( WorldPosition );
+		}
+		else TranslateRoot( (move.Position - lift) - position );
 		return supported ? ground.Normal : Vector3.Up;
 	}
 }

@@ -36,7 +36,11 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10f, float? speed = null, GameObject faceTarget = null )
 	{
-		if ( !brakingVelocity.IsNearlyZero() && Agent is { Active: true } ) Agent.Velocity = brakingVelocity;
+		if ( Agent is { Active: true } && Npc is RabbitGuard fighter )
+		{
+			var carried = brakingVelocity + fighter.TakeCombatVelocity();
+			if ( !carried.IsNearlyZero() ) Agent.Velocity += carried;
+		}
 		brakingVelocity = default;
 		base.MoveTo( target, stopDistance, speed, faceTarget );
 	}
