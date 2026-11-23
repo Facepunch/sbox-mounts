@@ -4,6 +4,10 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string[] Reactio
 {
 	internal sealed record Pose( float Height, RabbitClip Clip );
 
+	internal bool Unblockable { get; init; }
+	internal bool FleshUnblockable { get; init; }
+	internal string Special { get; init; }
+
 	internal Vector3 WorldImpact( Vector3 direction, bool flipped )
 	{
 		var lateral = new Vector3( direction.y, -direction.x, direction.z );

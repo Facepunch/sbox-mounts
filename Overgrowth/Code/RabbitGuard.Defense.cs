@@ -108,7 +108,9 @@ public sealed partial class RabbitGuard
 
 	bool TryActiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
-		if ( boundAnimations is null || !IsOnGround || Health < 1 ) return false;
+		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
+		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
+		if ( move.Unblockable || move.FleshUnblockable ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
 		bool active = activeBlock > 0;
@@ -146,10 +148,22 @@ public sealed partial class RabbitGuard
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move )
 	{
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
-		blockHealth = Math.Max( 0f, blockHealth - Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage ) );
-		var direction = (WorldPosition - attacker.WorldPosition).Normal;
-		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || !IsOnGround || startled > 0 || strike is not null ||
-			blockHealth <= 0 || WorldRotation.Forward.Dot( direction ) > 0 ) return false;
+		var species = boundAnimations?.Species;
+		var other = attacker.boundAnimations.Species;
+		bool wolfAdvantage = species == "wolf" && other != "wolf";
+		float blockDamage = Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage );
+		float cost = 1f;
+		if ( other == "dog" && species is not ("dog" or "wolf") ) cost += 0.5f;
+		if ( species == "rat" && other != "rat" ) cost += 0.5f;
+		blockHealth = Math.Max( wolfAdvantage && move.Special != "legcannon" ? 0.1f : 0f, blockHealth - blockDamage * cost );
+		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || !IsOnGround || WorldScale.z < 0.8f || blockHealth <= 0f ) return false;
+		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
+		if ( !wolfAdvantage && species != "dog" && (startled > 0 || strike is not null || WorldRotation.Forward.Dot( direction ) > 0f) ) return false;
+		if ( wolfAdvantage && blockStun <= 0f )
+		{
+			Speak( "block_hit" );
+			return true;
+		}
 
 		// Reaction::GetAnimPath partitions the severity range in XML order.
 		var animation = move.Reactions[(int)((1f - blockHealth) * 0.999f * move.Reactions.Length)];

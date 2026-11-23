@@ -195,8 +195,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 				var block = attack.Element( "block_damage" );
 				var direction = attack.Element( "impact_dir" );
-				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), attack.Element( "flags" ).Attribute( "height" ), attack.Element( "flags" ).Attribute( "direction" ),
-					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, attack.Element( "flags" ).Attribute( "swap_stance" ) == "true", attack.Element( "flags" ).Attribute( "swap_stance_blocked" ) == "true", reactionAssets[name].Element( "flags" )?.Attribute( "mirrored" ) );
+				var flags = attack.Element( "flags" );
+				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
+					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true", reactionAssets[name].Element( "flags" )?.Attribute( "mirrored" ) )
+				{
+					Unblockable = flags.Attribute( "unblockable" ) == "true",
+					FleshUnblockable = flags.Attribute( "flesh_unblockable" ) == "true",
+					Special = flags.Attribute( "special" )
+				};
 				if ( poses.Length == 1 )
 					return machine.AddState( CombatPose( poses[0].Clip, attackPhase ) );
 
