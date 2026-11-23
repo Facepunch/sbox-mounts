@@ -91,7 +91,7 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && clip.Prepare is { } prep && layer.Phase >= prep.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( strikeTarget ) && CharacterCenter( GameObject ).Distance( CharacterCenter( strikeTarget ) ) < ContactRange && HasSight( strikeTarget ) )
+				if ( strikeTarget.IsValid() && InStrikeReach( strikeTarget, CharacterCenter( strikeTarget ) - CharacterCenter( GameObject ) ) )
 					strikeTarget.GetComponent<RabbitGuard>()?.TryActiveBlock( this, move );
 			}
 			if ( !impactPassed && clip.Impact is { } hit && layer.Phase >= hit.Time / clip.Duration )

@@ -47,7 +47,20 @@ public sealed partial class RabbitGuard
 	float RangeExtension => PrimaryItem.IsValid() ? PrimaryItem.RangeExtension : 0f;
 	float AttackRange => (1.5f + RangeExtension) * (PrimaryItem.IsValid() ? PrimaryItem.RangeMultiplier : 1f) * 40f * boundAnimations.CharacterScale;
 	float CloseAttackRange => (1f + RangeExtension * 0.5f) * 40f * boundAnimations.CharacterScale;
-	float ContactRange => (1.6f + RangeExtension) * 40f * boundAnimations.CharacterScale;
+	float StrikeReach( RabbitGuard defender )
+	{
+		float scale = boundAnimations.CharacterScale;
+		float extension = 0.1f + RangeExtension;
+		if ( defender is { OnLedge: true } && WorldPosition.z > defender.WorldPosition.z ) extension += 0.5f;
+		return (1.5f + extension) * 40f * scale;
+	}
+
+	bool InStrikeReach( GameObject target, Vector3 offset )
+	{
+		if ( !CanAttack( target ) ) return false;
+		float reach = StrikeReach( target.GetComponent<RabbitGuard>() );
+		return offset.LengthSquared < reach * reach && HasSight( target );
+	}
 	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
 
 	protected override void OnStart()
@@ -94,7 +107,7 @@ public sealed partial class RabbitGuard
 			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
 			{
 				preparePassed = true;
-				if ( CanAttack( strikeTarget ) && CharacterCenter( GameObject ).Distance( CharacterCenter( strikeTarget ) ) < ContactRange && HasSight( strikeTarget ) &&
+				if ( strikeTarget.IsValid() && InStrikeReach( strikeTarget, CharacterCenter( strikeTarget ) - CharacterCenter( GameObject ) ) &&
 					strikeTarget.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
 				{
 					dontAttackBefore = Random.Shared.Float( 0f, 1.4f );
@@ -232,7 +245,9 @@ public sealed partial class RabbitGuard
 	{
 		var center = CharacterCenter( GameObject );
 		float range = AttackRange;
-		float nearest = range * range;
+		float ledgeRange = range + 0.5f * 40f;
+		float nearest = float.PositiveInfinity, nearestLedge = float.PositiveInfinity;
+		GameObject ledge = null;
 		int bestPriority = int.MaxValue;
 		GameObject best = null;
 		void Consider( GameObject candidate )
@@ -241,16 +256,30 @@ public sealed partial class RabbitGuard
 			var guard = candidate.GetComponent<RabbitGuard>();
 			int priority = guard?.strike is { AsLayer: false } ? 0 : guard is { Downed: true } ? 2 : 1;
 			float separation = center.DistanceSquared( CharacterCenter( candidate ) );
-			if ( priority > bestPriority || separation > range * range || (priority == bestPriority && separation >= nearest) || !HasSight( candidate ) ) return;
+			if ( separation > range * range )
+			{
+				if ( guard is { OnLedge: true } && separation <= ledgeRange * ledgeRange && separation < nearestLedge && HasSight( candidate ) )
+				{
+					ledge = candidate;
+					nearestLedge = separation;
+				}
+				return;
+			}
+			if ( priority > bestPriority || (priority == bestPriority && separation >= nearest) || !HasSight( candidate ) ) return;
 			best = candidate;
 			nearest = separation;
 			bestPriority = priority;
 		}
 		Consider( enemy );
-		foreach ( var hit in Scene.FindInPhysics( new Sphere( center, range ) ) )
+		foreach ( var hit in Scene.FindInPhysics( new Sphere( center, ledgeRange ) ) )
 		{
 			var candidate = hit.GetComponentInParent<BaseNpc>()?.GameObject ?? hit.GetComponentInParent<PlayerController>()?.GameObject;
 			if ( candidate.IsValid() ) Consider( candidate );
+		}
+		if ( best is null && ledge.IsValid() && center.z > CharacterCenter( ledge ).z )
+		{
+			best = ledge;
+			nearest = nearestLedge;
 		}
 		distance = MathF.Sqrt( nearest );
 		return best;
@@ -376,10 +405,9 @@ public sealed partial class RabbitGuard
 	void TryHit( RabbitClip clip, int bone )
 	{
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
-		// HandleAnimationEvent allows an extra 0.1 m at contact for an unarmed strike.
 		var origin = CharacterCenter( GameObject );
 		var offset = strikeTarget.IsValid() ? CharacterCenter( strikeTarget ) - origin : Vector3.Zero;
-		bool reached = CanAttack( strikeTarget ) && offset.LengthSquared < ContactRange * ContactRange && HasSight( strikeTarget );
+		bool reached = InStrikeReach( strikeTarget, offset );
 		var rabbit = reached ? strikeTarget.GetComponent<RabbitGuard>() : null;
 		if ( rabbit is not null )
 		{
