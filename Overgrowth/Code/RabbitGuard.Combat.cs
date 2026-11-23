@@ -182,7 +182,7 @@ public sealed partial class RabbitGuard
 			Stance = Watch;
 			return;
 		}
-		if ( TryCounterThrow() ) return;
+		if ( Animation.IsGrounded && TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
@@ -198,7 +198,8 @@ public sealed partial class RabbitGuard
 		if ( visible ) UpdateTactic( distance );
 		if ( Stance == Roll ) return;
 		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		if ( visible && attacking && strike is null && knifeCooldown <= 0 && distance < AttackRange && HasSight( enemy ) )
+		bool canStartStrike = Animation.IsGrounded && !(boundAnimations.Species == "wolf" && blockStun > 0.5f);
+		if ( canStartStrike && visible && attacking && strike is null && knifeCooldown <= 0 && distance < AttackRange && HasSight( enemy ) )
 		{
 			bool close = distance < CloseAttackRange;
 			int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
