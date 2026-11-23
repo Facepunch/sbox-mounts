@@ -40,6 +40,24 @@ public enum ThingTypeFlags
 	/// Pickupable and lobable
 	/// </summary>
 	Rigidbody = 9,
+
+	/// <summary>
+	/// Can be shot dead in place, and the last one in the map to die opens the doors tagged 666
+	/// (A_KeenDie), like Commander Keen.
+	/// </summary>
+	KeenDie = 16,
+
+	/// <summary>The Icon of Sin (MT_BOSSBRAIN): takes hits, cries out, and ends the level when killed.</summary>
+	BossBrain = 32,
+
+	/// <summary>The Icon of Sin's cube shooter (MT_BOSSSPIT): wakes when it sees a player, then spits spawn cubes.</summary>
+	BossShooter = 64,
+
+	/// <summary>Where spawn cubes fly to and monsters arrive (MT_BOSSTARGET).</summary>
+	BossTarget = 128,
+
+	/// <summary>Things in the monster category that aren't monsters, handled by their own components.</summary>
+	Special = KeenDie | BossBrain | BossShooter | BossTarget,
 }
 
 /// <summary>
@@ -49,7 +67,24 @@ public enum ThingTypeFlags
 /// <param name="Sprite">4 letter sprite name.</param>
 /// <param name="Frames">Frame letters in play order.</param>
 /// <param name="Tics">Tics per letter (35 per second).</param>
-public sealed record ThingAnimation( string Sprite, string Frames, int Tics );
+/// <param name="Action">The letter whose first appearance runs the state's action, such as an attack landing.</param>
+/// <param name="ActionFrames">Frame indices that each run the action, for states that act more than once (the chaingunner). Overrides <paramref name="Action"/>.</param>
+/// <param name="LoopFrame">Where a refiring attack goes back to (A_CPosRefire), or -1.</param>
+public sealed record ThingAnimation( string Sprite, string Frames, int Tics, char Action = default, int[] ActionFrames = null, int LoopFrame = -1 )
+{
+	/// <summary>Seconds from the start of the animation to <see cref="Action"/>, or 0 if it has none.</summary>
+	public float ActionTime => ActionTimes is [var first, ..] ? first : 0f;
+
+	/// <summary>Seconds from the start of the animation to each time its action runs.</summary>
+	public float[] ActionTimes => (ActionFrames ?? (Action == default ? [] : [Math.Max( 0, Frames.IndexOf( Action ) )]))
+		.Select( i => i * Tics / 35f ).ToArray();
+
+	/// <summary>Seconds into the animation a refire goes back to, or -1.</summary>
+	public float LoopTime => LoopFrame < 0 ? -1f : LoopFrame * Tics / 35f;
+
+	/// <summary>How long the animation runs, in seconds.</summary>
+	public float Duration => Frames.Length * Tics / 35f;
+}
 
 /// <summary>
 /// A thing's editor number and what vanilla's mobjinfo and spawn state make of it.
@@ -79,6 +114,7 @@ public static class ThingTypes
 		Rigidbody = ThingTypeFlags.Rigidbody;
 
 	/// <summary>Every vanilla Doom and Doom II thing (info.c).</summary>
+	[SkipHotload]
 	public static readonly IReadOnlyDictionary<int, ThingType> Vanilla = new ThingType[]
 	{
 		new( 1, "player1_start", ThingCategory.PlayerStart, null ),
@@ -89,26 +125,30 @@ public static class ThingTypes
 		new( 14, "teleport_destination", ThingCategory.TeleportDestination, null ),
 
 		// Monsters: idle frames, front rotation.
-		new( 3004, "zombieman", ThingCategory.Monster, "POSS", "AB", 10, 20, 56, Solid ),
-		new( 9, "shotgun_guy", ThingCategory.Monster, "SPOS", "AB", 10, 20, 56, Solid ),
-		new( 65, "heavy_weapon_dude", ThingCategory.Monster, "CPOS", "AB", 10, 20, 56, Solid ),
-		new( 3001, "imp", ThingCategory.Monster, "TROO", "AB", 10, 20, 56, Solid ),
-		new( 3002, "demon", ThingCategory.Monster, "SARG", "AB", 10, 30, 56, Solid ),
-		new( 58, "spectre", ThingCategory.Monster, "SARG", "AB", 10, 30, 56, Solid ),
-		new( 3006, "lost_soul", ThingCategory.Monster, "SKUL", "AB", 10, 16, 56, Solid | Bright ),
-		new( 3005, "cacodemon", ThingCategory.Monster, "HEAD", "A", 10, 31, 56, Solid ),
-		new( 69, "hell_knight", ThingCategory.Monster, "BOS2", "AB", 10, 24, 64, Solid ),
-		new( 3003, "baron_of_hell", ThingCategory.Monster, "BOSS", "AB", 10, 24, 64, Solid ),
-		new( 68, "arachnotron", ThingCategory.Monster, "BSPI", "AB", 10, 64, 64, Solid ),
-		new( 71, "pain_elemental", ThingCategory.Monster, "PAIN", "A", 10, 31, 56, Solid ),
-		new( 66, "revenant", ThingCategory.Monster, "SKEL", "AB", 10, 20, 56, Solid ),
-		new( 67, "mancubus", ThingCategory.Monster, "FATT", "AB", 15, 48, 64, Solid ),
-		new( 64, "arch_vile", ThingCategory.Monster, "VILE", "AB", 10, 20, 56, Solid ),
-		new( 7, "spider_mastermind", ThingCategory.Monster, "SPID", "AB", 10, 128, 100, Solid ),
-		new( 16, "cyberdemon", ThingCategory.Monster, "CYBR", "AB", 10, 40, 110, Solid ),
-		new( 84, "wolfenstein_ss", ThingCategory.Monster, "SSWV", "AB", 10, 20, 56, Solid ),
-		new( 72, "commander_keen", ThingCategory.Monster, "KEEN", "A", 0, 16, 72, Solid | Hanging ),
-		new( 88, "boss_brain", ThingCategory.Monster, "BBRN", "A", 0, 16, 16, Solid ),
+		new( 3004, "Former Human", ThingCategory.Monster, "POSS", "AB", 10, 20, 56, Solid ),
+		new( 9, "Former Human Sergeant", ThingCategory.Monster, "SPOS", "AB", 10, 20, 56, Solid ),
+		new( 65, "Former Commando", ThingCategory.Monster, "CPOS", "AB", 10, 20, 56, Solid ),
+		new( 3001, "Imp", ThingCategory.Monster, "TROO", "AB", 10, 20, 56, Solid ),
+		new( 3002, "Demon", ThingCategory.Monster, "SARG", "AB", 10, 30, 56, Solid ),
+		new( 58, "Spectre", ThingCategory.Monster, "SARG", "AB", 10, 30, 56, Solid ),
+		new( 3006, "Lost Soul", ThingCategory.Monster, "SKUL", "AB", 10, 16, 56, Solid | Bright ),
+		new( 3005, "Cacodemon", ThingCategory.Monster, "HEAD", "A", 10, 31, 56, Solid ),
+		new( 69, "Hell Knight", ThingCategory.Monster, "BOS2", "AB", 10, 24, 64, Solid ),
+		new( 3003, "Baron of Hell", ThingCategory.Monster, "BOSS", "AB", 10, 24, 64, Solid ),
+		new( 68, "Arachnotron", ThingCategory.Monster, "BSPI", "AB", 10, 64, 64, Solid ),
+		new( 71, "Pain Elemental", ThingCategory.Monster, "PAIN", "A", 10, 31, 56, Solid ),
+		new( 66, "Revenant", ThingCategory.Monster, "SKEL", "AB", 10, 20, 56, Solid ),
+		new( 67, "Mancubus", ThingCategory.Monster, "FATT", "AB", 15, 48, 64, Solid ),
+		new( 64, "Arch-Vile", ThingCategory.Monster, "VILE", "AB", 10, 20, 56, Solid ),
+		new( 7, "Spider Mastermind", ThingCategory.Monster, "SPID", "AB", 10, 128, 100, Solid ),
+		new( 16, "Cyberdemon", ThingCategory.Monster, "CYBR", "AB", 10, 40, 110, Solid ),
+		new( 84, "Wolfenstein SS", ThingCategory.Monster, "SSWV", "AB", 10, 20, 56, Solid ),
+		// S_KEENSTND, then S_COMMKEEN-S_COMMKEEN12 when shot dead.
+		new( 72, "Commander Keen", ThingCategory.Monster, "KEEN", "A", 0, 16, 72, Solid | Hanging | ThingTypeFlags.KeenDie,
+			Health: 100, Death: new ThingAnimation( "KEEN", "ABCDEFGHIJKL", 6 ) ),
+		new( 88, "Icon of Sin", ThingCategory.Monster, "BBRN", "A", 0, 16, 16, Solid | ThingTypeFlags.BossBrain, Health: 250 ),
+		new( 89, "Icon of Sin Shooter", ThingCategory.Monster, null, Flags: ThingTypeFlags.BossShooter ),
+		new( 87, "Icon of Sin Spawn Spot", ThingCategory.Monster, null, Flags: ThingTypeFlags.BossTarget ),
 
 		// Weapons
 		new( 2005, "chainsaw", ThingCategory.Weapon, "CSAW" ),

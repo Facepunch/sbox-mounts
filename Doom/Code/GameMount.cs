@@ -19,6 +19,8 @@ public abstract partial class GameMount : BaseGameMount
 
 	public virtual IReadOnlyDictionary<int, LineSpecial> LineSpecialTable => LineSpecials.Vanilla;
 	public virtual IReadOnlyDictionary<int, ThingType> ThingTable => ThingTypes.Vanilla;
+	public virtual IReadOnlyDictionary<int, MonsterInfo> MonsterTable => MonsterInfos.Vanilla;
+	public virtual IReadOnlyDictionary<string, ProjectileInfo> ProjectileTable => ProjectileInfos.Vanilla;
 	public virtual IReadOnlyList<TextureAnimation> AnimationTable => TextureAnimations.Vanilla;
 
 	/// <summary>World units per map unit. Thing prefabs are built at this scale, and maps default to it.</summary>
@@ -59,6 +61,7 @@ public abstract partial class GameMount : BaseGameMount
 		ReleaseWads();
 
 		var loaded = new Dictionary<string, WadFile>( StringComparer.OrdinalIgnoreCase );
+		var order = new List<WadFile>();
 
 		foreach ( var definition in WadFiles )
 		{
@@ -80,6 +83,7 @@ public abstract partial class GameMount : BaseGameMount
 			{
 				var wad = new WadFile( WadName( definition.File ), FileSystem.OpenRead( path ), baseWad );
 				loaded[wad.Name] = wad;
+				order.Add( wad );
 
 				var stack = new WadStack( baseWad is null ? [wad] : [wad, baseWad], AnimationTable );
 				_stacks[wad.Name] = stack;
@@ -92,9 +96,32 @@ public abstract partial class GameMount : BaseGameMount
 			}
 		}
 
+		// Things exist once for the whole mount. Like Doom loading lumps in order, a WAD mounted later
+		// takes priority over the ones before it.
+		if ( order.Count > 0 )
+		{
+			ThingStack = new WadStack( [.. Enumerable.Reverse( order )], AnimationTable );
+
+			try
+			{
+				MountThings( context, ThingStack );
+			}
+			catch ( InvalidDataException e )
+			{
+				context.AddError( e.Message );
+			}
+		}
+
 		IsMounted = _stacks.Count > 0;
 		return Task.CompletedTask;
 	}
+
+	/// <summary>
+	/// Every mounted WAD, the one mounted last first: where things (monsters, items, decorations) are
+	/// drawn from. There is one of each for the whole mount, so a WAD that redraws a thing redraws it in
+	/// every map. Null until something is mounted.
+	/// </summary>
+	public WadStack ThingStack { get; private set; }
 
 	protected override void Shutdown() => ReleaseWads();
 
@@ -103,6 +130,8 @@ public abstract partial class GameMount : BaseGameMount
 		foreach ( var stack in _stacks.Values )
 			stack.Primary.Dispose();
 		_stacks.Clear();
+		_thingPrefabs.Clear();
+		ThingStack = null;
 	}
 
 	private static string WadName( string file ) => Path.GetFileNameWithoutExtension( file ).ToLowerInvariant();

@@ -44,6 +44,7 @@ partial class MapLoader
 		FindNeighbours();
 		FindShortestLowerTextures();
 		FindLineTargets();
+		FindThingTargets();
 
 		for ( int i = 0; i < count; i++ )
 		{
@@ -119,6 +120,37 @@ partial class MapLoader
 
 		for ( int i = 0; i < _shortestLower.Length; i++ )
 			if ( _shortestLower[i] == float.MaxValue ) _shortestLower[i] = 0;
+	}
+
+	/// <summary>
+	/// Sectors that things act on when they die rather than lines, which need to be movable: A_KeenDie
+	/// opens the doors tagged 666, and A_BossDeath moves 666 or 667 when the last boss of a kind dies
+	/// on its level (<see cref="DoomMonster.BossDeathEffect"/>).
+	/// </summary>
+	private void FindThingTargets()
+	{
+		var table = Host.ThingTable;
+		var effects = new HashSet<(int Tag, SectorAction Action)>();
+
+		foreach ( var thing in Map.Things )
+		{
+			if ( !table.TryGetValue( thing.Type, out var type ) ) continue;
+
+			if ( (type.Flags & ThingTypeFlags.KeenDie) != 0 )
+				effects.Add( (DoomKeen.DoorTag, SectorAction.DoorOpen) );
+
+			if ( DoomMonster.BossDeathEffect( Map.Name, type.Id ) is { Exit: false } boss )
+				effects.Add( (boss.Tag, boss.Action) );
+		}
+
+		foreach ( var (tag, action) in effects )
+		{
+			for ( int s = 0; s < _sectors.Count; s++ )
+			{
+				if ( _sectors[s].Tag == tag )
+					AddAction( s, action, 0 );
+			}
+		}
 	}
 
 	private void FindLineTargets()

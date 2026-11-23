@@ -3,12 +3,22 @@ using Doom.Wad;
 
 namespace Doom;
 
+/// <summary>Object tags on things, for traces that treat them the way Doom did.</summary>
+public static class ThingTags
+{
+	/// <summary>Every drawn thing. Sight passes through them all (P_CheckSight only tests the level).</summary>
+	public const string Thing = "doom_thing";
+
+	/// <summary>Things that can't be shot, such as pillars and lamps. Bullets pass through them (only MF_SHOOTABLE stops a hitscan).</summary>
+	public const string Decoration = "doom_decoration";
+}
+
 /// <summary>
 /// A thing type as a prefab: a sprite playing its spawn animation and a collision box if it's solid,
 /// or a spawn point or teleport destination for things that aren't drawn. Built at the mount's
 /// scale. Maps place instances and only set what depends on where they stand (sector light, tags).
 /// </summary>
-public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFrameInfo[] frames, SpriteCanvas? canvas, string spritePath ) : ResourceLoader<GameMount>
+public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFrameInfo[] frames, SpriteCanvas? canvas, string spritePath, MonsterInfo monster = null ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
 
@@ -23,6 +33,15 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			Game.ActiveScene.Enabled = false;
 
 			var go = new GameObject( true, type.Name );
+
+			if ( type.Sprite is not null )
+			{
+				go.Tags.Add( ThingTags.Thing );
+
+				// Monsters, barrels, Keen and the Icon of Sin can be shot; everything else lets bullets through.
+				if ( monster is null && (type.Flags & (ThingTypeFlags.Explosive | ThingTypeFlags.Special)) == 0 )
+					go.Tags.Add( ThingTags.Decoration );
+			}
 
 			switch ( type.Category )
 			{
@@ -44,6 +63,19 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 					go.AddComponent<DoomTeleportDestination>();
 					break;
 
+			}
+
+			if ( (type.Flags & ThingTypeFlags.BossTarget) != 0 )
+				go.Tags.Add( DoomBrainShooter.TargetTag );
+
+			if ( (type.Flags & ThingTypeFlags.BossShooter) != 0 )
+			{
+				go.NetworkMode = NetworkMode.Object;
+				var shooter = go.AddComponent<DoomBrainShooter>();
+				shooter.Scale = scale;
+				shooter.CubePrefab = LoadThingPrefab( BrainCube.Type );
+				shooter.WakeSound = LoadSound( "DSBOSSIT" );
+				shooter.SpitSound = LoadSound( "DSBOSPIT" );
 			}
 
 			if ( type.Name == "barrel" )
@@ -78,12 +110,37 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 				// Full bright frames ignore sector light; maps tint the rest by their sector's light.
 				renderer.Lighting = !bright;
 
-				if ( (type.Flags & ThingTypeFlags.Solid) != 0 )
+				if ( monster is not null )
+				{
+					ConfigureMonster( go, renderer, scale );
+				}
+				else if ( (type.Flags & ThingTypeFlags.Solid) != 0 )
 				{
 					var box = go.AddComponent<BoxCollider>();
 					box.Scale = new Vector3( first.Width, first.Width, first.Height ) * scale;
 					box.Center = new Vector3( 0, 0, first.Height * 0.5f * scale );
 					box.Static = !go.Components.TryGet<Rigidbody>( out _ );
+				}
+
+				if ( (type.Flags & ThingTypeFlags.BossBrain) != 0 )
+				{
+					var brain = go.AddComponent<DoomBrain>();
+					brain.Health = type.Health;
+					brain.Scale = scale;
+					brain.PainSound = LoadSound( "DSBOSPN" );
+					brain.DeathSound = LoadSound( "DSBOSDTH" );
+					brain.ExplosionPrefab = LoadThingPrefab( HitEffects.RocketExplosion );
+					go.NetworkMode = NetworkMode.Object;
+				}
+
+				if ( (type.Flags & ThingTypeFlags.KeenDie) != 0 )
+				{
+					var keen = go.AddComponent<DoomKeen>();
+					keen.Health = type.Health;
+					keen.Renderer = renderer;
+					keen.PainSound = LoadSound( "DSKEENPN" );
+					keen.DeathSound = LoadSound( "DSKEENDT" );
+					go.NetworkMode = NetworkMode.Object;
 				}
 			}
 
@@ -100,8 +157,162 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			?? throw new InvalidOperationException( $"{Path}: could not create the thing prefab." );
 	}
 
+	/// <summary>
+	/// A monster: its NPC brain and layers, a hull of the thing's radius and height that walks the
+	/// navmesh at vanilla's chase speed, and the animator that picks its rotated frames.
+	/// </summary>
+	private void ConfigureMonster( GameObject go, SpriteRenderer renderer, float scale )
+	{
+		go.NetworkMode = NetworkMode.Object;
+
+		float radius = type.Radius * scale;
+		float height = type.Height * scale;
+
+		// The animator picks animations and frames itself.
+		renderer.StartingAnimationName = MonsterAnimations.Name( MonsterAnimations.Spawn, 1 );
+		var animator = go.AddComponent<DoomSpriteAnimator>();
+		animator.Renderer = renderer;
+
+		var hull = go.AddComponent<BoxCollider>();
+		hull.Scale = new Vector3( radius * 2, radius * 2, height );
+		hull.Center = new Vector3( 0, 0, height * 0.5f );
+
+		var body = go.AddComponent<Rigidbody>();
+		body.MotionEnabled = false;
+		body.EnableImpactDamage = false;
+		body.Locking = new PhysicsLock { Pitch = true, Roll = true };
+
+		// A_Chase moves speed units every step, and a step lasts the see state's tics.
+		float stepTime = monster.See.Tics / 35f;
+		float speed = monster.Speed * scale / stepTime;
+
+		if ( monster.Floats )
+		{
+			// MF_FLOAT: straight at its target through the air, its bottom half its height above the
+			// target's feet (P_ZMovement floats it toward target z + height / 2). No navmesh.
+			body.Gravity = false;
+			var flight = go.AddComponent<Sandbox.Npcs.Layers.FlyingLayer>();
+			flight.HoverHeight = height * 0.5f;
+			flight.WalkSpeed = speed;
+			flight.RunSpeed = speed;
+			flight.Acceleration = speed * 8f;
+		}
+		else
+		{
+			var agent = go.AddComponent<NavMeshAgent>();
+			agent.Radius = radius;
+			agent.Height = height;
+			agent.MaxSpeed = speed;
+			agent.Acceleration = 4000;
+
+			// Doom's monsters are solid and can't stand in each other; keep them apart as hard as the crowd allows.
+			agent.Separation = 1f;
+
+			var navigation = go.AddComponent<Sandbox.Npcs.Layers.NavigationLayer>();
+			navigation.WalkSpeed = speed;
+			navigation.RunSpeed = speed;
+		}
+
+		var senses = go.AddComponent<Sandbox.Npcs.Layers.SensesLayer>();
+		senses.FieldOfView = 180f;
+		senses.SightRange = 4096f * scale;
+		senses.HearingRange = 1024f * scale;
+
+		var animation = go.AddComponent<Sandbox.Npcs.Layers.AnimationLayer>();
+		animation.EnableFootstepSounds = false;
+
+		var npc = go.AddComponent<DoomMonster>();
+		npc.DisplayName = type.Name.Replace( '_', ' ' );
+		npc.ThingId = type.Id;
+		npc.Scale = scale;
+		npc.Radius = radius;
+		npc.Height = height;
+		npc.Health = monster.Health;
+		npc.EyeHeight = height * 0.75f;
+		npc.PainChance = monster.PainChance;
+		npc.StepTime = stepTime;
+		npc.Animation = animation;
+		npc.Animator = animator;
+		npc.HasGibDeath = monster.GibDeath is not null;
+		npc.NoCorpse = monster.NoCorpse;
+		npc.SplashImmune = monster.SplashImmune;
+		npc.SeeFrames = monster.See.Frames.Length;
+
+		// Bites and charges use the melee damage roll too, without a melee state.
+		npc.MeleeDice = monster.MeleeDice;
+		npc.MeleeMultiplier = monster.MeleeMultiplier;
+
+		if ( monster.Melee is { } melee )
+		{
+			npc.HasMelee = true;
+			npc.MeleeHitTime = melee.ActionTime;
+		}
+
+		foreach ( var (frame, sound) in monster.StepSounds ?? [] )
+		{
+			if ( LoadSound( sound ) is not { } step ) continue;
+			npc.StepFrames.Add( frame );
+			npc.StepSounds.Add( step );
+		}
+
+		if ( monster.Missile is { } missile && monster.Attack is { } attack )
+		{
+			npc.HasMissile = true;
+			npc.MissileFireTimes = [.. missile.ActionTimes];
+			npc.MissileLoopTime = missile.LoopTime;
+			npc.Pellets = attack.Pellets;
+			npc.MeleeIfClose = attack.MeleeIfClose;
+			npc.ShotSound = LoadSound( attack.Sound );
+			npc.MissileStartSound = LoadSound( attack.StartSound );
+			npc.RefireChance = attack.RefireChance;
+			npc.MissileHeight = attack.MissileHeight * scale;
+			npc.MissileSpread = attack.Spread?.Select( s => new Vector2( s[0], s.Length > 1 ? s[1] : s[0] ) ).ToList() ?? [];
+			npc.SpecialAttack = attack.Special;
+			npc.MissileMinRange = attack.MinRange;
+			npc.MissileMaxRange = attack.MaxRange;
+			npc.HalveMissileRange = attack.HalveRange;
+			npc.MissileRangeCap = attack.RangeCap;
+
+			// The pain elemental launches lost souls.
+			if ( attack.Special == "pain" && Host.ThingTable.TryGetValue( 3006, out var soul ) )
+				npc.SpawnedMonster = LoadThingPrefab( soul );
+
+			if ( attack.Special == "vile" )
+			{
+				var times = missile.ActionTimes;
+				npc.VileFirePrefab = Host.ThingPrefabUrl( HitEffects.VileFire );
+				npc.VileFireTime = times.Length > 1 ? times[1] - times[0] : 1f;
+				npc.FireSound = LoadSound( "DSFLAMST" );
+				npc.BlastSound = LoadSound( "DSBAREXP" );
+			}
+
+			if ( attack.Projectile is not null && Host.ProjectileTable.TryGetValue( attack.Projectile, out var projectile ) )
+				npc.ProjectilePrefab = LoadThingPrefab( projectile.AsThing );
+		}
+
+		npc.Raisable = monster.Raisable;
+		npc.CanHeal = monster.Heal is not null;
+		if ( npc.CanHeal ) npc.HealSound = LoadSound( "DSSLOP" );
+
+		npc.PuffPrefab = LoadThingPrefab( HitEffects.Puff );
+		npc.BloodPrefab = LoadThingPrefab( HitEffects.Blood );
+
+		npc.SeeSounds = monster.SeeSounds?.Select( LoadSound ).Where( s => s is not null ).ToList() ?? [];
+		npc.DeathSounds = monster.DeathSounds?.Select( LoadSound ).Where( s => s is not null ).ToList() ?? [];
+		npc.ActiveSound = LoadSound( monster.ActiveSound );
+		npc.PainSound = LoadSound( monster.PainSound );
+		npc.AttackSound = LoadSound( monster.AttackSound );
+		npc.MeleeHitSound = LoadSound( monster.MeleeHitSound );
+	}
+
+	/// <summary>Another thing's mounted prefab, or null if no mounted WAD can draw it.</summary>
+	private PrefabFile LoadThingPrefab( ThingType thing )
+		=> Host.ThingPrefabUrl( thing ) is { } url ? PrefabFile.Load( url ) : null;
+
 	private SoundEvent LoadSound( string lump )
 	{
+		if ( lump is null ) return null;
+
 		if ( stack.FindSound( lump, out var owner ) is null ) return null;
 		return GameResource.Load<SoundEvent>( Host.Url( GameMount.SoundEventPath( owner.Name, lump ) ) );
 	}

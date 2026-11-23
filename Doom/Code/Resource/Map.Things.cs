@@ -18,10 +18,13 @@ partial class MapLoader
 	{
 		if ( type.Category is ThingCategory.PlayerStart or ThingCategory.DeathmatchStart ) return true;
 
+		// Monsters whose behaviour isn't in yet would only stand there.
+		if ( type.Category == ThingCategory.Monster && !Host.MonsterTable.ContainsKey( type.Id ) && (type.Flags & ThingTypeFlags.Special) == 0 )
+			return false;
+
 		// temp, these are all useless atm
 		if ( type.Category
-			is ThingCategory.Monster
-			or ThingCategory.Health
+			is ThingCategory.Health
 			or ThingCategory.Armor
 			or ThingCategory.Key
 			or ThingCategory.Powerup
@@ -61,14 +64,14 @@ partial class MapLoader
 	/// </summary>
 	protected virtual void SpawnThing( Thing thing, ThingType type, GameObject parent )
 	{
-		if ( GameMount.GetThingOwner( Wads, type ) is not { } owner ) return;
-
-		var prefab = PrefabFile.Load( Host.Url( GameMount.ThingPrefabPath( owner.Name, type ) ) );
-		if ( prefab is null ) return;
+		if ( Host.ThingPrefabUrl( type ) is not { } url || PrefabFile.Load( url ) is not { } prefab ) return;
 
 		int sector = SectorAt( thing.X, thing.Y );
 		bool hanging = (type.Flags & ThingTypeFlags.Hanging) != 0;
-		bool moving = sector >= 0 && _dynamic[sector];
+		bool monster = type.Category == ThingCategory.Monster;
+
+		// Monsters get about on their own rather than riding the plane they start on.
+		bool moving = sector >= 0 && _dynamic[sector] && !monster;
 
 		if ( moving )
 			parent = hanging ? _ceilingObjects[sector] : _floorObjects[sector];
@@ -81,6 +84,9 @@ partial class MapLoader
 		// so place the thing in world space once it's parented.
 		go.WorldPosition = World( thing.X, thing.Y, z );
 		go.WorldRotation = Rotation.FromYaw( thing.Angle );
+
+		if ( go.Components.TryGet<DoomMonster>( out var npc ) )
+			npc.Ambush = (thing.Flags & ThingFlags.Ambush) != 0;
 
 		if ( sector >= 0 && go.Components.TryGet<DoomTeleportDestination>( out _ ) )
 			go.Tags.Add( DoomTeleportDestination.TagFor( _sectors[sector].Tag ) );

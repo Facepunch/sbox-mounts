@@ -107,3 +107,33 @@ public sealed class SpriteLoader( ThingType type, string[] frames, string[] deat
 		Frames = textures.Select( t => new Sprite.Frame { Texture = Texture.Load( t, false ) } ).ToList(),
 	};
 }
+
+/// <summary>One animation of an <see cref="AnimatedSpriteLoader"/>: its frame textures in play order and how long each shows.</summary>
+public sealed record SpriteAnimationDefinition( string Name, string[] Textures, int Tics, bool Loop );
+
+/// <summary>
+/// A sprite resource with any number of named animations sharing one canvas, such as a monster's
+/// states seen from each rotation. The first animation plays by default.
+/// </summary>
+public sealed class AnimatedSpriteLoader( IReadOnlyList<SpriteAnimationDefinition> animations, SpriteCanvas canvas ) : ResourceLoader<GameMount>
+{
+	protected override object Load()
+	{
+		var sprite = new Sprite();
+		sprite.Animations.Clear();
+
+		foreach ( var a in animations )
+		{
+			sprite.Animations.Add( new Sprite.Animation
+			{
+				Name = a.Name,
+				FrameRate = a.Tics > 0 ? 35f / a.Tics : 0f,
+				LoopMode = a.Loop && a.Textures.Length > 1 ? Sprite.LoopMode.Loop : Sprite.LoopMode.None,
+				Origin = canvas.Origin,
+				Frames = a.Textures.Select( t => new Sprite.Frame { Texture = Texture.Load( t, false ) } ).ToList(),
+			} );
+		}
+
+		return sprite;
+	}
+}
