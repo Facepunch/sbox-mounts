@@ -9,6 +9,7 @@ public sealed partial class RabbitGuard
 	static readonly string[] DragParts = ["head", "leftarm", "rightarm", "left_leg", "right_leg"];
 	TimeUntil dragWindow, dragSlideSound, recentChoke;
 	GameObject chokeVictim;
+	RabbitGuard bodyDragger;
 	ModelPhysics draggedPhysics;
 	Rigidbody draggedBody;
 	Vector3 localDragPoint, dragTarget;
@@ -127,6 +128,11 @@ public sealed partial class RabbitGuard
 			localDragPoint = body.PhysicsBody.Transform.PointToLocal( point );
 			if ( useHead ) { chokeVictim = null; break; }
 		}
+		if ( draggedPhysics.IsValid() && owner.IsValid() )
+		{
+			if ( owner.bodyDragger.IsValid() ) owner.bodyDragger.ReleaseBodyDrag();
+			owner.bodyDragger = this;
+		}
 	}
 
 	void ReleaseBodyDrag()
@@ -135,6 +141,8 @@ public sealed partial class RabbitGuard
 		dragJoint = null;
 		dragAnchor?.Remove();
 		dragAnchor = null;
+		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponentInParent<RabbitGuard>() is { } owner && owner.bodyDragger == this )
+			owner.bodyDragger = null;
 		draggedPhysics = null;
 		draggedBody = null;
 		if ( Networking.IsHost ) DragStrength = 0f;

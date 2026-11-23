@@ -135,6 +135,7 @@ public sealed partial class RabbitGuard
 	protected override void OnDisabled()
 	{
 		motionSamples = 0;
+		if ( bodyDragger.IsValid() ) bodyDragger.ReleaseBodyDrag();
 		ReleaseBodyDrag();
 		RestoreHoldMovement();
 		ReleaseProceduralPose();
