@@ -9,6 +9,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	readonly Dictionary<string, RabbitGuardAnimations> animationGraphs = new();
 	CharacterAnimationLibrary animationLibrary;
 	Vector3? modelCenter;
+	SkeletonData animationRig;
 	Dictionary<string, int> attachmentBones;
 	int[] attachmentParents, attachmentSymmetry;
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
@@ -110,10 +111,15 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		if ( animationLibrary is null )
 		{
 			var appearance = ReadAppearance();
-			var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
-			ReadBoneMasses( skeleton, rig );
-			modelCenter ??= ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
-			animationLibrary = new( Host, Path, Definition, skeleton, ScaleSkeleton( appearance, skeleton ) );
+			if ( animationRig is null )
+			{
+				var (skeleton, rig, reference, skeletonModelPath) = ReadSkeleton( appearance );
+				ReadBoneMasses( skeleton, rig );
+				modelCenter ??= ReadMesh( appearance, reference, skeletonModelPath, out _ ).Center;
+				ScaleSkeleton( appearance, skeleton );
+				animationRig = skeleton;
+			}
+			animationLibrary = new( Host, Path, Definition, animationRig, AttachmentScale );
 		}
 		var graphPath = heldModel is null ? Path : Path + "/equipped/" + key["mount://overgrowth/".Length..];
 		return animationGraphs[key] = RabbitGuardAnimations.Create( Host, graphPath, Definition, animationLibrary, modelCenter.Value, item );
@@ -178,6 +184,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var shapeCounts = RagdollBuilder.Add( Host.FileSystem, builder, skeleton, System.IO.Path.ChangeExtension( modelObjPath, ".fzx" ), reference.Center, scale, appearance.Number( "default_scale" ) ?? 1f, out var bodyCenters, out var nonCollidingBones );
 		if ( guard )
 		{
+			animationRig = skeleton;
 			AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value ) );
 			var hullPath = modelObjPath[..^4] + "_hulls.obj";
 			if ( Host.FileSystem.FileExists( hullPath ) )

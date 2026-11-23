@@ -14,6 +14,7 @@ public class SkeletonData
 	public List<Vector3> BoneCom = new();
 	public List<int> HierParents = new();
 	internal int[] AnimationParents;
+	internal bool[] AnimationWeightedBones;
 	public List<JointData> Joints = new();
 	public Dictionary<string, SimpleIKBone> IKBones = new();
 	public Transform[] BindPose;
@@ -154,7 +155,7 @@ static class PhxbnLoader
 		}
 		// Skeleton::Read attaches animated joints to their nearest weighted ancestor.
 		// Keep the file hierarchy for physical joints and reference-rig measurements.
-		var weighted = data.GetWeightedBones();
+		var weighted = data.AnimationWeightedBones = data.GetWeightedBones();
 		data.AnimationParents = data.HierParents.ToArray();
 		for ( int i = 0; i < numBones; i++ )
 			while ( data.AnimationParents[i] >= 0 && !weighted[data.AnimationParents[i]] )

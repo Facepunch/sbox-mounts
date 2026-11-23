@@ -302,7 +302,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 		}
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
-		var weighted = skeleton.GetWeightedBones();
+		var weighted = skeleton.AnimationWeightedBones ?? skeleton.GetWeightedBones();
 		var unweighted = Enumerable.Range( 0, weighted.Length ).Where( i => !weighted[i] ).Select( i => $"bone_{i}" ).ToHashSet();
 		var parents = skeleton.AnimationParents;
 		var rollBones = new HashSet<string>();
