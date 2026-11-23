@@ -27,13 +27,18 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			switch ( type.Category )
 			{
 				case ThingCategory.PlayerStart:
-					go.AddComponent<SpawnPoint>();
-					break;
+					{
+						var spawn = go.AddComponent<SpawnPoint>();
+						spawn.Priority = 4 - (type.Id - 1);
+						break;
+					}
 
 				case ThingCategory.DeathmatchStart:
-					go.AddComponent<SpawnPoint>();
-					go.Tags.Add( "deathmatch" );
-					break;
+					{
+						var spawn = go.AddComponent<SpawnPoint>();
+						go.Tags.Add( "deathmatch" );
+						break;
+					}
 
 				case ThingCategory.TeleportDestination:
 					go.AddComponent<DoomTeleportDestination>();
