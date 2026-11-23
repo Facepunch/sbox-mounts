@@ -14,8 +14,6 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		var model = (Model)await loader.GetOrCreate();
 		if ( model is null || model.IsError )
 			throw new System.IO.InvalidDataException( $"Could not build {title} prefab with missing model {modelPath}" );
-		// Build the base profile with the prefab so the first live animation update only binds it.
-		loader.GetGuardAnimations();
 		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", title )
 			.WithMetadata( "Group", Host.Title ).WithMetadata( "PreviewModel", modelPath );
 		using ( builder.Scope() )
@@ -39,6 +37,8 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		var renderer = visuals.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;
+		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( character.Path + "/guard.ag" );
+		renderer.Animation.Parameters.Set( "tall_coord", 1f, persist: true );
 		var hitboxes = visuals.AddComponent<ModelHitboxes>();
 		hitboxes.Hulls = character.HitVolumes;
 		hitboxes.Target = go;

@@ -125,6 +125,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		var pose = AirPose();
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
+		if ( playing is null && poseModel is null )
+		{
+			// Let the graph produce its first pose before any IK overrides read the bones.
+			playing = displayPose;
+			Renderer.Animation.Parameters.Set( "stance", playing );
+			return;
+		}
 		hasGaitPose = false;
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
 		if ( pose == Wall )

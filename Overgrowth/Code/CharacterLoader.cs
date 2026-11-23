@@ -6,6 +6,26 @@ namespace Overgrowth;
 
 public class CharacterLoader( string filePath, bool guard = false ) : ResourceLoader<GameMount>, IHotloadManaged
 {
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		if ( guard && name.Equals( "guard.ag", StringComparison.OrdinalIgnoreCase ) )
+		{
+			type = ResourceType.AnimationGraph;
+			return new GuardGraphLoader();
+		}
+		type = default;
+		return null;
+	}
+
+	sealed class GuardGraphLoader : ResourceLoader<GameMount>
+	{
+		protected override object Load()
+		{
+			var character = (CharacterLoader)Parent;
+			return Model.Load( character.Path ) is { IsError: false } ? character.GetGuardAnimations().Graph : null;
+		}
+	}
+
 	readonly Dictionary<string, RabbitGuardAnimations> animationGraphs = new();
 	CharacterAnimationLibrary animationLibrary;
 	Vector3? modelCenter;
