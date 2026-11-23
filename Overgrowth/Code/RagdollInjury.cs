@@ -47,13 +47,14 @@ internal sealed class RagdollInjury : Component
 
 	internal void StartInjury( ModelPhysics model, RagdollFallPose pose, float age, bool itemInjury )
 	{
+		Enabled = true;
 		physics = model;
 		damping = GetComponent<RagdollDamping>();
 		damping.Enabled = false;
 		injuryPose = pose;
 		injuryAge = age;
 		writheTime = 0f;
-		injuryMouth = 0f;
+		MouthOpening = injuryMouth = 0f;
 		nextVoice = itemInjury ? 0 : ItemVoiceTimes.Length;
 		initialStun = itemInjury ? 0.9f : 0f;
 	}
@@ -79,7 +80,7 @@ internal sealed class RagdollInjury : Component
 		}
 		float speed = momentum.Length / (mass * 40f);
 		float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
-		strength = Math.Max( 0f, strength - Math.Max( 0f, initialStun - writheTime ) );
+		strength = Math.Max( 0f, strength - (fighter.IsValid() ? fighter.RagdollStun : Math.Max( 0f, initialStun - writheTime )) );
 		float open = MathF.Sin( Time.Now * 4f ) * 0.5f + MathF.Sin( Time.Now * 6.3f ) * 0.5f;
 		injuryMouth += (open - injuryMouth) * (1f - MathF.Pow( 1f - strength, Time.Delta * 120f ));
 		MouthOpening = Math.Max( 0f, injuryMouth );
@@ -92,7 +93,6 @@ internal sealed class RagdollInjury : Component
 		}
 		injuryMotor.Apply( physics, strength );
 		if ( injuryAge < 12f ) return;
-		if ( voiced ) StopVoice();
 		Enabled = false;
 	}
 
@@ -101,6 +101,8 @@ internal sealed class RagdollInjury : Component
 		voice.Stop();
 		if ( !Networking.IsHost || injuryPose is null ) return;
 		injuryPose = null;
+		MouthOpening = 0f;
+		if ( voiced ) StopVoice();
 		if ( physics.IsValid() ) injuryMotor.Apply( physics, 0f );
 		if ( damping.IsValid() ) damping.Enabled = true;
 	}

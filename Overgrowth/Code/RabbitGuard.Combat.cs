@@ -448,6 +448,8 @@ public sealed partial class RabbitGuard
 		}
 		if ( rabbit is not null && rabbit.holdPartner.IsValid() && rabbit.holdPartner != this ) rabbit.ReleaseHold();
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware );
+		if ( !parried && wasUnaware && rabbit.boundAnimations.Species == "dog" && boundAnimations.WeaponLabel == "sword" )
+			rabbit.ReceiveSurpriseSwordHit();
 		var direction = offset.Normal;
 		if ( strike.SharpMax > 0f )
 		{

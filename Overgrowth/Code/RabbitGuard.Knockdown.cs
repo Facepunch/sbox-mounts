@@ -20,6 +20,7 @@ public sealed partial class RabbitGuard
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown, fallAge, sinceUnconscious;
 	TimeUntil limpStun;
+	internal float RagdollStun => Math.Max( 0f, limpStun );
 	float knockoutVoiceDelay;
 	class BluntDamage : DamageInfo;
 	sealed class StrikeDamage : BluntDamage
@@ -110,9 +111,25 @@ public sealed partial class RabbitGuard
 		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 
 		sinceKnockdown = 0;
-		if ( hit.DamageInfo is StrikeDamage ) limpStun = 0.9f;
+		if ( hit.DamageInfo is StrikeDamage )
+		{
+			blockHealth = 0f;
+			limpStun = 0.9f;
+		}
 		var impulse = DamageImpulse( hit.DamageInfo );
 		if ( !impulse.IsNearlyZero() ) ApplyHitImpulse( ragdoll, hit.DamageInfo.Position, impulse, (hit.DamageInfo as StrikeDamage)?.LineDirection ?? default );
+	}
+
+	void ReceiveSurpriseSwordHit()
+	{
+		if ( !Downed )
+		{
+			GoLimp();
+			if ( boundAnimations.FallPose is { Writhe: not null } pose )
+				ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, 0f, false );
+		}
+		sinceKnockdown = 0f;
+		rollDelay = Math.Max( (float)rollDelay, 1f );
 	}
 
 	void GoLimp()
@@ -132,7 +149,6 @@ public sealed partial class RabbitGuard
 		Movement.Enabled = false;
 		MovementCapsule.Enabled = false;
 		strike = null;
-		blockHealth = 0;
 		// Copy the live pose before letting the physics skeleton drive it.
 		ragdoll = Renderer.GetOrAddComponent<ModelPhysics>( false );
 		ragdoll.Renderer = Renderer;
@@ -272,6 +288,7 @@ public sealed partial class RabbitGuard
 		var (front, up) = GetTorsoDirections();
 		var facing = blockFacing ?? -up.WithZ( 0 );
 		CapturePhysicsPose();
+		if ( ragdoll.GetComponent<RagdollInjury>() is { } injury ) injury.Enabled = false;
 		ragdoll.Enabled = false;
 		Renderer.ClearPhysicsBones();
 		WorldPosition = feet;

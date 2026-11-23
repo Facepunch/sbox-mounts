@@ -73,7 +73,7 @@ public sealed partial class RabbitGuard
 			mass += rb.Mass;
 		}
 		if ( mass <= 0f ) return;
-		float strength = Math.Max( 0f, Math.Min( 0.8f, momentum.Length / mass / 400f ) - Math.Max( 0f, limpStun ) );
+		float strength = Math.Max( 0f, Math.Min( 0.8f, momentum.Length / mass / 400f ) - RagdollStun );
 		if ( Unconscious ) strength *= Math.Clamp( 1f - (float)sinceUnconscious, 0f, 1f );
 		if ( strength > 0f && CharacterLoader.RagdollCenter( ragdoll ) is { } center )
 		{
