@@ -150,13 +150,7 @@ public sealed partial class RabbitGuard
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
 		if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
 
-		Vector3 front = default, up = default;
-		foreach ( var name in boundAnimations.TorsoBones )
-		{
-			if ( !Renderer.TryGetBoneTransform( name, out var bone ) ) continue;
-			front += bone.Rotation.Up;
-			up += bone.Rotation.Forward;
-		}
+		var (front, up) = GetTorsoDirections();
 		var facing = blockFacing ?? -up.WithZ( 0 );
 		CapturePhysicsPose();
 		ragdoll.Enabled = false;
@@ -182,7 +176,7 @@ public sealed partial class RabbitGuard
 		duckAmount = 1f;
 		duckVelocity = 0f;
 		Stance = stance;
-		BeginGetUpBlend();
+		if ( lastPhysicsPose is not null ) BeginGetUpBlend();
 		Renderer.Animation.Parameters.Set( "stance", Stance );
 		Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
 		playing = Stance;
@@ -190,5 +184,17 @@ public sealed partial class RabbitGuard
 		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation )
 			navigation.HoldMovement( reactionDuration );
 		ReactionPhase = 0;
+	}
+
+	(Vector3 Front, Vector3 Up) GetTorsoDirections()
+	{
+		Vector3 front = default, up = default;
+		foreach ( var name in boundAnimations.TorsoBones )
+		{
+			if ( !Renderer.TryGetBoneTransform( name, out var bone ) ) continue;
+			front += bone.Rotation.Up;
+			up += bone.Rotation.Forward;
+		}
+		return (front, up);
 	}
 }

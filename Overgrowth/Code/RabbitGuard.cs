@@ -125,7 +125,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		UpdateStanceAmounts();
 		if ( InThrow || UpdateDefense() ) return;
-		if ( nextVisionCheck <= 0 )
+		if ( nextVisionCheck <= 0 && !Sleeping )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
 			UpdateAwareness();

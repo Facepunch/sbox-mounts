@@ -9,13 +9,23 @@ public sealed partial class RabbitGuard
 	internal const string PatrolIdle = "patrol_idle";
 	[Sync] string PatrolAnimation { get; set; }
 	bool wokeUp;
+	bool Sleeping => !wokeUp && previousPatrolPoint.IsValid() && previousPatrolPoint.Pose is "Sleep" or "Wounded";
 	string connectedPatrolAnimation;
 
 	void UpdatePatrolPose()
 	{
 		if ( Networking.IsHost && (AlertStage == 2 || investigatePoint.HasValue || escortTarget.IsValid()) && previousPatrolPoint.IsValid()
 			&& previousPatrolPoint.Pose is "Sit" or "Sleep" or "Wounded" )
+		{
+			if ( Sleeping && !Downed && strike is null && ReactionPhase >= 1f )
+			{
+				var (front, up) = GetTorsoDirections();
+				var facing = -up.WithZ( 0 );
+				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
+				StartGetUp( front.z < 0f ? StandFromFront : StandFromBack );
+			}
 			wokeUp = true;
+		}
 		if ( Stance != PatrolIdle || string.IsNullOrEmpty( PatrolAnimation ) ) return;
 		if ( connectedPatrolAnimation == PatrolAnimation ) return;
 		var slot = Renderer.Animation.ExternalGraphs;

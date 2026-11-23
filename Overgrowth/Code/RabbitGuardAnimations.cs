@@ -211,6 +211,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} ).ToArray();
 		var stanceIdle = RabbitMovement.Load( fs, character.Element( "animations" ).Attribute( "idle" ), name => clips[name] );
 		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
+		var patrolState = states[System.Array.IndexOf( names, RabbitGuard.PatrolIdle )];
 		for ( int i = 0; i < states.Length; i++ )
 		{
 			string target = names[i];
@@ -223,7 +224,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			{
 				if ( previous == states[i] ) continue;
 				bool landing = previous == airState && target is RabbitGuard.Idle or RabbitGuard.Threat or RabbitGuard.Locomotion;
-				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = landing ? 0.1f : duration } );
+				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
+				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = waking ? 0.05f : landing ? 0.1f : duration } );
 			}
 		}
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
