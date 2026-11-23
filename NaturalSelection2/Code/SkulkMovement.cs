@@ -13,7 +13,8 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	NavMeshPath path;
 	int corner, lastFeeler = -1;
 	TimeUntil rescan, detach;
-	TimeSince lostWall;
+	TimeSince lostWall, lastJump = 10, lastWallJump = 10, sinceLanding;
+	float lastFallSpeed;
 	bool touchedWall;
 	float speed;
 	[Sync( SyncFlags.FromHost )] public Vector3 ContactNormal { get; private set; }
@@ -48,7 +49,12 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 
 	public override void Stop() => MoveTarget = null;
 
-	protected override void OnStart() => body = GetComponent<Rigidbody>();
+	protected override void OnStart()
+	{
+		body = GetComponent<Rigidbody>();
+		float gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
+		if ( gravity > 0 ) body.GravityScale = 21.5f * MapLoader.Scale / gravity;
+	}
 
 	protected override void OnPhysicsControlEnded()
 	{
@@ -71,6 +77,10 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		var goal = MoveTarget;
 		var wish = goal is { } point && WorldPosition.Distance( point ) > StopDistance ? point - WorldPosition : Vector3.Zero;
 		var floor = Probe( center + Vector3.Up * 2, center - Vector3.Up * 6, Radius - 1 );
+		bool wasSupported = ContactNormal != Vector3.Zero;
+		float distance = wish.Length;
+		bool drop = OnWall && distance > 2.5f * MapLoader.Scale && distance < -wish.z * 1.5f;
+		if ( drop ) detach = 0.2f;
 		var climbing = false;
 		var wall = default(SceneTraceResult);
 		if ( detach <= 0 && (OnWall || touchedWall) )
@@ -93,6 +103,13 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		bool supportedNow = ContactNormal != Vector3.Zero;
 		Npc.Animation.IsGrounded = supportedNow;
 		body.Gravity = !supportedNow;
+		if ( !supportedNow ) lastFallSpeed = Math.Max( lastFallSpeed, -body.Velocity.z );
+		if ( supportedNow && !wasSupported )
+		{
+			sinceLanding = 0;
+			if ( lastFallSpeed > 5 * MapLoader.Scale ) ((Skulk)Npc).PlayMovementSound( "land" );
+			lastFallSpeed = 0;
+		}
 		if ( supportedNow )
 		{
 			if ( !OnWall && !wish.IsNearlyZero() && corner < path.Points.Count - 1 )
@@ -100,6 +117,18 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 				if ( WorldPosition.Distance( path.Points[corner].Position ) < Radius ) corner++;
 				if ( corner < path.Points.Count - 1 ) wish = path.Points[corner].Position - WorldPosition;
 			}
+			var direction = wish.Normal;
+			float planarSpeed = body.Velocity.WithZ( 0 ).Length;
+			bool targetAbove = distance > 2.5f * MapLoader.Scale && wish.z * 1.5f > distance;
+			bool hopping = distance > 5 * MapLoader.Scale && planarSpeed > RunSpeed * 0.9f &&
+				Vector3.Dot( body.Velocity.Normal, direction ) > 0.6f;
+			if ( (targetAbove || hopping) && lastJump > 0.25f && (!OnWall || lastWallJump >= 0.4f)
+				&& !Probe( center + Vector3.Up * 2, center + Vector3.Up * Radius, Radius - 1 ).Hit )
+			{
+				Jump( direction, planarSpeed );
+				return;
+			}
+
 			var tangent = wish - ContactNormal * Vector3.Dot( wish, ContactNormal );
 			if ( OnWall && !wish.IsNearlyZero() && tangent.Length < wish.Length * 0.25f )
 				tangent = Vector3.Up - ContactNormal * ContactNormal.z;
@@ -109,7 +138,39 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			if ( !wish.WithZ( 0 ).IsNearlyZero() )
 				WorldRotation = Rotation.LookAt( wish.WithZ( 0 ) );
 		}
+		if ( !supportedNow && !wish.IsNearlyZero() )
+		{
+			var lateral = body.Velocity.WithZ( 0 );
+			var direction = wish.WithZ( 0 ).Normal;
+			float add = Math.Clamp( speed - Vector3.Dot( lateral, direction ), 0, 9 * speed * Time.Delta );
+			body.Velocity += direction * add;
+		}
 		Npc.Animation.SetMove( body.Velocity );
+	}
+
+	void Jump( Vector3 direction, float planarSpeed )
+	{
+		float boost = 0;
+		float vertical = 8.22f;
+		if ( OnWall )
+		{
+			vertical = 3 + Math.Min( 1, 1 + direction.z ) * 2 + 4.3f * direction.z;
+			boost = Math.Max( 0.1f, 6.4f * (1 - Math.Clamp( planarSpeed / (11 * MapLoader.Scale), 0, 1 )) );
+			lastWallJump = 0;
+		}
+		else if ( sinceLanding < 0.5f )
+		{
+			boost = Math.Max( 0.05f, 7 * (1 - Math.Clamp( planarSpeed / (8.5f * MapLoader.Scale), 0, 1 )) );
+			vertical += 2.15f * direction.z;
+		}
+		if ( lastJump > 1.5f ) boost *= 0.5f;
+		var velocity = body.Velocity.WithZ( vertical * MapLoader.Scale ) + direction.WithZ( 0 ).Normal * (boost * MapLoader.Scale);
+		lastJump = 0;
+		Leap( velocity );
+		var npc = (Skulk)Npc;
+		float fraction = velocity.WithZ( 0 ).Length / (11 * MapLoader.Scale);
+		if ( fraction > 0.75f ) npc.PlayMovementSound( fraction > 0.95f ? "jump_best" : "jump_good" );
+		npc.PlayMovementSound( "jump" );
 	}
 
 	SceneTraceResult Probe( Vector3 from, Vector3 to, float radius ) => Scene.Trace.Ray( from, to ).Radius( radius )

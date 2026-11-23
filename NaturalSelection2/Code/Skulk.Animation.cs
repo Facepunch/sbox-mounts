@@ -23,8 +23,8 @@ public sealed partial class Skulk
 		var facing = WorldRotation.Forward - up * Vector3.Dot( WorldRotation.Forward, up );
 		if ( facing.IsNearlyZero( 0.01f ) ) facing = Vector3.Up - up * up.z;
 		var rotation = Rotation.LookAt( facing, up );
-		Renderer.WorldRotation = rotation;
-		Renderer.WorldPosition = WorldPosition + (Vector3.Up - up) * SkulkMovement.Radius;
+		Renderer.WorldRotation = Rotation.Slerp( Renderer.WorldRotation, rotation, Math.Clamp( Time.Delta * (onWall ? 5 : 6), 0, 1 ) );
+		Renderer.WorldPosition = WorldPosition + (Vector3.Up - Renderer.WorldRotation.Up) * SkulkMovement.Radius;
 		world?.Set( "onwall", onWall ? 1 : 0 );
 		var moving = velocity.Length >= 0.1f * MapLoader.Scale;
 		var move = Leaping ? "leap" : !Animation.IsGrounded ? "jump" : moving ? "run" : "idle";

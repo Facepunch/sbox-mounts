@@ -14,7 +14,7 @@ public sealed partial class Skulk
 		static void Add( MountContext mount, string id ) => mount.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
 		Add( context, "alien/common/xenocide_start" );
 		Add( context, "alien/common/xenocide_end" );
-		foreach ( var cue in new[] { "spawn", "death", "bite", "bite_alt", "parasite", "bite_kill", "wound", "wound_serious", "bite_hit_marine" } )
+		foreach ( var cue in new[] { "spawn", "death", "bite", "jump", "jump_good", "jump_best", "land", "bite_alt", "parasite", "bite_kill", "wound", "wound_serious", "bite_hit_marine" } )
 			Add( context, $"alien/skulk/{cue}" );
 		foreach ( var material in new[] { "metal", "thin_metal", "organic", "rock" } )
 		{
@@ -32,6 +32,8 @@ public sealed partial class Skulk
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayCombatSound( string id, Vector3 position ) => PlayLocal( id, position );
+
+	internal void PlayMovementSound( string cue ) => PlayCombatSound( $"alien/skulk/{cue}", WorldPosition );
 
 	void PlayVoice( string cue ) => PlayCombatSound( $"alien/skulk/{cue}", EyePosition );
 
