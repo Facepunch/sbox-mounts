@@ -17,8 +17,11 @@ public sealed partial class RabbitGuard
 		WorldRotation *= from.Rotation.Inverse * to.Rotation;
 	}
 
-	Vector3 MoveGroundDelta( Vector3 displacement )
+	Vector3 MoveGroundDelta( Vector3 displacement ) => MoveGroundDelta( displacement, out _ );
+
+	Vector3 MoveGroundDelta( Vector3 displacement, out Vector3 slide )
 	{
+		slide = default;
 		if ( displacement.LengthSquared <= 0f || !MovementCapsule.IsValid() ) return Vector3.Up;
 		var scale = MovementCapsule.WorldScale;
 		// The agent origin is on the floor, whereas the support point of a capsule moves uphill on a slope.
@@ -37,6 +40,7 @@ public sealed partial class RabbitGuard
 		var trace = IgnoreFighters( Scene.Trace.Capsule( capsule ) ).WithoutTags( "trigger" );
 		var move = new CharacterControllerHelper( trace, WorldPosition + lift, displacement );
 		move.TryMove( 1f );
+		slide = move.Velocity;
 		WorldPosition = move.Position - lift;
 		GetComponent<NavMeshAgent>()?.SetAgentPosition( WorldPosition );
 		return supported ? ground.Normal : Vector3.Up;
