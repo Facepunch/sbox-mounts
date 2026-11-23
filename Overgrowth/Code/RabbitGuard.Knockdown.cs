@@ -72,6 +72,7 @@ public sealed partial class RabbitGuard
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
 		if ( !Downed )
 			GoLimp();
+		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 
 		sinceKnockdown = 0;
 		if ( hit.DamageInfo is StrikeDamage blow ) ApplyHitImpulse( ragdoll, blow.Position, blow.Impulse );
@@ -96,6 +97,7 @@ public sealed partial class RabbitGuard
 		ragdoll.CopyBonesFrom( Renderer, true );
 		ReleaseProceduralPose();
 		ragdoll.Enabled = true;
+		ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
 		Downed = true;
 	}
 
@@ -108,8 +110,11 @@ public sealed partial class RabbitGuard
 	protected override GameObject CreateRagdoll()
 	{
 		var corpse = base.CreateRagdoll();
-		if ( lethalBlow is not null && corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
-			ApplyHitImpulse( physics, lethalBlow.Position, lethalBlow.Impulse );
+		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
+		{
+			corpse.GetOrAddComponent<RagdollDamping>().Reset( physics );
+			if ( lethalBlow is not null ) ApplyHitImpulse( physics, lethalBlow.Position, lethalBlow.Impulse );
+		}
 		return corpse;
 	}
 
