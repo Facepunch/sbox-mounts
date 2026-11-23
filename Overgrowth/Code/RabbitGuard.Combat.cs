@@ -114,6 +114,7 @@ public sealed partial class RabbitGuard
 		{
 			enemy = null;
 			if ( FollowHeardVoice() ) return;
+			if ( !investigatePoint.HasValue && SearchArea() ) return;
 			float arrival = urgentInvestigation ? MathF.Sqrt( 2f ) * 40f : 40f;
 			if ( investigatePoint.HasValue && startled > 0 )
 			{
@@ -147,6 +148,13 @@ public sealed partial class RabbitGuard
 		float distance = delta.Length;
 		if ( !visible && distance < 40 )
 		{
+			if ( sinceEnemySeen >= 2f )
+			{
+				enemy = null;
+				BeginAreaSearch();
+				SearchArea();
+				return;
+			}
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			Stance = sinceEnemySeen < 2f ? Threat : Watch;
 			return;
@@ -203,7 +211,7 @@ public sealed partial class RabbitGuard
 				}
 				else Movement.Stop();
 			}
-			else Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? GroundRunSpeed : 2.2f * 40f * MovementSpeed );
+			else Movement.MoveTo( destination, 0.45f * 40, GroundRunSpeed );
 		}
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}

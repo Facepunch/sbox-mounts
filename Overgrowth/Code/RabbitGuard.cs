@@ -229,6 +229,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Speak( "engage" );
 		}
 		enemy = target;
+		searchUntil = 0f;
 		seenHostiles[target] = Time.Now;
 		escortTarget = null;
 		investigatePoint = null;

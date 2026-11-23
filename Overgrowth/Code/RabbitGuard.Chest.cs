@@ -10,10 +10,10 @@ public sealed partial class RabbitGuard
 	Vector3 noticePosition;
 	TimeUntil noticeLook;
 
-	void LookAtNotice( Vector3 position )
+	void LookAtNotice( Vector3 position, float duration = 2f )
 	{
 		noticePosition = position;
-		noticeLook = 2f;
+		noticeLook = duration;
 	}
 	bool chestActive;
 	float previousYaw, stanceLook, idleStance;
