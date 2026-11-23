@@ -141,17 +141,16 @@ public sealed partial class RabbitGuard
 		if ( boundAnimations is null || !IsOnGround || Unconscious || Health < 1 ) return false;
 		if ( boundAnimations.Species == "wolf" && attacker.boundAnimations.Species != "wolf" && WorldScale.z > 0.8f && !move.FleshUnblockable ) return true;
 		if ( TryDodge( attacker, move ) ) return false;
+		bool active = activeBlock > 0f || boundAnimations.Species == "cat" && hitsOnGround > 0;
+		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
+		if ( Downed || IsGetUp( Stance ) || RollProgress < 1f ) throwRecharge = Math.Max( (float)throwRecharge, 1f );
 		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
-		bool active = activeBlock > 0;
-
-		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
 		flinching = false;
 		flinchFadeOut = 100f;
 		if ( Downed || IsGetUp( Stance ) )
 		{
-			throwRecharge = Math.Max( (float)throwRecharge, 1f );
 			var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 			var facing = move.WorldImpact( direction, attacker.flippedAttack ).WithZ( 0 );
 			if ( Downed )
@@ -168,6 +167,11 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
+			if ( RollProgress < 1f )
+			{
+				RollProgress = 1f;
+				RollDirection = default;
+			}
 			MirroredAction = MirroredStance;
 			BeginReaction( attacker.GameObject, attacker.WorldPosition, slot, guard, activeBlock: true );
 		}
