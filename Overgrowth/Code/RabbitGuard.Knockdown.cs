@@ -186,7 +186,7 @@ public sealed partial class RabbitGuard
 	bool TryGetUp( Vector3? blockFacing = null )
 	{
 		if ( Unconscious || !ragdoll.IsValid() || boundAnimations is null ) return false;
-		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && CanAttack( enemy ) && startled <= 0f;
+		bool canWakeRoll = !blockFacing.HasValue && boundAnimations.Species != "wolf" && HasCombatTarget && startled <= 0f;
 		if ( !blockFacing.HasValue && sinceKnockdown < 1f && !canWakeRoll ) return false;
 		Vector3 center = default, velocity = default;
 		float mass = 0;

@@ -17,7 +17,7 @@ public sealed partial class RabbitGuard
 	}
 
 	bool CanLead( RabbitGuard ally ) => ally != this && ally.Active && !ally.Downed && !ally.Unconscious
-		&& ally.Health > 0 && ally.CanAttack( ally.enemy ) && GetDisposition( ally.GameObject ) == Disposition.Friendly;
+		&& ally.Health > 0 && ally.HasCombatTarget && GetDisposition( ally.GameObject ) == Disposition.Friendly;
 
 	void PassLeadership()
 	{
@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 	{
 		// Spawn-menu fighters have no team. Authored teammates take turns engaging, as in AllyInfo.
 		if ( Teams.Length == 0 && !groupLeader.IsValid() && followerCount == 0 ) return;
-		if ( !CanAttack( enemy ) )
+		if ( !HasCombatTarget )
 		{
 			if ( followerCount > 0 ) PassLeadership();
 			FollowLeader( null );

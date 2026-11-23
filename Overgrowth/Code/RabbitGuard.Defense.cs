@@ -90,7 +90,7 @@ public sealed partial class RabbitGuard
 	void UpdateActiveBlock( float step )
 	{
 		if ( boundAnimations.Species == "wolf" ) return;
-		if ( startled <= 0f && CanAttack( enemy ) && enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
+		if ( startled <= 0f && HasCombatTarget && enemy.GetComponent<RabbitGuard>() is { strike: { } move } opponent && opponent.Stance != move.Blocked )
 		{
 			if ( move.AsLayer && dodgeDelay is null && dodgeRecharge <= 0f ) dodgeDelay = DefenseDelay( opponent, move );
 			if ( !move.AsLayer && blockDelay is null && blockRecharge <= 0f ) blockDelay = DefenseDelay( opponent, move );

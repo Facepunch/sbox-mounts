@@ -143,7 +143,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( SeekWeapon() ) return;
+		if ( Flee() || SeekWeapon() ) return;
 		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
 		{
 			Remember( closest, engage: false );

@@ -36,7 +36,7 @@ public sealed partial class RabbitGuard
 			? Math.Clamp( (60f - CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) )) / 28f, 0f, 1f ) : 0f;
 		bool movement = Stance is Idle or Ready or Watch or Locomotion or Threat;
 		if ( !movement && strike is null ) ThreatAmount = 0;
-		float target = (movement || strike is not null) && enemy.IsValid() && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
+		float target = (movement || strike is not null) && HasCombatTarget && startled <= 0 && tactic is CombatTactic.Rush or CombatTactic.Wait ? 1f : 0f;
 		float acceleration = target == 0 && ThreatAmount < 0 ? 100f : 200f;
 		threatVelocity += (target - ThreatAmount) * Time.Delta * acceleration;
 		threatVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );

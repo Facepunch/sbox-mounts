@@ -140,6 +140,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				int start = Connections( node ).FirstOrDefault( -1 );
 				actors.Guards.Add( (fighter, start) );
 				ConnectItems( fighter );
+				fighter.AlwaysAfraidOnSight = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "scared" ) == true;
 				fighter.Teams = GetTeams( node, file );
 				fighter.MetalArmor = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Armor" && p.Attribute( "val" ) == "metal" ) == true;
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
@@ -151,6 +152,10 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 					if ( parameter.Number( "val" ) is not { } value ) continue;
 					switch ( parameter.Attribute( "name" ) )
 					{
+						case "Fear - Causes Fear On Sight": fighter.CausesFearOnSight = value != 0f; break;
+						case "Fear - Always Afraid On Sight": fighter.AlwaysAfraidOnSight = value != 0f; break;
+						case "Fear - Never Afraid On Sight": fighter.NeverAfraidOnSight = value != 0f; break;
+						case "Fear - Afraid At Health Level": fighter.AfraidAtHealthLevel = Math.Clamp( value, 0f, 1f ); break;
 						case "Hearing Modifier": fighter.HearingModifier = value; break;
 						case "Focus FOV horizontal": fighter.FocusVision = fighter.FocusVision.WithX( value ); break;
 						case "Focus FOV vertical": fighter.FocusVision = fighter.FocusVision.WithY( value ); break;

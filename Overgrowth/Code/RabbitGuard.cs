@@ -281,6 +281,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			startled = 1f;
 			Speak( "engage" );
 		}
+		if ( !enemy.IsValid() && engage )
+		{
+			bool frightening = target.GetComponent<RabbitGuard>() is { CausesFearOnSight: true };
+			fleeFrom = AlwaysAfraidOnSight || frightening && !NeverAfraidOnSight ? target : null;
+			fleeUpdate = 0f;
+		}
 		ObserveTarget( target, true );
 		enemy = target;
 		knownCharacters[target] = CharacterCenter( target );
