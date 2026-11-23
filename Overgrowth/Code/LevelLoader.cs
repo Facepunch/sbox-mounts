@@ -9,6 +9,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 	{
 		public readonly List<(RabbitGuard Guard, int Waypoint)> Guards = [];
 		public string[] PlayerTeams = [];
+		public readonly List<(int Id, GameObject Object, Model Model)> Items = [];
+		public readonly HashSet<int> AttachedItems = [];
 	}
 
 	protected override void BuildScene()
@@ -30,6 +32,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		var patrolPoints = new Dictionary<int, (PatrolPoint Point, XmlAsset Node)>();
 		var actors = new Actors();
 		foreach(var child in level.Children) Place(child, jumpNodes, patrolPoints, actors);
+		foreach ( var (id, item, model) in actors.Items )
+			if ( !actors.AttachedItems.Contains( id ) ) LevelItem.AddPhysics( item, model );
 		PlaceJumpLinks( jumpNodes );
 		foreach ( var (point, node) in patrolPoints.Values )
 			foreach ( var id in Connections( node ) )
@@ -94,6 +98,10 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		var name = node.Attribute( "name" ) ?? System.IO.Path.GetFileNameWithoutExtension( file ) ?? node.Name;
 		var transform = new Transform( Vector( node, "t", 0 ) * 40, Orientation( node ), Vector( node, "s", 1 ) );
 		GameObject Object() => new GameObject( true, name ) { WorldTransform = transform };
+
+		if ( node.Name == "ActorObject" )
+			foreach ( var link in node.Element( "ItemConnections" )?.Elements( "ItemConnection" ) ?? [] )
+				if ( int.TryParse( link.Attribute( "id" ), out int itemId ) ) actors.AttachedItems.Add( itemId );
 
 		switch(node.Name)
 		{
@@ -171,7 +179,11 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 		if(string.IsNullOrEmpty(file)) return;
 		var model=Model.Load(Host.MountedPath(file)+".vmdl");
-		if(model is { IsError:false }) AddModel(Object(),model,node.Name=="EnvObject");
+		if ( model is not { IsError: false } ) return;
+		var go = Object();
+		AddModel( go, model, node.Name == "EnvObject" );
+		if ( node.Name == "ItemObject" )
+			actors.Items.Add( (int.TryParse( node.Attribute( "id" ), out var itemId ) ? itemId : -1, go, model) );
 	}
 
 	static void AddModel(GameObject go,Model model,bool solid)
