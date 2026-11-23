@@ -19,7 +19,7 @@ public sealed partial class RabbitGuard
 	void UpdateBreathing( float dt )
 	{
 		if ( playing != Stance && (Stance == "throw" || boundAnimations.Attacks.ContainsKey( Stance )) ) breathSpeed += 2f;
-		float speedRatio = Animation.MoveVelocity.Length / (8f * 40f);
+		float speedRatio = Animation.MoveVelocity.Length / GroundRunSpeed;
 		if ( CombatPosture ) speedRatio = (1f + speedRatio) * 0.5f;
 		float target = 0.9f + 4f * speedRatio;
 		breathSpeed = Math.Min( 5f, target + (breathSpeed - target) * MathF.Pow( 0.999f - 0.009f * speedRatio, dt * 120f ) );

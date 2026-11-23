@@ -74,7 +74,7 @@ public sealed partial class RabbitGuard
 			return WaitAtPatrolPoint();
 		}
 
-		if ( Movement.MoveTarget != target ) Movement.MoveTo( target, 0f, 0.2f * 8f * 40f );
+		if ( Movement.MoveTarget != target ) Movement.MoveTo( target, 0f, 0.2f * GroundRunSpeed );
 		Stance = Locomotion;
 		return true;
 	}

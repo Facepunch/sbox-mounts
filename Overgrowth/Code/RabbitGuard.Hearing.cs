@@ -87,7 +87,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( repath <= 0 )
 			{
-				Movement.MoveTo( position, radius, Math.Min( remaining / 40f, 1f ) * 8f * 40f );
+				Movement.MoveTo( position, radius, Math.Min( remaining / 40f, 1f ) * GroundRunSpeed );
 				repath = 0.2f;
 			}
 			Stance = Locomotion;

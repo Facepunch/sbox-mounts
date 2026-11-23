@@ -123,7 +123,7 @@ public sealed partial class RabbitGuard
 			}
 			if ( investigatePoint is { } point && WorldPosition.DistanceSquared( point ) >= arrival * arrival )
 			{
-				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, arrival, (urgentInvestigation ? 0.7f : 0.2f) * 8f * 40f );
+				if ( Movement.MoveTarget != point ) Movement.MoveTo( point, arrival, (urgentInvestigation ? 0.7f : 0.2f) * GroundRunSpeed );
 				Stance = Locomotion;
 				return;
 			}
@@ -197,13 +197,13 @@ public sealed partial class RabbitGuard
 					const float slowRadius = 0.2f * 40f;
 					float remaining = (point - WorldPosition).WithZ( 0 ).Length - slowRadius;
 					if ( remaining > 0 )
-						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * 8f * 40f,
+						Movement.MoveTo( point, slowRadius, Math.Min( remaining / 40f, 1f ) * GroundRunSpeed,
 							Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? enemy : null );
 					else Movement.Stop();
 				}
 				else Movement.Stop();
 			}
-			else Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? 8f * 40 : 2.2f * 40 );
+			else Movement.MoveTo( destination, 0.45f * 40, visible || sinceEnemySeen < 2f ? GroundRunSpeed : 2.2f * 40f * MovementSpeed );
 		}
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}
