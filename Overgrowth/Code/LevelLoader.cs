@@ -141,6 +141,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				actors.Guards.Add( (fighter, start) );
 				ConnectItems( fighter );
 				fighter.Teams = GetTeams( node, file );
+				fighter.MetalArmor = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Armor" && p.Attribute( "val" ) == "metal" ) == true;
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
 					if ( parameter.Attribute( "name" ) == "No Look Around" )
@@ -163,6 +164,8 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Attack Damage": fighter.AttackDamage = Math.Max( 0f, value ); break;
 						case "fall_damage_mult" when !node.Element( "parameters" ).Elements( "parameter" ).Any( x => x.Attribute( "name" ) == "Fall Damage Multiplier" ):
 						case "Fall Damage Multiplier": fighter.FallDamageMultiplier = Math.Max( 0.001f, value ); break;
+						case "Wearing Metal Armor": fighter.MetalArmor = value != 0f; break;
+						case "Cannot Be Disarmed": fighter.CannotBeDisarmed = value != 0f; break;
 						case "Damage Resistance": fighter.DamageResistance = value; break;
 					case "Knockout Shield": fighter.KnockoutShield = Math.Max( 0, (int)value ); break;
 						case "Attack Knockback": fighter.AttackKnockback = Math.Max( 0f, value ); break;

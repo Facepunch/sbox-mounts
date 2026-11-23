@@ -213,6 +213,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				moves[name] = new RabbitAttack( poses, reactions[name], block.Number( "min" ).Value, block.Number( "max" ).Value, blocked[name], Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
 					new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true", reactionAssets[name].Element( "flags" )?.Attribute( "mirrored" ) )
 				{
+					SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
+					SharpMax = attack.Element( "sharp_damage" )?.Number( "max" ) ?? 0f,
 					Unblockable = flags.Attribute( "unblockable" ) == "true",
 					FleshUnblockable = flags.Attribute( "flesh_unblockable" ) == "true",
 					Special = flags.Attribute( "special" )

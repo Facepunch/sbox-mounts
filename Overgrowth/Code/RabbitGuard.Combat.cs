@@ -51,6 +51,7 @@ public sealed partial class RabbitGuard
 	protected override void OnStart()
 	{
 		base.OnStart();
+		initialKnockoutShield = KnockoutShield;
 		if ( Networking.IsHost ) MirroredStance = LeftHanded;
 	}
 
@@ -330,15 +331,34 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
-		if ( rabbit is not null && rabbit.TryPassiveBlock( this, strike ) )
+		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike );
+		var direction = offset.Normal;
+		if ( strike.SharpMax > 0f )
+		{
+			ApplySharpHit( clip, position, direction, rabbit, parried );
+			return;
+		}
+		if ( parried )
 		{
 			ReportSound( enemy, position, HeardSound.Combat, 10f );
 			PlayBluntImpact( "hit_normal", position );
 			return;
 		}
+		var npc = enemy.GetComponent<BaseNpc>();
+		ApplyStrikeImpulse( clip, position, direction );
+		if ( enemy.IsValid() ) ReportSound( enemy, position, HeardSound.Combat, 10f );
+		var group = "hit_normal";
+		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
+		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
+		PlayBluntImpact( group, position );
+		if ( rabbit.IsValid() && strike is not null ) rabbit.TryDisarm( strike.WorldImpact( direction, flippedAttack ) );
+	}
+
+	void ApplyStrikeImpulse( RabbitClip clip, Vector3 position, Vector3 direction )
+	{
 		var victim = enemy.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
-		var direction = offset.Normal;
+		var origin = CharacterCenter( GameObject );
 		float force = strike.Force * AttackKnockback;
 		if ( enemy.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
 			force *= 1f - Math.Clamp( defender.TemporaryHealth / defender.MaxHealth, 0f, 1f ) * 0.5f;
@@ -350,17 +370,11 @@ public sealed partial class RabbitGuard
 			Origin = origin,
 			Position = position,
 			Attacker = GameObject,
-			Weapon = GameObject
+			Weapon = PrimaryItem.IsValid() ? PrimaryItem.GameObject : GameObject
 		};
 		damage.Tags.Add( "melee" );
 		damage.Tags.Add( "nevergib" );
-		var npc = enemy.GetComponent<BaseNpc>();
 		victim.OnDamage( damage );
-		if ( enemy.IsValid() ) ReportSound( enemy, position, HeardSound.Combat, 10f );
-		var group = "hit_normal";
-		if ( npc is not null && (!npc.IsValid() || npc.Health < 1f) ) group = "hit_hard";
-		else if ( npc is RabbitGuard { Downed: true } ) group = "hit_medium";
-		PlayBluntImpact( group, damage.Position );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -385,10 +399,7 @@ public sealed partial class RabbitGuard
 		mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
 		if ( a == "metal" && b == "metal" )
 		{
-			int count = Random.Shared.Next( 20 );
-			mount.EmitClashParticles( "metalspark", point, count );
-			mount.EmitClashParticles( "metalflash", point, count );
-			mount.EmitClashFlash( point );
+			mount.MetalSparks( point );
 			return;
 		}
 		mount.EmitClashParticles( "woodspeck", point, Random.Shared.Next( a == "wood" && b == "wood" ? 5 : 10 ) );

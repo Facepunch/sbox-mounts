@@ -160,7 +160,10 @@ public sealed partial class RabbitGuard
 		blockHealth = Math.Max( wolfAdvantage && move.Special != "legcannon" ? 0.1f : 0f, blockHealth - blockDamage * cost );
 		if ( Downed || RollProgress < 1f || boundAnimations is null || Health < 1 || !IsOnGround || WorldScale.z < 0.8f || blockHealth <= 0f ) return false;
 		var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
-		if ( !wolfAdvantage && species != "dog" && (startled > 0 || strike is not null || WorldRotation.Forward.Dot( direction ) > 0f) ) return false;
+		bool blockingWeapon = PrimaryItem.IsValid() && boundAnimations.WeaponLabel != "knife" && startled <= 0f;
+		bool armedParry = attacker.PrimaryItem.IsValid() && attacker.boundAnimations.WeaponLabel != "knife" && (blockingWeapon || MetalArmor);
+		if ( !wolfAdvantage && move.SharpMax > 0f && !armedParry ) return false;
+		if ( !wolfAdvantage && species != "dog" && (startled > 0 || strike is not null && !armedParry || WorldRotation.Forward.Dot( direction ) > 0f) ) return false;
 		if ( wolfAdvantage && blockStun <= 0f )
 		{
 			Speak( "block_hit" );

@@ -74,7 +74,15 @@ public partial class GameMount
 	readonly Dictionary<string, ClashParticle.Definition> clashParticles = new();
 	float? clashFlashRadius;
 
-	internal void EmitClashFlash( Vector3 point )
+	internal void MetalSparks( Vector3 point )
+	{
+		int count = Random.Shared.Next( 20 );
+		EmitClashParticles( "metalspark", point, count );
+		EmitClashParticles( "metalflash", point, count );
+		EmitClashFlash( point );
+	}
+
+	void EmitClashFlash( Vector3 point )
 	{
 		if ( !clashFlashRadius.HasValue )
 		{
