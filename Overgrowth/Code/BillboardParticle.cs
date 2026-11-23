@@ -6,7 +6,7 @@ public sealed class BillboardParticle : Component
 {
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
-		float OpacityDecay, DecalDefinition Decal, float DecalScale, string MaterialEvent );
+		float OpacityDecay, DecalDefinition Decal, bool BloodDecal, float DecalScale, string MaterialEvent );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -109,7 +109,10 @@ public sealed class BillboardParticle : Component
 		decal.Decals = [definition.Decal];
 		decal.Size = width;
 		decal.Depth = width;
-		decal.ColorTint = tint;
+		if ( definition.BloodDecal )
+			BloodSpatter.Apply( decal, width, RabbitGuard.BloodColor );
+		else
+			decal.ColorTint = tint;
 		decal.Transient = true;
 		go.AddComponent<TemporaryEffect>();
 		go.Enabled = true;
@@ -146,9 +149,11 @@ public partial class GameMount
 			var behavior = xml.Element( "behavior" );
 			var collision = xml.Element( "collision" );
 			DecalDefinition decal = null;
+			bool bloodDecal = false;
 			if ( collision?.Attribute( "decal" ) is { } decalPath )
 			{
 				var asset = XmlAsset.Read( FileSystem, decalPath, "DecalObject" );
+				bloodDecal = asset.Element( "SpecialType" )?.Value == "2";
 				decal = new() { ColorTexture = LoadTexture( asset.Element( "ColorMap" ).Value ), NormalTexture = LoadTexture( asset.Element( "NormalMap" ).Value ), Width = 1f, Height = 1f };
 			}
 			definition = new( Sprite.FromTexture( LoadTexture( xml.Element( "textures" ).Attribute( "color_map" ) ) ),
@@ -157,7 +162,7 @@ public partial class GameMount
 				behavior.Number( "inertia" ).Value, behavior.Number( "wind" ).Value,
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
 				behavior.Number( "gravity" ) ?? 0f, behavior.Number( "size_decay_rate" ) ?? 0f, behavior.Number( "opacity_decay_rate" ) ?? 0f,
-				decal, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ) );
+				decal, bloodDecal, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ) );
 			billboards.Add( path, definition );
 		}
 		BillboardParticle.Emit( definition, position, velocity, tint );

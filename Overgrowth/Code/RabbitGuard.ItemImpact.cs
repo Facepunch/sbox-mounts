@@ -10,12 +10,14 @@ public sealed partial class RabbitGuard
 		get;
 		set { field = value; CutMarks.RefreshAppearance(); }
 	} = 2;
+	internal static readonly Color DefaultBloodColor = new( 0.4f, 0f, 0f );
+
 	[ConVar( "overgrowth_blood_color", Help = "Tint for Overgrowth blood particles and decals." )]
 	public static Color BloodColor
 	{
 		get;
 		set { field = value; CutMarks.RefreshAppearance(); }
-	} = new( 0.4f, 0f, 0f );
+	} = DefaultBloodColor;
 
 	sealed class ItemWound : BloodDamage { public Vector3 Impulse { get; init; } }
 	sealed class ItemImpact : BluntDamage { public Vector3 Impulse { get; init; } }
