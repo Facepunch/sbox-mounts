@@ -9,6 +9,7 @@ public sealed partial class RabbitGuard
 	[Property] public bool ThrowTrainer { get; set; }
 	bool TrainingThrows => ThrowTrainer && Tutorials;
 	[Property, Range( 0f, 1f )] public float ThrowCounterProbability { get; set; } = 0.4f;
+	float ThrowFadeRate => Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
 	bool InThrow => Stance is "throw" or "thrown" or "thrown_counter";
 	internal Vector3? ThrowGroundVelocity => InThrow && !IsAirborne ? combatVelocity : null;
 	bool wantsBlockThrow, willEscapeThrow;
@@ -122,8 +123,7 @@ public sealed partial class RabbitGuard
 		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
 		bool firstCounterFrame = Stance == "thrown_counter" && fadeElapsed == 0f;
 		fadeElapsed += Time.Delta;
-		float fadeRate = Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
-		float weight = Math.Min( 1f, fadeElapsed * fadeRate );
+		float weight = Math.Min( 1f, fadeElapsed * ThrowFadeRate );
 		// Seeking the new reader on a swap suppresses its first translation sample.
 		if ( !firstCounterFrame ) alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
 		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );

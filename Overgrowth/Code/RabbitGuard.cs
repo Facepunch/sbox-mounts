@@ -139,7 +139,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			else lastPhysicsPose = null;
 		}
 		if ( Networking.IsHost ) UpdateGazeTarget();
-		hasGaitPose = false;
+		hasSampledPose = false;
 		if ( Stance == Roll && playing == Roll ) ReadRollPose();
 		UpdateRollDisplay();
 		UpdatePatrolPose();
@@ -167,6 +167,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			return;
 		}
 		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
+		if ( InThrow && playing == pose && Stance == pose ) ReadThrowPose();
 		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		if ( pose == Wall )
 		{
@@ -203,7 +204,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		PublishPose();
 		UpdateFootSkids( pose );
 		ApplyDisplayBreath();
-		hasGaitPose = false;
+		hasSampledPose = false;
 		if ( boundAnimations.AttackStates.Contains( Stance ) )
 		{
 			Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );

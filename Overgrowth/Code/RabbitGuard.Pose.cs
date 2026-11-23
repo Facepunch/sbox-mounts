@@ -14,10 +14,10 @@ public sealed partial class RabbitGuard
 	(int Hip, int Abdomen, int Chest) torsoIndices;
 	int[] tailIndices;
 
-	Transform[] gaitPose, originalGaitPose;
+	Transform[] sampledPose, graphPose;
 	int[] rigIndices;
-	Model gaitModel;
-	bool hasGaitPose;
+	Model sampledModel;
+	bool hasSampledPose;
 	readonly List<RabbitMovement.PoseInput> gaitInputs = [];
 	(Rotation Unit, Rotation Raw)[] gaitBlend = [];
 
@@ -57,16 +57,8 @@ public sealed partial class RabbitGuard
 
 	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored )
 	{
-		var model = Renderer.Model;
 		if ( rig is null ) return;
-		EnsurePoseBuffers();
-		if ( gaitModel != model || gaitPose is null )
-		{
-			gaitModel = model;
-			gaitPose = new Transform[model.BoneCount];
-			originalGaitPose = new Transform[model.BoneCount];
-		}
-
+		var model = PrepareSampledPose();
 		var basis = Renderer.WorldTransform;
 		gaitInputs.Clear();
 		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
@@ -75,24 +67,66 @@ public sealed partial class RabbitGuard
 		{
 			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
 			var pose = basis.ToLocal( world );
-			originalGaitPose[bone.Index] = pose;
+			graphPose[bone.Index] = pose;
 			var parent = bone.Parent;
-			var local = parent is null ? pose : originalGaitPose[parent.Index].ToLocal( pose );
+			var local = parent is null ? pose : graphPose[parent.Index].ToLocal( pose );
 			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( rigIndices[bone.Index], model.BoneCount );
 			if ( parent is not null )
 			{
 				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, mirrored );
-				local = gaitPose[parent.Index].ToWorld( local );
+				local = sampledPose[parent.Index].ToWorld( local );
 			}
-			gaitPose[bone.Index] = local;
+			sampledPose[bone.Index] = local;
 		}
-		hasGaitPose = true;
+		hasSampledPose = true;
+	}
+
+	Model PrepareSampledPose()
+	{
+		EnsurePoseBuffers();
+		var model = Renderer.Model;
+		if ( sampledModel != model || sampledPose is null )
+		{
+			sampledModel = model;
+			sampledPose = new Transform[model.BoneCount];
+			graphPose = new Transform[model.BoneCount];
+		}
+		return model;
+	}
+
+	// The renderer still exposes the previous evaluation here. Advance only the
+	// throw clip's contribution so the solver follows the same phase as root motion.
+	void ReadThrowPose()
+	{
+		var parameters = Renderer.Animation.Parameters;
+		if ( !parameters.TryGetFloat( "reaction_phase", out var from ) || from == ReactionPhase ) return;
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		float elapsed = Networking.IsHost ? System.Math.Max( 0f, fadeElapsed - Time.Delta ) : from * clip.Duration / (Stance == "throw" ? AttackSpeed : 1f);
+		float weight = System.Math.Min( 1f, elapsed * ThrowFadeRate );
+		var model = PrepareSampledPose();
+		var basis = Renderer.WorldTransform;
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
+			var pose = basis.ToLocal( world );
+			var parent = bone.Parent;
+			var local = parent is null ? pose : graphPose[parent.Index].ToLocal( pose );
+			graphPose[bone.Index] = pose;
+			int joint = rigIndices[bone.Index];
+			var previous = clip.Animation.GetLocalTransform( from, joint );
+			var current = clip.Animation.GetLocalTransform( ReactionPhase, joint );
+			local.Position += (current.Position - previous.Position) * weight;
+			local.Rotation *= Rotation.Slerp( Rotation.Identity, previous.Rotation.Inverse * current.Rotation, weight );
+			sampledPose[bone.Index] = parent is null ? local : sampledPose[parent.Index].ToWorld( local );
+		}
+		hasSampledPose = true;
+		parameters.Set( "reaction_phase", ReactionPhase );
 	}
 
 	bool TryGetAnimatedBone( BoneCollection.Bone bone, out Transform world )
 	{
-		if ( !hasGaitPose || bone is null ) return Renderer.TryGetBoneTransformAnimation( bone, out world );
-		world = Renderer.WorldTransform.ToWorld( gaitPose[bone.Index] );
+		if ( !hasSampledPose || bone is null ) return Renderer.TryGetBoneTransformAnimation( bone, out world );
+		world = Renderer.WorldTransform.ToWorld( sampledPose[bone.Index] );
 		return true;
 	}
 
