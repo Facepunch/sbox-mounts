@@ -116,6 +116,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "Attack Speed": fighter.AttackSpeed = Math.Clamp( value, 0.1f, 2f ); break;
 						case "Attack Damage": fighter.AttackDamage = Math.Max( 0f, value ); break;
 						case "Damage Resistance": fighter.DamageResistance = value; break;
+					case "Knockout Shield": fighter.KnockoutShield = Math.Max( 0, (int)value ); break;
 						case "Attack Knockback": fighter.AttackKnockback = Math.Max( 0f, value ); break;
 						case "Throw Counter Probability": fighter.ThrowCounterProbability = Math.Clamp( value, 0f, 1f ); break;
 						case "Block Follow-up": fighter.BlockFollowUp = Math.Clamp( value, 0f, 1f ); break;

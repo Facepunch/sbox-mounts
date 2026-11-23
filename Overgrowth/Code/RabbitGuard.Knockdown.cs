@@ -15,9 +15,11 @@ public sealed partial class RabbitGuard
 	float TemporaryHealth => Math.Max( 0f, Health - recoverableDamage );
 	const float PermanentDamageFraction = 0.4f;
 	[Property] public float DamageResistance { get; set; } = 1f;
+	[Property] public int KnockoutShield { get; set; }
 	ModelPhysics ragdoll;
 	TimeSince sinceKnockdown;
-	sealed class StrikeDamage : DamageInfo
+	class BluntDamage : DamageInfo;
+	sealed class StrikeDamage : BluntDamage
 	{
 		public Vector3 Impulse { get; init; }
 	}
@@ -28,10 +30,11 @@ public sealed partial class RabbitGuard
 	{
 		base.OnDamaging( hit );
 		hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
-		if ( hit.DamageInfo is StrikeDamage )
+		if ( hit.DamageInfo is BluntDamage )
 		{
+			if ( KnockoutShield > 0 ) hit.AcceptedDamage = 0f;
 			// HandleRagdollImpact applies the damage a second time if the startled fighter is still awake.
-			if ( startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth )
+			if ( hit.DamageInfo is StrikeDamage && startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth )
 				hit.AcceptedDamage *= 2f;
 			hit.AcceptedDamage *= PermanentDamageFraction;
 		}
@@ -49,8 +52,9 @@ public sealed partial class RabbitGuard
 		}
 		if ( Health < 1f ) return;
 		if ( !Renderer.IsValid() ) return;
-		if ( hit.AcceptedDamage <= 0 && hit.DamageInfo is not StrikeDamage { Damage: 0f } ) return;
-		if ( hit.DamageInfo is StrikeDamage && !sparringKnockout )
+		if ( hit.AcceptedDamage <= 0 && !(hit.DamageInfo is StrikeDamage strikeHit && (KnockoutShield > 0 || strikeHit.Damage == 0f)) ) return;
+		if ( hit.DamageInfo is StrikeDamage ) KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
+		if ( hit.DamageInfo is BluntDamage && !sparringKnockout )
 		{
 			recoverableDamage = Math.Min( Health, recoverableDamage + hit.AcceptedDamage * ((1f - PermanentDamageFraction) / PermanentDamageFraction) );
 			if ( TemporaryHealth <= 0f )

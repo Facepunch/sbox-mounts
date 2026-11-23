@@ -86,6 +86,7 @@ public sealed partial class RabbitGuard
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
 		{
 			awaitingThrowImpact = true;
+			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			Stance = Threat;
 			ReactionPhase = 1f;
 			GoLimp();
@@ -125,7 +126,7 @@ public sealed partial class RabbitGuard
 		var other = collision.Other.GameObject;
 		if ( other.IsValid() && other.GetComponentInParent<RabbitGuard>() is not null ) return;
 		awaitingThrowImpact = false;
-		var damage = new DamageInfo { Damage = 25f, Position = collision.Contact.Point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
+		var damage = new BluntDamage { Damage = 25f, Position = collision.Contact.Point, Attacker = throwPartner.IsValid() ? throwPartner.GameObject : null };
 		throwPartner = null;
 		((IDamageable)this).OnDamage( damage );
 	}
