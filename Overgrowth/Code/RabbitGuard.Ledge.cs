@@ -87,15 +87,14 @@ public sealed partial class RabbitGuard
 		return false;
 	}
 
-	bool FindLedge( Vector3 center, float verticalSpeed, out Vector3 wall, out float height, out Surface surface, out SceneTraceResult contact )
+	bool FindLedgeDirection( Vector3 center, Vector3 previous, out Vector3 wall, out SceneTraceResult contact )
 	{
 		contact = default;
 		wall = default;
-		height = 0f;
-		surface = null;
-		for ( int i = 0; i < 3 && wall.IsNearlyZero(); i++ )
+		for ( int i = 0; i < 3; i++ )
 		{
 			var origin = center + Vector3.Up * (12f * i);
+			if ( i == 0 ) origin -= previous * 4f;
 			float best = float.PositiveInfinity;
 			float nearest = float.PositiveInfinity;
 			foreach ( var hit in ClimbTrace( Scene.Trace.Sphere( LegRadius * 1.5f, origin, origin ) ).RunAll() )
@@ -111,9 +110,29 @@ public sealed partial class RabbitGuard
 				wall = offset.WithZ( 0f ).Normal;
 				best = distance;
 			}
+			if ( nearest < float.PositiveInfinity )
+			{
+				if ( best == float.PositiveInfinity ) wall = (contact.HitPosition - origin).WithZ( 0f ).Normal;
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool FindLedge( ref Vector3 center, float verticalSpeed, out Vector3 wall, out float height, out Surface surface, out SceneTraceResult contact )
+	{
+		height = 0f;
+		surface = null;
+		if ( !FindLedgeDirection( center, default, out wall, out contact ) ) return false;
+		if ( !GetLedgeHeight( center, wall, out height, out surface ) )
+		{
+			// CheckLedges retries away from the first surface at inside corners.
+			var previous = wall;
+			if ( !FindLedgeDirection( center, previous, out wall, out contact ) ||
+				!GetLedgeHeight( center - previous * 8f, wall, out height, out surface ) ) return false;
+			center -= previous * 4f;
 		}
 		if ( wall.IsNearlyZero() ) return false;
-		if ( !GetLedgeHeight( center, wall, out height, out surface ) ) return false;
 		var rim = center.WithZ( height );
 		var outside = rim - wall * 4f;
 		if ( ClimbTrace( Scene.Trace.Sphere( LegRadius, outside, outside + Vector3.Down * 20f ) ).Run().Hit ) return false;
@@ -151,7 +170,7 @@ public sealed partial class RabbitGuard
 			}
 			body.Velocity = velocity;
 			var center = physics.Position + Vector3.Up * LegRadius;
-			if ( velocity.z <= -600f || !FindLedge( center, velocity.z, out var wall, out float height, out var surface, out var contact ) ) return false;
+			if ( velocity.z <= -600f || !FindLedge( ref center, velocity.z, out var wall, out float height, out var surface, out var contact ) ) return false;
 			if ( SelectBodyImpact( velocity.Dot( wall ) / 40f ) is { } impact )
 				PlayMaterialEvent( impact, contact.HitPosition, TerrainLoader.ContactSurface( contact, contact.HitPosition )?.ResourceName, 1f );
 			climbDirection = wall;
@@ -163,7 +182,7 @@ public sealed partial class RabbitGuard
 			LedgeMirrored = LedgeAnimation == LedgeReach && Random.Shared.Next( 2 ) == 0;
 			LedgePhase = 0f;
 			float target = height - 42f;
-			climbPosition = physics.Position.WithZ( Math.Clamp( center.z, target - 4f, target + 20f ) - LegRadius );
+			climbPosition = center.WithZ( Math.Clamp( center.z, target - 4f, target + 20f ) - LegRadius );
 			LedgeHeightOffset = target - climbPosition.z - LegRadius;
 			PlayMaterialEvent( "edge_grab", center + wall * LegRadius, surface?.ResourceName, 1f );
 			body.MotionEnabled = false;
