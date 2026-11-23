@@ -6,7 +6,7 @@ public sealed partial class RabbitGuard
 {
 	[Sync] bool LeftFootJump { get; set; }
 	bool nextJumpUsesLeft;
-	float jumpLaunch, airPhase;
+	float jumpLaunch, airPhase, pendingTuck;
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
 	TimeUntil bodyFall, heavyFall, mediumFall, lightFall;
@@ -20,6 +20,7 @@ public sealed partial class RabbitGuard
 		if ( Downed || !Networking.IsHost )
 		{
 			airVelocity = null;
+			pendingTuck = 0f;
 			return;
 		}
 		bool grounded = Animation.IsGrounded;
@@ -31,15 +32,21 @@ public sealed partial class RabbitGuard
 		}
 		if ( !grounded )
 		{
-			if ( !airVelocity.HasValue ) AirTuck = 0f;
+			AirTuck = Math.Max( pendingTuck, airVelocity.HasValue ? AirTuck * MathF.Pow( 0.98f, Time.Delta * 120f ) : 0f );
+			pendingTuck = 0f;
 			airVelocity = Animation.MoveVelocity;
 			return;
 		}
+		pendingTuck = 0f;
 		if ( airVelocity is not { } velocity ) return;
 		airVelocity = null;
 		ApplyLandingShock( velocity );
 		if ( !IsValid || Health < 1f || Downed ) return;
-		if ( strike is not null || Stance == "throw" ) GoLimp();
+		if ( strike is { AsLayer: false } || Stance == "throw" )
+		{
+			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
+			GoLimp();
+		}
 		else Land( velocity );
 	}
 
@@ -75,7 +82,7 @@ public sealed partial class RabbitGuard
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
 					ReportSound( GameObject, WorldPosition, HeardSound.Footstep, 2f );
-					PlayMaterialEvent( "jump", WorldPosition, GroundSurface?.ResourceName, 1f );
+					PlayMaterialEvent( "jump", WorldPosition, GroundSurface?.ResourceName, boundAnimations.Species == "cat" ? 0.5f : 1f );
 				}
 			}
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
@@ -99,7 +106,7 @@ public sealed partial class RabbitGuard
 		if ( collision.Other.GameObject.Tags.Has( "npc" ) || !collision.Self.Body.IsValid() ) return;
 		float impact = before.Distance( collision.Self.Body.Velocity ) / 40f;
 		flinchSpring = Math.Max( flinchSpring, Math.Min( 1f, impact * 2f - 1f ) );
-		AirTuck = Math.Max( AirTuck, Math.Min( 0.4f, impact * 0.1f ) );
+		pendingTuck = Math.Max( pendingTuck, Math.Min( 0.4f, impact * 0.1f ) );
 		string sound;
 		if ( impact > 12f && bodyFall <= 0f ) { sound = "bodyfall"; bodyFall = 0.6f; }
 		else if ( impact > 6f && heavyFall <= 0f ) { sound = "bodyfall_heavy"; heavyFall = 0.2f; }
@@ -120,12 +127,15 @@ public sealed partial class RabbitGuard
 			duckAmount = CrouchAmount = 1f;
 			duckVelocity = 3f;
 		}
-		ReportSound( GameObject, WorldPosition, hard ? HeardSound.LoudFoley : HeardSound.Footstep, hard ? 5f : 2f );
-		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, floor.Surface?.ResourceName, 1f );
+		bool quiet = boundAnimations.Species == "cat";
+		if ( !quiet || hard )
+			ReportSound( GameObject, WorldPosition, hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );
+		PlayMaterialEvent( hard ? "land" : "land_soft", floor.EndPosition, floor.Surface?.ResourceName, quiet ? 0.5f : 1f );
 		if ( hard )
 		{
 			float slide = 1f - (-airVelocity.Normal).Dot( floor.Normal );
 			float gain = Math.Min( 1f, slide * slide * (airVelocity.Length / 40f) * 0.2f );
+			if ( quiet ) gain *= 0.5f;
 			if ( gain > 0.2f ) PlayMaterialEvent( "slide", floor.EndPosition, floor.Surface?.ResourceName, gain );
 		}
 	}
