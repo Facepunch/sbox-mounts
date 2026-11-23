@@ -12,9 +12,8 @@ public sealed partial class RabbitGuard
 	static readonly string[] MouthShapes = ["ah", "oh", "w", "mouth_open"];
 	readonly float[] restMouth = new float[4], targetMouth = new float[4];
 	TimeUntil nextMouthPose;
-	float talkingAmount, voiceTime;
-	VoiceTrack voiceTrack;
-	int voiceFrame;
+	float talkingAmount;
+	readonly CharacterVoice voice = new();
 
 	void UpdateMouth()
 	{
@@ -42,15 +41,7 @@ public sealed partial class RabbitGuard
 			restMouth[i] = targetMouth[i] + (restMouth[i] - targetMouth[i]) * inertia;
 			Renderer.Morphs.Set( MouthShapes[i], Math.Max( restMouth[i], talk[i] * talkingAmount ), 0f );
 		}
-		if ( voiceTrack is null ) return;
-		while ( voiceFrame < voiceTrack.Frames.Length && voiceTrack.Frames[voiceFrame].Time < voiceTime ) voiceFrame++;
-		if ( voiceFrame == voiceTrack.Frames.Length ) { voiceTrack = null; return; }
-		for ( int i = 0; i < voiceTrack.Shapes.Length; i++ )
-		{
-			var name = voiceTrack.Shapes[i];
-			Renderer.Morphs.Set( name, (Renderer.Morphs.Get( name ) + voiceTrack.Frames[voiceFrame].Weights[i]) * 0.5f, 0f );
-		}
-		voiceTime += dt;
+		voice.ApplyMouth( Renderer, dt );
 	}
 
 	void UpdateMorphs()

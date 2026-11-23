@@ -250,19 +250,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	Vector3 TargetPosition( GameObject target, bool eyes = false )
 	{
 		var fighter = target.GetComponent<RabbitGuard>();
-		if ( eyes && fighter is { boundAnimations: { } rig } && fighter.Renderer.IsValid() )
-		{
-			var bone = fighter.Renderer.Model.Bones.GetBone( rig.HeadBone );
-			Vector3 sum = default;
-			int count = 0;
-			while ( count < rig.Head.ChainLength && bone is not null && fighter.Renderer.TryGetBoneTransform( bone, out var pose ) )
-			{
-				sum += pose.Position;
-				count++;
-				bone = bone.Parent;
-			}
-			if ( count > 0 ) return sum / count;
-		}
+		if ( eyes && fighter.IsValid() && CharacterVoice.HeadPosition( fighter.Renderer, fighter.boundAnimations ) is { } head ) return head;
 		var physics = fighter.IsValid() ? (fighter.Downed ? fighter.ragdoll : null) : target.GetComponent<CharacterRemains>()?.Physics;
 		if ( physics.IsValid() )
 		{
