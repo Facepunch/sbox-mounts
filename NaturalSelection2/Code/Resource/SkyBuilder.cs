@@ -48,16 +48,14 @@ internal static class SkyBuilder
 	/// <summary>Faces are capped to this; the 2048 sets would otherwise cost 200MB as fp16.</summary>
 	private const int MaxFaceSize = 1024;
 
-	/// <summary>Skyboxes are shared between maps - eclipse alone covers 5 - so build each once.</summary>
-	private static readonly Dictionary<string, Material> Cache = new( StringComparer.OrdinalIgnoreCase );
-
-	public static Material Build( BaseFileSystem fs, string cinematicPath, string ident )
+	public static Material Build( GameMount mount, string cinematicPath )
 	{
+		var fs = mount.FileSystem;
 		if ( !GameMount.TryResolve( fs, cinematicPath, out var filePath ) )
 			return null;
 
 		var name = Path.GetFileNameWithoutExtension( filePath );
-		if ( Cache.TryGetValue( name, out var cached ) )
+		if ( mount.SkyMaterials.TryGetValue( filePath, out var cached ) && cached.IsValid )
 			return cached;
 
 		var sky = ReadSkyNode( fs, filePath );
@@ -69,7 +67,7 @@ internal static class SkyBuilder
 
 		for ( var i = 0; i < 6; i++ )
 		{
-			var texture = LoadFaceTexture( fs, sky.Get( FaceProperty[i] ).AsString(), ident );
+			var texture = LoadFaceTexture( fs, sky.Get( FaceProperty[i] ).AsString(), mount.Ident );
 			if ( texture is null )
 				return null;
 
@@ -99,7 +97,7 @@ internal static class SkyBuilder
 		material.Set( "g_tSkyTexture", cube );
 		material.Set( "SkyTexture", cube );
 
-		Cache[name] = material;
+		mount.SkyMaterials[filePath] = material;
 		return material;
 	}
 

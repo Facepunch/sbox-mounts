@@ -1,6 +1,5 @@
 using Sandbox.Mounting;
 using System;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -94,8 +93,6 @@ public class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static readonly ConcurrentDictionary<string, (string Key, string Path)[]> DefaultCache = new( StringComparer.OrdinalIgnoreCase );
-
 	private static readonly Regex TextureInput = new(
 		"""<input\s+name="([^"]+)"\s+type="texture"[^>]*>\s*([^<\s][^<]*\.dds)\s*</input>""",
 		RegexOptions.Compiled | RegexOptions.IgnoreCase );
@@ -105,7 +102,7 @@ public class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 		if ( string.IsNullOrEmpty( shader ) )
 			return [];
 
-		return DefaultCache.GetOrAdd( shader, key => ReadShaderDefaults( Host.FileSystem, key ) );
+		return Host.ShaderDefaults.GetOrAdd( shader, key => ReadShaderDefaults( Host.FileSystem, key ) );
 	}
 
 	private static (string Key, string Path)[] ReadShaderDefaults( BaseFileSystem fs, string shader )

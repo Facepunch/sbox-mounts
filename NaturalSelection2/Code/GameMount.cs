@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 
 namespace NS2;
 
@@ -13,6 +14,15 @@ public class GameMount : BaseGameMount
 	const long appId = 4920;
 
 	public override long? SteamAppId => appId;
+
+	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
+	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	protected override void Shutdown()
+	{
+		SkyMaterials.Clear();
+		ShaderDefaults.Clear();
+	}
 
 	internal BaseFileSystem FileSystem { get; private set; }
 

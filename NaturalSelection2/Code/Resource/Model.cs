@@ -75,16 +75,13 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	struct Solid
 	{
-		public string Name;
 		public int BoneIndex;
 		public Transform Transform;
 		public Vector3[] Points;   // converted to s&box space
-		public int[] Indices;
 	}
 
 	struct Joint
 	{
-		public string Name;
 		public int Body0, Body1;
 		public Transform Frame0, Frame1;
 		public Vector3 Minimum, Maximum;
@@ -110,7 +107,6 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	{
 		public string Name;
 		public int AnimationNodeIndex;
-		public float Length;
 	}
 
 	// A single keyframed curve, loaded only while its animation is being built.
@@ -124,7 +120,6 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	// pose blobs are only read from disk when the animation is actually uncompressed.
 	class ParsedAnimation
 	{
-		public int Flags;
 		public int NumFrames;
 		public float FrameRate;
 		public bool Compressed;
@@ -241,12 +236,15 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			if ( bytes < 0 || Length - Offset < bytes ) throw new InvalidDataException( "NS2 model: unexpected end of file" );
 		}
 
-		public string String()
+		private int StringLength()
 		{
 			int len = Int();
 			if ( (uint)len > 0x10000 ) throw new InvalidDataException( $"NS2 model: bad string length {len}" );
-			return Encoding.ASCII.GetString( Take( len ) );
+			return len;
 		}
+
+		public string String() => Encoding.ASCII.GetString( Take( StringLength() ) );
+		public void SkipString() => Skip( StringLength() );
 
 		public int[] Ints( int count )
 		{
@@ -273,7 +271,15 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private ParsedModel Source => field ??= ParseFile( FullPath );
+	private readonly object sourceLock = new();
+	private ParsedModel Source
+	{
+		get
+		{
+			lock ( sourceLock )
+				return field ??= ParseFile( FullPath );
+		}
+	}
 
 	private ParsedModel ParseFile( string path )
 	{
@@ -313,7 +319,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				case ChunkType.Bones: ReadBones( ref r, model ); break;
 				case ChunkType.Animations: ReadAnimations( ref r, model, version ); break;
 				case ChunkType.AnimationNodes: ReadAnimationNodes( ref r, model ); break;
-				case ChunkType.Sequences: ReadSequences( ref r, model, version ); break;
+				case ChunkType.Sequences: ReadSequences( ref r, model ); break;
 				case ChunkType.BlendParameters: ReadBlendParameters( ref r, model ); break;
 				case ChunkType.Cameras: ReadCameras( ref r ); break;
 				case ChunkType.HitProxies: ReadHitProxies( ref r ); break;
@@ -395,7 +401,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		var solids = new Solid[count];
 		for ( int i = 0; i < count; i++ )
 		{
-			solids[i].Name = r.String();
+			r.SkipString(); // solid name
 			solids[i].BoneIndex = r.Int();
 			solids[i].Transform = ConvertCoords( r.ReadCoords() );
 			_ = r.Float(); // mass
@@ -406,7 +412,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			for ( int p = 0; p < points.Length; p++ ) points[p] = ConvertPosition( r.ReadVector3() );
 			solids[i].Points = points;
 
-			solids[i].Indices = r.Ints( r.Int() * 3 );
+			r.Skip( (long)r.Int() * 3 * sizeof( int ) ); // hulls only use the points
 		}
 		model.Solids = solids;
 	}
@@ -438,9 +444,9 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		for ( int i = 0; i < count; i++ )
 		{
+			r.Skip( sizeof( int ) ); // flags
 			var anim = new ParsedAnimation
 			{
-				Flags = r.Int(),
 				NumFrames = r.Int(),
 				FrameRate = r.Float(),
 			};
@@ -479,7 +485,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				for ( int j = 0; j < numTags; j++ )
 				{
 					_ = r.Int(); // frame
-					_ = r.String();
+					r.SkipString();
 				}
 			}
 
@@ -525,7 +531,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.AnimationNodes = nodes;
 	}
 
-	private static void ReadSequences( ref Reader r, ParsedModel model, int version )
+	private static void ReadSequences( ref Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var seqs = new Sequence[count];
@@ -533,7 +539,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		{
 			seqs[i].Name = r.String();
 			seqs[i].AnimationNodeIndex = r.Int();
-			seqs[i].Length = version >= 2 ? r.Float() : 1.0f;
+			r.Skip( sizeof( float ) ); // length (present in both supported versions)
 		}
 		model.Sequences = seqs;
 	}
@@ -551,7 +557,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		int count = r.Int();
 		for ( int i = 0; i < count; i++ )
 		{
-			_ = r.String();
+			r.SkipString();
 			r.Skip( 8 ); // bone index, fov
 			r.Skip( CoordsSize );
 		}
@@ -562,7 +568,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		int count = r.Int();
 		for ( int i = 0; i < count; i++ )
 		{
-			_ = r.String();
+			r.SkipString();
 			_ = r.Int(); // bone index
 			r.Skip( CoordsSize );
 			int shapeType = r.Int();
@@ -590,7 +596,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		var joints = new List<Joint>( count );
 		for ( int i = 0; i < count; i++ )
 		{
-			var name = r.String();
+			r.SkipString(); // joint name
 			int body0 = r.Int();
 			var frame0 = ConvertCoords( r.ReadCoords() );
 			int body1 = r.Int();
@@ -604,7 +610,6 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var maximum = r.ReadVector3();
 			joints.Add( new Joint
 			{
-				Name = name,
 				Body0 = body0,
 				Body1 = body1,
 				Frame0 = frame0,
@@ -621,7 +626,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		int count = r.Int();
 		for ( int i = 0; i < count; i++ )
 		{
-			if ( version < 5 ) _ = r.String();
+			if ( version < 5 ) r.SkipString();
 			int bodyCount = r.Int();
 			r.Skip( (version >= 5 ? 5 : 3) * 4 );
 			if ( i == 0 ) model.CollisionRepBodyCount = bodyCount;
@@ -632,7 +637,7 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			int nameCount = r.Int();
 			for ( int i = 0; i < nameCount; i++ )
 			{
-				_ = r.String();
+				r.SkipString();
 				_ = r.Int();
 			}
 		}
@@ -1330,16 +1335,5 @@ public class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		[VertexLayout.Color] public Color32 color = color;
 		[VertexLayout.BlendIndices] public Color32 blendIndices = blendIndices;
 		[VertexLayout.BlendWeight] public Color32 blendWeights = blendWeights;
-
-		public static readonly VertexAttribute[] Layout =
-		[
-			new( VertexAttributeType.Position, VertexAttributeFormat.Float32, 3 ),
-			new( VertexAttributeType.Normal, VertexAttributeFormat.Float32, 3 ),
-			new( VertexAttributeType.Tangent, VertexAttributeFormat.Float32, 3 ),
-			new( VertexAttributeType.TexCoord, VertexAttributeFormat.Float32, 2 ),
-			new( VertexAttributeType.Color, VertexAttributeFormat.UInt8, 4 ),
-			new( VertexAttributeType.BlendIndices, VertexAttributeFormat.UInt8, 4 ),
-			new( VertexAttributeType.BlendWeights, VertexAttributeFormat.UInt8, 4 )
-		];
 	}
 }

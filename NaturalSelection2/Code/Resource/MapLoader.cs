@@ -44,7 +44,6 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		BuildWorld( level, bytes, world, geometry );
 		var staticProps = new Dictionary<string, ModelLoader.StaticProp>( StringComparer.OrdinalIgnoreCase );
 
-		var models = new Dictionary<string, Model>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var entity in level.Entities )
 		{
 			if ( level.Groups.TryGetValue( entity.GroupId, out var group ) )
@@ -57,7 +56,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 					continue;
 			}
 
-			BuildEntity( entity, root, models, geometry, staticProps );
+			BuildEntity( entity, root, geometry, staticProps );
 		}
 
 		geometry.Build( world, FilePath, renderModels );
@@ -264,7 +263,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		return new Vector3( 0f, inv2 * v.z, -inv2 * v.y );
 	}
 
-	void BuildEntity( LevelEntity entity, GameObject parent, Dictionary<string, Model> models, StaticGeometry geometry, Dictionary<string, ModelLoader.StaticProp> staticProps )
+	void BuildEntity( LevelEntity entity, GameObject parent, StaticGeometry geometry, Dictionary<string, ModelLoader.StaticProp> staticProps )
 	{
 		var name = entity.Name;
 
@@ -288,19 +287,26 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				if ( !staticProps.TryGetValue( modelPath, out var prop ) )
 				{
 					var loader = Host.GetByPath( ModelPath( modelPath ) ) as ModelLoader;
-					staticProps[modelPath] = prop = loader?.BuildStaticProp();
+					try
+					{
+						prop = loader?.BuildStaticProp();
+					}
+					catch ( Exception e )
+					{
+						Log.Warning( e, $"Could not bake static prop '{modelPath}' in '{FilePath}'." );
+					}
+					staticProps[modelPath] = prop;
 					if ( prop?.Translucent is not null ) renderModels.Add( prop.Translucent );
 				}
 				if ( prop is not null )
-					BuildProp( entity, parent, prop.Translucent, null, geometry, prop );
+					BuildProp( entity, parent, prop.Translucent, geometry, prop );
 				return;
 			}
 
-			if ( !models.TryGetValue( modelPath, out var model ) )
-				models[modelPath] = model = Model.Load( ModelPath( modelPath ) );
+			var model = Model.Load( ModelPath( modelPath ) );
 
 			if ( model is not null && !model.IsError )
-				BuildProp( entity, parent, model, model.Physics, geometry, null );
+				BuildProp( entity, parent, model, geometry );
 		}
 		else if ( name.Equals( "skybox", StringComparison.OrdinalIgnoreCase ) )
 		{
@@ -326,7 +332,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		if ( string.IsNullOrWhiteSpace( cinematic ) )
 			return;
 
-		var material = SkyBuilder.Build( Host.FileSystem, cinematic, Host.Ident );
+		var material = SkyBuilder.Build( Host, cinematic );
 		if ( material is null )
 			return;
 
@@ -339,7 +345,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		skybox.SkyIndirectLighting = false;
 	}
 
-	void BuildProp( LevelEntity entity, GameObject parent, Model model, PhysicsGroupDescription physics, StaticGeometry geometry, ModelLoader.StaticProp prop )
+	void BuildProp( LevelEntity entity, GameObject parent, Model model, StaticGeometry geometry, ModelLoader.StaticProp prop = null )
 	{
 		bool isStatic = prop is not null;
 		bool collidable = !entity.Has( "collidable" ) || entity.Get( "collidable" ).AsBool();
@@ -352,18 +358,14 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 				geometry.Add( part, transform, shadows );
 		}
 
-		if ( !collidable ) physics = null;
-		if ( model is null && physics is null ) return;
+		if ( model is null ) return;
 
 		var go = new GameObject( true, entity.Name ) { Parent = parent, WorldTransform = transform, IsStatic = isStatic };
 		if ( isStatic ) go.Tags.Add( "world" );
-		if ( model is not null )
-		{
-			var renderer = go.AddComponent<ModelRenderer>();
-			renderer.Model = model;
-			if ( !shadows ) renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
-		}
-		AddPhysics( go, physics );
+		var renderer = go.AddComponent<ModelRenderer>();
+		renderer.Model = model;
+		if ( !shadows ) renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
+		if ( !isStatic && collidable ) AddPhysics( go, model.Physics );
 	}
 
 	// Spark attenuates point/spot lights as saturate( 1 - d/R )^2 (renderer/Lighting.hlsl,
