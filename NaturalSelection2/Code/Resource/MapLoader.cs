@@ -281,6 +281,24 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			return;
 		}
 
+		if ( name == "ladder" )
+		{
+			// TriggerMixin:SetBox takes half-extents in metres and raises the center
+			// along world up, even when the trigger itself is tilted.
+			var halfSize = ConvertScale( entity.Get( "scale" ).AsVector3() ) * (0.2395f * Scale);
+			var ladder = new GameObject( true, name )
+			{
+				Parent = parent,
+				WorldPosition = Origin( entity ) + Vector3.Up * halfSize.z,
+				WorldRotation = Angles( entity )
+			};
+			ladder.Tags.Add( "ladder" );
+			var trigger = ladder.AddComponent<BoxCollider>();
+			trigger.Scale = halfSize * 2;
+			trigger.IsTrigger = true;
+			trigger.Static = true;
+			return;
+		}
 		if ( name == "door" )
 		{
 			var skin = entity.Get( "clean" ).AsBool() ? "door_clean" : "door";
