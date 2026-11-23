@@ -10,6 +10,7 @@ public sealed partial class RabbitGuard
 	bool TrainingThrows => ThrowTrainer && Tutorials;
 	[Property, Range( 0f, 1f )] public float ThrowCounterProbability { get; set; } = 0.4f;
 	bool InThrow => Stance is "throw" or "thrown" or "thrown_counter";
+	internal Vector3? ThrowGroundVelocity => InThrow && !IsAirborne ? combatVelocity : null;
 	bool wantsBlockThrow, willEscapeThrow;
 	TimeUntil throwRecharge = 5f, blockStun;
 	RabbitGuard stunnedBy, throwPartner;
@@ -68,6 +69,8 @@ public sealed partial class RabbitGuard
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
+		// WasGrabbed copies the attacker's horizontal velocity independently of clip motion.
+		victim.combatVelocity = combatVelocity.WithZ( victim.combatVelocity.z );
 		victim.QueueThrowDamage( this );
 		victim.MirroredStance = MirroredAction;
 		var entry = victim.boundAnimations.Clips["thrown"].ForSide( MirroredAction ).Animation.GetRootMotion( 0f );
@@ -83,7 +86,7 @@ public sealed partial class RabbitGuard
 	{
 		throwPartner = partner;
 		strike = null;
-		BeginPairedMovement();
+		BeginPairedMovement( carryMomentum: action == "throw" );
 		Stance = action;
 		MirroredAction = mirrored;
 		ReactionPhase = 0f;

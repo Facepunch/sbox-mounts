@@ -49,6 +49,11 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		if ( !Networking.IsHost ) return;
 		requestedGroundSpeed = 0f;
+		if ( Npc is RabbitGuard { ThrowGroundVelocity: { } throwVelocity } )
+		{
+			Npc.Animation.SetMove( throwVelocity );
+			return;
+		}
 		if ( runOffDirection.HasValue && AdvanceRunOff() ) return;
 		if ( Npc.IsAirborne ) sinceAirborne = 0f;
 		if ( Npc is RabbitGuard climber && climber.AdvanceLedge() ) return;
