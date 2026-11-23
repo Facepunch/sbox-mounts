@@ -237,6 +237,8 @@ public sealed partial class RabbitGuard
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
 	}
 
+	bool InAttackState => strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem;
+
 	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.
 	// The chosen target remains bound to this strike while the AI continues tracking its chase target.
 	GameObject FindStrikeTarget( out float distance )
@@ -252,7 +254,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( candidate == best || !CanAttack( candidate ) ) return;
 			var guard = candidate.GetComponent<RabbitGuard>();
-			int priority = guard?.strike is { AsLayer: false } ? 0 : guard is { Downed: true } ? 2 : 1;
+			int priority = guard is { InAttackState: true } ? 0 : guard is { Downed: true } ? 2 : 1;
 			float separation = center.DistanceSquared( CharacterCenter( candidate ) );
 			if ( separation > range * range )
 			{

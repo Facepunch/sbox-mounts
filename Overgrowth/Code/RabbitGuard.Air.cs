@@ -80,7 +80,7 @@ public sealed partial class RabbitGuard
 		airVelocity = null;
 		ApplyLandingShock( velocity );
 		if ( !IsValid || Health < 1f || Downed ) return;
-		if ( MathF.Abs( rollAngle - 0.5f ) < 0.3f || strike is { AsLayer: false } || Stance == "throw" )
+		if ( MathF.Abs( rollAngle - 0.5f ) < 0.3f || InAttackState )
 		{
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			GoLimp();
