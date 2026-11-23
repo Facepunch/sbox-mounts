@@ -59,11 +59,10 @@ public sealed partial class RabbitGuard
 				continue;
 			}
 			if ( guard.escortTarget.IsValid() || !awake ) continue;
-			bool searching = guard.searchUntil > 0f || guard.inspectPosition.HasValue || guard.casualty.IsValid();
-			bool investigating = searching || guard.investigatePoint.HasValue;
+			bool investigating = guard.Investigating;
 			if ( investigating && sound == HeardSound.ItemImpact ) continue;
 			bool knownAlly = guard.knownCharacters.ContainsKey( source ) && guard.GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
-			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || guard.urgentInvestigation || searching) ) continue;
+			if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || investigating && (!guard.investigatePoint.HasValue || guard.urgentInvestigation)) ) continue;
 			guard.suspicion = guard.CurrentSuspicion +
 				(sound == HeardSound.Footstep ? 0.3f : 1f);
 			guard.sinceSound = 0;
@@ -99,10 +98,13 @@ public sealed partial class RabbitGuard
 			return false;
 		}
 		var position = TargetPosition( escortTarget );
-		if ( !IsLiveTarget( escortTarget ) )
+		var leader = escortTarget.GetComponent<RabbitGuard>();
+		if ( !IsLiveTarget( escortTarget ) || leader is { Unconscious: true } )
 		{
-			investigatePoint = Movement.ProjectPoint( position );
-			urgentInvestigation = true;
+			LookAtNotice( position, 1f );
+			casualty = leader;
+			inspectPosition = position;
+			inspectUntil = null;
 			escortTarget = null;
 			return false;
 		}

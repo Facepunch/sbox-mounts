@@ -100,7 +100,8 @@ public sealed partial class RabbitGuard
 				LookAtNotice( center + GetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
 			}
 			if ( knownCharacters.ContainsKey( candidate ) ) knownCharacters[candidate] = center;
-			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (enemy.IsValid() || investigatePoint.HasValue ? 3f : 1f) * (concealed ? 0.3f : 1f);
+			bool patrolling = !enemy.IsValid() && !escortTarget.IsValid() && !Investigating;
+			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (patrolling ? 1f : 3f) * (concealed ? 0.3f : 1f);
 			if ( separation < nearest )
 			{
 				closest = candidate;
@@ -115,11 +116,11 @@ public sealed partial class RabbitGuard
 				if ( !enemy.IsValid() ) Remember( closest );
 				else knownCharacters[closest] = CharacterCenter( closest );
 			}
-			else if ( !enemy.IsValid() && !investigatePoint.HasValue && enemySeen > 0.5f )
+			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
 				investigatePoint = Movement.ProjectPoint( WorldPosition + (TargetPosition( closest ) - WorldPosition).Normal * 120f );
 		}
 		else enemySeen = Math.Max( 0, enemySeen - 0.05f );
-		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || investigatePoint.HasValue || enemySeen > 0 ? 1 : 0;
+		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;
 	}
 
 	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )

@@ -18,14 +18,16 @@ public sealed partial class RabbitGuard
 	RabbitGuard casualty;
 	TimeUntil? inspectUntil;
 	Vector3? inspectPosition;
+	bool Investigating => investigatePoint.HasValue || casualty.IsValid() || inspectPosition.HasValue || searchUntil > 0f;
 
 	void NoticeCasualty( RabbitGuard ally )
 	{
-		if ( !knownCasualties.Add( ally ) || casualty.IsValid() || enemy.IsValid() || investigatePoint.HasValue || escortTarget.IsValid() || searchUntil > 0f ) return;
+		if ( !knownCasualties.Add( ally ) || enemy.IsValid() || Investigating || escortTarget.IsValid() ) return;
 		casualty = ally;
 		inspectPosition = null;
 		inspectUntil = null;
 		startled = 1f;
+		LookAtNotice( TargetPosition( ally.GameObject ), 1f );
 		Speak( "suspicious" );
 		ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 	}
