@@ -44,6 +44,9 @@ internal sealed class CharacterAnimationLibrary
 		if ( morphs.Any( m => m.Steps > 1 ) )
 			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
 		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
+		foreach ( var hand in new[] { "leftarm", "rightarm" } )
+			if ( skeleton.IKBones.TryGetValue( hand, out var chain ) )
+				bones.AddFloatChannelSet( $"item_bone_{chain.BoneId}", WeaponPoseTrack.Names( chain.BoneId ) );
 		foreach ( var flinch in mount.WeaponFlinches.Append( character.Element( "animations" ).Attribute( "blockflinch" ) ).Where( file => file is not null ).Distinct() )
 		{
 			var mask = RabbitClip.ReadLayerMask( fs, flinch, skeleton.Bones.Count );

@@ -29,7 +29,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 	internal static string[] StatusChannels => ["escape", "cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
 	readonly record struct FootChain( int Anchor, int End );
-	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, FootChain?[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes );
+	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, FootChain?[] FootBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes, Transform Weapon );
 
 	internal enum CenterMotion { Full, Vertical, None }
 
@@ -38,6 +38,13 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	static Transform Mix( Transform a, Transform b, float t )
 	{
 		return new( Vector3.Lerp( a.Position, b.Position, t, false ), MixRotation( a.Rotation, b.Rotation, t ) );
+	}
+
+	static Transform BlendFour( Transform a, Transform b, Transform c, Transform d, float w0, float w1, float w2, float w3 )
+	{
+		var pose = w0 + w1 > 0f ? Mix( a, b, w1 / (w0 + w1) ) : b;
+		if ( w0 + w1 + w2 > 0f ) pose = Mix( pose, c, w2 / (w0 + w1 + w2) );
+		return Mix( pose, d, w3 );
 	}
 
 	internal static Rotation MixRotation( Rotation first, Rotation next, float t )
@@ -93,6 +100,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		Impact impact = null, prepare = null, blocked = null;
 		var steps = new List<Step>();
 		var matrix = new float[16];
+		int weaponBone = -1;
 		Vector3 firstCenter = default, previousCenter = default, accumulatedCenter = default;
 		for ( int k = 0; k < count; k++ )
 		{
@@ -107,7 +115,22 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				pose[b] = ReadMatrix( reader, matrix );
 				center += pose[b].Position;
 			}
-			if ( version >= 7 ) Skip( Count() * (version >= 8 ? 72L : 64L) );
+			var weapon = Transform.Zero;
+			int weapons = version >= 7 ? Count() : 0;
+			if ( weapons > 0 )
+			{
+				var item = ReadMatrix( reader, matrix );
+				if ( version >= 8 )
+				{
+					int relative = reader.ReadInt32();
+					if ( reader.ReadSingle() > 0f && (uint)relative < pose.Length )
+					{
+						if ( k == 0 ) weaponBone = mirror?.Opposite( relative ) ?? relative;
+						weapon = pose[relative].ToLocal( item );
+					}
+				}
+				Skip( (weapons - 1) * (version >= 8 ? 72L : 64L) );
+			}
 			bool hasMobility = version >= 9 && reader.ReadBoolean();
 			float yaw = 0f;
 			var inverseYaw = Rotation.Identity;
@@ -204,7 +227,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
 			}
 			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
-			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -227,6 +250,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		FootPose[][] feet = sampleFeet ? [new FootPose[intervals + 1], new FootPose[intervals + 1]] : null;
 		float[] magnitudes = sampleFeet ? new float[(intervals + 1) * frame.Length] : null;
+		var weaponTrack = weaponBone >= 0 ? new WeaponPoseTrack( weaponBone, intervals + 1 ) : null;
 
 		for ( int i = 0; i <= intervals; i++ )
 		{
@@ -246,11 +270,19 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			for ( int channel = 0; channel < shapeTracks.Length; channel++ )
 				if ( shapeTracks[channel] is { } shape )
 					shape[i] = a.Shapes[channel] * w0 + b.Shapes[channel] * w1 + c.Shapes[channel] * w2 + d.Shapes[channel] * w3;
+			if ( weaponTrack is not null )
+			{
+				var weapon = BlendFour( a.Weapon, b.Weapon, c.Weapon, d.Weapon, w0, w1, w2, w3 );
+				if ( mirror is not null )
+				{
+					weapon = RabbitMirror.Reflect( weapon );
+					weapon.Rotation *= Rotation.FromAxis( Vector3.Forward, 180f );
+				}
+				weaponTrack.Set( i, weapon );
+			}
 			for ( int j = 0; j < frame.Length; j++ )
 			{
-				var pose = w0 + w1 > 0 ? Mix( a.Bones[j], b.Bones[j], w1 / (w0 + w1) ) : b.Bones[j];
-				if ( w0 + w1 + w2 > 0 ) pose = Mix( pose, c.Bones[j], w2 / (w0 + w1 + w2) );
-				frame[j] = Mix( pose, d.Bones[j], w3 );
+				frame[j] = BlendFour( a.Bones[j], b.Bones[j], c.Bones[j], d.Bones[j], w0, w1, w2, w3 );
 				if ( magnitudes is not null )
 				{
 					var q = frame[j].Rotation;
@@ -294,6 +326,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 			}
 		}
+		weaponTrack?.Write( clip );
 		for ( int channel = 0; channel < tracks.Length; channel++ )
 			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? channels[channel] : RabbitMirror.SwapSide( channels[channel] ), track );
 		for ( int i = 0; i < morphs.Length; i++ )

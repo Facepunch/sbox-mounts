@@ -26,6 +26,7 @@ public sealed partial class RabbitGuard
 	[Property, Sync] public LevelItem LeftHandItem { get; set; }
 	[Property, Sync] public LevelItem RightHandItem { get; set; }
 	LevelItem PrimaryItem => LeftHanded ? LeftHandItem : RightHandItem;
+	internal bool EquipsForAnimation( LevelItem item ) => PrimaryItem == item && equippedForAnimation == item;
 	void DropHandItem()
 	{
 		if ( LeftHandItem.IsValid() )

@@ -3,8 +3,8 @@ namespace Overgrowth;
 public sealed class LevelItem : Component
 {
 	[Property, Sync] public SkinnedModelRenderer Holder { get; set; }
-	[Property] public string Bone { get; set; }
-	[Property] public Transform Offset { get; set; }
+	[Property, Sync] public string Bone { get; set; }
+	[Property, Sync] public Transform Offset { get; set; }
 	[Property] public float RangeExtension { get; set; }
 	[Property] public float RangeMultiplier { get; set; } = 1f;
 
@@ -12,9 +12,23 @@ public sealed class LevelItem : Component
 
 	void UpdateAttachment()
 	{
-		if ( Holder.IsValid() && Holder.TryGetBoneTransform( Bone, out var hand ) )
-			WorldTransform = hand.ToWorld( Offset );
+		if ( !Holder.IsValid() || string.IsNullOrEmpty( Bone ) || !Holder.TryGetBoneTransform( Bone, out var hand ) ) return;
+		var pose = hand.ToWorld( Offset );
+		if ( Holder != previousHolder || Bone != previousBone )
+		{
+			previousHolder = Holder;
+			previousBone = Bone;
+			guard = Holder.GameObject.GetComponentInParent<RabbitGuard>( true );
+			weaponPose = WeaponAttachment.Create( this );
+		}
+		WorldTransform = guard.IsValid() && guard.EquipsForAnimation( this ) && weaponPose is not null
+			? weaponPose.Sample( Holder, pose ) : pose;
 	}
+
+	RabbitGuard guard;
+	SkinnedModelRenderer previousHolder;
+	string previousBone;
+	WeaponAttachment weaponPose;
 
 	Transform? lastHeldPose;
 	Vector3 carryVelocity, carryAngularVelocity;
