@@ -10,6 +10,30 @@ public sealed partial class RabbitGuard
 	int initialKnockoutShield;
 	sealed class BloodDamage : DamageInfo;
 
+	readonly List<float> painStarts = new();
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void FlinchFromCut() => painStarts.Add( Time.Now );
+
+	void UpdatePainFlinch()
+	{
+		if ( painStarts.Count == 0 ) return;
+		const float fadeSpeed = 8f;
+		float duration = boundAnimations.Clips["pain"].Duration;
+		foreach ( var group in boundAnimations.PainMask )
+		{
+			float remaining = 1f;
+			foreach ( float start in painStarts )
+			{
+				float age = Time.Now - start;
+				float opacity = Math.Clamp( Math.Min( (age + 1f / 120f) * fadeSpeed, 1f - (age - duration) * fadeSpeed ), 0f, 1f );
+				remaining *= 1f - opacity * group.Weight;
+			}
+			Renderer.Animation.Parameters.Set( group.Name, 1f - remaining );
+		}
+		while ( painStarts.Count > 0 && Time.Now - painStarts[0] >= duration + 1f / fadeSpeed ) painStarts.RemoveAt( 0 );
+	}
+
 	// BaseNpc has already subtracted the accepted hit. Apply TakeBloodDamage's
 	// separate blood, permanent and temporary health changes after damage listeners.
 	void ApplyBloodLoss( float amount )

@@ -9,6 +9,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal string[] RollClips { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
+	internal (string Name, float Weight)[] PainMask { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string[] SightBones { get; private init; }
 	public static RabbitGuardAnimations Create( BaseFileSystem fs, string path, string characterPath, SkeletonData skeleton, float scale, Vector3 modelCenter, XmlAsset item = null )
@@ -17,7 +18,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var bones = new SkeletonBuilder();
 		for ( int i = 0; i < skeleton.BindPose.Length; i++ )
 		{
-			int parent = skeleton.HierParents[i];
+			int parent = skeleton.AnimationParents[i];
 			var local = parent < 0 ? skeleton.BindPose[i] : skeleton.BindPose[parent].ToLocal( skeleton.BindPose[i] );
 			bones.AddBone( $"bone_{i}", local, parent < 0 ? null : $"bone_{parent}" );
 		}
@@ -55,6 +56,15 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = 1f;
 			bones.AddBoneMask( "block_flinch", mask, defaultFloatChannelWeight: 0f );
 		}
+		var pain = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_painflinch.anm", skeleton.Bones.Count );
+		foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) pain[shape.Name] = 1f;
+		pain["rightarm_blend"] = 1f;
+		// The flinch asset contains one pose. Group equal weights so overlapping
+		// cuts can compose their masks without allocating another graph per hit.
+		var painMask = pain.Values.Distinct().Where( weight => weight > 0f ).Order()
+			.Select( (weight, i) => (Name: $"pain_{i}", Weight: weight) ).ToArray();
+		foreach ( var group in painMask )
+			bones.AddBoneMask( group.Name, pain.ToDictionary( pair => pair.Key, pair => pair.Value == group.Weight ? 1f : 0f ), defaultFloatChannelWeight: 0f );
 		var pickupMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count );
 		bones.AddBoneMask( "pickup_right", pickupMask, defaultFloatChannelWeight: 0f );
 		bones.AddBoneMask( "pickup_left", pickupMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value ), defaultFloatChannelWeight: 0f );
@@ -100,6 +110,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var mirroredFlinch = graph.BoolParameter( "mirrored_flinch" );
 		var flinchWeight = graph.FloatParameter( "block_flinch" );
 		var leftFootJump = graph.FloatParameter( "left_foot_jump" );
+		var painParameters = painMask.ToDictionary( group => group.Name, group => graph.FloatParameter( group.Name ) );
 		var pickupPhase = graph.FloatParameter( "pickup_phase" );
 		var pickupRight = graph.FloatParameter( "pickup_right" );
 		var pickupLeft = graph.FloatParameter( "pickup_left" );
@@ -260,10 +271,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
 		var weighted = skeleton.GetWeightedBones();
 		var unweighted = Enumerable.Range( 0, weighted.Length ).Where( i => !weighted[i] ).Select( i => $"bone_{i}" ).ToHashSet();
-		var parents = skeleton.HierParents.ToArray();
-		for ( int i = 0; i < parents.Length; i++ )
-			while ( parents[i] >= 0 && !weighted[parents[i]] )
-				parents[i] = parents[parents[i]];
+		var parents = skeleton.AnimationParents;
 		var rollBones = new HashSet<string>();
 		foreach ( var key in new[] { "left_leg", "right_leg", "torso", "head", "leftarm", "rightarm" } )
 		{
@@ -310,6 +318,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var layer = graph.TimeControlledClip( pose.Animation, pickupPhase, new() { SampleRootMotion = false } );
 			output = graph.Layers( output ).AddLayer( layer, new() { BoneMask = graph.BoneMask( side ), Weight = weight, IgnoreEvents = true } );
 		}
+		var painClip = clips["pain"] = CombatClip( "r_painflinch", false, null, false );
+		var painPose = graph.Clip( painClip.Animation, new() { SampleRootMotion = false } );
+		foreach ( var group in painMask )
+			output = graph.Layers( output ).AddLayer( painPose, new() { BoneMask = graph.BoneMask( group.Name ), Weight = painParameters[group.Name], IgnoreEvents = true } );
 		var patrolGraphs = new Dictionary<string, Graph>( System.StringComparer.OrdinalIgnoreCase );
 		Graph LoadPatrolGraph( string file )
 		{
@@ -322,7 +334,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		RagdollFallPose.Layer FallLayer( string name )
 		{
-			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs, rotationParents: parents );
+			var clip = RabbitClip.Load( fs, path, rig, skeleton, name, SourceFor( name ), morphs );
 			var weights = RabbitClip.ReadLayerMask( fs, $"Data/Animations/{name}.anm", skeleton.Bones.Count );
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
@@ -334,6 +346,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
 				.Select( x => System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ) ).ToArray(),
 			WeaponLabel = label,
+			PainMask = painMask,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
 			SightBones = Enumerable.Range( 0, weighted.Length ).Where( i => weighted[i] ).Select( i => $"bone_{i}" ).ToArray()
 		};

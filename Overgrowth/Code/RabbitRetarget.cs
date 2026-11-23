@@ -41,7 +41,7 @@ internal sealed class RabbitRetarget
 		childHalf = new Vector3[target.Bones.Count];
 		for ( int i = 0; i < target.Bones.Count; i++ )
 		{
-			int parent = target.HierParents[i];
+			int parent = target.AnimationParents[i];
 			if ( parent < 0 ) continue;
 			var (a, b) = target.Bones[i];
 			var parentCenter = target.BindPose[parent].Position;
@@ -77,7 +77,7 @@ internal sealed class RabbitRetarget
 		mirroredChildHalf = new Vector3[childHalf.Length];
 		for ( int i = 0; i < childHalf.Length; i++ )
 		{
-			int parent = target.HierParents[i];
+			int parent = target.AnimationParents[i];
 			if ( parent < 0 ) continue;
 			int other = mirror.Opposite( i );
 			// Mirroring a model-space bone also changes its reference bind frame.
@@ -101,7 +101,7 @@ internal sealed class RabbitRetarget
 	internal void Mirror( RabbitMirror mirror, Transform[] frame, Transform[] scratch )
 	{
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip.Inverse;
-		mirror.Apply( frame, scratch, target.HierParents );
+		mirror.Apply( frame, scratch, target.AnimationParents );
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip;
 	}
 
@@ -121,12 +121,12 @@ internal sealed class RabbitRetarget
 
 	internal Vector3 ScaleOffset( Vector3 offset ) => offset * (legRatio * scale);
 
-	internal Transform[] ToLocalPose( Transform[] pose, int[] rotationParents = null )
+	internal Transform[] ToLocalPose( Transform[] pose )
 	{
 		var result = new Transform[target.Bones.Count];
 		for ( int i = 0; i < result.Length; i++ )
 		{
-			int parent = rotationParents is null ? target.HierParents[i] : rotationParents[i];
+			int parent = target.AnimationParents[i];
 			if ( parent < 0 )
 			{
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );

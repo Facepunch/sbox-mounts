@@ -69,7 +69,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		return new Transform( new Vector3( matrix[14], matrix[12], matrix[13] ) * 40f, new Rotation( q.z, q.x, q.y, q.w ) );
 	}
 
-	// The flinch pose has the same authored bone mask on both keyframes.
+	// Read the authored first-key weights of a constant-mask animation layer.
 	internal static Dictionary<string, float> ReadLayerMask( BaseFileSystem fs, string path, int bones )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( path ) );
@@ -81,7 +81,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		return Enumerable.Range( 0, bones ).ToDictionary( i => $"bone_{i}", i => i < count ? Math.Clamp( reader.ReadSingle(), 0f, 1f ) : 0f );
 	}
 
-	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null, int[] rotationParents = null )
+	internal static RabbitClip Load( BaseFileSystem fs, string path, Skeleton rig, SkeletonData skeleton, string name, RabbitRetarget retarget, CharacterMorph[] morphs, XmlAsset damage = null, bool sampleFeet = false, CenterMotion centerMotion = CenterMotion.Full, RabbitMirror mirror = null )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( $"Data/Animations/{name}.anm" ) );
 		var (version, centered, loop, start, duration) = ReadHeader( reader, name );
@@ -204,7 +204,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				else if ( yaw < keys[k - 1].Yaw - MathF.PI ) yaw += MathF.Tau;
 			}
 			var travel = centerMotion == CenterMotion.Vertical ? retarget.ScaleOffset( savedCenter.WithZ( 0f ) ) : Vector3.Zero;
-			keys[k] = new( time, retarget.ToLocalPose( pose, rotationParents ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleFeet ? pose : null, footBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -257,7 +257,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 					magnitudes[i * frame.Length + (mirror?.Opposite( j ) ?? j)] = MathF.Sqrt( q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w );
 				}
 				frame[j].Rotation = frame[j].Rotation.Normal;
-				if ( skeleton.HierParents[j] < 0 )
+				if ( skeleton.AnimationParents[j] < 0 )
 					frame[j].Position += Vector3.Lerp( b.Center, c.Center, t );
 				else
 					frame[j].Position = retarget.JointPosition( j, frame[j].Rotation );

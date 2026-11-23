@@ -158,7 +158,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var builder = Model.Builder.WithName( Path ).AddMesh( mesh );
 		for ( int i = 0; i < skeleton.Bones.Count; i++ )
 		{
-			var parentIndex = skeleton.HierParents[i];
+			var parentIndex = skeleton.AnimationParents[i];
 			var parent = parentIndex >= 0 ? $"bone_{parentIndex}" : null;
 			var bindPose = skeleton.BindPose[i];
 			builder.AddBone( $"bone_{i}", bindPose.Position, bindPose.Rotation, parent );

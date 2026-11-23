@@ -69,6 +69,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		Renderer.Animation.Parameters.Set( "block_flinch", FlinchWeight );
 		UpdateMorphs();
 		UpdatePickupLayer();
+		UpdatePainFlinch();
 		UpdateLanding();
 		if ( Downed )
 		{

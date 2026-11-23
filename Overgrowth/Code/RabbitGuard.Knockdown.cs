@@ -45,7 +45,11 @@ public sealed partial class RabbitGuard
 	protected override void OnDamaged( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaged( hit );
-		if ( hit.DamageInfo is BloodDamage ) ApplyBloodLoss( hit.AcceptedDamage );
+		if ( hit.DamageInfo is BloodDamage && hit.AcceptedDamage > 0f )
+		{
+			FlinchFromCut();
+			ApplyBloodLoss( hit.AcceptedDamage );
+		}
 		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
 		if ( sparringKnockout )
 		{

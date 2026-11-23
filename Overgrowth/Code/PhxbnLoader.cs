@@ -13,6 +13,7 @@ public class SkeletonData
 	public List<float> BoneMass = new();
 	public List<Vector3> BoneCom = new();
 	public List<int> HierParents = new();
+	internal int[] AnimationParents;
 	public List<JointData> Joints = new();
 	public Dictionary<string, SimpleIKBone> IKBones = new();
 	public Transform[] BindPose;
@@ -151,6 +152,13 @@ static class PhxbnLoader
 					throw new InvalidDataException( "Overgrowth skeleton has an invalid or cyclic bone hierarchy." );
 			}
 		}
+		// Skeleton::Read attaches animated joints to their nearest weighted ancestor.
+		// Keep the file hierarchy for physical joints and reference-rig measurements.
+		var weighted = data.GetWeightedBones();
+		data.AnimationParents = data.HierParents.ToArray();
+		for ( int i = 0; i < numBones; i++ )
+			while ( data.AnimationParents[i] >= 0 && !weighted[data.AnimationParents[i]] )
+				data.AnimationParents[i] = data.AnimationParents[data.AnimationParents[i]];
 		return data;
 	}
 
