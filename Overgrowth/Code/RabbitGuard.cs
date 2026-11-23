@@ -108,6 +108,14 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
+		{
+			seenHostiles.Remove( enemy );
+			enemy = null;
+			visible = false;
+			enemySeen = 0;
+			Movement.Stop();
+		}
 		UpdateStanceAmounts();
 		if ( InThrow || UpdateDefense() ) return;
 		if ( nextVisionCheck <= 0 )
@@ -150,7 +158,10 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override Relationship GetFallbackRelationship( GameObject other ) =>
 		new( other.GetComponent<BaseNpc>().IsValid() ? Disposition.Hostile : Disposition.Neutral );
 
-	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject
+	static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget &&
+		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());
+
+	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
 		&& IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not { Health: < 1 }
 		&& GetDisposition( other ) == Disposition.Hostile;
 
