@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
 		}
-		else if ( plantedLegs && (Stance is not (Threat or Idle or Ready or Watch or Locomotion) || !Animation.IsGrounded) ) ReleaseLegs();
+		else if ( Stance is not (Threat or Idle or Ready or Watch or Locomotion) || !Animation.IsGrounded ) plantedLegs = false;
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( !BindAnimations() ) return;
 		if ( Networking.IsHost )
@@ -125,8 +125,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		UpdatePatrolPose();
 		flipLookFade = Math.Clamp( flipLookFade + Time.Delta * (RollProgress < 1f ? 5f : -3f), 0f, 1.1f );
 		bool canLook = Stance is Idle or Ready or Watch or Threat or Locomotion || boundAnimations.AttackStates.Contains( Stance );
-		bool track = !NoLookAround && RollProgress >= 1f && canLook && GazeTarget.HasValue;
-		if ( chestActive && !track ) ReleaseLegs();
 		headMotion = chestMotion = null;
 		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		if ( Networking.IsHost )
@@ -167,7 +165,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( OnLedge ) UpdateLedgeFeet();
 		if ( pose == Threat ) UpdateStanceFeet( playing != displayPose );
 		if ( pose is Idle or Ready or Watch && Animation.IsGrounded ) UpdateIdleFeet();
-		if ( track ) UpdateChestLook( GazeTarget.Value );
+		UpdateChestLook( !NoLookAround && RollProgress >= 1f && canLook ? GazeTarget : null );
 		if ( headMotion is null ) DrawRestingHead();
 		UpdateArms();
 		UpdateEars();

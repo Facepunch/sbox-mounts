@@ -144,12 +144,4 @@ public sealed partial class RabbitGuard
 		plantedLegs = true;
 	}
 
-	void ReleaseLegs()
-	{
-		if ( !plantedLegs && !chestActive ) return;
-		if ( Renderer.IsValid() ) Renderer.ClearPhysicsBones();
-		plantedLegs = false;
-		chestActive = false;
-	}
-
 }

@@ -129,7 +129,7 @@ public sealed partial class RabbitGuard
 	}
 
 	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
-	void UpdateChestLook( Vector3 target )
+	void UpdateChestLook( Vector3? target )
 	{
 		var bones = Renderer.Model.Bones;
 		var chest = bones.GetBone( boundAnimations.TorsoBones[0] );
@@ -140,8 +140,9 @@ public sealed partial class RabbitGuard
 		var animatedChest = chestWorld;
 		var basis = chestWorld.Rotation * Renderer.Model.GetBoneTransform( chest.Index ).Rotation.Inverse;
 		float frames = Time.Delta * 120f;
-		float weight = TorsoControl;
-		var headDirection = (target - TargetPosition( GameObject, eyes: true )).Normal;
+		// Overgrowth keeps the springs running when a throw, flip or hit disables gaze.
+		float weight = target.HasValue ? TorsoControl : 0f;
+		var headDirection = target is { } point ? (point - TargetPosition( GameObject, eyes: true )).Normal : Vector3.Zero;
 		var look = basis.Inverse * headDirection;
 		float yaw = MathF.Abs( look.z ) > 0.9f ? previousYaw : MathF.Atan2( look.y, look.x );
 		if ( yaw > 2.2f && previousYaw <= -1f ) yaw = -1f;

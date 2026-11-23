@@ -26,8 +26,9 @@ public sealed partial class RabbitGuard
 		if ( yaw > 2.2f && lastHeadYaw <= -limit ) yaw = -limit;
 		else if ( yaw < -2.2f && lastHeadYaw >= limit ) yaw = limit;
 		lastHeadYaw = Math.Clamp( yaw, -limit, limit );
-		float pitch = Math.Clamp( MathF.Asin( Math.Clamp( look.z * HeadLookWeight, -1f, 1f ) ) - 0.2f, -0.8f, 0.8f );
-		var wanted = new Vector2( lastHeadYaw * HeadLookWeight + Random.Shared.Float( -0.001f, 0.001f ), pitch * HeadLookWeight + Random.Shared.Float( -0.001f, 0.001f ) );
+		float weight = headDirection == Vector3.Zero ? 0f : HeadLookWeight;
+		float pitch = Math.Clamp( MathF.Asin( Math.Clamp( look.z * weight, -1f, 1f ) ) - 0.2f, -0.8f, 0.8f );
+		var wanted = new Vector2( lastHeadYaw * weight + Random.Shared.Float( -0.001f, 0.001f ), pitch * weight + Random.Shared.Float( -0.001f, 0.001f ) );
 		var previous = basis.Inverse * lastHeadFacing;
 		if ( MathF.Abs( previous.Normal.z ) <= 0.9f ) inheritedHeadYaw = MathF.Atan2( previous.y, previous.x );
 		var offset = new Vector2( inheritedHeadYaw, MathF.Asin( Math.Clamp( previous.z, -1f, 1f ) ) );
