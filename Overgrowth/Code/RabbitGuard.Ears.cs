@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard
 	sealed class EarState
 	{
 		public Vector3 Base, Middle, Tip, PreviousMiddle, PreviousTip;
-		public Vector3 LastMiddle, LastTip, MiddleOffset, TipOffset;
+		public Vector3 LastMiddle, LastTip;
 		public float Twist, TargetTwist;
 		public TimeUntil NextTwist;
 	}
@@ -65,7 +65,6 @@ public sealed partial class RabbitGuard
 			{
 				ear.PreviousMiddle = ear.Middle = middle;
 				ear.PreviousTip = ear.Tip = tip;
-				ear.MiddleOffset = ear.TipOffset = Vector3.Zero;
 			}
 			else for ( int step = 0; step < steps; step++ )
 			{
@@ -78,23 +77,21 @@ public sealed partial class RabbitGuard
 				ear.PreviousTip = ear.Tip;
 				ear.Middle = mid;
 				ear.Tip = end;
-				ear.MiddleOffset = mid - middlePoint;
-				ear.TipOffset = end - tipPoint;
 			}
 			ear.Base = root;
 			ear.LastMiddle = middle;
 			ear.LastTip = tip;
-			var middleOffset = ear.MiddleOffset;
-			var tipOffset = ear.TipOffset;
+			var displayMiddle = ear.Middle;
+			var displayTip = ear.Tip;
 			if ( !reset && remainder > 0f )
 			{
 				// Preview the fractional tick without advancing the Verlet history.
 				var (mid, end) = Simulate( root, middle, tip );
-				middleOffset = Vector3.Lerp( middleOffset, mid - middle, remainder / tick );
-				tipOffset = Vector3.Lerp( tipOffset, end - tip, remainder / tick );
+				displayMiddle = Vector3.Lerp( ear.Middle, mid, remainder / tick );
+				displayTip = Vector3.Lerp( ear.Tip, end, remainder / tick );
 			}
-			middle += middleOffset;
-			tip += tipOffset;
+			middle = displayMiddle;
+			tip = displayTip;
 
 			(Vector3, Vector3) Simulate( Vector3 basePoint, Vector3 middlePoint, Vector3 tipPoint )
 			{

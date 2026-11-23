@@ -8,7 +8,6 @@ public sealed partial class RabbitGuard
 	{
 		public Vector3 Elbow, Wrist, PreviousElbow, PreviousWrist;
 		public Vector3 LastShoulder, LastElbow, LastWrist;
-		public Vector3 ElbowOffset, WristOffset;
 	}
 
 	readonly ArmState[] armStates = [new(), new()];
@@ -103,7 +102,6 @@ public sealed partial class RabbitGuard
 			{
 				arm.Elbow = arm.PreviousElbow = elbow;
 				arm.Wrist = arm.PreviousWrist = wrist;
-				arm.ElbowOffset = arm.WristOffset = default;
 			}
 			Renderer.Animation.Debug.TryGetFloatChannel( "status", side == 0 ? "leftarm_blend" : "rightarm_blend", out var weight );
 			if ( OnLedge ) weight = 1f;
@@ -117,14 +115,12 @@ public sealed partial class RabbitGuard
 				arm.PreviousElbow = arm.Elbow;
 				arm.PreviousWrist = arm.Wrist;
 				(arm.Elbow, arm.Wrist) = next;
-				arm.ElbowOffset = arm.Elbow - el;
-				arm.WristOffset = arm.Wrist - wr;
 			}
 			arm.LastShoulder = shoulder;
 			arm.LastElbow = elbow;
 			arm.LastWrist = wrist;
-			var mid = elbow + arm.ElbowOffset;
-			var end = wrist + arm.WristOffset;
+			var mid = arm.Elbow;
+			var end = arm.Wrist;
 			if ( armsActive && remainder > 0f )
 			{
 				var next = Simulate( shoulder, elbow, wrist );
