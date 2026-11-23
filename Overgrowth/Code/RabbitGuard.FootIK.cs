@@ -32,7 +32,7 @@ public sealed partial class RabbitGuard
 	[Sync] float CloseAmount { get; set; }
 	[Sync] float ThreatAmount { get; set; }
 	[Sync] float CrouchAmount { get; set; }
-	float threatVelocity;
+	float threatPosition, threatVelocity, threatRemainder;
 
 	void UpdateStanceAmounts()
 	{
@@ -40,19 +40,39 @@ public sealed partial class RabbitGuard
 		CloseAmount = PrimaryItem.IsValid() && enemy.IsValid() && enemy.GetComponent<RabbitGuard>() is not { Unconscious: true }
 			? Math.Clamp( (60f - CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) )) / 28f, 0f, 1f ) : 0f;
 		bool movement = Stance is Idle or Ready or Watch or Locomotion or Threat;
-		if ( !movement && strike is null ) ThreatAmount = 0;
+		bool active = movement || strike is not null;
 		float target = 0f;
-		if ( movement || strike is not null )
+		if ( active )
 		{
 			if ( HasCombatTarget && WantsToAttack ) target = 1f;
 			else if ( Investigating && dragWindow > 0f && !NeedsCombatPose() &&
 				(!PrimaryItem.IsValid() || boundAnimations.WeaponLabel is not ("big_sword" or "spear" or "staff")) ) target = -1f;
 		}
-		float acceleration = target < 0f || target == 0f && ThreatAmount < 0f ? 100f : PrimaryItem.IsValid() ? 150f : 200f;
-		threatVelocity += (target - ThreatAmount) * Time.Delta * acceleration;
-		threatVelocity *= MathF.Pow( 0.89f, Time.Delta * 120f );
-		ThreatAmount += threatVelocity * Time.Delta;
+		ThreatAmount = SampleThreat( target, active, PrimaryItem.IsValid(), Time.Delta );
 		CrouchAmount = duckAmount;
+	}
+
+	float SampleThreat( float target, bool active, bool armed, float dt )
+	{
+		const float tick = 4f / 120f;
+		const float damping = 0.89f * 0.89f * 0.89f * 0.89f;
+		float NextVelocity( float position )
+		{
+			float acceleration = target < 0f || target == 0f && position < 0f ? 100f : armed ? 150f : 200f;
+			return (threatVelocity + (target - position) * tick * acceleration) * damping;
+		}
+
+		threatRemainder += dt;
+		while ( threatRemainder >= tick )
+		{
+			if ( !active ) threatPosition = 0f;
+			threatVelocity = NextVelocity( threatPosition );
+			threatPosition += threatVelocity * tick;
+			threatRemainder -= tick;
+		}
+		float next = active ? threatPosition : 0f;
+		next += NextVelocity( next ) * tick;
+		return threatPosition + (next - threatPosition) * (threatRemainder / tick);
 	}
 
 	RabbitMovement.Sample QueueIdlePose( RabbitMovement tree, bool mirrored, bool entering )
