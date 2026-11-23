@@ -70,42 +70,42 @@ public sealed partial class RabbitGuard
 		{
 			hasStanceAnchors = true;
 			plantedRoot[0] = plantedRoot[1] = root;
-			steppingFoot = -1;
+			steppingFoot = 1; // StartFootStance plants the left foot first.
 			stepProgress = 0;
 		}
 
 		// aschar.as HandleFootStance leads the swinging foot by half a step while the other stays planted.
-		var velocity = Animation.MoveVelocity.WithZ( 0 ) + ContactVelocity;
+		var velocity = Animation.MoveVelocity + ContactVelocity;
 		float speed = velocity.Length / 40f;
 		float stepSpeed = Math.Max( 2f, speed * 1.5f + 1f );
 		float across = (right.Position - left.Position).Normal.Dot( velocity.Normal );
-		Vector3 Goal( int foot ) => root + velocity * ((1f + (foot == 0 ? -across : across)) / 120f + 0.5f / stepSpeed);
+		Vector3 Goal( int foot ) => speed * speed > 0.001f ? root + velocity * ((1f + (foot == 0 ? -across : across)) / 120f + 0.5f / stepSpeed) : root;
 		bool NeedsStep( int foot ) => Goal( foot ).DistanceSquared( plantedRoot[foot] ) > 4f * 4f;
 		if ( steppingFoot < 0 && (NeedsStep( 0 ) || NeedsStep( 1 )) )
 			steppingFoot = across > 0 ? 1 : 0;
-		if ( steppingFoot >= 0 )
-		{
-			stepProgress += Time.Delta * stepSpeed;
-			if ( stepProgress >= 1f )
-			{
-				plantedRoot[steppingFoot] = Goal( steppingFoot );
-				var contact = (steppingFoot == 0 ? left : right).Position + (plantedRoot[steppingFoot] - root).WithZ( 0f );
-				var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
-					.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
-				if ( Networking.IsHost && floor.Hit )
-				{
-					var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
-					var step = (steppingFoot == 0 ? "left" : "right") + gait + "step";
-					if ( HandleFootstep( step, floor.EndPosition ) )
-						PlayFootContact( step, floor, speed < 2f ? 3f : 5f );
-				}
-				steppingFoot = NeedsStep( 1 - steppingFoot ) ? 1 - steppingFoot : -1;
-				stepProgress = 0;
-			}
-		}
 		for ( int side = 0; side < 2; side++ )
 		{
 			var foot = side == 0 ? left : right;
+			if ( side == steppingFoot )
+			{
+				stepProgress += Time.Delta * stepSpeed;
+				if ( stepProgress >= 1f )
+				{
+					plantedRoot[side] = Goal( side );
+					var contact = foot.Position + (plantedRoot[side] - root).WithZ( 0f );
+					var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
+						.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
+					if ( Networking.IsHost && floor.Hit )
+					{
+						var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
+						var step = (side == 0 ? "left" : "right") + gait + "step";
+						if ( HandleFootstep( step, floor.EndPosition ) )
+							PlayFootContact( step, floor, speed < 2f ? 3f : 5f );
+					}
+					steppingFoot = NeedsStep( 1 - side ) ? 1 - side : -1;
+					stepProgress = 0;
+				}
+			}
 			var target = side == steppingFoot ? Vector3.Lerp( plantedRoot[side], Goal( side ), stepProgress ) : plantedRoot[side];
 			stepLift[side] = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
 			footOffset[side] = target - root;
