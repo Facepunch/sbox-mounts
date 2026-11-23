@@ -108,7 +108,7 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( wasAwake && !Unconscious && !StaticCharacter && !enemy.IsValid() && !Investigating &&
+		if ( CombatAllowed && wasAwake && !Unconscious && !StaticCharacter && !enemy.IsValid() && !Investigating &&
 			!escortTarget.IsValid() && !soughtItem.IsValid() && !Held && !Holding )
 			BeginAreaSearch();
 		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage);
@@ -305,7 +305,7 @@ public sealed partial class RabbitGuard
 			if ( wakeRoll ) rollAfterRagdollDelay = Math.Max( rollAfterRagdollDelay, (float)sinceKnockdown + 1f );
 			return false;
 		}
-		if ( wakeRoll && (!Sandbox.Npcs.NpcConVars.Enabled || !HasCombatTarget || startled > 0f ||
+		if ( wakeRoll && (!CombatAllowed || !Sandbox.Npcs.NpcConVars.Enabled || !HasCombatTarget || startled > 0f ||
 			sinceKnockdown < earliestRollAge || sinceKnockdown <= rollAfterRagdollDelay) ) return false;
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.

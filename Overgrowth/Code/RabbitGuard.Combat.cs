@@ -288,7 +288,7 @@ public sealed partial class RabbitGuard
 		return best;
 	}
 
-	bool WantsToAttack => startled <= 0f && !(boundAnimations.Species == "wolf" && blockStun > 0.5f)
+	bool WantsToAttack => CombatAllowed && startled <= 0f && !(boundAnimations.Species == "wolf" && blockStun > 0.5f)
 		&& (airResponse is AirResponse.Counter or AirResponse.KnockOffLedge || airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
 
 	bool TryStartStrike()

@@ -44,6 +44,11 @@ public sealed partial class RabbitGuard
 
 	Vector3 ChaseApproach( Vector3 fallback, out Vector3 point )
 	{
+		if ( !CombatAllowed && !ChaseAllowed )
+		{
+			point = WorldPosition;
+			return Vector3.Zero;
+		}
 		if ( airResponse == AirResponse.KnockOffLedge && observedTarget == enemy && observationCount > 0 )
 		{
 			var delta = RecallTarget( Time.Now - 0.1f ).Position - CharacterCenter( GameObject );

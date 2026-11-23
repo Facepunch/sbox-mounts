@@ -9,6 +9,8 @@ public sealed partial class RabbitGuard
 	static float GameDifficulty => Math.Clamp( Difficulty, 0f, 1f );
 
 	enum CombatTactic { Rush, Wait, Defend, Provoke }
+	[Property] public bool CombatAllowed { get; set; } = true;
+	[Property] public bool ChaseAllowed { get; set; }
 	[Property, Range( 0f, 1f )] public float Aggression { get; set; } = 0.5f;
 	[Property, Range( 0f, 1f )] public float GroundAggression { get; set; } = 0.5f;
 	[Property, Range( 0f, 1f )] public float BlockFollowUp { get; set; } = 0.5f;
@@ -69,7 +71,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( rangeChanged || Random.Shared.Float() < Time.Delta * 120f / 150f )
 				preferredRange = Random.Shared.Float( 3f, 4f ) * 40f;
-			if ( distance * distance < 8f * 40f * 40f && RollProgress >= 1f )
+			if ( (CombatAllowed || ChaseAllowed) && distance * distance < 8f * 40f * 40f && RollProgress >= 1f )
 			{
 				strafeOffset = strafeOffset > 0f ? 200f : -200f;
 				var direction = CombatApproach( TargetPosition( enemy ), out _ );
@@ -89,7 +91,13 @@ public sealed partial class RabbitGuard
 		if ( Random.Shared.Float() < Time.Delta * 120f / 150f )
 			strafeOffset = Random.Shared.Float( -0.2f, 0.2f ) * 40f;
 		if ( RespondToAirborneTarget( distance ) ) return;
-		if ( nextTactic <= 0 )
+		if ( !CombatAllowed )
+		{
+			var next = ChaseAllowed ? CombatTactic.Provoke : CombatTactic.Defend;
+			rangeChanged |= next != tactic;
+			tactic = next;
+		}
+		else if ( nextTactic <= 0 )
 		{
 			nextTactic = GameDifficulty >= 0.25f ? Random.Shared.Float( 0.35f, 1.25f ) : 0f;
 			var next = CombatTactic.Defend;
@@ -128,6 +136,7 @@ public sealed partial class RabbitGuard
 			rangeChanged = false;
 			preferredRange = tactic switch
 			{
+				CombatTactic.Defend when !CombatAllowed => Random.Shared.Float( 3f, 5f ) * 40f,
 				CombatTactic.Defend or CombatTactic.Wait => Random.Shared.Float( 1.5f, 3f ) * 40f,
 				CombatTactic.Rush when UsesPolearm => 2f * 40f,
 				_ => 0f
