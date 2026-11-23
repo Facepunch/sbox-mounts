@@ -75,9 +75,13 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	{
 		Jumping = true;
 		detach = 0.2f;
+		leftFloor = leftWall = 10;
 		ContactNormal = Vector3.Zero;
+		ContactSurface = null;
 		body.Gravity = true;
 		body.Velocity = velocity;
+		Npc.Animation.IsGrounded = false;
+		Npc.Animation.SetMove( velocity );
 	}
 
 	protected override void OnFixedUpdate()
@@ -126,7 +130,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		if ( supportedNow && !wasSupported )
 		{
 			sinceLanding = 0;
-			if ( lastFallSpeed > 5 * MapLoader.Scale ) ((Skulk)Npc).PlayMovementSound( "land" );
+			((Skulk)Npc).OnLand( lastFallSpeed, body.Velocity.WithZ( 0 ).Length );
 			lastFallSpeed = 0;
 		}
 		if ( supportedNow && !OnWall && !wish.IsNearlyZero() && corner < path.Points.Count - 1 )

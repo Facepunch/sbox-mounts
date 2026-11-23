@@ -67,6 +67,12 @@ public sealed partial class Skulk
 
 	internal void PlayMovementSound( string cue ) => PlayCombatSound( $"alien/skulk/{cue}", WorldPosition );
 
+	internal void OnLand( float impact, float planarSpeed )
+	{
+		if ( impact > 5 * MapLoader.Scale && (!sneaking || planarSpeed > 7 * MapLoader.Scale) )
+			PlayMovementSound( "land" );
+	}
+
 	void PlayVoice( string cue ) => PlayCombatSound( $"alien/skulk/{cue}", EyePosition );
 
 	void OnWorldTag( string tag )
