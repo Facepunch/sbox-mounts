@@ -35,23 +35,25 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
 
 	(BoneCollection.Bone Bone, Vector3 Center)[] physicsCenters = [];
-	readonly record struct BodyPoint( BoneCollection.Bone Bone, Vector3 Center, int Body, Vector3 BodyCenter );
+	readonly record struct BodyPoint( BoneCollection.Bone Bone, Vector3 Center, int Body, Transform BodyOffset );
 	BodyPoint[] sightPoints = [];
 	readonly Dictionary<string, BodyPoint[]> chainCenters = new();
 
 	// Native queries use Bullet object origins. The rendered joint pivot can be
 	// several units from that origin, especially on large and fixed bones.
-	static Vector3? BodyPosition( BodyPoint point, SkinnedModelRenderer renderer, ModelPhysics physics, RabbitGuard fighter )
+	static Transform? BodyTransform( BodyPoint point, SkinnedModelRenderer renderer, ModelPhysics physics, RabbitGuard fighter )
 	{
 		if ( physics is { Active: true } )
 		{
 			foreach ( var part in physics.Bodies )
 				if ( part.Bone == point.Body && part.Component.IsValid() )
-					return part.Component.WorldTransform.PointToWorld( point.BodyCenter );
+					return part.Component.WorldTransform.ToWorld( point.BodyOffset );
 			return null;
 		}
-		if ( fighter?.SolvedBodyTransform( point.Bone.Index ) is { } solved ) return solved.PointToWorld( point.Center );
-		return renderer.TryGetBoneTransform( point.Bone, out var pose ) ? pose.PointToWorld( point.Center ) : null;
+		Transform pose;
+		if ( fighter?.SolvedBodyTransform( point.Bone.Index ) is { } solved ) pose = solved;
+		else if ( !renderer.TryGetBoneTransform( point.Bone, out pose ) ) return null;
+		return pose.WithPosition( pose.PointToWorld( point.Center ) );
 	}
 
 	static CharacterLoader FromRenderer( SkinnedModelRenderer renderer ) => renderer.IsValid() && renderer.Model is not null
@@ -60,7 +62,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal static Vector3? RandomSightPosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
 	{
 		if ( FromRenderer( renderer )?.sightPoints is not { Length: > 0 } points ) return null;
-		return BodyPosition( points[Random.Shared.Next( points.Length )], renderer, renderer.GetComponent<ModelPhysics>(), fighter );
+		return BodyTransform( points[Random.Shared.Next( points.Length )], renderer, renderer.GetComponent<ModelPhysics>(), fighter )?.Position;
 	}
 
 	internal static Vector3? AverageChainPosition( SkinnedModelRenderer renderer, string chain )
@@ -72,11 +74,36 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		int count = 0;
 		foreach ( var point in points )
 		{
-			if ( BodyPosition( point, renderer, physics, fighter ) is not { } position ) continue;
-			sum += position;
+			if ( BodyTransform( point, renderer, physics, fighter ) is not { } pose ) continue;
+			sum += pose.Position;
 			count++;
 		}
 		return count > 0 ? sum / count : null;
+	}
+	internal readonly record struct ChainFrame( Vector3 Position, Vector3 Forward, Vector3 Left, Vector3 Up )
+	{
+		public Vector3 Direction( Vector3 local ) => Forward * local.x + Left * local.y + Up * local.z;
+	}
+
+	// GetAvgIKChainTransform averages the matrix columns directly. The result can
+	// shorten or skew a direction when the constituent bones point different ways.
+	internal static ChainFrame? AverageChainFrame( SkinnedModelRenderer renderer, string chain )
+	{
+		if ( FromRenderer( renderer ) is not { } character || !character.chainCenters.TryGetValue( chain, out var points ) ) return null;
+		var physics = renderer.GetComponent<ModelPhysics>();
+		var fighter = renderer.GetComponentInParent<RabbitGuard>();
+		Vector3 position = default, forward = default, left = default, up = default;
+		int count = 0;
+		foreach ( var point in points )
+		{
+			if ( BodyTransform( point, renderer, physics, fighter ) is not { } pose ) continue;
+			position += pose.Position;
+			forward += pose.Rotation.Forward;
+			left += pose.Rotation.Left;
+			up += pose.Rotation.Up;
+			count++;
+		}
+		return count > 0 ? new ChainFrame( position / count, forward / count, left / count, up / count ) : null;
 	}
 	// Fixed FZX bones keep their bind-space offset from the nearest simulated ancestor.
 	// Store their mean once so a ragdoll query only visits each live body once.
@@ -309,7 +336,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 				int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
 				var group = ragdollCenters.GetValueOrDefault( index );
 				var local = skeleton.BindPose[parent].PointToLocal( point.Position );
-				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, local );
+				bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ) );
 				ragdollCenters[index] = (group.Center + (local - group.Center) / (group.Count + 1), group.Count + 1);
 			}
 			sightPoints = bodyPoints.Values.ToArray();

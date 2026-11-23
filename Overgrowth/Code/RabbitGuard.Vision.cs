@@ -40,23 +40,11 @@ public sealed partial class RabbitGuard
 
 	(Vector3 Position, Vector3 Forward, Vector3 Left, Vector3 Up) GetViewBasis()
 	{
-		var bone = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
+		if ( CharacterLoader.AverageChainFrame( Renderer, "head" ) is not { } head )
+			return (EyePosition, WorldRotation.Forward, WorldRotation.Left, WorldRotation.Up);
 		// aschar passes -70 directly to mat4::SetRotationX, which takes radians.
 		var offset = Rotation.FromAxis( Vector3.Left, (-70f).RadianToDegree() );
-		Vector3 position = default, forward = default, left = default, up = default;
-		int count = 0;
-		while ( count < boundAnimations.Head.ChainLength && bone is not null && Renderer.TryGetBoneTransform( bone, out var pose ) )
-		{
-			var basis = pose.Rotation * offset;
-			position += pose.Position;
-			forward += basis.Forward;
-			left += basis.Left;
-			up += basis.Up;
-			count++;
-			bone = bone.Parent;
-		}
-		return count > 0 ? (position / count, forward / count, left / count, up / count)
-			: (EyePosition, WorldRotation.Forward, WorldRotation.Left, WorldRotation.Up);
+		return (head.Position, head.Direction( offset.Forward ), head.Direction( offset.Left ), head.Direction( offset.Up ));
 	}
 
 	void UpdateAwareness()

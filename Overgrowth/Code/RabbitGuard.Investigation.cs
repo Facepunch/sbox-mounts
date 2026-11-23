@@ -138,9 +138,9 @@ public sealed partial class RabbitGuard
 				if ( path.Status == NavMeshPathStatus.Complete ) searchPoints.Add( new( point + Vector3.Up * 18f ) );
 			}
 		}
-		var head = TargetPosition( GameObject, eyes: true );
-		var facing = Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var bone )
-			? bone.Rotation * new Vector3( 0.2f, 0f, 0.8f ).Normal : WorldRotation.Forward;
+		var frame = CharacterLoader.AverageChainFrame( Renderer, "head" );
+		var head = frame?.Position ?? EyePosition;
+		var facing = frame?.Direction( new Vector3( 0.2f, 0f, 0.8f ) ).Normal ?? WorldRotation.Forward;
 		for ( int i = searchPoints.Count - 1; i >= 0; --i )
 		{
 			var point = searchPoints[i];
