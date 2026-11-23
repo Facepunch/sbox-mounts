@@ -10,6 +10,40 @@ public sealed partial class Skulk
 	TimeSince sightedFor, sinceSeen;
 	TimeUntil nextJuke, repath;
 	float jukeSide = 1;
+	float aimScale = 1;
+	TimeUntil dealtDamage;
+	TimeUntil acquired, sampleAim, aimPenalty;
+	Vector3 samplePosition;
+	[Sync( SyncFlags.FromHost )] float AimTurnRate { get; set; } = 5;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
+
+	void TrackAim( GameObject target )
+	{
+		float tier = Math.Clamp( AimSkillTier, 1, 7 ) / 7f;
+		if ( sighted != target )
+		{
+			float delay = 0.325f - 0.14f * tier;
+			// The previous opponent can be reacquired faster after a brief obstruction.
+			acquired = remembered == target && sinceSeen < 1.5f ? delay * 0.3f : delay;
+			sampleAim = 0;
+		}
+		if ( sampleAim <= 0 )
+		{
+			samplePosition = target.WorldPosition;
+			sampleAim = 0.25f;
+		}
+		else
+		{
+			bool high = ViewRotation.Forward.z > 0.4f;
+			bool passed = Vector3.Dot( (samplePosition - EyePosition).Normal, (target.WorldPosition - EyePosition).Normal ) < -0.5f;
+			if ( high || passed )
+			{
+				aimScale = high ? 0.5f : 0.7f;
+				aimPenalty = 0.4f - 0.3f * tier;
+				sampleAim = 0;
+			}
+		}
+	}
 
 	GameObject FindEnemy()
 	{
@@ -23,8 +57,10 @@ public sealed partial class Skulk
 			distance = squared;
 		}
 
+		if ( aimPenalty <= 0 ) aimScale = 1;
 		if ( closest.IsValid() )
 		{
+			TrackAim( closest );
 			remembered = closest;
 			lastSeenPosition = closest.WorldPosition;
 			sinceSeen = 0;
@@ -35,6 +71,7 @@ public sealed partial class Skulk
 			sightedFor = 0;
 			repath = 0;
 		}
+		AimTurnRate = aimScale * (underFire > 0 || dealtDamage > 0 ? 5.5f : 5);
 		return closest;
 	}
 

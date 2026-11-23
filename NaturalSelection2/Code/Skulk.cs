@@ -45,7 +45,9 @@ internal sealed class SkulkPrefab : ResourceLoader<GameMount>
 			body.EnableImpactDamage = false;
 			body.Locking = new PhysicsLock { Pitch = true, Roll = true, Yaw = true };
 			root.AddComponent<SkulkMovement>().RunSpeed = 7.25f * MapLoader.Scale;
-			root.AddComponent<SensesLayer>();
+			var senses = root.AddComponent<SensesLayer>();
+			senses.SightRange = 20 * MapLoader.Scale;
+			senses.FieldOfView = 360;
 			var animation = root.AddComponent<AnimationLayer>();
 			animation.EnableFootstepSounds = false;
 			animation.TurnsBody = false;
@@ -143,7 +145,7 @@ public sealed partial class Skulk : BaseNpc
 		{
 			Movement.Stop();
 			if ( !direction.WithZ( 0 ).IsNearlyZero() ) WorldRotation = Rotation.LookAt( direction.WithZ( 0 ) );
-			Biting = !TryXenocide() && energy >= BiteEnergy;
+			Biting = !TryXenocide() && energy >= BiteEnergy && acquired <= 0;
 			return;
 		}
 

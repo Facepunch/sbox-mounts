@@ -19,12 +19,17 @@ public sealed partial class Skulk
 
 	void TurnView()
 	{
-		var aim = Animation.IsLooking ? Animation.CalculateLookPosition() - EyePosition : WorldRotation.Forward;
+		var aim = WorldRotation.Forward;
+		if ( Animation.IsLooking )
+		{
+			var point = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) : Animation.CalculateLookPosition();
+			aim = point - EyePosition;
+		}
 		if ( aim.IsNearlyZero() ) return;
 		var from = ViewRotation.Angles();
 		var to = Rotation.LookAt( aim ).Angles();
-		// BotMotion turns at 30 / 6 radians per second, with a 1.1 multiplier for Skulks.
-		float step = 5.5f * Time.Delta;
+		// BotMotion scales turn speed when fighting or tracking difficult targets.
+		float step = AimTurnRate * Time.Delta;
 		ViewRotation = Rotation.From( ApproachAngle( from.pitch, to.pitch, step ), ApproachAngle( from.yaw, to.yaw, step ), 0 );
 	}
 

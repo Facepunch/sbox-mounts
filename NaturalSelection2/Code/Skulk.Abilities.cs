@@ -91,6 +91,7 @@ public sealed partial class Skulk
 	{
 		var damage = new DamageInfo { Damage = amount, Attacker = GameObject, Weapon = GameObject, Origin = EyePosition, Position = position };
 		damage.Tags.Add( tag );
+		dealtDamage = 3;
 		victim.OnDamage( damage );
 	}
 }
