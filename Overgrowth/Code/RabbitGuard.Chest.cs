@@ -30,8 +30,9 @@ public sealed partial class RabbitGuard
 
 	GameObject ChooseLookTarget()
 	{
+		var center = CharacterCenter( GameObject );
 		float Interest( GameObject actor ) => actor.IsValid() && !IsIgnoredPlayer( actor )
-			? 40f / Math.Max( 40f, WorldPosition.Distance( TargetPosition( actor ) ) ) : 0f;
+			? 40f / Math.Max( 40f, center.Distance( CharacterCenter( actor ) ) ) : 0f;
 		float pick = Random.Shared.Float() * Math.Max( 1f, 0.5f + knownCharacters.Keys.Sum( Interest ) );
 		foreach ( var actor in knownCharacters.Keys )
 		{
@@ -39,6 +40,26 @@ public sealed partial class RabbitGuard
 			if ( pick < 0f ) return actor;
 		}
 		return null;
+	}
+
+	GameObject ForcedLookTarget()
+	{
+		if ( StaticCharacter ) return null;
+		if ( HasCombatTarget && !soughtItem.IsValid() && (visible || sinceEnemySeen <= 2f) ) return enemy;
+		if ( strike is { AsLayer: false } && strikeTarget.IsValid() ) return strikeTarget;
+
+		var center = CharacterCenter( GameObject );
+		float nearest = 30f * 40f * (30f * 40f);
+		GameObject closest = null;
+		foreach ( var actor in knownCharacters.Keys )
+		{
+			if ( !actor.IsValid() || IsIgnoredPlayer( actor ) || GetDisposition( actor ) != Sandbox.Npcs.Disposition.Hostile ) continue;
+			float distance = center.DistanceSquared( CharacterCenter( actor ) );
+			if ( distance >= nearest ) continue;
+			nearest = distance;
+			closest = actor;
+		}
+		return closest;
 	}
 
 	void UpdateGazeTarget()
@@ -73,7 +94,7 @@ public sealed partial class RabbitGuard
 		}
 		var target = currentKnifeLayer is { Active: true } && strikeTarget.IsValid() ? strikeTarget
 			: DrawAnimation == ThrowLayer && handThrowLookTarget.IsValid() ? handThrowLookTarget
-			: CanAttack( enemy ) ? enemy : escortTarget;
+			: ForcedLookTarget();
 		if ( !target.IsValid() ) target = idleLookCharacter;
 		if ( noticeSource.IsValid() && IsIgnoredPlayer( noticeSource ) ) noticeLook = 0f;
 		NoticeLookOverride = noticeLook > 0f;
