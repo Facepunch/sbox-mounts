@@ -385,10 +385,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var restMesh = objData;
 		if ( appearance.Attribute( "morph" ) is { } permanent && Host.FileSystem.FileExists( permanent ) )
 		{
-			var target = ObjLoader.Load( Host.FileSystem, permanent, objData.Center, objData.FaceVertexCount );
-			if ( target.FaceVertexCount != objData.FaceVertexCount )
-				throw new InvalidDataException( $"Permanent morph topology differs from {modelObjPath}: {permanent}" );
-			restMesh.Positions = target.Positions;
+			restMesh.Positions = ObjLoader.LoadMorphPositions( Host.FileSystem, permanent, objData.Center, objData.FaceVertexCount );
 			for ( int i = 0; i < restMesh.Positions.Count; i++ ) restMesh.Positions[i] *= scale;
 			restMesh.Bounds = BBox.FromPoints( restMesh.Positions );
 		}

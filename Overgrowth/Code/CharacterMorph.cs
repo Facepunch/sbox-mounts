@@ -16,15 +16,12 @@ internal sealed record CharacterMorph( string Name, int Steps )
 			{
 				string name = morph.Targets[step];
 				var path = $"{modelPath[..^4]}_{name}.obj";
-				var target = ObjLoader.Load( fs, path, model.Center, model.FaceVertexCount );
 				// LoadObjMorph pairs expanded face corners; OBJ vertex numbering can differ.
-				if ( target.FaceVertexCount != model.FaceVertexCount )
-					throw new InvalidDataException( $"Morph topology differs from {modelPath}: {path}" );
-
+				var target = ObjLoader.LoadMorphPositions( fs, path, model.Center, model.FaceVertexCount );
 				var deltas = new List<MorphDelta>();
 				for ( int i = 0; i < model.Positions.Count; i++ )
 				{
-					var position = target.Positions[i] * scale - model.Positions[i];
+					var position = target[i] * scale - model.Positions[i];
 					if ( position.LengthSquared > 0f )
 						deltas.Add( new MorphDelta( i, position, Vector3.Zero ) );
 				}

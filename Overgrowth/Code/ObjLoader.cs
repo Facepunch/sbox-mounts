@@ -23,14 +23,24 @@ static class ObjLoader
 		public int FaceVertexCount => FaceVertPosIndices.Count;
 	}
 
-	public static ObjData Load( BaseFileSystem fs, string path, Vector3? origin = null, int? faceCorners = null )
+	public static ObjData Load( BaseFileSystem fs, string path, Vector3? origin = null ) => Read( fs, path, origin, null );
+
+	public static List<Vector3> LoadMorphPositions( BaseFileSystem fs, string path, Vector3 origin, int faceCorners )
+	{
+		var positions = Read( fs, path, origin, faceCorners ).Positions;
+		if ( positions.Count != faceCorners )
+			throw new InvalidDataException( $"Morph topology differs from the rest mesh: {path}" );
+		return positions;
+	}
+
+	static ObjData Read( BaseFileSystem fs, string path, Vector3? origin, int? faceCorners )
 	{
 		var positions = new List<Vector3>();
 		var rawPositions = new List<Vector3>();
 		var normals = new List<Vector3>();
 		var uvs = new List<Vector2>();
 
-		var outPositions = new List<Vector3>();
+		var outPositions = new List<Vector3>( faceCorners ?? 0 );
 		var outNormals = new List<Vector3>();
 		var outUVs = new List<Vector2>();
 		var faceVertPosIndices = new List<int>();
@@ -40,7 +50,8 @@ static class ObjLoader
 		using var reader = new StreamReader( fs.OpenRead( path ) );
 		while ( (!faceCorners.HasValue || outPositions.Count < faceCorners.Value) && reader.ReadLine() is { } line )
 		{
-			var content = line.AsSpan();
+			var content = line.AsSpan().TrimStart();
+			if ( faceCorners.HasValue && (content.Length < 2 || (content[0] != 'v' && content[0] != 'f') || !char.IsWhiteSpace( content[1] )) ) continue;
 			int comment = content.IndexOf( '#' );
 			if ( comment >= 0 ) content = content[..comment];
 			var s = content.ToString().Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
@@ -57,7 +68,7 @@ static class ObjLoader
 						float ox = ParseFloat( s[1] );
 						float oy = ParseFloat( s[2] );
 						float oz = ParseFloat( s[3] );
-						rawPositions.Add( new Vector3( ox, oy, oz ) );
+						if ( !faceCorners.HasValue ) rawPositions.Add( new Vector3( ox, oy, oz ) );
 						positions.Add( OgToSbox( ox, oy, oz ) );
 						break;
 					}
@@ -95,6 +106,8 @@ static class ObjLoader
 		for ( int i = 0; i < outPositions.Count; i++ )
 			outPositions[i] -= center;
 
+		if ( faceCorners.HasValue ) return new ObjData { Positions = outPositions };
+
 		if ( normals.Count == 0 )
 		{
 			for ( int i = 0; i < outPositions.Count; i += 3 )
@@ -122,19 +135,26 @@ static class ObjLoader
 
 		void EmitVertex( string key )
 		{
-			var parts = key.Split( '/' );
-			int vi = ReadIndex( parts[0], positions.Count );
-			int ti = parts.Length > 1 && parts[1].Length > 0 ? ReadIndex( parts[1], uvs.Count ) : -1;
-			int ni = parts.Length > 2 && parts[2].Length > 0 ? ReadIndex( parts[2], normals.Count ) : -1;
-			faceVertPosIndices.Add( vi );
-			indices.Add( outPositions.Count );
+			var token = key.AsSpan();
+			int slash = token.IndexOf( '/' );
+			int vi = ReadIndex( slash < 0 ? token : token[..slash], positions.Count );
 			outPositions.Add( positions[vi] );
+			if ( faceCorners.HasValue ) return;
+
+			var attributes = slash < 0 ? ReadOnlySpan<char>.Empty : token[(slash + 1)..];
+			int separator = attributes.IndexOf( '/' );
+			var uv = separator < 0 ? attributes : attributes[..separator];
+			var normal = separator < 0 ? ReadOnlySpan<char>.Empty : attributes[(separator + 1)..];
+			int ti = uv.IsEmpty ? -1 : ReadIndex( uv, uvs.Count );
+			int ni = normal.IsEmpty ? -1 : ReadIndex( normal, normals.Count );
+			faceVertPosIndices.Add( vi );
+			indices.Add( outPositions.Count - 1 );
 			outNormals.Add( ni >= 0 ? normals[ni] : Vector3.Zero );
 			outUVs.Add( ti >= 0 ? uvs[ti] : Vector2.Zero );
 		}
 	}
 
-	static int ReadIndex( string value, int count )
+	static int ReadIndex( ReadOnlySpan<char> value, int count )
 	{
 		int index = int.Parse( value, CultureInfo.InvariantCulture );
 		if ( index < 0 )
