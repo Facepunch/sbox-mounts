@@ -256,6 +256,7 @@ public sealed partial class RabbitGuard
 
 	void StartGetUp( string stance )
 	{
+		activeBlockReaction = false;
 		MirroredAction = MirroredStance = LeftHanded;
 		duckAmount = 1f;
 		duckVelocity = 0f;

@@ -197,47 +197,7 @@ public sealed partial class RabbitGuard
 
 		if ( visible ) UpdateTactic( distance );
 		if ( Stance == Roll ) return;
-		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
-		bool canStartStrike = Animation.IsGrounded && !(boundAnimations.Species == "wolf" && blockStun > 0.5f);
-		if ( canStartStrike && visible && attacking && strike is null && knifeCooldown <= 0 && distance < AttackRange && HasSight( enemy ) )
-		{
-			bool close = distance < CloseAttackRange;
-			int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
-			bool mirrored = Random.Shared.Next( 2 ) == 0;
-			var label = boundAnimations.WeaponLabel;
-			if ( label == "sword" && attackClass == 0 ) attackClass = 1;
-			var choice = attackClass switch
-			{
-				1 or 2 when (label is "sword" or "rapier") && mirrored == LeftHanded => SwordSlashRight,
-				1 when !PrimaryItem.IsValid() && enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
-				1 when PrimaryItem.IsValid() || !IsCrouching( enemy ) => close ? Jab : Roundhouse,
-				2 => Sweep,
-				_ => close ? Knee : Kick
-			};
-			strike = boundAnimations.Attacks[choice];
-			if ( strike.AsLayer )
-			{
-				BeginKnifeAttack();
-				return;
-			}
-			Movement.Stop();
-			Stance = choice;
-			if ( strike.Direction != "front" )
-				MirroredStance = mirrored != (strike.Direction == "left");
-			MirroredAction = MirroredStance;
-			flippedAttack = strike.Direction == "front" ? !MirroredStance : MirroredStance;
-			if ( strike.SwapStance ) MirroredStance = !MirroredStance;
-			duckAmount = strike.Height == "low" ? 1f : 0f;
-			punishGroundedTarget = null;
-			Speak( "attack" );
-			AttackPhase = 0;
-			cancelDelay = 0.01f;
-			AttackHeight = GetAttackHeight( enemy );
-			impactPassed = false;
-			preparePassed = false;
-			predictability = attackHistory.Record( strike );
-			return;
-		}
+		if ( TryStartStrike( distance ) ) return;
 
 		if ( repath <= 0 )
 		{
@@ -253,6 +213,50 @@ public sealed partial class RabbitGuard
 			else Movement.MoveTo( destination, 0.45f * 40, GroundRunSpeed );
 		}
 		Stance = !Movement.MoveTarget.HasValue || visible && Animation.MoveVelocity.WithZ( 0 ).Length < 5f * 40f ? Threat : Locomotion;
+	}
+
+	bool TryStartStrike( float distance )
+	{
+		bool attacking = airResponse == AirResponse.Counter || (airResponse != AirResponse.Evade && tactic is CombatTactic.Rush or CombatTactic.Wait);
+		bool canStartStrike = Animation.IsGrounded && !(boundAnimations.Species == "wolf" && blockStun > 0.5f);
+		if ( !canStartStrike || !visible || !attacking || strike is not null || knifeCooldown > 0 || distance >= AttackRange || !HasSight( enemy ) ) return false;
+
+		bool close = distance < CloseAttackRange;
+		int attackClass = airResponse == AirResponse.Counter ? 1 : Random.Shared.Next( 3 );
+		bool mirrored = Random.Shared.Next( 2 ) == 0;
+		var label = boundAnimations.WeaponLabel;
+		if ( label == "sword" && attackClass == 0 ) attackClass = 1;
+		var choice = attackClass switch
+		{
+			1 or 2 when (label is "sword" or "rapier") && mirrored == LeftHanded => SwordSlashRight,
+			1 when !PrimaryItem.IsValid() && enemy.GetComponent<RabbitGuard>() is { Downed: true } => SoccerKick,
+			1 when PrimaryItem.IsValid() || !IsCrouching( enemy ) => close ? Jab : Roundhouse,
+			2 => Sweep,
+			_ => close ? Knee : Kick
+		};
+		strike = boundAnimations.Attacks[choice];
+		if ( strike.AsLayer )
+		{
+			BeginKnifeAttack();
+			return true;
+		}
+		Movement.Stop();
+		Stance = choice;
+		if ( strike.Direction != "front" )
+			MirroredStance = mirrored != (strike.Direction == "left");
+		MirroredAction = MirroredStance;
+		flippedAttack = strike.Direction == "front" ? !MirroredStance : MirroredStance;
+		if ( strike.SwapStance ) MirroredStance = !MirroredStance;
+		duckAmount = strike.Height == "low" ? 1f : 0f;
+		punishGroundedTarget = null;
+		Speak( "attack" );
+		AttackPhase = 0;
+		cancelDelay = 0.01f;
+		AttackHeight = GetAttackHeight( enemy );
+		impactPassed = false;
+		preparePassed = false;
+		predictability = attackHistory.Record( strike );
+		return true;
 	}
 
 	// GetNavMeshMovement slows only the component along the line to the target.

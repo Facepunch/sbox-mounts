@@ -57,6 +57,16 @@ public sealed partial class RabbitGuard
 		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
 		float elapsed = ReactionPhase * reactionDuration;
+		if ( activeBlockReaction && elapsed > 0.1f && Animation.IsGrounded && startled <= 0f )
+		{
+			if ( TryCounterThrow() ) return true;
+			if ( CanAttack( enemy ) && TryStartStrike( CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) ) )
+			{
+				activeBlockReaction = false;
+				ReactionPhase = 1f;
+				return true;
+			}
+		}
 		if ( !IsGetUp( Stance ) && (elapsed > (activeBlockReaction ? 0.2f : 0.6f) || elapsed > 0.1f && AnimationCanCancel) )
 		{
 			ReactionPhase = 1f;
