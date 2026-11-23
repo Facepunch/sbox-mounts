@@ -39,7 +39,9 @@ public sealed partial class RabbitGuard
 		for ( int i = 0; i < MouthShapes.Length; i++ )
 		{
 			restMouth[i] = targetMouth[i] + (restMouth[i] - targetMouth[i]) * inertia;
-			Renderer.Morphs.Set( MouthShapes[i], Math.Max( restMouth[i], talk[i] * talkingAmount ), 0f );
+			float amount = talk[i] * talkingAmount;
+			if ( i == 3 && Downed && ActiveInjury.IsValid() ) amount = Math.Max( amount, ActiveInjury.MouthOpening );
+			Renderer.Morphs.Set( MouthShapes[i], Math.Max( restMouth[i], amount ), 0f );
 		}
 		voice.ApplyMouth( Renderer, dt );
 	}

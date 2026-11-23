@@ -100,7 +100,7 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage) ) Speak( "hit" );
+		if ( !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact) ) Speak( "hit" );
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;

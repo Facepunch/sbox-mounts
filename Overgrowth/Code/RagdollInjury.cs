@@ -9,17 +9,25 @@ internal sealed class RagdollInjury : Component
 	readonly RagdollMotorPose injuryMotor = new();
 	RagdollFallPose injuryPose;
 	float injuryAge, writheTime;
+	float initialStun;
 	float injuryMouth;
-	[Sync( SyncFlags.Interpolate )] float MouthOpening { get; set; }
+	[Sync( SyncFlags.Interpolate )] internal float MouthOpening { get; private set; }
+	RabbitGuard fighter;
 	float displayedMouth;
 	readonly CharacterVoice voice = new();
 	static readonly float[] ItemVoiceTimes = [0.2f, 2f, 5f];
 	int nextVoice;
 	bool voiced;
 
+	protected override void OnStart()
+	{
+		fighter = GetComponentInParent<RabbitGuard>();
+		if ( fighter.IsValid() ) fighter.ActiveInjury = this;
+	}
+
 	protected override void OnUpdate()
 	{
-		if ( !voiced && MouthOpening == displayedMouth ) return;
+		if ( fighter.IsValid() || !voiced && MouthOpening == displayedMouth ) return;
 		UpdateMouth();
 	}
 
@@ -47,6 +55,7 @@ internal sealed class RagdollInjury : Component
 		writheTime = 0f;
 		injuryMouth = 0f;
 		nextVoice = itemInjury ? 0 : ItemVoiceTimes.Length;
+		initialStun = itemInjury ? 0.9f : 0f;
 	}
 
 	protected override void OnFixedUpdate()
@@ -70,6 +79,7 @@ internal sealed class RagdollInjury : Component
 		}
 		float speed = momentum.Length / (mass * 40f);
 		float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
+		strength = Math.Max( 0f, strength - Math.Max( 0f, initialStun - writheTime ) );
 		float open = MathF.Sin( Time.Now * 4f ) * 0.5f + MathF.Sin( Time.Now * 6.3f ) * 0.5f;
 		injuryMouth += (open - injuryMouth) * (1f - MathF.Pow( 1f - strength, Time.Delta * 120f ));
 		MouthOpening = Math.Max( 0f, injuryMouth );
@@ -100,18 +110,27 @@ internal sealed class RagdollInjury : Component
 	{
 		var renderer = GetComponent<SkinnedModelRenderer>();
 		if ( !renderer.IsValid() ) return;
+		voiced = true;
+		if ( fighter.IsValid() )
+		{
+			fighter.PlayLocalVoice( path, volume, pitch, distance );
+			return;
+		}
 		var rig = GetComponent<CharacterRemains>()?.Rig;
 		if ( rig is null && Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( renderer.Model.ResourcePath ) is CharacterLoader character )
 			rig = character.GetGuardAnimations();
-		voiced = true;
 		voice.Play( renderer, CharacterVoice.HeadPosition( renderer, rig ) ?? renderer.WorldPosition, path, volume, pitch, distance );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void StopVoice()
 	{
-		voice.Stop();
-		UpdateMouth();
+		if ( fighter.IsValid() ) fighter.StopLocalVoice();
+		else
+		{
+			voice.Stop();
+			UpdateMouth();
+		}
 		voiced = false;
 	}
 }

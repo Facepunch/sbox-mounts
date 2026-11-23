@@ -24,6 +24,7 @@ public sealed partial class RabbitGuard
 		if ( wasAwake && species is ("dog" or "wolf") )
 		{
 			Speak( "hit" );
+			ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 			startled = 1f;
 			NoticeAttacker( attacker );
 			if ( species == "wolf" ) return;
@@ -31,10 +32,13 @@ public sealed partial class RabbitGuard
 		}
 		if ( species == "dog" && label is not ("spear" or "big_sword") )
 		{
+			if ( Downed ) ApplyHitImpulse( ragdoll, point, impulse );
+			if ( !wasAwake ) return;
 			var group = boundAnimations.Reactions["Data/Attacks/reaction_medfront.xml"];
 			string animation = group.AtSeverity( embedded ? 1f : Math.Min( 1f, strength / 20f ) );
 			MirroredAction = MirroredStance;
 			BeginReaction( attacker, WorldPosition - velocity, animation, boundAnimations.Clips[animation] );
+			Speak( "hit" );
 			return;
 		}
 		bool aggro = CanAttack( enemy );
@@ -60,9 +64,13 @@ public sealed partial class RabbitGuard
 			if ( cut && IsValid && Health > 0f ) Damage( new ItemWound { Impulse = impulse }, strength / 50f );
 		}
 		if ( !IsValid || Health < 1f ) return;
+		if ( wasAwake ) ReportSound( GameObject, WorldPosition, HeardSound.Voice, 10f );
 		if ( !Downed ) GoLimp();
 		blockHealth = 0f;
 		limpStun = 0.9f;
 		ApplyHitImpulse( ragdoll, point, impulse );
+		if ( wasAwake && Unconscious && boundAnimations?.FallPose is { Writhe: not null } pose )
+			ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, Random.Shared.Float( 0f, 12f ), true );
+		else if ( wasAwake && !Unconscious ) Speak( "hit" );
 	}
 }

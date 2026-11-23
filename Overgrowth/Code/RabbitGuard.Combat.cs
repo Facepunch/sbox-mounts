@@ -475,9 +475,14 @@ public sealed partial class RabbitGuard
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayVoice( string path, float volume, float pitch, float distance )
+		=> PlayLocalVoice( path, volume, pitch, distance );
+
+	internal void PlayLocalVoice( string path, float volume, float pitch, float distance )
 	{
 		if ( Renderer.IsValid() ) voice.Play( Renderer, TargetPosition( GameObject, eyes: true ), path, volume, pitch, distance );
 	}
+
+	internal void StopLocalVoice() => voice.Stop();
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayCombatSound( string group, Vector3 position, float gain = 1f )

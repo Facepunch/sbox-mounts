@@ -24,6 +24,7 @@ internal sealed record RagdollFallPose( int[] Parents, RagdollFallPose.Layer Fla
 public sealed partial class RabbitGuard
 {
 	readonly RagdollMotorPose fallMotor = new();
+	internal RagdollInjury ActiveInjury { get; set; }
 	readonly List<(Vector3 Normal, float Depth)> fallContacts = [];
 
 	Vector3 FallDanger( Vector3 center )
@@ -55,7 +56,7 @@ public sealed partial class RabbitGuard
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
-		if ( Downed && Networking.IsHost ) DriveFallingPose();
+		if ( Downed && Networking.IsHost && ActiveInjury is not { Active: true } ) DriveFallingPose();
 	}
 
 	void DriveFallingPose()
