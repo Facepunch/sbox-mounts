@@ -15,6 +15,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	[Property] public ModelRenderer Weapon { get; set; }
 	[Property] public Dictionary<string, SoundEvent> Sounds { get; set; } = new();
 	[Property] public Dictionary<string, GameObject> Effects { get; set; } = new();
+	internal bool SampleCuesFromGraph { get; set; } = true;
 	public Action<Halo2AnimationCue, Transform> CueFired { get; set; }
 
 	Halo2ModelLoader model;
@@ -208,6 +209,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	void Component.IAnimationEvent.OnAnimationEvent( AnimationEvent data )
 	{
 		if ( data is not Halo2CueEvent { Cue: { } cue } || data.Renderer != Renderer || !Bound ) return;
+		if ( SampleCuesFromGraph ) DispatchCue( cue );
+	}
+
+	internal void DispatchCue( Halo2AnimationCue cue )
+	{
 		var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker ) ?? Renderer.WorldTransform : Renderer.WorldTransform;
 		if ( cue.Kind == "sound" && cue.TagPath is not null )
 		{

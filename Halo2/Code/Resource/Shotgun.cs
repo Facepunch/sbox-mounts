@@ -41,7 +41,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			int sequences = Address( bitmap ) + 60;
 			if ( sequence >= map.ReadInt32( sequences ) ) return null;
 			int index = Short( Block( sequences ) + sequence * 60 + 32 );
-			return new Halo2TextureLoader( map, bitmap, index );
+			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget == "crosshair" );
 		}
 		return null;
 	}
@@ -84,6 +84,13 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.PrimaryAutomatic = Short( Block( Header + 0x2c8 ) + 6 ) == 0;
 			gun.PrimaryDelay = Float( barrel + 0x20 );
 			gun.ReloadTime = Float( magazine + 0x10 );
+			var rig = (Halo2ModelLoader)Host.GetByPath( gun.ArmsPath );
+			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
+			gun.ReloadStartTime = (rig.GetClipInfo( actions["reload_enter"] ).Frames - 1) / 30f + gun.ReloadTime;
+			int trigger = Address( Reference( Block( barrel + 0xe4 ) + 0x1c ) );
+			gun.KickDuration = Float( trigger + 0x74 );
+			gun.KickDegrees = Float( trigger + 0x7c ).RadianToDegree();
+			gun.KickDistance = Float( trigger + 0x80 ) * 120;
 			gun.IncrementalReloading = Short( magazine + 0x14 ) == 1;
 			gun.CanCancelReload = true;
 			gun.DeployTime = Float( Header + 0x13c );
