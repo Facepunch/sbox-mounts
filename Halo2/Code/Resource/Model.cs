@@ -89,7 +89,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, colors, needsTraceMesh ) )
+						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, colors, bones, needsTraceMesh ) )
 							needsTraceMesh = false;
 					}
 					catch ( Exception ex )
@@ -128,7 +128,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return builder.Create();
 	}
 
-	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
+	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, List<ModelBuilder.Bone> bones, bool addTraceMesh )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -214,7 +214,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		SkinnedVertex[] Vertices( int influences ) => ReadVertices( reader, section, bounds, vertexResource, uvResource, normalsResource, nodeMapResource, influences );
 		var verts = Vertices( submeshes[0].Influences );
 		SkinnedVertex[] alternate = null;
-		var meshBounds = BBox.FromPoints( verts.Select( v => v.position ) );
+		var visited = new int[verts.Length];
+		int part = 0;
 		var traceIndices = addTraceMesh ? new List<int>() : null;
 
 		// Build mesh for each submesh
@@ -237,6 +238,21 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				? alternate ??= Vertices( submesh.Influences ) : verts;
 			mesh.CreateVertexBuffer( partVertices.Length, partVertices );
 			mesh.CreateIndexBuffer( triIndices.Count, triIndices );
+			var meshBounds = BBox.FromPositionAndSize( partVertices[triIndices[0]].position );
+			part++;
+			foreach ( int vertexIndex in triIndices )
+			{
+				if ( visited[vertexIndex] == part ) continue;
+				visited[vertexIndex] = part;
+				ref readonly var vertex = ref partVertices[vertexIndex];
+				meshBounds = meshBounds.AddPoint( vertex.position );
+				var weights = vertex.blendWeights;
+				var ids = vertex.blendIndices;
+				Include( ids.r, weights.r, vertex.position );
+				Include( ids.g, weights.g, vertex.position );
+				Include( ids.b, weights.b, vertex.position );
+				Include( ids.a, weights.a, vertex.position );
+			}
 			mesh.Bounds = meshBounds;
 			builder.AddMesh( mesh, lod, regionName, permIndex );
 			traceIndices?.AddRange( triIndices );
@@ -245,6 +261,14 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( traceIndices is not { Count: > 0 } ) return false;
 		builder.AddTraceMesh( verts.Select( v => v.position ).ToArray(), CollectionsMarshal.AsSpan( traceIndices ) );
 		return true;
+
+		void Include( byte index, byte weight, Vector3 position )
+		{
+			if ( weight == 0 || index >= bones.Count ) return;
+			var bone = bones[index];
+			var local = bone.Rotation.Inverse * (position - bone.Position);
+			bones[index] = bone with { Bounds = bone.Bounds?.AddPoint( local ) ?? BBox.FromPositionAndSize( local ) };
+		}
 	}
 
 	static SkinnedVertex[] ReadVertices( BinaryReader reader, Section section, BoundingBox bounds,
