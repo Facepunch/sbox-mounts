@@ -38,6 +38,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		material.Set( "g_flHasNormal", normal is null ? 0f : 1f );
 		material.Set( "g_flHasOpacity", opacity is null ? 0f : 1f );
 		material.Set( "g_flVertexColor", definition?.VertexColor == true ? 1f : 0f );
+		material.Set( "g_flBackdrop", definition?.Backdrop == true ? 1f : 0f );
 		material.Set( "g_flAlphaReference", definition?.AlphaReference ?? 0.5f );
 		material.Set( "g_vTint", diffuse is null ? new Vector3( 0.55f, 0.58f, 0.62f ) : Vector3.One );
 		material.SetFeature( "F_ALPHA_TEST", definition?.AlphaTest == true ? 1 : 0 );

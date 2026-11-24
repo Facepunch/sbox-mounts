@@ -70,6 +70,7 @@ PS
 	float g_flNormalRA < Default1( 0 ); >;
 	float g_flHasOpacity < Default1( 0 ); >;
 	float g_flVertexColor < Default1( 0 ); >;
+	float g_flBackdrop < Default1( 0 ); >;
 	float g_flAlphaReference < Default1( 0.5 ); >;
 	float3 g_vTint < Default3( 1, 1, 1 ); >;
 
@@ -84,6 +85,10 @@ PS
 		Material m = Material::Init();
 		m.Albedo = diffuse.rgb * g_vTint;
 		if ( g_flVertexColor > 0.5 ) m.Albedo *= i.vColor.rgb;
+		// Diesel backdrop surfaces carry their own lighting. Shading the enormous sky
+		// dome as an ordinary surface introduces self-shadow bands and triangle seams.
+		if ( g_flBackdrop > 0.5 )
+			return float4( m.Albedo, S_TRANSLUCENT ? opacity : 1 );
 		m.Normal = normalize( i.vNormalWs );
 		if ( g_flHasNormal > 0.5 )
 		{

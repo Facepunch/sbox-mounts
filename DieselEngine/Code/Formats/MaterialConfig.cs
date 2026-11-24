@@ -11,6 +11,7 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public bool Hidden => Template.StartsWith( "shadow_caster_only", StringComparison.Ordinal );
 	public bool VertexColor => Template.Split( ':' ).Contains( "VERTEX_COLOR" );
 	public bool DoubleSided => Template.Split( ':' ).Contains( "DOUBLE_SIDED" );
+	public bool Backdrop => Template.Split( ':' ).Contains( "RL_BACKDROP" );
 }
 
 static class MaterialConfig
