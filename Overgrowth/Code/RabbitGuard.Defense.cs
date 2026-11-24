@@ -158,9 +158,8 @@ public sealed partial class RabbitGuard
 		float next = float.PositiveInfinity;
 		foreach ( var pose in move.Poses )
 		{
-			if ( pose.Clip.Prepare is not { } prepare ) continue;
-			float phase = prepare.Time / pose.Clip.Duration;
-			if ( phase > opponent.AttackPhase ) next = Math.Min( next, phase );
+			foreach ( var phase in pose.Clip.PreparePhases )
+				if ( phase > opponent.AttackPhase ) next = Math.Min( next, phase );
 		}
 		if ( !float.IsFinite( next ) ) return null;
 		float power = 0.5f * MathF.Pow( 4f, opponent.predictability ) + (tactic == CombatTactic.Provoke ? 1f : 0f);

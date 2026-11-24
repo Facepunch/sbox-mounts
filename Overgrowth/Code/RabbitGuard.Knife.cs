@@ -27,7 +27,8 @@ public sealed partial class RabbitGuard
 		flippedAttack = LeftHanded;
 		AttackHeight = GetAttackHeight( target ) + Random.Shared.Float( 0f, 0.2f );
 		AttackPhase = 0f;
-		preparePassed = impactPassed = false;
+		nextPrepare = 0;
+		impactPassed = false;
 		Speak( "attack" );
 		PlayKnifeLayer( nextBackhand, LeftHanded, AttackHeight );
 		nextBackhand = !nextBackhand;
@@ -88,9 +89,9 @@ public sealed partial class RabbitGuard
 			if ( !Networking.IsHost || strike != move || currentKnifeLayer != layer ) return;
 			AttackPhase = layer.Phase;
 			var clip = blend.Events;
-			if ( layer.Active && !preparePassed && clip.Prepare is { } prep && layer.Phase >= prep.Time / clip.Duration )
+			while ( layer.Active && nextPrepare < clip.PreparePhases.Length && layer.Phase >= clip.PreparePhases[nextPrepare] )
 			{
-				preparePassed = true;
+				nextPrepare++;
 				if ( strikeTarget.IsValid() && InStrikeReach( strikeTarget, CharacterCenter( strikeTarget ) - CharacterCenter( GameObject ) ) )
 					strikeTarget.GetComponent<RabbitGuard>()?.TryActiveBlock( this, move );
 			}

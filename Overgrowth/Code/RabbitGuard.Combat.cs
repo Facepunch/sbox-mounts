@@ -18,12 +18,13 @@ public sealed partial class RabbitGuard
 	[Sync] float AttackHeight { get; set; }
 	[Sync( SyncFlags.Interpolate )] float AttackPhase { get; set; }
 	bool impactPassed;
-	bool preparePassed;
+	int nextPrepare;
 	RabbitGuard blockingOpponent;
 	float predictability;
 	readonly AttackHistory attackHistory = new();
 	TimeUntil repath;
-	float cancelDelay;
+	float cancelClock;
+	bool cancelOnPreviousTick, cancelArmed;
 	[Property, Sync] public LevelItem LeftHandItem { get; set; }
 	[Property, Sync] public LevelItem RightHandItem { get; set; }
 	LevelItem PrimaryItem => LeftHanded ? LeftHandItem : RightHandItem;
@@ -62,7 +63,7 @@ public sealed partial class RabbitGuard
 		float reach = StrikeReach( target.GetComponent<RabbitGuard>() );
 		return offset.LengthSquared < reach * reach;
 	}
-	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
+	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f;
 
 	protected override void OnStart()
 	{
@@ -81,16 +82,24 @@ public sealed partial class RabbitGuard
 		if ( Networking.IsHost ) MirroredStance = LeftHanded;
 	}
 
+	void ResetAttackCancel()
+	{
+		cancelClock = 0f;
+		cancelOnPreviousTick = cancelArmed = false;
+	}
+
 	bool CanEndAttack( bool canCancel )
 	{
-		if ( !canCancel )
-		{
-			cancelDelay = 0.01f;
-			return false;
-		}
-		if ( cancelDelay <= 0f ) return true;
-		cancelDelay -= Time.Delta;
-		return false;
+		// UpdateAttackControls reads the last evaluated status at the character tick.
+		// Its 10 ms delay requires two open samples at the native four-frame cadence.
+		const float step = 4f / 120f;
+		cancelClock += Time.Delta;
+		if ( cancelClock < step ) return false;
+		cancelClock %= step;
+		bool end = cancelOnPreviousTick && cancelArmed;
+		cancelArmed = cancelOnPreviousTick;
+		cancelOnPreviousTick = canCancel;
+		return end;
 	}
 
 	void UpdateCombat()
@@ -118,9 +127,9 @@ public sealed partial class RabbitGuard
 			var from = previous.Motion( AttackPhase );
 			AttackPhase = Math.Min( 1f, AttackPhase + Time.Delta * AttackSpeed * blend.Frequency );
 			ApplyRootMotion( from, blend.Motion( AttackPhase ) );
-			if ( !preparePassed && !blocked && clip.Prepare is { } prepare && AttackPhase >= prepare.Time / clip.Duration )
+			while ( !blocked && nextPrepare < clip.PreparePhases.Length && AttackPhase >= clip.PreparePhases[nextPrepare] )
 			{
-				preparePassed = true;
+				nextPrepare++;
 				if ( strikeTarget.IsValid() && InStrikeReach( strikeTarget, CharacterCenter( strikeTarget ) - CharacterCenter( GameObject ) ) &&
 					strikeTarget.GetComponent<RabbitGuard>() is { } defender && defender.TryActiveBlock( this, strike ) )
 				{
@@ -137,11 +146,12 @@ public sealed partial class RabbitGuard
 			if ( !impactPassed && (blocked ? clip.Blocked : clip.Impact) is { } impact && AttackPhase >= impact.Time / clip.Duration )
 			{
 				impactPassed = true;
-				if ( blocked )
+				if ( !blocked ) TryHit( clip, impact.Bone );
+				else if ( blockingOpponent.IsValid() )
 				{
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
-					if ( blockingOpponent.IsValid() ) blockingOpponent.InterruptWeaponLayers();
-					if ( blockingOpponent.IsValid() && !blockingOpponent.Downed )
+					blockingOpponent.InterruptWeaponLayers();
+					if ( !blockingOpponent.Downed )
 					{
 						stunnedBy = blockingOpponent;
 						blockStun = 0.5f;
@@ -150,10 +160,9 @@ public sealed partial class RabbitGuard
 						blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
 					}
 					if ( !strike.FleshUnblockable ) PlayBluntImpact( "hit_block", pos );
-					else if ( blockingOpponent.IsValid() ) blockingOpponent.ClashWith( PrimaryItem );
+					else blockingOpponent.ClashWith( PrimaryItem );
 					blockingOpponent = null;
 				}
-				else TryHit( clip, impact.Bone );
 			}
 			if ( AttackPhase < 1f && !CanEndAttack( AnimationCanCancel ) ) return;
 			strike = null;
@@ -342,10 +351,10 @@ public sealed partial class RabbitGuard
 		duckAmount = strike.Height == "low" ? 1f : 0f;
 		PlayAttackStart( strike.MaterialEvent );
 		AttackPhase = 0;
-		cancelDelay = 0.01f;
+		ResetAttackCancel();
 		AttackHeight = GetAttackHeight( target );
 		impactPassed = false;
-		preparePassed = false;
+		nextPrepare = 0;
 		predictability = attackHistory.Record( strike, flippedAttack );
 		return true;
 	}
@@ -428,9 +437,10 @@ public sealed partial class RabbitGuard
 
 	void TryHit( RabbitClip clip, int bone )
 	{
+		if ( !strikeTarget.IsValid() ) return;
 		var position = Renderer.TryGetBoneTransform( $"bone_{bone}", out var contact ) ? contact.Position : EyePosition;
 		var origin = CharacterCenter( GameObject );
-		var offset = strikeTarget.IsValid() ? CharacterCenter( strikeTarget ) - origin : Vector3.Zero;
+		var offset = CharacterCenter( strikeTarget ) - origin;
 		bool reached = InStrikeReach( strikeTarget, offset );
 		var rabbit = reached ? strikeTarget.GetComponent<RabbitGuard>() : null;
 		bool wasUnaware = rabbit?.IsUnaware == true;

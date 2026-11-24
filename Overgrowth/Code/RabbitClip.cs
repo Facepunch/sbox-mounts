@@ -22,7 +22,7 @@ internal readonly record struct LimbPose( Transform Transform, float Weight, boo
 internal sealed record Impact( float Time, int Bone );
 internal sealed record Step( float Phase, string Event, int Bone );
 
-internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, Impact Prepare, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, LimbPose[][] Feet )
+internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, float[] PreparePhases, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, LimbPose[][] Feet )
 {
 	internal LimbPose[][] Hands { get; private init; }
 	internal float? GrabTime { get; init; }
@@ -155,7 +155,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var channels = StatusChannels;
 		(float Time, bool Left)? weaponRelease = null;
 		float? limpTime = null, grabTime = null, drawTime = null, cutTime = null;
-		Impact impact = null, prepare = null, blocked = null;
+		Impact impact = null, blocked = null;
+		List<float> prepare = [];
 		var steps = new List<Step>();
 		var matrix = new float[16];
 		int weaponBone = -1;
@@ -218,7 +219,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 					case "golimp": limpTime = time * 0.001f; break;
 					case "throatcut": cutTime = time * 0.001f; break;
 					case "attackimpact": impact = new( time * 0.001f, bone ); break;
-					case "blockprepare": prepare = new( time * 0.001f, bone ); break;
+					case "blockprepare": prepare.Add( (float)time / duration ); break;
 					case "attackblocked": blocked = new( time * 0.001f, bone ); break;
 				}
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
@@ -440,7 +441,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare, blocked, 0f, 0f, steps, feet ) { Hands = hands, WeaponRelease = weaponRelease, GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare.ToArray(), blocked, 0f, 0f, steps, feet ) { Hands = hands, WeaponRelease = weaponRelease, GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{

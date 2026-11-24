@@ -100,7 +100,7 @@ public sealed partial class RabbitGuard
 		alignmentOffset = WorldRotation * (entry.Position * WorldScale);
 		alignmentYaw = entry.Rotation.Yaw();
 		fadeElapsed = 0f;
-		cancelDelay = 0.01f;
+		ResetAttackCancel();
 		// Submit both roles on entry, even if the defender has already updated. Root motion
 		// starts with the graph's first advancing frame.
 		Renderer.Animation.Parameters.Set( "mirrored_pose", mirrored );
