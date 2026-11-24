@@ -96,8 +96,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal (CurveRange Radius, CurveRange Alpha) SmokeCurves( bool firstPerson )
 	{
 		int barrel = Block( Header + 0x2d0 );
-		int effect = Address( Reference( Block( barrel + 0xe4 ) + 4 ) );
-		int systems = Block( Block( effect + 20 ) + 48 );
+		int systems = Block( FiringEvent( barrel ) + 48 );
 		int emitter = Block( systems + 56 * (firstPerson ? 6 : 2) + 48 );
 		return (ReadRange( emitter + 72, 120 ), ReadRange( emitter + 104, 1 ));
 
@@ -115,6 +114,23 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 					new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
 			}
 		}
+	}
+
+	int FiringEvent( int barrel ) => Block( Address( Reference( Block( barrel + 0xe4 ) + 4 ) ) + 20 );
+
+	SoundEvent FiringSound( int barrel )
+	{
+		int parts = FiringEvent( barrel ) + 0x18;
+		int count = map.ReadInt32( parts );
+		if ( count == 0 ) return null;
+		int first = Block( parts );
+		for ( int i = 0; i < count; i++ )
+		{
+			var tag = Reference( first + i * 0x38 + 0xc );
+			if ( tag?.PrimaryClass == "!dns" && tag.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
+				return GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) );
+		}
+		return null;
 	}
 
 	internal Halo2TextureLoader HudBitmap( string widget, bool split = false )
@@ -290,7 +306,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			ballistics.Force = Float( damage + 0x40 ) * 120;
 			ballistics.Radius = 0;
 			gun.Ballistics = ballistics;
-			gun.AttackSound = GameResource.Load<SoundEvent>( Host.AssetPath( map, "sound/weapons/shotgun/fire", "sound" ) );
+			gun.AttackSound = FiringSound( barrel );
 			gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
 			gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
 			int strike = Address( Reference( Header + 0x1bc ) );
