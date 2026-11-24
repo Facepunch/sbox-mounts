@@ -65,6 +65,7 @@ public partial class Halo2ModelLoader
 	Transform[] bindPose;
 	int[] nodeMap;
 	readonly Dictionary<int, Clip> graphClips = new();
+	readonly Dictionary<int, Clip> oneShotClips = new();
 	readonly Dictionary<int, string> clipMasks = new();
 
 	IEnumerable<int> Rows( int block, int stride )
@@ -137,7 +138,7 @@ public partial class Halo2ModelLoader
 					int flags = GetClipInfo( entry ).PlaybackFlags;
 					if ( (flags & 1) != 0 ) weight = builder.Switch( selected, target, weight );
 					if ( (flags & 2) != 0 ) weight = builder.Switch( selected, weight, target );
-					layers.AddLayer( Variants( entry, pose ), new()
+					layers.AddLayer( Variants( entry, (_, clip) => pose( clip ) ), new()
 					{
 						Weight = builder.Multiply( weight, strength ),
 						BlendMode = Kind( Entry( entry ) ) == 1 ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
@@ -197,14 +198,14 @@ public partial class Halo2ModelLoader
 		}
 		return builder.Create( output, path );
 
-		GraphNode BasePose( int reference ) => Variants( reference, clip => builder.ClipSelector(
-			(builder.Clip( clip, new() { Looping = false, ResetTime = restartAction } ), once),
+		GraphNode BasePose( int reference ) => Variants( reference, (id, clip) => builder.ClipSelector(
+			(builder.Clip( GetClip( id, oneShot: true ), new() { Looping = false, ResetTime = restartAction } ), once),
 			(builder.Clip( clip, new() { ResetTime = restartAction } ), builder.Not( once )) ) );
 
-		GraphNode Variants( int reference, Func<Clip, GraphNode> pose )
+		GraphNode Variants( int reference, Func<int, Clip, GraphNode> pose )
 		{
 			var info = GetClipInfo( reference );
-			if ( info.NextVariant == -1 ) return pose( GetClip( reference ) );
+			if ( info.NextVariant == -1 ) return pose( reference, GetClip( reference ) );
 			var selector = builder.Selector();
 			var seen = new HashSet<int>();
 			while ( HasClip( reference ) && seen.Add( reference ) )
@@ -214,7 +215,7 @@ public partial class Halo2ModelLoader
 				{
 					var condition = info.NextVariant == -1 ? builder.Constant( true )
 						: builder.Compare( sample, GraphBuilder.FloatComparison.LessThan, info.Weight );
-					selector.Add( pose( clip ), condition );
+					selector.Add( pose( reference, clip ), condition );
 				}
 				reference = info.NextVariant;
 			}
@@ -323,10 +324,13 @@ public partial class Halo2ModelLoader
 		skeleton = builder.Create( $"{Path}/skeleton.skel" );
 	}
 
-	Clip GetClip( int reference )
+	Clip GetClip( int reference, bool oneShot = false )
 	{
-		if ( graphClips.TryGetValue( reference, out var clip ) ) return clip;
+		var cache = oneShot ? oneShotClips : graphClips;
+		if ( cache.TryGetValue( reference, out var clip ) ) return clip;
 		int address = Entry( reference );
+		int movementSize = (ushort)mapFile.ReadInt32( address + 50 );
+		if ( oneShot && movementSize == 0 ) return cache[reference] = GetClip( reference );
 		var source = sources[(short)reference];
 		var entry = mapFile.ReadSpan( address, 96 );
 		if ( !Blam.AnimationGraph.CanDecode( mapFile, entry, source.Mapping.Length ) ) return null;
@@ -350,7 +354,6 @@ public partial class Halo2ModelLoader
 		var builder = new ClipBuilder { Skeleton = skeleton, IsAdditive = additive, FrameRate = 30 };
 		int movementType = entry[17];
 		int stride = movementType is >= 1 and <= 3 ? (movementType + 1) * 4 : 0;
-		int movementSize = (ushort)mapFile.ReadInt32( address + 50 );
 		if ( stride * frames != movementSize ) return null;
 		int movement = mapFile.VaToOffset( mapFile.ReadInt32( address + 44 ) )
 			+ (ushort)mapFile.ReadInt32( address + 54 ) + mapFile.ReadInt32( address + 56 ) + mapFile.ReadInt32( address + 60 )
@@ -368,7 +371,10 @@ public partial class Halo2ModelLoader
 		// Halo stores a displacement for every frame, including the interval
 		// from the last pose to the next cycle. AG2 samples both endpoints.
 		if ( movementSize > 0 && frames > 1 )
-			builder.AddFrame( poses.AsSpan( bones * Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 ), bones ), motion );
+		{
+			int endpoint = oneShot ? frames - 1 : Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 );
+			builder.AddFrame( poses.AsSpan( endpoint * bones, bones ), motion );
+		}
 		var cues = GetClipInfo( reference ).Cues;
 		foreach ( var cue in cues )
 		{
@@ -385,6 +391,6 @@ public partial class Halo2ModelLoader
 			needsOrigin = false;
 			builder.AddSyncEvent( cycle, group.First().Kind );
 		}
-		return graphClips[reference] = builder.Create( $"{Path}/clip_{reference}.anim" );
+		return cache[reference] = builder.Create( oneShot ? $"{Path}/clip_{reference}_once.anim" : $"{Path}/clip_{reference}.anim" );
 	}
 }

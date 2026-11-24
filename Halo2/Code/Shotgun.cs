@@ -5,6 +5,7 @@ public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
+	[Property] public float ChamberDuration { get; set; } = 0.5f;
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float MovementAcceleration { get; set; } = 72;
@@ -175,21 +176,30 @@ public sealed class Shotgun : Weapon
 			ChamberWorldModel();
 	}
 
+	uint chamberSequence;
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ChamberWorldModel()
 	{
 		if ( WorldModel.IsValid() && WorldModel.GetComponent<SkinnedModelRenderer>() is {} renderer )
-			_ = ChamberNextTick( renderer );
+			_ = ChamberNextTick( renderer, ++chamberSequence );
 	}
 
-	async System.Threading.Tasks.Task ChamberNextTick( SkinnedModelRenderer renderer )
+	async System.Threading.Tasks.Task ChamberNextTick( SkinnedModelRenderer renderer, uint sequence )
 	{
 		await Task.DelaySeconds( 1f / 30 );
-		if ( !renderer.IsValid() || !renderer.Animation.IsValid ) return;
+		if ( sequence != chamberSequence || !renderer.IsValid() || !renderer.Animation.IsValid ) return;
 		var parameters = renderer.Animation.Parameters;
 		parameters.Set( "action_once", true );
 		parameters.Set( "action", "chamber_1" );
 		parameters.Trigger( "action_restart" );
+		// The original channel signals completion when its next tick would reach the end.
+		float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
+		await Task.DelaySeconds( System.Math.Max( 0, ChamberDuration - tick ) );
+		if ( sequence != chamberSequence || !renderer.IsValid() || !renderer.Animation.IsValid ) return;
+		parameters = renderer.Animation.Parameters;
+		parameters.Set( "action_once", false );
+		parameters.Set( "action", "idle" );
 	}
 
 	void LaunchPellets( Ray ray )

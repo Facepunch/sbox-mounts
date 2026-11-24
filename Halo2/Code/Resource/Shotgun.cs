@@ -323,6 +323,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.PrimaryDelay = Float( barrel + 0x20 );
 			var rig = (Halo2ModelLoader)Host.GetByPath( gun.ArmsPath );
 			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
+			var worldRig = (Halo2ModelLoader)Host.GetByPath( world );
+			var chamber = worldRig.GetAnimationContext( "any", "any", "any" ).Actions["chamber_1"];
+			gun.ChamberDuration = worldRig.GetClipInfo( chamber ).Frames / 30f;
 			gun.ReloadTime = rig.GetClipInfo( actions["reload_continue_full"] ).Frames / 30f;
 			gun.ReloadStartTime = rig.GetClipInfo( actions["reload_enter"] ).Frames / 30f + gun.ReloadTime;
 			int trigger = Address( Reference( Block( barrel + 0xe4 ) + 0x1c ) );
