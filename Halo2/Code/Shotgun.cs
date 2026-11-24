@@ -356,6 +356,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		muzzleFlash.Tint = Color.FromBytes( 252, 188, 101 );
 		muzzleFlash.ApplyAlpha = true;
 		muzzleFlash.Alpha = new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life };
+		muzzleFlash.OnParticleCreated += OrientFlash;
+		muzzleFlash.OnPostStep += UpdateFlashOrientation;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Scale = 2 * 60f / 62f;
@@ -365,6 +367,23 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		renderer.RenderOptions.Overlay = true;
 		go.Enabled = true;
 	}
+
+	void UpdateFlashOrientation( float delta )
+	{
+		foreach ( var particle in muzzleFlash.Particles )
+			OrientFlash( particle );
+	}
+
+	static void OrientFlash( Particle particle )
+	{
+		// A half-turn mirrors both axes. Reflecting X supplies the other two orientations
+		// while keeping the taller billboard axis positive for the renderer's bounds.
+		bool flipX = particle.Rand( 1 ) < 0.5f;
+		bool flipY = particle.Rand( 2 ) < 0.5f;
+		particle.Angles.roll = flipY ? 180 : 0;
+		particle.Size.x = (flipX != flipY ? -1 : 1) * System.MathF.Abs( particle.Size.x );
+	}
+
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
