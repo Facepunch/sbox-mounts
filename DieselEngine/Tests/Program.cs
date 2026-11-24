@@ -35,6 +35,16 @@ var plazaGround = MaterialConfig.Read( db.Find( "material_config", "units/world/
 if ( !plazaGround.GroundBlend || plazaGround.BlendDiffuse != "units/world/architecture/street/ground/ground_df"
 	|| plazaGround.BlendMask != "units/world/architecture/street/ground/ground_mask_df" )
 	throw new Exception( "Bank plaza blend textures were not resolved." );
+var roofBlend = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/diamondheist/diamondheist" ) )[IdString.Hash( "roof_blend" )];
+var facadeTile = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/street/facade" ) )[IdString.Hash( "facade_tile" )];
+if ( roofBlend.GroundBlend || !roofBlend.BlendMaskInAlpha || !roofBlend.BlendTintSecond
+	|| roofBlend.BlendDiffuse != "units/world/architecture/diamondheist/diamondheist_roof_blend_df"
+	|| roofBlend.BlendMask is not null || plazaGround.BlendMaskInAlpha || facadeTile.GroundBlend )
+	throw new Exception( "Encoded tint layers and pixel-tile materials must retain the original diffuse fallback." );
+var apartmentRoad = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/apartment/back_alley/apartment_alley" ) )[IdString.Hash( "ground_blend" )];
+if ( !apartmentRoad.BlendTintSecond || apartmentRoad.GroundBlend
+	|| apartmentRoad.Diffuse != "units/world/architecture/street/ground/ground_blend_df" )
+	throw new Exception( "Apartment roads must not display the blue encoded secondary texture as colour." );
 if ( !fenceMaterials[IdString.Hash( "fence_plane" )].DoubleSided
 	|| fenceMaterials[IdString.Hash( "fence_plane" )].Normal != "units/world/props/street/fence/fence_nm"
 	|| fenceMaterials[IdString.Hash( "fence_poles" )].DoubleSided )

@@ -49,10 +49,12 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );
 		var blendDiffuse = definition?.GroundBlend == true ? LoadTexture( definition.BlendDiffuse ) : null;
-		var blendMask = definition?.GroundBlend == true ? LoadTexture( definition.BlendMask ) : null;
+		var blendMask = definition?.GroundBlend == true && !definition.BlendMaskInAlpha ? LoadTexture( definition.BlendMask ) : null;
 		material.Set( "g_tBlendDiffuse", blendDiffuse ?? Texture.White );
 		material.Set( "g_tBlendMask", blendMask ?? Texture.White );
-		material.Set( "g_flGroundBlend", blendDiffuse is not null && blendMask is not null ? 1f : 0f );
+		bool canBlend = blendDiffuse is not null && (definition.BlendMaskInAlpha ? diffuse is not null : blendMask is not null);
+		material.Set( "g_flGroundBlend", canBlend ? 1f : 0f );
+		material.Set( "g_flBlendMaskInAlpha", definition?.BlendMaskInAlpha == true ? 1f : 0f );
 		var detail = definition?.DetailBlend > 0 ? LoadTexture( definition.Detail ) : null;
 		material.Set( "g_tDetail", detail ?? Texture.White );
 		material.Set( "g_flDetailBlend", detail is null ? 0f : definition.DetailBlend );

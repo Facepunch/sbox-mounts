@@ -14,11 +14,15 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public string Detail { get; init; }
 	public string BlendDiffuse { get; init; }
 	public string BlendMask { get; init; }
+	public bool BlendMaskInAlpha => Template.Split( ':' ).Contains( "BLEND_MASK_D_A" );
+	public bool BlendTintSecond => Template.Split( ':' ).Contains( "BLEND_TINT_SECOND" );
 	public bool GroundBlend => Template.Split( ':' ).Contains( "BLEND_DIFFUSE" )
-		&& Template.Split( ':' ).Contains( "BLEND_MASK_SEPERATE" )
+		&& (BlendMaskInAlpha || Template.Split( ':' ).Contains( "BLEND_MASK_SEPERATE" ))
 		&& Template.Split( ':' ).Contains( "BLEND_SMOOTH" )
 		&& !Template.Split( ':' ).Contains( "PIXEL_TILE" )
-		&& !Template.Split( ':' ).Contains( "BLEND_TINT_SECOND" );
+		// These layers contain encoded tint data (e.g. blue apartment roads), not final RGB.
+		// Keep the original diffuse until Diesel's tint decoding is implemented.
+		&& !BlendTintSecond;
 	public string EffectIntensity { get; init; }
 	public bool ViewAngleFalloff => Effect && Template.Split( ':' ).Contains( "VIEW_ANGLE_FALLOFF_OP" );
 	public bool BlueMaskTint => Template.Split( ':' ).Contains( "BLUE_MASK_TINT" );
