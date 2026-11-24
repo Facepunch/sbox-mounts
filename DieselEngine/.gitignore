@@ -1,0 +1,24 @@
+# Editor files
+.vs/*
+.vscode/*
+*.csproj
+!Tests/Diesel.Verify.csproj
+obj
+bin
+Properties/*
+code/Properties/*
+*launchSettings.json
+*.sln
+*.slnx
+*idea
+
+# Asset files
+.sbox/*
+*.generated.*
+*.*_c
+!*.shader_c
+*.los
+*.vpk
+
+# Exported / standalone games
+Exports/
