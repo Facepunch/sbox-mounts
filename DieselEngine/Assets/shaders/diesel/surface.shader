@@ -98,6 +98,8 @@ PS
 	float g_flHasOpacity < Default1( 0 ); >;
 	float g_flVertexColor < Default1( 0 ); >;
 	float g_flBackdrop < Default1( 0 ); >;
+	float g_flBlueMaskTint < Default1( 0 ); >;
+	float3 g_vMaskTint < Default3( 1, 1, 1 ); >;
 	float2 g_vDiffuseScroll < Default2( 0, 0 ); >;
 	float2 g_vNormalScroll < Default2( 0, 0 ); >;
 	float2 g_vEmissionScroll < Default2( 0, 0 ); >;
@@ -111,6 +113,12 @@ PS
 		float2 normalUv = i.vTextureCoords.xy + frac( g_flTime * g_vNormalScroll );
 		float2 emissionUv = i.vTextureCoords.xy + frac( g_flTime * g_vEmissionScroll );
 		float4 diffuse = Tex2DS( g_tDiffuse, g_sWrap, diffuseUv );
+		if ( g_flBlueMaskTint > 0.5 )
+		{
+			// Replace blue-only pigment while retaining neutral wear and surface detail.
+			float mask = max( diffuse.b - max( diffuse.r, diffuse.g ), 0 );
+			diffuse.rgb = diffuse.rgb - float3( 0, 0, mask ) + mask * g_vMaskTint;
+		}
 		float opacity = g_flHasOpacity > 0.5 ? Tex2DS( g_tOpacity, g_sWrap, i.vTextureCoords.xy ).r : diffuse.a;
 		#if S_ALPHA_TEST
 			clip( opacity - g_flAlphaReference );

@@ -14,6 +14,8 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public string Detail { get; init; }
 	public string EffectIntensity { get; init; }
 	public bool ViewAngleFalloff => Effect && Template.Split( ':' ).Contains( "VIEW_ANGLE_FALLOFF_OP" );
+	public bool BlueMaskTint => Template.Split( ':' ).Contains( "BLUE_MASK_TINT" );
+	public Vector3 TintColor { get; init; } = Vector3.One;
 	public float FalloffExponent { get; init; } = 1;
 	public Vector2 UV0Speed { get; init; }
 	public Vector2 UV1Speed { get; init; }
@@ -51,6 +53,7 @@ static class MaterialConfig
 				Detail = material.Element( "detail_diffuse_texture" )?.Attribute( "file" ),
 				EffectIntensity = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "intensity" )?.Attribute( "value" ),
 				FalloffExponent = ReadNonnegative( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "falloff_exp" )?.Attribute( "value" ), 1 ),
+				TintColor = ReadColor( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "tint_color" )?.Attribute( "value" ) ),
 				UV0Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv0_speed" )?.Attribute( "value" ) ),
 				UV1Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv1_speed" )?.Attribute( "value" ) ),
 				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
@@ -76,4 +79,12 @@ static class MaterialConfig
 	static float ReadNonnegative( string text, float fallback ) =>
 		float.TryParse( text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value )
 			&& float.IsFinite( value ) && value >= 0 ? value : fallback;
+
+	static Vector3 ReadColor( string text )
+	{
+		var parts = text?.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
+		if ( parts?.Length != 3 ) return Vector3.One;
+		float r = ReadNonnegative( parts[0], float.NaN ), g = ReadNonnegative( parts[1], float.NaN ), b = ReadNonnegative( parts[2], float.NaN );
+		return float.IsFinite( r + g + b ) ? new Vector3( r, g, b ) : Vector3.One;
+	}
 }

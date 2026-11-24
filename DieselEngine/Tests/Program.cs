@@ -61,6 +61,8 @@ int draws = 0, resolvedMaterials = 0, missingMaterials = 0, invalidConfigs = 0;
 int visibleDraws = 0, visibleFallbacks = 0;
 int placements = 0, meshes = 0, triangles = 0, missing = 0;
 int primitiveCount = 0;
+var variations = new Dictionary<string, HashSet<string>>();
+int variationPlacements = 0;
 var lightUnits = new List<(string Map, ScriptTable Unit)>();
 var lightDefinitions = new Dictionary<string, Dictionary<string, LightDefinition>>();
 var intensities = LightIntensities.Load( db );
@@ -80,6 +82,10 @@ var ticker = MaterialConfig.Read( db.Find( "material_config", "units/world/props
 var smoke = MaterialConfig.Read( db.Find( "material_config", "units/world/props/slaughterhouse/backdrop_powerplant/smokepillar" ) )[IdString.Hash( "effect" )];
 var wave = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/suburbia/suburbia" ) )[IdString.Hash( "wave" )];
 var policeGlow = MaterialConfig.Read( db.Find( "material_config", "units/vehicles/police_ny/vehicle_police_ny" ) )[IdString.Hash( "glow" )];
+var redContainer = MaterialConfig.Read( db.Find( "material_config", "units/world/props/container/container_red" ) )[IdString.Hash( "container" )];
+if ( !redContainer.BlueMaskTint || MathF.Abs( redContainer.TintColor.x - 0.5490196f ) > 0.00001f
+	|| MathF.Abs( redContainer.TintColor.z - 0.3254902f ) > 0.00001f || ticket.BlueMaskTint )
+	throw new Exception( "Container blue-mask tint must retain its authored colour and template flag." );
 if ( !policeGlow.ViewAngleFalloff || MathF.Abs( policeGlow.FalloffExponent - 5.4301f ) > 0.0001f
 	|| wave.ViewAngleFalloff || smoke.ViewAngleFalloff )
 	throw new Exception( "Effect view-angle falloff must preserve its authored exponent and template flag." );
@@ -108,6 +114,15 @@ foreach ( string map in maps )
 			{
 				placements++;
 				units.Add( entry.Table( "unit_data" ).Text( "name" ) );
+				var unitData = entry.Table( "unit_data" );
+				string variation = unitData.Text( "material_variation" );
+				if ( !string.IsNullOrEmpty( variation ) && variation != "default" )
+				{
+					variationPlacements++;
+					string unitName = unitData.Text( "name" );
+					if ( !variations.TryGetValue( unitName, out var values ) ) variations[unitName] = values = [];
+					values.Add( variation );
+				}
 				if ( entry.Table( "unit_data" ).Table( "lights" )?.Count > 0 )
 					lightUnits.Add( (map, entry.Table( "unit_data" )) );
 			}
@@ -142,6 +157,11 @@ foreach ( string unit in units )
 		}
 		var geometry = UnitGeometry.Read( xml, obj );
 		var visible = geometry.Graphics;
+		var alternateConfigs = (variations.GetValueOrDefault( unit ) ?? []).Select( variation =>
+		{
+			var bytes = db.Find( "material_config", variation ) ?? throw new Exception( $"Missing variation {variation}" );
+			return MaterialConfig.Read( bytes );
+		} ).ToArray();
 		var selected = new HashSet<ulong>( visible );
 		selected.UnionWith( geometry.Collision );
 		var file = new ModelFile( db.Find( "model", path ) );
@@ -168,6 +188,14 @@ foreach ( string unit in units )
 			if ( mesh.Draws.Sum( d => d.Count ) != mesh.Indices.Length ) throw new Exception( "Render atoms do not cover their indices." );
 			foreach ( var draw in mesh.Draws )
 			{
+				if ( visible.Contains( mesh.Name ) )
+					foreach ( var alternate in alternateConfigs )
+					{
+						if ( !alternate.TryGetValue( draw.Material, out var alternateMaterial ) && !definitions.TryGetValue( draw.Material, out alternateMaterial ) )
+							throw new Exception( $"Material variation lost visible assignment in {unit}" );
+						foreach ( string texture in new[] { alternateMaterial.Diffuse, alternateMaterial.Opacity, alternateMaterial.Normal, alternateMaterial.Emission, alternateMaterial.Detail } )
+							if ( texture is not null ) texturePaths.Add( texture );
+					}
 				draws++;
 				if ( visible.Contains( mesh.Name ) ) visibleDraws++;
 				if ( !definitions.TryGetValue( draw.Material, out var material ) )
@@ -188,6 +216,7 @@ foreach ( string unit in units )
 	catch ( Exception e ) { throw new Exception( $"Failed unit {unit}: {e.Message}", e ); }
 }
 Console.WriteLine( $"PASS: {maps.Length} worlds, {placements} placements, {units.Count} unique units, {meshes} meshes, {triangles} triangles, {missing} non-model units." );
+Console.WriteLine( $"PASS: {variationPlacements} material-variation placements, {variations.Sum( pair => pair.Value.Count )} distinct unit/config pairs." );
 Console.WriteLine( $"PASS: {primitiveCount} bounds-only collision primitives." );
 foreach ( var group in lightUnits.GroupBy( entry => entry.Map ) )
 {

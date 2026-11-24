@@ -11,6 +11,9 @@ static class UnitModel
 	public static XmlNode Xml( byte[] bytes ) => XmlNode.Parse( Encoding.UTF8.GetString( bytes ).TrimEnd( '\0' ) );
 
 	public static Result Build( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
+		=> BuildVariant( database, materials, unit, resourceName, null );
+
+	public static Result BuildVariant( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -30,6 +33,8 @@ static class UnitModel
 		if ( modelBytes is null ) return null;
 		string orientation = (string)obj.Element( "diesel" )?.Attribute( "orientation_object" );
 		string materialConfig = obj.Element( "diesel" )?.Attribute( "materials" );
+		string defaultConfig = materialConfig;
+		materialConfig = materials.SelectConfig( materialConfig, materialVariation );
 		var file = new ModelFile( modelBytes );
 		var batches = new Dictionary<Material, List<Vertex>>();
 		var collisionVertices = new List<Vector3>();
@@ -46,7 +51,7 @@ static class UnitModel
 			foreach ( var draw in part.Draws )
 			{
 				if ( draw.Count == 0 ) continue;
-				var material = materials.Resolve( materialConfig, draw.Material );
+				var material = materials.ResolveVariant( materialConfig, draw.Material, defaultConfig );
 				if ( material is null ) continue;
 				if ( !batches.TryGetValue( material, out var vertices ) ) batches[material] = vertices = [];
 				for ( int i = draw.Start; i < draw.Start + draw.Count; i += 3 )

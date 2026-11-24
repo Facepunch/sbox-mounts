@@ -15,7 +15,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		"l4d" => "No Mercy",
 		_ => path
 	};
-	readonly Dictionary<string, UnitModel.Result> models = new( StringComparer.Ordinal );
+	readonly Dictionary<(string Unit, string Material), UnitModel.Result> models = [];
 	MapMaterials materials;
 	MapLights lights;
 	int placed, missing;
@@ -68,14 +68,18 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var unit = entry.Table( "unit_data" );
 				if ( unit?.Text( "name" ) is not string name ) continue;
 				lights.Add( unit, parent );
-				if ( !models.TryGetValue( name, out var model ) )
+				string variation = unit.Text( "material_variation" );
+				if ( string.IsNullOrEmpty( variation ) || variation == "default" ) variation = "";
+				var key = (name, variation);
+				if ( !models.TryGetValue( key, out var model ) )
 				{
-					try { model = UnitModel.Build( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}.vmdl" ); }
+					string suffix = variation.Length == 0 ? "" : $"_{IdString.Hash( variation ):x16}";
+					try { model = UnitModel.BuildVariant( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}{suffix}.vmdl", variation ); }
 					catch ( Exception e )
 					{
 						Log.Warning( $"PAYDAY: unable to import {name}: {e.Message}" );
 					}
-					models[name] = model;
+					models[key] = model;
 				}
 				if ( model is null ) { missing++; continue; }
 				if ( model.Model is null ) continue;

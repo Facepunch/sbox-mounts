@@ -4,31 +4,47 @@ namespace Diesel;
 sealed class MapMaterials( BundleDatabase database, string scenePath )
 {
 	readonly Dictionary<string, Dictionary<ulong, MaterialDefinition>> configs = new( StringComparer.Ordinal );
-	readonly Dictionary<(string Config, ulong Name), Material> materials = [];
+	readonly Dictionary<(string Config, ulong Name, string Fallback), Material> materials = [];
 	readonly Dictionary<string, Texture> textures = new( StringComparer.Ordinal );
 	readonly HashSet<string> normalRA = [];
 	readonly Dictionary<string, float> intensities = LightIntensities.Load( database );
 	public int TextureCount => textures.Values.Count( t => t is not null );
 
-	public Material Resolve( string config, ulong name )
+	public string SelectConfig( string original, string variation )
+	{
+		if ( string.IsNullOrEmpty( variation ) || variation == "default" ) return original;
+		return ReadConfig( variation ).Count > 0 ? variation : original;
+	}
+
+	Dictionary<ulong, MaterialDefinition> ReadConfig( string config )
+	{
+		if ( configs.TryGetValue( config, out var definitions ) ) return definitions;
+		definitions = [];
+		try
+		{
+			if ( database.Find( "material_config", config ) is { } bytes ) definitions = MaterialConfig.Read( bytes );
+			else Log.Warning( $"PAYDAY: missing material config {config}" );
+		}
+		catch ( Exception e ) { Log.Warning( $"PAYDAY material config {config}: {e.Message}" ); }
+		configs[config] = definitions;
+		return definitions;
+	}
+
+	public Material Resolve( string config, ulong name ) => ResolveVariant( config, name, null );
+
+	public Material ResolveVariant( string config, ulong name, string fallbackConfig )
 	{
 		config ??= "";
-		var key = (config, name);
+		var key = (config, name, fallbackConfig);
 		if ( materials.TryGetValue( key, out var cached ) ) return cached;
-		if ( !configs.TryGetValue( config, out var definitions ) )
-		{
-			definitions = [];
-			try
-			{
-				if ( database.Find( "material_config", config ) is { } bytes ) definitions = MaterialConfig.Read( bytes );
-			}
-			catch ( Exception e ) { Log.Warning( $"PAYDAY material config {config}: {e.Message}" ); }
-			configs[config] = definitions;
-		}
+		var definitions = ReadConfig( config );
 		definitions.TryGetValue( name, out var definition );
+		if ( definition is null && !string.IsNullOrEmpty( fallbackConfig ) && fallbackConfig != config )
+			ReadConfig( fallbackConfig ).TryGetValue( name, out definition );
 		if ( definition?.Hidden == true ) { materials[key] = null; return null; }
 
-		var material = Material.Create( $"mount://payday/{scenePath}/materials/{IdString.Hash( config ):x16}_{name:x16}.vmat", "shaders/diesel/surface.shader" );
+		string fallbackSuffix = string.IsNullOrEmpty( fallbackConfig ) || fallbackConfig == config ? "" : $"_{IdString.Hash( fallbackConfig ):x16}";
+		var material = Material.Create( $"mount://payday/{scenePath}/materials/{IdString.Hash( config ):x16}_{name:x16}{fallbackSuffix}.vmat", "shaders/diesel/surface.shader" );
 		var diffuse = LoadTexture( definition?.Diffuse );
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );
@@ -54,6 +70,8 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		material.Set( "g_flHasOpacity", opacity is null ? 0f : 1f );
 		material.Set( "g_flVertexColor", definition?.VertexColor == true ? 1f : 0f );
 		material.Set( "g_flBackdrop", definition?.Backdrop == true ? 1f : 0f );
+		material.Set( "g_flBlueMaskTint", definition?.BlueMaskTint == true ? 1f : 0f );
+		material.Set( "g_vMaskTint", definition?.TintColor ?? Vector3.One );
 		material.Set( "g_vDiffuseScroll", definition?.DiffuseScroll ?? Vector2.Zero );
 		material.Set( "g_vNormalScroll", definition?.NormalScroll ?? Vector2.Zero );
 		material.Set( "g_vEmissionScroll", definition?.EmissionScroll ?? Vector2.Zero );
