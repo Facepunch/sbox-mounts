@@ -330,7 +330,7 @@ public sealed class Shotgun : Weapon
 		triggerConsumed = false;
 		SetNextPrimaryFire( PrimaryDelay );
 		swing++;
-		meleeEnds = 0;
+		meleeEnds = default;
 		base.OnHolstered();
 	}
 }
@@ -499,6 +499,14 @@ public sealed class ShotgunViewModel : ShotgunModel
 	{
 		entering = false;
 		Play( Weapon.Clip1 == 0 ? "reload_continue_empty" : "reload_continue_full" );
+	}
+
+	public override void OnReloadCancel()
+	{
+		if ( !reload && Renderer?.Animation.Parameters.GetString( "action" ) != "reload_exit" ) return;
+		reload = entering = false;
+		clip = null;
+		SelectAction( "idle" );
 	}
 
 	public override void OnReloadFinish()
