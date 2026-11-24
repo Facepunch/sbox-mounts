@@ -306,9 +306,7 @@ public sealed class Shotgun : Weapon
 	void MeleeImpactSound( Surface surface, Vector3 position )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent );
-		if ( mount?.GetByPath( $"mount://{mount.Ident}/{ShotgunLoader.PrefabPath}" ) is ShotgunLoader loader )
-			loader.PlayMeleeImpact( surface, position );
+		ShotgunLoader.Mounted?.PlayMeleeImpact( surface, position );
 	}
 
 	protected override void OnEquipped()
@@ -382,6 +380,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ).Run();
 			if ( !hit.Hit )
 			{
+				casing.HitNormal = Vector3.Zero;
 				// A short rebound can return to the floor inside the five skipped probes.
 				if ( casing.LastHitTime < 0 )
 					casing.Set( "next_collision_frame", casing.Frame + 6 );
@@ -389,11 +388,17 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 			}
 			if ( hit.StartedSolid || hit.Fraction >= 1f / 6 ) continue;
 			var normalVelocity = hit.Normal * Vector3.Dot( casing.Velocity, hit.Normal );
+			bool firstContact = casing.LastHitTime < 0 || casing.HitNormal == Vector3.Zero;
 			casing.LastHitTime = Time.Now;
 			casing.HitPos = hit.HitPosition;
 			casing.HitNormal = hit.Normal;
 			casing.Position = hit.HitPosition + hit.Normal * 0.6f;
 			casing.Velocity = (casing.Velocity - normalVelocity) * 0.9f - normalVelocity * 0.35f;
+			if ( firstContact )
+			{
+				float gain = (casing.Velocity.Length / 120 - 0.5f).Clamp( 0, 1 );
+				ShotgunLoader.Mounted?.PlayCasingImpact( hit.Surface, casing.Position, gain );
+			}
 		}
 	}
 

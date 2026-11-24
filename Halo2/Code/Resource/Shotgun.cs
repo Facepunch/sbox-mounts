@@ -12,6 +12,7 @@ internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mo
 internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
+	internal static ShotgunLoader Mounted => Directory.Get( Halo2Mount.MountIdent )?.GetByPath( $"mount://{Halo2Mount.MountIdent}/{PrefabPath}" ) as ShotgunLoader;
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
 	int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
 	int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
@@ -90,43 +91,79 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		return null;
 	}
 
-	Dictionary<string, TagEntry> meleeMaterials;
+	static string MaterialName( Surface surface ) => surface.ResourceName switch
+	{
+		"default" => "default_material", "flesh" => "soft_organic_flesh", "glass" => "brittle_glass",
+		"concrete" => "hard_terrain_concrete", "rock" or "stone" => "hard_terrain_stone", "ice" => "hard_terrain_ice",
+		"wood" or "wood.sheet" => "tough_organic_wood", "metal" => "hard_metal_solid", "metal.sheet" => "hard_metal_thin",
+		"rubber" => "tough_inorganic_rubber", "plastic" or "plastic.sheet" => "tough_inorganic_plastic",
+		"cloth" or "fabric" => "soft_organic_cloth", "water" => "liquid_thin_water", "grass" => "tough_terrain_grass",
+		"dirt" => "tough_terrain_dirt", "sand" => "tough_terrain_sand", "gravel" => "tough_terrain_gravel",
+		"mud" => "tough_terrain_mud", "snow" => "soft_terrain_snow", _ => surface.ResourceName
+	};
+
+	static TagEntry ContactSound( Dictionary<string, TagEntry> sounds, Surface surface, bool useDefault )
+	{
+		for ( int depth = 0; surface.IsValid() && depth < 16; depth++, surface = surface.GetBaseSurface() )
+			if ( sounds.TryGetValue( MaterialName( surface ), out var sound ) ) return sound;
+		return useDefault ? sounds.GetValueOrDefault( "default_material" ) : null;
+	}
+
+	Dictionary<string, TagEntry> meleeMaterials, casingMaterials;
+	uint casingSoundSeed = (uint)System.Random.Shared.Next();
+
+	void LoadImpactSounds()
+	{
+		if ( meleeMaterials is not null ) return;
+		meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
+		casingMaterials = new( StringComparer.OrdinalIgnoreCase );
+		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
+		if ( globals is null ) return;
+		int materials = Address( globals ) + 0x150;
+		int count = map.ReadInt32( materials ), rows = Block( materials );
+		var casing = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\objects\weapons\rifle\shotgun\shotgun_casing" );
+		var contacts = new Dictionary<int, TagEntry>();
+		if ( casing is not null && Reference( Address( casing ) + 0x6c ) is { PrimaryClass: "toof" } foot && map.ReadInt32( Address( foot ) ) > 10 )
+		{
+			// Action 10 selects the particle collision sound bank.
+			int bank = Block( Address( foot ) ) + 10 * 24 + 8;
+			int row = Block( bank );
+			for ( int i = 0; i < map.ReadInt32( bank ); i++, row += 24 )
+				contacts[Short( row + 20 )] = Reference( row );
+		}
+		for ( int i = 0; i < count; i++ )
+		{
+			int row = rows + i * 0xb4;
+			if ( map.ResolveStringId( map.ReadInt32( row ) ) is not {} name ) continue;
+			meleeMaterials[name] = Reference( row + 0x60 );
+			int index = i;
+			for ( int depth = 0; (uint)index < count && depth < count; depth++ )
+			{
+				if ( contacts.TryGetValue( index, out var sound ) )
+				{
+					casingMaterials[name] = sound;
+					break;
+				}
+				index = Short( rows + index * 0xb4 + 8 );
+			}
+		}
+	}
+
+	internal SoundHandle PlayCasingImpact( Surface surface, Vector3 position, float gain )
+	{
+		if ( gain <= 0 ) return null;
+		LoadImpactSounds();
+		var sound = ContactSound( casingMaterials, surface, true );
+		if ( sound is null || Host.GetByPath( Host.AssetPath( map, sound.TagPath, "sound" ) ) is not Halo2SoundLoader loader ) return null;
+		var handle = loader.PlayCue( position, ref casingSoundSeed );
+		if ( handle.IsValid() ) handle.Volume *= gain;
+		return handle;
+	}
 
 	internal void PlayMeleeImpact( Surface surface, Vector3 position )
 	{
-		if ( meleeMaterials is null )
-		{
-			meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
-			var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
-			if ( globals is not null )
-			{
-				int materials = Address( globals ) + 0x150;
-				int row = Block( materials );
-				for ( int i = 0; i < map.ReadInt32( materials ); i++, row += 0xb4 )
-				{
-					if ( map.ResolveStringId( map.ReadInt32( row ) ) is {} name )
-						meleeMaterials[name] = Reference( row + 0x60 );
-				}
-			}
-		}
-
-		// Regular gun melee uses the contact material's melee sweetener, then the damage effect's sound.
-		for ( int depth = 0; surface.IsValid() && depth < 16; depth++, surface = surface.GetBaseSurface() )
-		{
-			var material = surface.ResourceName switch
-			{
-				"default" => "default_material", "flesh" => "soft_organic_flesh", "glass" => "brittle_glass",
-				"concrete" => "hard_terrain_concrete", "rock" or "stone" => "hard_terrain_stone", "ice" => "hard_terrain_ice",
-				"wood" or "wood.sheet" => "tough_organic_wood", "metal" => "hard_metal_solid", "metal.sheet" => "hard_metal_thin",
-				"rubber" => "tough_inorganic_rubber", "plastic" or "plastic.sheet" => "tough_inorganic_plastic",
-				"cloth" or "fabric" => "soft_organic_cloth", "water" => "liquid_thin_water", "grass" => "tough_terrain_grass",
-				"dirt" => "tough_terrain_dirt", "sand" => "tough_terrain_sand", "gravel" => "tough_terrain_gravel",
-				"mud" => "tough_terrain_mud", "snow" => "soft_terrain_snow", _ => surface.ResourceName
-			};
-			if ( !meleeMaterials.TryGetValue( material, out var sound ) ) continue;
-			Play( sound );
-			break;
-		}
+		LoadImpactSounds();
+		Play( ContactSound( meleeMaterials, surface, false ) );
 
 		if ( Reference( Header + 0x1bc ) is {} damage ) Play( Reference( Address( damage ) + 0xa8 ) );
 
