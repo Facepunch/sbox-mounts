@@ -140,11 +140,12 @@ public sealed class Shotgun : Weapon
 		for ( int i = 0; i < directions.Length; i++ )
 			directions[i] = Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
 		TimeSinceShoot = 0;
+		var attacker = Attacker;
 		ShootEffects();
-		_ = FlyPellets( ray.Position, directions );
+		_ = FlyPellets( ray.Position, directions, attacker );
 	}
 
-	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Vector3[] directions )
+	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Vector3[] directions, GameObject attacker )
 	{
 		float travelled = 0;
 		int flying = directions.Length;
@@ -181,7 +182,14 @@ public sealed class Shotgun : Weapon
 				float damage = (1 - fraction) * MinimumDamage + fraction * Ballistics.Damage;
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
-				ShootBullet( hit, damage, Ballistics.Force );
+				if ( Networking.IsHost && attacker != Attacker )
+				{
+					// The weapon changed hands after dispatch. Credit the original shot.
+					float force = GetHitForce( hit.GameObject, Ballistics.Force );
+					ShootBullet( hit, damage, float.IsFinite( force ) ? System.MathF.Max( 0, force ) : 0,
+						attacker.IsValid() ? attacker : GameObject, GameObject, new TagSet( AttackDamageTags?.TryGetAll() ?? [] ) );
+				}
+				else ShootBullet( hit, damage, Ballistics.Force );
 				directions[i] = Vector3.Zero;
 				flying--;
 			}
