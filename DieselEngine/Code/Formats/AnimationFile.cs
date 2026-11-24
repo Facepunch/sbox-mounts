@@ -104,8 +104,11 @@ sealed class AnimationFile
 		{
 			float fraction = d.Float( offset + i * 8 );
 			if ( !float.IsFinite( fraction ) || fraction < 0 || fraction > 1 ) throw new InvalidDataException( "Invalid animation cue." );
-			Cues.Add( new( fraction * Duration, d.String( d.Int( offset + i * 8 + 4 ) ) ) );
+			var cue = new Cue( fraction * Duration, d.String( d.Int( offset + i * 8 + 4 ) ) );
+			// Pistol exports contain duplicate markers at the exact same timestamp.
+			if ( !Cues.Contains( cue ) ) Cues.Add( cue );
 		}
+		Cues.Sort( (a, b) => a.Time.CompareTo( b.Time ) );
 	}
 	static float Q( ushort value ) => value * (2000f / 65535f) - 1000f;
 	float Time( float time, float previous )

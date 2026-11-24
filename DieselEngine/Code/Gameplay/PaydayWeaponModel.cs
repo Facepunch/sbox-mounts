@@ -7,6 +7,10 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	[Property] public bool AnimatedView { get; set; }
 	[Property] public ModelRenderer Geometry { get; set; }
 	[Property] public List<SoundEvent> Sounds { get; set; } = [];
+	[Property] public List<string> SoundNames { get; set; } = [];
+	[Property] public string WeaponId { get; set; } = "amcar4";
+	WeaponDefinition Definition => WeaponDefinition.Get( WeaponId );
+	WeaponAudio audio;
 	PaydayViewAssets assets;
 	PaydayViewMesh mesh;
 	readonly Dictionary<ulong, GameObject> rigid = [];
@@ -18,6 +22,8 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	float shotAge;
 	bool firing;
 	readonly Queue<SoundHandle> shotSounds = [];
+	readonly Queue<SoundHandle> cueSounds = [];
+	bool reloadCancelled;
 	public string CurrentClip => clip;
 	public float ClipTime => elapsed;
 
@@ -27,7 +33,8 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 		weapon ??= Scene.GetAllComponents<PaydayWeapon>().FirstOrDefault( w => w.WorldModel == GameObject.Parent );
 		if ( assets is not null ) return;
 		if ( Sandbox.Mounting.Directory.Get( "payday" ) is not PaydayMount mount ) return;
-		assets = mount.ViewAssets;
+		assets = mount.GetViewAssets( WeaponId );
+		audio = mount.WeaponAudio[WeaponId];
 		if ( AnimatedView && Geometry.IsValid() )
 		{
 			mesh = new( assets );
@@ -43,9 +50,10 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 			}
 		}
 	}
-	SoundHandle PlaySound( int index )
+	SoundHandle PlaySound( string name )
 	{
-		return index < Sounds.Count && Sounds[index] is { } sound ? GameObject.PlaySound( sound ) : null;
+		int index = SoundNames.IndexOf( name );
+		return index >= 0 && index < Sounds.Count && Sounds[index] is { } sound ? GameObject.PlaySound( sound ) : null;
 	}
 	void PlayClip( string name, float seconds )
 	{
@@ -57,32 +65,43 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	{
 		base.OnDeploy();
 		PlayClip( "equip", 0.5f );
-		PlaySound( 2 );
+		PlaySound( audio?.Equip );
 	}
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
-		PlayClip( "recoil", 1f / 3 );
+		Initialize();
+		PlayClip( "recoil", Definition.Shotgun ? Definition.Interval : assets.Clips["recoil"].Duration );
 		base.OnAttack( hitPoint, origin );
 		// The authored shot container limits overlapping voices to six.
 		while ( shotSounds.Count >= 6 ) shotSounds.Dequeue()?.Stop( 0.01f );
-		shotSounds.Enqueue( PlaySound( 0 ) );
+		shotSounds.Enqueue( PlaySound( audio?.Fire ) );
 		shotAge = 0;
 		firing = true;
 	}
 	public override void OnDryFire()
 	{
 		base.OnDryFire();
-		PlaySound( 1 );
+		Initialize();
+		PlaySound( audio?.Dry );
 	}
 	public override void OnReloadStart()
 	{
+		reloadCancelled = false;
 		Initialize();
 		bool empty = weapon?.Clip1 == 0;
-		PlayClip( empty ? "reload" : "reload_not_empty", weapon?.ReloadTime ?? (empty ? 1.9f : 1.4f) );
+		PlayClip( Definition.Shotgun ? "reload_enter" : empty || Definition.Grenade ? "reload" : "reload_not_empty",
+			Definition.Shotgun ? .4f : weapon?.ReloadTime ?? (empty ? Definition.Empty : Definition.Tactical) );
 	}
 	public override void OnReloadFinish()
 	{
 		base.OnReloadFinish();
+		PlayClip( Definition.Shotgun ? "reload_exit" : "idle", Definition.Shotgun ? (reloadCancelled ? .3f : 1f) : 0 );
+	}
+	public override void OnReloadCancel()
+	{
+		base.OnReloadCancel();
+		reloadCancelled = true;
+		while ( cueSounds.TryDequeue( out var sound ) ) sound?.Stop( .02f );
 		PlayClip( "idle", 0 );
 	}
 	/// <summary>Samples original clip time without advancing audio; also used for isolated pose verification.</summary>
@@ -103,29 +122,37 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 		if ( assets is null ) return;
 		// The shipped fire container is a 100ms trigger-rate sequence of four recordings.
 		// Engine shot callbacks provide that clock; the stop event supplies its separate tail.
-		if ( firing && (shotAge += Time.Delta) > 0.1f + Math.Max( 0.03f, Time.Delta * 2 ) )
+		if ( firing && (shotAge += Time.Delta) > Definition.Interval + Math.Max( 0.03f, Time.Delta * 2 ) )
 		{
 			firing = false;
-			PlaySound( 7 );
+			PlaySound( audio?.Stop );
 		}
 		elapsed += Time.Delta;
 		var animation = assets.Clips[clip];
 		float time = duration > 0 ? Math.Clamp( elapsed / duration, 0, 1 ) * animation.Duration : elapsed % animation.Duration;
-		if ( clip.StartsWith( "reload", StringComparison.Ordinal ) )
+		if ( audio is not null )
 			while ( nextCue < animation.Cues.Count && animation.Cues[nextCue].Time <= time )
 			{
 				string cue = animation.Cues[nextCue++].Name;
-				int index = cue switch { "mag_out" => 3, "mag_grab" => 4, "mag_in" => 5, "cock" => 6, _ => -1 };
-				if ( index >= 0 ) PlaySound( index );
+				if ( audio.Cues[clip].TryGetValue( cue, out var sound ) )
+				{
+					while ( cueSounds.Count >= 16 ) cueSounds.Dequeue()?.Stop();
+					cueSounds.Enqueue( PlaySound( sound ) );
+				}
 			}
 		SamplePose( elapsed );
-		if ( duration > 0 && elapsed >= duration ) PlayClip( "idle", 0 );
+		if ( duration > 0 && elapsed >= duration )
+		{
+			bool loop = Definition.Shotgun && weapon?.IsReloading == true && clip is "reload_enter" or "reload";
+			PlayClip( loop ? "reload" : "idle", loop ? Definition.Tactical : 0 );
+		}
 	}
 	protected override void OnDisabled()
 	{
 		clip = "idle"; elapsed = 0; duration = 0; nextCue = 0;
 		firing = false;
 		while ( shotSounds.TryDequeue( out var sound ) ) sound?.Stop( 0.02f );
+		while ( cueSounds.TryDequeue( out var cue ) ) cue?.Stop( 0.02f );
 		base.OnDisabled();
 	}
 }

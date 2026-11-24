@@ -34,7 +34,7 @@ try
 	var presentation = weapon.ViewModel.GetComponentInChildren<BaseWeaponModel>();
 	if ( presentation.GetType().Name != "PaydayWeaponModel" ) throw new Exception( "Stale weapon presentation prefab." );
 	var sounds = (System.Collections.Generic.List<SoundEvent>)presentation.GetType().GetProperty( "Sounds" ).GetValue( presentation );
-	if ( sounds.Count != 8 || sounds.Any( s => s is null || s.Sounds.Count == 0 || s.Sounds.Any( f => !f.IsValidForPlayback ) ) )
+	if ( sounds.Count != 9 || sounds.Any( s => s is null || s.Sounds.Count == 0 || s.Sounds.Any( f => !f.IsValidForPlayback ) ) )
 		throw new Exception( $"Weapon sound events missing or invalid: {sounds.Count}." );
 	if ( sounds[0].Sounds.Count != 4 ) throw new Exception( "Original AMCAR shot variants missing." );
 	if ( weapon.ViewModel.GetComponentInChildren<ModelRenderer>().Model == weapon.ViewModelPrefab.GetComponentInChildren<ModelRenderer>().Model )

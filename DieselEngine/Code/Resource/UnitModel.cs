@@ -14,6 +14,9 @@ static class UnitModel
 		// The shipped first-person AMCAR object ends with this otherwise complete
 		// closing tag missing its final delimiter. Keep all other XML validation.
 		if ( text.EndsWith( "</dynamic_object", StringComparison.Ordinal ) ) text += ">";
+		// Shipped DLC weapon units close their base extension with </extensions>.
+		text = System.Text.RegularExpressions.Regex.Replace( text,
+			"""(<var name="name_id" value="(?:glock|ak47|m79)"\s*/>\s*)</extensions>""", "$1</extension>" );
 		return XmlNode.Parse( text );
 	}
 

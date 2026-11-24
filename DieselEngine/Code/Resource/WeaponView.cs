@@ -14,19 +14,24 @@ sealed class PaydayViewAssets
 	public List<Part> Parts { get; } = [];
 	public Dictionary<ulong, Model> RigidModels { get; } = [];
 	public Matrix GunRoot { get; }
-	public PaydayViewAssets( BundleDatabase database, MapMaterials materials )
+	public PaydayViewAssets( BundleDatabase database, MapMaterials materials, WeaponDefinition definition )
 	{
 		Hands = new( database.Find( "model", HandsPath ) );
-		Gun = new( database.Find( "model", PaydayWeapons.ViewUnit ) );
-		foreach ( var clip in new[] { "idle", "equip", "recoil", "reload", "reload_not_empty" } )
-			Clips.Add( clip, new( database.Find( "animation", $"anims/fps/m4/m4_{clip}" ) ) );
+		Gun = new( database.Find( "model", definition.ViewUnit ) );
+		foreach ( var clip in definition.Clips )
+			Clips.Add( clip, new( database.Find( "animation", definition.ClipPath( clip ) ) ) );
 		// Explicit Dallas selection belongs to the playable viewmodel, never global unit visibility.
 		Add( Hands, HandsPath, [IdString.Hash( "g_fps_hand_dallas" ), IdString.Hash( "g_button_dallas" )] );
-		var obj = UnitModel.Xml( database.Find( "object", PaydayWeapons.ViewUnit ) );
+		var obj = UnitModel.Xml( database.Find( "object", definition.ViewUnit ) );
 		foreach ( var group in obj.Element( "animations" ).Elements( "animation_group" ) )
 			GunClips.Add( group.Attribute( "name" ), Gun.Controllers( group.Elements( "object" )
 				.Where( n => n.Attribute( "enabled" ) == "true" ).Select( n => IdString.Hash( n.Attribute( "name" ) ) ).ToHashSet() ) );
-		Add( Gun, PaydayWeapons.ViewUnit, UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), obj ).Graphics );
+		if ( definition.Shotgun )
+		{
+			GunClips["reload_exit"] = GunClips["reload"];
+			GunClips.Remove( "reload" );
+		}
+		Add( Gun, definition.ViewUnit, UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), obj ).Graphics );
 		foreach ( var part in Parts.Where( p => p.File == Gun ) )
 			RigidModels.Add( part.Geometry.Name, PaydayViewMesh.BuildRigid( part ) );
 		Matrix.Invert( Gun.NodePose( Gun.Pose( null, 0 ), "rp_weapon" ), out var inverse );

@@ -1,18 +1,18 @@
 namespace Diesel;
 
-sealed class PaydayAmmoLoader : ResourceLoader<PaydayMount>
+sealed class PaydayAmmoLoader( WeaponDefinition definition ) : ResourceLoader<PaydayMount>
 {
-	protected override object Load() => new BaseAmmoResource { Title = "AMCAR-4 ammunition", MaxReserve = 100 };
+	protected override object Load() => new BaseAmmoResource { Title = $"{definition.Title} ammunition", MaxReserve = definition.Reserve };
 }
 
-sealed class PaydayWeaponPrefabLoader( bool view = false, bool world = false ) : ResourceLoader<PaydayMount>
+sealed class PaydayWeaponPrefabLoader( WeaponDefinition definition, bool view = false, bool world = false ) : ResourceLoader<PaydayMount>
 {
 	PrefabFile prefab;
 
 	protected override async Task<object> LoadAsync()
 	{
 		bool part = view || world;
-		string unit = view ? PaydayWeapons.ViewUnit : PaydayWeapons.WorldUnit;
+		string unit = view ? definition.ViewUnit : definition.WorldUnit;
 		var model = await ResourceLibrary.LoadAsync<Model>( $"mount://payday/{unit}.unit.vmdl" );
 		if ( model is null || model.IsError ) throw new InvalidDataException( $"Missing weapon geometry: {unit}" );
 		var objectData = UnitModel.Xml( Host.Database.Find( "object", unit ) );
@@ -23,26 +23,28 @@ sealed class PaydayWeaponPrefabLoader( bool view = false, bool world = false ) :
 		BaseAmmoResource ammo = null;
 		var sounds = new List<SoundEvent>();
 		if ( part )
-			foreach ( var sound in PaydayWeaponSoundLoader.Events )
+			foreach ( var sound in Host.WeaponAudio[definition.Id].Events.Keys )
 				sounds.Add( await ResourceLibrary.LoadAsync<SoundEvent>( $"mount://payday/{PaydayWeaponSoundLoader.EventPath( sound )}" )
-					?? throw new InvalidDataException( $"Missing AMCAR sound {sound}." ) );
-		if ( view ) _ = Host.ViewAssets;
+					?? throw new InvalidDataException( $"Missing weapon sound {sound}." ) );
+		if ( view ) _ = Host.GetViewAssets( definition.Id );
 		if ( !part )
 		{
-			ammo = await ResourceLibrary.LoadAsync<BaseAmmoResource>( $"mount://payday/{PaydayWeapons.Ammo}" );
-			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{PaydayWeapons.View}" );
-			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{PaydayWeapons.World}" );
-			if ( ammo is null ) throw new InvalidDataException( "Missing AMCAR ammunition resource." );
+			ammo = await ResourceLibrary.LoadAsync<BaseAmmoResource>( $"mount://payday/{definition.Ammo}" );
+			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{definition.View}" );
+			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{definition.WorldPrefab}" );
+			if ( ammo is null ) throw new InvalidDataException( $"Missing {definition.Title} ammunition resource." );
+			if ( GameObject.GetPrefab( $"mount://payday/{definition.View}" ) is null || GameObject.GetPrefab( $"mount://payday/{definition.WorldPrefab}" ) is null )
+				throw new InvalidDataException( $"Missing {definition.Title} presentation prefab." );
 		}
 		var builder = new PrefabBuilder().WithName( Path );
 		if ( !part )
-			builder.WithMetadata( "Title", "AMCAR-4" ).WithMetadata( "Group", Host.Title )
-				.WithMetadata( "Description", "PAYDAY: The Heist AMCAR-4 — playable prototype" )
+			builder.WithMetadata( "Title", definition.Title ).WithMetadata( "Group", Host.Title )
+				.WithMetadata( "Description", $"PAYDAY: The Heist {definition.Title}" )
 				.WithMetadata( "PreviewModel", $"mount://payday/{unit}.unit.vmdl" );
 		using ( builder.Scope() )
 		{
 			Game.ActiveScene.Enabled = false;
-			var root = new GameObject( true, part ? "AMCAR-4 model" : "AMCAR-4" );
+			var root = new GameObject( true, part ? $"{definition.Title} model" : definition.Title );
 			var visual = new GameObject( true, "Weapon geometry" ) { Parent = root };
 			var renderer = visual.AddComponent<ModelRenderer>();
 			renderer.Model = model;
@@ -51,6 +53,8 @@ sealed class PaydayWeaponPrefabLoader( bool view = false, bool world = false ) :
 			{
 				var payday = visual.AddComponent<PaydayWeaponModel>();
 				payday.AnimatedView = view;
+				payday.WeaponId = definition.Id;
+				payday.SoundNames = Host.WeaponAudio[definition.Id].Events.Keys.ToList();
 				payday.Geometry = renderer;
 				payday.Sounds = sounds;
 				presentation = payday;
@@ -68,11 +72,11 @@ sealed class PaydayWeaponPrefabLoader( bool view = false, bool world = false ) :
 			if ( !part )
 			{
 				var weapon = root.AddComponent<PaydayWeapon>();
-				PaydayWeapons.Configure( weapon );
+				PaydayWeapons.Configure( weapon, definition );
 				weapon.DroppedModel = visual;
 				weapon.PrimaryAmmoType = ammo;
-				weapon.ViewModelPrefab = GameObject.GetPrefab( $"mount://payday/{PaydayWeapons.View}" );
-				weapon.WorldModelPrefab = GameObject.GetPrefab( $"mount://payday/{PaydayWeapons.World}" );
+				weapon.ViewModelPrefab = GameObject.GetPrefab( $"mount://payday/{definition.View}" );
+				weapon.WorldModelPrefab = GameObject.GetPrefab( $"mount://payday/{definition.WorldPrefab}" );
 				var collider = root.AddComponent<BoxCollider>();
 				collider.Center = model.Bounds.Center;
 				collider.Scale = model.Bounds.Size;

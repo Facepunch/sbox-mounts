@@ -19,6 +19,7 @@ Reject( () => new ModelFile( new byte[] { 255, 255, 255, 255 } ) );
 Reject( () => XmlNode.Parse( "<unit><object></unit>" ) );
 CubemapVerification.Run( db );
 WeaponPresentationVerification.Run( db );
+ArsenalVerification.Run( db );
 var fenceDds = db.Find( "texture", "units/world/props/street/fence/fence_df" );
 var fenceUpload = DdsTexture.ForUpload( fenceDds );
 if ( BitConverter.ToInt32( fenceUpload, 28 ) != 4 || BitConverter.ToInt32( fenceDds, 28 ) != 10

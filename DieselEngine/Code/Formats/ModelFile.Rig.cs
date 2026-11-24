@@ -91,8 +91,9 @@ sealed partial class ModelFile
 				for ( int k = 0; k < keys; k++ )
 				{
 					times[k] = data.Float( c.Start + 24 + k * stride );
-					if ( !float.IsFinite( times[k] ) || times[k] < 0 || (k > 0 && times[k] <= times[k - 1]) )
-						throw new InvalidDataException( "Invalid controller timestamp." );
+					// Some revolver controllers include negative-time preroll keys.
+					if ( !float.IsFinite( times[k] ) || (k > 0 && times[k] <= times[k - 1]) )
+						throw new InvalidDataException( $"Invalid controller {controller} timestamp {k}: {times[k]} (previous {(k > 0 ? times[k - 1] : 0)})." );
 				}
 				if ( stride == 16 )
 				{
