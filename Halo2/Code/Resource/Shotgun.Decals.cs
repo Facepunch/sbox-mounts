@@ -4,8 +4,8 @@ namespace Halo2;
 
 internal sealed partial class ShotgunLoader
 {
-	sealed record ImpactDecal( string Name, DecalDefinition Definition, Vector2 Modifier, Vector2 Radius,
-		Vector2[] Sizes, Vector2[] Centers, float Lifetime, ParticleGradient Tint );
+	sealed record ImpactDecal( TagEntry Tag, string Name, DecalDefinition Definition, Vector2 Modifier, Vector2 Radius,
+		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint );
 
 	readonly Dictionary<TagEntry, (bool Handled, ImpactDecal Decal)> contactVisuals = new();
 	uint decalSeed = (uint)System.Random.Shared.Next();
@@ -62,9 +62,10 @@ internal sealed partial class ShotgunLoader
 			GradientA = new Gradient( new Gradient.ColorFrame( 0, Color.White ), new Gradient.ColorFrame( 1 - Float( header + 60 ) / lifetime, Color.White ),
 				new Gradient.ColorFrame( 1, Color.White.WithAlpha( 0 ) ) )
 		};
-		return (true, new ImpactDecal( tag.TagPath.Split( '\\' )[^1], new DecalDefinition { ColorTexture = texture, Width = 1, Height = 1 },
+		float rejection = Float( header + 24 );
+		return (true, new ImpactDecal( tag, tag.TagPath.Split( '\\' )[^1], new DecalDefinition { ColorTexture = texture, Width = 1, Height = 1 },
 			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
-			sizes, centers, lifetime, tint ));
+			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ));
 	}
 
 	internal bool PlacePelletImpact( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction )
@@ -98,6 +99,18 @@ internal sealed partial class ShotgunLoader
 		float Fraction() => BlamRandom.Next( ref decalSeed ) * (1f / 65535f);
 		float Sample( Vector2 range ) => range.x + (range.y - range.x) * Fraction();
 		float modifier = data.Modifier.x == data.Modifier.y ? data.Modifier.x : Sample( data.Modifier );
+		if ( data.MaxOverlap > 0 )
+		{
+			int overlaps = 0;
+			foreach ( var existing in parent.Scene.GetAllComponents<PelletMark>() )
+			{
+				if ( existing.Tag != data.Tag ) continue;
+				float distance = existing.Radius + data.RejectionDistance;
+				if ( existing.WorldTransform.PointToWorld( existing.Contact ).DistanceSquared( point ) > distance * distance ) continue;
+				if ( ++overlaps >= data.MaxOverlap ) return;
+			}
+		}
+
 		var tangent = Shotgun.Perpendicular( normal );
 		var second = Vector3.Cross( normal, tangent ).Normal;
 		float angle = Fraction() * System.MathF.Tau;
@@ -114,6 +127,10 @@ internal sealed partial class ShotgunLoader
 		mark.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
 		var center = data.Centers[sequence] * radius;
 		mark.WorldTransform = transform.WithPosition( transform.Position + transform.Rotation.Left * center.x + transform.Rotation.Up * center.y );
+		var footprint = mark.AddComponent<PelletMark>();
+		footprint.Tag = data.Tag;
+		footprint.Contact = mark.WorldTransform.PointToLocal( point );
+		footprint.Radius = radius;
 		var decal = mark.AddComponent<Decal>();
 		decal.Decals = [data.Definition];
 		decal.Transient = true;
@@ -127,4 +144,12 @@ internal sealed partial class ShotgunLoader
 		mark.AddComponent<TemporaryEffect>();
 		mark.Enabled = true;
 	}
+}
+
+[Hide]
+internal sealed class PelletMark : Component
+{
+	internal TagEntry Tag { get; set; }
+	internal Vector3 Contact { get; set; }
+	internal float Radius { get; set; }
 }
