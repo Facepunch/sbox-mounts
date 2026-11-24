@@ -28,7 +28,7 @@ public sealed partial class Onos : BaseNpc
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp" } )
+		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death" } )
 		{
 			var id = $"alien/onos/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -137,6 +137,7 @@ public sealed partial class Onos : BaseNpc
 		if ( Networking.IsHost && world is not null )
 		{
 			UpdateAbilities( velocity );
+			if ( wounds.Update() is { } cue ) PlayCue( cue );
 			var aim = target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
 			AimPitch = aim.IsNearlyZero() ? 0 : Rotation.LookAt( aim ).Angles().pitch;
 			output?.Set( "body_pitch", -AimPitch );
@@ -196,7 +197,11 @@ public sealed partial class Onos : BaseNpc
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayCue( string cue ) => GameObject.PlaySound( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/alien/onos/{cue}.sound" ) );
+	void PlayCue( string cue )
+	{
+		var sound = GameResource.Load<SoundEvent>( $"mount://ns2/sounds/alien/onos/{cue}.sound" );
+		if ( sound is not null ) Sound.Play( sound, WorldPosition );
+	}
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
@@ -208,6 +213,18 @@ public sealed partial class Onos : BaseNpc
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) Armor = Math.Max( 0, Armor - e.AcceptedDamage * (0.7f / 0.3f / 2) );
+		if ( e.AcceptedDamage <= 0 ) return;
+		float absorbed = Math.Min( Armor, e.AcceptedDamage * (0.7f / 0.3f / 2) );
+		Armor -= absorbed;
+		float damage = e.AcceptedDamage + absorbed * 2;
+		wounds.Hit( damage / MaxHealth, damage / (MaxHealth + MaxArmor * 2) );
+	}
+
+	readonly AlienWounds wounds = new();
+
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		PlayCue( "death" );
+		base.OnDeath( e );
 	}
 }

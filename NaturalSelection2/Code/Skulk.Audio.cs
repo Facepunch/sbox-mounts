@@ -6,8 +6,7 @@ namespace NS2;
 public sealed partial class Skulk
 {
 	Action<string> worldTag;
-	float flinchIntensity, damageFraction;
-	TimeUntil nextFlinch = 0.3f;
+	readonly AlienWounds wounds = new();
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -123,18 +122,12 @@ public sealed partial class Skulk
 	{
 		ConsumeArmor( e.AcceptedDamage );
 		var fraction = e.AcceptedDamage / MaxHealth;
-		damageFraction += fraction;
-		flinchIntensity = Math.Clamp( flinchIntensity + fraction / 0.2f, 0.2f, 1 );
+		wounds.Hit( fraction, fraction );
 	}
 
 	void UpdateFlinch()
 	{
-		flinchIntensity = Math.Max( 0, flinchIntensity - 0.4f * Time.Delta );
-		if ( nextFlinch > 0 ) return;
-		nextFlinch = 0.3f;
-		if ( damageFraction <= 0 ) return;
-		PlayVoice( damageFraction > 0.35f || flinchIntensity > 0.35f ? "wound_serious" : "wound" );
-		damageFraction = 0;
+		if ( wounds.Update() is { } cue ) PlayVoice( cue );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
