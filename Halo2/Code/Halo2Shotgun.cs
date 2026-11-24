@@ -164,7 +164,8 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
 		triggerConsumed = true;
 		var ray = AimRay;
-		float maximum = CurrentSpread.x.DegreeToRadian();
+		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
+		float maximum = (Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x).DegreeToRadian();
 		float minimum = MinimumPelletAngle.DegreeToRadian();
 		var directions = new Vector3[Ballistics.Pellets];
 		for ( int i = 0; i < directions.Length; i++ )
