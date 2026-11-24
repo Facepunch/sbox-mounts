@@ -40,6 +40,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string SmokeName = "smoke_soft.vtex";
 	internal const string FierySmokeName = "smoke_fiery.vtex";
 	internal const string RocksName = "rocks.vtex";
+	internal const string DriftName = "smoke_drift.vtex";
 	internal const string ImpactSmokeName = "smoke_soft_small_lit.vtex";
 	internal const string SparksName = "sparks_animated.vtex";
 
@@ -57,6 +58,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			SmokeName => @"effects\generic\smoke\smoke_soft",
 			FierySmokeName => @"effects\generic\smoke\smoke_fiery",
 			RocksName => @"effects\generic\solids\rocks",
+			DriftName => @"effects\generic\smoke\smoke_drift",
 			ImpactSmokeName => @"effects\generic\smoke\smoke_soft_small_lit",
 			SparksName => @"effects\generic\sparks\sparks_animated_soft",
 			_ => null
@@ -74,6 +76,15 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		if ( (flags & 0x10000) != 0 )
 			return new Halo2TextureLoader( map, bitmap, spriteSequences: [[Halo2TextureLoader.SpriteBounds( map, header + 0xac )]] );
 
+		// Drift samples up to 0.8 * 17 including its blend neighbor. All 15 reachable frames share the first image.
+		if ( name == DriftName )
+		{
+			int sprites = Block( Block( Address( bitmap ) + 60 ) + 52 );
+			var frames = new Rect[15];
+			for ( int i = 0; i < frames.Length; i++ )
+				frames[i] = Halo2TextureLoader.SpriteBounds( map, sprites + i * 32 + 8 );
+			return new Halo2TextureLoader( map, bitmap, Short( sprites ), spriteSequences: [frames] );
+		}
 		return Halo2TextureLoader.SpriteSheet( map, bitmap, (flags & 8) == 0 );
 	}
 
@@ -135,7 +146,13 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
-	static string MaterialName( Surface surface ) => surface.ResourceName switch
+	static string SurfaceName( Surface surface )
+	{
+		var name = surface.ResourceName;
+		return name?.StartsWith( "gmod_", StringComparison.Ordinal ) == true ? name[5..] : name;
+	}
+
+	static string MaterialName( Surface surface ) => SurfaceName( surface ) switch
 	{
 		"default" => "default_material", "flesh" => "soft_organic_flesh", "glass" => "brittle_glass",
 		"concrete" => "hard_terrain_concrete", "rock" or "stone" => "hard_terrain_stone", "ice" => "hard_terrain_ice",
