@@ -151,9 +151,9 @@ public class PhysicsModelTag
 			r.ReadInt16(); // +0x1C: no phantom power alt
 			r.ReadInt16(); // +0x1E: size
 
-			r.ReadSingle(); // +0x20: inertia tensor scale
-			r.ReadSingle(); // +0x24: linear damping
-			r.ReadSingle(); // +0x28: angular damping
+			rb.InertiaScale = r.ReadSingle(); // +0x20: inertia tensor scale
+			rb.LinearDamping = r.ReadSingle(); // +0x24: linear damping
+			rb.AngularDamping = r.ReadSingle(); // +0x28: angular damping
 
 			// Center of mass offset at +0x2C
 			rb.CenterOfMassOffsetX = r.ReadSingle();
@@ -417,6 +417,9 @@ public class RigidBody
 	public float BoundingSphereRadius { get; set; }
 	public short Flags { get; set; }
 	public short MotionType { get; set; }
+	public float AngularDamping { get; set; }
+	public float LinearDamping { get; set; }
+	public float InertiaScale { get; set; }
 	public float CenterOfMassOffsetX { get; set; }
 	public float CenterOfMassOffsetY { get; set; }
 	public float CenterOfMassOffsetZ { get; set; }

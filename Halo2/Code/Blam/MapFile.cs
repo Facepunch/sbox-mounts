@@ -68,10 +68,12 @@ public class MapFile
 	/// </summary>
 	public string ResolveStringId( int stringId )
 	{
-		if ( stringId < 0 || stringId >= Header.StringCount )
+		// MCC packs the string length above the 16-bit table index.
+		int index = stringId & 0xffff;
+		if ( stringId == -1 || index >= Header.StringCount )
 			return null;
 
-		int indexOff = Header.StringIndexAddress + stringId * 4;
+		int indexOff = Header.StringIndexAddress + index * 4;
 		return ReadString( Header.StringTableAddress + ReadInt32( indexOff ) );
 	}
 

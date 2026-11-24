@@ -437,6 +437,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 
 			var body = builder.AddBody( mass: rb.Mass > 0 ? rb.Mass : 10f, boneName: bone.Name );
 			body.SetBindPose( bonePose );
+			body.SetDamping( rb.LinearDamping, rb.AngularDamping );
+			body.SetInertiaScale( rb.InertiaScale == 0 ? 1 : rb.InertiaScale );
 
 			if ( rb.ShapeType == 14 && (uint)rb.ShapeIndex < phmo.ShapeLists.Count )
 			{
@@ -460,22 +462,22 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 				{
 					case 2: // Ragdoll
 						if ( cref.Index >= 0 && cref.Index < phmo.RagdollConstraints.Count )
-							AddRagdollJoint( phmo.RagdollConstraints[cref.Index], phmo, builder, bones, bodyIndexMap );
+							AddRagdollJoint( phmo.RagdollConstraints[cref.Index], cref.Friction, phmo, builder, bones, bodyIndexMap );
 						break;
 
 					case 1: // Limited Hinge
 						if ( cref.Index >= 0 && cref.Index < phmo.LimitedHingeConstraints.Count )
-							AddLimitedHingeJoint( phmo.LimitedHingeConstraints[cref.Index], phmo, builder, bones, bodyIndexMap );
+							AddLimitedHingeJoint( phmo.LimitedHingeConstraints[cref.Index], cref.Friction, phmo, builder, bones, bodyIndexMap );
 						break;
 
 					case 0: // Hinge (free rotation)
 						if ( cref.Index >= 0 && cref.Index < phmo.HingeConstraints.Count )
-							AddHingeJoint( phmo.HingeConstraints[cref.Index], phmo, builder, bones, bodyIndexMap );
+							AddHingeJoint( phmo.HingeConstraints[cref.Index], cref.Friction, phmo, builder, bones, bodyIndexMap );
 						break;
 
 					case 4: // Ball and Socket
 						if ( cref.Index >= 0 && cref.Index < phmo.BallSocketConstraints.Count )
-							AddBallJoint( phmo.BallSocketConstraints[cref.Index], phmo, builder, bones, bodyIndexMap );
+							AddBallJoint( phmo.BallSocketConstraints[cref.Index], cref.Friction, phmo, builder, bones, bodyIndexMap );
 						break;
 				}
 			}
@@ -573,15 +575,16 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return new Transform( position, Rotation.LookAt( up, forward ) );
 	}
 
-	static void AddRagdollJoint( RagdollConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
+	static void AddRagdollJoint( RagdollConstraint c, float edgeFriction, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
 		if ( !FindBodyIndices( c, phmo, bodyIndexMap, out int body1, out int body2 ) )
 			return;
 
 		var (frame1, frame2) = BuildJointFrames( c, bones );
+		// MCC stores these angular limits in degrees. The engine uses one circular swing cone.
 		float swing = MathF.Max( c.ConeMax - c.ConeMin, c.PlaneMax - c.PlaneMin ) * 0.5f;
-		float torque = c.MaxFrictionTorque * ScaleFactor * ScaleFactor;
+		float torque = (edgeFriction != 0 ? edgeFriction : c.MaxFrictionTorque) * ScaleFactor * ScaleFactor;
 		if ( swing == 0 )
 		{
 			if ( c.TwistMin == c.TwistMax )
@@ -589,35 +592,32 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			else
 			{
 				var hinge = builder.AddHingeJoint( body1, body2, frame1, frame2 ).WithTargetVelocity( Vector3.Zero ).WithMaxTorque( torque );
-				if ( c.TwistMax - c.TwistMin < MathF.PI * 2 )
-					hinge.WithTwistLimit( c.TwistMin.RadianToDegree(), c.TwistMax.RadianToDegree() );
+				if ( c.TwistMax - c.TwistMin < 360f )
+					hinge.WithTwistLimit( c.TwistMin, c.TwistMax );
 			}
 			return;
 		}
 		var ball = builder.AddBallJoint( body1, body2, frame1, frame2 ).WithTargetVelocity( Vector3.Zero ).WithMaxTorque( torque );
-		if ( swing < MathF.PI )
-			ball.WithSwingLimit( Math.Clamp( swing.RadianToDegree(), 0, 89.1f ) );
-		if ( c.TwistMax - c.TwistMin < MathF.PI * 2 )
-			ball.WithTwistLimit( c.TwistMin.RadianToDegree(), c.TwistMax.RadianToDegree() );
+		if ( swing < 180f )
+			ball.WithSwingLimit( Math.Clamp( swing, 0, 89.1f ) );
+		if ( c.TwistMax - c.TwistMin < 360f )
+			ball.WithTwistLimit( c.TwistMin, c.TwistMax );
 	}
 
-	static void AddLimitedHingeJoint( LimitedHingeConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
+	static void AddLimitedHingeJoint( LimitedHingeConstraint c, float edgeFriction, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
 		if ( !FindBodyIndices( c, phmo, bodyIndexMap, out int body1, out int body2 ) )
 			return;
 
 		var (frame1, frame2) = BuildJointFrames( c, bones );
-
-		float minDeg = c.LimitMin.RadianToDegree();
-		float maxDeg = c.LimitMax.RadianToDegree();
 
 		builder.AddHingeJoint( body1, body2, frame1, frame2 )
-			.WithTwistLimit( minDeg, maxDeg )
-			.WithTargetVelocity( Vector3.Zero ).WithMaxTorque( c.LimitFriction * ScaleFactor * ScaleFactor );
+			.WithTwistLimit( c.LimitMin, c.LimitMax )
+			.WithTargetVelocity( Vector3.Zero ).WithMaxTorque( (edgeFriction != 0 ? edgeFriction : c.LimitFriction) * ScaleFactor * ScaleFactor );
 	}
 
-	static void AddHingeJoint( HingeConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
+	static void AddHingeJoint( HingeConstraint c, float edgeFriction, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
 
@@ -625,17 +625,21 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			return;
 
 		var (frame1, frame2) = BuildJointFrames( c, bones );
-		builder.AddHingeJoint( body1, body2, frame1, frame2 );
+		var joint = builder.AddHingeJoint( body1, body2, frame1, frame2 );
+		if ( edgeFriction != 0 )
+			joint.WithTargetVelocity( Vector3.Zero ).WithMaxTorque( edgeFriction * ScaleFactor * ScaleFactor );
 	}
 
-	static void AddBallJoint( BallSocketConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
+	static void AddBallJoint( BallSocketConstraint c, float edgeFriction, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
 		if ( !FindBodyIndices( c, phmo, bodyIndexMap, out int body1, out int body2 ) )
 			return;
 
 		var (frame1, frame2) = BuildJointFrames( c, bones );
-		builder.AddBallJoint( body1, body2, frame1, frame2 );
+		var joint = builder.AddBallJoint( body1, body2, frame1, frame2 );
+		if ( edgeFriction != 0 )
+			joint.WithTargetVelocity( Vector3.Zero ).WithMaxTorque( edgeFriction * ScaleFactor * ScaleFactor );
 	}
 
 	struct Submesh
