@@ -15,7 +15,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		"l4d" => "No Mercy",
 		_ => path
 	};
-	readonly Dictionary<(string Unit, string Material), UnitModel.Result> models = [];
+	readonly Dictionary<(string Unit, string Material, string Mesh), UnitModel.Result> models = [];
 	MapMaterials materials;
 	MapLights lights;
 	int placed, missing;
@@ -56,7 +56,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		var sun = new GameObject( true, "Preview lighting" ) { Parent = root, WorldRotation = Rotation.From( 55, 30, 0 ) };
 		sun.AddComponent<DirectionalLight>().LightColor = Color.White * 0.7f;
 		sun.AddComponent<AmbientLight>().Color = Color.White * 0.3f;
-		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique units; {materials.TextureCount} textures; {lights.Count} authored lights." );
+		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 
 	void AddLayer( ScriptTable layer, GameObject parent )
@@ -70,11 +70,14 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				lights.Add( unit, parent );
 				string variation = unit.Text( "material_variation" );
 				if ( string.IsNullOrEmpty( variation ) || variation == "default" ) variation = "";
-				var key = (name, variation);
+				string meshVariation = unit.Text( "mesh_variation" );
+				if ( string.IsNullOrEmpty( meshVariation ) || meshVariation == "default" ) meshVariation = "";
+				var key = (name, variation, meshVariation);
 				if ( !models.TryGetValue( key, out var model ) )
 				{
 					string suffix = variation.Length == 0 ? "" : $"_{IdString.Hash( variation ):x16}";
-					try { model = UnitModel.BuildVariant( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}{suffix}.vmdl", variation ); }
+					if ( meshVariation.Length > 0 ) suffix += $"_mesh_{IdString.Hash( meshVariation ):x16}";
+					try { model = UnitModel.BuildPlaced( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}{suffix}.vmdl", variation, meshVariation ); }
 					catch ( Exception e )
 					{
 						Log.Warning( $"PAYDAY: unable to import {name}: {e.Message}" );

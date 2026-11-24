@@ -4,6 +4,7 @@ namespace Diesel;
 
 sealed class ScriptTable : Dictionary<string, object>
 {
+	public string Meta { get; init; }
 	public ScriptTable Table( string name ) => this.GetValueOrDefault( name ) as ScriptTable;
 	public string Text( string name ) => this.GetValueOrDefault( name ) as string;
 	public bool Flag( string name, bool fallback = false ) => this.GetValueOrDefault( name ) is bool b ? b : fallback;
@@ -57,7 +58,9 @@ sealed class ScriptData
 		int p = checked(start + index * 20);
 		int count = data.Int( p + 4 ), items = data.Int( p + 12 );
 		data.Check( items, (long)count * 8 );
-		var table = new ScriptTable();
+		int meta = data.Int( p );
+		if ( meta < -1 || meta >= counts[1] ) throw new InvalidDataException( "Invalid Diesel table metadata." );
+		var table = new ScriptTable { Meta = meta < 0 ? null : data.String( data.Int( checked(offsets[1] + meta * 8 + 4) ) ) };
 		for ( int i = 0; i < count; i++ )
 		{
 			string key = Convert.ToString( Item( items + i * 8, depth + 1 ), CultureInfo.InvariantCulture );

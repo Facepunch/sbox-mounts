@@ -14,6 +14,9 @@ static class UnitModel
 		=> BuildVariant( database, materials, unit, resourceName, null );
 
 	public static Result BuildVariant( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation )
+		=> BuildPlaced( database, materials, unit, resourceName, materialVariation, null );
+
+	public static Result BuildPlaced( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -23,7 +26,18 @@ static class UnitModel
 		var objectBytes = database.Find( "object", objectPath );
 		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
-		var geometry = UnitGeometry.Read( definition, obj );
+		SequenceVisibility visibility = null;
+		if ( !string.IsNullOrEmpty( meshVariation ) && meshVariation != "default"
+			&& obj.Element( "sequence_manager" )?.Attribute( "file" ) is string sequencePath )
+		{
+			try
+			{
+				if ( database.Find( "sequence_manager", sequencePath ) is { } bytes )
+					visibility = SequenceVisibility.Read( ScriptData.Read( bytes ), meshVariation );
+			}
+			catch ( Exception e ) { Log.Warning( $"PAYDAY mesh variation {unit}/{meshVariation}: {e.Message}" ); }
+		}
+		var geometry = UnitGeometry.Read( definition, obj, visibility );
 		var graphics = geometry.Graphics;
 		var collision = geometry.Collision;
 		var selected = new HashSet<ulong>( graphics );

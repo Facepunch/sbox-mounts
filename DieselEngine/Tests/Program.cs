@@ -48,6 +48,19 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+const string streetLights = "units/world/street/street_lights/street_lights";
+var streetUnit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", streetLights ) ) );
+var streetObject = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", streetLights ) ) );
+var streetSequence = ScriptData.Read( db.Find( "sequence_manager", streetLights ) );
+var streetState = SequenceVisibility.Read( streetSequence, "g_street_lights_c" )
+	?? throw new Exception( "Literal street-light geometry state was not resolved." );
+var streetGeometry = UnitGeometry.Read( streetUnit, streetObject, streetState );
+if ( !streetGeometry.Graphics.Contains( IdString.Hash( "g_street_lights_c" ) )
+	|| streetGeometry.Graphics.Contains( IdString.Hash( "g_street_lights_a" ) )
+	|| !streetGeometry.Collision.Contains( IdString.Hash( "c_street_lights_c" ) )
+	|| streetGeometry.Collision.Contains( IdString.Hash( "c_street_lights_a" ) )
+	|| SequenceVisibility.Read( streetSequence, "missing_state" ) is not null )
+	throw new Exception( "Street-light mesh variation lost matching graphics/collision selection." );
 foreach ( string suffix in new[] { "", "_1m", "_10m" } )
 {
 	var splitter = GeometryFor( "units/dev_tools/level_tools/navigation_splitter" + suffix );
@@ -69,6 +82,8 @@ int placements = 0, meshes = 0, triangles = 0, missing = 0;
 int primitiveCount = 0;
 var variations = new Dictionary<string, HashSet<string>>();
 int variationPlacements = 0;
+var meshVariations = new Dictionary<string, Dictionary<string, int>>();
+int supportedMeshPlacements = 0, unsupportedMeshPlacements = 0;
 var lightUnits = new List<(string Map, ScriptTable Unit)>();
 var lightDefinitions = new Dictionary<string, Dictionary<string, LightDefinition>>();
 var intensities = LightIntensities.Load( db );
@@ -121,6 +136,13 @@ foreach ( string map in maps )
 				placements++;
 				units.Add( entry.Table( "unit_data" ).Text( "name" ) );
 				var unitData = entry.Table( "unit_data" );
+				string meshVariation = unitData.Text( "mesh_variation" );
+				if ( !string.IsNullOrEmpty( meshVariation ) && meshVariation != "default" )
+				{
+					string unitName = unitData.Text( "name" );
+					if ( !meshVariations.TryGetValue( unitName, out var states ) ) meshVariations[unitName] = states = [];
+					states[meshVariation] = states.GetValueOrDefault( meshVariation ) + 1;
+				}
 				string variation = unitData.Text( "material_variation" );
 				if ( !string.IsNullOrEmpty( variation ) && variation != "default" )
 				{
@@ -171,6 +193,24 @@ foreach ( string unit in units )
 		var selected = new HashSet<ulong>( visible );
 		selected.UnionWith( geometry.Collision );
 		var file = new ModelFile( db.Find( "model", path ) );
+		if ( meshVariations.TryGetValue( unit, out var requestedStates ) )
+		{
+			string sequencePath = obj.Element( "sequence_manager" )?.Attribute( "file" );
+			var sequenceBytes = sequencePath is null ? null : db.Find( "sequence_manager", sequencePath );
+			var sequence = sequenceBytes is null ? null : ScriptData.Read( sequenceBytes );
+			foreach ( var (state, count) in requestedStates )
+			{
+				var visibility = sequence is null ? null : SequenceVisibility.Read( sequence, state );
+				if ( visibility is null || !visibility.Matches( obj ) ) { unsupportedMeshPlacements += count; continue; }
+				supportedMeshPlacements += count;
+				var variantGeometry = UnitGeometry.Read( xml, obj, visibility );
+				var variantNodes = new HashSet<ulong>( variantGeometry.Graphics );
+				variantNodes.UnionWith( variantGeometry.Collision );
+				foreach ( var mesh in file.ReadGeometry( variantNodes, 0 ) )
+					if ( mesh.Indices.Any( i => i < 0 || i >= mesh.Positions.Length ) )
+						throw new Exception( $"Invalid variant geometry: {unit}/{state}" );
+			}
+		}
 		lightDefinitions[unit] = UnitLights.Read( obj, file );
 		string orientation = obj.Element( "diesel" )?.Attribute( "orientation_object" );
 		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
@@ -223,6 +263,7 @@ foreach ( string unit in units )
 }
 Console.WriteLine( $"PASS: {maps.Length} worlds, {placements} placements, {units.Count} unique units, {meshes} meshes, {triangles} triangles, {missing} non-model units." );
 Console.WriteLine( $"PASS: {variationPlacements} material-variation placements, {variations.Sum( pair => pair.Value.Count )} distinct unit/config pairs." );
+Console.WriteLine( $"PASS: {supportedMeshPlacements} geometry-only mesh-variation placements; {unsupportedMeshPlacements} complex states retain default geometry." );
 Console.WriteLine( $"PASS: {primitiveCount} bounds-only collision primitives." );
 foreach ( var group in lightUnits.GroupBy( entry => entry.Map ) )
 {
