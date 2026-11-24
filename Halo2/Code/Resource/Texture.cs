@@ -8,7 +8,7 @@ namespace Halo2;
 /// <summary>
 /// Loads a Halo 2 bitmap (bitm) tag as a Texture.
 /// </summary>
-public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[] spriteFrames = null ) : ResourceLoader<Halo2Mount>
+public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false ) : ResourceLoader<Halo2Mount>
 {
 	protected override object Load()
 	{
@@ -71,7 +71,9 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 			return Texture.CreateCube( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage().Finish();
 
 		var texture = Texture.Create( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage();
-		if ( spriteFrames is { Length: > 0 } ) texture = texture.AddSequence( spriteFrames, spriteFrames.Length, spriteFrames.Length > 1 );
+		if ( spriteSequences is not null )
+			foreach ( var frames in spriteSequences )
+				texture = texture.AddSequence( frames, frames.Length, loop );
 		return texture.Finish();
 	}
 

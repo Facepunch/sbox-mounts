@@ -35,44 +35,58 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal const string MuzzleFlashName = "muzzle_flash.vtex";
 	internal const string LongFlashName = "muzzle_flash_long.vtex";
 	internal const string CasingName = "casing.vtex";
+	internal const string SmokeName = "smoke_soft.vtex";
+	internal const string FierySmokeName = "smoke_fiery.vtex";
+	internal const string SparksName = "sparks_animated.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
-		if ( name == CasingName )
+		if ( name == WeakReticleName ) return HudBitmap( "crosshair_weakspot" );
+		var path = name switch
 		{
-			var bitmap = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\bitmaps\solids\8_gauge" );
-			if ( bitmap is null ) return null;
-			int sequences = Address( bitmap ) + 60;
-			if ( map.ReadInt32( sequences ) == 0 ) return null;
-			int sprites = Block( sequences ) + 52;
-			int count = map.ReadInt32( sprites );
-			if ( count is <= 0 or > 1024 ) return null;
-			var frames = new Rect[count];
+			CasingName => @"effects\objects\weapons\rifle\shotgun\shotgun_casing",
+			MuzzleFlashName => @"effects\generic\weapon_flares\muzzle_flash_center",
+			LongFlashName => @"effects\generic\weapon_flares\muzzle_flash_long",
+			SmokeName => @"effects\generic\smoke\smoke_soft",
+			FierySmokeName => @"effects\generic\smoke\smoke_fiery",
+			SparksName => @"effects\generic\sparks\sparks_animated_soft",
+			_ => null
+		};
+		if ( path is null ) return null;
+		var particle = map.Tags.FirstOrDefault( t => t.TagPath == path );
+		if ( particle is null ) return null;
+		int header = Address( particle );
+		if ( map.ReadInt32( header + 140 ) == 0 ) return null;
+		int bitmaps = Block( header + 140 ) + 4;
+		if ( map.ReadInt32( bitmaps ) == 0 ) return null;
+		var bitmap = map.GetTag( map.ReadInt32( Block( bitmaps ) ) & 0xffff );
+		if ( bitmap is null ) return null;
+		int flags = map.ReadInt32( header );
+		if ( (flags & 0x10000) != 0 )
+			return new Halo2TextureLoader( map, bitmap, spriteSequences: [[SpriteBounds( header + 0xac )]] );
+
+		int sequences = Address( bitmap ) + 60;
+		int count = map.ReadInt32( sequences );
+		if ( count is <= 0 or > 256 ) return null;
+		var atlas = new Rect[count][];
+		for ( int i = 0; i < count; i++ )
+		{
+			int sprites = Block( sequences ) + i * 60 + 52;
+			int frames = map.ReadInt32( sprites );
+			if ( frames is <= 0 or > 1024 ) return null;
+			atlas[i] = new Rect[frames];
 			int row = Block( sprites );
-			for ( int i = 0; i < count; i++, row += 32 )
-			{
-				float left = Float( row + 8 ), top = Float( row + 16 );
-				frames[i] = new Rect( left, top, Float( row + 12 ) - left, Float( row + 20 ) - top );
-			}
-			return new Halo2TextureLoader( map, bitmap, spriteFrames: frames );
+			for ( int j = 0; j < frames; j++, row += 32 )
+				atlas[i][j] = SpriteBounds( row + 8 );
 		}
-		if ( name is MuzzleFlashName or LongFlashName )
-		{
-			var path = name == LongFlashName ? @"effects\generic\weapon_flares\muzzle_flash_long" : @"effects\generic\weapon_flares\muzzle_flash_center";
-			var particle = map.Tags.FirstOrDefault( t => t.TagPath == path );
-			if ( particle is null ) return null;
-			int header = Address( particle );
-			if ( map.ReadInt32( header + 140 ) == 0 ) return null;
-			int bitmaps = Block( header + 140 ) + 4;
-			if ( map.ReadInt32( bitmaps ) == 0 ) return null;
-			var bitmap = map.GetTag( map.ReadInt32( Block( bitmaps ) ) & 0xffff );
-			if ( bitmap is null ) return null;
-			float left = Float( header + 0xac ), top = Float( header + 0xb4 );
-			var frame = new Rect( left, top, Float( header + 0xb0 ) - left, Float( header + 0xb8 ) - top );
-			return new Halo2TextureLoader( map, bitmap, spriteFrames: [frame] );
-		}
-		return name == WeakReticleName ? HudBitmap( "crosshair_weakspot" ) : null;
+		return new Halo2TextureLoader( map, bitmap, spriteSequences: atlas, loop: (flags & 8) == 0 );
+	}
+
+	Rect SpriteBounds( int offset )
+	{
+		float left = Float( offset ), top = Float( offset + 8 );
+		return new Rect( left, top, Float( offset + 4 ) - left, Float( offset + 12 ) - top );
 	}
 
 	internal Halo2TextureLoader HudBitmap( string widget )
