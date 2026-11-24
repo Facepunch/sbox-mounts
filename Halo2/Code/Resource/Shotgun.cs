@@ -31,6 +31,8 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
+	internal const string SplitReticleName = "split_reticle.vtex";
+	internal const string SplitWeakReticleName = "split_weak_reticle.vtex";
 	internal const string WeakReticleName = "weak_reticle.vtex";
 	internal const string MuzzleFlashName = "muzzle_flash.vtex";
 	internal const string LongFlashName = "muzzle_flash_long.vtex";
@@ -42,6 +44,8 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
+		if ( name == SplitReticleName ) return HudBitmap( "crosshair", split: true );
+		if ( name == SplitWeakReticleName ) return HudBitmap( "crosshair_weakspot", split: true );
 		if ( name == WeakReticleName ) return HudBitmap( "crosshair_weakspot" );
 		var path = name switch
 		{
@@ -113,7 +117,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		}
 	}
 
-	internal Halo2TextureLoader HudBitmap( string widget )
+	internal Halo2TextureLoader HudBitmap( string widget, bool split = false )
 	{
 		int hud = Address( Reference( Header + 0x2b0 ) );
 		int widgets = Block( hud + 8 );
@@ -122,7 +126,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			int row = widgets + i * 100;
 			if ( map.ResolveStringId( map.ReadInt32( row ) ) != widget ) continue;
 			var bitmap = Reference( row + 0x20 );
-			int sequence = map.ReadSpan( row + 0x30, 1 )[0];
+			int sequence = map.ReadSpan( row + (split ? 0x31 : 0x30), 1 )[0];
 			int sequences = Address( bitmap ) + 60;
 			if ( sequence >= map.ReadInt32( sequences ) ) return null;
 			int index = Short( Block( sequences ) + sequence * 60 + 32 );

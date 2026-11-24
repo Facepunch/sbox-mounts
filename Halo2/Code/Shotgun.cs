@@ -23,7 +23,7 @@ public sealed class Shotgun : Weapon
 	[Property] public float MeleeRange { get; set; }
 
 	Texture reticle;
-	Texture weakReticle;
+	Texture weakReticle, splitReticle, splitWeakReticle;
 	internal void BindHudTextures()
 	{
 		if ( Application.IsDedicatedServer ) return;
@@ -196,14 +196,32 @@ public sealed class Shotgun : Weapon
 	{
 		if ( reticle is null ) BindHudTextures();
 		if ( !reticle.IsValid() || reticle.IsError ) return;
-		// The 220px MCC bitmap occupies 55 HUD units, with its aim point at texel 27.
-		var scale = System.MathF.Min( painter.Bounds.Width / 640f, painter.Bounds.Height / 480f );
-		var bounds = new Rect( center - new Vector2( 27 ) * scale, new Vector2( 55 ) * scale );
+		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
+		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
+		// The HUD scales against the entire display. Both split layouts use the smaller shotgun page.
+		bool split = viewport.z < 1 || viewport.w < 1;
+		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
+		float size = split ? 28 : 55;
+		float registration = System.MathF.Floor( size * 0.5f );
+		var bounds = new Rect( center - Vector2.One * (registration * scale), Vector2.One * (size * scale) );
 		var tint = ReticleTint( out bool weakSpot );
+		var texture = reticle;
+		if ( split )
+		{
+			splitReticle ??= ReticlePage( ShotgunLoader.SplitReticleName );
+			texture = splitReticle;
+		}
 		if ( weakSpot )
-			weakReticle ??= Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.WeakReticleName}" );
-		painter.Texture( weakSpot && weakReticle.IsValid() && !weakReticle.IsError ? weakReticle : reticle, bounds, tint );
+		{
+			var weak = split ? (splitWeakReticle ??= ReticlePage( ShotgunLoader.SplitWeakReticleName ))
+				: (weakReticle ??= ReticlePage( ShotgunLoader.WeakReticleName ));
+			if ( weak.IsValid() && !weak.IsError ) texture = weak;
+		}
+		if ( texture.IsValid() && !texture.IsError ) painter.Texture( texture, bounds, tint );
 	}
+
+	static Texture ReticlePage( string name ) =>
+		Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{name}" );
 
 	Color ReticleTint( out bool weakSpot )
 	{
