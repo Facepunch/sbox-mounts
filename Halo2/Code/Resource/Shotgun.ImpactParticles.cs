@@ -26,7 +26,7 @@ internal sealed partial class ShotgunLoader
 		if ( count == 0 ) return null;
 		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
 		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
-			material is not ("default" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
+			material is not ("default" or "brittle" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -60,6 +60,7 @@ internal sealed partial class ShotgunLoader
 			int controller = movement is null ? 0 : Block( Address( movement ) + 12 );
 			float Parameter( int control, int number ) => control == 0 ? 0 : Float( Block( Block( control + 4 ) + number * 20 + 12 ) + 4 );
 			int color = Block( emitter + 96 );
+			bool twoColorStops = (map.ReadInt32( color ) & 0xff00) == 0x2000;
 			Color Tint( int offset )
 			{
 				int rgb = map.ReadInt32( color + offset );
@@ -71,7 +72,7 @@ internal sealed partial class ShotgunLoader
 			emitters[i] = new ImpactEmitter( layer, sprite, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ),
 				Bounds( 72 ) * 120, drift ? ReadRange( definition + 60, 1 ) : smoke || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
 				spriteCurves ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
-				Tint( 4 ), Tint( smoke || drift ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
+				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				smoke || drift ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
