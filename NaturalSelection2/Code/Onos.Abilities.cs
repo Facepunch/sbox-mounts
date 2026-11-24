@@ -13,7 +13,6 @@ public sealed partial class Onos
 
 	[Sync( SyncFlags.FromHost )] bool Shielding { get; set; }
 	bool charging, stomping, stompHit;
-	bool straightPath;
 	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp = 10;
 	TimeUntil rechargeShield, nextHeal;
 	float stompDuration;
@@ -39,33 +38,30 @@ public sealed partial class Onos
 		UpdateCharge();
 	}
 
-	TimeUntil checkCorners;
-
 	void UpdateCharge()
 	{
-		if ( !Movement.MoveTarget.HasValue )
+		if ( !Movement.MoveTarget.HasValue || !ChargeUnlocked || Shielding || stomping || energy <= (charging ? 55 : 85) )
 		{
 			EndCharge();
 			return;
 		}
-		if ( checkCorners <= 0 )
+		var agent = GetComponent<NavMeshAgent>();
+		var corners = agent.GetPath().Points;
+		var forward = ViewRotation.Forward.WithZ( 0 ).Normal;
+		float alignment = Vector3.Dot( agent.WishVelocity.WithZ( 0 ).Normal, forward );
+		var previous = WorldPosition;
+		float distance = 0;
+		// The first point is the navigation agent's sampled position.
+		for ( int i = 1; i < corners.Count; i++ )
 		{
-			var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
-			checkCorners = 0.2f;
-			var path = GetComponent<NavMeshAgent>().GetPath();
-			float similarity = 1;
-			foreach ( var corner in path.Points )
-			{
-				var offset = corner.Position - WorldPosition;
-				if ( offset.WithZ( 0 ).LengthSquared < 1 ) continue;
-				similarity *= Vector3.Dot( offset.WithZ( 0 ).Normal, forward );
-				if ( offset.Length >= 4 * Scale ) break;
-			}
-			straightPath = similarity > 0.9f;
+			var corner = corners[i].Position;
+			alignment *= Vector3.Dot( (corner - WorldPosition).WithZ( 0 ).Normal, forward );
+			distance += previous.Distance( corner );
+			if ( distance >= 4 * Scale ) break;
+			previous = corner;
 		}
-		bool wantsCharge = ChargeUnlocked && !Shielding && !stomping && straightPath && energy > (charging ? 55 : 85) &&
-			Vector3.Dot( Animation.MoveVelocity.WithZ( 0 ).Normal, WorldRotation.Forward.WithZ( 0 ).Normal ) > 0.9f;
-		if ( !wantsCharge ) EndCharge();
+
+		if ( alignment <= 0.9f ) EndCharge();
 		else if ( !charging && Animation.IsGrounded && sinceChargeEnd > 0.5f )
 		{
 			charging = true;
