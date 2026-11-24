@@ -365,14 +365,19 @@ public sealed class Shotgun : Weapon
 			attacker.IsValid() ? attacker : GameObject, GameObject, tags ?? new TagSet( AttackDamageTags?.TryGetAll() ?? [] ), hitboxTags );
 	}
 
+	internal static Vector3 Perpendicular( Vector3 forward )
+	{
+		var abs = forward.Abs();
+		// Halo constructs the two perpendicular axes from the smallest component.
+		return (abs.x <= abs.y && abs.x <= abs.z ? new Vector3( 0, forward.z, -forward.y )
+			: abs.y <= abs.z ? new Vector3( -forward.z, 0, forward.x ) : new Vector3( forward.y, -forward.x, 0 )).Normal;
+	}
+
 	SceneTraceResult TraceMelee( Ray aim, out Vector3 impactPosition )
 	{
 		impactPosition = aim.Position;
 		var forward = aim.Forward;
-		var abs = forward.Abs();
-		// Halo constructs the two perpendicular axes from the smallest component of aim.
-		var axis = (abs.x <= abs.y && abs.x <= abs.z ? new Vector3( 0, forward.z, -forward.y )
-			: abs.y <= abs.z ? new Vector3( -forward.z, 0, forward.x ) : new Vector3( forward.y, -forward.x, 0 )).Normal;
+		var axis = Perpendicular( forward );
 		var stepY = Vector3.Cross( forward, axis ) * (MeleeHalfExtents.y * 0.5f);
 		var stepX = axis * (MeleeHalfExtents.x * 0.5f);
 		var center = aim.Position + forward * MeleeRange;

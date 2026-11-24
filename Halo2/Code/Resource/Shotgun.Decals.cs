@@ -79,7 +79,7 @@ internal sealed partial class ShotgunLoader
 		var parent = target;
 		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin && skin.GetClosestBone( point ) is {} bone )
 			parent = skin.GetBoneObject( bone ) ?? target;
-		if ( visuals.Decal is {} decal ) PlaceMark( decal, parent, transform );
+		if ( visuals.Decal is {} decal ) PlaceMark( decal, parent, point, normal );
 
 		var dust = surface.PrefabCollection.BulletImpact ?? surface.GetBaseSurface()?.PrefabCollection.BulletImpact;
 		if ( dust.IsValid() )
@@ -93,14 +93,23 @@ internal sealed partial class ShotgunLoader
 		return true;
 	}
 
-	void PlaceMark( ImpactDecal data, GameObject parent, Transform transform )
+	void PlaceMark( ImpactDecal data, GameObject parent, Vector3 point, Vector3 normal )
 	{
-		float Sample( Vector2 range ) => range.x + (range.y - range.x) * (BlamRandom.Next( ref decalSeed ) / 65535f);
-		float modifier = Sample( data.Modifier );
+		float Fraction() => BlamRandom.Next( ref decalSeed ) * (1f / 65535f);
+		float Sample( Vector2 range ) => range.x + (range.y - range.x) * Fraction();
+		float modifier = data.Modifier.x == data.Modifier.y ? data.Modifier.x : Sample( data.Modifier );
+		var tangent = Shotgun.Perpendicular( normal );
+		var second = Vector3.Cross( normal, tangent ).Normal;
+		float angle = Fraction() * System.MathF.Tau;
+		var up = second * System.MathF.Sin( angle ) + tangent * System.MathF.Cos( angle );
+		var transform = new Transform( point, Rotation.LookAt( -normal, up ) );
 
 		// The original high-word selection multiplies by the last sequence index.
-		int sequence = ((int)BlamRandom.Next( ref decalSeed ) * (data.Sizes.Length - 1)) >> 16;
+		bool sheet = data.Definition.ColorTexture.SequenceCount > 0;
+		int sequence = sheet ? ((int)BlamRandom.Next( ref decalSeed ) * (data.Sizes.Length - 1)) >> 16 : 0;
 		float radius = Sample( data.Radius ) * (modifier == 0 ? 1 : modifier);
+		// The color draw advances the stream even for these fixed white decal tints.
+		Fraction();
 		var mark = new GameObject( parent, false, data.Name );
 		mark.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
 		var center = data.Centers[sequence] * radius;
@@ -108,7 +117,7 @@ internal sealed partial class ShotgunLoader
 		var decal = mark.AddComponent<Decal>();
 		decal.Decals = [data.Definition];
 		decal.Transient = true;
-		decal.SheetSequence = data.Definition.ColorTexture.SequenceCount > 0;
+		decal.SheetSequence = sheet;
 		decal.SequenceId = (uint)sequence;
 		decal.Size = data.Sizes[sequence] * radius;
 		decal.Rotation = 0;
