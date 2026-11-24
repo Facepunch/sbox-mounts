@@ -78,22 +78,10 @@ public partial class Halo2ModelLoader
 
 	Graph BuildGraph( string path, string[] context )
 	{
-		int header = GraphHeader;
-		if ( skeleton is null ) BuildSkeleton( header );
-		if ( skeleton is null ) return null;
-		var actions = new Dictionary<string, int>();
-		var overlays = new Dictionary<string, int>();
-		bool found = false;
-		foreach ( int mode in Matches( header + 52, 20, context[0] ) )
-		foreach ( int category in Matches( mode + 4, 20, context[1] ) )
-		foreach ( int weapon in Matches( category + 4, 52, context[2] ) )
-		{
-			found |= Label( mode ) == context[0] && Label( category ) == context[1] && Label( weapon ) == context[2];
-			ReadBindings( weapon + 4, actions );
-			ReadBindings( weapon + 12, overlays );
-		}
-		if ( !found || (actions.Count == 0 && overlays.Count == 0) ) return null;
-
+		var bindings = GetAnimationContext( context[0], context[1], context[2] );
+		if ( bindings is null ) return null;
+		var actions = bindings.Actions;
+		var overlays = bindings.Overlays;
 		var builder = Graph.Builder.WithSkeleton( skeleton );
 		var baseClips = actions.Where( a => GetClip( a.Value ) is not null ).ToArray();
 		var overlayClips = overlays.Where( o => GetClip( o.Value ) is not null ).ToArray();
@@ -106,7 +94,19 @@ public partial class Halo2ModelLoader
 		} );
 		var overlay = overlayClips.Length == 0 ? null : builder.IdParameter( "overlay", overlayClips.Select( o => o.Key ).ToArray() );
 		var time = overlay is null ? null : builder.FloatParameter( "overlay_time", 0, 1 );
-		GraphNode output = action is null ? builder.ReferencePose() : SelectAction( options, action, builder );
+		var autoOverlay = overlay is null ? null : builder.BoolParameter( "overlay_auto" );
+		var restartOverlay = overlay is null ? null : builder.BoolParameter( "overlay_restart" );
+		var restartAction = action is null ? null : builder.BoolParameter( "action_restart" );
+		var once = action is null ? null : builder.BoolParameter( "action_once" );
+		var variation = builder.AddControlParameter( "variation", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
+		var blend = builder.AddControlParameter( "action_blend", GraphBuilder.NodeKind.Float,
+			new() { Min = 0, Max = 1, DefaultFloat = new GraphBuilder.TransitionSettings().Duration } );
+		var strength = overlay is null ? null : builder.AddControlParameter( "overlay_weight", GraphBuilder.NodeKind.Float, new() { Min = 0, Max = 1, DefaultFloat = 1 } );
+		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
+		var noBlendIn = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 1) != 0 ).Select( a => a.Key ).ToArray();
+		var duration = noBlendIn.Length == 0 ? blend : builder.Switch( builder.IdCompare( action, noBlendIn ), builder.Constant( 0f ), blend );
+		var ordered = options.OrderBy( a => DisablesBlendOut( a ) ).ToArray();
+		GraphNode output = action is null ? builder.ReferencePose() : SelectAction( ordered );
 		if ( overlay is not null )
 		{
 			var layers = builder.Layers( output );
@@ -114,51 +114,82 @@ public partial class Halo2ModelLoader
 			{
 				int entry = group.Key;
 				var enabled = builder.IdCompare( overlay, group.Select( o => o.Key ) );
-				var pose = builder.TimeControlledClip( GetClip( entry ), time );
-				layers.AddLayer( pose, new()
+				AddOverlay( builder.And( enabled, builder.Not( autoOverlay ) ),
+					clip => builder.TimeControlledClip( clip, time ) );
+				AddOverlay( builder.And( enabled, autoOverlay ),
+					clip => builder.Clip( clip, new() { Looping = false, ResetTime = restartOverlay } ) );
+
+				void AddOverlay( GraphNode selected, Func<Clip, GraphNode> pose )
 				{
-					Weight = builder.Switch( enabled, 1f, 0f ),
-					BlendMode = Kind( Entry( entry ) ) == 1 ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
-					BoneMask = clipMasks.TryGetValue( entry, out var mask ) ? builder.BoneMask( mask ) : null
-				} );
+					var target = builder.Switch( selected, 1f, 0f );
+					var weight = builder.Ease( target );
+					int flags = GetClipInfo( entry ).PlaybackFlags;
+					if ( (flags & 1) != 0 ) weight = builder.Switch( selected, target, weight );
+					if ( (flags & 2) != 0 ) weight = builder.Switch( selected, weight, target );
+					layers.AddLayer( Variants( entry, pose ), new()
+					{
+						Weight = builder.Multiply( weight, strength ),
+						BlendMode = Kind( Entry( entry ) ) == 1 ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
+						BoneMask = clipMasks.TryGetValue( entry, out var mask ) ? builder.BoneMask( mask ) : null
+					} );
+				}
 			}
 			output = layers;
 		}
 		return builder.Create( output, path );
 
-		IEnumerable<int> Matches( int block, int stride, string requested ) =>
-			Rows( block, stride ).Where( p => Label( p ) == requested || Label( p ) == "any" )
-				.OrderByDescending( p => Label( p ) == requested );
+		GraphNode BasePose( int reference ) => Variants( reference, clip => builder.ClipSelector(
+			(builder.Clip( clip, new() { Looping = false, ResetTime = restartAction } ), once),
+			(builder.Clip( clip, new() { ResetTime = restartAction } ), builder.Not( once )) ) );
 
-		void ReadBindings( int block, Dictionary<string, int> destination )
+		GraphNode Variants( int reference, Func<Clip, GraphNode> pose )
 		{
-			foreach ( int row in Rows( block, 8 ) )
+			var info = GetClipInfo( reference );
+			if ( info.NextVariant == -1 ) return pose( GetClip( reference ) );
+			var selector = builder.Selector();
+			var seen = new HashSet<int>();
+			while ( HasClip( reference ) && seen.Add( reference ) )
 			{
-				int reference = mapFile.ReadInt32( row + 4 );
-				if ( HasClip( reference ) && Label( row ) is { Length: > 0 } label )
-					destination.TryAdd( label, reference );
+				info = GetClipInfo( reference );
+				if ( GetClip( reference ) is { } clip )
+				{
+					var condition = info.NextVariant == -1 ? builder.Constant( true )
+						: builder.Compare( sample, GraphBuilder.FloatComparison.LessThan, info.Weight );
+					selector.Add( pose( clip ), condition );
+				}
+				reference = info.NextVariant;
 			}
+			return selector;
 		}
-	}
 
-	// Native ID selectors choose on entry. State machines reevaluate the requested
-	// action during playback. Grouping limits each machine to two states.
-	GraphNode SelectAction( ReadOnlySpan<KeyValuePair<string, int>> options, GraphNode action, GraphBuilder builder )
-	{
-		if ( options.Length == 1 ) return builder.Clip( GetClip( options[0].Value ) );
-		int split = options.Length / 2;
-		var right = options[split..];
-		var match = builder.IdCompare( action, right.ToArray().Select( a => a.Key ) );
-		var machine = builder.StateMachine();
-		var a = machine.AddState( SelectAction( options[..split], action, builder ) );
-		var b = machine.AddState( SelectAction( right, action, builder ) );
-		machine.SetEntryCondition( b, match );
-		var cut = new GraphBuilder.TransitionSettings { Duration = 0 };
-		machine.AddTransition( a, b, match, cut );
-		machine.AddTransition( b, a, builder.Not( match ), cut );
-		return machine.Build();
-	}
+		bool DisablesBlendOut( KeyValuePair<string, int> a ) => (GetClipInfo( a.Value ).PlaybackFlags & 2) != 0;
 
+		GraphNode SelectAction( ReadOnlySpan<KeyValuePair<string, int>> entries )
+		{
+			if ( entries.Length == 1 ) return BasePose( entries[0].Value );
+			// Separate hard exits first so the outgoing branch always has one interpolation policy.
+			int split = entries.Length / 2;
+			if ( DisablesBlendOut( entries[0] ) != DisablesBlendOut( entries[^1] ) )
+			{
+				split = 1;
+				while ( !DisablesBlendOut( entries[split] ) ) split++;
+			}
+			var left = entries[..split];
+			var right = entries[split..];
+			var toLeft = builder.IdCompare( action, left.ToArray().Select( a => a.Key ) );
+			var toRight = builder.IdCompare( action, right.ToArray().Select( a => a.Key ) );
+			var machine = builder.StateMachine();
+			var a = machine.AddState( SelectAction( left ) );
+			var b = machine.AddState( SelectAction( right ) );
+			machine.SetEntryCondition( b, toRight );
+			machine.AddTransition( a, b, toRight, Settings( left[0] ) );
+			machine.AddTransition( b, a, toLeft, Settings( right[0] ) );
+			return machine.Build();
+		}
+
+		GraphBuilder.TransitionSettings Settings( KeyValuePair<string, int> from ) =>
+			new() { Duration = 0, DurationOverride = DisablesBlendOut( from ) ? null : duration };
+	}
 	float Float( int address ) => BitConverter.Int32BitsToSingle( mapFile.ReadInt32( address ) );
 
 	int Kind( int entry ) => mapFile.ReadSpan( entry + 16, 1 )[0];
@@ -279,6 +310,11 @@ public partial class Halo2ModelLoader
 		// from the last pose to the next cycle. AG2 samples both endpoints.
 		if ( movementSize > 0 && frames > 1 )
 			builder.AddFrame( poses.AsSpan( bones * Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 ), bones ), motion );
+		foreach ( var group in GetClipInfo( reference ).Cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )
+		{
+			float cycle = (float)group.Key / (builder.FrameCount - 1);
+			if ( cycle >= 0 && cycle < 1 ) builder.AddSyncEvent( cycle, group.First().Kind );
+		}
 		return graphClips[reference] = builder.Create( $"{Path}/clip_{reference}.anim" );
 	}
 }
