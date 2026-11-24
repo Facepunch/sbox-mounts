@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 	[Property, Range( 0f, 1f )] public float ThrowCounterProbability { get; set; } = 0.4f;
 	float ThrowFadeRate => Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
 	bool InThrow => Stance is "throw" or "thrown" or "thrown_counter";
-	internal Vector3? ThrowGroundVelocity => InThrow && !IsAirborne ? combatVelocity : null;
+	internal Vector3? PairedGroundVelocity => IsAirborne ? null : InThrow ? combatVelocity : Held || Holding ? struggleVelocity : null;
 	bool wantsBlockThrow, willEscapeThrow;
 	TimeUntil throwRecharge = 5f, blockStun;
 	RabbitGuard stunnedBy, throwPartner;
@@ -110,6 +110,19 @@ public sealed partial class RabbitGuard
 		throwEntryFrame = Scene.GetSystem<SceneAnimationSystem>().BoneFrame;
 	}
 
+	void ApplyPairedRootMotion( Transform from, Transform to, float weight, bool skipTranslation = false )
+	{
+		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
+		// Seeking the new reader on a swap suppresses its first translation sample.
+		if ( !skipTranslation ) alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
+		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );
+		to.Position = from.Position + WorldRotation.Inverse * (alignmentOffset * weight) / WorldScale;
+		to.Rotation = from.Rotation * Rotation.FromYaw( alignmentYaw * weight );
+		alignmentOffset *= 1f - weight;
+		alignmentYaw *= 1f - weight;
+		ApplyRootMotion( from, to );
+	}
+
 	void UpdateThrow()
 	{
 		if ( Scene.GetSystem<SceneAnimationSystem>().BoneFrame == throwEntryFrame ) return;
@@ -120,18 +133,9 @@ public sealed partial class RabbitGuard
 		throwElapsed += Time.Delta;
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		var to = clip.Animation.GetRootMotion( ReactionPhase );
-		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
 		bool firstCounterFrame = Stance == "thrown_counter" && fadeElapsed == 0f;
 		fadeElapsed += Time.Delta;
-		float weight = Math.Min( 1f, fadeElapsed * ThrowFadeRate );
-		// Seeking the new reader on a swap suppresses its first translation sample.
-		if ( !firstCounterFrame ) alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
-		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );
-		to.Position = from.Position + WorldRotation.Inverse * (alignmentOffset * weight) / WorldScale;
-		to.Rotation = from.Rotation * Rotation.FromYaw( alignmentYaw * weight );
-		alignmentOffset *= 1f - weight;
-		alignmentYaw *= 1f - weight;
-		ApplyRootMotion( from, to );
+		ApplyPairedRootMotion( from, to, Math.Min( 1f, fadeElapsed * ThrowFadeRate ), firstCounterFrame );
 		throwFacing = WorldRotation;
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
 		{

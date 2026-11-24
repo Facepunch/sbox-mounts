@@ -119,6 +119,14 @@ public sealed partial class RabbitGuard
 	{
 		if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) ||
 			!TryGetAnimatedBone( Renderer.Model.Bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) ) return;
+		UpdateStanceAnchors( left, right, pose.Left.Present, pose.Right.Present, entering, Time.Delta, Animation.MoveVelocity );
+		ApplyAuthoredFoot( 0, left, pose.Left );
+		ApplyAuthoredFoot( 1, right, pose.Right );
+		SolveGroundedLegs();
+	}
+
+	void UpdateStanceAnchors( Transform left, Transform right, bool hasLeftTarget, bool hasRightTarget, bool entering, float dt, Vector3 movement )
+	{
 		var root = WorldPosition;
 		if ( entering || !hasStanceAnchors )
 		{
@@ -129,13 +137,13 @@ public sealed partial class RabbitGuard
 		}
 
 		// aschar.as HandleFootStance leads the swinging foot by half a step while the other stays planted.
-		var velocity = Animation.MoveVelocity + ContactVelocity;
+		var velocity = movement + ContactVelocity;
 		float speed = velocity.Length / 40f;
 		float stepSpeed = Math.Max( 2f, speed * 1.5f + 1f );
 		// GetIKTargetAnimPosition reads the unmodified animation matrices before character facing and lean.
 		var model = Renderer.WorldTransform;
-		var leftAnchor = pose.Left.Present ? model.PointToLocal( left.Position ) : Vector3.Zero;
-		var rightAnchor = pose.Right.Present ? model.PointToLocal( right.Position ) : Vector3.Zero;
+		var leftAnchor = hasLeftTarget ? model.PointToLocal( left.Position ) : Vector3.Zero;
+		var rightAnchor = hasRightTarget ? model.PointToLocal( right.Position ) : Vector3.Zero;
 		float across = (rightAnchor - leftAnchor).Normal.Dot( velocity.Normal );
 		Vector3 Goal( int foot ) => speed * speed > 0.001f ? root + velocity * ((1f + (foot == 0 ? -across : across)) / 120f + 0.5f / stepSpeed) : root;
 		bool NeedsStep( int foot ) => Goal( foot ).DistanceSquared( plantedRoot[foot] ) > 4f * 4f;
@@ -146,14 +154,14 @@ public sealed partial class RabbitGuard
 			var foot = side == 0 ? left : right;
 			if ( side == steppingFoot )
 			{
-				stepProgress += Time.Delta * stepSpeed;
+				stepProgress += dt * stepSpeed;
 				if ( stepProgress >= 1f )
 				{
 					plantedRoot[side] = Goal( side );
 					var contact = foot.Position + (plantedRoot[side] - root).WithZ( 0f );
 					var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
 						.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
-					if ( Networking.IsHost && floor.Hit )
+					if ( Networking.IsHost && floor.Hit && (!(Held || Holding) || movement.LengthSquared > 40f * 40f) )
 					{
 						var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
 						var step = (side == 0 ? "left" : "right") + gait + "step";
@@ -167,9 +175,7 @@ public sealed partial class RabbitGuard
 			var target = side == steppingFoot ? Vector3.Lerp( plantedRoot[side], Goal( side ), stepProgress ) : plantedRoot[side];
 			stepLift[side] = side == steppingFoot ? Math.Min( 4f, MathF.Sin( stepProgress * MathF.PI ) * speed * speed * 0.2f ) : 0f;
 			footOffset[side] = target - root;
-			ApplyAuthoredFoot( side, foot, side == 0 ? pose.Left : pose.Right );
 		}
-		SolveGroundedLegs();
 	}
 
 	// CDoFootIK carries the unsupported foot by the correction applied to its planted partner.
@@ -199,16 +205,17 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ));
+	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ) || IsGrabClip( Stance ));
 
 	void UpdateActionIK( string pose )
 	{
 		var parameters = Renderer.Animation.Parameters;
 		bool ledge = pose == LedgeAnimation;
-		string phaseChannel = ledge ? "ledge_phase" : boundAnimations.AttackStates.Contains( pose ) ? "attack_phase" : "reaction_phase";
+		string phaseChannel = ledge ? "ledge_phase" : IsGrabClip( pose ) ? "grab_phase" : boundAnimations.AttackStates.Contains( pose ) ? "attack_phase" : "reaction_phase";
 		parameters.TryGetFloat( phaseChannel, out var phase );
 		RabbitAttack.Blend blend;
-		if ( boundAnimations.Attacks.TryGetValue( pose, out var attack ) )
+		if ( IsGrabClip( pose ) ) blend = GrabPose( pose );
+		else if ( boundAnimations.Attacks.TryGetValue( pose, out var attack ) )
 		{
 			parameters.TryGetFloat( "attack_height_coord", out var height );
 			blend = attack.Sample( height, MirroredAction );
@@ -220,6 +227,7 @@ public sealed partial class RabbitGuard
 		}
 		EnsurePoseBuffers();
 		bool grounded = !ledge && HasGroundSupport && blend.Lower.Feet is not null && blend.Upper.Feet is not null;
+		if ( grounded && PlantGrabFeet && !Networking.IsHost ) UpdateGrabFootStance( Time.Delta, Animation.MoveVelocity );
 		for ( int side = 0; side < 2; side++ )
 		{
 			if ( grounded )
@@ -259,6 +267,18 @@ public sealed partial class RabbitGuard
 				reference = Local( parent ).ToWorld( reference );
 			return animated.ToWorld( reference.ToLocal( target ) );
 		}
+	}
+
+	void UpdateGrabFootStance( float dt, Vector3 velocity )
+	{
+		if ( !IsGrabClip( Stance ) || !HasGroundSupport ) return;
+		var pose = GrabPose( Stance );
+		bool HasTarget( int side ) => LimbPose.Sample( pose.Lower.Feet?[side], grabPhase ).Present
+			|| (pose.Weight > 0f && LimbPose.Sample( pose.Upper.Feet?[side], grabPhase ).Present);
+		var bones = Renderer.Model.Bones;
+		if ( TryGetAnimatedBone( bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) &&
+			TryGetAnimatedBone( bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) )
+			UpdateStanceAnchors( left, right, HasTarget( 0 ), HasTarget( 1 ), false, dt, velocity );
 	}
 
 	void ApplyAuthoredFoot( int side, Transform animated, LimbPose foot )

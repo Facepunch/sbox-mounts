@@ -4,6 +4,20 @@ public sealed partial class RabbitGuard
 {
 	Vector3 combatVelocity;
 	bool restoreAgentPosition;
+	internal bool PairedGroundSupport { get; private set; }
+
+	SceneTraceResult TracePairedFloor() => IgnoreFighters( Scene.Trace.Ray(
+		WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f ) ).WithCollisionRules( Tags ).Run();
+
+	void UpdatePairedGroundSupport()
+	{
+		PairedGroundSupport = false;
+		if ( !restoreAgentPosition || !IsOnGround || PhysicsCarrier.IsValid() || !holdPartner.IsValid() && !throwPartner.IsValid() ) return;
+		// During a grab the partner's hull can surround the floor probe. Retain the
+		// existing support only while the paired mover still detects that same floor.
+		var floor = TracePairedFloor();
+		PairedGroundSupport = floor.Hit && !floor.StartedSolid && floor.Body?.GameObject == GroundObject;
+	}
 
 	// Paired clips drive both roots. The nav agent would also ease them towards its sampled floor.
 	void BeginPairedMovement( bool carryMomentum = false )
@@ -17,6 +31,7 @@ public sealed partial class RabbitGuard
 
 	void EndPairedMovement()
 	{
+		PairedGroundSupport = false;
 		if ( !restoreAgentPosition ) return;
 		restoreAgentPosition = false;
 		if ( GetComponent<NavMeshAgent>( true ) is not { } agent ) return;

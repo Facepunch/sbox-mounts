@@ -90,8 +90,7 @@ public sealed partial class RabbitGuard
 		bool grounded = Animation.IsGrounded;
 		if ( !grounded && InThrow && throwPartner.IsValid() )
 		{
-			var floor = IgnoreFighters( Scene.Trace.Ray( WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f ) )
-				.WithCollisionRules( Tags ).Run();
+			var floor = TracePairedFloor();
 			grounded = floor.Hit && !floor.StartedSolid;
 		}
 		ThrowGrounded = InThrow && grounded;

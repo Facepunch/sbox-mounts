@@ -47,7 +47,8 @@ public sealed partial class RabbitGuard
 
 	Vector2 SampleHeadSpring( Vector2 wanted, Rotation basis, float idle, float dt, bool reset )
 	{
-		const float tick = 4f / 120f;
+		int frames = SecondaryPoseFrames;
+		float tick = frames / 120f;
 		if ( reset )
 		{
 			headSpring = new( wanted, default, default );
@@ -62,7 +63,7 @@ public sealed partial class RabbitGuard
 				float t = time / dt;
 				var frame = Rotation.Slerp( previousHeadBasis, basis, t );
 				var offset = InheritedOffset( frame, ref inheritedHeadYaw );
-				headSpring = AdvanceHeadSpring( headSpring, Vector2.Lerp( previousHeadTarget, wanted, t ), offset, idle );
+				headSpring = AdvanceHeadSpring( headSpring, Vector2.Lerp( previousHeadTarget, wanted, t ), offset, idle, frames );
 				lastHeadFacing = frame.Forward;
 			}
 			headRemainder = elapsed;
@@ -72,7 +73,7 @@ public sealed partial class RabbitGuard
 		if ( headRemainder == 0f ) return headSpring.Angles;
 
 		float yaw = inheritedHeadYaw;
-		var preview = AdvanceHeadSpring( headSpring, wanted, InheritedOffset( basis, ref yaw ), idle );
+		var preview = AdvanceHeadSpring( headSpring, wanted, InheritedOffset( basis, ref yaw ), idle, frames );
 		return Vector2.Lerp( headSpring.Angles, preview.Angles, headRemainder / tick );
 	}
 
@@ -83,9 +84,9 @@ public sealed partial class RabbitGuard
 		return new Vector2( yaw, MathF.Asin( Math.Clamp( previous.z, -1f, 1f ) ) ) * (1f - flipLookFade);
 	}
 
-	static HeadSpring AdvanceHeadSpring( HeadSpring state, Vector2 wanted, Vector2 offset, float idle )
+	static HeadSpring AdvanceHeadSpring( HeadSpring state, Vector2 wanted, Vector2 offset, float idle, int frames )
 	{
-		const float frames = 4f, dt = frames / 120f;
+		float dt = frames / 120f;
 		var (headAngles, headVelocity, headAcceleration) = state;
 		headAcceleration *= MathF.Pow( 0.95f * idle, frames );
 		var desired = (wanted - headAngles) * (0.8f + 0.2f * idle);

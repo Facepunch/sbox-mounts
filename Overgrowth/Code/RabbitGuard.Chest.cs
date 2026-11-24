@@ -146,7 +146,8 @@ public sealed partial class RabbitGuard
 		return InterpolateFacing( facing, direction, 1f - MathF.Pow( 0.9f, Time.Delta * 120f ) );
 	}
 
-	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle or RearHeld or RatHeldByRabbit or ArmedHeld;
+	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle or RatHeldByRabbit or ArmedHeld
+		|| Stance == RearHeld && Held && CaptureReactionEnded;
 
 	void UpdateTorsoControl( bool needsCombatPose )
 	{
@@ -216,7 +217,8 @@ public sealed partial class RabbitGuard
 	}
 	Vector2 SampleChestSpring( Vector2 wanted, float idle, float dt, bool reset )
 	{
-		const float tick = 4f / 120f;
+		int frames = SecondaryPoseFrames;
+		float tick = frames / 120f;
 		if ( reset )
 		{
 			previousChestTarget = chestAngles = wanted;
@@ -225,8 +227,8 @@ public sealed partial class RabbitGuard
 			return chestAngles;
 		}
 
-		float damping = MathF.Pow( 0.93f + 0.06f * idle, 4f );
-		float stiffness = (0.5f - 0.47f * idle) * 4f;
+		float damping = MathF.Pow( 0.93f + 0.06f * idle, frames );
+		float stiffness = (0.5f - 0.47f * idle) * frames;
 		Vector2 NextVelocity( Vector2 target ) => chestVelocity * damping + (target - chestAngles) * stiffness;
 
 		float elapsed = chestRemainder + dt;

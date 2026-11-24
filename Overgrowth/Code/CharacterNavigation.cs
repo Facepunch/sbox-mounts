@@ -18,7 +18,9 @@ public sealed class CharacterNavigation : NavigationLayer
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
 
-	protected override bool UsesGround => !runOffDirection.HasValue && Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
+	protected override bool UsesGround => !runOffDirection.HasValue
+		&& Npc is not (RabbitGuard { OnLedge: true } or RabbitGuard { PairedGroundSupport: true, IsOnGround: true })
+		&& base.UsesGround;
 
 	internal void ReleaseInput()
 	{
@@ -49,9 +51,9 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		if ( !Networking.IsHost ) return;
 		requestedGroundSpeed = 0f;
-		if ( Npc is RabbitGuard { ThrowGroundVelocity: { } throwVelocity } )
+		if ( Npc is RabbitGuard { PairedGroundVelocity: { } pairedVelocity } )
 		{
-			Npc.Animation.SetMove( throwVelocity );
+			Npc.Animation.SetMove( pairedVelocity );
 			return;
 		}
 		if ( runOffDirection.HasValue && AdvanceRunOff() ) return;

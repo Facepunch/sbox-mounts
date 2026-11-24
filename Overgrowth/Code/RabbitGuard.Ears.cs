@@ -26,7 +26,11 @@ public sealed partial class RabbitGuard
 	void SolveEars( float dt, Vector3 moveVelocity )
 	{
 		float frames = dt * 120f;
-		const float tick = 4f / 120f;
+		int stepFrames = SecondaryPoseFrames;
+		float tick = stepFrames / 120f;
+		float inertia = MathF.Pow( 0.95f, stepFrames );
+		float tipDamping = MathF.Pow( 0.92f, stepFrames );
+		float middleDamping = MathF.Pow( 0.9f, stepFrames );
 		float elapsed = earsActive ? earRemainder + dt : 0f;
 		int steps = (int)(elapsed / tick);
 		float remainder = elapsed - steps * tick;
@@ -97,13 +101,12 @@ public sealed partial class RabbitGuard
 
 			(Vector3, Vector3) Simulate( Vector3 basePoint, Vector3 middlePoint, Vector3 tipPoint )
 			{
-				const float inertia = 0.95f * 0.95f * 0.95f * 0.95f;
 				Vector3 Advance( Vector3 current, Vector3 old ) => current + ((current - old - velocity) * inertia + velocity) * (0.95f * 0.95f);
 				var mid = Advance( ear.Middle, ear.PreviousMiddle );
 				var end = Advance( ear.Tip, ear.PreviousTip );
 				var bend = Rotation.FromToRotation( (middlePoint - basePoint).Normal, (mid - basePoint).Normal );
-				end = Vector3.Lerp( mid + bend * (tipPoint - middlePoint), end, MathF.Pow( 0.92f, 4f ) );
-				mid = Vector3.Lerp( middlePoint, mid, MathF.Pow( 0.9f, 4f ) );
+				end = Vector3.Lerp( mid + bend * (tipPoint - middlePoint), end, tipDamping );
+				mid = Vector3.Lerp( middlePoint, mid, middleDamping );
 				float lowerLength = middlePoint.Distance( basePoint ), upperLength = tipPoint.Distance( middlePoint );
 				for ( int pass = 0; pass < 3; pass++ )
 				{

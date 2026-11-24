@@ -12,6 +12,8 @@ public sealed partial class RabbitGuard
 	RabbitGuard bodyDragger;
 	ModelPhysics draggedPhysics;
 	Rigidbody draggedBody;
+	// SetAnimUpdateFreqs evaluates both actors in a tether every two native frames.
+	int SecondaryPoseFrames => IsTethered || DragStrength > 0f ? 2 : 4;
 	bool IsTethered => Holding || Held || draggedBody.IsValid() || bodyDragger.IsValid();
 	Vector3 localDragPoint, dragTarget;
 	PhysicsBody dragAnchor;

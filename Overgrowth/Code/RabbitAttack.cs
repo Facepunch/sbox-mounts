@@ -33,10 +33,12 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string ReactionP
 		}
 	}
 
-	internal Blend Sample( float height, bool mirrored = false )
+	internal Blend Sample( float height, bool mirrored = false ) => Sample( Poses, height, mirrored );
+
+	internal static Blend Sample( Pose[] poses, float height, bool mirrored )
 	{
-		var lower = Poses[0];
-		foreach ( var upper in Poses )
+		var lower = poses[0];
+		foreach ( var upper in poses )
 		{
 			if ( height <= upper.Height )
 				return new( lower.Clip.ForSide( mirrored ), upper.Clip.ForSide( mirrored ), lower == upper ? 0f : (height - lower.Height) / (upper.Height - lower.Height) );

@@ -11,13 +11,31 @@ public sealed partial class RabbitGuard
 	internal const string CutFromHold = "r_throatcutter", CutInHold = "r_throatcuttee";
 	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit, ArmedGrab, ArmedGrabbed, ArmedHold, ArmedHeld, CutFromHold, CutInHold];
 	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold || Stance == CutFromHold && holdPartner.IsValid();
-	bool Held => Stance is RearHeld or RatHeldByRabbit or ArmedGrabbed or ArmedHeld or CutInHold;
+	bool Held => Stance is RearHeld or ArmedGrabbed ? ReactionPhase >= 1f : Stance is RatHeldByRabbit or ArmedHeld or CutInHold;
+	internal static bool IsGrabClip( string pose ) => pose is RearHold or RearHoldRat or RearHeld or RatHeldByRabbit or ArmedGrab or ArmedGrabbed or ArmedHold or ArmedHeld;
+	bool PlantGrabFeet => (Holding || Held) && CaptureReactionEnded && IsGrabClip( Stance );
+	float grabPhase;
+	const float HoldStep = 2f / 120f;
+	int holdTick;
+	int nextCaptureTick;
+	int ElapsedHoldTicks => (int)((float)SinceGrab / HoldStep + 0.5f);
+	Vector3 fadingCaptureOffset;
+	RabbitClip CaptureClip => boundAnimations.Clips[Stance].ForSide( MirroredAction );
+	RabbitAttack.Blend GrabPose( string pose )
+	{
+		if ( boundAnimations.GrabStances.TryGetValue( pose, out var stances ) )
+			return RabbitAttack.Sample( stances, 1f - Math.Clamp( CrouchAmount, 0f, 1f ), MirroredAction );
+		var clip = boundAnimations.Clips[pose].ForSide( MirroredAction );
+		return new( clip, clip, 0f );
+	}
 	RabbitGuard holdPartner;
 	Vector3 holdDirection;
 	Vector3 struggleVelocity, struggleDirection;
 	TimeUntil changeStruggleDirection, changeStruggleCrouch;
 	bool struggleCrouch;
-	TimeSince sinceGrab;
+	[Sync] TimeSince SinceGrab { get; set; }
+	// The original compares its 120 Hz game clock strictly past the 12th frame.
+	bool CaptureReactionEnded => SinceGrab >= 13f / 120f;
 	TimeUntil nextHoldSound;
 	sealed class HoldDamage : BluntDamage;
 	sealed class ExecutionDamage : DamageInfo;
@@ -33,6 +51,12 @@ public sealed partial class RabbitGuard
 		victim.QueueThrowDamage( this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
+		WorldRotation = Rotation.LookAt( holdDirection );
+		var entry = victim.CaptureClip.Animation.GetRootMotion( 0f );
+		victim.fadingCaptureOffset = victim.WorldRotation * (entry.Position * victim.WorldScale);
+		victim.alignmentOffset = WorldRotation * (entry.Position * victim.WorldScale) + (WorldPosition - victim.WorldPosition).WithZ( 0f );
+		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
+		victim.nextCaptureTick = 1;
 		IncreaseBreathing( 2f );
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
 		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundMaterialName, 1f );
@@ -45,13 +69,47 @@ public sealed partial class RabbitGuard
 		holdPartner = partner;
 		struggleVelocity = default;
 		changeStruggleDirection = changeStruggleCrouch = 0f;
-		sinceGrab = 0f;
+		SinceGrab = 0f;
+		holdTick = 0;
+		nextCaptureTick = 0;
 		strike = null;
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
 		MirroredAction = MirroredStance;
 		BeginPairedMovement();
 		Stance = pose;
+	}
+
+	void AdvanceCaptureAlignment( int tick )
+	{
+		if ( nextCaptureTick == 0 ) return;
+		if ( Downed || Stance is not (RearHeld or ArmedGrabbed) )
+		{
+			nextCaptureTick = 0;
+			return;
+		}
+
+		// The movement stance and WasGrabbed start successive readers. FadeCollection
+		// multiplies their incoming weights. Only the active reader retains overflow.
+		const float frame = 1f / 120f, step = 2f * frame, fadeRate = 5f;
+		var clip = CaptureClip;
+		while ( nextCaptureTick <= tick )
+		{
+			float sample = (nextCaptureTick - 0.5f) * step;
+			float active = Math.Min( 1f, sample * fadeRate );
+			float stance = Math.Min( 1f, (sample + frame) * fadeRate );
+			if ( nextCaptureTick == 1 )
+				MoveGroundDelta( fadingCaptureOffset * (stance * (1f - active)) );
+			var from = clip.Animation.GetRootMotion( Math.Max( 0f, sample - step ) / clip.Duration );
+			var to = clip.Animation.GetRootMotion( sample / clip.Duration );
+			ApplyPairedRootMotion( from, to, active * stance );
+			if ( active >= 1f )
+			{
+				nextCaptureTick = 0;
+				break;
+			}
+			nextCaptureTick++;
+		}
 	}
 
 	void UpdateRearHold()
@@ -80,11 +138,8 @@ public sealed partial class RabbitGuard
 		bool armed = PrimaryItem.IsValid();
 		bool rat = victim.boundAnimations.Species == "rat";
 		bool blade = armed && boundAnimations.WeaponLabel != "staff";
-		AdvanceCrouch( 0f );
-		if ( !blade && !executing ) victim.AdvanceStruggle();
-		else victim.AdvanceCrouch( 0f );
-		var flat = (victim.WorldPosition - WorldPosition).WithZ( 0f );
-		if ( sinceGrab > 0.1f && !executing )
+		AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing );
+		if ( CaptureReactionEnded && !executing )
 		{
 			if ( blade )
 			{
@@ -109,23 +164,6 @@ public sealed partial class RabbitGuard
 				victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
 			}
 		}
-		if ( sinceGrab > 0.1f && !flat.IsNearlyZero() )
-		{
-			holdDirection = Vector3.Lerp( flat.Normal, holdDirection, MathF.Pow( 0.1f, Time.Delta * 120f ) );
-			float distance = armed ? 14f : rat ? 18f : 22f;
-			var correction = ((flat - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f * 30f * Time.Delta );
-			MoveGroundDelta( correction );
-			var previous = victim.WorldPosition;
-			victim.MoveGroundDelta( -correction );
-			if ( !blade && !executing && Time.Delta > 0f )
-			{
-				victim.struggleVelocity += (victim.WorldPosition - previous) / Time.Delta;
-				// HandleTethering normalizes velocities over two metres per second to one.
-				if ( victim.struggleVelocity.LengthSquared > 80f * 80f ) victim.struggleVelocity = victim.struggleVelocity.Normal * 40f;
-			}
-			WorldRotation = victim.WorldRotation = Rotation.LookAt( holdDirection );
-			duckAmount = CrouchAmount = victim.duckAmount = victim.CrouchAmount = (duckAmount + victim.duckAmount) * 0.5f;
-		}
 		victim.DropHandItem();
 		if ( executing )
 		{
@@ -147,28 +185,69 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	void AdvanceStruggle()
+	void AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
-		if ( changeStruggleDirection <= 0f )
+		// SetAnimUpdateFreqs advances both tethered actors once every two physics frames.
+		int elapsed = ElapsedHoldTicks;
+		while ( holdTick < elapsed )
+		{
+			holdTick++;
+			if ( holdTick > 6 ) MoveHoldPair( victim, distance, struggle );
+			victim.AdvanceCaptureAlignment( holdTick );
+		}
+	}
+
+	void MoveHoldPair( RabbitGuard victim, float distance, bool struggle )
+	{
+		// WasGrabbed enters hit reaction one tether update after the attack starts.
+		UpdateHoldVelocity( false, holdTick >= 8 );
+		victim.UpdateHoldVelocity( struggle, holdTick >= 9 );
+		var flat = (victim.WorldPosition - WorldPosition).WithZ( 0f );
+		if ( !flat.IsNearlyZero() )
+		{
+			holdDirection = Vector3.Lerp( flat.Normal, holdDirection, 0.1f * 0.1f );
+			var correction = ((flat - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f );
+			ApplyHoldCorrection( correction );
+			victim.ApplyHoldCorrection( -correction );
+			WorldRotation = victim.WorldRotation = Rotation.LookAt( holdDirection );
+			duckAmount = CrouchAmount = victim.duckAmount = victim.CrouchAmount = (duckAmount + victim.duckAmount) * 0.5f;
+		}
+		MoveGroundDelta( struggleVelocity * HoldStep );
+		victim.MoveGroundDelta( victim.struggleVelocity * HoldStep );
+	}
+
+	void ApplyHoldCorrection( Vector3 correction )
+	{
+		var previous = WorldPosition;
+		MoveGroundDelta( correction );
+		struggleVelocity += (WorldPosition - previous) / HoldStep;
+		// HandleTethering normalizes velocities over two metres per second to one.
+		if ( struggleVelocity.LengthSquared > 80f * 80f ) struggleVelocity = struggleVelocity.Normal * 40f;
+	}
+
+	void UpdateHoldVelocity( bool struggling, bool movementState )
+	{
+		if ( struggling && changeStruggleDirection <= 0f )
 		{
 			struggleDirection = new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), 0f ).Normal;
 			changeStruggleDirection = Random.Shared.Float( 0.1f, 0.3f );
 		}
-		if ( changeStruggleCrouch <= 0f )
+		if ( struggling && changeStruggleCrouch <= 0f )
 		{
 			struggleCrouch = Random.Shared.Next( 2 ) == 0;
 			changeStruggleCrouch = Random.Shared.Float( 0.1f, 0.3f );
 		}
 		float speed = struggleVelocity.Length;
-		AdvanceCrouch( struggleCrouch ? 1f - 0.7f * Math.Min( 1f, speed / 200f ) : 0f );
+		AdvanceCrouchSpring( struggling && struggleCrouch ? 1f - 0.7f * Math.Min( 1f, speed / 200f ) : 0f, HoldStep );
 		float crouch = duckAmount * (boundAnimations.Species == "cat" ? 0.5f : 1f);
-		float maximum = Math.Min( 1.5f * GroundRunSpeed, Math.Max( speed * 0.98f, GroundRunSpeed * 0.4f ) );
+		float maximum = Math.Min( 1.5f * GroundRunSpeed, Math.Max( speed * 0.98f, GroundRunSpeed * (Holding && PrimaryItem.IsValid() ? 1f : 0.4f) ) );
 		bool wolf = boundAnimations.Species == "wolf";
 		if ( wolf ) maximum *= 1.5f;
 		const float acceleration = 35f * 40f;
-		if ( startled <= 0f ) struggleVelocity += struggleDirection * (0.5f * acceleration * (wolf ? 0.8f : 1f) * (1f - 0.5f * crouch) * Time.Delta);
-		struggleVelocity *= startled > 0f ? MathF.Pow( 0.95f, Time.Delta * 120f ) : MathF.Exp( -acceleration * Time.Delta / maximum );
-		MoveGroundDelta( struggleVelocity * Time.Delta );
+		if ( struggling && startled <= 0f ) struggleVelocity += struggleDirection * (0.5f * acceleration * (wolf ? 0.8f : 1f) * (1f - 0.5f * crouch) * HoldStep);
+		// UpdateAnimation plants the feet before ApplyPhysics applies ground friction.
+		if ( movementState ) UpdateGrabFootStance( HoldStep, struggleVelocity );
+		struggleVelocity *= startled > 0f ? MathF.Pow( 0.95f, HoldStep * 120f ) : MathF.Exp( -acceleration * HoldStep / maximum );
 	}
 
 	void FinishCut( RabbitGuard victim )
@@ -187,10 +266,18 @@ public sealed partial class RabbitGuard
 	void ReleaseHold()
 	{
 		var partner = holdPartner;
+		bool fall = Held && !Downed && Health > 0f && CaptureReactionEnded;
+		bool finishCapture = Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
+		bool clearPose = Held || Holding;
 		holdPartner = null;
 		EndPairedMovement();
-		bool fall = Held && !Downed && Health > 0f && sinceGrab > 0.1f;
-		if ( Held || Holding )
+		if ( finishCapture )
+		{
+			// An early release leaves the defender in the original capture hit reaction.
+			reactionDuration = boundAnimations.Clips[Stance].Duration;
+			ReactionPhase = Math.Clamp( (float)SinceGrab / reactionDuration, 0f, 1f );
+		}
+		else if ( clearPose )
 		{
 			Stance = Threat;
 			ReactionPhase = 1f;

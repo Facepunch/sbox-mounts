@@ -50,9 +50,10 @@ public sealed partial class RabbitGuard
 
 	void SolveArms( float dt, Vector3 velocity, float breath, float loose )
 	{
-		// MovementObject advances an ordinary NPC's secondary animation every four 120 Hz ticks.
-		const float tick = 4f / 120f;
-		float stiffness = MathF.Pow( 0.9f + 0.07f * Math.Max( 0f, loose - Math.Max( ThreatAmount, 0f ) ), 4f );
+		int frames = SecondaryPoseFrames;
+		float tick = frames / 120f;
+		float drag = MathF.Pow( 0.92f, frames );
+		float stiffness = MathF.Pow( 0.9f + 0.07f * Math.Max( 0f, loose - Math.Max( ThreatAmount, 0f ) ), frames );
 		if ( secondaryReset > 0f ) armsActive = false;
 		float elapsed = armsActive ? armRemainder + dt : 0f;
 		int steps = (int)(elapsed / tick);
@@ -145,7 +146,6 @@ public sealed partial class RabbitGuard
 			(Vector3 Elbow, Vector3 Wrist) Simulate( Vector3 sh, Vector3 el, Vector3 wr )
 			{
 				var move = velocity * tick;
-				const float drag = 0.92f * 0.92f * 0.92f * 0.92f;
 				var simulatedElbow = arm.Elbow + (arm.Elbow - arm.PreviousElbow - move) * drag + move;
 				var simulatedWrist = arm.Wrist + (arm.Wrist - arm.PreviousWrist - move) * drag + move;
 				simulatedElbow = Vector3.Lerp( el, simulatedElbow, stiffness );

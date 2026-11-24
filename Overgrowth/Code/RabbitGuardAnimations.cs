@@ -20,6 +20,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal (string Name, float Weight)[] PainMask { get; private init; }
 	internal Dictionary<string, RabbitReaction> Reactions { get; private init; }
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
+	internal Dictionary<string, RabbitAttack.Pose[]> GrabStances { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string ThrowMaterialEvent { get; private init; }
 	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null, string stanceOverride = null )
@@ -105,24 +106,26 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var moves = new Dictionary<string, RabbitAttack>();
 		var ledgePhase = graph.FloatParameter( "ledge_phase" );
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
+		var grabPhase = graph.FloatParameter( "grab_phase" );
+		var grabStances = new Dictionary<string, RabbitAttack.Pose[]>();
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		coordinates["speed_coord"] = speed;
-		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false, bool mobile = false )
+		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
 		{
 			if ( file.EndsWith( ".anm" ) )
 			{
 				var name = System.IO.Path.GetFileNameWithoutExtension( file );
-				var key = (mobile ? name + "_mobile" : name) + (mirrored ? "_mirrored" : "");
+				var key = name + (mirrored ? "_mirrored" : "");
 				if ( !clips.TryGetValue( key, out var clip ) )
-					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : mobile ? RabbitClip.CenterMotion.Vertical : RabbitClip.CenterMotion.Full, mirrored: mirrored );
+					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirrored: mirrored );
 				return time is null ? graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } )
 					: graph.TimeControlledClip( clip.Animation, coordinates[time], new() { SampleRootMotion = false } );
 			}
 			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
 			inAir |= group.Element( "InAir" )?.Value == "true";
 			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
-			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored, mobile );
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored );
 			if ( inputs.Length == 1 ) return Input( inputs[0] );
 			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
@@ -304,10 +307,17 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
 				{
 					var file = $"Data/Animations/{name}.xml";
-					return machine.AddState( CombatStance( AnimationGroup( file, mobile: true ), AnimationGroup( file, mirrored: true, mobile: true ) ) );
+					var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
+					var poses = grabStances[name] = group.Element( "Animations" ).Elements( "Animation" )
+						.Select( x => new RabbitAttack.Pose( x.Number( "coord" ).Value,
+							CombatClip( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), true, null, true, RabbitClip.PoseData.ActionIK ) ) )
+						.OrderBy( p => p.Height ).ToArray();
+					var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
+					foreach ( var pose in poses ) blend.Add( pose.Height, CombatPose( pose.Clip, grabPhase ) );
+					return machine.AddState( blend );
 				}
-				var grip = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true );
-				return machine.AddState( CombatStance( graph.Clip( grip.Animation ), graph.Clip( grip.Mirrored.Animation ) ) );
+				var grip = clips[name] = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true, RabbitClip.PoseData.ActionIK );
+				return machine.AddState( CombatPose( grip, grabPhase ) );
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].Element( "flags" ).Attribute( "mobile" ) == "true" );
@@ -467,6 +477,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			WallRig = wallRigs.Count == 1 ? wallRigs.First() : null,
 			PainMask = painMask,
 			KnifeSwings = knifeSwings,
+			GrabStances = grabStances,
 			Reactions = reactions,
 			Species = character.Element( "tags" )?.Attribute( "species" ),
 			ThrowMaterialEvent = throwAttack.Element( "materialevent" )?.Value,

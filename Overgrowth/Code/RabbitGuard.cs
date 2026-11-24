@@ -89,13 +89,18 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( !Downed )
 		{
+			if ( Networking.IsHost ) UpdatePairedGroundSupport();
 			base.OnUpdate();
 			if ( Networking.IsHost && NpcConVars.Enabled && IsAirborne && Health > 0f && Renderer.IsValid() &&
 				boundAnimations is not null && !Downed && !StaticCharacter && !Holding && !Held && LedgeAnimation is null )
 				AdvanceAirborneAction();
 		}
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
-		if ( Networking.IsHost && (Holding || Held || holdPartner is not null) ) UpdateRearHold();
+		if ( Networking.IsHost )
+		{
+			if ( holdPartner is null ) AdvanceCaptureAlignment( ElapsedHoldTicks );
+			if ( Holding || Held || holdPartner is not null ) UpdateRearHold();
+		}
 		if ( restoreAgentPosition && (Downed || Health <= 0f || !(InThrow || Held || Holding)) ) EndPairedMovement();
 		if ( Downed || Health < 1 )
 		{
@@ -187,13 +192,20 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
-		if ( pose != Threat ) ReleaseStanceFeet( Time.Delta );
+		if ( pose != Threat && !PlantGrabFeet ) ReleaseStanceFeet( Time.Delta );
 		UpdateBalanceSupport();
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
 		if ( playing == pose && (OnLedge || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
+		if ( IsGrabClip( pose ) )
+		{
+			var grab = GrabPose( pose );
+			grabPhase = playing == pose ? grabPhase + Time.Delta * grab.Frequency : 0f;
+			grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
+			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
+		}
 		if ( OnLedge ) Renderer.Animation.Parameters.Set( "ledge_phase", LedgePhase );
 		if ( boundAnimations.IdlePoses.TryGetValue( displayPose, out var idle ) )
 		{
