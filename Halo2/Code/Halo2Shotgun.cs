@@ -181,12 +181,15 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		int flying = directions.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
 		System.Collections.Generic.List<ShotEffect> impacts = null;
-		while ( flying > 0 && travelled < Ballistics.Range && PelletSpeed > 0 )
+		// Newly dispatched projectiles travel during the firing tick.
+		for ( bool first = true; flying > 0 && travelled < Ballistics.Range && PelletSpeed > 0; first = false )
 		{
-			await Task.FixedUpdate();
+			if ( !first ) await Task.FixedUpdate();
 			if ( !IsValid ) return;
 			using var sceneScope = Scene.Push();
-			float distance = System.MathF.Min( PelletSpeed * Time.Delta, Ballistics.Range - travelled );
+			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
+			if ( dt <= 0 ) continue;
+			float distance = System.MathF.Min( PelletSpeed * dt, Ballistics.Range - travelled );
 			for ( int i = 0; i < directions.Length; i++ )
 			{
 				var direction = directions[i];
