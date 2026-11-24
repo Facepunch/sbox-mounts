@@ -5,7 +5,7 @@ using Halo2.Blam;
 
 namespace Halo2;
 
-sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbox.Mounting.ResourceLoader<Halo2Mount>
+sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audioGlobals ) : Sandbox.Mounting.ResourceLoader<Halo2Mount>
 {
 	int Header => map.VaToOffset( (int)tag.DataVirtualAddress );
 	int U16( int p ) => (ushort)map.ReadInt32( p );
@@ -13,12 +13,26 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 	int Table( int block, int index, int stride ) => (uint)index < map.ReadInt32( block )
 		? map.VaToOffset( map.ReadInt32( block + 4 ) ) + index * stride : -1;
 
-	readonly record struct Playback( float Distance, float GainDb, float VarianceDb, short LowCents, short HighCents );
+	readonly record struct Playback( float MinDistance, float Distance, float GainDb, float VarianceDb, short LowCents, short HighCents );
 	Playback? playback;
 	Playback ReadPlayback()
 	{
 		int p = Table( gestalt + 8, (short)U16( Header + 6 ), 56 );
-		return p < 0 ? default : new( Float( p + 4 ) * 120, Float( p + 16 ), Float( p + 20 ),
+		if ( p < 0 ) return default;
+		float min = Float( p ), max = Float( p + 4 );
+		int flags = U16( Header );
+		if ( audioGlobals >= 0 && (flags & 0x3000) != 0 )
+		{
+			// MCC stores remastered and classic sound-class references side by side.
+			int reference = audioGlobals + ((flags & 0x800) != 0 ? 4 : 12);
+			if ( map.GetTag( U16( reference ) ) is { PrimaryClass: "lcns" } classes )
+			{
+				int row = Table( map.VaToOffset( (int)classes.DataVirtualAddress ), map.ReadSpan( Header + 2, 1 )[0], 0x78 );
+				if ( row >= 0 && (flags & 0x1000) != 0 ) min = Float( row + 0x18 );
+				if ( row >= 0 && (flags & 0x2000) != 0 ) max = Float( row + 0x1c );
+			}
+		}
+		return new( min * 120, max * 120, Float( p + 16 ), Float( p + 20 ),
 			(short)U16( p + 24 ), (short)U16( p + 26 ) );
 	}
 
@@ -54,6 +68,7 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		var sound = new SoundEvent { Sounds = [], SelectionMode = SoundEvent.SoundSelectionMode.RandomExclusive };
 		var settings = playback ??= ReadPlayback();
 		if ( settings.Distance > 0 ) sound.Distance = settings.Distance;
+		sound.MinDistance = settings.MinDistance;
 		sound.Volume = Volume( settings.GainDb );
 		int firstRange = U16( header + 8 ), rangeCount = map.ReadSpan( header + 10, 1 )[0];
 		int chunkTable = Table( gestalt + 96, 0, 8 ); // English index in the localized chunk tables.

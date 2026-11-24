@@ -95,6 +95,13 @@ public class Halo2Mount : BaseGameMount
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
 		int soundTable = audioTag is null ? -1 : mapFile.VaToOffset( (int)audioTag.DataVirtualAddress );
+		var globals = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0xc8 );
+		int audioGlobals = -1;
+		if ( globals is not null )
+		{
+			int block = mapFile.VaToOffset( (int)globals.DataVirtualAddress ) + 0xc0;
+			if ( mapFile.ReadInt32( block ) == 1 ) audioGlobals = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+		}
 
 		// Model definitions link the render model and physics model by tag datum.
 		var modeToBiped = new Dictionary<int, TagEntry>();
@@ -179,7 +186,7 @@ public class Halo2Mount : BaseGameMount
 					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
 				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:
-					context.Add( ResourceType.GameResource, $"{mapName}/{tagPath}.sound", new Halo2SoundLoader( mapFile, tag, soundTable ) );
+					context.Add( ResourceType.GameResource, $"{mapName}/{tagPath}.sound", new Halo2SoundLoader( mapFile, tag, soundTable, audioGlobals ) );
 					break;
 				// render_model - FourCC "mode" stored LE as "edom"
 				case "edom":
