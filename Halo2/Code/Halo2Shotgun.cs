@@ -237,6 +237,45 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	float offsetForward, forwardVelocity, offsetLeft, leftVelocity;
 	int aimTick, aimTicks;
 	bool aimEnabled;
+	int fadeTick, fadeTicks;
+
+	bool SelectAction( string action, bool once = false )
+	{
+		var graph = Renderer.Animation;
+		if ( action == "ready" && string.Equals( graph.Parameters.GetString( "action" ), action, System.StringComparison.OrdinalIgnoreCase ) )
+			return false;
+		if ( !Animator.SetAction( action, once ) ) return false;
+		graph.Parameters.Set( "action_blend", 0f );
+
+		// The first-person action selector chooses its fade by the incoming action ID.
+		const float normal = 0.267f;
+		float duration = action switch
+		{
+			"ready" or "fire_1" or "reload_exit" => 0,
+			"melee_strike_1" or "melee_strike_2" or "reload_enter" or "reload_empty" or "reload_full" => normal * 0.5f,
+			_ => normal
+		};
+		if ( action is "ready" or "melee_strike_1" or "melee_strike_2" ) fadeTick = fadeTicks = 0;
+		if ( duration > 0 && graph.CapturePose( "previous_action" ) )
+		{
+			float rate = Sandbox.ProjectSettings.Physics.FixedUpdateFrequency;
+			if ( (fadeTicks - fadeTick) / rate <= duration )
+			{
+				int ticks = ((int)(duration * rate + 0.5f)).Clamp( 1, 127 ) - 1;
+				if ( ticks != fadeTicks )
+					fadeTick = fadeTicks == 0 ? 1 : (int)(fadeTick / (float)fadeTicks * (ticks - 1));
+				fadeTicks = ticks;
+			}
+		}
+		SetFadeWeight();
+		return true;
+	}
+
+	void SetFadeWeight()
+	{
+		float t = fadeTicks > 0 ? fadeTick / (float)fadeTicks : 1;
+		Renderer.Animation.Parameters.Set( "previous_action_weight", 1 - t * t * (3 - 2 * t) );
+	}
 
 	void SelectAim( bool enabled, int rate )
 	{
@@ -260,6 +299,11 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( fadeTicks > 0 )
+		{
+			if ( ++fadeTick >= fadeTicks ) fadeTick = fadeTicks = 0;
+			SetFadeWeight();
+		}
 		if ( Weapon?.Holder is not PlayerController player ) return;
 		float dt = Time.Delta;
 		if ( dt <= 0 ) return;
@@ -359,7 +403,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	{
 		var loader = Halo2ModelLoader.ForModel( Renderer.Model );
 		var actions = loader?.GetAnimationContext( "any", "any", "any" )?.Actions;
-		if ( actions is null || !actions.TryGetValue( action, out var reference ) || !Animator.SetAction( action, true ) ) return;
+		if ( actions is null || !actions.TryGetValue( action, out var reference ) || !SelectAction( action, true ) ) return;
 		clip = loader.GetClipInfo( reference );
 		elapsed = 0;
 		nextCue = 0;
@@ -383,7 +427,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 				{
 					clip = null;
 					Renderer.PlaybackRate = 1;
-					Animator.SetAction( "idle" );
+					SelectAction( "idle" );
 				}
 			}
 		}

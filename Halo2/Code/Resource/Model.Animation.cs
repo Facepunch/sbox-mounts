@@ -108,6 +108,7 @@ public partial class Halo2ModelLoader
 		bool hasOffsets = offsets is { IsAdditive: true, FrameCount: >= 9 };
 		var offsetForward = hasOffsets ? builder.FloatParameter( "weapon_offset_forward", -1, 1 ) : null;
 		var offsetLeft = hasOffsets ? builder.FloatParameter( "weapon_offset_left", -1, 1 ) : null;
+		var previousWeight = HasFirstPersonWeapon ? builder.FloatParameter( "previous_action_weight", 0, 1 ) : null;
 		var ikTargets = bindings.Ik.Select( p => p.Marker ).Distinct().Select( marker =>
 			(Marker: marker, Bone: MarkerBone( marker ), Target: builder.TargetParameter( $"ik_{marker}" )) ).ToArray();
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
@@ -182,6 +183,16 @@ public partial class Halo2ModelLoader
 				layers.AddLayer( input, new() { Weight = builder.Switch( builder.IsExternalGraphSlotFilled( input ), 1f, 0f ),
 					BlendMode = slot == "reaction" ? GraphBuilder.LayerBlendMode.Overlay : GraphBuilder.LayerBlendMode.Additive } );
 			}
+			output = layers;
+		}
+		if ( previousWeight is not null )
+		{
+			var layers = builder.Layers( output );
+			layers.AddLayer( builder.ExternalPose( "previous_action" ), new()
+			{
+				Weight = previousWeight,
+				BlendMode = GraphBuilder.LayerBlendMode.NormalizedOverlay
+			} );
 			output = layers;
 		}
 		return builder.Create( output, path );
