@@ -140,8 +140,10 @@ public sealed partial class RabbitGuard
 		foreach ( var hit in Scene.Trace.Sphere( radius, start, end ).IgnoreDynamic().IgnoreKeyframed()
 			.WithoutTags( "trigger" ).UseHitPosition().RunAll() )
 		{
-			float depth = radius - hit.Normal.Dot( end - hit.HitPosition );
-			if ( depth > 0f ) slideContacts.Add( (hit.Normal, depth) );
+			// At initial contact the sweep normal can face against travel even as the sphere leaves the surface.
+			var normal = hit.StartedSolid ? (start - hit.HitPosition).Normal : hit.Normal;
+			float depth = radius - normal.Dot( end - hit.HitPosition );
+			if ( depth > 0f ) slideContacts.Add( (normal, depth) );
 		}
 		return end + SphereSlideOffset();
 	}
