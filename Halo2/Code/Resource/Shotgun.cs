@@ -33,6 +33,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
 	internal const string WeakReticleName = "weak_reticle.vtex";
 	internal const string MuzzleFlashName = "muzzle_flash.vtex";
+	internal const string LongFlashName = "muzzle_flash_long.vtex";
 	internal const string CasingName = "casing.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
@@ -56,9 +57,10 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			}
 			return new Halo2TextureLoader( map, bitmap, spriteFrames: frames );
 		}
-		if ( name == MuzzleFlashName )
+		if ( name is MuzzleFlashName or LongFlashName )
 		{
-			var particle = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\generic\weapon_flares\muzzle_flash_center" );
+			var path = name == LongFlashName ? @"effects\generic\weapon_flares\muzzle_flash_long" : @"effects\generic\weapon_flares\muzzle_flash_center";
+			var particle = map.Tags.FirstOrDefault( t => t.TagPath == path );
 			if ( particle is null ) return null;
 			int header = Address( particle );
 			if ( map.ReadInt32( header + 140 ) == 0 ) return null;
