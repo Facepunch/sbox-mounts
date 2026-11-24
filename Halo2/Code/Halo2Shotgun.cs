@@ -10,6 +10,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float MovementAcceleration { get; set; } = 72;
 	[Property] public float MovementSpeed { get; set; } = 15;
+	[Property] public float MinimumPelletAngle { get; set; } = 2;
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AutoAimRange { get; set; } = 720;
 	[Property] public float MinimumDamage { get; set; }
@@ -163,10 +164,11 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
 		triggerConsumed = true;
 		var ray = AimRay;
-		var spread = CurrentSpread;
+		float maximum = CurrentSpread.x.DegreeToRadian();
+		float minimum = MinimumPelletAngle.DegreeToRadian();
 		var directions = new Vector3[Ballistics.Pellets];
 		for ( int i = 0; i < directions.Length; i++ )
-			directions[i] = ray.Forward.WithAimCone( spread.x, spread.y );
+			directions[i] = Halo2Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
 		TimeSinceShoot = 0;
 		ShootEffects();
 		_ = FlyPellets( ray.Position, directions );
@@ -259,7 +261,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	}
 
 	TimeUntil meleeEnds;
-	uint meleeRandom = (uint)System.Random.Shared.Next();
+	uint randomState = (uint)System.Random.Shared.Next();
 	int swing;
 
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
@@ -273,8 +275,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		var actions = rig?.GetAnimationContext( "any", "any", "any" )?.Actions;
 		if ( actions is null ) return;
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
-		meleeRandom = unchecked( meleeRandom * 1664525u + 1013904223u );
-		var action = (meleeRandom >> 31) == 0 ? "melee_strike_1" : "melee_strike_2";
+		var action = Halo2Spread.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
 		var clip = rig.GetClipInfo( actions[action] );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		float duration = clip.Frames / 30f;

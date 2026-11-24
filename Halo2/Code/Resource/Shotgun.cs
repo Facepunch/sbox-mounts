@@ -167,6 +167,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.UnderwaterDamageFalloffRange = damageFallsOff ? Float( projectile + 0x178 ) * 120 : 0;
 			gun.MinimumDamage = Float( damage + 0x1c );
 			ballistics.Damage = Float( damage + 0x20 );
+			gun.MinimumPelletAngle = Float( barrel + 0x70 ).RadianToDegree();
 			ballistics.SpreadBase = Vector2.One * Float( barrel + 0x74 ).RadianToDegree();
 			ballistics.SpreadGrowth = Vector2.One * (Float( barrel + 0x78 ) - Float( barrel + 0x74 )).RadianToDegree();
 			ballistics.SpreadRecovery = gun.PrimaryDelay;
