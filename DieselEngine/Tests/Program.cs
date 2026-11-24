@@ -66,6 +66,11 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+var maserati = GeometryFor( "units/vehicles/maserati/low/vehicle_maserati_low" );
+if ( !maserati.Graphics.Contains( IdString.Hash( "g_maserati" ) )
+	|| !maserati.Graphics.Contains( IdString.Hash( "g_window" ) )
+	|| maserati.Graphics.Contains( IdString.Hash( "g_maserati_lod" ) ) )
+	throw new Exception( "Maserati must import its near body and glass without the overlapping far LOD." );
 foreach ( var (path, kind) in new[]
 {
 	("units/world/props/office/desk_accessories/desk_phone_02", UnitKind.Prop),

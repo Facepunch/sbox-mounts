@@ -8,7 +8,7 @@ sealed class SequenceVisibility
 
 	public bool Matches( XmlNode obj )
 	{
-		var graphics = (obj.Element( "graphics" )?.Elements( "object" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
+		var graphics = UnitGeometry.GraphicsObjects( obj ).Select( e => e.Attribute( "name" ) ).ToHashSet();
 		var bodies = (obj.Element( "bodies" )?.Elements( "body" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
 		return Objects.Keys.All( graphics.Contains ) && Bodies.Keys.All( bodies.Contains );
 	}

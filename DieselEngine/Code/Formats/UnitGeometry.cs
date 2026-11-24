@@ -7,6 +7,13 @@ sealed class UnitGeometry
 	public HashSet<ulong> Collision { get; } = [];
 	public Dictionary<ulong, string> CollisionTypes { get; } = [];
 
+	public static IEnumerable<XmlNode> GraphicsObjects( XmlNode obj )
+	{
+		var graphics = obj.Element( "graphics" );
+		return (graphics?.Elements( "object" ) ?? []).Concat(
+			(graphics?.Elements( "lod_object" ) ?? []).SelectMany( group => group.Elements( "object" ) ) );
+	}
+
 	public static UnitGeometry Read( XmlNode unit, XmlNode obj, SequenceVisibility variation = null )
 	{
 		var result = new UnitGeometry();
@@ -23,9 +30,16 @@ sealed class UnitGeometry
 		if ( !editorVisible )
 		{
 			foreach ( var element in obj.Element( "graphics" )?.Elements( "object" ) ?? [] )
-				if ( element.Attribute( "name" ) is string name
-					&& (variation?.Objects.GetValueOrDefault( name, element.Attribute( "enabled" ) != "false" ) ?? element.Attribute( "enabled" ) != "false") )
-					result.Graphics.Add( IdString.Hash( name ) );
+				if ( Enabled( element ) ) result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
+
+			foreach ( var group in obj.Element( "graphics" )?.Elements( "lod_object" ) ?? [] )
+			{
+				if ( group.Attribute( "enabled" ) == "false" ) continue;
+				var levels = group.Elements( "object" ).Where( Enabled ).GroupBy( Lod ).OrderBy( level => level.Key );
+				// Import one level, not overlapping near/far meshes. Distance switching is pending.
+				foreach ( var element in levels.FirstOrDefault() ?? Enumerable.Empty<XmlNode>() )
+					result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
+			}
 		}
 
 		foreach ( var body in obj.Element( "bodies" )?.Elements( "body" ) ?? [] )
@@ -44,5 +58,11 @@ sealed class UnitGeometry
 				}
 		}
 		return result;
+
+		bool Enabled( XmlNode element ) => element.Attribute( "name" ) is string name
+			&& (variation?.Objects.GetValueOrDefault( name, element.Attribute( "enabled" ) != "false" ) ?? element.Attribute( "enabled" ) != "false");
 	}
+
+	static int Lod( XmlNode element ) => int.TryParse( element.Attribute( "lod" ),
+		System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int level ) && level >= 0 ? level : 0;
 }
