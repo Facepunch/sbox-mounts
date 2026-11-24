@@ -6,6 +6,7 @@ namespace NS2;
 public sealed class OnosMovement : NavigationLayer
 {
 	bool braking;
+	Vector3? previousPosition;
 
 	public override void Stop()
 	{
@@ -25,8 +26,23 @@ public sealed class OnosMovement : NavigationLayer
 		base.MoveTo( target, stopDistance, speed, faceTarget );
 	}
 
+	protected override void OnDisabled()
+	{
+		previousPosition = null;
+		braking = false;
+		base.OnDisabled();
+	}
+
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost )
+		{
+			if ( Agent.IsValid() && Agent.Enabled && !Npc.IsAirborne && !IsTraversingLink )
+				ConstrainToWorld();
+			else
+				previousPosition = null;
+		}
+
 		if ( braking && Networking.IsHost )
 		{
 			Brake();
@@ -39,6 +55,27 @@ public sealed class OnosMovement : NavigationLayer
 		var direction = Agent.WishVelocity.WithZ( 0 ).Normal;
 		float acceleration = 6.5f * Agent.MaxSpeed;
 		Agent.Acceleration = direction == Vector3.Zero ? acceleration : (direction * acceleration - Agent.Velocity.WithZ( 0 ) * 6).Length;
+	}
+
+	void ConstrainToWorld()
+	{
+		var end = Agent.AgentPosition;
+		var start = previousPosition ?? end;
+		previousPosition = end;
+		if ( (end - start).LengthSquared < 0.0001f ) return;
+
+		// Navigation handles the step below the capsule. Sweep the body above it for walls and doors.
+		var capsule = new Capsule( Vector3.Up * (Agent.Radius + 0.5f * MapLoader.Scale), Vector3.Up * (Agent.Height - Agent.Radius), Agent.Radius );
+		var trace = Scene.Trace.Capsule( capsule ).IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( GameObject.Tags );
+		var hit = trace.FromTo( start, end ).Run();
+		if ( !hit.Hit || hit.StartedSolid ) return;
+
+		var slide = Vector3.VectorPlaneProject( end - hit.EndPosition, hit.Normal );
+		var mover = new CharacterControllerHelper( trace, hit.EndPosition + hit.Normal * 0.1f, slide );
+		mover.TryMove( 1 );
+		previousPosition = mover.Position;
+		Agent.SetAgentPosition( mover.Position );
+		Agent.Velocity = Vector3.VectorPlaneProject( Agent.Velocity, hit.Normal );
 	}
 
 	void Brake()
