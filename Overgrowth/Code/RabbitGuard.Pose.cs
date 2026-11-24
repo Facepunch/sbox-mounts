@@ -18,32 +18,33 @@ public sealed partial class RabbitGuard
 	int[] rigIndices;
 	Model sampledModel;
 	bool hasSampledPose;
-	readonly List<RabbitMovement.PoseInput> gaitInputs = [];
-	(Rotation Unit, Rotation Raw)[] gaitBlend = [];
+	readonly List<RabbitMovement.PoseInput> gaitInputs = [], nextStrideInputs = [];
+	bool[] gaitLegBones;
+	(Transform Unit, Rotation Raw)[] gaitBlend = [];
 
-	// Apply only the rotation difference so AG2 transitions and additive layers survive.
-	Rotation GaitBlendCorrection( int bone, int bones )
+	// AG2 blends unit quaternions. Overgrowth retains the authored magnitudes until retargeting.
+	(Transform Unit, Rotation Raw) SampleMovementBone( List<RabbitMovement.PoseInput> inputs, int bone, int bones )
 	{
 		int count = 0;
-		foreach ( var input in gaitInputs )
+		foreach ( var input in inputs )
 		{
 			if ( input.Clip is { } clip )
 			{
-				var unit = clip.Animation.GetLocalTransform( input.Phase, bone ).Rotation;
-				gaitBlend[count++] = (unit, clip.RawRotation( unit, input.Phase, bone, bones ));
+				var unit = clip.Animation.GetLocalTransform( input.Phase, bone );
+				gaitBlend[count++] = (unit, clip.RawRotation( unit.Rotation, input.Phase, bone, bones ));
 				continue;
 			}
 			var b = gaitBlend[--count];
 			var a = gaitBlend[count - 1];
 			var raw = RabbitClip.MixRotation( a.Raw, b.Raw, input.Weight );
-			gaitBlend[count - 1] = (Rotation.Slerp( a.Unit, b.Unit, input.Weight ), raw);
+			gaitBlend[count - 1] = (global::Transform.Lerp( a.Unit, b.Unit, input.Weight, false ), raw);
 		}
-		return gaitBlend[0].Unit.Inverse * gaitBlend[0].Raw.Normal;
+		return gaitBlend[0];
 	}
 
 	// SyncedAnimationGroup blends clips authored for the same rig before Retarget enforces each
 	// joint length. AG2 blends translations as well as rotations, so restore the joints here.
-	void ReadGaitPose()
+	void ReadGaitPose( RabbitMovement.Controls controls, float nextPhase )
 	{
 		var parameters = Renderer.Animation.Parameters;
 		parameters.TryGetFloat( "stride_phase", out float phase );
@@ -52,17 +53,22 @@ public sealed partial class RabbitGuard
 		parameters.TryGetFloat( "threat_coord", out float threat );
 		parameters.TryGetFloat( "close_coord", out float close );
 		parameters.TryGetBool( "mirrored_pose", out bool mirrored );
-		ReadMovementPose( boundAnimations.Movement, boundAnimations.MovementRig, new( speed, height, threat, close ), phase, mirrored );
+		nextStrideInputs.Clear();
+		boundAnimations.Movement.CollectPoseInputs( controls, nextPhase, MirroredStance, nextStrideInputs );
+		ReadMovementPose( boundAnimations.Movement, boundAnimations.MovementRig, new( speed, height, threat, close ), phase, mirrored, nextStrideInputs );
 	}
 
-	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored )
+	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored, List<RabbitMovement.PoseInput> stride = null )
 	{
 		if ( rig is null ) return;
 		var model = PrepareSampledPose();
-		var basis = Renderer.WorldTransform;
+		// The graph exposes world-space bones from the last animation pass. Navigation can
+		// already have moved the component before the renderer receives its new transform.
+		var basis = Renderer.SceneModel.Transform;
 		gaitInputs.Clear();
 		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
-		if ( gaitBlend.Length < gaitInputs.Count ) gaitBlend = new (Rotation, Rotation)[gaitInputs.Count];
+		int count = System.Math.Max( gaitInputs.Count, stride?.Count ?? 0 );
+		if ( gaitBlend.Length < count ) gaitBlend = new (Transform, Rotation)[count];
 		foreach ( var bone in model.Bones.AllBones )
 		{
 			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
@@ -70,10 +76,20 @@ public sealed partial class RabbitGuard
 			graphPose[bone.Index] = pose;
 			var parent = bone.Parent;
 			var local = parent is null ? pose : graphPose[parent.Index].ToLocal( pose );
-			if ( gaitInputs.Count > 1 ) local.Rotation *= GaitBlendCorrection( rigIndices[bone.Index], model.BoneCount );
+			// Ground IK runs before this frame's graph evaluation. Advance the gait contribution on
+			// the support chains while preserving the graph's transitions and upper-body layers.
+			bool advance = stride is not null && gaitLegBones[bone.Index];
+			if ( advance || gaitInputs.Count > 1 )
+			{
+				int joint = rigIndices[bone.Index];
+				var from = SampleMovementBone( gaitInputs, joint, model.BoneCount );
+				var to = advance ? SampleMovementBone( stride, joint, model.BoneCount ) : from;
+				local.Rotation *= from.Unit.Rotation.Inverse * to.Raw.Normal;
+				if ( parent is null ) local.Position += to.Unit.Position - from.Unit.Position;
+			}
 			if ( parent is not null )
 			{
-				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, mirrored );
+				local.Position = rig.GaitJointPosition( rigIndices[bone.Index], local.Rotation, advance ? MirroredStance : mirrored );
 				local = sampledPose[parent.Index].ToWorld( local );
 			}
 			sampledPose[bone.Index] = local;
@@ -132,7 +148,7 @@ public sealed partial class RabbitGuard
 
 	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null || tailIndices is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null || tailIndices is null || gaitLegBones is null )
 		{
 			poseModel = Renderer.Model;
 			var torso = boundAnimations.TorsoBones;
@@ -150,6 +166,10 @@ public sealed partial class RabbitGuard
 			}
 			int count = poseModel.BoneCount;
 			rigIndices = new int[count];
+			gaitLegBones = new bool[count];
+			foreach ( var leg in boundAnimations.Legs )
+				for ( var bone = poseModel.Bones.GetBone( leg[0].Bone ); bone is not null; bone = bone.Parent )
+					gaitLegBones[bone.Index] = true;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
 			motionSamples = 0;

@@ -5,7 +5,6 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	float stridePhase;
-	RabbitMovement.Sample evaluatedGait;
 	bool walkingSinceLanding;
 	readonly Vector3[] lastSkidPosition = new Vector3[2];
 
@@ -42,10 +41,8 @@ public sealed partial class RabbitGuard
 		float start = continuing ? stridePhase : 0f;
 		float next = continuing ? start + Time.Delta * motion.Evaluate( controls, start, MirroredStance ).Frequency : 0f;
 		var queued = motion.Evaluate( controls, next % 1f, MirroredStance );
-		// IK reads the last evaluated graph pose. The new parameters are consumed after OnUpdate.
-		var pose = continuing && evaluatedGait.Events is not null ? evaluatedGait : queued;
-		evaluatedGait = queued;
-		UpdateBodyLean( pose.Lift );
+		if ( continuing ) ReadGaitPose( controls, next % 1f );
+		UpdateBodyLean( queued.Lift );
 		Renderer.Animation.Parameters.Set( "ground_speed", controls.Speed );
 		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );
 		Renderer.Animation.Parameters.Set( "threat_coord", controls.Threat );
@@ -56,7 +53,7 @@ public sealed partial class RabbitGuard
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( !TryGetAnimatedBone( bone, out var animated ) ) return;
-			var foot = side == 0 ? pose.Left : pose.Right;
+			var foot = side == 0 ? queued.Left : queued.Right;
 			ApplyAuthoredFoot( side, animated, foot );
 		}
 		SolveGroundedLegs();
@@ -76,21 +73,21 @@ public sealed partial class RabbitGuard
 				if ( !HandleFootstep( step.Event, position ) ) continue;
 				var hit = Scene.Trace.Ray( position - surfaceDirection * 12f, position + surfaceDirection * 48f )
 					.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-				if ( hit.Hit ) PlayFootContact( step.Event, hit, step.Event.Contains( "crouch" ) ? 3f : 5f );
+				PlayFootContact( step.Event, position, hit, step.Event.Contains( "crouch" ) ? 3f : 5f );
 			}
 		}
 	}
 
-	void PlayFootContact( string step, in SceneTraceResult hit, float gain )
+	void PlayFootContact( string step, Vector3 position, in SceneTraceResult hit, float gain )
 	{
-		var surface = TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName;
-		EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
+		var surface = hit.Hit ? TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName ?? "default" : null;
+		if ( hit.Hit ) EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
 		if ( boundAnimations.CharacterSpecies == "cat" )
 		{
 			if ( IsAudibleStep( step ) ) (step, gain) = ("leftcrouchwalkstep", 1f);
 			else gain = 0.3f;
 		}
-		PlayMaterialEvent( step, hit.EndPosition, surface, gain );
+		EmitMaterialEvent( step, position, surface, gain );
 	}
 
 	void EmitFootParticle( int side, string action, string surface, in SceneTraceResult hit )

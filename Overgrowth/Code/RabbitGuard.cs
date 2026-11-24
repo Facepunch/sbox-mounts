@@ -190,9 +190,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "stance", playing );
 			return;
 		}
-		if ( pose == Locomotion && playing == Locomotion ) ReadGaitPose();
 		if ( InThrow && playing == pose && Stance == pose ) ReadThrowPose();
-		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		if ( pose == Wall )
 		{
 			if ( playing == Wall ) ReadWallPose();
@@ -205,12 +203,13 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );
 		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
-		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
-		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( pose != Threat && !PlantGrabFeet ) ReleaseStanceFeet( Time.Delta );
 		UpdateBalanceSupport();
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
+		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
+		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
+		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
 		if ( playing == pose && (OnLedge || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );

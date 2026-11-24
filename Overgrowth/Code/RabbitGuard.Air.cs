@@ -262,8 +262,11 @@ public sealed partial class RabbitGuard
 		if ( InspectingBody ) duckVelocity = Math.Max( 6f, duckVelocity );
 	}
 
+	void PlayMaterialEvent( string step, Vector3 point, string surface, float gain ) =>
+		EmitMaterialEvent( step, point, surface ?? "default", gain );
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMaterialEvent( string step, Vector3 point, string surface, float gain )
+	void EmitMaterialEvent( string step, Vector3 point, string surface, float gain )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character )

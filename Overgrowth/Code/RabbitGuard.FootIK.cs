@@ -158,15 +158,15 @@ public sealed partial class RabbitGuard
 				if ( stepProgress >= 1f )
 				{
 					plantedRoot[side] = Goal( side );
-					var contact = foot.Position + (plantedRoot[side] - root).WithZ( 0f );
+					var contact = Renderer.TryGetBoneTransform( boundAnimations.Legs[side][0].Bone, out var toe ) ? toe.Position : foot.Position;
 					var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
 						.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
-					if ( Networking.IsHost && floor.Hit && (!(Held || Holding) || movement.LengthSquared > 40f * 40f) )
+					if ( Networking.IsHost && (!(Held || Holding) || movement.LengthSquared > 40f * 40f) )
 					{
 						var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
 						var step = (side == 0 ? "left" : "right") + gait + "step";
-						if ( HandleFootstep( step, floor.EndPosition ) )
-							PlayFootContact( step, floor, speed < 2f ? 3f : 5f );
+						if ( HandleFootstep( step, contact ) )
+							PlayFootContact( step, contact, floor, speed < 2f ? 3f : 5f );
 					}
 					steppingFoot = NeedsStep( 1 - side ) ? 1 - side : -1;
 					stepProgress = 0;

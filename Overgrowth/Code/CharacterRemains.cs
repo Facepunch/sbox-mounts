@@ -30,6 +30,6 @@ internal sealed class CharacterRemains : Component
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			GetComponent<ModelPhysics>() is { } physics && CharacterLoader.FromModel( physics.Model ) is { } character )
-			mount.PlayMaterialEvent( character, GameObject, surface, step, point, gain );
+			mount.PlayMaterialEvent( character, GameObject, surface ?? "default", step, point, gain );
 	}
 }

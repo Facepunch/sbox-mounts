@@ -27,7 +27,7 @@ public partial class GameMount
 
 	internal void PlayMaterialEvent( CharacterLoader character, GameObject actor, string surface, string step, Vector3 position, float gain )
 	{
-		PlaySurfaceEvent( actor, surface, step, position, gain, character.SoundMod, true );
+		if ( surface is not null ) PlaySurfaceEvent( actor, surface, step, position, gain, character.SoundMod, true );
 		if ( character.Clothing is { Length: > 0 } clothing )
 			PlayEvent( ReadMaterial( clothing ), null, actor, step, position, gain, true );
 	}
