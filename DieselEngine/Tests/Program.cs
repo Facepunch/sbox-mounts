@@ -48,6 +48,12 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+foreach ( string suffix in new[] { "", "_1m", "_10m" } )
+{
+	var splitter = GeometryFor( "units/dev_tools/level_tools/navigation_splitter" + suffix );
+	if ( splitter.Graphics.Count != 0 || splitter.Collision.Count != 0 || splitter.CollisionTypes.Count != 0 )
+		throw new Exception( $"Editor-only navigation splitter{suffix} leaked runtime geometry." );
+}
 if ( architecture.Graphics.Count == 0 || architecture.Collision.Count == 0 )
 	throw new Exception( "Runtime architecture lost graphics or collision." );
 Console.WriteLine( "PASS: invisible blockers, nonphysical light gizmos, and visible runtime architecture." );

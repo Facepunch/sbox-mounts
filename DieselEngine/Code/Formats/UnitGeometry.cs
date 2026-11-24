@@ -10,10 +10,14 @@ sealed class UnitGeometry
 	public static UnitGeometry Read( XmlNode unit, XmlNode obj )
 	{
 		var result = new UnitGeometry();
-		bool editorVisible = (unit.Element( "extensions" )?.Elements( "extension" ) ?? [])
+		var flags = (unit.Element( "extensions" )?.Elements( "extension" ) ?? [])
 			.Where( e => e.Attribute( "name" ) == "unit_data" )
 			.SelectMany( e => e.Elements( "var" ) )
-			.Any( v => v.Attribute( "name" ) == "only_visible_in_editor" && v.Attribute( "value" ) == "true" );
+			.Where( v => v.Attribute( "value" ) == "true" )
+			.Select( v => v.Attribute( "name" ) ).ToHashSet();
+		// Navigation splitters and other editor-only units have no runtime geometry at all.
+		if ( flags.Contains( "only_exists_in_editor" ) ) return result;
+		bool editorVisible = flags.Contains( "only_visible_in_editor" );
 
 		if ( !editorVisible )
 		{
