@@ -6,6 +6,25 @@ namespace Halo2;
 public partial class ShotgunModel : BaseWeaponModel
 {
 	internal Shotgun Weapon { get; set; }
+	// In third person the world model receives reload events, while the local arms graph owns the cues.
+	ShotgunViewModel LocalView => Weapon?.ViewModel?.GetComponent<ShotgunViewModel>();
+
+	public override void OnReloadStart()
+	{
+		base.OnReloadStart();
+		LocalView?.OnReloadStart();
+	}
+
+	public override void OnIncrementalReload() => LocalView?.OnIncrementalReload();
+
+	public override void OnReloadFinish()
+	{
+		base.OnReloadFinish();
+		LocalView?.OnReloadFinish();
+	}
+
+	public override void OnReloadCancel() => LocalView?.OnReloadCancel();
+
 	ParticleEffect casings;
 	TimeUntil? ejectAt;
 	bool viewCasing;
