@@ -31,8 +31,13 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var root = new GameObject( true, System.IO.Path.GetFileNameWithoutExtension( FilePath ) );
 		// SceneLoader serializes the children of this temporary scene. Activate their physics and rendering on the real load.
 		root.Scene.Enabled = false;
-		root.Scene.NavMesh.IsEnabled = true;
-		root.Scene.NavMesh.GenerateLinks = true;
+		var nav = root.Scene.NavMesh;
+		nav.IsEnabled = true;
+		nav.GenerateLinks = true;
+		nav.AgentHeight = 2 * Scale;
+		nav.AgentRadius = 0.6f * Scale;
+		nav.AgentStepSize = 0.9f * Scale;
+		nav.AgentMaxSlope = 45;
 
 		var postProcessing = new GameObject( true, "NS2 post processing" ) { Parent = root };
 		postProcessing.AddComponent<PostProcessVolume>().SceneVolume = new SceneVolume { Type = SceneVolume.VolumeTypes.Infinite };
@@ -61,6 +66,15 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 					continue;
 			}
 
+			if ( entity.Name == "pathing_settings" )
+			{
+				// NS2 overrides the default agent radius whenever a map supplies pathing settings.
+				nav.AgentRadius = 0.75f * Scale;
+				if ( entity.Has( "option_agent_height" ) ) nav.AgentHeight = entity.Get( "option_agent_height" ).AsFloat() * Scale;
+				if ( entity.Has( "option_agent_max_climb" ) ) nav.AgentStepSize = entity.Get( "option_agent_max_climb" ).AsFloat() * Scale;
+				if ( entity.Has( "option_agent_max_slope" ) ) nav.AgentMaxSlope = entity.Get( "option_agent_max_slope" ).AsFloat();
+				continue;
+			}
 			if ( entity.Name == "location" )
 			{
 				var name = entity.Get( "name" ).AsString();

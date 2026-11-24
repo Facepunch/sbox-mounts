@@ -8,6 +8,13 @@ public sealed class OnosMovement : NavigationLayer
 	bool braking;
 	Vector3? previousPosition;
 
+	public override Vector3? ProjectPoint( Vector3 point )
+	{
+		// Spark searches four metres horizontally and one hundred vertically on the large-agent mesh.
+		var extents = new Vector3( 4, 4, 100 ) * MapLoader.Scale;
+		return Scene.NavMesh.GetClosestPoint( new BBox( point - extents, point + extents ) );
+	}
+
 	public override void Stop()
 	{
 		if ( braking ) return;
@@ -24,6 +31,7 @@ public sealed class OnosMovement : NavigationLayer
 	{
 		var previousTarget = MoveTarget;
 		braking = false;
+		target = ProjectPoint( target ) ?? target;
 		base.MoveTo( target, stopDistance, speed, faceTarget );
 		if ( MoveTarget != previousTarget && Agent.IsValid() && Agent.Enabled )
 			SetAcceleration( (target - Agent.AgentPosition).WithZ( 0 ).Normal, speed ?? RunSpeed );
