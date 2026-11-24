@@ -34,9 +34,22 @@ public sealed partial class Onos
 			energy -= 30;
 		}
 
-		if ( repath <= 0 )
+		UpdateCharge();
+	}
+
+	TimeUntil checkCorners;
+
+	void UpdateCharge()
+	{
+		if ( !Movement.MoveTarget.HasValue )
+		{
+			EndCharge();
+			return;
+		}
+		if ( checkCorners <= 0 )
 		{
 			var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
+			checkCorners = 0.2f;
 			var path = GetComponent<NavMeshAgent>().GetPath();
 			float similarity = 1;
 			foreach ( var corner in path.Points )

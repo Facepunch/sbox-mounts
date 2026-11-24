@@ -22,6 +22,9 @@ public sealed partial class Onos : BaseNpc
 	bool attacking, smashing;
 	float energy = 100;
 	TimeUntil repath;
+	GameObject remembered;
+	Vector3 lastSeenPosition;
+	TimeSince sinceSeen;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -90,21 +93,35 @@ public sealed partial class Onos : BaseNpc
 		{
 			attacking = false;
 			SetShield( false );
-			EndCharge();
-			Movement.Stop();
+			if ( remembered.IsValid() && sinceSeen <= 5 )
+			{
+				Pursue( lastSeenPosition );
+			}
+			else
+			{
+				remembered = null;
+				GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+			}
+			UpdateCharge();
 			return;
 		}
+		remembered = enemy;
+		lastSeenPosition = enemy.WorldPosition;
+		sinceSeen = 0;
 		var point = enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition;
 		float distance = EyePosition.Distance( point );
 		attacking = distance < 4 * Scale;
 		smashing = attacking && enemy.Tags.Has( "structure" );
 		ChooseAbility( enemy, distance );
 		if ( distance < Scale ) Movement.Stop();
-		else if ( repath <= 0 )
-		{
-			Movement.MoveTo( enemy.WorldPosition, Scale, faceTarget: enemy );
-			repath = 0.2f;
-		}
+		else Pursue( enemy.WorldPosition, enemy );
+	}
+
+	void Pursue( Vector3 point, GameObject faceTarget = null )
+	{
+		if ( repath > 0 ) return;
+		Movement.MoveTo( point, Scale, faceTarget: faceTarget );
+		repath = 0.2f;
 	}
 
 	protected override void OnUpdate()
