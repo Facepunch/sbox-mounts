@@ -10,6 +10,10 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 	[Sync( SyncFlags.FromHost )] public bool Surrendered { get; private set; }
 	[Sync( SyncFlags.FromHost )] public GameObject Leader { get; private set; }
 	[Sync( SyncFlags.FromHost )] public bool Panicking { get; private set; }
+	[Sync( SyncFlags.FromHost )] public bool Evacuating { get; private set; }
+	PaydayCombatNpc rescuer;
+	TimeUntil rescueReservation;
+	TimeUntil threatScan;
 	GameObject threat;
 	TimeUntil fear;
 	readonly Dictionary<Component, float> avoided = [];
@@ -25,9 +29,20 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 	{
 		if ( Networking.IsHost && Health > 0 )
 		{
+			if ( !Surrendered && threatScan <= 0 )
+			{
+				threatScan = .25f;
+				foreach ( var player in Scene.GetAllComponents<PlayerController>() )
+					if ( PaydayPerception.Armed( player ) && PaydayPerception.CanSee( this, player.GameObject, player.EyePosition ) )
+					{
+						Scare( player.GameObject );
+						break;
+					}
+			}
 			if ( !Surrendered && Senses?.Disturbance is { } sound && sound.Kind is StimulusKinds.Gunshot or StimulusKinds.Death )
 				Scare( sound.Source );
 			Panicking = !Surrendered && fear > 0;
+			if ( !Panicking ) Evacuating = false;
 			if ( !Leader.IsValid() ) Leader = null;
 		}
 		base.OnUpdate();
@@ -68,7 +83,7 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 		}
 		if ( Panicking && threat.IsValid() )
 		{
-			var alarm = Scene.GetAllComponents<PaydayAlarm>().Where( a => a.CanReserve( GameObject ) && CanVisit( a ) )
+			var alarm = Scene.GetAllComponents<PaydayAlarm>().Where( a => !Evacuating && a.CanReserve( GameObject ) && CanVisit( a ) )
 				.OrderBy( a => a.WorldPosition.Distance( WorldPosition ) ).FirstOrDefault();
 			if ( alarm.IsValid() && alarm.WorldPosition.Distance( WorldPosition ) < 800 )
 			{
@@ -96,10 +111,36 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 	public void Command( GameObject source )
 	{
 		if ( !PaydayInteraction.CanUse( this, source ) || Health <= 0 ) return;
-		if ( !Surrendered ) { Surrendered = true; Panicking = false; }
+		if ( !Surrendered ) { Surrendered = true; Panicking = false; Evacuating = false; threat = source.Root; }
 		else Leader = Leader.IsValid() ? null : source.Root;
 		EndCurrentSchedule();
 		Movement?.Stop();
+	}
+
+	internal bool CanRescue( PaydayCombatNpc officer ) => Active && Health > 0 && Surrendered
+		&& !Leader.IsValid() && (!rescuer.IsValid() || rescueReservation <= 0 || rescuer == officer);
+
+	internal bool ReserveRescue( PaydayCombatNpc officer )
+	{
+		if ( !CanRescue( officer ) ) return false;
+		rescuer = officer; rescueReservation = 12; return true;
+	}
+
+	internal void ReleaseRescue( PaydayCombatNpc officer )
+	{
+		if ( rescuer == officer ) rescuer = null;
+	}
+
+	internal bool Rescue( PaydayCombatNpc officer )
+	{
+		if ( !Networking.IsHost || !officer.IsValid() || officer.Scene != Scene || officer.Health <= 0
+			|| !CanRescue( officer ) || rescuer != officer || officer.WorldPosition.Distance( WorldPosition ) > 85
+			|| !PaydayPerception.ClearLine( officer, GameObject, EyePosition ) ) return false;
+		Surrendered = false; Leader = null; Evacuating = true;
+		threat = threat.IsValid() ? threat : officer.GameObject;
+		fear = 20; Panicking = true;
+		EndCurrentSchedule();
+		return true;
 	}
 }
 
