@@ -54,7 +54,7 @@ public sealed partial class Onos : BaseNpc
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
 		agent.Height = height;
-		var movement = root.AddComponent<NavigationLayer>();
+		var movement = root.AddComponent<OnosMovement>();
 		movement.RunSpeed = RunSpeed;
 		var senses = root.AddComponent<SensesLayer>();
 		senses.FieldOfView = 360;

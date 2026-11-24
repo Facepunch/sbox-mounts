@@ -117,7 +117,6 @@ public sealed partial class Onos
 		if ( charging && (energy <= 0 || sinceCharge > 1 && velocity.Length < 4.5f * Scale) ) EndCharge();
 		var speed = (RunSpeed + (charging ? Math.Min( 1, sinceCharge / 0.5f ) * (12.5f * Scale - RunSpeed) : 0)) * (Shielding ? 0.682f : 1);
 		Movement.RunSpeed = Movement.WalkSpeed = speed;
-		GetComponent<NavMeshAgent>().Acceleration = 6.5f * speed;
 		if ( rechargeShield <= 0 && ShieldHealth < 1000 ) ShieldHealth = Math.Min( 1000, ShieldHealth + 80 * Time.Delta );
 		if ( nextHeal <= 0 )
 		{
