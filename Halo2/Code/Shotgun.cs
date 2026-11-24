@@ -1,6 +1,6 @@
 namespace Halo2;
 
-[Alias( "Halo2.Halo2Shotgun" ), Title( "Shotgun" ), Category( "Halo 2" )]
+[Title( "Shotgun" ), Category( "Halo 2" )]
 public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
