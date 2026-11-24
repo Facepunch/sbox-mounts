@@ -42,6 +42,37 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		await Sandbox.Mounting.Directory.Mount( Halo2Mount.MountIdent );
 		if ( IsValid ) BindHudTextures();
 	}
+	// Loose shotguns retain unclaimed shells when the recipient reaches the reserve cap.
+	int? looseReserve;
+	int LooseReserve => looseReserve ?? (Clip1 < 0 ? StartingAmmo : 0);
+
+	protected override bool OnAdding( BaseInventoryComponent inventory )
+	{
+		var held = inventory.Items.OfType<Halo2Shotgun>().FirstOrDefault( w => w != this &&
+			w.GameObject.PrefabInstanceSource == GameObject.PrefabInstanceSource );
+		if ( held is null ) return base.OnAdding( inventory );
+		if ( !held.UsesAmmo || held.Ammo1 >= held.MaxReserveAmmo ) return false;
+
+		int loaded = Clip1 < 0 ? ClipMaxSize : Clip1;
+		int reserve = LooseReserve;
+		int taken = inventory.GiveAmmo( held.PrimaryAmmoType, reserve + loaded );
+		if ( taken > 0 )
+		{
+			int fromReserve = System.Math.Min( reserve, taken );
+			looseReserve = reserve - fromReserve;
+			Clip1 = loaded - (taken - fromReserve);
+		}
+		return false;
+	}
+
+	protected override void OnAdded( BaseInventoryComponent inventory )
+	{
+		int reserve = LooseReserve;
+		StartingAmmo = 0;
+		base.OnAdded( inventory );
+		looseReserve = reserve - (UsesAmmo ? inventory.GiveAmmo( PrimaryAmmoType, reserve ) : 0);
+	}
+
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
