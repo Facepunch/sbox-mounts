@@ -7,6 +7,8 @@ sealed class UnitGeometry
 	public HashSet<ulong> Collision { get; } = [];
 	public Dictionary<ulong, string> CollisionTypes { get; } = [];
 	public Dictionary<ulong, float> CollisionMasses { get; } = [];
+	public Dictionary<ulong, string> CollisionMaterials { get; } = [];
+	public Dictionary<ulong, float> CollisionShells { get; } = [];
 
 	public static IEnumerable<XmlNode> GraphicsObjects( XmlNode obj )
 	{
@@ -62,6 +64,12 @@ sealed class UnitGeometry
 					if ( float.TryParse( element.Attribute( "mass" ), System.Globalization.NumberStyles.Float,
 						System.Globalization.CultureInfo.InvariantCulture, out float mass ) && float.IsFinite( mass ) && mass > 0 )
 						result.CollisionMasses[hash] = mass;
+					result.CollisionMaterials.Remove( hash );
+					if ( element.Attribute( "material" ) is { Length: > 0 } material )
+						result.CollisionMaterials[hash] = material;
+					result.CollisionShells.Remove( hash );
+					if ( PhysicsMaterials.Positive( element.Attribute( "shell" ) ) is float shell )
+						result.CollisionShells[hash] = shell;
 				}
 		}
 		return result;

@@ -85,11 +85,30 @@ var massGeometry = UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), XmlNode.Parse(
 	""" ) );
 if ( massGeometry.CollisionMasses.Count != 1 ) throw new Exception( "Invalid/disabled collision masses were retained." );
 var massShapes = new Dictionary<ulong, Vector3[]> { [IdString.Hash( "a" )] = [Vector3.Zero, Vector3.One] };
-if ( PropMass.Calculate( massShapes, massGeometry.CollisionMasses ) != 0.05f )
+if ( PropMass.Calculate( massShapes, massGeometry, new Dictionary<string, float>() ) != 0.05f )
 	throw new Exception( "Explicit mass was clamped to the density-estimate minimum." );
 massShapes[IdString.Hash( "b" )] = [Vector3.Zero, Vector3.One];
-if ( MathF.Abs( PropMass.Calculate( massShapes, massGeometry.CollisionMasses ) - 0.15f ) > 0.00001f )
+if ( MathF.Abs( PropMass.Calculate( massShapes, massGeometry, new Dictionary<string, float>() ) - 0.15f ) > 0.00001f )
 	throw new Exception( "Partial authored mass failed to estimate only the missing collider." );
+var physicsDensities = PhysicsMaterials.Read( db.Find( "physics_settings", "settings/physics_settings" ) );
+if ( physicsDensities.GetValueOrDefault( "wood" ) != 500f || physicsDensities.GetValueOrDefault( "plastic" ) != 955f
+	|| physicsDensities.GetValueOrDefault( "steel" ) != 7480f )
+	throw new Exception( "Shipped physics material densities were not read in kg/m³." );
+var invalidDensities = PhysicsMaterials.Read( Encoding.UTF8.GetBytes(
+	"<physics_settings><material name='a' density='NaN'/><material name='b' density='-5'/><material name='c' density='Infinity'/></physics_settings>" ) );
+if ( invalidDensities.Count != 0 ) throw new Exception( "Invalid density accepted." );
+var cubeShapes = new Dictionary<ulong, Vector3[]> { [IdString.Hash( "cube" )] = [Vector3.Zero, Vector3.One / 0.0254f] };
+float CubeMass( string attributes ) => PropMass.Calculate( cubeShapes,
+	UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), XmlNode.Parse(
+		$"<dynamic_object><bodies><body><object name='cube' collision_type='box' {attributes}/></body></bodies></dynamic_object>" ) ),
+	physicsDensities );
+if ( MathF.Abs( CubeMass( "material='wood'" ) - 500f ) > 0.01f
+	|| MathF.Abs( CubeMass( "material='plastic'" ) - 955f ) > 0.01f
+	|| MathF.Abs( CubeMass( "material='wood' shell='1'" ) - 29.404f ) > 0.01f
+	|| MathF.Abs( CubeMass( "material='wood' shell='100'" ) - 500f ) > 0.01f
+	|| CubeMass( "material='steel' shell='1' mass='0.05'" ) != 0.05f
+	|| MathF.Abs( CubeMass( "material='unknown' shell='NaN'" ) - 500f ) > 0.01f )
+	throw new Exception( "Density/shell estimate, unit conversion, explicit override or unknown-material fallback failed." );
 var maserati = GeometryFor( "units/vehicles/maserati/low/vehicle_maserati_low" );
 if ( !maserati.Graphics.Contains( IdString.Hash( "g_maserati" ) )
 	|| !maserati.Graphics.Contains( IdString.Hash( "g_window" ) )

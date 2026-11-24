@@ -25,7 +25,10 @@ try
 		"units/world/props/apartment/kitchen_counter/food_can_03",
 		"units/world/props/apartment/kitchen_counter/food_can_04",
 		"units/world/props/vase_chinese/vase_chinese_lid",
-		"units/world/props/yacht/flowers/lxy_prop_flower_vase"
+		"units/world/props/yacht/flowers/lxy_prop_flower_vase",
+		"units/world/props/mansion/man_prop_int_lamptable/man_prop_int_lamp_table",
+		"units/world/props/diamond_heist/apartment/apartment_livingroom/tv_speaker/tv_speaker",
+		"units/world/props/diamond_heist/apartment/apartment_livingroom/pictureframe/pictureframe2"
 	} )
 	{
 		string path = "mount://payday/" + unit + ".unit.vmdl";

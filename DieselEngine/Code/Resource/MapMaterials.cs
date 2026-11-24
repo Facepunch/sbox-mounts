@@ -9,6 +9,21 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 	readonly HashSet<string> normalRA = [];
 	readonly Dictionary<string, float> intensities = LightIntensities.Load( database );
 	public int TextureCount => textures.Values.Count( t => t is not null );
+	Dictionary<string, float> physicsDensities;
+	public IReadOnlyDictionary<string, float> PhysicsDensities
+	{
+		get
+		{
+			if ( physicsDensities is not null ) return physicsDensities;
+			try { physicsDensities = PhysicsMaterials.Read( database.Find( "physics_settings", "settings/physics_settings" ) ); }
+			catch ( Exception e )
+			{
+				Log.Warning( $"PAYDAY physics materials: {e.Message}" );
+				physicsDensities = [];
+			}
+			return physicsDensities;
+		}
+	}
 
 	public string SelectConfig( string original, string variation )
 	{
