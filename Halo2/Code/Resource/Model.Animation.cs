@@ -22,6 +22,10 @@ public partial class Halo2ModelLoader
 				&& (uint)index < mapFile.ReadInt32( GraphHeader + 44 ):
 				type = ResourceType.AnimationClip;
 				return new ClipLoader( index );
+			case ".anim" when parts is ["clips", _, _] && short.TryParse( parts[1], out var slot ) && slot >= 0
+				&& int.TryParse( leaf, out var inheritedIndex ) && (uint)inheritedIndex <= short.MaxValue:
+				type = ResourceType.AnimationClip;
+				return new ClipLoader( inheritedIndex, slot );
 			case ".ag" when parts.Length == 3:
 				parts[2] = leaf;
 				type = ResourceType.AnimationGraph;
@@ -33,17 +37,22 @@ public partial class Halo2ModelLoader
 
 	int GraphHeader => mapFile.VaToOffset( (int)graph.DataVirtualAddress );
 
-	int AnimationTable => mapFile.VaToOffset( mapFile.ReadInt32( GraphHeader + 48 ) );
+	sealed record AnimationSource( int Header, int[] Mapping, float TranslationScale, bool ScaleRootOnly );
+	readonly Dictionary<int, AnimationSource> sources = new();
+	int Entry( int reference ) => mapFile.VaToOffset( mapFile.ReadInt32( sources[(short)reference].Header + 48 ) ) + (reference >> 16) * 96;
 
-	sealed class ClipLoader( int index ) : ResourceLoader<Halo2Mount>
+	bool HasClip( int reference ) => sources.TryGetValue( (short)reference, out var source )
+		&& (uint)(reference >> 16) < mapFile.ReadInt32( source.Header + 44 );
+
+	sealed class ClipLoader( int index, short slot = -1 ) : ResourceLoader<Halo2Mount>
 	{
 		protected override object Load()
 		{
 			var model = (Halo2ModelLoader)Parent;
 			if ( model.skeleton is null ) model.BuildSkeleton( model.GraphHeader );
 			if ( model.skeleton is null ) return null;
-			int table = model.AnimationTable;
-			return model.GetClip( table + index * 96 );
+			var reference = (index << 16) | (ushort)slot;
+			return model.HasClip( reference ) ? model.GetClip( reference ) : null;
 		}
 	}
 
@@ -70,6 +79,8 @@ public partial class Halo2ModelLoader
 	Graph BuildGraph( string path, string[] context )
 	{
 		int header = GraphHeader;
+		if ( skeleton is null ) BuildSkeleton( header );
+		if ( skeleton is null ) return null;
 		var actions = new Dictionary<string, int>();
 		var overlays = new Dictionary<string, int>();
 		bool found = false;
@@ -83,8 +94,6 @@ public partial class Halo2ModelLoader
 		}
 		if ( !found || (actions.Count == 0 && overlays.Count == 0) ) return null;
 
-		if ( skeleton is null ) BuildSkeleton( header );
-		if ( skeleton is null ) return null;
 		var builder = Graph.Builder.WithSkeleton( skeleton );
 		var baseClips = actions.Where( a => GetClip( a.Value ) is not null ).ToArray();
 		var overlayClips = overlays.Where( o => GetClip( o.Value ) is not null ).ToArray();
@@ -109,7 +118,7 @@ public partial class Halo2ModelLoader
 				layers.AddLayer( pose, new()
 				{
 					Weight = builder.Switch( enabled, 1f, 0f ),
-					BlendMode = Kind( entry ) == 1 ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
+					BlendMode = Kind( Entry( entry ) ) == 1 ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
 					BoneMask = clipMasks.TryGetValue( entry, out var mask ) ? builder.BoneMask( mask ) : null
 				} );
 			}
@@ -123,12 +132,11 @@ public partial class Halo2ModelLoader
 
 		void ReadBindings( int block, Dictionary<string, int> destination )
 		{
-			int count = mapFile.ReadInt32( header + 44 ), table = mapFile.VaToOffset( mapFile.ReadInt32( header + 48 ) );
 			foreach ( int row in Rows( block, 8 ) )
 			{
-				int reference = mapFile.ReadInt32( row + 4 ), index = reference >> 16;
-				if ( (short)reference == -1 && (uint)index < count && Label( row ) is { Length: > 0 } label )
-					destination.TryAdd( label, table + index * 96 );
+				int reference = mapFile.ReadInt32( row + 4 );
+				if ( HasClip( reference ) && Label( row ) is { Length: > 0 } label )
+					destination.TryAdd( label, reference );
 			}
 		}
 	}
@@ -168,12 +176,35 @@ public partial class Halo2ModelLoader
 			builder.AddBone( names[i], bindPose[i], parent >= 0 ? names[parent] : null );
 		}
 
+		sources[-1] = new( header, nodeMap, 1, false );
+		int slot = 0;
+		foreach ( int parent in Rows( header + 76, 32 ) )
+		{
+			int index = slot++;
+			var inherited = mapFile.GetTag( mapFile.ReadInt32( parent + 4 ) & 0xffff );
+			if ( inherited is not { PrimaryClass: "damj", DataSize: >= 172 } ) continue;
+			int parentHeader = mapFile.VaToOffset( (int)inherited.DataVirtualAddress );
+			int[] remap = Enumerable.Repeat( -1, mapFile.ReadInt32( parentHeader + 12 ) ).ToArray();
+			int flags = mapFile.VaToOffset( mapFile.ReadInt32( parent + 20 ) );
+			int flagsCount = mapFile.ReadInt32( parent + 16 );
+			int n = 0;
+			foreach ( int row in Rows( parent + 8, 2 ).Take( remap.Length ) )
+			{
+				int local = (short)mapFile.ReadInt32( row );
+				if ( (uint)local < nodeMap.Length && n / 32 < flagsCount && (mapFile.ReadInt32( flags + n / 32 * 4 ) & (1 << (n % 32))) != 0 )
+					remap[n] = nodeMap[local];
+				n++;
+			}
+			sources[index] = new( parentHeader, remap, Float( parent + 24 ), (mapFile.ReadInt32( parent + 28 ) & 1) != 0 );
+		}
+
 		var masks = new Dictionary<string, string>();
-		foreach ( int entry in Rows( header + 44, 96 ) )
+		foreach ( var (sourceIndex, source) in sources )
+		foreach ( var (index, entry) in Rows( source.Header + 44, 96 ).Index() )
 		{
 			if ( Kind( entry ) != 2 ) continue;
 			var data = mapFile.ReadSpan( entry, 96 );
-			if ( !Blam.AnimationGraph.CanDecode( mapFile, data, nodeMap.Length ) ) continue;
+			if ( !Blam.AnimationGraph.CanDecode( mapFile, data, source.Mapping.Length ) ) continue;
 			int start = mapFile.VaToOffset( mapFile.ReadInt32( entry + 44 ) ) + (ushort)mapFile.ReadInt32( entry + 54 )
 				+ mapFile.ReadInt32( entry + 56 ) + mapFile.ReadInt32( entry + 60 );
 			var tracked = new bool[names.Length];
@@ -184,8 +215,8 @@ public partial class Halo2ModelLoader
 				for ( int n = 0; n < data[19] && n / 8 < stride; n++ )
 				{
 					int i = n / 8;
-					if ( nodeMap[n] >= 0 && ((flags[i] | flags[i + stride] | flags[i + 2 * stride]) & (1 << (n % 8))) != 0 )
-						tracked[nodeMap[n]] = true;
+					if ( source.Mapping[n] >= 0 && ((flags[i] | flags[i + stride] | flags[i + 2 * stride]) & (1 << (n % 8))) != 0 )
+						tracked[source.Mapping[n]] = true;
 				}
 				start += size;
 			}
@@ -197,21 +228,32 @@ public partial class Halo2ModelLoader
 				builder.AddBoneMask( mask, names.Select( (name, i) => (name, weight: tracked[i] ? 1f : 0f) )
 					.ToDictionary( b => b.name, b => b.weight ) );
 			}
-			clipMasks[entry] = mask;
+			clipMasks[(index << 16) | (ushort)sourceIndex] = mask;
 		}
 		skeleton = builder.Create( $"{Path}/skeleton.skel" );
 	}
 
-	Clip GetClip( int address )
+	Clip GetClip( int reference )
 	{
-		if ( graphClips.TryGetValue( address, out var clip ) ) return clip;
+		if ( graphClips.TryGetValue( reference, out var clip ) ) return clip;
+		int address = Entry( reference );
+		var source = sources[(short)reference];
 		var entry = mapFile.ReadSpan( address, 96 );
-		if ( !Blam.AnimationGraph.CanDecode( mapFile, entry, nodeMap.Length ) ) return null;
+		if ( !Blam.AnimationGraph.CanDecode( mapFile, entry, source.Mapping.Length ) ) return null;
 		bool additive = Kind( address ) == 1;
 		int frames = (ushort)mapFile.ReadInt32( address + 20 ), bones = bindPose.Length;
 		var poses = new Transform[checked(frames * bones)];
 		var defaults = additive ? Enumerable.Repeat( Transform.Zero, bones ).ToArray() : bindPose;
-		Blam.AnimationGraph.DecodeFrames( mapFile, entry, nodeMap, defaults, new Transform[bones], poses, ScaleFactor );
+		Blam.AnimationGraph.DecodeFrames( mapFile, entry, source.Mapping, defaults, new Transform[bones], poses, ScaleFactor );
+		if ( source.TranslationScale != 1 )
+		{
+			for ( int i = 0; i < poses.Length; i++ )
+			{
+				int bone = i % bones;
+				if ( source.ScaleRootOnly && bone != source.Mapping[0] ) continue;
+				poses[i].Position *= source.TranslationScale;
+			}
+		}
 		if ( additive )
 			for ( int i = 0; i < poses.Length; i++ ) poses[i].Scale -= Vector3.One;
 
@@ -229,7 +271,7 @@ public partial class Halo2ModelLoader
 			builder.AddFrame( poses.AsSpan( Math.Min( i, frames - 1 ) * bones, bones ), motion );
 			if ( stride == 0 || i >= frames ) continue;
 			int p = movement + i * stride;
-			var translation = new Vector3( Float( p ), Float( p + 4 ), movementType == 3 ? Float( p + 8 ) : 0 ) * ScaleFactor;
+			var translation = new Vector3( Float( p ), Float( p + 4 ), movementType == 3 ? Float( p + 8 ) : 0 ) * (ScaleFactor * source.TranslationScale);
 			float yaw = movementType == 1 ? 0 : Float( p + stride - 4 ).RadianToDegree();
 			motion = motion.ToWorld( new Transform( translation, Rotation.FromYaw( yaw ) ) );
 		}
@@ -237,6 +279,6 @@ public partial class Halo2ModelLoader
 		// from the last pose to the next cycle. AG2 samples both endpoints.
 		if ( movementSize > 0 && frames > 1 )
 			builder.AddFrame( poses.AsSpan( bones * Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 ), bones ), motion );
-		return graphClips[address] = builder.Create( $"{Path}/clip_{address}.anim" );
+		return graphClips[reference] = builder.Create( $"{Path}/clip_{reference}.anim" );
 	}
 }
