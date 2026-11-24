@@ -197,9 +197,6 @@ public sealed partial class RabbitGuard
 		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;
 	}
 
-	bool HasSight( GameObject other ) => !Scene.Trace.Ray( EyePosition, TargetPosition( other, eyes: true ) )
-		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( other ).WithoutTags( "trigger" ).Run().Hit;
-
 	bool CanSeeCharacter( GameObject target, RabbitGuard fighter, CharacterRemains remains = null )
 	{
 		if ( Omniscient ) return true;

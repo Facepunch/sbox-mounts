@@ -60,7 +60,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( !CanAttack( target ) ) return false;
 		float reach = StrikeReach( target.GetComponent<RabbitGuard>() );
-		return offset.LengthSquared < reach * reach && HasSight( target );
+		return offset.LengthSquared < reach * reach;
 	}
 	bool AnimationCanCancel => Renderer.Animation.Debug.TryGetFloatChannel( "status", "cancel", out var value ) && value >= 1f - 0.000001f;
 
@@ -266,14 +266,14 @@ public sealed partial class RabbitGuard
 			float separation = center.DistanceSquared( CharacterCenter( candidate ) );
 			if ( separation > range * range )
 			{
-				if ( guard is { OnLedge: true } && separation <= ledgeRange * ledgeRange && separation < nearestLedge && HasSight( candidate ) )
+				if ( guard is { OnLedge: true } && separation <= ledgeRange * ledgeRange && separation < nearestLedge )
 				{
 					ledge = candidate;
 					nearestLedge = separation;
 				}
 				return;
 			}
-			if ( priority > bestPriority || (priority == bestPriority && separation >= nearest) || !HasSight( candidate ) ) return;
+			if ( priority > bestPriority || (priority == bestPriority && separation >= nearest) ) return;
 			best = candidate;
 			nearest = separation;
 			bestPriority = priority;
