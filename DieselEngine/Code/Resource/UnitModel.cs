@@ -10,6 +10,17 @@ static class UnitModel
 	}
 	public static XmlNode Xml( byte[] bytes ) => XmlNode.Parse( Encoding.UTF8.GetString( bytes ).TrimEnd( '\0' ) );
 
+	public static bool CanBrowse( BundleDatabase database, string unit )
+	{
+		var unitBytes = database.Find( "unit", unit );
+		if ( unitBytes is null ) return false;
+		var definition = Xml( unitBytes );
+		string objectPath = definition.Element( "object" )?.Attribute( "file" );
+		if ( string.IsNullOrEmpty( objectPath ) || !database.Entries.ContainsKey( (IdString.Hash( "model" ), IdString.Hash( objectPath )) ) ) return false;
+		var objectBytes = database.Find( "object", objectPath );
+		return objectBytes is not null && UnitGeometry.Read( definition, Xml( objectBytes ) ).Graphics.Count > 0;
+	}
+
 	public static Result Build( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 		=> BuildVariant( database, materials, unit, resourceName, null );
 

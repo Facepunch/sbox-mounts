@@ -9,6 +9,8 @@ public sealed class PaydayMount : BaseGameMount
 	public override long? SteamAppId => 24240;
 	BaseFileSystem fileSystem;
 	internal BundleDatabase Database { get; private set; }
+	MapMaterials browserMaterials;
+	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
 	protected override void Initialize( InitializeContext context )
 	{
@@ -25,10 +27,11 @@ public sealed class PaydayMount : BaseGameMount
 		ulong worldType = IdString.Hash( "world" );
 		var worlds = Database.Entries.Values.Where( e => e.Type == worldType ).ToDictionary( e => e.Path );
 		ulong textureType = IdString.Hash( "texture" );
+		ulong unitType = IdString.Hash( "unit" );
 		// The installed game supplies its own path dictionary. No external hashlist or extracted assets required.
 		var lookup = Database.Find( "idstring_lookup", "idstring_lookup" );
 		if ( lookup is null ) throw new InvalidDataException( "PAYDAY idstring lookup is missing." );
-		int maps = 0, textures = 0;
+		int maps = 0, textures = 0, models = 0;
 		foreach ( var name in Encoding.Latin1.GetString( lookup ).Split( '\0' ).Distinct() )
 		{
 			ulong hash = IdString.Hash( name );
@@ -37,6 +40,18 @@ public sealed class PaydayMount : BaseGameMount
 				context.Add( ResourceType.Texture, $"{name}.texture", new DieselTextureLoader( name ) );
 				textures++;
 			}
+			if ( Database.Entries.ContainsKey( (unitType, hash) ) )
+			{
+				try
+				{
+					if ( UnitModel.CanBrowse( Database, name ) )
+					{
+						context.Add( ResourceType.Model, $"{name}.unit", new DieselModelLoader( name ) );
+						models++;
+					}
+				}
+				catch ( Exception e ) { Log.Warning( $"PAYDAY model index {name}: {e.Message}" ); }
+			}
 			if ( name.StartsWith( "levels/", StringComparison.Ordinal ) && worlds.ContainsKey( hash ) )
 			{
 				context.Add( ResourceType.Scene, $"{name}.world", new MapLoader( name ) );
@@ -44,10 +59,14 @@ public sealed class PaydayMount : BaseGameMount
 			}
 		}
 		if ( maps == 0 ) throw new InvalidDataException( "No PAYDAY worlds were found in the installed bundles." );
-		Log.Info( $"PAYDAY: indexed {Database.Entries.Count} resources, {maps} worlds and {textures} textures." );
+		Log.Info( $"PAYDAY: indexed {Database.Entries.Count} resources, {maps} worlds, {textures} textures and {models} models." );
 		IsMounted = true;
 		return Task.CompletedTask;
 	}
 
-	protected override void Shutdown() => Database = null;
+	protected override void Shutdown()
+	{
+		browserMaterials = null;
+		Database = null;
+	}
 }
