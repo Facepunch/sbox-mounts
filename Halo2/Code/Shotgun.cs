@@ -149,14 +149,18 @@ public sealed class Shotgun : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( !shot.Hit || Application.IsDedicatedServer ) return;
+		if ( shot.Hit ) PelletImpact( shot, GetShotDirection( shot ) );
+	}
+
+	static void PelletImpact( in ShotEffect shot, Vector3 direction )
+	{
+		if ( Application.IsDedicatedServer ) return;
 		var loader = ShotgunLoader.Mounted;
 		if ( loader?.TryPlayPelletImpact( shot.Surface, shot.HitPosition ) != true )
 		{
-			base.OnShootImpact( shot );
+			ImpactEffect( shot, direction );
 			return;
 		}
-		var direction = GetShotDirection( shot );
 		if ( !loader.PlacePelletImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
@@ -168,23 +172,35 @@ public sealed class Shotgun : Weapon
 		public float Travelled;
 	}
 
-	bool InWater( Vector3 point ) => Scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers().Run().StartedSolid;
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void DetachedImpacts( ShotEffect[] impacts )
+	{
+		foreach ( var shot in impacts )
+			PelletImpact( shot, (shot.HitPosition - shot.Origin.Value).Normal );
+	}
 
 	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker )
 	{
+		var scene = Scene;
+		bool InWater( Vector3 point ) => scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers().Run().StartedSolid;
+		var ballistics = Ballistics;
+		float minDamage = MinimumDamage, dryRange = DamageFalloffRange, wetRange = UnderwaterDamageFalloffRange;
+		float airGravity = AirGravityScale, waterGravity = WaterGravityScale;
+		var tags = AttackDamageTags;
+		if ( PelletSpeed <= 0 || ballistics.Range <= 0 ) return;
 		bool originWet = InWater( origin );
 		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
-		var flight = TaskSource.Create( Scene.EnabledToken );
+		var flight = TaskSource.Create( scene.EnabledToken );
 		System.Collections.Generic.List<ShotEffect> impacts = null;
 		// Newly dispatched projectiles travel during the firing tick.
-		for ( bool first = true; flying > 0 && Ballistics.Range > 0 && PelletSpeed > 0; first = false )
+		for ( bool first = true; flying > 0; first = false )
 		{
 			if ( !first ) await flight.FixedUpdate();
-			if ( !IsValid ) return;
-			using var sceneScope = Scene.Push();
-			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
+			if ( !scene.IsValid() || (!IsValid && !Networking.IsHost) ) return;
+			using var sceneScope = scene.Push();
+			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? scene.FixedDelta : Time.Delta;
 			if ( dt <= 0 ) continue;
 			for ( int i = 0; i < pellets.Length; i++ )
 			{
@@ -192,17 +208,17 @@ public sealed class Shotgun : Weapon
 				if ( pellet.Velocity == Vector3.Zero ) continue;
 				var start = origin + pellet.Offset;
 				bool wet = first ? originWet : InWater( start );
-				float fall = (wet ? WaterGravityScale : AirGravityScale) * (4.1712594f * 120) * dt;
-				float step = dt * System.MathF.Min( 1, (Ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
+				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
+				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
-				var hit = Scene.Trace.Ray( start, start + displacement ).IgnoreGameObjectHierarchy( shooter )
+				var hit = scene.Trace.Ray( start, start + displacement ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
 				if ( !hit.Hit )
 				{
 					pellet.Offset += displacement;
 					pellet.Velocity.z -= fall;
 					pellet.Travelled += displacement.Length;
-					if ( step < dt || pellet.Travelled >= Ballistics.Range )
+					if ( step < dt || pellet.Travelled >= ballistics.Range )
 					{
 						pellet.Velocity = Vector3.Zero;
 						flying--;
@@ -211,24 +227,25 @@ public sealed class Shotgun : Weapon
 					continue;
 				}
 				// Halo switches the range at water crossings and retains total flight distance.
-				var range = DamageFalloffRange;
-				if ( range != UnderwaterDamageFalloffRange )
+				var range = dryRange;
+				if ( range != wetRange )
 				{
 					var point = hit.HitPosition - hit.Direction * 0.01f;
 					if ( InWater( point ) )
-						range = UnderwaterDamageFalloffRange;
+						range = wetRange;
 				}
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
-				float damage = (1 - fraction) * MinimumDamage + fraction * Ballistics.Damage;
+				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
-				ApplyDelayedHit( hit, damage, Ballistics.Force, attacker );
+				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
 			}
 			if ( impacts is { Count: > 0 } )
 			{
-				ShootEffects( impacts.ToArray() );
+				if ( IsValid ) ShootEffects( impacts.ToArray() );
+				else DetachedImpacts( impacts.ToArray() );
 				impacts.Clear();
 			}
 
@@ -352,17 +369,18 @@ public sealed class Shotgun : Weapon
 		ApplyDelayedHit( hit, damage, MeleeForce, attacker, new TagSet { "melee" }, false );
 	}
 
-	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags = null, bool hitboxTags = true )
+	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
 	{
-		if ( !Networking.IsHost || attacker == Attacker )
+		if ( IsValid && (!Networking.IsHost || attacker == Attacker) )
 		{
 			ShootBullet( hit, damage, force, tags, hitboxTags );
 			return;
 		}
 
+		var source = IsValid ? GameObject : null;
 		force = GetHitForce( hit.GameObject, force );
 		ShootBullet( hit, damage, float.IsFinite( force ) ? System.MathF.Max( 0, force ) : 0,
-			attacker.IsValid() ? attacker : GameObject, GameObject, tags ?? new TagSet( AttackDamageTags?.TryGetAll() ?? [] ), hitboxTags );
+			attacker.IsValid() ? attacker : source, source, tags, hitboxTags );
 	}
 
 	internal static Vector3 Perpendicular( Vector3 forward )
