@@ -81,6 +81,9 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			float acceleration = Float( Header + 0x2e8 ), speed = Float( Header + 0x2ec );
 			if ( acceleration != 0 ) gun.TurnAcceleration = acceleration;
 			if ( speed != 0 ) gun.TurnSpeed = speed;
+			float moveAcceleration = Float( Header + 0x2e0 ), moveSpeed = Float( Header + 0x2e4 );
+			if ( moveAcceleration != 0 ) gun.MovementAcceleration = moveAcceleration;
+			if ( moveSpeed != 0 ) gun.MovementSpeed = moveSpeed;
 			gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
 			gun.ClipMaxSize = Short( magazine + 0xa );
 			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );

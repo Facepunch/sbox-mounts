@@ -8,6 +8,8 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public Vector3 ViewOffset { get; set; }
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
+	[Property] public float MovementAcceleration { get; set; } = 72;
+	[Property] public float MovementSpeed { get; set; } = 15;
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float FullDamageRange { get; set; }
@@ -229,6 +231,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	float stride, movementWeight;
 	float? previousYaw;
 	float yawDelta, turn, turnVelocity;
+	float offsetForward, forwardVelocity, offsetLeft, leftVelocity;
 	int aimTick, aimTicks;
 	bool aimEnabled;
 
@@ -258,15 +261,18 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		float dt = Time.Delta;
 		if ( dt <= 0 ) return;
 		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
+		var throttle = player.UseInputControls ? Input.AnalogMove.ClampLength( 1 ) : Vector3.Zero;
+		StepAxis( ref offsetForward, ref forwardVelocity, throttle.x, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
+		StepAxis( ref offsetLeft, ref leftVelocity, throttle.y, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
 		// The first-person tick consumes the preceding tick's facing delta.
 		float target = (yawDelta / dt).Clamp( -1, 1 );
-		StepTurn( ref turn, ref turnVelocity, target, dt, Weapon.TurnAcceleration, Weapon.TurnSpeed );
+		StepAxis( ref turn, ref turnVelocity, target, dt, Weapon.TurnAcceleration, Weapon.TurnSpeed );
 		float yaw = player.EyeAngles.yaw;
 		yawDelta = previousYaw.HasValue ? new Angles( 0, yaw - previousYaw.Value, 0 ).Normal.yaw.DegreeToRadian() : 0;
 		previousYaw = yaw;
 	}
 
-	internal static void StepTurn( ref float value, ref float velocity, float target, float dt, float acceleration, float maxSpeed )
+	internal static void StepAxis( ref float value, ref float velocity, float target, float dt, float acceleration, float maxSpeed )
 	{
 		float distance = target - value;
 		if ( System.MathF.Abs( distance - velocity * dt ) <= System.MathF.Min( dt * dt * acceleration, dt * maxSpeed ) )
@@ -366,6 +372,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		SelectAim( ((clip?.PlaybackFlags ?? 0) & 16) == 0, (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency ) );
 		float aimWeight = AimWeight();
 		p.Set( "weapon_aim_weight", aimWeight );
+		p.Set( "weapon_offset_forward", offsetForward * aimWeight );
+		p.Set( "weapon_offset_left", offsetLeft * aimWeight );
 		p.Set( "overlay", "moving" );
 		p.Set( "overlay_time", stride );
 		p.Set( "overlay_weight", movementWeight * aimWeight );

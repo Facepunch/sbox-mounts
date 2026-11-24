@@ -104,6 +104,10 @@ public partial class Halo2ModelLoader
 		var strength = overlay is null ? null : builder.AddControlParameter( "overlay_weight", GraphBuilder.NodeKind.Float, new() { Min = 0, Max = 1, DefaultFloat = 1 } );
 		var movement = new MovementInputs( builder, bindings );
 		var screens = new ScreenInputs( this, mapFile, builder, overlayClips );
+		var offsets = HasFirstPersonWeapon && overlays.TryGetValue( "overlays", out var offsetRef ) ? GetClip( offsetRef ) : null;
+		bool hasOffsets = offsets is { IsAdditive: true, FrameCount: >= 9 };
+		var offsetForward = hasOffsets ? builder.FloatParameter( "weapon_offset_forward", -1, 1 ) : null;
+		var offsetLeft = hasOffsets ? builder.FloatParameter( "weapon_offset_left", -1, 1 ) : null;
 		var ikTargets = bindings.Ik.Select( p => p.Marker ).Distinct().Select( marker =>
 			(Marker: marker, Bone: MarkerBone( marker ), Target: builder.TargetParameter( $"ik_{marker}" )) ).ToArray();
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
@@ -144,6 +148,23 @@ public partial class Halo2ModelLoader
 		}
 		// First-person weapons apply the movement channel before the pitch-and-turn screen.
 		if ( HasFirstPersonWeapon ) output = screens.Apply( builder, output, this, action, options );
+		if ( hasOffsets )
+		{
+			var layers = builder.Layers( output );
+			AddOffset( offsetForward, 0, 1 );
+			AddOffset( offsetLeft, 3, 2 );
+			output = layers;
+
+			void AddOffset( GraphNode axis, int positive, int negative )
+			{
+				float last = offsets.FrameCount - 1;
+				var time = builder.Switch( builder.Compare( axis, GraphBuilder.FloatComparison.LessThan, 0 ), negative / last, positive / last );
+				layers.AddLayer( builder.TimeControlledClip( offsets, time ), new()
+				{
+					Weight = builder.Abs( axis ), BlendMode = GraphBuilder.LayerBlendMode.Additive
+				} );
+			}
+		}
 		foreach ( var (marker, bone, target) in ikTargets )
 		{
 			if ( bone is null ) continue;
