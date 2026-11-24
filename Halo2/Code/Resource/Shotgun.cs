@@ -163,7 +163,9 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.Ballistics = ballistics;
 			gun.AttackSound = GameResource.Load<SoundEvent>( Host.AssetPath( map, "sound/weapons/shotgun/fire", "sound" ) );
 			gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
-			gun.MeleeDamage = Float( Address( Reference( Header + 0x1bc ) ) + 0x20 );
+			int strike = Address( Reference( Header + 0x1bc ) );
+			gun.MeleeDamage = Float( strike + 0x20 );
+			gun.MeleeForce = Float( strike + 0x40 ) * 120;
 		}
 		return prefab = builder.Create();
 	}

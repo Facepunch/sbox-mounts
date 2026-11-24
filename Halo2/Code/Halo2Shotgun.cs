@@ -14,6 +14,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float FullDamageRange { get; set; }
 	[Property] public float MeleeDamage { get; set; }
+	[Property] public float MeleeForce { get; set; }
 	[Property] public float MeleeRange { get; set; }
 
 	[Property] public float KickDuration { get; set; }
@@ -229,7 +230,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		var hit = BulletTrace( AimRay, MeleeRange, 0 ).Run();
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface, hit.HitPosition );
-		ShootBullet( hit, MeleeDamage, 0, new TagSet { "melee" }, false );
+		ShootBullet( hit, MeleeDamage, MeleeForce, new TagSet { "melee" }, false );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
