@@ -72,6 +72,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 			int remainder = taken - fromReserve;
 			if ( carried > 0 ) remainder -= source.TakeAmmo( PrimaryAmmoType, System.Math.Min( carried, remainder ) );
 			Clip1 = loaded - remainder;
+			if ( source is null && Clip1 == 0 && looseReserve == 0 ) GameObject.Destroy();
 		}
 		return false;
 	}
