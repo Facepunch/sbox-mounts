@@ -253,7 +253,6 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	void EjectCasing()
 	{
-		ejectAt = null;
 		if ( !casings.IsValid() || !ShellEjectGameObject.IsValid() ) return;
 		var marker = ShellEjectGameObject.WorldTransform;
 		var position = viewCasing ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
@@ -291,6 +290,11 @@ public partial class ShotgunModel : BaseWeaponModel
 	protected override void OnUpdate()
 	{
 		EmitTrailingSmoke();
-		if ( ejectAt is {} due && due <= 0 ) EjectCasing();
+		if ( ejectAt is {} due && due <= 0 )
+		{
+			ejectAt = null;
+			// The delayed effect selects its camera-specific emitter when the casing is born.
+			(Weapon?.WeaponModel as ShotgunModel)?.EjectCasing();
+		}
 	}
 }
