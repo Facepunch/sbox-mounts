@@ -1,7 +1,7 @@
 namespace Halo2;
 
-[Title( "Shotgun" ), Category( "Halo 2" )]
-public sealed class Halo2Shotgun : Weapon
+[Alias( "Halo2.Halo2Shotgun" ), Title( "Shotgun" ), Category( "Halo 2" )]
+public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
@@ -118,7 +118,7 @@ public sealed class Halo2Shotgun : Weapon
 		float minimum = MinimumPelletAngle.DegreeToRadian();
 		var directions = new Vector3[Ballistics.Pellets];
 		for ( int i = 0; i < directions.Length; i++ )
-			directions[i] = Halo2Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
+			directions[i] = Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
 		TimeSinceShoot = 0;
 		ShootEffects();
 		_ = FlyPellets( ray.Position, directions );
@@ -228,7 +228,7 @@ public sealed class Halo2Shotgun : Weapon
 		var actions = rig?.GetAnimationContext( "any", "any", "any" )?.Actions;
 		if ( actions is null ) return;
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
-		var action = Halo2Spread.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
+		var action = Spread.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
 		var clip = rig.GetClipInfo( actions[action] );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		float duration = clip.Frames / 30f;
@@ -306,7 +306,7 @@ public sealed class Halo2Shotgun : Weapon
 public sealed class ShotgunViewModel : BaseWeaponModel
 {
 	internal Halo2Animator Animator { get; set; }
-	internal Halo2Shotgun Weapon { get; set; }
+	internal Shotgun Weapon { get; set; }
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
@@ -491,7 +491,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 
 	protected override void OnUpdate()
 	{
-		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Halo2Shotgun>();
+		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Shotgun>();
 		if ( !Weapon.IsValid() || !Animator.IsValid() || !Animator.Bound ) return;
 		Animator.SampleCuesFromGraph = false;
 		if ( clip is not null )

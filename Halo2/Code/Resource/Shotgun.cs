@@ -128,7 +128,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			collider.Center = renderer.Model.Bounds.Center;
 			collider.Scale = renderer.Model.Bounds.Size;
 			root.AddComponent<Rigidbody>();
-			var gun = root.AddComponent<Halo2Shotgun>();
+			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
 			gun.BindHudTextures();
 			gun.HoldType = WeaponHolds.Shotgun;

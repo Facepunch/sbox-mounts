@@ -2,7 +2,7 @@ using System;
 
 namespace Halo2;
 
-internal static class Halo2Spread
+internal static class Spread
 {
 	static readonly Vector3[] directions = BuildDirections();
 
