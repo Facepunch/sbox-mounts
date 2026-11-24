@@ -17,7 +17,7 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		if ( codec < 0 ) return null;
 		var format = map.ReadSpan( codec, 3 );
 		int channels = format[1] + 1, compression = format[2];
-		if ( channels > 2 || compression is not (1 or 5) ) return null;
+		if ( compression is not (1 or 3 or 5) ) return null;
 		uint rate = format[0] switch { 0 => 22050, 1 => 44100, 2 => 32000, 3 => 48000, _ => 0 };
 		if ( rate == 0 ) return null;
 		var sound = new SoundEvent { Sounds = [], SelectionMode = SoundEvent.SoundSelectionMode.RandomExclusive };
@@ -42,25 +42,38 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 				int loc = Table( permutation + 8, 0, 8 );
 				if ( loc < 0 ) continue;
 				string name = $"{Path}/permutation_{first + n}.vsnd";
+				int chunkCount = U16( loc + 6 );
+				int firstChunk = U16( loc + 4 );
+				int last = Table( chunkTable, firstChunk + chunkCount - 1, 16 );
+				if ( chunkCount == 0 || last < 0 ) continue;
+
+				// Bit 29 on the final chunk selects the shared bank. Localized offsets use the language bank.
+				string bank = (map.ReadInt32( last + 4 ) & (1 << 29)) == 0 ? "en"
+					: tag.TagPath.StartsWith( "sound_remastered", StringComparison.OrdinalIgnoreCase ) ? "remastered" : "neutral";
+				using var file = Host.FileSystem.OpenRead( $"{map.MapsDirectory}/sounds_{bank}.dat" );
 				using var bytes = new MemoryStream();
-				for ( int i = 0; i < U16( loc + 6 ); i++ )
+				for ( int i = 0; i < chunkCount; i++ )
 				{
-					int chunk = Table( chunkTable, U16( loc + 4 ) + i, 16 );
+					int chunk = Table( chunkTable, firstChunk + i, 16 );
 					if ( chunk < 0 ) break;
 					int packed = map.ReadInt32( chunk + 4 );
 					int length = packed & 0x03ffffff;
 					if ( length == 0 ) continue;
-					string bank = tag.TagPath.StartsWith( "sound_remastered", StringComparison.OrdinalIgnoreCase ) ? "remastered" : "neutral";
-					using var file = Host.FileSystem.OpenRead( $"{map.MapsDirectory}/sounds_{bank}.dat" );
 					file.Position = (uint)map.ReadInt32( chunk );
+					if ( length > file.Length - file.Position ) throw new InvalidDataException( "Sound chunk exceeds its bank." );
 					int offset = checked((int)bytes.Length);
 					bytes.SetLength( checked(offset + length) );
 					file.ReadExactly( bytes.GetBuffer().AsSpan( offset, length ) );
 				}
 				if ( bytes.Length == 0 ) continue;
 				var data = bytes.GetBuffer().AsMemory( 0, (int)bytes.Length );
-				var fileSound = compression == 5 ? DecodeOpus( name, channels, data )
-					: SoundFile.FromPcm( name, DecodeAdpcm( channels, data.Span ), new() { Channels = channels, Rate = rate } );
+				SoundFile fileSound = compression switch
+				{
+					1 => FromPcm( name, DecodeAdpcm( channels, data.Span ), channels, rate ),
+					3 => FromPcm( name, bytes.GetBuffer().AsSpan( 0, data.Length ), channels, rate ),
+					5 => DecodeOpus( name, channels, data ),
+					_ => null
+				};
 				if ( fileSound.IsValid() ) sound.Sounds.Add( fileSound );
 			}
 		}
@@ -74,11 +87,32 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		{
 			// MCC negates the final packet length in each chunk.
 			int size = Math.Abs( (int)BinaryPrimitives.ReadInt16LittleEndian( data.Span ) );
-			if ( size == 0 || size > data.Length - 2 ) return null;
+			if ( packets.Count >= 16384 || size == 0 || size > data.Length - 2 ) return null;
 			packets.Add( data.Slice( 2, size ) );
 			data = data[(size + 2)..];
 		}
-		return data.IsEmpty && packets.Count > 0 ? SoundFile.FromOpusPackets( path, channels, packets ) : null;
+		if ( !data.IsEmpty || packets.Count == 0 ) return null;
+
+		return SoundFile.FromOpusPackets( path, channels, packets );
+	}
+
+	static SoundFile FromPcm( string name, Span<byte> data, int channels, uint rate )
+	{
+		if ( data.Length % (2 * channels) != 0 ) throw new InvalidDataException( "Incomplete PCM frame." );
+		if ( channels == 4 )
+		{
+			// Fold front and rear pairs into the stereo layout supported by the mixer.
+			for ( int offset = 0; offset < data.Length; offset += 8 )
+			for ( int side = 0; side < 4; side += 2 )
+			{
+				int front = BinaryPrimitives.ReadInt16LittleEndian( data[(offset + side)..] );
+				int rear = BinaryPrimitives.ReadInt16LittleEndian( data[(offset + side + 4)..] );
+				BinaryPrimitives.WriteInt16LittleEndian( data[(offset / 2 + side)..], (short)((front + rear) / 2) );
+			}
+			data = data[..(data.Length / 2)];
+			channels = 2;
+		}
+		return SoundFile.FromPcm( name, data, new() { Channels = channels, Rate = rate } );
 	}
 
 	static readonly short[] Steps = [7,8,9,10,11,12,13,14,16,17,19,21,23,25,28,31,34,37,41,45,50,55,60,66,
@@ -96,12 +130,18 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		for ( int ch = 0; ch < channels; ch++ )
 		{
 			var block = data.Slice( b * stride, stride );
-			int value = BinaryPrimitives.ReadInt16LittleEndian( block[(ch * 4)..] );
-			int index = Math.Min( 88, (int)block[ch * 4 + 2] );
+			// Quad blocks store four predictors followed by four step indices.
+			int predictor = channels == 4 ? 2 * ch : 4 * ch;
+			int indexOffset = channels == 4 ? 8 + 2 * ch : predictor + 2;
+			int value = BinaryPrimitives.ReadInt16LittleEndian( block[predictor..] );
+			int index = block[indexOffset];
+			if ( index > 88 ) throw new InvalidDataException( "Invalid Xbox ADPCM step index." );
+			int groupBytes = channels == 4 ? 2 : 4;
 			for ( int frame = 0; frame < 64; frame++ )
 			{
 				BinaryPrimitives.WriteInt16LittleEndian( samples.AsSpan( ((b * 64 + frame) * channels + ch) * 2 ), (short)value );
-				int packed = block[4 * channels + (frame / 8 * channels + ch) * 4 + frame % 8 / 2];
+				int sampleByte = frame / 2;
+				int packed = block[channels * 4 + (sampleByte / groupBytes * channels + ch) * groupBytes + sampleByte % groupBytes];
 				int code = (packed >> ((frame & 1) * 4)) & 15;
 				int step = Steps[index];
 				int delta = (step >> 3) + ((code & 4) != 0 ? step : 0) + ((code & 2) != 0 ? step >> 1 : 0) + ((code & 1) != 0 ? step >> 2 : 0);
