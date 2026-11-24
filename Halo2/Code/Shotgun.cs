@@ -151,10 +151,10 @@ public sealed class Shotgun : Weapon
 		LaunchPellets( new Ray( AimRay.Position, direction ) );
 	}
 
-	protected override void OnReloadFinished()
+	protected override void OnReloadInserted()
 	{
-		base.OnReloadFinished();
-		if ( Networking.IsHost && IsHeld && Clip1 > 0 && (Clip1 == ClipMaxSize || Ammo1 == 0) )
+		base.OnReloadInserted();
+		if ( Networking.IsHost && IsHeld && (Clip1 == ClipMaxSize || Ammo1 == 0) )
 			ChamberWorldModel();
 	}
 
