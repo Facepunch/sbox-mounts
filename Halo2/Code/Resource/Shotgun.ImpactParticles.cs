@@ -5,17 +5,17 @@ namespace Halo2;
 
 internal sealed partial class ShotgunLoader
 {
-	enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips }
+	enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards }
 	sealed record ImpactEmitter( ImpactLayer Layer, Sprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
 	{
 		public int CountInput, LifeInput, SpeedInput, SpinInput, SizeInput, RadiusRange, ColorInput, ConeInput, Shape, Sequence;
-		public (Vector2 Aspect, Sprite Sprite)[] ChipFrames;
+		public (Vector2 Aspect, Sprite Sprite)[] DebrisFrames;
 		public bool Reflected;
 		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
 		public Vector2 Alpha;
-		public CurveRange DriftAngle;
+		public CurveRange SpriteAngle;
 	}
 
 	uint impactParticleSeed = (uint)System.Random.Shared.Next();
@@ -26,7 +26,7 @@ internal sealed partial class ShotgunLoader
 		if ( count == 0 ) return null;
 		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
 		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
-			material is not ("default" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
+			material is not ("default" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -36,6 +36,7 @@ internal sealed partial class ShotgunLoader
 			{
 				@"effects\generic\smoke\smoke_drift" => DriftName,
 				@"effects\generic\solids\rocks" => RocksName,
+				@"effects\generic\solids\glass_breakable" => GlassName,
 				@"effects\generic\solids\metal_chips" => MetalChipsName,
 				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
@@ -44,7 +45,7 @@ internal sealed partial class ShotgunLoader
 			if ( name is null || map.ReadInt32( system + 48 ) != 1 ) return null;
 			var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}" );
 			if ( !texture.IsValid() || texture.IsError ) return null;
-			var layer = name switch { RocksName => ImpactLayer.Rocks, MetalChipsName => ImpactLayer.MetalChips, SparksName => ImpactLayer.Sparks, DriftName => ImpactLayer.Drift, _ => ImpactLayer.Smoke };
+			var layer = name switch { RocksName => ImpactLayer.Rocks, MetalChipsName => ImpactLayer.MetalChips, GlassName => ImpactLayer.GlassShards, SparksName => ImpactLayer.Sparks, DriftName => ImpactLayer.Drift, _ => ImpactLayer.Smoke };
 			var sprite = Sprite.FromTexture( texture );
 			int definition = Address( particle );
 			int sequence = Short( definition + 8 );
@@ -65,28 +66,29 @@ internal sealed partial class ShotgunLoader
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
 			bool smoke = layer == ImpactLayer.Smoke, drift = layer == ImpactLayer.Drift;
+			bool spriteCurves = drift || layer == ImpactLayer.GlassShards;
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, sprite, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ),
 				Bounds( 72 ) * 120, drift ? ReadRange( definition + 60, 1 ) : smoke || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
-				drift ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
+				spriteCurves ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
 				Tint( 4 ), Tint( smoke || drift ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				smoke || drift ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinInput = Short( emitter + 56 ),
-				ChipFrames = layer == ImpactLayer.MetalChips ? ReadChipFrames( definition, texture ) : null,
+				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards ? ReadDebrisFrames( definition, texture ) : null,
 				Shape = map.ReadInt32( emitter + 120 ), Alpha = Bounds( 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				DriftAngle = drift ? ReadRange( definition + 76, 1 ) : default,
+				SpriteAngle = spriteCurves ? ReadRange( definition + 76, 1 ) : default,
 				Reflected = map.ResolveStringId( map.ReadInt32( Block( Address( contact ) + 12 ) + 4 * Short( system + 8 ) ) ) == "reflection"
 			};
 		}
 		return emitters;
 	}
 
-	(Vector2 Aspect, Sprite Sprite)[] ReadChipFrames( int definition, Texture texture )
+	(Vector2 Aspect, Sprite Sprite)[] ReadDebrisFrames( int definition, Texture texture )
 	{
 		int shader = Block( definition + 140 );
 		var bitmap = map.GetTag( map.ReadInt32( Block( shader + 4 ) ) & 0xffff );
@@ -133,6 +135,29 @@ internal sealed partial class ShotgunLoader
 	void EmitImpactLayer( ImpactEmitter data, int births, GameObject parent, Transform contact, Vector3 incoming )
 	{
 		if ( births == 0 ) return;
+		if ( data.DebrisFrames is not {} frames )
+		{
+			var effect = CreateImpactLayer( data, data.Sprite, parent, contact, incoming );
+			for ( int i = 0; i < births; i++ ) effect.Emit( contact.Position, 0 );
+			return;
+		}
+
+		// The renderer shares one pivot across its particles. Batch births using the same atlas variant.
+		var effects = new ParticleEffect[frames.Length];
+		for ( int i = 0; i < births; i++ )
+		{
+			uint seed = impactParticleSeed;
+			BlamRandom.Next( ref seed );
+			uint horizontal = BlamRandom.Next( ref seed ) & 1;
+			int sequence = (int)(BlamRandom.Next( ref seed ) % (frames.Length / 2));
+			int variant = sequence * 2 + (int)horizontal;
+			var effect = effects[variant] ??= CreateImpactLayer( data, frames[variant].Sprite, parent, contact, incoming );
+			effect.Emit( contact.Position, 0 );
+		}
+	}
+
+	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform contact, Vector3 incoming )
+	{
 		bool smoke = data.Layer == ImpactLayer.Smoke, sparks = data.Layer == ImpactLayer.Sparks;
 		var axis = -contact.Rotation.Forward;
 		if ( data.Reflected )
@@ -148,9 +173,9 @@ internal sealed partial class ShotgunLoader
 		effect.Lifetime = MathF.Max( data.Lifetime.x, data.Lifetime.y );
 		effect.SnapToFrame = data.Layer != ImpactLayer.Drift;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = data.Sprite;
+		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
-		renderer.Lighting = smoke || data.Layer is ImpactLayer.Rocks or ImpactLayer.MetalChips;
+		renderer.Lighting = smoke || data.Layer is ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
 		renderer.Additive = sparks;
 		if ( sparks ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
@@ -164,11 +189,16 @@ internal sealed partial class ShotgunLoader
 				float variation = p.Get<float>( "variation" );
 				p.Size = Sample( data.Size, life ) * (data.RadiusCurve.Evaluate( t, life ).Clamp( 1, 2.5f ) + variation);
 				p.Alpha = Sample( data.Alpha, life ) * data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
-				p.Angles.roll = (data.DriftAngle.Evaluate( t, life ).Clamp( -0.2f, 0.2f ) + variation) * 360;
+				p.Angles.roll = (data.SpriteAngle.Evaluate( t, life ).Clamp( -0.2f, 0.2f ) + variation) * 360;
 				p.SequenceTime = new Vector3( t * (0.8f * 17 / 15), 0, 0 );
 				return;
 			}
-			p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
+			if ( data.Layer == ImpactLayer.GlassShards )
+			{
+				p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
+				p.Angles.roll = data.SpriteAngle.Evaluate( t, life ).Clamp( 0.2f, 3 ) * 360 + p.Get<float>( "mirror_angle" );
+			}
+			else p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
 			if ( smoke )
 			{
 				p.Size = data.RadiusCurve.Evaluate( t, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
@@ -177,7 +207,7 @@ internal sealed partial class ShotgunLoader
 			if ( !sparks )
 			{
 				p.Size = Sample( data.Size, p.Get<float>( "size" ) );
-				if ( data.ChipFrames is not null ) p.Size = p.Get<Vector2>( "chip_aspect" ) * p.Size.x;
+				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
 				return;
 			}
 			float radius = data.RadiusCurve.A.Evaluate( t ).Clamp( data.Size.x, data.Size.y ) * (data.Sequence == 1 ? 1 : ShotgunModel.SparkScale( t ));
@@ -210,19 +240,18 @@ internal sealed partial class ShotgunLoader
 			p.Angles.roll = life * 360;
 			p.Set( "spin", Sample( data.Spin, RandomInput( data.SpinInput ) ) );
 			if ( data.Layer == ImpactLayer.Rocks ) p.Sequence = (int)(r1 % 4);
-			if ( data.ChipFrames is {} frames )
+			if ( data.DebrisFrames is {} frames )
 			{
 				p.Sequence = (int)(r1 % (frames.Length / 2));
-				var (aspect, sprite) = frames[p.Sequence * 2 + (int)(r0 & 1)];
+				var aspect = frames[p.Sequence * 2 + (int)(r0 & 1)].Aspect;
 				// A half turn preserves the mirror while keeping the longest extent positive for sprite culling.
 				if ( (MathF.Abs( aspect.x ) >= MathF.Abs( aspect.y ) ? aspect.x : aspect.y) < 0 )
 				{
 					aspect = -aspect;
 					p.Angles.roll += 180;
+					if ( data.Layer == ImpactLayer.GlassShards ) p.Set( "mirror_angle", 180f );
 				}
-				p.Set( "chip_aspect", aspect );
-				// Sheet metal emits one chip per impact. Its chosen atlas frame owns the pivot.
-				renderer.Sprite = sprite;
+				p.Set( "debris_aspect", aspect );
 			}
 			if ( sparks ) p.Sequence = data.Sequence;
 			Appearance( p );
@@ -247,7 +276,7 @@ internal sealed partial class ShotgunLoader
 				float spin = p.Get<float>( "spin" );
 				p.Angles.roll += spin * dt;
 				p.Set( "spin", spin * (1 - (data.AngularDrag * dt).Clamp( 0, 1 )) );
-				if ( data.Layer is ImpactLayer.Rocks or ImpactLayer.Sparks or ImpactLayer.MetalChips && dt > 0 && Collide( p, data, go.Scene, dt ) )
+				if ( data.Layer is ImpactLayer.Rocks or ImpactLayer.Sparks or ImpactLayer.MetalChips or ImpactLayer.GlassShards && dt > 0 && Collide( p, data, go.Scene, dt ) )
 				{
 					effect.Terminate( p );
 					continue;
@@ -256,7 +285,7 @@ internal sealed partial class ShotgunLoader
 			}
 		};
 		go.Enabled = true;
-		for ( int i = 0; i < births; i++ ) effect.Emit( contact.Position, 0 );
+		return effect;
 	}
 
 	internal static SceneTraceResult TraceParticleStructure( SceneTrace ray )
