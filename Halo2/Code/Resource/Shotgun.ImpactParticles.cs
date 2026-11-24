@@ -10,11 +10,11 @@ internal sealed partial class ShotgunLoader
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
 	{
-		public int CountInput, LifeInput, SpeedInput, SpinInput, SizeInput, RadiusRange, ColorInput, ConeInput, Shape, Sequence;
+		public int CountInput, LifeInput, SpeedInput, SpinInput, SizeInput, RadiusRange, ColorInput, ConeInput, SpawnRadiusInput, Shape, Sequence;
 		public (Vector2 Aspect, Sprite Sprite)[] DebrisFrames;
 		public bool Reflected;
 		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
-		public Vector2 Alpha;
+		public Vector2 Alpha, SpawnRadius;
 		public CurveRange SpriteAngle;
 	}
 
@@ -26,7 +26,7 @@ internal sealed partial class ShotgunLoader
 		if ( count == 0 ) return null;
 		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
 		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
-			material is not ("default" or "brittle" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
+			material is not ("default" or "brittle" or "brittle_mech" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -77,9 +77,9 @@ internal sealed partial class ShotgunLoader
 			{
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
-				SpinInput = Short( emitter + 56 ),
+				SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
 				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards ? ReadDebrisFrames( definition, texture ) : null,
-				Shape = map.ReadInt32( emitter + 120 ), Alpha = Bounds( 104 ),
+				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( 124 ) * 120, Alpha = Bounds( 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
 				SpriteAngle = spriteCurves ? ReadRange( definition + 76, 1 ) : default,
@@ -232,8 +232,13 @@ internal sealed partial class ShotgunLoader
 			p.Set( "size", data.SizeInput == 2 ? life : size );
 			if ( data.Layer == ImpactLayer.Drift ) p.Set( "variation", fraction );
 			float cone = Sample( data.Cone, RandomInput( data.ConeInput ) ).DegreeToRadian();
-			float azimuth = ParticleFraction() * MathF.Tau, polar = ParticleFraction() * cone;
-			var direction = new Vector3( MathF.Cos( polar ), MathF.Sin( azimuth ) * MathF.Sin( polar ), MathF.Cos( azimuth ) * MathF.Sin( polar ) );
+			float azimuth = ParticleFraction() * MathF.Tau;
+			var radial = new Vector3( 0, MathF.Sin( azimuth ), MathF.Cos( azimuth ) );
+			// Ring emitters use the same azimuth for the spawn point and outward velocity.
+			float polar = data.Shape == 4 ? cone : ParticleFraction() * cone;
+			if ( data.Shape == 4 )
+				p.Position += go.WorldRotation * radial * Sample( data.SpawnRadius, RandomInput( data.SpawnRadiusInput ) );
+			var direction = Vector3.Forward * MathF.Cos( polar ) + radial * MathF.Sin( polar );
 			// The terrain rock emitter uses shape 5 with a zero radius, consuming a direction draw at the origin.
 			if ( data.Shape == 5 ) BlamRandom.Next( ref impactParticleSeed );
 			p.Velocity = go.WorldRotation * direction.Normal * Sample( data.Speed, RandomInput( data.SpeedInput ) );
