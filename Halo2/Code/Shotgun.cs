@@ -220,7 +220,7 @@ public sealed class Shotgun : Weapon
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
 	protected override bool WantsReload() =>
-		base.WantsReload() || (AutoReload && Clip1 == 0 && NextPrimaryFire <= 0);
+		Input.Down( "reload" ) || base.WantsReload() || (AutoReload && Clip1 == 0 && NextPrimaryFire <= 0);
 
 	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
