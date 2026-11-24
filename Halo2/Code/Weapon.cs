@@ -91,7 +91,10 @@ public abstract class Weapon : BaseCombatWeapon
 	{
 		if ( kickEnds > 0 && KickDuration > 0 )
 		{
-			float weight = KickWeight( (float)kickEnds / KickDuration );
+			float durationTicks = KickDuration * 30;
+			float elapsedTicks = kickEnds.Passed * 30;
+			// A new impulse has full weight until the first tick. The countdown stores whole ticks.
+			float weight = elapsedTicks < 1 ? 1 : KickWeight( ((int)durationTicks - elapsedTicks) / durationTicks );
 			view.Position += view.Rotation * (kickOffset * weight);
 			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
 		}
