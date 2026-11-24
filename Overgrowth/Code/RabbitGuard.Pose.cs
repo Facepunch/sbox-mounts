@@ -243,9 +243,8 @@ public sealed partial class RabbitGuard
 			}
 			var from = previousMotionRoot.ToWorld( previousMotionPose[part.Bone] );
 			var to = currentMotionRoot.ToWorld( currentMotionPose[part.Bone] );
-			var center = body.PhysicsBody.LocalMassCenter;
-			// Physics local mass centers are already scaled when the collider is built.
-			body.Velocity = (to.Position - from.Position + to.Rotation * center - from.Rotation * center) / motionStep;
+			// BulletObject.SetPositionAndVel samples the bone midpoint, including on offset shapes.
+			body.Velocity = (to.Position - from.Position) / motionStep;
 			var turn = to.Rotation * from.Rotation.Inverse;
 			var axis = new Vector3( turn.x, turn.y, turn.z ).Normal;
 			body.AngularVelocity = axis * ((turn.w < 0f ? -1f : 1f) * turn.Angle().DegreeToRadian() / motionStep);
