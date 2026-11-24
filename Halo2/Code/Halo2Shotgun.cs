@@ -431,9 +431,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		if ( dt <= 0 ) return;
 		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
 		var throttle = player.UseInputControls ? Input.AnalogMove.ClampLength( 1 ) : Vector3.Zero;
-		if ( movingClip is null && Halo2ModelLoader.ForModel( Renderer.Model ) is { } loader &&
-			loader.GetAnimationContext( "any", "any", "any" )?.Overlays.TryGetValue( "moving", out var reference ) == true )
-			movingClip = loader.GetClipInfo( reference );
+		movingClip ??= Animator?.GetOverlayClip( "moving" );
 		if ( movingClip is not null )
 			StepMovement( player.IsOnGround ? throttle.Length : 0, dt, movingClip.Frames, movingClip.LoopFrame );
 		StepAxis( ref offsetForward, ref forwardVelocity, throttle.x, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
@@ -521,10 +519,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 
 	void Play( string action )
 	{
-		var loader = Halo2ModelLoader.ForModel( Renderer.Model );
-		var actions = loader?.GetAnimationContext( "any", "any", "any" )?.Actions;
-		if ( actions is null || !actions.TryGetValue( action, out var reference ) || !SelectAction( action, true ) ) return;
-		clip = loader.GetClipInfo( reference );
+		if ( !SelectAction( action, true ) ) return;
+		clip = Animator.CurrentActionClip;
 		elapsed = 0;
 		nextCue = 0;
 	}

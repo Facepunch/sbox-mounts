@@ -55,6 +55,12 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		return true;
 	}
 
+	internal Halo2ClipInfo CurrentActionClip => context?.Actions.TryGetValue( action, out var reference ) == true
+		? model.GetClipInfo( reference ) : null;
+
+	internal Halo2ClipInfo GetOverlayClip( string name ) => context?.Overlays.TryGetValue( name, out var reference ) == true
+		? model.GetClipInfo( reference ) : null;
+
 	public bool SetAction( string name, bool once = false )
 	{
 		if ( !Bound || !context.Actions.ContainsKey( name ) ) return false;
