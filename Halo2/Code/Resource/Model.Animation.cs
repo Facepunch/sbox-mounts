@@ -391,33 +391,65 @@ public partial class Halo2ModelLoader
 		int movement = mapFile.VaToOffset( mapFile.ReadInt32( address + 44 ) )
 			+ (ushort)mapFile.ReadInt32( address + 54 ) + mapFile.ReadInt32( address + 56 ) + mapFile.ReadInt32( address + 60 )
 			+ entry[48] + entry[49];
-		var motion = Transform.Zero;
-		for ( int i = 0; i < Math.Max( frames, 2 ); i++ )
+		// Steep first-person rotations expose the difference between Halo's normalized linear
+		// quaternion blend and AG2's spherical blend. Bake the curve once at mount time.
+		int subdivisions = 1;
+		if ( HasFirstPersonWeapon && !additive )
 		{
-			builder.AddFrame( poses.AsSpan( Math.Min( i, frames - 1 ) * bones, bones ), motion );
-			if ( stride == 0 || i >= frames ) continue;
-			int p = movement + i * stride;
-			var translation = new Vector3( Float( p ), Float( p + 4 ), movementType == 3 ? Float( p + 8 ) : 0 ) * (ScaleFactor * source.TranslationScale);
-			float yaw = movementType == 1 ? 0 : Float( p + stride - 4 ).RadianToDegree();
-			motion = motion.ToWorld( new Transform( translation, Rotation.FromYaw( yaw ) ) );
+			for ( int i = bones; i < poses.Length; i++ )
+			{
+				var a = poses[i - bones].Rotation;
+				var b = poses[i].Rotation;
+				if ( MathF.Abs( a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w ) >= 0.70710678f ) continue;
+				subdivisions = 8;
+				break;
+			}
 		}
-		// Halo stores a displacement for every frame, including the interval
-		// from the last pose to the next cycle. AG2 samples both endpoints.
-		if ( movementSize > 0 && frames > 1 )
+		builder.FrameRate *= subdivisions;
+		var intermediate = subdivisions > 1 ? new Transform[bones] : null;
+		var motion = Transform.Zero;
+		int intervals = Math.Max( frames - 1, 1 );
+		if ( movementSize > 0 && frames > 1 ) intervals++;
+		int endpoint = oneShot ? frames - 1 : Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 );
+		for ( int i = 0; i <= intervals; i++ )
 		{
-			int endpoint = oneShot ? frames - 1 : Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 );
-			builder.AddFrame( poses.AsSpan( endpoint * bones, bones ), motion );
+			// The final root displacement leads into the next cycle. One-shots retain their last pose.
+			int frame = i < frames ? i : endpoint;
+			var current = poses.AsSpan( frame * bones, bones );
+			builder.AddFrame( current, motion );
+			if ( i == intervals ) break;
+			var nextMotion = motion;
+			if ( stride > 0 )
+			{
+				int p = movement + i * stride;
+				var translation = new Vector3( Float( p ), Float( p + 4 ), movementType == 3 ? Float( p + 8 ) : 0 ) * (ScaleFactor * source.TranslationScale);
+				float yaw = movementType == 1 ? 0 : Float( p + stride - 4 ).RadianToDegree();
+				nextMotion = motion.ToWorld( new Transform( translation, Rotation.FromYaw( yaw ) ) );
+			}
+			for ( int sub = 1; sub < subdivisions; sub++ )
+			{
+				int next = i + 1 < frames ? i + 1 : endpoint;
+				float t = (float)sub / subdivisions;
+				for ( int bone = 0; bone < bones; bone++ )
+				{
+					var a = current[bone];
+					var b = poses[next * bones + bone];
+					intermediate[bone] = new Transform( Vector3.Lerp( a.Position, b.Position, t ), Rotation.Lerp( a.Rotation, b.Rotation, t ), Vector3.Lerp( a.Scale, b.Scale, t ) );
+				}
+				builder.AddFrame( intermediate, Transform.Lerp( motion, nextMotion, t, false ) );
+			}
+			motion = nextMotion;
 		}
 		var cues = GetClipInfo( reference ).Cues;
 		foreach ( var cue in cues )
 		{
-			float cycle = (float)cue.Frame / (builder.FrameCount - 1);
+			float cycle = (float)cue.Frame / intervals;
 			if ( cycle >= 0 && cycle <= 1 ) builder.AddEvent( cycle, new Halo2CueEvent { Cue = cue } );
 		}
 		bool needsOrigin = HasFirstPersonWeapon;
 		foreach ( var group in cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )
 		{
-			float cycle = (float)group.Key / (builder.FrameCount - 1);
+			float cycle = (float)group.Key / intervals;
 			if ( cycle < 0 || cycle >= 1 ) continue;
 			// AG2 starts playback at the first sync marker. A weapon cue can occur mid-swing.
 			if ( needsOrigin && cycle > 0 ) builder.AddSyncEvent( 0 );
