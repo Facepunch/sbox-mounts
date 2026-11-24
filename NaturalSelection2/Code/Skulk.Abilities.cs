@@ -82,7 +82,7 @@ public sealed partial class Skulk
 	{
 		if ( xenociding && detonation <= 0 ) return null;
 		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() ) corpse.AddComponent<SkulkCorpse>().Age = 0;
+		if ( corpse.IsValid() ) corpse.AddComponent<AlienCorpse>().Age = 0;
 		return corpse;
 	}
 

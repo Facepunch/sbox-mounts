@@ -2,7 +2,7 @@ using System;
 
 namespace NS2;
 
-public sealed class SkulkCorpse : Component
+public sealed class AlienCorpse : Component
 {
 	[Sync( SyncFlags.FromHost )] internal TimeSince Age { get; set; }
 	SkinnedModelRenderer renderer;

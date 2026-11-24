@@ -120,7 +120,7 @@ public sealed partial class Skulk
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
-		ConsumeArmor( e.AcceptedDamage );
+		ConsumeArmor( e.AcceptedDamage, e.DamageInfo );
 		var fraction = e.AcceptedDamage / MaxHealth;
 		wounds.Hit( fraction, fraction );
 	}

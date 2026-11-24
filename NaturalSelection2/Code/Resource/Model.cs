@@ -12,6 +12,7 @@ namespace NS2;
 /// </summary>
 public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 {
+	internal bool IsNpc { get; init; }
 	private string FullPath { get; } = fullPath;
 	// Loaded when a model first loads, not whenever this assembly does (mounted or not)
 	private static Material DefaultMaterial => field ??= Material.Load( "materials/dev/primary_white.vmat" );
@@ -149,7 +150,8 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public string[] BlendParameters = [];
 		public Joint[] Joints = [];
 		public AttachPoint[] AttachPoints = [];
-		public (int Start, int Count) PhysicsBodies, DamageBodies;
+		public (int Start, int Count) PhysicsBodies;
+		public (int Start, int Count)? DamageBodies;
 		public string ExternalModel;
 	}
 
@@ -964,10 +966,12 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			using var animSource = Host.FileSystem.OpenRead( animationSource.FullPath );
 			BuildAnimations( builder, model, animations, animSource );
 		}
-		if ( model.DamageBodies.Count > 0 )
+		// Spark traces a player against its default solids when no damage representation was authored.
+		var damage = model.DamageBodies ?? (IsNpc ? model.PhysicsBodies : default);
+		if ( damage.Count > 0 )
 		{
 			var hitboxes = builder.AddHitboxSet();
-			foreach ( var solid in model.Solids.AsSpan( model.DamageBodies.Start, model.DamageBodies.Count ) )
+			foreach ( var solid in model.Solids.AsSpan( damage.Start, damage.Count ) )
 			{
 				if ( (uint)solid.BoneIndex >= model.Bones.Length || solid.Points.Length < 4 ) continue;
 				var points = Array.ConvertAll( solid.Points, p => solid.Transform.PointToWorld( p ) );

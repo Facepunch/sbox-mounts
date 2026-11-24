@@ -11,14 +11,15 @@ public sealed partial class Skulk
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
 		if ( e.AcceptedDamage <= 0 ) return;
-		e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * 2 );
+		e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * AlienArmor.HealthPerArmor( e.DamageInfo ) );
 	}
 
-	void ConsumeArmor( float healthDamage )
+	void ConsumeArmor( float healthDamage, DamageInfo hit )
 	{
 		if ( healthDamage <= 0 ) return;
 		// Once a hit is accepted, spend the armor that shielded its health portion.
-		Armor = Math.Max( 0, Armor - healthDamage * (0.7f / 0.3f / 2) );
+		var ratio = AlienArmor.HealthPerArmor( hit );
+		if ( ratio > 0 ) Armor = Math.Max( 0, Armor - healthDamage * (0.7f / 0.3f) / ratio );
 		underFire = 3;
 	}
 

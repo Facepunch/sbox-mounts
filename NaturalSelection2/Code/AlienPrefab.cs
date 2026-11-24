@@ -7,7 +7,7 @@ internal sealed class AlienPrefab( string title, string directory, Action<GameOb
 	string ModelPath => $"mount://ns2/{directory}.model.vmdl";
 	PrefabFile prefab;
 
-	internal static void Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure )
+	internal static string Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure )
 	{
 		var name = title.ToLowerInvariant();
 		var directory = $"ns2/models/alien/{name}/{name}";
@@ -16,6 +16,7 @@ internal sealed class AlienPrefab( string title, string directory, Action<GameOb
 		var loader = new AlienPrefab( title, directory, configure );
 		loader.Tags.Add( "npc" );
 		context.Add( ResourceType.PrefabFile, $"entities/npcs/{name}.prefab", loader );
+		return $"{directory}.model";
 	}
 
 	protected override object Load()
