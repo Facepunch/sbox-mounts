@@ -157,7 +157,7 @@ public sealed class Shotgun : Weapon
 			return;
 		}
 		var direction = GetShotDirection( shot );
-		if ( !loader.PlaceStoneImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) )
+		if ( !loader.PlacePelletImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 

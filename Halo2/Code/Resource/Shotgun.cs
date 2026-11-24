@@ -157,7 +157,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		}
 	};
 
-	static TagEntry ContactSound( Dictionary<string, TagEntry> sounds, Surface surface, bool useDefault )
+	static TagEntry ContactTag( Dictionary<string, TagEntry> sounds, Surface surface, bool useDefault )
 	{
 		for ( int depth = 0; surface.IsValid() && depth < 16; depth++, surface = surface.GetBaseSurface() )
 		{
@@ -167,12 +167,12 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return useDefault ? sounds.GetValueOrDefault( "default_material" ) : null;
 	}
 
-	Dictionary<string, TagEntry> meleeMaterials, casingMaterials, pelletMaterials;
+	Dictionary<string, TagEntry> meleeMaterials, casingMaterials, pelletMaterials, pelletEffects;
 	uint impactSoundSeed = (uint)System.Random.Shared.Next();
 
-	void LoadImpactSounds()
+	void LoadMaterialEffects()
 	{
-		if ( meleeMaterials is not null ) return;
+		if ( pelletEffects is not null ) return;
 		meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
 		casingMaterials = new( StringComparer.OrdinalIgnoreCase );
 		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
@@ -181,21 +181,22 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		int count = map.ReadInt32( materials ), rows = Block( materials );
 		var casing = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\objects\weapons\rifle\shotgun\shotgun_casing" );
 		var projectile = Reference( Block( Header + 0x2d0 ) + 0x8c );
-		casingMaterials = ReadBank( casing, 0x6c, 10 );
-		pelletMaterials = ReadBank( projectile, 0x54, 15 );
+		casingMaterials = ReadBank( casing, 0x6c, 10, 8 );
+		pelletMaterials = ReadBank( projectile, 0x54, 15, 8 );
+		pelletEffects = ReadBank( projectile, 0x54, 15, 16 );
 		for ( int i = 0; i < count; i++ )
 		{
 			int row = rows + i * 0xb4;
 			if ( map.ResolveStringId( map.ReadInt32( row ) ) is {} name ) meleeMaterials[name] = Reference( row + 0x60 );
 		}
 
-		Dictionary<string, TagEntry> ReadBank( TagEntry source, int referenceOffset, int action )
+		Dictionary<string, TagEntry> ReadBank( TagEntry source, int referenceOffset, int action, int bankOffset )
 		{
 			var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
 			if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
 			int actions = Address( foot );
 			if ( map.ReadInt32( actions ) <= action ) return result;
-			int bank = Block( actions ) + action * 24 + 8;
+			int bank = Block( actions ) + action * 24 + bankOffset;
 			int entries = map.ReadInt32( bank );
 			if ( entries == 0 ) return result;
 			var contacts = new Dictionary<int, TagEntry>();
@@ -221,8 +222,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 
 	internal SoundHandle PlayPelletImpact( Surface surface, Vector3 position )
 	{
-		LoadImpactSounds();
-		var sound = pelletMaterials is null ? null : ContactSound( pelletMaterials, surface, false );
+		LoadMaterialEffects();
+		var sound = pelletMaterials is null ? null : ContactTag( pelletMaterials, surface, false );
 		return PlayImpact( sound, position );
 	}
 
@@ -233,8 +234,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal SoundHandle PlayCasingImpact( Surface surface, Vector3 position, float gain )
 	{
 		if ( gain <= 0 ) return null;
-		LoadImpactSounds();
-		var sound = ContactSound( casingMaterials, surface, true );
+		LoadMaterialEffects();
+		var sound = ContactTag( casingMaterials, surface, true );
 		var handle = PlayImpact( sound, position );
 		if ( handle.IsValid() ) handle.Volume *= gain;
 		return handle;
@@ -242,8 +243,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 
 	internal void PlayMeleeImpact( Surface surface, Vector3 position )
 	{
-		LoadImpactSounds();
-		Play( ContactSound( meleeMaterials, surface, false ) );
+		LoadMaterialEffects();
+		Play( ContactTag( meleeMaterials, surface, false ) );
 
 		if ( Reference( Header + 0x1bc ) is {} damage ) Play( Reference( Address( damage ) + 0xa8 ) );
 
