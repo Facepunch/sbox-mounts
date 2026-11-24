@@ -7,12 +7,11 @@ internal sealed partial class ShotgunLoader
 {
 	enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips }
 	sealed record ImpactEmitter( ImpactLayer Layer, Sprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
-		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange SmokeRadius, CurveRange SmokeAlpha, Color Tint, Color TintEnd,
+		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
 	{
 		public int CountInput, LifeInput, SpeedInput, SpinInput, SizeInput, RadiusRange, ColorInput, ConeInput, Shape, Sequence;
 		public (Vector2 Aspect, Sprite Sprite)[] ChipFrames;
-		public float FadeStart;
 		public bool Reflected;
 		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
 		public Vector2 Alpha;
@@ -25,10 +24,9 @@ internal sealed partial class ShotgunLoader
 	{
 		int count = map.ReadInt32( row + 48 );
 		if ( count == 0 ) return null;
-		if ( !contact.TagPath.Contains( @"\hard_terrain", StringComparison.Ordinal ) &&
-			!contact.TagPath.EndsWith( @"\hard_metal_solid", StringComparison.Ordinal ) &&
-			!contact.TagPath.EndsWith( @"\hard_metal_thin", StringComparison.Ordinal ) &&
-			!contact.TagPath.EndsWith( @"\hard_metal_thick", StringComparison.Ordinal ) ) return null;
+		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
+		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
+			material is not ("default" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -69,8 +67,8 @@ internal sealed partial class ShotgunLoader
 			bool smoke = layer == ImpactLayer.Smoke, drift = layer == ImpactLayer.Drift;
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, sprite, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ),
-				Bounds( 72 ) * 120, smoke ? ReadRange( emitter + 72, 120 ) : drift ? ReadRange( definition + 60, 1 ) : default,
-				smoke ? ReadRange( emitter + 104, 1 ) : drift ? ReadRange( definition + 44, 1 ) : default,
+				Bounds( 72 ) * 120, drift ? ReadRange( definition + 60, 1 ) : smoke || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
+				drift ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
 				Tint( 4 ), Tint( smoke || drift ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				smoke || drift ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
@@ -78,7 +76,6 @@ internal sealed partial class ShotgunLoader
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinInput = Short( emitter + 56 ),
 				ChipFrames = layer == ImpactLayer.MetalChips ? ReadChipFrames( definition, texture ) : null,
-				FadeStart = layer is ImpactLayer.Sparks or ImpactLayer.MetalChips ? Float( Block( emitter + 112 ) + 64 ) : 0.7f,
 				Shape = map.ReadInt32( emitter + 120 ), Alpha = Bounds( 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
@@ -165,27 +162,25 @@ internal sealed partial class ShotgunLoader
 			if ( data.Layer == ImpactLayer.Drift )
 			{
 				float variation = p.Get<float>( "variation" );
-				p.Size = Sample( data.Size, life ) * (data.SmokeRadius.Evaluate( t, life ).Clamp( 1, 2.5f ) + variation);
-				p.Alpha = Sample( data.Alpha, life ) * data.SmokeAlpha.Evaluate( t, life ).Clamp( 0, 1 );
+				p.Size = Sample( data.Size, life ) * (data.RadiusCurve.Evaluate( t, life ).Clamp( 1, 2.5f ) + variation);
+				p.Alpha = Sample( data.Alpha, life ) * data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
 				p.Angles.roll = (data.DriftAngle.Evaluate( t, life ).Clamp( -0.2f, 0.2f ) + variation) * 360;
 				p.SequenceTime = new Vector3( t * (0.8f * 17 / 15), 0, 0 );
 				return;
 			}
+			p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
 			if ( smoke )
 			{
-				p.Size = data.SmokeRadius.Evaluate( t, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
-				p.Alpha = data.SmokeAlpha.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
+				p.Size = data.RadiusCurve.Evaluate( t, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
 				return;
 			}
-			float fade = ((1 - t) / (1 - data.FadeStart)).Clamp( 0, 1 );
-			p.Alpha = data.Alpha.x == data.Alpha.y ? data.Alpha.x : fade;
 			if ( !sparks )
 			{
 				p.Size = Sample( data.Size, p.Get<float>( "size" ) );
 				if ( data.ChipFrames is not null ) p.Size = p.Get<Vector2>( "chip_aspect" ) * p.Size.x;
 				return;
 			}
-			float radius = Sample( data.Size, fade ) * (data.Sequence == 1 ? 1 : ShotgunModel.SparkScale( t ));
+			float radius = data.RadiusCurve.A.Evaluate( t ).Clamp( data.Size.x, data.Size.y ) * (data.Sequence == 1 ? 1 : ShotgunModel.SparkScale( t ));
 			ShotgunModel.OrientSpark( p, radius, go.Scene.Camera, go.WorldRotation.Up, data.Sequence == 1 );
 		}
 

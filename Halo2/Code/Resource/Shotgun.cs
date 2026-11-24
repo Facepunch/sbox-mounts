@@ -102,11 +102,26 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	{
 		int data = Block( property + 8 );
 		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
-		// A ranged cubic stores two 48-byte polynomials. Convert their endpoint slopes to Hermite keys.
-		return new CurveRange( ReadCurve( data + 52 ), ReadCurve( (map.ReadSpan( data + 1, 1 )[0] & 1) != 0 ? data + 100 : data + 52 ) );
+		int kind = map.ReadSpan( data, 1 )[0];
+		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;
+		int length = kind switch { 1 => 4, 4 => 24, 5 => 80, 7 => 48, _ => throw new NotSupportedException( $"Unsupported particle curve {kind}" ) };
+		var first = ReadCurve( data + 20, false );
+		return new CurveRange( first, ranged ? ReadCurve( data + 20 + length, true ) : first );
 
-		Curve ReadCurve( int offset )
+		Curve ReadCurve( int start, bool upper )
 		{
+			Curve.Frame Key( float t, float v ) => new( t, min + span * v ) { Mode = Curve.HandleMode.Linear };
+			if ( kind == 1 ) return new Curve( Key( 0, upper ? 1 : 0 ) );
+			if ( kind == 4 )
+			{
+				float slope = Float( start + 16 ), intercept = Float( start + 20 );
+				return new Curve( Key( 0, intercept ), Key( 1, intercept + slope ) );
+			}
+			if ( kind == 5 )
+				return new Curve( Enumerable.Range( 0, 4 ).Select( i => Key( Float( start + 8 * i ), Float( start + 8 * i + 4 ) ) ) );
+
+			// The remaining four words of a cubic hold its polynomial coefficients.
+			int offset = start + 32;
 			float a = Float( offset ), b = Float( offset + 4 ), c = Float( offset + 8 ), d = Float( offset + 12 );
 			return new Curve( new Curve.Frame( 0, min + span * d, 0, span * c ),
 				new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
