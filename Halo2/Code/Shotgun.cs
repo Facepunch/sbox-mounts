@@ -61,15 +61,14 @@ public sealed class Shotgun : Weapon
 		view.Renderer = renderer;
 		view.Weapon = this;
 		view.TracerEffect = view.MuzzleEffect = view.EjectBrass = null;
-		view.Animator = go.AddComponent<Halo2Animator>();
-		view.Animator.Renderer = renderer;
-		view.Animator.SampleCuesFromGraph = false;
+		renderer.UseAnimGraph = true;
+		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{ArmsPath}/any/any/any.ag" );
+		view.AnimationData = renderer.Model.GetData<FirstPersonAnimation>();
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
 		view.ConfigureMuzzleFlash( firstPerson: true );
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
 		view.ConfigureCasings( firstPerson: true );
-		view.Animator.Configure( "any", "any", "any" );
 		ViewModel = go;
 		view.OnDeploy();
 	}
@@ -391,13 +390,13 @@ public sealed class Shotgun : Weapon
 
 	public override void SecondaryAttack()
 	{
-		var rig = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( ArmsPath ) as Halo2ModelLoader;
-		var actions = rig?.GetAnimationContext( "any", "any", "any" )?.Actions;
+		var actions = (ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
+			?? Model.Load( ArmsPath )?.GetData<FirstPersonAnimation>())?.Actions;
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
 		var action = BlamRandom.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
-		var clip = rig.GetClipInfo( actions[action] );
+		var clip = actions[action];
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		float duration = clip.Frames / 30f;
 		meleeEnds = duration;
@@ -518,7 +517,8 @@ public sealed class Shotgun : Weapon
 [Hide]
 public sealed class ShotgunViewModel : ShotgunModel
 {
-	internal Halo2Animator Animator { get; set; }
+	internal FirstPersonAnimation AnimationData { get; set; }
+	uint cueSeed = (uint)System.Random.Shared.Next();
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
@@ -538,11 +538,14 @@ public sealed class ShotgunViewModel : ShotgunModel
 
 	bool SelectAction( string action, bool once = false )
 	{
-		if ( !Animator.IsValid() || !Animator.Bound ) return false;
+		if ( AnimationData?.Actions.ContainsKey( action ) != true || !Renderer.Animation.IsValid ) return false;
 		var graph = Renderer.Animation;
 		if ( action == "ready" && string.Equals( graph.Parameters.GetString( "action" ), action, System.StringComparison.OrdinalIgnoreCase ) )
 			return false;
-		if ( !Animator.SetAction( action, once ) ) return false;
+		bool restart = once && string.Equals( graph.Parameters.GetString( "action" ), action, System.StringComparison.OrdinalIgnoreCase );
+		graph.Parameters.Set( "action_once", once );
+		graph.Parameters.Set( "action", action );
+		if ( restart ) graph.Parameters.Trigger( "action_restart" );
 		graph.Parameters.Set( "action_blend", 0f );
 
 		// The first-person action selector chooses its fade by the incoming action ID.
@@ -607,7 +610,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		if ( dt <= 0 ) return;
 		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
 		var throttle = player.UseInputControls ? Input.AnalogMove.ClampLength( 1 ) : Vector3.Zero;
-		movingClip ??= Animator?.GetOverlayClip( "moving" );
+		movingClip ??= AnimationData?.Movement;
 		if ( movingClip is not null )
 			StepMovement( player.IsOnGround ? throttle.Length : 0, dt, movingClip.Frames, movingClip.LoopFrame );
 		StepAxis( ref offsetForward, ref forwardVelocity, throttle.x, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
@@ -705,7 +708,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 	{
 		if ( !SelectAction( action, true ) ) return;
 		reloadCancelled = false;
-		clip = Animator.CurrentActionClip;
+		clip = AnimationData.Actions[action];
 		elapsed = 0;
 		nextCue = 0;
 	}
@@ -732,7 +735,12 @@ public sealed class ShotgunViewModel : ShotgunModel
 			var cue = clip.Cues[nextCue++];
 			bool thirdPerson = Weapon.Owner is { ThirdPerson: true };
 			// The first-person sound reference's fourth bit restricts playback to that camera.
-			Animator.DispatchCue( cue, thirdPerson ? Weapon.WorldModel : GameObject, !thirdPerson || (cue.Flags & 8) == 0 );
+			if ( cue.Kind == "sound" && (!thirdPerson || (cue.Flags & 8) == 0) && cue.TagPath is {} path
+				&& AnimationData.Sounds.TryGetValue( path, out var sound ) )
+			{
+				var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker )?.Position ?? WorldPosition : WorldPosition;
+				sound.Play( position, ref cueSeed, thirdPerson ? Weapon.WorldModel : GameObject );
+			}
 		}
 		if ( sampleTick >= lastTick )
 		{
@@ -749,8 +757,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 	{
 		base.OnUpdate();
 		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Shotgun>();
-		if ( !Weapon.IsValid() || !Animator.IsValid() || !Animator.Bound ) return;
-		Animator.SampleCuesFromGraph = false;
+		if ( !Weapon.IsValid() || AnimationData is null || !Renderer.Animation.IsValid ) return;
 		AdvanceAction( Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta );
 
 		if ( Weapon.Holder is not PlayerController player ) return;
@@ -768,6 +775,8 @@ public sealed class ShotgunViewModel : ShotgunModel
 		p.Set( "overlay_time", movingClip is { Frames: > 1 } ? (movementFrame / (movingClip.Frames - 1)).Clamp( 0, 1 ) : 0 );
 		p.Set( "overlay_weight", moving && movementDelay == 0 ? aimWeight : 0 );
 		var look = player.EyeAngles;
-		Animator.SetAim( "pitch_and_turn", turn.RadianToDegree(), -look.pitch );
+		p.Set( "aim_screen", "pitch_and_turn" );
+		p.Set( "aim_yaw", turn.RadianToDegree() );
+		p.Set( "aim_pitch", -look.pitch );
 	}
 }

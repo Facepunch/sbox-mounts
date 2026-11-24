@@ -52,6 +52,19 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 	{
 		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
+		if ( HasFirstPersonWeapon && GetAnimationContext( "any", "any", "any" ) is {} context )
+		{
+			var actions = context.Actions.ToDictionary( a => a.Key, a => GetClipInfo( a.Value ) );
+			var sounds = new Dictionary<string, CuePlayback>();
+			foreach ( var cue in actions.Values.SelectMany( a => a.Cues ) )
+			{
+				if ( cue.Kind == "sound" && cue.TagPath is {} path && !sounds.ContainsKey( path )
+					&& Host.GetByPath( Host.AssetPath( mapFile, path, "sound" ) ) is Halo2SoundLoader sound )
+					sounds[path] = sound.Cue;
+			}
+			builder.WithData( new FirstPersonAnimation { Actions = actions, Sounds = sounds,
+				Movement = context.Overlays.TryGetValue( "moving", out var movement ) ? GetClipInfo( movement ) : null } );
+		}
 		if ( biped is not null && ReadWeakTargets() is { Length: > 0 } weakTargets )
 			builder.WithData( weakTargets );
 
@@ -535,7 +548,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( phmo.RigidBodies.Count == 0 )
 			return;
 
-		// Build mapping from phmo node index â†’ render model bone index.
+		// Build mapping from phmo node index Ã¢â€ â€™ render model bone index.
 		// Try name-based matching first (phmo has its own node list).
 		// Fall back to direct indexing if no phmo nodes or no matches found.
 		var phmoToRenderBone = new Dictionary<int, int>();

@@ -38,6 +38,14 @@ public sealed record Halo2AnimationCue( int Frame, string Kind, int Index, strin
 public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, float Weight, int PreviousVariant,
 	int NextVariant, int PlaybackFlags, IReadOnlyList<Halo2AnimationCue> Cues );
 
+[Sandbox.ModelEditor.GameData( "first_person_animation" )]
+public sealed class FirstPersonAnimation
+{
+	public Dictionary<string, Halo2ClipInfo> Actions { get; set; }
+	public Halo2ClipInfo Movement { get; set; }
+	public Dictionary<string, CuePlayback> Sounds { get; set; }
+}
+
 public partial class Halo2ModelLoader
 {
 	internal void PlaySoundCue( string tagPath, Vector3 position, ref uint seed, GameObject owner )

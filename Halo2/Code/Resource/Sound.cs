@@ -5,6 +5,25 @@ using Halo2.Blam;
 
 namespace Halo2;
 
+public sealed record CuePlayback( string Path, float GainDb, float VarianceDb, short LowCents, short HighCents )
+{
+	internal SoundHandle Play( Vector3 position, ref uint seed, GameObject owner )
+	{
+		var sound = GameResource.Load<SoundEvent>( Path );
+		if ( !sound.IsValid() ) return null;
+		const float scale = 1f / 65535;
+		float db = GainDb + VarianceDb * (BlamRandom.Next( ref seed ) * scale);
+		double cents = LowCents + (HighCents - LowCents) * (BlamRandom.Next( ref seed ) * (double)scale);
+		var handle = owner.IsValid() ? owner.PlaySound( sound ) : Sound.Play( sound, position );
+		if ( handle.IsValid() )
+		{
+			handle.Volume = MathF.Pow( 10, Math.Clamp( db, -64f, 0f ) / 20f );
+			handle.Pitch = (float)Math.Pow( 2, cents / 1200 );
+		}
+		return handle;
+	}
+}
+
 sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audioGlobals ) : Sandbox.Mounting.ResourceLoader<Halo2Mount>
 {
 	int Header => map.VaToOffset( (int)tag.DataVirtualAddress );
@@ -53,22 +72,17 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 		}
 	}
 
-	internal SoundHandle PlayCue( Vector3 position, ref uint seed, GameObject owner = null )
+	CuePlayback cue;
+	internal CuePlayback Cue
 	{
-		var sound = GameResource.Load<SoundEvent>( Path );
-		if ( !sound.IsValid() ) return null;
-		var settings = playback ??= ReadPlayback();
-		const float scale = 1f / 65535;
-		float db = settings.GainDb + settings.VarianceDb * (BlamRandom.Next( ref seed ) * scale);
-		double cents = settings.LowCents + (settings.HighCents - settings.LowCents) * (BlamRandom.Next( ref seed ) * (double)scale);
-		var handle = owner.IsValid() ? owner.PlaySound( sound ) : Sound.Play( sound, position );
-		if ( handle.IsValid() )
+		get
 		{
-			handle.Volume = Volume( db );
-			handle.Pitch = (float)Math.Pow( 2, cents / 1200 );
+			var value = playback ??= ReadPlayback();
+			return cue ??= new( Path, value.GainDb, value.VarianceDb, value.LowCents, value.HighCents );
 		}
-		return handle;
 	}
+
+	internal SoundHandle PlayCue( Vector3 position, ref uint seed, GameObject owner = null ) => Cue.Play( position, ref seed, owner );
 
 	protected override object Load()
 	{
