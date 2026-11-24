@@ -48,6 +48,8 @@ public class MapFile
 		return OpenReader( VaToOffset( (int)tag.DataVirtualAddress ), (int)tag.DataSize );
 	}
 
+	internal ReadOnlySpan<byte> ReadSpan( int offset, int size ) => decompressedData.AsSpan( offset, size );
+
 	public BinaryReader OpenReader( int offset, int size )
 	{
 		return new BinaryReader( new MemoryStream( decompressedData, offset, size, writable: false ) );
