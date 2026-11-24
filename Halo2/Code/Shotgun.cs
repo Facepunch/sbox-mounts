@@ -357,23 +357,44 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 			CurveA = new Curve( new Curve.Frame( 0, 0, 0, 13.513514f ), new Curve.Frame( 1, 5, 0, 0 ) )
 		};
 		casings.SequenceSpeed = 0;
-		casings.OnPostStep += AdvanceCasingVelocity;
-		casings.Collision = true;
-		casings.Friction = 0.1f;
-		casings.Bounce = 0.35f;
+		casings.OnPostStep += AdvanceCasings;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Lighting = true;
 		go.Enabled = true;
 	}
 
-	void AdvanceCasingVelocity( float dt )
+	void AdvanceCasings( float dt )
 	{
+		if ( dt <= 0 ) return;
 		// The stones particle controller advances position, applies gravity, then damps velocity.
 		const float gravity = 4.1712594f * 120 * 0.99908376f;
 		float retained = 1 - (0.05058453f * dt).Clamp( 0, 1 );
 		foreach ( var casing in casings.Particles )
+		{
 			casing.Velocity = (casing.Velocity + Vector3.Down * (gravity * dt)) * retained;
+			if ( casing.Frame < casing.Get<int>( "next_collision_frame" ) ) continue;
+
+			// Halo probes twelve steps ahead and accepts contacts within the first two.
+			var step = casing.Velocity * dt;
+			var start = casing.Position - step;
+			var hit = Scene.Trace.Ray( start, start + 12 * step )
+				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ).Run();
+			if ( !hit.Hit )
+			{
+				// A short rebound can return to the floor inside the five skipped probes.
+				if ( casing.LastHitTime < 0 )
+					casing.Set( "next_collision_frame", casing.Frame + 6 );
+				continue;
+			}
+			if ( hit.StartedSolid || hit.Fraction >= 1f / 6 ) continue;
+			var normalVelocity = hit.Normal * Vector3.Dot( casing.Velocity, hit.Normal );
+			casing.LastHitTime = Time.Now;
+			casing.HitPos = hit.HitPosition;
+			casing.HitNormal = hit.Normal;
+			casing.Position = hit.HitPosition + hit.Normal * 0.6f;
+			casing.Velocity = (casing.Velocity - normalVelocity) * 0.9f - normalVelocity * 0.35f;
+		}
 	}
 
 	void EjectCasing()
