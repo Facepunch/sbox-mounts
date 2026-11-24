@@ -237,7 +237,7 @@ public sealed class Shotgun : Weapon
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
-		var action = Spread.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
+		var action = BlamRandom.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
 		var clip = rig.GetClipInfo( actions[action] );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		float duration = clip.Frames / 30f;

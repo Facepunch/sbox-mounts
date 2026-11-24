@@ -40,7 +40,11 @@ public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, floa
 
 public partial class Halo2ModelLoader
 {
-	internal SoundEvent LoadSound( string tagPath ) => GameResource.Load<SoundEvent>( Host.AssetPath( mapFile, tagPath, "sound" ) );
+	internal void PlaySoundCue( string tagPath, Vector3 position, ref uint seed )
+	{
+		if ( Host.GetByPath( Host.AssetPath( mapFile, tagPath, "sound" ) ) is Halo2SoundLoader loader )
+			loader.PlayCue( position, ref seed );
+	}
 
 	public static Halo2ModelLoader ForModel( Model model ) => model is null ? null :
 		Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( model.Name ) as Halo2ModelLoader;

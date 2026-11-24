@@ -2,25 +2,28 @@ using System;
 
 namespace Halo2;
 
-internal static class Spread
+internal static class BlamRandom
 {
-	static readonly Vector3[] directions = BuildDirections();
-
 	internal static uint Next( ref uint state )
 	{
 		state = unchecked( state * 1664525u + 1013904223u );
 		return state >> 16;
 	}
+}
+
+internal static class Spread
+{
+	static readonly Vector3[] directions = BuildDirections();
 
 	internal static Vector3 Deviate( Vector3 forward, float minimum, float maximum, ref uint state )
 	{
-		var axis = directions[(Next( ref state ) * (uint)directions.Length) >> 16];
+		var axis = directions[(BlamRandom.Next( ref state ) * (uint)directions.Length) >> 16];
 		var normal = Vector3.Cross( forward, axis );
 		float length = normal.Length;
 		if ( length < 0.0001f ) return forward;
 		normal /= length;
 
-		double fraction = Next( ref state ) * (double)(1f / 65535f);
+		double fraction = BlamRandom.Next( ref state ) * (double)(1f / 65535f);
 		double angle = minimum + fraction * ((double)maximum - minimum);
 		float sine = (float)Math.Sin( angle ), cosine = (float)Math.Cos( angle );
 		return forward * cosine + normal * (Vector3.Dot( forward, normal ) * (1 - cosine))

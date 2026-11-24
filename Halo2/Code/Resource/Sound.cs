@@ -7,12 +7,43 @@ namespace Halo2;
 
 sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbox.Mounting.ResourceLoader<Halo2Mount>
 {
+	int Header => map.VaToOffset( (int)tag.DataVirtualAddress );
+	int U16( int p ) => (ushort)map.ReadInt32( p );
+	float Float( int p ) => BitConverter.Int32BitsToSingle( map.ReadInt32( p ) );
+	int Table( int block, int index, int stride ) => (uint)index < map.ReadInt32( block )
+		? map.VaToOffset( map.ReadInt32( block + 4 ) ) + index * stride : -1;
+
+	readonly record struct Playback( float Distance, float GainDb, float VarianceDb, short LowCents, short HighCents );
+	Playback? playback;
+	Playback ReadPlayback()
+	{
+		int p = Table( gestalt + 8, (short)U16( Header + 6 ), 56 );
+		return p < 0 ? default : new( Float( p + 4 ) * 120, Float( p + 16 ), Float( p + 20 ),
+			(short)U16( p + 24 ), (short)U16( p + 26 ) );
+	}
+
+	static float Volume( float db ) => MathF.Pow( 10, Math.Clamp( db, -64f, 0f ) / 20f );
+
+	internal SoundHandle PlayCue( Vector3 position, ref uint seed )
+	{
+		var sound = GameResource.Load<SoundEvent>( Path );
+		if ( !sound.IsValid() ) return null;
+		var settings = playback ??= ReadPlayback();
+		const float scale = 1f / 65535;
+		float db = settings.GainDb + settings.VarianceDb * (BlamRandom.Next( ref seed ) * scale);
+		double cents = settings.LowCents + (settings.HighCents - settings.LowCents) * (BlamRandom.Next( ref seed ) * (double)scale);
+		var handle = Sound.Play( sound, position );
+		if ( handle.IsValid() )
+		{
+			handle.Volume = Volume( db );
+			handle.Pitch = (float)Math.Pow( 2, cents / 1200 );
+		}
+		return handle;
+	}
+
 	protected override object Load()
 	{
-		int header = map.VaToOffset( (int)tag.DataVirtualAddress );
-		int U16( int p ) => (ushort)map.ReadInt32( p );
-		int Table( int block, int index, int stride ) => (uint)index < map.ReadInt32( block )
-			? map.VaToOffset( map.ReadInt32( block + 4 ) ) + index * stride : -1;
+		int header = Header;
 		int codec = Table( gestalt, map.ReadSpan( header + 3, 1 )[0], 3 );
 		if ( codec < 0 ) return null;
 		var format = map.ReadSpan( codec, 3 );
@@ -21,14 +52,9 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		uint rate = format[0] switch { 0 => 22050, 1 => 44100, 2 => 32000, 3 => 48000, _ => 0 };
 		if ( rate == 0 ) return null;
 		var sound = new SoundEvent { Sounds = [], SelectionMode = SoundEvent.SoundSelectionMode.RandomExclusive };
-		int playback = Table( gestalt + 8, (short)U16( header + 6 ), 56 );
-		if ( playback >= 0 )
-		{
-			float maxDistance = BitConverter.Int32BitsToSingle( map.ReadInt32( playback + 4 ) );
-			if ( maxDistance > 0 ) sound.Distance = maxDistance * 120;
-			float gainDb = BitConverter.Int32BitsToSingle( map.ReadInt32( playback + 0x10 ) );
-			sound.Volume = MathF.Pow( 10, Math.Clamp( gainDb, -64f, 0f ) / 20f );
-		}
+		var settings = playback ??= ReadPlayback();
+		if ( settings.Distance > 0 ) sound.Distance = settings.Distance;
+		sound.Volume = Volume( settings.GainDb );
 		int firstRange = U16( header + 8 ), rangeCount = map.ReadSpan( header + 10, 1 )[0];
 		int chunkTable = Table( gestalt + 96, 0, 8 ); // English index in the localized chunk tables.
 		if ( chunkTable < 0 ) return null;

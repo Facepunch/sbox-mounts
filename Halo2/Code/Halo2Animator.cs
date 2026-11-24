@@ -18,6 +18,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	internal bool SampleCuesFromGraph { get; set; } = true;
 	public Action<Halo2AnimationCue, Transform> CueFired { get; set; }
 
+	uint soundSeed = (uint)Random.Shared.Next();
 	Halo2ModelLoader model;
 	Halo2AnimationContext context;
 	string mode, weaponClass, weaponType;
@@ -223,10 +224,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker ) ?? Renderer.WorldTransform : Renderer.WorldTransform;
 		if ( cue.Kind == "sound" && cue.TagPath is not null )
 		{
-			if ( !Sounds.TryGetValue( cue.TagPath, out var sound ) )
-				sound = model.LoadSound( cue.TagPath );
-			if ( sound.IsValid() )
-				Sound.Play( sound, position.Position );
+			if ( Sounds.TryGetValue( cue.TagPath, out var sound ) )
+			{
+				if ( sound.IsValid() ) Sound.Play( sound, position.Position );
+			}
+			else model.PlaySoundCue( cue.TagPath, position.Position, ref soundSeed );
 		}
 		if ( cue.Kind == "effect" && cue.TagPath is not null && Effects.TryGetValue( cue.TagPath, out var effect ) && effect.IsValid() )
 			effect.Clone( position );
