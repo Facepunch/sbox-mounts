@@ -66,6 +66,30 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+foreach ( string can in new[] { "food_can_01", "food_can_02", "food_can_03", "food_can_04" } )
+{
+	var geometry = GeometryFor( "units/world/props/apartment/kitchen_counter/" + can );
+	if ( geometry.CollisionMasses.GetValueOrDefault( IdString.Hash( "c_can" ) ) != 0.05f )
+		throw new Exception( "Food can lost its authored 0.05 kg collision mass." );
+}
+var massGeometry = UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), XmlNode.Parse( """
+	<dynamic_object><bodies>
+	<body enabled="false"><object name="disabled" collision_type="box" mass="100"/></body>
+	<body template="editor"><object name="helper" collision_type="box" mass="100"/></body>
+	<body><object name="a" collision_type="box" mass="0.05"/>
+	<object name="b" collision_type="box" mass="NaN"/>
+	<object name="c" collision_type="box" mass="-1"/>
+	<object name="d" collision_type="box" mass="0"/>
+	<object name="e" collision_type="box" mass="Infinity"/></body>
+	</bodies></dynamic_object>
+	""" ) );
+if ( massGeometry.CollisionMasses.Count != 1 ) throw new Exception( "Invalid/disabled collision masses were retained." );
+var massShapes = new Dictionary<ulong, Vector3[]> { [IdString.Hash( "a" )] = [Vector3.Zero, Vector3.One] };
+if ( PropMass.Calculate( massShapes, massGeometry.CollisionMasses ) != 0.05f )
+	throw new Exception( "Explicit mass was clamped to the density-estimate minimum." );
+massShapes[IdString.Hash( "b" )] = [Vector3.Zero, Vector3.One];
+if ( MathF.Abs( PropMass.Calculate( massShapes, massGeometry.CollisionMasses ) - 0.15f ) > 0.00001f )
+	throw new Exception( "Partial authored mass failed to estimate only the missing collider." );
 var maserati = GeometryFor( "units/vehicles/maserati/low/vehicle_maserati_low" );
 if ( !maserati.Graphics.Contains( IdString.Hash( "g_maserati" ) )
 	|| !maserati.Graphics.Contains( IdString.Hash( "g_window" ) )

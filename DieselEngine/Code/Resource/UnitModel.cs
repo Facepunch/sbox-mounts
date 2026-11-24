@@ -76,10 +76,12 @@ static class UnitModel
 		var collisionVertices = new List<Vector3>();
 		var collisionIndices = new List<int>();
 		var collisionHulls = new List<Vector3[]>();
+		var massShapes = new Dictionary<ulong, Vector3[]>();
 		foreach ( var part in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
 		{
 			if ( collision.Contains( part.Name ) )
 			{
+				if ( movablePreview ) massShapes[part.Name] = part.Positions;
 				// Triangle meshes are static-only in the target physics engine. Browser props
 				// get one hull per authored collision mesh; map geometry keeps exact triangles.
 				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview )
@@ -132,14 +134,8 @@ static class UnitModel
 		var builder = Model.Builder.WithName( resourceName );
 		if ( movablePreview )
 		{
-			// A temporary density estimate avoids ModelBuilder's 1000 kg default on desk props.
-			// Use authored convex/primitive shapes; never invent a hull around rendered geometry.
-			var points = collisionHulls.SelectMany( h => h ).Concat( primitives.SelectMany( p => p.Points ) ).ToArray();
-			if ( points.Length > 0 )
-			{
-				var size = BBox.FromPoints( points ).Size * 0.0254f;
-				builder.WithMass( Math.Clamp( size.x * size.y * size.z * 500f, 0.1f, 50000f ) );
-			}
+			foreach ( var primitive in primitives ) massShapes[primitive.Name] = primitive.Points;
+			if ( massShapes.Count > 0 ) builder.WithMass( PropMass.Calculate( massShapes, geometry.CollisionMasses ) );
 		}
 		foreach ( var (material, vertices) in batches )
 		{
