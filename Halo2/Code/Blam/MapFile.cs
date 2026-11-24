@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -25,9 +26,7 @@ public class MapFile
 	{
 		MapsDirectory = Path.GetDirectoryName( path )?.Replace( '\\', '/' ) ?? "";
 
-		using var stream = MapDecompressor.Open( fs, path );
-		decompressedData = new byte[stream.Length];
-		stream.ReadExactly( decompressedData, 0, decompressedData.Length );
+		decompressedData = MapDecompressor.Read( fs, path );
 
 		Header = new MapHeader( decompressedData );
 
@@ -46,20 +45,12 @@ public class MapFile
 	/// </summary>
 	public BinaryReader GetTagDataReader( TagEntry tag )
 	{
-		var offset = VaToOffset( (int)tag.DataVirtualAddress );
-		var ms = new MemoryStream( decompressedData, offset, (int)tag.DataSize, writable: false );
-		return new BinaryReader( ms, Encoding.ASCII, leaveOpen: false );
+		return OpenReader( VaToOffset( (int)tag.DataVirtualAddress ), (int)tag.DataSize );
 	}
 
-	/// <summary>
-	/// Reads tag metadata directly from decompressed data at a physical file offset.
-	/// Use this for TagBlock data (regions, sections, nodes, etc.), NOT for raw resource blobs.
-	/// </summary>
-	public byte[] ReadTagMetadata( int offset, int size )
+	public BinaryReader OpenReader( int offset, int size )
 	{
-		var result = new byte[size];
-		Array.Copy( decompressedData, offset, result, 0, size );
-		return result;
+		return new BinaryReader( new MemoryStream( decompressedData, offset, size, writable: false ) );
 	}
 
 	/// <summary>
@@ -67,17 +58,6 @@ public class MapFile
 	/// </summary>
 	public TagEntry GetTag( int index )
 	{
-		if ( index < 0 || index >= Tags.Count )
-			return null;
-		return Tags[index];
-	}
-
-	/// <summary>
-	/// Finds a tag by datum ID (looks up by index portion of datum).
-	/// </summary>
-	public TagEntry GetTagByDatum( int datumId )
-	{
-		int index = datumId & 0xFFFF;
 		if ( index < 0 || index >= Tags.Count )
 			return null;
 		return Tags[index];
@@ -92,17 +72,7 @@ public class MapFile
 			return null;
 
 		int indexOff = Header.StringIndexAddress + stringId * 4;
-		int strOffset = decompressedData[indexOff]
-			| (decompressedData[indexOff + 1] << 8)
-			| (decompressedData[indexOff + 2] << 16)
-			| (decompressedData[indexOff + 3] << 24);
-
-		int addr = Header.StringTableAddress + strOffset;
-		int end = addr;
-		while ( end < decompressedData.Length && decompressedData[end] != 0 )
-			end++;
-
-		return Encoding.ASCII.GetString( decompressedData, addr, end - addr );
+		return ReadString( Header.StringTableAddress + ReadInt32( indexOff ) );
 	}
 
 	/// <summary>
@@ -142,7 +112,7 @@ public class MapFile
 	List<TagEntry> ReadTags()
 	{
 		int idx = Header.IndexOffset;
-		int tagClassCount = ReadInt32( idx );
+		var classes = new Dictionary<uint, string>();
 		int tagTableRelOffset = ReadInt32( idx + 8 );
 		int tagCount = ReadInt32( idx + 24 );
 		int tagTableOffset = idx + tagTableRelOffset;
@@ -157,20 +127,10 @@ public class MapFile
 			uint dataVa = ReadUInt32( off + 8 );
 			uint dataSize = ReadUInt32( off + 12 );
 
-			// FourCC is stored as raw ASCII bytes
-			string primaryClass;
-			if ( classRaw == 0xFFFFFFFF || classRaw == 0 )
+			if ( !classes.TryGetValue( classRaw, out var primaryClass ) )
 			{
-				primaryClass = "";
-			}
-			else
-			{
-				var cb = new byte[4];
-				cb[0] = (byte)(classRaw & 0xFF);
-				cb[1] = (byte)((classRaw >> 8) & 0xFF);
-				cb[2] = (byte)((classRaw >> 16) & 0xFF);
-				cb[3] = (byte)((classRaw >> 24) & 0xFF);
-				primaryClass = Encoding.ASCII.GetString( cb ).TrimEnd( '\0' );
+				primaryClass = classRaw is 0 or uint.MaxValue ? "" : Encoding.ASCII.GetString( decompressedData, off, 4 ).TrimEnd( '\0' );
+				classes.Add( classRaw, primaryClass );
 			}
 
 			// Read tag path from file table
@@ -180,12 +140,7 @@ public class MapFile
 				int strOffset = ReadInt32( Header.FileTableIndexAddress + i * 4 );
 				int strAddr = Header.FileTableAddress + strOffset;
 				if ( strAddr >= 0 && strAddr < decompressedData.Length )
-				{
-					int end = strAddr;
-					while ( end < decompressedData.Length && decompressedData[end] != 0 )
-						end++;
-					tagPath = Encoding.ASCII.GetString( decompressedData, strAddr, end - strAddr );
-				}
+					tagPath = ReadString( strAddr );
 			}
 
 			tags.Add( new TagEntry
@@ -202,12 +157,13 @@ public class MapFile
 		return tags;
 	}
 
-	int ReadInt32( int offset ) =>
-		decompressedData[offset]
-		| (decompressedData[offset + 1] << 8)
-		| (decompressedData[offset + 2] << 16)
-		| (decompressedData[offset + 3] << 24);
+	string ReadString( int offset )
+	{
+		int end = Array.IndexOf( decompressedData, (byte)0, offset );
+		return Encoding.ASCII.GetString( decompressedData, offset, (end < 0 ? decompressedData.Length : end) - offset );
+	}
 
+	int ReadInt32( int offset ) => BinaryPrimitives.ReadInt32LittleEndian( decompressedData.AsSpan( offset ) );
 	uint ReadUInt32( int offset ) => (uint)ReadInt32( offset );
 }
 
@@ -239,7 +195,7 @@ public class MapHeader
 
 	public MapHeader( byte[] data )
 	{
-		int R( int off ) => data[off] | (data[off + 1] << 8) | (data[off + 2] << 16) | (data[off + 3] << 24);
+		int R( int off ) => BinaryPrimitives.ReadInt32LittleEndian( data.AsSpan( off ) );
 
 		Version = R( 0x04 );
 		FileSize = R( 0x08 );

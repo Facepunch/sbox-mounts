@@ -36,8 +36,7 @@ public class ShaderTag
 		{
 			// RuntimePropertiesBlock is 80 bytes (0x50)
 			int rpOff = map.VaToOffset( rpPtr );
-			var data = map.ReadTagMetadata( rpOff, 80 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( rpOff, 80 );
 
 			// DiffuseBitmapReference at +0 (TagReference: classId:4 + tagDatum:4 = 8 bytes)
 			r.ReadInt32(); // classId
@@ -60,8 +59,7 @@ public class ShaderTag
 		if ( ppCount > 0 && ppPtr != 0 )
 		{
 			int ppOff = map.VaToOffset( ppPtr );
-			var ppData = map.ReadTagMetadata( ppOff, 0x7C );
-			using var pp = new BinaryReader( new MemoryStream( ppData ) );
+			using var pp = map.OpenReader( ppOff, 0x7C );
 
 			// +0x00: Shader Template tagRef (withGroup=false, 4 bytes = datum only)
 			int templateDatum = pp.ReadInt32();
@@ -128,8 +126,7 @@ public class ShaderTag
 
 	static void ReadBitmapSlot( MapFile map, int bmpOff, int slot, out int datum )
 	{
-		var data = map.ReadTagMetadata( bmpOff + slot * 0x0C, 0x0C );
-		using var r = new BinaryReader( new MemoryStream( data ) );
+		using var r = map.OpenReader( bmpOff + slot * 0x0C, 0x0C );
 		datum = r.ReadInt32();
 	}
 }

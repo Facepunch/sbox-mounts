@@ -76,8 +76,7 @@ public class PhysicsModelTag
 		int baseOff = map.VaToOffset( ptr );
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * 0x0C, 0x0C );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * 0x0C, 0x0C );
 
 			Nodes.Add( new PhysNode
 			{
@@ -98,8 +97,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var rb = new RigidBody
 			{
@@ -149,8 +147,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var sph = new PhysSphere();
 
@@ -176,8 +173,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var pill = new PhysPill();
 
@@ -209,8 +205,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var box = new PhysBox();
 
@@ -266,8 +261,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var c = new RagdollConstraint();
 			ReadConstraintBase( r, c );
@@ -291,8 +285,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var c = new HingeConstraint();
 			ReadConstraintBase( r, c );
@@ -307,8 +300,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var c = new LimitedHingeConstraint();
 			ReadConstraintBase( r, c );
@@ -328,8 +320,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var c = new BallSocketConstraint();
 			ReadConstraintBase( r, c );
@@ -344,8 +335,7 @@ public class PhysicsModelTag
 
 		for ( int i = 0; i < count; i++ )
 		{
-			var data = map.ReadTagMetadata( baseOff + i * elementSize, elementSize );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( baseOff + i * elementSize, elementSize );
 
 			var edge = new NodeEdge
 			{
@@ -364,8 +354,7 @@ public class PhysicsModelTag
 				int subOff = map.VaToOffset( subPtr );
 				for ( int j = 0; j < subCount; j++ )
 				{
-					var sd = map.ReadTagMetadata( subOff + j * 0x0C, 0x0C );
-					using var sr = new BinaryReader( new MemoryStream( sd ) );
+					using var sr = map.OpenReader( subOff + j * 0x0C, 0x0C );
 
 					edge.Constraints.Add( new EdgeConstraintRef
 					{

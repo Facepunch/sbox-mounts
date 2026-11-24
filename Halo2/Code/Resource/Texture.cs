@@ -37,34 +37,24 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag ) : ResourceLoade
 		if ( format == null )
 			return Texture.White;
 
-		var baseMipSize = CalculateBaseMipSize( data );
-		if ( baseMipSize > pixels.Length )
-			baseMipSize = pixels.Length;
-
-		var basePixels = pixels.AsSpan( 0, baseMipSize ).ToArray();
-
-		// Convert ARGB to RGBA for uncompressed 32-bit formats
-		if ( data.Format == BitmapData.TextureFormats.A8R8G8B8 )
-			ConvertArgbToRgba( basePixels );
-		else if ( data.Format == BitmapData.TextureFormats.X8R8G8B8 )
-			ConvertXrgbToRgba( basePixels );
-
-		bool isCompressed = data.Format >= BitmapData.TextureFormats.DXT1
-			&& data.Format <= BitmapData.TextureFormats.DXT5;
-
-		if ( isCompressed )
+		int baseMipSize = Math.Min( CalculateBaseMipSize( data ), pixels.Length );
+		if ( format == ImageFormat.RGBA8888 )
 		{
-			return Texture.Create( data.Width, data.Height, format.Value )
-				.WithData( basePixels )
-				.WithMips( 1 )
-				.WithStaticUsage()
-				.Finish();
+			bool opaque = data.Format == BitmapData.TextureFormats.X8R8G8B8;
+			for ( int i = 0; i + 3 < baseMipSize; i += 4 )
+			{
+				byte alpha = opaque ? (byte)255 : pixels[i];
+				pixels[i] = pixels[i + 1];
+				pixels[i + 1] = pixels[i + 2];
+				pixels[i + 2] = pixels[i + 3];
+				pixels[i + 3] = alpha;
+			}
 		}
 
-		return Texture.Create( data.Width, data.Height, format.Value )
-			.WithData( basePixels )
-			.WithMips()
-			.Finish();
+		var builder = Texture.Create( data.Width, data.Height, format.Value ).WithData( pixels, baseMipSize );
+		return format is ImageFormat.DXT1 or ImageFormat.DXT3 or ImageFormat.DXT5
+			? builder.WithMips( 1 ).WithStaticUsage().Finish()
+			: builder.WithMips().Finish();
 	}
 
 	static ImageFormat? GetImageFormat( short format ) => format switch
@@ -98,21 +88,4 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag ) : ResourceLoade
 		};
 	}
 
-	static void ConvertArgbToRgba( byte[] data )
-	{
-		for ( int i = 0; i < data.Length - 3; i += 4 )
-		{
-			byte a = data[i], r = data[i + 1], g = data[i + 2], b = data[i + 3];
-			data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = a;
-		}
-	}
-
-	static void ConvertXrgbToRgba( byte[] data )
-	{
-		for ( int i = 0; i < data.Length - 3; i += 4 )
-		{
-			byte r = data[i + 1], g = data[i + 2], b = data[i + 3];
-			data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
-		}
-	}
 }

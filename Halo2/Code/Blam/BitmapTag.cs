@@ -33,8 +33,7 @@ public class BitmapTag
 		for ( int i = 0; i < bitmapCount; i++ )
 		{
 			int off = baseOff + i * 168;
-			var data = map.ReadTagMetadata( off, 168 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( off, 168 );
 
 			r.ReadInt32(); // +0: "bitm" class tag
 
@@ -102,6 +101,7 @@ public class BitmapTag
 		int offset = 0;
 
 		using var output = new MemoryStream();
+		var frame = Array.Empty<byte>();
 
 		foreach ( int blockSize in segments )
 		{
@@ -119,7 +119,7 @@ public class BitmapTag
 			else
 			{
 				// Positive = ZLib compressed
-				output.Write( MapDecompressor.ReadZlibChunk( source, blockSize ) );
+				MapDecompressor.InflateChunk( source, blockSize, output, ref frame );
 				offset += blockSize;
 			}
 		}

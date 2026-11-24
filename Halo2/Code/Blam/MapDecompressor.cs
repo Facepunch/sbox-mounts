@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
 
@@ -13,17 +14,8 @@ public static class MapDecompressor
 {
 	const int HeaderSize = 896;
 
-	// Header field offsets for MccHalo2U1 (version 13)
-	const int OffsetFlags = 0x01C;
-	const int OffsetCompressedDataChunkSize = 0x308;
-	const int OffsetCompressedChunkTableAddr = 0x310;
-	const int OffsetCompressedChunkCount = 0x314;
-
-	/// <summary>
-	/// Returns a MemoryStream containing the fully decompressed map data.
-	/// If the map is not compressed, returns the raw file contents in a MemoryStream.
-	/// </summary>
-	public static Stream Open( BaseFileSystem fileSystem, string mapFilePath )
+	/// <summary>Reads the uncompressed contents of a version 13 MCC cache.</summary>
+	public static byte[] Read( BaseFileSystem fileSystem, string mapFilePath )
 	{
 		using var fs = fileSystem.OpenRead( mapFilePath );
 		using var reader = new BinaryReader( fs );
@@ -38,7 +30,8 @@ public static class MapDecompressor
 			throw new InvalidDataException( $"Unexpected Halo 2 map version: {version}" );
 
 		// Check compressed flag (bit 0 of int16 at offset 0x1C)
-		fs.Seek( OffsetFlags, SeekOrigin.Begin );
+		int fileSize = reader.ReadInt32();
+		fs.Position = 0x1C;
 		var flags = reader.ReadInt16();
 		bool isCompressed = (flags & 1) != 0;
 
@@ -47,68 +40,75 @@ public static class MapDecompressor
 			fs.Seek( 0, SeekOrigin.Begin );
 			var raw = new byte[fs.Length];
 			fs.ReadExactly( raw, 0, raw.Length );
-			return new MemoryStream( raw, writable: false );
+			return raw;
 		}
 
-		// Read compression metadata
-		fs.Seek( OffsetCompressedDataChunkSize, SeekOrigin.Begin );
-		int chunkTargetSize = reader.ReadInt32();
-		reader.ReadInt32(); // compressedDataOffset (not needed)
-		int chunkTableAddr = reader.ReadInt32();
+		fs.Position = 0x310;
+		int tableOffset = reader.ReadInt32();
 		int chunkCount = reader.ReadInt32();
+		if ( fileSize < HeaderSize || chunkCount < 0 || tableOffset < HeaderSize || tableOffset + 8L * chunkCount > fs.Length )
+			throw new InvalidDataException( "Invalid map chunk table." );
 
-		// Read header verbatim
-		fs.Seek( 0, SeekOrigin.Begin );
-		var headerBytes = reader.ReadBytes( HeaderSize );
-
-		var output = new MemoryStream();
-		output.Write( headerBytes );
+		var data = new byte[fileSize];
+		fs.Position = 0;
+		fs.ReadExactly( data, 0, HeaderSize );
+		using var output = new MemoryStream( data, 0, data.Length, writable: true, publiclyVisible: true );
+		output.Position = HeaderSize;
+		var frame = Array.Empty<byte>();
+		fs.Position = tableOffset;
+		var table = new byte[checked(chunkCount * 8)];
+		fs.ReadExactly( table );
 		for ( int i = 0; i < chunkCount; i++ )
 		{
-			fs.Position = chunkTableAddr + 8L * i;
-			int size = reader.ReadInt32();
-			fs.Position = reader.ReadInt32();
+			int size = BinaryPrimitives.ReadInt32LittleEndian( table.AsSpan( i * 8 ) );
+			fs.Position = BinaryPrimitives.ReadInt32LittleEndian( table.AsSpan( i * 8 + 4 ) );
 			if ( size < 0 )
 			{
 				// Stored chunks have two unused header bytes.
 				fs.Position += 2;
-				var raw = new byte[-size];
-				fs.ReadExactly( raw );
-				output.Write( raw );
+				fs.ReadExactly( data, (int)output.Position, checked(-size) );
+				output.Position -= size;
 			}
 			else
 			{
-				output.Write( ReadZlibChunk( fs, size, chunkTargetSize ) );
+				InflateChunk( fs, size, output, ref frame );
 			}
 		}
 
-		output.Position = 0;
-		return output;
+		if ( output.Position != fileSize ) throw new InvalidDataException( "Incorrect decompressed map size." );
+		return data;
 	}
 
 	// MCC stores zlib frames. DeflateStream reads the payload between the
 	// two-byte zlib header and the big-endian Adler-32 trailer.
-	internal static byte[] ReadZlibChunk( Stream source, int size, int capacity = 0 )
+	internal static void InflateChunk( Stream source, int size, MemoryStream output, ref byte[] frame )
 	{
-		if ( size < 6 ) throw new InvalidDataException( "Truncated zlib chunk." );
-		var frame = new byte[size];
-		source.ReadExactly( frame );
+		if ( size < 6 || size > source.Length - source.Position ) throw new InvalidDataException( "Truncated zlib chunk." );
+		if ( frame.Length < size ) frame = new byte[size];
+		source.ReadExactly( frame, 0, size );
 		if ( (frame[0] & 15) != 8 || (frame[0] >> 4) > 7 || (frame[1] & 32) != 0 || (frame[0] * 256 + frame[1]) % 31 != 0 )
 			throw new InvalidDataException( "Invalid zlib header." );
 
 		using var payload = new MemoryStream( frame, 2, size - 6, writable: false );
 		using var inflater = new DeflateStream( payload, CompressionMode.Decompress );
-		using var output = new MemoryStream( capacity );
+		int start = (int)output.Position;
 		inflater.CopyTo( output );
-		var bytes = output.ToArray();
+		var bytes = output.GetBuffer().AsSpan( start, (int)output.Position - start );
 		uint a = 1, b = 0;
-		foreach ( byte value in bytes )
+		// Adler-32 can accumulate up to 5552 bytes before either sum overflows.
+		while ( !bytes.IsEmpty )
 		{
-			a = (a + value) % 65521;
-			b = (b + a) % 65521;
+			int count = Math.Min( bytes.Length, 5552 );
+			foreach ( byte value in bytes[..count] )
+			{
+				a += value;
+				b += a;
+			}
+			a %= 65521;
+			b %= 65521;
+			bytes = bytes[count..];
 		}
-		var expected = System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian( frame.AsSpan( size - 4 ) );
+		var expected = BinaryPrimitives.ReadUInt32BigEndian( frame.AsSpan( size - 4 ) );
 		if ( ((b << 16) | a) != expected ) throw new InvalidDataException( "Invalid zlib checksum." );
-		return bytes;
 	}
 }

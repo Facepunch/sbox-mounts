@@ -73,40 +73,28 @@ public class Halo2Mount : BaseGameMount
 		var mapFile = new MapFile( appFs, mapPath );
 		var mapName = mapFile.Header.MapName;
 
-		// Build mode→phmo mapping via hlmt tags
-		// hlmt FourCC "hlmt" stored LE as "tmlh"
+		// Model definitions link the render model and physics model by tag datum.
 		var modeToPhmo = new Dictionary<int, TagEntry>();
 		foreach ( var tag in mapFile.Tags )
 		{
-			if ( tag.PrimaryClass != "tmlh" || tag.DataSize == 0 )
-				continue;
-
+			if ( tag.PrimaryClass != "tmlh" || tag.DataSize < 0x28 ) continue;
 			try
 			{
-				// hlmt tag: render_model TagRef at +0x00, physics_model TagRef at +0x20
-				// Each TagRef = classId(4) + datum(4) = 8 bytes
-				using var r = mapFile.GetTagDataReader( tag );
+				using var reader = mapFile.GetTagDataReader( tag );
+				reader.BaseStream.Position = 0x04;
+				int renderDatum = reader.ReadInt32();
+				reader.BaseStream.Position = 0x24;
+				int physicsDatum = reader.ReadInt32();
+				if ( renderDatum == -1 || physicsDatum == -1 ) continue;
 
-				// Render model datum at +0x04 (skip classId at +0x00)
-				r.BaseStream.Seek( 4, SeekOrigin.Begin );
-				int modeDatum = r.ReadInt32();
-				int modeIndex = modeDatum & 0xFFFF;
-
-				// Physics model datum at +0x24 (skip classId at +0x20)
-				r.BaseStream.Seek( 0x24, SeekOrigin.Begin );
-				int phmoDatum = r.ReadInt32();
-				int phmoIndex = phmoDatum & 0xFFFF;
-
-				if ( modeIndex >= 0 && modeIndex < mapFile.Tags.Count &&
-					 phmoIndex >= 0 && phmoIndex < mapFile.Tags.Count &&
-					 phmoDatum != -1 && modeDatum != -1 )
-				{
-					var phmoTag = mapFile.Tags[phmoIndex];
-					if ( phmoTag.DataSize > 0 )
-						modeToPhmo[modeIndex] = phmoTag;
-				}
+				var physics = mapFile.GetTag( physicsDatum & 0xffff );
+				if ( physics is { DataSize: > 0 } )
+					modeToPhmo[renderDatum & 0xffff] = physics;
 			}
-			catch { }
+			catch ( ArgumentException ex )
+			{
+				Log.Warning( $"[Halo2] Invalid model definition {tag.TagPath}: {ex.Message}" );
+			}
 		}
 
 		foreach ( var tag in mapFile.Tags )

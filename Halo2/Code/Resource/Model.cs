@@ -36,7 +36,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 				var perm = region.Permutations[permIdx];
 
 				// Halo 2 LOD levels: SuperHigh(0), High(1), Medium(2), Low(3), SuperLow(4), Potato(5)
-				int[] lodSections =
+				ReadOnlySpan<int> lodSections =
 				[
 					perm.SuperHighSectionIndex,
 					perm.HighSectionIndex,
@@ -46,8 +46,6 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 					perm.PotatoSectionIndex
 				];
 
-				var loadedSections = new HashSet<int>();
-
 				for ( int lod = 0; lod < lodSections.Length; lod++ )
 				{
 					int sectionIndex = lodSections[lod];
@@ -55,7 +53,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 						continue;
 
 					// Skip if this section was already loaded at a higher detail LOD
-					if ( !loadedSections.Add( sectionIndex ) )
+					if ( lodSections[..lod].Contains( sectionIndex ) )
 						continue;
 
 					var section = model.Sections[sectionIndex];
@@ -175,146 +173,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			}
 		}
 
-		// Read vertex positions (float3, 12 bytes min) — compressed on PC, decompress with bounding box
-		int vertexSize = vertexResource.Size / section.VertexCount;
-		var positions = new Vector3[section.VertexCount];
-
-		// PC compression bounds: Min=Midpoint, so actual = midpoint + raw * (max - midpoint)
-		float posXMid = 0, posYMid = 0, posZMid = 0;
-		float posXRange = 1, posYRange = 1, posZRange = 1;
-		float uvUMid = 0, uvVMid = 0;
-		float uvURange = 1, uvVRange = 1;
-
-		if ( bounds != null )
-		{
-			posXMid = (bounds.XMin + bounds.XMax) * 0.5f;
-			posYMid = (bounds.YMin + bounds.YMax) * 0.5f;
-			posZMid = (bounds.ZMin + bounds.ZMax) * 0.5f;
-			posXRange = bounds.XMax - posXMid;
-			posYRange = bounds.YMax - posYMid;
-			posZRange = bounds.ZMax - posZMid;
-			uvUMid = (bounds.UMin + bounds.UMax) * 0.5f;
-			uvVMid = (bounds.VMin + bounds.VMax) * 0.5f;
-			uvURange = bounds.UMax - uvUMid;
-			uvVRange = bounds.VMax - uvVMid;
-		}
-
-		for ( int i = 0; i < section.VertexCount; i++ )
-		{
-			reader.BaseStream.Seek( baseAddress + vertexResource.Offset + i * vertexSize, SeekOrigin.Begin );
-			float x = reader.ReadSingle();
-			float y = reader.ReadSingle();
-			float z = reader.ReadSingle();
-			positions[i] = new Vector3(
-				posXMid + x * posXRange,
-				posYMid + y * posYRange,
-				posZMid + z * posZRange
-			);
-		}
-
-		// Read UVs (float2, 8 bytes) — also compressed on PC
-		var texcoords = new Vector2[section.VertexCount];
-		if ( uvResource != null )
-		{
-			for ( int i = 0; i < section.VertexCount; i++ )
-			{
-				reader.BaseStream.Seek( baseAddress + uvResource.Offset + i * 8, SeekOrigin.Begin );
-				float u = reader.ReadSingle();
-				float v = reader.ReadSingle();
-				texcoords[i] = new Vector2(
-					uvUMid + u * uvURange,
-					uvVMid + v * uvVRange
-				);
-			}
-		}
-
-		// Read normals (float3 from 36-byte block)
-		var normals = new Vector3[section.VertexCount];
-		if ( normalsResource != null )
-		{
-			for ( int i = 0; i < section.VertexCount; i++ )
-			{
-				reader.BaseStream.Seek( baseAddress + normalsResource.Offset + i * 36, SeekOrigin.Begin );
-				normals[i] = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ).Normal;
-			}
-		}
-
-		// Read node map for bone index remapping
-		byte[] nodeMap = Array.Empty<byte>();
-		if ( nodeMapResource != null && nodeMapResource.Size > 0 )
-		{
-			reader.BaseStream.Seek( baseAddress + nodeMapResource.Offset, SeekOrigin.Begin );
-			nodeMap = reader.ReadBytes( nodeMapResource.Size );
-		}
-
-		// Read blend indices/weights for skinned meshes
-		byte[] blendIdx0 = null, blendIdx1 = null;
-		byte[] blendWt0 = null, blendWt1 = null;
-
-		if ( section.GeometryClassification == 1 ) // Rigid: all verts bound to one bone
-		{
-			byte rigidBone = 0;
-			if ( section.NodesPerVertex >= 1 && nodeMap.Length > 0 )
-				rigidBone = nodeMap[0];
-
-			blendIdx0 = new byte[section.VertexCount];
-			blendIdx1 = new byte[section.VertexCount];
-			blendWt0 = new byte[section.VertexCount];
-			blendWt1 = new byte[section.VertexCount];
-
-			for ( int i = 0; i < section.VertexCount; i++ )
-			{
-				blendIdx0[i] = rigidBone;
-				blendWt0[i] = 255;
-			}
-		}
-		else if ( section.GeometryClassification >= 2 && vertexSize > 12 ) // RigidBoned or Skinned
-		{
-			blendIdx0 = new byte[section.VertexCount];
-			blendIdx1 = new byte[section.VertexCount];
-			blendWt0 = new byte[section.VertexCount];
-			blendWt1 = new byte[section.VertexCount];
-
-			for ( int i = 0; i < section.VertexCount; i++ )
-			{
-				reader.BaseStream.Seek( baseAddress + vertexResource.Offset + i * vertexSize + 12, SeekOrigin.Begin );
-
-				if ( section.GeometryClassification == 2 ) // RigidBoned
-				{
-					blendIdx0[i] = reader.ReadByte();
-					blendIdx1[i] = 0;
-					blendWt0[i] = 255;
-					blendWt1[i] = 0;
-				}
-				else if ( section.GeometryClassification == 3 ) // Skinned
-				{
-					// 4 byte indices + 4 byte weights
-					byte n0 = reader.ReadByte();
-					byte n1 = reader.ReadByte();
-					reader.ReadByte(); // n2
-					reader.ReadByte(); // n3
-					byte w0 = reader.ReadByte();
-					byte w1 = reader.ReadByte();
-
-					blendIdx0[i] = n0;
-					blendIdx1[i] = n1;
-					blendWt0[i] = w0;
-					blendWt1[i] = (byte)(255 - w0); // normalize to sum 255
-				}
-			}
-
-			// Remap through node map
-			if ( nodeMap.Length > 0 )
-			{
-				for ( int i = 0; i < section.VertexCount; i++ )
-				{
-					if ( blendIdx0[i] < nodeMap.Length )
-						blendIdx0[i] = nodeMap[blendIdx0[i]];
-					if ( blendIdx1[i] < nodeMap.Length )
-						blendIdx1[i] = nodeMap[blendIdx1[i]];
-				}
-			}
-		}
+		var verts = ReadVertices( reader, section, bounds, vertexResource, uvResource, normalsResource, nodeMapResource );
+		var meshBounds = BBox.FromPoints( verts.Select( v => v.position ) );
 
 		// Build mesh for each submesh
 		foreach ( var submesh in submeshes )
@@ -328,31 +188,90 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 
 			var material = LoadMaterial( map, model, submesh.ShaderIndex, mapName );
 
-			var verts = new List<SkinnedVertex>( section.VertexCount );
-			for ( int i = 0; i < section.VertexCount; i++ )
-			{
-				var pos = ConvertPosition( positions[i] );
-				var norm = normals[i] != Vector3.Zero ? ConvertPosition( normals[i] ).Normal : Vector3.Up;
-				var uv = texcoords[i];
-
-				byte bi0 = blendIdx0 != null ? blendIdx0[i] : (byte)0;
-				byte bi1 = blendIdx1 != null ? blendIdx1[i] : (byte)0;
-				byte bw0 = blendWt0 != null ? blendWt0[i] : (byte)255;
-				byte bw1 = blendWt1 != null ? blendWt1[i] : (byte)0;
-
-				verts.Add( new SkinnedVertex(
-					pos, norm, uv,
-					new Color32( bi0, bi1, 0, 0 ),
-					new Color32( bw0, bw1, 0, 0 )
-				) );
-			}
-
 			var mesh = new Mesh( $"section{sectionIndex}", material );
-			mesh.CreateVertexBuffer( verts.Count, verts );
+			mesh.CreateVertexBuffer( verts.Length, verts );
 			mesh.CreateIndexBuffer( triIndices.Count, triIndices );
-			mesh.Bounds = BBox.FromPoints( verts.Select( v => v.position ) );
+			mesh.Bounds = meshBounds;
 			builder.AddMesh( mesh, lod, regionName, permIndex );
 		}
+	}
+
+	static SkinnedVertex[] ReadVertices( BinaryReader reader, Section section, BoundingBox bounds,
+		ResourceInfo positions, ResourceInfo uvs, ResourceInfo normals, ResourceInfo nodeMap )
+	{
+		var stream = reader.BaseStream;
+		int stride = positions.Size / section.VertexCount;
+		var center = Vector3.Zero;
+		var range = Vector3.One;
+		var uvCenter = Vector2.Zero;
+		var uvRange = Vector2.One;
+		if ( bounds is not null )
+		{
+			var max = new Vector3( bounds.XMax, bounds.YMax, bounds.ZMax );
+			center = (new Vector3( bounds.XMin, bounds.YMin, bounds.ZMin ) + max) * 0.5f;
+			range = max - center;
+			var uvMax = new Vector2( bounds.UMax, bounds.VMax );
+			uvCenter = (new Vector2( bounds.UMin, bounds.VMin ) + uvMax) * 0.5f;
+			uvRange = uvMax - uvCenter;
+		}
+
+		var bones = Array.Empty<byte>();
+		if ( nodeMap is { Size: > 0 } )
+		{
+			stream.Position = section.BaseAddress + nodeMap.Offset;
+			bones = reader.ReadBytes( nodeMap.Size );
+		}
+
+		var vertices = new SkinnedVertex[section.VertexCount];
+		for ( int i = 0; i < vertices.Length; i++ )
+		{
+			stream.Position = section.BaseAddress + positions.Offset + i * stride;
+			var raw = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+			var position = ConvertPosition( center + raw * range );
+			byte bone0 = 0, bone1 = 0, weight0 = 255, weight1 = 0;
+			if ( section.GeometryClassification == 1 && section.NodesPerVertex >= 1 && bones.Length > 0 )
+			{
+				bone0 = bones[0];
+			}
+			else if ( section.GeometryClassification >= 2 && stride > 12 )
+			{
+				if ( section.GeometryClassification == 2 )
+				{
+					bone0 = reader.ReadByte();
+				}
+				else if ( section.GeometryClassification == 3 )
+				{
+					bone0 = reader.ReadByte();
+					bone1 = reader.ReadByte();
+					stream.Position += 2;
+					weight0 = reader.ReadByte();
+					weight1 = (byte)(255 - weight0);
+				}
+				else
+				{
+					weight0 = 0;
+				}
+				if ( bone0 < bones.Length ) bone0 = bones[bone0];
+				if ( bone1 < bones.Length ) bone1 = bones[bone1];
+			}
+
+			var uv = Vector2.Zero;
+			if ( uvs is not null )
+			{
+				stream.Position = section.BaseAddress + uvs.Offset + i * 8;
+				uv = uvCenter + new Vector2( reader.ReadSingle(), reader.ReadSingle() ) * uvRange;
+			}
+
+			var normal = Vector3.Up;
+			if ( normals is not null )
+			{
+				stream.Position = section.BaseAddress + normals.Offset + i * 36;
+				var direction = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ).Normal;
+				if ( direction != Vector3.Zero ) normal = ConvertPosition( direction ).Normal;
+			}
+			vertices[i] = new SkinnedVertex( position, normal, uv, new Color32( bone0, bone1, 0, 0 ), new Color32( weight0, weight1, 0, 0 ) );
+		}
+		return vertices;
 	}
 
 	static byte[] ReadSectionBlob( BaseFileSystem fileSystem, MapFile map, Section section )
@@ -688,7 +607,6 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 	static void AddHingeJoint( HingeConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
-		Log.Info( "AddHingeJoint" );
 
 		if ( !FindBodyIndices( c, phmo, bodyIndexMap, out int body1, out int body2 ) )
 			return;
@@ -700,7 +618,6 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 	static void AddBallJoint( BallSocketConstraint c, PhysicsModelTag phmo, ModelBuilder builder,
 		List<ModelBuilder.Bone> bones, Dictionary<int, int> bodyIndexMap )
 	{
-		Log.Info( "AddBallJoint" );
 		if ( !FindBodyIndices( c, phmo, bodyIndexMap, out int body1, out int body2 ) )
 			return;
 

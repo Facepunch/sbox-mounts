@@ -79,9 +79,7 @@ public class RenderModelTag
 		// BoundingBoxBlock: 56 bytes
 		// +0: XBounds (float min, float max)
 		// +8: YBounds, +16: ZBounds, +24: UBounds, +32: VBounds
-		var data = new byte[56];
-		Array.Copy( GetDecompressedSpan( map, offset, 56 ), data, 56 );
-		using var r = new BinaryReader( new MemoryStream( data ) );
+		using var r = map.OpenReader( offset, 56 );
 
 		return new BoundingBox
 		{
@@ -99,8 +97,7 @@ public class RenderModelTag
 		for ( int i = 0; i < count; i++ )
 		{
 			int off = baseOff + i * 16;
-			var data = GetDecompressedSpan( map, off, 16 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( off, 16 );
 
 			int nameStringId = r.ReadInt32();
 			r.ReadInt32(); // padding
@@ -116,8 +113,7 @@ public class RenderModelTag
 				int permOff = map.VaToOffset( permPtr );
 				for ( int j = 0; j < permCount; j++ )
 				{
-					var pd = GetDecompressedSpan( map, permOff + j * 16, 16 );
-					using var pr = new BinaryReader( new MemoryStream( pd ) );
+					using var pr = map.OpenReader( permOff + j * 16, 16 );
 
 					var perm = new Permutation
 					{
@@ -143,8 +139,7 @@ public class RenderModelTag
 		for ( int i = 0; i < count; i++ )
 		{
 			int off = baseOff + i * 92;
-			var data = GetDecompressedSpan( map, off, 92 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( off, 92 );
 
 			var section = new Section
 			{
@@ -175,8 +170,7 @@ public class RenderModelTag
 				int resOff = map.VaToOffset( resPtr );
 				for ( int j = 0; j < resCount; j++ )
 				{
-					var rd = GetDecompressedSpan( map, resOff + j * 16, 16 );
-					using var rr = new BinaryReader( new MemoryStream( rd ) );
+					using var rr = map.OpenReader( resOff + j * 16, 16 );
 
 					rr.ReadInt32(); // +0: unknown
 					var res = new ResourceInfo
@@ -200,8 +194,7 @@ public class RenderModelTag
 		for ( int i = 0; i < count; i++ )
 		{
 			int off = baseOff + i * 96;
-			var data = GetDecompressedSpan( map, off, 96 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( off, 96 );
 
 			var node = new Node
 			{
@@ -237,8 +230,7 @@ public class RenderModelTag
 		for ( int i = 0; i < count; i++ )
 		{
 			int off = baseOff + i * 32;
-			var data = GetDecompressedSpan( map, off, 32 );
-			using var r = new BinaryReader( new MemoryStream( data ) );
+			using var r = map.OpenReader( off, 32 );
 
 			r.BaseStream.Seek( 8, SeekOrigin.Begin );
 			int classId = r.ReadInt32();   // TagReference classId
@@ -247,11 +239,6 @@ public class RenderModelTag
 			int tagIndex = tagDatum & 0xFFFF;
 			Shaders.Add( new ShaderRef { TagIndex = tagIndex, Datum = tagDatum } );
 		}
-	}
-
-	static byte[] GetDecompressedSpan( MapFile map, int offset, int size )
-	{
-		return map.ReadTagMetadata( offset, size );
 	}
 }
 
