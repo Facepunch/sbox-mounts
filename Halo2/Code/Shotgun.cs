@@ -5,7 +5,6 @@ public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
-	[Property] public string MuzzleFlashPath { get; set; }
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float MovementAcceleration { get; set; } = 72;
@@ -63,7 +62,7 @@ public sealed class Shotgun : Weapon
 		view.Animator.SampleCuesFromGraph = false;
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
-		view.ConfigureMuzzleFlash( MuzzleFlashPath );
+		view.ConfigureMuzzleFlash();
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
 		view.Animator.Configure( "any", "any", "any" );
 		ViewModel = go;
@@ -336,10 +335,10 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	internal Shotgun Weapon { get; set; }
 	ParticleEffect muzzleFlash;
 
-	internal void ConfigureMuzzleFlash( string path )
+	internal void ConfigureMuzzleFlash()
 	{
-		if ( !MuzzleGameObject.IsValid() || string.IsNullOrEmpty( path ) ) return;
-		var texture = Texture.Load( path );
+		if ( !MuzzleGameObject.IsValid() ) return;
+		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.MuzzleFlashName}" );
 		if ( !texture.IsValid() || texture.IsError ) return;
 
 		var go = new GameObject( MuzzleGameObject, false, "Muzzle flash" );
@@ -348,7 +347,10 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		muzzleFlash.Lifetime = 0.125f;
 		muzzleFlash.LocalSpace = 1;
 		muzzleFlash.ApplyShape = true;
+		muzzleFlash.SnapToFrame = true;
 		muzzleFlash.InitialScale = 3;
+		// The 60 x 62 flash frame spans two particle radii vertically.
+		muzzleFlash.Stretch = 62f / 60f - 1;
 		muzzleFlash.Scale = new ParticleFloat( 1, 4 ) { Evaluation = ParticleFloat.EvaluationType.Life };
 		muzzleFlash.ApplyColor = true;
 		muzzleFlash.Tint = Color.FromBytes( 252, 188, 101 );
@@ -356,6 +358,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		muzzleFlash.Alpha = new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life };
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Scale = 2 * 60f / 62f;
 		renderer.Additive = true;
 		renderer.FogStrength = 0;
 		renderer.RenderOptions.Game = false;

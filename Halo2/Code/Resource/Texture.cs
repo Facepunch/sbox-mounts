@@ -8,7 +8,7 @@ namespace Halo2;
 /// <summary>
 /// Loads a Halo 2 bitmap (bitm) tag as a Texture.
 /// </summary>
-public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false ) : ResourceLoader<Halo2Mount>
+public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect? spriteFrame = null ) : ResourceLoader<Halo2Mount>
 {
 	protected override object Load()
 	{
@@ -67,9 +67,12 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 		if ( data.BitmapType == 1 )
 			return Texture.CreateVolume( data.Width, data.Height, depth, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage().Finish();
 
-		return faces == 6
-			? Texture.CreateCube( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage().Finish()
-			: Texture.Create( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage().Finish();
+		if ( faces == 6 )
+			return Texture.CreateCube( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage().Finish();
+
+		var texture = Texture.Create( data.Width, data.Height, format.Value ).WithData( pixels ).WithMips( levels ).WithStaticUsage();
+		if ( spriteFrame is {} frame ) texture = texture.AddSequence( [frame], 1, false );
+		return texture.Finish();
 	}
 
 	static ImageFormat? GetImageFormat( short format ) => format switch

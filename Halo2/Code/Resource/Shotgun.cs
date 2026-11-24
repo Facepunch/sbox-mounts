@@ -31,10 +31,25 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
 	internal const string WeakReticleName = "weak_reticle.vtex";
+	internal const string MuzzleFlashName = "muzzle_flash.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
+		if ( name == MuzzleFlashName )
+		{
+			var particle = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\generic\weapon_flares\muzzle_flash_center" );
+			if ( particle is null ) return null;
+			int header = Address( particle );
+			if ( map.ReadInt32( header + 140 ) == 0 ) return null;
+			int bitmaps = Block( header + 140 ) + 4;
+			if ( map.ReadInt32( bitmaps ) == 0 ) return null;
+			var bitmap = map.GetTag( map.ReadInt32( Block( bitmaps ) ) & 0xffff );
+			if ( bitmap is null ) return null;
+			float left = Float( header + 0xac ), top = Float( header + 0xb4 );
+			var frame = new Rect( left, top, Float( header + 0xb0 ) - left, Float( header + 0xb8 ) - top );
+			return new Halo2TextureLoader( map, bitmap, spriteFrame: frame );
+		}
 		return name == WeakReticleName ? HudBitmap( "crosshair_weakspot" ) : null;
 	}
 
@@ -133,7 +148,6 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.BindHudTextures();
 			gun.HoldType = WeaponHolds.Shotgun;
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
-			gun.MuzzleFlashPath = Host.AssetPath( map, "effects/bitmaps/weapons_fire/muzzle_flash_center", "vtex" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			float acceleration = Float( Header + 0x2e8 ), speed = Float( Header + 0x2ec );
