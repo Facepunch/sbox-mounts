@@ -438,50 +438,14 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			var body = builder.AddBody( mass: rb.Mass > 0 ? rb.Mass : 10f, boneName: bone.Name );
 			body.SetBindPose( bonePose );
 
-			switch ( rb.ShapeType )
+			if ( rb.ShapeType == 14 && (uint)rb.ShapeIndex < phmo.ShapeLists.Count )
 			{
-				case 0: // Sphere
-					if ( rb.ShapeIndex >= 0 && rb.ShapeIndex < phmo.Spheres.Count )
-					{
-						var sph = phmo.Spheres[rb.ShapeIndex];
-						var center = new Vector3( sph.CenterX, sph.CenterY, sph.CenterZ ) * ScaleFactor;
-						body.AddSphere( new Sphere( center, sph.Radius * ScaleFactor ) );
-					}
-					break;
-
-				case 1: // Pill (Capsule)
-					if ( rb.ShapeIndex >= 0 && rb.ShapeIndex < phmo.Pills.Count )
-					{
-						var pill = phmo.Pills[rb.ShapeIndex];
-						var bottom = new Vector3( pill.BottomX, pill.BottomY, pill.BottomZ ) * ScaleFactor;
-						var top = new Vector3( pill.TopX, pill.TopY, pill.TopZ ) * ScaleFactor;
-						body.AddCapsule( new Capsule( bottom, top, pill.Radius * ScaleFactor ) );
-					}
-					break;
-
-				case 2: // Box (as convex hull)
-					if ( rb.ShapeIndex >= 0 && rb.ShapeIndex < phmo.Boxes.Count )
-					{
-						var box = phmo.Boxes[rb.ShapeIndex];
-						var he = new Vector3( box.HalfExtentX, box.HalfExtentY, box.HalfExtentZ ) * ScaleFactor;
-						var center = new Vector3( box.TransX, box.TransY, box.TransZ ) * ScaleFactor;
-
-						var ri = new Vector3( box.RotIX, box.RotIY, box.RotIZ );
-						var rj = new Vector3( box.RotJX, box.RotJY, box.RotJZ );
-						var rk = new Vector3( box.RotKX, box.RotKY, box.RotKZ );
-
-						var points = new Vector3[8];
-						int idx = 0;
-						for ( int sx = -1; sx <= 1; sx += 2 )
-						for ( int sy = -1; sy <= 1; sy += 2 )
-						for ( int sz = -1; sz <= 1; sz += 2 )
-						{
-							points[idx++] = center + ri * (he.x * sx) + rj * (he.y * sy) + rk * (he.z * sz);
-						}
-
-						body.AddHull( points );
-					}
-					break;
+				foreach ( var child in phmo.ShapeLists[rb.ShapeIndex] )
+					AddCollisionShape( body, phmo, child.Type, child.Index );
+			}
+			else
+			{
+				AddCollisionShape( body, phmo, rb.ShapeType, rb.ShapeIndex );
 			}
 
 			bodyIndexMap[i] = builderBodyIdx++;
@@ -515,6 +479,55 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 						break;
 				}
 			}
+		}
+	}
+
+	static void AddCollisionShape( PhysicsBodyBuilder body, PhysicsModelTag phmo, int type, int index )
+	{
+		switch ( type )
+		{
+			case 0: // Sphere
+				if ( index >= 0 && index < phmo.Spheres.Count )
+				{
+					var sph = phmo.Spheres[index];
+					var center = new Vector3( sph.CenterX, sph.CenterY, sph.CenterZ ) * ScaleFactor;
+					body.AddSphere( new Sphere( center, sph.Radius * ScaleFactor ) );
+				}
+				break;
+
+			case 1: // Pill (Capsule)
+				if ( index >= 0 && index < phmo.Pills.Count )
+				{
+					var pill = phmo.Pills[index];
+					var bottom = new Vector3( pill.BottomX, pill.BottomY, pill.BottomZ ) * ScaleFactor;
+					var top = new Vector3( pill.TopX, pill.TopY, pill.TopZ ) * ScaleFactor;
+					body.AddCapsule( new Capsule( bottom, top, pill.Radius * ScaleFactor ) );
+				}
+				break;
+
+			case 2: // Box (as convex hull)
+				if ( index >= 0 && index < phmo.Boxes.Count )
+				{
+					var box = phmo.Boxes[index];
+					var he = new Vector3( box.HalfExtentX, box.HalfExtentY, box.HalfExtentZ ) * ScaleFactor;
+					var center = new Vector3( box.TransX, box.TransY, box.TransZ ) * ScaleFactor;
+
+					var ri = new Vector3( box.RotIX, box.RotIY, box.RotIZ );
+					var rj = new Vector3( box.RotJX, box.RotJY, box.RotJZ );
+					var rk = new Vector3( box.RotKX, box.RotKY, box.RotKZ );
+
+					var points = new Vector3[8];
+					int idx = 0;
+					for ( int sx = -1; sx <= 1; sx += 2 )
+					for ( int sy = -1; sy <= 1; sy += 2 )
+					for ( int sz = -1; sz <= 1; sz += 2 )
+					{
+						points[idx++] = center + ri * (he.x * sx) + rj * (he.y * sy) + rk * (he.z * sz);
+					}
+
+					body.AddHull( points );
+				}
+				break;
 		}
 	}
 

@@ -14,6 +14,7 @@ public class PhysicsModelTag
 	public List<PhysSphere> Spheres { get; } = new();
 	public List<PhysPill> Pills { get; } = new();
 	public List<PhysBox> Boxes { get; } = new();
+	public List<(short Type, short Index)[]> ShapeLists { get; } = new();
 	public List<RagdollConstraint> RagdollConstraints { get; } = new();
 	public List<HingeConstraint> HingeConstraints { get; } = new();
 	public List<LimitedHingeConstraint> LimitedHingeConstraints { get; } = new();
@@ -52,6 +53,7 @@ public class PhysicsModelTag
 			ReadPills( map, pillPtr, pillCount );
 		if ( boxCount > 0 && boxPtr != 0 )
 			ReadBoxes( map, boxPtr, boxCount );
+		ReadShapeLists( map, reader );
 		if ( edgeCount > 0 && edgePtr != 0 )
 			ReadNodeEdges( map, edgePtr, edgeCount );
 		if ( ragdollCount > 0 && ragdollPtr != 0 )
@@ -69,6 +71,37 @@ public class PhysicsModelTag
 		reader.BaseStream.Seek( offset, SeekOrigin.Begin );
 		count = reader.ReadInt32();
 		ptr = reader.ReadInt32();
+	}
+
+	void ReadShapeLists( MapFile map, BinaryReader header )
+	{
+		ReadTagBlock( header, 0x90, out int count, out int ptr );
+		ReadTagBlock( header, 0x98, out int sharedCount, out int sharedPtr );
+		int sharedIndex = 0;
+		for ( int i = 0; i < count; i++ )
+		{
+			int offset = map.VaToOffset( ptr ) + i * 0x68;
+			using var list = map.OpenReader( offset + 0x20, 4 );
+			int size = list.ReadInt32();
+
+			// Up to four child references fit inside the list. Larger lists use
+			// consecutive entries in the shared list-shapes block.
+			int children = offset + 0x28;
+			if ( size > 4 )
+			{
+				if ( size > sharedCount - sharedIndex ) throw new InvalidDataException( "Invalid physics shape list." );
+				children = map.VaToOffset( sharedPtr ) + sharedIndex * 16;
+				sharedIndex += size;
+			}
+			using var reader = map.OpenReader( children, checked(size * 16) );
+			var shapes = new (short, short)[size];
+			for ( int j = 0; j < size; j++ )
+			{
+				reader.BaseStream.Position = j * 16;
+				shapes[j] = (reader.ReadInt16(), reader.ReadInt16());
+			}
+			ShapeLists.Add( shapes );
+		}
 	}
 
 	void ReadNodes( MapFile map, int ptr, int count )
