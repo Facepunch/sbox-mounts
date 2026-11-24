@@ -12,6 +12,9 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public bool VertexColor => Template.Split( ':' ).Contains( "VERTEX_COLOR" );
 	public bool DoubleSided => Template.Split( ':' ).Contains( "DOUBLE_SIDED" );
 	public bool Backdrop => Template.Split( ':' ).Contains( "RL_BACKDROP" );
+	public bool SelfIlluminated => Template.Split( ':' ).Contains( "SELF_ILLUMINATION" );
+	public string Emission { get; init; }
+	public string EmissionMultiplier { get; init; }
 }
 
 static class MaterialConfig
@@ -29,7 +32,11 @@ static class MaterialConfig
 			result[IdString.Hash( name )] = new( name, material.Attribute( "render_template" ) ?? "",
 				material.Element( "diffuse_texture" )?.Attribute( "file" ),
 				material.Element( "opacity_texture" )?.Attribute( "file" ), alphaRef,
-				material.Element( "bump_normal_texture" )?.Attribute( "file" ) );
+				material.Element( "bump_normal_texture" )?.Attribute( "file" ) )
+			{
+				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
+				EmissionMultiplier = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "il_multiplier" )?.Attribute( "value" )
+			};
 		}
 		return result;
 	}

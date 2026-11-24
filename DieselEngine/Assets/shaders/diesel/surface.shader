@@ -66,6 +66,9 @@ PS
 	Texture2D g_tOpacity < Channel( RGBA, Box( Opacity ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	CreateInputTexture2D( NormalMap, Linear, 8, "None", "_normal", ",0/,0/0", Default4( 0.5, 0.5, 1, 0.5 ) );
 	Texture2D g_tNormalMap < Channel( RGBA, Box( NormalMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	CreateInputTexture2D( Emission, Srgb, 8, "None", "_emission", ",0/,0/0", Default4( 0, 0, 0, 1 ) );
+	Texture2D g_tEmission < Channel( RGBA, Box( Emission ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+	float g_flEmissionStrength < Default1( 0 ); >;
 	float g_flHasNormal < Default1( 0 ); >;
 	float g_flNormalRA < Default1( 0 ); >;
 	float g_flHasOpacity < Default1( 0 ); >;
@@ -85,10 +88,13 @@ PS
 		Material m = Material::Init();
 		m.Albedo = diffuse.rgb * g_vTint;
 		if ( g_flVertexColor > 0.5 ) m.Albedo *= i.vColor.rgb;
+		// Self-illumination maps modulate the surface colour (white masks also occur
+		// on coloured cables and lamps), rather than replacing it with white light.
+		m.Emission = g_flEmissionStrength > 0 ? m.Albedo * Tex2DS( g_tEmission, g_sWrap, i.vTextureCoords.xy ).rgb * g_flEmissionStrength : float3( 0, 0, 0 );
 		// Diesel backdrop surfaces carry their own lighting. Shading the enormous sky
 		// dome as an ordinary surface introduces self-shadow bands and triangle seams.
 		if ( g_flBackdrop > 0.5 )
-			return float4( m.Albedo, S_TRANSLUCENT ? opacity : 1 );
+			return float4( m.Albedo + m.Emission, S_TRANSLUCENT ? opacity : 1 );
 		m.Normal = normalize( i.vNormalWs );
 		if ( g_flHasNormal > 0.5 )
 		{

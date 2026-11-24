@@ -63,9 +63,19 @@ int placements = 0, meshes = 0, triangles = 0, missing = 0;
 int primitiveCount = 0;
 var lightUnits = new List<(string Map, ScriptTable Unit)>();
 var lightDefinitions = new Dictionary<string, Dictionary<string, LightDefinition>>();
-var intensities = UnitLights.ReadIntensities( db.Find( "light_intensities", "core/settings/light_intensities" ) );
+var intensities = LightIntensities.Load( db );
 if ( intensities["none"] != 0 || intensities["candle"] != 4 || intensities["sun"] != 1000 )
 	throw new Exception( "Authored light intensity database was not decoded correctly." );
+if ( LightIntensities.Resolve( intensities, "2.5" ) != 2.5f || LightIntensities.Resolve( intensities, "none" ) != 0 )
+	throw new Exception( "Numeric or disabled illumination multiplier failed." );
+var ticketMaterials = MaterialConfig.Read( db.Find( "material_config", "units/world/props/bank/ticket_dispenser/ticket_dispenser_01" ) );
+var ticket = ticketMaterials[IdString.Hash( "ticket_dispenser_01" )];
+if ( !ticket.SelfIlluminated || ticket.Emission != "units/world/props/bank/ticket_dispenser/ticket_dispenser_01_il"
+	|| LightIntensities.Resolve( intensities, ticket.EmissionMultiplier ) != 1000 )
+	throw new Exception( "Ticket dispenser emissive mask or preset was lost." );
+var sky = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/suburbia/suburbia" ) )[IdString.Hash( "sky" )];
+if ( !sky.Backdrop || LightIntensities.Resolve( intensities, sky.EmissionMultiplier ) != 0 )
+	throw new Exception( "Suburbia sky must remain an unlit backdrop with emission disabled." );
 foreach ( string map in maps )
 {
 	var world = ScriptData.Read( db.Find( "world", map ) );
@@ -154,6 +164,7 @@ foreach ( string unit in units )
 				if ( material.Diffuse is not null ) texturePaths.Add( material.Diffuse );
 				if ( material.Opacity is not null ) texturePaths.Add( material.Opacity );
 				if ( material.Normal is not null ) texturePaths.Add( material.Normal );
+				if ( material.SelfIlluminated && material.Emission is not null ) texturePaths.Add( material.Emission );
 			}
 		}
 	}

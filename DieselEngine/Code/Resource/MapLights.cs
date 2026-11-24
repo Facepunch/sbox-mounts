@@ -4,14 +4,8 @@ namespace Diesel;
 sealed class MapLights( BundleDatabase database )
 {
 	readonly Dictionary<string, Dictionary<string, LightDefinition>> definitions = new( StringComparer.Ordinal );
-	readonly Dictionary<string, float> intensities = LoadIntensities( database );
+	readonly Dictionary<string, float> intensities = LightIntensities.Load( database );
 	public int Count { get; private set; }
-
-	static Dictionary<string, float> LoadIntensities( BundleDatabase database )
-	{
-		var bytes = database.Find( "light_intensities", "core/settings/light_intensities" );
-		return bytes is null ? new() { ["identity"] = 1, ["none"] = 0 } : UnitLights.ReadIntensities( bytes );
-	}
 
 	public void Add( ScriptTable unit, GameObject parent )
 	{
