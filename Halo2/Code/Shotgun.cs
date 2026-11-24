@@ -81,6 +81,11 @@ public sealed class Shotgun : Weapon
 		var loose = GetComponent<SkinnedModelRenderer>( true );
 		WorldModel = new GameObject( HolderRenderer.GetBoneObject( HoldBone ) ?? GameObject, true, "Held shotgun" );
 		WorldModel.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		if ( loose.Model is { IsError: true } missing )
+		{
+			_ = RestoreWorldModel( WorldModel, loose, missing.Name );
+			return;
+		}
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.CreateAttachments = true;
 		renderer.Model = loose.Model;
@@ -97,6 +102,19 @@ public sealed class Shotgun : Weapon
 		model.ConfigureCasings( firstPerson: false );
 		WorldModel.LocalTransform = global::Transform.Zero;
 		loose.Enabled = false;
+	}
+
+	// A joining client can receive the held weapon before its mount has registered.
+	async System.Threading.Tasks.Task RestoreWorldModel( GameObject held, SkinnedModelRenderer loose, string path )
+	{
+		while ( held.IsValid() && Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.IsMounted != true )
+			await Task.DelaySeconds( 0.5f );
+
+		if ( !held.IsValid() || held != WorldModel || !loose.IsValid() ) return;
+		var model = Model.Load( path );
+		if ( !model.IsValid() || model.IsError ) return;
+		loose.Model = model;
+		CreateWorldModel();
 	}
 
 	protected override void DestroyWorldModel()
