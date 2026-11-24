@@ -222,11 +222,16 @@ public sealed class Shotgun : Weapon
 	protected override bool WantsReload() =>
 		base.WantsReload() || (AutoReload && Clip1 == 0 && NextPrimaryFire <= 0);
 
+	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
+
+	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0;
+
 	public override void SecondaryAttack()
 	{
 		var rig = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( ArmsPath ) as Halo2ModelLoader;
 		var actions = rig?.GetAnimationContext( "any", "any", "any" )?.Actions;
 		if ( actions is null ) return;
+		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
 		var action = Spread.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
 		var clip = rig.GetClipInfo( actions[action] );
