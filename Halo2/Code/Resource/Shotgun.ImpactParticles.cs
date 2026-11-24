@@ -10,7 +10,8 @@ internal sealed partial class ShotgunLoader
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange SmokeRadius, CurveRange SmokeAlpha, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
 	{
-		public int CountInput, SpeedInput, SizeInput, Shape;
+		public int CountInput, LifeInput, SpeedInput, SizeInput, RadiusRange, ColorInput, ConeInput, Shape, Sequence;
+		public float FadeStart;
 		public bool Reflected;
 		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
 		public Vector2 Alpha;
@@ -23,8 +24,9 @@ internal sealed partial class ShotgunLoader
 	{
 		int count = map.ReadInt32( row + 48 );
 		if ( count == 0 ) return null;
-		// These terrain events share the same property layouts for each sprite.
-		if ( !contact.TagPath.Contains( @"\hard_terrain", StringComparison.Ordinal ) ) return null;
+		if ( !contact.TagPath.Contains( @"\hard_terrain", StringComparison.Ordinal ) &&
+			!contact.TagPath.EndsWith( @"\hard_metal_solid", StringComparison.Ordinal ) &&
+			!contact.TagPath.EndsWith( @"\hard_metal_thick", StringComparison.Ordinal ) ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -35,7 +37,7 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\smoke\smoke_drift" => DriftName,
 				@"effects\generic\solids\rocks" => RocksName,
 				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
-				@"effects\generic\sparks\sparks_animated_soft" => SparksName,
+				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
 				_ => null
 			};
 			if ( name is null || map.ReadInt32( system + 48 ) != 1 ) return null;
@@ -43,7 +45,9 @@ internal sealed partial class ShotgunLoader
 			if ( !texture.IsValid() || texture.IsError ) return null;
 			var layer = name switch { RocksName => ImpactLayer.Rocks, SparksName => ImpactLayer.Sparks, DriftName => ImpactLayer.Drift, _ => ImpactLayer.Smoke };
 			var sprite = Sprite.FromTexture( texture );
-			if ( layer == ImpactLayer.Sparks ) sprite.Animations[0].Origin = new Vector2( 1 - 48f / 56f, 4f / 9f );
+			int definition = Address( particle );
+			int sequence = Short( definition + 8 );
+			if ( layer == ImpactLayer.Sparks ) sprite.Animations[0].Origin = new Vector2( 1 - 48f / 56f, (sequence == 1 ? 5 : 4) / 9f );
 			int emitter = Block( system + 48 );
 			Vector2 Bounds( int property )
 			{
@@ -60,7 +64,6 @@ internal sealed partial class ShotgunLoader
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
 			bool smoke = layer == ImpactLayer.Smoke, drift = layer == ImpactLayer.Drift;
-			int definition = Address( particle );
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, sprite, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ),
 				Bounds( 72 ) * 120, smoke ? ReadRange( emitter + 72, 120 ) : drift ? ReadRange( definition + 60, 1 ) : default,
@@ -68,7 +71,9 @@ internal sealed partial class ShotgunLoader
 				Tint( 4 ), Tint( smoke || drift ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				smoke || drift ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
-				CountInput = Short( emitter + 8 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
+				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
+				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
+				FadeStart = layer == ImpactLayer.Sparks ? Float( Block( emitter + 112 ) + 64 ) : 0.7f,
 				Shape = map.ReadInt32( emitter + 120 ), Alpha = Bounds( 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
@@ -138,19 +143,19 @@ internal sealed partial class ShotgunLoader
 			}
 			if ( smoke )
 			{
-				p.Size = data.SmokeRadius.Evaluate( t, life ).Clamp( data.Size.x, data.Size.y );
-				p.Alpha = data.SmokeAlpha.Evaluate( t, life ).Clamp( 0, 0.4f );
+				p.Size = data.SmokeRadius.Evaluate( t, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
+				p.Alpha = data.SmokeAlpha.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
 				return;
 			}
-			float fade = ((1 - t) / 0.3f).Clamp( 0, 1 );
+			float fade = ((1 - t) / (1 - data.FadeStart)).Clamp( 0, 1 );
 			p.Alpha = data.Alpha.x == data.Alpha.y ? data.Alpha.x : fade;
 			if ( !sparks )
 			{
 				p.Size = Sample( data.Size, p.Get<float>( "size" ) );
 				return;
 			}
-			float radius = Sample( data.Size, fade ) * ShotgunModel.SparkScale( t );
-			ShotgunModel.OrientSpark( p, radius, go.Scene.Camera, go.WorldRotation.Up );
+			float radius = Sample( data.Size, fade ) * (data.Sequence == 1 ? 1 : ShotgunModel.SparkScale( t ));
+			ShotgunModel.OrientSpark( p, radius, go.Scene.Camera, go.WorldRotation.Up, data.Sequence == 1 );
 		}
 
 		effect.OnParticleCreated += p =>
@@ -160,21 +165,26 @@ internal sealed partial class ShotgunLoader
 			p.Set( "collision_tick", (int)bucket + 1 );
 			uint r0 = BlamRandom.Next( ref impactParticleSeed ), r1 = BlamRandom.Next( ref impactParticleSeed );
 			float life = r0 * (1f / 65535f), fraction = r1 * (1f / 65535f), size = ParticleFraction();
-			BlamRandom.Next( ref impactParticleSeed ); // Fourth particle random field
+			float fourth = ParticleFraction();
+			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, _ => 0 };
 			p.Set( "life_fraction", life );
-			p.DeathTime = p.BornTime + Sample( data.Lifetime, life );
+			float lifetime = Sample( data.Lifetime, RandomInput( data.LifeInput ) );
+			p.Set( "lifetime", lifetime );
+			p.DeathTime = p.BornTime + lifetime;
+			if ( smoke ) p.Set( "radius_range", RandomInput( data.RadiusRange ) );
 			p.Set( "size", data.SizeInput == 2 ? life : size );
 			if ( data.Layer == ImpactLayer.Drift ) p.Set( "variation", fraction );
-			float cone = Sample( data.Cone, size ).DegreeToRadian();
+			float cone = Sample( data.Cone, RandomInput( data.ConeInput ) ).DegreeToRadian();
 			float azimuth = ParticleFraction() * MathF.Tau, polar = ParticleFraction() * cone;
 			var direction = new Vector3( MathF.Cos( polar ), MathF.Sin( azimuth ) * MathF.Sin( polar ), MathF.Cos( azimuth ) * MathF.Sin( polar ) );
 			// The terrain rock emitter uses shape 5 with a zero radius, consuming a direction draw at the origin.
 			if ( data.Shape == 5 ) BlamRandom.Next( ref impactParticleSeed );
-			p.Velocity = go.WorldRotation * direction.Normal * Sample( data.Speed, data.SpeedInput == 2 ? life : fraction );
-			p.Color = Color.Lerp( data.Tint, data.TintEnd, fraction );
+			p.Velocity = go.WorldRotation * direction.Normal * Sample( data.Speed, RandomInput( data.SpeedInput ) );
+			p.Color = Color.Lerp( data.Tint, data.TintEnd, RandomInput( data.ColorInput ) );
 			p.Angles.roll = life * 360;
 			p.Set( "spin", Sample( data.Spin, fraction ) );
 			if ( data.Layer == ImpactLayer.Rocks ) p.Sequence = (int)(r1 % 4);
+			if ( sparks ) p.Sequence = data.Sequence;
 			Appearance( p );
 		};
 		effect.OnPostStep += dt =>
@@ -185,7 +195,7 @@ internal sealed partial class ShotgunLoader
 			for ( int i = effect.Particles.Count - 1; i >= 0; i-- )
 			{
 				var p = effect.Particles[i];
-				float lifetime = Sample( data.Lifetime, p.Get<float>( "life_fraction" ) );
+				float lifetime = p.Get<float>( "lifetime" );
 				if ( p.Age >= lifetime )
 				{
 					effect.Terminate( p );
