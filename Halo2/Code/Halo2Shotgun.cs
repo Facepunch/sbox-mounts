@@ -247,6 +247,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	int aimTick, aimTicks;
 	bool aimEnabled;
 	int fadeTick, fadeTicks;
+	double lastBlendTick;
+	float previousFade, previousAim;
 
 	bool SelectAction( string action, bool once = false )
 	{
@@ -276,14 +278,15 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 				fadeTicks = ticks;
 			}
 		}
-		SetFadeWeight();
+		previousFade = FadeWeight();
+		graph.Parameters.Set( "previous_action_weight", previousFade );
 		return true;
 	}
 
-	void SetFadeWeight()
+	float FadeWeight()
 	{
 		float t = fadeTicks > 0 ? fadeTick / (float)fadeTicks : 1;
-		Renderer.Animation.Parameters.Set( "previous_action_weight", 1 - t * t * (3 - 2 * t) );
+		return 1 - t * t * (3 - 2 * t);
 	}
 
 	void SelectAim( bool enabled, int rate )
@@ -308,11 +311,10 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
-		if ( fadeTicks > 0 )
-		{
-			if ( ++fadeTick >= fadeTicks ) fadeTick = fadeTicks = 0;
-			SetFadeWeight();
-		}
+		lastBlendTick = Time.NowDouble;
+		previousFade = FadeWeight();
+		previousAim = AimWeight();
+		if ( fadeTicks > 0 && ++fadeTick >= fadeTicks ) fadeTick = fadeTicks = 0;
 		if ( Weapon?.Holder is not PlayerController player ) return;
 		float dt = Time.Delta;
 		if ( dt <= 0 ) return;
@@ -444,7 +446,11 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		if ( Weapon.Holder is not PlayerController player ) return;
 		var p = Renderer.Animation.Parameters;
 		SelectAim( ((clip?.PlaybackFlags ?? 0) & 16) == 0, (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency ) );
-		float aimWeight = AimWeight();
+		// Present the blend between adjacent simulation ticks, including in slow motion.
+		float fraction = Sandbox.ProjectSettings.Physics.UseFixedUpdate
+			? ((float)(Time.NowDouble - lastBlendTick) / Scene.FixedDelta).Clamp( 0, 1 ) : 1;
+		p.Set( "previous_action_weight", MathX.Lerp( previousFade, FadeWeight(), fraction ) );
+		float aimWeight = MathX.Lerp( previousAim, AimWeight(), fraction );
 		p.Set( "weapon_aim_weight", aimWeight );
 		p.Set( "weapon_offset_forward", offsetForward * aimWeight );
 		p.Set( "weapon_offset_left", offsetLeft * aimWeight );
