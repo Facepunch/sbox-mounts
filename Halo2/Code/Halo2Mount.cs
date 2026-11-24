@@ -92,6 +92,7 @@ public class Halo2Mount : BaseGameMount
 		// Model definitions link the render model and physics model by tag datum.
 		var modeToBiped = new Dictionary<int, TagEntry>();
 		var modeToAnimation = new Dictionary<int, TagEntry>();
+		var modeToCollision = new Dictionary<int, TagEntry>();
 		var modeToPhmo = new Dictionary<int, TagEntry>();
 		foreach ( var tag in mapFile.Tags )
 		{
@@ -110,13 +111,18 @@ public class Halo2Mount : BaseGameMount
 				using var reader = mapFile.GetTagDataReader( tag );
 				reader.BaseStream.Position = 0x04;
 				int renderDatum = reader.ReadInt32();
+				if ( renderDatum == -1 ) continue;
+				reader.BaseStream.Position = 0x0c;
+				int collisionDatum = reader.ReadInt32();
+				if ( mapFile.GetTag( collisionDatum & 0xffff ) is { PrimaryClass: "lloc", DataSize: >= 0x34 } collision )
+					modeToCollision.TryAdd( renderDatum & 0xffff, collision );
 				reader.BaseStream.Position = 0x14;
 				int animationDatum = reader.ReadInt32();
-				if ( renderDatum != -1 && mapFile.GetTag( animationDatum & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } graph )
+				if ( mapFile.GetTag( animationDatum & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } graph )
 					modeToAnimation.TryAdd( renderDatum & 0xffff, graph );
 				reader.BaseStream.Position = 0x24;
 				int physicsDatum = reader.ReadInt32();
-				if ( renderDatum == -1 || physicsDatum == -1 ) continue;
+				if ( physicsDatum == -1 ) continue;
 
 				var physics = mapFile.GetTag( physicsDatum & 0xffff );
 				if ( physics is { DataSize: > 0 } )
@@ -147,7 +153,8 @@ public class Halo2Mount : BaseGameMount
 					modeToPhmo.TryGetValue( tagIndex, out var phmoTag );
 					modeToBiped.TryGetValue( tagIndex, out var biped );
 					modeToAnimation.TryGetValue( tagIndex, out var graphTag );
-					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag, biped, graphTag ) );
+					modeToCollision.TryGetValue( tagIndex, out var collision );
+					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag, biped, graphTag, collision ) );
 					break;
 
 				// bitmap - FourCC "bitm" stored LE as "mtib"

@@ -8,22 +8,8 @@ internal static class AnimationGraph
 {
 	public static void AddSequences( MapFile map, TagEntry graph, RenderModelTag model, ModelBuilder builder, float scale )
 	{
+		ReadRig( map, graph, model, scale, out var bind, out var mapping );
 		using var header = map.GetTagDataReader( graph );
-		header.BaseStream.Position = 12;
-		int nodes = header.ReadInt32(), nodeTable = map.VaToOffset( header.ReadInt32() );
-		var renderBones = new Dictionary<int, int>();
-		var bind = new Transform[model.Nodes.Count];
-		for ( int i = 0; i < bind.Length; i++ )
-		{
-			var n = model.Nodes[i];
-			renderBones[n.StringId] = i;
-			bind[i] = new( new Vector3( n.PositionX, n.PositionY, n.PositionZ ) * scale,
-				new Rotation( n.RotationX, n.RotationY, n.RotationZ, n.RotationW ) );
-		}
-		var mapping = new int[nodes];
-		for ( int i = 0; i < nodes; i++ )
-			mapping[i] = renderBones.GetValueOrDefault( map.ReadInt32( nodeTable + i * 32 ), -1 );
-
 		header.BaseStream.Position = 44;
 		int count = header.ReadInt32(), table = map.VaToOffset( header.ReadInt32() );
 		// Each worker owns its frames and writes to a separate animation. Register clips on
@@ -34,18 +20,12 @@ internal static class AnimationGraph
 			int offset = table + i * 96;
 			var entry = map.ReadSpan( offset, 96 );
 			int frames = U16( entry, 20 );
-			if ( entry[16] != 0 || (entry[22] & 2) != 0 || entry[19] > nodes || frames == 0 ) continue;
-			int length = I32( entry, 40 ), staticSize = U16( entry, 54 );
-			if ( length <= 0 || staticSize > length ) continue;
+			if ( entry[16] != 0 ) continue;
 			string name = map.ResolveStringId( I32( entry, 0 ) );
 			if ( name is null ) continue;
 			try
 			{
-				var data = map.ReadSpan( map.VaToOffset( I32( entry, 44 ) ), length );
-				int animationSize = checked(I32( entry, 56 ) + I32( entry, 60 ));
-				if ( animationSize < 0 || animationSize > length - staticSize - entry[48] - entry[49] ) continue;
-				if ( staticSize > 0 && data[0] != 1 ) continue;
-				if ( animationSize > 0 && data[staticSize] is < 3 or > 8 ) continue;
+				if ( !CanDecode( map, entry, mapping.Length ) ) continue;
 				jobs.Add( (offset, frames, builder.AddAnimation( name, 30 )) );
 			}
 			catch ( Exception ex )
@@ -68,7 +48,9 @@ internal static class AnimationGraph
 				var job = jobs[i];
 				try
 				{
-					AddFrames( map, job.Animation, map.ReadSpan( job.Entry, 96 ), mapping, bind, defaults, poses, scale );
+					DecodeFrames( map, map.ReadSpan( job.Entry, 96 ), mapping, bind, defaults, poses, scale );
+					for ( int frame = 0; frame < job.Frames; frame++ )
+						job.Animation.AddFrame( poses.AsSpan( frame * bind.Length, bind.Length ) );
 				}
 				catch ( Exception ex )
 				{
@@ -80,7 +62,37 @@ internal static class AnimationGraph
 		else Sandbox.Utility.Parallel.For( 0, workers, BuildClips );
 	}
 
-	static void AddFrames( MapFile map, AnimationBuilder animation, ReadOnlySpan<byte> entry,
+	internal static void ReadRig( MapFile map, TagEntry graph, RenderModelTag model, float scale, out Transform[] bind, out int[] mapping )
+	{
+		using var header = map.GetTagDataReader( graph );
+		header.BaseStream.Position = 12;
+		int nodes = header.ReadInt32(), nodeTable = map.VaToOffset( header.ReadInt32() );
+		var renderBones = new Dictionary<int, int>();
+		bind = new Transform[model.Nodes.Count];
+		for ( int i = 0; i < bind.Length; i++ )
+		{
+			var n = model.Nodes[i];
+			renderBones[n.StringId] = i;
+			bind[i] = new( new Vector3( n.PositionX, n.PositionY, n.PositionZ ) * scale,
+				new Rotation( n.RotationX, n.RotationY, n.RotationZ, n.RotationW ) );
+		}
+		mapping = new int[nodes];
+		for ( int i = 0; i < nodes; i++ )
+			mapping[i] = renderBones.GetValueOrDefault( map.ReadInt32( nodeTable + i * 32 ), -1 );
+	}
+
+	internal static bool CanDecode( MapFile map, ReadOnlySpan<byte> entry, int nodes )
+	{
+		if ( (entry[22] & 2) != 0 || entry[19] > nodes || U16( entry, 20 ) == 0 ) return false;
+		int length = I32( entry, 40 ), staticSize = U16( entry, 54 );
+		if ( length <= 0 || staticSize > length ) return false;
+		var data = map.ReadSpan( map.VaToOffset( I32( entry, 44 ) ), length );
+		int animationSize = checked(I32( entry, 56 ) + I32( entry, 60 ));
+		return animationSize >= 0 && animationSize <= length - staticSize - entry[48] - entry[49]
+			&& (staticSize == 0 || data[0] == 1) && (animationSize == 0 || data[staticSize] is >= 3 and <= 8);
+	}
+
+	internal static void DecodeFrames( MapFile map, ReadOnlySpan<byte> entry,
 		int[] mapping, Transform[] bind, Transform[] defaults, Transform[] poses, float scale )
 	{
 		int nodeCount = entry[19], frames = U16( entry, 20 );
@@ -98,8 +110,6 @@ internal static class AnimationGraph
 		if ( animated )
 			Decode( data, staticSize, flags + staticFlags, animatedFlags, mapping, nodeCount, poses, bind.Length, frames, scale );
 
-		for ( int frame = 0; frame < frames; frame++ )
-			animation.AddFrame( poses.AsSpan( frame * bind.Length, bind.Length ) );
 	}
 
 	static void Decode( ReadOnlySpan<byte> data, int start, int flags, int flagBytes, int[] mapping, int nodes,
