@@ -10,6 +10,45 @@ namespace Halo2;
 /// </summary>
 public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false ) : ResourceLoader<Halo2Mount>
 {
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		type = ResourceType.Texture;
+		return name == "sheet.vtex" && spriteSequences is null ? SpriteSheet( mapFile, tag, false ) : null;
+	}
+
+	internal static Halo2TextureLoader SpriteSheet( MapFile map, TagEntry bitmap, bool loop )
+	{
+		if ( bitmap.DataSize < 76 ) return null;
+		int sequences = map.VaToOffset( (int)bitmap.DataVirtualAddress ) + 60;
+		int count = map.ReadInt32( sequences );
+		if ( count is <= 0 or > 256 ) return null;
+		int sequence = map.VaToOffset( map.ReadInt32( sequences + 4 ) );
+		var atlas = new Rect[count][];
+		int image = -1;
+		for ( int i = 0; i < count; i++, sequence += 60 )
+		{
+			int frames = map.ReadInt32( sequence + 52 );
+			if ( frames is <= 0 or > 1024 ) return null;
+			atlas[i] = new Rect[frames];
+			int row = map.VaToOffset( map.ReadInt32( sequence + 56 ) );
+			for ( int j = 0; j < frames; j++, row += 32 )
+			{
+				int frameImage = (short)map.ReadInt32( row );
+				if ( frameImage < 0 || (image >= 0 && image != frameImage) ) return null;
+				image = frameImage;
+				atlas[i][j] = SpriteBounds( map, row + 8 );
+			}
+		}
+		return new Halo2TextureLoader( map, bitmap, image, spriteSequences: atlas, loop: loop );
+	}
+
+	internal static Rect SpriteBounds( MapFile map, int offset )
+	{
+		using var r = map.OpenReader( offset, 16 );
+		float left = r.ReadSingle(), right = r.ReadSingle(), top = r.ReadSingle(), bottom = r.ReadSingle();
+		return new Rect( left, top, right - left, bottom - top );
+	}
+
 	protected override object Load()
 	{
 		var data = BitmapTag.Read( mapFile, tag, bitmapIndex );

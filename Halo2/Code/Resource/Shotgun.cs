@@ -68,29 +68,9 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		if ( bitmap is null ) return null;
 		int flags = map.ReadInt32( header );
 		if ( (flags & 0x10000) != 0 )
-			return new Halo2TextureLoader( map, bitmap, spriteSequences: [[SpriteBounds( header + 0xac )]] );
+			return new Halo2TextureLoader( map, bitmap, spriteSequences: [[Halo2TextureLoader.SpriteBounds( map, header + 0xac )]] );
 
-		int sequences = Address( bitmap ) + 60;
-		int count = map.ReadInt32( sequences );
-		if ( count is <= 0 or > 256 ) return null;
-		var atlas = new Rect[count][];
-		for ( int i = 0; i < count; i++ )
-		{
-			int sprites = Block( sequences ) + i * 60 + 52;
-			int frames = map.ReadInt32( sprites );
-			if ( frames is <= 0 or > 1024 ) return null;
-			atlas[i] = new Rect[frames];
-			int row = Block( sprites );
-			for ( int j = 0; j < frames; j++, row += 32 )
-				atlas[i][j] = SpriteBounds( row + 8 );
-		}
-		return new Halo2TextureLoader( map, bitmap, spriteSequences: atlas, loop: (flags & 8) == 0 );
-	}
-
-	Rect SpriteBounds( int offset )
-	{
-		float left = Float( offset ), top = Float( offset + 8 );
-		return new Rect( left, top, Float( offset + 4 ) - left, Float( offset + 12 ) - top );
+		return Halo2TextureLoader.SpriteSheet( map, bitmap, (flags & 8) == 0 );
 	}
 
 	internal (CurveRange Radius, CurveRange Alpha) SmokeCurves( bool firstPerson )
