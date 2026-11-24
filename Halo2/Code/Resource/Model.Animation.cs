@@ -375,10 +375,15 @@ public partial class Halo2ModelLoader
 			float cycle = (float)cue.Frame / (builder.FrameCount - 1);
 			if ( cycle >= 0 && cycle <= 1 ) builder.AddEvent( cycle, new Halo2CueEvent { Cue = cue } );
 		}
+		bool needsOrigin = HasFirstPersonWeapon;
 		foreach ( var group in cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )
 		{
 			float cycle = (float)group.Key / (builder.FrameCount - 1);
-			if ( cycle >= 0 && cycle < 1 ) builder.AddSyncEvent( cycle, group.First().Kind );
+			if ( cycle < 0 || cycle >= 1 ) continue;
+			// AG2 starts playback at the first sync marker. A weapon cue can occur mid-swing.
+			if ( needsOrigin && cycle > 0 ) builder.AddSyncEvent( 0 );
+			needsOrigin = false;
+			builder.AddSyncEvent( cycle, group.First().Kind );
 		}
 		return graphClips[reference] = builder.Create( $"{Path}/clip_{reference}.anim" );
 	}
