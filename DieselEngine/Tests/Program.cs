@@ -77,6 +77,13 @@ var sky = MaterialConfig.Read( db.Find( "material_config", "units/world/architec
 if ( !sky.Backdrop || LightIntensities.Resolve( intensities, sky.EmissionMultiplier ) != 0 )
 	throw new Exception( "Suburbia sky must remain an unlit backdrop with emission disabled." );
 var ticker = MaterialConfig.Read( db.Find( "material_config", "units/world/props/signs/sign_ticker/sign_ticker" ) )[IdString.Hash( "ssign0" )];
+var smoke = MaterialConfig.Read( db.Find( "material_config", "units/world/props/slaughterhouse/backdrop_powerplant/smokepillar" ) )[IdString.Hash( "effect" )];
+var wave = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/suburbia/suburbia" ) )[IdString.Hash( "wave" )];
+if ( !smoke.Translucent || smoke.EffectBlend != 2 || smoke.DetailBlend != 1 || smoke.Detail is null
+	|| MathF.Abs( smoke.DetailScroll.x - 0.031f ) > 0.00001f || smoke.DiffuseScroll != Vector2.Zero
+	|| wave.EffectBlend != 1 || wave.DetailBlend != 2 || wave.DetailScroll != Vector2.Zero
+	|| MathF.Abs( wave.DiffuseScroll.y + 0.04f ) > 0.00001f )
+	throw new Exception( "Smoke and water effect blend modes or independent layer scrolling were lost." );
 if ( MathF.Abs( ticker.DiffuseScroll.x - 0.15f ) > 0.00001f || ticker.DiffuseScroll.y != 0
 	|| ticker.EmissionScroll != ticker.DiffuseScroll || ticker.NormalScroll != Vector2.Zero
 	|| ticket.DiffuseScroll != Vector2.Zero || sky.DiffuseScroll != Vector2.Zero )
@@ -169,6 +176,7 @@ foreach ( string unit in units )
 				if ( material.Diffuse is not null ) texturePaths.Add( material.Diffuse );
 				if ( material.Opacity is not null ) texturePaths.Add( material.Opacity );
 				if ( material.Normal is not null ) texturePaths.Add( material.Normal );
+				if ( material.DetailBlend > 0 && material.Detail is not null ) texturePaths.Add( material.Detail );
 				if ( material.SelfIlluminated && material.Emission is not null ) texturePaths.Add( material.Emission );
 			}
 		}

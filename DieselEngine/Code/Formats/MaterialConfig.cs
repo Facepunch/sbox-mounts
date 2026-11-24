@@ -7,7 +7,15 @@ namespace Diesel;
 sealed record MaterialDefinition( string Name, string Template, string Diffuse, string Opacity, float AlphaReference, string Normal )
 {
 	public bool AlphaTest => Template.Split( ':' ).Contains( "ALPHA_MASKED" );
-	public bool Translucent => Template.StartsWith( "opacity:", StringComparison.Ordinal ) || Template.StartsWith( "decal:", StringComparison.Ordinal );
+	public bool Translucent => Effect || Template.StartsWith( "opacity:", StringComparison.Ordinal ) || Template.StartsWith( "decal:", StringComparison.Ordinal );
+	public bool Effect => Template.StartsWith( "effect:", StringComparison.Ordinal );
+	public int EffectBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "BLEND_ADD" ) ? 1 : Template.Split( ':' ).Contains( "BLEND_MUL" ) ? 2 : 0;
+	public int DetailBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_ADD" ) ? 1 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_MUL" ) ? 2 : 0;
+	public string Detail { get; init; }
+	public string EffectIntensity { get; init; }
+	public Vector2 UV0Speed { get; init; }
+	public Vector2 UV1Speed { get; init; }
+	public Vector2 DetailScroll => Effect && Template.Split( ':' ).Contains( "DIFFUSE1_UVANIM" ) ? UV1Speed : Vector2.Zero;
 	public bool Hidden => Template.StartsWith( "shadow_caster_only", StringComparison.Ordinal );
 	public bool VertexColor => Template.Split( ':' ).Contains( "VERTEX_COLOR" );
 	public bool DoubleSided => Template.Split( ':' ).Contains( "DOUBLE_SIDED" );
@@ -16,7 +24,7 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public string Emission { get; init; }
 	public string EmissionMultiplier { get; init; }
 	public Vector2 UVSpeed { get; init; }
-	public Vector2 DiffuseScroll => Template.Split( ':' ).Contains( "DIFFUSE_UVANIM" ) ? UVSpeed : Vector2.Zero;
+	public Vector2 DiffuseScroll => Effect ? (Template.Split( ':' ).Contains( "DIFFUSE0_UVANIM" ) ? UV0Speed : Vector2.Zero) : Template.Split( ':' ).Contains( "DIFFUSE_UVANIM" ) ? UVSpeed : Vector2.Zero;
 	public Vector2 NormalScroll => Template.Split( ':' ).Contains( "NORMAL_UVANIM" ) ? UVSpeed : Vector2.Zero;
 	public Vector2 EmissionScroll => Template.Split( ':' ).Contains( "SELF_ILLUMINATION_UVANIM" ) ? UVSpeed : Vector2.Zero;
 }
@@ -38,6 +46,10 @@ static class MaterialConfig
 				material.Element( "opacity_texture" )?.Attribute( "file" ), alphaRef,
 				material.Element( "bump_normal_texture" )?.Attribute( "file" ) )
 			{
+				Detail = material.Element( "detail_diffuse_texture" )?.Attribute( "file" ),
+				EffectIntensity = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "intensity" )?.Attribute( "value" ),
+				UV0Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv0_speed" )?.Attribute( "value" ) ),
+				UV1Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv1_speed" )?.Attribute( "value" ) ),
 				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
 				EmissionMultiplier = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "il_multiplier" )?.Attribute( "value" ),
 				UVSpeed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv_speed" )?.Attribute( "value" ) )

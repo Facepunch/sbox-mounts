@@ -8,6 +8,7 @@ FEATURES
 	#include "common/features.hlsl"
 	Feature( F_ALPHA_TEST, 0..1, "Transparency" );
 	Feature( F_TRANSLUCENT, 0..1, "Transparency" );
+	Feature( F_EFFECT_BLEND, 0..2( 0="Alpha", 1="Additive", 2="Multiply" ), "Effect blend" );
 }
 
 MODES
@@ -51,8 +52,23 @@ PS
 {
 	StaticCombo( S_ALPHA_TEST, F_ALPHA_TEST, Sys( ALL ) );
 	StaticCombo( S_TRANSLUCENT, F_TRANSLUCENT, Sys( ALL ) );
+	StaticCombo( S_EFFECT_BLEND, F_EFFECT_BLEND, Sys( ALL ) );
+	#if S_EFFECT_BLEND
+		#define BLEND_MODE_ALREADY_SET
+	#endif
 	#define CULL_MODE_ALREADY_SET
 	#include "common/pixel.hlsl"
+	#if S_EFFECT_BLEND && !S_MODE_DEPTH
+		RenderState( BlendEnable, true );
+		RenderState( DepthWriteEnable, false );
+		#if S_EFFECT_BLEND == 1
+			RenderState( SrcBlend, SRC_ALPHA );
+			RenderState( DstBlend, ONE );
+		#else
+			RenderState( SrcBlend, DEST_COLOR );
+			RenderState( DstBlend, ZERO );
+		#endif
+	#endif
 	#if S_RENDER_BACKFACES
 		RenderState( CullMode, NONE );
 	#else
@@ -69,6 +85,12 @@ PS
 	CreateInputTexture2D( Emission, Srgb, 8, "None", "_emission", ",0/,0/0", Default4( 0, 0, 0, 1 ) );
 	Texture2D g_tEmission < Channel( RGBA, Box( Emission ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
 	float g_flEmissionStrength < Default1( 0 ); >;
+	CreateInputTexture2D( Detail, Srgb, 8, "None", "_detail", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
+	Texture2D g_tDetail < Channel( RGBA, Box( Detail ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+	float g_flDetailBlend < Default1( 0 ); >;
+	float g_flEffect < Default1( 0 ); >;
+	float g_flEffectIntensity < Default1( 1 ); >;
+	float2 g_vDetailScroll < Default2( 0, 0 ); >;
 	float g_flHasNormal < Default1( 0 ); >;
 	float g_flNormalRA < Default1( 0 ); >;
 	float g_flHasOpacity < Default1( 0 ); >;
@@ -91,6 +113,28 @@ PS
 		#if S_ALPHA_TEST
 			clip( opacity - g_flAlphaReference );
 		#endif
+
+		if ( g_flEffect > 0.5 )
+		{
+			float3 color = diffuse.rgb * g_vTint;
+			if ( g_flDetailBlend > 0.5 )
+			{
+				float3 detail = Tex2DS( g_tDetail, g_sWrap, i.vTextureCoords.xy + frac( g_flTime * g_vDetailScroll ) ).rgb;
+				color = g_flDetailBlend < 1.5 ? color + detail : color * detail;
+			}
+			if ( g_flVertexColor > 0.5 )
+			{
+				color *= i.vColor.rgb;
+				opacity *= i.vColor.a;
+			}
+			color *= g_flEffectIntensity;
+			#if S_EFFECT_BLEND == 2
+				// White is neutral for framebuffer multiplication.
+				return float4( lerp( float3( 1, 1, 1 ), color, saturate( opacity ) ), 1 );
+			#else
+				return float4( color, opacity );
+			#endif
+		}
 
 		Material m = Material::Init();
 		m.Albedo = diffuse.rgb * g_vTint;

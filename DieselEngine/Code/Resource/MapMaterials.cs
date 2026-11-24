@@ -32,6 +32,13 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		var diffuse = LoadTexture( definition?.Diffuse );
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );
+		var detail = definition?.DetailBlend > 0 ? LoadTexture( definition.Detail ) : null;
+		material.Set( "g_tDetail", detail ?? Texture.White );
+		material.Set( "g_flDetailBlend", detail is null ? 0f : definition.DetailBlend );
+		material.Set( "g_vDetailScroll", definition?.DetailScroll ?? Vector2.Zero );
+		material.Set( "g_flEffect", definition?.Effect == true ? 1f : 0f );
+		material.Set( "g_flEffectIntensity", definition?.Effect == true ? LightIntensities.Resolve( intensities, definition.EffectIntensity ) : 1f );
+		material.SetFeature( "F_EFFECT_BLEND", definition?.EffectBlend ?? 0 );
 		float emissionStrength = definition?.SelfIlluminated == true
 			? LightIntensities.Resolve( intensities, definition.EmissionMultiplier ) : 0;
 		var emission = emissionStrength > 0 ? LoadTexture( definition.Emission ) : null;
