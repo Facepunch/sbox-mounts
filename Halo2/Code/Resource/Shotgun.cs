@@ -133,6 +133,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.BindHudTextures();
 			gun.HoldType = WeaponHolds.Shotgun;
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
+			gun.MuzzleFlashPath = Host.AssetPath( map, "effects/bitmaps/weapons_fire/muzzle_flash_center", "vtex" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			float acceleration = Float( Header + 0x2e8 ), speed = Float( Header + 0x2ec );

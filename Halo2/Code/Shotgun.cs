@@ -5,6 +5,7 @@ public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
+	[Property] public string MuzzleFlashPath { get; set; }
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float MovementAcceleration { get; set; } = 72;
@@ -62,6 +63,7 @@ public sealed class Shotgun : Weapon
 		view.Animator.SampleCuesFromGraph = false;
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
+		view.ConfigureMuzzleFlash( MuzzleFlashPath );
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
 		view.Animator.Configure( "any", "any", "any" );
 		ViewModel = go;
@@ -332,6 +334,33 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 {
 	internal Halo2Animator Animator { get; set; }
 	internal Shotgun Weapon { get; set; }
+	ParticleEffect muzzleFlash;
+
+	internal void ConfigureMuzzleFlash( string path )
+	{
+		if ( !MuzzleGameObject.IsValid() || string.IsNullOrEmpty( path ) ) return;
+		var texture = Texture.Load( path );
+		if ( !texture.IsValid() || texture.IsError ) return;
+
+		var go = new GameObject( MuzzleGameObject, false, "Muzzle flash" );
+		muzzleFlash = go.AddComponent<ParticleEffect>();
+		muzzleFlash.MaxParticles = 2;
+		muzzleFlash.Lifetime = 0.125f;
+		muzzleFlash.LocalSpace = 1;
+		muzzleFlash.ApplyShape = true;
+		muzzleFlash.InitialScale = new ParticleFloat( 3, 12 );
+		muzzleFlash.ApplyColor = true;
+		muzzleFlash.Tint = Color.FromBytes( 252, 188, 101 );
+		muzzleFlash.ApplyAlpha = true;
+		muzzleFlash.Alpha = new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life };
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Additive = true;
+		renderer.FogStrength = 0;
+		renderer.RenderOptions.Game = false;
+		renderer.RenderOptions.Overlay = true;
+		go.Enabled = true;
+	}
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
@@ -473,6 +502,11 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		reload = false;
 		Weapon.Kick();
 		Play( "fire_1" );
+		if ( muzzleFlash.IsValid() )
+		{
+			for ( int i = 0; i < 2; i++ )
+				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
+		}
 	}
 
 	public override void OnReloadStart()
