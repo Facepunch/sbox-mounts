@@ -15,7 +15,7 @@ sealed class ModelFile
 
 	public record Draw( ulong Material, int Start, int Count );
 	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws );
-	public record Primitive( ulong Name, Vector3[] Points );
+	public record Primitive( ulong Name, Vector3[] Points, PropMass.BoxVolume? BoxVolume = null );
 	public record LightNode( ulong Name, bool Spot, Vector3 Position, Vector3 Direction, Vector3 Up );
 
 	public IEnumerable<LightNode> ReadLights( ulong orientation )
@@ -103,7 +103,7 @@ sealed class ModelFile
 			{
 				var world = Vec.Transform( new Vec( point.x, point.y, point.z ), transform );
 				return Coordinates.Position( new Vector3( world.X, world.Y, world.Z ) );
-			} ).ToArray() );
+			} ).ToArray(), type == "box" ? new PropMass.BoxVolume( (max - min) * 0.01f, MathF.Abs( transform.GetDeterminant() ) ) : null );
 		}
 	}
 

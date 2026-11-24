@@ -135,7 +135,8 @@ static class UnitModel
 		if ( movablePreview )
 		{
 			foreach ( var primitive in primitives ) massShapes[primitive.Name] = primitive.Points;
-			if ( massShapes.Count > 0 ) builder.WithMass( PropMass.Calculate( massShapes, geometry, materials.PhysicsDensities ) );
+			var boxes = primitives.Where( p => p.BoxVolume.HasValue ).ToDictionary( p => p.Name, p => p.BoxVolume.Value );
+			if ( massShapes.Count > 0 ) builder.WithMass( PropMass.Calculate( massShapes, geometry, materials.PhysicsDensities, boxes ) );
 		}
 		foreach ( var (material, vertices) in batches )
 		{

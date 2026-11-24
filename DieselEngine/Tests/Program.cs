@@ -98,6 +98,11 @@ var invalidDensities = PhysicsMaterials.Read( Encoding.UTF8.GetBytes(
 	"<physics_settings><material name='a' density='NaN'/><material name='b' density='-5'/><material name='c' density='Infinity'/></physics_settings>" ) );
 if ( invalidDensities.Count != 0 ) throw new Exception( "Invalid density accepted." );
 var cubeShapes = new Dictionary<ulong, Vector3[]> { [IdString.Hash( "cube" )] = [Vector3.Zero, Vector3.One / 0.0254f] };
+var scaledBox = new PropMass.BoxVolume( new Vector3( 2, 3, 4 ), 3 );
+if ( Math.Abs( scaledBox.CubicMeters( 0 ) - 72 ) > 0.00001
+	|| Math.Abs( scaledBox.CubicMeters( 10 ) - (24 - 1.8 * 2.8 * 3.8) * 3 ) > 0.00001
+	|| Math.Abs( scaledBox.CubicMeters( 500 ) - 72 ) > 0.00001 )
+	throw new Exception( "Source box volume or scaled hollow shell was incorrect." );
 float CubeMass( string attributes ) => PropMass.Calculate( cubeShapes,
 	UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), XmlNode.Parse(
 		$"<dynamic_object><bodies><body><object name='cube' collision_type='box' {attributes}/></body></bodies></dynamic_object>" ) ),
@@ -295,8 +300,19 @@ foreach ( string unit in units )
 		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
 		primitiveCount += primitives.Length;
 		foreach ( var primitive in primitives )
+		{
 			if ( primitive.Points.Length < 8 || primitive.Points.Any( v => !float.IsFinite( v.x + v.y + v.z ) ) )
 				throw new Exception( "Invalid bounds-only collision primitive." );
+			if ( primitive.BoxVolume is { } box )
+			{
+				var p = primitive.Points;
+				double fromCorners = Math.Abs( Vector3.Dot( p[1] - p[0], Vector3.Cross( p[2] - p[0], p[4] - p[0] ) ) )
+					* Math.Pow( 0.0254, 3 );
+				double volume = box.CubicMeters( 0 );
+				if ( !double.IsFinite( volume ) || volume < 0 || Math.Abs( fromCorners - volume ) > Math.Max( 0.00001, volume * 0.001 ) )
+					throw new Exception( $"Source box volume disagrees with transformed collider corners: {path}." );
+			}
+		}
 		if ( path == "units/world/architecture/suburbia/suburbia" && primitives.Length != 141 )
 			throw new Exception( "Suburbia terrain lost its 141 bounds-only collision boxes." );
 		// c_box_173 appears twice in the object XML; only one hull is needed.
