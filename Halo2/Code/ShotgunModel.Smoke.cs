@@ -55,9 +55,10 @@ public partial class ShotgunModel
 	{
 		if ( smokeTick == 0 || !trailingSmoke.IsValid() ) return;
 		int due = Math.Min( 12, (int)((Time.NowDouble - smokeStart) * 30) );
+		var emitter = (Weapon?.WeaponModel as ShotgunModel)?.trailingSmoke;
 		while ( smokeTick <= due )
 		{
-			trailingSmoke.Emit( trailingSmoke.WorldPosition, 0 );
+			if ( emitter.IsValid() ) emitter.Emit( emitter.WorldPosition, 0 );
 			smokeTick++;
 		}
 		if ( smokeTick > 12 ) smokeTick = 0;

@@ -118,10 +118,20 @@ public abstract class Weapon : BaseCombatWeapon
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{
+		if ( shot.NoEvents || Application.IsDedicatedServer || WeaponModel is not { MuzzleGameObject: { } muzzle } model || !muzzle.IsValid() )
+		{
+			base.OnShootEffects( shot );
+			return;
+		}
+
+		base.OnShootEffects( shot with { NoEvents = true } );
 		// A held weapon can outlive its mounted sound event across an editor hotload.
-		if ( !shot.NoEvents && !Application.IsDedicatedServer && !AttackSound.IsValid() && AttackSound?.ResourcePath is { Length: > 0 } path )
+		if ( !AttackSound.IsValid() && AttackSound?.ResourcePath is { Length: > 0 } path )
 			AttackSound = GameResource.Load<SoundEvent>( path );
-		base.OnShootEffects( shot );
+		var sound = muzzle.PlaySound( AttackSound );
+		if ( sound.IsValid() && Network.IsOwner ) sound.SpacialBlend = 0;
+		model.OnAttack( shot.Hit || shot.HitPosition != default ? shot.HitPosition : null, shot.Origin );
+		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
 	protected override float GetHitForce( GameObject target, float force )
