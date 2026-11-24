@@ -66,6 +66,7 @@ public partial class Halo2ModelLoader
 	int[] nodeMap;
 	readonly Dictionary<int, Clip> graphClips = new();
 	readonly Dictionary<int, Clip> oneShotClips = new();
+	readonly Dictionary<int, Clip> translationSteps = new();
 	readonly Dictionary<int, string> clipMasks = new();
 
 	IEnumerable<int> Rows( int block, int stride )
@@ -198,9 +199,17 @@ public partial class Halo2ModelLoader
 		}
 		return builder.Create( output, path );
 
-		GraphNode BasePose( int reference ) => Variants( reference, (id, clip) => builder.ClipSelector(
-			(builder.Clip( GetClip( id, oneShot: true ), new() { Looping = false, ResetTime = restartAction } ), once),
-			(builder.Clip( clip, new() { ResetTime = restartAction } ), builder.Not( once )) ) );
+		GraphNode BasePose( int reference ) => Variants( reference, (id, clip) =>
+		{
+			var settings = new GraphBuilder.ClipSettings { Looping = false, ResetTime = restartAction };
+			var single = builder.Clip( GetClip( id, oneShot: true ), settings );
+			var loop = builder.Clip( clip, new() { ResetTime = restartAction } );
+			if ( !translationSteps.TryGetValue( id, out var steps ) )
+				return builder.ClipSelector( (single, once), (loop, builder.Not( once )) );
+			var corrected = builder.Layers( single );
+			corrected.AddLayer( builder.Clip( steps, settings ), new() { BlendMode = GraphBuilder.LayerBlendMode.Additive } );
+			return builder.Selector().Add( corrected, once ).Add( loop, builder.Not( once ) );
+		} );
 
 		GraphNode Variants( int reference, Func<int, Clip, GraphNode> pose )
 		{
@@ -338,7 +347,14 @@ public partial class Halo2ModelLoader
 		int frames = (ushort)mapFile.ReadInt32( address + 20 ), bones = bindPose.Length;
 		var poses = new Transform[checked(frames * bones)];
 		var defaults = additive ? Enumerable.Repeat( Transform.Zero, bones ).ToArray() : bindPose;
-		Blam.AnimationGraph.DecodeFrames( mapFile, entry, source.Mapping, defaults, new Transform[bones], poses, ScaleFactor );
+		Vector3[] steps = null;
+		void RecordStep( int frame, int bone, Vector3 jump )
+		{
+			steps ??= new Vector3[poses.Length];
+			steps[frame * bones + bone] = jump * (source.ScaleRootOnly && bone != source.Mapping[0] ? 1 : source.TranslationScale);
+		}
+		Blam.AnimationGraph.DecodeFrames( mapFile, entry, source.Mapping, defaults, new Transform[bones], poses, ScaleFactor,
+			oneShot && !additive ? RecordStep : null );
 		if ( source.TranslationScale != 1 )
 		{
 			for ( int i = 0; i < poses.Length; i++ )
@@ -355,6 +371,23 @@ public partial class Halo2ModelLoader
 		int movementType = entry[17];
 		int stride = movementType is >= 1 and <= 3 ? (movementType + 1) * 4 : 0;
 		if ( stride * frames != movementSize ) return null;
+		if ( steps is not null )
+		{
+			var jumps = new ClipBuilder { Skeleton = skeleton, IsAdditive = true, FrameRate = 30, DisableInterpolation = true };
+			var deltas = Enumerable.Repeat( new Transform( Vector3.Zero, Rotation.Identity, Vector3.Zero ), bones ).ToArray();
+			for ( int frame = 0; frame < frames; frame++ )
+			{
+				for ( int bone = 0; bone < bones; bone++ )
+				{
+					int i = frame * bones + bone;
+					deltas[bone].Position += steps[i];
+					poses[i].Position -= deltas[bone].Position;
+				}
+				jumps.AddFrame( deltas );
+			}
+			jumps.AddFrame( deltas );
+			translationSteps[reference] = jumps.Create( $"{Path}/clip_{reference}_steps.anim" );
+		}
 		int movement = mapFile.VaToOffset( mapFile.ReadInt32( address + 44 ) )
 			+ (ushort)mapFile.ReadInt32( address + 54 ) + mapFile.ReadInt32( address + 56 ) + mapFile.ReadInt32( address + 60 )
 			+ entry[48] + entry[49];

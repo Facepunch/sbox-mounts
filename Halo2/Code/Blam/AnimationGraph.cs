@@ -93,7 +93,8 @@ internal static class AnimationGraph
 	}
 
 	internal static void DecodeFrames( MapFile map, ReadOnlySpan<byte> entry,
-		int[] mapping, Transform[] bind, Transform[] defaults, Transform[] poses, float scale )
+		int[] mapping, Transform[] bind, Transform[] defaults, Transform[] poses, float scale,
+		Action<int, int, Vector3> translationStep = null )
 	{
 		int nodeCount = entry[19], frames = U16( entry, 20 );
 		int length = I32( entry, 40 );
@@ -108,12 +109,12 @@ internal static class AnimationGraph
 			Decode( data, 0, flags, staticFlags, mapping, nodeCount, defaults, bind.Length, 1, scale );
 		for ( int frame = 0; frame < frames; frame++ ) defaults.CopyTo( poses, frame * bind.Length );
 		if ( animated )
-			Decode( data, staticSize, flags + staticFlags, animatedFlags, mapping, nodeCount, poses, bind.Length, frames, scale );
+			Decode( data, staticSize, flags + staticFlags, animatedFlags, mapping, nodeCount, poses, bind.Length, frames, scale, translationStep );
 
 	}
 
 	static void Decode( ReadOnlySpan<byte> data, int start, int flags, int flagBytes, int[] mapping, int nodes,
-		Transform[] poses, int stride, int frames, float scale )
+		Transform[] poses, int stride, int frames, float scale, Action<int, int, Vector3> translationStep = null )
 	{
 		var codec = data[start];
 		bool keyed = codec is >= 4 and <= 7;
@@ -174,6 +175,12 @@ internal static class AnimationGraph
 						case 1:
 							var u = ReadVector( data, a );
 							var v = interpolate ? ReadVector( data, b ) : u;
+							// The approximate reciprocal leaves a discrete displacement at the next key.
+							if ( translationStep is not null && interpolate && next < frames )
+							{
+								var jump = (v - u) * ((1f - (next - current) * inverseSpan) * scale);
+								if ( jump != Vector3.Zero ) translationStep( next, bone, jump );
+							}
 							for ( ; frame < end; frame++, destination += stride )
 								poses[destination].Position = (interpolate && frame > current
 									? Vector3.Lerp( u, v, (frame - current) * inverseSpan ) : u) * scale;
