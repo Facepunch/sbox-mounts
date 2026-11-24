@@ -46,6 +46,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		go.Enabled = true;
 		fierySmoke = CreateFierySmoke( firstPerson );
 		ConfigureSoftSmoke( firstPerson );
+		ConfigureSparks( firstPerson );
 		if ( firstPerson ) return;
 		var flareTexture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.LongFlashName}" );
 		if ( !flareTexture.IsValid() || flareTexture.IsError ) return;
@@ -280,6 +281,7 @@ public partial class ShotgunModel : BaseWeaponModel
 				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
 		}
 		EmitSoftSmoke();
+		EmitSparks();
 		if ( fierySmoke.IsValid() ) fierySmoke.Emit( fierySmoke.WorldPosition, 0 );
 		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
 		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
