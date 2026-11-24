@@ -38,6 +38,21 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 
 	static float Volume( float db ) => MathF.Pow( 10, Math.Clamp( db, -64f, 0f ) / 20f );
 
+	static Curve DistanceFalloff( float near )
+	{
+		// In normalized distance, gain past the near radius is near/x * (1-x)/(1-near).
+		// Space Hermite keys proportionally to distance so the steep part gets the most detail.
+		var frames = new System.Collections.Generic.List<Curve.Frame> { new( 0, 1 ) };
+		double scale = near / (1.0 - near);
+		for ( double x = near; ; x = Math.Min( 1, x * 1.125 ) )
+		{
+			float gain = (float)(scale * (1 - x) / x);
+			float slope = (float)(scale / (x * x));
+			frames.Add( new( (float)x, gain, x == near ? 0 : slope, -slope ) );
+			if ( x == 1 ) return new Curve( frames );
+		}
+	}
+
 	internal SoundHandle PlayCue( Vector3 position, ref uint seed )
 	{
 		var sound = GameResource.Load<SoundEvent>( Path );
@@ -69,6 +84,12 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 		var settings = playback ??= ReadPlayback();
 		if ( settings.Distance > 0 ) sound.Distance = settings.Distance;
 		sound.MinDistance = settings.MinDistance;
+		float near = settings.MinDistance / settings.Distance;
+		if ( near > 0 && near < 1 )
+		{
+			sound.Falloff = DistanceFalloff( near );
+			sound.FalloffMode = SoundFalloffMode.Curve;
+		}
 		sound.Volume = Volume( settings.GainDb );
 		int firstRange = U16( header + 8 ), rangeCount = map.ReadSpan( header + 10, 1 )[0];
 		int chunkTable = Table( gestalt + 96, 0, 8 ); // English index in the localized chunk tables.
