@@ -53,10 +53,18 @@ public sealed partial class Onos
 			var height = Vector3.Up * (0.4f * Scale);
 			if ( TraceWorld( center + height, position + height ).Hit ) continue;
 			waveVictims.Add( victim );
+			var player = victim.GetComponent<PlayerController>();
+			if ( player.IsValid() ) WebPlayer( player );
 			DealDamage( (IDamageable)victim, 50, position, "stomp" );
 		}
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void WebPlayer( PlayerController player )
+	{
+		if ( player.IsValid() && !player.IsProxy )
+			player.GameObject.GetOrAddComponent<OnosWebbed>().Apply( player );
+	}
 	SceneTraceResult TraceWorld( Vector3 from, Vector3 to ) => Scene.Trace.Ray( from, to )
 		.WithoutTags( "trigger", "npc", "player", "playercontroller" ).IgnoreGameObjectHierarchy( GameObject ).Run();
 }
