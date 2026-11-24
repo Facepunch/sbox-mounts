@@ -45,7 +45,7 @@ public sealed partial class RabbitGuard
 			}
 
 			var ear = earStates[side];
-			if ( ear.NextTwist <= 0 )
+			if ( ear.NextTwist <= 0 && (earsActive || side != 0) )
 			{
 				ear.TargetTwist = Random.Shared.Float( -0.4f, 0.8f );
 				ear.NextTwist = Random.Shared.Float( 0.7f, 4f );
@@ -125,6 +125,15 @@ public sealed partial class RabbitGuard
 				pose.Position = (a + b) * 0.5f;
 				pose.Rotation = Rotation.FromToRotation( pose.Rotation.Forward, (b - a).Normal ) * pose.Rotation;
 				SetPoseBone( bone, Renderer.WorldTransform.ToLocal( pose ) );
+			}
+			if ( reset )
+			{
+				// The source stores the first sample and renders the twisted animation directly.
+				low.Position = root + twist * (low.Position - root);
+				high.Position = root + twist * twist * (high.Position - root);
+				SetPoseBone( lower, Renderer.WorldTransform.ToLocal( low ) );
+				SetPoseBone( upper, Renderer.WorldTransform.ToLocal( high ) );
+				continue;
 			}
 			Place( lower, low, root, middle );
 			Place( upper, high, middle, tip );

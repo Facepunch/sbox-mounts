@@ -9,7 +9,8 @@ public sealed partial class RabbitGuard
 	[ConVar( "overgrowth_sparring", ConVarFlags.Replicated, Help = "Overgrowth fighters recover their health on a lethal hit and can keep fighting." )]
 	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }
-	[Sync] internal bool Downed { get; private set; }
+	[Sync, Change( nameof( OnDownedChanged ) )] internal bool Downed { get; private set; }
+
 	[Sync] bool RecoveredInAir { get; set; }
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
@@ -195,6 +196,20 @@ public sealed partial class RabbitGuard
 		if ( holdPartner.IsValid() ) ReleaseHold();
 	}
 
+	void OnDownedChanged( bool wasDown, bool isDown )
+	{
+		if ( !wasDown || isDown ) return;
+		// SetState reseeds secondary animation once when leaving ragdoll.
+		armsActive = earsActive = plantedLegs = false;
+		foreach ( var ear in earStates )
+		{
+			ear.Twist = ear.TargetTwist = 0f;
+			ear.NextTwist = 0f;
+		}
+		if ( tailMotion is not null ) tailMotion.Initialized = false;
+		ClearFootContacts();
+	}
+
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )
 	{
 		UpdateCombatGroup();
@@ -365,7 +380,6 @@ public sealed partial class RabbitGuard
 			}
 			else StartGetUp( blockFacing.HasValue ? BlockFromGround : front.z < 0f ? StandFromFront : StandFromBack );
 		}
-		secondaryReset = 4f * (4f / 120f);
 		throwPartner = null;
 		if ( Sparring ) zoneKilled = false;
 		Downed = false;
