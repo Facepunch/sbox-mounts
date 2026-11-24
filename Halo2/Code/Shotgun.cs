@@ -204,8 +204,7 @@ public sealed class Shotgun : Weapon
 			&& InFullAutoAimRange( ray, hit ) )
 		{
 			if ( disposition == Sandbox.Npcs.Disposition.Friendly ) return Color.FromBytes( 51, 255, 0 );
-			var renderer = npc.Renderer;
-			weakSpot = renderer.IsValid() && Halo2ModelLoader.ForModel( renderer.Model )?.HitsWeakTarget( renderer, ray, AutoAimRange * 0.5f ) == true;
+			weakSpot = WeakTarget.Hit( npc.Renderer, ray, AutoAimRange * 0.5f );
 			return Color.Red;
 		}
 
