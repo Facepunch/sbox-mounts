@@ -46,6 +46,12 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	int? looseReserve;
 	int LooseReserve => looseReserve ?? (Clip1 < 0 ? StartingAmmo : 0);
 
+	int CarriedReserve( BaseInventoryComponent inventory )
+	{
+		int available = inventory?.GetAmmo( PrimaryAmmoType ) ?? 0;
+		return available == int.MaxValue ? 0 : System.Math.Min( available, MaxReserveAmmo - LooseReserve );
+	}
+
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		var held = inventory.Items.OfType<Halo2Shotgun>().FirstOrDefault( w => w != this &&
@@ -55,12 +61,17 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 
 		int loaded = Clip1 < 0 ? ClipMaxSize : Clip1;
 		int reserve = LooseReserve;
-		int taken = inventory.GiveAmmo( held.PrimaryAmmoType, reserve + loaded );
+		var source = Inventory;
+		if ( source == inventory ) return false;
+		int carried = CarriedReserve( source );
+		int taken = inventory.GiveAmmo( held.PrimaryAmmoType, reserve + carried + loaded );
 		if ( taken > 0 )
 		{
 			int fromReserve = System.Math.Min( reserve, taken );
 			looseReserve = reserve - fromReserve;
-			Clip1 = loaded - (taken - fromReserve);
+			int remainder = taken - fromReserve;
+			if ( carried > 0 ) remainder -= source.TakeAmmo( PrimaryAmmoType, System.Math.Min( carried, remainder ) );
+			Clip1 = loaded - remainder;
 		}
 		return false;
 	}
@@ -71,6 +82,14 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		StartingAmmo = 0;
 		base.OnAdded( inventory );
 		looseReserve = reserve - (UsesAmmo ? inventory.GiveAmmo( PrimaryAmmoType, reserve ) : 0);
+	}
+
+	protected override void OnRemoved( BaseInventoryComponent inventory )
+	{
+		base.OnRemoved( inventory );
+		// Drop and transfer have already reparented the weapon. Removal for destruction has not.
+		if ( Inventory != inventory && UsesAmmo )
+			looseReserve = LooseReserve + inventory.TakeAmmo( PrimaryAmmoType, CarriedReserve( inventory ) );
 	}
 
 	protected override void CreateViewModel()
