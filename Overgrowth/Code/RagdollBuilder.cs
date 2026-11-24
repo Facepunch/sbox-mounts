@@ -11,9 +11,18 @@ static class RagdollBuilder
 	const float Degrees = 180f / MathF.PI;
 	static readonly Vector3[] SpherePoints = CreateSpherePoints();
 
-	internal readonly record struct BoneCenter( Vector3 Position, bool Fixed, float Mass, bool NonColliding );
+	internal readonly record struct BoneCenter( Vector3 Position, bool Fixed, float Mass, bool NonColliding, Vector3 InertiaPerMass );
 
-	record struct Shape( string Kind, FzxObject Object );
+	record struct Shape( string Kind, FzxObject Object )
+	{
+		internal Transform LocalPose( Transform bone, Vector3 center, float scale )
+		{
+			var q = Object.Rotation;
+			return bone.ToLocal( new Transform( (Convert( Object.Position ) - center) * scale, new Rotation( q.z, q.x, q.y, q.w ) ) );
+		}
+
+		internal Vector3 Size( float scale ) => new Vector3( Object.Scale.y, Object.Scale.x, Object.Scale.z ) * (Units * scale);
+	}
 	record struct Joint( int A, int B, int Type, Vector3 Anchor, Vector3 Axis, float[] Limits );
 
 	static int Ancestor( SkeletonData skeleton, int bone, int steps )
@@ -80,7 +89,10 @@ static class RagdollBuilder
 					throw new InvalidDataException( $"Invalid Overgrowth shape volume for bone {i} in {fzxPath}." );
 				pose = pose.WithPosition( weightedCenter / totalVolume );
 			}
-			bodyCenters.Add( i, new( pose.Position, fixedBones[i], masses[i], hasFzx && !fixedBones[i] && shapes[i].Count == 0 ) );
+			var bone = skeleton.Bones[i];
+			float length = skeleton.Points[bone.A].Distance( skeleton.Points[bone.B] ) * (Units * scale);
+			var inertia = InertiaPerMass( shapes[i], pose, center, scale, length );
+			bodyCenters.Add( i, new( pose.Position, fixedBones[i], masses[i], hasFzx && !fixedBones[i] && shapes[i].Count == 0, inertia ) );
 		}
 		return bodyCenters;
 
@@ -296,12 +308,32 @@ static class RagdollBuilder
 		};
 	}
 
+	// Bullet computes a diagonal box inertia from the compound's bounds in the bone frame.
+	static Vector3 InertiaPerMass( List<Shape> shapes, Transform pose, Vector3 center, float scale, float boneLength )
+	{
+		var half = new Vector3( boneLength * 0.5f, 0f, 0f ) + Vector3.One * (0.05f * Units);
+		if ( shapes.Count > 0 )
+		{
+			BBox? compound = null;
+			foreach ( var shape in shapes )
+			{
+				var size = shape.Size( scale );
+				if ( shape.Kind == "capsule" ) size = Vector3.One * size.y + Vector3.Up * size.z;
+				// btMultiSphereShape adds its collision margin when queried as a compound child.
+				if ( shape.Kind != "box" ) size += Vector3.One * (0.04f * Units);
+				var bounds = new BBox( -size, size ).Transform( shape.LocalPose( pose, center, scale ) );
+				compound = compound?.AddBBox( bounds ) ?? bounds;
+			}
+			half = compound.Value.Size * 0.5f;
+		}
+		var squared = half * half;
+		return new Vector3( squared.y + squared.z, squared.x + squared.z, squared.x + squared.y ) / 3f;
+	}
+
 	static bool AddShape( PhysicsBodyBuilder body, Shape shape, Transform pose, Vector3 center, float scale )
 	{
-		var obj = shape.Object;
-		var rotation = new Rotation( obj.Rotation.z, obj.Rotation.x, obj.Rotation.y, obj.Rotation.w );
-		var local = pose.ToLocal( new Transform( (Convert( obj.Position ) - center) * scale, rotation ) );
-		var size = new Vector3( obj.Scale.y, obj.Scale.x, obj.Scale.z ) * (Units * scale);
+		var local = shape.LocalPose( pose, center, scale );
+		var size = shape.Size( scale );
 		switch ( shape.Kind )
 		{
 			case "box":

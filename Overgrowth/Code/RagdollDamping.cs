@@ -68,6 +68,8 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 			var part = physics.Bodies[i];
 			if ( !part.Component.IsValid() ) continue;
 			part.Component.MassOverride = parts[i].Mass * scale * scale * scale;
+			if ( loader is not null )
+				part.Component.PhysicsBody.SetInertiaTensor( loader.RagdollInertiaPerMass( part.Bone ) * (part.Component.Mass * scale * scale), Rotation.Identity );
 			// The source keeps mass and joints on FZX bones that have no collision geometry.
 			if ( loader?.NonCollidingBones.Contains( part.Bone ) == true )
 			{

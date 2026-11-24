@@ -75,7 +75,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal static CharacterLoader FromModel( Model model )
 	{
 		if ( model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
-		if ( loader.Surface is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
+		if ( loader.Surface is null || loader.inertias is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
 		return loader;
 	}
 
@@ -136,7 +136,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	// Store their mean once so a ragdoll query only visits each live body once.
 	readonly Dictionary<int, (Vector3 Center, int Count)> ragdollCenters = new();
 
-	Vector3[] forceLevers;
+	Vector3[] forceLevers, inertias;
+	internal Vector3 RagdollInertiaPerMass( int bone ) => inertias[bone];
 
 	internal Vector3 RagdollForceLever( int bone ) => forceLevers[bone];
 
@@ -222,6 +223,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		AttachmentCenters = bodyCenters.ToDictionary( entry => entry.Key, entry => skeleton.BindPose[entry.Key].PointToLocal( entry.Value.Position ) );
 		ragdollCenters.Clear();
 		forceLevers = new Vector3[model.BoneCount];
+		inertias = new Vector3[model.BoneCount];
 		var bodyPoints = new Dictionary<int, BodyPoint>();
 		foreach ( var (id, point) in bodyCenters )
 		{
@@ -229,7 +231,11 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			while ( parent >= 0 && (!bodyCenters.TryGetValue( parent, out var body ) || body.Fixed) ) parent = skeleton.HierParents[parent];
 			if ( parent < 0 ) continue;
 			int index = model.Bones.GetBone( $"bone_{parent}" ).Index;
-			if ( id == parent ) forceLevers[index] = -AttachmentCenters[id];
+			if ( id == parent )
+			{
+				forceLevers[index] = -AttachmentCenters[id];
+				inertias[index] = point.InertiaPerMass;
+			}
 			var group = ragdollCenters.GetValueOrDefault( index );
 			var local = skeleton.BindPose[parent].PointToLocal( skeleton.BindPose[id].Position );
 			bodyPoints[id] = new( model.Bones.GetBone( $"bone_{id}" ), AttachmentCenters[id], index, new Transform( local, skeleton.BindPose[parent].Rotation.Inverse * skeleton.BindPose[id].Rotation ), point.Mass );
