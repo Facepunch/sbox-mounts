@@ -12,6 +12,7 @@ internal sealed partial class ShotgunLoader
 	{
 		public int CountInput, SpeedInput, SizeInput, Shape;
 		public bool Reflected;
+		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
 		public Vector2 Alpha;
 		public CurveRange DriftAngle;
 	}
@@ -49,7 +50,8 @@ internal sealed partial class ShotgunLoader
 				int data = Block( emitter + property + 8 );
 				return new Vector2( Float( data + 4 ), Float( data + 8 ) );
 			}
-			int controller = Reference( emitter ) is {} movement ? Block( Address( movement ) + 12 ) : 0;
+			var movement = Reference( emitter );
+			int controller = movement is null ? 0 : Block( Address( movement ) + 12 );
 			float Parameter( int control, int number ) => control == 0 ? 0 : Float( Block( Block( control + 4 ) + number * 20 + 12 ) + 4 );
 			int color = Block( emitter + 96 );
 			Color Tint( int offset )
@@ -59,6 +61,7 @@ internal sealed partial class ShotgunLoader
 			}
 			bool smoke = layer == ImpactLayer.Smoke, drift = layer == ImpactLayer.Drift;
 			int definition = Address( particle );
+			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, sprite, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ),
 				Bounds( 72 ) * 120, smoke ? ReadRange( emitter + 72, 120 ) : drift ? ReadRange( definition + 60, 1 ) : default,
 				smoke ? ReadRange( emitter + 104, 1 ) : drift ? ReadRange( definition + 44, 1 ) : default,
@@ -67,6 +70,8 @@ internal sealed partial class ShotgunLoader
 			{
 				CountInput = Short( emitter + 8 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				Shape = map.ReadInt32( emitter + 120 ), Alpha = Bounds( 104 ),
+				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
+				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
 				DriftAngle = drift ? ReadRange( definition + 76, 1 ) : default,
 				Reflected = map.ResolveStringId( map.ReadInt32( Block( Address( contact ) + 12 ) + 4 * Short( system + 8 ) ) ) == "reflection"
 			};
@@ -204,12 +209,34 @@ internal sealed partial class ShotgunLoader
 		for ( int i = 0; i < births; i++ ) effect.Emit( contact.Position, 0 );
 	}
 
+	internal static SceneTraceResult TraceParticleStructure( SceneTrace ray )
+	{
+		var structure = ray.IgnoreDynamic().WithoutTags( "water" );
+		var hit = structure.Run();
+		// Standalone level colliders are keyframed too. Skip frozen props without hiding geometry behind them.
+		return hit.Hit && hit.Body?.Component is Rigidbody
+			? structure.RunAll().FirstOrDefault( h => h.Body?.Component is not Rigidbody )
+			: hit;
+	}
+
 	static bool Collide( Particle p, ImpactEmitter data, Scene scene, float dt )
 	{
 		if ( p.Frame < p.Get<int>( "collision_tick" ) ) return false;
 		var step = p.Velocity * dt;
 		var from = p.Position - step;
-		var hit = scene.Trace.Ray( from, from + step * 12 ).UseHitPosition().Run();
+		var ray = scene.Trace.Ray( from, from + step * 12 ).UseHitPosition();
+		// Both terrain debris controllers query structure. Only some also query media.
+		var hit = TraceParticleStructure( ray );
+		bool water = false;
+		if ( data.CollidesWithWater )
+		{
+			var surface = ray.WithTag( "water" ).HitTriggers().Run();
+			if ( surface.Hit && !surface.StartedSolid && (!hit.Hit || surface.Fraction < hit.Fraction) )
+			{
+				hit = surface;
+				water = true;
+			}
+		}
 		// The collider looks twelve steps ahead and accepts contacts within the first two.
 		p.Set( "collision_tick", p.Frame + (!hit.Hit || hit.StartedSolid ? 6 : 1) );
 		if ( !hit.Hit || hit.StartedSolid || hit.Fraction >= 1f / 6 ) return false;
@@ -219,6 +246,6 @@ internal sealed partial class ShotgunLoader
 		p.Velocity = (p.Velocity - normal) * (1 - data.Collision.x) - normal * data.Collision.y;
 		p.Position = hit.HitPosition + hit.Normal * 0.6f;
 		p.Set( "spin", p.Get<float>( "spin" ) * (1 - data.Collision.x) );
-		return data.Layer == ImpactLayer.Sparks && hit.Body.IsValid() && hit.Body.BodyType != PhysicsBodyType.Static;
+		return water ? data.DiesInWater : data.DiesOnStructure;
 	}
 }

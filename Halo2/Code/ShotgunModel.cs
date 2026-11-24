@@ -232,8 +232,8 @@ public partial class ShotgunModel : BaseWeaponModel
 			// Halo probes twelve steps ahead and accepts contacts within the first two.
 			var step = casing.Velocity * dt;
 			var start = casing.Position - step;
-			var hit = Scene.Trace.Ray( start, start + 12 * step )
-				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ).Run();
+			var hit = ShotgunLoader.TraceParticleStructure( Scene.Trace.Ray( start, start + 12 * step )
+				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ) );
 			if ( !hit.Hit )
 			{
 				casing.HitNormal = Vector3.Zero;
