@@ -7,10 +7,11 @@ internal sealed partial class SoundProject
 	internal enum Effect { None, Volume, Pitch, Reverb, Pan, Occlusion, LowPass, Distortion }
 	internal sealed record Envelope( Effect Effect, int Parameter, Vector2[] Points )
 	{
+		internal string ParameterName;
 		internal float Min, Max;
-		internal float Evaluate( float meters )
+		internal float Evaluate( float value )
 		{
-			float x = Max > Min ? (meters - Min) / (Max - Min) : 0;
+			float x = Max > Min ? (value - Min) / (Max - Min) : 0;
 			var a = Points[0];
 			if ( x <= a.x ) return a.y;
 			for ( int i = 1; i < Points.Length; i++ )

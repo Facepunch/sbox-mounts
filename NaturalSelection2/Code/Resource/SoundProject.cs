@@ -179,10 +179,9 @@ internal sealed partial class SoundProject
 					float min = r.Float(), max = r.Float();
 					r.Skip( 12 );
 					r.Skip( 4 * r.Count( 4 ) );
-					if ( parameter != "(distance)" ) continue;
 					foreach ( var layer in layers )
 						foreach ( var env in layer.Envelopes )
-							if ( env.Parameter == j ) (env.Min, env.Max) = (min, max);
+							if ( env.Parameter == j ) (env.ParameterName, env.Min, env.Max) = (parameter, min, max);
 				}
 				r.SkipProperties();
 			}

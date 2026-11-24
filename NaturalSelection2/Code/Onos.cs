@@ -28,7 +28,7 @@ public sealed partial class Onos : BaseNpc
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death" } )
+		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
 		{
 			var id = $"alien/onos/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -130,6 +130,7 @@ public sealed partial class Onos : BaseNpc
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		var velocity = Animation.MoveVelocity.WithZ( 0 );
 		float speedRatio = velocity.Length / RunSpeed;
+		UpdateRumble( Animation.MoveVelocity.Length / RunSpeed );
 		output?.Set( "move_speed", Shielding ? Math.Clamp( 1 - speedRatio, 0.75f, 1 ) : speedRatio );
 		output?.Set( "stoop", Shielding ? 0.68f : 0f );
 		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
@@ -162,6 +163,37 @@ public sealed partial class Onos : BaseNpc
 		output.Set( "body_pitch", -AimPitch );
 		MovePose.Write( Locomotion, output, AnimationTime );
 		AttackPose.Write( ActionLayer, output, AnimationTime );
+	}
+
+	SoundHandle rumble;
+	float rumbleGain;
+	SoundProject.Envelope rumbleVolume;
+
+	void UpdateRumble( float speed )
+	{
+		if ( Application.IsDedicatedServer ) return;
+		if ( rumble is null )
+		{
+			if ( speed <= 0 ) return;
+			var mount = Sandbox.Mounting.Directory.Get( "ns2" ) as GameMount;
+			var layer = mount?.FindSoundEvent( "sound/NS2.fev/alien/onos/rumble" )?.Layers.FirstOrDefault();
+			rumbleVolume = layer?.Envelopes.FirstOrDefault( e => e.ParameterName == "speed" && e.Effect == SoundProject.Effect.Volume );
+			if ( rumbleVolume is null ) return;
+			var sound = GameResource.Load<SoundEvent>( "mount://ns2/sounds/alien/onos/rumble.sound" );
+			if ( sound is null ) return;
+			rumble = Sound.Play( sound, WorldPosition );
+			if ( rumble is null ) return;
+			rumbleGain = rumble.Volume;
+		}
+		rumble.Position = WorldPosition;
+		rumble.Volume = rumbleGain * rumbleVolume.Evaluate( speed );
+	}
+
+	protected override void OnDisabled()
+	{
+		rumble?.Stop();
+		rumble = null;
+		base.OnDisabled();
 	}
 
 	void OnWeaponTag( string tag )

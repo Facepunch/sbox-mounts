@@ -162,7 +162,7 @@ public sealed class MapAmbientSound : Component
 			float meters = h.Position.Distance( Sound.Listener.Position ) / MapLoader.Scale;
 			foreach ( var env in layer.Envelopes )
 			{
-				float v = env.Evaluate( meters );
+				float v = env.Evaluate( env.ParameterName == "(distance)" ? meters : env.Min );
 				switch ( env.Effect )
 				{
 					case SoundProject.Effect.Volume: gain *= v; break;
