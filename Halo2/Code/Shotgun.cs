@@ -48,6 +48,7 @@ public sealed class Shotgun : Weapon
 		renderer.RenderOptions.Game = false;
 		renderer.RenderOptions.Overlay = true;
 		var gun = new GameObject( go, true, "Shotgun" ).AddComponent<SkinnedModelRenderer>();
+		gun.CreateAttachments = true;
 		gun.Model = Model.Load( ViewModelPath );
 		gun.BoneMergeTarget = renderer;
 		gun.RenderOptions.Game = false;
@@ -60,6 +61,8 @@ public sealed class Shotgun : Weapon
 		view.Animator.Renderer = renderer;
 		view.Animator.SampleCuesFromGraph = false;
 		go.Enabled = true;
+		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
+		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
 		view.Animator.Configure( "any", "any", "any" );
 		ViewModel = go;
 		view.OnDeploy();
