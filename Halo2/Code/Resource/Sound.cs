@@ -26,6 +26,8 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt ) : Sandbo
 		{
 			float maxDistance = BitConverter.Int32BitsToSingle( map.ReadInt32( playback + 4 ) );
 			if ( maxDistance > 0 ) sound.Distance = maxDistance * 120;
+			float gainDb = BitConverter.Int32BitsToSingle( map.ReadInt32( playback + 0x10 ) );
+			sound.Volume = MathF.Pow( 10, Math.Clamp( gainDb, -64f, 0f ) / 20f );
 		}
 		int firstRange = U16( header + 8 ), rangeCount = map.ReadSpan( header + 10, 1 )[0];
 		int chunkTable = Table( gestalt + 96, 0, 8 ); // English index in the localized chunk tables.
