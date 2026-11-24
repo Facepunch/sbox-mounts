@@ -162,6 +162,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			ballistics.Radius = 0;
 			gun.Ballistics = ballistics;
 			gun.AttackSound = GameResource.Load<SoundEvent>( Host.AssetPath( map, "sound/weapons/shotgun/fire", "sound" ) );
+			gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
 			gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
 			int strike = Address( Reference( Header + 0x1bc ) );
 			gun.MeleeDamage = Float( strike + 0x20 );

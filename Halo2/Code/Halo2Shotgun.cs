@@ -15,6 +15,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float FullDamageRange { get; set; }
 	[Property] public float MeleeDamage { get; set; }
 	[Property] public float MeleeForce { get; set; }
+	[Property] public Vector2 MeleeHalfExtents { get; set; }
 	[Property] public float MeleeRange { get; set; }
 
 	[Property] public float KickDuration { get; set; }
@@ -227,10 +228,43 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
 		using var sceneScope = Scene.Push();
-		var hit = BulletTrace( AimRay, MeleeRange, 0 ).Run();
+		var hit = TraceMelee( AimRay );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface, hit.HitPosition );
 		ShootBullet( hit, MeleeDamage, MeleeForce, new TagSet { "melee" }, false );
+	}
+
+	SceneTraceResult TraceMelee( Ray aim )
+	{
+		var forward = aim.Forward;
+		var abs = forward.Abs();
+		// Halo constructs the two perpendicular axes from the smallest component of aim.
+		var axis = (abs.x <= abs.y && abs.x <= abs.z ? new Vector3( 0, forward.z, -forward.y )
+			: abs.y <= abs.z ? new Vector3( -forward.z, 0, forward.x ) : new Vector3( forward.y, -forward.x, 0 )).Normal;
+		var stepY = Vector3.Cross( forward, axis ) * (MeleeHalfExtents.y * 0.5f);
+		var stepX = axis * (MeleeHalfExtents.x * 0.5f);
+		var center = aim.Position + forward * MeleeRange;
+		var trace = BulletTrace( aim, MeleeRange, 0 );
+		SceneTraceResult best = default;
+		int priority = -1;
+		for ( int x = -2; x <= 2; x++ )
+		for ( int y = -2; y <= 2; y++ )
+		{
+			var hit = trace.FromTo( aim.Position, center + stepX * x + stepY * y ).Run();
+			if ( !hit.Hit || !hit.GameObject.IsValid() ) continue;
+
+			// The first object beats scenery. A biped beats other objects and the closest biped wins.
+			var obj = hit.GameObject;
+			bool character = obj.GetComponentInParent<PlayerController>().IsValid() || obj.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid();
+			int rank = character ? 2 : 0;
+			if ( !character && (obj.GetComponentInParent<Rigidbody>().IsValid() || obj.GetComponentInParent<Component.IDamageable>() is not null) ) rank = 1;
+			if ( rank < priority ) continue;
+			if ( rank == 1 && priority == 1 ) continue;
+			if ( rank == 2 && priority == 2 && hit.Fraction >= best.Fraction ) continue;
+			best = hit;
+			priority = rank;
+		}
+		return best;
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
