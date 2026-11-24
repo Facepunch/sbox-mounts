@@ -11,7 +11,7 @@ public class ShotgunModel : BaseWeaponModel
 	bool viewCasing;
 	uint seed = (uint)Random.Shared.Next();
 
-	ParticleEffect muzzleFlash;
+	ParticleEffect muzzleFlash, shortFlare, longFlare;
 	internal void ConfigureMuzzleFlash( bool firstPerson )
 	{
 		if ( !MuzzleGameObject.IsValid() ) return;
@@ -45,6 +45,63 @@ public class ShotgunModel : BaseWeaponModel
 		renderer.RenderOptions.Game = !firstPerson;
 		renderer.RenderOptions.Overlay = firstPerson;
 		go.Enabled = true;
+		if ( firstPerson ) return;
+		var flareTexture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.LongFlashName}" );
+		if ( !flareTexture.IsValid() || flareTexture.IsError ) return;
+		var flareSprite = Sprite.FromTexture( flareTexture );
+		// The long edge starts at the marker and extends along the barrel.
+		flareSprite.Animations[0].Origin = new Vector2( 1, 0.5f );
+		shortFlare = CreateFlare( flareSprite, true );
+		longFlare = CreateFlare( flareSprite, false );
+	}
+
+	ParticleEffect CreateFlare( Sprite sprite, bool shortReach )
+	{
+		var go = new GameObject( MuzzleGameObject, false, shortReach ? "Short muzzle flare" : "Long muzzle flare" );
+		if ( shortReach ) go.LocalPosition = Vector3.Backward * 1.2f;
+		var flare = go.AddComponent<ParticleEffect>();
+		flare.MaxParticles = 1;
+		flare.Lifetime = shortReach ? 0.2f : 0.15f;
+		flare.ApplyShape = true;
+		flare.SnapToFrame = true;
+		flare.InitialScale = shortReach ? 12 : 30;
+		flare.Scale = shortReach
+			? LifeCurve( new Curve.Frame( 0, 0.3888889f, 0, 1.136174f ), new Curve.Frame( 1, 0.777778f, 1.11111f, 0 ) )
+			: new ParticleFloat( 0, 1 ) { Evaluation = ParticleFloat.EvaluationType.Life };
+		flare.ApplyColor = true;
+		flare.Tint = shortReach ? Color.FromBytes( 251, 206, 123 ) : Color.FromBytes( 231, 159, 80 );
+		flare.ApplyAlpha = true;
+		// Both opacity cubics are clamped at one until their falling segment crosses it.
+		float cubic = shortReach ? 4.896553f : 1.414634f;
+		float fadeStart = (cubic - 1) / cubic;
+		flare.Alpha = LifeCurve( new Curve.Frame( 0, 1 ), new Curve.Frame( fadeStart, 1, 0, -cubic * fadeStart * fadeStart ),
+			new Curve.Frame( 1, 0, cubic + 2, 0 ) );
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = sprite;
+		renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+		renderer.Additive = true;
+		renderer.FogStrength = 0;
+		flare.OnParticleCreated += p => OrientFlare( flare, p );
+		flare.OnPostStep += _ =>
+		{
+			foreach ( var p in flare.Particles ) OrientFlare( flare, p );
+		};
+		go.Enabled = true;
+		return flare;
+	}
+
+	void OrientFlare( ParticleEffect flare, Particle p )
+	{
+		if ( !Scene.Camera.IsValid() ) return;
+		var axis = flare.WorldRotation.Forward;
+		var up = Vector3.Cross( Scene.Camera.WorldPosition - flare.WorldPosition, axis );
+		if ( up.LengthSquared < 0.000001f ) up = flare.WorldRotation.Up;
+		up = up.Normal;
+		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
+		float radius = p.StartScale * flare.Scale.Evaluate( p.LifeDelta, 0 );
+		// The original quad spans four radii along the barrel and 74/49 across it.
+		p.Size = new Vector2( 4 * radius, (p.Rand( 2 ) < 0.5f ? -1 : 1) * (74f / 49f) * radius );
+		p.Position = flare.WorldPosition + up * (radius / 49f);
 	}
 
 	void UpdateFlashOrientation( float delta )
@@ -181,6 +238,8 @@ public class ShotgunModel : BaseWeaponModel
 			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
 				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
 		}
+		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
+		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
 		ejectAt = (TimeUntil)(13f / 30f);
 	}
 
