@@ -593,7 +593,12 @@ public sealed class ShotgunViewModel : ShotgunModel
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsed / tick ), lastTick );
 		float frame = sampleTick * framesPerTick;
 		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
-			Animator.DispatchCue( clip.Cues[nextCue++], GameObject );
+		{
+			var cue = clip.Cues[nextCue++];
+			bool thirdPerson = Weapon.Owner is { ThirdPerson: true };
+			// The first-person sound reference's fourth bit restricts playback to that camera.
+			Animator.DispatchCue( cue, thirdPerson ? Weapon.WorldModel : GameObject, !thirdPerson || (cue.Flags & 8) == 0 );
+		}
 		if ( sampleTick >= lastTick )
 		{
 			if ( enterReload ) Insert();

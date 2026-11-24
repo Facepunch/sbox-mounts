@@ -219,10 +219,10 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		if ( SampleCuesFromGraph ) DispatchCue( cue );
 	}
 
-	internal void DispatchCue( Halo2AnimationCue cue, GameObject soundOwner = null )
+	internal void DispatchCue( Halo2AnimationCue cue, GameObject soundOwner = null, bool playSound = true )
 	{
 		var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker ) ?? Renderer.WorldTransform : Renderer.WorldTransform;
-		if ( cue.Kind == "sound" && cue.TagPath is not null )
+		if ( playSound && cue.Kind == "sound" && cue.TagPath is not null )
 		{
 			if ( Sounds.TryGetValue( cue.TagPath, out var sound ) )
 			{
