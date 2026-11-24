@@ -24,20 +24,13 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag ) : ResourceLoade
 		if ( data.BitmapType == 2 )
 			return Texture.White;
 
-		var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, data );
-		if ( pixels == null || pixels.Length == 0 )
-			return Texture.White;
-
-		return CreateTexture( data, pixels );
-	}
-
-	static Texture CreateTexture( BitmapData data, byte[] pixels )
-	{
 		var format = GetImageFormat( data.Format );
-		if ( format == null )
-			return Texture.White;
+		if ( format is null ) return Texture.White;
 
-		int baseMipSize = Math.Min( CalculateBaseMipSize( data ), pixels.Length );
+		int baseMipSize = CalculateBaseMipSize( data );
+		var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, data, baseMipSize );
+		if ( pixels is null || pixels.Length == 0 ) return Texture.White;
+		baseMipSize = Math.Min( baseMipSize, pixels.Length );
 		if ( format == ImageFormat.RGBA8888 )
 		{
 			bool opaque = data.Format == BitmapData.TextureFormats.X8R8G8B8;

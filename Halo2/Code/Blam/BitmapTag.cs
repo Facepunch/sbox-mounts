@@ -65,7 +65,7 @@ public class BitmapTag
 	/// <summary>
 	/// Reads pixel data for a bitmap. MCC stores bitmaps in textures.dat with compressed segments.
 	/// </summary>
-	public static byte[] ReadPixelData( BaseFileSystem fileSystem, MapFile map, BitmapData bmp )
+	public static byte[] ReadPixelData( BaseFileSystem fileSystem, MapFile map, BitmapData bmp, int maxBytes = int.MaxValue )
 	{
 		if ( bmp.Lod0Size <= 0 )
 			return null;
@@ -92,38 +92,34 @@ public class BitmapTag
 		for ( int i = 0; i < segmentCount; i++ )
 			segments[i] = br.ReadInt32();
 
-		return DecompressSegments( fs, segments );
+		return DecompressSegments( fs, segments, maxBytes );
 	}
 
-	static byte[] DecompressSegments( Stream source, int[] segments )
+	static byte[] DecompressSegments( Stream source, int[] segments, int maxBytes )
 	{
-		long origin = source.Position;
-		int offset = 0;
-
 		using var output = new MemoryStream();
 		var frame = Array.Empty<byte>();
 
 		foreach ( int blockSize in segments )
 		{
-			source.Seek( origin + offset, SeekOrigin.Begin );
+			if ( output.Length >= maxBytes ) break;
 
 			if ( blockSize < 0 )
 			{
 				// Negative = stored raw (uncompressed)
-				int actualSize = -blockSize;
+				int actualSize = Math.Min( checked(-blockSize), maxBytes - (int)output.Length );
 				var buffer = new byte[actualSize];
 				source.ReadExactly( buffer, 0, actualSize );
 				output.Write( buffer, 0, actualSize );
-				offset += actualSize;
 			}
 			else
 			{
 				// Positive = ZLib compressed
 				MapDecompressor.InflateChunk( source, blockSize, output, ref frame );
-				offset += blockSize;
 			}
 		}
 
+		if ( output.Length > maxBytes ) output.SetLength( maxBytes );
 		return output.ToArray();
 	}
 }

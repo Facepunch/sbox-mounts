@@ -49,18 +49,35 @@ public class Halo2Mount : BaseGameMount
 			"mainmenu.map"
 		};
 
-		foreach ( var fileName in appFs.FindFile( MapsDir, "*.map" ) )
+		var paths = appFs.FindFile( MapsDir, "*.map" ).Where( name => !skipMaps.Contains( name ) ).ToArray();
+		var maps = new MapFile[paths.Length];
+		// Decode a bounded number at once. Publish on the mount thread in file order.
+		int workers = Math.Min( 4, paths.Length );
+		Sandbox.Utility.Parallel.For( 0, workers, worker =>
 		{
-			if ( skipMaps.Contains( fileName ) )
-				continue;
+			for ( int i = worker; i < paths.Length; i += workers )
+			{
+				try
+				{
+					maps[i] = new MapFile( appFs, $"{MapsDir}/{paths[i]}" );
+				}
+				catch ( Exception ex )
+				{
+					Log.Warning( $"[Halo2] Failed to load map {paths[i]}: {ex.Message}" );
+				}
+			}
+		} );
 
+		foreach ( var map in maps )
+		{
+			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, $"{MapsDir}/{fileName}" );
+				RegisterMapTags( context, map );
 			}
 			catch ( Exception ex )
 			{
-				Log.Warning( $"[Halo2] Failed to load map {fileName}: {ex.Message}" );
+				Log.Warning( $"[Halo2] Failed to register {map.Header.MapName}: {ex.Message}" );
 			}
 		}
 
@@ -68,9 +85,8 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, string mapPath )
+	void RegisterMapTags( MountContext context, MapFile mapFile )
 	{
-		var mapFile = new MapFile( appFs, mapPath );
 		var mapName = mapFile.Header.MapName;
 
 		// Model definitions link the render model and physics model by tag datum.
