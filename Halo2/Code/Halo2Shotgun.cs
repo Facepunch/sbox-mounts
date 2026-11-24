@@ -139,7 +139,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		for ( int i = 0; i < directions.Length; i++ )
 			directions[i] = ray.Forward.WithAimCone( spread.x, spread.y );
 		TimeSinceShoot = 0;
-		ShootEffects( [default] );
+		ShootEffects();
 		_ = FlyPellets( ray.Position, directions );
 	}
 
@@ -148,10 +148,12 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		float travelled = 0;
 		int flying = directions.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
+		System.Collections.Generic.List<ShotEffect> impacts = null;
 		while ( flying > 0 && travelled < Ballistics.Range && PelletSpeed > 0 )
 		{
 			await Task.FixedUpdate();
 			if ( !IsValid ) return;
+			using var sceneScope = Scene.Push();
 			float distance = System.MathF.Min( PelletSpeed * Time.Delta, Ballistics.Range - travelled );
 			for ( int i = 0; i < directions.Length; i++ )
 			{
@@ -162,9 +164,16 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
 				if ( !hit.Hit ) continue;
 				float damage = (travelled + hit.Distance).Remap( FullDamageRange, Ballistics.Range, Ballistics.Damage, MinimumDamage );
+				hit.StartPosition = origin;
+				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
 				ShootBullet( hit, damage, Ballistics.Force );
 				directions[i] = Vector3.Zero;
 				flying--;
+			}
+			if ( impacts is { Count: > 0 } )
+			{
+				ShootEffects( impacts.ToArray() );
+				impacts.Clear();
 			}
 			travelled += distance;
 		}
