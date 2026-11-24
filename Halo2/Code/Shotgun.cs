@@ -300,9 +300,12 @@ public sealed class Shotgun : Weapon
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
 		using var sceneScope = Scene.Push();
-		var hit = TraceMelee( AimRay, out var impactPosition );
+		var aim = AimRay;
+		var hit = TraceMelee( aim, out var impactPosition );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface, impactPosition );
+		// The contact rays select the recipient. The damage request carries the attacker's aim.
+		hit.Direction = aim.Forward;
 		ShootBullet( hit, damage, MeleeForce, new TagSet { "melee" }, false );
 	}
 
