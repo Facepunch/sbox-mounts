@@ -309,6 +309,11 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	protected override void OnUpdate()
 	{
+		if ( !Weapon.IsValid() )
+		{
+			GameObject.Destroy();
+			return;
+		}
 		EmitTrailingSmoke();
 		if ( ejectAt is {} due && due <= 0 )
 		{

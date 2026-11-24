@@ -131,20 +131,32 @@ public sealed class Shotgun : Weapon
 
 	public override void PrimaryAttack()
 	{
-		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		if ( IsHeld && !(Networking.IsHost ? TakePrimaryAmmo() : HasPrimaryAmmo()) ) return;
+		var ray = AimRay;
 		CancelReload();
 		triggerConsumed = true;
-		var ray = AimRay;
+		TimeSinceShoot = 0;
+		if ( !Networking.IsHost ) FireOnHost( ray.Forward );
+		ShootEffects();
+		if ( Networking.IsHost ) LaunchPellets( ray );
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void FireOnHost( Vector3 direction )
+	{
+		if ( !IsHeld || !direction.LengthSquared.AlmostEqual( 1, 0.001f ) || !TakePrimaryAmmo() ) return;
+		LaunchPellets( new Ray( AimRay.Position, direction ) );
+	}
+
+	void LaunchPellets( Ray ray )
+	{
 		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
 		float maximum = (Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x).DegreeToRadian();
 		float minimum = MinimumPelletAngle.DegreeToRadian();
 		var pellets = new Pellet[Ballistics.Pellets];
 		for ( int i = 0; i < pellets.Length; i++ )
 			pellets[i].Velocity = PelletSpeed * Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
-		TimeSinceShoot = 0;
-		var attacker = Attacker;
-		ShootEffects();
-		_ = FlyPellets( ray.Position, pellets, attacker );
+		_ = FlyPellets( ray.Position, pellets, Attacker );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
@@ -173,10 +185,13 @@ public sealed class Shotgun : Weapon
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void DetachedImpacts( ShotEffect[] impacts )
+	static void PlayPelletImpacts( Shotgun weapon, ShotEffect[] impacts )
 	{
 		foreach ( var shot in impacts )
-			PelletImpact( shot, (shot.HitPosition - shot.Origin.Value).Normal );
+		{
+			if ( weapon.IsValid() ) weapon.OnShootEffects( shot );
+			else PelletImpact( shot, (shot.HitPosition - shot.Origin.Value).Normal );
+		}
 	}
 
 	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker )
@@ -198,7 +213,7 @@ public sealed class Shotgun : Weapon
 		for ( bool first = true; flying > 0; first = false )
 		{
 			if ( !first ) await flight.FixedUpdate();
-			if ( !scene.IsValid() || (!IsValid && !Networking.IsHost) ) return;
+			if ( !scene.IsValid() ) return;
 			using var sceneScope = scene.Push();
 			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? scene.FixedDelta : Time.Delta;
 			if ( dt <= 0 ) continue;
@@ -244,8 +259,7 @@ public sealed class Shotgun : Weapon
 			}
 			if ( impacts is { Count: > 0 } )
 			{
-				if ( IsValid ) ShootEffects( impacts.ToArray() );
-				else DetachedImpacts( impacts.ToArray() );
+				PlayPelletImpacts( IsValid ? this : null, impacts.ToArray() );
 				impacts.Clear();
 			}
 
