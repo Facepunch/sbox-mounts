@@ -15,6 +15,34 @@ namespace Halo2;
 /// </summary>
 public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null, TagEntry collision = null, TagEntry firstPersonWeapon = null ) : ResourceLoader<Halo2Mount>
 {
+	(string Marker, float Radius)[] weakTargets;
+
+	internal bool HitsWeakTarget( SkinnedModelRenderer renderer, Ray ray, float range )
+	{
+		if ( biped is null ) return false;
+		weakTargets ??= ReadWeakTargets();
+		foreach ( var target in weakTargets )
+		{
+			if ( renderer.GetAttachment( target.Marker ) is not {} marker ) continue;
+			var delta = marker.Position - ray.Position;
+			float depth = Vector3.Dot( delta, ray.Forward );
+			if ( depth < 0 || depth > range ) continue;
+			var closest = ray.Position + ray.Forward * depth;
+			if ( marker.PointToLocal( closest ).LengthSquared <= target.Radius * target.Radius ) return true;
+		}
+		return false;
+	}
+
+	(string Marker, float Radius)[] ReadWeakTargets()
+	{
+		int id = mapFile.ReadInt32( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0x38 );
+		if ( mapFile.GetTag( id & 0xffff ) is not { PrimaryClass: "tmlh", DataSize: >= 0x70 } definition ) return [];
+		return Rows( mapFile.VaToOffset( (int)definition.DataVirtualAddress ) + 0x68, 28 )
+			.Where( row => (mapFile.ReadInt32( row + 20 ) & 8) != 0 )
+			.Select( row => (Label( row ), BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 4 ) ) * ScaleFactor) )
+			.ToArray();
+	}
+
 	RenderModelTag ReadRenderModel()
 	{
 		var model = new RenderModelTag( mapFile, tag );

@@ -30,6 +30,13 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
+	internal const string WeakReticleName = "weak_reticle.vtex";
+
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		type = ResourceType.Texture;
+		return name == WeakReticleName ? HudBitmap( "crosshair_weakspot" ) : null;
+	}
 
 	internal Halo2TextureLoader HudBitmap( string widget )
 	{
@@ -44,7 +51,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			int sequences = Address( bitmap ) + 60;
 			if ( sequence >= map.ReadInt32( sequences ) ) return null;
 			int index = Short( Block( sequences ) + sequence * 60 + 32 );
-			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget == "crosshair" );
+			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
 		}
 		return null;
 	}

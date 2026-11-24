@@ -24,6 +24,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float KickDistance { get; set; }
 	TimeUntil kickEnds;
 	Texture reticle;
+	Texture weakReticle;
 	internal void BindHudTextures()
 	{
 		if ( Application.IsDedicatedServer ) return;
@@ -203,18 +204,27 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		// The 220px MCC bitmap occupies 55 HUD units, with its aim point at texel 27.
 		var scale = System.MathF.Min( painter.Bounds.Width / 640f, painter.Bounds.Height / 480f );
 		var bounds = new Rect( center - new Vector2( 27 ) * scale, new Vector2( 55 ) * scale );
-		painter.Texture( reticle, bounds, ReticleTint() );
+		var tint = ReticleTint( out bool weakSpot );
+		if ( weakSpot )
+			weakReticle ??= Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.WeakReticleName}" );
+		painter.Texture( weakSpot && weakReticle.IsValid() && !weakReticle.IsError ? weakReticle : reticle, bounds, tint );
 	}
 
-	Color ReticleTint()
+	Color ReticleTint( out bool weakSpot )
 	{
+		weakSpot = false;
 		var ray = AimRay;
 		var hit = BulletTrace( ray, AutoAimRange, 0 ).Run();
 		var npc = hit.GameObject?.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
 		var disposition = Holder is {} holder ? npc?.GetDisposition( holder.GameObject ) : null;
 		if ( disposition is Sandbox.Npcs.Disposition.Friendly or Sandbox.Npcs.Disposition.Hostile
 			&& InFullAutoAimRange( ray, hit ) )
-			return disposition == Sandbox.Npcs.Disposition.Friendly ? Color.FromBytes( 51, 255, 0 ) : Color.Red;
+		{
+			if ( disposition == Sandbox.Npcs.Disposition.Friendly ) return Color.FromBytes( 51, 255, 0 );
+			var renderer = npc.Renderer;
+			weakSpot = renderer.IsValid() && Halo2ModelLoader.ForModel( renderer.Model )?.HitsWeakTarget( renderer, ray, AutoAimRange * 0.5f ) == true;
+			return Color.Red;
+		}
 
 		return Color.FromBytes( 117, 186, 255 );
 	}
