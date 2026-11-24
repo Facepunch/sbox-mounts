@@ -511,31 +511,36 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		nextCue = 0;
 	}
 
+	void AdvanceAction( float tick )
+	{
+		if ( clip is null ) return;
+		float framesPerTick = tick * 30 * Renderer.PlaybackRate;
+		if ( framesPerTick <= 0 ) return;
+		// Native traversal excludes the end frame of each tick. A one-shot returns to idle one tick early.
+		float endTick = System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick );
+		bool enterReload = entering && reload;
+		float lastTick = enterReload ? endTick : endTick - 1;
+		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsed / tick ), lastTick );
+		float frame = sampleTick * framesPerTick;
+		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
+			Animator.DispatchCue( clip.Cues[nextCue++] );
+		if ( sampleTick >= lastTick )
+		{
+			if ( enterReload ) Insert();
+			else if ( !reload )
+			{
+				clip = null;
+				SelectAction( "idle" );
+			}
+		}
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Shotgun>();
 		if ( !Weapon.IsValid() || !Animator.IsValid() || !Animator.Bound ) return;
 		Animator.SampleCuesFromGraph = false;
-		if ( clip is not null )
-		{
-			float frame = elapsed * 30 * Renderer.PlaybackRate;
-			while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame <= frame )
-				Animator.DispatchCue( clip.Cues[nextCue++] );
-			// The channel signals completion on the tick before it reaches the end.
-			float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
-			float framesPerTick = tick * 30 * Renderer.PlaybackRate;
-			bool finished = framesPerTick > 0 && elapsed >=
-				(System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick ) - 1) * tick;
-			if ( entering && reload ? frame >= clip.Frames : finished )
-			{
-				if ( reload && entering ) Insert();
-				else if ( !reload )
-				{
-					clip = null;
-					SelectAction( "idle" );
-				}
-			}
-		}
+		AdvanceAction( Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta );
 
 		if ( Weapon.Holder is not PlayerController player ) return;
 		var p = Renderer.Animation.Parameters;
