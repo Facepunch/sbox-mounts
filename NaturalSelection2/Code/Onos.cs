@@ -251,16 +251,24 @@ public sealed partial class Onos : BaseNpc
 		if ( e.AcceptedDamage <= 0 ) return;
 		sinceDamage = 0;
 		BlockDamage( e );
-		e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * 2 );
+		e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * HealthPerArmor( e.DamageInfo ) );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
 		if ( e.AcceptedDamage <= 0 ) return;
-		float absorbed = Math.Min( Armor, e.AcceptedDamage * (0.7f / 0.3f / 2) );
+		float ratio = HealthPerArmor( e.DamageInfo );
+		float absorbed = ratio == 0 ? 0 : Math.Min( Armor, e.AcceptedDamage * (0.7f / 0.3f) / ratio );
 		Armor -= absorbed;
-		float damage = e.AcceptedDamage + absorbed * 2;
-		wounds.Hit( damage / MaxHealth, damage / (MaxHealth + MaxArmor * 2) );
+		float damage = e.AcceptedDamage + absorbed * ratio;
+		wounds.Hit( damage / MaxHealth, (e.AcceptedDamage + absorbed * 2) / (MaxHealth + MaxArmor * 2) );
+	}
+
+	static float HealthPerArmor( DamageInfo hit )
+	{
+		if ( hit.Tags.Has( "gas" ) ) return 0;
+		if ( hit.Tags.Has( "heavy" ) ) return 1;
+		return hit.Tags.Has( "light" ) ? 4 : 2;
 	}
 
 	readonly AlienWounds wounds = new();
