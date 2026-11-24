@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Halo2.Blam;
 
 namespace Halo2;
@@ -7,26 +8,31 @@ internal sealed partial class ShotgunLoader
 	sealed record ImpactDecal( TagEntry Tag, string Name, DecalDefinition Definition, Vector2 Modifier, Vector2 Radius,
 		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint );
 
-	readonly Dictionary<TagEntry, (bool Handled, ImpactDecal Decal)> contactVisuals = new();
+	sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, bool HasMark, bool HasParticles );
+	sealed record ContactVisuals( ContactEvent[] Events, ImpactDecal Decal );
+
+	readonly Dictionary<TagEntry, ContactVisuals> contactVisuals = new();
+	uint eventSeed = (uint)System.Random.Shared.Next();
 	uint decalSeed = (uint)System.Random.Shared.Next();
 
-	(bool Handled, ImpactDecal Decal) ReadContactVisuals( TagEntry contact )
+	ContactVisuals ReadContactVisuals( TagEntry contact )
 	{
 		int events = Address( contact ) + 20;
 		int eventCount = map.ReadInt32( events );
 		if ( eventCount == 0 ) return default;
 		int row = Block( events );
 		int part = 0;
-		bool hasParticles = false;
+		var timeline = new ContactEvent[eventCount];
 		for ( int i = 0; i < eventCount; i++, row += 56 )
 		{
-			hasParticles |= map.ReadInt32( row + 48 ) > 0;
 			int parts = map.ReadInt32( row + 24 );
+			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), parts > 0, map.ReadInt32( row + 48 ) > 0 );
 			if ( parts == 0 ) continue;
 			if ( parts != 1 || part != 0 ) return default;
 			part = Block( row + 24 );
 		}
-		if ( part == 0 ) return (hasParticles, null);
+		if ( part == 0 ) return timeline.Any( e => e.HasParticles ) ? new ContactVisuals( timeline, null ) : null;
 		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
 		int header = Address( tag );
 		if ( Short( header + 4 ) != 2 || Reference( header + 8 ) is not null ) return default;
@@ -60,7 +66,7 @@ internal sealed partial class ShotgunLoader
 				new Gradient.ColorFrame( 1, Color.White.WithAlpha( 0 ) ) )
 		};
 		float rejection = Float( header + 24 );
-		return (true, new ImpactDecal( tag, tag.TagPath.Split( '\\' )[^1], new DecalDefinition { ColorTexture = texture, Width = 1, Height = 1 },
+		return new ContactVisuals( timeline, new ImpactDecal( tag, tag.TagPath.Split( '\\' )[^1], new DecalDefinition { ColorTexture = texture, Width = 1, Height = 1 },
 			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
 			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ));
 	}
@@ -71,15 +77,47 @@ internal sealed partial class ShotgunLoader
 		if ( !target.IsValid() || pelletEffects is null || ContactTag( pelletEffects, surface, true ) is not {} contact ) return false;
 		if ( !contactVisuals.TryGetValue( contact, out var visuals ) )
 			contactVisuals[contact] = visuals = ReadContactVisuals( contact );
-		if ( !visuals.Handled ) return false;
+		if ( visuals is null ) return false;
 
-		var transform = new Transform( point, Rotation.LookAt( -normal, Vector3.Random ) );
 		var parent = target;
 		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin && skin.GetClosestBone( point ) is {} bone )
 			parent = skin.GetBoneObject( bone ) ?? target;
-		if ( visuals.Decal is {} decal ) PlaceMark( decal, parent, point, normal );
+		var contactTransform = new Transform( point, Rotation.LookAt( -normal, Vector3.Random ) );
+		_ = PlayContactEvents( visuals, surface, parent, parent.WorldTransform.ToLocal( contactTransform ) );
+		if ( surface.IsValid() ) surface.PlaceSplatter( point, direction, target );
+		return true;
+	}
 
-		if ( !surface.IsValid() ) return true;
+	double EventFraction() => BlamRandom.Next( ref eventSeed ) * (double)(1f / 65535f);
+	float EventTime( Vector2 range ) => range.x == range.y ? range.x : (float)(range.x + ((double)range.y - range.x) * EventFraction());
+
+	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject parent, Transform local )
+	{
+		float elapsed = 0;
+		var started = Time.Now;
+		for ( int i = 0; i < visuals.Events.Length; i++ )
+		{
+			var entry = visuals.Events[i];
+			float remaining = elapsed - (Time.Now - started);
+			if ( remaining > 0 ) await GameTask.DelaySeconds( remaining );
+			if ( !parent.IsValid() ) return;
+			// Retail selects event zero directly. Only transitions roll skip probability.
+			if ( i > 0 && entry.Skip > 0 && EventFraction() < entry.Skip ) continue;
+			elapsed += EventTime( entry.Delay );
+			float wait = elapsed - (Time.Now - started);
+			if ( wait > 0 ) await GameTask.DelaySeconds( wait );
+			if ( !parent.IsValid() ) return;
+
+			using var scope = parent.Scene.Push();
+			var transform = parent.WorldTransform.ToWorld( local );
+			if ( entry.HasMark ) PlaceMark( visuals.Decal, parent, transform.Position, -transform.Rotation.Forward );
+			if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
+			elapsed += EventTime( entry.Duration );
+		}
+	}
+
+	static void PlaceParticles( Surface surface, GameObject parent, Transform transform )
+	{
 		var dust = surface.PrefabCollection.BulletImpact ?? surface.GetBaseSurface()?.PrefabCollection.BulletImpact;
 		if ( dust.IsValid() )
 		{
@@ -88,8 +126,6 @@ internal sealed partial class ShotgunLoader
 			impact.SetParent( parent, true );
 			if ( impact.GetComponent<TemporaryEffect>() is {} effect ) effect.BecomeOrphan = true;
 		}
-		surface.PlaceSplatter( point, direction, target );
-		return true;
 	}
 
 	void PlaceMark( ImpactDecal data, GameObject parent, Vector3 point, Vector3 normal )
