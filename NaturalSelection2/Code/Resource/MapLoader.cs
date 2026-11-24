@@ -52,6 +52,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var decals = new Dictionary<string, DecalDefinition>( StringComparer.OrdinalIgnoreCase );
 		var staticProps = new Dictionary<string, ModelLoader.StaticProp>( StringComparer.OrdinalIgnoreCase );
 
+		float cellHeight = 0.4f * Scale;
 		List<MapLocations.Volume> locations = [];
 		List<(Vector3 Position, int Priority)> landmarks = [];
 		foreach ( var entity in level.Entities )
@@ -70,6 +71,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			{
 				// NS2 overrides the default agent radius whenever a map supplies pathing settings.
 				nav.AgentRadius = 0.75f * Scale;
+				if ( entity.Has( "option_cell_height" ) ) cellHeight = entity.Get( "option_cell_height" ).AsFloat() * Scale;
 				if ( entity.Has( "option_agent_height" ) ) nav.AgentHeight = entity.Get( "option_agent_height" ).AsFloat() * Scale;
 				if ( entity.Has( "option_agent_max_climb" ) ) nav.AgentStepSize = entity.Get( "option_agent_max_climb" ).AsFloat() * Scale;
 				if ( entity.Has( "option_agent_max_slope" ) ) nav.AgentMaxSlope = entity.Get( "option_agent_max_slope" ).AsFloat();
@@ -97,6 +99,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		{
 			var map = root.AddComponent<MapLocations>();
 			if ( hasVents ) map.AlienGridPath = ventPath;
+			var gridPath = System.IO.Path.ChangeExtension( FilePath.Replace( "/maps/", "/fastload/maps/" ), "level-server.tile_cache_grid" );
+			if ( Host.FileSystem.FileExists( gridPath ) ) map.GridPath = gridPath;
+			map.CellHeight = cellHeight;
 			map.Volumes = locations.ToArray();
 			// Spark visits rooms in landmark order, including when two exploration targets have equal weight.
 			var destinations = new Dictionary<string, MapLocations.Destination>();

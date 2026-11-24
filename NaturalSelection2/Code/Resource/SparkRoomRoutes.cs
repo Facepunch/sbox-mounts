@@ -1,0 +1,170 @@
+using System;
+
+namespace NS2;
+
+/// <summary>Finds the named rooms crossed by shortest routes on Spark's default-agent floors.</summary>
+internal sealed class SparkRoomRoutes
+{
+	sealed class Region( int room )
+	{
+		public readonly int Room = room;
+		public Vector3 Center;
+		public readonly HashSet<int> Links = [];
+	}
+
+	readonly record struct Floor( int Region, float Z );
+	readonly List<Region> regions = [];
+	readonly Dictionary<(int, int), List<Floor>> borders = [];
+	readonly int[] anchors;
+	readonly float[] nearest;
+
+	internal static HashSet<(string, string)> Build( byte[] data, MapLocations.Volume[] volumes,
+		MapLocations.Destination[] destinations, float cellHeight, float climb )
+	{
+		var graph = new SparkRoomRoutes( destinations.Length );
+		var ids = destinations.Select( (d, i) => (d.Name, i) ).ToDictionary( d => d.Name, d => d.i );
+		var bounds = new BBox( -Vector3.One, Vector3.One );
+		var rooms = volumes.Select( v => (v.Bounds, Box: bounds.Transform( v.Bounds ), Room: ids[v.Name]) ).ToArray();
+		SparkNavGrid.Read( data, ( layer, heights, areas ) =>
+		{
+			var candidates = rooms.Where( r => r.Box.Mins.x <= layer.Max.x && r.Box.Maxs.x >= layer.Min.x &&
+				r.Box.Mins.y <= layer.Max.y && r.Box.Maxs.y >= layer.Min.y ).ToArray();
+			graph.AddLayer( layer, heights, areas, cellHeight, climb, candidates, destinations );
+		} );
+		return graph.DirectPaths( destinations );
+	}
+
+	SparkRoomRoutes( int rooms )
+	{
+		anchors = new int[rooms];
+		nearest = new float[rooms];
+		Array.Fill( anchors, -1 );
+		Array.Fill( nearest, float.PositiveInfinity );
+	}
+
+	void AddLayer( SparkNavGrid.Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas,
+		float cellHeight, float climb, (Transform Bounds, BBox Box, int Room)[] volumes, MapLocations.Destination[] destinations )
+	{
+		int count = areas.Length, stride = layer.Height;
+		var positions = new Vector3[count];
+		var labels = new int[count];
+		var groups = new int[count];
+		Array.Fill( groups, -1 );
+		float dx = (layer.Max.x - layer.Min.x) / layer.Width, dy = (layer.Max.y - layer.Min.y) / stride;
+		// Flood each connected part of a room in this layer into a single routing node.
+		var queue = new int[count];
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( areas[i] == 0 ) continue;
+			var p = layer.Min + new Vector3( (i / stride + 0.5f) * dx, (i % stride + 0.5f) * dy, heights[i] * cellHeight );
+			positions[i] = p;
+			labels[i] = -1;
+			foreach ( var volume in volumes )
+			{
+				if ( !volume.Box.Contains( p ) ) continue;
+				var local = volume.Bounds.PointToLocal( p );
+				if ( local.x is >= -1 and < 1 && local.y is >= -1 and < 1 && local.z is >= -1 and < 1 )
+				{
+					labels[i] = volume.Room;
+					break;
+				}
+			}
+		}
+
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( areas[i] == 0 || groups[i] >= 0 ) continue;
+			int id = regions.Count, room = labels[i];
+			var region = new Region( room );
+			regions.Add( region );
+			groups[i] = id;
+			queue[0] = i;
+			int length = 1;
+			for ( int k = 0; k < length; k++ )
+			{
+				int cell = queue[k], x = cell / stride, y = cell % stride;
+				var p = positions[cell];
+				region.Center += p;
+				if ( room >= 0 )
+				{
+					float distance = p.DistanceSquared( destinations[room].Position );
+					if ( distance < nearest[room] ) { nearest[room] = distance; anchors[room] = id; }
+				}
+				bool border = false;
+				for ( int ax = -1; ax <= 1; ax++ )
+				for ( int ay = -1; ay <= 1; ay++ )
+				{
+					int nx = x + ax, ny = y + ay, n = nx * stride + ny;
+					if ( nx < 0 || nx >= layer.Width || ny < 0 || ny >= stride || areas[n] == 0 ||
+						MathF.Abs( p.z - positions[n].z ) > climb + 0.01f ) { border = true; continue; }
+					if ( groups[n] >= 0 )
+					{
+						if ( groups[n] != id ) Link( id, groups[n] );
+					}
+					else if ( labels[n] == room )
+					{
+						groups[n] = id;
+						queue[length++] = n;
+					}
+				}
+				if ( border ) JoinBorders( layer.X * layer.Width + x, layer.Y * stride + y, id, p.z, climb );
+			}
+			region.Center /= length;
+		}
+	}
+
+	void JoinBorders( int x, int y, int id, float z, float climb )
+	{
+		for ( int dx = -1; dx <= 1; dx++ )
+		for ( int dy = -1; dy <= 1; dy++ )
+		{
+			if ( dx == 0 && dy == 0 || !borders.TryGetValue( (x + dx, y + dy), out var adjacent ) ) continue;
+			foreach ( var floor in adjacent )
+				if ( id != floor.Region && MathF.Abs( floor.Z - z ) <= climb + 0.01f ) Link( id, floor.Region );
+		}
+		if ( !borders.TryGetValue( (x, y), out var floors ) ) borders[(x, y)] = floors = [];
+		floors.Add( new( id, z ) );
+	}
+
+	void Link( int a, int b )
+	{
+		if ( regions[a].Links.Add( b ) ) regions[b].Links.Add( a );
+	}
+
+	HashSet<(string, string)> DirectPaths( MapLocations.Destination[] rooms )
+	{
+		HashSet<(string, string)> result = [];
+		var distances = new float[regions.Count];
+		var previous = new int[regions.Count];
+		var queue = new PriorityQueue<int, float>();
+		for ( int i = 0; i < rooms.Length; i++ )
+		{
+			int start = anchors[i];
+			if ( start < 0 ) continue;
+			Array.Fill( distances, float.PositiveInfinity );
+			distances[start] = 0;
+			queue.Enqueue( start, 0 );
+			while ( queue.TryDequeue( out int node, out float distance ) )
+			{
+				if ( distance > distances[node] ) continue;
+				foreach ( int next in regions[node].Links )
+				{
+					float cost = distance + regions[node].Center.Distance( regions[next].Center );
+					if ( cost >= distances[next] ) continue;
+					distances[next] = cost;
+					previous[next] = node;
+					queue.Enqueue( next, cost );
+				}
+			}
+			for ( int j = 0; j < rooms.Length; j++ )
+			{
+				int node = anchors[j];
+				if ( i == j || node < 0 || !float.IsFinite( distances[node] ) ) continue;
+				while ( node != start && (regions[node].Room < 0 || regions[node].Room == i || regions[node].Room == j) )
+					node = previous[node];
+				if ( node == start ) result.Add( (rooms[i].Name, rooms[j].Name) );
+			}
+		}
+		return result;
+	}
+}

@@ -1,6 +1,4 @@
 using System;
-using System.Buffers.Binary;
-using System.IO;
 
 namespace NS2;
 
@@ -23,61 +21,13 @@ internal sealed class AlienVentGrid
 
 	internal AlienVentGrid( byte[] data )
 	{
-		using var reader = new BinaryReader( new MemoryStream( data ) );
-		reader.BaseStream.Position = 16; // cache checksum
-		int slots = checked(reader.ReadInt32() * reader.ReadInt32() * reader.ReadInt32());
-		if ( slots < 0 || slots > (data.Length - 28) / 4 ) throw new InvalidDataException( "Invalid tile count" );
-		Span<byte> cells = stackalloc byte[32 * 32 * 3];
-		for ( int i = 0; i < slots; i++ )
+		SparkNavGrid.Read( data, ( tile, heights, areas ) =>
 		{
-			int size = reader.ReadInt32();
-			if ( size == 0 ) continue;
-			int offset = (int)reader.BaseStream.Position;
-			if ( size < 56 || size > data.Length - offset ) throw new InvalidDataException( "Invalid tile size" );
-			var layer = data.AsSpan( offset, size );
-			if ( !layer[..4].SequenceEqual( "RLTD"u8 ) || BinaryPrimitives.ReadInt32LittleEndian( layer[4..] ) != 1
-				|| layer[48] != 32 || layer[49] != 32 ) throw new InvalidDataException( "Unsupported tile layer" );
-			reader.BaseStream.Position += size;
-			int tileY = BinaryPrimitives.ReadInt32LittleEndian( layer[8..] );
-			int tileX = BinaryPrimitives.ReadInt32LittleEndian( layer[12..] );
-			int height = BinaryPrimitives.ReadUInt16LittleEndian( layer[44..] );
-			if ( floors.Count == 0 )
-			{
-				var min = new Vector3( BitConverter.ToSingle( layer[28..] ), BitConverter.ToSingle( layer[20..] ), BitConverter.ToSingle( layer[24..] ) );
-				origin = min * MapLoader.Scale - new Vector3( tileX * 32, tileY * 32, height ) * Cell;
-			}
-			Expand( layer[56..], cells );
-			for ( int j = 0; j < 1024; j++ )
-			{
-				if ( cells[1024 + j] == 8 ) // Pathing.PolyArea_Vent
-					floors.Add( (tileX * 32 + j / 32, tileY * 32 + j % 32, height + cells[j]) );
-			}
-		}
-	}
-
-	// Each FastLZ level-one block contains the layer's heights, area IDs and connections.
-	static void Expand( ReadOnlySpan<byte> source, Span<byte> output )
-	{
-		int pos = 0, written = 0;
-		while ( pos < source.Length )
-		{
-			int control = source[pos++];
-			if ( control < 32 )
-			{
-				int count = control + 1;
-				if ( count > source.Length - pos || count > output.Length - written ) throw new InvalidDataException( "Invalid tile literals" );
-				source.Slice( pos, count ).CopyTo( output[written..] );
-				written += count;
-				pos += count;
-				continue;
-			}
-			int length = (control >> 5) + 2;
-			if ( length == 9 && pos < source.Length ) length += source[pos++];
-			if ( pos >= source.Length ) throw new InvalidDataException( "Truncated tile match" );
-			int match = written - ((control & 31) << 8) - source[pos++] - 1;
-			if ( match < 0 || length > output.Length - written ) throw new InvalidDataException( "Invalid tile match" );
-			while ( length-- > 0 ) output[written++] = output[match++];
-		}
-		if ( written != output.Length ) throw new InvalidDataException( "Incomplete tile layer" );
+			int x = tile.X * tile.Width, y = tile.Y * tile.Height;
+			if ( floors.Count == 0 ) origin = tile.Min - new Vector3( x, y, tile.BaseHeight ) * Cell;
+			for ( int i = 0; i < areas.Length; i++ )
+				if ( areas[i] == 8 ) // Pathing.PolyArea_Vent
+					floors.Add( (x + i / tile.Height, y + i % tile.Height, tile.BaseHeight + heights[i]) );
+		} );
 	}
 }

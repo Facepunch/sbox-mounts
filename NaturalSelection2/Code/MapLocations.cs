@@ -10,6 +10,10 @@ public sealed class MapLocations : Component
 	[Property] public Volume[] Volumes { get; set; } = [];
 	[Property] public Destination[] Destinations { get; set; } = [];
 	[Property] internal string AlienGridPath { get; set; }
+	[Property] internal string GridPath { get; set; }
+	[Property] internal float CellHeight { get; set; }
+	HashSet<(string, string)> directPaths;
+	bool readingGrid, requestedGrid;
 	AlienVentGrid vents;
 	bool readVents;
 
@@ -70,6 +74,22 @@ public sealed class MapLocations : Component
 		return Scene.NavMesh.GetClosestPoint( destination.Position );
 	}
 
+	async void ReadRoomRoutes( GameMount mount, float climb )
+	{
+		requestedGrid = true;
+		readingGrid = true;
+		try
+		{
+			var volumes = Volumes;
+			var destinations = Destinations;
+			float height = CellHeight;
+			var bytes = mount.ReadAllBytes( GridPath );
+			directPaths = await GameTask.RunInThreadAsync( () => SparkRoomRoutes.Build( bytes, volumes, destinations, height, climb ) );
+		}
+		catch ( System.Exception e ) { Log.Warning( e, $"Could not load exploration routes from {GridPath}" ); }
+		finally { readingGrid = false; }
+	}
+
 	internal Destination[] Neighbors( string room )
 	{
 		var nav = Scene.NavMesh;
@@ -80,6 +100,16 @@ public sealed class MapLocations : Component
 			return [];
 		}
 		if ( connections.TryGetValue( room, out var neighbors ) ) return neighbors;
+		if ( !requestedGrid && GridPath is not null && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
+			ReadRoomRoutes( mount, nav.AgentStepSize );
+		if ( readingGrid ) return [];
+		if ( directPaths is not null )
+		{
+			List<Destination> goals = [];
+			foreach ( var d in Destinations )
+				if ( directPaths.Contains( (room, d.Name) ) && Project( d ) is { } p ) goals.Add( d with { Position = p } );
+			return connections[room] = goals.ToArray();
+		}
 		var source = Destinations.First( x => x.Name == room );
 		var start = Project( source );
 		if ( start is null ) return [];
