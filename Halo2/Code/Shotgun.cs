@@ -438,7 +438,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
-	bool reload, entering;
+	bool reload, entering, reloadCancelled;
 	Halo2ClipInfo movingClip;
 	float movementFrame;
 	bool moving;
@@ -601,7 +601,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		if ( !reload && Renderer?.Animation.Parameters.GetString( "action" ) != "reload_exit" ) return;
 		reload = entering = false;
 		clip = null;
-		SelectAction( "idle" );
+		reloadCancelled = true;
 	}
 
 	public override void OnReloadFinish()
@@ -620,6 +620,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 	void Play( string action )
 	{
 		if ( !SelectAction( action, true ) ) return;
+		reloadCancelled = false;
 		clip = Animator.CurrentActionClip;
 		elapsed = 0;
 		nextCue = 0;
@@ -627,6 +628,12 @@ public sealed class ShotgunViewModel : ShotgunModel
 
 	void AdvanceAction( float tick )
 	{
+		if ( reloadCancelled )
+		{
+			// A shot or melee can replace the reload in the same control update.
+			reloadCancelled = false;
+			SelectAction( "idle" );
+		}
 		if ( clip is null ) return;
 		float framesPerTick = tick * 30 * Renderer.PlaybackRate;
 		if ( framesPerTick <= 0 ) return;
