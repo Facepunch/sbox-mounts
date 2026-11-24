@@ -57,18 +57,25 @@ public partial class ShotgunModel
 	void UpdateSpark( Particle p )
 	{
 		float t = p.LifeDelta;
-		float size = (((5.142857f * t - 11.285714f) * t + 7.142857f) * t).Clamp( 0, 1 );
-		float radius = (viewSparks ? 3 : 4.2f) * (0.25f + 0.75f * size);
+		float radius = (viewSparks ? 3 : 4.2f) * SparkScale( t );
 		p.Alpha = (1 + t * t * (10.333334f - 11.333334f * t)).Clamp( 0, 1 );
+		OrientSpark( p, radius, Scene.Camera, muzzleSparks.WorldRotation.Up );
+	}
+
+	internal static float SparkScale( float age ) => 0.25f + 0.75f * (((5.142857f * age - 11.285714f) * age + 7.142857f) * age).Clamp( 0, 1 );
+
+	internal static void OrientSpark( Particle p, float radius, CameraComponent camera, Vector3 fallbackUp )
+	{
+		float t = p.LifeDelta;
 		// The original spline crosses atlas frames 1 and 2 at these normalized ages.
 		int frame = t < 0.2419855f ? 0 : t < 0.5006184f ? 1 : 2;
 		p.SequenceTime = new Vector3( (frame + 0.5f) / 3, 0, 0 );
 		float height = 9f / (frame == 2 ? 55 : 56);
 		p.Size = new Vector2( 2 * radius, (p.Rand( 1 ) < 0.5f ? -2 : 2) * height * radius );
-		if ( !Scene.Camera.IsValid() ) return;
+		if ( !camera.IsValid() ) return;
 		var axis = p.Velocity.Normal;
-		var up = Vector3.Cross( Scene.Camera.View.Position - p.Position, axis );
-		if ( up.LengthSquared < 0.000001f ) up = muzzleSparks.WorldRotation.Up;
+		var up = Vector3.Cross( camera.View.Position - p.Position, axis );
+		if ( up.LengthSquared < 0.000001f ) up = fallbackUp;
 		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
 	}
 }

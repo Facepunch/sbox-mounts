@@ -39,6 +39,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string CasingName = "casing.vtex";
 	internal const string SmokeName = "smoke_soft.vtex";
 	internal const string FierySmokeName = "smoke_fiery.vtex";
+	internal const string RocksName = "rocks.vtex";
+	internal const string ImpactSmokeName = "smoke_soft_small_lit.vtex";
 	internal const string SparksName = "sparks_animated.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
@@ -54,6 +56,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			LongFlashName => @"effects\generic\weapon_flares\muzzle_flash_long",
 			SmokeName => @"effects\generic\smoke\smoke_soft",
 			FierySmokeName => @"effects\generic\smoke\smoke_fiery",
+			RocksName => @"effects\generic\solids\rocks",
+			ImpactSmokeName => @"effects\generic\smoke\smoke_soft_small_lit",
 			SparksName => @"effects\generic\sparks\sparks_animated_soft",
 			_ => null
 		};
@@ -79,20 +83,20 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		int systems = Block( FiringEvent( barrel ) + 48 );
 		int emitter = Block( systems + 56 * (firstPerson ? 6 : 2) + 48 );
 		return (ReadRange( emitter + 72, 120 ), ReadRange( emitter + 104, 1 ));
+	}
 
-		CurveRange ReadRange( int property, float units )
+	CurveRange ReadRange( int property, float units )
+	{
+		int data = Block( property + 8 );
+		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
+		// A ranged cubic stores two 48-byte polynomials. Convert their endpoint slopes to Hermite keys.
+		return new CurveRange( ReadCurve( data + 52 ), ReadCurve( (map.ReadSpan( data + 1, 1 )[0] & 1) != 0 ? data + 100 : data + 52 ) );
+
+		Curve ReadCurve( int offset )
 		{
-			int data = Block( property + 8 );
-			float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
-			// A ranged cubic stores two 48-byte polynomials. Convert their endpoint slopes to Hermite keys.
-			return new CurveRange( ReadCurve( data + 52 ), ReadCurve( data + 100 ) );
-
-			Curve ReadCurve( int offset )
-			{
-				float a = Float( offset ), b = Float( offset + 4 ), c = Float( offset + 8 ), d = Float( offset + 12 );
-				return new Curve( new Curve.Frame( 0, min + span * d, 0, span * c ),
-					new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
-			}
+			float a = Float( offset ), b = Float( offset + 4 ), c = Float( offset + 8 ), d = Float( offset + 12 );
+			return new Curve( new Curve.Frame( 0, min + span * d, 0, span * c ),
+				new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
 		}
 	}
 

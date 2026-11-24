@@ -8,7 +8,7 @@ internal sealed partial class ShotgunLoader
 	sealed record ImpactDecal( TagEntry Tag, string Name, DecalDefinition Definition, Vector2 Modifier, Vector2 Radius,
 		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint );
 
-	sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, bool HasMark, bool HasParticles );
+	sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, bool HasMark, bool HasParticles, ImpactEmitter[] Emitters );
 	sealed record ContactVisuals( ContactEvent[] Events, ImpactDecal Decal );
 
 	readonly Dictionary<TagEntry, ContactVisuals> contactVisuals = new();
@@ -27,7 +27,7 @@ internal sealed partial class ShotgunLoader
 		{
 			int parts = map.ReadInt32( row + 24 );
 			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
-				new Vector2( Float( row + 16 ), Float( row + 20 ) ), parts > 0, map.ReadInt32( row + 48 ) > 0 );
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), parts > 0, map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) );
 			if ( parts == 0 ) continue;
 			if ( parts != 1 || part != 0 ) return default;
 			part = Block( row + 24 );
@@ -83,7 +83,7 @@ internal sealed partial class ShotgunLoader
 		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin && skin.GetClosestBone( point ) is {} bone )
 			parent = skin.GetBoneObject( bone ) ?? target;
 		var contactTransform = new Transform( point, Rotation.LookAt( -normal, Vector3.Random ) );
-		_ = PlayContactEvents( visuals, surface, parent, parent.WorldTransform.ToLocal( contactTransform ) );
+		_ = PlayContactEvents( visuals, surface, parent, parent.WorldTransform.ToLocal( contactTransform ), contactTransform.Rotation.Inverse * direction );
 		if ( surface.IsValid() ) surface.PlaceSplatter( point, direction, target );
 		return true;
 	}
@@ -91,7 +91,7 @@ internal sealed partial class ShotgunLoader
 	double EventFraction() => BlamRandom.Next( ref eventSeed ) * (double)(1f / 65535f);
 	float EventTime( Vector2 range ) => range.x == range.y ? range.x : (float)(range.x + ((double)range.y - range.x) * EventFraction());
 
-	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject parent, Transform local )
+	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject parent, Transform local, Vector3 incoming )
 	{
 		float elapsed = 0;
 		var started = Time.Now;
@@ -111,7 +111,9 @@ internal sealed partial class ShotgunLoader
 			using var scope = parent.Scene.Push();
 			var transform = parent.WorldTransform.ToWorld( local );
 			if ( entry.HasMark ) PlaceMark( visuals.Decal, parent, transform.Position, -transform.Rotation.Forward );
-			if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
+			if ( entry.Emitters is {} emitters )
+				EmitImpactParticles( emitters, parent, transform, incoming );
+			else if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
 			elapsed += EventTime( entry.Duration );
 		}
 	}
