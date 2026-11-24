@@ -45,6 +45,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string DriftName = "smoke_drift.vtex";
 	internal const string RubberName = "rubber_impact.vtex";
 	internal const string MistName = "blood_mist_impact.vtex";
+	internal const string ClothName = "debris_shirt.vtex";
+	internal const string LeafName = "plant_leafy.vtex";
+	internal const string GrassName = "plant_grassy.vtex";
 	internal const string WoodName = "plant_wood.vtex";
 	internal const string DustName = "smoke_impact.vtex";
 	internal const string ArcName = "electric_arcs.vtex";
@@ -71,6 +74,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			DriftName => @"effects\generic\smoke\smoke_drift",
 			RubberName => @"effects\generic\solids\rubber_impact",
 			MistName => @"effects\generic\smoke\blood_mist_impact",
+			ClothName => @"effects\generic\solids\debris_shirt",
+			LeafName => @"effects\generic\solids\plant_leafy",
+			GrassName => @"effects\generic\solids\plant_grassy",
 			WoodName => @"effects\generic\solids\plant_wood",
 			DustName => @"effects\generic\smoke\smoke_impact",
 			ArcName => @"effects\generic\sparks\electric_arcs",
@@ -92,7 +98,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		if ( (flags & 0x10000) != 0 )
 			return new Halo2TextureLoader( map, bitmap, spriteSequences: [[Halo2TextureLoader.SpriteBounds( map, header + 0xac )]] );
 
-		if ( name == WoodName )
+		if ( name is WoodName or LeafName or GrassName )
 		{
 			int sequence = Block( Address( bitmap ) + 60 ) + Short( header + 8 ) * 60;
 			int sprites = Block( sequence + 52 );
