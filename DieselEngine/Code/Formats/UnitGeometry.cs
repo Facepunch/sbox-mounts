@@ -75,7 +75,10 @@ sealed class UnitGeometry
 		return result;
 
 		bool Enabled( XmlNode element ) => element.Attribute( "name" ) is string name
-			&& (variation?.Objects.GetValueOrDefault( name, element.Attribute( "enabled" ) != "false" ) ?? element.Attribute( "enabled" ) != "false");
+			// Graphics are opt-in. Omitted flags commonly mark dormant damage meshes
+			// (bank windows/railings, vehicle glass) and alternate object states.
+			&& (variation?.Objects.GetValueOrDefault( name, element.Attribute( "enabled" )?.Trim() == "true" )
+				?? element.Attribute( "enabled" )?.Trim() == "true");
 	}
 
 	static int Lod( XmlNode element ) => int.TryParse( element.Attribute( "lod" ),

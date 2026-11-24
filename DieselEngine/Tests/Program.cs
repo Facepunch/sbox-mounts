@@ -66,6 +66,34 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+foreach ( var (unit, intact, damaged) in new[]
+{
+	("units/world/architecture/bank/bank_window/bank_window_large", "g_bank_window_large", "g_bank_window_large_dmg"),
+	("units/world/architecture/bank/lobby_railing/lobby_railing", "g_window_1", "g_window_1_dmg"),
+	("units/world/props/bank/bank_fence/bankfence_2", "g_bankfence_glass", "g_bankfence_glass_cracked"),
+	("units/world/architecture/bank/bank_lobby/bank_entrance_door/bank_entrance_door_closed", "g_door_left_window_top", "g_door_left_window_top_dmg")
+} )
+{
+	var geometry = GeometryFor( unit );
+	if ( !geometry.Graphics.Contains( IdString.Hash( intact ) ) || geometry.Graphics.Contains( IdString.Hash( damaged ) ) || geometry.Collision.Count == 0 )
+		throw new Exception( $"Bank glass must start intact with collision: {unit}" );
+}
+var glassObject = XmlNode.Parse( """
+	<dynamic_object><graphics><object name="intact" enabled="true"/>
+	<object name="cracked"/><object name="shattered" enabled="false"/>
+	<lod_object><object name="near" lod="0"/><object name="far" lod="1" enabled="true"/></lod_object>
+	</graphics></dynamic_object>
+	""" );
+var glassState = new SequenceVisibility();
+glassState.Objects["intact"] = false;
+glassState.Objects["cracked"] = true;
+var glassOverride = UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), glassObject, glassState );
+if ( glassOverride.Graphics.Contains( IdString.Hash( "intact" ) )
+	|| !glassOverride.Graphics.Contains( IdString.Hash( "cracked" ) )
+	|| glassOverride.Graphics.Contains( IdString.Hash( "shattered" ) )
+	|| glassOverride.Graphics.Contains( IdString.Hash( "near" ) )
+	|| !glassOverride.Graphics.Contains( IdString.Hash( "far" ) ) )
+	throw new Exception( "Explicit graphics variations and enabled-only LOD selection regressed." );
 foreach ( string can in new[] { "food_can_01", "food_can_02", "food_can_03", "food_can_04" } )
 {
 	var geometry = GeometryFor( "units/world/props/apartment/kitchen_counter/" + can );
