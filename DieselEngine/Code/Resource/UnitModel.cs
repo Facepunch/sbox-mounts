@@ -10,15 +10,19 @@ static class UnitModel
 	}
 	public static XmlNode Xml( byte[] bytes ) => XmlNode.Parse( Encoding.UTF8.GetString( bytes ).TrimEnd( '\0' ) );
 
-	public static bool CanBrowse( BundleDatabase database, string unit )
+	public sealed record BrowseInfo( UnitKind Kind, bool HasCollision );
+
+	public static BrowseInfo DescribeForBrowser( BundleDatabase database, string unit )
 	{
 		var unitBytes = database.Find( "unit", unit );
-		if ( unitBytes is null ) return false;
+		if ( unitBytes is null ) return null;
 		var definition = Xml( unitBytes );
 		string objectPath = definition.Element( "object" )?.Attribute( "file" );
-		if ( string.IsNullOrEmpty( objectPath ) || !database.Entries.ContainsKey( (IdString.Hash( "model" ), IdString.Hash( objectPath )) ) ) return false;
+		if ( string.IsNullOrEmpty( objectPath ) || !database.Entries.ContainsKey( (IdString.Hash( "model" ), IdString.Hash( objectPath )) ) ) return null;
 		var objectBytes = database.Find( "object", objectPath );
-		return objectBytes is not null && UnitGeometry.Read( definition, Xml( objectBytes ) ).Graphics.Count > 0;
+		if ( objectBytes is null ) return null;
+		var geometry = UnitGeometry.Read( definition, Xml( objectBytes ) );
+		return geometry.Graphics.Count > 0 ? new( UnitClassification.Classify( unit, definition ), geometry.Collision.Count > 0 ) : null;
 	}
 
 	public static Result Build( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
@@ -28,6 +32,12 @@ static class UnitModel
 		=> BuildPlaced( database, materials, unit, resourceName, materialVariation, null );
 
 	public static Result BuildPlaced( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation )
+		=> BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false );
+
+	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
+		=> BuildCore( database, materials, unit, resourceName, null, null, true );
+
+	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -49,6 +59,7 @@ static class UnitModel
 			catch ( Exception e ) { Log.Warning( $"PAYDAY mesh variation {unit}/{meshVariation}: {e.Message}" ); }
 		}
 		var geometry = UnitGeometry.Read( definition, obj, visibility );
+		bool movablePreview = browser && UnitClassification.Classify( unit, definition ) == UnitKind.Prop;
 		var graphics = geometry.Graphics;
 		var collision = geometry.Collision;
 		var selected = new HashSet<ulong>( graphics );
@@ -64,13 +75,21 @@ static class UnitModel
 		var batches = new Dictionary<Material, List<Vertex>>();
 		var collisionVertices = new List<Vector3>();
 		var collisionIndices = new List<int>();
+		var collisionHulls = new List<Vector3[]>();
 		foreach ( var part in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
 		{
 			if ( collision.Contains( part.Name ) )
 			{
-				int start = collisionVertices.Count;
-				collisionVertices.AddRange( part.Positions );
-				collisionIndices.AddRange( part.Indices.Select( i => i + start ) );
+				// Triangle meshes are static-only in the target physics engine. Browser props
+				// get one hull per authored collision mesh; map geometry keeps exact triangles.
+				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview )
+					collisionHulls.Add( part.Positions );
+				else
+				{
+					int start = collisionVertices.Count;
+					collisionVertices.AddRange( part.Positions );
+					collisionIndices.AddRange( part.Indices.Select( i => i + start ) );
+				}
 			}
 			if ( !graphics.Contains( part.Name ) ) continue;
 			foreach ( var draw in part.Draws )
@@ -109,8 +128,19 @@ static class UnitModel
 			}
 		}
 		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
-		if ( batches.Count == 0 && collisionIndices.Count == 0 && primitives.Length == 0 ) return Result.Empty;
+		if ( batches.Count == 0 && collisionIndices.Count == 0 && primitives.Length == 0 && collisionHulls.Count == 0 ) return Result.Empty;
 		var builder = Model.Builder.WithName( resourceName );
+		if ( movablePreview )
+		{
+			// A temporary density estimate avoids ModelBuilder's 1000 kg default on desk props.
+			// Use authored convex/primitive shapes; never invent a hull around rendered geometry.
+			var points = collisionHulls.SelectMany( h => h ).Concat( primitives.SelectMany( p => p.Points ) ).ToArray();
+			if ( points.Length > 0 )
+			{
+				var size = BBox.FromPoints( points ).Size * 0.0254f;
+				builder.WithMass( Math.Clamp( size.x * size.y * size.z * 500f, 0.1f, 50000f ) );
+			}
+		}
 		foreach ( var (material, vertices) in batches )
 		{
 			var mesh = new Mesh( material );
@@ -120,7 +150,8 @@ static class UnitModel
 			builder.AddMesh( mesh );
 		}
 		if ( collisionIndices.Count > 0 ) builder.AddCollisionMesh( collisionVertices.ToArray(), collisionIndices.ToArray() );
+		foreach ( var hull in collisionHulls ) builder.AddCollisionHull( hull.AsSpan() );
 		foreach ( var primitive in primitives ) builder.AddCollisionHull( primitive.Points.AsSpan() );
-		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 );
+		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 );
 	}
 }

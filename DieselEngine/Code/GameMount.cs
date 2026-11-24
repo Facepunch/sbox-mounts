@@ -44,9 +44,9 @@ public sealed class PaydayMount : BaseGameMount
 			{
 				try
 				{
-					if ( UnitModel.CanBrowse( Database, name ) )
+					if ( UnitModel.DescribeForBrowser( Database, name ) is { } info )
 					{
-						context.Add( ResourceType.Model, $"{name}.unit", new DieselModelLoader( name ) );
+						context.Add( ResourceType.Model, $"{name}.unit", new DieselModelLoader( name, info ) );
 						models++;
 					}
 				}

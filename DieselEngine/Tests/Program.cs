@@ -66,6 +66,19 @@ var lightHelper = GeometryFor( "units/lights/light_omni_shadow_projection_01/lig
 if ( lightHelper.Graphics.Count != 0 || lightHelper.Collision.Count != 0 )
 	throw new Exception( "Editor light gizmo must have neither graphics nor collision." );
 var architecture = GeometryFor( "units/world/architecture/diamondheist/diamondheist_floor_1" );
+foreach ( var (path, kind) in new[]
+{
+	("units/world/props/office/desk_accessories/desk_phone_02", UnitKind.Prop),
+	("units/world/architecture/diamondheist/diamondheist_floor_2", UnitKind.Architecture),
+	("units/multiplayer/suit_male_5_husk/suit_male_5_husk", UnitKind.Character),
+	("units/characters/npc/criminal/suit/russian_npc", UnitKind.Character),
+	("units/vehicles/animated_cars/vehicle_street_drill_pickup_event/vehicle_street_drill_pickup_event", UnitKind.Scripted)
+} )
+	if ( UnitClassification.Classify( path, XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", path ) ) ) ) != kind )
+		throw new Exception( $"Incorrect browser classification: {path}" );
+var phoneGeometry = GeometryFor( "units/world/props/office/desk_accessories/desk_phone_02" );
+if ( phoneGeometry.CollisionTypes.GetValueOrDefault( IdString.Hash( "c_convex" ) ) != "convex" )
+	throw new Exception( "Desk phone lost its authored convex collider." );
 const string streetLights = "units/world/street/street_lights/street_lights";
 var streetUnit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", streetLights ) ) );
 var streetObject = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", streetLights ) ) );
