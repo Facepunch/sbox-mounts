@@ -168,15 +168,20 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 			? Color.Red : Color.FromBytes( 117, 186, 255 );
 	}
 
-	bool secondStrike;
+	TimeUntil meleeEnds;
+	bool firstStrike;
 	int swing;
+
+	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
 	public override void SecondaryAttack()
 	{
-		secondStrike = !secondStrike;
-		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( secondStrike );
-		SetNextFire( (secondStrike ? 31 : 30) / 30f );
-		_ = Strike( ++swing, (secondStrike ? 3 : 6) / 30f );
+		firstStrike = !firstStrike;
+		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( firstStrike );
+		float duration = (firstStrike ? 31 : 30) / 30f;
+		meleeEnds = duration;
+		SetNextFire( duration );
+		_ = Strike( ++swing, (firstStrike ? 3 : 6) / 30f );
 	}
 
 	async System.Threading.Tasks.Task Strike( int serial, float delay )
@@ -190,6 +195,8 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	protected override void OnHolstered()
 	{
 		swing++;
+		meleeEnds = 0;
+		firstStrike = false;
 		base.OnHolstered();
 	}
 }

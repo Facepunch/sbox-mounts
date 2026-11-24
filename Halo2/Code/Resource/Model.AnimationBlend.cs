@@ -123,7 +123,10 @@ public partial class Halo2ModelLoader
 					}
 					rows.Add( (row * (row < 0 ? s.Down : s.Up), Axis( x, cols )) );
 				}
-				layers.AddLayer( Axis( y, rows ), new() { Weight = b.Switch( enabled, 1f, 0f ),
+				var weight = b.Switch( enabled, 1f, 0f );
+				if ( s.Label == "pitch_and_turn" && excluded.Length > 0 )
+					weight = b.Ease( weight );
+				layers.AddLayer( Axis( y, rows ), new() { Weight = weight,
 					BlendMode = clip.IsAdditive ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,
 					BoneMask = model.clipMasks.TryGetValue( s.Clip, out var mask ) ? b.BoneMask( mask ) : null } );
 			}
