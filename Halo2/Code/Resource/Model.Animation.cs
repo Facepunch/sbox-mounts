@@ -2,6 +2,7 @@ using System;
 using Halo2.Blam;
 using Sandbox.Animation;
 using Sandbox.Mounting;
+using FilePath = System.IO.Path;
 using GraphNode = Sandbox.Animation.GraphBuilder.Node;
 
 namespace Halo2;
@@ -13,17 +14,21 @@ public partial class Halo2ModelLoader
 	{
 		type = default;
 		if ( graph is null ) return null;
-		if ( name.StartsWith( "clips/", StringComparison.Ordinal ) && name.EndsWith( ".anim", StringComparison.Ordinal )
-			&& int.TryParse( name[6..^5], out int index ) && (uint)index < mapFile.ReadInt32( GraphHeader + 44 ) )
+		var parts = name.Split( '/' );
+		string leaf = FilePath.GetFileNameWithoutExtension( parts[^1] );
+		switch ( FilePath.GetExtension( parts[^1] ).ToLowerInvariant() )
 		{
-			type = ResourceType.AnimationClip;
-			return new ClipLoader( index );
+			case ".anim" when parts is ["clips", _] && int.TryParse( leaf, out int index )
+				&& (uint)index < mapFile.ReadInt32( GraphHeader + 44 ):
+				type = ResourceType.AnimationClip;
+				return new ClipLoader( index );
+			case ".ag" when parts.Length == 3:
+				parts[2] = leaf;
+				type = ResourceType.AnimationGraph;
+				return new GraphLoader( parts );
+			default:
+				return null;
 		}
-		if ( !name.EndsWith( ".ag", StringComparison.OrdinalIgnoreCase ) ) return null;
-		var context = name[..^3].Split( '/' );
-		if ( context.Length != 3 ) return null;
-		type = ResourceType.AnimationGraph;
-		return new GraphLoader( context );
 	}
 
 	int GraphHeader => mapFile.VaToOffset( (int)graph.DataVirtualAddress );
