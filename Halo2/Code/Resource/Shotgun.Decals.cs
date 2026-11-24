@@ -13,23 +13,20 @@ internal sealed partial class ShotgunLoader
 	(bool Handled, ImpactDecal Decal) ReadContactVisuals( TagEntry contact )
 	{
 		int events = Address( contact ) + 20;
-		if ( map.ReadInt32( events ) < 2 ) return default;
-		// Simple bullet marks are the single decal part in the contact event.
-		int parts = Block( events ) + 56 + 24;
-		if ( map.ReadInt32( parts ) == 0 )
+		int eventCount = map.ReadInt32( events );
+		if ( eventCount == 0 ) return default;
+		int row = Block( events );
+		int part = 0;
+		bool hasParticles = false;
+		for ( int i = 0; i < eventCount; i++, row += 56 )
 		{
-			int eventCount = map.ReadInt32( events );
-			int row = Block( events );
-			bool hasParticles = false;
-			for ( int i = 0; i < eventCount; i++, row += 56 )
-			{
-				if ( map.ReadInt32( row + 24 ) != 0 ) return default;
-				hasParticles |= map.ReadInt32( row + 48 ) > 0;
-			}
-			return (hasParticles, null);
+			hasParticles |= map.ReadInt32( row + 48 ) > 0;
+			int parts = map.ReadInt32( row + 24 );
+			if ( parts == 0 ) continue;
+			if ( parts != 1 || part != 0 ) return default;
+			part = Block( row + 24 );
 		}
-		if ( map.ReadInt32( parts ) != 1 ) return default;
-		int part = Block( parts );
+		if ( part == 0 ) return (hasParticles, null);
 		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
 		int header = Address( tag );
 		if ( Short( header + 4 ) != 2 || Reference( header + 8 ) is not null ) return default;
@@ -82,6 +79,7 @@ internal sealed partial class ShotgunLoader
 			parent = skin.GetBoneObject( bone ) ?? target;
 		if ( visuals.Decal is {} decal ) PlaceMark( decal, parent, point, normal );
 
+		if ( !surface.IsValid() ) return true;
 		var dust = surface.PrefabCollection.BulletImpact ?? surface.GetBaseSurface()?.PrefabCollection.BulletImpact;
 		if ( dust.IsValid() )
 		{
