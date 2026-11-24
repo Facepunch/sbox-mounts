@@ -37,6 +37,8 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		material.Set( "g_flDetailBlend", detail is null ? 0f : definition.DetailBlend );
 		material.Set( "g_vDetailScroll", definition?.DetailScroll ?? Vector2.Zero );
 		material.Set( "g_flEffect", definition?.Effect == true ? 1f : 0f );
+		material.Set( "g_flViewAngleFalloff", definition?.ViewAngleFalloff == true ? 1f : 0f );
+		material.Set( "g_flFalloffExponent", definition?.FalloffExponent ?? 1f );
 		material.Set( "g_flEffectIntensity", definition?.Effect == true ? LightIntensities.Resolve( intensities, definition.EffectIntensity ) : 1f );
 		material.SetFeature( "F_EFFECT_BLEND", definition?.EffectBlend ?? 0 );
 		float emissionStrength = definition?.SelfIlluminated == true

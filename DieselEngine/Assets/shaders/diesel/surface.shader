@@ -89,6 +89,8 @@ PS
 	Texture2D g_tDetail < Channel( RGBA, Box( Detail ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
 	float g_flDetailBlend < Default1( 0 ); >;
 	float g_flEffect < Default1( 0 ); >;
+	float g_flViewAngleFalloff < Default1( 0 ); >;
+	float g_flFalloffExponent < Default1( 1 ); >;
 	float g_flEffectIntensity < Default1( 1 ); >;
 	float2 g_vDetailScroll < Default2( 0, 0 ); >;
 	float g_flHasNormal < Default1( 0 ); >;
@@ -128,6 +130,13 @@ PS
 				opacity *= i.vColor.a;
 			}
 			color *= g_flEffectIntensity;
+			if ( g_flViewAngleFalloff > 0.5 && g_flFalloffExponent > 0 )
+			{
+				float3 view = normalize( g_vCameraPositionWs - ( i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz ) );
+				// Two-sided glow cards fade symmetrically; exponent zero means no fade.
+				float facing = saturate( abs( dot( normalize( i.vNormalWs ), view ) ) );
+				opacity *= pow( facing, g_flFalloffExponent );
+			}
 			#if S_EFFECT_BLEND == 2
 				// White is neutral for framebuffer multiplication.
 				return float4( lerp( float3( 1, 1, 1 ), color, saturate( opacity ) ), 1 );

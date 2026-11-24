@@ -13,6 +13,8 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public int DetailBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_ADD" ) ? 1 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_MUL" ) ? 2 : 0;
 	public string Detail { get; init; }
 	public string EffectIntensity { get; init; }
+	public bool ViewAngleFalloff => Effect && Template.Split( ':' ).Contains( "VIEW_ANGLE_FALLOFF_OP" );
+	public float FalloffExponent { get; init; } = 1;
 	public Vector2 UV0Speed { get; init; }
 	public Vector2 UV1Speed { get; init; }
 	public Vector2 DetailScroll => Effect && Template.Split( ':' ).Contains( "DIFFUSE1_UVANIM" ) ? UV1Speed : Vector2.Zero;
@@ -48,6 +50,7 @@ static class MaterialConfig
 			{
 				Detail = material.Element( "detail_diffuse_texture" )?.Attribute( "file" ),
 				EffectIntensity = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "intensity" )?.Attribute( "value" ),
+				FalloffExponent = ReadNonnegative( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "falloff_exp" )?.Attribute( "value" ), 1 ),
 				UV0Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv0_speed" )?.Attribute( "value" ) ),
 				UV1Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv1_speed" )?.Attribute( "value" ) ),
 				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
@@ -69,4 +72,8 @@ static class MaterialConfig
 		// The third component is not a translation speed; rotation/stepping modes remain unsupported.
 		return new( u, v );
 	}
+
+	static float ReadNonnegative( string text, float fallback ) =>
+		float.TryParse( text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value )
+			&& float.IsFinite( value ) && value >= 0 ? value : fallback;
 }
