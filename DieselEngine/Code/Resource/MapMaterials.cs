@@ -70,6 +70,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		material.Set( "g_flHasOpacity", opacity is null ? 0f : 1f );
 		material.Set( "g_flVertexColor", definition?.VertexColor == true ? 1f : 0f );
 		material.Set( "g_flBackdrop", definition?.Backdrop == true ? 1f : 0f );
+		material.Set( "g_flRoughness", definition?.Roughness ?? 0.8f );
 		material.Set( "g_flBlueMaskTint", definition?.BlueMaskTint == true ? 1f : 0f );
 		material.Set( "g_vMaskTint", definition?.TintColor ?? Vector3.One );
 		material.Set( "g_vDiffuseScroll", definition?.DiffuseScroll ?? Vector2.Zero );

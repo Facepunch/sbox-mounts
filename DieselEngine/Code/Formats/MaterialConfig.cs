@@ -17,6 +17,10 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public bool BlueMaskTint => Template.Split( ':' ).Contains( "BLUE_MASK_TINT" );
 	public Vector3 TintColor { get; init; } = Vector3.One;
 	public float FalloffExponent { get; init; } = 1;
+	public float? SpecularPower { get; init; }
+	// Preview conversion from Diesel's normalized gloss control to perceptual roughness.
+	// Keep the original value available; this is not a calibrated match to Diesel's BRDF.
+	public float Roughness => SpecularPower is float power ? Math.Clamp( MathF.Sqrt( 1 - power ), 0.05f, 1 ) : 0.8f;
 	public Vector2 UV0Speed { get; init; }
 	public Vector2 UV1Speed { get; init; }
 	public Vector2 DetailScroll => Effect && Template.Split( ':' ).Contains( "DIFFUSE1_UVANIM" ) ? UV1Speed : Vector2.Zero;
@@ -54,6 +58,7 @@ static class MaterialConfig
 				EffectIntensity = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "intensity" )?.Attribute( "value" ),
 				FalloffExponent = ReadNonnegative( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "falloff_exp" )?.Attribute( "value" ), 1 ),
 				TintColor = ReadColor( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "tint_color" )?.Attribute( "value" ) ),
+				SpecularPower = ReadSpecularPower( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "specular_power" )?.Attribute( "value" ) ),
 				UV0Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv0_speed" )?.Attribute( "value" ) ),
 				UV1Speed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv1_speed" )?.Attribute( "value" ) ),
 				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
@@ -79,6 +84,10 @@ static class MaterialConfig
 	static float ReadNonnegative( string text, float fallback ) =>
 		float.TryParse( text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value )
 			&& float.IsFinite( value ) && value >= 0 ? value : fallback;
+
+	static float? ReadSpecularPower( string text ) =>
+		float.TryParse( text, NumberStyles.Float, CultureInfo.InvariantCulture, out float value )
+			&& float.IsFinite( value ) ? Math.Clamp( value, 0, 1 ) : null;
 
 	static Vector3 ReadColor( string text )
 	{

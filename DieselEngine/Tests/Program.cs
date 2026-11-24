@@ -35,6 +35,10 @@ if ( !fenceMaterials[IdString.Hash( "fence_plane" )].DoubleSided
 	|| fenceMaterials[IdString.Hash( "fence_plane" )].Normal != "units/world/props/street/fence/fence_nm"
 	|| fenceMaterials[IdString.Hash( "fence_poles" )].DoubleSided )
 	throw new Exception( "Fence normal map or two-sided material flags were not resolved." );
+if ( fenceMaterials[IdString.Hash( "fence_poles" )].SpecularPower is not float fenceGloss
+	|| MathF.Abs( fenceGloss - 0.999f ) > 0.00001f
+	|| fenceMaterials[IdString.Hash( "fence_poles" )].Roughness >= 0.1f )
+	throw new Exception( "Authored fence-pole gloss was not imported." );
 UnitGeometry GeometryFor( string path )
 {
 	var unit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", path ) ) );

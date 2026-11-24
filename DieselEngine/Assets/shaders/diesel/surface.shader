@@ -98,6 +98,7 @@ PS
 	float g_flHasOpacity < Default1( 0 ); >;
 	float g_flVertexColor < Default1( 0 ); >;
 	float g_flBackdrop < Default1( 0 ); >;
+	float g_flRoughness < Default1( 0.8 ); >;
 	float g_flBlueMaskTint < Default1( 0 ); >;
 	float3 g_vMaskTint < Default3( 1, 1, 1 ); >;
 	float2 g_vDiffuseScroll < Default2( 0, 0 ); >;
@@ -178,7 +179,7 @@ PS
 		#if S_RENDER_BACKFACES
 			m.Normal *= i.face ? 1 : -1;
 		#endif
-		m.Roughness = 0.8;
+		m.Roughness = g_flRoughness;
 		m.Metalness = 0;
 		m.AmbientOcclusion = 1;
 		m.TintMask = 1;
