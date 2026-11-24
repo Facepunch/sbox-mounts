@@ -89,6 +89,30 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		return new Rect( left, top, Float( offset + 4 ) - left, Float( offset + 12 ) - top );
 	}
 
+	internal (CurveRange Radius, CurveRange Alpha) SmokeCurves( bool firstPerson )
+	{
+		int barrel = Block( Header + 0x2d0 );
+		int effect = Address( Reference( Block( barrel + 0xe4 ) + 4 ) );
+		int systems = Block( Block( effect + 20 ) + 48 );
+		int emitter = Block( systems + 56 * (firstPerson ? 6 : 2) + 48 );
+		return (ReadRange( emitter + 72, 120 ), ReadRange( emitter + 104, 1 ));
+
+		CurveRange ReadRange( int property, float units )
+		{
+			int data = Block( property + 8 );
+			float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
+			// A ranged cubic stores two 48-byte polynomials. Convert their endpoint slopes to Hermite keys.
+			return new CurveRange( ReadCurve( data + 52 ), ReadCurve( data + 100 ) );
+
+			Curve ReadCurve( int offset )
+			{
+				float a = Float( offset ), b = Float( offset + 4 ), c = Float( offset + 8 ), d = Float( offset + 12 );
+				return new Curve( new Curve.Frame( 0, min + span * d, 0, span * c ),
+					new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
+			}
+		}
+	}
+
 	internal Halo2TextureLoader HudBitmap( string widget )
 	{
 		int hud = Address( Reference( Header + 0x2b0 ) );

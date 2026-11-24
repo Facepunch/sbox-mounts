@@ -3,7 +3,7 @@ using System;
 namespace Halo2;
 
 [Hide]
-public class ShotgunModel : BaseWeaponModel
+public partial class ShotgunModel : BaseWeaponModel
 {
 	internal Shotgun Weapon { get; set; }
 	ParticleEffect casings;
@@ -45,6 +45,7 @@ public class ShotgunModel : BaseWeaponModel
 		renderer.RenderOptions.Overlay = firstPerson;
 		go.Enabled = true;
 		fierySmoke = CreateFierySmoke( firstPerson );
+		ConfigureSoftSmoke( firstPerson );
 		if ( firstPerson ) return;
 		var flareTexture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.LongFlashName}" );
 		if ( !flareTexture.IsValid() || flareTexture.IsError ) return;
@@ -278,6 +279,7 @@ public class ShotgunModel : BaseWeaponModel
 			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
 				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
 		}
+		EmitSoftSmoke();
 		if ( fierySmoke.IsValid() ) fierySmoke.Emit( fierySmoke.WorldPosition, 0 );
 		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
 		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
