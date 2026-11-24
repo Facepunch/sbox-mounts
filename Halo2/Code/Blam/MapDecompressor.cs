@@ -86,20 +86,43 @@ public static class MapDecompressor
 		if ( size < 6 || size > source.Length - source.Position ) throw new InvalidDataException( "Truncated zlib chunk." );
 		if ( frame.Length < size ) frame = new byte[size];
 		source.ReadExactly( frame, 0, size );
-		if ( (frame[0] & 15) != 8 || (frame[0] >> 4) > 7 || (frame[1] & 32) != 0 || (frame[0] * 256 + frame[1]) % 31 != 0 )
-			throw new InvalidDataException( "Invalid zlib header." );
-
-		using var payload = new MemoryStream( frame, 2, size - 6, writable: false );
+		using var payload = OpenDeflatePayload( frame, 0, size );
 		using var inflater = new DeflateStream( payload, CompressionMode.Decompress );
 		int start = (int)output.Position;
 		inflater.CopyTo( output );
-		var bytes = output.GetBuffer().AsSpan( start, (int)output.Position - start );
+		CheckChecksum( output.GetBuffer().AsSpan( start, (int)output.Position - start ), frame.AsSpan( size - 4 ) );
+	}
+
+	internal static MemoryStream OpenDeflatePayload( byte[] frame, int start, int size )
+	{
+		if ( size < 6 || (frame[start] & 15) != 8 || (frame[start] >> 4) > 7 || (frame[start + 1] & 32) != 0
+			|| (frame[start] * 256 + frame[start + 1]) % 31 != 0 )
+			throw new InvalidDataException( "Invalid zlib header." );
+		return new MemoryStream( frame, start + 2, size - 6, writable: false );
+	}
+
+	internal static void CheckChecksum( ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> trailer )
+	{
 		uint a = 1, b = 0;
+		UpdateChecksum( bytes, ref a, ref b );
+		CheckChecksum( a, b, trailer );
+	}
+
+	internal static void UpdateChecksum( ReadOnlySpan<byte> bytes, ref uint a, ref uint b )
+	{
 		// Adler-32 can accumulate up to 5552 bytes before either sum overflows.
 		while ( !bytes.IsEmpty )
 		{
 			int count = Math.Min( bytes.Length, 5552 );
-			foreach ( byte value in bytes[..count] )
+			int i = 0;
+			// Four Adler steps with one dependency on each running sum.
+			for ( ; i + 4 <= count; i += 4 )
+			{
+				uint x = bytes[i], y = bytes[i + 1], z = bytes[i + 2], w = bytes[i + 3];
+				b += 4 * (a + x) + 3 * y + 2 * z + w;
+				a += x + y + z + w;
+			}
+			foreach ( byte value in bytes[i..count] )
 			{
 				a += value;
 				b += a;
@@ -108,7 +131,11 @@ public static class MapDecompressor
 			b %= 65521;
 			bytes = bytes[count..];
 		}
-		var expected = BinaryPrimitives.ReadUInt32BigEndian( frame.AsSpan( size - 4 ) );
+	}
+
+	internal static void CheckChecksum( uint a, uint b, ReadOnlySpan<byte> trailer )
+	{
+		var expected = BinaryPrimitives.ReadUInt32BigEndian( trailer );
 		if ( ((b << 16) | a) != expected ) throw new InvalidDataException( "Invalid zlib checksum." );
 	}
 }

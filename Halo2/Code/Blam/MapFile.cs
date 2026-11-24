@@ -165,7 +165,7 @@ public class MapFile
 		return Encoding.ASCII.GetString( decompressedData, offset, (end < 0 ? decompressedData.Length : end) - offset );
 	}
 
-	int ReadInt32( int offset ) => BinaryPrimitives.ReadInt32LittleEndian( decompressedData.AsSpan( offset ) );
+	internal int ReadInt32( int offset ) => BinaryPrimitives.ReadInt32LittleEndian( decompressedData.AsSpan( offset ) );
 	uint ReadUInt32( int offset ) => (uint)ReadInt32( offset );
 }
 

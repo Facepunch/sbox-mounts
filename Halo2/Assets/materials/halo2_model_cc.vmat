@@ -8,6 +8,8 @@ Layer0
 	F_CHANGE_COLOR 1
 
 	BaseMap "materials/default/default_color.tga"
+	Detail "materials/default/default_color.tga"
+	Environment "materials/default/default_cube.pfm"
 	NormalMap "materials/default/default_normal.tga"
 	ChangeColorMap "materials/default/default.tga"
 

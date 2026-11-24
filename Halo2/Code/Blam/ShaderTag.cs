@@ -20,6 +20,13 @@ public class ShaderTag
 	/// <summary>Tag index of the change color map bitmap, or -1 if not found.</summary>
 	public int ChangeColorBitmapTagIndex { get; set; } = -1;
 
+	public bool IsEmblem { get; private set; }
+	public int DetailBitmapTagIndex { get; private set; } = -1;
+	public int EnvironmentBitmapTagIndex { get; private set; } = -1;
+	public Vector4 DetailTransform { get; private set; } = new( 1, 1, 0, 0 );
+	public Vector4 EnvironmentFacing { get; private set; }
+	public Vector4 EnvironmentGlancing { get; private set; }
+
 	public ShaderTag( MapFile map, TagEntry tag )
 	{
 		if ( tag.DataSize == 0 )
@@ -77,21 +84,45 @@ public class ShaderTag
 			if ( bmpCount > 0 && bmpPtr != 0 && templateName != null )
 			{
 				int bmpOff = map.VaToOffset( bmpPtr );
-
-				// Bump/normal map is always slot 0 for tex_bump_ templates
-				if ( templateName.Contains( "tex_bump" ) && bmpCount > 0 )
+				int Bitmap( int slot ) => slot >= 0 && slot < bmpCount ? map.ReadInt32( bmpOff + slot * 12 ) & 0xffff : -1;
+				string name = templateName[(templateName.LastIndexOf( '\\' ) + 1)..];
+				if ( name == "emblem_overlay_simple" )
 				{
-					ReadBitmapSlot( map, bmpOff, 0, out int bumpDatum );
-					if ( bumpDatum != -1 && bumpDatum != 0 )
-						BumpBitmapTagIndex = bumpDatum & 0xFFFF;
+					IsEmblem = true;
+					DiffuseBitmapTagIndex = Bitmap( 0 );
 				}
+				if ( name.StartsWith( "tex_bump" ) ) BumpBitmapTagIndex = Bitmap( 0 );
+				ChangeColorBitmapTagIndex = Bitmap( GetChangeColorSlot( name ) );
 
-				int ccSlot = GetChangeColorSlot( templateName );
-				if ( ccSlot >= 0 && ccSlot < bmpCount )
+				// Compiled MCC registers differ between these opaque template families.
+				bool fourColors = name == "tex_bump_env_four_change_color";
+				bool twoColors = name == "tex_bump_env_two_change_color";
+				if ( name == "tex_bump_env" || fourColors || twoColors )
 				{
-					ReadBitmapSlot( map, bmpOff, ccSlot, out int ccDatum );
-					if ( ccDatum != -1 && ccDatum != 0 )
-						ChangeColorBitmapTagIndex = ccDatum & 0xFFFF;
+					DetailBitmapTagIndex = Bitmap( 3 );
+					EnvironmentBitmapTagIndex = Bitmap( fourColors || twoColors ? 5 : 4 );
+					int colorCount = pp.ReadInt32();
+					int colors = map.VaToOffset( pp.ReadInt32() );
+					int transformCount = pp.ReadInt32();
+					int transforms = map.VaToOffset( pp.ReadInt32() );
+					int uv = fourColors || twoColors ? 2 : 0;
+					if ( uv < transformCount )
+					{
+						using var transform = map.OpenReader( transforms + uv * 16, 16 );
+						DetailTransform = new( transform.ReadSingle(), transform.ReadSingle(), transform.ReadSingle(), transform.ReadSingle() );
+					}
+
+					int tint = fourColors || twoColors ? 4 : 1;
+					int brightness = fourColors || twoColors ? 6 : 3;
+					Vector4 Reflection( int color, int intensity )
+					{
+						if ( color >= colorCount || intensity >= colorCount ) return default;
+						uint rgb = (uint)map.ReadInt32( colors + color * 4 );
+						uint power = (uint)map.ReadInt32( colors + intensity * 4 );
+						return new Vector4( (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, power >> 24 ) / 255f;
+					}
+					EnvironmentFacing = Reflection( tint, brightness );
+					EnvironmentGlancing = Reflection( tint + 1, brightness + 1 );
 				}
 			}
 		}
@@ -101,10 +132,8 @@ public class ShaderTag
 	/// Returns the bitmap slot index for change_color_map based on the shader template name.
 	/// Slot positions from TagTool/Reclaimer shader template mappings.
 	/// </summary>
-	static int GetChangeColorSlot( string templatePath )
+	static int GetChangeColorSlot( string name )
 	{
-		string name = Path.GetFileNameWithoutExtension( templatePath ) ?? templatePath;
-
 		// Common H2 character shader templates
 		if ( name.Contains( "one_change_color" ) )
 			return 2; // [bump, base, cc]
@@ -124,9 +153,4 @@ public class ShaderTag
 		return -1;
 	}
 
-	static void ReadBitmapSlot( MapFile map, int bmpOff, int slot, out int datum )
-	{
-		using var r = map.OpenReader( bmpOff + slot * 0x0C, 0x0C );
-		datum = r.ReadInt32();
-	}
 }

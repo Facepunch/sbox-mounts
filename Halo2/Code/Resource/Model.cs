@@ -13,7 +13,7 @@ namespace Halo2;
 /// Loads a Halo 2 render_model (mode) tag and converts it to a Model.
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
 /// </summary>
-public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null ) : ResourceLoader<Halo2Mount>
+public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null ) : ResourceLoader<Halo2Mount>
 {
 	protected override object Load()
 	{
@@ -25,6 +25,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			return builder.Create();
 
 		// Build skeleton
+		var materials = new Dictionary<int, Material>( model.Shaders.Count );
+		var colors = ReadChangeColors( mapFile, biped );
 		var bones = BuildSkeleton( model, mapFile );
 
 		foreach ( var region in model.Regions )
@@ -63,7 +65,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, mapName, builder, bounds, lod, regionName, permIdx );
+						BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, mapName, builder, bounds, lod, regionName, permIdx, materials, colors );
 					}
 					catch ( Exception ex )
 					{
@@ -93,7 +95,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return builder.Create();
 	}
 
-	static void BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex )
+	static void BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -186,7 +188,10 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			if ( triIndices.Count == 0 )
 				continue;
 
-			var material = LoadMaterial( map, model, submesh.ShaderIndex, mapName );
+			var index = submesh.ShaderIndex;
+			int shaderId = (uint)index < model.Shaders.Count ? model.Shaders[index].TagIndex : -1;
+			if ( !materials.TryGetValue( shaderId, out var material ) )
+				materials[shaderId] = material = LoadMaterial( map, model, index, mapName, colors );
 
 			var mesh = new Mesh( $"section{sectionIndex}", material );
 			mesh.CreateVertexBuffer( verts.Length, verts );
@@ -263,13 +268,17 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			}
 
 			var normal = Vector3.Up;
+			var tangent = new Vector4( 1, 0, 0, 1 );
 			if ( normals is not null )
 			{
 				stream.Position = section.BaseAddress + normals.Offset + i * 36;
 				var direction = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ).Normal;
-				if ( direction != Vector3.Zero ) normal = ConvertPosition( direction ).Normal;
+				if ( direction != Vector3.Zero ) normal = direction;
+				var bitangent = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+				var u = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ).Normal;
+				tangent = new Vector4( u, Vector3.Dot( Vector3.Cross( normal, u ), bitangent ) < 0 ? -1 : 1 );
 			}
-			vertices[i] = new SkinnedVertex( position, normal, uv, new Color32( bone0, bone1, 0, 0 ), new Color32( weight0, weight1, 0, 0 ) );
+			vertices[i] = new SkinnedVertex( position, normal, tangent, uv, new Color32( bone0, bone1, 0, 0 ), new Color32( weight0, weight1, 0, 0 ) );
 		}
 		return vertices;
 	}
@@ -324,7 +333,28 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return result;
 	}
 
-	static Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, string mapName )
+	static readonly string[] ColorParameters = ["g_vPrimaryColor", "g_vSecondaryColor", "g_vTertiaryColor", "g_vQuaternaryColor"];
+
+	static Vector3[] ReadChangeColors( MapFile map, TagEntry biped )
+	{
+		if ( biped is null ) return null;
+		int block = map.VaToOffset( (int)biped.DataVirtualAddress ) + 0xac;
+		int count = Math.Min( map.ReadInt32( block ), ColorParameters.Length );
+		if ( count <= 0 ) return null;
+		int offset = map.VaToOffset( map.ReadInt32( block + 4 ) );
+		var colors = new Vector3[count];
+		for ( int i = 0; i < count; i++, offset += 16 )
+		{
+			colors[i] = Vector3.One;
+			if ( map.ReadInt32( offset ) == 0 ) continue;
+			// A spawned render model uses the first initial color permutation.
+			using var color = map.OpenReader( map.VaToOffset( map.ReadInt32( offset + 4 ) ) + 4, 12 );
+			colors[i] = new( color.ReadSingle(), color.ReadSingle(), color.ReadSingle() );
+		}
+		return colors;
+	}
+
+	static Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, string mapName, Vector3[] colors )
 	{
 		if ( shaderIndex < 0 || shaderIndex >= model.Shaders.Count )
 			return Material.Load( "materials/dev/primary_white.vmat" );
@@ -339,6 +369,11 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		try
 		{
 			var mat = Material.Load( $"mount://halo2/{mapName}/{tagPath}.vmat" );
+			if ( colors is not null && mat?.GetTexture( "g_tChangeColorMap" ) is { IsValid: true } )
+			{
+				mat = mat.CreateCopy();
+				for ( int i = 0; i < colors.Length; i++ ) mat.Set( ColorParameters[i], colors[i] );
+			}
 			return mat ?? Material.Load( "materials/dev/primary_white.vmat" );
 		}
 		catch
@@ -651,13 +686,16 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 }
 
 [StructLayout( LayoutKind.Sequential )]
-public struct SkinnedVertex( Vector3 position, Vector3 normal, Vector2 texcoord, Color32 blendIndices, Color32 blendWeights )
+public struct SkinnedVertex( Vector3 position, Vector3 normal, Vector4 tangent, Vector2 texcoord, Color32 blendIndices, Color32 blendWeights )
 {
 	[VertexLayout.Position]
 	public Vector3 position = position;
 
 	[VertexLayout.Normal]
 	public Vector3 normal = normal;
+
+	[VertexLayout.Tangent]
+	public Vector4 tangent = tangent;
 
 	[VertexLayout.TexCoord]
 	public Vector2 texcoord = texcoord;

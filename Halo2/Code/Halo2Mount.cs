@@ -90,9 +90,19 @@ public class Halo2Mount : BaseGameMount
 		var mapName = mapFile.Header.MapName;
 
 		// Model definitions link the render model and physics model by tag datum.
+		var modeToBiped = new Dictionary<int, TagEntry>();
 		var modeToPhmo = new Dictionary<int, TagEntry>();
 		foreach ( var tag in mapFile.Tags )
 		{
+			if ( tag.PrimaryClass == "dpib" && tag.DataSize >= 0xb4 )
+			{
+				int definition = mapFile.ReadInt32( mapFile.VaToOffset( (int)tag.DataVirtualAddress ) + 0x38 );
+				if ( mapFile.GetTag( definition & 0xffff ) is { PrimaryClass: "tmlh", DataSize: >= 8 } model )
+				{
+					int render = mapFile.ReadInt32( mapFile.VaToOffset( (int)model.DataVirtualAddress ) + 4 );
+					modeToBiped.TryAdd( render & 0xffff, tag );
+				}
+			}
 			if ( tag.PrimaryClass != "tmlh" || tag.DataSize < 0x28 ) continue;
 			try
 			{
@@ -130,7 +140,8 @@ public class Halo2Mount : BaseGameMount
 				// render_model - FourCC "mode" stored LE as "edom"
 				case "edom":
 					modeToPhmo.TryGetValue( tagIndex, out var phmoTag );
-					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag ) );
+					modeToBiped.TryGetValue( tagIndex, out var biped );
+					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag, biped ) );
 					break;
 
 				// bitmap - FourCC "bitm" stored LE as "mtib"

@@ -18,13 +18,31 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 		var diffuse = LoadBitmap( shader.DiffuseBitmapTagIndex );
 		if ( diffuse is null ) return DefaultMaterial;
 
+		if ( shader.IsEmblem )
+		{
+			var emblem = Material.Load( "materials/halo2_emblem.vmat" ).CreateCopy();
+			emblem.Set( "g_tColor", diffuse );
+			return emblem;
+		}
+
 		var bump = LoadBitmap( shader.BumpBitmapTagIndex );
 		var changeColor = LoadBitmap( shader.ChangeColorBitmapTagIndex );
 		var template = changeColor is null ? "materials/halo2_model.vmat" : "materials/halo2_model_cc.vmat";
 		var material = Material.Load( template ).CreateCopy();
-		material.Set( "BaseMap", diffuse );
-		if ( bump is not null ) material.Set( "NormalMap", bump );
-		if ( changeColor is not null ) material.Set( "ChangeColorMap", changeColor );
+		material.Set( "g_tBaseMap", diffuse );
+		if ( bump is not null ) material.Set( "g_tNormalMap", bump );
+		if ( changeColor is not null ) material.Set( "g_tChangeColorMap", changeColor );
+		if ( LoadBitmap( shader.EnvironmentBitmapTagIndex ) is { } environment )
+		{
+			material.Set( "g_tEnvironment", environment );
+			material.Set( "g_vEnvironmentFacing", shader.EnvironmentFacing );
+			material.Set( "g_vEnvironmentGlancing", shader.EnvironmentGlancing );
+		}
+		if ( LoadBitmap( shader.DetailBitmapTagIndex ) is { } detail )
+		{
+			material.Set( "g_tDetail", detail );
+			material.Set( "g_vDetailTransform", shader.DetailTransform );
+		}
 		return material;
 	}
 

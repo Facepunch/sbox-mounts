@@ -68,12 +68,28 @@ PS
 		Texture2D g_tChangeColorMap < Channel( RGBA, Box( ChangeColorMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	#endif
 
+	CreateInputTexture2D( Detail, Linear, 8, "None", "", "", Default3( 0.5, 0.5, 0.5 ) );
+	Texture2D g_tDetail < Channel( RGB, Box( Detail ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
+	CreateInputTextureCube( Environment, Srgb, 8, "", "", "", Default3( 0, 0, 0 ) );
+	CreateTextureCube( g_tEnvironment ) < Channel( RGB, GGXCubeMapBlur( Environment ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+	float4 g_vDetailTransform < Default4( 0, 0, 0, 0 ); >;
+	float4 g_vEnvironmentFacing < Default4( 0, 0, 0, 0 ); >;
+	float4 g_vEnvironmentGlancing < Default4( 0, 0, 0, 0 ); >;
+	#if S_CHANGE_COLOR
+		float3 g_vPrimaryColor < Default3( 1, 1, 1 ); >;
+		float3 g_vSecondaryColor < Default3( 1, 1, 1 ); >;
+		float3 g_vTertiaryColor < Default3( 1, 1, 1 ); >;
+		float3 g_vQuaternaryColor < Default3( 1, 1, 1 ); >;
+	#endif
+
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		Material m = Material::From( i );
 
 		float4 baseColor = Tex2DS( g_tBaseMap, g_sSampler0, i.vTextureCoords.xy );
 		float3 albedo = baseColor.rgb;
+		if ( any( g_vDetailTransform.xy ) )
+			albedo *= 2.0 * Tex2DS( g_tDetail, g_sSampler0, i.vTextureCoords.xy * g_vDetailTransform.xy + g_vDetailTransform.zw ).rgb;
 
 		#if S_CHANGE_COLOR
 		{
@@ -81,17 +97,19 @@ PS
 			float4 ccMask = Tex2DS( g_tChangeColorMap, g_sSampler0, i.vTextureCoords.xy );
 			float3 tintColor = i.vTintColor.rgb;
 
-			// Apply tint to both primary (R) and secondary (G) masked regions
-			albedo *= lerp( float3( 1, 1, 1 ), tintColor, ccMask.r );
-			albedo *= lerp( float3( 1, 1, 1 ), tintColor, ccMask.g );
+			// Object change colors occupy independent mask channels.
+			albedo *= lerp( float3( 1, 1, 1 ), g_vPrimaryColor * tintColor, ccMask.r );
+			albedo *= lerp( float3( 1, 1, 1 ), g_vSecondaryColor * tintColor, ccMask.g );
+			albedo *= lerp( 1.0.xxx, g_vTertiaryColor, ccMask.b );
+			albedo *= lerp( 1.0.xxx, g_vQuaternaryColor, ccMask.a );
 		}
 		#endif
 
-		// Normal mapping + specular from bump alpha (H2 uses DirectX normals, flip Y)
+		// The imported tangent frame uses the authored Halo bitangent.
 		float4 texNormal = Tex2DS( g_tNormalMap, g_sSampler0, i.vTextureCoords.xy );
 		texNormal.y = 1.0 - texNormal.y;
 		float3 normal = TransformNormal( DecodeNormal( texNormal.xyz ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
-		float specularMask = texNormal.a;
+		float specularMask = baseColor.a;
 
 		m.Albedo = albedo;
 		m.Normal = normal;
@@ -99,7 +117,14 @@ PS
 		m.Roughness = 1.0 - ( specularMask * 0.8 );
 		m.Metalness = specularMask * 0.3;
 		m.AmbientOcclusion = 1.0;
-		m.Emission = float3( 0, 0, 0 );
+		m.Emission = 0;
+		if ( g_vEnvironmentFacing.w + g_vEnvironmentGlancing.w > 0 )
+		{
+			float3 view = CalculatePositionToCameraDirWs( m.WorldPosition );
+			float grazing = 1 - saturate( dot( view, normal ) );
+			float3 tint = lerp( g_vEnvironmentFacing.rgb * g_vEnvironmentFacing.w, g_vEnvironmentGlancing.rgb * g_vEnvironmentGlancing.w, grazing );
+			m.Emission += TexCube( g_tEnvironment, reflect( -view, normal ) ).rgb * tint * specularMask;
+		}
 		m.TintMask = 0;
 		m.Transmission = 0;
 		m.TextureCoords = i.vTextureCoords.xy;
