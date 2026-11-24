@@ -303,8 +303,17 @@ public sealed class Shotgun : Weapon
 			loader.PlayMeleeImpact( surface, position );
 	}
 
+	protected override void OnEquipped()
+	{
+		float remaining = NextPrimaryFire;
+		base.OnEquipped();
+		if ( IsValid && IsHeld && remaining > DeployTime ) SetNextPrimaryFire( remaining );
+	}
+
 	protected override void OnHolstered()
 	{
+		triggerConsumed = false;
+		SetNextPrimaryFire( PrimaryDelay );
 		swing++;
 		meleeEnds = 0;
 		base.OnHolstered();
