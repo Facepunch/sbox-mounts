@@ -17,6 +17,7 @@ void Reject( Action action )
 Reject( () => ScriptData.Read( db.Find( "world", "levels/bank/world" )[..100] ) );
 Reject( () => new ModelFile( new byte[] { 255, 255, 255, 255 } ) );
 Reject( () => XmlNode.Parse( "<unit><object></unit>" ) );
+CubemapVerification.Run( db );
 var fenceDds = db.Find( "texture", "units/world/props/street/fence/fence_df" );
 var fenceUpload = DdsTexture.ForUpload( fenceDds );
 if ( BitConverter.ToInt32( fenceUpload, 28 ) != 4 || BitConverter.ToInt32( fenceDds, 28 ) != 10
@@ -185,6 +186,19 @@ Console.WriteLine( "PASS: invisible blockers, nonphysical light gizmos, and visi
 var names = Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' );
 var maps = names.Where( s => s.StartsWith( "levels/" ) && db.Entries.ContainsKey( (IdString.Hash( "world" ), IdString.Hash( s )) ) ).Distinct().ToArray();
 if ( maps.Length != 9 ) throw new Exception( $"Expected nine installed heist worlds, got {maps.Length}." );
+foreach ( var map in maps )
+{
+	var reflection = EnvironmentReflection.Read( db, ScriptData.Read( db.Find( "world", map ) ) );
+	if ( string.IsNullOrEmpty( reflection ) || db.Find( "texture", reflection ) is not { } cubeBytes || !DdsCubemap.IsCube( cubeBytes ) )
+		throw new Exception( $"Missing initial environment cubemap: {map}: {reflection}" );
+}
+var goldReflection = MaterialConfig.Read( db.Find( "material_config", "units/world/props/slaughterhouse/gold_bar/gold_bar" ) ).Values.Single( m => m.Name == "gold_bar" );
+if ( !goldReflection.CubeReflection || goldReflection.Reflection != "environments/cubemaps/cubemap_gold" || goldReflection.GlobalReflection )
+	throw new Exception( "Explicit gold reflection parsing failed." );
+var truckGlassReflection = MaterialConfig.Read( db.Find( "material_config", "units/vehicles/truck_regular/man_vehicle_truck_variation_1" ) ).Values.Single( m => m.Name == "glass_breakable" );
+if ( !truckGlassReflection.CubeFresnel || MathF.Abs( truckGlassReflection.Fresnel.y - 0.73f ) > 0.001f || MathF.Abs( truckGlassReflection.Fresnel.z - 0.24f ) > 0.001f )
+	throw new Exception( "Authored reflection Fresnel parsing failed." );
+Console.WriteLine( "PASS: nine initial environment cubemaps and explicit reflection/Fresnel materials." );
 var units = new HashSet<string>();
 var configs = new Dictionary<string, Dictionary<ulong, MaterialDefinition>>();
 var texturePaths = new HashSet<string>();

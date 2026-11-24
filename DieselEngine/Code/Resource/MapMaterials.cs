@@ -9,6 +9,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 	readonly HashSet<string> normalRA = [];
 	readonly Dictionary<string, float> intensities = LightIntensities.Load( database );
 	public int TextureCount => textures.Values.Count( t => t is not null );
+	public string GlobalReflection { get; init; }
 	Dictionary<string, float> physicsDensities;
 	public IReadOnlyDictionary<string, float> PhysicsDensities
 	{
@@ -63,6 +64,23 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		var diffuse = LoadTexture( definition?.Diffuse );
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );
+		Texture reflection = null;
+		if ( definition?.CubeReflection == true )
+		{
+			string reflectionPath = !string.IsNullOrEmpty( definition.Reflection ) ? definition.Reflection
+				: definition.GlobalReflection ? GlobalReflection : null;
+			reflection = LoadTexture( reflectionPath );
+			if ( reflection is not null && reflection.Depth != 6 )
+			{
+				Log.Warning( $"PAYDAY: reflection texture is not a cubemap: {reflectionPath}" );
+				reflection = null;
+			}
+		}
+		if ( reflection is not null ) material.Set( "g_tReflection", reflection );
+		material.Set( "g_flHasReflection", reflection is null ? 0f : 1f );
+		material.Set( "g_flReflectionMaxMip", reflection is null ? 0f : reflection.Mips - 1f );
+		material.Set( "g_flCubeFresnel", definition?.CubeFresnel == true ? 1f : 0f );
+		material.Set( "g_vReflectionFresnel", definition?.Fresnel ?? new Vector3( 0, 1, 1 ) );
 		var blendDiffuse = definition?.GroundBlend == true ? LoadTexture( definition.BlendDiffuse ) : null;
 		var blendMask = definition?.GroundBlend == true && !definition.BlendMaskInAlpha ? LoadTexture( definition.BlendMask ) : null;
 		material.Set( "g_tBlendDiffuse", blendDiffuse ?? Texture.White );
@@ -119,7 +137,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 			else
 			{
 				if ( DdsTexture.IsNormalRA( bytes ) ) normalRA.Add( path );
-				texture = TextureLoader.FromDds( DdsTexture.ForUpload( bytes ) );
+				texture = DieselTextureLoader.LoadDds( bytes );
 			}
 		}
 		catch ( Exception e ) { Log.Warning( $"PAYDAY texture {path}: {e.Message}" ); }

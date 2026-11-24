@@ -85,6 +85,13 @@ PS
 	CreateInputTexture2D( Emission, Srgb, 8, "None", "_emission", ",0/,0/0", Default4( 0, 0, 0, 1 ) );
 	Texture2D g_tEmission < Channel( RGBA, Box( Emission ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
 	float g_flEmissionStrength < Default1( 0 ); >;
+	CreateInputTextureCube( Reflection, Srgb, 8, "", "", "Reflection", Default3( 0, 0, 0 ) );
+	CreateTextureCube( g_tReflection ) < Channel( RGB, Box( Reflection ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+	SamplerState g_sReflection < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
+	float g_flHasReflection < Default1( 0 ); >;
+	float g_flReflectionMaxMip < Default1( 0 ); >;
+	float g_flCubeFresnel < Default1( 0 ); >;
+	float3 g_vReflectionFresnel < Default3( 0, 1, 1 ); >;
 	CreateInputTexture2D( BlendDiffuse, Srgb, 8, "None", "_blend", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
 	CreateInputTexture2D( BlendMask, Linear, 8, "None", "_blendmask", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
 	Texture2D g_tBlendDiffuse < Channel( RGBA, Box( BlendDiffuse ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
@@ -194,6 +201,25 @@ PS
 		#if S_RENDER_BACKFACES
 			m.Normal *= i.face ? 1 : -1;
 		#endif
+		if ( g_flHasReflection > 0.5 )
+		{
+			float3 view = normalize( g_vCameraPositionWs - (i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz) );
+			float3 reflected = reflect( -view, m.Normal );
+			// Inverse of Coordinates.Position's axis rotation; cubemap texels remain
+			// in their authored DDS face order. No per-object rotation of world probes.
+			float3 dieselDirection = float3( -reflected.y, reflected.x, reflected.z );
+			float mask = saturate( diffuse.a );
+			float3 environment = g_tReflection.SampleLevel( g_sReflection, dieselDirection, (1 - mask) * g_flReflectionMaxMip ).rgb;
+			float fresnel = 1;
+			if ( g_flCubeFresnel > 0.5 )
+			{
+				float grazing = max( 0.0001, 1 - saturate( dot( view, m.Normal ) ) );
+				fresnel = clamp( lerp( g_vReflectionFresnel.x, 1, pow( grazing, g_vReflectionFresnel.y ) ), 0, g_vReflectionFresnel.z );
+			}
+			// Single-pass preview of Diesel's separate reflection pass. Preserve the
+			// original opacity and use diffuse alpha as reflection weight/mip control.
+			m.Emission += environment * mask * fresnel;
+		}
 		m.Roughness = g_flRoughness;
 		m.Metalness = 0;
 		m.AmbientOcclusion = 1;

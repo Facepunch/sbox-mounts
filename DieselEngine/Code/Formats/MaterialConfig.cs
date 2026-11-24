@@ -12,6 +12,12 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public int EffectBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "BLEND_ADD" ) ? 1 : Template.Split( ':' ).Contains( "BLEND_MUL" ) ? 2 : 0;
 	public int DetailBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_ADD" ) ? 1 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_MUL" ) ? 2 : 0;
 	public string Detail { get; init; }
+	public string Reflection { get; init; }
+	public bool GlobalReflection { get; init; }
+	public bool CubeReflection => !Effect && !Backdrop && Template.Split( ':' ).Contains( "CUBE_ENVIRONMENT_MAPPING" );
+	public bool CubeFresnel => Template.Split( ':' ).Contains( "CUBE_FRESNEL" );
+	// bias, exponent, maximum, matching the shipped reflection-pass shader.
+	public Vector3 Fresnel { get; init; } = new( 0, 1, 1 );
 	public string BlendDiffuse { get; init; }
 	public string BlendMask { get; init; }
 	public bool BlendMaskInAlpha => Template.Split( ':' ).Contains( "BLEND_MASK_D_A" );
@@ -65,6 +71,9 @@ static class MaterialConfig
 				material.Element( "opacity_texture" )?.Attribute( "file" ), alphaRef,
 				material.Element( "bump_normal_texture" )?.Attribute( "file" ) )
 			{
+				Reflection = material.Element( "reflection_texture" )?.Attribute( "file" ),
+				GlobalReflection = material.Element( "reflection_texture" )?.Attribute( "global_texture" ) == "current_global_texture",
+				Fresnel = ReadVector( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "fresnel_settings" )?.Attribute( "value" ), new Vector3( 0, 1, 1 ) ),
 				Detail = material.Element( "detail_diffuse_texture" )?.Attribute( "file" ),
 				BlendDiffuse = material.Element( "diffuse_layer0_texture" )?.Attribute( "file" ),
 				BlendMask = material.Element( "diffuse_layer1_texture" )?.Attribute( "file" ),
@@ -103,10 +112,13 @@ static class MaterialConfig
 			&& float.IsFinite( value ) ? Math.Clamp( value, 0, 1 ) : null;
 
 	static Vector3 ReadColor( string text )
+		=> ReadVector( text, Vector3.One );
+
+	static Vector3 ReadVector( string text, Vector3 fallback )
 	{
 		var parts = text?.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
-		if ( parts?.Length != 3 ) return Vector3.One;
+		if ( parts?.Length != 3 ) return fallback;
 		float r = ReadNonnegative( parts[0], float.NaN ), g = ReadNonnegative( parts[1], float.NaN ), b = ReadNonnegative( parts[2], float.NaN );
-		return float.IsFinite( r + g + b ) ? new Vector3( r, g, b ) : Vector3.One;
+		return float.IsFinite( r + g + b ) ? new Vector3( r, g, b ) : fallback;
 	}
 }

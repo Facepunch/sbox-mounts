@@ -31,11 +31,14 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	{
 		placed = missing = 0;
 		var db = Host.Database;
-		materials = new MapMaterials( db, path );
 		lights = new MapLights( db );
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
 		var world = ScriptData.Read( db.Find( "world", path ) ?? throw new InvalidDataException( $"Missing {path}.world" ) );
+		string reflection = null;
+		try { reflection = EnvironmentReflection.Read( db, world ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY environment reflection {path}: {e.Message}" ); }
+		materials = new MapMaterials( db, path ) { GlobalReflection = reflection };
 		AddLayer( world, root );
 		string directory = path[..(path.LastIndexOf( '/' ) + 1)];
 		string continentsFile = world.Table( "world_data" )?.Text( "continents_file" );
