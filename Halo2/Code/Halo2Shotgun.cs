@@ -535,7 +535,12 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 			float frame = elapsed * 30 * Renderer.PlaybackRate;
 			while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame <= frame )
 				Animator.DispatchCue( clip.Cues[nextCue++] );
-			if ( frame >= (entering && reload ? clip.Frames : clip.Frames - 1) )
+			// The channel signals completion on the tick before it reaches the end.
+			float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
+			float framesPerTick = tick * 30 * Renderer.PlaybackRate;
+			bool finished = framesPerTick > 0 && elapsed >=
+				(System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick ) - 1) * tick;
+			if ( entering && reload ? frame >= clip.Frames : finished )
 			{
 				if ( reload && entering ) Insert();
 				else if ( !reload )
