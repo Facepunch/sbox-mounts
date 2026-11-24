@@ -102,11 +102,17 @@ public partial class Halo2ModelLoader
 		var blend = builder.AddControlParameter( "action_blend", GraphBuilder.NodeKind.Float,
 			new() { Min = 0, Max = 1, DefaultFloat = new GraphBuilder.TransitionSettings().Duration } );
 		var strength = overlay is null ? null : builder.AddControlParameter( "overlay_weight", GraphBuilder.NodeKind.Float, new() { Min = 0, Max = 1, DefaultFloat = 1 } );
+		var movement = new MovementInputs( builder, bindings );
+		var screens = new ScreenInputs( this, mapFile, builder, overlayClips );
+		var ikTargets = bindings.Ik.Select( p => p.Marker ).Distinct().Select( marker =>
+			(Marker: marker, Bone: MarkerBone( marker ), Target: builder.TargetParameter( $"ik_{marker}" )) ).ToArray();
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
 		var noBlendIn = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 1) != 0 ).Select( a => a.Key ).ToArray();
 		var duration = noBlendIn.Length == 0 ? blend : builder.Switch( builder.IdCompare( action, noBlendIn ), builder.Constant( 0f ), blend );
 		var ordered = options.OrderBy( a => DisablesBlendOut( a ) ).ToArray();
 		GraphNode output = action is null ? builder.ReferencePose() : SelectAction( ordered );
+		output = movement.Apply( builder, output, BasePose );
+		output = screens.Apply( builder, output, this, action, options );
 		if ( overlay is not null )
 		{
 			var layers = builder.Layers( output );
@@ -133,6 +139,25 @@ public partial class Halo2ModelLoader
 						BoneMask = clipMasks.TryGetValue( entry, out var mask ) ? builder.BoneMask( mask ) : null
 					} );
 				}
+			}
+			output = layers;
+		}
+		foreach ( var (marker, bone, target) in ikTargets )
+		{
+			if ( bone is null ) continue;
+			var enabled = builder.IsTargetSet( target );
+			var excluded = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 12) != 0 ).Select( a => a.Key ).ToArray();
+			if ( excluded.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( action, excluded ) ) );
+			output = builder.TwoBoneIK( output, bone, target, new() { Enabled = enabled } );
+		}
+		if ( bindings.Transitions.Count > 0 || bindings.Damage.Count > 0 )
+		{
+			var layers = builder.Layers( output );
+			foreach ( string slot in new[] { "reaction", "reaction_additive" } )
+			{
+				var input = builder.ExternalGraphSlot( slot );
+				layers.AddLayer( input, new() { Weight = builder.Switch( builder.IsExternalGraphSlotFilled( input ), 1f, 0f ),
+					BlendMode = slot == "reaction" ? GraphBuilder.LayerBlendMode.Overlay : GraphBuilder.LayerBlendMode.Additive } );
 			}
 			output = layers;
 		}

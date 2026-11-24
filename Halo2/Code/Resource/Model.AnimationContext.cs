@@ -7,9 +7,33 @@ namespace Halo2;
 public sealed record Halo2AnimationContext(
 	IReadOnlyDictionary<string, int> Actions, IReadOnlyDictionary<string, int> Overlays,
 	IReadOnlyDictionary<(string Damage, int Direction, int Region), int> Damage,
-	IReadOnlyList<Halo2Transition> Transitions, IReadOnlyList<(string Marker, string AttachTo)> Ik );
+	IReadOnlyList<Halo2Transition> Transitions, IReadOnlyList<(string Marker, string AttachTo)> Ik )
+{
+	static readonly int[] NextDirection = [1, 3, 0, 2];
+	static readonly int[] NextRegion = [2, 0, 1, 1, 3, 0, 5, 1, 7, 0, 9];
 
-public sealed record Halo2Transition( string From, string To, string Mode, string State, int Keyframe, int Clip );
+	public bool TryGetDamage( string kind, int direction, int region, out int reference )
+	{
+		reference = -1;
+		if ( (uint)direction >= NextDirection.Length || (uint)region >= NextRegion.Length ) return false;
+		for ( int d = 0; d < NextDirection.Length; d++, direction = NextDirection[direction] )
+		{
+			if ( !Damage.Keys.Any( k => k.Damage == kind && k.Direction == direction ) ) continue;
+			int checkedRegions = 0;
+			while ( (checkedRegions & (1 << region)) == 0 )
+			{
+				if ( Damage.TryGetValue( (kind, direction, region), out reference ) ) return true;
+				checkedRegions |= 1 << region;
+				region = NextRegion[region];
+			}
+			break;
+		}
+		reference = -1;
+		return false;
+	}
+}
+
+public sealed record Halo2Transition( string From, string To, string SourceState, string Mode, string State, int Keyframe, int Clip );
 public sealed record Halo2AnimationCue( int Frame, string Kind, int Index, string TagPath, string Marker, int Flags );
 public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, float Weight, int PreviousVariant,
 	int NextVariant, int PlaybackFlags, IReadOnlyList<Halo2AnimationCue> Cues );
@@ -21,6 +45,15 @@ public partial class Halo2ModelLoader
 
 	readonly Dictionary<(string, string, string), Halo2AnimationContext> contexts = new();
 	readonly Dictionary<int, Halo2ClipInfo> clipInfo = new();
+	readonly Dictionary<int, Graph> oneShots = new();
+
+	internal Graph OneShot( int reference )
+	{
+		if ( oneShots.TryGetValue( reference, out var graph ) ) return graph;
+		if ( LoadAnimationClip( reference ) is not { } clip ) return null;
+		var builder = Graph.Builder.WithSkeleton( skeleton );
+		return oneShots[reference] = builder.Create( builder.Clip( clip, new() { Looping = false } ), $"{Path}/oneshot_{reference}.ag" );
+	}
 
 	public IEnumerable<(string Mode, string WeaponClass, string WeaponType)> AnimationContexts()
 	{
@@ -64,7 +97,7 @@ public partial class Halo2ModelLoader
 			{
 				int reference = mapFile.ReadInt32( to + 16 );
 				if ( HasClip( reference ) )
-					transitions.TryAdd( (Label( from ), Label( to )), new( Label( from ), Label( to ), Label( to + 4 ),
+					transitions.TryAdd( (Label( from ), Label( to )), new( Label( from ), Label( to ), Label( from + 4 ), Label( to + 4 ),
 						Label( to + 8 ), mapFile.ReadSpan( to + 12, 1 )[0], reference ) );
 			}
 			foreach ( int row in Rows( category + 12, 8 ).Concat( Rows( mode + 12, 8 ) ) )
