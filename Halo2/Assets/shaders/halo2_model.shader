@@ -132,17 +132,25 @@ PS
 		m.Emission = any( g_vGlow ) ? g_vGlow * Tex2DS( g_tGlow, g_sSampler0, i.vTextureCoords.xy ).rgb : 0;
 		if ( g_vEnvironmentFacing.w + g_vEnvironmentGlancing.w > 0 )
 		{
-			float3 view = CalculatePositionToCameraDirWs( m.WorldPosition );
+			float3 positionWs = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
+			float3 view = CalculatePositionToCameraDirWs( positionWs );
 			float3 reflectionNormal = normal;
+			float reflectionMask = specularMask;
 			if ( g_flEnvironmentUnsignedZ )
 			{
 				// MCC default_environment_map_tangent_space expands XY and retains the sampled Z.
 				float3 ts = float3( texNormal.xy * 2.0 - 1.0, texNormal.z );
 				reflectionNormal = TransformNormal( ts, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
+
+				// lightmap_tex_four_change_color writes destination alpha for the subsequent
+				// DESTALPHA / ONE environment pass. Use the scene's diffuse probe for its lightmap.
+				float3 lightmap = saturate( AmbientLight::From( positionWs, i.vPositionSs, normal ) );
+				float lightMask = saturate( dot( lightmap, (192.0 / 255.0).xxx ) );
+				reflectionMask = saturate( 2.0 * specularMask * lightMask );
 			}
 			float grazing = 1 - saturate( dot( view, reflectionNormal ) );
 			float4 environment = lerp( g_vEnvironmentFacing, g_vEnvironmentGlancing, grazing );
-			m.Emission += TexCube( g_tEnvironment, reflect( -view, reflectionNormal ) ).rgb * environment.rgb * environment.w * specularMask;
+			m.Emission += TexCube( g_tEnvironment, reflect( -view, reflectionNormal ) ).rgb * environment.rgb * environment.w * reflectionMask;
 		}
 		m.TintMask = 0;
 		m.Transmission = 0;
