@@ -22,8 +22,11 @@ public sealed class OnosMovement : NavigationLayer
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10, float? speed = null, GameObject faceTarget = null )
 	{
+		var previousTarget = MoveTarget;
 		braking = false;
 		base.MoveTo( target, stopDistance, speed, faceTarget );
+		if ( MoveTarget != previousTarget && Agent.IsValid() && Agent.Enabled )
+			SetAcceleration( (target - Agent.AgentPosition).WithZ( 0 ).Normal, speed ?? RunSpeed );
 	}
 
 	protected override void OnDisabled()
@@ -52,9 +55,25 @@ public sealed class OnosMovement : NavigationLayer
 		base.OnUpdate();
 		if ( !Networking.IsHost || !Agent.IsValid() || Npc.IsAirborne || IsTraversingLink ) return;
 
-		var direction = Agent.WishVelocity.WithZ( 0 ).Normal;
-		float acceleration = 6.5f * Agent.MaxSpeed;
-		Agent.Acceleration = direction == Vector3.Zero ? acceleration : (direction * acceleration - Agent.Velocity.WithZ( 0 ) * 6).Length;
+		SetAcceleration( Agent.WishVelocity.WithZ( 0 ).Normal, Agent.MaxSpeed );
+	}
+
+	void SetAcceleration( Vector3 direction, float speed )
+	{
+		var velocity = Agent.Velocity.WithZ( 0 );
+		const float groundFriction = 6, groundAcceleration = 6.5f;
+		float friction = Math.Min( 1, groundFriction * Scene.FixedDelta );
+		if ( direction == Vector3.Zero || friction <= 0 )
+		{
+			Agent.Acceleration = groundAcceleration * speed;
+			return;
+		}
+		// NS2 damps the whole velocity and accelerates along the input. Express both as a
+		// velocity for the crowd to approach, limiting the forward gain on the final step.
+		float along = Vector3.Dot( velocity, direction );
+		float wishSpeed = Math.Min( speed * (groundAcceleration / groundFriction), along + (speed - along) / friction );
+		Agent.MaxSpeed = Math.Max( speed, wishSpeed );
+		Agent.Acceleration = groundFriction * (direction * Agent.MaxSpeed - velocity).Length;
 	}
 
 	void ConstrainToWorld()
