@@ -132,9 +132,24 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		Scene.Trace.Ray( ray, distance ).IgnoreGameObjectHierarchy( Holder?.GameObject ?? GameObject )
 			.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).Radius( radius ).UseHitboxes();
 
+	bool triggerConsumed;
+
+	protected override bool WantsPrimaryAttack()
+	{
+		if ( !Input.Down( "attack1" ) )
+		{
+			triggerConsumed = false;
+			return false;
+		}
+
+		if ( NextPrimaryFire > 0 || (triggerConsumed && !PrimaryAutomatic) ) return false;
+		return HasPrimaryAmmo() || Input.Pressed( "attack1" );
+	}
+
 	public override void PrimaryAttack()
 	{
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		triggerConsumed = true;
 		var ray = AimRay;
 		var spread = CurrentSpread;
 		var directions = new Vector3[Ballistics.Pellets];
