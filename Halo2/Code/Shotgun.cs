@@ -149,11 +149,13 @@ public sealed class Shotgun : Weapon
 		float travelled = 0;
 		int flying = directions.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
+		// Holstering disables the weapon, but pellets already in flight keep travelling.
+		var flight = TaskSource.Create( Scene.EnabledToken );
 		System.Collections.Generic.List<ShotEffect> impacts = null;
 		// Newly dispatched projectiles travel during the firing tick.
 		for ( bool first = true; flying > 0 && travelled < Ballistics.Range && PelletSpeed > 0; first = false )
 		{
-			if ( !first ) await Task.FixedUpdate();
+			if ( !first ) await flight.FixedUpdate();
 			if ( !IsValid ) return;
 			using var sceneScope = Scene.Push();
 			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
