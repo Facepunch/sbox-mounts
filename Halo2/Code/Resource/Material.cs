@@ -11,24 +11,36 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 {
 	static readonly Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
 
-	protected override object Load()
+	protected override object Load() => Create( mapFile, shaderTag, mapName, Path );
+
+	internal static Material Create( MapFile map, TagEntry tag, string mapName, string name )
 	{
-		var shader = new ShaderTag( mapFile, shaderTag );
+		var shader = new ShaderTag( map, tag );
+
+		Texture LoadBitmap( int index )
+		{
+			var bitmap = map.GetTag( index );
+			if ( bitmap?.PrimaryClass != "mtib" ) return null;
+			return Texture.Load( $"mount://halo2/{mapName}/{bitmap.TagPath.Replace( '\\', '/' )}.vtex" );
+		}
 
 		var diffuse = LoadBitmap( shader.DiffuseBitmapTagIndex );
 		if ( diffuse is null ) return DefaultMaterial;
 
 		if ( shader.IsEmblem )
 		{
-			var emblem = Material.Load( "materials/halo2_emblem.vmat" ).CreateCopy();
+			var emblem = Material.Create( name, "shaders/complex.shader" );
+			emblem.SetFeature( "F_TRANSLUCENT", 1 );
 			emblem.Set( "g_tColor", diffuse );
 			return emblem;
 		}
 
 		var bump = LoadBitmap( shader.BumpBitmapTagIndex );
 		var changeColor = LoadBitmap( shader.ChangeColorBitmapTagIndex );
-		var template = changeColor is null ? "materials/halo2_model.vmat" : "materials/halo2_model_cc.vmat";
-		var material = Material.Load( template ).CreateCopy();
+		// Template copies share a batch key. Each set of texture and tint bindings needs its own material.
+		var material = Material.Create( name, "shaders/halo2_model.shader" );
+		if ( changeColor is not null ) material.SetFeature( "F_CHANGE_COLOR", 1 );
+		material.Set( "g_bFogEnabled", true );
 		material.Set( "g_tBaseMap", diffuse );
 		if ( bump is not null ) material.Set( "g_tNormalMap", bump );
 		if ( changeColor is not null ) material.Set( "g_tChangeColorMap", changeColor );
@@ -47,10 +59,4 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 		return material;
 	}
 
-	Texture LoadBitmap( int index )
-	{
-		var bitmap = mapFile.GetTag( index );
-		if ( bitmap?.PrimaryClass != "mtib" ) return null;
-		return Texture.Load( $"mount://halo2/{mapName}/{bitmap.TagPath.Replace( '\\', '/' )}.vtex" );
-	}
 }

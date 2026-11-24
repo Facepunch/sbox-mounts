@@ -103,7 +103,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return builder.Create();
 	}
 
-	static bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
+	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -368,7 +368,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return colors;
 	}
 
-	static Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, string mapName, Vector3[] colors )
+	Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, string mapName, Vector3[] colors )
 	{
 		if ( shaderIndex < 0 || shaderIndex >= model.Shaders.Count )
 			return Material.Load( "materials/dev/primary_white.vmat" );
@@ -383,9 +383,9 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		try
 		{
 			var mat = Material.Load( $"mount://halo2/{mapName}/{tagPath}.vmat" );
-			if ( colors is not null && mat?.GetTexture( "g_tChangeColorMap" ) is { IsValid: true } )
+			if ( colors is { Length: > 0 } && mat?.GetFeature( "F_CHANGE_COLOR" ) == 1 )
 			{
-				mat = mat.CreateCopy();
+				mat = Halo2MaterialLoader.Create( map, shaderTag, mapName, $"{Path}/{shaderIndex}.vmat" );
 				for ( int i = 0; i < colors.Length; i++ ) mat.Set( ColorParameters[i], colors[i] );
 			}
 			return mat ?? Material.Load( "materials/dev/primary_white.vmat" );
