@@ -169,8 +169,8 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		return useDefault ? sounds.GetValueOrDefault( "default_material" ) : null;
 	}
 
-	Dictionary<string, TagEntry> meleeMaterials, casingMaterials;
-	uint casingSoundSeed = (uint)System.Random.Shared.Next();
+	Dictionary<string, TagEntry> meleeMaterials, casingMaterials, pelletMaterials;
+	uint impactSoundSeed = (uint)System.Random.Shared.Next();
 
 	void LoadImpactSounds()
 	{
@@ -182,40 +182,62 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 		int materials = Address( globals ) + 0x150;
 		int count = map.ReadInt32( materials ), rows = Block( materials );
 		var casing = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\objects\weapons\rifle\shotgun\shotgun_casing" );
-		var contacts = new Dictionary<int, TagEntry>();
-		if ( casing is not null && Reference( Address( casing ) + 0x6c ) is { PrimaryClass: "toof" } foot && map.ReadInt32( Address( foot ) ) > 10 )
-		{
-			// Action 10 selects the particle collision sound bank.
-			int bank = Block( Address( foot ) ) + 10 * 24 + 8;
-			int row = Block( bank );
-			for ( int i = 0; i < map.ReadInt32( bank ); i++, row += 24 )
-				contacts[Short( row + 20 )] = Reference( row );
-		}
+		var projectile = Reference( Block( Header + 0x2d0 ) + 0x8c );
+		casingMaterials = ReadBank( casing, 0x6c, 10 );
+		pelletMaterials = ReadBank( projectile, 0x54, 15 );
 		for ( int i = 0; i < count; i++ )
 		{
 			int row = rows + i * 0xb4;
-			if ( map.ResolveStringId( map.ReadInt32( row ) ) is not {} name ) continue;
-			meleeMaterials[name] = Reference( row + 0x60 );
-			int index = i;
-			for ( int depth = 0; (uint)index < count && depth < count; depth++ )
+			if ( map.ResolveStringId( map.ReadInt32( row ) ) is {} name ) meleeMaterials[name] = Reference( row + 0x60 );
+		}
+
+		Dictionary<string, TagEntry> ReadBank( TagEntry source, int referenceOffset, int action )
+		{
+			var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+			if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
+			int actions = Address( foot );
+			if ( map.ReadInt32( actions ) <= action ) return result;
+			int bank = Block( actions ) + action * 24 + 8;
+			int entries = map.ReadInt32( bank );
+			if ( entries == 0 ) return result;
+			var contacts = new Dictionary<int, TagEntry>();
+			int entry = Block( bank );
+			for ( int i = 0; i < entries; i++, entry += 24 ) contacts[Short( entry + 20 )] = Reference( entry );
+			for ( int i = 0; i < count; i++ )
 			{
-				if ( contacts.TryGetValue( index, out var sound ) )
+				if ( map.ResolveStringId( map.ReadInt32( rows + i * 0xb4 ) ) is not {} name ) continue;
+				int index = i;
+				for ( int depth = 0; (uint)index < count && depth < count; depth++ )
 				{
-					casingMaterials[name] = sound;
-					break;
+					if ( contacts.TryGetValue( index, out var sound ) )
+					{
+						result[name] = sound;
+						break;
+					}
+					index = Short( rows + index * 0xb4 + 8 );
 				}
-				index = Short( rows + index * 0xb4 + 8 );
 			}
+			return result;
 		}
 	}
+
+	internal SoundHandle PlayPelletImpact( Surface surface, Vector3 position )
+	{
+		LoadImpactSounds();
+		var sound = pelletMaterials is null ? null : ContactSound( pelletMaterials, surface, false );
+		return PlayImpact( sound, position );
+	}
+
+	SoundHandle PlayImpact( TagEntry sound, Vector3 position ) =>
+		sound is not null && Host.GetByPath( Host.AssetPath( map, sound.TagPath, "sound" ) ) is Halo2SoundLoader loader
+			? loader.PlayCue( position, ref impactSoundSeed ) : null;
 
 	internal SoundHandle PlayCasingImpact( Surface surface, Vector3 position, float gain )
 	{
 		if ( gain <= 0 ) return null;
 		LoadImpactSounds();
 		var sound = ContactSound( casingMaterials, surface, true );
-		if ( sound is null || Host.GetByPath( Host.AssetPath( map, sound.TagPath, "sound" ) ) is not Halo2SoundLoader loader ) return null;
-		var handle = loader.PlayCue( position, ref casingSoundSeed );
+		var handle = PlayImpact( sound, position );
 		if ( handle.IsValid() ) handle.Volume *= gain;
 		return handle;
 	}
