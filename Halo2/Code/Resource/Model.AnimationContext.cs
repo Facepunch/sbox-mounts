@@ -40,10 +40,12 @@ public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, floa
 
 public partial class Halo2ModelLoader
 {
-	internal void PlaySoundCue( string tagPath, Vector3 position, ref uint seed )
+	internal void PlaySoundCue( string tagPath, Vector3 position, ref uint seed, GameObject owner )
 	{
-		if ( Host.GetByPath( Host.AssetPath( mapFile, tagPath, "sound" ) ) is Halo2SoundLoader loader )
-			loader.PlayCue( position, ref seed );
+		// A playing graph can survive the mount that originally loaded its model.
+		var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent ) as Halo2Mount;
+		if ( mount?.GetByPath( mount.AssetPath( mapFile, tagPath, "sound" ) ) is Halo2SoundLoader loader )
+			loader.PlayCue( position, ref seed, owner );
 	}
 
 	public static Halo2ModelLoader ForModel( Model model ) => model is null ? null :

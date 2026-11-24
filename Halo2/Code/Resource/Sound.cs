@@ -53,7 +53,7 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 		}
 	}
 
-	internal SoundHandle PlayCue( Vector3 position, ref uint seed )
+	internal SoundHandle PlayCue( Vector3 position, ref uint seed, GameObject owner = null )
 	{
 		var sound = GameResource.Load<SoundEvent>( Path );
 		if ( !sound.IsValid() ) return null;
@@ -61,7 +61,7 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 		const float scale = 1f / 65535;
 		float db = settings.GainDb + settings.VarianceDb * (BlamRandom.Next( ref seed ) * scale);
 		double cents = settings.LowCents + (settings.HighCents - settings.LowCents) * (BlamRandom.Next( ref seed ) * (double)scale);
-		var handle = Sound.Play( sound, position );
+		var handle = owner.IsValid() ? owner.PlaySound( sound ) : Sound.Play( sound, position );
 		if ( handle.IsValid() )
 		{
 			handle.Volume = Volume( db );

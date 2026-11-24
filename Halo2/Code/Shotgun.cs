@@ -593,7 +593,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsed / tick ), lastTick );
 		float frame = sampleTick * framesPerTick;
 		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
-			Animator.DispatchCue( clip.Cues[nextCue++] );
+			Animator.DispatchCue( clip.Cues[nextCue++], GameObject );
 		if ( sampleTick >= lastTick )
 		{
 			if ( enterReload ) Insert();
