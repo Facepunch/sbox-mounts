@@ -5,8 +5,6 @@ namespace Halo2;
 public partial class ShotgunModel
 {
 	ParticleEffect softSmoke, trailingSmoke;
-	double smokeStart;
-	int smokeTick;
 	CurveRange smokeRadius, smokeAlpha;
 	bool viewSmoke;
 
@@ -44,24 +42,9 @@ public partial class ShotgunModel
 	void EmitSoftSmoke()
 	{
 		if ( !softSmoke.IsValid() ) return;
-		smokeTick = 1;
-		smokeStart = Time.NowDouble;
 		float random = BlamRandom.Next( ref seed ) / 65535f;
 		int count = (int)(viewSmoke ? 5 + 2 * random : 10 + 5 * random);
 		for ( int i = 0; i < count; i++ ) softSmoke.Emit( softSmoke.WorldPosition, 0 );
-	}
-
-	void EmitTrailingSmoke()
-	{
-		if ( smokeTick == 0 || !trailingSmoke.IsValid() ) return;
-		int due = Math.Min( 12, (int)((Time.NowDouble - smokeStart) * 30) );
-		var emitter = (Weapon?.WeaponModel as ShotgunModel)?.trailingSmoke;
-		while ( smokeTick <= due )
-		{
-			if ( emitter.IsValid() ) emitter.Emit( emitter.WorldPosition, 0 );
-			smokeTick++;
-		}
-		if ( smokeTick > 12 ) smokeTick = 0;
 	}
 
 	void StartTrailingSmoke( Particle p )

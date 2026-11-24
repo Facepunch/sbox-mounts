@@ -26,7 +26,8 @@ public partial class ShotgunModel : BaseWeaponModel
 	public override void OnReloadCancel() => LocalView?.OnReloadCancel();
 
 	ParticleEffect casings;
-	TimeUntil? ejectAt;
+	double shotStart;
+	int nextParticleTick;
 	bool viewCasing;
 	uint seed = (uint)Random.Shared.Next();
 
@@ -294,6 +295,12 @@ public partial class ShotgunModel : BaseWeaponModel
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
 		LocalView?.PlayFireAnimation();
+		shotStart = Time.NowDouble;
+		nextParticleTick = 1;
+	}
+
+	void EmitMuzzleParticles()
+	{
 		if ( muzzleFlash.IsValid() )
 		{
 			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
@@ -304,7 +311,6 @@ public partial class ShotgunModel : BaseWeaponModel
 		if ( fierySmoke.IsValid() ) fierySmoke.Emit( fierySmoke.WorldPosition, 0 );
 		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
 		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
-		ejectAt = (TimeUntil)(13f / 30f);
 	}
 
 	protected override void OnUpdate()
@@ -314,12 +320,19 @@ public partial class ShotgunModel : BaseWeaponModel
 			GameObject.Destroy();
 			return;
 		}
-		EmitTrailingSmoke();
-		if ( ejectAt is {} due && due <= 0 )
+		if ( nextParticleTick == 0 ) return;
+		int due = Math.Min( 14, (int)((Time.NowDouble - shotStart) * 30) );
+		if ( nextParticleTick > due ) return;
+		var model = Weapon.WeaponModel as ShotgunModel;
+		// Each emitter accumulates its rate over the elapsed part of its event.
+		// At 30 Hz this gives one flash tick, twelve smoke ticks, then the casing.
+		while ( nextParticleTick <= due )
 		{
-			ejectAt = null;
-			// The delayed effect selects its camera-specific emitter when the casing is born.
-			(Weapon?.WeaponModel as ShotgunModel)?.EjectCasing();
+			if ( nextParticleTick == 1 ) model?.EmitMuzzleParticles();
+			else if ( nextParticleTick == 14 ) model?.EjectCasing();
+			else if ( model?.trailingSmoke is {} smoke && smoke.IsValid() ) smoke.Emit( smoke.WorldPosition, 0 );
+			nextParticleTick++;
 		}
+		if ( nextParticleTick > 14 ) nextParticleTick = 0;
 	}
 }
