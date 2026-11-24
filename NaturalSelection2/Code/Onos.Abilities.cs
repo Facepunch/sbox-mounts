@@ -155,7 +155,7 @@ public sealed partial class Onos
 			if ( body.IsValid() && body.MotionEnabled )
 			{
 				var push = (CalculateAimPoint( enemy ) - WorldPosition).Normal;
-				body.Velocity += velocity * 1.2f + push * (10 * Scale) + Vector3.Up * (6.5f * Scale * (1 - body.PhysicsBody.Mass / 1000));
+				body.Velocity = velocity * 1.2f + (push - velocity.Normal).WithZ( 0 ) * (10 * Scale) + Vector3.Up * (6.5f * Scale * (1 - body.PhysicsBody.Mass / 1000));
 			}
 			DealDamage( victim, 12, point, "charge" );
 			PlayCue( "charge_hit_marine" );

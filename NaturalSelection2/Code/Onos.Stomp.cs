@@ -44,6 +44,7 @@ public sealed partial class Onos
 		nextPulse = 0.1f;
 		if ( !floor.Hit ) return;
 		var center = floor.EndPosition;
+		ShowStompCrack( center, waveDirection );
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, 2.2f * Scale ) ) )
 		{
 			if ( obj.GetComponentInParent<IDamageable>() is not Component victim || waveVictims.Contains( victim ) ||
@@ -59,6 +60,28 @@ public sealed partial class Onos
 		}
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowStompCrack( Vector3 position, Vector3 direction )
+	{
+		if ( !Graphics.IsAvailable ) return;
+		var definition = GameResource.Load<DecalDefinition>( "mount://ns2/ns2/cinematics/vfx_materials/decals/shockwave_crack.material.vmat/projected.decal" );
+		if ( definition?.ColorTexture is null ) return;
+
+		var crack = new GameObject( false, "Stomp crack" )
+		{
+			NetworkMode = NetworkMode.Never,
+			WorldPosition = position,
+			WorldRotation = Rotation.LookAt( Vector3.Down, direction )
+		};
+		var decal = crack.AddComponent<Decal>();
+		decal.Decals.Add( definition );
+		decal.Size = 2.7f * Scale;
+		decal.Rotation = Random.Shared.Next( 2 ) * 180;
+		decal.LifeTime = 6;
+		decal.Transient = true;
+		crack.AddComponent<TemporaryEffect>();
+		crack.Enabled = true;
+	}
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WebPlayer( PlayerController player )
 	{
