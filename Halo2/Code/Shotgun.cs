@@ -194,7 +194,7 @@ public sealed class Shotgun : Weapon
 
 	public override void DrawCrosshair( Painter painter, Vector2 center )
 	{
-		if ( reticle is null ) BindHudTextures();
+		if ( !reticle.IsValid() ) BindHudTextures();
 		if ( !reticle.IsValid() || reticle.IsError ) return;
 		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
 		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
@@ -206,22 +206,22 @@ public sealed class Shotgun : Weapon
 		var bounds = new Rect( center - Vector2.One * (registration * scale), Vector2.One * (size * scale) );
 		var tint = ReticleTint( out bool weakSpot );
 		var texture = reticle;
-		if ( split )
-		{
-			splitReticle ??= ReticlePage( ShotgunLoader.SplitReticleName );
-			texture = splitReticle;
-		}
+		if ( split ) texture = ReticlePage( ref splitReticle, ShotgunLoader.SplitReticleName );
 		if ( weakSpot )
 		{
-			var weak = split ? (splitWeakReticle ??= ReticlePage( ShotgunLoader.SplitWeakReticleName ))
-				: (weakReticle ??= ReticlePage( ShotgunLoader.WeakReticleName ));
+			var weak = split ? ReticlePage( ref splitWeakReticle, ShotgunLoader.SplitWeakReticleName )
+				: ReticlePage( ref weakReticle, ShotgunLoader.WeakReticleName );
 			if ( weak.IsValid() && !weak.IsError ) texture = weak;
 		}
 		if ( texture.IsValid() && !texture.IsError ) painter.Texture( texture, bounds, tint );
 	}
 
-	static Texture ReticlePage( string name ) =>
-		Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{name}" );
+	static Texture ReticlePage( ref Texture texture, string name )
+	{
+		if ( !texture.IsValid() )
+			texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{name}" );
+		return texture;
+	}
 
 	Color ReticleTint( out bool weakSpot )
 	{
