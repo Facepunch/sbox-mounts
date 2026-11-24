@@ -228,7 +228,10 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	TimeSince elapsed;
 	int nextCue;
 	bool reload, empty, entering;
-	float stride, movementWeight;
+	Halo2ClipInfo movingClip;
+	float movementFrame;
+	bool moving;
+	int movementDelay;
 	float? previousYaw;
 	float yawDelta, turn, turnVelocity;
 	float offsetForward, forwardVelocity, offsetLeft, leftVelocity;
@@ -262,6 +265,11 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		if ( dt <= 0 ) return;
 		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
 		var throttle = player.UseInputControls ? Input.AnalogMove.ClampLength( 1 ) : Vector3.Zero;
+		if ( movingClip is null && Halo2ModelLoader.ForModel( Renderer.Model ) is { } loader &&
+			loader.GetAnimationContext( "any", "any", "any" )?.Overlays.TryGetValue( "moving", out var reference ) == true )
+			movingClip = loader.GetClipInfo( reference );
+		if ( movingClip is not null )
+			StepMovement( player.IsOnGround ? throttle.Length : 0, dt, movingClip.Frames, movingClip.LoopFrame );
 		StepAxis( ref offsetForward, ref forwardVelocity, throttle.x, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
 		StepAxis( ref offsetLeft, ref leftVelocity, throttle.y, dt, Weapon.MovementAcceleration, Weapon.MovementSpeed );
 		// The first-person tick consumes the preceding tick's facing delta.
@@ -270,6 +278,24 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		float yaw = player.EyeAngles.yaw;
 		yawDelta = previousYaw.HasValue ? new Angles( 0, yaw - previousYaw.Value, 0 ).Normal.yaw.DegreeToRadian() : 0;
 		previousYaw = yaw;
+	}
+
+	void StepMovement( float throttle, float dt, int frames, int loopFrame )
+	{
+		bool active = throttle > 0.1f;
+		if ( !active || !moving )
+		{
+			movementFrame = 0;
+			movementDelay = 2;
+		}
+		else if ( movementDelay > 0 ) movementDelay--;
+		else
+		{
+			movementFrame += dt * throttle.Clamp( 0.5f, 1 ) * 30f;
+			float end = frames - 0.0001f;
+			if ( movementFrame >= end ) movementFrame = loopFrame + (movementFrame - end);
+		}
+		moving = active;
 	}
 
 	internal static void StepAxis( ref float value, ref float velocity, float target, float dt, float acceleration, float maxSpeed )
@@ -363,11 +389,6 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		}
 
 		if ( Weapon.Holder is not PlayerController player ) return;
-		var speed = player.IsOnGround ? player.Velocity.WithZ( 0 ).Length : 0;
-		float response = 1 - System.MathF.Exp( -10 * Time.Delta );
-		float speedRatio = (speed / System.MathF.Max( 1, player.WalkSpeed )).Clamp( 0, 1 );
-		movementWeight += (speedRatio - movementWeight) * response;
-		stride = (stride + Time.Delta * movementWeight * (30f / 19)) % 1;
 		var p = Renderer.Animation.Parameters;
 		SelectAim( ((clip?.PlaybackFlags ?? 0) & 16) == 0, (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency ) );
 		float aimWeight = AimWeight();
@@ -375,8 +396,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		p.Set( "weapon_offset_forward", offsetForward * aimWeight );
 		p.Set( "weapon_offset_left", offsetLeft * aimWeight );
 		p.Set( "overlay", "moving" );
-		p.Set( "overlay_time", stride );
-		p.Set( "overlay_weight", movementWeight * aimWeight );
+		p.Set( "overlay_time", movingClip is { Frames: > 1 } ? (movementFrame / (movingClip.Frames - 1)).Clamp( 0, 1 ) : 0 );
+		p.Set( "overlay_weight", moving && movementDelay == 0 ? aimWeight : 0 );
 		var look = player.EyeAngles;
 		Animator.SetAim( "pitch_and_turn", turn.RadianToDegree(), -look.pitch );
 	}
