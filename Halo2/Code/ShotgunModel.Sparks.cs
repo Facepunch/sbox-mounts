@@ -67,7 +67,7 @@ public partial class ShotgunModel
 		p.Size = new Vector2( 2 * radius, (p.Rand( 1 ) < 0.5f ? -2 : 2) * height * radius );
 		if ( !Scene.Camera.IsValid() ) return;
 		var axis = p.Velocity.Normal;
-		var up = Vector3.Cross( Scene.Camera.WorldPosition - p.Position, axis );
+		var up = Vector3.Cross( Scene.Camera.View.Position - p.Position, axis );
 		if ( up.LengthSquared < 0.000001f ) up = muzzleSparks.WorldRotation.Up;
 		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
 	}

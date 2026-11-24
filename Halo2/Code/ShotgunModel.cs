@@ -111,7 +111,7 @@ public partial class ShotgunModel : BaseWeaponModel
 	{
 		if ( !Scene.Camera.IsValid() ) return;
 		var axis = flare.WorldRotation.Forward;
-		var up = Vector3.Cross( Scene.Camera.WorldPosition - flare.WorldPosition, axis );
+		var up = Vector3.Cross( Scene.Camera.View.Position - flare.WorldPosition, axis );
 		if ( up.LengthSquared < 0.000001f ) up = flare.WorldRotation.Up;
 		up = up.Normal;
 		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
