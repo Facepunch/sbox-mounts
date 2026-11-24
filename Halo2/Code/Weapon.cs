@@ -68,12 +68,27 @@ public abstract class Weapon : BaseCombatWeapon
 
 	Transform cameraAdjustment = global::Transform.Zero;
 
+	static float KickWeight( float remaining )
+	{
+		// The shotgun's fade uses 1024 byte samples of the fourth-power curve.
+		static float Sample( int index )
+		{
+			double x = index / 1023.0;
+			return (int)(255 * x * x * x * x) * (1f / 255f);
+		}
+
+		float position = remaining.Clamp( 0, 1 ) * 1023;
+		int index = (int)System.MathF.Round( position - 0.1f );
+		if ( index == 1023 ) return 1;
+		float fraction = position - (int)position;
+		return Sample( index ) * (1 - fraction) + Sample( index + 1 ) * fraction;
+	}
+
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
 		if ( kickEnds > 0 && KickDuration > 0 )
 		{
-			float t = (float)kickEnds / KickDuration;
-			float weight = t * t * t * t;
+			float weight = KickWeight( (float)kickEnds / KickDuration );
 			view.Position -= view.Rotation.Forward * (KickDistance * weight);
 			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
 		}
