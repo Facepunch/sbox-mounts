@@ -17,7 +17,7 @@ public sealed partial class Onos : BaseNpc
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose AttackPose { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation ViewRotation { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float BodyYaw { get; set; }
-	float standingYaw;
+	float standingYaw, fallSpeed;
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag, worldTag;
 	GameObject target;
@@ -49,11 +49,11 @@ public sealed partial class Onos : BaseNpc
 		capsule.Radius = radius;
 		var body = root.AddComponent<Rigidbody>();
 		body.MassOverride = 453;
-		body.MotionEnabled = false;
 		body.EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
 		agent.Height = height;
+		agent.Enabled = false;
 		var movement = root.AddComponent<OnosMovement>();
 		movement.RunSpeed = RunSpeed;
 		var senses = root.AddComponent<SensesLayer>();
@@ -72,6 +72,8 @@ public sealed partial class Onos : BaseNpc
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
+		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
+		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			world = new( model.PropGraph, model );
@@ -137,6 +139,9 @@ public sealed partial class Onos : BaseNpc
 		UpdateRumble( Animation.MoveVelocity.Length / RunSpeed );
 		if ( Networking.IsHost )
 		{
+			if ( Animation.IsGrounded && fallSpeed > 5 * Scale ) PlayCue( "land" );
+			fallSpeed = Animation.IsGrounded ? 0 : -Animation.MoveVelocity.z;
+
 			var aim = attacking && target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
 			ViewRotation = AlienAim.Turn( ViewRotation, aim, 5 );
 			var yaw = WorldRotation.Angles().yaw;
@@ -258,6 +263,11 @@ public sealed partial class Onos : BaseNpc
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
+		if ( !e.DamageInfo.Attacker.IsValid() && e.DamageInfo.Tags.Has( "fall" ) )
+		{
+			e.AcceptedDamage = 0;
+			return;
+		}
 		if ( e.AcceptedDamage <= 0 ) return;
 		sinceDamage = 0;
 		BlockDamage( e );
