@@ -78,6 +78,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		if ( bones.Count > 0 )
 			builder.AddBones( [.. bones] );
 
+		AddAttachments( mapFile, tag, builder, bones );
+
 		if ( graph is not null && bones.Count > 0 )
 			Blam.AnimationGraph.AddSequences( mapFile, graph, model, builder, ScaleFactor );
 
@@ -382,6 +384,51 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		catch
 		{
 			return Material.Load( "materials/dev/primary_white.vmat" );
+		}
+	}
+
+	static void AddAttachments( MapFile map, TagEntry tag, ModelBuilder builder, List<ModelBuilder.Bone> bones )
+	{
+		// MCC render models store named groups of 36-byte, bone-local markers.
+		int block = map.VaToOffset( (int)tag.DataVirtualAddress ) + 0x58;
+		int count = map.ReadInt32( block );
+		if ( count == 0 ) return;
+		int groups = map.VaToOffset( map.ReadInt32( block + 4 ) );
+		var names = new string[count];
+		var reserved = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		for ( int i = 0; i < count; i++ )
+		{
+			names[i] = map.ResolveStringId( map.ReadInt32( groups + i * 12 ) );
+			if ( names[i] is { Length: > 0 } name ) reserved.Add( name );
+		}
+
+		var used = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		for ( int i = 0; i < count; i++ )
+		{
+			string name = names[i];
+			if ( string.IsNullOrWhiteSpace( name ) ) continue;
+			int group = groups + i * 12;
+			int markers = map.ReadInt32( group + 4 );
+			if ( markers == 0 ) continue;
+			using var reader = map.OpenReader( map.VaToOffset( map.ReadInt32( group + 8 ) ), checked(markers * 36) );
+			int suffix = 2;
+			for ( int j = 0; j < markers; j++ )
+			{
+				reader.BaseStream.Position = j * 36 + 2;
+				int node = reader.ReadByte();
+				reader.ReadByte();
+				var position = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+				var rotation = new Rotation( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
+				if ( node != byte.MaxValue && node >= bones.Count ) continue;
+
+				string attachment = name;
+				if ( !used.Add( attachment ) )
+				{
+					do { attachment = $"{name}_{suffix++}"; }
+					while ( reserved.Contains( attachment ) || !used.Add( attachment ) );
+				}
+				builder.AddAttachment( attachment, ConvertPosition( position ), rotation, node == byte.MaxValue ? null : bones[node].Name );
+			}
 		}
 	}
 
