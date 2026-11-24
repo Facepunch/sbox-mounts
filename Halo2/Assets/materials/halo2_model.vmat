@@ -1,0 +1,12 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/halo2_model.shader"
+
+	BaseMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+}

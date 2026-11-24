@@ -1,0 +1,295 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace Halo2.Blam;
+
+/// <summary>
+/// Parses a Halo 2 MCC cache (.map) file. Handles decompression and tag index reading.
+/// References: Gravemind2401/Reclaimer - Halo2/CacheFile.cs, TagAddressTranslator.cs
+/// </summary>
+public class MapFile
+{
+	public MapHeader Header { get; }
+	public List<TagEntry> Tags { get; }
+	/// <summary>Directory containing the map, relative to the filesystem it was read from.</summary>
+	public string MapsDirectory { get; }
+
+	readonly byte[] decompressedData;
+
+	/// <summary>VA translation magic: subtract from virtual address to get file offset.</summary>
+	public int Magic { get; }
+
+	public MapFile( BaseFileSystem fs, string path )
+	{
+		MapsDirectory = Path.GetDirectoryName( path )?.Replace( '\\', '/' ) ?? "";
+
+		using var stream = MapDecompressor.Open( fs, path );
+		decompressedData = new byte[stream.Length];
+		stream.ReadExactly( decompressedData, 0, decompressedData.Length );
+
+		Header = new MapHeader( decompressedData );
+
+		// From Reclaimer TagAddressTranslator: Magic = MetadataAddressMask - IndexAddress
+		Magic = Header.MetadataAddressMask - Header.IndexOffset;
+		Tags = ReadTags();
+	}
+
+	/// <summary>
+	/// Translates a virtual address to a file offset in the decompressed data.
+	/// </summary>
+	public int VaToOffset( int va ) => va - Magic;
+
+	/// <summary>
+	/// Reads tag data at the given VA into a new BinaryReader.
+	/// </summary>
+	public BinaryReader GetTagDataReader( TagEntry tag )
+	{
+		var offset = VaToOffset( (int)tag.DataVirtualAddress );
+		var ms = new MemoryStream( decompressedData, offset, (int)tag.DataSize, writable: false );
+		return new BinaryReader( ms, Encoding.ASCII, leaveOpen: false );
+	}
+
+	/// <summary>
+	/// Reads tag metadata directly from decompressed data at a physical file offset.
+	/// Use this for TagBlock data (regions, sections, nodes, etc.), NOT for raw resource blobs.
+	/// </summary>
+	public byte[] ReadTagMetadata( int offset, int size )
+	{
+		var result = new byte[size];
+		Array.Copy( decompressedData, offset, result, 0, size );
+		return result;
+	}
+
+	/// <summary>
+	/// Gets a tag entry by array index.
+	/// </summary>
+	public TagEntry GetTag( int index )
+	{
+		if ( index < 0 || index >= Tags.Count )
+			return null;
+		return Tags[index];
+	}
+
+	/// <summary>
+	/// Finds a tag by datum ID (looks up by index portion of datum).
+	/// </summary>
+	public TagEntry GetTagByDatum( int datumId )
+	{
+		int index = datumId & 0xFFFF;
+		if ( index < 0 || index >= Tags.Count )
+			return null;
+		return Tags[index];
+	}
+
+	/// <summary>
+	/// Resolves a StringId to its string value from the string table.
+	/// </summary>
+	public string ResolveStringId( int stringId )
+	{
+		if ( stringId < 0 || stringId >= Header.StringCount )
+			return null;
+
+		int indexOff = Header.StringIndexAddress + stringId * 4;
+		int strOffset = decompressedData[indexOff]
+			| (decompressedData[indexOff + 1] << 8)
+			| (decompressedData[indexOff + 2] << 16)
+			| (decompressedData[indexOff + 3] << 24);
+
+		int addr = Header.StringTableAddress + strOffset;
+		int end = addr;
+		while ( end < decompressedData.Length && decompressedData[end] != 0 )
+			end++;
+
+		return Encoding.ASCII.GetString( decompressedData, addr, end - addr );
+	}
+
+	/// <summary>
+	/// Reads raw resource data (geometry blobs, sounds) from this map or shared maps.
+	/// Address is absolute offset in the decompressed stream (per Reclaimer DataPointer.ReadData).
+	/// <paramref name="fileSystem"/> is the one this map was read from; shared maps live beside it.
+	/// </summary>
+	public byte[] ReadRawData( BaseFileSystem fileSystem, int pointer, int size )
+	{
+		var location = (DataLocation)((pointer >> 30) & 0x3);
+		int address = pointer & 0x3FFFFFFF;
+
+		string targetPath = location switch
+		{
+			DataLocation.MainMenu => $"{MapsDirectory}/mainmenu.map",
+			DataLocation.Shared => $"{MapsDirectory}/shared.map",
+			DataLocation.SinglePlayerShared => $"{MapsDirectory}/single_player_shared.map",
+			_ => null
+		};
+
+		if ( targetPath != null )
+		{
+			// Read from external map file (shared resources)
+			using var fs = fileSystem.OpenRead( targetPath );
+			fs.Seek( address, SeekOrigin.Begin );
+			var data = new byte[size];
+			fs.ReadExactly( data, 0, size );
+			return data;
+		}
+
+		// Local data: address is absolute offset in decompressed map
+		var result = new byte[size];
+		Array.Copy( decompressedData, address, result, 0, size );
+		return result;
+	}
+
+	List<TagEntry> ReadTags()
+	{
+		int idx = Header.IndexOffset;
+		int tagClassCount = ReadInt32( idx );
+		int tagTableRelOffset = ReadInt32( idx + 8 );
+		int tagCount = ReadInt32( idx + 24 );
+		int tagTableOffset = idx + tagTableRelOffset;
+
+		var tags = new List<TagEntry>( tagCount );
+
+		for ( int i = 0; i < tagCount; i++ )
+		{
+			int off = tagTableOffset + i * 16;
+			uint classRaw = ReadUInt32( off );
+			uint datum = ReadUInt32( off + 4 );
+			uint dataVa = ReadUInt32( off + 8 );
+			uint dataSize = ReadUInt32( off + 12 );
+
+			// FourCC is stored as raw ASCII bytes
+			string primaryClass;
+			if ( classRaw == 0xFFFFFFFF || classRaw == 0 )
+			{
+				primaryClass = "";
+			}
+			else
+			{
+				var cb = new byte[4];
+				cb[0] = (byte)(classRaw & 0xFF);
+				cb[1] = (byte)((classRaw >> 8) & 0xFF);
+				cb[2] = (byte)((classRaw >> 16) & 0xFF);
+				cb[3] = (byte)((classRaw >> 24) & 0xFF);
+				primaryClass = Encoding.ASCII.GetString( cb ).TrimEnd( '\0' );
+			}
+
+			// Read tag path from file table
+			string tagPath = "";
+			if ( i < Header.TagCount && Header.FileTableAddress > 0 && Header.FileTableIndexAddress > 0 )
+			{
+				int strOffset = ReadInt32( Header.FileTableIndexAddress + i * 4 );
+				int strAddr = Header.FileTableAddress + strOffset;
+				if ( strAddr >= 0 && strAddr < decompressedData.Length )
+				{
+					int end = strAddr;
+					while ( end < decompressedData.Length && decompressedData[end] != 0 )
+						end++;
+					tagPath = Encoding.ASCII.GetString( decompressedData, strAddr, end - strAddr );
+				}
+			}
+
+			tags.Add( new TagEntry
+			{
+				PrimaryClass = primaryClass,
+				Datum = datum,
+				DataVirtualAddress = dataVa,
+				DataSize = dataSize,
+				Index = i,
+				TagPath = tagPath
+			} );
+		}
+
+		return tags;
+	}
+
+	int ReadInt32( int offset ) =>
+		decompressedData[offset]
+		| (decompressedData[offset + 1] << 8)
+		| (decompressedData[offset + 2] << 16)
+		| (decompressedData[offset + 3] << 24);
+
+	uint ReadUInt32( int offset ) => (uint)ReadInt32( offset );
+}
+
+/// <summary>
+/// Halo 2 MCC map header (896 bytes, version 13).
+/// References: Gravemind2401/Reclaimer - Halo2/CacheFile.cs
+/// </summary>
+public class MapHeader
+{
+	public int Version { get; }
+	public int FileSize { get; }
+	public int IndexOffset { get; }
+	public int IndexSize { get; }
+	public int TagCount { get; }
+	public int FileTableAddress { get; }
+	public int FileTableSize { get; }
+	public int FileTableIndexAddress { get; }
+	public int StringCount { get; }
+	public int StringTableAddress { get; }
+	public int StringTableSize { get; }
+	public int StringIndexAddress { get; }
+	public string ScenarioName { get; }
+	public string MapName { get; }
+	public int MetadataAddressMask { get; }
+	public int MetadataOffset { get; }
+	public int MetadataSize { get; }
+	public int RawTableAddress { get; }
+	public int RawTableSize { get; }
+
+	public MapHeader( byte[] data )
+	{
+		int R( int off ) => data[off] | (data[off + 1] << 8) | (data[off + 2] << 16) | (data[off + 3] << 24);
+
+		Version = R( 0x04 );
+		FileSize = R( 0x08 );
+		IndexOffset = R( 0x10 );
+		IndexSize = R( 0x14 );
+
+		// 0x20: tag count, 0x24: file table address, 0x28: file table size, 0x2C: file table index address
+		TagCount = R( 0x20 );
+		FileTableAddress = R( 0x24 );
+		FileTableSize = R( 0x28 );
+		FileTableIndexAddress = R( 0x2C );
+
+		// 0x30: string count, 0x34: string table address, 0x38: string table size, 0x3C: string index address
+		StringCount = R( 0x30 );
+		StringTableAddress = R( 0x34 );
+		StringTableSize = R( 0x38 );
+		StringIndexAddress = R( 0x3C );
+
+		// Scenario name at 0xD0 (256 chars)
+		int end = 0xD0;
+		while ( end < 0xD0 + 256 && data[end] != 0 )
+			end++;
+		ScenarioName = Encoding.ASCII.GetString( data, 0xD0, end - 0xD0 );
+		MapName = Path.GetFileNameWithoutExtension( ScenarioName );
+
+		// Metadata virtual address translation at 0x2D0
+		MetadataAddressMask = R( 0x2D0 );
+		MetadataOffset = R( 0x2D4 );
+		MetadataSize = R( 0x2D8 );
+
+		// Raw table at 0x2F0
+		RawTableAddress = R( 0x2F0 );
+		RawTableSize = R( 0x2F4 );
+	}
+}
+
+public class TagEntry
+{
+	public string PrimaryClass { get; set; }
+	public uint Datum { get; set; }
+	public uint DataVirtualAddress { get; set; }
+	public uint DataSize { get; set; }
+	public int Index { get; set; }
+	public string TagPath { get; set; } = "";
+}
+
+public enum DataLocation
+{
+	Local = 0,
+	MainMenu = 1,
+	Shared = 2,
+	SinglePlayerShared = 3
+}

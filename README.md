@@ -34,6 +34,7 @@ See the full [Mount API docs](https://sbox.game/dev/doc/game-mounts/) to learn m
 | Serious Sam HD: The First Encounter | `ss_hd_tfe` | Serious Engine 3 | ✅ | ✅ | ❌ | ⚠️ | ✅ | ✅ | |
 | Serious Sam HD: The Second Encounter | `ss_hd_tse` | Serious Engine 3 | ✅ | ✅ | ❌ | ⚠️ | ✅ | ✅ | |
 | Natural Selection 2 | `ns2` | Spark | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Skyboxes |
+| Halo 2 (MCC) | `halo2` | Blam | ❌ | ✅ | ❌ | ✅ | ✅ | ❌ | Model collision and ragdolls |
 
 Notes:
 

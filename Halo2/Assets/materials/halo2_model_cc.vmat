@@ -1,0 +1,16 @@
+// THIS FILE IS AUTO-GENERATED
+
+Layer0
+{
+	shader "shaders/halo2_model.shader"
+
+	//---- Change Color Map ----
+	F_CHANGE_COLOR 1
+
+	BaseMap "materials/default/default_color.tga"
+	NormalMap "materials/default/default_normal.tga"
+	ChangeColorMap "materials/default/default.tga"
+
+	//---- Fog ----
+	g_bFogEnabled "1"
+}
