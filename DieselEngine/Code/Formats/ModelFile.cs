@@ -13,7 +13,8 @@ sealed class ModelFile
 	readonly Dictionary<uint, Node> nodes = [];
 	readonly Dictionary<uint, NumericsMatrix> transforms = [];
 
-	public record Geometry( ulong Name, Vector3[] Positions, Vector2[] UVs, int[] Indices );
+	public record Draw( ulong Material, int Start, int Count );
+	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws );
 
 	public ModelFile( byte[] bytes )
 	{
@@ -91,15 +92,32 @@ sealed class ModelFile
 			var topo = Get( data.UInt( gp.Start + 4 ), 0x4c507a13 );
 			int atoms = data.Int( p + 12 );
 			CheckSection( section, p + 16, (long)atoms * 20 );
+			int groupOffset = checked(p + 16 + atoms * 20);
+			CheckSection( section, groupOffset, 4 );
+			var group = Get( data.UInt( groupOffset ), 0x29276b1d );
+			int materialCount = data.Int( group.Start );
+			CheckSection( group, group.Start + 4, (long)materialCount * 4 );
+			var materials = new ulong[materialCount];
+			for ( int m = 0; m < materialCount; m++ )
+			{
+				var material = Get( data.UInt( group.Start + 4 + m * 4 ), 0x3c54609c );
+				CheckSection( material, material.Start, 8 );
+				materials[m] = data.ULong( material.Start );
+			}
 			int vertices = data.Int( geo.Start ), channels = data.Int( geo.Start + 4 );
 			CheckSection( geo, geo.Start + 8, (long)channels * 8 );
 			if ( vertices < 0 || vertices > geo.Size / 4 ) throw new InvalidDataException( "Invalid vertex count." );
 			var positions = new Vector3[vertices];
+			var normals = new Vector3[vertices];
+			var colors = new Vector4[vertices];
+			Array.Fill( colors, Vector4.One );
 			var uvs = new Vector2[vertices];
 			bool hasPositions = false;
 			int channelData = checked(geo.Start + 8 + channels * 8);
 			int[] sizes = [0, 4, 8, 12, 16, 4, 4, 8, 12];
 			var transform = World( id, [] ) * inverseRoot;
+			if ( !NumericsMatrix.Invert( transform, out var inverse ) ) throw new InvalidDataException( "Singular Diesel mesh transform." );
+			var normalTransform = NumericsMatrix.Transpose( inverse );
 			for ( int c = 0; c < channels; c++ )
 			{
 				int format = data.Int( geo.Start + 8 + c * 8 ), semantic = data.Int( geo.Start + 12 + c * 8 );
@@ -117,15 +135,35 @@ sealed class ModelFile
 						positions[v] = Coordinates.Position( new Vector3( pos.X, pos.Y, pos.Z ) );
 					}
 				}
+				else if ( semantic == 2 && format == 3 )
+				{
+					for ( int v = 0; v < vertices; v++ )
+					{
+						int q = channelData + v * size;
+						var normal = Vec.TransformNormal( new Vec( data.Float( q ), data.Float( q + 4 ), data.Float( q + 8 ) ), normalTransform );
+						normals[v] = new Vector3( normal.Y, -normal.X, normal.Z ).Normal;
+					}
+				}
+				else if ( semantic == 5 && format == 5 )
+				{
+					// D3DCOLOR stores bytes in BGRA order.
+					for ( int v = 0; v < vertices; v++ )
+					{
+						uint color = data.UInt( channelData + v * size );
+						colors[v] = new Vector4( (color >> 16) & 255, (color >> 8) & 255, color & 255, color >> 24 ) / 255f;
+					}
+				}
 				else if ( semantic == 7 && format == 2 )
 					for ( int v = 0; v < vertices; v++ )
-						uvs[v] = new( data.Float( channelData + v * size ), 1 - data.Float( channelData + v * size + 4 ) );
+						// Both Diesel DDS sampling and s&box use top-left texture coordinates.
+						uvs[v] = new( data.Float( channelData + v * size ), data.Float( channelData + v * size + 4 ) );
 				channelData = checked(channelData + vertices * size);
 			}
 			if ( !hasPositions ) throw new InvalidDataException( "Diesel geometry has no positions." );
 			int indexCount = data.Int( topo.Start + 4 );
 			CheckSection( topo, topo.Start + 8, (long)indexCount * 2 );
 			var indices = new List<int>();
+			var draws = new List<Draw>();
 			for ( int a = 0; a < atoms; a++ )
 			{
 				int q = p + 16 + a * 20;
@@ -142,6 +180,9 @@ sealed class ModelFile
 				}
 				// PD:TH commonly stores absolute indices; some meshes use atom-relative indices.
 				int vertexOffset = !absolute && local ? baseVertex : 0;
+				int materialIndex = data.Int( q + 16 );
+				if ( (uint)materialIndex >= materials.Length ) throw new InvalidDataException( "Invalid Diesel material index." );
+				draws.Add( new( materials[materialIndex], indices.Count, checked(triangles * 3) ) );
 				for ( int i = baseIndex; i < end; i++ )
 				{
 					int vertex = checked(vertexOffset + data.UShort( topo.Start + 8 + i * 2 ));
@@ -149,7 +190,7 @@ sealed class ModelFile
 					indices.Add( vertex );
 				}
 			}
-			yield return new( node.Name, positions, uvs, indices.ToArray() );
+			yield return new( node.Name, positions, normals, colors, uvs, indices.ToArray(), draws.ToArray() );
 		}
 	}
 }

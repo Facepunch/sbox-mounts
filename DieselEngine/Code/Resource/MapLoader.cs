@@ -15,15 +15,21 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		"l4d" => "No Mercy",
 		_ => path
 	};
-	readonly Dictionary<string, Model> models = new( StringComparer.Ordinal );
+	readonly Dictionary<string, UnitModel.Result> models = new( StringComparer.Ordinal );
+	MapMaterials materials;
 	int placed, missing;
 
-	protected override void OnSceneUnloaded() => models.Clear();
+	protected override void OnSceneUnloaded()
+	{
+		models.Clear();
+		materials = null;
+	}
 
 	protected override void BuildScene()
 	{
 		placed = missing = 0;
 		var db = Host.Database;
+		materials = new MapMaterials( db, path );
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
 		var world = ScriptData.Read( db.Find( "world", path ) ?? throw new InvalidDataException( $"Missing {path}.world" ) );
@@ -47,7 +53,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		var sun = new GameObject( true, "Preview lighting" ) { Parent = root, WorldRotation = Rotation.From( 55, 30, 0 ) };
 		sun.AddComponent<DirectionalLight>().LightColor = Color.White * 0.7f;
 		sun.AddComponent<AmbientLight>().Color = Color.White * 0.3f;
-		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique units." );
+		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique units; {materials.TextureCount} textures." );
 	}
 
 	void AddLayer( ScriptTable layer, GameObject parent )
@@ -60,7 +66,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				if ( unit?.Text( "name" ) is not string name ) continue;
 				if ( !models.TryGetValue( name, out var model ) )
 				{
-					try { model = UnitModel.Build( Host.Database, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}.vmdl" ); }
+					try { model = UnitModel.Build( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}.vmdl" ); }
 					catch ( Exception e )
 					{
 						Log.Warning( $"PAYDAY: unable to import {name}: {e.Message}" );
@@ -68,11 +74,12 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					models[name] = model;
 				}
 				if ( model is null ) { missing++; continue; }
+				if ( model.Model is null ) continue;
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
-				go.AddComponent<ModelRenderer>().Model = model;
-				go.AddComponent<ModelCollider>().Model = model;
+				if ( model.HasGraphics ) go.AddComponent<ModelRenderer>().Model = model.Model;
+				if ( model.HasCollision ) go.AddComponent<ModelCollider>().Model = model.Model;
 				placed++;
 			}
 		}

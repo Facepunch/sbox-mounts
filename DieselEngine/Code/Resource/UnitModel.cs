@@ -4,37 +4,34 @@ namespace Diesel;
 
 static class UnitModel
 {
+	public sealed record Result( Model Model, bool HasGraphics, bool HasCollision )
+	{
+		public static Result Empty { get; } = new( null, false, false );
+	}
 	public static XmlNode Xml( byte[] bytes ) => XmlNode.Parse( Encoding.UTF8.GetString( bytes ).TrimEnd( '\0' ) );
 
-	public static Model Build( BundleDatabase database, string unit, string resourceName )
+	public static Result Build( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
-		string objectPath = (string)Xml( unitBytes ).Element( "object" )?.Attribute( "file" );
+		var definition = Xml( unitBytes );
+		string objectPath = definition.Element( "object" )?.Attribute( "file" );
 		if ( string.IsNullOrEmpty( objectPath ) ) return null;
 		var objectBytes = database.Find( "object", objectPath );
-		var modelBytes = database.Find( "model", objectPath );
-		if ( objectBytes is null || modelBytes is null ) return null;
+		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
-		var graphics = new HashSet<ulong>();
-		var collision = new HashSet<ulong>();
-		foreach ( var element in obj.Element( "graphics" )?.Elements( "object" ) ?? [] )
-			if ( (string)element.Attribute( "enabled" ) != "false" && (string)element.Attribute( "name" ) is string name )
-				graphics.Add( IdString.Hash( name ) );
-		foreach ( var body in obj.Element( "bodies" )?.Elements( "body" ) ?? [] )
-		{
-			if ( (string)body.Attribute( "enabled" ) == "false" || (string)body.Attribute( "template" ) == "nav_walk" ) continue;
-			foreach ( var element in body.Elements( "object" ) )
-				if ( element.Attribute( "collision_type" ) is not null && (string)element.Attribute( "enabled" ) != "false"
-					&& (string)element.Attribute( "name" ) is string name )
-					collision.Add( IdString.Hash( name ) );
-		}
+		var geometry = UnitGeometry.Read( definition, obj );
+		var graphics = geometry.Graphics;
+		var collision = geometry.Collision;
 		var selected = new HashSet<ulong>( graphics );
 		selected.UnionWith( collision );
-		if ( selected.Count == 0 ) return null;
+		if ( selected.Count == 0 ) return Result.Empty;
+		var modelBytes = database.Find( "model", objectPath );
+		if ( modelBytes is null ) return null;
 		string orientation = (string)obj.Element( "diesel" )?.Attribute( "orientation_object" );
+		string materialConfig = obj.Element( "diesel" )?.Attribute( "materials" );
 		var file = new ModelFile( modelBytes );
-		var vertices = new List<Vertex>();
+		var batches = new Dictionary<Material, List<Vertex>>();
 		var collisionVertices = new List<Vector3>();
 		var collisionIndices = new List<int>();
 		foreach ( var part in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
@@ -46,27 +43,40 @@ static class UnitModel
 				collisionIndices.AddRange( part.Indices.Select( i => i + start ) );
 			}
 			if ( !graphics.Contains( part.Name ) ) continue;
-			for ( int i = 0; i < part.Indices.Length; i += 3 )
+			foreach ( var draw in part.Draws )
 			{
-				var a = part.Positions[part.Indices[i]];
-				var b = part.Positions[part.Indices[i + 1]];
-				var c = part.Positions[part.Indices[i + 2]];
-				var normal = Vector3.Cross( b - a, c - a ).Normal;
-				var tangent = (b - a).Normal;
-				for ( int j = 0; j < 3; j++ )
+				if ( draw.Count == 0 ) continue;
+				var material = materials.Resolve( materialConfig, draw.Material );
+				if ( material is null ) continue;
+				if ( !batches.TryGetValue( material, out var vertices ) ) batches[material] = vertices = [];
+				for ( int i = draw.Start; i < draw.Start + draw.Count; i += 3 )
 				{
-					int index = part.Indices[i + j];
-					vertices.Add( new Vertex( part.Positions[index], normal, tangent, part.UVs[index] ) );
+					int ia = part.Indices[i], ib = part.Indices[i + 1], ic = part.Indices[i + 2];
+					var a = part.Positions[ia];
+					var b = part.Positions[ib];
+					var c = part.Positions[ic];
+					var faceNormal = Vector3.Cross( b - a, c - a ).Normal;
+					var uv1 = part.UVs[ib] - part.UVs[ia];
+					var uv2 = part.UVs[ic] - part.UVs[ia];
+					float determinant = uv1.x * uv2.y - uv1.y * uv2.x;
+					var tangent = MathF.Abs( determinant ) > 0.000001f ? ((b - a) * uv2.y - (c - a) * uv1.y) / determinant : b - a;
+					for ( int j = 0; j < 3; j++ )
+					{
+						int index = part.Indices[i + j];
+						var normal = part.Normals[index].LengthSquared > 0.01f ? part.Normals[index] : faceNormal;
+						var vertexTangent = (tangent - normal * Vector3.Dot( normal, tangent )).Normal;
+						var vertex = new Vertex( part.Positions[index], normal, vertexTangent, part.UVs[index] );
+						var color = part.Colors[index];
+						vertex.Color = new Color( color.x, color.y, color.z, color.w );
+						vertices.Add( vertex );
+					}
 				}
 			}
 		}
-		if ( vertices.Count == 0 && collisionIndices.Count == 0 ) return null;
+		if ( batches.Count == 0 && collisionIndices.Count == 0 ) return Result.Empty;
 		var builder = Model.Builder.WithName( resourceName );
-		if ( vertices.Count > 0 )
+		foreach ( var (material, vertices) in batches )
 		{
-			var material = Material.Create( $"{resourceName}/preview", "simple_color" );
-			material.Set( "g_tColor", Texture.White );
-			material.Set( "g_vColorTint", new Vector4( 0.55f, 0.58f, 0.62f, 1 ) );
 			var mesh = new Mesh( material );
 			mesh.CreateVertexBuffer( vertices.Count, vertices );
 			mesh.CreateIndexBuffer( vertices.Count, Enumerable.Range( 0, vertices.Count ).ToArray() );
@@ -74,6 +84,6 @@ static class UnitModel
 			builder.AddMesh( mesh );
 		}
 		if ( collisionIndices.Count > 0 ) builder.AddCollisionMesh( collisionVertices.ToArray(), collisionIndices.ToArray() );
-		return builder.Create();
+		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 );
 	}
 }
