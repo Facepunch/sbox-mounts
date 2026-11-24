@@ -13,6 +13,7 @@ public sealed class Shotgun : Weapon
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AirGravityScale { get; set; }
 	[Property] public float WaterGravityScale { get; set; } = 0.2f;
+	[Property] public float VerticalAimOffset { get; set; } = 0.165f;
 	[Property] public float AutoAimRange { get; set; } = 720;
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float DamageFalloffRange { get; set; } = 960;
@@ -317,6 +318,34 @@ public sealed class Shotgun : Weapon
 		}
 	}
 
+	// MCC projects the authored observer offset through the safe camera rectangle.
+	// Preserve the player's selected lens and rotate the view so the aim ray meets that pixel.
+	float reticleOffsetY;
+	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
+	{
+		reticleOffsetY = 0;
+		var viewport = camera.Viewport;
+		var size = camera.ScreenRect.Size;
+		if ( Owner is { ThirdPerson: false } && !camera.Orthographic && size.x > 0 && size.y > 0 && viewport.w > 0 )
+		{
+			float aspect = size.x / size.y;
+			float vertical = System.MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
+			if ( camera.FovAxis == CameraComponent.Axis.Horizontal ) vertical /= aspect;
+			float horizontal = vertical * System.MathF.Min( aspect, 16f / 9f );
+			const float mccAngleScale = 0.895f;
+			float observer = System.MathF.Tan( System.MathF.Atan( horizontal * 0.75f ) * mccAngleScale );
+			float projection = System.MathF.Tan( System.MathF.Atan( vertical ) * mccAngleScale );
+			float top = (viewport.y == 0 ? 36f : 4f) / (480 * viewport.w);
+			float bottom = (viewport.y + viewport.w >= 1 ? 36f : 4f) / (480 * viewport.w);
+			if ( projection > 0 )
+			{
+				reticleOffsetY = 0.5f * (top - bottom + (1 - top - bottom) * VerticalAimOffset * observer / projection);
+				view.Rotation *= Rotation.FromPitch( -System.MathF.Atan( 2 * reticleOffsetY * vertical ).RadianToDegree() );
+			}
+		}
+		base.ModifyCamera( camera, ref view );
+	}
+
 	public override void DrawCrosshair( Painter painter, Vector2 center )
 	{
 		if ( !reticle.IsValid() ) BindHudTextures();
@@ -328,6 +357,8 @@ public sealed class Shotgun : Weapon
 		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
 		float size = split ? 28 : 55;
 		float registration = System.MathF.Floor( size * 0.5f );
+		if ( Owner is { ThirdPerson: false } )
+			center.y = System.MathF.Floor( center.y + painter.Bounds.Height * reticleOffsetY + 0.5f );
 		var bounds = new Rect( center - Vector2.One * (registration * scale), Vector2.One * (size * scale) );
 		var tint = ReticleTint( out bool weakSpot );
 		var texture = reticle;
