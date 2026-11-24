@@ -149,6 +149,7 @@ internal static class AnimationGraph
 					int a = values + (first + k) * sampleSize;
 					int b = keyed && k + 1 < samples ? a + sampleSize : a;
 					bool interpolate = b != a;
+					float inverseSpan = interpolate ? KeyIntervalReciprocal( next - current ) : 0;
 					int destination = frame * stride + bone;
 					switch ( channel )
 					{
@@ -165,7 +166,7 @@ internal static class AnimationGraph
 								}
 
 								// The codec interpolates the stored quaternion components before normalization.
-								float t = (float)(frame - current) / (next - current);
+								float t = (frame - current) * inverseSpan;
 								poses[destination].Rotation = new Rotation( q.x + (r.x - q.x) * t, q.y + (r.y - q.y) * t,
 									q.z + (r.z - q.z) * t, q.w + (r.w - q.w) * t ).Normal;
 							}
@@ -175,14 +176,14 @@ internal static class AnimationGraph
 							var v = interpolate ? ReadVector( data, b ) : u;
 							for ( ; frame < end; frame++, destination += stride )
 								poses[destination].Position = (interpolate && frame > current
-									? Vector3.Lerp( u, v, (float)(frame - current) / (next - current) ) : u) * scale;
+									? Vector3.Lerp( u, v, (frame - current) * inverseSpan ) : u) * scale;
 							break;
 						case 2:
 							var value = F32( data, a );
 							var difference = interpolate ? F32( data, b ) - value : 0;
 							for ( ; frame < end; frame++, destination += stride )
 								poses[destination].Scale = Vector3.One * (interpolate && frame > current
-									? value + difference * ((float)(frame - current) / (next - current)) : value);
+									? value + difference * ((frame - current) * inverseSpan) : value);
 							break;
 					}
 				}
@@ -202,6 +203,13 @@ internal static class AnimationGraph
 
 	static Vector3 ReadVector( ReadOnlySpan<byte> bytes, int i ) => new( F32( bytes, i ),
 		F32( bytes, i + 4 ), F32( bytes, i + 8 ) );
+
+	// MCC's sparse codecs refine this reciprocal estimate once. Its rounding is visible on long key intervals.
+	static float KeyIntervalReciprocal( float interval )
+	{
+		float estimate = BitConverter.Int32BitsToSingle( 0x7f000000 - BitConverter.SingleToInt32Bits( interval ) );
+		return estimate * (2f - interval * estimate);
+	}
 
 	static Rotation ReadRotation( ReadOnlySpan<byte> bytes, int i, bool floats ) => floats
 		? new Rotation( F32( bytes, i ), F32( bytes, i + 4 ),
