@@ -15,6 +15,10 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public bool SelfIlluminated => Template.Split( ':' ).Contains( "SELF_ILLUMINATION" );
 	public string Emission { get; init; }
 	public string EmissionMultiplier { get; init; }
+	public Vector2 UVSpeed { get; init; }
+	public Vector2 DiffuseScroll => Template.Split( ':' ).Contains( "DIFFUSE_UVANIM" ) ? UVSpeed : Vector2.Zero;
+	public Vector2 NormalScroll => Template.Split( ':' ).Contains( "NORMAL_UVANIM" ) ? UVSpeed : Vector2.Zero;
+	public Vector2 EmissionScroll => Template.Split( ':' ).Contains( "SELF_ILLUMINATION_UVANIM" ) ? UVSpeed : Vector2.Zero;
 }
 
 static class MaterialConfig
@@ -35,9 +39,22 @@ static class MaterialConfig
 				material.Element( "bump_normal_texture" )?.Attribute( "file" ) )
 			{
 				Emission = material.Element( "self_illumination_texture" )?.Attribute( "file" ),
-				EmissionMultiplier = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "il_multiplier" )?.Attribute( "value" )
+				EmissionMultiplier = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "il_multiplier" )?.Attribute( "value" ),
+				UVSpeed = ReadScroll( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "uv_speed" )?.Attribute( "value" ) )
 			};
 		}
 		return result;
+	}
+
+	static Vector2 ReadScroll( string value )
+	{
+		if ( string.IsNullOrWhiteSpace( value ) ) return Vector2.Zero;
+		var parts = value.Split( (char[])null, StringSplitOptions.RemoveEmptyEntries );
+		if ( parts.Length != 3
+			|| !float.TryParse( parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out float u )
+			|| !float.TryParse( parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float v )
+			|| !float.IsFinite( u ) || !float.IsFinite( v ) ) return Vector2.Zero;
+		// The third component is not a translation speed; rotation/stepping modes remain unsupported.
+		return new( u, v );
 	}
 }

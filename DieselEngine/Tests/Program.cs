@@ -76,6 +76,11 @@ if ( !ticket.SelfIlluminated || ticket.Emission != "units/world/props/bank/ticke
 var sky = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/suburbia/suburbia" ) )[IdString.Hash( "sky" )];
 if ( !sky.Backdrop || LightIntensities.Resolve( intensities, sky.EmissionMultiplier ) != 0 )
 	throw new Exception( "Suburbia sky must remain an unlit backdrop with emission disabled." );
+var ticker = MaterialConfig.Read( db.Find( "material_config", "units/world/props/signs/sign_ticker/sign_ticker" ) )[IdString.Hash( "ssign0" )];
+if ( MathF.Abs( ticker.DiffuseScroll.x - 0.15f ) > 0.00001f || ticker.DiffuseScroll.y != 0
+	|| ticker.EmissionScroll != ticker.DiffuseScroll || ticker.NormalScroll != Vector2.Zero
+	|| ticket.DiffuseScroll != Vector2.Zero || sky.DiffuseScroll != Vector2.Zero )
+	throw new Exception( "Ticker layers must scroll together while static materials and normal maps remain still." );
 foreach ( string map in maps )
 {
 	var world = ScriptData.Read( db.Find( "world", map ) );

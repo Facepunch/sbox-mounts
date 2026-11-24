@@ -74,12 +74,19 @@ PS
 	float g_flHasOpacity < Default1( 0 ); >;
 	float g_flVertexColor < Default1( 0 ); >;
 	float g_flBackdrop < Default1( 0 ); >;
+	float2 g_vDiffuseScroll < Default2( 0, 0 ); >;
+	float2 g_vNormalScroll < Default2( 0, 0 ); >;
+	float2 g_vEmissionScroll < Default2( 0, 0 ); >;
 	float g_flAlphaReference < Default1( 0.5 ); >;
 	float3 g_vTint < Default3( 1, 1, 1 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
-		float4 diffuse = Tex2DS( g_tDiffuse, g_sWrap, i.vTextureCoords.xy );
+		// Wrap just the time offset: fract(UV) would break sampling derivatives at tile edges.
+		float2 diffuseUv = i.vTextureCoords.xy + frac( g_flTime * g_vDiffuseScroll );
+		float2 normalUv = i.vTextureCoords.xy + frac( g_flTime * g_vNormalScroll );
+		float2 emissionUv = i.vTextureCoords.xy + frac( g_flTime * g_vEmissionScroll );
+		float4 diffuse = Tex2DS( g_tDiffuse, g_sWrap, diffuseUv );
 		float opacity = g_flHasOpacity > 0.5 ? Tex2DS( g_tOpacity, g_sWrap, i.vTextureCoords.xy ).r : diffuse.a;
 		#if S_ALPHA_TEST
 			clip( opacity - g_flAlphaReference );
@@ -90,7 +97,7 @@ PS
 		if ( g_flVertexColor > 0.5 ) m.Albedo *= i.vColor.rgb;
 		// Self-illumination maps modulate the surface colour (white masks also occur
 		// on coloured cables and lamps), rather than replacing it with white light.
-		m.Emission = g_flEmissionStrength > 0 ? m.Albedo * Tex2DS( g_tEmission, g_sWrap, i.vTextureCoords.xy ).rgb * g_flEmissionStrength : float3( 0, 0, 0 );
+		m.Emission = g_flEmissionStrength > 0 ? m.Albedo * Tex2DS( g_tEmission, g_sWrap, emissionUv ).rgb * g_flEmissionStrength : float3( 0, 0, 0 );
 		// Diesel backdrop surfaces carry their own lighting. Shading the enormous sky
 		// dome as an ordinary surface introduces self-shadow bands and triangle seams.
 		if ( g_flBackdrop > 0.5 )
@@ -98,7 +105,7 @@ PS
 		m.Normal = normalize( i.vNormalWs );
 		if ( g_flHasNormal > 0.5 )
 		{
-			float4 packed = Tex2DS( g_tNormalMap, g_sWrap, i.vTextureCoords.xy );
+			float4 packed = Tex2DS( g_tNormalMap, g_sWrap, normalUv );
 			float3 normalTs = packed.rgb * 2 - 1;
 			if ( g_flNormalRA > 0.5 )
 			{
