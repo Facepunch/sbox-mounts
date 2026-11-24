@@ -36,6 +36,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			for ( int permIdx = 0; permIdx < region.Permutations.Count; permIdx++ )
 			{
 				var perm = region.Permutations[permIdx];
+				// The editor traces a single static mesh in the default bodygroup configuration.
+				bool needsTraceMesh = Application.IsEditor && permIdx == 0;
 
 				// Halo 2 LOD levels: SuperHigh(0), High(1), Medium(2), Low(3), SuperLow(4), Potato(5)
 				ReadOnlySpan<int> lodSections =
@@ -65,7 +67,8 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, mapName, builder, bounds, lod, regionName, permIdx, materials, colors );
+						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, mapName, builder, bounds, lod, regionName, permIdx, materials, colors, needsTraceMesh ) )
+							needsTraceMesh = false;
 					}
 					catch ( Exception ex )
 					{
@@ -100,12 +103,12 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		return builder.Create();
 	}
 
-	static void BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors )
+	static bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
 		if ( blobData == null || blobData.Length == 0 )
-			return;
+			return false;
 
 		using var ms = new MemoryStream( blobData );
 		using var reader = new BinaryReader( ms );
@@ -138,7 +141,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 		}
 
 		if ( vertexResource == null || indexResource == null || submeshResource == null )
-			return;
+			return false;
 
 		// Read index count from blob header (offset 40 for MCC, per Reclaimer MeshResourceDetailsBlock)
 		reader.BaseStream.Seek( 40, SeekOrigin.Begin );
@@ -182,6 +185,7 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 
 		var verts = ReadVertices( reader, section, bounds, vertexResource, uvResource, normalsResource, nodeMapResource );
 		var meshBounds = BBox.FromPoints( verts.Select( v => v.position ) );
+		var traceIndices = addTraceMesh ? new List<int>() : null;
 
 		// Build mesh for each submesh
 		foreach ( var submesh in submeshes )
@@ -203,7 +207,12 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 			mesh.CreateIndexBuffer( triIndices.Count, triIndices );
 			mesh.Bounds = meshBounds;
 			builder.AddMesh( mesh, lod, regionName, permIndex );
+			traceIndices?.AddRange( triIndices );
 		}
+
+		if ( traceIndices is not { Count: > 0 } ) return false;
+		builder.AddTraceMesh( verts.Select( v => v.position ).ToArray(), CollectionsMarshal.AsSpan( traceIndices ) );
+		return true;
 	}
 
 	static SkinnedVertex[] ReadVertices( BinaryReader reader, Section section, BoundingBox bounds,
