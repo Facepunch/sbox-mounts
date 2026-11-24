@@ -6,10 +6,7 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property] public float KickDuration { get; set; }
 	[Property] public float KickDegrees { get; set; }
 	[Property] public float KickDistance { get; set; }
-	[Property] public Vector2 KickJitter { get; set; }
 	TimeUntil kickEnds;
-	Vector3 kickOffset;
-	uint cameraRandom = (uint)System.Random.Shared.Next();
 
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
 	int? looseReserve;
@@ -95,7 +92,7 @@ public abstract class Weapon : BaseCombatWeapon
 			float elapsedTicks = kickEnds.Passed * 30;
 			// A new impulse has full weight until the first tick. The countdown stores whole ticks.
 			float weight = elapsedTicks < 1 ? 1 : KickWeight( ((int)durationTicks - elapsedTicks) / durationTicks );
-			view.Position += view.Rotation * (kickOffset * weight);
+			view.Position -= view.Rotation.Forward * (KickDistance * weight);
 			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
 		}
 
@@ -117,14 +114,7 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
-	internal void Kick()
-	{
-		kickEnds = KickDuration;
-		float radius = KickJitter.x + BlamRandom.Next( ref cameraRandom ) * (1f / 65535f) * (KickJitter.y - KickJitter.x);
-		float angle = BlamRandom.Next( ref cameraRandom ) * (1f / 65535f) * System.MathF.Tau;
-		var (sin, cos) = System.MathF.SinCos( angle );
-		kickOffset = new Vector3( -KickDistance, radius * cos, -radius * sin );
-	}
+	internal void Kick() => kickEnds = KickDuration;
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{
