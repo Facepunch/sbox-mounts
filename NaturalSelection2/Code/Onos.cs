@@ -15,7 +15,9 @@ public sealed partial class Onos : BaseNpc
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose MovePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose AttackPose { get; set; }
-	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float AimPitch { get; set; }
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation ViewRotation { get; set; }
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float BodyYaw { get; set; }
+	float standingYaw;
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag, worldTag;
 	GameObject target;
@@ -78,6 +80,8 @@ public sealed partial class Onos : BaseNpc
 			stompDuration = view.SequenceDuration( view.SequenceIndex( "stomp" ) );
 		}
 		AnimationTime = 0;
+		ViewRotation = WorldRotation;
+		standingYaw = WorldRotation.Angles().yaw;
 		weaponTag = OnWeaponTag;
 		worldTag = OnWorldTag;
 		weapon?.Set( "attack_speed", 1 );
@@ -131,17 +135,25 @@ public sealed partial class Onos : BaseNpc
 		var velocity = Animation.MoveVelocity.WithZ( 0 );
 		float speedRatio = velocity.Length / RunSpeed;
 		UpdateRumble( Animation.MoveVelocity.Length / RunSpeed );
+		if ( Networking.IsHost )
+		{
+			var aim = attacking && target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
+			ViewRotation = AlienAim.Turn( ViewRotation, aim, 5 );
+			var yaw = WorldRotation.Angles().yaw;
+			float offset = Angles.NormalizeAngle( standingYaw - yaw );
+			BodyYaw = velocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
+			standingYaw = yaw + BodyYaw;
+		}
+		output?.Set( "body_yaw", BodyYaw % 90 );
+		output?.Set( "body_pitch", -ViewRotation.Angles().pitch );
 		output?.Set( "move_speed", Shielding ? Math.Clamp( 1 - speedRatio, 0.75f, 1 ) : speedRatio );
 		output?.Set( "stoop", Shielding ? 0.68f : 0f );
 		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
-			MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Left ) ).RadianToDegree() );
+			MathF.Atan2( Vector3.Dot( velocity, ViewRotation.Forward ), Vector3.Dot( velocity, ViewRotation.Left ) ).RadianToDegree() );
 		if ( Networking.IsHost && world is not null )
 		{
 			UpdateAbilities( velocity );
 			if ( wounds.Update() is { } cue ) PlayCue( cue );
-			var aim = target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
-			AimPitch = aim.IsNearlyZero() ? 0 : Rotation.LookAt( aim ).Angles().pitch;
-			output?.Set( "body_pitch", -AimPitch );
 			var ability = Shielding ? "boneshield" : "gore";
 			var move = Shielding ? "shield" : !Animation.IsGrounded ? "jump" : velocity.Length > 0.1f * Scale ? "run" : "idle";
 			var activity = stomping ? (sinceStomp < stompDuration * 0.95f ? "secondary" : "none")
@@ -160,7 +172,6 @@ public sealed partial class Onos : BaseNpc
 			return;
 		}
 		if ( output is null ) return;
-		output.Set( "body_pitch", -AimPitch );
 		MovePose.Write( Locomotion, output, AnimationTime );
 		AttackPose.Write( ActionLayer, output, AnimationTime );
 	}
@@ -207,7 +218,7 @@ public sealed partial class Onos : BaseNpc
 		if ( tag != "hit" || Shielding ) return;
 		PlayCue( "gore" );
 		energy = Math.Max( 0, energy - 10 );
-		var view = Rotation.From( AimPitch, WorldRotation.Angles().yaw, 0 );
+		var view = ViewRotation;
 		float range = (1.7f + Math.Max( 0, -view.Forward.z ) * 0.9f) * Scale;
 		var (hit, victim) = AlienMelee.Trace( this, view, range, 1, 1.4f );
 		if ( victim is null ) return;

@@ -16,13 +16,6 @@ public sealed partial class Skulk
 
 	[Sync( PoseSync )] internal Rotation ViewRotation { get; private set; }
 
-	// Spark's SlerpRadians advances by a fixed number of radians along the shortest arc.
-	static float ApproachAngle( float from, float to, float radians )
-	{
-		float step = radians.RadianToDegree();
-		return from + Math.Clamp( Angles.NormalizeAngle( to - from ), -step, step );
-	}
-
 	void TurnView()
 	{
 		if ( !Animation.IsLooking && !mover.MovingInput ) return;
@@ -32,17 +25,7 @@ public sealed partial class Skulk
 			var point = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) : Animation.CalculateLookPosition();
 			aim = point - EyePosition;
 		}
-		if ( aim.IsNearlyZero() ) return;
-		var from = ViewRotation.Angles();
-		var to = Rotation.LookAt( aim ).Angles();
-		// BotMotion scales turn speed when fighting or tracking difficult targets.
-		float dt = Time.Delta is > 0 and <= 0.2f ? Time.Delta : 1f / 30;
-		float step = AimTurnRate * dt;
-		float yaw = ApproachAngle( from.yaw, to.yaw, step );
-		float pitch = ApproachAngle( from.pitch, to.pitch, step ).DegreeToRadian();
-		// BotMotion keeps the desired direction's horizontal length while easing its vertical component.
-		float horizontal = aim.Normal.WithZ( 0 ).Length;
-		ViewRotation = Rotation.From( MathF.Atan2( MathF.Sin( pitch ), horizontal ).RadianToDegree(), yaw, 0 );
+		ViewRotation = AlienAim.Turn( ViewRotation, aim, AimTurnRate );
 	}
 
 	void UpdateBodyRotation( Vector3 up, bool onWall, bool moving )
@@ -57,8 +40,8 @@ public sealed partial class Skulk
 			{
 				var angles = BodyRotation.Angles();
 				float tiltDelta = mover.JustJumped ? 0 : Time.Delta;
-				BodyRotation = Rotation.From( ApproachAngle( angles.pitch, 0, tiltDelta * 3 ),
-					ApproachAngle( angles.yaw, desired.Angles().yaw, Time.Delta * 6 ), ApproachAngle( angles.roll, 0, tiltDelta * 5 ) );
+				BodyRotation = Rotation.From( AlienAim.ApproachAngle( angles.pitch, 0, tiltDelta * 3 ),
+					AlienAim.ApproachAngle( angles.yaw, desired.Angles().yaw, Time.Delta * 6 ), AlienAim.ApproachAngle( angles.roll, 0, tiltDelta * 5 ) );
 			}
 		}
 		var yaw = BodyRotation.Angles().yaw;
@@ -66,11 +49,11 @@ public sealed partial class Skulk
 		if ( !onWall )
 		{
 			standingOffset = Angles.NormalizeAngle( standingYaw - yaw );
-			standingOffset = moving ? ApproachAngle( standingOffset, 0, Time.Delta * 5 ) : Math.Clamp( standingOffset, -85, 85 );
+			standingOffset = moving ? AlienAim.ApproachAngle( standingOffset, 0, Time.Delta * 5 ) : Math.Clamp( standingOffset, -85, 85 );
 			if ( moving )
 			{
 				runningOffset = Angles.NormalizeAngle( runningYaw - yaw );
-				runningOffset = Math.Clamp( ApproachAngle( runningOffset, 0, Time.Delta * 2.5f ), -90, 90 );
+				runningOffset = Math.Clamp( AlienAim.ApproachAngle( runningOffset, 0, Time.Delta * 2.5f ), -90, 90 );
 			}
 			standingYaw = yaw + standingOffset;
 			runningYaw = yaw + runningOffset;

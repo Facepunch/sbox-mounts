@@ -26,7 +26,7 @@ public sealed partial class Onos
 		if ( !melee && !Shielding && !attacking && !stomping && StompUnlocked && sinceStomp > 6 && stompDuration > 0 &&
 			energy > 30 && distance <= 12 * Scale && Animation.IsGrounded &&
 			(enemy.GetComponent<PlayerController>().IsValid() || enemy.GetComponent<BaseNpc>().IsValid()) &&
-			Vector3.Dot( WorldRotation.Forward.WithZ( 0 ).Normal, (enemy.WorldPosition - WorldPosition).Normal ) >= 0.9f )
+			Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (enemy.WorldPosition - WorldPosition).Normal ) >= 0.9f )
 		{
 			sinceStomp = 0;
 			stomping = true;
@@ -103,7 +103,7 @@ public sealed partial class Onos
 		var tags = hit.Tags;
 		if ( !(tags.Has( "bullet" ) || tags.Has( "blast" ) || tags.Has( "explosion" ) || tags.Has( "buckshot" ) ||
 			tags.Has( "melee" ) || tags.Has( "burn" ) || tags.Has( "heavy" ) ) ) return;
-		if ( Vector3.Dot( WorldRotation.Forward.WithZ( 0 ).Normal, (hit.Position - WorldPosition).Normal ) < 0.34f ) return;
+		if ( Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (hit.Position - WorldPosition).Normal ) < 0.34f ) return;
 		float factor = tags.Has( "heavy" ) ? 2 : 1;
 		float blocked = Math.Min( e.AcceptedDamage * factor, ShieldHealth );
 		ShieldHealth -= blocked;

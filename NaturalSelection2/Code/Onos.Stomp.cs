@@ -13,7 +13,7 @@ public sealed partial class Onos
 	void StartWave()
 	{
 		stompHit = true;
-		waveDirection = WorldRotation.Forward.WithZ( 0 ).Normal;
+		waveDirection = ViewRotation.Forward.WithZ( 0 ).Normal;
 		waveOrigin = WorldPosition + Vector3.Up * (0.2f * Scale) + waveDirection * (0.4f * Scale);
 		waveAge = 0;
 		nextPulse = 0.1f;
