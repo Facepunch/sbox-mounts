@@ -21,6 +21,8 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	PaydayWeapon weapon;
 	float shotAge;
 	bool firing;
+	SoundHandle sustainedFire;
+	public bool SustainedFirePlaying => sustainedFire?.IsPlaying == true;
 	readonly Queue<SoundHandle> shotSounds = [];
 	readonly Queue<SoundHandle> cueSounds = [];
 	bool reloadCancelled;
@@ -70,11 +72,18 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
 		Initialize();
-		PlayClip( "recoil", Definition.Shotgun ? Definition.Interval : assets.Clips["recoil"].Duration );
+		string recoil = weapon?.IsAiming == true && assets.Clips.ContainsKey( "recoil_zoom" ) ? "recoil_zoom" : "recoil";
+		PlayClip( recoil, Definition.Shotgun ? Definition.Interval : assets.Clips[recoil].Duration );
 		base.OnAttack( hitPoint, origin );
-		// The authored shot container limits overlapping voices to six.
-		while ( shotSounds.Count >= 6 ) shotSounds.Dequeue()?.Stop( 0.01f );
-		shotSounds.Enqueue( PlaySound( audio?.Fire ) );
+		if ( WeaponId == "stryk" )
+		{
+			if ( sustainedFire?.IsPlaying != true ) sustainedFire = PlaySound( audio?.Fire );
+		}
+		else
+		{
+			while ( shotSounds.Count >= 32 ) shotSounds.Dequeue()?.Stop( .05f );
+			shotSounds.Enqueue( PlaySound( audio?.Fire ) );
+		}
 		shotAge = 0;
 		firing = true;
 	}
@@ -86,6 +95,7 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 	}
 	public override void OnReloadStart()
 	{
+		StopFiring();
 		reloadCancelled = false;
 		Initialize();
 		bool empty = weapon?.Clip1 == 0;
@@ -120,21 +130,21 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 		base.OnUpdate();
 		Initialize();
 		if ( assets is null ) return;
+		UpdateLocomotion( weapon?.IsSprinting == true );
 		// The shipped fire container is a 100ms trigger-rate sequence of four recordings.
 		// Engine shot callbacks provide that clock; the stop event supplies its separate tail.
 		if ( firing && (shotAge += Time.Delta) > Definition.Interval + Math.Max( 0.03f, Time.Delta * 2 ) )
 		{
-			firing = false;
-			PlaySound( audio?.Stop );
+			StopFiring();
 		}
 		elapsed += Time.Delta;
 		var animation = assets.Clips[clip];
 		float time = duration > 0 ? Math.Clamp( elapsed / duration, 0, 1 ) * animation.Duration : elapsed % animation.Duration;
-		if ( audio is not null )
+		if ( audio is not null && audio.Cues.TryGetValue( clip, out var cueMap ) )
 			while ( nextCue < animation.Cues.Count && animation.Cues[nextCue].Time <= time )
 			{
 				string cue = animation.Cues[nextCue++].Name;
-				if ( audio.Cues[clip].TryGetValue( cue, out var sound ) )
+				if ( cueMap.TryGetValue( cue, out var sound ) )
 				{
 					while ( cueSounds.Count >= 16 ) cueSounds.Dequeue()?.Stop();
 					cueSounds.Enqueue( PlaySound( sound ) );
@@ -144,15 +154,33 @@ public sealed class PaydayWeaponModel : BaseWeaponModel
 		if ( duration > 0 && elapsed >= duration )
 		{
 			bool loop = Definition.Shotgun && weapon?.IsReloading == true && clip is "reload_enter" or "reload";
-			PlayClip( loop ? "reload" : "idle", loop ? Definition.Tactical : 0 );
+			string next = loop ? "reload" : clip == "sprint_enter" && weapon?.IsSprinting == true ? "sprint" : "idle";
+			PlayClip( next, loop ? Definition.Tactical : 0 );
 		}
 	}
 	protected override void OnDisabled()
 	{
 		clip = "idle"; elapsed = 0; duration = 0; nextCue = 0;
 		firing = false;
+		sustainedFire?.Stop( .05f ); sustainedFire = null;
 		while ( shotSounds.TryDequeue( out var sound ) ) sound?.Stop( 0.02f );
 		while ( cueSounds.TryDequeue( out var cue ) ) cue?.Stop( 0.02f );
 		base.OnDisabled();
+	}
+	public void StopFiring()
+	{
+		if ( !firing ) return;
+		firing = false;
+		sustainedFire?.Stop( .05f ); sustainedFire = null;
+		PlaySound( audio?.Stop );
+	}
+	public void UpdateLocomotion( bool sprinting )
+	{
+		Initialize();
+		if ( assets is null ) return;
+		if ( sprinting && clip == "idle" && assets.Clips.TryGetValue( "sprint_enter", out var enter ) )
+			PlayClip( "sprint_enter", enter.Duration );
+		else if ( !sprinting && clip is "sprint" or "sprint_enter" )
+			PlayClip( "sprint_exit", assets.Clips["sprint_exit"].Duration );
 	}
 }

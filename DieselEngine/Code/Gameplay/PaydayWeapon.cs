@@ -2,7 +2,7 @@ namespace Diesel;
 
 /// <summary>Playable mounted firearm using the engine inventory, ammo, damage and replication paths.</summary>
 [Title( "PAYDAY Weapon" ), Group( "PAYDAY" )]
-public sealed class PaydayWeapon : BaseCombatWeapon
+public sealed partial class PaydayWeapon : BaseCombatWeapon
 {
 	[Property] public string WeaponId { get; set; } = "amcar4";
 	internal WeaponDefinition Definition => WeaponDefinition.Get( WeaponId );
@@ -51,6 +51,7 @@ public sealed class PaydayWeapon : BaseCombatWeapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		UpdatePresentation();
 		if ( DroppedModel.IsValid() ) DroppedModel.Enabled = !IsHeld;
 	}
 
@@ -60,6 +61,7 @@ public sealed class PaydayWeapon : BaseCombatWeapon
 
 	public override void PrimaryAttack()
 	{
+		crosshairKick = Math.Min( crosshairKick + CrosshairSettings.Kick * 100, 150 );
 		if ( Definition.Grenade )
 		{
 			if ( !TakePrimaryAmmo() ) return;
@@ -120,7 +122,12 @@ public sealed class PaydayWeapon : BaseCombatWeapon
 	protected override void PlaceViewModel( CameraComponent camera, in CameraView view )
 	{
 		if ( !ViewModel.IsValid() ) return;
-		var stance = PaydayStance.Get( WeaponId );
+		var hip = PaydayStance.Get( WeaponId );
+		var ads = PaydayStance.Get( WeaponId, true );
+		var stance = new Transform( Vector3.Lerp( hip.Position, ads.Position, AimFraction ), Rotation.Slerp( hip.Rotation, ads.Rotation, AimFraction ) );
+		// PDTH uses procedural head/weapon motion for walking, not a separate walk clip.
+		float amount = moveAmount * (1 - AimFraction * .9f);
+		stance.Position += new Vector3( 0, MathF.Sin( walkPhase ) * .22f, MathF.Cos( walkPhase * 2 ) * .18f ) * amount;
 		ViewModel.WorldPosition = view.Position + view.Rotation * stance.Position;
 		ViewModel.WorldRotation = view.Rotation * stance.Rotation;
 	}

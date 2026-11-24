@@ -1,7 +1,7 @@
 namespace Diesel;
 
 /// <summary>PDTH's version-62 embedded soundbanks. Resolves play events through random containers.</summary>
-sealed class WwiseBank
+sealed partial class WwiseBank
 {
 	readonly byte[] bytes;
 	readonly Dictionary<uint, (int Offset, int Size)> media = [];

@@ -6,7 +6,7 @@ sealed class PaydayWeaponSoundLoader( string name, WwiseBank bank ) : ResourceLo
 	internal static string EventPath( string name ) => $"sounds/weapons/{name}.sound";
 	protected override object Load()
 	{
-		var sounds = bank.Resolve( name ).Select( id => SoundFile.FromWav( $"{Path}/{id}.vsnd", bank.Decode( id ) ) ).ToList();
+		var sounds = bank.Render( name ).Select( (wav, index) => SoundFile.FromWav( $"{Path}/event-{index}.vsnd", wav ) ).ToList();
 		return new SoundEvent
 		{
 			Sounds = sounds, Volume = 1, Pitch = name == "m4_fire" ? new RangedFloat( MathF.Pow( 2, -25f / 1200 ), MathF.Pow( 2, 25f / 1200 ) ) : 1,

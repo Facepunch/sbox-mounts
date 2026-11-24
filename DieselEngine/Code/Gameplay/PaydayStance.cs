@@ -3,7 +3,7 @@ namespace Diesel;
 static class PaydayStance
 {
 	// Original standing shoulder/head pivots (Diesel centimetres and yaw/pitch/roll).
-	public static Transform Get( string id )
+	public static Transform Get( string id, bool aiming = false )
 	{
 		(Vector3 shoulder, Vector3 shoulderAngles, Vector3 head, Vector3 headAngles) pivots = id switch
 		{
@@ -21,6 +21,12 @@ static class PaydayStance
 			"gl40" => (new(8.58595f,40.5661f,-2.41104f),new(.143334f,1.04565f,-1.1923f),new(5.2f,16,-.5f),new(0,1,0)),
 			_ => (new(8.40486f,33.2872f,-.76365f),new(.151694f,.644497f,-1.1892f),new(7,16,-.5f),new(0,1,0))
 		};
+		if ( aiming )
+		{
+			pivots.head = new Vector3( 0, id switch { "compact5" => 10, "mark11" => 16, "reinbeck" => 15, "locomotive" => 25,
+				"b9s" or "crosskill" or "stryk" => 30, "bronco44" => 28, "ak" => 1, _ => 7 }, 0 );
+			pivots.headAngles = id == "locomotive" ? new Vector3( 0, -2, 0 ) : Vector3.Zero;
+		}
 		var rotation = Convert( pivots.headAngles ) * Convert( pivots.shoulderAngles ).Inverse;
 		return new Transform( Coordinates.Position( pivots.head ) - rotation * Coordinates.Position( pivots.shoulder ), rotation );
 	}

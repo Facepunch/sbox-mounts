@@ -20,6 +20,9 @@ sealed class PaydayViewAssets
 		Gun = new( database.Find( "model", definition.ViewUnit ) );
 		foreach ( var clip in definition.Clips )
 			Clips.Add( clip, new( database.Find( "animation", definition.ClipPath( clip ) ) ) );
+		foreach ( var clip in new[] { "sprint_enter", "sprint", "sprint_exit", "recoil_zoom" } )
+			if ( database.Find( "animation", definition.ClipPath( clip ) ) is { } bytes )
+				Clips.Add( clip, new( bytes ) );
 		// Explicit Dallas selection belongs to the playable viewmodel, never global unit visibility.
 		Add( Hands, HandsPath, [IdString.Hash( "g_fps_hand_dallas" ), IdString.Hash( "g_button_dallas" )] );
 		var obj = UnitModel.Xml( database.Find( "object", definition.ViewUnit ) );

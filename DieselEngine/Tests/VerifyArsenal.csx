@@ -62,6 +62,11 @@ foreach ( var id in ids )
 			scene.EditorTick( RealTime.Now, 1f / 60 );
 			await Task.Yield();
 			if ( !grenade.GameObject.IsDestroyed || prop.Health >= 1000 ) throw new Exception( $"GL40 swept collision/explosion failed: destroyed={grenade.GameObject.IsDestroyed}, health={prop.Health}." );
+			var explosion = scene.GetAllObjects( true ).FirstOrDefault( o => o.Name == "explosion_med" );
+			if ( explosion is null || !explosion.Enabled || !explosion.GetComponentsInChildren<ParticleEffect>( true ).Any() )
+				throw new Exception( "GL40 explosion visuals missing." );
+			if ( explosion.GetComponentsInChildren<RadiusDamage>( true ).Any( c => c.Enabled ) )
+				throw new Exception( "Visual explosion would apply duplicate damage." );
 			float damaged = prop.Health;
 			var wall = new GameObject( true, "Blast blocker" );
 			wall.WorldPosition = new Vector3( 230, 0, 64 );
@@ -84,6 +89,25 @@ foreach ( var id in ids )
 		new GameObject( true, "Ambient" ).AddComponent<AmbientLight>().Color = Color.White * .6f;
 		new GameObject( true, "Sun" ).AddComponent<DirectionalLight>().WorldRotation = Rotation.From( 50, 30, 0 );
 		presentation.OnReloadCancel();
+		presentation.GetType().GetMethod( "UpdateLocomotion" ).Invoke( presentation, new object[] { true } );
+		if ( (string)presentation.GetType().GetProperty( "CurrentClip" ).GetValue( presentation ) != "sprint_enter" )
+			throw new Exception( $"{id}: sprint entry missing." );
+		presentation.GetType().GetMethod( "SamplePose" ).Invoke( presentation, new object[] { .1f } );
+		presentation.GetType().GetMethod( "UpdateLocomotion" ).Invoke( presentation, new object[] { false } );
+		if ( (string)presentation.GetType().GetProperty( "CurrentClip" ).GetValue( presentation ) != "sprint_exit" )
+			throw new Exception( $"{id}: sprint exit missing." );
+		presentation.OnReloadCancel();
+		if ( id == "stryk" )
+		{
+			presentation.OnAttack();
+			if ( !(bool)presentation.GetType().GetProperty( "SustainedFirePlaying" ).GetValue( presentation ) ) throw new Exception( "STRYK loop did not start." );
+			presentation.GetType().GetMethod( "StopFiring" ).Invoke( presentation, null );
+			if ( (bool)presentation.GetType().GetProperty( "SustainedFirePlaying" ).GetValue( presentation ) ) throw new Exception( "STRYK fire continued after release." );
+			presentation.OnAttack();
+			presentation.OnReloadStart();
+			if ( (bool)presentation.GetType().GetProperty( "SustainedFirePlaying" ).GetValue( presentation ) ) throw new Exception( "STRYK fire continued into reload." );
+			presentation.OnReloadCancel();
+		}
 		using ( var bitmap = new Bitmap( 960, 540 ) )
 		{
 			for ( int frame = 0; frame < 3; frame++ )
@@ -96,6 +120,22 @@ foreach ( var id in ids )
 				await Task.Yield();
 			}
 			System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"arsenal-{id}.png" ), bitmap.ToPng() );
+			var hipPosition = weapon.ViewModel.WorldPosition;
+			for ( int frame = 0; frame < 60; frame++ )
+				weapon.GetType().GetMethod( "SetAim" ).Invoke( weapon, new object[] { true } );
+			if ( (float)weapon.GetType().GetProperty( "AimFraction" ).GetValue( weapon ) < .99f ) throw new Exception( $"{id}: ADS transition failed." );
+			if ( id == "m308" && Math.Abs( weapon.Ballistics.SpreadBase.x - .1f ) > .01f ) throw new Exception( "M308 ADS spread was not applied." );
+			var cameraArgs = new object[] { camera, new CameraView { FieldOfView = 90 } };
+			weapon.GetType().GetMethod( "ModifyCamera", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance ).Invoke( weapon, cameraArgs );
+			float aimedFov = ((CameraView)cameraArgs[1]).FieldOfView;
+			if ( Math.Abs( aimedFov - (id == "stryk" ? 90 : 72) ) > .01f ) throw new Exception( $"{id}: ADS FOV incorrect." );
+			weapon.GetType().GetMethod( "PlaceViewModel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance )
+				.Invoke( weapon, new object[] { camera, new CameraView { Position = camera.WorldPosition, Rotation = camera.WorldRotation } } );
+			if ( hipPosition.Distance( weapon.ViewModel.WorldPosition ) < 1 ) throw new Exception( $"{id}: ADS did not change shoulder placement." );
+			camera.RenderToBitmap( bitmap );
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"arsenal-{id}-ads.png" ), bitmap.ToPng() );
+			for ( int frame = 0; frame < 60; frame++ )
+				weapon.GetType().GetMethod( "SetAim" ).Invoke( weapon, new object[] { false } );
 			weapon.Clip1 = 0;
 			presentation.OnReloadStart();
 			presentation.GetType().GetMethod( "SamplePose" ).Invoke( presentation, new object[] { weapon.ReloadTime * .5f } );

@@ -27,13 +27,26 @@ static class ArsenalVerification
 					if ( model.ReadAttachment( IdString.Hash( "fire" ), IdString.Hash( obj.Element( "diesel" ).Attribute( "orientation_object" ) ) ) is null ) throw new Exception( "Missing muzzle." );
 				}
 				foreach ( var clip in w.Clips ) _ = new AnimationFile( db.Find( "animation", w.ClipPath( clip ) ) );
+				foreach ( var clip in new[] { "sprint_enter", "sprint", "sprint_exit" } ) _ = new AnimationFile( db.Find( "animation", w.ClipPath( clip ) ) );
 				var audio = new WeaponAudio( db, w, banks );
+				if ( w.Id is "m308" or "bronco44" )
+				{
+					var bank = banks[w.Bank];
+					float shortest = bank.Resolve( audio.Fire ).Select( id => bank.Decode( id ) )
+						.Min( wav => (wav.Length - 44f) / BitConverter.ToInt32( wav, 28 ) );
+					if ( bank.Render( audio.Fire ).Any( wav => (wav.Length - 44f) / BitConverter.ToInt32( wav, 28 ) <= shortest + .1f ) )
+						throw new Exception( "Attack/tail sequence collapsed into a standalone fragment." );
+				}
 				foreach ( var (name, bank) in audio.Events )
+				{
+					try { foreach ( var wav in bank.Render( name ) ) if ( wav.Length < 48 ) throw new Exception( "Empty playback." ); }
+					catch ( Exception e ) { throw new Exception( $"Playback {name}: {e.Message}", e ); }
 					foreach ( var id in bank.Resolve( name ) )
 					{
 						try { _ = bank.Decode( id ); recordings++; }
 						catch ( Exception e ) { throw new Exception( $"Audio {name}/{id}: {e.Message}", e ); }
 					}
+				}
 				Console.WriteLine( $"PASS: {w.Title}: models, {w.Clips.Count()} clips, {audio.Events.Count} sound events." );
 			}
 			catch ( Exception e ) { throw new Exception( $"{w.Title}: {e.Message}", e ); }

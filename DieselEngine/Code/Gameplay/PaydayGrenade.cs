@@ -51,6 +51,18 @@ public sealed class PaydayGrenade : Component
 	[Rpc.Broadcast]
 	void BlastSound( Vector3 position )
 	{
+		using var scope = Scene.Push();
+		var effect = GameObject.GetPrefab( "prefabs/engine/explosion_med.prefab" )?.Clone( new CloneConfig
+		{
+			Transform = new Transform( position ), StartEnabled = false
+		} );
+		if ( effect.IsValid() )
+		{
+			// Reuse only visual emitters: gameplay damage and the original bank sound are ours.
+			foreach ( var damage in effect.GetComponentsInChildren<RadiusDamage>( true ) ) damage.Enabled = false;
+			foreach ( var soundBox in effect.GetComponentsInChildren<SoundBoxComponent>( true ) ) soundBox.Enabled = false;
+			effect.Enabled = true;
+		}
 		var sound = ResourceLibrary.Get<SoundEvent>( "mount://payday/sounds/weapons/gl_explode.sound" );
 		if ( sound is not null ) Sound.Play( sound, position );
 	}
