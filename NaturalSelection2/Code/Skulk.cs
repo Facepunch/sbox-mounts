@@ -103,7 +103,7 @@ public sealed partial class Skulk : BaseNpc
 	bool UpdateCombat()
 	{
 		FiringParasite = false;
-		var target = FindEnemy();
+		var target = FindEnemy( out var lastKnownPosition );
 		var aimPoint = target.IsValid() ? CalculateAimPoint( target ) : default;
 		if ( aimPenalty <= 0 ) aimScale = 1;
 		bool aimReady = target.IsValid() && TrackAim( target, aimPoint );
@@ -111,7 +111,7 @@ public sealed partial class Skulk : BaseNpc
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
-			Investigate();
+			Investigate( lastKnownPosition );
 			Biting = false;
 			return false;
 		}

@@ -5,11 +5,11 @@ namespace NS2;
 
 public sealed partial class Skulk
 {
-	GameObject sighted, remembered, tracked;
+	readonly AlienTargeting targeting = new();
+	GameObject sighted, tracked;
 	TimeSince sinceTracked;
 	List<(GameObject Target, float LastTracked)> recentTargets;
-	Vector3 lastSeenPosition;
-	TimeSince sightedFor, sinceSeen;
+	TimeSince sightedFor;
 	TimeUntil nextJuke, repath;
 	float jukeSide = 1;
 	float aimScale = 1;
@@ -71,27 +71,32 @@ public sealed partial class Skulk
 		return acquired <= 0;
 	}
 
-	GameObject FindEnemy()
+	GameObject FindEnemy( out Vector3? lastKnownPosition )
 	{
-		var closest = Senses.FindBestTarget();
-		if ( closest.IsValid() )
+		if ( Senses.Disturbance is { Kind: StimulusKinds.Gunshot } shot && shot != lastHeard )
+		{
+			lastHeard = shot;
+			if ( shot.Source.IsValid() && GetDisposition( shot.Source ) == Disposition.Hostile &&
+				WorldPosition.Distance( shot.Position ) <= 14 * MapLoader.Scale )
+				targeting.Remember( shot.Source, shot.Position );
+		}
+		var enemy = targeting.FindEnemy( this, out lastKnownPosition );
+		if ( lastKnownPosition.HasValue ) enemy = null;
+		if ( enemy.IsValid() )
 		{
 			sneaking = false;
 			sinceFought = 0;
-			remembered = closest;
-			lastSeenPosition = closest.WorldPosition;
-			sinceSeen = 0;
 		}
-		if ( sighted != closest )
+		if ( sighted != enemy )
 		{
-			if ( !sighted.IsValid() || !closest.IsValid() ) sightedFor = 0;
-			sighted = closest;
+			if ( !sighted.IsValid() || !enemy.IsValid() ) sightedFor = 0;
+			sighted = enemy;
 			repath = 0;
 		}
-		return closest;
+		return enemy;
 	}
 
-	void Investigate()
+	void Investigate( Vector3? lastKnownPosition )
 	{
 		foreach ( var mark in Scene.GetAllComponents<Parasited>() )
 		{
@@ -100,26 +105,13 @@ public sealed partial class Skulk
 			Pursue( mark.WorldPosition );
 			return;
 		}
-		if ( Senses.Disturbance is { Kind: StimulusKinds.Gunshot } shot && shot != lastHeard )
+		if ( lastKnownPosition is { } position )
 		{
-			lastHeard = shot;
-			if ( shot.Source.IsValid() && GetDisposition( shot.Source ) == Disposition.Hostile &&
-				WorldPosition.Distance( shot.Position ) <= 14 * MapLoader.Scale )
-			{
-				remembered = shot.Source;
-				lastSeenPosition = shot.Position;
-				sinceSeen = 0;
-				repath = 0;
-			}
-		}
-		if ( remembered.IsValid() && sinceSeen <= 5 )
-		{
-			float distance = WorldPosition.Distance( lastSeenPosition ) / MapLoader.Scale;
+			float distance = WorldPosition.Distance( position ) / MapLoader.Scale;
 			sneaking = sneaky && sinceFought >= 10 && distance is > 4 and < 20 && !GetComponent<Parasited>().IsValid();
-			Pursue( lastSeenPosition );
+			Pursue( position );
 			return;
 		}
-		remembered = null;
 		sneaking = false;
 		GameObject.GetOrAddComponent<AlienExploration>().Explore( Reach * 0.6f );
 	}

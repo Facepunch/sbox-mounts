@@ -25,9 +25,7 @@ public sealed partial class Onos : BaseNpc
 	bool? smashSwing;
 	float energy = 100;
 	TimeUntil repath;
-	GameObject remembered;
-	Vector3 lastSeenPosition;
-	TimeSince sinceSeen;
+	readonly AlienTargeting targeting = new();
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -92,7 +90,7 @@ public sealed partial class Onos : BaseNpc
 
 	protected override void Think()
 	{
-		var enemy = Senses.FindBestTarget();
+		var enemy = targeting.FindEnemy( this, out _ );
 		if ( target != enemy ) repath = 0;
 		target = enemy;
 		Animation.SetLookTarget( enemy );
@@ -100,21 +98,10 @@ public sealed partial class Onos : BaseNpc
 		{
 			attacking = false;
 			SetShield( false );
-			if ( remembered.IsValid() && sinceSeen <= 5 )
-			{
-				Pursue( lastSeenPosition );
-			}
-			else
-			{
-				remembered = null;
-				GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
-			}
+			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 			UpdateCharge();
 			return;
 		}
-		remembered = enemy;
-		lastSeenPosition = enemy.WorldPosition;
-		sinceSeen = 0;
 		var point = enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition;
 		float distance = EyePosition.Distance( point );
 		attacking = distance < 4 * Scale;
