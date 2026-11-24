@@ -291,6 +291,8 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			var ballistics = gun.Ballistics;
 			ballistics.Pellets = Short( barrel + 0x6a );
 			ballistics.Range = Float( projectile + 0xe0 ) * 120;
+			gun.AirGravityScale = Float( projectile + 0x164 );
+			gun.WaterGravityScale = Float( projectile + 0x170 );
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
 			bool damageFallsOff = (map.ReadInt32( projectile + 0xbc ) & 16) != 0;

@@ -11,6 +11,8 @@ public sealed class Shotgun : Weapon
 	[Property] public float MovementSpeed { get; set; } = 15;
 	[Property] public float MinimumPelletAngle { get; set; } = 2;
 	[Property] public float PelletSpeed { get; set; }
+	[Property] public float AirGravityScale { get; set; }
+	[Property] public float WaterGravityScale { get; set; } = 0.2f;
 	[Property] public float AutoAimRange { get; set; } = 720;
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float DamageFalloffRange { get; set; } = 960;
@@ -136,54 +138,78 @@ public sealed class Shotgun : Weapon
 		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
 		float maximum = (Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x).DegreeToRadian();
 		float minimum = MinimumPelletAngle.DegreeToRadian();
-		var directions = new Vector3[Ballistics.Pellets];
-		for ( int i = 0; i < directions.Length; i++ )
-			directions[i] = Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
+		var pellets = new Pellet[Ballistics.Pellets];
+		for ( int i = 0; i < pellets.Length; i++ )
+			pellets[i].Velocity = PelletSpeed * Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
 		TimeSinceShoot = 0;
 		var attacker = Attacker;
 		ShootEffects();
-		_ = FlyPellets( ray.Position, directions, attacker );
+		_ = FlyPellets( ray.Position, pellets, attacker );
 	}
 
-	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Vector3[] directions, GameObject attacker )
+	struct Pellet
 	{
-		float travelled = 0;
-		int flying = directions.Length;
+		public Vector3 Offset;
+		public Vector3 Velocity;
+		public float Travelled;
+	}
+
+	bool InWater( Vector3 point ) => Scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers().Run().StartedSolid;
+
+	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker )
+	{
+		bool originWet = InWater( origin );
+		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
 		var flight = TaskSource.Create( Scene.EnabledToken );
 		System.Collections.Generic.List<ShotEffect> impacts = null;
 		// Newly dispatched projectiles travel during the firing tick.
-		for ( bool first = true; flying > 0 && travelled < Ballistics.Range && PelletSpeed > 0; first = false )
+		for ( bool first = true; flying > 0 && Ballistics.Range > 0 && PelletSpeed > 0; first = false )
 		{
 			if ( !first ) await flight.FixedUpdate();
 			if ( !IsValid ) return;
 			using var sceneScope = Scene.Push();
 			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
 			if ( dt <= 0 ) continue;
-			float distance = System.MathF.Min( PelletSpeed * dt, Ballistics.Range - travelled );
-			for ( int i = 0; i < directions.Length; i++ )
+			for ( int i = 0; i < pellets.Length; i++ )
 			{
-				var direction = directions[i];
-				if ( direction == Vector3.Zero ) continue;
-				var start = origin + direction * travelled;
-				var hit = Scene.Trace.Ray( start, start + direction * distance ).IgnoreGameObjectHierarchy( shooter )
+				var pellet = pellets[i];
+				if ( pellet.Velocity == Vector3.Zero ) continue;
+				var start = origin + pellet.Offset;
+				bool wet = first ? originWet : InWater( start );
+				float fall = (wet ? WaterGravityScale : AirGravityScale) * (4.1712594f * 120) * dt;
+				float step = dt * System.MathF.Min( 1, (Ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
+				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
+				var hit = Scene.Trace.Ray( start, start + displacement ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
-				if ( !hit.Hit ) continue;
+				if ( !hit.Hit )
+				{
+					pellet.Offset += displacement;
+					pellet.Velocity.z -= fall;
+					pellet.Travelled += displacement.Length;
+					if ( step < dt || pellet.Travelled >= Ballistics.Range )
+					{
+						pellet.Velocity = Vector3.Zero;
+						flying--;
+					}
+					pellets[i] = pellet;
+					continue;
+				}
 				// Halo switches the range at water crossings and retains total flight distance.
 				var range = DamageFalloffRange;
 				if ( range != UnderwaterDamageFalloffRange )
 				{
-					var point = hit.HitPosition - direction * 0.01f;
-					if ( Scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers().Run().StartedSolid )
+					var point = hit.HitPosition - hit.Direction * 0.01f;
+					if ( InWater( point ) )
 						range = UnderwaterDamageFalloffRange;
 				}
-				float fraction = range > 0 ? (1 - (travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
+				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * MinimumDamage + fraction * Ballistics.Damage;
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
 				ApplyDelayedHit( hit, damage, Ballistics.Force, attacker );
-				directions[i] = Vector3.Zero;
+				pellets[i].Velocity = Vector3.Zero;
 				flying--;
 			}
 			if ( impacts is { Count: > 0 } )
@@ -191,7 +217,7 @@ public sealed class Shotgun : Weapon
 				ShootEffects( impacts.ToArray() );
 				impacts.Clear();
 			}
-			travelled += distance;
+
 		}
 	}
 
