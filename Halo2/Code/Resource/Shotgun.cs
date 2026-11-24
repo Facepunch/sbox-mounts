@@ -11,6 +11,7 @@ internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mo
 
 internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
 {
+	internal const string PrefabPath = "weapons/shotgun.prefab";
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
 	int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
 	int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
@@ -44,6 +45,53 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget == "crosshair" );
 		}
 		return null;
+	}
+
+	Dictionary<string, TagEntry> meleeMaterials;
+
+	internal void PlayMeleeImpact( Surface surface, Vector3 position )
+	{
+		if ( meleeMaterials is null )
+		{
+			meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
+			var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
+			if ( globals is not null )
+			{
+				int materials = Address( globals ) + 0x150;
+				int row = Block( materials );
+				for ( int i = 0; i < map.ReadInt32( materials ); i++, row += 0xb4 )
+				{
+					if ( map.ResolveStringId( map.ReadInt32( row ) ) is {} name )
+						meleeMaterials[name] = Reference( row + 0x60 );
+				}
+			}
+		}
+
+		// Regular gun melee uses the contact material's melee sweetener, then the damage effect's sound.
+		for ( int depth = 0; surface.IsValid() && depth < 16; depth++, surface = surface.GetBaseSurface() )
+		{
+			var material = surface.ResourceName switch
+			{
+				"default" => "default_material", "flesh" => "soft_organic_flesh", "glass" => "brittle_glass",
+				"concrete" => "hard_terrain_concrete", "rock" or "stone" => "hard_terrain_stone", "ice" => "hard_terrain_ice",
+				"wood" or "wood.sheet" => "tough_organic_wood", "metal" => "hard_metal_solid", "metal.sheet" => "hard_metal_thin",
+				"rubber" => "tough_inorganic_rubber", "plastic" or "plastic.sheet" => "tough_inorganic_plastic",
+				"cloth" or "fabric" => "soft_organic_cloth", "water" => "liquid_thin_water", "grass" => "tough_terrain_grass",
+				"dirt" => "tough_terrain_dirt", "sand" => "tough_terrain_sand", "gravel" => "tough_terrain_gravel",
+				"mud" => "tough_terrain_mud", "snow" => "soft_terrain_snow", _ => surface.ResourceName
+			};
+			if ( !meleeMaterials.TryGetValue( material, out var sound ) ) continue;
+			Play( sound );
+			break;
+		}
+
+		if ( Reference( Header + 0x1bc ) is {} damage ) Play( Reference( Address( damage ) + 0xa8 ) );
+
+		void Play( TagEntry tag )
+		{
+			if ( tag?.PrimaryClass == "!dns" && GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) is {} sound )
+				Sound.Play( sound, position );
+		}
 	}
 
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );

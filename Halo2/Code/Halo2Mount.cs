@@ -175,7 +175,7 @@ public class Halo2Mount : BaseGameMount
 					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
 					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig() );
 					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new ShotgunAmmoLoader( shotgun.MaxReserve ) );
-					context.Add( ResourceType.PrefabFile, "weapons/shotgun.prefab", shotgun );
+					context.Add( ResourceType.PrefabFile, ShotgunLoader.PrefabPath, shotgun );
 					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
 				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:

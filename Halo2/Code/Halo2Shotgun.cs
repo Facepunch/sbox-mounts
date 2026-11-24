@@ -225,8 +225,20 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	{
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
+		using var sceneScope = Scene.Push();
 		var hit = BulletTrace( AimRay, MeleeRange, 0 ).Run();
+		if ( !hit.Hit ) return;
+		MeleeImpactSound( hit.Surface, hit.HitPosition );
 		ShootBullet( hit, MeleeDamage, 0, new TagSet { "melee" }, false );
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void MeleeImpactSound( Surface surface, Vector3 position )
+	{
+		if ( Application.IsDedicatedServer ) return;
+		var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent );
+		if ( mount?.GetByPath( $"mount://{mount.Ident}/{ShotgunLoader.PrefabPath}" ) is ShotgunLoader loader )
+			loader.PlayMeleeImpact( surface, position );
 	}
 
 	protected override void OnHolstered()
