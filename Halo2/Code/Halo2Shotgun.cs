@@ -209,15 +209,14 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	Color ReticleTint()
 	{
 		var ray = AimRay;
-		var hit = BulletTrace( ray, Ballistics.Range, 0 ).Run();
+		var hit = BulletTrace( ray, AutoAimRange, 0 ).Run();
 		var npc = hit.GameObject?.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
 		var disposition = Holder is {} holder ? npc?.GetDisposition( holder.GameObject ) : null;
-		return disposition switch
-		{
-			Sandbox.Npcs.Disposition.Friendly => Color.FromBytes( 51, 255, 0 ),
-			Sandbox.Npcs.Disposition.Hostile when InFullAutoAimRange( ray, hit ) => Color.Red,
-			_ => Color.FromBytes( 117, 186, 255 )
-		};
+		if ( disposition is Sandbox.Npcs.Disposition.Friendly or Sandbox.Npcs.Disposition.Hostile
+			&& InFullAutoAimRange( ray, hit ) )
+			return disposition == Sandbox.Npcs.Disposition.Friendly ? Color.FromBytes( 51, 255, 0 ) : Color.Red;
+
+		return Color.FromBytes( 117, 186, 255 );
 	}
 
 	bool InFullAutoAimRange( Ray ray, SceneTraceResult hit )
