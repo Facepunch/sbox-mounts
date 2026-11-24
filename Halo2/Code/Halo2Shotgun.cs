@@ -292,7 +292,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
-	bool reload, empty, entering;
+	bool reload, entering;
 	Halo2ClipInfo movingClip;
 	float movementFrame;
 	bool moving;
@@ -436,28 +436,26 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	public override void OnReloadStart()
 	{
 		reload = entering = true;
-		empty = Weapon.Clip1 == 0;
 		Play( "reload_enter" );
 	}
 
 	public override void OnIncrementalReload()
 	{
 		if ( reload && Weapon.Clip1 < Weapon.ClipMaxSize && Weapon.Ammo1 > 0 )
-			Insert( true );
+			Insert();
 	}
 
-	void Insert( bool continuing )
+	void Insert()
 	{
 		entering = false;
-		Play( continuing ? (empty ? "reload_continue_empty" : "reload_continue_full")
-			: (empty ? "reload_empty" : "reload_full"), Weapon.ReloadTime );
+		Play( Weapon.Clip1 == 0 ? "reload_continue_empty" : "reload_continue_full" );
 	}
 
 	public override void OnReloadFinish()
 	{
 		if ( !reload ) return;
 		reload = false;
-		Play( empty ? "exit_empty" : "exit_full" );
+		Play( "reload_exit" );
 	}
 
 	internal void Melee( string action )
@@ -466,7 +464,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		Play( action );
 	}
 
-	void Play( string action, float duration = 0 )
+	void Play( string action )
 	{
 		var loader = Halo2ModelLoader.ForModel( Renderer.Model );
 		var actions = loader?.GetAnimationContext( "any", "any", "any" )?.Actions;
@@ -474,7 +472,6 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		clip = loader.GetClipInfo( reference );
 		elapsed = 0;
 		nextCue = 0;
-		Renderer.PlaybackRate = duration > 0 ? (clip.Frames - 1) / (30 * duration) : 1;
 	}
 
 	protected override void OnUpdate()
@@ -487,13 +484,12 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 			float frame = elapsed * 30 * Renderer.PlaybackRate;
 			while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame <= frame )
 				Animator.DispatchCue( clip.Cues[nextCue++] );
-			if ( frame >= clip.Frames - 1 )
+			if ( frame >= (entering && reload ? clip.Frames : clip.Frames - 1) )
 			{
-				if ( reload && entering ) Insert( false );
+				if ( reload && entering ) Insert();
 				else if ( !reload )
 				{
 					clip = null;
-					Renderer.PlaybackRate = 1;
 					SelectAction( "idle" );
 				}
 			}

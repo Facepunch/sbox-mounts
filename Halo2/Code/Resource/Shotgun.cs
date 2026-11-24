@@ -139,10 +139,10 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
 			gun.PrimaryAutomatic = Short( Block( Header + 0x2c8 ) + 6 ) == 0;
 			gun.PrimaryDelay = Float( barrel + 0x20 );
-			gun.ReloadTime = Float( magazine + 0x10 );
 			var rig = (Halo2ModelLoader)Host.GetByPath( gun.ArmsPath );
 			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
-			gun.ReloadStartTime = (rig.GetClipInfo( actions["reload_enter"] ).Frames - 1) / 30f + gun.ReloadTime;
+			gun.ReloadTime = rig.GetClipInfo( actions["reload_continue_full"] ).Frames / 30f;
+			gun.ReloadStartTime = rig.GetClipInfo( actions["reload_enter"] ).Frames / 30f + gun.ReloadTime;
 			int trigger = Address( Reference( Block( barrel + 0xe4 ) + 0x1c ) );
 			gun.KickDuration = Float( trigger + 0x74 );
 			gun.KickDegrees = Float( trigger + 0x7c ).RadianToDegree();
