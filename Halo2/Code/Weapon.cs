@@ -126,6 +126,14 @@ public abstract class Weapon : BaseCombatWeapon
 		kickOffset = new Vector3( -KickDistance, radius * cos, -radius * sin );
 	}
 
+	protected override void OnShootEffects( ShotEffect shot )
+	{
+		// A held weapon can outlive its mounted sound event across an editor hotload.
+		if ( !shot.NoEvents && !Application.IsDedicatedServer && !AttackSound.IsValid() && AttackSound?.ResourcePath is { Length: > 0 } path )
+			AttackSound = GameResource.Load<SoundEvent>( path );
+		base.OnShootEffects( shot );
+	}
+
 	protected override float GetHitForce( GameObject target, float force )
 	{
 		var body = target.GetComponentInParent<Rigidbody>();
