@@ -370,6 +370,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		float retained = 1 - (0.05058453f * dt).Clamp( 0, 1 );
 		foreach ( var casing in casings.Particles )
 		{
+			casing.Alpha = CasingAlpha( casing.LifeDelta );
 			casing.Velocity = (casing.Velocity + Vector3.Down * (gravity * dt)) * retained;
 			if ( casing.Frame < casing.Get<int>( "next_collision_frame" ) ) continue;
 
@@ -400,6 +401,19 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 				ShotgunLoader.Mounted?.PlayCasingImpact( hit.Surface, casing.Position, gain );
 			}
 		}
+	}
+
+	static float CasingAlpha( float age )
+	{
+		// Halo samples its quadratic transition from a 1024-entry byte table.
+		const int last = 1023;
+		static float Sample( int i ) => (255 * i * i / (last * last)) * (1f / 255);
+		float time = age.Clamp( 0, 1 ) * last;
+		int index = (int)System.MathF.Round( time - 0.1f );
+		if ( index == last ) return 0;
+		float fraction = time - (int)time;
+		float fade = Sample( index ) * (1 - fraction) + Sample( index + 1 ) * fraction;
+		return System.MathF.Round( (1 - fade) * 255 ) / 255;
 	}
 
 	void EjectCasing()
