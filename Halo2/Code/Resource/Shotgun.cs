@@ -78,6 +78,9 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
+			float acceleration = Float( Header + 0x2e8 ), speed = Float( Header + 0x2ec );
+			if ( acceleration != 0 ) gun.TurnAcceleration = acceleration;
+			if ( speed != 0 ) gun.TurnSpeed = speed;
 			gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
 			gun.ClipMaxSize = Short( magazine + 0xa );
 			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );

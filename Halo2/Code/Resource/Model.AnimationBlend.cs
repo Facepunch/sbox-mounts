@@ -6,6 +6,8 @@ namespace Halo2;
 
 public partial class Halo2ModelLoader
 {
+	bool HasFirstPersonWeapon => firstPersonWeapon is not null;
+
 	string MarkerBone( string marker )
 	{
 		foreach ( int group in Rows( mapFile.VaToOffset( (int)tag.DataVirtualAddress ) + 0x58, 12 ) )
@@ -65,7 +67,7 @@ public partial class Halo2ModelLoader
 		readonly record struct Screen( string Label, int Clip, float Right, float Left, float Down, float Up,
 			int RightFrames, int LeftFrames, int DownFrames, int UpFrames );
 		readonly List<Screen> screens = new();
-		readonly Node aim, yaw, pitch, look, lookYaw, lookPitch;
+		readonly Node aim, yaw, pitch, look, lookYaw, lookPitch, weaponAimWeight;
 
 		internal ScreenInputs( Halo2ModelLoader model, Halo2.Blam.MapFile map, GraphBuilder b, KeyValuePair<string,int>[] overlays )
 		{
@@ -83,6 +85,9 @@ public partial class Halo2ModelLoader
 				if ( (s.RightFrames + s.LeftFrames + 1) * (s.DownFrames + s.UpFrames + 1) != model.GetClipInfo( reference ).Frames ) continue;
 				screens.Add( s );
 			}
+			if ( model.HasFirstPersonWeapon && screens.Any( s => s.Label == "pitch_and_turn" ) )
+				weaponAimWeight = b.AddControlParameter( "weapon_aim_weight", GraphBuilder.NodeKind.Float,
+					new() { Min = 0, Max = 1, DefaultFloat = 1 } );
 			if ( screens.Any( s => s.Label != "look" ) )
 			{
 				aim = b.IdParameter( "aim_screen", screens.Where( s => s.Label != "look" ).Select( s => s.Label ).ToArray() );
@@ -105,9 +110,10 @@ public partial class Halo2ModelLoader
 			{
 				bool head = s.Label == "look";
 				var enabled = head ? look : b.IdCompare( aim, s.Label );
+				bool weaponAim = weaponAimWeight is not null && s.Label == "pitch_and_turn";
 				int flag = head ? 32 : 16;
 				var excluded = actions.Where( a => (model.GetClipInfo( a.Value ).PlaybackFlags & flag) != 0 ).Select( a => a.Key ).ToArray();
-				if ( excluded.Length > 0 ) enabled = b.And( enabled, b.Not( b.IdCompare( action, excluded ) ) );
+				if ( !weaponAim && excluded.Length > 0 ) enabled = b.And( enabled, b.Not( b.IdCompare( action, excluded ) ) );
 				var clip = model.GetClip( s.Clip );
 				var x = head ? lookYaw : yaw;
 				var y = head ? lookPitch : pitch;
@@ -124,7 +130,9 @@ public partial class Halo2ModelLoader
 					rows.Add( (row * (row < 0 ? s.Down : s.Up), Axis( x, cols )) );
 				}
 				var weight = b.Switch( enabled, 1f, 0f );
-				if ( s.Label == "pitch_and_turn" && excluded.Length > 0 )
+				if ( weaponAim )
+					weight = b.Switch( enabled, weaponAimWeight, b.Constant( 0f ) );
+				else if ( s.Label == "pitch_and_turn" && excluded.Length > 0 )
 					weight = b.Ease( weight );
 				layers.AddLayer( Axis( y, rows ), new() { Weight = weight,
 					BlendMode = clip.IsAdditive ? GraphBuilder.LayerBlendMode.Additive : GraphBuilder.LayerBlendMode.Overlay,

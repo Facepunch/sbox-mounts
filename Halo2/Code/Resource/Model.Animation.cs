@@ -112,7 +112,7 @@ public partial class Halo2ModelLoader
 		var ordered = options.OrderBy( a => DisablesBlendOut( a ) ).ToArray();
 		GraphNode output = action is null ? builder.ReferencePose() : SelectAction( ordered );
 		output = movement.Apply( builder, output, BasePose );
-		output = screens.Apply( builder, output, this, action, options );
+		if ( !HasFirstPersonWeapon ) output = screens.Apply( builder, output, this, action, options );
 		if ( overlay is not null )
 		{
 			var layers = builder.Layers( output );
@@ -142,6 +142,8 @@ public partial class Halo2ModelLoader
 			}
 			output = layers;
 		}
+		// First-person weapons apply the movement channel before the pitch-and-turn screen.
+		if ( HasFirstPersonWeapon ) output = screens.Apply( builder, output, this, action, options );
 		foreach ( var (marker, bone, target) in ikTargets )
 		{
 			if ( bone is null ) continue;

@@ -6,6 +6,8 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
 	[Property] public Vector3 ViewOffset { get; set; }
+	[Property] public float TurnAcceleration { get; set; } = 27;
+	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float FullDamageRange { get; set; }
@@ -225,7 +227,60 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	int nextCue;
 	bool reload, empty, entering;
 	float stride, movementWeight;
-	Angles? smoothedLook;
+	float? previousYaw;
+	float yawDelta, turn, turnVelocity;
+	int aimTick, aimTicks;
+	bool aimEnabled;
+
+	void SelectAim( bool enabled, int rate )
+	{
+		int ticks = ((int)((enabled ? 0.4f : 0.2f) * rate + 0.5f)).Clamp( 1, 127 ) - 1;
+		if ( ticks == aimTicks && enabled == aimEnabled ) return;
+		if ( ticks == 0 ) aimTick = 0;
+		else if ( aimTicks > 0 ) aimTick = (int)(aimTick / (float)aimTicks * (ticks - 1));
+		else aimTick = enabled ? 1 : ticks - 1;
+		aimTicks = ticks;
+		aimEnabled = enabled;
+	}
+
+	float AimWeight()
+	{
+		if ( aimTicks == 0 ) return 0;
+		float t = aimTick / (float)aimTicks;
+		float square = t * t;
+		return 3 * square - (square + square) * t;
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		base.OnFixedUpdate();
+		if ( Weapon?.Holder is not PlayerController player ) return;
+		float dt = Time.Delta;
+		if ( dt <= 0 ) return;
+		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
+		// The first-person tick consumes the preceding tick's facing delta.
+		float target = (yawDelta / dt).Clamp( -1, 1 );
+		StepTurn( ref turn, ref turnVelocity, target, dt, Weapon.TurnAcceleration, Weapon.TurnSpeed );
+		float yaw = player.EyeAngles.yaw;
+		yawDelta = previousYaw.HasValue ? new Angles( 0, yaw - previousYaw.Value, 0 ).Normal.yaw.DegreeToRadian() : 0;
+		previousYaw = yaw;
+	}
+
+	internal static void StepTurn( ref float value, ref float velocity, float target, float dt, float acceleration, float maxSpeed )
+	{
+		float distance = target - value;
+		if ( System.MathF.Abs( distance - velocity * dt ) <= System.MathF.Min( dt * dt * acceleration, dt * maxSpeed ) )
+		{
+			value = target;
+			velocity = 0;
+			return;
+		}
+
+		float speed = System.MathF.Min( maxSpeed, System.MathF.Sqrt( System.MathF.Abs( distance ) * (acceleration + acceleration) ) );
+		float change = (((distance < 0 ? -speed : speed) - velocity) / dt).Clamp( -acceleration, acceleration );
+		velocity += change * dt;
+		value = (value + (change * 0.5f * dt + velocity) * dt).Clamp( -1, 1 );
+	}
 
 	public override void OnDeploy() => Play( "ready" );
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
@@ -305,16 +360,16 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		var speed = player.IsOnGround ? player.Velocity.WithZ( 0 ).Length : 0;
 		float response = 1 - System.MathF.Exp( -10 * Time.Delta );
 		float speedRatio = (speed / System.MathF.Max( 1, player.WalkSpeed )).Clamp( 0, 1 );
-		movementWeight += ((clip is null ? speedRatio : 0) - movementWeight) * response;
+		movementWeight += (speedRatio - movementWeight) * response;
 		stride = (stride + Time.Delta * movementWeight * (30f / 19)) % 1;
 		var p = Renderer.Animation.Parameters;
+		SelectAim( ((clip?.PlaybackFlags ?? 0) & 16) == 0, (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency ) );
+		float aimWeight = AimWeight();
+		p.Set( "weapon_aim_weight", aimWeight );
 		p.Set( "overlay", "moving" );
 		p.Set( "overlay_time", stride );
-		p.Set( "overlay_weight", movementWeight );
+		p.Set( "overlay_weight", movementWeight * aimWeight );
 		var look = player.EyeAngles;
-		var previous = smoothedLook ?? look;
-		var lag = (look - previous).Normal;
-		smoothedLook = (previous + lag * response).Normal;
-		Animator.SetAim( "pitch_and_turn", (look - smoothedLook.Value).Normal.yaw, -smoothedLook.Value.pitch );
+		Animator.SetAim( "pitch_and_turn", turn.RadianToDegree(), -look.pitch );
 	}
 }
