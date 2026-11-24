@@ -154,6 +154,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			ballistics.Pellets = Short( barrel + 0x6a );
 			ballistics.Range = Float( projectile + 0xe0 ) * 120;
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
+			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
 			gun.FullDamageRange = Float( projectile + 0x168 ) * 120;
 			gun.MinimumDamage = Float( damage + 0x1c );
 			ballistics.Damage = Float( damage + 0x20 );

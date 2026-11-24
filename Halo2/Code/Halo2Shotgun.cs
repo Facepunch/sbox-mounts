@@ -11,6 +11,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float MovementAcceleration { get; set; } = 72;
 	[Property] public float MovementSpeed { get; set; } = 15;
 	[Property] public float PelletSpeed { get; set; }
+	[Property] public float AutoAimRange { get; set; } = 720;
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float FullDamageRange { get; set; }
 	[Property] public float MeleeDamage { get; set; }
@@ -207,15 +208,25 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 
 	Color ReticleTint()
 	{
-		var hit = BulletTrace( AimRay, Ballistics.Range, 0 ).Run();
+		var ray = AimRay;
+		var hit = BulletTrace( ray, Ballistics.Range, 0 ).Run();
 		var npc = hit.GameObject?.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
 		var disposition = Holder is {} holder ? npc?.GetDisposition( holder.GameObject ) : null;
 		return disposition switch
 		{
 			Sandbox.Npcs.Disposition.Friendly => Color.FromBytes( 51, 255, 0 ),
-			Sandbox.Npcs.Disposition.Hostile => Color.Red,
+			Sandbox.Npcs.Disposition.Hostile when InFullAutoAimRange( ray, hit ) => Color.Red,
 			_ => Color.FromBytes( 117, 186, 255 )
 		};
+	}
+
+	bool InFullAutoAimRange( Ray ray, SceneTraceResult hit )
+	{
+		var center = hit.Hitbox?.Body is { IsValid: true } body ? body.GetBounds().Center
+			: hit.Collider.IsValid() ? hit.Collider.WorldTransform.PointToWorld( hit.Collider.LocalBounds.Center )
+			: hit.EndPosition;
+		// A direct hit projects the target onto the aim ray. TU1.5 starts its confidence falloff at half range.
+		return Vector3.Dot( center - ray.Position, ray.Forward ) <= AutoAimRange * 0.5f;
 	}
 
 	TimeUntil meleeEnds;
