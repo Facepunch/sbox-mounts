@@ -18,7 +18,6 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 	protected override object Load()
 	{
 		var model = new RenderModelTag( mapFile, tag );
-		var mapName = mapFile.Header.MapName;
 		var builder = Model.Builder.WithName( Path );
 
 		if ( model.Sections.Count == 0 || model.Regions.Count == 0 )
@@ -67,7 +66,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, mapName, builder, bounds, lod, regionName, permIdx, materials, colors, needsTraceMesh ) )
+						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, colors, needsTraceMesh ) )
 							needsTraceMesh = false;
 					}
 					catch ( Exception ex )
@@ -106,7 +105,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return builder.Create();
 	}
 
-	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, string mapName, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
+	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, bool addTraceMesh )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -203,7 +202,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			var index = submesh.ShaderIndex;
 			int shaderId = (uint)index < model.Shaders.Count ? model.Shaders[index].TagIndex : -1;
 			if ( !materials.TryGetValue( shaderId, out var material ) )
-				materials[shaderId] = material = LoadMaterial( map, model, index, mapName, colors );
+				materials[shaderId] = material = LoadMaterial( map, model, index, colors );
 
 			var mesh = new Mesh( $"section{sectionIndex}", material );
 			mesh.CreateVertexBuffer( verts.Length, verts );
@@ -371,7 +370,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return colors;
 	}
 
-	Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, string mapName, Vector3[] colors )
+	Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, Vector3[] colors )
 	{
 		if ( shaderIndex < 0 || shaderIndex >= model.Shaders.Count )
 			return Material.Load( "materials/dev/primary_white.vmat" );
@@ -381,14 +380,12 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( shaderTag == null || string.IsNullOrEmpty( shaderTag.TagPath ) )
 			return Material.Load( "materials/dev/primary_white.vmat" );
 
-		var tagPath = shaderTag.TagPath.Replace( '\\', '/' );
-
 		try
 		{
-			var mat = Material.Load( $"mount://halo2/{mapName}/{tagPath}.vmat" );
+			var mat = Material.Load( Host.AssetPath( map, shaderTag.TagPath, "vmat" ) );
 			if ( colors is { Length: > 0 } && (mat?.GetFeature( "F_CHANGE_COLOR" ) == 1 || mat?.GetFeature( "F_PASS" ) == (int)ShaderTag.EffectPass.Hair) )
 			{
-				mat = Halo2MaterialLoader.Create( map, shaderTag, mapName, $"{Path}/{shaderIndex}.vmat" );
+				mat = Halo2MaterialLoader.Create( Host, map, shaderTag, $"{Path}/{shaderIndex}.vmat" );
 				for ( int i = 0; i < colors.Length; i++ ) mat.Set( ColorParameters[i], colors[i] );
 			}
 			return mat ?? Material.Load( "materials/dev/primary_white.vmat" );

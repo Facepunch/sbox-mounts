@@ -14,7 +14,12 @@ namespace Halo2;
 /// </summary>
 public class Halo2Mount : BaseGameMount
 {
-	public override string Ident => "halo2";
+	internal const string MountIdent = "halo2";
+
+	public override string Ident => MountIdent;
+	internal string AssetPath( MapFile map, string tagPath, string extension ) =>
+		$"mount://{Ident}/{map.Header.MapName}/{tagPath.Replace( '\\', '/' )}.{extension}";
+
 	public override string Title => "Halo 2";
 
 	const long AppId = 976730; // Halo MCC Steam App ID
@@ -88,6 +93,8 @@ public class Halo2Mount : BaseGameMount
 	void RegisterMapTags( MountContext context, MapFile mapFile )
 	{
 		var mapName = mapFile.Header.MapName;
+		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
+		int soundTable = audioTag is null ? -1 : mapFile.VaToOffset( (int)audioTag.DataVirtualAddress );
 
 		// Model definitions link the render model and physics model by tag datum.
 		var modeToBiped = new Dictionary<int, TagEntry>();
@@ -161,6 +168,10 @@ public class Halo2Mount : BaseGameMount
 
 			switch ( tag.PrimaryClass )
 			{
+				// sound - FourCC "snd!" stored LE as "!dns"
+				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:
+					context.Add( ResourceType.GameResource, $"{mapName}/{tagPath}.sound", new Halo2SoundLoader( mapFile, tag, soundTable ) );
+					break;
 				// render_model - FourCC "mode" stored LE as "edom"
 				case "edom":
 					modeToPhmo.TryGetValue( tagIndex, out var phmoTag );
@@ -177,7 +188,7 @@ public class Halo2Mount : BaseGameMount
 
 				// shader - FourCC "shad" stored LE as "dahs"
 				case "dahs":
-					context.Add( ResourceType.Material, $"{mapName}/{tagPath}.vmat", new Halo2MaterialLoader( mapFile, tag, mapName ) );
+					context.Add( ResourceType.Material, $"{mapName}/{tagPath}.vmat", new Halo2MaterialLoader( mapFile, tag ) );
 					break;
 			}
 		}

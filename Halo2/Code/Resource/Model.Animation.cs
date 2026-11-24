@@ -335,7 +335,13 @@ public partial class Halo2ModelLoader
 		// from the last pose to the next cycle. AG2 samples both endpoints.
 		if ( movementSize > 0 && frames > 1 )
 			builder.AddFrame( poses.AsSpan( bones * Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 ), bones ), motion );
-		foreach ( var group in GetClipInfo( reference ).Cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )
+		var cues = GetClipInfo( reference ).Cues;
+		foreach ( var cue in cues )
+		{
+			float cycle = (float)cue.Frame / (builder.FrameCount - 1);
+			if ( cycle >= 0 && cycle <= 1 ) builder.AddEvent( cycle, new Halo2CueEvent { Cue = cue } );
+		}
+		foreach ( var group in cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )
 		{
 			float cycle = (float)group.Key / (builder.FrameCount - 1);
 			if ( cycle >= 0 && cycle < 1 ) builder.AddSyncEvent( cycle, group.First().Kind );

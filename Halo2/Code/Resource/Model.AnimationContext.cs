@@ -40,8 +40,10 @@ public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, floa
 
 public partial class Halo2ModelLoader
 {
+	internal SoundEvent LoadSound( string tagPath ) => GameResource.Load<SoundEvent>( Host.AssetPath( mapFile, tagPath, "sound" ) );
+
 	public static Halo2ModelLoader ForModel( Model model ) => model is null ? null :
-		Sandbox.Mounting.Directory.Get( "halo2" )?.GetByPath( model.Name ) as Halo2ModelLoader;
+		Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( model.Name ) as Halo2ModelLoader;
 
 	readonly Dictionary<(string, string, string), Halo2AnimationContext> contexts = new();
 	readonly Dictionary<int, Halo2ClipInfo> clipInfo = new();

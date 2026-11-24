@@ -19,7 +19,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	Halo2ModelLoader model;
 	Halo2AnimationContext context;
-	string weaponClass, weaponType;
+	string mode, weaponClass, weaponType;
 	string action;
 	Halo2Transition pending, playing;
 	bool holdReaction;
@@ -36,6 +36,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		var graph = Graph.Load( $"{Renderer.Model.Name}/{mode}/{weaponClass}/{weaponType}.ag" );
 		if ( !graph.IsValid() || graph.IsError ) return false;
 		ReleaseSlots();
+		this.mode = mode;
 		this.weaponClass = weaponClass;
 		this.weaponType = weaponType;
 		model = loader;
@@ -208,8 +209,13 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	{
 		if ( data is not Halo2CueEvent { Cue: { } cue } || data.Renderer != Renderer || !Bound ) return;
 		var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker ) ?? Renderer.WorldTransform : Renderer.WorldTransform;
-		if ( cue.Kind == "sound" && cue.TagPath is not null && Sounds.TryGetValue( cue.TagPath, out var sound ) && sound.IsValid() )
-			Sound.Play( sound, position.Position );
+		if ( cue.Kind == "sound" && cue.TagPath is not null )
+		{
+			if ( !Sounds.TryGetValue( cue.TagPath, out var sound ) )
+				sound = model.LoadSound( cue.TagPath );
+			if ( sound.IsValid() )
+				Sound.Play( sound, position.Position );
+		}
 		if ( cue.Kind == "effect" && cue.TagPath is not null && Effects.TryGetValue( cue.TagPath, out var effect ) && effect.IsValid() )
 			effect.Clone( position );
 		CueFired?.Invoke( cue, position );

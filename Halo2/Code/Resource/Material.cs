@@ -7,13 +7,13 @@ namespace Halo2;
 /// Loads a Halo 2 shader (shad) tag as a material.
 /// Uses the halo2_model shader with separate change_color_map for tinting.
 /// </summary>
-public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string mapName ) : ResourceLoader<Halo2Mount>
+public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag ) : ResourceLoader<Halo2Mount>
 {
 	static readonly Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
 
-	protected override object Load() => Create( mapFile, shaderTag, mapName, Path );
+	protected override object Load() => Create( Host, mapFile, shaderTag, Path );
 
-	internal static Material Create( MapFile map, TagEntry tag, string mapName, string name )
+	internal static Material Create( Halo2Mount mount, MapFile map, TagEntry tag, string name )
 	{
 		var shader = new ShaderTag( map, tag );
 
@@ -21,7 +21,7 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 		{
 			var bitmap = map.GetTag( index );
 			if ( bitmap?.PrimaryClass != "mtib" ) return null;
-			return Texture.Load( $"mount://halo2/{mapName}/{bitmap.TagPath.Replace( '\\', '/' )}.vtex" );
+			return Texture.Load( mount.AssetPath( map, bitmap.TagPath, "vtex" ) );
 		}
 
 		if ( shader.Effect != ShaderTag.EffectPass.None )
