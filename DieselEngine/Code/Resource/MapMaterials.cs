@@ -10,6 +10,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 	readonly Dictionary<string, float> intensities = LightIntensities.Load( database );
 	public int TextureCount => textures.Values.Count( t => t is not null );
 	public string GlobalReflection { get; init; }
+	public EnvironmentSettings Environment { get; init; }
 	Dictionary<string, float> physicsDensities;
 	public IReadOnlyDictionary<string, float> PhysicsDensities
 	{
@@ -61,6 +62,9 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 
 		string fallbackSuffix = string.IsNullOrEmpty( fallbackConfig ) || fallbackConfig == config ? "" : $"_{IdString.Hash( fallbackConfig ):x16}";
 		var material = Material.Create( $"mount://payday/{scenePath}/materials/{IdString.Hash( config ):x16}_{name:x16}{fallbackSuffix}.vmat", "shaders/diesel/surface.shader" );
+		material.Set( "g_flEnvironmentSky", Environment?.HasSky == true ? 1f : 0f );
+		material.Set( "g_vEnvironmentSkyTop", Environment?.SkyTop ?? Vector3.Zero );
+		material.Set( "g_vEnvironmentSkyBottom", Environment?.SkyBottom ?? Vector3.Zero );
 		var diffuse = LoadTexture( definition?.Diffuse );
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );

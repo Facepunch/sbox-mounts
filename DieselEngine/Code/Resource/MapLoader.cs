@@ -35,10 +35,10 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
 		var world = ScriptData.Read( db.Find( "world", path ) ?? throw new InvalidDataException( $"Missing {path}.world" ) );
-		string reflection = null;
-		try { reflection = EnvironmentReflection.Read( db, world ); }
-		catch ( Exception e ) { Log.Warning( $"PAYDAY environment reflection {path}: {e.Message}" ); }
-		materials = new MapMaterials( db, path ) { GlobalReflection = reflection };
+		EnvironmentSettings environment = null;
+		try { environment = EnvironmentSettings.Read( db, world ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY environment {path}: {e.Message}" ); }
+		materials = new MapMaterials( db, path ) { GlobalReflection = environment?.Reflection, Environment = environment };
 		AddLayer( world, root );
 		string directory = path[..(path.LastIndexOf( '/' ) + 1)];
 		string continentsFile = world.Table( "world_data" )?.Text( "continents_file" );
@@ -56,9 +56,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				AddLayer( ScriptData.Read( layer ), go );
 			}
 		}
-		var sun = new GameObject( true, "Preview lighting" ) { Parent = root, WorldRotation = Rotation.From( 55, 30, 0 ) };
-		sun.AddComponent<DirectionalLight>().LightColor = Color.White * 0.7f;
-		sun.AddComponent<AmbientLight>().Color = Color.White * 0.3f;
+		MapEnvironment.Add( root, environment );
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 

@@ -188,7 +188,10 @@ var maps = names.Where( s => s.StartsWith( "levels/" ) && db.Entries.ContainsKey
 if ( maps.Length != 9 ) throw new Exception( $"Expected nine installed heist worlds, got {maps.Length}." );
 foreach ( var map in maps )
 {
-	var reflection = EnvironmentReflection.Read( db, ScriptData.Read( db.Find( "world", map ) ) );
+	var environment = EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", map ) ) );
+	var reflection = environment.Reflection;
+	if ( !environment.HasSky || !environment.Sun.HasValue )
+		throw new Exception( $"Missing authored sun/hemisphere colours: {map}" );
 	if ( string.IsNullOrEmpty( reflection ) || db.Find( "texture", reflection ) is not { } cubeBytes || !DdsCubemap.IsCube( cubeBytes ) )
 		throw new Exception( $"Missing initial environment cubemap: {map}: {reflection}" );
 }
@@ -199,6 +202,22 @@ var truckGlassReflection = MaterialConfig.Read( db.Find( "material_config", "uni
 if ( !truckGlassReflection.CubeFresnel || MathF.Abs( truckGlassReflection.Fresnel.y - 0.73f ) > 0.001f || MathF.Abs( truckGlassReflection.Fresnel.z - 0.24f ) > 0.001f )
 	throw new Exception( "Authored reflection Fresnel parsing failed." );
 Console.WriteLine( "PASS: nine initial environment cubemaps and explicit reflection/Fresnel materials." );
+var bankEnvironment = EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", "levels/bank/world" ) ) );
+if ( MathF.Abs( bankEnvironment.Sun.Value.x - 1.5f ) > 0.0001f
+	|| MathF.Abs( bankEnvironment.SkyTop.Value.x - 0.78740156f * 0.4f ) > 0.0001f
+	|| MathF.Abs( bankEnvironment.SkyBottom.Value.z - 0.74901962f * 0.4f ) > 0.0001f )
+	throw new Exception( "Environment colour scaling failed." );
+var emptyEnvironment = EnvironmentSettings.FromData( new ScriptTable() );
+if ( emptyEnvironment.Sun.HasValue || emptyEnvironment.HasSky ) throw new Exception( "Missing environment did not retain fallbacks." );
+var sunParameter = new ScriptTable { Meta = "param", ["key"] = "sun_ray_color", ["value"] = new Vector3( 1, 0.5f, 0.25f ) };
+var scaleParameter = new ScriptTable { Meta = "param", ["key"] = "sun_ray_color_scale", ["value"] = 0f };
+var environmentFixture = new ScriptTable { ["others"] = new ScriptTable { ["1"] = sunParameter, ["2"] = scaleParameter } };
+if ( EnvironmentSettings.FromData( environmentFixture ).Sun != Vector3.Zero ) throw new Exception( "Zero sunlight was replaced by preview light." );
+scaleParameter["value"] = float.NaN;
+if ( EnvironmentSettings.FromData( environmentFixture ).Sun.HasValue ) throw new Exception( "Non-finite environment scale accepted." );
+scaleParameter["value"] = -1f;
+if ( EnvironmentSettings.FromData( environmentFixture ).Sun.HasValue ) throw new Exception( "Negative environment scale accepted." );
+Console.WriteLine( "PASS: nine authored sun/hemisphere environments, colour scaling, zero and invalid-value handling." );
 var units = new HashSet<string>();
 var configs = new Dictionary<string, Dictionary<ulong, MaterialDefinition>>();
 var texturePaths = new HashSet<string>();

@@ -89,6 +89,9 @@ PS
 	CreateTextureCube( g_tReflection ) < Channel( RGB, Box( Reflection ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
 	SamplerState g_sReflection < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
 	float g_flHasReflection < Default1( 0 ); >;
+	float g_flEnvironmentSky < Default1( 0 ); >;
+	float3 g_vEnvironmentSkyTop < Default3( 0, 0, 0 ); >;
+	float3 g_vEnvironmentSkyBottom < Default3( 0, 0, 0 ); >;
 	float g_flReflectionMaxMip < Default1( 0 ); >;
 	float g_flCubeFresnel < Default1( 0 ); >;
 	float3 g_vReflectionFresnel < Default3( 0, 1, 1 ); >;
@@ -201,6 +204,11 @@ PS
 		#if S_RENDER_BACKFACES
 			m.Normal *= i.face ? 1 : -1;
 		#endif
+		// Shipped deferred lighting interpolates sky colours by world normal Z.
+		// ambient_scale multiplies baked light, not this hemisphere contribution.
+		// Emission carries this already-lit term through the standard surface pass.
+		if ( g_flEnvironmentSky > 0.5 )
+			m.Emission += m.Albedo * lerp( g_vEnvironmentSkyBottom, g_vEnvironmentSkyTop, saturate( m.Normal.z * 0.5 + 0.5 ) );
 		if ( g_flHasReflection > 0.5 )
 		{
 			float3 view = normalize( g_vCameraPositionWs - (i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz) );
