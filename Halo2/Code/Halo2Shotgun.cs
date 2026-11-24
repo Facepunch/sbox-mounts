@@ -199,8 +199,10 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	{
 		if ( reticle is null ) BindHudTextures();
 		if ( !reticle.IsValid() || reticle.IsError ) return;
-		var size = new Vector2( reticle.Width, reticle.Height ) * (Scene.Camera.ScreenRect.Height / 960f);
-		painter.Texture( reticle, new Rect( center - size * 0.5f, size ), ReticleTint() );
+		// The 220px MCC bitmap occupies 55 HUD units, with its aim point at texel 27.
+		var scale = System.MathF.Min( painter.Bounds.Width / 640f, painter.Bounds.Height / 480f );
+		var bounds = new Rect( center - new Vector2( 27 ) * scale, new Vector2( 55 ) * scale );
+		painter.Texture( reticle, bounds, ReticleTint() );
 	}
 
 	Color ReticleTint()
