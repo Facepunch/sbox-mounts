@@ -13,7 +13,7 @@ namespace Halo2;
 /// Loads a Halo 2 render_model (mode) tag and converts it to a Model.
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
 /// </summary>
-public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null ) : ResourceLoader<Halo2Mount>
+public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null ) : ResourceLoader<Halo2Mount>
 {
 	protected override object Load()
 	{
@@ -77,6 +77,9 @@ public class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag =
 
 		if ( bones.Count > 0 )
 			builder.AddBones( [.. bones] );
+
+		if ( graph is not null && bones.Count > 0 )
+			Blam.AnimationGraph.AddSequences( mapFile, graph, model, builder, ScaleFactor );
 
 		// Add ragdoll physics if phmo tag exists
 		if ( phmoTag != null && bones.Count > 0 )
