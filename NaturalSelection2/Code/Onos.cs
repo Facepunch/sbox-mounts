@@ -55,6 +55,7 @@ public sealed partial class Onos : BaseNpc
 		var movement = root.AddComponent<OnosMovement>();
 		movement.RunSpeed = RunSpeed;
 		var senses = root.AddComponent<SensesLayer>();
+		senses.SightRange = 20 * Scale;
 		senses.FieldOfView = 360;
 		var anim = root.AddComponent<AnimationLayer>();
 		anim.EnableFootstepSounds = false;

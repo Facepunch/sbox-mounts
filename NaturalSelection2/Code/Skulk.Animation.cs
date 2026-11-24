@@ -104,7 +104,7 @@ public sealed partial class Skulk
 		world.Set( "activity", activity );
 		if ( weapon is not null && Health > 0 )
 		{
-			weapon.Set( "ability", parasiteHeld ? "parasite" : "bite" );
+			weapon.Set( "ability", parasiteAttacking ? "parasite" : "bite" );
 			weapon.Set( "move", move );
 			weapon.Set( "activity", activity );
 			weapon.Update( AnimationTime, tag: weaponTag );

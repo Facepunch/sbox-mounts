@@ -9,6 +9,18 @@ internal sealed class AlienTargeting
 
 	internal void Remember( GameObject enemy, Vector3 position ) => memories[enemy] = (position, Time.Now);
 
+	internal bool HasXenocideTargets( Skulk skulk )
+	{
+		int nearby = 0;
+		foreach ( var enemy in memories.Keys )
+		{
+			if ( !BaseNpc.IsLiveTarget( enemy ) || skulk.GetDisposition( enemy ) != Disposition.Hostile || enemy.Tags.Has( "structure" ) ) continue;
+			if ( !enemy.GetComponent<PlayerController>().IsValid() && !enemy.GetComponent<BaseNpc>().IsValid() ) continue;
+			if ( skulk.WorldPosition.DistanceSquared( enemy.WorldPosition ) < 25 * MapLoader.Scale * MapLoader.Scale && ++nearby == 2 ) return true;
+		}
+		return false;
+	}
+
 	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition )
 	{
 		lastKnownPosition = null;

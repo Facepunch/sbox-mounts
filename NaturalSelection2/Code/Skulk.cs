@@ -111,6 +111,8 @@ public sealed partial class Skulk : BaseNpc
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
+			rangedSight = null;
+			primaryHeld = false;
 			Investigate( lastKnownPosition );
 			Biting = false;
 			return false;
@@ -125,7 +127,9 @@ public sealed partial class Skulk : BaseNpc
 		{
 			if ( mobile ) ApproachEnemy( target, aimPoint, distance );
 			else Movement.Stop();
-			Biting = !(mobile && TryXenocide()) && energy >= BiteEnergy && (!mobile || aimReady);
+			bool xeno = mobile && TryXenocide();
+			primaryHeld = xeno || !mobile || aimReady;
+			Biting = !xeno && primaryHeld && energy >= BiteEnergy;
 			return false;
 		}
 
@@ -133,7 +137,12 @@ public sealed partial class Skulk : BaseNpc
 		var aim = (aimPoint - EyePosition).Normal;
 		bool leap = mobile && LeapUnlocked && energy > LeapEnergy + 10 && distance is > (5 * MapLoader.Scale) and < (18 * MapLoader.Scale)
 			&& Vector3.Dot( ViewRotation.Forward, aim ) > 0.95f;
-		if ( !leap && !xenociding ) TryParasite();
+		if ( distance < 45 * MapLoader.Scale ) rangedSight ??= 0;
+		else rangedSight = null;
+		bool parasite = !leap && !xenociding && rangedSight.HasValue && rangedSight.Value > 1 &&
+			energy > (LeapUnlocked ? LeapEnergy + ParasiteEnergy : 60);
+		if ( parasite && !primaryHeld ) TryParasite();
+		primaryHeld = parasite;
 		ApproachEnemy( target, aimPoint, distance );
 		return leap;
 	}
@@ -153,8 +162,8 @@ public sealed partial class Skulk : BaseNpc
 
 	void OnWeaponTag( string tag )
 	{
-		if ( tag == "attack_end" ) parasiteHeld = false;
-		if ( tag != "hit" || parasiteHeld ) return;
+		if ( tag == "attack_end" ) parasiteAttacking = false;
+		if ( tag != "hit" || parasiteAttacking ) return;
 		energy = Math.Max( 0, energy - BiteEnergy );
 		PlayVoice( "bite" );
 		var (hit, victim) = AlienMelee.Trace( this, ViewRotation, Reach, 1.2f, 1.2f );

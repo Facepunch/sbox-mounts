@@ -9,7 +9,6 @@ public sealed partial class Skulk
 	GameObject sighted, tracked;
 	TimeSince sinceTracked;
 	List<(GameObject Target, float LastTracked)> recentTargets;
-	TimeSince sightedFor;
 	TimeUntil nextJuke, repath;
 	float jukeSide = 1;
 	float aimScale = 1;
@@ -89,7 +88,6 @@ public sealed partial class Skulk
 		}
 		if ( sighted != enemy )
 		{
-			if ( !sighted.IsValid() || !enemy.IsValid() ) sightedFor = 0;
 			sighted = enemy;
 			repath = 0;
 		}

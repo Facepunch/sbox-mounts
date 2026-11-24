@@ -17,14 +17,16 @@ public sealed partial class Skulk
 {
 	const float ParasiteEnergy = 30;
 	TimeUntil parasiteReady, detonation;
-	bool parasiteHeld, xenociding;
+	TimeSince? rangedSight;
+	bool primaryHeld;
+	bool parasiteAttacking, xenociding;
 	bool FiringParasite { get; set; }
 	[Property] public bool XenocideUnlocked { get; set; }
 
 	void TryParasite()
 	{
-		if ( parasiteHeld || parasiteReady > 0 || sightedFor <= 1 || energy <= (LeapUnlocked ? LeapEnergy + ParasiteEnergy : 60) ) return;
-		FiringParasite = parasiteHeld = true;
+		if ( parasiteAttacking || parasiteReady > 0 ) return;
+		FiringParasite = parasiteAttacking = true;
 		parasiteReady = 0.54f;
 		energy -= ParasiteEnergy;
 		PlayVoice( "parasite" );
@@ -46,19 +48,11 @@ public sealed partial class Skulk
 	bool TryXenocide()
 	{
 		if ( xenociding ) return detonation > 1.6f;
-		if ( !XenocideUnlocked || energy < 30 ) return false;
-		int nearby = 0;
-		foreach ( var enemy in Senses.VisibleHostiles )
-		{
-			if ( enemy.Tags.Has( "structure" ) || (!enemy.GetComponent<PlayerController>().IsValid() && !enemy.GetComponent<BaseNpc>().IsValid()) ) continue;
-			if ( WorldPosition.DistanceSquared( enemy.WorldPosition ) >= 25 * MapLoader.Scale * MapLoader.Scale ) continue;
-			if ( ++nearby < 2 ) continue;
-			xenociding = true;
-			detonation = 2;
-			PlayXenocideCharge();
-			return true;
-		}
-		return false;
+		if ( !XenocideUnlocked || energy < 30 || !targeting.HasXenocideTargets( this ) ) return false;
+		xenociding = true;
+		detonation = 2;
+		PlayXenocideCharge();
+		return true;
 	}
 
 	void Detonate()
