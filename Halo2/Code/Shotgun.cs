@@ -320,27 +320,32 @@ public sealed class Shotgun : Weapon
 
 	// MCC projects the authored observer offset through the safe camera rectangle.
 	// Preserve the player's selected lens and rotate the view so the aim ray meets that pixel.
-	float reticleOffsetY;
+	Vector2 reticleOffset;
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
-		reticleOffsetY = 0;
+		reticleOffset = Vector2.Zero;
 		var viewport = camera.Viewport;
 		var size = camera.ScreenRect.Size;
 		if ( Owner is { ThirdPerson: false } && !camera.Orthographic && size.x > 0 && size.y > 0 && viewport.w > 0 )
 		{
 			float aspect = size.x / size.y;
-			float vertical = System.MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
-			if ( camera.FovAxis == CameraComponent.Axis.Horizontal ) vertical /= aspect;
-			float horizontal = vertical * System.MathF.Min( aspect, 16f / 9f );
+			float referenceAspect = System.MathF.Min( aspect, 16f / 9f );
+			float halfFov = System.MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
+			float horizontal = camera.FovAxis == CameraComponent.Axis.Horizontal ? halfFov : halfFov * referenceAspect;
+			float vertical = camera.FovAxis == CameraComponent.Axis.Horizontal ? halfFov / aspect : halfFov;
 			const float mccAngleScale = 0.895f;
 			float observer = System.MathF.Tan( System.MathF.Atan( horizontal * 0.75f ) * mccAngleScale );
-			float projection = System.MathF.Tan( System.MathF.Atan( vertical ) * mccAngleScale );
+			float projection = System.MathF.Tan( System.MathF.Atan( horizontal / referenceAspect ) * mccAngleScale );
+			// Outer edges use the HUD safe area. Interior split seams use a four-pixel inset.
+			float left = (viewport.x == 0 ? 48f : 4f) / (640 * viewport.z);
+			float right = (viewport.x + viewport.z >= 1 ? 48f : 4f) / (640 * viewport.z);
 			float top = (viewport.y == 0 ? 36f : 4f) / (480 * viewport.w);
 			float bottom = (viewport.y + viewport.w >= 1 ? 36f : 4f) / (480 * viewport.w);
 			if ( projection > 0 )
 			{
-				reticleOffsetY = 0.5f * (top - bottom + (1 - top - bottom) * VerticalAimOffset * observer / projection);
-				view.Rotation *= Rotation.FromPitch( -System.MathF.Atan( 2 * reticleOffsetY * vertical ).RadianToDegree() );
+				reticleOffset = new Vector2( left - right, top - bottom + (1 - top - bottom) * VerticalAimOffset * observer / projection ) * 0.5f;
+				var aimInView = new Vector3( 1, -2 * reticleOffset.x * vertical * aspect, -2 * reticleOffset.y * vertical );
+				view.Rotation *= Rotation.LookAt( aimInView ).Inverse;
 			}
 		}
 		base.ModifyCamera( camera, ref view );
@@ -358,7 +363,10 @@ public sealed class Shotgun : Weapon
 		float size = split ? 28 : 55;
 		float registration = System.MathF.Floor( size * 0.5f );
 		if ( Owner is { ThirdPerson: false } )
-			center.y = System.MathF.Floor( center.y + painter.Bounds.Height * reticleOffsetY + 0.5f );
+		{
+			center += painter.Bounds.Size * reticleOffset;
+			center = new Vector2( System.MathF.Floor( center.x + 0.5f ), System.MathF.Floor( center.y + 0.5f ) );
+		}
 		var bounds = new Rect( center - Vector2.One * (registration * scale), Vector2.One * (size * scale) );
 		var tint = ReticleTint( out bool weakSpot );
 		var texture = reticle;
