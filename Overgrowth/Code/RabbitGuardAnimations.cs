@@ -17,6 +17,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal RabbitRetarget WallRig { get; private init; }
 	internal HashSet<string> RollBones { get; private init; }
 	internal string Species { get; private init; }
+	internal string CharacterSpecies { get; private init; }
 	internal (string Name, float Weight)[] PainMask { get; private init; }
 	internal Dictionary<string, RabbitReaction> Reactions { get; private init; }
 	internal Dictionary<string, RabbitAttack> KnifeSwings { get; private init; }
@@ -479,6 +480,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			GrabStances = grabStances,
 			Reactions = reactions,
 			Species = species,
+			CharacterSpecies = character.Element( "tags" )?.Attribute( "species" ),
 			ThrowMaterialEvent = throwAttack.Element( "materialevent" )?.Value,
 		};
 	}

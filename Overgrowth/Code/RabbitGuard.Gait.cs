@@ -37,16 +37,21 @@ public sealed partial class RabbitGuard
 		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
 		var controls = new RabbitMovement.Controls( speed / CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
 		var motion = boundAnimations.Movement;
-		float next = stridePhase + Time.Delta * motion.Evaluate( controls, stridePhase, MirroredStance ).Frequency;
+		// Overgrowth attaches a fresh animation reader when it switches back to movement.
+		bool continuing = playing == Locomotion;
+		float start = continuing ? stridePhase : 0f;
+		float next = continuing ? start + Time.Delta * motion.Evaluate( controls, start, MirroredStance ).Frequency : 0f;
 		var queued = motion.Evaluate( controls, next % 1f, MirroredStance );
 		// IK reads the last evaluated graph pose. The new parameters are consumed after OnUpdate.
-		var pose = playing == Locomotion && evaluatedGait.Events is not null ? evaluatedGait : queued;
+		var pose = continuing && evaluatedGait.Events is not null ? evaluatedGait : queued;
 		evaluatedGait = queued;
 		UpdateBodyLean( pose.Lift );
 		Renderer.Animation.Parameters.Set( "ground_speed", controls.Speed );
 		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );
 		Renderer.Animation.Parameters.Set( "threat_coord", controls.Threat );
-		Renderer.Animation.Parameters.Set( "stride_phase", next % 1f );
+		stridePhase = next % 1f;
+		Renderer.Animation.Parameters.Set( "stride_phase", stridePhase );
+		if ( IsOnGround ) PlayCycleSteps( queued.Events, start, next, Vector3.Down );
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
@@ -55,9 +60,6 @@ public sealed partial class RabbitGuard
 			ApplyAuthoredFoot( side, animated, foot );
 		}
 		SolveGroundedLegs();
-
-		if ( IsOnGround ) PlayCycleSteps( queued.Events, stridePhase, next, Vector3.Down );
-		stridePhase = next % 1;
 	}
 
 	void PlayCycleSteps( RabbitClip clip, float start, float end, Vector3 surfaceDirection )
@@ -83,7 +85,7 @@ public sealed partial class RabbitGuard
 	{
 		var surface = TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName;
 		EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
-		if ( boundAnimations.Species == "cat" )
+		if ( boundAnimations.CharacterSpecies == "cat" )
 		{
 			if ( IsAudibleStep( step ) ) (step, gain) = ("leftcrouchwalkstep", 1f);
 			else gain = 0.3f;

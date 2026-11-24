@@ -62,7 +62,7 @@ public sealed partial class RabbitGuard
 		float depth = WaterDepthAt( WorldPosition );
 		if ( depth < 0.1f )
 		{
-			bool quiet = boundAnimations.Species == "cat";
+			bool quiet = boundAnimations.CharacterSpecies == "cat";
 			PlayMaterialEvent( "roll", WorldPosition, surface, quiet ? 0.5f : 1f );
 			if ( !quiet ) ReportBodySound( HeardSound.Footstep, 2f );
 		}

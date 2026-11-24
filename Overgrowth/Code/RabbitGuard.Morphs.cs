@@ -50,16 +50,20 @@ public sealed partial class RabbitGuard
 	{
 		if ( Renderer.Model.Morphs.Count == 0 ) return;
 		UpdateMouth();
-		if ( !Unconscious && GazeTarget is { } target && boundAnimations.Head.Eyes is { } eyes
-			&& Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) )
+		if ( !Unconscious )
 		{
 			if ( nextEyeOffset <= 0f )
 			{
 				eyeOffset = new( Random.Shared.Float( -0.2f, 0.2f ), Random.Shared.Float( -0.2f, 0.2f ), Random.Shared.Float( -0.2f, 0.2f ) );
 				nextEyeOffset = Random.Shared.Float( 0.2f, 1f );
 			}
-			bool useLeft = eyes.SideFacing && Scene.Camera is { } camera && head.PointToLocal( camera.WorldPosition ).y < 0f;
-			var look = eyes.Evaluate( head.PointToLocal( target ), useLeft ) + eyeOffset;
+			var look = eyeOffset;
+			if ( GazeTarget is { } target && boundAnimations.Head.Eyes is { } eyes
+				&& Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) )
+			{
+				bool useLeft = eyes.SideFacing && Scene.Camera is { } camera && head.PointToLocal( camera.WorldPosition ).y < 0f;
+				look += eyes.Evaluate( head.PointToLocal( target ), useLeft );
+			}
 			foreach ( var shape in boundAnimations.Morphs )
 			{
 				float weight = shape.Name switch

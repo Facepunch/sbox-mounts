@@ -48,7 +48,7 @@ public sealed partial class RabbitGuard
 			if ( direction.Dot( airVelocity ?? velocity ) < 0f ) return;
 			touchedWall = true;
 			sinceWallContact = 0f;
-			PlayMaterialEvent( "leftwallstep", center + direction * legRadius, surface, boundAnimations.Species == "cat" ? 0.5f : 1f );
+			PlayMaterialEvent( "leftwallstep", center + direction * legRadius, surface, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
 		}
 		WallDirection = direction;
 		var facing = Rotation.LookAt( direction.WithZ( 0f ) );

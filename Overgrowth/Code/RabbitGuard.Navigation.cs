@@ -41,7 +41,7 @@ public sealed partial class RabbitGuard
 		bool wolf = boundAnimations?.Species == "wolf";
 		if ( wolf ) limit *= 1.5f;
 		float friction = acceleration / limit;
-		float crouch = 1f - duckAmount * (boundAnimations?.Species == "cat" ? 0.25f : 0.5f);
+		float crouch = 1f - duckAmount * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
 		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
 		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (MathF.Exp( friction * tick ) - 1f);
 		float response = 1f - MathF.Exp( -friction * step );

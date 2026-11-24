@@ -239,7 +239,7 @@ public sealed partial class RabbitGuard
 		}
 		float speed = struggleVelocity.Length;
 		AdvanceCrouchSpring( struggling && struggleCrouch ? 1f - 0.7f * Math.Min( 1f, speed / 200f ) : 0f, HoldStep );
-		float crouch = duckAmount * (boundAnimations.Species == "cat" ? 0.5f : 1f);
+		float crouch = duckAmount * (boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f);
 		float maximum = Math.Min( 1.5f * GroundRunSpeed, Math.Max( speed * 0.98f, GroundRunSpeed * (Holding && PrimaryItem.IsValid() ? 1f : 0.4f) ) );
 		bool wolf = boundAnimations.Species == "wolf";
 		if ( wolf ) maximum *= 1.5f;

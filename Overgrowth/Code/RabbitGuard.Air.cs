@@ -151,7 +151,7 @@ public sealed partial class RabbitGuard
 					LeftFootJump = nextJumpUsesLeft;
 					nextJumpUsesLeft = !nextJumpUsesLeft;
 					ReportBodySound( HeardSound.Footstep, 2f );
-					PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.Species == "cat" ? 0.5f : 1f );
+					PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
 				}
 			}
 			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
@@ -245,7 +245,7 @@ public sealed partial class RabbitGuard
 			duckAmount = CrouchAmount = 1f;
 			duckVelocity = 3f;
 		}
-		bool quiet = boundAnimations.Species == "cat";
+		bool quiet = boundAnimations.CharacterSpecies == "cat";
 		if ( !hard || WaterDepthAt( WorldPosition ) < 0.25f )
 		{
 			if ( !quiet || hard )

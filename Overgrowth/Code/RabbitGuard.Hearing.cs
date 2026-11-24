@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 	void ReportFootstep( string step, Vector3 position )
 	{
 		if ( !Networking.IsHost ) return;
-		if ( boundAnimations?.Species == "cat" && IsAudibleStep( step ) )
+		if ( boundAnimations?.CharacterSpecies == "cat" && IsAudibleStep( step ) )
 		{
 			ReportSound( GameObject, position, HeardSound.Footstep, 2f );
 			return;
