@@ -11,7 +11,7 @@ public class ShotgunModel : BaseWeaponModel
 	bool viewCasing;
 	uint seed = (uint)Random.Shared.Next();
 
-	ParticleEffect muzzleFlash, shortFlare, longFlare;
+	ParticleEffect muzzleFlash, shortFlare, longFlare, fierySmoke;
 	internal void ConfigureMuzzleFlash( bool firstPerson )
 	{
 		if ( !MuzzleGameObject.IsValid() ) return;
@@ -34,9 +34,8 @@ public class ShotgunModel : BaseWeaponModel
 		muzzleFlash.Tint = firstPerson ? Color.FromBytes( 252, 188, 101 ) : Color.FromBytes( 251, 206, 123 );
 		muzzleFlash.ApplyAlpha = true;
 		muzzleFlash.Alpha = firstPerson ? new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life }
-			: LifeCurve( new Curve.Frame( 0, 1 ), new Curve.Frame( 0.800193f, 1, 0, -3.20464f ), new Curve.Frame( 1, 0, 7.00483f, 0 ) );
-		muzzleFlash.OnParticleCreated += OrientFlash;
-		muzzleFlash.OnPostStep += UpdateFlashOrientation;
+			: FadeAfterPlateau( 5.00483f );
+		MirrorBillboards( muzzleFlash );
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Scale = 2 * 60f / 62f;
@@ -45,6 +44,7 @@ public class ShotgunModel : BaseWeaponModel
 		renderer.RenderOptions.Game = !firstPerson;
 		renderer.RenderOptions.Overlay = firstPerson;
 		go.Enabled = true;
+		fierySmoke = CreateFierySmoke( firstPerson );
 		if ( firstPerson ) return;
 		var flareTexture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.LongFlashName}" );
 		if ( !flareTexture.IsValid() || flareTexture.IsError ) return;
@@ -71,11 +71,7 @@ public class ShotgunModel : BaseWeaponModel
 		flare.ApplyColor = true;
 		flare.Tint = shortReach ? Color.FromBytes( 251, 206, 123 ) : Color.FromBytes( 231, 159, 80 );
 		flare.ApplyAlpha = true;
-		// Both opacity cubics are clamped at one until their falling segment crosses it.
-		float cubic = shortReach ? 4.896553f : 1.414634f;
-		float fadeStart = (cubic - 1) / cubic;
-		flare.Alpha = LifeCurve( new Curve.Frame( 0, 1 ), new Curve.Frame( fadeStart, 1, 0, -cubic * fadeStart * fadeStart ),
-			new Curve.Frame( 1, 0, cubic + 2, 0 ) );
+		flare.Alpha = FadeAfterPlateau( shortReach ? 4.896553f : 1.414634f );
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
@@ -104,10 +100,46 @@ public class ShotgunModel : BaseWeaponModel
 		p.Position = flare.WorldPosition + up * (radius / 49f);
 	}
 
-	void UpdateFlashOrientation( float delta )
+	ParticleEffect CreateFierySmoke( bool firstPerson )
 	{
-		foreach ( var particle in muzzleFlash.Particles )
-			OrientFlash( particle );
+		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.FierySmokeName}" );
+		if ( !texture.IsValid() || texture.IsError ) return null;
+		var go = new GameObject( MuzzleGameObject, false, "Fiery muzzle smoke" );
+		var smoke = go.AddComponent<ParticleEffect>();
+		smoke.MaxParticles = 1;
+		smoke.LocalSpace = 1;
+		smoke.Lifetime = 0.2f;
+		smoke.ApplyShape = true;
+		smoke.InitialScale = firstPerson ? 9 : 18;
+		smoke.Scale = firstPerson
+			? LifeCurve( new Curve.Frame( 0, 0.3944444f, 0, 0.9005849f ), new Curve.Frame( 1, 0.688889f, 1.414141f, 0 ) )
+			: LifeCurve( new Curve.Frame( 0, 0.2166667f, 0, 1.274854f ), new Curve.Frame( 1, 1, -0.20202f, 0 ) );
+		smoke.ApplyAlpha = true;
+		smoke.Alpha = firstPerson ? new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life }
+			: FadeAfterPlateau( 2.519775f );
+		smoke.ApplyColor = true;
+		smoke.Tint = Color.FromBytes( 245, 168, 90 );
+		smoke.ApplyRotation = true;
+		smoke.InitialRoll = new ParticleFloat( 0, 360 );
+		MirrorBillboards( smoke );
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Scale = 2;
+		renderer.Additive = true;
+		renderer.FogStrength = 0;
+		renderer.RenderOptions.Game = !firstPerson;
+		renderer.RenderOptions.Overlay = firstPerson;
+		go.Enabled = true;
+		return smoke;
+	}
+
+	static void MirrorBillboards( ParticleEffect effect )
+	{
+		effect.OnParticleCreated += OrientFlash;
+		effect.OnPostStep += _ =>
+		{
+			foreach ( var particle in effect.Particles ) OrientFlash( particle );
+		};
 	}
 
 	static void OrientFlash( Particle particle )
@@ -116,8 +148,16 @@ public class ShotgunModel : BaseWeaponModel
 		// while keeping the taller billboard axis positive for the renderer's bounds.
 		bool flipX = particle.Rand( 1 ) < 0.5f;
 		bool flipY = particle.Rand( 2 ) < 0.5f;
-		particle.Angles.roll = flipY ? 180 : 0;
+		particle.Angles.roll = particle.StartAngles.roll + (flipY ? 180 : 0);
 		particle.Size.x = (flipX != flipY ? -1 : 1) * System.MathF.Abs( particle.Size.x );
+	}
+
+	static ParticleFloat FadeAfterPlateau( float cubic )
+	{
+		// Clamp the opacity cubic at one until its falling segment crosses it.
+		float start = (cubic - 1) / cubic;
+		return LifeCurve( new Curve.Frame( 0, 1 ), new Curve.Frame( start, 1, 0, -cubic * start * start ),
+			new Curve.Frame( 1, 0, cubic + 2, 0 ) );
 	}
 
 	static ParticleFloat LifeCurve( params Curve.Frame[] frames ) => new()
@@ -238,6 +278,7 @@ public class ShotgunModel : BaseWeaponModel
 			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
 				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
 		}
+		if ( fierySmoke.IsValid() ) fierySmoke.Emit( fierySmoke.WorldPosition, 0 );
 		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
 		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
 		ejectAt = (TimeUntil)(13f / 30f);
