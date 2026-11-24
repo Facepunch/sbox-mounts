@@ -1,5 +1,6 @@
 using Sandbox.Npcs;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace NS2;
 
@@ -14,9 +15,10 @@ public sealed partial class Onos
 	bool charging, stomping, stompHit;
 	bool straightPath;
 	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp = 10;
-	TimeUntil rechargeShield, nextHeal, clearStampedes;
+	TimeUntil rechargeShield, nextHeal;
 	float stompDuration;
-	Dictionary<GameObject, TimeUntil> stampedeCooldowns;
+	sealed class StampedeCooldown { public TimeUntil Remaining; }
+	static readonly ConditionalWeakTable<GameObject, StampedeCooldown> StampedeCooldowns = new();
 
 	void ChooseAbility( GameObject enemy, float distance )
 	{
@@ -134,31 +136,46 @@ public sealed partial class Onos
 		}
 		if ( stomping && sinceStomp > stompDuration + 0.15f ) stomping = false;
 		if ( velocity.Length > 8.5f * Scale ) Stampede( velocity );
-		else if ( clearStampedes <= 0 ) stampedeCooldowns?.Clear();
+
 	}
 
 	void Stampede( Vector3 velocity )
 	{
-		var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
-		var center = WorldPosition + Vector3.Up * Scale + forward * (1.2f * Scale);
-		foreach ( var enemy in Senses.VisibleHostiles )
+		var facing = Rotation.LookAt( ViewRotation.Forward.WithZ( 0 ).Normal );
+		var center = WorldPosition + Vector3.Up * Scale + facing.Forward * (1.2f * Scale);
+		// The source query includes the half-diagonal of the impact box plus 1.5 metres.
+		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, (MathF.Sqrt( 3.88f ) + 1.5f) * Scale ) ) )
 		{
-			if ( stampedeCooldowns?.TryGetValue( enemy, out var until ) == true && until > 0 ) continue;
-			var collider = enemy.GetComponentInChildren<Collider>();
-			if ( !collider.IsValid() || enemy.GetComponent<IDamageable>() is not { } victim ) continue;
+			if ( obj.GetComponentInParent<IDamageable>() is not Component target ) continue;
+			var enemy = target.GameObject;
+			if ( enemy.Tags.Has( "structure" ) || GetDisposition( enemy ) != Disposition.Hostile ) continue;
+			if ( StampedeCooldowns.TryGetValue( enemy, out var cooldown ) && cooldown.Remaining > 0 ) continue;
+			var collider = obj.GetComponent<Collider>() ?? enemy.GetComponentInChildren<Collider>();
+			if ( !collider.IsValid() ) continue;
 			var point = collider.FindClosestPoint( center );
-			var offset = WorldTransform.Rotation.Inverse * (point - center);
+			var offset = facing.Inverse * (point - center);
 			if ( Math.Abs( offset.x ) > 1.2f * Scale || Math.Abs( offset.y ) > Scale || Math.Abs( offset.z ) > 1.2f * Scale ) continue;
-			(stampedeCooldowns ??= [])[enemy] = 0.7f;
-			clearStampedes = 0.7f;
+			(cooldown ?? StampedeCooldowns.GetValue( enemy, _ => new() )).Remaining = 0.7f;
+
 			var body = enemy.GetComponent<Rigidbody>();
 			if ( body.IsValid() && body.MotionEnabled )
 			{
 				var push = (CalculateAimPoint( enemy ) - WorldPosition).Normal;
-				body.Velocity = velocity * 1.2f + (push - velocity.Normal).WithZ( 0 ) * (10 * Scale) + Vector3.Up * (6.5f * Scale * (1 - body.PhysicsBody.Mass / 1000));
+				var impact = velocity * 1.2f + (push - velocity.Normal).WithZ( 0 ) * (10 * Scale) + Vector3.Up * (6.5f * Scale * (1 - body.PhysicsBody.Mass / 1000));
+				var player = enemy.GetComponent<PlayerController>();
+				if ( player.IsValid() ) KnockBackPlayer( player, impact );
+				else body.Velocity = impact;
 			}
-			DealDamage( victim, 12, point, "charge" );
+			DealDamage( (IDamageable)target, 12, point, "charge" );
 			PlayCue( "charge_hit_marine" );
 		}
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void KnockBackPlayer( PlayerController player, Vector3 impact )
+	{
+		if ( !player.IsValid() || player.IsProxy || !player.Body.IsValid() ) return;
+		player.PreventGrounding( 0.2f );
+		player.Body.Velocity = impact;
 	}
 }
