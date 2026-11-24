@@ -73,6 +73,7 @@ PS
 	CreateInputTextureCube( Environment, Srgb, 8, "", "", "", Default3( 0, 0, 0 ) );
 	CreateTextureCube( g_tEnvironment ) < Channel( RGB, GGXCubeMapBlur( Environment ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
 	float4 g_vDetailTransform < Default4( 0, 0, 0, 0 ); >;
+	float g_flEnvironmentUnsignedZ < Default( 0 ); >;
 	float4 g_vEnvironmentFacing < Default4( 0, 0, 0, 0 ); >;
 	float4 g_vEnvironmentGlancing < Default4( 0, 0, 0, 0 ); >;
 	#if S_CHANGE_COLOR
@@ -121,9 +122,16 @@ PS
 		if ( g_vEnvironmentFacing.w + g_vEnvironmentGlancing.w > 0 )
 		{
 			float3 view = CalculatePositionToCameraDirWs( m.WorldPosition );
-			float grazing = 1 - saturate( dot( view, normal ) );
-			float3 tint = lerp( g_vEnvironmentFacing.rgb * g_vEnvironmentFacing.w, g_vEnvironmentGlancing.rgb * g_vEnvironmentGlancing.w, grazing );
-			m.Emission += TexCube( g_tEnvironment, reflect( -view, normal ) ).rgb * tint * specularMask;
+			float3 reflectionNormal = normal;
+			if ( g_flEnvironmentUnsignedZ )
+			{
+				// MCC default_environment_map_tangent_space expands XY and retains the sampled Z.
+				float3 ts = float3( texNormal.xy * 2.0 - 1.0, texNormal.z );
+				reflectionNormal = TransformNormal( ts, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
+			}
+			float grazing = 1 - saturate( dot( view, reflectionNormal ) );
+			float4 environment = lerp( g_vEnvironmentFacing, g_vEnvironmentGlancing, grazing );
+			m.Emission += TexCube( g_tEnvironment, reflect( -view, reflectionNormal ) ).rgb * environment.rgb * environment.w * specularMask;
 		}
 		m.TintMask = 0;
 		m.Transmission = 0;

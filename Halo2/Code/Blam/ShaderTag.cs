@@ -24,6 +24,7 @@ public class ShaderTag
 	public int DetailBitmapTagIndex { get; private set; } = -1;
 	public int EnvironmentBitmapTagIndex { get; private set; } = -1;
 	public Vector4 DetailTransform { get; private set; } = new( 1, 1, 0, 0 );
+	public bool EnvironmentUsesUnsignedNormalZ { get; private set; }
 	public Vector4 EnvironmentFacing { get; private set; }
 	public Vector4 EnvironmentGlancing { get; private set; }
 
@@ -99,6 +100,7 @@ public class ShaderTag
 				bool twoColors = name == "tex_bump_env_two_change_color";
 				if ( name == "tex_bump_env" || fourColors || twoColors )
 				{
+					EnvironmentUsesUnsignedNormalZ = fourColors;
 					DetailBitmapTagIndex = Bitmap( 3 );
 					EnvironmentBitmapTagIndex = Bitmap( fourColors || twoColors ? 5 : 4 );
 					int colorCount = pp.ReadInt32();

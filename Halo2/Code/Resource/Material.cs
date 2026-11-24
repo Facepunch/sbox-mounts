@@ -35,6 +35,7 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 		if ( LoadBitmap( shader.EnvironmentBitmapTagIndex ) is { } environment )
 		{
 			material.Set( "g_tEnvironment", environment );
+			material.Set( "g_flEnvironmentUnsignedZ", shader.EnvironmentUsesUnsignedNormalZ );
 			material.Set( "g_vEnvironmentFacing", shader.EnvironmentFacing );
 			material.Set( "g_vEnvironmentGlancing", shader.EnvironmentGlancing );
 		}
