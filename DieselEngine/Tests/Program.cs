@@ -61,6 +61,11 @@ int draws = 0, resolvedMaterials = 0, missingMaterials = 0, invalidConfigs = 0;
 int visibleDraws = 0, visibleFallbacks = 0;
 int placements = 0, meshes = 0, triangles = 0, missing = 0;
 int primitiveCount = 0;
+var lightUnits = new List<(string Map, ScriptTable Unit)>();
+var lightDefinitions = new Dictionary<string, Dictionary<string, LightDefinition>>();
+var intensities = UnitLights.ReadIntensities( db.Find( "light_intensities", "core/settings/light_intensities" ) );
+if ( intensities["none"] != 0 || intensities["candle"] != 4 || intensities["sun"] != 1000 )
+	throw new Exception( "Authored light intensity database was not decoded correctly." );
 foreach ( string map in maps )
 {
 	var world = ScriptData.Read( db.Find( "world", map ) );
@@ -77,6 +82,8 @@ foreach ( string map in maps )
 			{
 				placements++;
 				units.Add( entry.Table( "unit_data" ).Text( "name" ) );
+				if ( entry.Table( "unit_data" ).Table( "lights" )?.Count > 0 )
+					lightUnits.Add( (map, entry.Table( "unit_data" )) );
 			}
 	}
 	Console.WriteLine( $"{map}: {placements - before} placements" );
@@ -112,6 +119,7 @@ foreach ( string unit in units )
 		var selected = new HashSet<ulong>( visible );
 		selected.UnionWith( geometry.Collision );
 		var file = new ModelFile( db.Find( "model", path ) );
+		lightDefinitions[unit] = UnitLights.Read( obj, file );
 		string orientation = obj.Element( "diesel" )?.Attribute( "orientation_object" );
 		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
 		primitiveCount += primitives.Length;
@@ -153,6 +161,26 @@ foreach ( string unit in units )
 }
 Console.WriteLine( $"PASS: {maps.Length} worlds, {placements} placements, {units.Count} unique units, {meshes} meshes, {triangles} triangles, {missing} non-model units." );
 Console.WriteLine( $"PASS: {primitiveCount} bounds-only collision primitives." );
+foreach ( var group in lightUnits.GroupBy( entry => entry.Map ) )
+{
+	int count = 0, spots = 0;
+	foreach ( var entry in group )
+	{
+		var definitions = lightDefinitions[entry.Unit.Text( "name" )];
+		foreach ( var authored in entry.Unit.Table( "lights" ).Children )
+			if ( !definitions.ContainsKey( authored.Text( "name" ) ) )
+				throw new Exception( $"Unresolved light node: {entry.Unit.Text( "name" )}/{authored.Text( "name" )}" );
+		foreach ( var light in UnitLights.Place( entry.Unit, definitions, intensities ) )
+		{
+			if ( light.Range <= 0 || !float.IsFinite( light.Range ) || light.InnerAngle > light.OuterAngle
+				|| MathF.Abs( light.Definition.Node.Direction.Length - 1 ) > 0.01f )
+				throw new Exception( "Invalid placed light." );
+			count++;
+			if ( light.Definition.Node.Spot ) spots++;
+		}
+	}
+	Console.WriteLine( $"PASS: {group.Key}: {count} active lights ({spots} spots)." );
+}
 int textures = 0, missingTextures = 0;
 foreach ( string texture in texturePaths )
 {

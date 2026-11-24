@@ -17,12 +17,14 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	};
 	readonly Dictionary<string, UnitModel.Result> models = new( StringComparer.Ordinal );
 	MapMaterials materials;
+	MapLights lights;
 	int placed, missing;
 
 	protected override void OnSceneUnloaded()
 	{
 		models.Clear();
 		materials = null;
+		lights = null;
 	}
 
 	protected override void BuildScene()
@@ -30,6 +32,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		placed = missing = 0;
 		var db = Host.Database;
 		materials = new MapMaterials( db, path );
+		lights = new MapLights( db );
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
 		var world = ScriptData.Read( db.Find( "world", path ) ?? throw new InvalidDataException( $"Missing {path}.world" ) );
@@ -53,7 +56,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		var sun = new GameObject( true, "Preview lighting" ) { Parent = root, WorldRotation = Rotation.From( 55, 30, 0 ) };
 		sun.AddComponent<DirectionalLight>().LightColor = Color.White * 0.7f;
 		sun.AddComponent<AmbientLight>().Color = Color.White * 0.3f;
-		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique units; {materials.TextureCount} textures." );
+		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique units; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 
 	void AddLayer( ScriptTable layer, GameObject parent )
@@ -64,6 +67,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			{
 				var unit = entry.Table( "unit_data" );
 				if ( unit?.Text( "name" ) is not string name ) continue;
+				lights.Add( unit, parent );
 				if ( !models.TryGetValue( name, out var model ) )
 				{
 					try { model = UnitModel.Build( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}.vmdl" ); }

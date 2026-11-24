@@ -16,6 +16,32 @@ sealed class ModelFile
 	public record Draw( ulong Material, int Start, int Count );
 	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws );
 	public record Primitive( ulong Name, Vector3[] Points );
+	public record LightNode( ulong Name, bool Spot, Vector3 Position, Vector3 Direction, Vector3 Up );
+
+	public IEnumerable<LightNode> ReadLights( ulong orientation )
+	{
+		var inverseRoot = NumericsMatrix.Identity;
+		foreach ( var (id, node) in nodes )
+			if ( node.Name == orientation && !NumericsMatrix.Invert( World( id, [] ), out inverseRoot ) )
+				throw new InvalidDataException( "Singular Diesel orientation object." );
+		foreach ( var (id, node) in nodes )
+		{
+			var section = sections[id];
+			if ( section.Type != 0xffa13b80 ) continue;
+			CheckSection( section, node.Tail, 5 );
+			int type = data.Int( node.Tail + 1 );
+			if ( type is not (1 or 2) ) continue;
+			var transform = World( id, [] ) * inverseRoot;
+			var position = Vec.Transform( Vec.Zero, transform );
+			// Diesel lights project along local +Z; local +Y defines the beam's up vector.
+			var direction = Vec.TransformNormal( Vec.UnitZ, transform );
+			var up = Vec.TransformNormal( Vec.UnitY, transform );
+			yield return new( node.Name, type == 2,
+				Coordinates.Position( new Vector3( position.X, position.Y, position.Z ) ),
+				new Vector3( direction.Y, -direction.X, direction.Z ).Normal,
+				new Vector3( up.Y, -up.X, up.Z ).Normal );
+		}
+	}
 
 	/// <summary>Version 6 stores local bounds instead of mesh topology for collision primitives.</summary>
 	public IEnumerable<Primitive> ReadCollisionPrimitives( Dictionary<ulong, string> selected, ulong orientation )
@@ -98,7 +124,7 @@ sealed class ModelFile
 		}
 		foreach ( var (id, section) in sections )
 		{
-			if ( section.Type is not (0x0ffcd100 or 0x62212d88) ) continue;
+			if ( section.Type is not (0x0ffcd100 or 0x62212d88 or 0xffa13b80) ) continue;
 			p = section.Start;
 			int matrix = checked(p + 12 + data.Int( p + 8 ) * 12);
 			CheckSection( section, matrix, 80 );
