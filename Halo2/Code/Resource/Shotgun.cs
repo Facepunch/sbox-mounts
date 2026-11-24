@@ -32,10 +32,29 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
 	internal const string WeakReticleName = "weak_reticle.vtex";
 	internal const string MuzzleFlashName = "muzzle_flash.vtex";
+	internal const string CasingName = "casing.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
+		if ( name == CasingName )
+		{
+			var bitmap = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\bitmaps\solids\8_gauge" );
+			if ( bitmap is null ) return null;
+			int sequences = Address( bitmap ) + 60;
+			if ( map.ReadInt32( sequences ) == 0 ) return null;
+			int sprites = Block( sequences ) + 52;
+			int count = map.ReadInt32( sprites );
+			if ( count is <= 0 or > 1024 ) return null;
+			var frames = new Rect[count];
+			int row = Block( sprites );
+			for ( int i = 0; i < count; i++, row += 32 )
+			{
+				float left = Float( row + 8 ), top = Float( row + 16 );
+				frames[i] = new Rect( left, top, Float( row + 12 ) - left, Float( row + 20 ) - top );
+			}
+			return new Halo2TextureLoader( map, bitmap, spriteFrames: frames );
+		}
 		if ( name == MuzzleFlashName )
 		{
 			var particle = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\generic\weapon_flares\muzzle_flash_center" );
@@ -48,7 +67,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			if ( bitmap is null ) return null;
 			float left = Float( header + 0xac ), top = Float( header + 0xb4 );
 			var frame = new Rect( left, top, Float( header + 0xb0 ) - left, Float( header + 0xb8 ) - top );
-			return new Halo2TextureLoader( map, bitmap, spriteFrame: frame );
+			return new Halo2TextureLoader( map, bitmap, spriteFrames: [frame] );
 		}
 		return name == WeakReticleName ? HudBitmap( "crosshair_weakspot" ) : null;
 	}

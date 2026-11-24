@@ -64,6 +64,7 @@ public sealed class Shotgun : Weapon
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
 		view.ConfigureMuzzleFlash();
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
+		view.ConfigureCasings();
 		view.Animator.Configure( "any", "any", "any" );
 		ViewModel = go;
 		view.OnDeploy();
@@ -333,6 +334,50 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	internal Halo2Animator Animator { get; set; }
 	internal Shotgun Weapon { get; set; }
 	ParticleEffect muzzleFlash;
+	ParticleEffect casings;
+	TimeUntil? ejectAt;
+
+	internal void ConfigureCasings()
+	{
+		if ( !ShellEjectGameObject.IsValid() ) return;
+		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.CasingName}" );
+		if ( !texture.IsValid() || texture.IsError ) return;
+		var go = new GameObject( ShellEjectGameObject, false, "Shotgun casings" );
+		casings = go.AddComponent<ParticleEffect>();
+		casings.ApplyShape = true;
+		casings.InitialScale = 4.8f;
+		casings.ApplyRotation = true;
+		casings.InitialRoll = new ParticleFloat( 0, 360 );
+		casings.SheetSequence = true;
+		// The casing cycles five times, spinning fastest just after ejection.
+		casings.SequenceTime = new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			CurveA = new Curve( new Curve.Frame( 0, 0, 0, 13.513514f ), new Curve.Frame( 1, 5, 0, 0 ) )
+		};
+		casings.SequenceSpeed = 0;
+		casings.Force = true;
+		casings.ForceDirection = Scene.PhysicsWorld.Gravity;
+		casings.ForceScale = 0.99908376f;
+		casings.Collision = true;
+		casings.Friction = 0.1f;
+		casings.Bounce = 0.35f;
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Lighting = true;
+		go.Enabled = true;
+	}
+
+	void EjectCasing()
+	{
+		ejectAt = null;
+		if ( !casings.IsValid() || !ShellEjectGameObject.IsValid() ) return;
+		var marker = ShellEjectGameObject.WorldTransform;
+		float roll = Game.Random.Float();
+		casings.Lifetime = 2 + 3 * roll;
+		if ( casings.Emit( marker.PointToWorld( Vector3.Down * 12 ), 0 ) is {} casing )
+			casing.Velocity = marker.Rotation.Forward * (210 + 90 * roll);
+	}
 
 	internal void ConfigureMuzzleFlash()
 	{
@@ -524,6 +569,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		reload = false;
 		Weapon.Kick();
 		Play( "fire_1" );
+		ejectAt = (TimeUntil)(13f / 30f);
 		if ( muzzleFlash.IsValid() )
 		{
 			for ( int i = 0; i < 2; i++ )
@@ -596,6 +642,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 
 	protected override void OnUpdate()
 	{
+		if ( ejectAt is {} due && due <= 0 ) EjectCasing();
 		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Shotgun>();
 		if ( !Weapon.IsValid() || !Animator.IsValid() || !Animator.Bound ) return;
 		Animator.SampleCuesFromGraph = false;
