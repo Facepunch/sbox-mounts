@@ -12,8 +12,8 @@ public sealed partial class Onos
 	[Sync( SyncFlags.FromHost )] public float ShieldHealth { get; private set; } = 1000;
 
 	[Sync( SyncFlags.FromHost )] bool Shielding { get; set; }
-	bool charging, stomping, stompHit;
-	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp = 10;
+	bool charging, wantsStomp, stomping, stompHit;
+	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp, sinceStompRequest = 10;
 	TimeUntil rechargeShield, nextHeal;
 	float stompDuration;
 	sealed class StampedeCooldown { public TimeUntil Remaining; }
@@ -21,20 +21,24 @@ public sealed partial class Onos
 
 	void ChooseAbility( GameObject enemy, float distance )
 	{
-		bool melee = distance < 4 * Scale;
-		bool wantShield = !melee && sinceDamage < 1 && BoneShieldUnlocked && !stomping;
+		bool wantShield = !attacking && sinceDamage < 1 && BoneShieldUnlocked && !wantsStomp;
 		SetShield( wantShield );
-		if ( !melee && !Shielding && !attacking && !stomping && StompUnlocked && sinceStomp > 6 && stompDuration > 0 &&
-			energy > 30 && distance <= 12 * Scale && Animation.IsGrounded &&
+		if ( !attacking && !wantShield && StompUnlocked && (wantsStomp || sinceStompRequest > 6) &&
+			energy > 30 && distance <= 12 * Scale &&
 			(enemy.GetComponent<PlayerController>().IsValid() || enemy.GetComponent<BaseNpc>().IsValid()) &&
 			Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (enemy.WorldPosition - WorldPosition).Normal ) >= 0.9f )
 		{
-			sinceStomp = 0;
-			stomping = true;
-			stompHit = false;
-			energy -= 30;
+			// The bot holds secondary through the stomp. Its cooldown starts on the last input.
+			wantsStomp = true;
+			sinceStompRequest = 0;
+			if ( !stomping && Animation.IsGrounded && stompDuration > 0 )
+			{
+				sinceStomp = 0;
+				stomping = true;
+				stompHit = false;
+				energy -= 30;
+			}
 		}
-
 		UpdateCharge();
 	}
 
@@ -108,7 +112,11 @@ public sealed partial class Onos
 		e.AcceptedDamage -= blocked / factor;
 		sinceBlocked = 0;
 		rechargeShield = 3;
-		if ( ShieldHealth <= 0 ) SetShield( false );
+		if ( ShieldHealth <= 0 )
+		{
+			SetShield( false );
+			PlaySoundEvent( "alien/common/armor_break" );
+		}
 	}
 
 	void UpdateAbilities( Vector3 velocity )
@@ -129,7 +137,7 @@ public sealed partial class Onos
 				Armor = Math.Min( MaxArmor, Armor + (heal - missing) * 0.5f );
 			}
 		}
-		if ( stomping && sinceStomp > stompDuration + 0.15f ) stomping = false;
+		if ( stomping && sinceStomp > stompDuration + 0.15f ) wantsStomp = stomping = false;
 		if ( velocity.Length > 8.5f * Scale ) Stampede( velocity );
 
 	}

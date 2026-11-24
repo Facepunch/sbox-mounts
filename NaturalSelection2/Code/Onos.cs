@@ -29,6 +29,8 @@ public sealed partial class Onos : BaseNpc
 
 	internal static void RegisterSounds( MountContext context )
 	{
+		const string shieldBreak = "alien/common/armor_break";
+		context.Add( ResourceType.GameResource, $"sounds/{shieldBreak}.sound", new SparkSoundLoader( shieldBreak ) );
 		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
 		{
 			var id = $"alien/onos/{cue}";
@@ -208,7 +210,7 @@ public sealed partial class Onos : BaseNpc
 		if ( stomping )
 		{
 			if ( tag == "stomp_hit" && !stompHit ) StartWave();
-			if ( tag == "end" && sinceStomp >= stompDuration * 0.25f ) stomping = false;
+			if ( tag == "end" && sinceStomp >= stompDuration * 0.25f ) wantsStomp = stomping = false;
 			return;
 		}
 		if ( tag != "hit" || Shielding ) return;
@@ -242,10 +244,12 @@ public sealed partial class Onos : BaseNpc
 			PlayCue( "onos_step" );
 	}
 
+	void PlayCue( string cue ) => PlaySoundEvent( $"alien/onos/{cue}" );
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayCue( string cue )
+	void PlaySoundEvent( string id )
 	{
-		var sound = GameResource.Load<SoundEvent>( $"mount://ns2/sounds/alien/onos/{cue}.sound" );
+		var sound = GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{id}.sound" );
 		if ( sound is not null ) Sound.Play( sound, WorldPosition );
 	}
 
