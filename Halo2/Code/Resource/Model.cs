@@ -13,11 +13,34 @@ namespace Halo2;
 /// Loads a Halo 2 render_model (mode) tag and converts it to a Model.
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
 /// </summary>
-public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null, TagEntry collision = null ) : ResourceLoader<Halo2Mount>
+public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null, TagEntry collision = null, TagEntry firstPersonWeapon = null ) : ResourceLoader<Halo2Mount>
 {
-	protected override object Load()
+	RenderModelTag ReadRenderModel()
 	{
 		var model = new RenderModelTag( mapFile, tag );
+		if ( firstPersonWeapon is null ) return model;
+
+		// Keep the arm mesh's vertex bone indices intact. The animation graph parents
+		// the separate weapon skeleton under the right hand and also contains the camera.
+		var weaponBones = new RenderModelTag( mapFile, firstPersonWeapon ).Nodes.ToDictionary( n => n.StringId );
+		var indices = model.Nodes.Select( (n, i) => (n.StringId, i) ).ToDictionary( x => x.StringId, x => x.i );
+		var rows = Rows( GraphHeader + 12, 32 ).ToArray();
+		foreach ( int row in rows )
+		{
+			int id = mapFile.ReadInt32( row );
+			if ( indices.ContainsKey( id ) ) continue;
+			var bone = weaponBones.GetValueOrDefault( id ) ?? new Node { StringId = id, RotationW = 1 };
+			int parent = (short)mapFile.ReadInt32( row + 8 );
+			bone.ParentIndex = parent < 0 ? (short)-1 : (short)indices[mapFile.ReadInt32( rows[parent] )];
+			indices.Add( id, model.Nodes.Count );
+			model.Nodes.Add( bone );
+		}
+		return model;
+	}
+
+	protected override object Load()
+	{
+		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
 
 		if ( model.Sections.Count == 0 || model.Regions.Count == 0 )

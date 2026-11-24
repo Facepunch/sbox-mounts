@@ -221,7 +221,7 @@ public partial class Halo2ModelLoader
 
 	void BuildSkeleton( int header )
 	{
-		var model = new RenderModelTag( mapFile, tag );
+		var model = ReadRenderModel();
 		if ( model.Nodes.Count == 0 ) return;
 		Blam.AnimationGraph.ReadRig( mapFile, graph, model, ScaleFactor, out bindPose, out nodeMap );
 		var builder = new SkeletonBuilder();

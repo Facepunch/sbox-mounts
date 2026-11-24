@@ -8,11 +8,11 @@ namespace Halo2;
 /// <summary>
 /// Loads a Halo 2 bitmap (bitm) tag as a Texture.
 /// </summary>
-public class Halo2TextureLoader( MapFile mapFile, TagEntry tag ) : ResourceLoader<Halo2Mount>
+public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0 ) : ResourceLoader<Halo2Mount>
 {
 	protected override object Load()
 	{
-		var data = BitmapTag.Read( mapFile, tag );
+		var data = BitmapTag.Read( mapFile, tag, bitmapIndex );
 		if ( data is null || data.Width <= 0 || data.Height <= 0 || data.Lod0Size <= 0 )
 			return Texture.White;
 

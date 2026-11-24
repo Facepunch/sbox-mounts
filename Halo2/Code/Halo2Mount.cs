@@ -168,6 +168,15 @@ public class Halo2Mount : BaseGameMount
 
 			switch ( tag.PrimaryClass )
 			{
+				case "paew" when mapName == "01a_tutorial" && tagPath == "objects/weapons/rifle/shotgun/shotgun":
+					var shotgun = new ShotgunLoader( mapFile, tag );
+					shotgun.Tags.Add( "weapon" );
+					if ( shotgun.HudBitmap( "crosshair" ) is {} reticle ) context.Add( ResourceType.Texture, ShotgunLoader.ReticlePath, reticle );
+					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
+					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig() );
+					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new ShotgunAmmoLoader( shotgun.MaxReserve ) );
+					context.Add( ResourceType.PrefabFile, "weapons/shotgun.prefab", shotgun );
+					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
 				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:
 					context.Add( ResourceType.GameResource, $"{mapName}/{tagPath}.sound", new Halo2SoundLoader( mapFile, tag, soundTable ) );
