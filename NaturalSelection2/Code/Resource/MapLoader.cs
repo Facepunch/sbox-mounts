@@ -98,14 +98,21 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			var map = root.AddComponent<MapLocations>();
 			if ( hasVents ) map.AlienGridPath = ventPath;
 			map.Volumes = locations.ToArray();
-			var anchors = landmarks.ToLookup( x => map.LocationAt( x.Position ) );
-			map.Destinations = locations.GroupBy( v => v.Name ).Select( group =>
+			// Spark visits rooms in landmark order, including when two exploration targets have equal weight.
+			var destinations = new Dictionary<string, MapLocations.Destination>();
+			foreach ( var group in landmarks.GroupBy( x => map.LocationAt( x.Position ) ) )
 			{
-				var anchor = anchors[group.Key].OrderByDescending( x => x.Priority ).FirstOrDefault();
-				var position = anchor.Priority > 0 ? anchor.Position
-					: group.Aggregate( Vector3.Zero, (sum, v) => sum + v.Bounds.Position.WithZ( 0 ) ) / group.Count();
-				return new MapLocations.Destination( group.Key, position, anchor.Priority >= 2 );
-			} ).ToArray();
+				if ( group.Key is null ) continue;
+				var anchor = group.MaxBy( x => x.Priority );
+				destinations.Add( group.Key, new( group.Key, anchor.Position, anchor.Priority >= 2 ) );
+			}
+			foreach ( var group in locations.GroupBy( v => v.Name ) )
+			{
+				if ( destinations.ContainsKey( group.Key ) ) continue;
+				var center = group.Aggregate( Vector3.Zero, (sum, v) => sum + v.Bounds.Position.WithZ( 0 ) ) / group.Count();
+				destinations.Add( group.Key, new( group.Key, center, false ) );
+			}
+			map.Destinations = destinations.Values.ToArray();
 		}
 		geometry.Build( world, FilePath, renderModels );
 		AddPhysics( world, geometry.CreatePhysics( FilePath ) );

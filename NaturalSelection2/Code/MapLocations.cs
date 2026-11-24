@@ -26,6 +26,15 @@ public sealed class MapLocations : Component
 
 	readonly Dictionary<string, Destination[]> connections = new();
 	readonly Dictionary<string, Dictionary<string, int>> depths = new();
+	readonly Dictionary<string, float> lastAlienVisit = new();
+
+	internal void MarkVisited( string room ) => lastAlienVisit[room] = Time.Now;
+
+	internal float ExplorationWeight( string room )
+	{
+		lastAlienVisit.TryGetValue( room, out float last );
+		return System.Math.Clamp( (Time.Now - last) / 20, 0.5f, 1 );
+	}
 
 	internal IReadOnlyDictionary<string, int> DepthsFrom( string start )
 	{

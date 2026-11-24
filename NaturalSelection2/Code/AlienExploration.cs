@@ -22,7 +22,9 @@ public sealed class AlienExploration : BaseNpcLayer
 			startRoom ??= room;
 			currentRoom = room;
 			visited[room] = Time.Now;
-			exploreGoal = null;
+			locations.MarkVisited( room );
+			if ( exploreGoal is { } pending && (pending.Name == room || !locations.Neighbors( room ).Any( x => x.Name == pending.Name )) )
+				exploreGoal = null;
 		}
 		if ( room is not null && exploreGoal is null )
 		{
@@ -43,12 +45,13 @@ public sealed class AlienExploration : BaseNpcLayer
 						if ( alien.exploreGoal?.Name == neighbor.Name ) others++;
 					}
 					depths.TryGetValue( neighbor.Name, out int depth );
-					score = 1 + (neighbor.Strategic ? 1.2f : 1) * (1 + depth * 0.5f) / (1 + others);
+					score = 1 + (neighbor.Strategic ? 1.2f : 1) * (1 + depth * 0.5f) * locations.ExplorationWeight( neighbor.Name ) / (1 + others);
 				}
 				if ( score <= best ) continue;
 				best = score;
 				exploreGoal = neighbor;
 			}
+			if ( exploreGoal is { } next && best <= 1 ) visited.Remove( next.Name );
 		}
 		if ( exploreGoal is { } goal ) Npc.Movement.MoveTo( goal.Position, stopDistance );
 		else Npc.Movement.Stop();
