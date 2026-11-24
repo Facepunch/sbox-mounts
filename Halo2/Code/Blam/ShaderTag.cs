@@ -20,7 +20,15 @@ public class ShaderTag
 	/// <summary>Tag index of the change color map bitmap, or -1 if not found.</summary>
 	public int ChangeColorBitmapTagIndex { get; set; } = -1;
 
-	public bool IsEmblem { get; private set; }
+	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail }
+	public EffectPass Effect { get; private set; }
+	public int[] EffectMaps { get; private set; }
+	public Vector4[] EffectConstants { get; private set; }
+	public int GlowBitmap { get; private set; } = -1;
+	public Vector3 GlowColor { get; private set; }
+	public Vector4[] EffectUV { get; private set; }
+	public Vector4 PlasmaScroll { get; private set; }
+	public bool AlphaTest { get; private set; }
 	public int DetailBitmapTagIndex { get; private set; } = -1;
 	public int EnvironmentBitmapTagIndex { get; private set; } = -1;
 	public Vector4 DetailTransform { get; private set; } = new( 1, 1, 0, 0 );
@@ -87,56 +95,171 @@ public class ShaderTag
 				int bmpOff = map.VaToOffset( bmpPtr );
 				int Bitmap( int slot ) => slot >= 0 && slot < bmpCount ? map.ReadInt32( bmpOff + slot * 12 ) & 0xffff : -1;
 				string name = templateName[(templateName.LastIndexOf( '\\' ) + 1)..];
-				if ( name == "emblem_overlay_simple" )
+				Effect = name switch
 				{
-					IsEmblem = true;
-					DiffuseBitmapTagIndex = Bitmap( 0 );
+					"emblem_overlay_simple" => EffectPass.Emblem,
+					"plasma_mask_offset" => EffectPass.Plasma,
+					"transparent_lit_alpha_blend_two_change_color" => EffectPass.Hair,
+					"illum_bloom" => EffectPass.Bloom,
+					"illum" => EffectPass.SelfIllumination,
+					"one_add_illum" => EffectPass.Additive,
+					"two_alpha_detail_masked" => EffectPass.MaskedDetail,
+					"one_alpha_env" or "two_alpha_env_illum" or "sky_one_alpha_env" => EffectPass.Eyes,
+					_ => EffectPass.None
+				};
+				if ( Effect != EffectPass.None )
+				{
+					if ( Effect == EffectPass.Plasma ) PlasmaScroll = ReadPlasmaScroll( map, ppOff );
+					EffectMaps = new int[bmpCount];
+					for ( int i = 0; i < bmpCount; i++ ) EffectMaps[i] = Bitmap( i );
+					int count = pp.ReadInt32();
+					int offset = map.VaToOffset( pp.ReadInt32() );
+					EffectConstants = new Vector4[count];
+					for ( int i = 0; i < count; i++ )
+					{
+						uint v = (uint)map.ReadInt32( offset + i * 4 );
+						EffectConstants[i] = new Vector4( (v >> 16) & 255, (v >> 8) & 255, v & 255, v >> 24 ) / 255f;
+					}
+					int registerCount = pp.ReadInt32();
+					int registers = map.VaToOffset( pp.ReadInt32() );
+					int firstRegister = Effect == EffectPass.Eyes && name != "sky_one_alpha_env" ? 4 : 0;
+					int layers = Effect switch
+					{
+						EffectPass.Eyes => 3,
+						EffectPass.MaskedDetail or EffectPass.Plasma => 4,
+						EffectPass.Hair => 2,
+						EffectPass.Additive => 1,
+						_ => 0
+					};
+					if ( layers > 0 && firstRegister + layers * 2 <= registerCount )
+					{
+						using var rows = map.OpenReader( registers + firstRegister * 16, layers * 32 );
+						EffectUV = new Vector4[layers * 2];
+						for ( int i = 0; i < EffectUV.Length; i++ )
+							EffectUV[i] = new( rows.ReadSingle(), rows.ReadSingle(), rows.ReadSingle(), rows.ReadSingle() );
+					}
+					return;
 				}
+				AlphaTest = name.StartsWith( "tex_bump" ) && name.Contains( "alpha_test" );
 				if ( name.StartsWith( "tex_bump" ) ) BumpBitmapTagIndex = Bitmap( 0 );
 				ChangeColorBitmapTagIndex = Bitmap( GetChangeColorSlot( name ) );
 
-				// Compiled MCC registers differ between these opaque template families.
-				bool fourColors = name == "tex_bump_env_four_change_color";
-				bool twoColors = name == "tex_bump_env_two_change_color";
-				if ( name == "tex_bump_env" || fourColors || twoColors )
+				// Compiled templates place the same maps and registers at different offsets.
+				var (detail, uv, cube, tint, strength) = name switch
 				{
-					EnvironmentUsesUnsignedNormalZ = fourColors;
-					DetailBitmapTagIndex = Bitmap( 3 );
-					EnvironmentBitmapTagIndex = Bitmap( fourColors || twoColors ? 5 : 4 );
-					int colorCount = pp.ReadInt32();
-					int colors = map.VaToOffset( pp.ReadInt32() );
-					int transformCount = pp.ReadInt32();
-					int transforms = map.VaToOffset( pp.ReadInt32() );
-					int uv = fourColors || twoColors ? 2 : 0;
-					if ( uv < transformCount )
+					"tex_bump" or "tex_bump_shiny" or "tex_bump_alpha_test_single_pass" => (3, 2, -1, -1, -1),
+					"tex_bump_env" or "tex_bump_env_clamped" => (3, 0, 4, 1, 3),
+					"tex_bump_env_combined" => (3, 2, 4, 0, 2),
+					"tex_bump_illum" => (2, 2, -1, -1, -1),
+					"tex_bump_env_no_detail" => (-1, -1, 3, 0, 2),
+					"tex_bump_env_alpha_test" => (4, 2, 5, 0, 2),
+					"tex_bump_env_four_change_color" or "tex_bump_env_two_change_color" => (3, 2, 5, 4, 6),
+					"tex_bump_env_illum_two_change_color" => (3, 2, 5, 5, 7),
+					"tex_bump_env_illum_four_change_color_no_lod" => (3, 2, 6, -1, -1),
+					"tex_bump_env_illum_detail_honor_guard" => (2, 2, 5, -1, -1),
+					_ => (-1, -1, -1, -1, -1)
+				};
+				DetailBitmapTagIndex = Bitmap( detail );
+				EnvironmentBitmapTagIndex = Bitmap( cube );
+				EnvironmentUsesUnsignedNormalZ = name.Contains( "four_change_color" );
+				int colorCount = pp.ReadInt32();
+				int colors = map.VaToOffset( pp.ReadInt32() );
+				int transformCount = pp.ReadInt32();
+				int transforms = map.VaToOffset( pp.ReadInt32() );
+				Vector4 Register( int slot )
+				{
+					if ( (uint)slot >= transformCount ) return default;
+					using var r = map.OpenReader( transforms + slot * 16, 16 );
+					return new( r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle() );
+				}
+				int glowSlot = name switch
+				{
+					"tex_bump_env_illum_two_change_color" => 6,
+					"tex_bump_env_illum_four_change_color_no_lod" => 5,
+					"tex_bump_env_illum_detail_honor_guard" or "tex_bump_illum" => 3,
+					_ => -1
+				};
+				if ( glowSlot >= 0 )
+				{
+					GlowBitmap = Bitmap( glowSlot );
+					int colorSlot = name switch
 					{
-						using var transform = map.OpenReader( transforms + uv * 16, 16 );
-						DetailTransform = new( transform.ReadSingle(), transform.ReadSingle(), transform.ReadSingle(), transform.ReadSingle() );
+						"tex_bump_env_illum_two_change_color" => 3,
+						"tex_bump_env_illum_detail_honor_guard" => 5,
+						"tex_bump_illum" => 2,
+						_ => 4
+					};
+					if ( colorSlot < colorCount )
+					{
+						uint rgb = (uint)map.ReadInt32( colors + colorSlot * 4 );
+						GlowColor = new Vector3( (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255 ) / 255f;
 					}
-
-					int tint = fourColors || twoColors ? 4 : 1;
-					int brightness = fourColors || twoColors ? 6 : 3;
-					Vector4 Reflection( int color, int intensity )
+				}
+				if ( uv >= 0 ) DetailTransform = Register( uv );
+				if ( tint >= 0 && strength + 1 < colorCount && tint + 1 < colorCount )
+				{
+					Vector4 Reflection( int i )
 					{
-						if ( color >= colorCount || intensity >= colorCount ) return default;
-						uint rgb = (uint)map.ReadInt32( colors + color * 4 );
-						uint power = (uint)map.ReadInt32( colors + intensity * 4 );
+						uint rgb = (uint)map.ReadInt32( colors + (tint + i) * 4 );
+						uint power = (uint)map.ReadInt32( colors + (strength + i) * 4 );
 						return new Vector4( (rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, power >> 24 ) / 255f;
 					}
-					EnvironmentFacing = Reflection( tint, brightness );
-					EnvironmentGlancing = Reflection( tint + 1, brightness + 1 );
+					EnvironmentFacing = Reflection( 0 );
+					EnvironmentGlancing = Reflection( 1 );
+				}
+				else if ( cube >= 0 )
+				{
+					int slot = name == "tex_bump_env_illum_detail_honor_guard" ? 6 : 4;
+					EnvironmentFacing = Register( slot ).WithW( Register( slot + 2 ).w );
+					EnvironmentGlancing = Register( slot + 1 ).WithW( Register( slot + 3 ).w );
 				}
 			}
 		}
 	}
 
-	/// <summary>
-	/// Returns the bitmap slot index for change_color_map based on the shader template name.
-	/// Slot positions from TagTool/Reclaimer shader template mappings.
-	/// </summary>
+	// The two noise layers use periodic sawtooth translations in the compiled overlay table.
+	static Vector4 ReadPlasmaScroll( MapFile map, int pp )
+	{
+		int count = map.ReadInt32( pp + 0x3c );
+		int overlays = map.VaToOffset( map.ReadInt32( pp + 0x40 ) );
+		int references = map.VaToOffset( map.ReadInt32( pp + 0x48 ) );
+		int parameters = map.VaToOffset( map.ReadInt32( pp + 0x50 ) );
+		if ( map.ReadInt32( pp + 0x4c ) < 2 ) return default;
+		var rates = new Vector4();
+		for ( int layer = 0; layer < 2; layer++ )
+		{
+			using var parameter = map.OpenReader( parameters + layer * 2, 2 );
+			int range = parameter.ReadUInt16();
+			int start = range & 0x1ff;
+			int end = start + (range >> 9);
+			if ( end > map.ReadInt32( pp + 0x44 ) ) continue;
+			for ( int i = start; i < end; i++ )
+			{
+				using var reference = map.OpenReader( references + i * 4, 4 );
+				int index = reference.ReadInt16();
+				int axis = reference.ReadInt16();
+				if ( (uint)index >= count || axis is not (4 or 5) ) continue;
+				using var overlay = map.OpenReader( overlays + index * 20 + 8, 12 );
+				float period = overlay.ReadSingle();
+				int length = overlay.ReadInt32();
+				if ( period <= 0 || length < 24 ) continue;
+				using var function = map.OpenReader( map.VaToOffset( overlay.ReadInt32() ), length );
+				if ( function.ReadByte() != 3 ) continue;
+				function.BaseStream.Position = 2;
+				if ( function.ReadByte() != 6 ) continue;
+				function.BaseStream.Position = 4;
+				float from = function.ReadSingle(), to = function.ReadSingle();
+				function.BaseStream.Position = 20;
+				float speed = (to - from) * function.ReadSingle() / period;
+				rates[layer * 2 + axis - 4] = speed;
+			}
+		}
+		return rates;
+	}
 	static int GetChangeColorSlot( string name )
 	{
 		// Common H2 character shader templates
+		if ( name == "tex_bump_two_change_color" ) return 3;
 		if ( name.Contains( "one_change_color" ) )
 			return 2; // [bump, base, cc]
 

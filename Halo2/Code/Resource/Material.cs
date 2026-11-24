@@ -24,21 +24,33 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 			return Texture.Load( $"mount://halo2/{mapName}/{bitmap.TagPath.Replace( '\\', '/' )}.vtex" );
 		}
 
-		var diffuse = LoadBitmap( shader.DiffuseBitmapTagIndex );
-		if ( diffuse is null ) return DefaultMaterial;
-
-		if ( shader.IsEmblem )
+		if ( shader.Effect != ShaderTag.EffectPass.None )
 		{
-			var emblem = Material.Create( name, "shaders/complex.shader" );
-			emblem.SetFeature( "F_TRANSLUCENT", 1 );
-			emblem.Set( "g_tColor", diffuse );
-			return emblem;
+			var effect = Material.Create( name, "shaders/halo2_effect.shader" );
+			effect.SetFeature( "F_PASS", (int)shader.Effect );
+			if ( shader.Effect == ShaderTag.EffectPass.Plasma ) effect.Set( "g_vPlasmaScroll", shader.PlasmaScroll );
+			for ( int i = 0; i < shader.EffectMaps.Length; i++ )
+			{
+				if ( LoadBitmap( shader.EffectMaps[i] ) is { } texture )
+					effect.Set( shader.Effect == ShaderTag.EffectPass.Eyes && i == 0 ? "g_tReflection" : $"g_tLayer{i}", texture );
+			}
+			for ( int i = 0; i < shader.EffectConstants.Length; i++ )
+				effect.Set( $"g_vConstant{i}", shader.EffectConstants[i] );
+			if ( shader.EffectUV is { } rows )
+			{
+				int start = shader.Effect == ShaderTag.EffectPass.Eyes ? 2 : 0;
+				for ( int i = 0; i < rows.Length; i++ ) effect.Set( $"g_vRow{start + i}", rows[i] );
+			}
+			return effect;
 		}
 
+		var diffuse = LoadBitmap( shader.DiffuseBitmapTagIndex );
+		if ( diffuse is null ) return DefaultMaterial;
 		var bump = LoadBitmap( shader.BumpBitmapTagIndex );
 		var changeColor = LoadBitmap( shader.ChangeColorBitmapTagIndex );
 		// Template copies share a batch key. Each set of texture and tint bindings needs its own material.
 		var material = Material.Create( name, "shaders/halo2_model.shader" );
+		if ( shader.AlphaTest ) material.SetFeature( "F_MASKED", 1 );
 		if ( changeColor is not null ) material.SetFeature( "F_CHANGE_COLOR", 1 );
 		material.Set( "g_bFogEnabled", true );
 		material.Set( "g_tBaseMap", diffuse );
@@ -50,6 +62,11 @@ public class Halo2MaterialLoader( MapFile mapFile, TagEntry shaderTag, string ma
 			material.Set( "g_flEnvironmentUnsignedZ", shader.EnvironmentUsesUnsignedNormalZ );
 			material.Set( "g_vEnvironmentFacing", shader.EnvironmentFacing );
 			material.Set( "g_vEnvironmentGlancing", shader.EnvironmentGlancing );
+		}
+		if ( LoadBitmap( shader.GlowBitmap ) is { } glow )
+		{
+			material.Set( "g_tGlow", glow );
+			material.Set( "g_vGlow", shader.GlowColor );
 		}
 		if ( LoadBitmap( shader.DetailBitmapTagIndex ) is { } detail )
 		{

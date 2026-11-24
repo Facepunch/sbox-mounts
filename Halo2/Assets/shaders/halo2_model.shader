@@ -7,6 +7,7 @@ HEADER
 FEATURES
 {
 	#include "common/features.hlsl"
+	Feature( F_MASKED, 0..1, "Alpha tested" );
 	Feature( F_CHANGE_COLOR, 0..1, "Change Color Map" );
 }
 
@@ -53,6 +54,10 @@ PS
 {
 	#include "common/pixel.hlsl"
 
+	StaticCombo( S_MASKED, F_MASKED, Sys( ALL ) );
+	#if S_MASKED
+		BoolAttribute( alphatest, true );
+	#endif
 	StaticCombo( S_CHANGE_COLOR, F_CHANGE_COLOR, Sys( ALL ) );
 
 	SamplerState g_sSampler0 < Filter( Anisotropic ); AddressU( WRAP ); AddressV( WRAP ); >;
@@ -72,6 +77,9 @@ PS
 	Texture2D g_tDetail < Channel( RGB, Box( Detail ), Linear ); OutputFormat( DXT5 ); SrgbRead( false ); >;
 	CreateInputTextureCube( Environment, Srgb, 8, "", "", "", Default3( 0, 0, 0 ) );
 	CreateTextureCube( g_tEnvironment ) < Channel( RGB, GGXCubeMapBlur( Environment ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+	CreateInputTexture2D( Glow, Srgb, 8, "None", "", "", Default3( 0, 0, 0 ) );
+	Texture2D g_tGlow < Channel( RGB, Box( Glow ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
+	float3 g_vGlow < Default3( 0, 0, 0 ); >;
 	float4 g_vDetailTransform < Default4( 0, 0, 0, 0 ); >;
 	float g_flEnvironmentUnsignedZ < Default( 0 ); >;
 	float4 g_vEnvironmentFacing < Default4( 0, 0, 0, 0 ); >;
@@ -108,6 +116,9 @@ PS
 
 		// The imported tangent frame uses the authored Halo bitangent.
 		float4 texNormal = Tex2DS( g_tNormalMap, g_sSampler0, i.vTextureCoords.xy );
+		#if S_MASKED
+			clip( texNormal.a - 0.5 );
+		#endif
 		texNormal.y = 1.0 - texNormal.y;
 		float3 normal = TransformNormal( DecodeNormal( texNormal.xyz ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
 		float specularMask = baseColor.a;
@@ -118,7 +129,7 @@ PS
 		m.Roughness = 1.0 - ( specularMask * 0.8 );
 		m.Metalness = specularMask * 0.3;
 		m.AmbientOcclusion = 1.0;
-		m.Emission = 0;
+		m.Emission = any( g_vGlow ) ? g_vGlow * Tex2DS( g_tGlow, g_sSampler0, i.vTextureCoords.xy ).rgb : 0;
 		if ( g_vEnvironmentFacing.w + g_vEnvironmentGlancing.w > 0 )
 		{
 			float3 view = CalculatePositionToCameraDirWs( m.WorldPosition );
