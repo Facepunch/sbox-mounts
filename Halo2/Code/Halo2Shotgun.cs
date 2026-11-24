@@ -187,19 +187,29 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	}
 
 	TimeUntil meleeEnds;
-	bool firstStrike;
+	uint meleeRandom = (uint)System.Random.Shared.Next();
 	int swing;
 
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
 	public override void SecondaryAttack()
 	{
-		firstStrike = !firstStrike;
-		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( firstStrike );
-		float duration = (firstStrike ? 31 : 30) / 30f;
+		var rig = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( ArmsPath ) as Halo2ModelLoader;
+		var actions = rig?.GetAnimationContext( "any", "any", "any" )?.Actions;
+		if ( actions is null ) return;
+		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
+		meleeRandom = unchecked( meleeRandom * 1664525u + 1013904223u );
+		var action = (meleeRandom >> 31) == 0 ? "melee_strike_1" : "melee_strike_2";
+		var clip = rig.GetClipInfo( actions[action] );
+		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
+		float duration = clip.Frames / 30f;
 		meleeEnds = duration;
-		SetNextFire( duration );
-		_ = Strike( ++swing, (firstStrike ? 3 : 6) / 30f );
+		SetNextPrimaryFire( duration );
+		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
+		SetNextSecondaryFire( recovery / 30f );
+		int serial = ++swing;
+		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is { } impact )
+			_ = Strike( serial, impact.Frame / 30f );
 	}
 
 	async System.Threading.Tasks.Task Strike( int serial, float delay )
@@ -214,7 +224,6 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	{
 		swing++;
 		meleeEnds = 0;
-		firstStrike = false;
 		base.OnHolstered();
 	}
 }
@@ -393,10 +402,10 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		Play( empty ? "exit_empty" : "exit_full" );
 	}
 
-	internal void Melee( bool first )
+	internal void Melee( string action )
 	{
 		reload = false;
-		Play( first ? "melee_strike_1" : "melee_strike_2" );
+		Play( action );
 	}
 
 	void Play( string action, float duration = 0 )
