@@ -289,7 +289,10 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
 			gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
 			int strike = Address( Reference( Header + 0x1bc ) );
+			gun.MinimumMeleeDamage = Float( strike + 0x1c );
 			gun.MeleeDamage = Float( strike + 0x20 );
+			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+			gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
 			gun.MeleeForce = Float( strike + 0x40 ) * 120;
 		}
 		return prefab = builder.Create();

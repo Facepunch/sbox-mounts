@@ -15,6 +15,8 @@ public sealed class Shotgun : Weapon
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float UnderwaterDamageFalloffRange { get; set; } = 120;
+	[Property] public float MinimumMeleeDamage { get; set; } = 20;
+	[Property] public float MeleeForwardSpeed { get; set; } = 2.25f;
 	[Property] public float MeleeDamage { get; set; }
 	[Property] public float MeleeForce { get; set; }
 	[Property] public Vector2 MeleeHalfExtents { get; set; }
@@ -260,10 +262,22 @@ public sealed class Shotgun : Weapon
 		SetNextSecondaryFire( recovery / 30f );
 		int serial = ++swing;
 		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is { } impact )
-			_ = Strike( serial, impact.Frame / 30f );
+			_ = Strike( serial, impact.Frame / 30f, StrikeDamage() );
 	}
 
-	async System.Threading.Tasks.Task Strike( int serial, float delay )
+	float StrikeDamage()
+	{
+		var holder = Holder;
+		var player = holder as PlayerController;
+		var horizontalAim = player.IsValid() ? Rotation.FromYaw( player.EyeAngles.yaw ).Forward : AimRay.Forward.WithZ( 0 ).Normal;
+		var velocity = player?.Velocity ?? holder?.GameObject.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+		float forward = Vector3.Dot( velocity, horizontalAim ) / 120;
+		// The action stores a byte at swing start. A moving strike uses 127 of the 255 damage steps.
+		float fraction = MeleeForwardSpeed > 0 && forward / MeleeForwardSpeed > 0.9f ? 127f / 255f : 0;
+		return (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
+	}
+
+	async System.Threading.Tasks.Task Strike( int serial, float delay, float damage )
 	{
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
@@ -271,7 +285,7 @@ public sealed class Shotgun : Weapon
 		var hit = TraceMelee( AimRay, out var impactPosition );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface, impactPosition );
-		ShootBullet( hit, MeleeDamage, MeleeForce, new TagSet { "melee" }, false );
+		ShootBullet( hit, damage, MeleeForce, new TagSet { "melee" }, false );
 	}
 
 	SceneTraceResult TraceMelee( Ray aim, out Vector3 impactPosition )
