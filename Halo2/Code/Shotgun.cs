@@ -105,12 +105,16 @@ public sealed class Shotgun : Weapon
 			return false;
 		}
 
-		return NextPrimaryFire <= 0 && (!triggerConsumed || PrimaryAutomatic) && HasPrimaryAmmo();
+		return (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 	}
+
+	public override bool CanPrimaryAttack() =>
+		NextPrimaryFire <= 0 && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
 
 	public override void PrimaryAttack()
 	{
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		CancelReload();
 		triggerConsumed = true;
 		var ray = AimRay;
 		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
