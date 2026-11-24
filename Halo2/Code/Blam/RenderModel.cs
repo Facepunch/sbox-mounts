@@ -153,6 +153,7 @@ public class RenderModelTag
 			// Skip to NodesPerVertex at +20
 			r.BaseStream.Seek( 20, SeekOrigin.Begin );
 			section.NodesPerVertex = r.ReadByte();
+			section.TransparentNodesPerVertex = r.ReadByte();
 
 			// DataPointer at +56
 			r.BaseStream.Seek( 56, SeekOrigin.Begin );
@@ -271,6 +272,7 @@ public class Section
 	public ushort VertexCount { get; set; }
 	public ushort FaceCount { get; set; }
 	public byte NodesPerVertex { get; set; }
+	public byte TransparentNodesPerVertex { get; set; }
 	public int DataPointer { get; set; }
 	public int DataSize { get; set; }
 	public int HeaderSize { get; set; }

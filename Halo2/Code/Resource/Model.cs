@@ -178,11 +178,13 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		for ( int i = 0; i < submeshCount; i++ )
 		{
 			reader.BaseStream.Seek( baseAddress + submeshResource.Offset + i * 72, SeekOrigin.Begin );
-			reader.ReadInt32(); // +0: unknown
+			ushort partType = reader.ReadUInt16();
+			reader.ReadUInt16(); // flags
 			short shaderIndex = reader.ReadInt16(); // +4
 			ushort indexStart = reader.ReadUInt16(); // +6
 			ushort indexLength = reader.ReadUInt16(); // +8
-			submeshes.Add( new Submesh { ShaderIndex = shaderIndex, IndexStart = indexStart, IndexLength = indexLength } );
+			submeshes.Add( new Submesh { ShaderIndex = shaderIndex, IndexStart = indexStart, IndexLength = indexLength,
+				Influences = partType is 4 or 5 ? section.TransparentNodesPerVertex : section.NodesPerVertex } );
 		}
 
 		// Read indices
@@ -208,7 +210,10 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			}
 		}
 
-		var verts = ReadVertices( reader, section, bounds, vertexResource, uvResource, normalsResource, nodeMapResource );
+		if ( submeshes.Count == 0 ) return false;
+		SkinnedVertex[] Vertices( int influences ) => ReadVertices( reader, section, bounds, vertexResource, uvResource, normalsResource, nodeMapResource, influences );
+		var verts = Vertices( submeshes[0].Influences );
+		SkinnedVertex[] alternate = null;
 		var meshBounds = BBox.FromPoints( verts.Select( v => v.position ) );
 		var traceIndices = addTraceMesh ? new List<int>() : null;
 
@@ -228,7 +233,9 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				materials[shaderId] = material = LoadMaterial( map, model, index, colors );
 
 			var mesh = new Mesh( $"section{sectionIndex}", material );
-			mesh.CreateVertexBuffer( verts.Length, verts );
+			var partVertices = section.GeometryClassification == 3 && submesh.Influences != submeshes[0].Influences
+				? alternate ??= Vertices( submesh.Influences ) : verts;
+			mesh.CreateVertexBuffer( partVertices.Length, partVertices );
 			mesh.CreateIndexBuffer( triIndices.Count, triIndices );
 			mesh.Bounds = meshBounds;
 			builder.AddMesh( mesh, lod, regionName, permIndex );
@@ -241,7 +248,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 	}
 
 	static SkinnedVertex[] ReadVertices( BinaryReader reader, Section section, BoundingBox bounds,
-		ResourceInfo positions, ResourceInfo uvs, ResourceInfo normals, ResourceInfo nodeMap )
+		ResourceInfo positions, ResourceInfo uvs, ResourceInfo normals, ResourceInfo nodeMap, int influences )
 	{
 		var stream = reader.BaseStream;
 		int stride = positions.Size / section.VertexCount;
@@ -266,37 +273,50 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			bones = reader.ReadBytes( nodeMap.Size );
 		}
 
+		byte ReadBone()
+		{
+			byte index = reader.ReadByte();
+			return index < bones.Length ? bones[index] : index;
+		}
+
 		var vertices = new SkinnedVertex[section.VertexCount];
 		for ( int i = 0; i < vertices.Length; i++ )
 		{
 			stream.Position = section.BaseAddress + positions.Offset + i * stride;
 			var raw = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() );
 			var position = ConvertPosition( center + raw * range );
-			byte bone0 = 0, bone1 = 0, weight0 = 255, weight1 = 0;
+			var indices = new Color32( 0, 0, 0, 0 );
+			var weights = new Color32( 255, 0, 0, 0 );
 			if ( section.GeometryClassification == 1 && section.NodesPerVertex >= 1 && bones.Length > 0 )
 			{
-				bone0 = bones[0];
+				indices.r = bones[0];
 			}
 			else if ( section.GeometryClassification >= 2 && stride > 12 )
 			{
 				if ( section.GeometryClassification == 2 )
 				{
-					bone0 = reader.ReadByte();
+					indices.r = ReadBone();
 				}
 				else if ( section.GeometryClassification == 3 )
 				{
-					bone0 = reader.ReadByte();
-					bone1 = reader.ReadByte();
-					stream.Position += 2;
-					weight0 = reader.ReadByte();
-					weight1 = (byte)(255 - weight0);
+					indices.r = ReadBone();
+					if ( stride >= 20 && influences > 1 )
+					{
+						indices.g = ReadBone();
+						if ( influences > 2 ) indices.b = ReadBone();
+						if ( influences > 3 ) indices.a = ReadBone();
+						stream.Position = section.BaseAddress + positions.Offset + i * stride + 17;
+						weights.g = reader.ReadByte();
+						if ( influences > 2 ) weights.b = reader.ReadByte();
+						if ( influences > 3 ) weights.a = reader.ReadByte();
+						// Halo's vertex shader derives the first weight from the remaining active lanes.
+						weights.r = (byte)Math.Max( 0, 255 - weights.g - weights.b - weights.a );
+					}
 				}
 				else
 				{
-					weight0 = 0;
+					weights.r = 0;
 				}
-				if ( bone0 < bones.Length ) bone0 = bones[bone0];
-				if ( bone1 < bones.Length ) bone1 = bones[bone1];
 			}
 
 			var uv = Vector2.Zero;
@@ -317,7 +337,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				var u = new Vector3( reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle() ).Normal;
 				tangent = new Vector4( u, Vector3.Dot( Vector3.Cross( normal, u ), bitangent ) < 0 ? -1 : 1 );
 			}
-			vertices[i] = new SkinnedVertex( position, normal, tangent, uv, new Color32( bone0, bone1, 0, 0 ), new Color32( weight0, weight1, 0, 0 ) );
+			vertices[i] = new SkinnedVertex( position, normal, tangent, uv, indices, weights );
 		}
 		return vertices;
 	}
@@ -761,6 +781,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 	struct Submesh
 	{
+		public byte Influences;
 		public short ShaderIndex;
 		public ushort IndexStart;
 		public ushort IndexLength;
