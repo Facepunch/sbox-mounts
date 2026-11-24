@@ -75,7 +75,7 @@ sealed class AnimationFile
 			var (pt, po, pn) = Header( d, d.Int( 48 ) + i * 8 );
 			var (rt, ro, rn) = Header( d, d.Int( 56 ) + i * 8 );
 			int ps = pt == 0x1dc686e0 ? 12 : pt == 0x1196cfb2 ? 20 : throw new InvalidDataException( $"Unknown position track {pt:x}." );
-			int rs = rt == 0x9dfb92b6 ? 20 : rt == 0xe91a69ba ? 24 : throw new InvalidDataException( $"Unknown rotation track {rt:x}." );
+			int rs = rt == 0x96ecb85c ? 8 : rt == 0x9dfb92b6 ? 20 : rt == 0xe91a69ba ? 24 : throw new InvalidDataException( $"Unknown rotation track {rt:x}." );
 			d.Check( po, (long)pn * ps ); d.Check( ro, (long)rn * rs );
 			var positions = new Vec[pn]; var rotations = new Quaternion[rn];
 			var timesP = new float[pn]; var timesR = new float[rn];
@@ -92,7 +92,8 @@ sealed class AnimationFile
 			{
 				int p = ro + j * rs;
 				timesR[j] = Time( d.Float( p ), j == 0 ? -1 : timesR[j - 1] );
-				var q = new Quaternion( d.Float( p + 4 ), d.Float( p + 8 ), d.Float( p + 12 ), d.Float( p + 16 ) );
+				var q = rs == 8 ? PackedRotation( d.UInt( p + 4 ) )
+					: new Quaternion( d.Float( p + 4 ), d.Float( p + 8 ), d.Float( p + 12 ), d.Float( p + 16 ) );
 				if ( !float.IsFinite( q.LengthSquared() ) || q.LengthSquared() < 0.5f ) throw new InvalidDataException( "Invalid animation rotation." );
 				rotations[j] = Quaternion.Normalize( q );
 			}
@@ -111,6 +112,24 @@ sealed class AnimationFile
 		Cues.Sort( (a, b) => a.Time.CompareTo( b.Time ) );
 	}
 	static float Q( ushort value ) => value * (2000f / 65535f) - 1000f;
+	// Smallest-three quaternion: low two bits select the omitted (positive) largest component,
+	// followed by the next three components in cyclic xyzw order, spanning +/- 1/sqrt(2).
+	internal static Quaternion PackedRotation( uint packed )
+	{
+		int omitted = (int)(packed & 3);
+		var q = new float[4];
+		float length = 0;
+		for ( int part = 0; part < 3; part++ )
+		{
+			int i = (omitted + 1 + part) & 3;
+			int shift = 2 + part * 10;
+			q[i] = ((packed >> shift) & 1023) * (1.41421356237f / 1023) - .70710678118f;
+			length += q[i] * q[i];
+		}
+		if ( length > 1.001f ) throw new InvalidDataException( "Invalid packed quaternion." );
+		q[omitted] = MathF.Sqrt( Math.Max( 0, 1 - length ) );
+		return new Quaternion( q[0], q[1], q[2], q[3] );
+	}
 	float Time( float time, float previous )
 	{
 		if ( !float.IsFinite( time ) || time < 0 || time <= previous || time > Duration + 0.001f )

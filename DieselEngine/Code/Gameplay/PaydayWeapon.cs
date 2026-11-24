@@ -15,6 +15,15 @@ public sealed partial class PaydayWeapon : BaseCombatWeapon
 	public override bool CanSecondaryAttack() => false;
 	public override bool CanReload() => IsHeld && base.CanReload();
 
+	protected override void CreateWorldModel()
+	{
+		var original = HoldBone;
+		if ( Holder is Sandbox.Npcs.BaseNpc npc && npc.Renderer?.GetBoneObject( "a_weapon_right_front" ).IsValid() == true )
+			HoldBone = "a_weapon_right_front";
+		base.CreateWorldModel();
+		HoldBone = original;
+	}
+
 	protected override void OnEnabled()
 	{
 		base.OnEnabled();
@@ -80,11 +89,20 @@ public sealed partial class PaydayWeapon : BaseCombatWeapon
 		}
 		else if ( Definition.Shotgun ) FireShotgun();
 		else base.PrimaryAttack();
+		if ( Owner.IsValid() ) ReportGunshot();
 		if ( Owner.IsValid() && !Owner.IsProxy )
 		{
 			Owner.EyeAngles += new Angles( -0.3f, Random.Shared.Float( -0.7f, 0.7f ), 0 );
 			if ( !Owner.ThirdPerson ) Scene.Camera?.AddPunch( new Angles( -0.5f, 0, 0 ), 2, 0.15f );
 		}
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void ReportGunshot()
+	{
+		if ( !IsHeld ) return;
+		Scene.GetSystem<Sandbox.Npcs.NpcSystem>().EmitStimulus( Sandbox.Npcs.StimulusKinds.Gunshot,
+			WorldPosition, Attacker, WeaponId == "b9s" ? 350 : 2000, 1.5f );
 	}
 
 	void FireShotgun()

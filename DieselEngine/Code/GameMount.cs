@@ -19,6 +19,7 @@ public sealed class PaydayMount : BaseGameMount
 		return assets;
 	}
 	internal Dictionary<string, WeaponAudio> WeaponAudio { get; } = [];
+	internal Dictionary<string, PaydayCharacter> Characters { get; } = [];
 	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
 	protected override void Initialize( InitializeContext context )
@@ -103,6 +104,14 @@ public sealed class PaydayMount : BaseGameMount
 			context.Add( ResourceType.PrefabFile, definition.Root, weapon );
 		}
 		Log.Info( $"PAYDAY: indexed {Database.Entries.Count} resources, {maps} worlds, {textures} textures, {models} models and {materials} materials." );
+		foreach ( var definition in NpcDefinition.All )
+		{
+			context.Add( ResourceType.Model, definition.Model, new PaydayCharacterLoader( definition ) );
+			var npc = new PaydayNpcPrefabLoader( definition ); npc.Tags.Add( "npc" );
+			context.Add( ResourceType.PrefabFile, definition.Prefab, npc );
+		}
+		var alarm = new PaydayAlarmPrefabLoader(); alarm.Tags.Add( "entity" );
+		context.Add( ResourceType.PrefabFile, "entities/interactive/alarm_phone.prefab", alarm );
 		IsMounted = true;
 		return Task.CompletedTask;
 	}
@@ -112,6 +121,7 @@ public sealed class PaydayMount : BaseGameMount
 		viewAssets.Clear();
 		WeaponAudio.Clear();
 		browserMaterials = null;
+		Characters.Clear();
 		Database = null;
 	}
 }

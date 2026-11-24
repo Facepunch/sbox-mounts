@@ -5,6 +5,7 @@ using Vec = System.Numerics.Vector3;
 
 sealed partial class ModelFile
 {
+	public IEnumerable<(uint Id, ulong Name, uint Parent)> RigNodes => nodes.Select( n => (n.Key, n.Value.Name, n.Value.Parent) );
 	public sealed record Skin( uint[] Bones, Matrix[] InverseBind, ushort[] Indices, float[] Weights );
 	Skin ReadSkin( Section model, int offset, ushort[] indices, float[] weights )
 	{
