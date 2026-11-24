@@ -288,6 +288,7 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	protected override void OnUpdate()
 	{
+		EmitTrailingSmoke();
 		if ( ejectAt is {} due && due <= 0 ) EjectCasing();
 	}
 }

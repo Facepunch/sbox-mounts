@@ -4,7 +4,9 @@ namespace Halo2;
 
 public partial class ShotgunModel
 {
-	ParticleEffect softSmoke;
+	ParticleEffect softSmoke, trailingSmoke;
+	double smokeStart;
+	int smokeTick;
 	CurveRange smokeRadius, smokeAlpha;
 	bool viewSmoke;
 
@@ -14,25 +16,72 @@ public partial class ShotgunModel
 		if ( !texture.IsValid() || texture.IsError || ShotgunLoader.Mounted is not {} loader ) return;
 		(smokeRadius, smokeAlpha) = loader.SmokeCurves( firstPerson );
 		viewSmoke = firstPerson;
-		var go = new GameObject( MuzzleGameObject, false, "Soft muzzle smoke" );
-		softSmoke = go.AddComponent<ParticleEffect>();
+		var sprite = Sprite.FromTexture( texture );
+		softSmoke = CreateSmoke( "Soft muzzle smoke", sprite );
 		softSmoke.Lifetime = firstPerson ? new ParticleFloat( 0.25f, 1 ) : new ParticleFloat( 0.5f, 1.5f );
 		softSmoke.OnParticleCreated += StartSmoke;
-		softSmoke.OnPostStep += AdvanceSmoke;
+		softSmoke.OnPostStep += dt => AdvanceSmoke( softSmoke, dt, false );
+
+		trailingSmoke = CreateSmoke( "Trailing muzzle smoke", sprite );
+		trailingSmoke.Lifetime = new ParticleFloat( 1, 2 );
+		trailingSmoke.OnParticleCreated += StartTrailingSmoke;
+		trailingSmoke.OnPostStep += dt => AdvanceSmoke( trailingSmoke, dt, true );
+	}
+
+	ParticleEffect CreateSmoke( string name, Sprite sprite )
+	{
+		var go = new GameObject( MuzzleGameObject, false, name );
+		var effect = go.AddComponent<ParticleEffect>();
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Sprite = sprite;
 		renderer.Scale = 2;
-		renderer.RenderOptions.Game = !firstPerson;
-		renderer.RenderOptions.Overlay = firstPerson;
+		renderer.RenderOptions.Game = !viewSmoke;
+		renderer.RenderOptions.Overlay = viewSmoke;
 		go.Enabled = true;
+		return effect;
 	}
 
 	void EmitSoftSmoke()
 	{
 		if ( !softSmoke.IsValid() ) return;
+		smokeTick = 1;
+		smokeStart = Time.NowDouble;
 		float random = BlamRandom.Next( ref seed ) / 65535f;
 		int count = (int)(viewSmoke ? 5 + 2 * random : 10 + 5 * random);
 		for ( int i = 0; i < count; i++ ) softSmoke.Emit( softSmoke.WorldPosition, 0 );
+	}
+
+	void EmitTrailingSmoke()
+	{
+		if ( smokeTick == 0 || !trailingSmoke.IsValid() ) return;
+		int due = Math.Min( 12, (int)((Time.NowDouble - smokeStart) * 30) );
+		while ( smokeTick <= due )
+		{
+			trailingSmoke.Emit( trailingSmoke.WorldPosition, 0 );
+			smokeTick++;
+		}
+		if ( smokeTick > 12 ) smokeTick = 0;
+	}
+
+	void StartTrailingSmoke( Particle p )
+	{
+		p.LifeDelta = 0;
+		float random = p.Rand( 1, 0 );
+		p.StartAngles.roll = random * 360;
+		p.Set( "roll_speed", 1 - 2 * (p.LifeTimeRemaining - 1) );
+		byte gray = (byte)MathF.Round( 100 - 40 * random );
+		p.Color = Color.FromBytes( gray, gray, gray );
+		UpdateTrailingSmoke( p );
+	}
+
+	static void UpdateTrailingSmoke( Particle p )
+	{
+		float t = p.LifeDelta;
+		float low = 0.1388889f * t + 0.09444445f;
+		float high = 0.7f * t + 0.3f;
+		p.Size = 3 + 3 * (low + (high - low) * p.Rand( 1, 0 ));
+		p.Alpha = 0.35f * (((-0.42384624f * t - 0.21579337f) * t - 0.36036032f) * t + 1);
+		OrientFlash( p );
 	}
 
 	void StartSmoke( Particle p )
@@ -63,17 +112,18 @@ public partial class ShotgunModel
 		OrientFlash( p );
 	}
 
-	void AdvanceSmoke( float dt )
+	void AdvanceSmoke( ParticleEffect effect, float dt, bool trailing )
 	{
 		float drag = 1 - (6.212135f * dt).Clamp( 0, 1 );
 		float angularDrag = 1 - (29.507639f * dt).Clamp( 0, 1 );
-		foreach ( var p in softSmoke.Particles )
+		foreach ( var p in effect.Particles )
 		{
 			p.Velocity = (p.Velocity + Vector3.Up * (4.1712594f * 120 * 0.047619022f * dt)) * drag;
 			float roll = p.Get<float>( "roll_speed" );
 			p.StartAngles.roll += roll * dt;
 			p.Set( "roll_speed", roll * angularDrag );
-			UpdateSmokeAppearance( p, SmokeLifetimeFraction( p ), p.Rand( 1, 0 ) );
+			if ( trailing ) UpdateTrailingSmoke( p );
+			else UpdateSmokeAppearance( p, SmokeLifetimeFraction( p ), p.Rand( 1, 0 ) );
 		}
 	}
 }
