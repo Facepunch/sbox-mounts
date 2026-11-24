@@ -203,6 +203,9 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
+	protected override bool WantsReload() =>
+		base.WantsReload() || (AutoReload && Clip1 == 0 && NextPrimaryFire <= 0);
+
 	public override void SecondaryAttack()
 	{
 		var rig = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( ArmsPath ) as Halo2ModelLoader;
