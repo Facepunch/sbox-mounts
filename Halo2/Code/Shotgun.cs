@@ -182,14 +182,7 @@ public sealed class Shotgun : Weapon
 				float damage = (1 - fraction) * MinimumDamage + fraction * Ballistics.Damage;
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
-				if ( Networking.IsHost && attacker != Attacker )
-				{
-					// The weapon changed hands after dispatch. Credit the original shot.
-					float force = GetHitForce( hit.GameObject, Ballistics.Force );
-					ShootBullet( hit, damage, float.IsFinite( force ) ? System.MathF.Max( 0, force ) : 0,
-						attacker.IsValid() ? attacker : GameObject, GameObject, new TagSet( AttackDamageTags?.TryGetAll() ?? [] ) );
-				}
-				else ShootBullet( hit, damage, Ballistics.Force );
+				ApplyDelayedHit( hit, damage, Ballistics.Force, attacker );
 				directions[i] = Vector3.Zero;
 				flying--;
 			}
@@ -290,7 +283,7 @@ public sealed class Shotgun : Weapon
 		SetNextSecondaryFire( recovery / 30f );
 		int serial = ++swing;
 		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is { } impact )
-			_ = Strike( serial, impact.Frame / 30f, StrikeDamage() );
+			_ = Strike( serial, impact.Frame / 30f, StrikeDamage(), Attacker );
 	}
 
 	float StrikeDamage()
@@ -305,7 +298,7 @@ public sealed class Shotgun : Weapon
 		return (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
 	}
 
-	async System.Threading.Tasks.Task Strike( int serial, float delay, float damage )
+	async System.Threading.Tasks.Task Strike( int serial, float delay, float damage, GameObject attacker )
 	{
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
@@ -316,7 +309,20 @@ public sealed class Shotgun : Weapon
 		MeleeImpactSound( hit.Surface, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
-		ShootBullet( hit, damage, MeleeForce, new TagSet { "melee" }, false );
+		ApplyDelayedHit( hit, damage, MeleeForce, attacker, new TagSet { "melee" }, false );
+	}
+
+	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags = null, bool hitboxTags = true )
+	{
+		if ( !Networking.IsHost || attacker == Attacker )
+		{
+			ShootBullet( hit, damage, force, tags, hitboxTags );
+			return;
+		}
+
+		force = GetHitForce( hit.GameObject, force );
+		ShootBullet( hit, damage, float.IsFinite( force ) ? System.MathF.Max( 0, force ) : 0,
+			attacker.IsValid() ? attacker : GameObject, GameObject, tags ?? new TagSet( AttackDamageTags?.TryGetAll() ?? [] ), hitboxTags );
 	}
 
 	SceneTraceResult TraceMelee( Ray aim, out Vector3 impactPosition )
