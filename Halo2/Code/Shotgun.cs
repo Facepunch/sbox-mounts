@@ -84,6 +84,9 @@ public sealed class Shotgun : Weapon
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.CreateAttachments = true;
 		renderer.Model = loose.Model;
+		var animator = WorldModel.AddComponent<Halo2Animator>();
+		animator.Renderer = renderer;
+		animator.Configure( "any", "any", "any" );
 		var model = WorldModel.AddComponent<ShotgunModel>();
 		model.Renderer = renderer;
 		model.Weapon = this;
@@ -148,8 +151,29 @@ public sealed class Shotgun : Weapon
 		LaunchPellets( new Ray( AimRay.Position, direction ) );
 	}
 
+	protected override void OnReloadFinished()
+	{
+		base.OnReloadFinished();
+		if ( Networking.IsHost && IsHeld && Clip1 > 0 && (Clip1 == ClipMaxSize || Ammo1 == 0) )
+			ChamberWorldModel();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ChamberWorldModel()
+	{
+		if ( WorldModel.IsValid() && WorldModel.GetComponent<Halo2Animator>() is {} animator )
+			_ = ChamberNextTick( animator );
+	}
+
+	async System.Threading.Tasks.Task ChamberNextTick( Halo2Animator animator )
+	{
+		await Task.DelaySeconds( 1f / 30 );
+		if ( animator.IsValid() ) animator.SetAction( "chamber_1", once: true );
+	}
+
 	void LaunchPellets( Ray ray )
 	{
+		if ( IsHeld && Clip1 > 0 ) ChamberWorldModel();
 		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
 		float maximum = (Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x).DegreeToRadian();
 		float minimum = MinimumPelletAngle.DegreeToRadian();
