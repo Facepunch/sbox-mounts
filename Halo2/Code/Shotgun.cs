@@ -89,9 +89,8 @@ public sealed class Shotgun : Weapon
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.CreateAttachments = true;
 		renderer.Model = loose.Model;
-		var animator = WorldModel.AddComponent<Halo2Animator>();
-		animator.Renderer = renderer;
-		animator.Configure( "any", "any", "any" );
+		renderer.UseAnimGraph = true;
+		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{renderer.Model.Name}/any/any/any.ag" );
 		var model = WorldModel.AddComponent<ShotgunModel>();
 		model.Renderer = renderer;
 		model.Weapon = this;
@@ -179,14 +178,18 @@ public sealed class Shotgun : Weapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ChamberWorldModel()
 	{
-		if ( WorldModel.IsValid() && WorldModel.GetComponent<Halo2Animator>() is {} animator )
-			_ = ChamberNextTick( animator );
+		if ( WorldModel.IsValid() && WorldModel.GetComponent<SkinnedModelRenderer>() is {} renderer )
+			_ = ChamberNextTick( renderer );
 	}
 
-	async System.Threading.Tasks.Task ChamberNextTick( Halo2Animator animator )
+	async System.Threading.Tasks.Task ChamberNextTick( SkinnedModelRenderer renderer )
 	{
 		await Task.DelaySeconds( 1f / 30 );
-		if ( animator.IsValid() ) animator.SetAction( "chamber_1", once: true );
+		if ( !renderer.IsValid() || !renderer.Animation.IsValid ) return;
+		var parameters = renderer.Animation.Parameters;
+		parameters.Set( "action_once", true );
+		parameters.Set( "action", "chamber_1" );
+		parameters.Trigger( "action_restart" );
 	}
 
 	void LaunchPellets( Ray ray )
