@@ -220,11 +220,13 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		}
 	}
 
-	internal SoundHandle PlayPelletImpact( Surface surface, Vector3 position )
+	internal bool TryPlayPelletImpact( Surface surface, Vector3 position )
 	{
 		LoadMaterialEffects();
-		var sound = pelletMaterials is null ? null : ContactTag( pelletMaterials, surface, false );
-		return PlayImpact( sound, position );
+		if ( pelletMaterials is null || pelletMaterials.Count == 0 ) return false;
+		// A material can have an impact effect with no sound in the projectile's bank.
+		PlayImpact( ContactTag( pelletMaterials, surface, false ), position );
+		return true;
 	}
 
 	SoundHandle PlayImpact( TagEntry sound, Vector3 position ) =>

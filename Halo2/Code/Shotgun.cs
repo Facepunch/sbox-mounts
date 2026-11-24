@@ -151,7 +151,7 @@ public sealed class Shotgun : Weapon
 	{
 		if ( !shot.Hit || Application.IsDedicatedServer ) return;
 		var loader = ShotgunLoader.Mounted;
-		if ( loader?.PlayPelletImpact( shot.Surface, shot.HitPosition ).IsValid() != true )
+		if ( loader?.TryPlayPelletImpact( shot.Surface, shot.HitPosition ) != true )
 		{
 			base.OnShootImpact( shot );
 			return;
