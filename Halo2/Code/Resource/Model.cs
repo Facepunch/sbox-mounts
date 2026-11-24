@@ -48,7 +48,6 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 		// Build skeleton
 		var materials = new Dictionary<int, Material>( model.Shaders.Count );
-		var colors = ReadChangeColors( mapFile, biped );
 		var bones = BuildSkeleton( model, mapFile );
 
 		foreach ( var region in model.Regions )
@@ -89,7 +88,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, colors, bones, needsTraceMesh ) )
+						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, bones, needsTraceMesh ) )
 							needsTraceMesh = false;
 					}
 					catch ( Exception ex )
@@ -128,7 +127,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return builder.Create();
 	}
 
-	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, Vector3[] colors, List<ModelBuilder.Bone> bones, bool addTraceMesh )
+	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, List<ModelBuilder.Bone> bones, bool addTraceMesh )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -231,7 +230,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			var index = submesh.ShaderIndex;
 			int shaderId = (uint)index < model.Shaders.Count ? model.Shaders[index].TagIndex : -1;
 			if ( !materials.TryGetValue( shaderId, out var material ) )
-				materials[shaderId] = material = LoadMaterial( map, model, index, colors );
+				materials[shaderId] = material = LoadMaterial( map, model, index );
 
 			var mesh = new Mesh( $"section{sectionIndex}", material );
 			var partVertices = section.GeometryClassification == 3 && submesh.Influences != submeshes[0].Influences
@@ -416,28 +415,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return result;
 	}
 
-	static readonly string[] ColorParameters = ["g_vPrimaryColor", "g_vSecondaryColor", "g_vTertiaryColor", "g_vQuaternaryColor"];
-
-	static Vector3[] ReadChangeColors( MapFile map, TagEntry biped )
-	{
-		if ( biped is null ) return null;
-		int block = map.VaToOffset( (int)biped.DataVirtualAddress ) + 0xac;
-		int count = Math.Min( map.ReadInt32( block ), ColorParameters.Length );
-		if ( count <= 0 ) return null;
-		int offset = map.VaToOffset( map.ReadInt32( block + 4 ) );
-		var colors = new Vector3[count];
-		for ( int i = 0; i < count; i++, offset += 16 )
-		{
-			colors[i] = Vector3.One;
-			if ( map.ReadInt32( offset ) == 0 ) continue;
-			// A spawned render model uses the first initial color permutation.
-			using var color = map.OpenReader( map.VaToOffset( map.ReadInt32( offset + 4 ) ) + 4, 12 );
-			colors[i] = new( color.ReadSingle(), color.ReadSingle(), color.ReadSingle() );
-		}
-		return colors;
-	}
-
-	Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex, Vector3[] colors )
+	Material LoadMaterial( MapFile map, RenderModelTag model, int shaderIndex )
 	{
 		if ( shaderIndex < 0 || shaderIndex >= model.Shaders.Count )
 			return Material.Load( "materials/dev/primary_white.vmat" );
@@ -449,13 +427,10 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 		try
 		{
-			var mat = Material.Load( Host.AssetPath( map, shaderTag.TagPath, "vmat" ) );
-			if ( colors is { Length: > 0 } && (mat?.GetFeature( "F_CHANGE_COLOR" ) == 1 || mat?.GetFeature( "F_PASS" ) == (int)ShaderTag.EffectPass.Hair) )
-			{
-				mat = Halo2MaterialLoader.Create( Host, map, shaderTag, $"{Path}/{shaderIndex}.vmat" );
-				for ( int i = 0; i < colors.Length; i++ ) mat.Set( ColorParameters[i], colors[i] );
-			}
-			return mat ?? Material.Load( "materials/dev/primary_white.vmat" );
+			var path = Host.AssetPath( map, shaderTag.TagPath, "vmat" );
+			if ( biped is not null && Host.GetByPath( path ) is Halo2MaterialLoader loader )
+				path = loader.PathForObject( biped );
+			return Material.Load( path ) ?? Material.Load( "materials/dev/primary_white.vmat" );
 		}
 		catch
 		{
@@ -548,7 +523,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( phmo.RigidBodies.Count == 0 )
 			return;
 
-		// Build mapping from phmo node index → render model bone index.
+		// Build mapping from phmo node index â†’ render model bone index.
 		// Try name-based matching first (phmo has its own node list).
 		// Fall back to direct indexing if no phmo nodes or no matches found.
 		var phmoToRenderBone = new Dictionary<int, int>();

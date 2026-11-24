@@ -8,7 +8,7 @@ FEATURES
 {
 	#include "common/features.hlsl"
 	Feature( F_MASKED, 0..1, "Alpha tested" );
-	Feature( F_CHANGE_COLOR, 0..1, "Change Color Map" );
+	Feature( F_CHANGE_COLOR, 0..3( 0="None", 1="One", 2="Two", 3="Four" ), "Change Colors" );
 }
 
 MODES
@@ -21,7 +21,6 @@ MODES
 COMMON
 {
 	#include "common/shared.hlsl"
-	#define CUSTOM_MATERIAL_INPUTS
 }
 
 struct VertexInput
@@ -32,7 +31,6 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-	float4 vTintColor : COLOR1;
 };
 
 VS
@@ -41,26 +39,16 @@ VS
 
 	PixelInput MainVs( VertexInput v )
 	{
-		PixelInput i = ProcessVertex( v );
-
-		ExtraShaderData_t extraShaderData = GetExtraPerInstanceShaderData( v.nInstanceTransformID );
-		i.vTintColor = extraShaderData.vTint;
-
-		return FinalizeVertex( i );
+		return FinalizeVertex( ProcessVertex( v ) );
 	}
 }
 
 PS
 {
-	#include "common/pixel.hlsl"
-
-	StaticCombo( S_MASKED, F_MASKED, Sys( ALL ) );
-	#if S_MASKED
-		BoolAttribute( alphatest, true );
-	#endif
+	StaticCombo( S_ALPHA_TEST, F_MASKED, Sys( ALL ) );
 	StaticCombo( S_CHANGE_COLOR, F_CHANGE_COLOR, Sys( ALL ) );
-
-	SamplerState g_sSampler0 < Filter( Anisotropic ); AddressU( WRAP ); AddressV( WRAP ); >;
+	DynamicCombo( D_OPAQUE_FADE, 0..1, Sys( ALL ) );
+	DynamicComboRule( Allow1( S_ALPHA_TEST, D_OPAQUE_FADE ) );
 
 	CreateInputTexture2D( BaseMap, Srgb, 8, "None", "_color", ",0/,0/0", Default4( 1.00, 1.00, 1.00, 1.00 ) );
 	Texture2D g_tBaseMap < Channel( RGBA, Box( BaseMap ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
@@ -91,50 +79,53 @@ PS
 		float3 g_vQuaternaryColor < Default3( 1, 1, 1 ); >;
 	#endif
 
+	#define MATERIAL_ALPHA_TEXTURE g_tNormalMap
+	#include "common/pixel.hlsl"
+
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
-		Material m = Material::From( i );
+		Material m = Material::Init( i );
 
-		float4 baseColor = Tex2DS( g_tBaseMap, g_sSampler0, i.vTextureCoords.xy );
+		float4 baseColor = Tex2DS( g_tBaseMap, g_sAniso, i.vTextureCoords.xy );
 		float3 albedo = baseColor.rgb;
 		if ( any( g_vDetailTransform.xy ) )
-			albedo *= 2.0 * Tex2DS( g_tDetail, g_sSampler0, i.vTextureCoords.xy * g_vDetailTransform.xy + g_vDetailTransform.zw ).rgb;
+			albedo *= 2.0 * Tex2DS( g_tDetail, g_sAniso, i.vTextureCoords.xy * g_vDetailTransform.xy + g_vDetailTransform.zw ).rgb;
 
 		#if S_CHANGE_COLOR
 		{
-			// H2 change_color_map: R = primary mask, G = secondary mask
-			float4 ccMask = Tex2DS( g_tChangeColorMap, g_sSampler0, i.vTextureCoords.xy );
-			float3 tintColor = i.vTintColor.rgb;
-
-			// Object change colors occupy independent mask channels.
-			albedo *= lerp( float3( 1, 1, 1 ), g_vPrimaryColor * tintColor, ccMask.r );
-			albedo *= lerp( float3( 1, 1, 1 ), g_vSecondaryColor * tintColor, ccMask.g );
-			albedo *= lerp( 1.0.xxx, g_vTertiaryColor, ccMask.b );
-			albedo *= lerp( 1.0.xxx, g_vQuaternaryColor, ccMask.a );
+			float4 mask = Tex2DS( g_tChangeColorMap, g_sAniso, i.vTextureCoords.xy );
+			albedo *= lerp( 1.0.xxx, g_vPrimaryColor, mask.r );
+			#if S_CHANGE_COLOR >= 2
+				albedo *= lerp( 1.0.xxx, g_vSecondaryColor, mask.g );
+			#endif
+			#if S_CHANGE_COLOR == 3
+				albedo *= lerp( 1.0.xxx, g_vTertiaryColor, mask.b );
+				albedo *= lerp( 1.0.xxx, g_vQuaternaryColor, mask.a );
+			#endif
 		}
 		#endif
 
 		// The imported tangent frame uses the authored Halo bitangent.
-		float4 texNormal = Tex2DS( g_tNormalMap, g_sSampler0, i.vTextureCoords.xy );
-		#if S_MASKED
-			clip( texNormal.a - 0.5 );
+		float4 texNormal = Tex2DS( g_tNormalMap, g_sAniso, i.vTextureCoords.xy );
+		#if S_ALPHA_TEST
+			m.Opacity = texNormal.a * i.vVertexColor.a;
+		#elif D_OPAQUE_FADE
+			m.Opacity = i.vVertexColor.a;
+			if ( g_nMSAASampleCount == 1 )
+				OpaqueFadeDepth( (m.Opacity + 0.5 + 1.0 / 255.0) * 0.5, i.vPositionSs.xy );
 		#endif
 		texNormal.y = 1.0 - texNormal.y;
-		float3 normal = TransformNormal( DecodeNormal( texNormal.xyz ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
-		float specularMask = baseColor.a;
+		m.TangentNormal = DecodeNormal( texNormal.xyz );
+		m.Normal = TransformNormal( m.TangentNormal, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
+		// Halo uses diffuse alpha as reflection strength. It carries no metalness or gloss exponent.
+		float reflectionStrength = baseColor.a;
 
-		m.Albedo = albedo;
-		m.Normal = normal;
-		m.Opacity = 1.0;
-		m.Roughness = 1.0 - ( specularMask * 0.8 );
-		m.Metalness = specularMask * 0.3;
-		m.AmbientOcclusion = 1.0;
-		m.Emission = any( g_vGlow ) ? g_vGlow * Tex2DS( g_tGlow, g_sSampler0, i.vTextureCoords.xy ).rgb : 0;
+		m.Albedo = albedo * i.vVertexColor.rgb;
+		m.Emission = any( g_vGlow ) ? g_vGlow * Tex2DS( g_tGlow, g_sAniso, i.vTextureCoords.xy ).rgb : 0;
 		if ( g_vEnvironmentFacing.w + g_vEnvironmentGlancing.w > 0 )
 		{
-			float3 positionWs = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
-			float3 view = CalculatePositionToCameraDirWs( positionWs );
-			float3 reflectionNormal = normal;
+			float3 view = CalculatePositionToCameraDirWs( m.WorldPosition );
+			float3 reflectionNormal = m.Normal;
 			if ( g_flEnvironmentUnsignedZ )
 			{
 				// MCC default_environment_map_tangent_space expands XY and retains the sampled Z.
@@ -144,17 +135,14 @@ PS
 
 			// The baked reflection cube describes the armor, while the scene probe supplies
 			// the incident light at the model. Only illumination maps emit in darkness.
-			float3 lightmap = saturate( AmbientLight::From( positionWs, i.vPositionSs, normal ) );
+			float3 lightmap = saturate( AmbientLight::From( m.WorldPosition, m.ScreenPosition, m.Normal ) );
 			float lightMask = saturate( dot( lightmap, (192.0 / 255.0).xxx ) );
-			float reflectionMask = saturate( 2.0 * specularMask * lightMask );
+			float reflectionMask = saturate( 2.0 * reflectionStrength * lightMask );
 			float grazing = 1 - saturate( dot( view, reflectionNormal ) );
 			float4 environment = lerp( g_vEnvironmentFacing, g_vEnvironmentGlancing, grazing );
 			m.Emission += TexCube( g_tEnvironment, reflect( -view, reflectionNormal ) ).rgb * environment.rgb * environment.w * reflectionMask;
 		}
-		m.TintMask = 0;
-		m.Transmission = 0;
-		m.TextureCoords = i.vTextureCoords.xy;
 
-		return ShadingModelStandard::Shade( i, m );
+		return ShadingModelStandard::Shade( m );
 	}
 }

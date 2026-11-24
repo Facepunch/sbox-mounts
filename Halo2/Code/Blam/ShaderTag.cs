@@ -20,6 +20,8 @@ public class ShaderTag
 	/// <summary>Tag index of the change color map bitmap, or -1 if not found.</summary>
 	public int ChangeColorBitmapTagIndex { get; set; } = -1;
 
+	public int ChangeColorChannels { get; private set; }
+
 	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail }
 	public EffectPass Effect { get; private set; }
 	public int[] EffectMaps { get; private set; }
@@ -143,6 +145,8 @@ public class ShaderTag
 				AlphaTest = name.StartsWith( "tex_bump" ) && name.Contains( "alpha_test" );
 				if ( name.StartsWith( "tex_bump" ) ) BumpBitmapTagIndex = Bitmap( 0 );
 				ChangeColorBitmapTagIndex = Bitmap( GetChangeColorSlot( name ) );
+				if ( ChangeColorBitmapTagIndex >= 0 )
+					ChangeColorChannels = name.Contains( "four_change_color" ) ? 4 : name.Contains( "one_change_color" ) ? 1 : 2;
 
 				// Compiled templates place the same maps and registers at different offsets.
 				var (detail, uv, cube, tint, strength) = name switch

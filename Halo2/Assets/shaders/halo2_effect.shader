@@ -14,7 +14,6 @@ MODES
 COMMON
 {
 	#include "common/shared.hlsl"
-	#define CUSTOM_MATERIAL_INPUTS
 	#define PASS_EMBLEM 1
 	#define PASS_PLASMA 2
 	#define PASS_HAIR 3
@@ -53,7 +52,6 @@ PS
 	#if S_PASS == PASS_PLASMA
 		RenderState( CullMode, NONE );
 	#endif
-	SamplerState g_sLayer < Filter( ANISO ); AddressU( WRAP ); AddressV( WRAP ); >;
 	CreateInputTexture2D( Layer0, Linear, 8, "None", "", "", Default4( 0,0,0,0 ) );
 	CreateInputTexture2D( Layer1, Linear, 8, "None", "", "", Default4( 0,0,0,0 ) );
 	CreateInputTexture2D( Layer2, Linear, 8, "None", "", "", Default4( 0,0,0,0 ) );
@@ -78,10 +76,15 @@ PS
 	float4 g_vConstant2 < Default4( 0,0,0,0 ); >;
 	float4 g_vConstant3 < Default4( 0,0,0,0 ); >;
 	float4 g_vConstant4 < Default4( 0,0,0,0 ); >;
-	float3 g_vPrimaryColor < Default3( 1,1,1 ); >;
-	float3 g_vSecondaryColor < Default3( 1,1,1 ); >;
+	#if S_PASS == PASS_EMBLEM
+		float3 g_vTertiaryColor < Default3( 1,1,1 ); >;
+		float3 g_vQuaternaryColor < Default3( 1,1,1 ); >;
+	#elif S_PASS == PASS_HAIR
+		float3 g_vPrimaryColor < Default3( 1,1,1 ); >;
+		float3 g_vSecondaryColor < Default3( 1,1,1 ); >;
+	#endif
 
-	float4 MainPs( PixelInput i ) : SV_Target0
+	float4 ShadeOverlay( PixelInput i )
 	{
 		float4 vertexUv = float4( i.vTextureCoords.xy, 0, 1 );
 		float2 uv0 = float2( dot( vertexUv, g_vRow0 ), dot( vertexUv, g_vRow1 ) );
@@ -90,10 +93,10 @@ PS
 		float2 uv3 = float2( dot( vertexUv, g_vRow6 ), dot( vertexUv, g_vRow7 ) );
 		#if S_PASS == PASS_PLASMA
 			// plasma_mask_offset: blend the scrolling alpha fields, then shape their difference.
-			float a = g_tLayer0.Sample( g_sLayer, uv0 + g_vPlasmaScroll.xy * g_flTime ).a;
-			float b = g_tLayer1.Sample( g_sLayer, uv1 + g_vPlasmaScroll.zw * g_flTime ).a;
-			float offset = g_tLayer2.Sample( g_sLayer, uv2 ).a;
-			float4 mask = g_tLayer3.Sample( g_sLayer, uv3 );
+			float a = g_tLayer0.Sample( g_sAniso, uv0 + g_vPlasmaScroll.xy * g_flTime ).a;
+			float b = g_tLayer1.Sample( g_sAniso, uv1 + g_vPlasmaScroll.zw * g_flTime ).a;
+			float offset = g_tLayer2.Sample( g_sAniso, uv2 ).a;
+			float4 mask = g_tLayer3.Sample( g_sAniso, uv3 );
 			a = lerp( offset, a, g_vConstant1.a );
 			b = lerp( 0.5, b, g_vConstant0.b );
 			float delta = (a - b) * (1 - mask.a);
@@ -105,32 +108,31 @@ PS
 			edge *= 2 - edge;
 			return float4( saturate( mask.rgb * g_vConstant2.rgb * edge + (1 - mask.a) * g_vConstant3.rgb ) * g_vConstant4.a, 0 );
 		#elif S_PASS == PASS_MASKED_DETAIL
-			float4 base = g_tLayer0.Sample( g_sLayer, uv0 );
-			float3 detail = g_tLayer1.Sample( g_sLayer, uv1 ).rgb;
-			float3 add = g_tLayer2.Sample( g_sLayer, uv2 ).rgb;
-			float3 mask = g_tLayer3.Sample( g_sLayer, uv3 ).rgb;
+			float4 base = g_tLayer0.Sample( g_sAniso, uv0 );
+			float3 detail = g_tLayer1.Sample( g_sAniso, uv1 ).rgb;
+			float3 add = g_tLayer2.Sample( g_sAniso, uv2 ).rgb;
+			float3 mask = g_tLayer3.Sample( g_sAniso, uv3 ).rgb;
 			float3 color = saturate( saturate( 2 * detail * base.rgb ) + add * base.a );
 			return float4( color * lerp( 1.0.xxx, mask, base.a ) * base.a * g_vConstant0.a, base.a );
 		#elif S_PASS == PASS_EYES
 			Material m = Material::Init( i );
 			float3 dir = reflect( -CalculatePositionToCameraDirWs( m.WorldPosition ), normalize( i.vNormalWs ) );
 			float3 reflection = TexCube( g_tReflection, dir ).rgb * g_vConstant0.rgb;
-			float3 mask = g_tLayer1.Sample( g_sLayer, uv1 ).rgb;
-			float3 base = g_tLayer2.Sample( g_sLayer, uv2 ).rgb * g_vConstant3.rgb;
-			float4 overlay = g_tLayer3.Sample( g_sLayer, uv3 );
+			float3 mask = g_tLayer1.Sample( g_sAniso, uv1 ).rgb;
+			float3 base = g_tLayer2.Sample( g_sAniso, uv2 ).rgb * g_vConstant3.rgb;
+			float4 overlay = g_tLayer3.Sample( g_sAniso, uv3 );
 			float alpha = overlay.a * g_vConstant2.a;
 			return float4( saturate( base + reflection * mask + overlay.rgb * g_vConstant1.rgb * alpha ), alpha );
 		#else
-			float4 base = g_tLayer0.Sample( g_sLayer, uv0 );
+			float4 base = g_tLayer0.Sample( g_sAniso, uv0 );
 			#if S_PASS == PASS_HAIR
-				float2 mask = g_tLayer1.Sample( g_sLayer, uv1 ).rg;
+				float2 mask = g_tLayer1.Sample( g_sAniso, uv1 ).rg;
 				Material m = Material::Init( i );
 				m.Albedo = base.rgb * lerp( 1.0.xxx, g_vPrimaryColor, mask.r ) * lerp( 1.0.xxx, g_vSecondaryColor, mask.g );
-				m.Opacity = 1;
-				return float4( ShadingModelStandard::Shade( i, m ).rgb * base.a, base.a );
+				return float4( ShadingModelStandard::Shade( m ).rgb * base.a, base.a );
 			#elif S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_BLOOM
 				#if S_PASS == PASS_BLOOM
-					base.rgb = saturate( base.rgb + g_tLayer1.Sample( g_sLayer, uv1 ).rgb ) * g_tLayer2.Sample( g_sLayer, uv2 ).rgb;
+					base.rgb = saturate( base.rgb + g_tLayer1.Sample( g_sAniso, uv1 ).rgb ) * g_tLayer2.Sample( g_sAniso, uv2 ).rgb;
 				#endif
 				float3 glow = saturate( base.rgb * g_vConstant0.rgb );
 				float power = saturate( dot( glow, glow ) );
@@ -138,11 +140,19 @@ PS
 				return float4( glow, power );
 			#elif S_PASS == PASS_ADDITIVE
 				return float4( base.rgb * g_vConstant0.rgb, base.a );
-			#else
+			#elif S_PASS == PASS_EMBLEM
 				float alpha = base.g + (1 - base.g) * base.a;
-				float3 color = base.r * g_vPrimaryColor + (1 - base.g) * base.b * g_vSecondaryColor;
+				float3 color = base.r * g_vTertiaryColor + (1 - base.g) * base.b * g_vQuaternaryColor;
 				return float4( saturate( color ) * alpha, alpha );
+			#else
+				return 0;
 			#endif
 		#endif
+	}
+
+	float4 MainPs( PixelInput i ) : SV_Target0
+	{
+		float4 overlay = ShadeOverlay( i );
+		return float4( overlay.rgb * i.vVertexColor.rgb, overlay.a ) * i.vVertexColor.a;
 	}
 }

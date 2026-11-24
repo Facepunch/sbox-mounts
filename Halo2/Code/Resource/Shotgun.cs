@@ -22,9 +22,11 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 	internal const string RigPath = "weapons/shotgun/first_person.vmdl";
 	internal Halo2ModelLoader CreateRig()
 	{
-		var arms = map.Tags.First( t => t.PrimaryClass == "edom" && t.TagPath == @"objects\characters\masterchief\fp\fp" );
+		// Campaign Spartan representation supplies both the hands and their object change colors.
+		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+		int representation = Block( Address( globals ) + 0x138 );
 		int row = Block( Header + 0x2a8 );
-		return new Halo2ModelLoader( map, arms, graph: Reference( row + 8 ), firstPersonWeapon: Reference( row ) );
+		return new Halo2ModelLoader( map, Reference( representation ), biped: Reference( representation + 0xb0 ), graph: Reference( row + 8 ), firstPersonWeapon: Reference( row ) );
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
