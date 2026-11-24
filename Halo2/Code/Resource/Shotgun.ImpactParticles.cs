@@ -192,7 +192,7 @@ internal sealed partial class ShotgunLoader
 				float spin = p.Get<float>( "spin" );
 				p.Angles.roll += spin * dt;
 				p.Set( "spin", spin * (1 - (data.AngularDrag * dt).Clamp( 0, 1 )) );
-				if ( data.Layer is ImpactLayer.Rocks or ImpactLayer.Sparks && Collide( p, data, go.Scene ) )
+				if ( data.Layer is ImpactLayer.Rocks or ImpactLayer.Sparks && dt > 0 && Collide( p, data, go.Scene, dt ) )
 				{
 					effect.Terminate( p );
 					continue;
@@ -204,15 +204,14 @@ internal sealed partial class ShotgunLoader
 		for ( int i = 0; i < births; i++ ) effect.Emit( contact.Position, 0 );
 	}
 
-	static bool Collide( Particle p, ImpactEmitter data, Scene scene )
+	static bool Collide( Particle p, ImpactEmitter data, Scene scene, float dt )
 	{
-		int tick = (int)(p.Age * 30);
-		if ( tick < p.Get<int>( "collision_tick" ) ) return false;
-		var step = p.Velocity / 30;
+		if ( p.Frame < p.Get<int>( "collision_tick" ) ) return false;
+		var step = p.Velocity * dt;
 		var from = p.Position - step;
 		var hit = scene.Trace.Ray( from, from + step * 12 ).UseHitPosition().Run();
 		// The collider looks twelve steps ahead and accepts contacts within the first two.
-		p.Set( "collision_tick", tick + (!hit.Hit || hit.StartedSolid ? 6 : 1) );
+		p.Set( "collision_tick", p.Frame + (!hit.Hit || hit.StartedSolid ? 6 : 1) );
 		if ( !hit.Hit || hit.StartedSolid || hit.Fraction >= 1f / 6 ) return false;
 		float projection = Vector3.Dot( p.Velocity, hit.Normal );
 		if ( projection >= 0 ) return false;
