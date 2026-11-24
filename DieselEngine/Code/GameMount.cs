@@ -10,6 +10,8 @@ public sealed class PaydayMount : BaseGameMount
 	BaseFileSystem fileSystem;
 	internal BundleDatabase Database { get; private set; }
 	MapMaterials browserMaterials;
+	PaydayViewAssets viewAssets;
+	internal PaydayViewAssets ViewAssets => viewAssets ??= new PaydayViewAssets( Database, BrowserMaterials );
 	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
 	protected override void Initialize( InitializeContext context )
@@ -76,6 +78,17 @@ public sealed class PaydayMount : BaseGameMount
 			}
 		}
 		if ( maps == 0 ) throw new InvalidDataException( "No PAYDAY worlds were found in the installed bundles." );
+		if ( Database.Find( "unit", PaydayWeapons.ViewUnit ) is not null && Database.Find( "unit", PaydayWeapons.WorldUnit ) is not null )
+		{
+			foreach ( var sound in PaydayWeaponSoundLoader.Events )
+				context.Add( ResourceType.GameResource, PaydayWeaponSoundLoader.EventPath( sound ), new PaydayWeaponSoundLoader( sound ) );
+			context.Add( ResourceType.GameResource, PaydayWeapons.Ammo, new PaydayAmmoLoader() );
+			context.Add( ResourceType.PrefabFile, PaydayWeapons.View, new PaydayWeaponPrefabLoader( view: true ) );
+			context.Add( ResourceType.PrefabFile, PaydayWeapons.World, new PaydayWeaponPrefabLoader( world: true ) );
+			var weapon = new PaydayWeaponPrefabLoader();
+			weapon.Tags.Add( "weapon" );
+			context.Add( ResourceType.PrefabFile, PaydayWeapons.Root, weapon );
+		}
 		Log.Info( $"PAYDAY: indexed {Database.Entries.Count} resources, {maps} worlds, {textures} textures, {models} models and {materials} materials." );
 		IsMounted = true;
 		return Task.CompletedTask;
@@ -83,6 +96,7 @@ public sealed class PaydayMount : BaseGameMount
 
 	protected override void Shutdown()
 	{
+		viewAssets = null;
 		browserMaterials = null;
 		Database = null;
 	}

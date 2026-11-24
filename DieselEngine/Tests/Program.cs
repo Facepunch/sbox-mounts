@@ -18,6 +18,7 @@ Reject( () => ScriptData.Read( db.Find( "world", "levels/bank/world" )[..100] ) 
 Reject( () => new ModelFile( new byte[] { 255, 255, 255, 255 } ) );
 Reject( () => XmlNode.Parse( "<unit><object></unit>" ) );
 CubemapVerification.Run( db );
+WeaponPresentationVerification.Run( db );
 var fenceDds = db.Find( "texture", "units/world/props/street/fence/fence_df" );
 var fenceUpload = DdsTexture.ForUpload( fenceDds );
 if ( BitConverter.ToInt32( fenceUpload, 28 ) != 4 || BitConverter.ToInt32( fenceDds, 28 ) != 10
@@ -183,6 +184,15 @@ foreach ( string suffix in new[] { "", "_1m", "_10m" } )
 if ( architecture.Graphics.Count == 0 || architecture.Collision.Count == 0 )
 	throw new Exception( "Runtime architecture lost graphics or collision." );
 Console.WriteLine( "PASS: invisible blockers, nonphysical light gizmos, and visible runtime architecture." );
+var groupedWeapon = UnitGeometry.Read( XmlNode.Parse( "<unit/>" ), XmlNode.Parse( """
+<dynamic_object><graphics><graphic_group enabled="true">
+<object name="body" enabled="true"/><object name="dormant"/>
+<graphic_group enabled="false"><object name="hidden" enabled="true"/></graphic_group>
+<lod_object><object name="near" enabled="true"/><object name="far" lod="1" enabled="true"/></lod_object>
+</graphic_group></graphics></dynamic_object>
+""" ) );
+if ( !groupedWeapon.Graphics.SetEquals( new[] { IdString.Hash( "body" ), IdString.Hash( "near" ) } ) )
+	throw new Exception( "Weapon graphics groups leaked disabled/default/alternate LOD objects." );
 var names = Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' );
 var maps = names.Where( s => s.StartsWith( "levels/" ) && db.Entries.ContainsKey( (IdString.Hash( "world" ), IdString.Hash( s )) ) ).Distinct().ToArray();
 if ( maps.Length != 9 ) throw new Exception( $"Expected nine installed heist worlds, got {maps.Length}." );

@@ -3,8 +3,8 @@ using Vec = System.Numerics.Vector3;
 
 namespace Diesel;
 
-/// <summary>Static Diesel model sections. Animation/skinning and version 6 bounds-only objects are not meshes.</summary>
-sealed class ModelFile
+/// <summary>Diesel mesh/node sections, optional skin data, and version-6 bounds-only collision.</summary>
+sealed partial class ModelFile
 {
 	readonly BinaryData data;
 	readonly record struct Section( uint Type, int Start, int Size );
@@ -14,9 +14,29 @@ sealed class ModelFile
 	readonly Dictionary<uint, NumericsMatrix> transforms = [];
 
 	public record Draw( ulong Material, int Start, int Count );
-	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws );
+	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws )
+	{
+		public Skin Skin { get; init; }
+	}
 	public record Primitive( ulong Name, Vector3[] Points, PropMass.BoxVolume? BoxVolume = null );
 	public record LightNode( ulong Name, bool Spot, Vector3 Position, Vector3 Direction, Vector3 Up );
+
+	/// <summary>Bind-pose attachment relative to the same orientation object used for mesh import.</summary>
+	public Transform? ReadAttachment( ulong name, ulong orientation )
+	{
+		var root = nodes.FirstOrDefault( n => n.Value.Name == orientation );
+		var target = nodes.FirstOrDefault( n => n.Value.Name == name );
+		if ( root.Key == 0 || target.Key == 0 ) return null;
+		if ( !NumericsMatrix.Invert( World( root.Key, [] ), out var inverse ) )
+			throw new InvalidDataException( "Singular Diesel attachment orientation." );
+		var matrix = World( target.Key, [] ) * inverse;
+		var p = Vec.Transform( Vec.Zero, matrix );
+		// Weapon attachment forward is Diesel +Y; +Z is up.
+		var f = Vec.TransformNormal( Vec.UnitY, matrix );
+		var u = Vec.TransformNormal( Vec.UnitZ, matrix );
+		return new Transform( Coordinates.Position( new Vector3( p.X, p.Y, p.Z ) ),
+			Rotation.LookAt( new Vector3( f.Y, -f.X, f.Z ), new Vector3( u.Y, -u.X, u.Z ) ) );
+	}
 
 	public IEnumerable<LightNode> ReadLights( ulong orientation )
 	{
@@ -124,7 +144,7 @@ sealed class ModelFile
 		}
 		foreach ( var (id, section) in sections )
 		{
-			if ( section.Type is not (0x0ffcd100 or 0x62212d88 or 0xffa13b80) ) continue;
+			if ( section.Type is not (0x0ffcd100 or 0x62212d88 or 0xffa13b80 or 0x46bf31a7) ) continue;
 			p = section.Start;
 			int matrix = checked(p + 12 + data.Int( p + 8 ) * 12);
 			CheckSection( section, matrix, 80 );
@@ -160,7 +180,7 @@ sealed class ModelFile
 		return section;
 	}
 
-	public IEnumerable<Geometry> ReadGeometry( HashSet<ulong> selected, ulong orientation )
+	public IEnumerable<Geometry> ReadGeometry( HashSet<ulong> selected, ulong orientation, bool raw = false )
 	{
 		var inverseRoot = NumericsMatrix.Identity;
 		foreach ( var (id, node) in nodes )
@@ -203,10 +223,12 @@ sealed class ModelFile
 			var colors = new Vector4[vertices];
 			Array.Fill( colors, Vector4.One );
 			var uvs = new Vector2[vertices];
+			var skinIndices = raw ? new ushort[vertices * 4] : null;
+			var skinWeights = raw ? new float[vertices * 4] : null;
 			bool hasPositions = false;
 			int channelData = checked(geo.Start + 8 + channels * 8);
 			int[] sizes = [0, 4, 8, 12, 16, 4, 4, 8, 12];
-			var transform = World( id, [] ) * inverseRoot;
+			var transform = raw ? NumericsMatrix.Identity : World( id, [] ) * inverseRoot;
 			if ( !NumericsMatrix.Invert( transform, out var inverse ) ) throw new InvalidDataException( "Singular Diesel mesh transform." );
 			var normalTransform = NumericsMatrix.Transpose( inverse );
 			for ( int c = 0; c < channels; c++ )
@@ -223,7 +245,7 @@ sealed class ModelFile
 					{
 						int q = channelData + v * size;
 						var pos = Vec.Transform( new Vec( data.Float( q ), data.Float( q + 4 ), data.Float( q + 8 ) ), transform );
-						positions[v] = Coordinates.Position( new Vector3( pos.X, pos.Y, pos.Z ) );
+						positions[v] = raw ? new Vector3( pos.X, pos.Y, pos.Z ) : Coordinates.Position( new Vector3( pos.X, pos.Y, pos.Z ) );
 					}
 				}
 				else if ( semantic == 2 && format == 3 )
@@ -232,7 +254,7 @@ sealed class ModelFile
 					{
 						int q = channelData + v * size;
 						var normal = Vec.TransformNormal( new Vec( data.Float( q ), data.Float( q + 4 ), data.Float( q + 8 ) ), normalTransform );
-						normals[v] = new Vector3( normal.Y, -normal.X, normal.Z ).Normal;
+						normals[v] = raw ? new Vector3( normal.X, normal.Y, normal.Z ).Normal : new Vector3( normal.Y, -normal.X, normal.Z ).Normal;
 					}
 				}
 				else if ( semantic == 5 && format == 5 )
@@ -248,6 +270,21 @@ sealed class ModelFile
 					for ( int v = 0; v < vertices; v++ )
 						// Both Diesel DDS sampling and s&box use top-left texture coordinates.
 						uvs[v] = new( data.Float( channelData + v * size ), data.Float( channelData + v * size + 4 ) );
+				else if ( raw && semantic == 15 )
+				{
+					if ( format != 7 ) throw new InvalidDataException( "Unsupported skin index format." );
+					for ( int v = 0; v < vertices * 4; v++ ) skinIndices[v] = data.UShort( channelData + v * 2 );
+				}
+				else if ( raw && semantic == 17 )
+				{
+					if ( format is not (2 or 3) ) throw new InvalidDataException( "Unsupported skin weights." );
+					for ( int v = 0; v < vertices; v++ )
+					{
+						float total = 0;
+						for ( int j = 0; j < format; j++ ) total += skinWeights[v * 4 + j] = data.Float( channelData + v * size + j * 4 );
+						skinWeights[v * 4 + format] = Math.Max( 0, 1 - total );
+					}
+				}
 				channelData = checked(channelData + vertices * size);
 			}
 			if ( !hasPositions ) throw new InvalidDataException( "Diesel geometry has no positions." );
@@ -281,7 +318,10 @@ sealed class ModelFile
 					indices.Add( vertex );
 				}
 			}
-			yield return new( node.Name, positions, normals, colors, uvs, indices.ToArray(), draws.ToArray() );
+			yield return new( node.Name, positions, normals, colors, uvs, indices.ToArray(), draws.ToArray() )
+			{
+				Skin = raw ? ReadSkin( section, groupOffset + 44, skinIndices, skinWeights ) : null
+			};
 		}
 	}
 }

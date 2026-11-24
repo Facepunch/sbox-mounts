@@ -12,9 +12,16 @@ sealed class UnitGeometry
 
 	public static IEnumerable<XmlNode> GraphicsObjects( XmlNode obj )
 	{
-		var graphics = obj.Element( "graphics" );
-		return (graphics?.Elements( "object" ) ?? []).Concat(
-			(graphics?.Elements( "lod_object" ) ?? []).SelectMany( group => group.Elements( "object" ) ) );
+		return GraphicsContainers( obj.Element( "graphics" ) ).SelectMany( graphics =>
+			graphics.Elements( "object" ).Concat( graphics.Elements( "lod_object" ).SelectMany( group => group.Elements( "object" ) ) ) );
+	}
+
+	static IEnumerable<XmlNode> GraphicsContainers( XmlNode node )
+	{
+		if ( node is null ) yield break;
+		yield return node;
+		foreach ( var group in node.Elements( "graphic_group" ).Where( g => g.Attribute( "enabled" ) != "false" ) )
+			foreach ( var child in GraphicsContainers( group ) ) yield return child;
 	}
 
 	public static UnitGeometry Read( XmlNode unit, XmlNode obj, SequenceVisibility variation = null )
@@ -32,16 +39,19 @@ sealed class UnitGeometry
 
 		if ( !editorVisible )
 		{
-			foreach ( var element in obj.Element( "graphics" )?.Elements( "object" ) ?? [] )
-				if ( Enabled( element ) ) result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
-
-			foreach ( var group in obj.Element( "graphics" )?.Elements( "lod_object" ) ?? [] )
+			foreach ( var graphics in GraphicsContainers( obj.Element( "graphics" ) ) )
 			{
-				if ( group.Attribute( "enabled" ) == "false" ) continue;
-				var levels = group.Elements( "object" ).Where( Enabled ).GroupBy( Lod ).OrderBy( level => level.Key );
-				// Import one level, not overlapping near/far meshes. Distance switching is pending.
-				foreach ( var element in levels.FirstOrDefault() ?? Enumerable.Empty<XmlNode>() )
-					result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
+				foreach ( var element in graphics.Elements( "object" ) )
+					if ( Enabled( element ) ) result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
+
+				foreach ( var group in graphics.Elements( "lod_object" ) )
+				{
+					if ( group.Attribute( "enabled" ) == "false" ) continue;
+					var levels = group.Elements( "object" ).Where( Enabled ).GroupBy( Lod ).OrderBy( level => level.Key );
+					// Import one level, not overlapping near/far meshes. Distance switching is pending.
+					foreach ( var element in levels.FirstOrDefault() ?? Enumerable.Empty<XmlNode>() )
+						result.Graphics.Add( IdString.Hash( element.Attribute( "name" ) ) );
+				}
 			}
 		}
 

@@ -8,7 +8,14 @@ static class UnitModel
 	{
 		public static Result Empty { get; } = new( null, false, false );
 	}
-	public static XmlNode Xml( byte[] bytes ) => XmlNode.Parse( Encoding.UTF8.GetString( bytes ).TrimEnd( '\0' ) );
+	public static XmlNode Xml( byte[] bytes )
+	{
+		var text = Encoding.UTF8.GetString( bytes ).TrimEnd( '\0', '\r', '\n', ' ' );
+		// The shipped first-person AMCAR object ends with this otherwise complete
+		// closing tag missing its final delimiter. Keep all other XML validation.
+		if ( text.EndsWith( "</dynamic_object", StringComparison.Ordinal ) ) text += ">";
+		return XmlNode.Parse( text );
+	}
 
 	public sealed record BrowseInfo( UnitKind Kind, bool HasCollision );
 
