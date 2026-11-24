@@ -111,7 +111,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		cameraAdjustment = global::Transform.Zero;
 		if ( !ViewModel.IsValid() || Owner is { ThirdPerson: true } ) return;
 		var renderer = ViewModel.GetComponent<SkinnedModelRenderer>();
-		if ( !renderer.TryGetBoneTransform( "camera_control", out var control ) ) return;
+		if ( !renderer.IsValid() || !renderer.TryGetBoneTransform( "camera_control", out var control ) ) return;
 		cameraAdjustment = renderer.SceneModel.Transform.ToLocal( control );
 		var adjusted = view.Transform.ToWorld( cameraAdjustment );
 		view.Position = adjusted.Position;
@@ -311,6 +311,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 
 	bool SelectAction( string action, bool once = false )
 	{
+		if ( !Animator.IsValid() || !Animator.Bound ) return false;
 		var graph = Renderer.Animation;
 		if ( action == "ready" && string.Equals( graph.Parameters.GetString( "action" ), action, System.StringComparison.OrdinalIgnoreCase ) )
 			return false;
@@ -480,7 +481,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 	protected override void OnUpdate()
 	{
 		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Halo2Shotgun>();
-		if ( !Weapon.IsValid() ) return;
+		if ( !Weapon.IsValid() || !Animator.IsValid() || !Animator.Bound ) return;
 		Animator.SampleCuesFromGraph = false;
 		if ( clip is not null )
 		{

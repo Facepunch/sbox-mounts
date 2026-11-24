@@ -148,7 +148,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		return true;
 	}
 
-	bool Bound => Renderer.IsValid() && assigned is not null && Renderer.Animation.Graph == assigned && Renderer.Animation.IsValid;
+	internal bool Bound => Renderer.IsValid() && assigned is not null && Renderer.Animation.Graph == assigned && Renderer.Animation.IsValid;
 
 	protected override void OnUpdate()
 	{
