@@ -6,7 +6,10 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property] public float KickDuration { get; set; }
 	[Property] public float KickDegrees { get; set; }
 	[Property] public float KickDistance { get; set; }
+	[Property] public Vector2 KickJitter { get; set; }
 	TimeUntil kickEnds;
+	Vector3 kickOffset;
+	uint cameraRandom = (uint)System.Random.Shared.Next();
 
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
 	int? looseReserve;
@@ -89,7 +92,7 @@ public abstract class Weapon : BaseCombatWeapon
 		if ( kickEnds > 0 && KickDuration > 0 )
 		{
 			float weight = KickWeight( (float)kickEnds / KickDuration );
-			view.Position -= view.Rotation.Forward * (KickDistance * weight);
+			view.Position += view.Rotation * (kickOffset * weight);
 			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
 		}
 
@@ -111,7 +114,14 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
-	internal void Kick() => kickEnds = KickDuration;
+	internal void Kick()
+	{
+		kickEnds = KickDuration;
+		float radius = KickJitter.x + BlamRandom.Next( ref cameraRandom ) * (1f / 65535f) * (KickJitter.y - KickJitter.x);
+		float angle = BlamRandom.Next( ref cameraRandom ) * (1f / 65535f) * System.MathF.Tau;
+		var (sin, cos) = System.MathF.SinCos( angle );
+		kickOffset = new Vector3( -KickDistance, radius * cos, -radius * sin );
+	}
 
 	protected override float GetHitForce( GameObject target, float force )
 	{
