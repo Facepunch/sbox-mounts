@@ -60,12 +60,17 @@ static class UnitModel
 					var uv2 = part.UVs[ic] - part.UVs[ia];
 					float determinant = uv1.x * uv2.y - uv1.y * uv2.x;
 					var tangent = MathF.Abs( determinant ) > 0.000001f ? ((b - a) * uv2.y - (c - a) * uv1.y) / determinant : b - a;
+					var bitangent = MathF.Abs( determinant ) > 0.000001f ? ((c - a) * uv1.x - (b - a) * uv2.x) / determinant : Vector3.Cross( faceNormal, tangent );
 					for ( int j = 0; j < 3; j++ )
 					{
 						int index = part.Indices[i + j];
 						var normal = part.Normals[index].LengthSquared > 0.01f ? part.Normals[index] : faceNormal;
 						var vertexTangent = (tangent - normal * Vector3.Dot( normal, tangent )).Normal;
+						if ( vertexTangent.LengthSquared < 0.01f )
+							vertexTangent = Vector3.Cross( MathF.Abs( normal.z ) < 0.9f ? Vector3.Up : Vector3.Forward, normal ).Normal;
 						var vertex = new Vertex( part.Positions[index], normal, vertexTangent, part.UVs[index] );
+						float sign = Vector3.Dot( Vector3.Cross( normal, vertexTangent ), bitangent ) < 0 ? -1f : 1f;
+						vertex.Tangent = new Vector4( vertexTangent.x, vertexTangent.y, vertexTangent.z, sign );
 						var color = part.Colors[index];
 						vertex.Color = new Color( color.x, color.y, color.z, color.w );
 						vertices.Add( vertex );

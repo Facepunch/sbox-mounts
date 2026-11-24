@@ -4,12 +4,13 @@ using System.Text;
 namespace Diesel;
 
 /// <summary>Material names match the hashed material sections referenced by model render atoms.</summary>
-sealed record MaterialDefinition( string Name, string Template, string Diffuse, string Opacity, float AlphaReference )
+sealed record MaterialDefinition( string Name, string Template, string Diffuse, string Opacity, float AlphaReference, string Normal )
 {
 	public bool AlphaTest => Template.Split( ':' ).Contains( "ALPHA_MASKED" );
 	public bool Translucent => Template.StartsWith( "opacity:", StringComparison.Ordinal ) || Template.StartsWith( "decal:", StringComparison.Ordinal );
 	public bool Hidden => Template.StartsWith( "shadow_caster_only", StringComparison.Ordinal );
 	public bool VertexColor => Template.Split( ':' ).Contains( "VERTEX_COLOR" );
+	public bool DoubleSided => Template.Split( ':' ).Contains( "DOUBLE_SIDED" );
 }
 
 static class MaterialConfig
@@ -26,7 +27,8 @@ static class MaterialConfig
 			float alphaRef = float.TryParse( alpha, NumberStyles.Float, CultureInfo.InvariantCulture, out var a ) && float.IsFinite( a ) ? Math.Clamp( a, 0, 1 ) : 0.5f;
 			result[IdString.Hash( name )] = new( name, material.Attribute( "render_template" ) ?? "",
 				material.Element( "diffuse_texture" )?.Attribute( "file" ),
-				material.Element( "opacity_texture" )?.Attribute( "file" ), alphaRef );
+				material.Element( "opacity_texture" )?.Attribute( "file" ), alphaRef,
+				material.Element( "bump_normal_texture" )?.Attribute( "file" ) );
 		}
 		return result;
 	}

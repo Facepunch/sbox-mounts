@@ -24,6 +24,17 @@ if ( BitConverter.ToInt32( fenceUpload, 28 ) != 4 || BitConverter.ToInt32( fence
 	throw new Exception( "Fence DDS upload must preserve source data and retain the four block-sized mips." );
 if ( !ReferenceEquals( fenceUpload, DdsTexture.ForUpload( fenceUpload ) ) )
 	throw new Exception( "Block-sized DDS mip chain was modified again." );
+var normalDds = db.Find( "texture", "units/world/props/street/fence/fence_nm" );
+var normalUpload = DdsTexture.ForUpload( normalDds );
+if ( !DdsTexture.IsNormalRA( normalDds ) || BitConverter.ToUInt32( normalUpload, 80 ) != 0x20001
+	|| !normalUpload.AsSpan( 128 ).SequenceEqual( normalDds.AsSpan( 128 ) )
+	|| BitConverter.ToInt32( normalUpload, 28 ) != BitConverter.ToInt32( normalDds, 28 ) )
+	throw new Exception( "Diesel R8A8 normal map conversion changed its pixels or mip count." );
+var fenceMaterials = MaterialConfig.Read( db.Find( "material_config", "units/world/props/street/fence/fence_instanceoff" ) );
+if ( !fenceMaterials[IdString.Hash( "fence_plane" )].DoubleSided
+	|| fenceMaterials[IdString.Hash( "fence_plane" )].Normal != "units/world/props/street/fence/fence_nm"
+	|| fenceMaterials[IdString.Hash( "fence_poles" )].DoubleSided )
+	throw new Exception( "Fence normal map or two-sided material flags were not resolved." );
 UnitGeometry GeometryFor( string path )
 {
 	var unit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", path ) ) );
@@ -123,6 +134,7 @@ foreach ( string unit in units )
 				resolvedMaterials++;
 				if ( material.Diffuse is not null ) texturePaths.Add( material.Diffuse );
 				if ( material.Opacity is not null ) texturePaths.Add( material.Opacity );
+				if ( material.Normal is not null ) texturePaths.Add( material.Normal );
 			}
 		}
 	}
