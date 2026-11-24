@@ -8,6 +8,7 @@ namespace NS2;
 public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 {
 	internal const float Radius = 0.45f * MapLoader.Scale;
+	internal const float ControllerOffset = 0.1f * MapLoader.Scale;
 	static readonly Vector3[] Feelers = BuildFeelers();
 	Rigidbody body;
 	NavMeshPath path;
@@ -42,7 +43,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		for ( int i = 0; i < 8; i++ )
 		{
 			var angle = i * MathF.PI / 4;
-			var flat = Vector3.Right * MathF.Cos( angle ) + Vector3.Forward * MathF.Sin( angle );
+			var flat = Vector3.Left * MathF.Cos( angle ) + Vector3.Forward * MathF.Sin( angle );
 			result[i] = flat;
 			result[i + 9] = (flat + Vector3.Up).Normal;
 		}
@@ -94,7 +95,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		var wish = goal is { } point && WorldPosition.Distance( point ) > StopDistance ? point - WorldPosition : Vector3.Zero;
 		MovingInput = !wish.IsNearlyZero();
 		if ( returningToFloor > 0 && lastFloor is { } floorPoint ) wish = floorPoint - WorldPosition;
-		var floor = Probe( center + Vector3.Up * 2, center - Vector3.Up * 6, Radius - 1 );
+		var floor = Probe( center + Vector3.Up * (ControllerOffset + 2), center - Vector3.Up * 6, Radius - 1 );
 		bool wasSupported = ContactNormal != Vector3.Zero;
 		float distance = wish.Length;
 		bool drop = OnWall && distance > 2.5f * MapLoader.Scale && distance < -wish.z * 1.5f;
@@ -156,11 +157,15 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		}
 		if ( supportedNow )
 		{
-			var tangent = wish - ContactNormal * Vector3.Dot( wish, ContactNormal );
-			if ( OnWall && !wish.IsNearlyZero() && tangent.Length < wish.Length * 0.25f )
-				tangent = Vector3.Up - ContactNormal * ContactNormal.z;
-			var velocity = body.Velocity - ContactNormal * Vector3.Dot( body.Velocity, ContactNormal );
-			body.Velocity = GroundVelocity( velocity, tangent.Normal, speed, sinceLanding, Time.Delta ) - ContactNormal * 12;
+			var direction = OnWall ? wish : Vector3.VectorPlaneProject( wish, ContactNormal );
+			var velocity = OnWall ? body.Velocity : Vector3.VectorPlaneProject( body.Velocity, ContactNormal );
+			body.Velocity = GroundVelocity( velocity, direction.Normal, speed, sinceLanding, Time.Delta );
+			if ( !OnWall && floor.Hit )
+			{
+				// Leave the controller skin above the floor without pushing against it every tick.
+				float gap = Vector3.Dot( center - floor.EndPosition, ContactNormal ) - 1;
+				body.Velocity -= ContactNormal * ((gap - 0.01f * MapLoader.Scale) / Time.Delta);
+			}
 			if ( !wish.WithZ( 0 ).IsNearlyZero() )
 				WorldRotation = Rotation.LookAt( wish.WithZ( 0 ) );
 		}
@@ -282,9 +287,12 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	SceneTraceResult Probe( Vector3 from, Vector3 to, float radius ) => Scene.Trace.Ray( from, to ).Radius( radius )
 		.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player", "playercontroller" ).Run();
 
-	void ICollisionListener.OnCollisionStart( Collision collision )
+	void ICollisionListener.OnCollisionStart( Collision collision ) => CheckWallContact( collision );
+	void ICollisionListener.OnCollisionUpdate( Collision collision ) => CheckWallContact( collision );
+
+	void CheckWallContact( Collision collision )
 	{
-		var outward = WorldPosition + Vector3.Up * Radius - collision.Contact.Point;
+		var outward = WorldPosition + Vector3.Up * (Radius + ControllerOffset) - collision.Contact.Point;
 		if ( collision.Other.GameObject.Tags.Has( "world" ) && outward.Normal.z < 0.5f )
 			touchedWall = true;
 	}

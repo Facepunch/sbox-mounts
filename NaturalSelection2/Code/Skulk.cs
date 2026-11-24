@@ -12,10 +12,12 @@ public sealed partial class Skulk : BaseNpc
 		var hull = new GameObject( root, true, "Collider" );
 		hull.Tags.Add( "playercontroller" );
 		var sphere = hull.AddComponent<SphereCollider>();
-		sphere.Center = Vector3.Up * SkulkMovement.Radius;
+		sphere.Center = Vector3.Up * (SkulkMovement.Radius + SkulkMovement.ControllerOffset);
 		sphere.Radius = SkulkMovement.Radius;
+		sphere.Friction = 0;
 		var body = root.AddComponent<Rigidbody>();
 		body.MassOverride = 45;
+		body.CollisionUpdateEventsEnabled = true;
 		body.EnableImpactDamage = false;
 		body.Locking = new PhysicsLock { Pitch = true, Roll = true, Yaw = true };
 		root.AddComponent<SkulkMovement>().RunSpeed = 7.25f * MapLoader.Scale;
