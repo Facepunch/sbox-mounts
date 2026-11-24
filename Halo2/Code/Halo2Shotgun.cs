@@ -142,8 +142,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 			return false;
 		}
 
-		if ( NextPrimaryFire > 0 || (triggerConsumed && !PrimaryAutomatic) ) return false;
-		return HasPrimaryAmmo() || Input.Pressed( "attack1" );
+		return NextPrimaryFire <= 0 && (!triggerConsumed || PrimaryAutomatic) && HasPrimaryAmmo();
 	}
 
 	public override void PrimaryAttack()
