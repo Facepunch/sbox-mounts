@@ -130,6 +130,16 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 
 	internal void Kick() => kickEnds = KickDuration;
 
+	protected override float GetHitForce( GameObject target, float force )
+	{
+		var body = target.GetComponentInParent<Rigidbody>();
+		if ( !body.IsValid() || target.GetComponentInParent<Sandbox.Npcs.BaseNpc>() is not null
+			|| target.GetComponentInParent<PlayerController>() is not null ) return force;
+
+		// The damage tag supplies a velocity change. ApplyImpulseAt takes momentum.
+		return force * body.Mass;
+	}
+
 	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius ) =>
 		Scene.Trace.Ray( ray, distance ).IgnoreGameObjectHierarchy( Holder?.GameObject ?? GameObject )
 			.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).Radius( radius ).UseHitboxes();
