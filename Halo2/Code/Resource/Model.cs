@@ -13,7 +13,8 @@ namespace Halo2;
 /// Loads a Halo 2 render_model (mode) tag and converts it to a Model.
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
 /// </summary>
-public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null, TagEntry collision = null, TagEntry firstPersonWeapon = null ) : ResourceLoader<Halo2Mount>
+public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null,
+	TagEntry collision = null, TagEntry firstPersonWeapon = null, TagEntry collisionModel = null, string[] materialNames = null ) : ResourceLoader<Halo2Mount>
 {
 	WeakTarget[] ReadWeakTargets()
 	{
@@ -130,7 +131,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		AddAttachments( mapFile, tag, builder, bones );
 
 		if ( collision is not null && bones.Count > 0 )
-			CollisionModel.AddHitboxes( mapFile, collision, model, builder, ScaleFactor );
+			CollisionModel.AddHitboxes( mapFile, collision, model, builder, ScaleFactor, collisionModel, materialNames );
 
 		if ( graph is not null && bones.Count > 0 )
 			Blam.AnimationGraph.AddSequences( mapFile, graph, model, builder, ScaleFactor );

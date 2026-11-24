@@ -6,10 +6,12 @@ namespace Halo2.Blam;
 /// <summary>Builds bone-local hull hitboxes from the solid leaves of each default collision permutation.</summary>
 internal static class CollisionModel
 {
-	public static void AddHitboxes( MapFile map, TagEntry tag, RenderModelTag model, ModelBuilder builder, float scale )
+	public static void AddHitboxes( MapFile map, TagEntry tag, RenderModelTag model, ModelBuilder builder, float scale, TagEntry definition, string[] globalNames )
 	{
 		int header = map.VaToOffset( (int)tag.DataVirtualAddress );
 		var materials = Rows( header + 0x14, 4 ).Select( Name ).ToArray();
+		var surfaces = definition is { DataSize: >= 0x60 }
+			? Rows( map.VaToOffset( (int)definition.DataVirtualAddress ) + 0x58, 20 ).Select( SurfaceName ).ToArray() : [];
 		var nodes = Rows( header + 0x2c, 12 ).Select( Name ).ToArray();
 		var bones = model.Nodes.Select( n => map.ResolveStringId( n.StringId ) ).ToHashSet();
 		HitboxSetBuilder set = null;
@@ -88,6 +90,7 @@ internal static class CollisionModel
 					try
 					{
 						var hitbox = set.AddHull( $"{name}_{piece++}", nodes[node], points );
+						if ( (uint)material < surfaces.Length && surfaces[material] is {} surface ) hitbox.WithSurface( surface );
 						if ( (uint)material < materials.Length && !string.IsNullOrWhiteSpace( materials[material] ) )
 							hitbox.AddTag( materials[material] );
 					}
@@ -99,6 +102,16 @@ internal static class CollisionModel
 			}
 		}
 
+		string SurfaceName( int row )
+		{
+			int index = Short( row + 16 );
+			if ( index < 0 ) return null;
+			// Shared globals may live outside this map. The model also retains the resolved name or its local alias.
+			var name = Name( row + 12 );
+			if ( string.IsNullOrEmpty( name ) ) name = Name( row );
+			if ( globalNames is { Length: > 0 } ) name = globalNames.ElementAtOrDefault( index );
+			return string.IsNullOrWhiteSpace( name ) ? null : Surface.FindByName( $"mount://{Halo2Mount.MountIdent}/surfaces/{name}.surface" )?.ResourcePath;
+		}
 		string Name( int address ) => map.ResolveStringId( map.ReadInt32( address ) );
 		int Short( int address ) => BinaryPrimitives.ReadInt16LittleEndian( map.ReadSpan( address, 2 ) );
 		int Table( int block ) => map.VaToOffset( map.ReadInt32( block + 4 ) );

@@ -73,12 +73,13 @@ public class Halo2Mount : BaseGameMount
 			}
 		} );
 
+		var surfaces = new HashSet<string>( StringComparer.Ordinal );
 		foreach ( var map in maps )
 		{
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map );
+				RegisterMapTags( context, map, surfaces );
 			}
 			catch ( Exception ex )
 			{
@@ -90,12 +91,25 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
 		int soundTable = audioTag is null ? -1 : mapFile.VaToOffset( (int)audioTag.DataVirtualAddress );
 		var globals = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0xc8 );
+		string[] materialNames = [];
+		if ( globals is { DataSize: >= 0x158 } )
+		{
+			int block = mapFile.VaToOffset( (int)globals.DataVirtualAddress ) + 0x150;
+			int row = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+			materialNames = new string[mapFile.ReadInt32( block )];
+			for ( int i = 0; i < materialNames.Length; i++, row += 0xb4 )
+			{
+				var name = materialNames[i] = mapFile.ResolveStringId( mapFile.ReadInt32( row ) );
+				if ( string.IsNullOrWhiteSpace( name ) || !surfaces.Add( name ) ) continue;
+				context.Add( ResourceType.GameResource, $"surfaces/{name}.surface", new SurfaceLoader( mapFile, row ) );
+			}
+		}
 		int audioGlobals = -1;
 		if ( globals is not null )
 		{
@@ -106,7 +120,7 @@ public class Halo2Mount : BaseGameMount
 		// Model definitions link the render model and physics model by tag datum.
 		var modeToBiped = new Dictionary<int, TagEntry>();
 		var modeToAnimation = new Dictionary<int, TagEntry>();
-		var modeToCollision = new Dictionary<int, TagEntry>();
+		var modeToCollision = new Dictionary<int, (TagEntry Collision, TagEntry Model)>();
 		var modeToPhmo = new Dictionary<int, TagEntry>();
 		foreach ( var tag in mapFile.Tags )
 		{
@@ -142,7 +156,7 @@ public class Halo2Mount : BaseGameMount
 				reader.BaseStream.Position = 0x0c;
 				int collisionDatum = reader.ReadInt32();
 				if ( mapFile.GetTag( collisionDatum & 0xffff ) is { PrimaryClass: "lloc", DataSize: >= 0x34 } collision )
-					modeToCollision.TryAdd( renderDatum & 0xffff, collision );
+					modeToCollision.TryAdd( renderDatum & 0xffff, (collision, tag) );
 				reader.BaseStream.Position = 0x14;
 				int animationDatum = reader.ReadInt32();
 				if ( mapFile.GetTag( animationDatum & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } graph )
@@ -194,7 +208,8 @@ public class Halo2Mount : BaseGameMount
 					modeToBiped.TryGetValue( tagIndex, out var biped );
 					modeToAnimation.TryGetValue( tagIndex, out var graphTag );
 					modeToCollision.TryGetValue( tagIndex, out var collision );
-					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag, biped, graphTag, collision ) );
+					context.Add( ResourceType.Model, $"{mapName}/{tagPath}.vmdl", new Halo2ModelLoader( mapFile, tag, phmoTag, biped, graphTag,
+						collision.Collision, collisionModel: collision.Model, materialNames: materialNames ) );
 					break;
 
 				// bitmap - FourCC "bitm" stored LE as "mtib"
@@ -208,5 +223,15 @@ public class Halo2Mount : BaseGameMount
 					break;
 			}
 		}
+	}
+
+	sealed class SurfaceLoader( MapFile map, int row ) : ResourceLoader<Halo2Mount>
+	{
+		protected override object Load() => new Surface
+		{
+			Friction = BitConverter.Int32BitsToSingle( map.ReadInt32( row + 0x1c ) ),
+			Elasticity = BitConverter.Int32BitsToSingle( map.ReadInt32( row + 0x20 ) ),
+			Density = BitConverter.Int32BitsToSingle( map.ReadInt32( row + 0x24 ) )
+		};
 	}
 }
