@@ -552,11 +552,6 @@ public sealed class ShotgunViewModel : ShotgunModel
 	}
 
 	public override void OnDeploy() => Play( "ready" );
-	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
-	{
-		Weapon.Kick();
-		base.OnAttack( hitPoint, origin );
-	}
 
 	internal void PlayFireAnimation()
 	{

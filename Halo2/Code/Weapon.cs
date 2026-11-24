@@ -114,10 +114,10 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
-	internal void Kick() => kickEnds = KickDuration;
-
 	protected override void OnShootEffects( ShotEffect shot )
 	{
+		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 ) kickEnds = KickDuration;
+
 		if ( shot.NoEvents || Application.IsDedicatedServer || WeaponModel is not { MuzzleGameObject: { } muzzle } model || !muzzle.IsValid() )
 		{
 			base.OnShootEffects( shot );
