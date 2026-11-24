@@ -528,10 +528,14 @@ public sealed class ShotgunViewModel : ShotgunModel
 	public override void OnDeploy() => Play( "ready" );
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
-		reload = false;
 		Weapon.Kick();
-		Play( "fire_1" );
 		base.OnAttack( hitPoint, origin );
+	}
+
+	internal void PlayFireAnimation()
+	{
+		reload = false;
+		Play( "fire_1" );
 	}
 
 	public override void OnReloadStart()

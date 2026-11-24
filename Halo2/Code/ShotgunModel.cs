@@ -6,7 +6,7 @@ namespace Halo2;
 public partial class ShotgunModel : BaseWeaponModel
 {
 	internal Shotgun Weapon { get; set; }
-	// In third person the world model receives reload events, while the local arms graph owns the cues.
+	// The visible model receives weapon events. The local arms graph owns the animation cues in either view.
 	ShotgunViewModel LocalView => Weapon?.ViewModel?.GetComponent<ShotgunViewModel>();
 
 	public override void OnReloadStart()
@@ -293,6 +293,7 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
+		LocalView?.PlayFireAnimation();
 		if ( muzzleFlash.IsValid() )
 		{
 			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
