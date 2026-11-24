@@ -85,6 +85,11 @@ PS
 	CreateInputTexture2D( Emission, Srgb, 8, "None", "_emission", ",0/,0/0", Default4( 0, 0, 0, 1 ) );
 	Texture2D g_tEmission < Channel( RGBA, Box( Emission ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
 	float g_flEmissionStrength < Default1( 0 ); >;
+	CreateInputTexture2D( BlendDiffuse, Srgb, 8, "None", "_blend", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
+	CreateInputTexture2D( BlendMask, Linear, 8, "None", "_blendmask", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
+	Texture2D g_tBlendDiffuse < Channel( RGBA, Box( BlendDiffuse ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
+	Texture2D g_tBlendMask < Channel( RGBA, Box( BlendMask ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
+	float g_flGroundBlend < Default1( 0 ); >;
 	CreateInputTexture2D( Detail, Srgb, 8, "None", "_detail", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
 	Texture2D g_tDetail < Channel( RGBA, Box( Detail ), Srgb ); OutputFormat( DXT5 ); SrgbRead( True ); >;
 	float g_flDetailBlend < Default1( 0 ); >;
@@ -114,6 +119,15 @@ PS
 		float2 normalUv = i.vTextureCoords.xy + frac( g_flTime * g_vNormalScroll );
 		float2 emissionUv = i.vTextureCoords.xy + frac( g_flTime * g_vEmissionScroll );
 		float4 diffuse = Tex2DS( g_tDiffuse, g_sWrap, diffuseUv );
+		if ( g_flGroundBlend > 0.5 )
+		{
+			float3 baseLayer = Tex2DS( g_tBlendDiffuse, g_sWrap, i.vTextureCoords.xy ).rgb;
+			float mask = Tex2DS( g_tBlendMask, g_sWrap, i.vTextureCoords.xy ).r;
+			float painted = saturate( i.vColor.a );
+			// Preview height-mask transition. Preserve fully painted endpoints exactly.
+			float blend = painted <= 0 ? 0 : painted >= 1 ? 1 : smoothstep( mask - 0.1, mask + 0.1, painted );
+			diffuse.rgb = lerp( baseLayer, diffuse.rgb, blend );
+		}
 		if ( g_flBlueMaskTint > 0.5 )
 		{
 			// Replace blue-only pigment while retaining neutral wear and surface detail.

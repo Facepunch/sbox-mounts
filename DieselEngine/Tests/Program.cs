@@ -31,6 +31,10 @@ if ( !DdsTexture.IsNormalRA( normalDds ) || BitConverter.ToUInt32( normalUpload,
 	|| BitConverter.ToInt32( normalUpload, 28 ) != BitConverter.ToInt32( normalDds, 28 ) )
 	throw new Exception( "Diesel R8A8 normal map conversion changed its pixels or mip count." );
 var fenceMaterials = MaterialConfig.Read( db.Find( "material_config", "units/world/props/street/fence/fence_instanceoff" ) );
+var plazaGround = MaterialConfig.Read( db.Find( "material_config", "units/world/architecture/bank/bank_plaza/bank_plaza" ) )[IdString.Hash( "ground_blend" )];
+if ( !plazaGround.GroundBlend || plazaGround.BlendDiffuse != "units/world/architecture/street/ground/ground_df"
+	|| plazaGround.BlendMask != "units/world/architecture/street/ground/ground_mask_df" )
+	throw new Exception( "Bank plaza blend textures were not resolved." );
 if ( !fenceMaterials[IdString.Hash( "fence_plane" )].DoubleSided
 	|| fenceMaterials[IdString.Hash( "fence_plane" )].Normal != "units/world/props/street/fence/fence_nm"
 	|| fenceMaterials[IdString.Hash( "fence_poles" )].DoubleSided )
@@ -259,6 +263,11 @@ foreach ( string unit in units )
 				if ( material.Opacity is not null ) texturePaths.Add( material.Opacity );
 				if ( material.Normal is not null ) texturePaths.Add( material.Normal );
 				if ( material.DetailBlend > 0 && material.Detail is not null ) texturePaths.Add( material.Detail );
+				if ( material.GroundBlend )
+				{
+					if ( material.BlendDiffuse is not null ) texturePaths.Add( material.BlendDiffuse );
+					if ( material.BlendMask is not null ) texturePaths.Add( material.BlendMask );
+				}
 				if ( material.SelfIlluminated && material.Emission is not null ) texturePaths.Add( material.Emission );
 			}
 		}

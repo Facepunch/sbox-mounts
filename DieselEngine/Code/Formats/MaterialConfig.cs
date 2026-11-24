@@ -12,6 +12,13 @@ sealed record MaterialDefinition( string Name, string Template, string Diffuse, 
 	public int EffectBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "BLEND_ADD" ) ? 1 : Template.Split( ':' ).Contains( "BLEND_MUL" ) ? 2 : 0;
 	public int DetailBlend => !Effect ? 0 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_ADD" ) ? 1 : Template.Split( ':' ).Contains( "DIFFUSE1_BLEND_OP_RGB_MUL" ) ? 2 : 0;
 	public string Detail { get; init; }
+	public string BlendDiffuse { get; init; }
+	public string BlendMask { get; init; }
+	public bool GroundBlend => Template.Split( ':' ).Contains( "BLEND_DIFFUSE" )
+		&& Template.Split( ':' ).Contains( "BLEND_MASK_SEPERATE" )
+		&& Template.Split( ':' ).Contains( "BLEND_SMOOTH" )
+		&& !Template.Split( ':' ).Contains( "PIXEL_TILE" )
+		&& !Template.Split( ':' ).Contains( "BLEND_TINT_SECOND" );
 	public string EffectIntensity { get; init; }
 	public bool ViewAngleFalloff => Effect && Template.Split( ':' ).Contains( "VIEW_ANGLE_FALLOFF_OP" );
 	public bool BlueMaskTint => Template.Split( ':' ).Contains( "BLUE_MASK_TINT" );
@@ -55,6 +62,8 @@ static class MaterialConfig
 				material.Element( "bump_normal_texture" )?.Attribute( "file" ) )
 			{
 				Detail = material.Element( "detail_diffuse_texture" )?.Attribute( "file" ),
+				BlendDiffuse = material.Element( "diffuse_layer0_texture" )?.Attribute( "file" ),
+				BlendMask = material.Element( "diffuse_layer1_texture" )?.Attribute( "file" ),
 				EffectIntensity = material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "intensity" )?.Attribute( "value" ),
 				FalloffExponent = ReadNonnegative( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "falloff_exp" )?.Attribute( "value" ), 1 ),
 				TintColor = ReadColor( material.Elements( "variable" ).FirstOrDefault( v => v.Attribute( "name" ) == "tint_color" )?.Attribute( "value" ) ),
