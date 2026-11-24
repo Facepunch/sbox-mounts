@@ -9,7 +9,7 @@ internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mo
 	protected override object Load() => new BaseAmmoResource { Title = "Shotgun shells", MaxReserve = capacity };
 }
 
-internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
+internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
 	internal static ShotgunLoader Mounted => Directory.Get( Halo2Mount.MountIdent )?.GetByPath( $"mount://{Halo2Mount.MountIdent}/{PrefabPath}" ) as ShotgunLoader;

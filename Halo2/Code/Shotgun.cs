@@ -150,12 +150,15 @@ public sealed class Shotgun : Weapon
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
 		if ( !shot.Hit || Application.IsDedicatedServer ) return;
-		if ( ShotgunLoader.Mounted?.PlayPelletImpact( shot.Surface, shot.HitPosition ).IsValid() != true )
+		var loader = ShotgunLoader.Mounted;
+		if ( loader?.PlayPelletImpact( shot.Surface, shot.HitPosition ).IsValid() != true )
 		{
 			base.OnShootImpact( shot );
 			return;
 		}
-		ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+		var direction = GetShotDirection( shot );
+		if ( !loader.PlaceStoneImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) )
+			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 
 	struct Pellet
