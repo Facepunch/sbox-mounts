@@ -16,6 +16,11 @@ foreach ( var id in ids )
 		scene.Enabled = true;
 		var gun = GameObject.GetPrefab( path ).Clone();
 		var weapon = gun.GetComponent<BaseCombatWeapon>();
+		int expectedSlot = id switch { "b9s" or "crosskill" or "bronco44" or "stryk" => 1, "reinbeck" or "locomotive" => 3, "gl40" => 4, _ => 2 };
+		if ( weapon.PreferredSlot != expectedSlot ) throw new Exception( $"{id}: incorrect inventory bucket." );
+		if ( weapon.DisplayIcon is not { Width: 512, Height: 256 } ) throw new Exception( $"{id}: inventory icon missing." );
+		using ( var icon = weapon.DisplayIcon.GetBitmap() )
+			System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"icon-{id}.png" ), icon.ToPng() );
 		var player = new GameObject( true, "Arsenal test holder" );
 		var controller = player.AddComponent<PlayerController>();
 		var body = new GameObject( true, "Body" ) { Parent = player }.AddComponent<SkinnedModelRenderer>();

@@ -16,7 +16,8 @@ static class PaydayWeapons
 		weapon.WeaponId = definition.Id;
 		weapon.DisplayName = definition.Title;
 		weapon.HoldType = definition.Slot == 1 ? "pistol" : "rifle";
-		weapon.PreferredSlot = definition.Slot;
+		weapon.PreferredSlot = definition.InventorySlot;
+		weapon.SlotOrder = Array.IndexOf( WeaponDefinition.All, definition );
 		weapon.PrimaryAutomatic = definition.Automatic;
 		weapon.PrimaryDelay = definition.Interval;
 		weapon.DeployTime = 0.5f;

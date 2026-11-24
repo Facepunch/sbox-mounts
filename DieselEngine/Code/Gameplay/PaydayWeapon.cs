@@ -15,6 +15,14 @@ public sealed partial class PaydayWeapon : BaseCombatWeapon
 	public override bool CanSecondaryAttack() => false;
 	public override bool CanReload() => IsHeld && base.CanReload();
 
+	protected override void OnEnabled()
+	{
+		base.OnEnabled();
+		// Runtime-generated textures have no serializable ResourcePath; restore the mount-cached icon.
+		if ( !Application.IsDedicatedServer )
+			DisplayIcon = Texture.Load( $"mount://payday/{Definition.Icon}.vtex" );
+	}
+
 	protected override void OnAdded( BaseInventoryComponent inventory )
 	{
 		base.OnAdded( inventory );

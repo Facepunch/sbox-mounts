@@ -95,6 +95,7 @@ public sealed class PaydayMount : BaseGameMount
 				if ( registeredSounds.Add( sound ) )
 					context.Add( ResourceType.GameResource, PaydayWeaponSoundLoader.EventPath( sound ), new PaydayWeaponSoundLoader( sound, bank ) );
 			context.Add( ResourceType.GameResource, definition.Ammo, new PaydayAmmoLoader( definition ) );
+			context.Add( ResourceType.Texture, definition.Icon, new PaydayWeaponIconLoader( definition ) );
 			context.Add( ResourceType.PrefabFile, definition.View, new PaydayWeaponPrefabLoader( definition, view: true ) );
 			context.Add( ResourceType.PrefabFile, definition.WorldPrefab, new PaydayWeaponPrefabLoader( definition, world: true ) );
 			var weapon = new PaydayWeaponPrefabLoader( definition );

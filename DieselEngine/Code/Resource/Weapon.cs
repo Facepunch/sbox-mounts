@@ -21,6 +21,7 @@ sealed class PaydayWeaponPrefabLoader( WeaponDefinition definition, bool view = 
 		var muzzle = modelData.ReadAttachment( IdString.Hash( "fire" ), IdString.Hash( orientation ) )
 			?? throw new InvalidDataException( $"Missing weapon fire attachment: {unit}" );
 		BaseAmmoResource ammo = null;
+		Texture icon = null;
 		var sounds = new List<SoundEvent>();
 		if ( part )
 			foreach ( var sound in Host.WeaponAudio[definition.Id].Events.Keys )
@@ -29,6 +30,9 @@ sealed class PaydayWeaponPrefabLoader( WeaponDefinition definition, bool view = 
 		if ( view ) _ = Host.GetViewAssets( definition.Id );
 		if ( !part )
 		{
+			if ( !Application.IsDedicatedServer )
+				icon = await ResourceLibrary.LoadAsync<Texture>( $"mount://payday/{definition.Icon}.vtex" )
+					?? throw new InvalidDataException( $"Missing {definition.Title} inventory icon." );
 			ammo = await ResourceLibrary.LoadAsync<BaseAmmoResource>( $"mount://payday/{definition.Ammo}" );
 			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{definition.View}" );
 			await ResourceLibrary.LoadAsync<PrefabFile>( $"mount://payday/{definition.WorldPrefab}" );
@@ -73,6 +77,7 @@ sealed class PaydayWeaponPrefabLoader( WeaponDefinition definition, bool view = 
 			{
 				var weapon = root.AddComponent<PaydayWeapon>();
 				PaydayWeapons.Configure( weapon, definition );
+				weapon.DisplayIcon = icon;
 				weapon.DroppedModel = visual;
 				weapon.PrimaryAmmoType = ammo;
 				weapon.ViewModelPrefab = GameObject.GetPrefab( $"mount://payday/{definition.View}" );

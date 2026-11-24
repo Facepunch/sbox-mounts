@@ -10,6 +10,9 @@ sealed record WeaponDefinition( string Id, string Title, string Unit, string Wor
 	public string View => $"entities/parts/{Id}_view.prefab";
 	public string WorldPrefab => $"entities/parts/{Id}_world.prefab";
 	public string Ammo => $"entities/ammo/{Id}.ammo";
+	public string Icon => $"ui/weapons/{Id}.texture";
+	// Sandbox/HL2 buckets are zero-based; PDTH's selection slot groups weapons differently.
+	public int InventorySlot => Shotgun ? 3 : Grenade ? 4 : Slot == 1 ? 1 : 2;
 	public bool Grenade => Id == "gl40";
 	public IEnumerable<string> Clips => Shotgun ? ["idle", "equip", "recoil", "reload_enter", "reload", "reload_exit"]
 		: Grenade ? ["idle", "equip", "recoil", "reload"] : ["idle", "equip", "recoil", "reload", "reload_not_empty"];
