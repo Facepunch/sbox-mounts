@@ -96,6 +96,19 @@ public class Halo2Mount : BaseGameMount
 		var modeToPhmo = new Dictionary<int, TagEntry>();
 		foreach ( var tag in mapFile.Tags )
 		{
+			if ( tag.PrimaryClass == "paew" && tag.DataSize >= 0x2b0 )
+			{
+				int block = mapFile.VaToOffset( (int)tag.DataVirtualAddress ) + 0x2a8;
+				int table = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+				for ( int i = 0; i < mapFile.ReadInt32( block ); i++ )
+				{
+					int render = mapFile.ReadInt32( table + i * 16 + 4 );
+					int animation = mapFile.ReadInt32( table + i * 16 + 12 );
+					if ( mapFile.GetTag( render & 0xffff ) is { PrimaryClass: "edom", DataSize: > 0 }
+						&& mapFile.GetTag( animation & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } firstPerson )
+						modeToAnimation.TryAdd( render & 0xffff, firstPerson );
+				}
+			}
 			if ( tag.PrimaryClass == "dpib" && tag.DataSize >= 0xb4 )
 			{
 				int definition = mapFile.ReadInt32( mapFile.VaToOffset( (int)tag.DataVirtualAddress ) + 0x38 );

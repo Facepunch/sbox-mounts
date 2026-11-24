@@ -12,11 +12,34 @@ public partial class Halo2ModelLoader
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = default;
-		if ( graph is null || !name.EndsWith( ".ag", StringComparison.OrdinalIgnoreCase ) ) return null;
+		if ( graph is null ) return null;
+		if ( name.StartsWith( "clips/", StringComparison.Ordinal ) && name.EndsWith( ".anim", StringComparison.Ordinal )
+			&& int.TryParse( name[6..^5], out int index ) && (uint)index < mapFile.ReadInt32( GraphHeader + 44 ) )
+		{
+			type = ResourceType.AnimationClip;
+			return new ClipLoader( index );
+		}
+		if ( !name.EndsWith( ".ag", StringComparison.OrdinalIgnoreCase ) ) return null;
 		var context = name[..^3].Split( '/' );
 		if ( context.Length != 3 ) return null;
 		type = ResourceType.AnimationGraph;
 		return new GraphLoader( context );
+	}
+
+	int GraphHeader => mapFile.VaToOffset( (int)graph.DataVirtualAddress );
+
+	int AnimationTable => mapFile.VaToOffset( mapFile.ReadInt32( GraphHeader + 48 ) );
+
+	sealed class ClipLoader( int index ) : ResourceLoader<Halo2Mount>
+	{
+		protected override object Load()
+		{
+			var model = (Halo2ModelLoader)Parent;
+			if ( model.skeleton is null ) model.BuildSkeleton( model.GraphHeader );
+			if ( model.skeleton is null ) return null;
+			int table = model.AnimationTable;
+			return model.GetClip( table + index * 96 );
+		}
 	}
 
 	sealed class GraphLoader( string[] context ) : ResourceLoader<Halo2Mount>
@@ -41,7 +64,7 @@ public partial class Halo2ModelLoader
 
 	Graph BuildGraph( string path, string[] context )
 	{
-		int header = mapFile.VaToOffset( (int)graph.DataVirtualAddress );
+		int header = GraphHeader;
 		var actions = new Dictionary<string, int>();
 		var overlays = new Dictionary<string, int>();
 		bool found = false;
@@ -123,6 +146,8 @@ public partial class Halo2ModelLoader
 		return machine.Build();
 	}
 
+	float Float( int address ) => BitConverter.Int32BitsToSingle( mapFile.ReadInt32( address ) );
+
 	int Kind( int entry ) => mapFile.ReadSpan( entry + 16, 1 )[0];
 
 	void BuildSkeleton( int header )
@@ -186,8 +211,27 @@ public partial class Halo2ModelLoader
 			for ( int i = 0; i < poses.Length; i++ ) poses[i].Scale -= Vector3.One;
 
 		var builder = new ClipBuilder { Skeleton = skeleton, IsAdditive = additive, FrameRate = 30 };
+		int movementType = entry[17];
+		int stride = movementType is >= 1 and <= 3 ? (movementType + 1) * 4 : 0;
+		int movementSize = (ushort)mapFile.ReadInt32( address + 50 );
+		if ( stride * frames != movementSize ) return null;
+		int movement = mapFile.VaToOffset( mapFile.ReadInt32( address + 44 ) )
+			+ (ushort)mapFile.ReadInt32( address + 54 ) + mapFile.ReadInt32( address + 56 ) + mapFile.ReadInt32( address + 60 )
+			+ entry[48] + entry[49];
+		var motion = Transform.Zero;
 		for ( int i = 0; i < Math.Max( frames, 2 ); i++ )
-			builder.AddFrame( poses.AsSpan( Math.Min( i, frames - 1 ) * bones, bones ) );
+		{
+			builder.AddFrame( poses.AsSpan( Math.Min( i, frames - 1 ) * bones, bones ), motion );
+			if ( stride == 0 || i >= frames ) continue;
+			int p = movement + i * stride;
+			var translation = new Vector3( Float( p ), Float( p + 4 ), movementType == 3 ? Float( p + 8 ) : 0 ) * ScaleFactor;
+			float yaw = movementType == 1 ? 0 : Float( p + stride - 4 ).RadianToDegree();
+			motion = motion.ToWorld( new Transform( translation, Rotation.FromYaw( yaw ) ) );
+		}
+		// Halo stores a displacement for every frame, including the interval
+		// from the last pose to the next cycle. AG2 samples both endpoints.
+		if ( movementSize > 0 && frames > 1 )
+			builder.AddFrame( poses.AsSpan( bones * Math.Clamp( (short)mapFile.ReadInt32( address + 32 ), 0, frames - 1 ), bones ), motion );
 		return graphClips[address] = builder.Create( $"{Path}/clip_{address}.anim" );
 	}
 }
