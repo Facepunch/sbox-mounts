@@ -62,7 +62,7 @@ public sealed class Shotgun : Weapon
 		view.Animator.SampleCuesFromGraph = false;
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
-		view.ConfigureMuzzleFlash();
+		view.ConfigureMuzzleFlash( firstPerson: true );
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
 		view.ConfigureCasings( firstPerson: true );
 		view.Animator.Configure( "any", "any", "any" );
@@ -85,6 +85,7 @@ public sealed class Shotgun : Weapon
 		model.Weapon = this;
 		model.TracerEffect = model.MuzzleEffect = model.EjectBrass = null;
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );
+		model.ConfigureMuzzleFlash( firstPerson: false );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
 		model.ConfigureCasings( firstPerson: false );
 		WorldModel.LocalTransform = global::Transform.Zero;
@@ -338,56 +339,6 @@ public sealed class Shotgun : Weapon
 public sealed class ShotgunViewModel : ShotgunModel
 {
 	internal Halo2Animator Animator { get; set; }
-	ParticleEffect muzzleFlash;
-	internal void ConfigureMuzzleFlash()
-	{
-		if ( !MuzzleGameObject.IsValid() ) return;
-		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.MuzzleFlashName}" );
-		if ( !texture.IsValid() || texture.IsError ) return;
-
-		var go = new GameObject( MuzzleGameObject, false, "Muzzle flash" );
-		muzzleFlash = go.AddComponent<ParticleEffect>();
-		muzzleFlash.MaxParticles = 2;
-		muzzleFlash.Lifetime = 0.125f;
-		muzzleFlash.LocalSpace = 1;
-		muzzleFlash.ApplyShape = true;
-		muzzleFlash.SnapToFrame = true;
-		muzzleFlash.InitialScale = 3;
-		// The 60 x 62 flash frame spans two particle radii vertically.
-		muzzleFlash.Stretch = 62f / 60f - 1;
-		muzzleFlash.Scale = new ParticleFloat( 1, 4 ) { Evaluation = ParticleFloat.EvaluationType.Life };
-		muzzleFlash.ApplyColor = true;
-		muzzleFlash.Tint = Color.FromBytes( 252, 188, 101 );
-		muzzleFlash.ApplyAlpha = true;
-		muzzleFlash.Alpha = new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life };
-		muzzleFlash.OnParticleCreated += OrientFlash;
-		muzzleFlash.OnPostStep += UpdateFlashOrientation;
-		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = Sprite.FromTexture( texture );
-		renderer.Scale = 2 * 60f / 62f;
-		renderer.Additive = true;
-		renderer.FogStrength = 0;
-		renderer.RenderOptions.Game = false;
-		renderer.RenderOptions.Overlay = true;
-		go.Enabled = true;
-	}
-
-	void UpdateFlashOrientation( float delta )
-	{
-		foreach ( var particle in muzzleFlash.Particles )
-			OrientFlash( particle );
-	}
-
-	static void OrientFlash( Particle particle )
-	{
-		// A half-turn mirrors both axes. Reflecting X supplies the other two orientations
-		// while keeping the taller billboard axis positive for the renderer's bounds.
-		bool flipX = particle.Rand( 1 ) < 0.5f;
-		bool flipY = particle.Rand( 2 ) < 0.5f;
-		particle.Angles.roll = flipY ? 180 : 0;
-		particle.Size.x = (flipX != flipY ? -1 : 1) * System.MathF.Abs( particle.Size.x );
-	}
-
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
 	int nextCue;
@@ -530,11 +481,6 @@ public sealed class ShotgunViewModel : ShotgunModel
 		Weapon.Kick();
 		Play( "fire_1" );
 		base.OnAttack( hitPoint, origin );
-		if ( muzzleFlash.IsValid() )
-		{
-			for ( int i = 0; i < 2; i++ )
-				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
-		}
 	}
 
 	public override void OnReloadStart()

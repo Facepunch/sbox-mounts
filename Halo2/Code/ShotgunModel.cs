@@ -11,6 +11,65 @@ public class ShotgunModel : BaseWeaponModel
 	bool viewCasing;
 	uint seed = (uint)Random.Shared.Next();
 
+	ParticleEffect muzzleFlash;
+	internal void ConfigureMuzzleFlash( bool firstPerson )
+	{
+		if ( !MuzzleGameObject.IsValid() ) return;
+		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.MuzzleFlashName}" );
+		if ( !texture.IsValid() || texture.IsError ) return;
+
+		var go = new GameObject( MuzzleGameObject, false, "Muzzle flash" );
+		muzzleFlash = go.AddComponent<ParticleEffect>();
+		muzzleFlash.MaxParticles = firstPerson ? 2 : 1;
+		muzzleFlash.Lifetime = firstPerson ? 0.125f : 0.2f;
+		muzzleFlash.LocalSpace = 1;
+		muzzleFlash.ApplyShape = true;
+		muzzleFlash.SnapToFrame = true;
+		muzzleFlash.InitialScale = firstPerson ? 3 : 12;
+		// The 60 x 62 flash frame spans two particle radii vertically.
+		muzzleFlash.Stretch = 62f / 60f - 1;
+		muzzleFlash.Scale = firstPerson ? new ParticleFloat( 1, 4 ) { Evaluation = ParticleFloat.EvaluationType.Life }
+			: LifeCurve( new Curve.Frame( 0, 0.3944444f, 0, 1.132075f ), new Curve.Frame( 1, 0.9055555f, 0.539683f, 0 ) );
+		muzzleFlash.ApplyColor = true;
+		muzzleFlash.Tint = firstPerson ? Color.FromBytes( 252, 188, 101 ) : Color.FromBytes( 251, 206, 123 );
+		muzzleFlash.ApplyAlpha = true;
+		muzzleFlash.Alpha = firstPerson ? new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life }
+			: LifeCurve( new Curve.Frame( 0, 1 ), new Curve.Frame( 0.800193f, 1, 0, -3.20464f ), new Curve.Frame( 1, 0, 7.00483f, 0 ) );
+		muzzleFlash.OnParticleCreated += OrientFlash;
+		muzzleFlash.OnPostStep += UpdateFlashOrientation;
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Scale = 2 * 60f / 62f;
+		renderer.Additive = true;
+		renderer.FogStrength = 0;
+		renderer.RenderOptions.Game = !firstPerson;
+		renderer.RenderOptions.Overlay = firstPerson;
+		go.Enabled = true;
+	}
+
+	void UpdateFlashOrientation( float delta )
+	{
+		foreach ( var particle in muzzleFlash.Particles )
+			OrientFlash( particle );
+	}
+
+	static void OrientFlash( Particle particle )
+	{
+		// A half-turn mirrors both axes. Reflecting X supplies the other two orientations
+		// while keeping the taller billboard axis positive for the renderer's bounds.
+		bool flipX = particle.Rand( 1 ) < 0.5f;
+		bool flipY = particle.Rand( 2 ) < 0.5f;
+		particle.Angles.roll = flipY ? 180 : 0;
+		particle.Size.x = (flipX != flipY ? -1 : 1) * System.MathF.Abs( particle.Size.x );
+	}
+
+	static ParticleFloat LifeCurve( params Curve.Frame[] frames ) => new()
+	{
+		Type = ParticleFloat.ValueType.Curve,
+		Evaluation = ParticleFloat.EvaluationType.Life,
+		CurveA = new Curve( frames )
+	};
+
 	internal void ConfigureCasings( bool firstPerson )
 	{
 		viewCasing = firstPerson;
@@ -117,6 +176,11 @@ public class ShotgunModel : BaseWeaponModel
 
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
+		if ( muzzleFlash.IsValid() )
+		{
+			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
+				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
+		}
 		ejectAt = (TimeUntil)(13f / 30f);
 	}
 
