@@ -209,8 +209,13 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	{
 		var hit = BulletTrace( AimRay, Ballistics.Range, 0 ).Run();
 		var npc = hit.GameObject?.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
-		return npc is not null && Holder is {} holder && npc.GetDisposition( holder.GameObject ) == Sandbox.Npcs.Disposition.Hostile
-			? Color.Red : Color.FromBytes( 117, 186, 255 );
+		var disposition = Holder is {} holder ? npc?.GetDisposition( holder.GameObject ) : null;
+		return disposition switch
+		{
+			Sandbox.Npcs.Disposition.Friendly => Color.FromBytes( 51, 255, 0 ),
+			Sandbox.Npcs.Disposition.Hostile => Color.Red,
+			_ => Color.FromBytes( 117, 186, 255 )
+		};
 	}
 
 	TimeUntil meleeEnds;
