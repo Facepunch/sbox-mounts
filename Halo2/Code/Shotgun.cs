@@ -348,7 +348,8 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		muzzleFlash.Lifetime = 0.125f;
 		muzzleFlash.LocalSpace = 1;
 		muzzleFlash.ApplyShape = true;
-		muzzleFlash.InitialScale = new ParticleFloat( 3, 12 );
+		muzzleFlash.InitialScale = 3;
+		muzzleFlash.Scale = new ParticleFloat( 1, 4 ) { Evaluation = ParticleFloat.EvaluationType.Life };
 		muzzleFlash.ApplyColor = true;
 		muzzleFlash.Tint = Color.FromBytes( 252, 188, 101 );
 		muzzleFlash.ApplyAlpha = true;
