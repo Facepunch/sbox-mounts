@@ -50,7 +50,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		{
 			var bytes = database.Find( "texture", path );
 			if ( bytes is null ) Log.Warning( $"PAYDAY: missing texture {path}" );
-			else texture = TextureLoader.FromDds( bytes );
+			else texture = TextureLoader.FromDds( DdsTexture.ForUpload( bytes ) );
 		}
 		catch ( Exception e ) { Log.Warning( $"PAYDAY texture {path}: {e.Message}" ); }
 		textures[path] = texture;

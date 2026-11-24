@@ -17,6 +17,13 @@ void Reject( Action action )
 Reject( () => ScriptData.Read( db.Find( "world", "levels/bank/world" )[..100] ) );
 Reject( () => new ModelFile( new byte[] { 255, 255, 255, 255 } ) );
 Reject( () => XmlNode.Parse( "<unit><object></unit>" ) );
+var fenceDds = db.Find( "texture", "units/world/props/street/fence/fence_df" );
+var fenceUpload = DdsTexture.ForUpload( fenceDds );
+if ( BitConverter.ToInt32( fenceUpload, 28 ) != 4 || BitConverter.ToInt32( fenceDds, 28 ) != 10
+	|| !fenceUpload.AsSpan( 128 ).SequenceEqual( fenceDds.AsSpan( 128 ) ) )
+	throw new Exception( "Fence DDS upload must preserve source data and retain the four block-sized mips." );
+if ( !ReferenceEquals( fenceUpload, DdsTexture.ForUpload( fenceUpload ) ) )
+	throw new Exception( "Block-sized DDS mip chain was modified again." );
 UnitGeometry GeometryFor( string path )
 {
 	var unit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", path ) ) );
