@@ -9,7 +9,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal IReadOnlySet<string> ReactionStates { get; private init; }
 	internal RabbitRetarget RollRig { get; private init; }
 	internal RabbitTorso Torso { get; private init; }
-	internal string[] TailBones { get; private init; }
+	internal RabbitLimbBone[] TailBones { get; private init; }
 	internal RabbitMovement RollMovement { get; private init; }
 	internal RabbitMovement AirMovement { get; private init; }
 	internal RabbitRetarget AirRig { get; private init; }
@@ -454,7 +454,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones, [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
 			Torso = new( skeleton.BindPose[hip], skeleton.BindPose[parents[torso.BoneId]], chestBind, HalfLength( parents[torso.BoneId] ), HalfLength( torso.BoneId ) ),
-			TailBones = ChainBones( "tail" ).ToArray(),
+			TailBones = skeleton.IKBones.TryGetValue( "tail", out var tail ) ? RabbitLimbBone.Chain( skeleton, parents, "tail", scale, tail.ChainLength ) : [],
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ), FallLayer( "r_writhe" ) ),
 			RollBones = rollBones,
 			RollMovement = roll,

@@ -115,8 +115,8 @@ public sealed partial class RabbitGuard
 				}
 				if ( RollProgress < 1f && Animation.IsGrounded )
 				{
-					mid = SweepEar( basePoint, mid );
-					end = SweepEar( mid, end );
+					mid = SweepSecondaryBone( basePoint, mid );
+					end = SweepSecondaryBone( mid, end );
 				}
 				return (mid, end);
 			}
@@ -133,7 +133,7 @@ public sealed partial class RabbitGuard
 		earsActive = true;
 	}
 
-	Vector3 SweepEar( Vector3 start, Vector3 end )
+	Vector3 SweepSecondaryBone( Vector3 start, Vector3 end )
 	{
 		const float radius = 0.03f * 40f;
 		slideContacts.Clear();

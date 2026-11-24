@@ -138,7 +138,8 @@ public sealed partial class RabbitGuard
 			var torso = boundAnimations.TorsoBones;
 			int BoneIndex( string name ) => poseModel.Bones.GetBone( name ).Index;
 			torsoIndices = (BoneIndex( torso[^1] ), BoneIndex( torso[1] ), BoneIndex( torso[0] ));
-			tailIndices = boundAnimations.TailBones.Select( BoneIndex ).ToArray();
+			tailIndices = boundAnimations.TailBones.Select( part => BoneIndex( part.Bone ) ).ToArray();
+			tailMotion = tailIndices.Length == 0 ? null : new TailMotion( tailIndices.Length );
 			pelvisBind = poseModel.GetBoneTransform( torsoIndices.Hip );
 			hipSockets = new Vector3[2];
 			for ( int i = 0; i < hipSockets.Length; i++ )
@@ -202,6 +203,7 @@ public sealed partial class RabbitGuard
 		solvedPose[hip] = RabbitTorso.Hip( animationPose[hip], solvedPose[hip] );
 		foreach ( int tail in tailIndices )
 			solvedPose[tail] = solvedPose[hip].ToWorld( animationPose[hip].ToLocal( animationPose[tail] ) );
+		DrawTail( model );
 		if ( recoveryRate > 0f )
 			BlendRecoveryPose( Networking.IsHost && RecoveringRoll && RollProgress < 1f ? rollVelocity : Animation.MoveVelocity );
 		// Binding a graph leaves the bind pose visible until its first evaluation.

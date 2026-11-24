@@ -4,9 +4,9 @@ namespace Overgrowth;
 
 internal readonly record struct RabbitLimbBone( string Bone, float Length )
 {
-	internal static RabbitLimbBone[] Chain( SkeletonData rig, int[] parents, string label, float scale )
+	internal static RabbitLimbBone[] Chain( SkeletonData rig, int[] parents, string label, float scale, int count = 6 )
 	{
-		var chain = new RabbitLimbBone[6];
+		var chain = new RabbitLimbBone[count];
 		int bone = rig.IKBones[label].BoneId;
 		for ( int i = 0; i < chain.Length; i++ )
 		{
