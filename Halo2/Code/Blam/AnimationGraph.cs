@@ -155,9 +155,20 @@ internal static class AnimationGraph
 						case 0:
 							var q = ReadRotation( data, a, codec == 8 );
 							var r = interpolate ? ReadRotation( data, b, codec == 8 ) : q;
+							var firstRotation = q.Normal;
 							for ( ; frame < end; frame++, destination += stride )
-								poses[destination].Rotation = interpolate && frame > current
-									? Rotation.Slerp( q, r, (float)(frame - current) / (next - current) ) : q;
+							{
+								if ( !interpolate || frame <= current )
+								{
+									poses[destination].Rotation = firstRotation;
+									continue;
+								}
+
+								// The codec interpolates the stored quaternion components before normalization.
+								float t = (float)(frame - current) / (next - current);
+								poses[destination].Rotation = new Rotation( q.x + (r.x - q.x) * t, q.y + (r.y - q.y) * t,
+									q.z + (r.z - q.z) * t, q.w + (r.w - q.w) * t ).Normal;
+							}
 							break;
 						case 1:
 							var u = ReadVector( data, a );
@@ -194,7 +205,7 @@ internal static class AnimationGraph
 
 	static Rotation ReadRotation( ReadOnlySpan<byte> bytes, int i, bool floats ) => floats
 		? new Rotation( F32( bytes, i ), F32( bytes, i + 4 ),
-			F32( bytes, i + 8 ), F32( bytes, i + 12 ) ).Normal
+			F32( bytes, i + 8 ), F32( bytes, i + 12 ) )
 		: new Rotation( I16( bytes, i ), I16( bytes, i + 2 ),
-			I16( bytes, i + 4 ), I16( bytes, i + 6 ) ).Normal;
+			I16( bytes, i + 4 ), I16( bytes, i + 6 ) );
 }

@@ -90,20 +90,34 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 		return true;
 	}
 
+	Transform cameraAdjustment = global::Transform.Zero;
+
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
-		if ( kickEnds <= 0 || KickDuration <= 0 ) return;
-		float t = (float)kickEnds / KickDuration;
-		// The shotgun trigger damage effect uses the very-early fade.
-		float weight = t * t * t * t;
-		view.Position -= view.Rotation.Forward * (KickDistance * weight);
-		view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
+		if ( kickEnds > 0 && KickDuration > 0 )
+		{
+			float t = (float)kickEnds / KickDuration;
+			float weight = t * t * t * t;
+			view.Position -= view.Rotation.Forward * (KickDistance * weight);
+			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
+		}
+
+		cameraAdjustment = global::Transform.Zero;
+		if ( !ViewModel.IsValid() || Owner is { ThirdPerson: true } ) return;
+		var renderer = ViewModel.GetComponent<SkinnedModelRenderer>();
+		if ( !renderer.TryGetBoneTransform( "camera_control", out var control ) ) return;
+		cameraAdjustment = renderer.SceneModel.Transform.ToLocal( control );
+		var adjusted = view.Transform.ToWorld( cameraAdjustment );
+		view.Position = adjusted.Position;
+		view.Rotation = adjusted.Rotation;
 	}
 
 	protected override void PlaceViewModel( CameraComponent camera, in CameraView view )
 	{
-		if ( ViewModel.IsValid() )
-			ViewModel.WorldTransform = view.Transform.WithPosition( view.Transform.PointToWorld( ViewOffset ) );
+		if ( !ViewModel.IsValid() ) return;
+		// The camera already includes the rig's animated camera node.
+		var root = view.Transform.ToWorld( cameraAdjustment.ToLocal( global::Transform.Zero ) );
+		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
 	internal void Kick() => kickEnds = KickDuration;
