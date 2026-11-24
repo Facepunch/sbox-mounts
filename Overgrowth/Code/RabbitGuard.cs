@@ -19,6 +19,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Property] public bool InvisibleWhenStationary { get; set; }
 	[Property] public bool NoLookAround { get; set; }
 	[Property, Sync] public string UnarmedStanceOverride { get; set; }
+	[Property, Sync] public string Species { get; private set; }
 	[Property] public bool StaticCharacter { get; set; }
 	[Property] public bool AlwaysUnaware { get; set; }
 	TimeUntil nextVisionCheck = 1f;
@@ -31,6 +32,18 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	LevelItem equippedForAnimation;
 	string boundStanceOverride;
 
+	internal void SetSpecies( string species )
+	{
+		if ( species is not ("rabbit" or "cat" or "rat" or "dog" or "wolf") ) return;
+		Species = species;
+		var agent = GetComponent<NavMeshAgent>( true );
+		// BrainSpeciesUpdate gives rabbits access to off-mesh routes.
+		agent.AllowAllLinkTypes = species == "rabbit";
+		if ( !agent.AllowAllLinkTypes ) agent.AllowedLinkTypes.Clear();
+		CausesFearOnSight = species == "wolf";
+		NeverAfraidOnSight = species is "wolf" or "dog";
+	}
+
 	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
 	{
 		boundAnimations = null;
@@ -41,9 +54,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	bool BindAnimations()
 	{
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
-		if ( boundAnimations is null || boundModel != Renderer.Model || Renderer.Animation.Graph is null || boundStanceOverride != UnarmedStanceOverride || equippedForAnimation != equipped && !IsThrowingItem )
+		if ( boundAnimations is null || boundModel != Renderer.Model || Renderer.Animation.Graph is null
+			|| boundStanceOverride != UnarmedStanceOverride || Species is not null && boundAnimations.Species != Species
+			|| equippedForAnimation != equipped && !IsThrowingItem )
 		{
-			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model, UnarmedStanceOverride ) is not { } ready ) return false;
+			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model, UnarmedStanceOverride, Species ) is not { } ready ) return false;
 			if ( !Downed ) Renderer.ClearPhysicsBones();
 			equippedForAnimation = equipped;
 			boundStanceOverride = UnarmedStanceOverride;

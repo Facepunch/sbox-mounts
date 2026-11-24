@@ -23,7 +23,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitAttack.Pose[]> GrabStances { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string ThrowMaterialEvent { get; private init; }
-	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, XmlAsset item = null, string stanceOverride = null )
+	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, string species, XmlAsset item = null, string stanceOverride = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
 		var fs = mount.FileSystem;
@@ -74,7 +74,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var throwActions = throwAttack.Element( "animations" );
 		var throwClips = new[] { "throw", "thrown", "thrown_counter" }.ToDictionary( slot => slot, slot => System.IO.Path.GetFileNameWithoutExtension( throwActions.Attribute( slot ) ) );
 		var reactionNames = reactions.Values.SelectMany( reaction => reaction.Clips ).Concat( [RabbitGuard.StandFromBack, RabbitGuard.StandFromFront, RabbitGuard.BlockFromGround, RabbitGuard.DodgeHigh, RabbitGuard.DodgeMiddle, RabbitGuard.DodgeLow, RabbitGuard.SpearThrow, RabbitGuard.SwordThrow, RabbitGuard.CatchFront, RabbitGuard.CatchSide] ).ToHashSet();
-		bool wolf = character.Element( "tags" )?.Attribute( "species" ) == "wolf";
+		bool wolf = species == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
 		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
@@ -168,7 +168,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			}
 			return cycle;
 		}
-		var species = character.Element( "tags" )?.Attribute( "species" );
 		string action = species is "cat" or "dog" or "wolf" or "rat" ? species + "_actionidle" :
 			label is "knife" or "sword" ? "r_actionidle_" + label : "r_actionidle";
 		RabbitMovement IdleTree( string file ) => RabbitMovement.Load( fs, file, GroundClip );
@@ -479,7 +478,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			KnifeSwings = knifeSwings,
 			GrabStances = grabStances,
 			Reactions = reactions,
-			Species = character.Element( "tags" )?.Attribute( "species" ),
+			Species = species,
 			ThrowMaterialEvent = throwAttack.Element( "materialevent" )?.Value,
 		};
 	}

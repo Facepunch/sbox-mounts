@@ -57,16 +57,13 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		var agent = go.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
 		agent.Height = height;
-		// BrainSpeciesUpdate reserves off-mesh jump routes for rabbits.
-		agent.AllowAllLinkTypes = character.Species == "rabbit";
 		go.AddComponent<CharacterNavigation>().RunSpeed = 8f * 40f;
 		var animation = go.AddComponent<AnimationLayer>();
 		animation.EnableFootstepSounds = false;
 		var npc = go.AddComponent<RabbitGuard>();
 		go.AddComponent<RabbitAirContact>().Fighter = npc;
 		npc.MovementCapsule = collider;
-		npc.CausesFearOnSight = character.Species == "wolf";
-		npc.NeverAfraidOnSight = character.Species is "wolf" or "dog";
+		npc.SetSpecies( character.Species );
 		npc.DisplayName = title;
 		npc.Renderer = renderer;
 		npc.Animation = animation;

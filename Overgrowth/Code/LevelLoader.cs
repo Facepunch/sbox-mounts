@@ -177,6 +177,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				actors.Guards.Add( (fighter, start) );
 				if ( int.TryParse( node.Attribute( "id" ), out int actorId ) ) actors.Characters[actorId] = fighter;
 				ConnectItems( fighter );
+				fighter.SetSpecies( node.Element( "parameters" )?.Elements( "parameter" ).FirstOrDefault( p => p.Attribute( "name" ) == "Species" )?.Attribute( "val" ) );
 				fighter.AlwaysAfraidOnSight = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "scared" ) == true;
 				fighter.Teams = GetTeams( node, file );
 				fighter.MetalArmor = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Armor" && p.Attribute( "val" ) == "metal" ) == true;
