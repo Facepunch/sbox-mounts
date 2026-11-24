@@ -54,14 +54,17 @@ public partial class ModelLoader
 				if ( anim.NumFrames == 0 ) return (incoming ?? graph.ReferencePose(), false);
 				if ( !clips.TryGetValue( node.AnimationIndex, out var clip ) )
 				{
-					// Spark evaluates compressed curves between authored frames. Preserve their midpoint in the baked clip.
-					int samplesPerFrame = npcPlayback && anim.Compressed ? 2 : 1;
-					var builder = new ClipBuilder { Skeleton = skeleton, FrameRate = anim.FrameRate * samplesPerFrame, IsAdditive = anim.Additive };
+					// Spark's compressor subdivides the full clip duration on a binary grid.
+					int intervals = anim.NumFrames - 1;
+					if ( npcPlayback && anim.Compressed && intervals > 0 )
+						intervals = (int)System.Numerics.BitOperations.RoundUpToPowerOf2( (uint)intervals * 2 );
+					float rate = intervals > 0 ? anim.FrameRate * intervals / (anim.NumFrames - 1) : anim.FrameRate;
+					var builder = new ClipBuilder { Skeleton = skeleton, FrameRate = rate, IsAdditive = anim.Additive };
 					DecodeFrames( pose =>
 					{
 						for ( int i = 0; i < pose.Length; i++ ) pose[i] = pose[i].WithScale( anim.Additive ? 0 : 1 );
 						builder.AddFrame( pose );
-					}, anim, model, ref reader, frame, samplesPerFrame );
+					}, anim, model, ref reader, frame, intervals );
 					if ( builder.FrameCount == 1 ) builder.AddFrame( frame );
 					clips[node.AnimationIndex] = clip = builder.Create( $"{Path}/clip_{node.AnimationIndex}.anim" );
 				}
