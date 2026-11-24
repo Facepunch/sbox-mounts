@@ -14,8 +14,8 @@ public partial class ModelLoader
 		bool loop = seq.Duration > 0 && (seq.Looping ??= Loops( seq.AnimationNodeIndex ));
 		float start = loop ? from % seq.Duration : from;
 		float end = loop ? to % seq.Duration : to;
-		if ( start <= seq.Duration && (end > seq.Duration || (end <= start && end > 0)) ) emit( "end" );
-		if ( end > 0 && (start <= 0 || end <= start) ) emit( "start" );
+		if ( seq.Duration > 0 && start <= seq.Duration && (end > seq.Duration || (end <= start && end > 0)) ) emit( "end" );
+		if ( seq.Duration > 0 && end > 0 && (start <= 0 || end <= start) ) emit( "start" );
 
 		tags.Clear();
 		Visit( seq.AnimationNodeIndex );
@@ -66,13 +66,10 @@ public partial class ModelLoader
 				Visit( node.Children[0] );
 				return;
 			}
-			float fraction = 0.5f;
-			if ( pose is not null )
-			{
-				pose.TryGetFloat( source.BlendParameters[node.ParameterIndex], out var value );
-				fraction = (value - node.ParamMin) / (node.ParamMax - node.ParamMin);
-				fraction = node.WrapParameter ? fraction - MathF.Floor( fraction ) : Math.Clamp( fraction, 0, 1 );
-			}
+			float value = 0;
+			pose?.TryGetFloat( source.BlendParameters[node.ParameterIndex], out value );
+			float fraction = (value - node.ParamMin) / (node.ParamMax - node.ParamMin);
+			fraction = node.WrapParameter ? fraction - MathF.Floor( fraction ) : Math.Clamp( fraction, 0, 1 );
 			float position = fraction * (node.Children.Length - 1);
 			int first = (int)position;
 			Visit( node.Children[first] );
