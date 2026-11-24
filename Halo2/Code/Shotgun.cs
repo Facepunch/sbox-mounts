@@ -357,9 +357,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 			CurveA = new Curve( new Curve.Frame( 0, 0, 0, 13.513514f ), new Curve.Frame( 1, 5, 0, 0 ) )
 		};
 		casings.SequenceSpeed = 0;
-		casings.Force = true;
-		casings.ForceDirection = Scene.PhysicsWorld.Gravity;
-		casings.ForceScale = 0.99908376f;
+		casings.OnPostStep += AdvanceCasingVelocity;
 		casings.Collision = true;
 		casings.Friction = 0.1f;
 		casings.Bounce = 0.35f;
@@ -367,6 +365,15 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Lighting = true;
 		go.Enabled = true;
+	}
+
+	void AdvanceCasingVelocity( float dt )
+	{
+		// The stones particle controller advances position, applies gravity, then damps velocity.
+		const float gravity = 4.1712594f * 120 * 0.99908376f;
+		float retained = 1 - (0.05058453f * dt).Clamp( 0, 1 );
+		foreach ( var casing in casings.Particles )
+			casing.Velocity = (casing.Velocity + Vector3.Down * (gravity * dt)) * retained;
 	}
 
 	void EjectCasing()
