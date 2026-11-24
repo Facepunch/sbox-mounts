@@ -15,9 +15,11 @@ internal static class Spread
 {
 	static readonly Vector3[] directions = BuildDirections();
 
+	internal static Vector3 RandomDirection( ref uint state ) => directions[(BlamRandom.Next( ref state ) * (uint)directions.Length) >> 16];
+
 	internal static Vector3 Deviate( Vector3 forward, float minimum, float maximum, ref uint state )
 	{
-		var axis = directions[(BlamRandom.Next( ref state ) * (uint)directions.Length) >> 16];
+		var axis = RandomDirection( ref state );
 		var normal = Vector3.Cross( forward, axis );
 		float length = normal.Length;
 		if ( length < 0.0001f ) return forward;

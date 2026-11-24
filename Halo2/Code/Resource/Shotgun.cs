@@ -43,6 +43,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string GlassName = "glass_breakable.vtex";
 	internal const string MetalChipsName = "metal_chips.vtex";
 	internal const string DriftName = "smoke_drift.vtex";
+	internal const string ArcName = "electric_arcs.vtex";
+	internal const string SmallFierySmokeName = "smoke_fiery_small.vtex";
 	internal const string ImpactSmokeName = "smoke_soft_small_lit.vtex";
 	internal const string SparksName = "sparks_animated.vtex";
 
@@ -63,6 +65,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			GlassName => @"effects\generic\solids\glass_breakable",
 			MetalChipsName => @"effects\generic\solids\metal_chips",
 			DriftName => @"effects\generic\smoke\smoke_drift",
+			ArcName => @"effects\generic\sparks\electric_arcs",
+			SmallFierySmokeName => @"effects\generic\smoke\smoke_fiery_small",
 			ImpactSmokeName => @"effects\generic\smoke\smoke_soft_small_lit",
 			SparksName => @"effects\generic\sparks\sparks_animated_soft",
 			_ => null
