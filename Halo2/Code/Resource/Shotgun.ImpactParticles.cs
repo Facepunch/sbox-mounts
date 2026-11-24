@@ -5,7 +5,7 @@ namespace Halo2;
 
 internal sealed partial class ShotgunLoader
 {
-	enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist }
+	enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield }
 	sealed record ImpactEmitter( ImpactLayer Layer, Sprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
@@ -20,6 +20,8 @@ internal sealed partial class ShotgunLoader
 		public bool CollidesWithWater, DiesInWater, DiesOnStructure;
 		public Vector2 Alpha, SpawnRadius;
 		public CurveRange SpriteAngle;
+		public CurveRange? SpinCurve;
+		public int SpinRange;
 	}
 
 	uint impactParticleSeed = (uint)System.Random.Shared.Next();
@@ -31,6 +33,7 @@ internal sealed partial class ShotgunLoader
 		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
 		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
 			material is not ("default" or "brittle" or "brittle_elec" or "brittle_elec_cov" or "brittle_explosive" or "brittle_mech_cov" or "brittle_mech"
+				or "energy_shield_thin" or "energy_shield_thick" or "energy_shield_thick_cov"
 				or "soft" or "soft_inorganic" or "soft_organic" or "soft_organic_plant" or "soft_organic_plant_grassy"
 				or "tough_inorganic" or "tough_inorganic_plastic" or "tough_inorganic_rubber" or "tough_organic_wood" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
@@ -45,6 +48,7 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\debris_shirt" => ClothName,
 				@"effects\generic\solids\plant_leafy" => LeafName,
 				@"effects\generic\solids\plant_grassy" => GrassName,
+				@"effects\generic\energy\impact_energy" => ShieldName,
 				@"effects\generic\solids\plant_wood" => WoodName,
 				@"effects\generic\smoke\smoke_impact" => DustName,
 				@"effects\generic\sparks\electric_arcs" => ArcName,
@@ -64,6 +68,7 @@ internal sealed partial class ShotgunLoader
 			{
 				RubberName => ImpactLayer.Rubber,
 				MistName => ImpactLayer.Mist,
+				ShieldName => ImpactLayer.Shield,
 				WoodName or LeafName or GrassName => ImpactLayer.Plant,
 				ClothName => ImpactLayer.Cloth,
 				DustName => ImpactLayer.Dust,
@@ -99,7 +104,7 @@ internal sealed partial class ShotgunLoader
 				int rgb = map.ReadInt32( color + offset );
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
-			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs, drift = layer == ImpactLayer.Drift;
+			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield, drift = layer == ImpactLayer.Drift;
 			bool dust = layer is ImpactLayer.Dust or ImpactLayer.Mist;
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
@@ -115,7 +120,8 @@ internal sealed partial class ShotgunLoader
 			{
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
-				SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
+				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
+				SpinRange = Short( emitter + 58 ), SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
 				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber ? ReadDebrisFrames( definition, texture, layer == ImpactLayer.Plant ) : null,
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
@@ -235,7 +241,7 @@ internal sealed partial class ShotgunLoader
 	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform contact, Vector3 incoming, Vector2 random, int variant = 0 )
 	{
 		bool smoke = data.Layer == ImpactLayer.Smoke, sparks = data.Layer == ImpactLayer.Sparks;
-		bool animatedRadius = smoke || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke;
+		bool animatedRadius = smoke || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		var axis = data.Marker switch { "up" => Vector3.Up, "forward" => contact.Rotation * incoming, _ => -contact.Rotation.Forward };
 		if ( data.Marker == "reflection" )
 		{
@@ -254,7 +260,7 @@ internal sealed partial class ShotgunLoader
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = smoke || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
-		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke;
+		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		if ( sparks ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
@@ -303,7 +309,9 @@ internal sealed partial class ShotgunLoader
 			else p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
 			if ( animatedRadius )
 			{
-				p.Size = data.RadiusCurve.Evaluate( t, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
+				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
+				p.Size = data.RadiusCurve.Evaluate( input, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
+				if ( data.Layer == ImpactLayer.Shield ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
 				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
 				return;
 			}
@@ -325,7 +333,7 @@ internal sealed partial class ShotgunLoader
 			uint r0 = BlamRandom.Next( ref impactParticleSeed ), r1 = BlamRandom.Next( ref impactParticleSeed );
 			float life = r0 * (1f / 65535f), fraction = r1 * (1f / 65535f), size = ParticleFraction();
 			float fourth = ParticleFraction();
-			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, 5 => random.x, 6 => random.y, _ => 0 };
+			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, 4 => 1, 5 => random.x, 6 => random.y, _ => 0 };
 			p.Set( "life_fraction", life );
 			float lifetime = Sample( data.Lifetime, RandomInput( data.LifeInput ) );
 			p.Set( "lifetime", lifetime );
@@ -356,7 +364,15 @@ internal sealed partial class ShotgunLoader
 			p.Velocity = go.WorldRotation * direction.Normal * Sample( data.Speed, RandomInput( data.SpeedInput ) );
 			p.Color = Color.Lerp( data.Tint, data.TintEnd, RandomInput( data.ColorInput ) );
 			p.Angles.roll = (data.Layer switch { ImpactLayer.Dust or ImpactLayer.Mist => fraction, ImpactLayer.Plant => size, ImpactLayer.Cloth => 0, _ => life }) * 360;
-			p.Set( "spin", Sample( data.Spin, RandomInput( data.SpinInput ) ) );
+			if ( data.Layer == ImpactLayer.Shield )
+			{
+				bool flipX = (r0 & 1) != 0, flipY = (r1 & 1) != 0;
+				p.Set( "mirror", flipX == flipY ? 1f : -1f );
+				if ( flipX ) p.Angles.roll += 180;
+			}
+			float spinInput = RandomInput( data.SpinInput );
+			float spin = data.SpinCurve is {} curve ? curve.Evaluate( spinInput, RandomInput( data.SpinRange ) ).Clamp( data.Spin.x, data.Spin.y ) : Sample( data.Spin, spinInput );
+			p.Set( "spin", spin );
 			if ( data.Layer == ImpactLayer.Rocks ) p.Sequence = (int)(r1 % 4);
 			if ( data.DebrisFrames is {} frames )
 			{
