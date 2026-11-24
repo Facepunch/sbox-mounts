@@ -246,14 +246,15 @@ public sealed class Shotgun : Weapon
 		await Task.DelaySeconds( delay );
 		if ( !IsValid || serial != swing ) return;
 		using var sceneScope = Scene.Push();
-		var hit = TraceMelee( AimRay );
+		var hit = TraceMelee( AimRay, out var impactPosition );
 		if ( !hit.Hit ) return;
-		MeleeImpactSound( hit.Surface, hit.HitPosition );
+		MeleeImpactSound( hit.Surface, impactPosition );
 		ShootBullet( hit, MeleeDamage, MeleeForce, new TagSet { "melee" }, false );
 	}
 
-	SceneTraceResult TraceMelee( Ray aim )
+	SceneTraceResult TraceMelee( Ray aim, out Vector3 impactPosition )
 	{
+		impactPosition = aim.Position;
 		var forward = aim.Forward;
 		var abs = forward.Abs();
 		// Halo constructs the two perpendicular axes from the smallest component of aim.
@@ -270,6 +271,9 @@ public sealed class Shotgun : Weapon
 		{
 			var hit = trace.FromTo( aim.Position, center + stepX * x + stepY * y ).Run();
 			if ( !hit.Hit || !hit.GameObject.IsValid() ) continue;
+
+			// The last contact positions the effect, even when an earlier target wins.
+			impactPosition = hit.HitPosition;
 
 			// The first object beats scenery. A biped beats other objects and the closest biped wins.
 			var obj = hit.GameObject;
