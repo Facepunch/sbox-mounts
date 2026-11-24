@@ -114,7 +114,7 @@ public sealed partial class Skulk : BaseNpc
 			return false;
 		}
 
-		bool mobile = target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid();
+		bool mobile = !target.Tags.Has( "structure" ) && (target.GetComponent<PlayerController>().IsValid() || target.GetComponent<BaseNpc>().IsValid());
 		var contact = target.GetComponent<Rigidbody>() is { PhysicsBody.IsValid: true } body
 			? body.FindClosestPoint( EyePosition )
 			: target.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? target.WorldPosition;

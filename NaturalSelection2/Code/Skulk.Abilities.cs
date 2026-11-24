@@ -50,6 +50,7 @@ public sealed partial class Skulk
 		int nearby = 0;
 		foreach ( var enemy in Senses.VisibleHostiles )
 		{
+			if ( enemy.Tags.Has( "structure" ) || (!enemy.GetComponent<PlayerController>().IsValid() && !enemy.GetComponent<BaseNpc>().IsValid()) ) continue;
 			if ( WorldPosition.DistanceSquared( enemy.WorldPosition ) >= 25 * MapLoader.Scale * MapLoader.Scale ) continue;
 			if ( ++nearby < 2 ) continue;
 			xenociding = true;

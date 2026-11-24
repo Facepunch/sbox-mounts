@@ -21,7 +21,8 @@ public sealed partial class Onos : BaseNpc
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag, worldTag;
 	GameObject target;
-	bool attacking, smashing;
+	bool attacking;
+	bool? smashSwing;
 	float energy = 100;
 	TimeUntil repath;
 	GameObject remembered;
@@ -115,7 +116,6 @@ public sealed partial class Onos : BaseNpc
 		var point = enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition;
 		float distance = EyePosition.Distance( point );
 		attacking = distance < 4 * Scale;
-		smashing = attacking && enemy.Tags.Has( "structure" );
 		ChooseAbility( enemy, distance );
 		if ( distance < Scale ) Movement.Stop();
 		else Pursue( enemy.WorldPosition, enemy );
@@ -156,8 +156,11 @@ public sealed partial class Onos : BaseNpc
 			if ( wounds.Update() is { } cue ) PlayCue( cue );
 			var ability = Shielding ? "boneshield" : "gore";
 			var move = Shielding ? "shield" : !Animation.IsGrounded ? "jump" : velocity.Length > 0.1f * Scale ? "run" : "idle";
+			bool canSwing = attacking && energy >= 10 && !Shielding && !stomping;
+			if ( canSwing ) smashSwing ??= TraceGore().Victim is Component c && c.GameObject.Tags.Has( "structure" );
+			else smashSwing = null;
 			var activity = stomping ? (sinceStomp < stompDuration * 0.95f ? "secondary" : "none")
-				: Shielding ? "primary" : attacking && energy >= 10 ? (smashing ? "smash" : "primary") : "none";
+				: Shielding ? "primary" : canSwing ? (smashSwing == true ? "smash" : "primary") : "none";
 			world.Set( "alive", Health > 0 ? 1 : 0 );
 			world.Set( "ability", ability );
 			world.Set( "move", move );
@@ -218,12 +221,19 @@ public sealed partial class Onos : BaseNpc
 		if ( tag != "hit" || Shielding ) return;
 		PlayCue( "gore" );
 		energy = Math.Max( 0, energy - 10 );
-		var view = ViewRotation;
-		float range = (1.7f + Math.Max( 0, -view.Forward.z ) * 0.9f) * Scale;
-		var (hit, victim) = AlienMelee.Trace( this, view, range, 1, 1.4f );
+		bool smash = smashSwing == true;
+		smashSwing = null;
+		var (hit, victim) = TraceGore();
 		if ( victim is null ) return;
 		bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
-		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smashing ? "smash" : "gore" );
+		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );
+	}
+
+	(SceneTraceResult Hit, IDamageable Victim) TraceGore()
+	{
+		var view = ViewRotation;
+		float range = (1.7f + Math.Max( 0, -view.Forward.z ) * 0.9f) * Scale;
+		return AlienMelee.Trace( this, view, range, 1, 1.4f );
 	}
 
 	void DealDamage( IDamageable victim, float amount, Vector3 position, string tag )
