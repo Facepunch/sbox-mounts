@@ -226,14 +226,21 @@ public sealed class Shotgun : Weapon
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
-				var hit = scene.Trace.Ray( start, start + displacement ).IgnoreGameObjectHierarchy( shooter )
+				float distance = displacement.Length;
+				bool atRange = step < dt || pellet.Travelled + distance >= ballistics.Range;
+				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
+				// but requires an object contact to be strictly nearer.
+				var sweep = atRange ? displacement * 2 : displacement;
+				var hit = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
+				if ( atRange && hit.Hit && hit.Fraction >= 0.5f )
+					hit.Hit = hit.Fraction == 0.5f && hit.GameObject.Tags.Has( "world" );
 				if ( !hit.Hit )
 				{
 					pellet.Offset += displacement;
 					pellet.Velocity.z -= fall;
-					pellet.Travelled += displacement.Length;
-					if ( step < dt || pellet.Travelled >= ballistics.Range )
+					pellet.Travelled += distance;
+					if ( atRange )
 					{
 						pellet.Velocity = Vector3.Zero;
 						flying--;
