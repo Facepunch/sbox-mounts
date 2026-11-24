@@ -344,6 +344,7 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		if ( !texture.IsValid() || texture.IsError ) return;
 		var go = new GameObject( ShellEjectGameObject, false, "Shotgun casings" );
 		casings = go.AddComponent<ParticleEffect>();
+		casings.Lifetime = new ParticleFloat( 2, 5 );
 		casings.ApplyShape = true;
 		casings.InitialScale = 4.8f;
 		casings.ApplyRotation = true;
@@ -373,10 +374,9 @@ public sealed class ShotgunViewModel : BaseWeaponModel
 		ejectAt = null;
 		if ( !casings.IsValid() || !ShellEjectGameObject.IsValid() ) return;
 		var marker = ShellEjectGameObject.WorldTransform;
-		float roll = Game.Random.Float();
-		casings.Lifetime = 2 + 3 * roll;
 		if ( casings.Emit( marker.PointToWorld( Vector3.Down * 12 ), 0 ) is {} casing )
-			casing.Velocity = marker.Rotation.Forward * (210 + 90 * roll);
+			// Lifetime and launch speed both use the particle's first random value.
+			casing.Velocity = marker.Rotation.Forward * casing.LifeTimeRemaining.Remap( 2, 5, 210, 300 );
 	}
 
 	internal void ConfigureMuzzleFlash()
