@@ -162,7 +162,7 @@ internal sealed class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLo
 			ballistics.Range = Float( projectile + 0xe0 ) * 120;
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
-			gun.FullDamageRange = Float( projectile + 0x168 ) * 120;
+			gun.DamageFalloffRange = (map.ReadInt32( projectile + 0xbc ) & 16) != 0 ? Float( projectile + 0x16c ) * 120 : 0;
 			gun.MinimumDamage = Float( damage + 0x1c );
 			ballistics.Damage = Float( damage + 0x20 );
 			ballistics.SpreadBase = Vector2.One * Float( barrel + 0x74 ).RadianToDegree();

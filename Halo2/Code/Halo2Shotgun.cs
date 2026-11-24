@@ -13,7 +13,7 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AutoAimRange { get; set; } = 720;
 	[Property] public float MinimumDamage { get; set; }
-	[Property] public float FullDamageRange { get; set; }
+	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float MeleeDamage { get; set; }
 	[Property] public float MeleeForce { get; set; }
 	[Property] public Vector2 MeleeHalfExtents { get; set; }
@@ -191,7 +191,8 @@ public sealed class Halo2Shotgun : BaseCombatWeapon
 				var hit = Scene.Trace.Ray( start, start + direction * distance ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
 				if ( !hit.Hit ) continue;
-				float damage = (travelled + hit.Distance).Remap( FullDamageRange, Ballistics.Range, Ballistics.Damage, MinimumDamage );
+				float fraction = DamageFalloffRange > 0 ? (1 - (travelled + hit.Distance) / DamageFalloffRange).Clamp( 0, 1 ) : 1;
+				float damage = (1 - fraction) * MinimumDamage + fraction * Ballistics.Damage;
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
 				ShootBullet( hit, damage, Ballistics.Force );
