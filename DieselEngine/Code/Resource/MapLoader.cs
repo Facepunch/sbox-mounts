@@ -92,12 +92,24 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				go.Tags.Add( "world" );
 				if ( model.HasGraphics ) go.AddComponent<ModelRenderer>().Model = model.Model;
 				if ( model.HasCollision ) go.AddComponent<ModelCollider>().Model = model.Model;
+				if ( MapInteractionDefinition.IsAlarm( name ) )
+				{
+					go.AddComponent<PaydayAlarm>();
+					go.IsStatic = false;
+				}
 				placed++;
 			}
 		}
 		foreach ( var entry in layer.Table( "mission" )?.Children ?? [] )
 		{
 			var unit = entry.Table( "unit_data" );
+			if ( MapInteractionDefinition.IsExit( unit?.Text( "name" ) ) )
+			{
+				var exit = new GameObject( true, "Civilian escape point" ) { Parent = parent };
+				ApplyTransform( exit, unit );
+				exit.AddComponent<PaydayEscapePoint>();
+				continue;
+			}
 			if ( unit?.Text( "name" )?.EndsWith( "/point_spawn_player", StringComparison.Ordinal ) != true ) continue;
 			var go = new GameObject( true, "Player spawn" ) { Parent = parent };
 			ApplyTransform( go, unit );
