@@ -60,6 +60,7 @@ var texturePaths = new HashSet<string>();
 int draws = 0, resolvedMaterials = 0, missingMaterials = 0, invalidConfigs = 0;
 int visibleDraws = 0, visibleFallbacks = 0;
 int placements = 0, meshes = 0, triangles = 0, missing = 0;
+int primitiveCount = 0;
 foreach ( string map in maps )
 {
 	var world = ScriptData.Read( db.Find( "world", map ) );
@@ -112,6 +113,16 @@ foreach ( string unit in units )
 		selected.UnionWith( geometry.Collision );
 		var file = new ModelFile( db.Find( "model", path ) );
 		string orientation = obj.Element( "diesel" )?.Attribute( "orientation_object" );
+		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
+		primitiveCount += primitives.Length;
+		foreach ( var primitive in primitives )
+			if ( primitive.Points.Length < 8 || primitive.Points.Any( v => !float.IsFinite( v.x + v.y + v.z ) ) )
+				throw new Exception( "Invalid bounds-only collision primitive." );
+		if ( path == "units/world/architecture/suburbia/suburbia" && primitives.Length != 141 )
+			throw new Exception( "Suburbia terrain lost its 141 bounds-only collision boxes." );
+		// c_box_173 appears twice in the object XML; only one hull is needed.
+		if ( path == "units/world/architecture/suburbia/suburbia_house1" && primitives.Length != 194 )
+			throw new Exception( $"Suburbia house lost its bounds-only boxes or capsules: {primitives.Length}." );
 		foreach ( var mesh in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
 		{
 			meshes++;
@@ -141,6 +152,7 @@ foreach ( string unit in units )
 	catch ( Exception e ) { throw new Exception( $"Failed unit {unit}: {e.Message}", e ); }
 }
 Console.WriteLine( $"PASS: {maps.Length} worlds, {placements} placements, {units.Count} unique units, {meshes} meshes, {triangles} triangles, {missing} non-model units." );
+Console.WriteLine( $"PASS: {primitiveCount} bounds-only collision primitives." );
 int textures = 0, missingTextures = 0;
 foreach ( string texture in texturePaths )
 {

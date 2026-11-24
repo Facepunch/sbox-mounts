@@ -15,6 +15,71 @@ sealed class ModelFile
 
 	public record Draw( ulong Material, int Start, int Count );
 	public record Geometry( ulong Name, Vector3[] Positions, Vector3[] Normals, Vector4[] Colors, Vector2[] UVs, int[] Indices, Draw[] Draws );
+	public record Primitive( ulong Name, Vector3[] Points );
+
+	/// <summary>Version 6 stores local bounds instead of mesh topology for collision primitives.</summary>
+	public IEnumerable<Primitive> ReadCollisionPrimitives( Dictionary<ulong, string> selected, ulong orientation )
+	{
+		var inverseRoot = NumericsMatrix.Identity;
+		foreach ( var (id, node) in nodes )
+			if ( node.Name == orientation && !NumericsMatrix.Invert( World( id, [] ), out inverseRoot ) )
+				throw new InvalidDataException( "Singular Diesel orientation object." );
+		foreach ( var (id, node) in nodes )
+		{
+			var section = sections[id];
+			if ( section.Type != 0x62212d88 || !selected.TryGetValue( node.Name, out var type ) ) continue;
+			CheckSection( section, node.Tail, 4 );
+			if ( data.Int( node.Tail ) != 6 ) continue;
+			if ( type is not ("box" or "sphere" or "capsule") )
+				throw new InvalidDataException( $"Unsupported bounds-only Diesel collision type: {type}." );
+			CheckSection( section, node.Tail + 4, 24 );
+			int p = node.Tail + 4;
+			var min = new Vector3( data.Float( p ), data.Float( p + 4 ), data.Float( p + 8 ) );
+			var max = new Vector3( data.Float( p + 12 ), data.Float( p + 16 ), data.Float( p + 20 ) );
+			if ( !float.IsFinite( min.x + min.y + min.z + max.x + max.y + max.z )
+				|| min.x > max.x || min.y > max.y || min.z > max.z )
+				throw new InvalidDataException( "Invalid Diesel primitive bounds." );
+			var points = new List<Vector3>();
+			var center = (min + max) * 0.5f;
+			var half = (max - min) * 0.5f;
+			if ( type == "box" )
+			{
+				for ( int corner = 0; corner < 8; corner++ )
+					points.Add( new( (corner & 1) == 0 ? min.x : max.x,
+						(corner & 2) == 0 ? min.y : max.y, (corner & 4) == 0 ? min.z : max.z ) );
+			}
+			else
+			{
+				// Capsule axis is the longest local extent. Tessellated convex hulls preserve
+				// the primitive's rounded shape through parent rotation and nonuniform scale.
+				int axis = half.x > half.y && half.x > half.z ? 0 : half.y > half.z ? 1 : 2;
+				float axial = axis == 0 ? half.x : axis == 1 ? half.y : half.z;
+				float u = axis == 0 ? half.y : half.x, v = axis == 2 ? half.y : half.z;
+				float radius = type == "capsule" ? Math.Min( u, v ) : axial;
+				float cylinder = type == "capsule" ? Math.Max( 0, axial - radius ) : 0;
+				for ( int hemisphere = -1; hemisphere <= 1; hemisphere += 2 )
+					for ( int ring = 0; ring <= 4; ring++ )
+					{
+						float angle = ring * MathF.PI / 8;
+						float along = hemisphere * (cylinder + radius * MathF.Sin( angle ));
+						for ( int segment = 0; segment < 16; segment++ )
+						{
+							float around = segment * MathF.PI / 8;
+							float a = u * MathF.Cos( angle ) * MathF.Cos( around );
+							float b = v * MathF.Cos( angle ) * MathF.Sin( around );
+							points.Add( center + (axis == 0 ? new Vector3( along, a, b )
+								: axis == 1 ? new Vector3( a, along, b ) : new Vector3( a, b, along )) );
+						}
+					}
+			}
+			var transform = World( id, [] ) * inverseRoot;
+			yield return new( node.Name, points.Select( point =>
+			{
+				var world = Vec.Transform( new Vec( point.x, point.y, point.z ), transform );
+				return Coordinates.Position( new Vector3( world.X, world.Y, world.Z ) );
+			} ).ToArray() );
+		}
+	}
 
 	public ModelFile( byte[] bytes )
 	{

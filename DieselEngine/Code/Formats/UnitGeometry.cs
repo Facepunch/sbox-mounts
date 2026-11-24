@@ -5,6 +5,7 @@ sealed class UnitGeometry
 {
 	public HashSet<ulong> Graphics { get; } = [];
 	public HashSet<ulong> Collision { get; } = [];
+	public Dictionary<ulong, string> CollisionTypes { get; } = [];
 
 	public static UnitGeometry Read( XmlNode unit, XmlNode obj )
 	{
@@ -28,7 +29,11 @@ sealed class UnitGeometry
 			foreach ( var element in body.Elements( "object" ) )
 				if ( element.Attribute( "collision_type" ) is not null && element.Attribute( "enabled" ) != "false"
 					&& element.Attribute( "name" ) is string name )
-					result.Collision.Add( IdString.Hash( name ) );
+				{
+					ulong hash = IdString.Hash( name );
+					result.Collision.Add( hash );
+					result.CollisionTypes[hash] = element.Attribute( "collision_type" );
+				}
 		}
 		return result;
 	}

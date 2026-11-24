@@ -78,7 +78,8 @@ static class UnitModel
 				}
 			}
 		}
-		if ( batches.Count == 0 && collisionIndices.Count == 0 ) return Result.Empty;
+		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
+		if ( batches.Count == 0 && collisionIndices.Count == 0 && primitives.Length == 0 ) return Result.Empty;
 		var builder = Model.Builder.WithName( resourceName );
 		foreach ( var (material, vertices) in batches )
 		{
@@ -89,6 +90,7 @@ static class UnitModel
 			builder.AddMesh( mesh );
 		}
 		if ( collisionIndices.Count > 0 ) builder.AddCollisionMesh( collisionVertices.ToArray(), collisionIndices.ToArray() );
-		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 );
+		foreach ( var primitive in primitives ) builder.AddCollisionHull( primitive.Points.AsSpan() );
+		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 );
 	}
 }
