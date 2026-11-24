@@ -47,7 +47,7 @@ sealed partial class ModelFile
 		data.Float(p+32),data.Float(p+36),data.Float(p+40),data.Float(p+44),
 		data.Float(p+48),data.Float(p+52),data.Float(p+56),data.Float(p+60) );
 
-	public Dictionary<uint, Matrix> Pose( AnimationFile clip, float time, Dictionary<ulong, AnimationFile.Track> embedded = null )
+	public Dictionary<uint, Matrix> Pose( AnimationFile clip, float time, Dictionary<ulong, AnimationFile.Track> embedded = null, bool preserveBoneLengths = false )
 	{
 		var pose = new Dictionary<uint, Matrix>();
 		var active = new HashSet<uint>();
@@ -56,6 +56,15 @@ sealed partial class ModelFile
 			if ( pose.TryGetValue( id, out var cached ) ) return cached;
 			if ( !active.Add( id ) || !nodes.TryGetValue( id, out var node ) ) throw new InvalidDataException( "Invalid rig hierarchy." );
 			var local = clip?.Tracks.TryGetValue( node.Name, out var track ) == true ? track.Sample( time, node.Matrix ) : node.Matrix;
+			// Shared character clips can contain another body's proportions (notably male walk/
+			// surrender on female rigs). Retarget local offsets before composing the hierarchy.
+			// Keep root/hip travel; all child joints retain the target skeleton's segment lengths.
+			if ( preserveBoneLengths && node.Parent != 0 && node.Name != IdString.Hash( "Hips" ) && node.Name != IdString.Hash( "root_point" ) )
+			{
+				var offset = local.Translation;
+				local.Translation = offset.LengthSquared() > 0.000001f
+					? Vec.Normalize( offset ) * node.Matrix.Translation.Length() : node.Matrix.Translation;
+			}
 			if ( embedded?.TryGetValue( node.Name, out var controller ) == true ) local = controller.Sample( time, local );
 			var world = node.Parent == 0 ? local : local * Evaluate( node.Parent );
 			active.Remove( id );

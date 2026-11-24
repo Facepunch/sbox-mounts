@@ -16,12 +16,17 @@ static class NpcVerification
 			var unit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", definition.Unit ) ) );
 			string path = unit.Element( "object" ).Attribute( "file" );
 			var model = new ModelFile( db.Find( "model", path ) );
+			var bind = model.Pose( null, 0 );
+			float neckLength = System.Numerics.Vector3.Distance( model.NodePose( bind, "Head" ).Translation, model.NodePose( bind, "Neck" ).Translation );
 			foreach ( var (name, clipPath) in definition.Clips() )
 			{
 				var clip = new AnimationFile( db.Find( "animation", clipPath ) );
 				for ( int i = 0; i <= 8; i++ )
 				{
-					var pose = model.Pose( clip, clip.Duration * i / 8 );
+					var pose = model.Pose( clip, clip.Duration * i / 8, preserveBoneLengths: true );
+					float sampledNeck = System.Numerics.Vector3.Distance( model.NodePose( pose, "Head" ).Translation, model.NodePose( pose, "Neck" ).Translation );
+					if ( MathF.Abs( sampledNeck - neckLength ) > .01f )
+						throw new Exception( $"{definition.Id}/{name}: shared clip stretched neck from {neckLength} to {sampledNeck}." );
 					Matrix4x4.Invert( model.NodePose( pose, "root_point" ), out var root );
 					var head = model.NodePose( pose, "Head" ) * root;
 					float height = head.Translation.Z / 2.54f;

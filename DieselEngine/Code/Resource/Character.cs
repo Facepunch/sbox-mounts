@@ -114,7 +114,7 @@ sealed class PaydayCharacter
 
 	public Dictionary<uint, Transform> Sample( string clip, float time )
 	{
-		var pose = File.Pose( Clips[clip], time );
+		var pose = File.Pose( Clips[clip], time, preserveBoneLengths: true );
 		// Strip authored root travel: navigation owns world movement.
 		Matrix.Invert( File.NodePose( pose, "root_point" ), out var root );
 		return pose.ToDictionary( p => p.Key, p => ModelFile.Convert( p.Value * root ) );
