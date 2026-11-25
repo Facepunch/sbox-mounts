@@ -35,8 +35,22 @@ public class GameMount : BaseGameMount
 	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
 	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
 
+	CinematicBurst stompImpact;
+	internal CinematicBurst StompImpact
+	{
+		get
+		{
+			if ( stompImpact is not null ) return stompImpact;
+			if ( !TryResolve( FileSystem, "cinematics/alien/onos/shockwave_hit.cinematic", out var path ) ) return null;
+			using var stream = FileSystem.OpenRead( path );
+			var node = CinematicFile.Read( stream ).Find( "Emitter" );
+			return node is null ? null : stompImpact = new CinematicBurst( node );
+		}
+	}
+
 	protected override void Shutdown()
 	{
+		stompImpact = null;
 		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
 		SoundBanks.Clear();

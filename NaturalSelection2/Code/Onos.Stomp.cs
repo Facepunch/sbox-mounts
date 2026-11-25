@@ -57,7 +57,7 @@ public sealed partial class Onos
 			var height = Vector3.Up * (0.4f * Scale);
 			if ( TraceWorld( center + height, position + height ).Hit ) continue;
 			waveVictims.Add( victim );
-			ShowStompImpact( position, victim.WorldRotation.Up );
+			ShowStompImpact( position, victim.WorldRotation );
 			var player = victim.GetComponent<PlayerController>();
 			if ( player.IsValid() ) WebPlayer( player );
 			DealDamage( (IDamageable)victim, 50, position, "stomp" );
@@ -72,11 +72,15 @@ public sealed partial class Onos
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void ShowStompImpact( Vector3 position, Vector3 normal )
+	void ShowStompImpact( Vector3 position, Rotation facing )
 	{
+		if ( !Graphics.IsAvailable ) return;
+		if ( Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
+			mount.StompImpact?.Play( position, facing );
+
 		// Shared decals use the victim's up axis and the client's default twelve-second lifetime.
 		var tangent = new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -0.9f, 1.1f ), Random.Shared.Float( -1.1f, 0.9f ) );
-		SpawnDecal( "shockwave_hit", position, Rotation.LookAt( -normal, tangent ), 0, 2, 12 );
+		SpawnDecal( "shockwave_hit", position, Rotation.LookAt( -facing.Up, tangent ), 0, 2, 12 );
 	}
 
 	static void SpawnDecal( string material, Vector3 position, Rotation rotation, float roll, float size, float lifetime )

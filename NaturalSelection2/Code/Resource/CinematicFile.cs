@@ -118,10 +118,10 @@ internal sealed class CinematicFile
 
 			int valueType = r.ReadInt32();
 			r.ReadInt32(); // component count
-			r.ReadInt32(); // flags
+			int flags = r.ReadInt32();
 
 			int size = (int)(blockEnd - stream.Position);
-			node.Properties[key] = new CinematicValue( valueType, size > 0 ? r.ReadBytes( size ) : [] );
+			node.Properties[key] = new CinematicValue( valueType, flags, size > 0 ? r.ReadBytes( size ) : [] );
 
 			stream.Position = blockEnd;
 		}
@@ -153,18 +153,20 @@ internal sealed class CinematicNode
 internal readonly struct CinematicValue
 {
 	public int Type { get; }
+	public int Flags { get; }
 	public byte[] Data { get; }
 
-	public CinematicValue( int type, byte[] data )
+	public CinematicValue( int type, int flags, byte[] data )
 	{
 		Type = type;
+		Flags = flags;
 		Data = data ?? [];
 	}
 
 	/// <summary>Types 0 and 4 are both length-prefixed UTF-16; 4 is used for asset paths.</summary>
 	public string AsString()
 	{
-		if ( Type is not (0 or 4) || Data.Length < 4 )
+		if ( Type is not (0 or 4) || Data is null || Data.Length < 4 )
 			return string.Empty;
 
 		int chars = BitConverter.ToInt32( Data, 0 );

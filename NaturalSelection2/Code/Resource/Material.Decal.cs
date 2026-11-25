@@ -8,7 +8,12 @@ public partial class MaterialLoader
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.GameResource;
-		return name == "projected.decal" ? new ProjectedDecalLoader() : null;
+		return name switch
+		{
+			"projected.decal" => new ProjectedDecalLoader(),
+			"particle.sprite" => new ParticleSpriteLoader(),
+			_ => null
+		};
 	}
 
 	sealed class ProjectedDecalLoader : ResourceLoader<GameMount>
