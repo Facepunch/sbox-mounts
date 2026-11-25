@@ -411,11 +411,6 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 				hp.OnDamage( info );
 				combatUntil = 3;
 				lastHit = 0;
-				if ( unreachable && obj == trackedEnemy )
-				{
-					lastFiringPosition = WorldPosition;
-					sinceProgress = 0;
-				}
 			}
 			if ( !pass ) break;
 			ray = ray.IgnoreGameObjectHierarchy( obj );

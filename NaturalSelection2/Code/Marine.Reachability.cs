@@ -3,7 +3,7 @@ using System;
 
 namespace NS2;
 
-public sealed partial class Marine
+public sealed partial class Marine : Component.IDamageable.IEvents
 {
 	GameObject trackedEnemy, ignoredEnemy;
 	Vector3 ignoredPosition;
@@ -13,6 +13,17 @@ public sealed partial class Marine
 	TimeUntil ignoreUntil;
 	TimeSince sinceCheck, sinceProgress;
 	float bestDistance;
+
+	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent hit )
+	{
+		if ( !unreachable || hit.Victim != trackedEnemy || hit.AcceptedDamage <= 0 || !hit.Instigator.IsValid() ) return;
+		if ( hit.Instigator == GameObject )
+			lastFiringPosition = WorldPosition;
+		else if ( GetDisposition( hit.Instigator ) != Disposition.Friendly && hit.Instigator.GetComponent<BaseNpc>()?.Faction != Faction )
+			return;
+
+		sinceProgress = 0;
+	}
 
 	Func<GameObject, Vector3, bool> ignoreTarget;
 	bool IsIgnoredTarget( GameObject target, Vector3 position ) =>
