@@ -19,10 +19,9 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	readonly AlienTargeting targeting = new();
 	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 30;
-	[Sync( SyncFlags.FromHost )] TimeSince animationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
-	SparkAnimationGraph.Playback world, weapon;
+	SparkAnimationGraph.Playback weapon;
 	Action<string> worldTag, weaponTag;
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation View { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation BodyRotation { get; set; }
@@ -93,7 +92,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 7 * Scale / gravity;
 		View = BodyRotation = WorldRotation;
-		animationTime = 0;
+		AnimationTime = 0;
 		worldTag = tag => AlienFootsteps.OnTag( this, "lerk", tag );
 		weaponTag = OnWeaponTag;
 	}
@@ -163,8 +162,8 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
-			movePose.Write( Locomotion, output, animationTime );
-			attackPose.Write( ActionLayer, output, animationTime );
+			movePose.Write( Locomotion, output, AnimationTime );
+			attackPose.Write( ActionLayer, output, AnimationTime );
 			return;
 		}
 
@@ -186,14 +185,14 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		world.Set( "flapping", lastFlap <= 0.5f ? 1 : 0 );
 		world.Set( "ability", ability );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output, worldTag );
+		world.Update( AnimationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", move );
 		weapon.Set( "ability", ability );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
-		weapon.Update( animationTime, tag: weaponTag );
+		weapon.Update( AnimationTime, tag: weaponTag );
 		if ( firingSpikes && nextSpikeSound < 0 )
 		{
 			nextSpikeSound = 0.1f;

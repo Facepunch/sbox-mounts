@@ -11,7 +11,6 @@ public sealed partial class Skulk
 	[Sync( PoseSync )] Rotation BodyRotation { get; set; }
 	[Sync( PoseSync )] float StandingOffset { get; set; }
 	[Sync( PoseSync )] float RunningOffset { get; set; }
-	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose Locomotion { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose ActionPose { get; set; }
 

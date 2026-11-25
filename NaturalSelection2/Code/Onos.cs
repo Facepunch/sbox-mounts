@@ -18,7 +18,6 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 	const float MaxArmor = 450;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
-	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose MovePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose AttackPose { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation ViewRotation { get; set; }
@@ -27,7 +26,7 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 	bool stooping;
 	TimeUntil nextStoopCheck = 0.3f;
 	float standingYaw, fallSpeed;
-	SparkAnimationGraph.Playback world, weapon;
+	SparkAnimationGraph.Playback weapon;
 	Action<string> weaponTag, worldTag;
 	GameObject target;
 	bool attacking;

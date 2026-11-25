@@ -18,10 +18,9 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	readonly AlienTargeting targeting = new();
 	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
-	[Sync( SyncFlags.FromHost )] TimeSince animationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
-	SparkAnimationGraph.Playback world, weapon;
+	SparkAnimationGraph.Playback weapon;
 	Action<string> worldTag, weaponTag;
 	Rotation view;
 	bool attacking, stabSelected, stabbing, drawingWeapon;
@@ -91,7 +90,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
 		view = WorldRotation;
-		animationTime = 0;
+		AnimationTime = 0;
 		worldTag = tag => AlienFootsteps.OnTag( this, "fade", tag );
 		weaponTag = OnWeaponTag;
 	}
@@ -145,8 +144,8 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
-			movePose.Write( Locomotion, output, animationTime );
-			attackPose.Write( ActionLayer, output, animationTime );
+			movePose.Write( Locomotion, output, AnimationTime );
+			attackPose.Write( ActionLayer, output, AnimationTime );
 			return;
 		}
 
@@ -164,14 +163,14 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		world.Set( "move", Blinking ? "blink" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
 		world.Set( "ability", ability );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output, worldTag );
+		world.Update( AnimationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", Blinking ? "blink" : "idle" );
 		weapon.Set( "ability", ability );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
-		weapon.Update( animationTime, tag: weaponTag );
+		weapon.Update( AnimationTime, tag: weaponTag );
 		drawingWeapon = false;
 	}
 

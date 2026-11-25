@@ -51,7 +51,7 @@ public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 	SkulkMovement mover;
 	TimeUntil leapEnds;
 	float energy = 100;
-	SparkAnimationGraph.Playback world, weapon;
+	SparkAnimationGraph.Playback weapon;
 	Action<string> weaponTag;
 
 	protected override void OnStart()

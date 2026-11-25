@@ -4,6 +4,10 @@ namespace NS2;
 
 public abstract class AlienLifeform : AlienNpc
 {
+	private protected SparkAnimationGraph.Playback world;
+	[Sync( SyncFlags.FromHost )] protected TimeSince AnimationTime { get; set; }
+	bool railgunDeath;
+
 	protected abstract int BaseHealth { get; }
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int RegenerationShells { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil nextHeal { get; set; }
@@ -20,5 +24,21 @@ public abstract class AlienLifeform : AlienNpc
 		AlienHealing.Restore( this, amount, 0.5f );
 	}
 
-	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 3f );
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		railgunDeath = e.DamageInfo.Tags.Has( "railgun" );
+		if ( railgunDeath ) ShowRailgunDeath( GetType().Name.ToLowerInvariant(), WorldPosition );
+		base.OnDeath( e );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void ShowRailgunDeath( string lifeform, Vector3 position ) =>
+		CinematicLoader.Play( $"cinematics/alien/{lifeform}/explode.cinematic", position, Rotation.Identity );
+
+	protected override GameObject CreateRagdoll()
+	{
+		if ( world is null ) return railgunDeath ? null : NpcCorpse.Attach( base.CreateRagdoll(), 3f );
+		var body = NpcCorpse.AnimateLifeform( Renderer, world, AnimationTime, railgunDeath );
+		return railgunDeath ? null : body;
+	}
 }

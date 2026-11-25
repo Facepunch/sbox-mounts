@@ -18,10 +18,9 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	readonly AlienTargeting targeting = new();
 	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 50;
-	[Sync( SyncFlags.FromHost )] TimeSince animationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
-	SparkAnimationGraph.Playback world, weapon;
+	SparkAnimationGraph.Playback weapon;
 	Action<string> worldTag, weaponTag;
 	Rotation aim;
 	float energy = 100;
@@ -79,7 +78,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			weapon = new( arms.PropGraph, arms );
 		worldTag = tag => AlienFootsteps.OnTag( this, "gorge", tag );
 		weaponTag = OnWeaponTag;
-		animationTime = 0;
+		AnimationTime = 0;
 		aim = WorldRotation;
 		nextHatch = 2.5f;
 		PlayCue( "spawn", WorldPosition );
@@ -157,8 +156,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
-			movePose.Write( Locomotion, output, animationTime );
-			attackPose.Write( ActionLayer, output, animationTime );
+			movePose.Write( Locomotion, output, AnimationTime );
+			attackPose.Write( ActionLayer, output, AnimationTime );
 			return;
 		}
 		if ( Health <= 0 ) return;
@@ -189,14 +188,14 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		world.Set( "ability", bombarding ? "bomb" : "spit" );
 		world.Set( "attack_speed", 1 );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output, worldTag );
+		world.Update( AnimationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", move );
 		weapon.Set( "ability", bombarding ? "bomb" : "spit" );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
-		weapon.Update( animationTime, tag: weaponTag );
+		weapon.Update( AnimationTime, tag: weaponTag );
 	}
 
 	void OnWeaponTag( string tag )
