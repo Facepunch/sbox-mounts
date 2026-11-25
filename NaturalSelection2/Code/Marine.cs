@@ -148,6 +148,14 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var target = visible ? enemy.GetComponentInParent<IDamageable>() : null;
+		bool lifeformThreat = enemy.IsValid() && !enemy.Tags.HasAny( "ns2_harvester", "ns2_babbler" );
+		bool attackPriority = lifeformThreat && goal is { } position && WorldPosition.DistanceSquared( position ) <= 35 * Scale * (35 * Scale);
+		if ( (!enemy.IsValid() || lifeformThreat) && TryMaintainWeapons( lifeformThreat, attackPriority ) )
+		{
+			wantsFire = false;
+			Movement.Stop();
+			return;
+		}
 		if ( target is not null )
 		{
 			bool usePistol;
@@ -168,9 +176,9 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			}
 			SelectWeapon( usePistol );
 		}
-		else if ( !enemy.IsValid() )
+		else if ( !enemy.IsValid() && !reloading && rifleAmmo.Clip > 0 )
 		{
-			MaintainWeapons();
+			SelectWeapon( false );
 		}
 		if ( Ammo.Clip == 0 ) BeginReload();
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
@@ -269,24 +277,20 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void CancelReloadSound() => reloadSound?.Stop();
 
-	void MaintainWeapons()
+	bool TryMaintainWeapons( bool hasThreat, bool attackPriority )
 	{
-		if ( reloading ) return;
+		if ( reloading && !hasThreat ) return true;
 		bool inCombat = combatUntil > 0;
-		bool reloadRifle = rifleAmmo.Reserve > 0 && rifleAmmo.Clip < rifleAmmo.Capacity
-			&& (!inCombat || rifleAmmo.Clip < rifleAmmo.Capacity * 0.4f);
+		bool reloadRifle = !attackPriority && rifleAmmo.Reserve > 0 && rifleAmmo.Clip < rifleAmmo.Capacity
+			&& ((!hasThreat && !inCombat) || rifleAmmo.Clip < rifleAmmo.Capacity * 0.4f);
+		// With a full rifle outside combat, the original bot tops off its pistol even with a threat nearby.
 		bool reloadPistol = pistolAmmo.Reserve > 0 && pistolAmmo.Clip < pistolAmmo.Capacity
-			&& (inCombat ? rifleAmmo.Reserve == 0 : rifleAmmo.Clip == rifleAmmo.Capacity);
+			&& (inCombat ? !attackPriority && rifleAmmo.Reserve == 0 : rifleAmmo.Clip == rifleAmmo.Capacity);
+		if ( !reloadRifle && !reloadPistol ) return false;
 
-		if ( reloadRifle || reloadPistol )
-		{
-			SelectWeapon( !reloadRifle );
-			BeginReload();
-		}
-		else if ( rifleAmmo.Clip > 0 )
-		{
-			SelectWeapon( false );
-		}
+		SelectWeapon( !reloadRifle );
+		BeginReload();
+		return true;
 	}
 
 	protected override void OnFixedUpdate()
