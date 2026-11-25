@@ -23,6 +23,8 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	Halo2AnimationContext context;
 	string mode, weaponClass, weaponType;
 	string action;
+	string weaponOverlay;
+	TimeUntil overlayEnds;
 	Halo2Transition pending, playing;
 	bool holdReaction;
 	Graph assigned;
@@ -61,6 +63,25 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	internal Halo2ClipInfo GetOverlayClip( string name ) => context?.Overlays.TryGetValue( name, out var reference ) == true
 		? model.GetClipInfo( reference ) : null;
+
+	internal void PlayWeaponOverlay( string name )
+	{
+		if ( !Bound || GetOverlayClip( name ) is not {} clip ) return;
+		var parameters = Renderer.Animation.Parameters;
+		parameters.Set( "overlay", name );
+		parameters.Set( "overlay_auto", true );
+		parameters.Trigger( "overlay_restart" );
+		weaponOverlay = name;
+		overlayEnds = clip.Frames / 30f;
+	}
+
+	void ReleaseWeaponOverlay()
+	{
+		if ( weaponOverlay is null ) return;
+		if ( Bound && Renderer.Animation.Parameters.GetString( "overlay" ) == weaponOverlay )
+			Renderer.Animation.Parameters.Set( "overlay", "" );
+		weaponOverlay = null;
+	}
 
 	public bool SetAction( string name, bool once = false )
 	{
@@ -160,6 +181,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	protected override void OnUpdate()
 	{
 		if ( !Bound ) return;
+		if ( weaponOverlay is not null && overlayEnds <= 0 ) ReleaseWeaponOverlay();
 		var slots = Renderer.Animation.ExternalGraphs;
 		foreach ( var slot in ReactionSlots )
 		{
@@ -200,6 +222,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	void ReleaseSlots()
 	{
+		ReleaseWeaponOverlay();
 		if ( Bound )
 		{
 			var slots = Renderer.Animation.ExternalGraphs;
