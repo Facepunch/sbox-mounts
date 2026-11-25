@@ -831,6 +831,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		// A joining peer can receive the equipped item before its holder's renderer.
+		if ( !WorldModel.IsValid() && Inventory?.ActiveItem == this && HolderRenderer.IsValid() )
+			CreateWorldModel();
 		UpdateWorldAnimations();
 		heldModel?.UpdateChamberPose();
 		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
