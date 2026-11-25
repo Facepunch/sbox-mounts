@@ -179,6 +179,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		SetNextPrimaryFire( 0 );
 	}
 
+	protected override bool OnHolstering( BaseInventoryItem next ) => !_alternatePending && base.OnHolstering( next );
+
 	protected override void OnHolstered()
 	{
 		_holdingEmptyTrigger = false;
@@ -492,7 +494,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		if ( IsHeld && !TakeSecondaryAmmo( 1 ) ) return;
 		TimeSinceShoot = 0;
-		SetNextFire( AlternateDuration );
+		SetNextFire( AlternateProjectile == SourceProjectile.Kinds.EnergyBall ? SecondaryDelay : AlternateDuration );
 		AlternateEffects( [new ShotEffect()] );
 		KickView();
 		LaunchAlternate( AimRay.Position, AimRay.Forward, attacker );

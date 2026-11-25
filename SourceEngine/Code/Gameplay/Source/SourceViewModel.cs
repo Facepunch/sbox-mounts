@@ -346,7 +346,9 @@ public sealed class SourceViewModel : BaseWeaponModel
 				_pumpAfterShot = false;
 				Play( _clips.Pump );
 			}
-			else Play( IdleClip );
+			else if ( _weapon is not SourceBulletWeapon { UsesPrimaryClip: true, IncrementalReloading: false } ||
+				!(Input.Down( "attack1" ) || Input.Down( "attack2" ) || Input.Down( "reload" )) )
+				Play( IdleClip );
 		}
 		_animation.Tick();
 		GetComponent<SourceViewModelHands>()?.Animate( _animation, _choices );
