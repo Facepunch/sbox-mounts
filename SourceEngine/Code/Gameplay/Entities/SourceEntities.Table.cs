@@ -398,7 +398,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "smg", "SMG", "models/weapons/w_smg1.mdl", null, """
 			{
 				".": {
-					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "5,5", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "EmptyClickInterval": 0.5, "SecondaryAutomatic": true, "FiresUnderwater": false, "SecondaryDelay": 1.0, "PrimaryDelayAfterLaunch": 0.5, "DisplayName": "HL2 SMG", "HoldType": "smg", "ContinuousFireRate": true, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "StartingAmmo": 135, "ViewModelPrefab": {"prefab": "entities/parts/smg_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/smg_wm.prefab"}}
+					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "5,5", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "EmptyClickInterval": 0.5, "SecondaryAutomatic": true, "FiresUnderwater": false, "SecondaryDelay": 1.0, "CanLaunchDuringReload": true, "PrimaryDelayAfterLaunch": 0.5, "DisplayName": "HL2 SMG", "HoldType": "smg", "ContinuousFireRate": true, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "StartingAmmo": 135, "ViewModelPrefab": {"prefab": "entities/parts/smg_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/smg_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_smg1.mdl"}

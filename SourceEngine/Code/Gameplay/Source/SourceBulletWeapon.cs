@@ -101,6 +101,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	[Sync( SyncFlags.FromHost )] bool AlternateReserveSeeded { get; set; }
 	internal float? AlternateDamage { get; set; }
 	internal float? AlternateRadius { get; set; }
+	[Property, Feature( "Shooting" )] public bool CanLaunchDuringReload { get; set; }
 	[Property, Feature( "Shooting" )] public float PrimaryDelayAfterLaunch { get; set; } = 1;
 	internal SourceProjectile.Kinds? AlternateProjectile { get; set; }
 	internal float AlternatePumpDelay { get; set; }
@@ -154,7 +155,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		base.Think();
 		// A ready launcher takes priority over bullets and reload on the same frame.
-		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && !IsReloading )
+		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && (!IsReloading || CanLaunchDuringReload) )
 		{
 			if ( HasSecondaryAmmo() ) FireSecondary();
 			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( _nextEmptyClick );
@@ -421,7 +422,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	public override bool CanSecondaryAttack() => !_alternatePending && _burstRemaining <= 0
 		&& (Launches || Secondary is SecondaryFires.DoubleShot or SecondaryFires.Zoom or SecondaryFires.Burst or SecondaryFires.Silencer)
-		&& base.CanSecondaryAttack();
+		&& (IsReloading && Launches && CanLaunchDuringReload ? NextSecondaryFire <= 0 && HasSecondaryAmmo() : base.CanSecondaryAttack());
 
 	public override void SecondaryAttack()
 	{
@@ -453,6 +454,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			return;
 		}
 		if ( BlockSubmergedShot( blockBothTriggers: true ) ) return;
+		if ( IsReloading && CanLaunchDuringReload ) CancelReload();
 		if ( AlternateProjectile == SourceProjectile.Kinds.EnergyBall )
 		{
 			_alternatePending = true;
