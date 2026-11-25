@@ -57,7 +57,11 @@ public sealed partial class RabbitGuard
 
 	bool FollowPatrol()
 	{
-		if ( !patrolTarget.IsValid() ) patrolTarget = PatrolStart;
+		if ( !patrolTarget.IsValid() )
+		{
+			previousPatrolPoint = null;
+			patrolTarget = PatrolStart;
+		}
 		if ( patrolWait > 0f && patrolTarget.IsValid() && patrolTarget.Connections.Count == 0 && patrolOrigin is { } origin )
 		{
 			var offset = origin.Position - WorldPosition;
@@ -79,13 +83,9 @@ public sealed partial class RabbitGuard
 			if ( !leader.IsValid() || !knownCharacters.ContainsKey( leader ) )
 			{
 				unassignedPatrol = !PatrolCharacter.IsValid() && !PatrolPlayer;
-				if ( TryPatrolSeparation( null, false ) ) return true;
-				return WaitAtPatrolPoint();
+				return MoveOnPatrol( null, false ) || WaitAtPatrolPoint();
 			}
-			var position = TargetPosition( leader );
-			if ( TryPatrolSeparation( position, true ) ) return true;
-			FollowCharacter( position );
-			return true;
+			return MoveOnPatrol( TargetPosition( leader ), true );
 		}
 
 		var target = patrolTarget.WorldPosition;
@@ -105,36 +105,34 @@ public sealed partial class RabbitGuard
 				{ } path when path.StartsWith( "Data/Animations/", System.StringComparison.OrdinalIgnoreCase ) && path.EndsWith( ".anm", System.StringComparison.OrdinalIgnoreCase ) => path,
 				_ => null
 			};
-			if ( reached.Wait is { } wait )
-				patrolWait = reached.Connections.Count == 0 ? float.PositiveInfinity : wait;
+			patrolWait = reached.Connections.Count == 0 ? float.PositiveInfinity : reached.Wait;
 
 			patrolTarget = reached.Connections.FirstOrDefault( p => p.IsValid() && p != previousPatrolPoint )
 				?? reached.Connections.FirstOrDefault( p => p.IsValid() ) ?? reached;
 			previousPatrolPoint = reached;
-			return WaitAtPatrolPoint();
+			if ( StaticCharacter ) return WaitAtPatrolPoint();
 		}
 
-		if ( TryPatrolSeparation( target, false ) ) return true;
-		if ( Movement.MoveTarget != target ) Movement.MoveTo( target, 0f, 0.2f * GroundRunSpeed );
-		Stance = Locomotion;
-		return true;
+		return MoveOnPatrol( target, false );
 	}
 
-	bool TryPatrolSeparation( Vector3? target, bool following )
+	bool MoveOnPatrol( Vector3? target, bool following )
 	{
 		var separation = TeammateSeparation();
-		if ( separation.IsNearlyZero() && moveDelay <= 0f ) return false;
+		var point = WorldPosition;
 		Vector3 intent = default;
-		if ( target.HasValue && moveDelay <= 0f )
+		if ( target is { } destination && destination != WorldPosition && moveDelay <= 0f )
 		{
-			var delta = (target.Value - WorldPosition).WithZ( 0f ) / 40f;
-			if ( following ) delta = delta.Normal * Math.Max( 0f, delta.Length - 2f );
-			intent = (delta + separation).ClampLength( 1f );
+			float radius = following ? 40f : 0f;
+			intent = MovementToPoint( destination, radius, radius, 0f, out point, separation );
 			if ( !following && intent.LengthSquared > 0.2f ) intent = intent.Normal * 0.2f;
 		}
-		// GetPatrolMovement adds separation again after limiting the path-following speed.
+
+		// Stock applies repulsion a second time after limiting patrol speed.
 		intent = (intent + separation).ClampLength( 1f );
-		bool moving = MoveWithIntent( WorldPosition + intent * 40f, intent, 1f );
+		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
+		if ( !target.HasValue && intent.IsNearlyZero() ) return false;
+		bool moving = MoveWithIntent( point, intent, 1f );
 		Stance = moving ? (target.HasValue ? Locomotion : Threat) : Idle;
 		return true;
 	}

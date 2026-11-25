@@ -118,7 +118,7 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	Vector3 MovementToPoint( Vector3 target, float slowRadius, float preferredRange, float strafeOffset, out Vector3 point )
+	Vector3 MovementToPoint( Vector3 target, float slowRadius, float preferredRange, float strafeOffset, out Vector3 point, Vector3? separation = null )
 	{
 		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
 		point = Movement.ProjectPoint( target ) ?? target;
@@ -129,15 +129,15 @@ public sealed partial class RabbitGuard
 			point = WalkableRay( point, point + offset );
 			corner = NextPathCorner( point, out _ );
 		}
-		return PathSteering( corner, toward, slowRadius, ref point );
+		return PathSteering( corner, toward, slowRadius, ref point, separation );
 	}
 
-	Vector3 PathSteering( Vector3 corner, Vector3 toward, float slowRadius, ref Vector3 point )
+	Vector3 PathSteering( Vector3 corner, Vector3 toward, float slowRadius, ref Vector3 point, Vector3? repulsion = null )
 	{
 		var delta = (corner - WorldPosition).WithZ( 0f );
 		var direct = toward * delta.Dot( toward );
 		var intent = (delta - direct + direct.Normal * Math.Max( 0f, direct.Length - slowRadius )) / 40f;
-		var separation = TeammateSeparation();
+		var separation = repulsion ?? TeammateSeparation();
 		intent += separation;
 		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
 		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;

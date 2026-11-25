@@ -146,7 +146,7 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				var point = Object().AddComponent<PatrolPoint>();
 				foreach ( var parameter in node.Element( "parameters" )?.Elements( "parameter" ) ?? [] )
 				{
-					if ( parameter.Attribute( "name" ) == "Wait" ) point.Wait = parameter.Number( "val" );
+					if ( parameter.Attribute( "name" ) == "Wait" ) point.Wait = parameter.Number( "val" ) ?? 0f;
 					if ( parameter.Attribute( "name" ) == "Type" ) point.Pose = parameter.Attribute( "val" );
 				}
 				patrolPoints[pointId] = (point, node);
