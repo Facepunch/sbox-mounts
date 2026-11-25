@@ -391,7 +391,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		TimeSinceShoot = 0;
 		SetNextFire( AlternateDuration );
 		AlternateEffects( volley );
-		DoRecoil();
+		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
@@ -453,7 +453,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	/// <summary>
 	/// The per-shot kick: eye punch and camera shake for a held gun, a physical shove for a standalone one.
 	/// </summary>
-	void DoRecoil()
+	void DoRecoil( Angles? punch = null )
 	{
 		if ( !HasOwner )
 		{
@@ -466,7 +466,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			return;
 		}
 
-		KickView();
+		KickView( punch );
 	}
 
 	/// <summary>Runs for every pellet on every peer: NPCs hear the shot, and ragdolls take the hit wherever they simulate.</summary>

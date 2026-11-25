@@ -122,7 +122,7 @@ public abstract class SourceWeapon : BaseCombatWeapon
 	/// Kicks the owner's aim, then punches and shakes their view if they're the local player in first person.
 	/// Returns whether the view was kicked.
 	/// </summary>
-	protected bool KickView()
+	protected bool KickView( Angles? punchOverride = null )
 	{
 		if ( !HasOwner ) return false;
 
@@ -130,7 +130,7 @@ public abstract class SourceWeapon : BaseCombatWeapon
 
 		if ( Owner.ThirdPerson || Owner.IsProxy ) return false;
 
-		var punch = new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
+		var punch = punchOverride ?? new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
 		if ( PunchResponse == PunchResponses.Oscillate ) Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
 		else SourceViewPunch.Apply( Scene.Camera, punch, PunchResponse == PunchResponses.ResetImpulse );
 
