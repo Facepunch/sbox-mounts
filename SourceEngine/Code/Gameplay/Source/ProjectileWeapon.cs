@@ -281,7 +281,12 @@ public sealed class ProjectileWeapon : Weapon
 			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
 		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, ExplosionRadius, ProjectileModel );
-		if ( IsLauncher ) LiveRocket = projectile.GameObject;
+		if ( projectile is Hl2.Rocket rocket )
+		{
+			rocket.ClearLaunch = !Scene.Trace.Ray( eye, eye + forward * 128 )
+				.IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "projectile", "trigger" ).UseHitboxes().Run().Hit;
+			LiveRocket = rocket.GameObject;
+		}
 	}
 
 	/// <summary>

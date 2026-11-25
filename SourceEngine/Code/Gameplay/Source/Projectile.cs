@@ -26,6 +26,7 @@ public abstract class Projectile : Component
 	protected virtual float Gravity => 0;
 	protected virtual float Lifetime => 10;
 	protected virtual float TraceRadius => 3;
+	protected virtual bool CanCollide => true;
 	/// <summary>A VPhysics object in Source: a rigid body with a box of twice this half-size, rather than a swept trace.</summary>
 	protected virtual float? Physical => null;
 	/// <summary>False for projectiles Source draws entirely in code, such as the combine ball.</summary>
@@ -185,11 +186,18 @@ public abstract class Projectile : Component
 		if ( Physical is not null ) return;
 		Velocity += Vector3.Down * Gravity * Time.Delta;
 		Steer();
-		var trace = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity * Time.Delta ).Radius( TraceRadius )
+		var end = WorldPosition + Velocity * Time.Delta;
+		if ( Velocity.Length > 1 ) WorldRotation = Facing;
+		if ( !CanCollide )
+		{
+			WorldPosition = end;
+			return;
+		}
+
+		var trace = Scene.Trace.Ray( WorldPosition, end ).Radius( TraceRadius )
 			.IgnoreGameObjectHierarchy( LaunchIgnoreRoot ?? Attacker ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "projectile", "trigger" ).UseHitboxes();
 		var tr = TraceFlight( trace );
 		WorldPosition = tr.EndPosition;
-		if ( Velocity.Length > 1 ) WorldRotation = Facing;
 		if ( tr.Hit ) Hit( tr );
 	}
 

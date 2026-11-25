@@ -139,6 +139,11 @@ public sealed class Rocket : Projectile
 	/// <summary>CWeaponRPG::PrimaryAttack: the missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
 	public static Vector3 LaunchVelocity( Vector3 aim ) => aim * DropSpeed + Vector3.Up * DropLift;
 
+	internal bool ClearLaunch { get; set; }
+	protected override bool CanCollide => Ignited || !ClearLaunch;
+	protected override float TraceRadius => 0;
+	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
+
 	protected override float Gravity => Ignited ? 0 : 600;
 	protected override Rotation Facing => Ignited ? base.Facing : Rotation.LookAt( _aim );
 
