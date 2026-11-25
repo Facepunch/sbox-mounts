@@ -12,6 +12,9 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 20;
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 20 ); }
 	float IDamageable.MaxArmour => 20;
+	[Property] public bool CragHive { get; set; }
+	[Property] public bool ShiftHive { get; set; }
+	[Sync( SyncFlags.FromHost )] TimeUntil nextRegeneration { get; set; }
 	bool hasOrder;
 	[Sync( SyncFlags.FromHost )] bool constructing { get; set; }
 	Harvester target;
@@ -137,6 +140,18 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 		{
 			pose.Write( output, age );
 			return;
+		}
+		if ( Health > 0 )
+		{
+			Movement.WalkSpeed = Movement.RunSpeed = (ShiftHive ? 13 : 11) * Scale;
+			if ( CragHive && nextRegeneration <= 0 )
+			{
+				nextRegeneration = 2;
+				float amount = 0.03f * MaxHealth;
+				float health = Math.Clamp( MaxHealth - Health, 0, amount );
+				Health += health;
+				armor = Math.Min( 20, armor + amount - health );
+			}
 		}
 		if ( graph is null ) return;
 		graph.Set( "alive", Health > 0 ? 1 : 0 );
