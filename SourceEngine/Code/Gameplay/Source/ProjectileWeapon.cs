@@ -57,9 +57,13 @@ public sealed partial class ProjectileWeapon : Weapon
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
 	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
 	bool _reloadAfterShot;
-	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
-		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0
-		&& (_reloadAfterShot || !Input.Down( "attack2" )));
+	protected override bool WantsReload()
+	{
+		if ( AutoReloadDelay <= 0 ) return base.WantsReload();
+		if ( Input.Down( "reload" ) && NextPrimaryFire <= 0 ) return true;
+		return AutoReload && Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0
+			&& (_reloadAfterShot || !Input.Down( "attack2" ));
+	}
 
 	bool HasLowThrow => Kind == Projectile.Kinds.Grenade && ThrowClips?.LowWindup is not null
 		&& ThrowClips.Lob.Clip is not null && ThrowClips.Roll.Clip is not null;
