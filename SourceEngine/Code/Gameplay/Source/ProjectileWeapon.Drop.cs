@@ -24,9 +24,33 @@ public sealed partial class ProjectileWeapon
 		var velocity = _dropVelocity.Value;
 		var gravityStep = Vector3.Down * (600f * Time.Delta);
 		var end = WorldPosition + (velocity + gravityStep * 0.5f) * Time.Delta;
-		var hit = Scene.Trace.Ray( WorldPosition, end ).Size( new Vector3( 8 ) ).WithTag( "world" ).Run();
+		SceneTraceResult Sweep( Vector3 to ) => Scene.Trace.Ray( WorldPosition, to ).Size( new Vector3( 8 ) ).WithTag( "world" ).Run();
+		var hit = Sweep( end );
 		WorldPosition = hit.EndPosition;
-		_dropVelocity = hit.Hit || hit.StartedSolid ? null : velocity + gravityStep;
+		velocity += gravityStep;
+		_dropVelocity = velocity;
+		if ( !hit.Hit && !hit.StartedSolid ) return;
+
+		// After the sticky touch expires, the pod slides like an ordinary dropped weapon.
+		if ( _pickupAllowed > 0 || hit.StartedSolid )
+		{
+			_dropVelocity = null;
+			return;
+		}
+
+		velocity -= velocity.ProjectOnNormal( hit.Normal );
+		_dropVelocity = velocity;
+		if ( hit.Normal.z <= 0.7f ) return;
+		if ( velocity.z < -gravityStep.z ) velocity.z = 0;
+		if ( velocity.LengthSquared < 30f * 30f )
+		{
+			_dropVelocity = null;
+			return;
+		}
+
+		_dropVelocity = velocity;
+		var slide = velocity * ((1 - hit.Fraction) * Time.Delta * hit.Surface.Friction);
+		WorldPosition = Sweep( WorldPosition + slide ).EndPosition;
 	}
 
 	protected override bool OnAdding( BaseInventoryComponent inventory ) =>
