@@ -120,7 +120,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return Halo2TextureLoader.SpriteSheet( map, bitmap, (flags & 8) == 0 );
 	}
 
-	internal (CurveRange Radius, CurveRange Alpha) SmokeCurves( bool firstPerson )
+	(CurveRange Radius, CurveRange Alpha) SmokeCurves( bool firstPerson )
 	{
 		int barrel = Block( Header + 0x2d0 );
 		int systems = Block( FiringEvent( barrel ) + 48 );
@@ -356,6 +356,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.HoldType = WeaponHolds.Shotgun;
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";
+			(gun.ViewSmokeRadius, gun.ViewSmokeAlpha) = SmokeCurves( true );
+			(gun.WorldSmokeRadius, gun.WorldSmokeAlpha) = SmokeCurves( false );
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			float acceleration = Float( Header + 0x2e8 ), speed = Float( Header + 0x2ec );
 			if ( acceleration != 0 ) gun.TurnAcceleration = acceleration;

@@ -11,8 +11,9 @@ public partial class ShotgunModel
 	void ConfigureSoftSmoke( bool firstPerson )
 	{
 		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.SmokeName}" );
-		if ( !texture.IsValid() || texture.IsError || ShotgunLoader.Mounted is not {} loader ) return;
-		(smokeRadius, smokeAlpha) = loader.SmokeCurves( firstPerson );
+		if ( !texture.IsValid() || texture.IsError ) return;
+		smokeRadius = firstPerson ? Weapon.ViewSmokeRadius : Weapon.WorldSmokeRadius;
+		smokeAlpha = firstPerson ? Weapon.ViewSmokeAlpha : Weapon.WorldSmokeAlpha;
 		viewSmoke = firstPerson;
 		var sprite = Sprite.FromTexture( texture );
 		softSmoke = CreateSmoke( "Soft muzzle smoke", sprite );

@@ -5,6 +5,10 @@ public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public string ArmsPath { get; set; }
+	[Property] public CurveRange ViewSmokeRadius { get; set; }
+	[Property] public CurveRange ViewSmokeAlpha { get; set; }
+	[Property] public CurveRange WorldSmokeRadius { get; set; }
+	[Property] public CurveRange WorldSmokeAlpha { get; set; }
 	[Property] public float ChamberDuration { get; set; } = 0.5f;
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
