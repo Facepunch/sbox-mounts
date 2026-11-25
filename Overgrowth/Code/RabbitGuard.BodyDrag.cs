@@ -23,6 +23,8 @@ public sealed partial class RabbitGuard
 
 	void BeginBodyInspection( float seconds )
 	{
+		// The following area search keeps the deadline set on entering body inspection.
+		BeginAreaSearch();
 		inspectUntil = seconds;
 		dragWindow = seconds + 2f;
 	}

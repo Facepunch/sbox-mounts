@@ -45,9 +45,8 @@ public sealed partial class RabbitGuard
 
 	bool WaitAtPatrolPoint()
 	{
-		float heard = CurrentSuspicion;
-		if ( !Sleeping && heard > 0f && heard > enemySeen )
-			PatrolAnimation = heard > 0.5f ? "Data/Animations/r_actionidle_listen_b.anm" : "Data/Animations/r_actionidle.anm";
+		if ( !Sleeping && suspicion > 0f && suspicion > enemySeen )
+			PatrolAnimation = suspicion > 0.5f ? "Data/Animations/r_actionidle_listen_b.anm" : "Data/Animations/r_actionidle.anm";
 		else if ( !Sleeping && enemySeen > 0f ) return false;
 		else if ( waypointAnimation is not null && patrolWait > 0f ) PatrolAnimation = waypointAnimation;
 		else return false;
@@ -70,7 +69,7 @@ public sealed partial class RabbitGuard
 				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
 			}
 		}
-		if ( patrolWait > 0f || enemySeen > 0.1f || CurrentSuspicion > 0.1f ) return WaitAtPatrolPoint();
+		if ( patrolWait > 0f || enemySeen > 0.1f || suspicion > 0.1f ) return WaitAtPatrolPoint();
 		if ( !patrolTarget.IsValid() )
 		{
 			var leader = PatrolCharacter.IsValid() ? PatrolCharacter.GameObject : null;

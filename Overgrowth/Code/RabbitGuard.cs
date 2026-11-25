@@ -84,7 +84,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && !Unconscious ) awakeTime += Time.Delta;
+		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && !Unconscious )
+		{
+			awakeTime += Time.Delta;
+			if ( !StaticCharacter ) suspicion = Math.Max( 0f, suspicion - Time.Delta * 0.1f );
+		}
 		if ( Networking.IsHost && Movement is CharacterNavigation { Active: true } navigation ) navigation.PlaceOnGround( this );
 		if ( Networking.IsHost && (Unconscious || boundAnimations?.Species == "wolf") ) DropHandItem();
 		if ( Networking.IsHost && Health > 0 )

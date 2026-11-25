@@ -185,7 +185,7 @@ public sealed partial class RabbitGuard
 			Remember( closest, engage: false );
 			visible = CanSeeCharacter( closest, closest.GetComponent<RabbitGuard>() );
 		}
-		if ( !IsKnownThreat( enemy ) || (!visible && sinceEnemySeen > 12f) )
+		if ( !IsKnownThreat( enemy ) )
 		{
 			if ( enemy is not null && !enemy.IsValid() ) FinishCombat( lastSeen );
 			else if ( enemy.IsValid() && knownCharacters.TryGetValue( enemy, out var memory ) && !memory.Awake )
@@ -227,12 +227,11 @@ public sealed partial class RabbitGuard
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;
-		if ( !visible && sinceEnemySeen > 2f )
+		if ( !Omniscient && !visible && sinceEnemySeen > 2f )
 		{
 			var lastKnown = observedTarget == enemy && observationCount > 0 ? RecallTarget( Time.Now ).Position : destination;
-			if ( ApproachSite( lastKnown, false, 1f ) is null ) return;
 			enemy = null;
-			BeginAreaSearch();
+			BeginAreaSearch( lastKnown );
 			SearchArea();
 			return;
 		}

@@ -13,6 +13,7 @@ public sealed partial class RabbitGuard
 
 	readonly List<SearchPoint> searchPoints = [];
 	TimeUntil searchUntil;
+	Vector3? lastKnownSearchPoint;
 	SearchPoint searchTarget;
 	readonly HashSet<GameObject> knownCasualties = [];
 	GameObject casualty;
@@ -45,7 +46,6 @@ public sealed partial class RabbitGuard
 				casualty = null;
 				inspectUntil = null;
 				inspectPosition = null;
-				BeginAreaSearch();
 			}
 			return true;
 		}
@@ -125,16 +125,22 @@ public sealed partial class RabbitGuard
 			BeginAreaSearch();
 	}
 
-	void BeginAreaSearch()
+	void BeginAreaSearch( Vector3? lastKnown = null )
 	{
 		searchPoints.Clear();
 		searchTarget = null;
-		searchUntil = 10f + Random.Shared.Float( 0.35f, 1.25f );
+		lastKnownSearchPoint = lastKnown;
+		searchUntil = 10f + (GameDifficulty >= 0.25f ? Random.Shared.Float( 0.35f, 1.25f ) : 0f);
 	}
 
 	bool SearchArea()
 	{
 		if ( searchUntil <= 0f ) return false;
+		if ( lastKnownSearchPoint is { } pointToCheck )
+		{
+			if ( ApproachSite( pointToCheck, false, 1f ) is null ) return true;
+			lastKnownSearchPoint = null;
+		}
 		var agent = GetComponent<NavMeshAgent>();
 		if ( searchPoints.Count == 0 )
 		{

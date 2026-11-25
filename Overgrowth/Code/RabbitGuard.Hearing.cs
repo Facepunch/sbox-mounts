@@ -8,8 +8,6 @@ public sealed partial class RabbitGuard
 	[Property] public float HearingModifier { get; set; } = 1f;
 	GameObject escortTarget;
 	float suspicion;
-	TimeSince sinceSound;
-	float CurrentSuspicion => Math.Max( 0f, suspicion - (float)sinceSound * 0.1f );
 
 	// HandleAnimationMaterialEvent layers mud over the ground sound in very shallow water.
 	bool HandleFootstep( string step, Vector3 position )
@@ -114,9 +112,7 @@ public sealed partial class RabbitGuard
 		if ( investigating && sound == HeardSound.ItemImpact ) return;
 		bool knownAlly = knownCharacters.ContainsKey( source ) && GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
 		if ( knownAlly && (sound is HeardSound.Footstep or HeardSound.LoudFoley || investigating && (!investigatePoint.HasValue || urgentInvestigation)) ) return;
-		suspicion = CurrentSuspicion +
-			(sound == HeardSound.Footstep ? 0.3f : 1f);
-		sinceSound = 0;
+		suspicion += sound == HeardSound.Footstep ? 0.3f : 1f;
 		if ( suspicion < 1f ) return;
 		if ( !investigating )
 		{
@@ -133,7 +129,7 @@ public sealed partial class RabbitGuard
 			escortTarget = source;
 			investigatePoint = null;
 		}
-		else investigatePoint = Movement.ProjectPoint( position );
+		else investigatePoint = position;
 		urgentInvestigation = sound is HeardSound.Combat or HeardSound.ItemImpact;
 		AlertStage = 1;
 	}

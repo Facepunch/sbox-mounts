@@ -199,7 +199,7 @@ public sealed partial class RabbitGuard
 				else NoticeCharacter( closest );
 			}
 			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
-				investigatePoint = Movement.ProjectPoint( observer + (CharacterCenter( closest ) - observer).Normal * 120f );
+				investigatePoint = observer + (CharacterCenter( closest ) - observer).Normal * 120f;
 		}
 		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;
 	}
