@@ -19,8 +19,10 @@ public abstract class Weapon : BaseCombatWeapon
 
 	protected override bool OnCanPickup( BaseInventoryComponent inventory )
 	{
-		if ( !UsesClips || !UsesAmmo || MatchingWeapon( inventory ) is not {} held ) return base.OnCanPickup( inventory );
-		return held.UsesAmmo && held.Ammo1 < held.MaxReserveAmmo && (LoadedRounds > 0 || LooseReserve > 0);
+		if ( !UsesClips || !UsesAmmo ) return base.OnCanPickup( inventory );
+		if ( LoadedRounds == 0 && LooseReserve == 0 ) return false;
+		if ( MatchingWeapon( inventory ) is not {} held ) return base.OnCanPickup( inventory );
+		return held.UsesAmmo && held.Ammo1 < held.MaxReserveAmmo;
 	}
 
 	int CarriedReserve( BaseInventoryComponent inventory )
