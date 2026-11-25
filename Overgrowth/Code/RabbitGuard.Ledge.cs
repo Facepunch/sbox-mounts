@@ -12,7 +12,10 @@ public sealed partial class RabbitGuard
 	[Sync] float LedgeGrabTime { get; set; }
 	[Sync( SyncFlags.Interpolate )] float LedgeHeightOffset { get; set; }
 	[Sync( SyncFlags.Interpolate )] float LedgePhase { get; set; }
-	Vector3 climbDirection, climbPosition;
+	Vector3 climbDirection, climbOrigin;
+	Vector3 climbPreviousTravel, climbNextTravel;
+	int climbTravelTick;
+	float climbEntryVelocity, climbInitialHeightOffset;
 	internal bool OnLedge => LedgeAnimation is not null;
 	float jumpFuel, climbAirClock;
 	TimeSince sinceClimbLaunch;
@@ -228,20 +231,29 @@ public sealed partial class RabbitGuard
 			LedgeMirrored = LedgeAnimation == LedgeReach && Random.Shared.Next( 2 ) == 0;
 			LedgePhase = 0f;
 			float target = height - 42f;
-			climbPosition = center.WithZ( Math.Clamp( center.z, target - 4f, target + 20f ) - LegRadius );
-			LedgeHeightOffset = target - climbPosition.z - LegRadius;
+			climbOrigin = center.WithZ( Math.Clamp( center.z, target - 4f, target + 20f ) - LegRadius );
+			climbInitialHeightOffset = target - climbOrigin.z - LegRadius;
+			LedgeHeightOffset = 0f;
 			PlayMaterialEvent( "edge_grab", center + wall * LegRadius, surface?.ResourceName, 1f );
 			body.MotionEnabled = false;
 			body.Velocity = Vector3.Zero;
 			UseAirHull( false );
 			MovementCapsule.Enabled = false;
 			FaceInAir( Rotation.LookAt( wall ) );
-			WorldPosition = climbPosition;
+			WorldPosition = climbOrigin;
 		}
 
 		// An AI always asks to pull up on its next ledge update.
 		if ( LedgeAnimation != ClimbUp && Time.Now - LedgeGrabTime >= ClimbStep )
 		{
+			// UpdateLedge applies its height spring and forward input once before ghost movement.
+			// The reach animation suppresses the forward input while the height spring stays active.
+			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
+			climbEntryVelocity = (gravity * ClimbStep + climbInitialHeightOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
+			const float ledgeMoveSpeed = 10f;
+			if ( LedgeAnimation == LedgeHang ) climbEntryVelocity += 40f * (70f * ledgeMoveSpeed / 120f) * ClimbStep * ledgeMoveSpeed;
+			climbTravelTick = 0;
+			climbPreviousTravel = climbNextTravel = default;
 			LedgeAnimation = ClimbUp;
 			LedgeMirrored = false;
 			LedgePhase = 0f;
@@ -249,15 +261,21 @@ public sealed partial class RabbitGuard
 		if ( LedgeAnimation == LedgeHang ) return true;
 		var clip = boundAnimations.Clips[LedgeAnimation].ForSide( LedgeMirrored );
 		float previousPhase = LedgePhase;
-		var from = clip.Animation.GetRootMotion( previousPhase );
 		LedgePhase = Math.Min( 1f, LedgePhase + Time.Delta / clip.Duration );
 		PlayCycleSteps( clip, previousPhase, LedgePhase );
-		var to = clip.Animation.GetRootMotion( LedgePhase );
-		float correction = LedgeHeightOffset * (1f - MathF.Pow( 0.98f, Time.Delta * 120f ));
-		LedgeHeightOffset -= correction;
-		float rise = LedgeAnimation == ClimbUp ? 4f * Time.Delta : 0f;
-		climbPosition += Vector3.Up * (correction + rise) + WorldRotation * ((to.Position - from.Position) * WorldScale);
-		WorldPosition = climbPosition;
+		if ( LedgeAnimation == ClimbUp )
+		{
+			float time = LedgePhase * clip.Duration;
+			float entry = Math.Min( time, ClimbStep );
+			float ghost = time - entry;
+			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
+			float rise = entry * climbEntryVelocity + ghost * 4f + time * gravity * ClimbStep;
+			// The native step moves by 4 * 0.02 of the offset, then retains 0.98^4.
+			float retain = MathF.Pow( 0.98f, ghost * 120f );
+			float correction = climbInitialHeightOffset * (1f - retain) * (0.08f / (1f - MathF.Pow( 0.98f, 4f )));
+			LedgeHeightOffset = climbInitialHeightOffset * retain;
+			WorldPosition = climbOrigin + Vector3.Up * (correction + rise) + WorldRotation * (ClimbTravel( clip, time ) * WorldScale);
+		}
 		if ( LedgePhase >= 1f )
 		{
 			FinishClimb( body );
@@ -265,9 +283,26 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
+	// A nearby NPC evaluates its pose on the first of four 120 Hz ticks. The reader
+	// starts at zero displacement and carries unconsumed travel through both fades.
+	Vector3 ClimbTravel( RabbitClip clip, float time )
+	{
+		float frame = time / ClimbStep;
+		int tick = (int)MathF.Ceiling( frame );
+		while ( climbTravelTick < tick )
+		{
+			float sample = (++climbTravelTick - 0.75f) * ClimbStep;
+			var target = clip.Animation.GetRootMotion( Math.Min( sample / clip.Duration, 1f ) ).Position;
+			float weight = Math.Min( sample * 8f, 1f ) * Math.Min( (sample + ClimbStep) * 5f, 1f );
+			climbPreviousTravel = climbNextTravel;
+			climbNextTravel = Vector3.Lerp( climbPreviousTravel, target, weight );
+		}
+		return Vector3.Lerp( climbPreviousTravel, climbNextTravel, frame - (tick - 1) );
+	}
+
 	void FinishClimb( Rigidbody body )
 	{
-		var center = climbPosition + climbDirection * 5.2f + Vector3.Up * LegRadius;
+		var center = WorldPosition + climbDirection * 5.2f + Vector3.Up * LegRadius;
 		float depth = boundAnimations.Species == "wolf" ? 20f : 8f;
 		var support = ClimbTrace( Scene.Trace.Sphere( LegRadius, center + Vector3.Up * 4f, center + Vector3.Down * depth ) ).Run();
 		WorldPosition = (support.Hit && !support.StartedSolid ? support.EndPosition : center) - Vector3.Up * LegRadius;
