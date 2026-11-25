@@ -109,7 +109,7 @@ public class GameMount : BaseGameMount
 		Skulk.RegisterSounds( context );
 		var skulk = AlienPrefab.Register( context, "Skulk", Skulk.Configure );
 		Onos.RegisterSounds( context );
-		var onos = AlienPrefab.Register( context, "Onos", Onos.Configure );
+		var onos = AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) );
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
 			var resourceType = GetFileType( Path.GetExtension( path ) );

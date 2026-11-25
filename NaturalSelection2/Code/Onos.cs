@@ -41,7 +41,7 @@ public sealed partial class Onos : BaseNpc
 		}
 	}
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer, GameMount mount )
 	{
 		const float radius = 0.7f * Scale, height = 2.4f * Scale;
 		var collider = new GameObject( root, true, "Collider" );
@@ -72,6 +72,13 @@ public sealed partial class Onos : BaseNpc
 		npc.EyeHeight = 2.5f * Scale;
 		npc.Health = 700;
 		npc.Renderer = renderer;
+		var layer = mount.FindSoundEvent( "sound/NS2.fev/alien/onos/rumble" )?.Layers.FirstOrDefault();
+		var volume = layer?.Envelopes.FirstOrDefault( e => e.ParameterName == "speed" && e.Effect == SoundProject.Effect.Volume );
+		if ( volume is not null )
+			npc.RumbleVolume = new Curve( volume.Points.Select( p => new Curve.Frame( p.x, p.y ) { Mode = Curve.HandleMode.Linear } ) )
+			{
+				TimeRange = new Vector2( volume.Min, volume.Max )
+			};
 	}
 
 	protected override void OnStart()
@@ -228,18 +235,14 @@ public sealed partial class Onos : BaseNpc
 
 	SoundHandle rumble;
 	float rumbleGain;
-	SoundProject.Envelope rumbleVolume;
+	[Property, Hide] internal Curve RumbleVolume { get; set; }
 
 	void UpdateRumble( float speed )
 	{
 		if ( Application.IsDedicatedServer ) return;
 		if ( rumble is null )
 		{
-			if ( speed <= 0 ) return;
-			var mount = Sandbox.Mounting.Directory.Get( "ns2" ) as GameMount;
-			var layer = mount?.FindSoundEvent( "sound/NS2.fev/alien/onos/rumble" )?.Layers.FirstOrDefault();
-			rumbleVolume = layer?.Envelopes.FirstOrDefault( e => e.ParameterName == "speed" && e.Effect == SoundProject.Effect.Volume );
-			if ( rumbleVolume is null ) return;
+			if ( speed <= 0 || RumbleVolume.Length == 0 ) return;
 			var sound = GameResource.Load<SoundEvent>( "mount://ns2/sounds/alien/onos/rumble.sound" );
 			if ( sound is null ) return;
 			rumble = Sound.Play( sound, WorldPosition );
@@ -247,7 +250,7 @@ public sealed partial class Onos : BaseNpc
 			rumbleGain = rumble.Volume;
 		}
 		rumble.Position = WorldPosition;
-		rumble.Volume = rumbleGain * rumbleVolume.Evaluate( speed );
+		rumble.Volume = rumbleGain * RumbleVolume.Evaluate( speed );
 	}
 
 	protected override void OnDisabled()
