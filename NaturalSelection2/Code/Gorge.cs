@@ -193,7 +193,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
-		while ( brood.Count > 0 ) BreakBabbler();
+		while ( brood.Count > 0 ) BreakBabbler( brood[0] );
 		PlayCue( "death", WorldPosition );
 		base.OnDeath( e );
 	}

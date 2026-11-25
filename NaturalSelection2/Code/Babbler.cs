@@ -47,11 +47,13 @@ public sealed partial class Babbler : BaseNpc
 	}
 
 	[Sync( SyncFlags.FromHost )] internal int ClingSlot { get; private set; }
-	Gorge owner;
+	internal Gorge OwnerGorge { get; set; }
+	TimeUntil nextClingLeap;
 
-	internal void ClingTo( Gorge gorge, int slot )
+	internal void ClingTo( GameObject point, int slot )
 	{
-		owner = gorge;
+		Movement.Stop();
+		GameObject.Parent = point;
 		ClingSlot = slot;
 		LocalTransform = global::Transform.Zero;
 		Renderer.LocalTransform = global::Transform.Zero;
@@ -63,6 +65,31 @@ public sealed partial class Babbler : BaseNpc
 		GetComponent<AnimationLayer>( true ).Enabled = false;
 	}
 
+	void ApproachOwner()
+	{
+		var point = OwnerGorge.BabblerApproachPoint;
+		if ( !point.IsValid() ) return;
+		var delta = point.WorldPosition - SphereCenter;
+		float distance = delta.Length;
+		if ( distance <= 0.7f * Scale )
+		{
+			OwnerGorge.AttachHatchling( this );
+			return;
+		}
+		var wall = Scene.Trace.Ray( EyePosition, point.WorldPosition ).IgnoreGameObjectHierarchy( OwnerGorge.GameObject )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
+		if ( distance < 2.5f * Scale && wall.Fraction >= 0.9f )
+		{
+			body.Velocity = delta.ClampLength( 8.2f * Scale * Time.Delta ) / Time.Delta;
+			return;
+		}
+		if ( IsOnGround ) Movement.MoveTo( point.WorldPosition, Radius, 8.2f * Scale );
+		if ( wall.Fraction < 0.9f || delta.z <= -0.5f * Scale || nextClingLeap > 0 ) return;
+		var arc = JumpArc( (delta / Scale).ClampLength( 5 ), Random.Shared.NextSingle(), Random.Shared.NextSingle() );
+		Launch( arc.Velocity * Scale );
+		nextClingLeap = arc.FlightTime * 0.5f + Random.Shared.Float( 0, 0.3f );
+	}
+
 	internal void BreakShield()
 	{
 		DeathEffect( WorldPosition );
@@ -71,7 +98,7 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnDestroy()
 	{
-		if ( owner.IsValid() ) owner.BabblerRemoved( this );
+		if ( OwnerGorge.IsValid() ) OwnerGorge.BabblerRemoved( this );
 		base.OnDestroy();
 	}
 
@@ -89,10 +116,12 @@ public sealed partial class Babbler : BaseNpc
 		StartGraph();
 		if ( Scene.PhysicsWorld.Gravity.z < 0 ) body.GravityScale = Gravity * Scale / -Scene.PhysicsWorld.Gravity.z;
 		Launch( new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -1, 1 ), Random.Shared.Float( 2, 4 ) ) * Scale );
+		if ( OwnerGorge.IsValid() ) ApproachOwner();
 	}
 
 	protected override void Think()
 	{
+		if ( OwnerGorge.IsValid() ) return;
 		var previous = target;
 		if ( !CanHunt( target ) ) target = null;
 		if ( target is null )
@@ -145,7 +174,7 @@ public sealed partial class Babbler : BaseNpc
 	{
 		foreach ( var sibling in Scene.GetAllComponents<Babbler>() )
 		{
-			if ( sibling == this || sibling.Faction != Faction || sibling.owner != owner || sibling.ClingSlot != 0 || !sibling.target.IsValid() ) continue;
+			if ( sibling == this || sibling.Faction != Faction || sibling.OwnerGorge != OwnerGorge || sibling.ClingSlot != 0 || !sibling.target.IsValid() ) continue;
 			if ( WorldPosition.DistanceSquared( sibling.WorldPosition ) < 30 * 30 * Scale * Scale && CanHunt( sibling.target ) )
 				return sibling.target;
 		}
@@ -169,6 +198,11 @@ public sealed partial class Babbler : BaseNpc
 		if ( ClingSlot != 0 ) return;
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost || !body.IsValid() || Health <= 0 || PhysicsCarrier.IsValid() ) return;
+		if ( OwnerGorge.IsValid() )
+		{
+			ApproachOwner();
+			return;
+		}
 		var origin = SphereCenter;
 		var velocity = body.Velocity;
 		if ( previousVelocity.LengthSquared > 0 && (velocity - previousVelocity).WithZ( 0 ).LengthSquared > 0.0001f * Scale * Scale && nextHit <= 0 )
