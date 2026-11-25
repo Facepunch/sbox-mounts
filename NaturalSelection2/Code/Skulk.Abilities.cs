@@ -84,7 +84,7 @@ public sealed partial class Skulk
 	{
 		PlayLocal( "alien/skulk/parasite_hit", position );
 		if ( player.IsValid() && !player.IsProxy ) return;
-		PlayAbilityEffect( player.IsValid() ? "parasite_hit_marine" : "parasite_hit", position, Rotation.Identity );
+		PlayAbilityEffect( "parasite_hit", position, Rotation.Identity );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
