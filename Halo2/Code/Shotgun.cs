@@ -194,6 +194,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	bool triggerConsumed;
+	bool IsHolstered => Inventory is {} inventory && inventory.ActiveItem != this;
 
 	protected override void OnControl()
 	{
@@ -208,7 +209,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 
 	public override bool CanPrimaryAttack() =>
-		meleeEnds <= 0 && NextPrimaryFire <= 0 && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
+		meleeEnds <= 0 && NextPrimaryFire <= 0 && !IsHolstered && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
 
 	public override void PrimaryAttack()
 	{
@@ -720,14 +721,14 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	TimeUntil meleeEnds;
 	(double Time, float Damage, GameObject Attacker)? pendingStrike;
 
-	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
+	public override bool CanReload() => meleeEnds <= 0 && !IsHolstered && base.CanReload();
 
 	protected override bool WantsReload() =>
 		Input.Down( "reload" ) || base.WantsReload();
 
 	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
-	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0;
+	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && !IsHolstered;
 
 	public override void SecondaryAttack()
 	{
@@ -738,7 +739,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void RequestMelee()
 	{
-		if ( Inventory?.ActiveItem == this && CanSecondaryAttack() ) StartMelee();
+		if ( IsActive && CanSecondaryAttack() ) StartMelee();
 	}
 
 	void StartMelee()
