@@ -21,13 +21,17 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	TagEntry Reference( int offset ) => map.GetTag( map.ReadInt32( offset + 4 ) & 0xffff );
 	int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal const string RigPath = "weapons/shotgun/first_person.vmdl";
-	internal Halo2ModelLoader CreateRig()
+	internal const string EliteRigPath = "weapons/shotgun/first_person_elite.vmdl";
+	internal Halo2ModelLoader CreateRig( int representationIndex )
 	{
-		// Campaign Spartan representation supplies both the hands and their object change colors.
-		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
-		int representation = Block( Address( globals ) + 0x138 );
-		int row = Block( Header + 0x2a8 );
-		return new Halo2ModelLoader( map, Reference( representation ), biped: Reference( representation + 0xb0 ), graph: Reference( row + 8 ), firstPersonWeapon: Reference( row ) );
+		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 );
+		if ( globals is null || map.ReadInt32( Address( globals ) + 0x138 ) <= representationIndex
+			|| map.ReadInt32( Header + 0x2a8 ) <= representationIndex ) return null;
+		int representation = Block( Address( globals ) + 0x138 ) + representationIndex * 0xbc;
+		int row = Block( Header + 0x2a8 ) + representationIndex * 16;
+		if ( Reference( representation ) is not { DataSize: > 0 } arms || Reference( representation + 0xb0 ) is not { DataSize: > 0 } biped
+			|| Reference( row + 8 ) is not { DataSize: > 0 } graph || Reference( row ) is not { DataSize: > 0 } gun ) return null;
+		return new Halo2ModelLoader( map, arms, biped: biped, graph: graph, firstPersonWeapon: gun );
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string AmmoMeterName = "ammo_meter.vtex";

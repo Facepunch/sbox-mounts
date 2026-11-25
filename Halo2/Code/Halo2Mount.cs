@@ -74,12 +74,13 @@ public class Halo2Mount : BaseGameMount
 		} );
 
 		var surfaces = new HashSet<string>( StringComparer.Ordinal );
+		bool eliteShotgunRegistered = false;
 		foreach ( var map in maps )
 		{
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map, surfaces );
+				RegisterMapTags( context, map, surfaces, ref eliteShotgunRegistered );
 			}
 			catch ( Exception ex )
 			{
@@ -91,7 +92,7 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, ref bool eliteShotgunRegistered )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
@@ -197,9 +198,16 @@ public class Halo2Mount : BaseGameMount
 					shotgun.RegisterImpactEffects( context );
 					if ( shotgun.HudBitmap( "crosshair" ) is {} reticle ) context.Add( ResourceType.Texture, ShotgunLoader.ReticlePath, reticle );
 					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
-					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig() );
+					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig( 0 ) );
 					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new ShotgunAmmoLoader( shotgun.MaxReserve ) );
 					context.Add( ResourceType.PrefabFile, ShotgunLoader.PrefabPath, shotgun );
+					break;
+				case "paew" when !eliteShotgunRegistered && tagPath == "objects/weapons/rifle/shotgun/shotgun":
+					if ( new ShotgunLoader( mapFile, tag ).CreateRig( 1 ) is {} eliteRig )
+					{
+						context.Add( ResourceType.Model, ShotgunLoader.EliteRigPath, eliteRig );
+						eliteShotgunRegistered = true;
+					}
 					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
 				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:

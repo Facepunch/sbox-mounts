@@ -56,6 +56,9 @@ public sealed class Shotgun : Weapon
 		BindHudTextures();
 	}
 
+	string FirstPersonRig => HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3
+		? $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.EliteRigPath}" : ArmsPath;
+
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
@@ -63,7 +66,8 @@ public sealed class Shotgun : Weapon
 		go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.Tags.Add( "firstperson", "viewmodel" );
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
-		renderer.Model = Model.Load( ArmsPath );
+		var rig = FirstPersonRig;
+		renderer.Model = Model.Load( rig );
 		renderer.RenderOptions.Game = false;
 		renderer.RenderOptions.Overlay = true;
 		var gun = new GameObject( go, true, "Shotgun" ).AddComponent<SkinnedModelRenderer>();
@@ -77,7 +81,7 @@ public sealed class Shotgun : Weapon
 		view.Weapon = this;
 		view.TracerEffect = view.MuzzleEffect = view.EjectBrass = null;
 		renderer.UseAnimGraph = true;
-		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{ArmsPath}/any/any/any.ag" );
+		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{rig}/any/any/any.ag" );
 		view.AnimationData = renderer.Model.GetData<FirstPersonAnimation>();
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
@@ -230,6 +234,13 @@ public sealed class Shotgun : Weapon
 
 	protected override void OnReloadStarted()
 	{
+		var actions = FirstPersonAnimations()?.Actions;
+		if ( actions is not null )
+		{
+			int insertFrames = actions[Clip1 == 0 ? "reload_continue_empty" : "reload_continue_full"].Frames;
+			ReloadTime = insertFrames / 30f;
+			ReloadStartTime = (actions["reload_enter"].Frames + insertFrames) / 30f;
+		}
 		base.OnReloadStarted();
 		int enterFrames = (int)System.MathF.Round( System.MathF.Max( 0, ReloadStartTime - ReloadTime ) * 30 );
 		firstInsertAt = Time.NowDouble + enterFrames / 30.0;
@@ -642,7 +653,7 @@ public sealed class Shotgun : Weapon
 
 	public override void SecondaryAttack()
 	{
-		var actions = StrikeAnimations()?.Actions;
+		var actions = FirstPersonAnimations()?.Actions;
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
@@ -658,8 +669,8 @@ public sealed class Shotgun : Weapon
 			? (Time.NowDouble + impact.Frame / 30.0, StrikeDamage(), Attacker) : null;
 	}
 
-	FirstPersonAnimation StrikeAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
-		?? Model.Load( ArmsPath )?.GetData<FirstPersonAnimation>();
+	FirstPersonAnimation FirstPersonAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
+		?? Model.Load( FirstPersonRig )?.GetData<FirstPersonAnimation>();
 
 	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
 
@@ -668,7 +679,7 @@ public sealed class Shotgun : Weapon
 	{
 		var action = MeleeAction( firstStrike );
 		// SecondaryAttack runs on the owner. Other peers need the same window before the chamber overlay can take over.
-		if ( IsProxy && StrikeAnimations()?.Actions.TryGetValue( action, out var clip ) == true )
+		if ( IsProxy && FirstPersonAnimations()?.Actions.TryGetValue( action, out var clip ) == true )
 			meleeEnds = CooldownSeconds( clip.Frames );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		PlayHolderOverlay( action );
