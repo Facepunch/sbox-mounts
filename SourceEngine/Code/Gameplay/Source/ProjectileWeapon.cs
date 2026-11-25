@@ -37,9 +37,7 @@ public sealed class ProjectileWeapon : Weapon
 	bool _redrawPending;
 	TimeUntil _releaseAt;
 	TimeUntil _redrawAt;
-	bool _zoomed;
-	float _zoomStart;
-	TimeSince _zoomChanged;
+	Zoom _zoom;
 	Hl2.RpgLaser _laser;
 
 	bool IsLauncher => Kind == Projectile.Kinds.Rocket;
@@ -67,9 +65,11 @@ public sealed class ProjectileWeapon : Weapon
 	{
 		if ( Secondary == SecondaryFires.Zoom )
 		{
-			_zoomStart = ZoomFraction();
-			_zoomed = !_zoomed;
-			_zoomChanged = 0;
+			if ( HasOwner && !IsProxy && Scene.Camera.IsValid() )
+			{
+				_zoom = Scene.Camera.GetOrAddComponent<Zoom>();
+				_zoom.SetZoomed( !_zoom.Zoomed );
+			}
 			return;
 		}
 		SetNextSecondaryFire( 0.3f );
@@ -111,30 +111,11 @@ public sealed class ProjectileWeapon : Weapon
 		OnReloadStarted();
 	}
 
-	float ZoomFraction()
+	void ReleaseZoom()
 	{
-		var t = ((float)_zoomChanged / (_zoomed ? 0.1f : 0.2f)).Clamp( 0, 1 );
-		return float.Lerp( _zoomStart, _zoomed ? 1f : 0f, t * t * (3 - 2 * t) );
+		if ( _zoom.IsValid() ) _zoom.SetZoomed( false );
+		_zoom = null;
 	}
-
-	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
-	{
-		base.ModifyCamera( camera, ref view );
-		ViewModelFovOffset = 0;
-		if ( Secondary != SecondaryFires.Zoom ) return;
-		var zoom = ZoomFraction();
-		if ( zoom <= 0 ) return;
-
-		// Both Source lenses use horizontal degrees on a 4:3 reference screen.
-		var rect = camera.ScreenRect;
-		var aspect = rect.Height > 0 ? rect.Width / rect.Height : Screen.Aspect;
-		var scale = camera.FovAxis == CameraComponent.Axis.Horizontal ? aspect * 0.75f : 0.75f;
-		var unzoomed = Screen.CreateVerticalFieldOfView( view.FieldOfView, 1 / scale );
-		var zoomed = float.Lerp( unzoomed, Zoom.FieldOfView, zoom );
-		view.FieldOfView = Screen.CreateVerticalFieldOfView( zoomed, scale );
-		ViewModelFovOffset = unzoomed - zoomed;
-	}
-
 	protected override void OnReloadStarted()
 	{
 		base.OnReloadStarted();
@@ -160,8 +141,7 @@ public sealed class ProjectileWeapon : Weapon
 
 	protected override void OnHolstered()
 	{
-		_zoomed = false;
-		_zoomStart = 0;
+		ReleaseZoom();
 		_primed = false;
 		_releasePending = false;
 		_releaseAttacker = null;
@@ -171,6 +151,7 @@ public sealed class ProjectileWeapon : Weapon
 
 	protected override void OnDisabled()
 	{
+		ReleaseZoom();
 		_laser?.Dispose();
 		_laser = null;
 		base.OnDisabled();

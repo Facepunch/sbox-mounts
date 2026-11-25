@@ -3,12 +3,6 @@ using Sandbox.Npcs;
 
 namespace Source1;
 
-static class Zoom
-{
-	/// <summary>weapon_crossbow zooms the player to a 20 degree field of view.</summary>
-	public const float FieldOfView = 20;
-}
-
 /// <summary>The sandbox rifles' four arms, opening with spread bloom; Source weapons draw no crosshair of their own.</summary>
 static class Crosshair
 {
