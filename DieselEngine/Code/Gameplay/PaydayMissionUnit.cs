@@ -37,19 +37,42 @@ public sealed class PaydayMissionUnit : Component, Component.IPressable, Compone
 
 	/// <summary>
 	/// Rebuild the unit with <paramref name="sequence"/> applied on top of everything run before. Returns false when the
-	/// sequence changes nothing visible (effects/sounds only, or unreproducible). Host-side, not yet replicated.
+	/// sequence changes nothing visible (effects/sounds only, or unreproducible). Host-side; the full list is published
+	/// through <see cref="PaydayMissionSync"/> so clients rebuild the same state.
 	/// </summary>
 	internal bool ApplySequence( string sequence )
 	{
 		Sequence = sequence;
-		if ( Mount is not { Database: not null } mount || GetComponent<PaydayDoor>().IsValid() ) return false;
+		if ( GetComponent<PaydayDoor>().IsValid() ) return false;
 		applied.Add( sequence );
-		if ( mount.GetEndurance( Unit ) is { } rules )
-		{
-			enabledBodies ??= new HashSet<string>( rules.DefaultEnabledBodies, StringComparer.Ordinal );
-			foreach ( var (body, enabled) in rules.BodyToggles( sequence ) )
-				if ( enabled ) enabledBodies.Add( body ); else enabledBodies.Remove( body );
-		}
+		TrackBodies( sequence );
+		PaydayMissionSync.For( Scene )?.SetUnitState( GameObject, applied );
+		return Rebuild();
+	}
+
+	/// <summary>Client: adopt the host's full applied-sequence list for this unit and rebuild.</summary>
+	internal void ApplyState( IReadOnlyList<string> sequences )
+	{
+		if ( GetComponent<PaydayDoor>().IsValid() ) return;
+		applied.Clear();
+		enabledBodies = null;
+		foreach ( var sequence in sequences ) { applied.Add( sequence ); TrackBodies( sequence ); }
+		Sequence = applied.LastOrDefault();
+		Rebuild();
+	}
+
+	void TrackBodies( string sequence )
+	{
+		if ( Mount?.GetEndurance( Unit ) is not { } rules ) return;
+		enabledBodies ??= new HashSet<string>( rules.DefaultEnabledBodies, StringComparer.Ordinal );
+		foreach ( var (body, enabled) in rules.BodyToggles( sequence ) )
+			if ( enabled ) enabledBodies.Add( body ); else enabledBodies.Remove( body );
+	}
+
+	/// <summary>Rebuild geometry/collision from <see cref="applied"/>. False when the sequences change nothing visible.</summary>
+	bool Rebuild()
+	{
+		if ( Mount is not { Database: not null } mount || applied.Count == 0 ) return false;
 		string variation = MaterialVariation ?? "";
 		UnitModel.Result result = null;
 		try
@@ -58,7 +81,7 @@ public sealed class PaydayMissionUnit : Component, Component.IPressable, Compone
 			result = UnitModel.BuildSequenceState( mount.Database, mount.RuntimeMaterials, Unit,
 				$"mount://payday/runtime/{IdString.Hash( Unit ):x16}_{IdString.Hash( variation ):x16}_{IdString.Hash( state ):x16}.vmdl", variation, applied );
 		}
-		catch ( Exception e ) { Log.Warning( $"PAYDAY sequence {Unit}/{sequence}: {e.Message}" ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY sequence {Unit}/{applied[^1]}: {e.Message}" ); }
 		if ( result is null ) return false;
 		var renderer = GetComponent<ModelRenderer>();
 		var collider = GetComponent<ModelCollider>();
@@ -111,9 +134,15 @@ public sealed class PaydayMissionUnit : Component, Component.IPressable, Compone
 		}
 	}
 
-	PaydayMission Mission => Id == 0 ? null : Scene.GetAllComponents<PaydayMission>().FirstOrDefault( m => m.InteractionFor( Id ) is not null );
+	/// <summary>
+	/// The press interaction on offer: from the host-replicated table on every machine, falling back to the local
+	/// mission when there's no sync object (scene opened outside a map instance).
+	/// </summary>
+	string Interaction => Id == 0 ? null
+		: PaydayMissionSync.For( Scene ) is { } sync ? sync.InteractionFor( GameObject )
+		: Scene.GetAllComponents<PaydayMission>().Select( m => m.InteractionFor( Id ) ).FirstOrDefault( s => s is not null );
 
-	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) => Mission?.InteractionFor( Id ) switch
+	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) => Interaction switch
 	{
 		"first_interact" => new IPressable.Tooltip( "Start", "build", Label ),
 		"done_crowbar" => new IPressable.Tooltip( "Pry open", "handyman", Label ),
@@ -123,18 +152,14 @@ public sealed class PaydayMissionUnit : Component, Component.IPressable, Compone
 
 	string Label => string.IsNullOrEmpty( Unit ) ? null : Unit[(Unit.LastIndexOf( '/' ) + 1)..].Replace( '_', ' ' );
 
-	bool IPressable.CanPress( IPressable.Event e ) => Mission is not null;
+	bool IPressable.CanPress( IPressable.Event e ) => Interaction is not null;
 
 	bool IPressable.Press( IPressable.Event e )
 	{
-		Interact( e.Source.GameObject );
+		// Unit markers are snapshot objects and can't receive RPCs; the networked sync object relays the press.
+		if ( PaydayMissionSync.For( Scene ) is { } sync ) sync.RequestInteract( GameObject.Id, e.Source.GameObject );
+		else if ( PaydayInteraction.CanUse( this, e.Source.GameObject ) )
+			foreach ( var mission in Scene.GetAllComponents<PaydayMission>() ) mission.Interact( Id, e.Source.GameObject.Root );
 		return true;
-	}
-
-	[Rpc.Host]
-	void Interact( GameObject source )
-	{
-		if ( !PaydayInteraction.CanUse( this, source ) ) return;
-		Mission?.Interact( Id, source.Root );
 	}
 }

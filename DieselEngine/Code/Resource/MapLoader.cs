@@ -67,6 +67,9 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
+		// Map content is snapshot-networked (sent once at join); runtime mission/breakable state needs a live
+		// networked object. MapInstance network-spawns NetworkMode.Object children on the host.
+		new GameObject( true, "PAYDAY mission network" ) { Parent = root, NetworkMode = NetworkMode.Object }.AddComponent<PaydayMissionSync>();
 		Log.Info( $"PAYDAY {path}: {breakableUnits} breakable placements (unit endurance rules)." );
 		if ( mission is { Elements.Count: > 0 } )
 		{

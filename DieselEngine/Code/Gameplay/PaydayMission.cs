@@ -224,7 +224,11 @@ public sealed class PaydayMission : Component
 			case "ElementDisableUnit":
 				foreach ( int unit in element.Ids( "unit_ids" ) )
 					foreach ( var marker in units.GetValueOrDefault( unit ) ?? [] )
-						if ( marker.IsValid() ) marker.GameObject.Enabled = false;
+						if ( marker.IsValid() )
+						{
+							marker.GameObject.Enabled = false;
+							PaydayMissionSync.For( Scene )?.SetDisabled( marker.GameObject );
+						}
 				break;
 			case "ElementUnitSequence":
 				foreach ( var entry in element.Values.Table( "trigger_list" )?.Children ?? [] )
