@@ -6,7 +6,7 @@ namespace Source1;
 [Title( "Source Projectile Weapon" )]
 [Category( "Source 1" )]
 [Alias( "Source1.SourceProjectileWeapon", "SourceProjectileWeapon" )]
-public sealed class ProjectileWeapon : Weapon
+public sealed partial class ProjectileWeapon : Weapon
 {
 	public ProjectileWeapon()
 	{
@@ -346,6 +346,7 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( _dropVelocity.HasValue ) MoveDroppedBait();
 		if ( Networking.IsHost && IsLauncher && Active && Secondary != SecondaryFires.Guide )
 			SetGuiding( !HasOwner || (!IsDeploying && (HasPrimaryAmmo() || LiveRocket.IsValid())) );
 		if ( _primed && !HasOwner && _releaseAt <= 0 ) BeginThrow();

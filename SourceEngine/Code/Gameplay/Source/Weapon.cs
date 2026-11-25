@@ -287,7 +287,7 @@ public abstract class Weapon : BaseCombatWeapon
 		}
 	}
 
-	/// <summary>Thrown out in front of the player dropping it, carrying their speed; otherwise let go where it is.</summary>
+	/// <summary>Drops the weapon below eye position, facing the same yaw as the player.</summary>
 	protected override bool OnDrop()
 	{
 		var holder = Owner;
@@ -310,14 +310,17 @@ public abstract class Weapon : BaseCombatWeapon
 		GameObject.Enabled = true;
 		WorldPosition = position;
 		WorldRotation = rotation;
+		StartDrop( velocity );
+		return true;
+	}
 
+	protected virtual void StartDrop( Vector3 velocity )
+	{
 		if ( GetComponent<Rigidbody>( true ) is { } body )
 		{
 			body.Velocity = velocity;
-			body.AngularVelocity = rotation * new Vector3( 200f.DegreeToRadian() );
+			body.AngularVelocity = WorldRotation * new Vector3( 200f.DegreeToRadian() );
 		}
-
-		return true;
 	}
 
 	Vector3 PrefabWorldScale()
