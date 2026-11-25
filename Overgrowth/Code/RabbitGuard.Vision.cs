@@ -82,6 +82,9 @@ public sealed partial class RabbitGuard
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
 			.Concat( Scene.GetAllComponents<CharacterRemains>().Select( remains => remains.GameObject ) );
 
+	// MovementObject.visible belongs to the character. Walls affect the observer's sight trace.
+	bool TargetIsVisible( GameObject target ) => Omniscient || target.GetComponent<BaseNpc>()?.Renderer is not { Active: false };
+
 	void TrackEnemy()
 	{
 		if ( Omniscient && !noticedAllCharacters )
@@ -104,10 +107,14 @@ public sealed partial class RabbitGuard
 		}
 		if ( IsKnownThreat( enemy ) && !Sleeping )
 		{
-			visible = CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
+			visible = TargetIsVisible( enemy ) && CanSeeCharacter( enemy, enemy.GetComponent<RabbitGuard>() );
 			if ( visible )
 			{
-				ObserveTarget( enemy, true );
+				if ( nextObservation <= 0f || observedTarget != enemy )
+				{
+					ObserveTarget( enemy, true );
+					nextObservation = 4f / 120f;
+				}
 				lastSeen = TargetPosition( enemy );
 				NoticeCharacter( enemy );
 				sinceEnemySeen = 0;
@@ -118,7 +125,7 @@ public sealed partial class RabbitGuard
 
 	void ScanForCharacters()
 	{
-		if ( nextVisionCheck <= 0 && !Sleeping )
+		if ( awakeTime > NoticeThreshold && nextVisionCheck <= 0 && !Sleeping )
 		{
 			nextVisionCheck = Random.Shared.Float( 0.2f, 0.3f );
 			UpdateAwareness();

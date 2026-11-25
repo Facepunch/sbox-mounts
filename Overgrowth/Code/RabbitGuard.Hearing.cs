@@ -99,11 +99,11 @@ public sealed partial class RabbitGuard
 
 	void Hear( GameObject source, Vector3 position, HeardSound sound, bool awake )
 	{
-		if ( !Active || GameObject == source || Health < 1 || Unconscious || StaticCharacter || hearingReady > 0 ) return;
+		if ( !Active || GameObject == source || Health < 1 || Unconscious || StaticCharacter || awakeTime < NoticeThreshold ) return;
 		if ( enemy.IsValid() )
 		{
 			if ( Fleeing || enemy != source ) return;
-			ObserveTarget( source, Omniscient || visible );
+			ObserveTarget( source, TargetIsVisible( source ) );
 			lastSeen = TargetPosition( source );
 			NoticeCharacter( source );
 			sinceEnemySeen = 0;

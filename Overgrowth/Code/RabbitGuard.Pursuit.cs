@@ -18,12 +18,10 @@ public sealed partial class RabbitGuard
 			observationCount = 0;
 			latestObservation = -1;
 		}
-		else if ( nextObservation > 0f ) return;
 
 		latestObservation = (latestObservation + 1) % targetHistory.Length;
 		observationCount = Math.Min( observationCount + 1, targetHistory.Length );
 		targetHistory[latestObservation] = new( Time.Now, CharacterCenter( target ), moving ? TargetVelocity( target ) : Vector3.Zero );
-		nextObservation = 4f / 120f;
 	}
 
 	Observation RecallTarget( float time )

@@ -22,7 +22,9 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Property, Sync] public string Species { get; private set; }
 	[Property] public bool StaticCharacter { get; set; }
 	[Property] public bool AlwaysUnaware { get; set; }
-	TimeUntil nextVisionCheck = 1f;
+	const float NoticeThreshold = 1f;
+	float awakeTime;
+	TimeUntil nextVisionCheck;
 	float enemySeen;
 	string playing;
 	[Sync] string Stance { get; set; } = Idle;
@@ -82,6 +84,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && !Unconscious ) awakeTime += Time.Delta;
 		if ( Networking.IsHost && Movement is CharacterNavigation { Active: true } navigation ) navigation.PlaceOnGround( this );
 		if ( Networking.IsHost && (Unconscious || boundAnimations?.Species == "wolf") ) DropHandItem();
 		if ( Networking.IsHost && Health > 0 )
@@ -310,7 +313,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	bool visible;
 	Vector3? investigatePoint;
 	bool urgentInvestigation;
-	TimeUntil hearingReady = 1f;
 
 	TimeSince sinceEnemySeen;
 
