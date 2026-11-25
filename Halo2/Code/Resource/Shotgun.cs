@@ -388,11 +388,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.ChamberDuration = worldRig.GetClipInfo( chamber ).Frames / 30f;
 			gun.ReloadTime = rig.GetClipInfo( actions["reload_continue_full"] ).Frames / 30f;
 			gun.ReloadStartTime = rig.GetClipInfo( actions["reload_enter"] ).Frames / 30f + gun.ReloadTime;
-			int trigger = Address( Reference( Block( barrel + 0xe4 ) + 0x1c ) );
-			gun.KickDuration = Float( trigger + 0x74 );
-			gun.KickDegrees = Float( trigger + 0x7c ).RadianToDegree();
-			gun.KickDistance = Float( trigger + 0x80 ) * 120;
-			gun.KickJitter = new Vector2( Float( trigger + 0x84 ), Float( trigger + 0x88 ) ) * 120;
+			ConfigureKick( gun, barrel );
 			gun.IncrementalReloading = Short( magazine + 0x14 ) == 1;
 			gun.CanCancelReload = true;
 			gun.DeployTime = Float( Header + 0x13c );

@@ -22,6 +22,16 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 	protected int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
 
+	protected void ConfigureKick( Weapon gun, int barrel )
+	{
+		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 0x1c ) is not { PrimaryClass: "!tpj", DataSize: >= 0x8c } effect ) return;
+		int trigger = Address( effect );
+		gun.KickDuration = Float( trigger + 0x74 );
+		gun.KickDegrees = Float( trigger + 0x7c ).RadianToDegree();
+		gun.KickDistance = Float( trigger + 0x80 ) * 120;
+		gun.KickJitter = new Vector2( Float( trigger + 0x84 ), Float( trigger + 0x88 ) ) * 120;
+	}
+
 	protected SoundEvent FiringSound( int barrel )
 	{
 		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;

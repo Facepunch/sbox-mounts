@@ -4,21 +4,23 @@ using System;
 
 namespace Halo2;
 
-internal sealed class MagazineWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
+internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
 {
 	internal string Title => title;
 
-	internal static MagazineWeaponLoader ForTag( MapFile map, TagEntry weapon, string name ) => name switch
+	internal static RangedWeaponLoader ForTag( MapFile map, TagEntry weapon, string name ) => name switch
 	{
 		"magnum" => new( map, weapon, "Magnum", WeaponHolds.Pistol ),
 		"smg" => new( map, weapon, "SMG", WeaponHolds.Smg ),
 		"battle_rifle" => new( map, weapon, "Battle Rifle", WeaponHolds.Rifle ),
 		"sniper_rifle" => new( map, weapon, "Sniper Rifle", WeaponHolds.Rifle ),
 		"covenant_carbine" => new( map, weapon, "Carbine", WeaponHolds.Rifle ),
+		"beam_rifle" => new( map, weapon, "Beam Rifle", WeaponHolds.Rifle ),
 		_ => null
 	};
 
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
+	internal bool UsesMagazine => map.ReadInt32( Header + 0x2c0 ) > 0;
 	internal string AmmoPath => $"ammo/{Name}.ammo";
 	PrefabFile prefab;
 
@@ -27,14 +29,14 @@ internal sealed class MagazineWeaponLoader( MapFile source, TagEntry tag, string
 		var world = WorldModelPath;
 		int trigger = Block( Header + 0x2c8 );
 		int barrel = Block( Header + 0x2d0 ) + Short( trigger + 8 ) * 0xec;
-		int magazine = Block( Header + 0x2c0 ) + Short( barrel + 0x28 ) * 0x5c;
 		int projectile = Address( Reference( barrel + 0x8c ) );
 		int damage = Address( Reference( projectile + 0x148 ) );
 		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", title ).WithMetadata( "PreviewModel", world );
 		using ( builder.Scope() )
 		{
 			Game.ActiveScene.Enabled = false;
-			var gun = ConfigurePickup<MagazineWeapon>( new GameObject( true, title ), world, title );
+			var root = new GameObject( true, title );
+			RangedWeapon gun = UsesMagazine ? CreateMagazine( root, world, barrel ) : CreateBattery( root, world, barrel );
 			gun.HoldType = hold;
 			gun.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
 			int models = Block( Header + 0x2a8 );
@@ -42,19 +44,13 @@ internal sealed class MagazineWeaponLoader( MapFile source, TagEntry tag, string
 			if ( map.ReadInt32( Header + 0x2a8 ) > 1 && Reference( models + 16 ) is { PrimaryClass: "edom" } elite )
 				gun.EliteModel = Host.AssetPath( map, elite.TagPath, "vmdl" );
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
-			gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
-			gun.ClipMaxSize = Short( magazine + 0xa );
-			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
 			gun.DeployTime = Float( Header + 0x13c );
 			gun.PrimaryAutomatic = Short( trigger + 6 ) == 0;
 			float rate = Float( barrel + 4 );
-			gun.BurstLength = Short( barrel + 0x1c );
-			gun.RecoveryDelay = Weapon.CooldownSeconds( (int)MathF.Floor( Float( barrel + 0x20 ) * 30 ) + 2 );
-			gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : gun.RecoveryDelay;
-			var rig = (Halo2ModelLoader)Host.GetByPath( $"{gun.RigDirectory}/first_person.vmdl" );
-			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
-			gun.ReloadTime = rig.GetClipInfo( actions["reload_full"] ).Frames / 30f;
+			float recovery = RecoveryTime( barrel );
+			gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
 			gun.AttackSound = FiringSound( barrel );
+			ConfigureKick( gun, barrel );
 			var ballistics = gun.Ballistics;
 			ballistics.Pellets = Short( barrel + 0x6a );
 			ballistics.Range = Float( projectile + 0xe0 ) * 120;
@@ -66,6 +62,36 @@ internal sealed class MagazineWeaponLoader( MapFile source, TagEntry tag, string
 			gun.Ballistics = ballistics;
 		}
 		return prefab = builder.Create();
+	}
+
+	float RecoveryTime( int barrel ) => Weapon.CooldownSeconds( (int)MathF.Floor( Float( barrel + 0x20 ) * 30 ) + 2 );
+
+	MagazineWeapon CreateMagazine( GameObject root, string world, int barrel )
+	{
+		var gun = ConfigurePickup<MagazineWeapon>( root, world, title );
+		int magazine = Block( Header + 0x2c0 ) + Short( barrel + 0x28 ) * 0x5c;
+		gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
+		gun.ClipMaxSize = Short( magazine + 0xa );
+		gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
+		gun.BurstLength = Short( barrel + 0x1c );
+		gun.RecoveryDelay = RecoveryTime( barrel );
+		var rig = (Halo2ModelLoader)Host.GetByPath( $"mount://{Host.Ident}/weapons/{Name}/first_person.vmdl" );
+		var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
+		gun.ReloadTime = rig.GetClipInfo( actions["reload_full"] ).Frames / 30f;
+		return gun;
+	}
+
+	BatteryWeapon CreateBattery( GameObject root, string world, int barrel )
+	{
+		var gun = ConfigurePickup<BatteryWeapon>( root, world, title );
+		gun.UsesAmmo = gun.UsesClips = false;
+		gun.HeatPerShot = Float( barrel + 0xa4 );
+		gun.SpentPerShot = Float( barrel + 0xa8 );
+		gun.CooledThreshold = Float( Header + 0x150 );
+		gun.OverheatThreshold = Float( Header + 0x154 );
+		gun.HeatLoss = Float( Header + 0x160 );
+		gun.OverheatedLoss = Float( Header + 0x168 );
+		return gun;
 	}
 
 	protected override void Shutdown()

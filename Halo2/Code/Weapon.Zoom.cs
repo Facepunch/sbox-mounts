@@ -27,13 +27,15 @@ public abstract partial class Weapon : Component.IDamageable.IEvents
 		if ( pressed || (!string.IsNullOrWhiteSpace( ZoomKey ) && Input.Keyboard.Pressed( ZoomKey )) ) CycleZoom();
 	}
 
+	protected virtual bool CanZoom => !IsReloading && !MeleeActive;
+
 	public void CycleZoom()
 	{
-		if ( IsProxy || !IsActive || ZoomLevels <= 0 || IsReloading || MeleeActive || Owner is not { ThirdPerson: false } ) return;
+		if ( IsProxy || !IsActive || ZoomLevels <= 0 || !CanZoom || Owner is not { ThirdPerson: false } ) return;
 		SetZoom( ZoomLevel < ZoomLevels ? ZoomLevel + 1 : 0 );
 	}
 
-	void SetZoom( int level, bool audible = true )
+	protected void SetZoom( int level, bool audible = true )
 	{
 		if ( level == ZoomLevel ) return;
 		var (angle, speed, acceleration) = SampleZoomLens();

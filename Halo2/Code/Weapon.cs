@@ -152,7 +152,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	static float KickWeight( float remaining )
 	{
-		// The shotgun's fade uses 1024 byte samples of the fourth-power curve.
+		// These firing damage effects use 1024 byte samples of the fourth-power curve.
 		static float Sample( int index )
 		{
 			double x = index / 1023.0;

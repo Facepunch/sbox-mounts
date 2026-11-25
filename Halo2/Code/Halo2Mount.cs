@@ -201,11 +201,12 @@ public class Halo2Mount : BaseGameMount
 					if ( weaponRigs.Contains( path ) || WeaponLoader.CreateRig( mapFile, tag, globals, i ) is not {} rig ) continue;
 					context.Add( ResourceType.Model, path, rig );
 					weaponRigs.Add( path );
-					if ( i == 0 && MagazineWeaponLoader.ForTag( mapFile, tag, name ) is {} magazine )
+					if ( i == 0 && RangedWeaponLoader.ForTag( mapFile, tag, name ) is {} ranged )
 					{
-						magazine.Tags.Add( "weapon" );
-						context.Add( ResourceType.GameResource, magazine.AmmoPath, new WeaponAmmoLoader( $"{magazine.Title} rounds", magazine.MaxReserve ) );
-						context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", magazine );
+						ranged.Tags.Add( "weapon" );
+						if ( ranged.UsesMagazine )
+							context.Add( ResourceType.GameResource, ranged.AmmoPath, new WeaponAmmoLoader( $"{ranged.Title} rounds", ranged.MaxReserve ) );
+						context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", ranged );
 					}
 				}
 			}
