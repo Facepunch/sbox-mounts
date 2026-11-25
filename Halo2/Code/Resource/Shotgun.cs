@@ -219,6 +219,27 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
+	internal (Color Loaded, Color Empty) ReserveColors()
+	{
+		int widgets = Address( Reference( Header + 0x2b0 ) ) + 16;
+		int rows = Block( widgets );
+		Color loaded = Color.Transparent, empty = Color.Transparent;
+		for ( int i = 0; i < map.ReadInt32( widgets ); i++ )
+		{
+			int row = rows + i * 84;
+			var name = map.ResolveStringId( map.ReadInt32( row ) );
+			if ( name is not ("bullets_single" or "bullets_out") || Reference( row + 0x20 ) is not {} shader ) continue;
+			int constants = Block( Address( shader ) + 0x20 ) + 12;
+			if ( map.ReadInt32( constants ) < 6 ) continue;
+			// The text pass tints white glyphs with the first color and the sixth register's alpha.
+			int data = Block( constants ), rgb = map.ReadInt32( data );
+			var color = Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)(map.ReadInt32( data + 20 ) >> 24) );
+			if ( name == "bullets_single" ) loaded = color;
+			else empty = color;
+		}
+		return (loaded, empty);
+	}
+
 	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null, bool elite = false )
 	{
 		int hud = Address( Reference( Header + 0x2b0 ) );

@@ -480,6 +480,7 @@ public sealed class Shotgun : Weapon
 	}
 
 	Texture ammoMeter;
+	(Color Loaded, Color Empty)? reserveColors;
 	readonly Texture[] reserveDigits = new Texture[10];
 	int displayedShells = -1;
 
@@ -509,6 +510,12 @@ public sealed class Shotgun : Weapon
 	{
 		int reserve = Ammo1;
 		if ( reserve < 0 || reserve == int.MaxValue ) return;
+		if ( reserveColors is null )
+		{
+			var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent );
+			if ( mount?.GetByPath( $"mount://{mount.Ident}/{ShotgunLoader.PrefabPath}" ) is not ShotgunLoader loader ) return;
+			reserveColors = loader.ReserveColors();
+		}
 		System.Span<char> digits = stackalloc char[10];
 		if ( !reserve.TryFormat( digits, out int length ) ) return;
 
@@ -520,7 +527,7 @@ public sealed class Shotgun : Weapon
 		// Text anchors truncate in logical pixels relative to the player's viewport.
 		anchor = painter.Bounds.Position + new Vector2(
 			System.MathF.Truncate( anchor.x - inkWidth / 2 ), System.MathF.Truncate( anchor.y ) ) * scale;
-		var tint = Color.FromBytes( 147, 201, 255, Clip1 == 0 && reserve == 0 ? (byte)64 : (byte)153 );
+		var tint = Clip1 == 0 && reserve == 0 ? reserveColors.Value.Empty : reserveColors.Value.Loaded;
 		for ( int i = 0; i < length; i++ )
 		{
 			char digit = digits[i];
