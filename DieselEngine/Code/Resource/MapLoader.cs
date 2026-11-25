@@ -57,6 +57,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			}
 		}
 		MapEnvironment.Add( root, environment );
+		root.AddComponent<PaydayNavigation>();
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 

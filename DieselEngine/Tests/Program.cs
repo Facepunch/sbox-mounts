@@ -2,10 +2,31 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length != 1 ) throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory>" );
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky")) || args.Length > 4 )
+	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky [level] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
+if ( args.Length > 1 )
+{
+	if ( args[1] == "--dump-sky" )
+	{
+		string level = args.Length > 2 ? args[2] : "suburbia";
+		string skyOutput = args.Length > 3 ? args[3] : $"sky_{level}.txt";
+		using ( var skyWriter = new StreamWriter( skyOutput ) ) SkyDump.Run( db, level, skyWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( skyOutput )}" );
+		return;
+	}
+	bool underlay = args[1] == "--dump-underlay";
+	string output = args.Length > 2 ? args[2] : underlay ? "underlay_dump.txt" : "sun_dump.txt";
+	using ( var writer = new StreamWriter( output ) )
+	{
+		if ( underlay ) SunDump.RunUnderlay( db, writer );
+		else SunDump.Run( db, writer );
+	}
+	Console.WriteLine( $"Wrote {Path.GetFullPath( output )}" );
+	return;
+}
 if ( IdString.Hash( "levels/bank/world" ) != 0x8b050fc653c8f5e6UL ) throw new Exception( "IdString hash mismatch." );
 if ( IdString.Hash( "world" ) != 0x69bb6b38986b3104UL ) throw new Exception( "Short IdString hash mismatch." );
 void Reject( Action action )
@@ -230,6 +251,36 @@ if ( EnvironmentSettings.FromData( environmentFixture ).Sun.HasValue ) throw new
 scaleParameter["value"] = -1f;
 if ( EnvironmentSettings.FromData( environmentFixture ).Sun.HasValue ) throw new Exception( "Negative environment scale accepted." );
 Console.WriteLine( "PASS: nine authored sun/hemisphere environments, colour scaling, zero and invalid-value handling." );
+// Sun direction from the underlay rig. Reference poses come from the dumped embedded controllers:
+// both groups at 0.5 put d_sun at (340864, 0, 340864) in Diesel axes, i.e. 45° up along Diesel +X.
+const string skyUnderlay = "core/environments/skies/default/default";
+static bool Near( Vector3 a, Vector3 b ) => (a - b).Length < 0.01f;
+if ( SunDirection.Evaluate( db, skyUnderlay, 0.5f, 0.5f, 0 ) is not { } midSun || !Near( midSun, new Vector3( 0, -0.70710677f, 0.70710677f ) ) )
+	throw new Exception( "Underlay sun rig sampled at (0.5, 0.5) did not match the reference pose." );
+if ( SunDirection.Evaluate( db, skyUnderlay, 1, 1, 0 ) is not { } zenith || zenith.z < 0.999f )
+	throw new Exception( "Underlay sun rig at full vertical time must be overhead." );
+// sky_rot turns the dome clockwise from above: Diesel +X (s&box -Y) at 90° becomes Diesel -Y (s&box -X).
+if ( SunDirection.Evaluate( db, skyUnderlay, 0.5f, 0.5f, 90 ) is not { } turned || !Near( turned, new Vector3( -0.70710677f, 0, 0.70710677f ) ) )
+	throw new Exception( "sky_rot must spin the underlay clockwise about up." );
+// Ground truth: Counterfeit's own sky dome (suburbia_sky) paints its sun at azimuth ≈ -122.5°, elevation ≈ 45°.
+var counterfeitSun = EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", "levels/suburbia/world" ) ) ).SunDirection
+	?? throw new Exception( "Counterfeit sun direction missing." );
+float counterfeitAzimuth = MathF.Atan2( counterfeitSun.y, counterfeitSun.x ) * 180 / MathF.PI;
+float counterfeitElevation = MathF.Asin( counterfeitSun.z ) * 180 / MathF.PI;
+if ( MathF.Abs( counterfeitAzimuth + 122.5f ) > 15 || MathF.Abs( counterfeitElevation - 45f ) > 8 )
+	throw new Exception( $"Counterfeit sun ({counterfeitAzimuth:0.0}° az, {counterfeitElevation:0.0}° el) no longer matches its painted sky dome." );
+if ( SunDirection.Evaluate( db, "missing/underlay", 0.5f, 0.5f, 0 ) is not null || SunDirection.Evaluate( db, skyUnderlay, float.NaN, 0.5f, 0 ) is not null )
+	throw new Exception( "Missing underlay or invalid sun time was accepted." );
+foreach ( var sunMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+{
+	var sunEnvironment = EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", $"levels/{sunMap}/world" ) ) );
+	if ( sunEnvironment.SunDirection is not { } towardsSun || MathF.Abs( towardsSun.Length - 1 ) > 0.001f || towardsSun.z <= 0 )
+		throw new Exception( $"{sunMap}: authored sun direction missing or below the horizon ({sunEnvironment.SunDirection})." );
+	float sunElevation = MathF.Asin( towardsSun.z ) * 180 / MathF.PI;
+	float sunAzimuth = MathF.Atan2( towardsSun.y, towardsSun.x ) * 180 / MathF.PI;
+	Console.WriteLine( $"  {sunMap}: sun_anim={sunEnvironment.SunVertical:0.###} sun_anim_x={sunEnvironment.SunHorizontal:0.###} sky_rot={sunEnvironment.SkyRotation:0} -> elevation {sunElevation:0.0}°, azimuth {sunAzimuth:0.0}°" );
+}
+Console.WriteLine( "PASS: underlay sun rig reference poses, sky rotation, invalid inputs and nine authored sun directions." );
 var units = new HashSet<string>();
 var configs = new Dictionary<string, Dictionary<ulong, MaterialDefinition>>();
 var texturePaths = new HashSet<string>();

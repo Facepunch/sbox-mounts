@@ -47,6 +47,30 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		return definitions;
 	}
 
+	const string SurfaceShader = "shaders/diesel/surface.shader";
+	const string StockShader = "shaders/complex.shader";
+	static bool? surfaceShaderAvailable;
+
+	/// <summary>
+	/// The packaged client only has the shader if the mount build compiled and shipped
+	/// <c>Assets/shaders/diesel/surface.shader_c</c>. Report a broken package once, loudly.
+	/// </summary>
+	static bool SurfaceShaderAvailable
+	{
+		get
+		{
+			if ( surfaceShaderAvailable is { } known ) return known;
+			bool available;
+			try { available = FileSystem.Mounted.FileExists( $"{SurfaceShader}_c" ) || FileSystem.Mounted.FileExists( SurfaceShader ); }
+			catch { available = true; }
+			if ( !available )
+				Log.Error( $"PAYDAY: {SurfaceShader}_c is missing, so materials fall back to diffuse-only stock surfaces. "
+					+ "The mount package was built without its compiled Assets; rebuild it with BuildMounts.bat (see DieselEngine/README.md, P0)." );
+			surfaceShaderAvailable = available;
+			return available;
+		}
+	}
+
 	public Material Resolve( string config, ulong name ) => ResolveVariant( config, name, null );
 
 	public Material ResolveVariant( string config, ulong name, string fallbackConfig )
@@ -61,7 +85,17 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		if ( definition?.Hidden == true ) { materials[key] = null; return null; }
 
 		string fallbackSuffix = string.IsNullOrEmpty( fallbackConfig ) || fallbackConfig == config ? "" : $"_{IdString.Hash( fallbackConfig ):x16}";
-		var material = Material.Create( $"mount://payday/{scenePath}/materials/{IdString.Hash( config ):x16}_{name:x16}{fallbackSuffix}.vmat", "shaders/diesel/surface.shader" );
+		string materialPath = $"mount://payday/{scenePath}/materials/{IdString.Hash( config ):x16}_{name:x16}{fallbackSuffix}.vmat";
+		if ( !SurfaceShaderAvailable )
+		{
+			// Without the compiled Diesel shader every surface renders plain white. Keep
+			// the diffuse texture on a stock shader so the map is at least recognisable.
+			var stock = Material.Create( materialPath, StockShader );
+			stock.Set( "g_tColor", LoadTexture( definition?.Diffuse ) ?? Texture.White );
+			materials[key] = stock;
+			return stock;
+		}
+		var material = Material.Create( materialPath, SurfaceShader );
 		material.Set( "g_flEnvironmentSky", Environment?.HasSky == true ? 1f : 0f );
 		material.Set( "g_vEnvironmentSkyTop", Environment?.SkyTop ?? Vector3.Zero );
 		material.Set( "g_vEnvironmentSkyBottom", Environment?.SkyBottom ?? Vector3.Zero );
