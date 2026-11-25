@@ -99,6 +99,8 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	Halo2ClipInfo clip;
 	string currentAction;
 	float frame;
+	int reloadStartRounds;
+	int reloadKeyframe;
 
 	internal void Play( string action )
 	{
@@ -121,11 +123,10 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 		if ( Weapon.IsValid() && AnimationData is { AmmunitionFrames: > 1 } data && Renderer.Animation.IsValid )
 		{
 			int loaded = Weapon.Clip1;
-			if ( Weapon.Shard is not null && currentAction is ("reload_full" or "reload_empty") && frame >= 44 )
+			if ( Weapon.Shard is not null && currentAction is ("reload_full" or "reload_empty") && reloadKeyframe > 0 )
 			{
-				float fraction = ((int)frame - 44) * 0.2f;
-				int fill = System.Math.Min( Weapon.ClipMaxSize - loaded, Weapon.Ammo1 );
-				loaded += (int)(fill * fraction.Clamp( 0, 1 ));
+				float fraction = ((int)frame - reloadKeyframe) * 0.2f;
+				loaded = reloadStartRounds + (int)((loaded - reloadStartRounds) * fraction.Clamp( 0, 1 ));
 			}
 			Renderer.Animation.Parameters.Set( "ammunition_time", (loaded / (data.AmmunitionFrames - 1f)).Clamp( 0, 1 ) );
 		}
@@ -142,5 +143,10 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 
 	public override void OnDeploy() => Play( "ready" );
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null ) => Play( "fire_1" );
-	public override void OnReloadStart() => Play( Weapon.Clip1 == 0 ? "reload_empty" : "reload_full" );
+	public override void OnReloadStart()
+	{
+		reloadStartRounds = Weapon.Clip1;
+		Play( reloadStartRounds == 0 ? "reload_empty" : "reload_full" );
+		reloadKeyframe = clip?.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" )?.Frame ?? 0;
+	}
 }

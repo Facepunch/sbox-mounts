@@ -6,6 +6,8 @@ public sealed class MagazineWeapon : HandheldWeapon
 	[Property] public float RecoveryDelay { get; set; }
 	int remainingShots;
 	GameObject burstAttacker;
+	double? transferAt;
+	bool transferred;
 
 	public override void PrimaryAttack()
 	{
@@ -49,9 +51,34 @@ public sealed class MagazineWeapon : HandheldWeapon
 
 	public override bool CanReload() => remainingShots == 0 && base.CanReload();
 
+	public override void Reload()
+	{
+		if ( Networking.IsHost && CanReload() )
+		{
+			transferAt = null;
+			transferred = false;
+			if ( FirstPersonAnimations()?.Actions.TryGetValue( Clip1 == 0 ? "reload_empty" : "reload_full", out var clip ) == true )
+			{
+				ReloadTime = clip.Frames / 30f;
+				if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" )?.Frame is int frame && frame > 0 && frame < clip.Frames )
+					transferAt = Time.NowDouble + frame / 30.0;
+			}
+		}
+		base.Reload();
+	}
+
+	protected override int TakeReserveAmmo( BaseAmmoResource ammoType, int amount ) =>
+		IsReloading && transferred && ammoType == PrimaryAmmoType ? 0 : base.TakeReserveAmmo( ammoType, amount );
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
+		{
+			transferAt = null;
+			Clip1 += TakeReserveAmmo( PrimaryAmmoType, ReloadFillTarget - Clip1 );
+			transferred = true;
+		}
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
 			FirePrimary( burstAttacker );
 	}
