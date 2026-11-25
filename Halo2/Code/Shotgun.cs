@@ -181,10 +181,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var ray = AimRay;
 		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
 		var renderer = HolderRenderer;
-		var release = renderer?.GetAttachment( "drop" ) ?? renderer?.GetAttachment( "right_hand" );
-		if ( release is null && renderer?.Model?.Bones.Root is {} root && renderer.TryGetBoneTransform( root, out var pose ) )
-			release = pose;
-		var transform = release ?? Inventory?.WorldTransform ?? WorldTransform;
+		var grip = renderer?.Model?.GetData<WeaponAttachment>()?.PrimaryHand ?? "right_hand";
+		var release = renderer?.GetAttachment( "drop" ) ?? renderer?.GetAttachment( grip );
+		if ( release is null && renderer is not null && renderer.TryGetBoneTransform( HoldBone, out var hand ) )
+			release = hand;
+		var transform = release ?? new Transform( ray.Position, Rotation.LookAt( ray.Forward ) );
 		if ( !base.OnDrop() ) return false;
 		WorldTransform = transform.WithScale( WorldScale );
 		if ( GetComponent<Rigidbody>( true ) is {} body )
