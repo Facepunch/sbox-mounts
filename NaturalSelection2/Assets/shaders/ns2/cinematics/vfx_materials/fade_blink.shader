@@ -35,7 +35,7 @@ PS
 
 	CreateInputTexture2D( NoiseMap, Linear, 8, "None", "_noiseMap", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
 	Texture2D g_tNoiseMap < Channel( RGBA, Box( NoiseMap ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
-	float g_flBlinkAmount < Default1( 0.0 ); >;
+	float g_flBlinkAmount < Attribute( "Ns2BlinkAmount" ); Default1( 0.0 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{

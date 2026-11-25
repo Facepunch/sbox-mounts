@@ -24,7 +24,7 @@ public sealed partial class Fade : BaseNpc
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spawn", "swipe", "metabolize", "wound", "death" } )
+		foreach ( var cue in new[] { "spawn", "swipe", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "death" } )
 		{
 			var id = $"alien/fade/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -77,6 +77,8 @@ public sealed partial class Fade : BaseNpc
 		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/fade/fade_view.model.vmdl" ) is ModelLoader viewModel )
 			weapon = new( viewModel.PropGraph, viewModel );
 		PlayCue( "spawn" );
+		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
+		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
 		view = WorldRotation;
 		animationTime = 0;
 		weaponTag = OnWeaponTag;
@@ -92,12 +94,12 @@ public sealed partial class Fade : BaseNpc
 		{
 			swiping = false;
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
-			if ( Movement.MoveTarget.HasValue ) TryMetabolize();
+			if ( Movement.MoveTarget is { } destination ) TravelTo( destination );
 			return;
 		}
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? goal.Value : goal.Value;
 		swiping = visible && EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
-		if ( !swiping ) TryMetabolize();
+		if ( !swiping ) TravelTo( goal.Value );
 		if ( repath <= 0 )
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
@@ -105,9 +107,16 @@ public sealed partial class Fade : BaseNpc
 		}
 	}
 
+	void TravelTo( Vector3 goal )
+	{
+		Travel( goal );
+		if ( !Blinking ) TryMetabolize();
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		UpdateBlinkPresentation();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		output?.Set( "move_speed", Animation.MoveVelocity.Length / (6.2f * Scale) );
 		if ( !Networking.IsHost )
@@ -130,15 +139,16 @@ public sealed partial class Fade : BaseNpc
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		bool metabolizing = metabolizeAnimation > 0;
 		var ability = metabolizing ? "vortex" : "swipe";
-		var activity = metabolizing || swiping && energy >= 7 ? "primary" : "none";
+		var activity = metabolizing || swiping && !Blinking && energy >= 7 ? "primary" : "none";
 		world.Set( "attack_speed", 1 );
 		world.Set( "alive", 1 );
-		world.Set( "move", !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
+		world.Set( "move", Blinking ? "blink" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
 		world.Set( "ability", ability );
 		world.Set( "activity", activity );
 		world.Update( animationTime, output );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
+		weapon.Set( "move", Blinking ? "blink" : "idle" );
 		weapon.Set( "ability", ability );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
