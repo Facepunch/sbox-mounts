@@ -3,6 +3,7 @@ namespace Source1;
 static partial class SourceEntities
 {
 	/// <summary>What every entity of a kind starts from: one node per object, one entry per component, only values that differ from their defaults.</summary>
+	[Sandbox.SkipHotload]
 	static readonly Dictionary<SourceEntityKind, string> Templates = new()
 	{
 		[SourceEntityKind.Weapon] = """

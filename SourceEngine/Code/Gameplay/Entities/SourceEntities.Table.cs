@@ -2,6 +2,7 @@ namespace Source1;
 
 static partial class SourceEntities
 {
+	[Sandbox.SkipHotload]
 	static readonly SourceEntity[] Table =
 	[
 		new( "css", SourceEntityKind.Weapon, "ak47", "AK-47", "models/weapons/w_rif_ak47.mdl", null, """

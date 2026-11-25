@@ -78,6 +78,7 @@ public static partial class SourceEntities
 		return PrefabFile.Load( entity.Path );
 	}
 
+	[Sandbox.SkipHotload]
 	static readonly Dictionary<SourceEntity, JsonObject> definitions = new( ReferenceEqualityComparer.Instance );
 
 	/// <summary>The entity's template with its patch applied.</summary>
