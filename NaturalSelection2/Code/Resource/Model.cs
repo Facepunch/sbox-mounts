@@ -82,7 +82,11 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public int BoneIndex;
 		public Transform Transform;
 		public Vector3[] Points;   // converted to s&box space
+		public int[] Triangles;
 	}
+
+	// A triangulated convex hull with V vertices has 6V - 12 half-edges. Physics allows 256.
+	const int MaxHitboxVertices = 44;
 
 	struct Joint
 	{
@@ -305,7 +309,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return Parse( stream );
 	}
 
-	private static ParsedModel Parse( Stream stream )
+	private ParsedModel Parse( Stream stream )
 	{
 		var r = new Reader( stream );
 		r.Check( 4 );
@@ -423,7 +427,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Materials = names;
 	}
 
-	private static void ReadSolids( ref Reader r, ParsedModel model )
+	private void ReadSolids( ref Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var solids = new Solid[count];
@@ -440,7 +444,11 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			for ( int p = 0; p < points.Length; p++ ) points[p] = ConvertPosition( r.ReadVector3() );
 			solids[i].Points = points;
 
-			r.Skip( (long)r.Int() * 3 * sizeof( int ) ); // hulls only use the points
+			int triangles = r.Int();
+			if ( IsNpc && pointCount > MaxHitboxVertices && triangles > 0 )
+				solids[i].Triangles = r.Ints( checked(triangles * 3) );
+			else
+				r.Skip( (long)triangles * 3 * sizeof( int ) );
 		}
 		model.Solids = solids;
 	}
@@ -1022,7 +1030,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			{
 				if ( (uint)solid.BoneIndex >= model.Bones.Length || solid.Points.Length < 4 ) continue;
 				var points = Array.ConvertAll( solid.Points, p => solid.Transform.PointToWorld( p ) );
-				hitboxes.AddHull( solid.Name, model.Bones[solid.BoneIndex].Name, points );
+				AddHitboxHulls( hitboxes, solid.Name, model.Bones[solid.BoneIndex].Name, points, solid.Triangles );
 			}
 		}
 		BuildMeshes( builder, model );
@@ -1033,6 +1041,37 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			AddRenderTraceMesh( builder, model );
 
 		return builder.Create();
+	}
+
+	private static void AddHitboxHulls( HitboxSetBuilder hitboxes, string name, string bone, Vector3[] points, int[] triangles )
+	{
+		if ( triangles is null )
+		{
+			hitboxes.AddHull( name, bone, points );
+			return;
+		}
+
+		// Each surface triangle and the center enclose a tetrahedron. Grouping these into
+		// convex hulls preserves the outer surface and covers the entire original solid.
+		Vector3 center = default;
+		foreach ( var point in points ) center += point;
+		center /= points.Length;
+
+		var part = new HashSet<Vector3> { center };
+		for ( int i = 0; i < triangles.Length; i += 3 )
+		{
+			if ( part.Count + 3 > MaxHitboxVertices )
+			{
+				hitboxes.AddHull( name, bone, part.ToArray() );
+				part.Clear();
+				part.Add( center );
+			}
+
+			part.Add( points[triangles[i]] );
+			part.Add( points[triangles[i + 1]] );
+			part.Add( points[triangles[i + 2]] );
+		}
+		if ( part.Count >= 4 ) hitboxes.AddHull( name, bone, part.ToArray() );
 	}
 
 	private string ResolveExternalPath( string relative )
