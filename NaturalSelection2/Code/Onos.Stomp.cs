@@ -18,6 +18,9 @@ public sealed partial class Onos
 		waveAge = 0;
 		nextPulse = 0.1f;
 		(waveVictims ??= []).Clear();
+		var origin = WorldPosition + Vector3.Up * (0.4f * Scale);
+		foreach ( var obj in Scene.FindInPhysics( new Sphere( origin, 4 * Scale ) ) )
+			BlastProp( obj, origin, 4 * Scale );
 		PlayCue( "stomp" );
 		ShowStompLaunch( WorldPosition, WorldRotation );
 	}
@@ -51,6 +54,7 @@ public sealed partial class Onos
 		if ( waveOrigin.z - center.z > Scale ) return;
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, 2.2f * Scale ) ) )
 		{
+			BlastProp( obj, center + Vector3.Up * (0.4f * Scale), 2.2f * Scale );
 			if ( obj.GetComponentInParent<IDamageable>() is not Component victim || waveVictims.Contains( victim ) ||
 				GetDisposition( victim.GameObject ) != Disposition.Hostile ) continue;
 			var position = victim.WorldPosition;
@@ -65,6 +69,19 @@ public sealed partial class Onos
 		}
 	}
 
+	void BlastProp( GameObject obj, Vector3 origin, float radius )
+	{
+		var body = obj.GetComponentInParent<Rigidbody>();
+		if ( !IsLooseProp( body ) || waveVictims.Contains( body ) ) return;
+		var point = body.FindClosestPoint( origin );
+		float strength = 1 - point.Distance( origin ) / radius;
+		if ( strength <= 0 || !CanReachProp( origin, point, body ) ) return;
+		var outward = (body.PhysicsBody.MassCenter - origin).WithZ( 0 ).Normal;
+		var launch = (outward + Vector3.Up * 0.7f).Normal * (16 * Scale * strength);
+		waveVictims.Add( body );
+		PushProp( body, point, launch );
+	}
+
 	static void PlayStompEffect( string name, Vector3 position, Rotation facing )
 	{
 		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
@@ -72,12 +89,18 @@ public sealed partial class Onos
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void ShowStompLaunch( Vector3 position, Rotation facing ) => PlayStompEffect( "stomp_trimmed", position, facing );
+	void ShowStompLaunch( Vector3 position, Rotation facing )
+	{
+		if ( !Graphics.IsAvailable ) return;
+		CameraEffectSystem.Get( Scene ).AddShake( position, 25 * Scale, 12, 24, 0.45f );
+		PlayStompEffect( "stomp_trimmed", position, facing );
+	}
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ShowStompCrack( Vector3 position, Vector3 direction )
 	{
 		PlayStompEffect( "shockwave_segment", position, Rotation.LookAt( direction ) );
-		SpawnDecal( "shockwave_crack", position, Rotation.LookAt( Vector3.Down, direction ),
+		SparkDecal.Spawn( "Stomp crack", "shockwave_crack", position, Rotation.LookAt( Vector3.Down, direction ),
 			Random.Shared.Next( 2 ) * 180, 2.7f, 6 );
 	}
 
@@ -89,30 +112,9 @@ public sealed partial class Onos
 
 		// Shared decals use the victim's up axis and the client's default twelve-second lifetime.
 		var tangent = new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -0.9f, 1.1f ), Random.Shared.Float( -1.1f, 0.9f ) );
-		SpawnDecal( "shockwave_hit", position, Rotation.LookAt( -facing.Up, tangent ), 0, 2, 12 );
+		SparkDecal.Spawn( "Stomp impact", "shockwave_hit", position, Rotation.LookAt( -facing.Up, tangent ), 0, 2, 12 );
 	}
 
-	static void SpawnDecal( string material, Vector3 position, Rotation rotation, float roll, float size, float lifetime )
-	{
-		if ( !Graphics.IsAvailable ) return;
-		var definition = GameResource.Load<DecalDefinition>( $"mount://ns2/ns2/cinematics/vfx_materials/decals/{material}.material.vmat/projected.decal" );
-		if ( definition?.ColorTexture is null ) return;
-
-		var effect = new GameObject( false, material == "shockwave_hit" ? "Stomp impact" : "Stomp crack" )
-		{
-			NetworkMode = NetworkMode.Never,
-			WorldPosition = position,
-			WorldRotation = rotation
-		};
-		var decal = effect.AddComponent<Decal>();
-		decal.Decals.Add( definition );
-		decal.Size = size * Scale;
-		decal.Rotation = roll;
-		decal.LifeTime = lifetime;
-		decal.Transient = true;
-		effect.AddComponent<TemporaryEffect>();
-		effect.Enabled = true;
-	}
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WebPlayer( PlayerController player )
 	{

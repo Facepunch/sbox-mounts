@@ -34,7 +34,7 @@ public sealed partial class Onos : BaseNpc
 	{
 		const string shieldBreak = "alien/common/armor_break";
 		context.Add( ResourceType.GameResource, $"sounds/{shieldBreak}.sound", new SparkSoundLoader( shieldBreak ) );
-		foreach ( var cue in new[] { "spawn", "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
+		foreach ( var cue in new[] { "spawn", "gore", "gore_hit_marine", "gore_hit_thin_metal", "gore_hit_organic", "gore_hit_metal", "gore_hit_door", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
 		{
 			var id = $"alien/onos/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -133,6 +133,7 @@ public sealed partial class Onos : BaseNpc
 		var velocity = Animation.MoveVelocity.WithZ( 0 );
 		float speedRatio = velocity.Length / RunSpeed;
 		UpdateRumble( Animation.MoveVelocity.Length / RunSpeed );
+		UpdateFootsteps();
 		UpdateShieldRenderer();
 		if ( Networking.IsHost )
 		{
@@ -263,6 +264,9 @@ public sealed partial class Onos : BaseNpc
 		bool smash = smashSwing == true;
 		smashSwing = null;
 		var (hit, victim) = TraceGore();
+		AlienMelee.PlayImpact( hit, gore: true );
+		if ( hit.Hit && hit.GameObject?.GetComponentInParent<Rigidbody>() is { } body && IsLooseProp( body ) )
+			PushProp( body, hit.HitPosition, ViewRotation.Forward * RunSpeed );
 		if ( victim is null ) return;
 		bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
 		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );

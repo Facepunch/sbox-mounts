@@ -104,20 +104,6 @@ public sealed partial class Skulk
 		PlayLocal( $"materials/{material}/{cue}", position );
 	}
 
-	void PlayBiteImpact( SceneTraceResult hit )
-	{
-		var material = hit.Surface?.ResourceName switch
-		{
-			"ns2_organic" or "ns2_infestation" or "ns2_membrane" => "organic",
-			"ns2_thin_metal" or "ns2_light_metal" => "thin_metal",
-			"ns2_rock" => "rock",
-			"ns2_armor" or "ns2_flesh" or "flesh" => "marine",
-			_ when hit.GameObject?.GetComponentInParent<PlayerController>() is not null => "marine",
-			_ => "metal"
-		};
-		PlayCombatSound( $"alien/skulk/bite_hit_{material}", hit.HitPosition );
-	}
-
 	void UpdateFlinch()
 	{
 		if ( wounds.Update() is { } cue ) PlayVoice( cue );

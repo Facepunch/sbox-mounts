@@ -168,7 +168,7 @@ public sealed partial class Skulk : BaseNpc
 		energy = Math.Max( 0, energy - BiteEnergy );
 		PlayVoice( "bite" );
 		var (hit, victim) = AlienMelee.Trace( this, ViewRotation, Reach, 1.2f, 1.2f );
-		if ( hit.Hit ) PlayBiteImpact( hit );
+		AlienMelee.PlayImpact( hit, gore: false );
 		if ( victim is null ) return;
 		var npc = victim as BaseNpc;
 		bool alive = npc.IsValid() && npc.Health > 0;
