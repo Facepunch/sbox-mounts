@@ -217,6 +217,13 @@ public sealed class GravityWeapon : Weapon
 		(WeaponModel as ViewModel)?.PlayGravityGunAttack( launch );
 		if ( !launch ) return;
 
+		if ( Owner is { IsProxy: false, ThirdPerson: false } && !Application.IsDedicatedServer )
+		{
+			var punch = new Angles( -6, Game.Random.Next( -2, 3 ), 0 );
+			if ( result == PuntResult.Hit )
+				punch += new Angles( Game.Random.Float( 1, 2 ), Game.Random.Float( -1, 1 ), 0 );
+			ViewPunch.Apply( Scene.Camera, punch, reset: false );
+		}
 		if ( result == PuntResult.LaunchHeld ) _attack2Debounce = true;
 		SetNextSecondaryFire( PrimaryDelay );
 		_effects?.Launch( result == PuntResult.LaunchHeld );
