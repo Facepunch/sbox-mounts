@@ -278,12 +278,12 @@ public sealed class ViewModel : BaseWeaponModel
 			DrawnDirection( port.Up ), speed, Scene.Camera.WorldRotation, inherited, _mount );
 	}
 
-	void Play( string name )
+	void Play( string name, bool redraw = false )
 	{
 		_pending = name;
 		_animation ??= new();
 		if ( !_animation.IsReady || string.IsNullOrEmpty( name ) ) return;
-		var rate = !_reloading && (name == _clips.Draw || name == _clips.EmptyDraw) ? DrawPlaybackRate : 1f;
+		var rate = !redraw && !_reloading && (name == _clips.Draw || name == _clips.EmptyDraw) ? DrawPlaybackRate : 1f;
 		var weapon = _weapon;
 		if ( _reloading && weapon.IsValid() && Renderer.Model.AnimationClips().TryGetValue( name, out var clip ) )
 		{
@@ -355,6 +355,9 @@ public sealed class ViewModel : BaseWeaponModel
 			Play( finish );
 		}
 		else if ( !_reloading && LauncherIdleTransition() is { } transition ) Play( transition );
+		// Bugbait redraws at normal speed but schedules idle using its deploy time.
+		else if ( _weapon is ProjectileWeapon { Kind: Projectile.Kinds.Bugbait } bait && _animation.Current == _clips.Draw && _animation.Elapsed >= bait.DeployTime )
+			Play( IdleClip );
 		// The empty draw holds its last frame until the original sequence duration elapses.
 		else if ( !_reloading && _animation.Finished && (_animation.Current != _clips.EmptyDraw || _animation.Elapsed >= _animation.Duration)
 			&& _animation.Current != IdleClip && _animation.Current != _clips.LoweredIdle && _animation.Current != _clips.ThrowWindup )
@@ -366,7 +369,7 @@ public sealed class ViewModel : BaseWeaponModel
 				var weapon = _weapon;
 				if ( !weapon.IsValid() || !weapon.UsesPrimaryClip )
 				{
-					Play( weapon.IsValid() && !weapon.HasPrimaryAmmo() ? _clips.Idle : _clips.Draw );
+					Play( weapon.IsValid() && !weapon.HasPrimaryAmmo() ? _clips.Idle : _clips.Draw, redraw: true );
 				};
 			}
 			else if ( _pumpAfterShot && !string.IsNullOrEmpty( _clips.Pump ) )

@@ -313,7 +313,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.BulletWeapon": null,
-					"Source1.ProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Bugbait", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "throwable", "PreferredSlot": 4, "PrimaryAutomatic": false, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/bugbait_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/bugbait_wm.prefab"}, "Kind": "Bugbait", "ProjectileModel": "models/weapons/w_bugbait.mdl", "ProjectileDamage": 0}
+					"Source1.ProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.291667, "DisplayName": "HL2 Bugbait", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "throwable", "PreferredSlot": 4, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/bugbait_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/bugbait_wm.prefab"}, "Kind": "Bugbait", "ProjectileModel": "models/weapons/w_bugbait.mdl", "ProjectileDamage": 0}
 				},
 				"standalone_wm": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_bugbait.mdl"}
@@ -357,7 +357,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.BulletWeapon": null,
-					"Source1.ProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Frag Grenade", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "throwable", "PreferredSlot": 4, "PrimaryAutomatic": false, "PrimaryDelay": 0.8, "ReloadTime": 0.5, "SecondaryDelay": 1, "StartingAmmo": 5, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/grenade_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/grenade_wm.prefab"}, "Kind": "Grenade", "ProjectileModel": "models/weapons/w_grenade.mdl", "ProjectileDamage": 125}
+					"Source1.ProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.316667, "DisplayName": "HL2 Frag Grenade", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "throwable", "PreferredSlot": 4, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 0.5, "SecondaryDelay": 1, "StartingAmmo": 5, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/grenade_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/grenade_wm.prefab"}, "Kind": "Grenade", "ProjectileModel": "models/weapons/w_grenade.mdl", "ProjectileDamage": 125}
 				},
 				"standalone_wm": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_grenade.mdl"}
@@ -638,7 +638,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "bugbait_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"Fire": "throw", "Reload": "draw", "EjectBrass": null}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "Fire": "throw", "Reload": "draw", "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_bugbait.mdl", "FallbackModelPath": "models/weapons/v_bugbait.mdl"}
@@ -678,7 +678,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "grenade_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"Fire": "throw", "Reload": "draw", "EjectBrass": null}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "Fire": "throw", "Reload": "draw", "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_grenade.mdl", "FallbackModelPath": "models/weapons/v_grenade.mdl"}

@@ -215,7 +215,7 @@ static class WeaponSetup
 		var clips = WeaponClips.Resolve( model, names );
 		float Duration( string clip ) => WeaponClips.Duration( model, clip );
 		var draw = Duration( clips.Draw );
-		if ( weapon is ProjectileWeapon { Kind: Projectile.Kinds.Rocket } && draw > 0 && names.DrawPlaybackRate > 0 )
+		if ( weapon is ProjectileWeapon { Kind: Projectile.Kinds.Rocket or Projectile.Kinds.Grenade or Projectile.Kinds.Bugbait } && draw > 0 && names.DrawPlaybackRate > 0 )
 			weapon.DeployTime = draw / names.DrawPlaybackRate;
 		if ( weapon is ProjectileWeapon projectile && clips.Throws )
 		{
