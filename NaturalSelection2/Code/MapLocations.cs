@@ -3,7 +3,7 @@ using Sandbox.Navigation;
 namespace NS2;
 
 /// <summary>The named volumes and exploration destinations authored in a Spark level.</summary>
-public sealed class MapLocations : Component
+public sealed partial class MapLocations : Component
 {
 	public readonly record struct Volume( string Name, Transform Bounds )
 	{
@@ -125,15 +125,21 @@ public sealed class MapLocations : Component
 		finally { readingGrid = false; }
 	}
 
-	internal Destination[] Neighbors( string room )
+	bool NavigationReady()
 	{
 		var nav = Scene.NavMesh;
-		if ( !nav.IsEnabled || nav.IsGenerating || nav.IsDirty )
-		{
-			connections.Clear();
-			depths.Clear();
-			return [];
-		}
+		if ( nav.IsEnabled && !nav.IsGenerating && !nav.IsDirty ) return true;
+		connections.Clear();
+		depths.Clear();
+		roomGateways.Clear();
+		walkRoutes.Clear();
+		return false;
+	}
+
+	internal Destination[] Neighbors( string room )
+	{
+		if ( !NavigationReady() ) return [];
+		var nav = Scene.NavMesh;
 		if ( connections.TryGetValue( room, out var neighbors ) ) return neighbors;
 		if ( !requestedGrid && GridPath is not null && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
 			ReadRoomRoutes( mount, nav.AgentStepSize );
