@@ -147,9 +147,14 @@ public abstract class Weapon : BaseCombatWeapon
 		}
 
 		base.OnShootEffects( shot with { NoEvents = true } );
-		// A held weapon can outlive its mounted sound event across an editor hotload.
-		if ( !AttackSound.IsValid() && AttackSound?.ResourcePath is { Length: > 0 } path )
-			AttackSound = GameResource.Load<SoundEvent>( path );
+		// A joining client can receive the weapon before the mount registers its sounds.
+		if ( !AttackSound.IsValid() )
+		{
+			if ( AttackSound?.ResourcePath is { Length: > 0 } path )
+				AttackSound = GameResource.Load<SoundEvent>( path );
+			else if ( GameObject.PrefabInstanceSource is { Length: > 0 } prefab )
+				AttackSound = GameObject.GetPrefab( prefab )?.GetComponent<Weapon>( true )?.AttackSound;
+		}
 		var model = WeaponModel;
 		var muzzle = model?.MuzzleGameObject;
 		var emitter = muzzle.IsValid() ? muzzle : GameObject;
