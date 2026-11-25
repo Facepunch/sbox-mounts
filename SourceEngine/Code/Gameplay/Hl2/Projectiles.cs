@@ -304,6 +304,7 @@ public sealed class Bugbait : Projectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
+		PlayImpact( tr, "GrenadeBugBait.Splat", impactEffect: false );
 		CreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
 		GameObject.Destroy();
 	}
