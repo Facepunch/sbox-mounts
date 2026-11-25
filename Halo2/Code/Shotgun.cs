@@ -239,13 +239,17 @@ public sealed class Shotgun : Weapon
 		public float Travelled;
 	}
 
+	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, Surface Surface );
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void PlayPelletImpacts( Shotgun weapon, ShotEffect[] impacts )
+	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
 	{
-		foreach ( var shot in impacts )
+		foreach ( var contact in impacts )
 		{
-			if ( weapon.IsValid() ) weapon.OnShootEffects( shot );
-			else PelletImpact( shot, (shot.HitPosition - shot.Origin.Value).Normal );
+			// The final segment orients the contact. The tracer and water crossing span the full shot.
+			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, contact.Surface, muzzle, NoEvents: true );
+			PelletImpact( shot, contact.Direction );
+			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
 		}
 	}
 
@@ -263,7 +267,7 @@ public sealed class Shotgun : Weapon
 		var shooter = Holder?.GameObject ?? GameObject;
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
 		var flight = TaskSource.Create( scene.EnabledToken );
-		System.Collections.Generic.List<ShotEffect> impacts = null;
+		System.Collections.Generic.List<PelletContact> impacts = null;
 		// Newly dispatched projectiles travel during the firing tick.
 		for ( bool first = true; flying > 0; first = false )
 		{
@@ -314,14 +318,14 @@ public sealed class Shotgun : Weapon
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				hit.StartPosition = origin;
-				(impacts ??= new()).Add( new ShotEffect( hit.HitPosition, true, hit.Normal, hit.GameObject, hit.Surface, origin, NoEvents: true ) );
+				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
 			}
 			if ( impacts is { Count: > 0 } )
 			{
-				PlayPelletImpacts( IsValid ? this : null, impacts.ToArray() );
+				PlayPelletImpacts( IsValid ? this : null, origin, impacts.ToArray() );
 				impacts.Clear();
 			}
 
