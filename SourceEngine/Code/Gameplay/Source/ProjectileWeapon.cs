@@ -341,7 +341,8 @@ public sealed class ProjectileWeapon : Weapon
 		var attacker = _releaseAttacker;
 		_releasePending = false;
 		_releaseAttacker = null;
-		if ( UsesAmmo && IsHeld && !TakePrimaryAmmo( 1 ) ) return;
+		// A primed frag still leaves the hand if its reserve was drained during pullback.
+		if ( UsesAmmo && IsHeld && !TakePrimaryAmmo( 1 ) && Kind != Projectile.Kinds.Grenade ) return;
 		TimeSinceShoot = 0;
 		KickView();
 		Launch( AimRay.Position, AimRay.Forward, attacker, _throwStyle );
