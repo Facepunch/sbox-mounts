@@ -45,10 +45,24 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 		return false;
 	}
 
+	protected override SceneTraceResult TraceFlight( SceneTrace trace )
+	{
+		var tr = trace.Run();
+		while ( tr.Hit && tr.GameObject?.GetComponentInParent<SourceGlassPane>() is { } pane )
+		{
+			trace = trace.IgnoreGameObjectHierarchy( pane.GameObject );
+			DamageTarget( tr );
+			tr = trace.Run();
+		}
+		return tr;
+	}
+
+	// Source scales melee impulse for bolts to move 75 kg by 4 units/s per damage point at 70% strength.
+	bool DamageTarget( SceneTraceResult tr ) => DamageVictim( tr, "bullet", Damage * 75 * 4 * 0.7f, hitboxTags: true );
+
 	protected override void Hit( SceneTraceResult tr )
 	{
-		// Source scales melee impulse for bolts to move 75 kg by 4 units/s per damage point at 70% strength.
-		if ( DamageVictim( tr, "bullet", Damage * 75 * 4 * 0.7f, hitboxTags: true ) )
+		if ( DamageTarget( tr ) )
 		{
 			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody" );
 			GameObject.Destroy();

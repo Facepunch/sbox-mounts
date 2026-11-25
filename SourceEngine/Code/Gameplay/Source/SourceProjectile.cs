@@ -183,8 +183,9 @@ public abstract class SourceProjectile : Component
 		if ( Physical is not null ) return;
 		Velocity += Vector3.Down * Gravity * Time.Delta;
 		Steer();
-		var tr = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity * Time.Delta ).Radius( TraceRadius )
-			.IgnoreGameObjectHierarchy( LaunchIgnoreRoot ?? Attacker ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "projectile", "trigger" ).UseHitboxes().Run();
+		var trace = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity * Time.Delta ).Radius( TraceRadius )
+			.IgnoreGameObjectHierarchy( LaunchIgnoreRoot ?? Attacker ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "projectile", "trigger" ).UseHitboxes();
+		var tr = TraceFlight( trace );
 		WorldPosition = tr.EndPosition;
 		if ( Velocity.Length > 1 ) WorldRotation = Facing;
 		if ( tr.Hit ) Hit( tr );
@@ -194,6 +195,7 @@ public abstract class SourceProjectile : Component
 	protected virtual bool Simulate() => true;
 	protected virtual Rotation Facing => Rotation.LookAt( Velocity );
 	protected virtual void Steer() { }
+	protected virtual SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Run();
 	protected virtual void Hit( SceneTraceResult tr ) { }
 	protected virtual void Expire() => GameObject.Destroy();
 
