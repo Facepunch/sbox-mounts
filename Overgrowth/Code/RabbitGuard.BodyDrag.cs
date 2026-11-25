@@ -147,12 +147,29 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	void ReleaseBodyDrag()
+	// Overgrowth keeps the same ragdoll when a casualty dies. Keep the grip on
+	// the corresponding body when Sandbox transfers it to a corpse object.
+	void TransferBodyDrag( CharacterRemains remains, Rigidbody live, Rigidbody replacement )
+	{
+		if ( !bodyDragger.IsValid() || bodyDragger.draggedBody != live ) return;
+		bodyDragger.RemoveDragJoint();
+		bodyDragger.draggedBody = replacement;
+		bodyDragger.draggedPhysics = remains.Physics;
+		remains.Dragger = bodyDragger;
+		bodyDragger = null;
+	}
+
+	void RemoveDragJoint()
 	{
 		dragJoint?.Remove();
 		dragJoint = null;
 		dragAnchor?.Remove();
 		dragAnchor = null;
+	}
+
+	void ReleaseBodyDrag()
+	{
+		RemoveDragJoint();
 		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponentInParent<RabbitGuard>() is { } owner && owner.bodyDragger == this )
 			owner.bodyDragger = null;
 		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponent<CharacterRemains>() is { } remains && remains.Dragger == this )

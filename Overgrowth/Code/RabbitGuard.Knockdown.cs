@@ -322,9 +322,11 @@ public sealed partial class RabbitGuard
 			foreach ( var part in physics.Bodies )
 			{
 				if ( !part.Component.IsValid() || !liveBodies.TryGetValue( part.Bone, out var live ) || !live.IsValid() ) continue;
-				part.Component.WorldTransform = live.WorldTransform;
+				// Carry the current physics pose across death, including the point held by a dragger.
+				part.Component.WorldTransform = live.PhysicsBody.Transform.WithScale( live.WorldScale );
 				part.Component.Velocity = live.Velocity;
 				part.Component.AngularVelocity = live.AngularVelocity;
+				TransferBodyDrag( remains, live, part.Component );
 			}
 		}
 		else InheritPoseMotion( physics );
