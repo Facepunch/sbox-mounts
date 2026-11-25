@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Fade" ), Category( "Natural Selection 2" )]
-public sealed class Fade : BaseNpc
+public sealed partial class Fade : BaseNpc
 {
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
@@ -20,7 +20,23 @@ public sealed class Fade : BaseNpc
 	Rotation view;
 	bool swiping;
 	float energy = 100;
-	TimeUntil repath;
+	TimeUntil repath, nextHeal, underFire;
+
+	internal static void RegisterSounds( MountContext context )
+	{
+		foreach ( var cue in new[] { "spawn", "swipe", "metabolize", "wound", "death" } )
+		{
+			var id = $"alien/fade/{cue}";
+			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
+		}
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayCue( string cue )
+	{
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/alien/fade/{cue}.sound" ) is { } sound )
+			GameObject.PlaySound( sound );
+	}
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
@@ -60,6 +76,7 @@ public sealed class Fade : BaseNpc
 			world = new( model.PropGraph, model );
 		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/fade/fade_view.model.vmdl" ) is ModelLoader viewModel )
 			weapon = new( viewModel.PropGraph, viewModel );
+		PlayCue( "spawn" );
 		view = WorldRotation;
 		animationTime = 0;
 		weaponTag = OnWeaponTag;
@@ -75,10 +92,12 @@ public sealed class Fade : BaseNpc
 		{
 			swiping = false;
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+			if ( Movement.MoveTarget.HasValue ) TryMetabolize();
 			return;
 		}
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? goal.Value : goal.Value;
 		swiping = visible && EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
+		if ( !swiping ) TryMetabolize();
 		if ( repath <= 0 )
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
@@ -100,19 +119,27 @@ public sealed class Fade : BaseNpc
 		}
 
 		if ( world is null || weapon is null || Health <= 0 ) return;
+		if ( nextHeal <= 0 )
+		{
+			nextHeal = 2;
+			if ( underFire <= 0 ) Heal( Math.Clamp( MaxHealth * 0.02f, 1, 20 ) );
+		}
+		if ( wounds.Update() is not null ) PlayCue( "wound" );
 		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
 		view = AlienAim.Turn( view, aim, 5 );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
-		var activity = swiping && energy >= 7 ? "primary" : "none";
+		bool metabolizing = metabolizeAnimation > 0;
+		var ability = metabolizing ? "vortex" : "swipe";
+		var activity = metabolizing || swiping && energy >= 7 ? "primary" : "none";
 		world.Set( "attack_speed", 1 );
 		world.Set( "alive", 1 );
 		world.Set( "move", !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
-		world.Set( "ability", "swipe" );
+		world.Set( "ability", ability );
 		world.Set( "activity", activity );
 		world.Update( animationTime, output );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
-		weapon.Set( "ability", "swipe" );
+		weapon.Set( "ability", ability );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
 		weapon.Update( animationTime, tag: weaponTag );
@@ -120,7 +147,9 @@ public sealed class Fade : BaseNpc
 
 	void OnWeaponTag( string tag )
 	{
-		if ( tag != "hit" ) return;
+		if ( tag == "metabolize" && metabolizeAnimation > 0 && metabolizeCooldown <= 0 ) RecoverFromMetabolize();
+		if ( tag != "hit" || metabolizeAnimation > 0 ) return;
+		PlayCue( "swipe" );
 		energy = Math.Max( 0, energy - 7 );
 		var (hit, victim) = AlienMelee.Trace( this, view, 1.6f * Scale, 0.7f, 1.2f );
 		if ( victim is null ) return;
@@ -137,7 +166,22 @@ public sealed class Fade : BaseNpc
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 80 );
+		if ( e.AcceptedDamage <= 0 ) return;
+		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 80 );
+		underFire = 3;
+	}
+
+	void Heal( float amount )
+	{
+		float health = Math.Clamp( MaxHealth - Health, 0, amount );
+		Health += health;
+		Armor = Math.Min( 80, Armor + (amount - health) * 0.5f );
+	}
+
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		PlayCue( "death" );
+		base.OnDeath( e );
 	}
 
 	protected override GameObject CreateRagdoll()

@@ -107,6 +107,7 @@ public class GameMount : BaseGameMount
 			return Task.CompletedTask;
 
 		Skulk.RegisterSounds( context );
+		Fade.RegisterSounds( context );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
