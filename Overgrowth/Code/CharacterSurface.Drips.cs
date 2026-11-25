@@ -9,6 +9,7 @@ internal sealed partial class CharacterSurface
 		internal int Face = face, EntryEdge = -1;
 		internal Vector3 Weights = Vector3.One / 3f;
 		internal float Amount = 0.1f;
+		internal bool CanDrip;
 	}
 
 	int[] edgeNeighbors;
@@ -27,6 +28,24 @@ internal sealed partial class CharacterSurface
 		}
 		return closest < 0 ? null : new( closest );
 	}
+
+	internal Drip DirectedDrip( Vector3 origin, Vector3 direction )
+	{
+		int closest = -1;
+		float best = float.NegativeInfinity;
+		for ( int i = 0; i < indices.Length; i += 3 )
+		{
+			var center = (vertices[indices[i]].Position + vertices[indices[i + 1]].Position + vertices[indices[i + 2]].Position) / 3f;
+			float alignment = (center - origin).Normal.Dot( direction );
+			if ( alignment <= best ) continue;
+			best = alignment;
+			closest = i;
+		}
+		return closest < 0 ? null : new( closest ) { Amount = 1f, CanDrip = true };
+	}
+
+	internal Vector3 DripPosition( Drip drip, Vector3[] posed ) =>
+		posed[indices[drip.Face]] * drip.Weights.x + posed[indices[drip.Face + 1]] * drip.Weights.y + posed[indices[drip.Face + 2]] * drip.Weights.z;
 
 	int[] FindNeighbors()
 	{
@@ -70,7 +89,7 @@ internal sealed partial class CharacterSurface
 			var ab = bPoint - a;
 			var ac = cPoint - a;
 			var cross = ab.Cross( cPoint - bPoint );
-			if ( cross.LengthSquared == 0f ) return false;
+			if ( cross.LengthSquared == 0f ) return true;
 			var planeRight = (cross / cross.Length).Cross( ab );
 			var right = planeRight / planeRight.Length;
 			var up = ab / ab.Length;

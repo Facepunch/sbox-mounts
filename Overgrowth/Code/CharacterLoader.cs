@@ -289,6 +289,13 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return mirrored && bone >= 0 ? attachmentSymmetry[bone] : bone;
 	}
 
+	internal Vector3? InitialChainCenter( string chain, int link )
+	{
+		int bone = AttachmentBone( chain, link, false );
+		return animationRig is not null && AttachmentCenters.TryGetValue( bone, out var center )
+			? animationRig.BindPose[bone].PointToWorld( center ) : null;
+	}
+
 	internal CharacterSurface Surface { get; private set; }
 
 	internal float AttachmentScale => (ReadAppearance().Number( "default_scale" ) ?? 1f) / (ReadAppearance().Number( "model_scale" ) ?? 1f);

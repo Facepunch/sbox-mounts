@@ -49,6 +49,11 @@ internal sealed class ArterialBleeding : Component, Component.INetworkSnapshot
 			accumulator -= Step;
 			if ( tick++ % 2 == 0 && draw )
 			{
+				if ( RabbitGuard.BloodLevel == 2 && Random.Shared.Next( 16 ) == 0 && CharacterLoader.FromModel( renderer.Model ) is { } character )
+				{
+					var direction = new Vector3( 1f, Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -0.3f, 0.3f ) );
+					renderer.GameObject.GetOrAddComponent<CutMarks>().AddHeadDrip( character, direction );
+				}
 				float force = 0.5f + 0.5f * MathF.Sin( (Time.Now - accumulator) * 7f );
 				var drop = mount.EmitBillboard( "Data/Particles/blooddrop.xml", point, velocity + head.Up * (remaining * force * 40f), RabbitGuard.BloodColor );
 				if ( lastDrop.IsValid() ) lastDrop.Connect( drop );

@@ -16,6 +16,12 @@ public sealed partial class CutMarks
 			drips.Add( drip );
 	}
 
+	internal void AddHeadDrip( CharacterLoader character, Vector3 direction )
+	{
+		if ( character.InitialChainCenter( "head", 1 ) is { } origin && character.Surface.DirectedDrip( origin, direction ) is { } drip )
+			drips.Add( drip );
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( drips.Count == 0 ) return;
@@ -33,7 +39,13 @@ public sealed partial class CutMarks
 			for ( int i = drips.Count - 1; i >= 0; i-- )
 			{
 				var drip = drips[i];
-				if ( drip.Amount < 0f || !surface.AdvanceDrip( drip, posed, lines ) ) drips.RemoveAt( i );
+				if ( drip.Amount < 0f ) { drips.RemoveAt( i ); continue; }
+				if ( !surface.AdvanceDrip( drip, posed, lines ) )
+				{
+					drips.RemoveAt( i );
+					if ( drip.CanDrip && Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+						mount.EmitBillboard( "Data/Particles/blooddrop.xml", surface.DripPosition( drip, posed ), Vector3.Zero, RabbitGuard.BloodColor );
+				}
 				drip.Amount -= 1f / 120f;
 			}
 		}
