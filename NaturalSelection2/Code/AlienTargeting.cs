@@ -7,6 +7,8 @@ internal sealed class AlienTargeting
 {
 	readonly Dictionary<GameObject, (Vector3 Position, float Time)> memories = [];
 
+	internal static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget && target.GetComponentInParent<PlayerController>().IsValid();
+
 	internal void Remember( GameObject enemy, Vector3 position ) => memories[enemy] = (position, Time.Now);
 
 	internal bool HasXenocideTargets( Skulk skulk )
@@ -33,7 +35,7 @@ internal sealed class AlienTargeting
 		float bestUrgency = float.MinValue;
 		foreach ( var (target, memory) in memories )
 		{
-			if ( !target.IsValid() || Time.Now - memory.Time > 5 )
+			if ( !target.IsValid() || Time.Now - memory.Time > 5 || IsIgnoredPlayer( target ) )
 			{
 				memories.Remove( target );
 				continue;

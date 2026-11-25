@@ -98,7 +98,7 @@ public sealed partial class Skulk
 	{
 		foreach ( var mark in Scene.GetAllComponents<Parasited>() )
 		{
-			if ( GetDisposition( mark.GameObject ) != Disposition.Hostile ) continue;
+			if ( AlienTargeting.IsIgnoredPlayer( mark.GameObject ) || GetDisposition( mark.GameObject ) != Disposition.Hostile ) continue;
 			sneaking = false;
 			Pursue( mark.WorldPosition );
 			return;

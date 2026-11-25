@@ -59,11 +59,13 @@ public sealed partial class Onos : BaseNpc
 		agent.Enabled = false;
 		var movement = root.AddComponent<OnosMovement>();
 		movement.RunSpeed = RunSpeed;
+		movement.TurnSpeed = 0;
 		var senses = root.AddComponent<SensesLayer>();
 		senses.SightRange = 20 * Scale;
 		senses.FieldOfView = 360;
 		var anim = root.AddComponent<AnimationLayer>();
 		anim.EnableFootstepSounds = false;
+		anim.TurnsBody = false;
 		var npc = root.AddComponent<Onos>();
 		npc.DisplayName = "Onos";
 		npc.Faction = Factions.Monster;
@@ -137,11 +139,13 @@ public sealed partial class Onos : BaseNpc
 			if ( Animation.IsGrounded && fallSpeed > 5 * Scale ) PlayCue( "land" );
 			fallSpeed = Animation.IsGrounded ? 0 : -Animation.MoveVelocity.z;
 
-			var aim = attacking && target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
+			var aim = target.IsValid() ? CalculateAimPoint( target ) - EyePosition
+				: velocity.LengthSquared > 1 ? velocity : WorldRotation.Forward;
 			ViewRotation = AlienAim.Turn( ViewRotation, aim, 5 );
-			var yaw = WorldRotation.Angles().yaw;
+			var yaw = ViewRotation.Angles().yaw;
+			WorldRotation = Rotation.FromYaw( yaw );
 			float offset = Angles.NormalizeAngle( standingYaw - yaw );
-			BodyYaw = velocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
+			BodyYaw = Animation.MoveVelocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
 			standingYaw = yaw + BodyYaw;
 			UpdateStoop();
 		}
