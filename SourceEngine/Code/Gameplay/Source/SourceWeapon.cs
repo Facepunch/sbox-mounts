@@ -200,12 +200,11 @@ public abstract class SourceWeapon : BaseCombatWeapon
 	}
 
 	/// <summary>
-	/// Ragdolls take a bullet as a change of velocity: the struck bone gains <c>Ballistics.Force * impactScale</c>
-	/// along the shot, every other bone <paramref name="bodyShare"/> of that. Runs on every peer, as ragdolls are local.
+	/// The host bullet trace already applied its impulse. Client-side ragdolls receive the visual impact locally.
 	/// </summary>
 	protected void PushRagdoll( GameObject hitObject, Vector3 hitPosition, Vector3 origin, float impactScale, float bodyShare )
 	{
-		if ( !hitObject.IsValid() ) return;
+		if ( Networking.IsHost || !hitObject.IsValid() || impactScale <= 0 ) return;
 
 		var struck = hitObject.Components.GetInAncestorsOrSelf<Rigidbody>();
 		if ( !struck.IsValid() || struck.IsProxy ) return;
@@ -213,20 +212,14 @@ public abstract class SourceWeapon : BaseCombatWeapon
 		var physics = hitObject.Components.GetInAncestorsOrSelf<ModelPhysics>();
 		if ( !physics.IsValid() || physics.Bodies.Count < 2 ) return;
 
-		var speed = Ballistics.Force * impactScale;
-		if ( speed <= 0f ) return;
-
-		var dir = (hitPosition - origin).Normal;
+		var impulse = (hitPosition - origin).Normal * (4000f * impactScale);
+		struck.ApplyImpulseAt( hitPosition, impulse );
+		if ( bodyShare <= 0 ) return;
 
 		foreach ( var body in physics.Bodies )
 		{
 			var rb = body.Component;
-			if ( !rb.IsValid() ) continue;
-
-			if ( rb == struck )
-				rb.ApplyImpulseAt( hitPosition, dir * speed * rb.Mass );
-			else if ( bodyShare > 0f )
-				rb.ApplyImpulse( dir * speed * bodyShare * rb.Mass );
+			if ( rb.IsValid() && rb != struck ) rb.ApplyImpulse( impulse * bodyShare );
 		}
 	}
 

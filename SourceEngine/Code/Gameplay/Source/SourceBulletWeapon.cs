@@ -54,13 +54,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	[Property, Group( "Recoil" )] public float ShootForce { get; set; } = 100000f;
 
 	/// <summary>
-	/// Ragdolls take the bullet as a velocity change: the struck bone gains <c>Ballistics.Force * RagdollImpactScale</c>
-	/// units/sec along the shot; every other bone gains <see cref="RagdollBodyShare"/> of that.
+	/// Scale of the bullet impact effect on a client-side ragdoll.
 	/// </summary>
 	[Property, Group( "Ragdoll Impact" ), Range( 0f, 10f )] public float RagdollImpactScale { get; set; } = 1f;
 
-	/// <summary>Fraction of the struck bone's velocity change given to the rest of the ragdoll.</summary>
-	[Property, Group( "Ragdoll Impact" ), Range( 0f, 1f )] public float RagdollBodyShare { get; set; } = 0.3f;
+	/// <summary>Optional fraction of the impact impulse applied to each remaining ragdoll body.</summary>
+	[Property, Group( "Ragdoll Impact" ), Range( 0f, 1f )] public float RagdollBodyShare { get; set; }
 
 	// weapon_ar2 and weapon_smg1 launch their alt fire at 1000 units/s; the damage and radius
 	// fall back to the SDK's sk_plr_dmg_smg1_grenade and sk_smg1_grenade_radius.
