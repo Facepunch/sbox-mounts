@@ -196,7 +196,11 @@ public sealed class Rocket : Projectile
 		if ( Networking.IsHost && Weapon is ProjectileWeapon launcher && launcher.LiveRocket == GameObject ) launcher.NotifyRocketDied();
 	}
 
-	protected override void Hit( SceneTraceResult tr ) => Explode();
+	protected override void Hit( SceneTraceResult tr )
+	{
+		if ( tr.HasTag( "source1_sky" ) ) GameObject.Destroy();
+		else Explode();
+	}
 	protected override void Expire() => Explode();
 }
 
