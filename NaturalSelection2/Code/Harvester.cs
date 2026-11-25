@@ -13,6 +13,8 @@ public sealed class Harvester : AlienStructure
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		float intensity = FlinchIntensity;
+		output?.Set( "intensity", intensity );
 		if ( !Networking.IsHost )
 		{
 			pose.Write( output, age );
@@ -22,6 +24,8 @@ public sealed class Harvester : AlienStructure
 		graph.Set( "built", IsBuilt ? 1 : 0 );
 		graph.Set( "active", IsBuilt ? 1 : 0 );
 		graph.Set( "alive", 1 );
+		graph.Set( "flinch", intensity > 0 ? 1 : 0 );
+		graph.Set( "onfire", GameObject.Tags.Has( "burning" ) ? 1 : 0 );
 		graph.Update( age, output );
 		pose = graph.GetBodyPose();
 	}

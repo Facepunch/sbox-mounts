@@ -18,7 +18,8 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, maxArmor ); }
 	float IDamageable.MaxArmour => maxArmor;
 	private protected SparkAnimationGraph.Playback graph;
-	private protected readonly AlienWounds wounds = new();
+	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
+	protected float FlinchIntensity => AlienWounds.Intensity( flinchEnd );
 	TimeUntil nextMaturityUpdate;
 	TimeSince maturityTick;
 	float previousGrowth, maturity, maturityStart, lastSprayTime;
@@ -129,6 +130,6 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) armor -= wounds.ApplyDamage( e, armor, MaxHealth, maxArmor );
+		if ( e.AcceptedDamage > 0 ) (armor, flinchEnd) = AlienWounds.ApplyFlinch( e, armor, MaxHealth, flinchEnd );
 	}
 }

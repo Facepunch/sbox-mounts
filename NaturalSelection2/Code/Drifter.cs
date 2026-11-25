@@ -20,6 +20,7 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	TimeSince age;
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
+	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
 	SparkAnimationGraph.Playback graph;
 	SoundHandle constructLoop;
 	Action<string> onTag;
@@ -125,6 +126,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 			else StopLoop();
 		}
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		float intensity = AlienWounds.Intensity( flinchEnd );
+		output?.Set( "intensity", intensity );
 		if ( !Networking.IsHost )
 		{
 			pose.Write( output, age );
@@ -132,6 +135,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 		}
 		if ( graph is null ) return;
 		graph.Set( "alive", Health > 0 ? 1 : 0 );
+		graph.Set( "flinch", intensity > 0 ? 1 : 0 );
+		graph.Set( "onfire", GameObject.Tags.Has( "burning" ) ? 1 : 0 );
 		graph.Set( "move", hasOrder ? "run" : "idle" );
 		graph.Set( "activity", constructing ? "parasite" : "none" );
 		graph.Update( age, output, onTag );
@@ -154,7 +159,6 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
-		if ( ratio > 0 && hit.AcceptedDamage > 0 ) armor = Math.Max( 0, armor - hit.AcceptedDamage * (0.7f / 0.3f) / ratio );
+		if ( hit.AcceptedDamage > 0 ) (armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
 	}
 }

@@ -24,6 +24,8 @@ public sealed class Hydra : AlienStructure
 		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		output?.Set( "grow", Growth );
+		float intensity = FlinchIntensity;
+		output?.Set( "intensity", intensity );
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
@@ -38,14 +40,13 @@ public sealed class Hydra : AlienStructure
 			attacking = false;
 			if ( IsBuilt && NpcConVars.Enabled && !burning && !GameObject.Tags.Has( "electrified" ) ) ScanTargets();
 		}
-		wounds.Update();
 		if ( graph is null ) return;
 		graph.Set( "alive", 1 );
 		graph.Set( "built", IsBuilt ? 1 : 0 );
 		graph.Set( "attacking", attacking ? 1 : 0 );
 		graph.Set( "alerting", alerting ? 1 : 0 );
 		graph.Set( "onfire", burning ? 1 : 0 );
-		graph.Set( "flinch", wounds.IsFlinching ? 1 : 0 );
+		graph.Set( "flinch", intensity > 0 ? 1 : 0 );
 		graph.Update( age, output );
 		bodyPose = graph.GetPose( 0 );
 		flinchPose = graph.GetPose( 1 );

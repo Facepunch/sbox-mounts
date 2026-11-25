@@ -18,6 +18,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	TimeSince age;
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
+	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
 
@@ -184,6 +185,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 			else StopThrusters();
 		}
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		float intensity = AlienWounds.Intensity( flinchEnd );
+		output?.Set( "intensity", intensity );
 		if ( !Networking.IsHost )
 		{
 			pose.Write( output, age );
@@ -191,6 +194,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		}
 		if ( graph is null ) return;
 		graph.Set( "alive", Health > 0 ? 1 : 0 );
+		graph.Set( "flinch", intensity > 0 ? 1 : 0 );
 		// Autonomous welding runs as a side task. Spark only requests "run" for explicit orders.
 		graph.Set( "move", "idle" );
 		graph.Set( "activity", nextWeld > 0 ? "build" : "none" );
@@ -216,7 +220,6 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	{
 		if ( hit.AcceptedDamage <= 0 ) return;
 		inCombat = 3;
-		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
-		if ( ratio > 0 ) armor = Math.Max( 0, armor - hit.AcceptedDamage * (0.7f / 0.3f) / ratio );
+		(armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
 	}
 }
