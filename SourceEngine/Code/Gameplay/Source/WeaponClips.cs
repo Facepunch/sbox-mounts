@@ -11,6 +11,9 @@ sealed record WeaponClips
 	public string Idle { get; init; }
 	public string Draw { get; init; }
 	public string EmptyIdle { get; init; }
+	public string LoweredIdle { get; init; }
+	public string Lower { get; init; }
+	public string Raise { get; init; }
 	public string EmptyDraw { get; init; }
 	public string Fire { get; init; }
 	public string DryFire { get; init; }
@@ -69,6 +72,9 @@ sealed record WeaponClips
 		return new WeaponClips
 		{
 			Idle = Find( "ACT_VM_IDLE", names.Idle ),
+			LoweredIdle = Find( "ACT_VM_IDLE_LOWERED", null ),
+			Lower = Find( "ACT_VM_IDLE_TO_LOWERED", null ),
+			Raise = Find( "ACT_VM_LOWERED_TO_IDLE", null ),
 			Draw = draw,
 			EmptyDraw = Find( "ACT_VM_DRAW_EMPTY", null ),
 			EmptyIdle = Find( "ACT_VM_IDLE_EMPTY", null ) ?? (lookup.Get( "idle_empty" ) is { } empty ? empty.Name : null),

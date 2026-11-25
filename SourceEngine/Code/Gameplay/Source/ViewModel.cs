@@ -120,6 +120,8 @@ public sealed class ViewModel : BaseWeaponModel
 		IsIncremental = _clips.Incremental;
 		_choices = [.. Choices( _plainClips ), .. _silencedClips is null ? [] : Choices( _silencedClips ),
 			.. _hitSwings.Select( s => (s.Name, false) ), .. _missSwings.Select( s => (s.Name, false) )];
+		if ( _weapon is ProjectileWeapon { Kind: Projectile.Kinds.Rocket } )
+			_choices = [.. _choices, (_clips.LoweredIdle, true), (_clips.Lower, false), (_clips.Raise, false)];
 		_muzzleEventClips.Clear();
 		foreach ( var sequence in sequences )
 			if ( sequence.Events.Any( AnimEvents.IsMuzzleFlash ) ) _muzzleEventClips.Add( sequence.Name );
@@ -316,6 +318,23 @@ public sealed class ViewModel : BaseWeaponModel
 		GetOrAddComponent<ViewModelHands>().Source = Renderer;
 	}
 
+	string LauncherIdleTransition()
+	{
+		if ( _clips.LoweredIdle is null || _weapon is not ProjectileWeapon { Kind: Projectile.Kinds.Rocket } launcher ) return null;
+		var current = _animation.Current;
+		if ( current is null ) return null;
+		if ( !launcher.HasPrimaryAmmo() && !launcher.LiveRocket.IsValid() )
+		{
+			if ( current == _clips.Idle ) return _clips.Lower ?? _clips.LoweredIdle;
+			if ( current == _clips.Fire || (current == _clips.Lower && _animation.InFadeOut) ) return _clips.LoweredIdle;
+		}
+		else if ( current == _clips.LoweredIdle || (current == _clips.Lower && _animation.InFadeOut) )
+			return _clips.Raise ?? _clips.Idle;
+
+		if ( current == _clips.Raise && _animation.InFadeOut ) return _clips.Idle;
+		return null;
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( !Renderer.IsValid() || !Renderer.SceneModel.IsValid() ) return;
@@ -335,9 +354,10 @@ public sealed class ViewModel : BaseWeaponModel
 			_reloading = false;
 			Play( finish );
 		}
+		else if ( !_reloading && LauncherIdleTransition() is { } transition ) Play( transition );
 		// The empty draw holds its last frame until the original sequence duration elapses.
 		else if ( !_reloading && _animation.Finished && (_animation.Current != _clips.EmptyDraw || _animation.Elapsed >= _animation.Duration)
-			&& _animation.Current != IdleClip && _animation.Current != _clips.ThrowWindup )
+			&& _animation.Current != IdleClip && _animation.Current != _clips.LoweredIdle && _animation.Current != _clips.ThrowWindup )
 		{
 			if ( _clips.Throws && _animation.Current == _clips.Fire )
 			{

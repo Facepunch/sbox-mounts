@@ -98,6 +98,8 @@ public sealed class AnimationPlayer : IDisposable
 	public float Duration => ClipDuration( Current );
 	public float ClipDuration( string name ) => _model?.AnimationClips().TryGetValue( name ?? "", out var clip ) == true ? clip.Duration : 0;
 	public float Elapsed => _elapsed;
+	/// <summary>Source can advance a transition once its authored fade-out begins.</summary>
+	public bool InFadeOut => _elapsed * _rate >= Duration - (_sequences.Get( Current )?.FadeOut ?? 0);
 	public bool Finished => _elapsed >= Duration / MathF.Max( _rate, 0.01f );
 
 	/// <summary>
