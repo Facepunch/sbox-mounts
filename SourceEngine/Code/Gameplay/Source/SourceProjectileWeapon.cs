@@ -35,6 +35,8 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	TimeUntil _releaseAt;
 	TimeUntil _redrawAt;
 	bool _zoomed;
+	float _zoomStart;
+	TimeSince _zoomChanged;
 	Hl2RpgLaser _laser;
 
 	bool IsLauncher => Kind == SourceProjectile.Kinds.Rocket;
@@ -56,13 +58,19 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
 		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
 
-	public override bool CanSecondaryAttack() => Secondary is SecondaryFires.Zoom or SecondaryFires.Guide && base.CanSecondaryAttack();
+	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom || (Secondary == SecondaryFires.Guide && base.CanSecondaryAttack());
 
 	public override void SecondaryAttack()
 	{
+		if ( Secondary == SecondaryFires.Zoom )
+		{
+			_zoomStart = ZoomFraction();
+			_zoomed = !_zoomed;
+			_zoomChanged = 0;
+			return;
+		}
 		SetNextSecondaryFire( 0.3f );
 		if ( Secondary == SecondaryFires.Guide ) ToggleGuiding();
-		else _zoomed = !_zoomed;
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -100,10 +108,28 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 		OnReloadStarted();
 	}
 
+	float ZoomFraction()
+	{
+		var t = ((float)_zoomChanged / (_zoomed ? 0.1f : 0.2f)).Clamp( 0, 1 );
+		return float.Lerp( _zoomStart, _zoomed ? 1f : 0f, t * t * (3 - 2 * t) );
+	}
+
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
 		base.ModifyCamera( camera, ref view );
-		if ( _zoomed ) view.FieldOfView = SourceZoom.FieldOfView;
+		ViewModelFovOffset = 0;
+		if ( Secondary != SecondaryFires.Zoom ) return;
+		var zoom = ZoomFraction();
+		if ( zoom <= 0 ) return;
+
+		// Both Source lenses use horizontal degrees on a 4:3 reference screen.
+		var rect = camera.ScreenRect;
+		var aspect = rect.Height > 0 ? rect.Width / rect.Height : Screen.Aspect;
+		var scale = camera.FovAxis == CameraComponent.Axis.Horizontal ? aspect * 0.75f : 0.75f;
+		var unzoomed = Screen.CreateVerticalFieldOfView( view.FieldOfView, 1 / scale );
+		var zoomed = float.Lerp( unzoomed, SourceZoom.FieldOfView, zoom );
+		view.FieldOfView = Screen.CreateVerticalFieldOfView( zoomed, scale );
+		ViewModelFovOffset = unzoomed - zoomed;
 	}
 
 	protected override void OnReloadStarted()
@@ -117,6 +143,7 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	protected override void OnHolstered()
 	{
 		_zoomed = false;
+		_zoomStart = 0;
 		_primed = false;
 		_releasePending = false;
 		_releaseAttacker = null;

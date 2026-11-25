@@ -185,13 +185,14 @@ public sealed class SourceViewModel : BaseWeaponModel
 	/// Source draws viewmodels through their own fixed lens. Stretching the viewmodel across the view by the ratio of the
 	/// world camera's lens to that one puts every point where the fixed lens would draw it, without a second camera.
 	/// </summary>
-	internal void ApplyLens( CameraComponent camera, in CameraView view )
+	internal void ApplyLens( CameraComponent camera, in CameraView view, float fovOffset )
 	{
 		var rect = camera.ScreenRect;
 		var aspect = rect.Height > 0 ? rect.Width / rect.Height : Screen.Aspect;
 		var tangent = MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
 		if ( camera.FovAxis == CameraComponent.Axis.Horizontal ) tangent /= aspect;
-		var stretch = tangent / LensTangent;
+		var lens = fovOffset == 0 ? LensTangent : MathF.Tan( (Math.Max( 54 - fovOffset, 0.1f ) * 0.5f).DegreeToRadian() ) * 0.75f;
+		var stretch = tangent / lens;
 		WorldScale = new Vector3( 1, stretch, stretch );
 		UpdateWorldMuzzle();
 	}

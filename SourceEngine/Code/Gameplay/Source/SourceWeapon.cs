@@ -143,6 +143,7 @@ public abstract class SourceWeapon : BaseCombatWeapon
 	// The view the gun is placed at, captured before the camera bone offsets the view, so authored camera
 	// animation moves the camera around the gun, not the gun with it.
 	CameraView _viewModelView;
+	protected float ViewModelFovOffset { get; set; }
 
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
@@ -163,7 +164,7 @@ public abstract class SourceWeapon : BaseCombatWeapon
 		if ( owner.IsValid() ) owner.GetOrAddComponent<SourceViewModelMotion>().Apply( ref placement, owner.Velocity, model.Mirrored );
 		model.Place( placement );
 		model.FollowCameraEffects( camera, view );
-		model.ApplyLens( camera, view );
+		model.ApplyLens( camera, view, ViewModelFovOffset );
 		OnViewModelPlaced( model );
 	}
 
