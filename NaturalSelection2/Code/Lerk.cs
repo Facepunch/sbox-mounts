@@ -11,6 +11,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	float IDamageable.MaxArmour => 30;
 
 	const float Scale = MapLoader.Scale;
+	const float BodyRadius = 0.4f * Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();
 	readonly AlienWounds wounds = new();
@@ -32,7 +33,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		AlienFootsteps.Register( context, "lerk" );
 		const string umbra = "alien/structures/crag/umbra";
 		context.Add( ResourceType.GameResource, $"sounds/{umbra}.sound", new SparkSoundLoader( umbra ) );
-		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "flying_3D", "death", "wound", "wound_serious" } )
+		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "flying_3D", "spores_hit", "spore_spray_once", "death", "wound", "wound_serious" } )
 		{
 			var id = $"alien/lerk/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -48,18 +49,17 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
-		const float radius = 0.4f * Scale, height = 2 * radius;
 		var child = new GameObject( root, true, "Collider" );
 		child.Tags.Add( "playercontroller" );
 		var collider = child.AddComponent<SphereCollider>();
-		collider.Radius = radius;
-		collider.Center = Vector3.Up * radius;
+		collider.Radius = BodyRadius;
+		collider.Center = Vector3.Up * BodyRadius;
 		var body = root.AddComponent<Rigidbody>();
 		body.MassOverride = 54;
 		body.EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
-		agent.Radius = radius;
-		agent.Height = height;
+		agent.Radius = BodyRadius;
+		agent.Height = 2 * BodyRadius;
 		agent.Enabled = false;
 		root.AddComponent<NavigationLayer>().RunSpeed = 2.8f * Scale;
 		var senses = root.AddComponent<SensesLayer>();
@@ -80,7 +80,10 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		if ( !Networking.IsHost ) return;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+		{
+			modelOrigin = model.BoundsCenter;
 			world = new( model.PropGraph, model );
+		}
 		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/lerk/lerk_view.model.vmdl" ) is ModelLoader viewModel )
 			weapon = new( viewModel.PropGraph, viewModel );
 		PlayCue( "spawn" );
@@ -95,9 +98,10 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	protected override void Think()
 	{
 		umbraTarget = ChooseUmbraTarget();
-		if ( umbraTarget.IsValid() )
+		sporeTarget = umbraTarget.IsValid() ? null : ChooseSporeTarget();
+		if ( umbraTarget.IsValid() || sporeTarget.IsValid() )
 		{
-			Animation.SetLookTarget( umbraTarget.GameObject );
+			Animation.SetLookTarget( umbraTarget.IsValid() ? umbraTarget.GameObject : sporeTarget );
 			attacking = wantsSpikes = false;
 			return;
 		}
@@ -120,6 +124,14 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		}
 	}
 
+	// Spark rotates the model about the center of the movement sphere.
+	void UpdateBodyTransform()
+	{
+		var rotation = WorldRotation.Inverse * BodyRotation;
+		Renderer.LocalRotation = rotation;
+		Renderer.LocalPosition = (Vector3.Up - rotation.Up) * BodyRadius;
+	}
+
 	static Vector2 MovementPose( Vector3 velocity, Rotation head )
 	{
 		var planar = velocity.WithZ( 0 );
@@ -139,7 +151,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 			View = AlienAim.Turn( View, aim, 5 );
 			BodyRotation = FlightBodyRotation( BodyRotation.Angles(), View.Angles(), Animation.IsGrounded, Time.Delta );
 		}
-		Renderer.WorldRotation = BodyRotation;
+		UpdateBodyTransform();
 		var moveInputs = MovementPose( Animation.MoveVelocity, View );
 		output?.Set( "move_speed", moveInputs.y );
 		output?.Set( "move_yaw", moveInputs.x );
@@ -163,8 +175,9 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( View.Forward, aim.Normal ) > 0.98f;
 		if ( !spiking ) firingSpikes = false;
 		bool usingUmbra = umbraTarget.IsValid();
-		var ability = usingUmbra ? "umbra" : "bite";
-		bool primary = usingUmbra ? energy >= UmbraCost : attacking && energy >= 5;
+		bool usingSpores = sporeTarget.IsValid();
+		var ability = usingUmbra ? "umbra" : usingSpores ? "spores" : "bite";
+		bool primary = usingUmbra || usingSpores ? energy >= CloudCost && (!usingSpores || Vector3.Dot( View.Forward, aim.Normal ) > 0.95f) : attacking && energy >= 5;
 		var activity = primary ? "primary" : spiking ? "secondary" : "none";
 		var move = !Animation.IsGrounded ? "fly" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "attack_speed", 1 );
@@ -192,9 +205,9 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	{
 		if ( tag == "shoot" && spiking && energy > SpikeCost ) FireSpike();
 		if ( tag != "hit" ) return;
-		if ( umbraTarget.IsValid() )
+		if ( umbraTarget.IsValid() || sporeTarget.IsValid() )
 		{
-			FireUmbra();
+			FireCloud( sporeTarget.IsValid() );
 			return;
 		}
 		PlayCue( "bite" );

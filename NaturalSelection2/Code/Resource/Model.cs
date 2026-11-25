@@ -139,6 +139,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	class ParsedModel
 	{
+		public Vector3 BoundsCenter;
 		public SkinnedVertex[] Vertices = [];
 		public int[] Indices = [];
 		public FaceSet[] FaceSets = [];
@@ -287,6 +288,8 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	}
 
 	private readonly object sourceLock = new();
+	internal Vector3 BoundsCenter => Source.BoundsCenter;
+
 	private ParsedModel Source
 	{
 		get
@@ -342,7 +345,10 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				case ChunkType.Joints: ReadJoints( ref r, model ); break;
 				case ChunkType.CollisionPairs: r.Skip( (long)r.Int() * 8 ); break;
 				case ChunkType.CollisionReps: ReadCollisionReps( ref r, model ); break;
-				case ChunkType.BoundingBox: r.Skip( 6 * 4 ); break;
+				case ChunkType.BoundingBox:
+					model.BoundsCenter = ConvertPosition( r.ReadVector3() );
+					r.Skip( 3 * sizeof( float ) );
+					break;
 				case ChunkType.BoneBounds:
 					for ( int i = 0; i < model.Bones.Length; i++ )
 					{

@@ -2,11 +2,9 @@ using Sandbox.Npcs;
 
 namespace NS2;
 
-public sealed class UmbraCloud : Component
+public sealed class UmbraCloud : LerkCloud
 {
 	const float Scale = MapLoader.Scale;
-	internal Vector3 Destination;
-	internal string Faction;
 	bool settled;
 	TimeUntil pulse, expires;
 
@@ -20,18 +18,12 @@ public sealed class UmbraCloud : Component
 	protected override void OnFixedUpdate()
 	{
 		if ( !Networking.IsHost ) return;
-		if ( !settled )
+		if ( !settled && TravelToDestination() )
 		{
-			var delta = Destination - WorldPosition;
-			if ( delta.LengthSquared > 0.3f * 0.3f * Scale * Scale )
-				WorldPosition += delta * (Time.Delta * 60 / 17);
-			else
-			{
-				settled = true;
-				foreach ( var other in Scene.GetAllComponents<UmbraCloud>() )
-					if ( other != this && other.Faction == Faction && WorldPosition.DistanceSquared( other.WorldPosition ) <= 25 * Scale * Scale )
-						other.GameObject.Destroy();
-			}
+			settled = true;
+			foreach ( var other in Scene.GetAllComponents<UmbraCloud>() )
+				if ( other != this && other.Faction == Faction && WorldPosition.DistanceSquared( other.WorldPosition ) <= 25 * Scale * Scale )
+					other.GameObject.Destroy();
 		}
 		if ( pulse > 0 ) return;
 		pulse = 0.15f;
