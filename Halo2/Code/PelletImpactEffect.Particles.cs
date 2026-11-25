@@ -5,9 +5,9 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst }
 
-	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps;
+	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst;
 
 	public sealed record ImpactEmitter( ImpactLayer Layer, ImpactSprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
@@ -146,13 +146,13 @@ public sealed partial class PelletImpactEffect
 		var effect = go.AddComponent<ParticleEffect>();
 		effect.Lifetime = MathF.Max( data.Lifetime.x, data.Lifetime.y );
 		if ( data.Layer == ImpactLayer.Rubber ) effect.SequenceTime = 0;
-		effect.SnapToFrame = data.Layer is not (ImpactLayer.Drift or ImpactLayer.Cloth);
+		effect.SnapToFrame = data.Layer is not (ImpactLayer.Drift or ImpactLayer.Cloth or ImpactLayer.Burst);
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = data.Lighting;
 		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
-		if ( sparks || data.PerpendicularToDirection ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+		if ( sparks || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
 		void Appearance( Particle p )
@@ -202,6 +202,11 @@ public sealed partial class PelletImpactEffect
 			{
 				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
 				p.Size = data.RadiusCurve.Evaluate( input, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
+				if ( data.Layer == ImpactLayer.Burst )
+				{
+					p.Size = new Vector2( data.SpriteAspect.x * p.Get<float>( "mirror" ), data.SpriteAspect.y ) * p.Size.x;
+					ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, true );
+				}
 				if ( data.Layer is ImpactLayer.Shield or ImpactLayer.Spray or ImpactLayer.Ripple ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
 				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
 				return;
@@ -261,6 +266,11 @@ public sealed partial class PelletImpactEffect
 				bool flipX = (r0 & 1) != 0, flipY = (r1 & 1) != 0;
 				p.Set( "mirror", flipX == flipY ? 1f : -1f );
 				if ( flipX ) p.Angles.roll += 180;
+			}
+			if ( data.Layer == ImpactLayer.Burst )
+			{
+				p.SequenceTime = new Vector3( fourth, 0, 0 );
+				p.Set( "mirror", (r0 & 1) == 0 ? 1f : -1f );
 			}
 			float spinInput = RandomInput( data.SpinInput );
 			float spin = data.SpinCurve is {} curve ? curve.Evaluate( spinInput, RandomInput( data.SpinRange ) ).Clamp( data.Spin.x, data.Spin.y ) : Sample( data.Spin, spinInput );

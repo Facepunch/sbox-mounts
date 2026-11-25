@@ -22,6 +22,8 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\debris_shirt" => ClothName,
 				@"effects\generic\solids\plant_leafy" => LeafName,
 				@"effects\generic\solids\plant_grassy" => GrassName,
+				@"effects\generic\solids\impact_burst" or @"effects\generic\solids\impact_burst_unlit" => BurstName,
+				@"effects\generic\solids\impact_burst_soft_unlit" => SoftBurstName,
 				@"effects\generic\solids\impact_clumps" or @"effects\generic\solids\impact_clumps_unlit" => ClumpsName,
 				@"effects\generic\solids\impact_ripple_unlit" => RippleName,
 				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => ShieldName,
@@ -53,6 +55,7 @@ internal sealed partial class ShotgunLoader
 				ShieldName => ImpactLayer.Shield,
 				RippleName => ImpactLayer.Ripple,
 				ClumpsName => ImpactLayer.Clumps,
+				BurstName or SoftBurstName => ImpactLayer.Burst,
 				WoodName or LeafName or GrassName => ImpactLayer.Plant,
 				ClothName => ImpactLayer.Cloth,
 				DustName => ImpactLayer.Dust,
@@ -72,6 +75,14 @@ internal sealed partial class ShotgunLoader
 			var geometry = new Vector2( Float( definition + 164 ), Float( definition + 168 ) );
 			if ( layer is ImpactLayer.Dust or ImpactLayer.Mist )
 				origin = new Vector2( 1 + Float( definition + 156 ) / geometry.x, -Float( definition + 160 ) / geometry.y );
+			// Both frames of a burst share their footprint and pivot. The fourth random input blends the UVs.
+			if ( layer == ImpactLayer.Burst )
+			{
+				var frame = ReadAnimatedFrames( definition )[0];
+				var pivot = frame.Pivot * frame.InverseSize;
+				origin = new Vector2( 1 - pivot.x, pivot.y );
+				geometry = frame.Aspect * 2;
+			}
 			int emitter = Block( system + 48 );
 			Vector2 Bounds( int property )
 			{

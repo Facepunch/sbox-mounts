@@ -73,10 +73,15 @@ public partial class ShotgunModel
 		p.SequenceTime = new Vector3( (frame + 0.5f) / 3, 0, 0 );
 		float height = 9f / (frame == 2 ? 55 : 56);
 		p.Size = new Vector2( 2 * radius, (p.Rand( 1 ) < 0.5f ? -2 : 2) * height * radius );
+		AlignToVelocity( p, camera, fallbackUp, false );
+	}
+
+	internal static void AlignToVelocity( Particle p, CameraComponent camera, Vector3 fallbackUp, bool vertical )
+	{
 		if ( !camera.IsValid() ) return;
 		var axis = p.Velocity.Normal;
 		var up = Vector3.Cross( camera.View.Position - p.Position, axis );
 		if ( up.LengthSquared < 0.000001f ) up = fallbackUp;
-		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
+		p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), vertical ? axis : up ).Angles();
 	}
 }

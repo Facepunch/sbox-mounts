@@ -47,6 +47,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string ClothName = "debris_shirt.vtex";
 	internal const string LeafName = "plant_leafy.vtex";
 	internal const string GrassName = "plant_grassy.vtex";
+	internal const string BurstName = "impact_burst.vtex";
+	internal const string SoftBurstName = "impact_burst_soft.vtex";
 	internal const string ClumpsName = "impact_clumps.vtex";
 	internal const string RippleName = "impact_ripple.vtex";
 	internal const string ShieldName = "impact_energy.vtex";
@@ -83,6 +85,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			ClothName => @"effects\generic\solids\debris_shirt",
 			LeafName => @"effects\generic\solids\plant_leafy",
 			GrassName => @"effects\generic\solids\plant_grassy",
+			BurstName => @"effects\generic\solids\impact_burst",
+			SoftBurstName => @"effects\generic\solids\impact_burst_soft_unlit",
 			ClumpsName => @"effects\generic\solids\impact_clumps",
 			RippleName => @"effects\generic\solids\impact_ripple_unlit",
 			ShieldName => @"effects\generic\energy\impact_energy",
