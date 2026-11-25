@@ -29,16 +29,15 @@ public class BatteryWeapon : HandheldWeapon
 
 	float CoolingRate => Venting && OverheatedLoss > 0 ? OverheatedLoss : HeatLoss;
 	// Sample on the original weapon clock. Cooling continues on dropped and holstered items.
-	public float Heat
+	public float Heat => HeatAt( Time.NowDouble );
+
+	float HeatAt( double time )
 	{
-		get
-		{
-			if ( ShotHeat <= 0 ) return 0;
-			double ticks = System.Math.Max( 0, System.Math.Floor( (Time.NowDouble - LastEnergyShot) * 30 ) );
-			double ventTicks = Venting && CoolingRate > 0
-				? System.Math.Min( ticks, System.Math.Floor( (ShotHeat - CooledThreshold) * 30 / CoolingRate ) + 1 ) : 0;
-			return (float)System.Math.Max( 0, ShotHeat - (ventTicks * CoolingRate + (ticks - ventTicks) * HeatLoss) / 30 );
-		}
+		if ( ShotHeat <= 0 ) return 0;
+		double ticks = System.Math.Max( 0, System.Math.Floor( time * 30 ) - System.Math.Floor( LastEnergyShot * 30 ) );
+		double ventTicks = Venting && CoolingRate > 0
+			? System.Math.Min( ticks, System.Math.Floor( (ShotHeat - CooledThreshold) * 30 / CoolingRate ) + 1 ) : 0;
+		return (float)System.Math.Max( 0, ShotHeat - (ventTicks * CoolingRate + (ticks - ventTicks) * HeatLoss) / 30 );
 	}
 	public bool Overheated => Venting && Heat >= CooledThreshold;
 	internal override string RestAction => Overheated && !showingVentExit ? "overheated" : "idle";
@@ -50,10 +49,11 @@ public class BatteryWeapon : HandheldWeapon
 	public override void PrimaryAttack()
 	{
 		if ( Spent >= 1 || Overheated ) return;
+		double shotTime = RecordRound();
 		var forward = AimRay.Forward;
 		if ( Networking.IsHost )
 		{
-			FireEnergy( forward, false );
+			FireEnergy( forward, false, shotTime: shotTime );
 			return;
 		}
 		bool awaitCue = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold;
@@ -71,9 +71,10 @@ public class BatteryWeapon : HandheldWeapon
 		FireEnergy( forward, awaitingCue );
 	}
 
-	protected void FireEnergy( Vector3 forward, bool awaitingCue, EnergyDischarge discharge = null )
+	protected void FireEnergy( Vector3 forward, bool awaitingCue, EnergyDischarge discharge = null, double? shotTime = null )
 	{
-		float heat = System.MathF.Min( 1, Heat + (discharge?.Heat ?? HeatPerShot) );
+		double time = shotTime ?? Time.NowDouble;
+		float heat = System.MathF.Min( 1, HeatAt( time ) + (discharge?.Heat ?? HeatPerShot) );
 		bool misfire = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold
 			&& (Spent - MisfireThreshold) * MisfireChance / (1 - MisfireThreshold) > BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) / 65535.0;
 		if ( discharge is null && FiringCues is { Length: > 0 } cues )
@@ -98,7 +99,7 @@ public class BatteryWeapon : HandheldWeapon
 		if ( IsProxy && ((awaitingCue && discharge is null) || misfire) ) PresentOwnerShot( misfire );
 		Spent = System.MathF.Min( 1, Spent + (discharge?.Spent ?? SpentPerShot) );
 		ShotHeat = heat;
-		LastEnergyShot = Time.NowDouble;
+		LastEnergyShot = time;
 		Venting = heat >= OverheatThreshold;
 		showingVentExit = false;
 		if ( Venting )
@@ -143,12 +144,13 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected virtual void PresentDischarge() => ShootEffects();
 
+	protected override bool HoldingAutomaticTrigger => !Overheated && Spent < 1 && base.HoldingAutomaticTrigger;
+
 	protected override void OnControl()
 	{
 		if ( FiringRate.y > FiringRate.x && FiringRate.x > 0 )
 		{
-			bool firing = Input.Down( "attack1" ) && !Overheated && Spent < 1 && !MeleeActive;
-			rateFraction = (rateFraction + Time.Delta * (firing ? RateRise : -RateFall)).Clamp( 0, 1 );
+			rateFraction = (rateFraction + Time.Delta * (HoldingAutomaticTrigger ? RateRise : -RateFall)).Clamp( 0, 1 );
 			float rate = MathX.Lerp( FiringRate.x, FiringRate.y, rateFraction );
 			PrimaryDelay = CooldownSeconds( (int)System.MathF.Ceiling( 30 / rate ) );
 		}

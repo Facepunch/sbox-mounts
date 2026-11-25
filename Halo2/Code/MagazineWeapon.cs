@@ -11,8 +11,11 @@ public sealed class MagazineWeapon : HandheldWeapon
 	double? transferAt;
 	bool transferred;
 
+	protected override bool HoldingAutomaticTrigger => BurstLength <= 1 && base.HoldingAutomaticTrigger;
+
 	public override void PrimaryAttack()
 	{
+		RecordRound();
 		if ( BurstLength > 1 && remainingShots == 0 )
 		{
 			remainingShots = BurstLength;

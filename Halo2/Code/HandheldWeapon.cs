@@ -7,6 +7,44 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public string EliteModel { get; set; }
 
 	[Property] public bool Instantaneous { get; set; } = true;
+	double? lastAutomaticRound;
+	double? automaticRoundAt;
+
+	protected virtual bool HoldingAutomaticTrigger => PrimaryAutomatic && Input.Down( "attack1" ) &&
+		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
+
+	protected override void OnControl()
+	{
+		double now = Time.NowDouble;
+		if ( HoldingAutomaticTrigger && PrimaryDelay > 0 )
+		{
+			automaticRoundAt = now;
+			if ( lastAutomaticRound is double previous )
+			{
+				// The barrel checks elapsed ticks against its current firing rate.
+				double due = previous + System.Math.Round( PrimaryDelay * 30 ) / 30.0;
+				SetNextPrimaryFire( (float)(due - now) );
+				if ( now - due < PrimaryDelay ) automaticRoundAt = due;
+			}
+		}
+		else lastAutomaticRound = null;
+		base.OnControl();
+		automaticRoundAt = null;
+	}
+
+	protected double RecordRound()
+	{
+		if ( automaticRoundAt is not double time ) return Time.NowDouble;
+		lastAutomaticRound = time;
+		return time;
+	}
+
+	protected override void OnDisabled()
+	{
+		lastAutomaticRound = null;
+		automaticRoundAt = null;
+		base.OnDisabled();
+	}
 
 	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )
 	{
