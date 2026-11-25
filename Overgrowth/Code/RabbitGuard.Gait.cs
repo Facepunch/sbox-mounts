@@ -31,9 +31,12 @@ public sealed partial class RabbitGuard
 		}
 	}
 
+	// UpdateAnimation reads velocity between UpdateMovementControls and ApplyPhysics.
+	float GaitSpeed => Animation.MoveVelocity.WithZ( 0f ).Length * PreFrictionSpeedScale;
+
 	void UpdateGait()
 	{
-		float speed = Animation.MoveVelocity.WithZ( 0 ).Length / 40f;
+		float speed = GaitSpeed / 40f;
 		var controls = new RabbitMovement.Controls( speed / CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
 		var motion = boundAnimations.Movement;
 		// Overgrowth attaches a fresh animation reader when it switches back to movement.

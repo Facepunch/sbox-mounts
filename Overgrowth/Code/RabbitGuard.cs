@@ -180,7 +180,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
-		if ( pose == Locomotion && Animation.IsGrounded && Animation.MoveVelocity.WithZ( 0f ).Length <= 0.6f * 40f )
+		if ( pose == Locomotion && Animation.IsGrounded && GaitSpeed <= 0.6f * 40f )
 			pose = CombatPosture || AlertStage == 2 ? Ready : AlertStage == 1 ? Watch : Idle;
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
@@ -280,7 +280,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense( !rolling ) ) return;
 		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
 		UpdateCombat();
-		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length > 0.6f * 40f )
+		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length * PreFrictionSpeedScale > 0.6f * 40f )
 			Stance = Locomotion;
 	}
 

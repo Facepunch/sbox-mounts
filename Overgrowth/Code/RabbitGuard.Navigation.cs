@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	Vector3 runGroundNormal;
+	[Sync] float PreFrictionSpeedScale { get; set; } = 1f;
 
 	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
 	static Vector3 GroundDirection( Vector3 direction, Vector3 normal )
@@ -44,7 +45,8 @@ public sealed partial class RabbitGuard
 		float friction = acceleration / limit;
 		float crouch = 1f - duckAmount * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
 		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
-		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (MathF.Exp( friction * tick ) - 1f);
+		PreFrictionSpeedScale = MathF.Exp( friction * tick );
+		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (PreFrictionSpeedScale - 1f);
 		float response = 1f - MathF.Exp( -friction * step );
 		float steeringAcceleration = (direction * terminal - velocity).Length * (response / step);
 		// The crowd limits its wish speed by braking distance. While there is room,
@@ -72,7 +74,8 @@ public sealed partial class RabbitGuard
 	{
 		float limit = Math.Clamp( velocity.Length * 0.98f, GroundRunSpeed, GroundRunSpeed * 1.5f );
 		if ( boundAnimations?.Species == "wolf" ) limit *= 1.5f;
-		AdvanceMomentum( ref velocity, step, MathF.Exp( -(35f * 40f) / (30f * limit) ), origin );
+		PreFrictionSpeedScale = MathF.Exp( (35f * 40f) / (30f * limit) );
+		AdvanceMomentum( ref velocity, step, 1f / PreFrictionSpeedScale, origin );
 	}
 
 	bool MoveTowardPoint( Vector3 target, float slowRadius, float speed )

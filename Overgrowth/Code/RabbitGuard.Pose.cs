@@ -19,7 +19,6 @@ public sealed partial class RabbitGuard
 	Model sampledModel;
 	bool hasSampledPose;
 	readonly List<RabbitMovement.PoseInput> gaitInputs = [], nextStrideInputs = [];
-	bool[] gaitLegBones;
 	(Transform Unit, Rotation Raw)[] gaitBlend = [];
 
 	// AG2 blends unit quaternions. Overgrowth retains the authored magnitudes until retargeting.
@@ -69,6 +68,7 @@ public sealed partial class RabbitGuard
 		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
 		int count = System.Math.Max( gaitInputs.Count, stride?.Count ?? 0 );
 		if ( gaitBlend.Length < count ) gaitBlend = new (Transform, Rotation)[count];
+		bool advance = stride is not null;
 		foreach ( var bone in model.Bones.AllBones )
 		{
 			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
@@ -76,9 +76,7 @@ public sealed partial class RabbitGuard
 			graphPose[bone.Index] = pose;
 			var parent = bone.Parent;
 			var local = parent is null ? pose : graphPose[parent.Index].ToLocal( pose );
-			// Ground IK runs before this frame's graph evaluation. Advance the gait contribution on
-			// the support chains while preserving the graph's transitions and upper-body layers.
-			bool advance = stride is not null && gaitLegBones[bone.Index];
+			// Advance the stride under the graph's layers so all procedural joints read the same frame.
 			if ( advance || gaitInputs.Count > 1 )
 			{
 				int joint = rigIndices[bone.Index];
@@ -148,7 +146,7 @@ public sealed partial class RabbitGuard
 
 	void EnsurePoseBuffers()
 	{
-		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null || tailIndices is null || gaitLegBones is null )
+		if ( poseModel != Renderer.Model || recoveryParents is null || hipSockets is null || rigIndices is null || tailIndices is null )
 		{
 			poseModel = Renderer.Model;
 			var torso = boundAnimations.TorsoBones;
@@ -166,10 +164,6 @@ public sealed partial class RabbitGuard
 			}
 			int count = poseModel.BoneCount;
 			rigIndices = new int[count];
-			gaitLegBones = new bool[count];
-			foreach ( var leg in boundAnimations.Legs )
-				for ( var bone = poseModel.Bones.GetBone( leg[0].Bone ); bone is not null; bone = bone.Parent )
-					gaitLegBones[bone.Index] = true;
 			animationPose = new Transform[count];
 			solvedPose = new Transform[count];
 			motionSamples = 0;
