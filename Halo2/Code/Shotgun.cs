@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Halo2;
 
 [Title( "Shotgun" ), Category( "Halo 2" )]
@@ -225,7 +227,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 
 	public override bool CanPrimaryAttack() =>
-		meleeEnds <= 0 && NextPrimaryFire <= 0 && CanUseHeldWeapon && (!IsReloading || CanCancelReload) && (HasPrimaryAmmo() || ShellDue);
+		Recovery.End <= 0 && NextPrimaryFire <= 0 && CanUseHeldWeapon && (!IsReloading || CanCancelReload) && (HasPrimaryAmmo() || ShellDue);
 
 	public override void PrimaryAttack()
 	{
@@ -388,7 +390,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			return;
 		}
 
-		if ( meleeEnds <= 0 && !IsReloading && !PuttingAway ) PlayHolderOverlay( "chamber_1" );
+		if ( Recovery.End <= 0 && !IsReloading && !PuttingAway ) PlayHolderOverlay( "chamber_1" );
 		parameters.Set( "action_once", true );
 		parameters.Set( "action", "chamber_1" );
 		parameters.Trigger( "action_restart" );
@@ -761,16 +763,25 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		return Vector3.Dot( center - ray.Position, ray.Forward );
 	}
 
-	TimeUntil meleeEnds;
+	sealed class MeleeRecovery
+	{
+		public TimeUntil End;
+		public TimeUntil NextStrike;
+	}
 
-	public override bool CanReload() => meleeEnds <= 0 && CanUseHeldWeapon && base.CanReload();
+	// Halo advances the melee action on the unit, including while its inventory changes.
+	static readonly ConditionalWeakTable<GameObject, MeleeRecovery> meleeRecovery = new();
+	GameObject MeleeOwner => Inventory?.GameObject ?? GameObject;
+	MeleeRecovery Recovery => meleeRecovery.GetValue( MeleeOwner, static _ => new MeleeRecovery() );
+
+	public override bool CanReload() => Recovery.End <= 0 && CanUseHeldWeapon && base.CanReload();
 
 	protected override bool WantsReload() =>
 		Input.Down( "reload" ) || base.WantsReload();
 
 	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
-	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && CanUseHeldWeapon;
+	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && Recovery.NextStrike <= 0 && CanUseHeldWeapon;
 
 	public override void SecondaryAttack()
 	{
@@ -794,7 +805,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var clip = actions[MeleeAction( firstStrike )];
 		float duration = CooldownSeconds( clip.Frames );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
-		PlayMeleeAnimation( firstStrike, duration, CooldownSeconds( recovery ) );
+		PlayMeleeAnimation( MeleeOwner, firstStrike, duration, CooldownSeconds( recovery ) );
 		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact )
 			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), Time.NowDouble + impact.Frame / 30.0 );
 	}
@@ -805,12 +816,15 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMeleeAnimation( bool firstStrike, float duration, float recovery )
+	void PlayMeleeAnimation( GameObject wielder, bool firstStrike, float duration, float recovery )
 	{
+		if ( !wielder.IsValid() ) return;
+		var state = meleeRecovery.GetValue( wielder, static _ => new MeleeRecovery() );
+		state.End = duration;
+		state.NextStrike = recovery;
+		if ( wielder != MeleeOwner ) return;
+		SetNextSecondaryFire( 0 );
 		var action = MeleeAction( firstStrike );
-		meleeEnds = duration;
-		SetNextPrimaryFire( duration );
-		SetNextSecondaryFire( recovery );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		PlayHolderOverlay( action );
 	}
@@ -1018,7 +1032,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		HolderAnimator?.StopWeaponOverlay( "ready" );
 		triggerConsumed = false;
 		SetNextPrimaryFire( BarrelRecoveryTime );
-		meleeEnds = default;
 		base.OnHolstered();
 	}
 }
