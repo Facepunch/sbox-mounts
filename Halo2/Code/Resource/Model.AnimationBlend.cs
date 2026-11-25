@@ -26,7 +26,7 @@ public partial class Halo2ModelLoader
 	{
 		if ( biped is null || HasFirstPersonWeapon ) return null;
 		foreach ( var prefab in Host.GetAll( Sandbox.Mounting.ResourceType.PrefabFile ).OfType<WeaponLoader>() )
-			if ( prefab.Matches( weaponClass, weaponType ) && prefab.WorldModelPath is {} path ) return Model.Load( path );
+			if ( prefab.AnimationIdentifiers == (weaponClass, weaponType) && prefab.WorldModelPath is {} path ) return Model.Load( path );
 		foreach ( var weapon in mapFile.Tags )
 		{
 			if ( weapon.PrimaryClass != "paew" || weapon.DataSize < 0x290 ) continue;

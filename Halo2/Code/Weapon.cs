@@ -14,6 +14,16 @@ public sealed class PlayerRepresentation
 
 public abstract class Weapon : BaseCombatWeapon
 {
+	[Property] public string AnimationClass { get; set; }
+	[Property] public string AnimationType { get; set; }
+
+	protected override void OnEquipped()
+	{
+		if ( Networking.IsHost && AnimationClass is { Length: > 0 } && AnimationType is { Length: > 0 } )
+			HolderAnimator?.ConfigureWeapon( AnimationClass, AnimationType );
+		base.OnEquipped();
+	}
+
 	[Property] public Vector3 ViewOffset { get; set; }
 	[Property] public float KickDuration { get; set; }
 	[Property] public float KickDegrees { get; set; }

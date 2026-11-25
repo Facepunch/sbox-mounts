@@ -432,6 +432,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
+			(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
 			gun.BindHudTextures();
 			gun.Contacts = ReadContacts();
 			gun.HoldType = WeaponHolds.Shotgun;

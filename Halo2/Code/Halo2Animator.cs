@@ -45,19 +45,26 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	}
 	readonly List<Grip> grips = new();
 
+	internal void ConfigureWeapon( string category, string type )
+	{
+		if ( Bound && configuredModel == Renderer.Model && weaponClass == category && weaponType == type ) return;
+		Configure( configuredContext?.Split( '/' )[0] ?? "combat", category, type );
+	}
+
 	public bool Configure( string mode, string weaponClass, string weaponType )
 	{
 		Renderer ??= Components.Get<SkinnedModelRenderer>();
 		if ( !Renderer.IsValid() ) return false;
 		if ( !Renderer.Model.IsValid() || Renderer.Model.IsError ) return false;
-		configuredContext = $"{mode}/{weaponClass}/{weaponType}";
-		configuredModel = Renderer.Model;
-		var path = $"{configuredModel.Name}/{configuredContext}";
+		var requested = $"{mode}/{weaponClass}/{weaponType}";
+		var path = $"{Renderer.Model.Name}/{requested}";
 		var data = AnimationBindings.Load( $"{path}.json" );
 		if ( data is null ) return false;
 		var graph = Graph.Load( $"{path}.ag" );
 		if ( !graph.IsValid() || graph.IsError ) return false;
 		ReleaseSlots();
+		configuredContext = requested;
+		configuredModel = Renderer.Model;
 		if ( Networking.IsHost ) HolderContext = configuredContext;
 		this.weaponClass = weaponClass;
 		this.weaponType = weaponType;

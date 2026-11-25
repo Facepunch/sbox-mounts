@@ -10,11 +10,13 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 
 	internal string WorldModelPath => ModelPath( Host, map, weapon );
 
-	internal bool Matches( string weaponClass, string weaponType )
+	internal (string Class, string Type) AnimationIdentifiers
 	{
-		int header = map.VaToOffset( (int)weapon.DataVirtualAddress );
-		return map.ResolveStringId( map.ReadInt32( header + 0x288 ) ) == weaponClass
-			&& map.ResolveStringId( map.ReadInt32( header + 0x28c ) ) == weaponType;
+		get
+		{
+			int header = map.VaToOffset( (int)weapon.DataVirtualAddress );
+			return (map.ResolveStringId( map.ReadInt32( header + 0x288 ) ), map.ResolveStringId( map.ReadInt32( header + 0x28c ) ));
+		}
 	}
 
 	internal static string ModelPath( Halo2Mount mount, MapFile map, TagEntry weapon )
