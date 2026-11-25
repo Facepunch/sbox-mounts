@@ -18,6 +18,8 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	[Property] public float ProjectileDamage { get; set; } = 100;
 	[Property] public float ExplosionRadius { get; set; } = 250;
 	[Property] public SecondaryFires Secondary { get; set; }
+	/// <summary>Time from firing the last round to starting an automatic magazine reload.</summary>
+	[Property] public float AutoReloadDelay { get; set; }
 	[Sync( SyncFlags.FromHost )] public GameObject LiveRocket { get; private set; }
 	/// <summary>HL2's launcher guides by default; the SDK's multiplayer rules toggle it with attack2.</summary>
 	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; } = true;
@@ -51,6 +53,9 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	public override bool CanPrimaryAttack() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
 	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
+	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
+		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
+
 	public override bool CanSecondaryAttack() => Secondary is SecondaryFires.Zoom or SecondaryFires.Guide && base.CanSecondaryAttack();
 
 	public override void SecondaryAttack()
