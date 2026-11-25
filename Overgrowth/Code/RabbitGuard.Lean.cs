@@ -44,6 +44,8 @@ public sealed partial class RabbitGuard
 		var neutral = neutralModel ??= Renderer.LocalTransform;
 		var pose = neutral;
 		pose.Position += Vector3.Up * lift;
+		if ( HasGroundSupport && ReactionPhase < 1f )
+			pose.Position += Vector3.Up * (GroundRecoilHeight / Renderer.GameObject.Parent.WorldScale.z);
 		var rotation = Rotation.Identity;
 		var parent = Renderer.GameObject.Parent.WorldRotation;
 		if ( tilt.LengthSquared > 0.000001f )

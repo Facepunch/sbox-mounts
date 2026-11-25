@@ -57,7 +57,7 @@ public sealed partial class RabbitGuard
 	// CheckTerminalVelocity attenuates the whole velocity vector once per character update.
 	float terminalRemainder;
 
-	void UpdateTerminalVelocity()
+	void UpdateAirborneVelocity()
 	{
 		if ( Downed || !IsAirborne || GetComponent<Rigidbody>() is not { MotionEnabled: true } body )
 		{
@@ -68,6 +68,12 @@ public sealed partial class RabbitGuard
 		const float step = 4f / 120f;
 		const float threshold = 50f * 40f;
 		var velocity = body.Velocity;
+		if ( ReactionPhase < 1f && !InThrow && !IsThrowingItem && !Held && !Holding && !IsGetUp( Stance ) )
+		{
+			// UpdateHitReaction damps all three axes. Gravity resumes with movement controls.
+			velocity *= MathF.Pow( 0.95f, Time.Delta * 120f );
+			if ( body.Gravity ) body.ApplyForce( -Scene.PhysicsWorld.Gravity * (body.Mass * body.GravityScale) );
+		}
 		terminalRemainder += Time.Delta;
 		while ( terminalRemainder >= step )
 		{

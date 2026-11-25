@@ -1,8 +1,11 @@
+using System;
+
 namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
 	Vector3 combatVelocity;
+	[Sync( SyncFlags.Interpolate )] float GroundRecoilHeight { get; set; }
 	bool restoreAgentPosition;
 	internal bool PairedGroundSupport { get; private set; }
 
@@ -49,7 +52,7 @@ public sealed partial class RabbitGuard
 
 	internal Vector3 TakeCombatVelocity()
 	{
-		var velocity = combatVelocity;
+		var velocity = combatVelocity.WithZ( 0f );
 		combatVelocity = default;
 		return velocity;
 	}
@@ -65,8 +68,19 @@ public sealed partial class RabbitGuard
 	}
 
 	// MovementObject integrates the damped velocity alongside the clip's root motion.
-	void AdvanceCombatMomentum( float dt ) =>
-		AdvanceMomentum( ref combatVelocity, dt, 0.95f * 0.95f * 0.95f * 0.95f );
+	void AdvanceCombatMomentum( float dt )
+	{
+		const float damping = 0.95f * 0.95f * 0.95f * 0.95f;
+		const float tick = 4f / 120f;
+		float vertical = combatVelocity.z;
+		if ( IsOnGround ) combatVelocity.z = 0f;
+		AdvanceMomentum( ref combatVelocity, dt, damping );
+		// Ground collision puts the character back on its support before each native movement step.
+		// Only that step's vertical travel is visible, while horizontal travel accumulates.
+		if ( IsOnGround && MathF.Abs( vertical ) > 0.001f )
+			combatVelocity.z = vertical * MathF.Pow( damping, dt / tick );
+		GroundRecoilHeight = IsOnGround ? combatVelocity.z * tick : 0f;
+	}
 
 	void AdvanceMomentum( ref Vector3 velocity, float dt, float damping, Vector3? origin = null )
 	{
