@@ -63,7 +63,10 @@ hook.Add("FinishMove", tag, function(p)
     if not IsValid(w) then finish("weapon removed") return end
     local tick = engine.TickCount() - f.start
     local vm = p:GetViewModel()
+    local punch = p:GetViewPunchAngles()
+    local velocity = p:GetViewPunchVelocity()
     table.insert(f.trace.ticks, {tick = tick, input = f.buttons, primary = w:Clip1(), secondary = w:Clip2(),
+        punch = {punch.p, punch.y, punch.r}, punchVelocity = {velocity.p, velocity.y, velocity.r},
         reserve = p:GetAmmoCount(w:GetPrimaryAmmoType()), sequence = IsValid(vm) and vm:GetSequenceName(vm:GetSequence()),
         cycle = IsValid(vm) and vm:GetCycle(), nextPrimary = w:GetNextPrimaryFire() - CurTime()})
     if tick * f.trace.interval >= 6 then finish() end
