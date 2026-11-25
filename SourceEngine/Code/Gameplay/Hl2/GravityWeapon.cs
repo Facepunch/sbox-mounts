@@ -109,6 +109,20 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
+	static bool IsFlesh( Rigidbody body )
+	{
+		if ( HasFleshSurface( body ) ) return true;
+		if ( body.GetComponentInParent<ModelPhysics>() is { } model )
+		{
+			foreach ( var part in model.Bodies )
+				if ( part.Component != body && HasFleshSurface( part.Component ) ) return true;
+		}
+		return false;
+
+		static bool HasFleshSurface( Rigidbody part ) => part?.PhysicsBody is { IsValid: true } physics &&
+			(physics.Surface?.HasTag( "flesh" ) == true || physics.Shapes.Any( shape => shape.Surface?.HasTag( "flesh" ) == true ));
+	}
+
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void Punt()
 	{
@@ -135,7 +149,7 @@ public sealed class GravityWeapon : Weapon
 			return;
 		}
 		var body = FindBody( TraceLength, out var hit, punt: true );
-		if ( !CanMove( body ) )
+		if ( !CanMove( body ) || IsFlesh( body ) )
 		{
 			PuntEffects( PuntResult.Miss );
 			return;
@@ -205,7 +219,7 @@ public sealed class GravityWeapon : Weapon
 		var body = FindBody( PullLength, out var hit );
 		bool pull = body.IsValid() && aim.Position.Distance( hit ) > TraceLength;
 		body ??= FindBodyInCone( aim );
-		if ( !CanMove( body ) || body.Mass > MaxMass )
+		if ( !CanMove( body ) || body.Mass > MaxMass || IsFlesh( body ) )
 		{
 			if ( _playedDenySound ) return;
 			_playedDenySound = true;
@@ -315,7 +329,7 @@ public sealed class GravityWeapon : Weapon
 		if ( Application.IsDedicatedServer ) return;
 		_effects ??= new PhysCannonEffects();
 		// Only the owner traces; other peers show the idle claws.
-		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass };
+		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass } body && !IsFlesh( body );
 		_effects.Update( this, HeldObject, ready );
 	}
 

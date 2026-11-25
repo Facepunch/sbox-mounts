@@ -11,7 +11,7 @@ internal sealed class SourceSurfaceLoader( SourceSurfaceDefinition definition ) 
 			Friction = parameters.Float( "friction" ),
 			Elasticity = parameters.Float( "elasticity" ),
 			Density = parameters.Float( "density" ),
-			Tags = "source1",
+			Tags = definition.GameMaterial is 'A' or 'B' or 'F' or 'H' ? "source1 flesh" : "source1",
 			PrefabCollection = new()
 			{
 				BulletImpactDecal = Host.GetImpactDecal( definition.GameMaterial )
