@@ -74,6 +74,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
+		if ( name.Length == "digit_0.vtex".Length && name.StartsWith( "digit_", StringComparison.Ordinal )
+			&& name.EndsWith( ".vtex", StringComparison.Ordinal ) && name[6] is >= '0' and <= '9' )
+			return new HudDigitLoader( name[6] );
 		if ( name == AmmoMeterName ) return HudBitmap( "ammo_meter_single" );
 		if ( name == AmmoBackgroundName ) return HudBitmap( "weapon_background_single" );
 		if ( name == EmptyAmmoBackgroundName ) return HudBitmap( "weapon_background_out" );

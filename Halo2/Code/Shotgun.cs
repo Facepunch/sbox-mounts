@@ -480,25 +480,56 @@ public sealed class Shotgun : Weapon
 	}
 
 	Texture ammoMeter;
+	readonly Texture[] reserveDigits = new Texture[10];
 	int displayedShells = -1;
 
 	public override void DrawHud( Painter painter, Vector2 crosshair )
 	{
 		base.DrawHud( painter, crosshair );
 		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
-		if ( viewport.z <= 0 || viewport.w <= 0 || (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
+		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
+		var bounds = painter.Bounds;
+		float scale = System.MathF.Min( bounds.Width / (640 * viewport.z), bounds.Height / (480 * viewport.w) );
+		bool split = viewport.z < 1 || viewport.w < 1;
+		var safeCorner = new Vector2( bounds.Right, bounds.Top ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 )) * scale;
+		DrawReserve( painter, safeCorner + (split ? new Vector2( -82, -1 ) : new Vector2( -164, -2 )) * scale, scale );
+		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
 		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
 		{
 			ammoMeter = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/ammo_meter_{Clip1}.vtex" );
 			displayedShells = Clip1;
 		}
 		if ( !ammoMeter.IsValid() || ammoMeter.IsError ) return;
-		var bounds = painter.Bounds;
-		float scale = System.MathF.Min( bounds.Width / (640 * viewport.z), bounds.Height / (480 * viewport.w) );
-		bool split = viewport.z < 1 || viewport.w < 1;
-		var safeCorner = new Vector2( bounds.Right, bounds.Top ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 )) * scale;
 		var offset = split ? new Vector2( -98, 21 ) : new Vector2( -200, 42 );
 		painter.Texture( ammoMeter, new Rect( safeCorner + offset * scale, new Vector2( 98, 13 ) * scale ) );
+	}
+
+	void DrawReserve( Painter painter, Vector2 anchor, float scale )
+	{
+		int reserve = Ammo1;
+		if ( reserve < 0 || reserve == int.MaxValue ) return;
+		System.Span<char> digits = stackalloc char[10];
+		if ( !reserve.TryFormat( digits, out int length ) ) return;
+
+		// Retail Conduit 13 advances nine logical pixels per digit. Center on the ink bounds.
+		static int Bearing( char digit ) => digit is '4' or '9' ? 0 : 1;
+		static int Width( char digit ) => digit switch { '4' => 9, '9' => 8, _ => 7 };
+		char last = digits[length - 1];
+		int inkWidth = (length - 1) * 9 + Bearing( last ) + Width( last ) + 1 - Bearing( digits[0] );
+		anchor.x -= (inkWidth / 2) * scale;
+		var tint = Color.FromBytes( 147, 201, 255, Clip1 == 0 && reserve == 0 ? (byte)64 : (byte)153 );
+		for ( int i = 0; i < length; i++ )
+		{
+			char digit = digits[i];
+			ref var texture = ref reserveDigits[digit - '0'];
+			if ( !texture.IsValid() )
+				texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/digit_{digit}.vtex" );
+			if ( texture.IsValid() && !texture.IsError )
+			{
+				var position = anchor + Vector2.Right * ((i * 9 + Bearing( digit )) * scale);
+				painter.Texture( texture, new Rect( position, new Vector2( Width( digit ), 21 ) * scale ), tint );
+			}
+		}
 	}
 
 	public override void DrawCrosshair( Painter painter, Vector2 center )
