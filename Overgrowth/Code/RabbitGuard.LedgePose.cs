@@ -48,6 +48,9 @@ public sealed partial class RabbitGuard
 		}
 		hangAmount = (supported ? 0f : 1f) + (hangAmount - (supported ? 0f : 1f)) * MathF.Pow( 0.95f, frames );
 
+		Renderer.Animation.Parameters.Set( "leg_support", 1f - hangAmount );
+		if ( !supported ) Renderer.Animation.Parameters.Set( "hang_active", 1f - 1f / (1f + BodyVelocity.Length / 40f) );
+
 		var parent = Renderer.GameObject.Parent.WorldTransform;
 		var body = LedgeGripOffsets( parent.ToWorld( pose ), wall, dt );
 		var pivot = parent.PointToLocal( rim + wall * LegRadius );

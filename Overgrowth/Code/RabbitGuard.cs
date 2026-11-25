@@ -221,7 +221,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
-		if ( playing == pose && (OnLedge || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
+		if ( playing == pose && (pose is ClimbUp or LedgeReach || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
 		if ( IsGrabClip( pose ) )
 		{
 			var grab = GrabPose( pose );

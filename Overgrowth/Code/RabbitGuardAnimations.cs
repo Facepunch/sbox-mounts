@@ -79,7 +79,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = species == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.LedgeHang, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -110,7 +110,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var grabPhase = graph.FloatParameter( "grab_phase" );
 		var grabStances = new Dictionary<string, RabbitAttack.Pose[]>();
-		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
+		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase", "leg_support", "hang_active" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		coordinates["speed_coord"] = speed;
 		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
@@ -254,6 +254,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				GraphBuilder.Node Roll( bool mirrored ) => roll.Build( graph, label => coordinates.GetValueOrDefault( label ), coordinates["roll_phase"], mirrored );
 				return machine.AddState( MovementStance( Roll( false ), Roll( true ) ) );
 			}
+			if ( name == RabbitGuard.LedgeHang )
+				return machine.AddState( AnimationGroup( "Data/Animations/r_ledge.xml" ) );
 			if ( name is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach )
 			{
 				var mode = name == RabbitGuard.ClimbUp ? RabbitClip.CenterMotion.Extract : RabbitClip.CenterMotion.Full;

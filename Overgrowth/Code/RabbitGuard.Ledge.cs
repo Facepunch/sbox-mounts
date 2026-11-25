@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	internal const string ClimbUp = "r_ledge_climb_fast", LedgeReach = "r_ledge_barely_reach";
+	internal const string ClimbUp = "r_ledge_climb_fast", LedgeReach = "r_ledge_barely_reach", LedgeHang = "ledge_hang";
 	[Sync] string LedgeAnimation { get; set; }
 	[Sync] bool LedgeMirrored { get; set; }
 	[Sync] float LedgeHeight { get; set; }
@@ -224,7 +224,7 @@ public sealed partial class RabbitGuard
 			LedgeGrabOrigin = center;
 			LedgeGrabTime = Time.Now;
 			approachingLedge = false;
-			LedgeAnimation = center.z < height - 40f ? LedgeReach : ClimbUp;
+			LedgeAnimation = center.z < height - 40f ? LedgeReach : LedgeHang;
 			LedgeMirrored = LedgeAnimation == LedgeReach && Random.Shared.Next( 2 ) == 0;
 			LedgePhase = 0f;
 			float target = height - 42f;
@@ -236,15 +236,17 @@ public sealed partial class RabbitGuard
 			UseAirHull( false );
 			MovementCapsule.Enabled = false;
 			FaceInAir( Rotation.LookAt( wall ) );
+			WorldPosition = climbPosition;
 		}
 
 		// An AI always asks to pull up on its next ledge update.
-		if ( LedgeAnimation == LedgeReach && LedgePhase > 0f )
+		if ( LedgeAnimation != ClimbUp && Time.Now - LedgeGrabTime >= ClimbStep )
 		{
 			LedgeAnimation = ClimbUp;
 			LedgeMirrored = false;
 			LedgePhase = 0f;
 		}
+		if ( LedgeAnimation == LedgeHang ) return true;
 		var clip = boundAnimations.Clips[LedgeAnimation].ForSide( LedgeMirrored );
 		float previousPhase = LedgePhase;
 		var from = clip.Animation.GetRootMotion( previousPhase );
