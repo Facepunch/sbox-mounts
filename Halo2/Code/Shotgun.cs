@@ -1115,8 +1115,9 @@ public sealed class ShotgunViewModel : ShotgunModel
 			if ( cue.Kind == "sound" && (!thirdPerson || (cue.Flags & 8) == 0) && cue.TagPath is {} path
 				&& AnimationData.Sounds.TryGetValue( path, out var sound ) )
 			{
-				var position = cue.Marker is { Length: > 0 } marker ? Renderer.GetAttachment( marker )?.Position ?? WorldPosition : WorldPosition;
-				sound.Play( position, ref cueSeed, thirdPerson ? Weapon.WorldModel : GameObject );
+				var emitter = thirdPerson ? Weapon.WorldModel : GameObject;
+				if ( !emitter.IsValid() ) emitter = Weapon.GameObject;
+				sound.Play( emitter.WorldPosition, ref cueSeed, emitter );
 			}
 		}
 		if ( sampleTick >= lastTick )
