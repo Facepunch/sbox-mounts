@@ -125,7 +125,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );
 		model.ConfigureMuzzleFlash( firstPerson: false );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
-		if ( HolderAnimator is {} animator )
+		if ( BindHolderAnimator() is {} animator )
 		{
 			animator.Weapon = renderer;
 			animator.SampleWeaponMarker = model.ChamberMarker;

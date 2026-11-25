@@ -160,6 +160,57 @@ public abstract class Weapon : BaseCombatWeapon
 	protected Halo2Animator HolderAnimator => HolderRenderer is {} body
 		&& body.GetComponentInParent<Halo2Animator>( true ) is {} animator && animator.Renderer == body ? animator : null;
 
+	Halo2Animator equippedAnimator;
+	Sandbox.Animation.Graph previousGraph;
+	bool previousUseAnimGraph;
+
+	protected Halo2Animator BindHolderAnimator()
+	{
+		if ( HolderAnimator is {} existing ) return existing;
+		var body = HolderRenderer;
+		if ( body?.Model?.GetData<WeaponAttachment>() is null || string.IsNullOrEmpty( AnimationClass ) || string.IsNullOrEmpty( AnimationType ) ) return null;
+
+		var animator = body.GameObject.AddComponent<Halo2Animator>();
+		animator.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked | ComponentFlags.NotCloned;
+		animator.Renderer = body;
+		previousGraph = body.Animation.Graph;
+		previousUseAnimGraph = body.UseAnimGraph;
+		if ( animator.Configure( "combat", AnimationClass, AnimationType ) )
+			return equippedAnimator = animator;
+
+		animator.Destroy();
+		previousGraph = null;
+		return null;
+	}
+
+	void ReleaseHolderAnimator()
+	{
+		if ( equippedAnimator.IsValid() )
+		{
+			if ( equippedAnimator.Bound )
+			{
+				var body = equippedAnimator.Renderer;
+				body.Animation.Graph = previousGraph;
+				body.UseAnimGraph = previousUseAnimGraph;
+			}
+			equippedAnimator.Destroy();
+		}
+		equippedAnimator = null;
+		previousGraph = null;
+	}
+
+	protected override void DestroyWorldModel()
+	{
+		ReleaseHolderAnimator();
+		base.DestroyWorldModel();
+	}
+
+	protected override void OnDisabled()
+	{
+		ReleaseHolderAnimator();
+		base.OnDisabled();
+	}
+
 	protected void PlayHolderOverlay( string name )
 	{
 		if ( !Application.IsDedicatedServer ) HolderAnimator?.PlayWeaponOverlay( name );
