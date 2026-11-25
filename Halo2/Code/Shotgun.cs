@@ -496,7 +496,8 @@ public sealed class Shotgun : Weapon
 		if ( scale <= 0 ) return;
 		bool split = viewport.z < 1 || viewport.w < 1;
 		var safeCorner = new Vector2( bounds.Width / scale, 0 ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 ));
-		DrawReserve( painter, safeCorner + (split ? new Vector2( -82, -1 ) : new Vector2( -164, -2 )), scale );
+		// The original shotgun HUD uses the same logical offsets in full and split views.
+		DrawReserve( painter, safeCorner + new Vector2( -82, -1 ), scale );
 		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
 		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
 		{
@@ -504,7 +505,7 @@ public sealed class Shotgun : Weapon
 			displayedShells = Clip1;
 		}
 		if ( !ammoMeter.IsValid() || ammoMeter.IsError ) return;
-		var offset = split ? new Vector2( -98, 21 ) : new Vector2( -200, 42 );
+		var offset = new Vector2( -98, 21 );
 		painter.Texture( ammoMeter, new Rect( bounds.Position + (safeCorner + offset) * scale, new Vector2( 98, 13 ) * scale ) );
 	}
 
