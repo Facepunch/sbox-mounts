@@ -731,18 +731,27 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	public override void SecondaryAttack()
 	{
+		if ( Networking.IsHost ) StartMelee();
+		else RequestMelee();
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void RequestMelee()
+	{
+		if ( Inventory?.ActiveItem == this && CanSecondaryAttack() ) StartMelee();
+	}
+
+	void StartMelee()
+	{
 		var actions = FirstPersonAnimations()?.Actions;
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
 		bool firstStrike = BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) < 32768;
 		var clip = actions[MeleeAction( firstStrike )];
-		PlayMeleeAnimation( firstStrike );
 		float duration = CooldownSeconds( clip.Frames );
-		meleeEnds = duration;
-		SetNextPrimaryFire( duration );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
-		SetNextSecondaryFire( CooldownSeconds( recovery ) );
+		PlayMeleeAnimation( firstStrike, duration, CooldownSeconds( recovery ) );
 		pendingStrike = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact
 			? (Time.NowDouble + impact.Frame / 30.0, StrikeDamage(), Attacker) : null;
 	}
@@ -752,13 +761,13 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
 
-	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	void PlayMeleeAnimation( bool firstStrike )
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayMeleeAnimation( bool firstStrike, float duration, float recovery )
 	{
 		var action = MeleeAction( firstStrike );
-		// SecondaryAttack runs on the owner. Other peers need the same window before the chamber overlay can take over.
-		if ( IsProxy && FirstPersonAnimations()?.Actions.TryGetValue( action, out var clip ) == true )
-			meleeEnds = CooldownSeconds( clip.Frames );
+		meleeEnds = duration;
+		SetNextPrimaryFire( duration );
+		SetNextSecondaryFire( recovery );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		PlayHolderOverlay( action );
 	}
@@ -847,7 +856,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		return best;
 	}
 
-	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void MeleeImpactSound( string surfacePath, Vector3 position )
 	{
 		if ( Application.IsDedicatedServer ) return;
