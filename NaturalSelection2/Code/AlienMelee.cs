@@ -5,7 +5,9 @@ namespace NS2;
 
 internal static class AlienMelee
 {
-	internal static void PlayImpact( SceneTraceResult hit, bool gore )
+	internal enum Attack { Bite, Gore, Swipe, Stab }
+
+	internal static void PlayImpact( SceneTraceResult hit, Attack attack )
 	{
 		if ( !hit.Hit ) return;
 		var player = hit.GameObject?.GetComponentInParent<PlayerController>();
@@ -20,13 +22,22 @@ internal static class AlienMelee
 			_ => "metal"
 		};
 		var victim = hit.GameObject?.GetComponentInParent<IDamageable>() as Component;
-		ShowImpact( hit.EndPosition, (hit.EndPosition - hit.StartPosition).Normal, surface, gore, victim?.GameObject );
+		ShowImpact( hit.EndPosition, (hit.EndPosition - hit.StartPosition).Normal, surface, attack, victim?.GameObject );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ShowImpact( Vector3 position, Vector3 direction, string surface, bool gore, GameObject victim )
+	static void ShowImpact( Vector3 position, Vector3 direction, string surface, Attack attack, GameObject victim )
 	{
-		var soundPath = gore ? surface switch
+		bool gore = attack == Attack.Gore;
+		bool claw = attack is Attack.Swipe or Attack.Stab;
+		var soundPath = claw ? surface switch
+		{
+			"armor" or "flesh" => attack == Attack.Stab ? "alien/fade/swipe_hit_marine_glance" : "alien/fade/swipe_hit_marine",
+			"thin_metal" or "electronic" => "materials/thin_metal/scrape",
+			"organic" or "infestation" or "membrane" => "materials/organic/scrape",
+			"rock" => "materials/rock/scrape",
+			_ => "materials/metal/metal_scrape"
+		} : gore ? surface switch
 		{
 			"armor" or "flesh" => "alien/onos/gore_hit_marine",
 			"glass" or "electronic" or "thin_metal" => "alien/onos/gore_hit_thin_metal",
@@ -44,8 +55,9 @@ internal static class AlienMelee
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{soundPath}.sound" ) is { } sound ) Sound.Play( sound, position );
 		if ( !Graphics.IsAvailable ) return;
 		var player = victim?.GetComponentInParent<PlayerController>();
+		var effect = attack switch { Attack.Bite => "bite", Attack.Swipe => "scrape", _ => "gore" };
 		if ( !player.IsValid() || player.IsProxy )
-			CinematicLoader.Play( $"cinematics/materials/{surface}/{(gore ? "gore" : "bite")}.cinematic", position, Rotation.Identity );
+			CinematicLoader.Play( $"cinematics/materials/{surface}/{effect}.cinematic", position, Rotation.Identity );
 
 		var ray = Game.ActiveScene.Trace.Ray( position, position + direction * (3.5f * MapLoader.Scale) ).WithoutTags( "trigger" );
 		if ( victim.IsValid() ) ray = ray.IgnoreGameObjectHierarchy( victim );
@@ -57,6 +69,7 @@ internal static class AlienMelee
 			"robot" => ($"robot_blood_0{Game.Random.Next( 1, 5 )}", 2f),
 			"organic" => ($"alien_blood_0{Game.Random.Next( 1, 5 )}", 0.75f),
 			"membrane" => ("alien_blood_02", 0.75f),
+			_ when claw => ($"clawmark_0{Game.Random.Next( 1, 5 )}", 0.25f),
 			_ => gore ? ("bash_01", 1f) : ("bite_02", 0.5f)
 		};
 		SparkDecal.Spawn( "Melee impact", material, wall.HitPosition, Rotation.LookAt( -wall.Normal, direction ), 0, size, 12 );

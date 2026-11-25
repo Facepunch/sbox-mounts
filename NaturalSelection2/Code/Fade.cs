@@ -18,17 +18,21 @@ public sealed partial class Fade : BaseNpc
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag;
 	Rotation view;
-	bool swiping;
+	bool attacking, stabSelected, stabbing, drawingWeapon;
+	TimeUntil weaponSwitch;
+	[Property] public bool StabUnlocked { get; set; } = true;
 	float energy = 100;
 	TimeUntil repath, nextHeal, underFire;
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spawn", "swipe", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "death" } )
+		foreach ( var cue in new[] { "spawn", "swipe", "stab", "swipe_hit_marine", "swipe_hit_marine_glance", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "death" } )
 		{
 			var id = $"alien/fade/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
 		}
+		foreach ( var id in new[] { "materials/metal/metal_scrape", "materials/thin_metal/scrape", "materials/organic/scrape", "materials/rock/scrape" } )
+			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -92,14 +96,24 @@ public sealed partial class Fade : BaseNpc
 		var goal = lastSeen ?? enemy?.WorldPosition;
 		if ( goal is null )
 		{
-			swiping = false;
+			attacking = false;
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 			if ( Movement.MoveTarget is { } destination ) TravelTo( destination );
 			return;
 		}
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? goal.Value : goal.Value;
-		swiping = visible && EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
-		if ( !swiping ) TravelTo( goal.Value );
+		attacking = visible && EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
+		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )
+		{
+			bool wantsStab = StabUnlocked && energy >= 25 && OpenToStab( enemy );
+			if ( wantsStab != stabSelected )
+			{
+				stabSelected = wantsStab;
+				drawingWeapon = true;
+				weaponSwitch = 1;
+			}
+		}
+		if ( !attacking ) TravelTo( goal.Value );
 		if ( repath <= 0 )
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
@@ -138,8 +152,8 @@ public sealed partial class Fade : BaseNpc
 		view = AlienAim.Turn( view, aim, 5 );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		bool metabolizing = metabolizeAnimation > 0;
-		var ability = metabolizing ? "vortex" : "swipe";
-		var activity = metabolizing || swiping && !Blinking && energy >= 7 ? "primary" : "none";
+		var ability = metabolizing ? "vortex" : stabSelected ? "stab" : "swipe";
+		var activity = metabolizing || attacking && !drawingWeapon && !Blinking && energy >= (stabSelected ? 25 : 7) ? "primary" : "none";
 		world.Set( "attack_speed", 1 );
 		world.Set( "alive", 1 );
 		world.Set( "move", Blinking ? "blink" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
@@ -153,20 +167,45 @@ public sealed partial class Fade : BaseNpc
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
 		weapon.Update( animationTime, tag: weaponTag );
+		drawingWeapon = false;
 	}
 
 	void OnWeaponTag( string tag )
 	{
 		if ( tag == "metabolize" && metabolizeAnimation > 0 && metabolizeCooldown <= 0 ) RecoverFromMetabolize();
-		if ( tag != "hit" || metabolizeAnimation > 0 ) return;
-		PlayCue( "swipe" );
-		energy = Math.Max( 0, energy - 7 );
-		var (hit, victim) = AlienMelee.Trace( this, view, 1.6f * Scale, 0.7f, 1.2f );
-		if ( victim is null ) return;
-		bool player = hit.GameObject.GetComponentInParent<PlayerController>().IsValid();
-		var damage = new DamageInfo { Damage = player ? 75 : 37.5f, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
-		damage.Tags.Add( "puncture" );
+		if ( tag == "stab_start" && stabSelected )
+		{
+			stabbing = true;
+			PlayCue( "stab" );
+		}
+		if ( tag != "hit" ) return;
+		bool stab = stabbing;
+		if ( !stab && (stabSelected || metabolizeAnimation > 0) ) return;
+		stabbing = false;
+		if ( !stab ) PlayCue( "swipe" );
+		energy = Math.Max( 0, energy - (stab ? 25 : 7) );
+		var (hit, victim) = AlienMelee.Trace( this, view, (stab ? 1.9f : 1.6f) * Scale, 0.7f, 1.2f );
+		AlienMelee.PlayImpact( hit, stab ? AlienMelee.Attack.Stab : AlienMelee.Attack.Swipe );
+		if ( victim is not Component target ) return;
+
+		bool player = target.GameObject.Tags.HasAny( "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
+		float amount = player ? 75 : 37.5f;
+		if ( stab )
+		{
+			amount = OpenToStab( target.GameObject ) ? 270 : 120;
+			if ( target.GameObject.Tags.Has( "structure" ) ) amount *= 2;
+		}
+		var damage = new DamageInfo { Damage = amount, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
+		damage.Tags.Add( stab ? "structural" : "puncture" );
 		victim.OnDamage( damage );
+	}
+
+	bool OpenToStab( GameObject target )
+	{
+		if ( !target.Tags.Has( "ns2_exo" ) || target.Tags.Has( "nanoshielded" ) ) return false;
+		var offset = (WorldPosition - target.WorldPosition).WithZ( 0 );
+		var forward = target.GetComponent<PlayerController>()?.EyeAngles.Forward ?? target.WorldRotation.Forward;
+		return offset.LengthSquared > 0.01f * Scale * Scale && Vector3.Dot( forward, offset ) < 0;
 	}
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )

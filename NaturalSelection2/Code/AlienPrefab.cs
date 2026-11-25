@@ -28,7 +28,7 @@ internal sealed class AlienPrefab( string title, string directory, Action<GameOb
 		{
 			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, title ) { NetworkMode = NetworkMode.Object };
-			root.Tags.Add( "npc", "removable" );
+			root.Tags.Add( "npc", "removable", "ns2_lifeform" );
 			var renderer = new GameObject( root, true, "Model" ).AddComponent<SkinnedModelRenderer>();
 			renderer.Model = Model.Load( ModelPath );
 			renderer.UseAnimGraph = true;
