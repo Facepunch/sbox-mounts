@@ -35,26 +35,31 @@ public class GameMount : BaseGameMount
 	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
 	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
 
-	readonly Dictionary<string, CinematicEmitter[]> cinematicEmitters = new();
+	readonly Dictionary<string, Action<Vector3, Rotation>[]> cinematics = new();
 
 	internal void PlayCinematic( string relative, Vector3 position, Rotation facing )
 	{
-		if ( !cinematicEmitters.TryGetValue( relative, out var emitters ) )
+		if ( !cinematics.TryGetValue( relative, out var players ) )
 		{
 			if ( !TryResolve( FileSystem, relative, out var path ) ) return;
 			using var stream = FileSystem.OpenRead( path );
 			var file = CinematicFile.Read( stream );
-			emitters = file.Nodes.Where( n => n.Name is "Emitter" or "Physics Emitter" )
-				.Where( n => n.Get( "Visible" ).IsVisibleAt( 0 ) || n.Get( "Visible" ).HasVisibilityKeys )
-				.Select( n => new CinematicEmitter( n, file.Duration ) ).ToArray();
-			cinematicEmitters.Add( relative, emitters );
+			var nodes = new List<Action<Vector3, Rotation>>();
+			foreach ( var node in file.Nodes )
+			{
+				var visible = node.Get( "Visible" );
+				if ( !visible.IsVisibleAt( 0 ) && !visible.HasVisibilityKeys ) continue;
+				if ( node.Name is "Emitter" or "Physics Emitter" ) nodes.Add( new CinematicEmitter( node, file.Duration ).Play );
+				else if ( node.Name == "Point Light" ) nodes.Add( new CinematicLight( node, file.Duration ).Play );
+			}
+			cinematics.Add( relative, players = nodes.ToArray() );
 		}
-		foreach ( var emitter in emitters ) emitter.Play( position, facing );
+		foreach ( var play in players ) play( position, facing );
 	}
 
 	protected override void Shutdown()
 	{
-		cinematicEmitters.Clear();
+		cinematics.Clear();
 		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
 		SoundBanks.Clear();

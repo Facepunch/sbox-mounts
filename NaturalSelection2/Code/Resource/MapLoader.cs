@@ -589,9 +589,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	// light to full brightness across the inner 40% of its radius and runs ~3x hot through the
 	// midrange - that is what made converted maps look blown out.
 	const float FalloffK = 7.4f;
-	const float FalloffGain = 0.55f;
+	internal const float FalloffGain = 0.55f;
 
-	static float AttenuationFor( float radius ) => FalloffK * 10000f / (radius * radius);
+	internal static float AttenuationFor( float radius ) => FalloffK * 10000f / (radius * radius);
 
 	void BuildLight( LevelEntity entity, GameObject parent )
 	{

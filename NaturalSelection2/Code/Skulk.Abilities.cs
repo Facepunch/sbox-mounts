@@ -30,6 +30,7 @@ public sealed partial class Skulk
 		parasiteReady = 0.54f;
 		energy -= ParasiteEnergy;
 		PlayVoice( "parasite" );
+		ShowAbilityEffect( "parasite_fire", WorldPosition, BodyRotation );
 		var forward = ViewRotation.Forward;
 		var ray = Scene.Trace.Ray( EyePosition, EyePosition + forward * (1000 * MapLoader.Scale) )
 			.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes();
@@ -39,8 +40,12 @@ public sealed partial class Skulk
 			var extent = new Vector3( forward.WithX( 0 ).Length, forward.WithY( 0 ).Length, forward.WithZ( 0 ).Length ) * (0.15f * MapLoader.Scale);
 			hit = ray.Size( -extent, extent ).Run();
 		}
+		if ( !hit.Hit ) return;
+		var impact = hit.EndPosition - forward * (0.13f * MapLoader.Scale);
+		var player = hit.GameObject?.GetComponentInParent<PlayerController>();
+		ShowParasiteHit( impact, player );
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is not Component victim || GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;
-		DealDamage( (IDamageable)victim, 10, hit.HitPosition, "parasite" );
+		DealDamage( (IDamageable)victim, 10, impact, "parasite" );
 		if ( victim.IsValid() && !victim.GameObject.IsDestroyed )
 			victim.GameObject.GetOrAddComponent<Parasited>().Expires = 44;
 	}
@@ -60,6 +65,7 @@ public sealed partial class Skulk
 		const float radius = 14 * MapLoader.Scale;
 		var center = WorldPosition + Vector3.Up * (0.5f * MapLoader.Scale);
 		PlayCombatSound( "alien/common/xenocide_end", WorldPosition );
+		ShowAbilityEffect( "xenocide", WorldPosition, Rotation.Identity );
 		var damaged = new HashSet<Component>();
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, radius ) ).ToArray() )
 		{
@@ -71,6 +77,23 @@ public sealed partial class Skulk
 			DealDamage( (IDamageable)victim, 200 * (1 - fraction), point, "xenocide" );
 		}
 		Health = 0;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowParasiteHit( Vector3 position, PlayerController player )
+	{
+		PlayLocal( "alien/skulk/parasite_hit", position );
+		if ( player.IsValid() && !player.IsProxy ) return;
+		PlayAbilityEffect( player.IsValid() ? "parasite_hit_marine" : "parasite_hit", position, Rotation.Identity );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowAbilityEffect( string name, Vector3 position, Rotation rotation ) => PlayAbilityEffect( name, position, rotation );
+
+	static void PlayAbilityEffect( string name, Vector3 position, Rotation rotation )
+	{
+		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
+			mount.PlayCinematic( $"cinematics/alien/skulk/{name}.cinematic", position, rotation );
 	}
 
 	protected override GameObject CreateRagdoll()
