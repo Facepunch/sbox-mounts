@@ -50,8 +50,14 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 
 	internal void RegisterDetonation( MountContext context, HashSet<string> registered )
 	{
-		if ( DetonationEffect is { PrimaryClass: "effe" } tag && registered.Add( ImpactPath( tag ) ) )
-			context.Add( ResourceType.PrefabFile, ImpactPath( tag ), new ImpactLoader( this, tag, includeSounds: true ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+		Register( context, DetonationEffect );
+		if ( Name == "needler" ) Register( context, Reference( Address( Reference( PrimaryBarrel + 0x8c ) ) + 0x110 ) );
+
+		void Register( MountContext mount, TagEntry tag )
+		{
+			if ( tag is { PrimaryClass: "effe" } && registered.Add( ImpactPath( tag ) ) )
+				mount.Add( ResourceType.PrefabFile, ImpactPath( tag ), new ImpactLoader( this, tag, includeSounds: true ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+		}
 	}
 
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
@@ -131,20 +137,27 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		return gun;
 	}
 
+	BlastDamage ReadBlast( TagEntry damage )
+	{
+		int area = Address( damage );
+		return new( Float( area ) * 120, Float( area + 4 ) * 120, Float( area + 0x18 ) * 120,
+			Float( area + 0x1c ), Float( area + 0x20 ), Float( area + 0x40 ) * 120,
+			BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), area ) );
+	}
+
 	void ConfigureProjectile( HandheldWeapon gun, int barrel, int projectile, int damage )
 	{
 		if ( Name == "needler" )
 		{
-			int detonation = Address( Reference( projectile + 0x108 ) );
 			gun.Shard = new( new Vector2( Float( projectile + 0x184 ), Float( projectile + 0x188 ) ),
 				Float( Header + 0x208 ), Float( Header + 0x20c ) * 120, new Vector2( Float( projectile + 0xd4 ), Float( projectile + 0xd8 ) ),
-				Float( detonation + 0x20 ), Float( detonation + 0x40 ) * 120,
-				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), detonation ) );
+				ReadBlast( Reference( projectile + 0x108 ) ), Reference( barrel + 0x8c ).TagPath,
+				Short( projectile + 0xe6 ), ReadBlast( Reference( projectile + 0x12c ) ), ReadBlast( Reference( projectile + 0x118 ) ),
+				Host.AssetPath( map, Reference( projectile + 0x110 ).TagPath, "prefab" ) );
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
 		}
 		if ( HasImpactBlast && Reference( projectile + 0x100 ) is { PrimaryClass: "!tpj" } explosion )
 		{
-			int area = Address( explosion );
 			if ( Short( projectile + 0xc0 ) == 3 && map.ReadInt32( projectile + 0x19c ) == 1 )
 			{
 				int response = Block( projectile + 0x19c );
@@ -153,9 +166,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						(int)MathF.Round( Float( projectile + 0xd4 ) * 30 ) );
 			}
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
-			gun.ImpactBlast = new( Float( area ) * 120, Float( area + 4 ) * 120, Float( area + 0x18 ) * 120,
-				Float( area + 0x1c ), Float( area + 0x20 ), Float( area + 0x40 ) * 120,
-				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), area ) );
+			gun.ImpactBlast = ReadBlast( explosion );
 		}
 		if ( DetonationEffect is { PrimaryClass: "effe" } effect )
 		{

@@ -3,7 +3,7 @@ namespace Halo2;
 public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
 
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
-	float Damage, float Force, Dictionary<string, float> BodyScales )
+	BlastDamage AttachedDamage, string ProjectileTag, int CombineCount, BlastDamage CombinedDamage, BlastDamage CombinedBlast, string CombinedEffect )
 {
 	public string DetonationEffect { get; init; }
 }
@@ -265,6 +265,43 @@ public abstract partial class Weapon
 	static double SampleRange( Vector2 range, ref uint random ) => range.x == range.y ? range.x
 		: range.x + ((double)range.y - range.x) * (BlamRandom.Next( ref random ) * (double)(1f / 65535));
 
+	sealed class AttachedShard( string tag, float fuse, Vector3 position )
+	{
+		public readonly string Tag = tag;
+		public readonly float Fuse = fuse;
+		public Vector3 Position = position;
+		public double Due = Time.NowDouble + fuse;
+		public bool Consumed;
+	}
+
+	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GameObject, List<AttachedShard>> attachedShards = new();
+
+	static bool TryCombine( List<AttachedShard> siblings, ShardDefinition shard, Scene scene, out Vector3 center )
+	{
+		center = Vector3.Zero;
+		int count = siblings.Count( s => !s.Consumed && s.Tag == shard.ProjectileTag );
+		if ( shard.CombineCount <= 0 || count <= shard.CombineCount ) return false;
+		// The child list is newest first in Halo. Its oldest qualifying needles form the center.
+		ref uint random = ref BlamRandom.GameplayState( scene );
+		for ( int i = siblings.Count - 1; i >= 0; i-- )
+		{
+			var sibling = siblings[i];
+			if ( sibling.Consumed || sibling.Tag != shard.ProjectileTag ) continue;
+			if ( count-- > shard.CombineCount )
+			{
+				double elapsed = System.Math.Clamp( Time.NowDouble + sibling.Fuse - sibling.Due, 0, sibling.Fuse );
+				sibling.Due = Time.NowDouble + sibling.Fuse - elapsed * (BlamRandom.Next( ref random ) / 65535.0);
+				BlamRandom.Next( ref random ); // The second draw scales arming progress.
+				continue;
+			}
+			sibling.Consumed = true;
+			sibling.Due = Time.NowDouble + sibling.Fuse;
+			center += sibling.Position;
+		}
+		center /= shard.CombineCount;
+		return true;
+	}
+
 	async System.Threading.Tasks.Task AttachShard( Scene scene, ShardDefinition shard, Pellet pellet, SceneTraceResult hit, GameObject attacker )
 	{
 		var target = hit.GameObject;
@@ -280,7 +317,18 @@ public abstract partial class Weapon
 			pellet.Model.SetParent( target, true );
 		}
 		var clock = TaskSource.Create( scene.EnabledToken );
-		double due = Time.NowDouble + pellet.FuseSeconds;
+		var owner = target.GetComponentInParent<PlayerController>()?.GameObject ?? target.GetComponentInParent<Sandbox.Npcs.BaseNpc>()?.GameObject ?? target;
+		var siblings = attachedShards.GetValue( owner, static _ => new() );
+		int reset = 0;
+		for ( int i = siblings.Count - 1; i >= 0 && reset < shard.CombineCount; i-- )
+		{
+			var sibling = siblings[i];
+			if ( sibling.Consumed || sibling.Tag != shard.ProjectileTag ) continue;
+			sibling.Due = Time.NowDouble + sibling.Fuse;
+			reset++;
+		}
+		var needle = new AttachedShard( shard.ProjectileTag, pellet.FuseSeconds, contact.Position );
+		siblings.Add( needle );
 		while ( target.IsValid() )
 		{
 			using ( scene.Push() )
@@ -292,19 +340,26 @@ public abstract partial class Weapon
 					if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = contact;
 				}
 				else contact = target.WorldTransform.ToWorld( targetLocal );
-				if ( Time.NowDouble >= due )
+				needle.Position = contact.Position;
+				if ( Time.NowDouble >= needle.Due )
 				{
-					hit.StartPosition = hit.HitPosition = contact.Position;
+					if ( needle.Consumed ) break;
+					bool combined = TryCombine( siblings, shard, scene, out var center );
+					hit.StartPosition = hit.HitPosition = combined ? center : contact.Position;
 					hit.Direction = contact.Rotation.Forward;
 					hit.Normal = contact.Rotation * localNormal;
-					if ( shard.DetonationEffect is {} path ) PresentDetonation( path, target, hit.HitPosition, hit.Normal, hit.Direction );
-					float damage = shard.Damage * BodyMaterial.DamageScale( hit, shard.BodyScales, true );
-					ApplyDelayedHit( hit, damage, shard.Force, attacker, new TagSet { "explosion" }, false );
+					var direct = combined ? shard.CombinedDamage : shard.AttachedDamage;
+					float damage = direct.Maximum * BodyMaterial.DamageScale( hit, direct.BodyScales, true );
+					string path = combined ? shard.CombinedEffect : shard.DetonationEffect;
+					if ( path is not null ) PresentDetonation( path, target, hit.HitPosition, hit.Normal, hit.Direction );
+					ApplyDelayedHit( hit, damage, direct.Acceleration, attacker, new TagSet { "explosion" }, false );
+					if ( combined ) Detonate( scene, shard.CombinedBlast, center, hit.Normal, attacker );
 					break;
 				}
 			}
 			await clock.Frame();
 		}
+		siblings.Remove( needle );
 		if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
 	}
 
