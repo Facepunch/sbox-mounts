@@ -38,7 +38,9 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	TimeSince weaponAge;
 	bool deployed, reloaded;
 	TimeSince age, lastShot, lastHit, lastRequest, lastTracked;
-	TimeUntil acquireTarget;
+	TimeUntil acquireTarget, combatUntil, blindFireUntil;
+	Vector3 lastAimPoint;
+	GameObject firingTarget;
 	GameObject trackedTarget;
 	TimeUntil repath;
 	Rotation aim;
@@ -127,14 +129,22 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 				usePistol = rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
 					&& (rifleAmmo.Reserve == 0 || target.Health <= target.MaxHealth * 0.7f);
 			}
-			if ( pistol != usePistol )
-			{
-				pistol = usePistol;
-				EquipWeapon();
-			}
+			SelectWeapon( usePistol );
+		}
+		else if ( !enemy.IsValid() )
+		{
+			MaintainWeapons();
 		}
 		if ( deployed && Ammo.Clip == 0 && Ammo.Reserve > 0 ) reloading = true;
-		wantsFire = visible && CanAimAt( enemy ) && !reloading && Ammo.Clip > 0 && WorldPosition.Distance( enemy.WorldPosition ) <= BulletRange;
+		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
+		bool aimed = visible && CanAimAt( enemy, aimPoint ) && WorldPosition.Distance( enemy.WorldPosition ) <= BulletRange;
+		if ( aimed )
+		{
+			lastAimPoint = aimPoint;
+			firingTarget = enemy;
+			blindFireUntil = enemy.GetComponentInParent<AlienStructure>().IsValid() ? 0 : 0.5f;
+		}
+		wantsFire = !reloading && Ammo.Clip > 0 && (aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0);
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		if ( goal is { } p && (!visible || WorldPosition.Distance( p ) > 22 * Scale) )
@@ -142,9 +152,36 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		else Movement.Stop();
 	}
 
-	bool CanAimAt( GameObject enemy )
+	void SelectWeapon( bool usePistol )
 	{
-		var offset = CalculateAimPoint( enemy ) - EyePosition;
+		if ( pistol == usePistol ) return;
+		pistol = usePistol;
+		EquipWeapon();
+	}
+
+	void MaintainWeapons()
+	{
+		if ( reloading ) return;
+		bool inCombat = combatUntil > 0;
+		bool reloadRifle = rifleAmmo.Reserve > 0 && rifleAmmo.Clip < rifleAmmo.Capacity
+			&& (!inCombat || rifleAmmo.Clip < rifleAmmo.Capacity * 0.4f);
+		bool reloadPistol = pistolAmmo.Reserve > 0 && pistolAmmo.Clip < pistolAmmo.Capacity
+			&& (inCombat ? rifleAmmo.Reserve == 0 : rifleAmmo.Clip == rifleAmmo.Capacity);
+
+		if ( reloadRifle || reloadPistol )
+		{
+			SelectWeapon( !reloadRifle );
+			reloading = deployed;
+		}
+		else if ( rifleAmmo.Clip > 0 )
+		{
+			SelectWeapon( false );
+		}
+	}
+
+	bool CanAimAt( GameObject enemy, Vector3 point )
+	{
+		var offset = point - EyePosition;
 		// BotAim passes the Marine FOV (90) directly to the cone cosine.
 		if ( offset.LengthSquared > 4 * Scale * Scale && Vector3.Dot( offset.Normal, aim.Forward ) <= MathF.Cos( 90 ) )
 			return false;
@@ -170,9 +207,12 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
 			trigger = press && deployed && (!pistol || lastShot >= 0.1f);
+
+			if ( Animation.LookObject.IsValid() )
+				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
+			else if ( wantsFire )
+				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, 5 );
 		}
-		if ( Networking.IsHost && Animation.LookObject.IsValid() )
-			aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		var move = Animation.MoveVelocity.LengthSquared > 1 ? "run" : "idle";
 		UpdateInputs( graph, move, activity );
@@ -252,6 +292,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 				var info = new DamageInfo { Damage = pistol ? 20 : 10, Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
 				info.Tags.Add( "bullet" );
 				hp.OnDamage( info );
+				combatUntil = 3;
 				lastHit = 0;
 			}
 			if ( !pass ) break;
@@ -285,6 +326,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
+		if ( hit.AcceptedDamage > 0 ) combatUntil = 3;
 		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
 		if ( ratio > 0 && hit.AcceptedDamage > 0 ) armor = Math.Max( 0, armor - hit.AcceptedDamage * (0.7f / 0.3f) / ratio );
 	}
