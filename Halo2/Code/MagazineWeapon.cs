@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed class MagazineWeapon : RangedWeapon
+public sealed class MagazineWeapon : HandheldWeapon
 {
 	[Property] public int BurstLength { get; set; }
 	[Property] public float RecoveryDelay { get; set; }

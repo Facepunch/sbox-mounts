@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed class BatteryWeapon : RangedWeapon
+public sealed class BatteryWeapon : HandheldWeapon
 {
 	[Property] public float HeatPerShot { get; set; }
 	[Property] public float SpentPerShot { get; set; }
@@ -72,7 +72,7 @@ public sealed class BatteryWeapon : RangedWeapon
 		float heat = System.MathF.Min( 1, Heat + HeatPerShot );
 		bool misfire = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold
 			&& (Spent - MisfireThreshold) * MisfireChance / (1 - MisfireThreshold) > BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) / 65535.0;
-		if ( misfire ) ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "misfire_1" );
+		if ( misfire ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "misfire_1" );
 		else if ( Instantaneous ) base.PrimaryAttack();
 		else
 		{
@@ -96,7 +96,7 @@ public sealed class BatteryWeapon : RangedWeapon
 	[Rpc.Owner( NetFlags.HostOnly )]
 	void PresentOwnerShot( bool misfire )
 	{
-		if ( misfire ) ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "misfire_1" );
+		if ( misfire ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "misfire_1" );
 		else OnShootEffects( default );
 	}
 
@@ -107,7 +107,7 @@ public sealed class BatteryWeapon : RangedWeapon
 	{
 		showingVentExit = false;
 		SetZoom( 0 );
-		ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "overheating" );
+		ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "overheating" );
 	}
 
 	void LaunchBolt( Vector3 forward )
@@ -141,7 +141,7 @@ public sealed class BatteryWeapon : RangedWeapon
 		float heat = Heat;
 		if ( heat < CooledThreshold ) return;
 		if ( showingVentExit || !ViewModel.IsValid() ) return;
-		var model = ViewModel.GetComponent<RangedWeaponModel>();
+		var model = ViewModel.GetComponent<HandheldWeaponModel>();
 		if ( model?.AnimationData?.Actions.TryGetValue( "o_h_exit", out var exit ) != true ) return;
 		int frames = exit.Cues.FirstOrDefault( c => c.Kind == "allow_interruption" )?.Frame ?? exit.Frames;
 		if ( heat - CooledThreshold > CoolingRate * frames / 30 ) return;

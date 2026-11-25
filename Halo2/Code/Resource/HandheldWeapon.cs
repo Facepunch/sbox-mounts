@@ -4,12 +4,14 @@ using System;
 
 namespace Halo2;
 
-internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
+internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
 {
 	internal string Title => title;
 
-	internal static RangedWeaponLoader ForTag( MapFile map, TagEntry weapon, string name ) => name switch
+	internal static HandheldWeaponLoader ForTag( MapFile map, TagEntry weapon, string name ) => name switch
 	{
+		"energy_blade" => new( map, weapon, "Energy Sword", WeaponHolds.Melee ),
+		"energy_blade_useless" => new( map, weapon, "Depleted Energy Sword", WeaponHolds.Melee ),
 		"magnum" => new( map, weapon, "Magnum", WeaponHolds.Pistol ),
 		"smg" => new( map, weapon, "SMG", WeaponHolds.Smg ),
 		"battle_rifle" => new( map, weapon, "Battle Rifle", WeaponHolds.Rifle ),
@@ -24,47 +26,54 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
 	int PrimaryBarrel => Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 8 ) * 0xec;
-	internal bool UsesMagazine => Short( PrimaryBarrel + 0x2a ) > 0;
+	bool HasBarrel => map.ReadInt32( Header + 0x2d0 ) > 0;
+	internal bool UsesMagazine => HasBarrel && Short( PrimaryBarrel + 0x2a ) > 0;
 	internal string AmmoPath => $"ammo/{Name}.ammo";
 	PrefabFile prefab;
 
 	protected override object Load()
 	{
 		var world = WorldModelPath;
-		int barrel = PrimaryBarrel;
-		int projectile = Address( Reference( barrel + 0x8c ) );
-		int damage = Address( Reference( projectile + 0x148 ) );
 		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", title ).WithMetadata( "PreviewModel", world );
 		using ( builder.Scope() )
 		{
 			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, title );
-			RangedWeapon gun = UsesMagazine ? CreateMagazine( root, world, barrel ) : CreateBattery( root, world, barrel, projectile, damage );
-			gun.HoldType = hold;
-			gun.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
+			var item = HasBarrel ? CreateFirearm( root, world ) : ConfigurePickup<EnergySword>( root, world, title );
+			item.HoldType = hold;
+			item.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
 			int models = Block( Header + 0x2a8 );
-			gun.SpartanModel = Host.AssetPath( map, Reference( models ).TagPath, "vmdl" );
+			item.SpartanModel = Host.AssetPath( map, Reference( models ).TagPath, "vmdl" );
 			if ( map.ReadInt32( Header + 0x2a8 ) > 1 && Reference( models + 16 ) is { PrimaryClass: "edom" } elite )
-				gun.EliteModel = Host.AssetPath( map, elite.TagPath, "vmdl" );
-			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
-			gun.DeployTime = Float( Header + 0x13c );
-			gun.PrimaryAutomatic = Short( PrimaryTrigger + 6 ) == 0;
-			float rate = Float( barrel + 4 );
-			float recovery = RecoveryTime( barrel );
-			gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
-			gun.AttackSound = FiringSound( barrel );
-			ConfigureKick( gun, barrel );
-			var ballistics = gun.Ballistics;
-			ballistics.Pellets = Short( barrel + 0x6a );
-			ballistics.Range = Float( projectile + 0xe0 ) * 120;
-			ballistics.Damage = Float( damage + 0x20 );
-			ballistics.Force = Float( damage + 0x40 ) * 120;
-			ballistics.SpreadBase = Vector2.One * Float( barrel + 0x74 ).RadianToDegree();
-			ballistics.SpreadGrowth = Vector2.One * (Float( barrel + 0x78 ) - Float( barrel + 0x74 )).RadianToDegree();
-			ballistics.Radius = 0;
-			gun.Ballistics = ballistics;
+				item.EliteModel = Host.AssetPath( map, elite.TagPath, "vmdl" );
+			item.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
+			item.DeployTime = Float( Header + 0x13c );
 		}
 		return prefab = builder.Create();
+	}
+
+	HandheldWeapon CreateFirearm( GameObject root, string world )
+	{
+		int barrel = PrimaryBarrel;
+		int projectile = Address( Reference( barrel + 0x8c ) );
+		int damage = Address( Reference( projectile + 0x148 ) );
+		HandheldWeapon gun = UsesMagazine ? CreateMagazine( root, world, barrel ) : CreateBattery( root, world, barrel, projectile, damage );
+		gun.PrimaryAutomatic = Short( PrimaryTrigger + 6 ) == 0;
+		float rate = Float( barrel + 4 );
+		float recovery = RecoveryTime( barrel );
+		gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
+		gun.AttackSound = FiringSound( barrel );
+		ConfigureKick( gun, barrel );
+		var ballistics = gun.Ballistics;
+		ballistics.Pellets = Short( barrel + 0x6a );
+		ballistics.Range = Float( projectile + 0xe0 ) * 120;
+		ballistics.Damage = Float( damage + 0x20 );
+		ballistics.Force = Float( damage + 0x40 ) * 120;
+		ballistics.SpreadBase = Vector2.One * Float( barrel + 0x74 ).RadianToDegree();
+		ballistics.SpreadGrowth = Vector2.One * (Float( barrel + 0x78 ) - Float( barrel + 0x74 )).RadianToDegree();
+		ballistics.Radius = 0;
+		gun.Ballistics = ballistics;
+		return gun;
 	}
 
 	float RecoveryTime( int barrel ) => Weapon.CooldownSeconds( (int)MathF.Floor( Float( barrel + 0x20 ) * 30 ) + 2 );

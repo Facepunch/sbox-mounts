@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public abstract class RangedWeapon : Weapon
+public abstract class HandheldWeapon : Weapon
 {
 	[Property] public string RigDirectory { get; set; }
 	[Property] public string SpartanModel { get; set; }
@@ -45,7 +45,7 @@ public abstract class RangedWeapon : Weapon
 
 	bool UseEliteRig => EliteModel is not null && HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
 	protected override string FirstPersonRig => $"{RigDirectory}/{(UseEliteRig ? "first_person_elite" : "first_person")}.vmdl";
-	protected override void PlayMeleeView( string action ) => ViewModel?.GetComponent<RangedWeaponModel>()?.Play( action );
+	protected override void PlayMeleeView( string action ) => ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( action );
 
 	protected override void CreateViewModel()
 	{
@@ -67,7 +67,7 @@ public abstract class RangedWeapon : Weapon
 		gun.BoneMergeTarget = arms;
 		gun.RenderOptions.Game = false;
 		gun.RenderOptions.Overlay = true;
-		var model = view.AddComponent<RangedWeaponModel>();
+		var model = view.AddComponent<HandheldWeaponModel>();
 		model.Renderer = arms;
 		model.Weapon = this;
 		model.TracerEffect = model.EjectBrass = model.MuzzleEffect = null;
@@ -79,9 +79,9 @@ public abstract class RangedWeapon : Weapon
 	}
 }
 
-public sealed class RangedWeaponModel : BaseWeaponModel
+public sealed class HandheldWeaponModel : BaseWeaponModel
 {
-	internal RangedWeapon Weapon { get; set; }
+	internal HandheldWeapon Weapon { get; set; }
 	readonly AnimationSounds sounds = new();
 	internal FirstPersonAnimation AnimationData { get; private set; }
 	Halo2ClipInfo clip;
