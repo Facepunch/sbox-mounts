@@ -73,6 +73,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
+	/// <summary>Seconds of spread recovery added by each shot. The HL2 pistol recovers while the trigger is released.</summary>
+	[Property, Feature( "Shooting" )] public float AccuracyPenaltyPerShot { get; set; }
+	float _accuracyPenalty;
+	public override Vector2 CurrentSpread => AccuracyPenaltyPerShot > 0 && HasOwner && Ballistics.SpreadRecovery > 0
+		? (Ballistics.SpreadBase + Ballistics.SpreadGrowth * Math.Min( _accuracyPenalty / Ballistics.SpreadRecovery, 1f )) * SpreadScale
+		: base.CurrentSpread;
 	/// <summary>Keep automatic rounds on their scheduled interval when a frame crosses a shot deadline.</summary>
 	[Property, Feature( "Shooting" )] public bool ContinuousFireRate { get; set; }
 	TimeUntil? _tapReady;
@@ -140,7 +146,11 @@ public sealed class SourceBulletWeapon : SourceWeapon
 				SetNextPrimaryFire( remaining );
 			}
 		}
-		if ( _tapReady is not { } ready || ready > 0 || Input.Down( "attack1" ) ) return;
+		if ( _accuracyPenalty <= 0 && !_tapReady.HasValue ) return;
+		if ( Input.Down( "attack1" ) || _tapReady is { } pending && pending > 0 ) return;
+		if ( _accuracyPenalty > 0 )
+			_accuracyPenalty = Math.Max( 0f, Math.Min( _accuracyPenalty - Time.Delta, Ballistics.SpreadRecovery ) );
+		if ( !_tapReady.HasValue ) return;
 		_tapReady = null;
 		SetNextPrimaryFire( 0 );
 	}
@@ -165,6 +175,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnReloadStarted()
 	{
+		_accuracyPenalty = 0;
 		_tapReady = null;
 		SetZoom( 0 );
 		CancelBurst();
@@ -221,6 +232,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	void FirePrimaryRound()
 	{
 		base.PrimaryAttack();
+		if ( AccuracyPenaltyPerShot > 0 && HasOwner ) _accuracyPenalty += AccuracyPenaltyPerShot;
 		if ( Secondary == SecondaryFires.DoubleShot ) SetNextFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		DoRecoil();
