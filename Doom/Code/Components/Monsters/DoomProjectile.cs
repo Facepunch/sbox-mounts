@@ -2,12 +2,6 @@ using System;
 
 namespace Doom;
 
-/// <summary>
-/// A missile in flight (MF_MISSILE). The host moves it in a straight line, sweeping its size ahead
-/// of it, and on hitting something does (random % 8 + 1) * <see cref="Damage"/> and stops to play its
-/// explosion (P_ExplodeMissile). Like vanilla it flies through blocking lines, vanishes into the sky
-/// without exploding, and only bursts harmlessly on monsters of its shooter's own kind.
-/// </summary>
 [Title( "Doom Projectile" )]
 [Category( "Doom" )]
 [Icon( "local_fire_department" )]
@@ -24,7 +18,7 @@ public sealed class DoomProjectile : Component
 	/// <summary>Collision radius in world units.</summary>
 	[Property] public float Radius { get; set; }
 
-	/// <summary>Collision height in world units. The object's origin is its bottom, like a mobj's z.</summary>
+	/// <summary>Collision height in world units, up from its origin at the bottom.</summary>
 	[Property] public float Height { get; set; }
 
 	/// <summary>World units per map unit.</summary>
@@ -33,10 +27,7 @@ public sealed class DoomProjectile : Component
 	/// <summary>How long the explosion plays before it's removed.</summary>
 	[Property] public float ExplosionTime { get; set; }
 
-	/// <summary>
-	/// A_Explode: blast damage at the centre of its explosion, falling to nothing this many map units
-	/// out, credited to its shooter. 0 for none. The bosses don't feel it.
-	/// </summary>
+	/// <summary>A_Explode damage, falling to zero this many map units out; 0 for none.</summary>
 	[Property] public int Splash { get; set; }
 
 	[Property] public SoundEvent LaunchSound { get; set; }
@@ -48,10 +39,7 @@ public sealed class DoomProjectile : Component
 	/// <summary>Its shooter's editor number, so it can't hurt their kind.</summary>
 	public int OwnerSpecies { get; private set; }
 
-	/// <summary>
-	/// Monsters it was fired from inside, crowded against its shooter. It passes out of them rather
-	/// than hitting them point blank, and they count again once it's clear. Host only.
-	/// </summary>
+	/// <summary>Monsters it was fired from inside, ignored until it's clear of them. Host only.</summary>
 	public List<GameObject> PassThrough { get; set; } = [];
 
 	/// <summary>What it burst on, once it has. Host only.</summary>
@@ -60,7 +48,6 @@ public sealed class DoomProjectile : Component
 	/// <summary>Set by the host when it hits something; every client then plays the explosion.</summary>
 	[Sync( SyncFlags.FromHost )] public bool Exploded { get; private set; }
 
-	/// <summary>A missile that hits nothing is removed after this long.</summary>
 	private const float MaxLifetime = 10f;
 
 	private Vector3 _velocity;
@@ -74,11 +61,7 @@ public sealed class DoomProjectile : Component
 	/// <summary>What a homing missile chases. Host only.</summary>
 	public GameObject Tracer { get; private set; }
 
-	/// <summary>
-	/// Sends it off from where it is, toward a direction. A homing missile follows
-	/// <paramref name="target"/>; as in vanilla, about half of them don't. Host only, before it's
-	/// network spawned.
-	/// </summary>
+	/// <summary>Fires it in a direction; a homing missile chases the target about half the time. Host only, before network spawn.</summary>
 	public void Launch( GameObject owner, Vector3 direction, GameObject target = null )
 	{
 		Owner = owner;
@@ -87,8 +70,7 @@ public sealed class DoomProjectile : Component
 		_sinceLaunch = 0;
 		WorldRotation = Rotation.LookAt( direction.WithZ( 0 ).IsNearlyZero() ? Vector3.Forward : direction.WithZ( 0 ), Vector3.Up );
 
-		// A_Tracer only steers on tics divisible by 4, and the missile's 2-tic frames land on them or
-		// never, depending on the tic it was fired.
+		// Vanilla A_Tracer only runs on every 4th tic, which half of missiles' frames never land on.
 		Tracer = Homing && Game.Random.Int( 0, 1 ) == 0 ? target : null;
 	}
 
@@ -100,10 +82,7 @@ public sealed class DoomProjectile : Component
 
 	private float _traceTime;
 
-	/// <summary>
-	/// A_Tracer: turns toward the target by up to <see cref="TraceAngle"/>, keeping its full speed
-	/// across the ground, and climbs or sinks an eighth of a unit a tic faster toward 40 units up it.
-	/// </summary>
+	/// <summary>A_Tracer: turns toward the target and climbs toward 40 units above it.</summary>
 	private void Steer()
 	{
 		if ( !Tracer.IsValid() || !DoomMonster.IsLiveTarget( Tracer ) ) return;
@@ -134,7 +113,6 @@ public sealed class DoomProjectile : Component
 
 	protected override void OnStart()
 	{
-		// Every client hears it fired, from where it starts.
 		if ( LaunchSound is not null )
 			Sound.Play( LaunchSound, WorldPosition );
 	}
@@ -174,7 +152,7 @@ public sealed class DoomProjectile : Component
 		var from = WorldPosition + centre;
 		var move = _velocity * Time.Delta;
 
-		// Never launched: it would only hit whatever it was spawned inside.
+		// Never launched: it would only hit what it spawned inside.
 		if ( move.IsNearlyZero() )
 		{
 			GameObject.Destroy();
@@ -202,7 +180,6 @@ public sealed class DoomProjectile : Component
 
 		WorldPosition = tr.EndPosition - centre;
 
-		// Into the sky: gone without a burst.
 		if ( tr.GameObject?.Tags.Has( "sky" ) == true )
 		{
 			GameObject.Destroy();
@@ -214,7 +191,6 @@ public sealed class DoomProjectile : Component
 		Explode();
 	}
 
-	/// <summary>Whether this missile, centred at <paramref name="centre"/>, still overlaps a monster's hull.</summary>
 	private bool Inside( GameObject go, Vector3 centre )
 	{
 		if ( go.GetComponent<DoomMonster>() is not { } monster ) return false;
@@ -227,7 +203,6 @@ public sealed class DoomProjectile : Component
 	{
 		if ( !hit.IsValid() ) return;
 
-		// Monsters of the shooter's kind take no damage from it.
 		if ( hit.GetComponentInParent<DoomMonster>() is { } monster && DoomMonster.SameSpecies( monster.ThingId, OwnerSpecies ) )
 			return;
 
@@ -254,18 +229,14 @@ public sealed class DoomProjectile : Component
 
 		if ( Splash <= 0 ) return;
 
-		// P_RadiusAttack: 128 at the centre, less with distance, behind cover nothing. Its shooter is
-		// caught too, as in vanilla.
+		// The shooter is caught too, as in vanilla.
 		var damage = new DamageInfo { Damage = Splash, Attacker = Owner, Weapon = GameObject };
 		damage.Tags.Add( "explosion" );
 		RadiusDamage.ApplyDamage( new Sphere( WorldPosition + Vector3.Up * Height * 0.5f, Splash * Scale ), damage, 1f, ignore: GameObject );
 	}
 }
 
-/// <summary>
-/// Removes a one-shot sprite, such as a bullet puff, once it has played. It can follow something
-/// too, keeping in front of it toward another object, like the arch-vile's fire on its victim.
-/// </summary>
+/// <summary>Removes a one-shot sprite once it has played, optionally following an object.</summary>
 [Title( "Doom Effect" )]
 [Category( "Doom" )]
 [Icon( "auto_awesome" )]
@@ -276,7 +247,7 @@ public sealed class DoomEffect : Component
 	/// <summary>What it stays with, if anything.</summary>
 	public GameObject Follow { get; set; }
 
-	/// <summary>It sits between <see cref="Follow"/> and this, <see cref="FollowDistance"/> out from <see cref="Follow"/>.</summary>
+	/// <summary>It sits <see cref="FollowDistance"/> from <see cref="Follow"/> toward this.</summary>
 	public GameObject FollowFrom { get; set; }
 
 	public float FollowDistance { get; set; }
@@ -287,7 +258,7 @@ public sealed class DoomEffect : Component
 
 	protected override void OnUpdate()
 	{
-		// A networked one (a corpse that burns away) is the host's to remove.
+		// Networked ones are the host's to remove.
 		if ( _age >= Lifetime && !IsProxy )
 		{
 			GameObject.Destroy();

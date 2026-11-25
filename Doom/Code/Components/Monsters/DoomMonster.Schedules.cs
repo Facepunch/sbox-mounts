@@ -15,7 +15,7 @@ public sealed class DoomLookSchedule : BaseSchedule
 	}
 }
 
-/// <summary>A_Chase toward the target until it decides to attack, then attacks. Selected again once done.</summary>
+/// <summary>A_Chase toward the target, then attack.</summary>
 public sealed class DoomChaseSchedule : BaseSchedule
 {
 	public override int Priority => SchedulePriorities.Combat;
@@ -47,31 +47,26 @@ internal sealed class DoomWaitForTargetTask : BaseTask
 	protected override TaskResult OnUpdate() => ((DoomMonster)Npc).Target.IsValid() ? TaskResult.Success : TaskResult.Running;
 }
 
-/// <summary>
-/// Walks the navmesh toward the target in the see state, now and then making its active sound.
-/// Succeeds once the target is in melee range, or when a chase step decides to fire.
-/// </summary>
+/// <summary>Walks toward the target in the see state until in melee range or a chase step decides to attack.</summary>
 internal sealed class DoomChaseTask : BaseTask
 {
-	/// <summary>How often the path to a moving target is worked out again.</summary>
 	private const float RepathInterval = 0.25f;
 
 	private TimeSince _sinceRepath;
 
-	// Time owed to chase steps. Steps are taken from it at exactly the see state's rate, however the frames fall.
+	// Accumulated time, so chase steps run at exactly the see state's rate regardless of frame rate.
 	private float _stepTime;
 
 	private DoomMonster Monster => (DoomMonster)Npc;
 
 	protected override void OnStart()
 	{
-		// Coming back from an attack or pain picks the walk up from the start, like setting the see state.
 		if ( Monster.Animator is { } animator && animator.State != MonsterAnimations.See )
 			animator.Play( MonsterAnimations.See );
 
 		_sinceRepath = RepathInterval;
 
-		// Entering the see state runs its A_Chase at once.
+		// Entering the see state runs A_Chase at once.
 		_stepTime = Monster.StepTime;
 	}
 
@@ -99,7 +94,7 @@ internal sealed class DoomChaseTask : BaseTask
 			}
 		}
 
-		// A_Chase: a 3 in 256 chance per step of the active sound.
+		// A_Chase: 3 in 256 chance per step.
 		if ( Game.Random.Float() < 3f / 256f * Time.Delta / Monster.StepTime )
 			Monster.PlayActiveSound();
 
@@ -119,11 +114,7 @@ internal sealed class DoomChaseTask : BaseTask
 	}
 }
 
-/// <summary>
-/// The melee, missile or heal state the chase picked: faces the target and acts on the state's
-/// action frames, the claw landing or the shot going off. A refiring attack (the chaingunner) loops
-/// back while A_CPosRefire says to keep at it. Healing raises the corpse as it starts.
-/// </summary>
+/// <summary>Plays the melee, missile or heal state the chase picked, acting on its action frames.</summary>
 internal sealed class DoomAttackTask : BaseTask
 {
 	private TimeSince _time;
@@ -152,7 +143,6 @@ internal sealed class DoomAttackTask : BaseTask
 
 		switch ( _action )
 		{
-			// The attack sound opens a melee attack (the demon's bite); shots make their own.
 			case DoomMonster.ChaseAction.Melee:
 				Monster.FaceTarget();
 				Monster.PlayAttackSound();
@@ -181,7 +171,7 @@ internal sealed class DoomAttackTask : BaseTask
 
 		IReadOnlyList<float> times = Missile ? Monster.MissileFireTimes : [Monster.MeleeHitTime];
 
-		// A_FaceTarget runs on the wind-up frames, so it tracks the target until the first action.
+		// A_FaceTarget runs on the wind-up frames.
 		if ( _next == 0 )
 			Monster.FaceTarget();
 
@@ -194,7 +184,7 @@ internal sealed class DoomAttackTask : BaseTask
 			if ( !Monster.Target.IsValid() ) return TaskResult.Failed;
 		}
 
-		// A lost soul's attack is its charge: done once it has launched and hit something.
+		// A lost soul's attack ends with its charge.
 		if ( Missile && Monster.SpecialAttack == "skull" && _next > 0 )
 			return Monster.IsCharging ? TaskResult.Running : TaskResult.Success;
 

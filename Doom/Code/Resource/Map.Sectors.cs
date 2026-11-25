@@ -122,11 +122,7 @@ partial class MapLoader
 			if ( _shortestLower[i] == float.MaxValue ) _shortestLower[i] = 0;
 	}
 
-	/// <summary>
-	/// Sectors that things act on when they die rather than lines, which need to be movable: A_KeenDie
-	/// opens the doors tagged 666, and A_BossDeath moves 666 or 667 when the last boss of a kind dies
-	/// on its level (<see cref="DoomMonster.BossDeathEffect"/>).
-	/// </summary>
+	/// <summary>Marks sectors tagged 666/667 movable for A_KeenDie and A_BossDeath.</summary>
 	private void FindThingTargets()
 	{
 		var table = Host.ThingTable;

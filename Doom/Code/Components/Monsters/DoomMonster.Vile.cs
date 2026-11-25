@@ -2,13 +2,10 @@ using System;
 
 namespace Doom;
 
-/// <summary>
-/// What comes back: the arch-vile's raising of corpses, and the corpses themselves getting up.
-/// Also the arch-vile's fire attack.
-/// </summary>
+/// <summary>Arch-vile corpse raising and fire attack.</summary>
 partial class DoomMonster
 {
-	/// <summary>Whether it raises the dead as it walks (A_VileChase), the arch-vile.</summary>
+	/// <summary>Raises corpses while chasing (A_VileChase).</summary>
 	[Property, Group( "Arch-vile" )] public bool CanHeal { get; set; }
 
 	/// <summary>The fire it sets on its target (MT_FIRE).</summary>
@@ -24,16 +21,13 @@ partial class DoomMonster
 	/// <summary>Whether its corpse can be raised (it has a raise state).</summary>
 	[Property, Group( "Animation" )] public bool Raisable { get; set; }
 
-	/// <summary>Set on a monster spawned from a raised corpse, before it starts: it gets up first.</summary>
+	/// <summary>Set on a monster raised from a corpse so it plays its raise animation first.</summary>
 	public bool Raising { get; set; }
 
-	/// <summary>The corpse the arch-vile is about to raise, picked by a chase step.</summary>
+	/// <summary>The corpse the arch-vile is about to raise.</summary>
 	internal DoomCorpse HealTarget { get; private set; }
 
-	/// <summary>
-	/// A_VileChase: a finished corpse within reach of where it's walking, that can be raised and has
-	/// room to stand up. Checked before anything else on each chase step.
-	/// </summary>
+	/// <summary>A_VileChase: a ready corpse within reach with room to stand up.</summary>
 	private DoomCorpse FindCorpseToRaise()
 	{
 		if ( !CanHeal ) return null;
@@ -46,7 +40,7 @@ partial class DoomMonster
 			if ( (corpse.WorldPosition - WorldPosition).WithZ( 0 ).Length > reach ) continue;
 			if ( MathF.Abs( corpse.WorldPosition.z - WorldPosition.z ) > Height ) continue;
 
-			// P_CheckPosition: nothing living in the way of it getting up.
+			// P_CheckPosition: nothing in the way of it getting up.
 			bool blocked = Scene.GetAllComponents<DoomMonster>()
 				.Any( m => m != this && (m.WorldPosition - corpse.WorldPosition).WithZ( 0 ).Length < m.Radius + corpse.Radius );
 			if ( blocked ) continue;
@@ -57,7 +51,7 @@ partial class DoomMonster
 		return null;
 	}
 
-	/// <summary>The start of the heal state: face the corpse, and it gets up (P_SetMobjState to its raise state).</summary>
+	/// <summary>Faces the heal target and raises it.</summary>
 	internal void RaiseCorpse()
 	{
 		var corpse = HealTarget;
@@ -72,11 +66,7 @@ partial class DoomMonster
 		corpse.Raise();
 	}
 
-	/// <summary>
-	/// The arch-vile's attack actions, by which one in the animation is running: first A_VileTarget
-	/// lights a fire on the target, then A_VileAttack blasts it if it's still in sight: 20 damage,
-	/// a throw upward for a player, and a 70 unit blast where the fire was.
-	/// </summary>
+	/// <summary>Action 0 is A_VileTarget, anything else A_VileAttack.</summary>
 	private void VileAction( int action )
 	{
 		if ( action == 0 )
@@ -99,14 +89,13 @@ partial class DoomMonster
 		RadiusDamage.ApplyDamage( new Sphere( FirePosition( Target ), 70f * Scale ), damage, 1f, ignore: GameObject );
 	}
 
-	/// <summary>A_Fire: the fire burns in front of its victim, between them and the arch-vile.</summary>
+	/// <summary>A_Fire: in front of the victim, toward the arch-vile.</summary>
 	private Vector3 FirePosition( GameObject victim )
 	{
 		var toVile = (WorldPosition - victim.WorldPosition).WithZ( 0 );
 		return victim.WorldPosition + (toVile.IsNearlyZero() ? Vector3.Zero : toVile.Normal * 24f * Scale);
 	}
 
-	/// <summary>Every client shows the fire following the victim until the blast.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	private void SpawnVileFire( GameObject victim, float lifetime )
 	{
@@ -129,11 +118,8 @@ partial class DoomMonster
 }
 
 /// <summary>
-/// A monster's body, left where it died. Corpses aren't solid in Doom, so it has no collider: the
-/// host moves it like a mobj, carrying on the way the monster was going with vanilla's friction,
-/// falling under gravity, and resting on whatever floor is under it, lifts included. Only the
-/// level stops it. If the monster can be raised, an arch-vile that walks up to it brings it back as
-/// the monster it was, once its death animation has finished.
+/// A monster's body, which an arch-vile can raise. It has no collider (corpses aren't solid in Doom)
+/// and the host moves it like a mobj, with vanilla friction and gravity.
 /// </summary>
 [Title( "Doom Corpse" )]
 [Category( "Doom" )]
@@ -148,19 +134,19 @@ public sealed class DoomCorpse : Component
 	/// <summary>World units per map unit.</summary>
 	[Property] public float Scale { get; set; } = 1f;
 
-	/// <summary>How long the death animation runs; it can't be raised before that's done.</summary>
+	/// <summary>Seconds of death animation, before which it can't be raised.</summary>
 	[Property] public float DeathTime { get; set; }
 
 	/// <summary>How it's moving, in world units per second. Host only.</summary>
 	public Vector3 Velocity { get; set; }
 
-	/// <summary>Map units per tic squared, as P_ZMovement pulls things down.</summary>
+	// Map units per tic squared (P_ZMovement).
 	private const float Gravity = 1f;
 
-	/// <summary>FRICTION: what's left of a thing's speed across the floor after each tic it spends on it.</summary>
+	// FRICTION: fraction of floor speed kept per tic.
 	private const float Friction = 0xe800 / 65536f;
 
-	/// <summary>How far it can rise to stay on a floor, like stepping onto a lift (24 map units).</summary>
+	// Map units it can rise onto a floor, e.g. a lift.
 	private const float StepHeight = 24f;
 
 	private TimeSince _age;
@@ -179,7 +165,6 @@ public sealed class DoomCorpse : Component
 		var hull = new BBox( new Vector3( -Radius * 0.5f, -Radius * 0.5f, 0f ), new Vector3( Radius * 0.5f, Radius * 0.5f, 1f ) );
 		var position = WorldPosition;
 
-		// Across: slides until the level stops it.
 		var across = Velocity.WithZ( 0 ) * dt;
 		if ( !across.IsNearlyZero() )
 		{
@@ -189,7 +174,6 @@ public sealed class DoomCorpse : Component
 			if ( tr.Hit ) Velocity = Velocity.WithX( 0 ).WithY( 0 );
 		}
 
-		// Down: onto the floor beneath, which may have come up to meet it.
 		float fall = MathF.Max( -Velocity.z * dt, 0f ) + 0.5f;
 		var floor = Level( hull, position + Vector3.Up * step, position - Vector3.Up * fall );
 
@@ -208,7 +192,6 @@ public sealed class DoomCorpse : Component
 			WorldPosition = position;
 	}
 
-	/// <summary>Sweeps against the level alone: walls, floors and lifts, not things, players or other bodies.</summary>
 	private SceneTraceResult Level( BBox hull, Vector3 from, Vector3 to )
 		=> Scene.Trace.Box( hull, from, to )
 			.IgnoreGameObjectHierarchy( GameObject )
@@ -217,7 +200,7 @@ public sealed class DoomCorpse : Component
 
 	private bool _raised;
 
-	/// <summary>Swaps the corpse for its monster, which plays its raise animation before it does anything. Host only.</summary>
+	/// <summary>Swaps the corpse for its monster, which plays its raise animation first. Host only.</summary>
 	public void Raise()
 	{
 		if ( _raised || PrefabFile.Load( MonsterPrefab ) is not { } prefab ) return;

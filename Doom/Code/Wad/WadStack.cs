@@ -57,10 +57,7 @@ public sealed class WadStack
 		return null;
 	}
 
-	/// <summary>
-	/// Finds the lump drawing a sprite frame seen from one rotation (1 front to 8, counter-clockwise
-	/// around the thing), falling back to the frame's all-angles lump.
-	/// </summary>
+	/// <summary>Finds the lump for a sprite frame at a rotation (1 front to 8), falling back to all-angles.</summary>
 	public bool TryFindSpriteFrame( string sprite, char frame, int rotation, out SpriteFrame result, out WadFile owner )
 	{
 		foreach ( var wad in Wads )

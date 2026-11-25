@@ -5,13 +5,13 @@ namespace Doom;
 
 partial class GameMount
 {
-	// Level resources live in their WAD's folder, so a PWAD's replacement never collides with the IWAD's.
+	// Per-WAD folders, so PWAD replacements don't collide with the IWAD's.
 	public static string FlatPath( string wad, string name ) => $"{wad}/flats/{ResourceName( name )}";
 	public static string TexturePath( string wad, string name ) => $"{wad}/textures/{ResourceName( name )}";
 	public static string SkyPath( string wad, string name ) => $"{wad}/skies/{ResourceName( name )}";
 	public static string SpritePath( string wad, string lump ) => $"{wad}/sprites/{ResourceName( lump )}";
 
-	// Things exist once for the whole mount, drawn from the mount-wide stack (ThingStack).
+	// Things are mount-wide, drawn from ThingStack.
 	public static string ThingSpritePath( ThingType type ) => $"things/{type.Name}.sprite";
 	public static string ThingPrefabPath( ThingType type ) => $"things/{type.Name}.prefab";
 	public static string ThingFramePath( ThingType type, string lump, bool flipped ) => $"things/{type.Name}/{ResourceName( lump )}{(flipped ? "_flip" : "")}";
@@ -75,12 +75,7 @@ partial class GameMount
 		}
 	}
 
-	/// <summary>
-	/// Every thing type, once for the whole mount: each drawn from whichever WAD in the mount-wide
-	/// stack provides its first sprite frame, so a WAD that redraws a monster redraws it everywhere.
-	/// Things that aren't drawn (starts, teleport destinations) get a prefab too. Also the missiles
-	/// monsters fire and the puffs and blood shots leave, which are drawn around their origin.
-	/// </summary>
+	/// <summary>Registers every thing type, projectile and hit effect once for the whole mount.</summary>
 	private void MountThings( MountContext context, WadStack stack )
 	{
 		var palette = stack.Palette ?? throw new InvalidDataException( "No mounted WAD has a PLAYPAL to draw things with." );
@@ -96,7 +91,6 @@ partial class GameMount
 
 			var death = DeathFrames( stack, type );
 
-			// Standing things rest on the floor.
 			SpriteCanvas? canvas = frames is null ? null
 				: AddThingSprite( context, palette, type, frames, death, onFloor: (type.Flags & ThingTypeFlags.Hanging) == 0 );
 
@@ -120,7 +114,6 @@ partial class GameMount
 			AddThingPrefab( context, type, new EffectPrefabLoader( type, canvas, Url( ThingSpritePath( type ) ) ) );
 		}
 
-		// The Icon of Sin's spawn cube.
 		if ( TryGetThingSprite( stack, BrainCube.Type, out _, out var cubeFrames ) )
 		{
 			var canvas = AddThingSprite( context, palette, BrainCube.Type, cubeFrames, null, onFloor: false );
@@ -137,11 +130,11 @@ partial class GameMount
 		return loader;
 	}
 
-	/// <summary>The mount URL of a thing's prefab, or null if the mounted WADs can't draw it.</summary>
+	/// <summary>The mount URL of a thing's prefab, or null if no WAD draws it.</summary>
 	public string ThingPrefabUrl( ThingType type )
 		=> _thingPrefabs.Contains( type.Name ) ? Url( ThingPrefabPath( type ) ) : null;
 
-	/// <summary>A thing's death frames, if it has a death animation the stack can draw.</summary>
+	/// <summary>A thing's death frames, if the stack can draw them.</summary>
 	private SpriteFrameInfo[] DeathFrames( WadStack stack, ThingType type )
 	{
 		if ( type.Death is not { } d ) return null;
@@ -159,11 +152,7 @@ partial class GameMount
 		return texture;
 	}
 
-	/// <summary>
-	/// Registers a thing's frame textures and its sprite (spawn animation, and death if it has one),
-	/// all drawn into one canvas so the sprite's size and origin fit every frame. Things standing on the
-	/// floor are lifted onto it by their spawn frames, so a bigger death animation doesn't make them float.
-	/// </summary>
+	/// <summary>Registers a thing's frame textures and its spawn/death sprite on one shared canvas.</summary>
 	private SpriteCanvas AddThingSprite( MountContext context, Palette palette, ThingType type, SpriteFrameInfo[] frames, SpriteFrameInfo[] death, bool onFloor )
 	{
 		var all = death is null ? frames : [.. frames, .. death];
@@ -171,7 +160,7 @@ partial class GameMount
 		if ( onFloor )
 			canvas = canvas.OnFloor( frames );
 
-		// One texture per distinct lump (and mirroring), however many times the animations repeat it.
+		// One texture per distinct lump and mirroring.
 		var textures = new Dictionary<(string Lump, bool Flipped), string>();
 		foreach ( var f in all )
 		{
@@ -190,7 +179,7 @@ partial class GameMount
 		return canvas;
 	}
 
-	/// <summary>The sprite frames of a thing's spawn animation, and the WAD that provides its first frame.</summary>
+	/// <summary>A thing's spawn animation frames, and the WAD providing the first.</summary>
 	public static bool TryGetThingSprite( WadStack stack, ThingType type, out WadFile owner, out SpriteFrameInfo[] frames )
 	{
 		owner = null;
@@ -205,10 +194,7 @@ partial class GameMount
 	public static bool TryGetSpriteFrames( WadStack stack, string sprite, string letters, out WadFile owner, out SpriteFrameInfo[] frames )
 		=> TryGetSpriteFrames( stack, sprite, letters, 0, out owner, out frames );
 
-	/// <summary>
-	/// Resolves a run of frame letters as seen from one rotation (1 front to 8), or the front or
-	/// all-angles lumps for rotation 0. A frame drawn for all angles is used for every rotation.
-	/// </summary>
+	/// <summary>Resolves frame letters at a rotation (1 front to 8), or front/all-angles for 0.</summary>
 	public static bool TryGetSpriteFrames( WadStack stack, string sprite, string letters, int rotation, out WadFile owner, out SpriteFrameInfo[] frames )
 	{
 		owner = null;
@@ -235,10 +221,7 @@ partial class GameMount
 		return true;
 	}
 
-	/// <summary>
-	/// A monster's sprite and prefab: every animation it has, once per rotation, all drawn into one
-	/// canvas. False if the stack is missing any of its frames, leaving it to be mounted as a plain thing.
-	/// </summary>
+	/// <summary>Registers a monster's rotated sprite and prefab. False if any frame is missing.</summary>
 	private bool TryAddMonster( MountContext context, WadStack stack, Palette palette, ThingType type, MonsterInfo monster )
 	{
 		var states = new List<(string Name, ThingAnimation Animation, bool Loop)>
@@ -262,7 +245,7 @@ partial class GameMount
 			}
 		}
 
-		// Stand on the floor by the frames it stands and walks in; dying ones can sit lower.
+		// Floor by spawn and see frames so death frames can sit lower.
 		var canvas = SpriteCanvas.Around( rotated.Values.SelectMany( f => f ) )
 			.OnFloor( rotated.Where( r => r.Key.State is MonsterAnimations.Spawn or MonsterAnimations.See ).SelectMany( r => r.Value ) );
 

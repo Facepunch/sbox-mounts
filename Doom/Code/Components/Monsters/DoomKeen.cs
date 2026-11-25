@@ -1,10 +1,6 @@
 namespace Doom;
 
-/// <summary>
-/// Commander Keen, hanging in Doom II's secret levels. Every hit makes him cry out (painchance 256);
-/// when his health runs out he plays his death and stops blocking, and when the last Keen in the
-/// map dies, the doors tagged 666 open (A_KeenDie).
-/// </summary>
+/// <summary>Commander Keen; when the last one in the map dies, the doors tagged 666 open (A_KeenDie).</summary>
 [Title( "Doom Keen" )]
 [Category( "Doom" )]
 [Icon( "child_care" )]
@@ -39,7 +35,6 @@ public sealed class DoomKeen : Component, Component.IDamageable
 		foreach ( var collider in GetComponents<Collider>() )
 			collider.Enabled = false;
 
-		// A_KeenDie: the last one standing opens the door.
 		var root = GameObject.Root;
 		bool anyLeft = Scene.GetAllComponents<DoomKeen>().Any( k => k != this && !k.IsDead && k.GameObject.Root == root );
 		if ( anyLeft ) return;

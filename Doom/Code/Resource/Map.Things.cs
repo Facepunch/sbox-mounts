@@ -18,7 +18,7 @@ partial class MapLoader
 	{
 		if ( type.Category is ThingCategory.PlayerStart or ThingCategory.DeathmatchStart ) return true;
 
-		// Monsters whose behaviour isn't in yet would only stand there.
+		// Skip monsters with no behaviour yet.
 		if ( type.Category == ThingCategory.Monster && !Host.MonsterTable.ContainsKey( type.Id ) && (type.Flags & ThingTypeFlags.Special) == 0 )
 			return false;
 
@@ -70,7 +70,6 @@ partial class MapLoader
 		bool hanging = (type.Flags & ThingTypeFlags.Hanging) != 0;
 		bool monster = type.Category == ThingCategory.Monster;
 
-		// Monsters get about on their own rather than riding the plane they start on.
 		bool moving = sector >= 0 && _dynamic[sector] && !monster;
 
 		if ( moving )

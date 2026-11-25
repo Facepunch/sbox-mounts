@@ -3,10 +3,7 @@ using Doom.Wad;
 
 namespace Doom;
 
-/// <summary>
-/// A missile as a prefab: its full bright sprite flying, and a <see cref="DoomProjectile"/> that moves
-/// it, hurts what it hits and plays its explosion. Built at the mount's scale.
-/// </summary>
+/// <summary>A missile as a prefab: its full bright sprite and a <see cref="DoomProjectile"/>.</summary>
 public sealed class ProjectilePrefabLoader( WadStack stack, ProjectileInfo info, SpriteCanvas canvas, string spritePath ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
@@ -58,10 +55,7 @@ public sealed class ProjectilePrefabLoader( WadStack stack, ProjectileInfo info,
 	}
 }
 
-/// <summary>
-/// The Icon of Sin's spawn cube as a prefab: its full bright sprite turning, and a
-/// <see cref="DoomBrainCube"/> carrying what can arrive where it lands.
-/// </summary>
+/// <summary>The Icon of Sin's spawn cube as a prefab, with a <see cref="DoomBrainCube"/>.</summary>
 public sealed class BrainCubePrefabLoader( WadStack stack, SpriteCanvas canvas, string spritePath ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
@@ -114,10 +108,7 @@ public sealed class BrainCubePrefabLoader( WadStack stack, SpriteCanvas canvas, 
 	}
 }
 
-/// <summary>
-/// A sprite that plays through once where it's spawned and goes, such as a bullet puff. Each client
-/// spawns its own, so it isn't networked.
-/// </summary>
+/// <summary>A sprite that plays once and is removed, such as a bullet puff. Not networked: each client spawns its own.</summary>
 public sealed class EffectPrefabLoader( ThingType type, SpriteCanvas canvas, string spritePath ) : ResourceLoader<GameMount>
 {
 	private PrefabFile _prefab;
@@ -143,7 +134,7 @@ public sealed class EffectPrefabLoader( ThingType type, SpriteCanvas canvas, str
 			?? throw new InvalidOperationException( $"{Path}: could not create the effect prefab." );
 	}
 
-	/// <summary>A point-filtered billboard of the sprite at one texel per map unit, full bright, casting no shadow.</summary>
+	/// <summary>A point-filtered, full bright billboard at one texel per map unit.</summary>
 	internal static SpriteRenderer AddRenderer( GameObject go, string spritePath, SpriteCanvas canvas, float scale )
 	{
 		var renderer = go.AddComponent<SpriteRenderer>();

@@ -108,13 +108,10 @@ public sealed class SpriteLoader( ThingType type, string[] frames, string[] deat
 	};
 }
 
-/// <summary>One animation of an <see cref="AnimatedSpriteLoader"/>: its frame textures in play order and how long each shows.</summary>
+/// <summary>One animation of an <see cref="AnimatedSpriteLoader"/>.</summary>
 public sealed record SpriteAnimationDefinition( string Name, string[] Textures, int Tics, bool Loop );
 
-/// <summary>
-/// A sprite resource with any number of named animations sharing one canvas, such as a monster's
-/// states seen from each rotation. The first animation plays by default.
-/// </summary>
+/// <summary>A sprite with named animations sharing one canvas; the first plays by default.</summary>
 public sealed class AnimatedSpriteLoader( IReadOnlyList<SpriteAnimationDefinition> animations, SpriteCanvas canvas ) : ResourceLoader<GameMount>
 {
 	protected override object Load()

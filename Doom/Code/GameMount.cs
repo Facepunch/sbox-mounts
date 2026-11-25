@@ -96,8 +96,7 @@ public abstract partial class GameMount : BaseGameMount
 			}
 		}
 
-		// Things exist once for the whole mount. Like Doom loading lumps in order, a WAD mounted later
-		// takes priority over the ones before it.
+		// Things are shared across the mount; later WADs take priority.
 		if ( order.Count > 0 )
 		{
 			ThingStack = new WadStack( [.. Enumerable.Reverse( order )], AnimationTable );
@@ -116,11 +115,7 @@ public abstract partial class GameMount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	/// <summary>
-	/// Every mounted WAD, the one mounted last first: where things (monsters, items, decorations) are
-	/// drawn from. There is one of each for the whole mount, so a WAD that redraws a thing redraws it in
-	/// every map. Null until something is mounted.
-	/// </summary>
+	/// <summary>Every mounted WAD, last mounted first, that things are drawn from. Null until something is mounted.</summary>
 	public WadStack ThingStack { get; private set; }
 
 	protected override void Shutdown() => ReleaseWads();

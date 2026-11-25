@@ -41,22 +41,19 @@ public enum ThingTypeFlags
 	/// </summary>
 	Rigidbody = 9,
 
-	/// <summary>
-	/// Can be shot dead in place, and the last one in the map to die opens the doors tagged 666
-	/// (A_KeenDie), like Commander Keen.
-	/// </summary>
+	/// <summary>Commander Keen: the last one to die opens doors tagged 666 (A_KeenDie).</summary>
 	KeenDie = 16,
 
-	/// <summary>The Icon of Sin (MT_BOSSBRAIN): takes hits, cries out, and ends the level when killed.</summary>
+	/// <summary>The Icon of Sin (MT_BOSSBRAIN): ends the level when killed.</summary>
 	BossBrain = 32,
 
-	/// <summary>The Icon of Sin's cube shooter (MT_BOSSSPIT): wakes when it sees a player, then spits spawn cubes.</summary>
+	/// <summary>The Icon of Sin's cube shooter (MT_BOSSSPIT).</summary>
 	BossShooter = 64,
 
 	/// <summary>Where spawn cubes fly to and monsters arrive (MT_BOSSTARGET).</summary>
 	BossTarget = 128,
 
-	/// <summary>Things in the monster category that aren't monsters, handled by their own components.</summary>
+	/// <summary>Monster-category things that aren't monsters.</summary>
 	Special = KeenDie | BossBrain | BossShooter | BossTarget,
 }
 
@@ -67,22 +64,22 @@ public enum ThingTypeFlags
 /// <param name="Sprite">4 letter sprite name.</param>
 /// <param name="Frames">Frame letters in play order.</param>
 /// <param name="Tics">Tics per letter (35 per second).</param>
-/// <param name="Action">The letter whose first appearance runs the state's action, such as an attack landing.</param>
-/// <param name="ActionFrames">Frame indices that each run the action, for states that act more than once (the chaingunner). Overrides <paramref name="Action"/>.</param>
-/// <param name="LoopFrame">Where a refiring attack goes back to (A_CPosRefire), or -1.</param>
+/// <param name="Action">Letter whose first appearance runs the state's action.</param>
+/// <param name="ActionFrames">Frame indices that each run the action; overrides <paramref name="Action"/>.</param>
+/// <param name="LoopFrame">Frame a refiring attack loops back to (A_CPosRefire), or -1.</param>
 public sealed record ThingAnimation( string Sprite, string Frames, int Tics, char Action = default, int[] ActionFrames = null, int LoopFrame = -1 )
 {
-	/// <summary>Seconds from the start of the animation to <see cref="Action"/>, or 0 if it has none.</summary>
+	/// <summary>Seconds to the first action, or 0.</summary>
 	public float ActionTime => ActionTimes is [var first, ..] ? first : 0f;
 
-	/// <summary>Seconds from the start of the animation to each time its action runs.</summary>
+	/// <summary>Seconds to each action.</summary>
 	public float[] ActionTimes => (ActionFrames ?? (Action == default ? [] : [Math.Max( 0, Frames.IndexOf( Action ) )]))
 		.Select( i => i * Tics / 35f ).ToArray();
 
-	/// <summary>Seconds into the animation a refire goes back to, or -1.</summary>
+	/// <summary>Seconds a refire loops back to, or -1.</summary>
 	public float LoopTime => LoopFrame < 0 ? -1f : LoopFrame * Tics / 35f;
 
-	/// <summary>How long the animation runs, in seconds.</summary>
+	/// <summary>Length in seconds.</summary>
 	public float Duration => Frames.Length * Tics / 35f;
 }
 
@@ -143,7 +140,6 @@ public static class ThingTypes
 		new( 7, "Spider Mastermind", ThingCategory.Monster, "SPID", "AB", 10, 128, 100, Solid ),
 		new( 16, "Cyberdemon", ThingCategory.Monster, "CYBR", "AB", 10, 40, 110, Solid ),
 		new( 84, "Wolfenstein SS", ThingCategory.Monster, "SSWV", "AB", 10, 20, 56, Solid ),
-		// S_KEENSTND, then S_COMMKEEN-S_COMMKEEN12 when shot dead.
 		new( 72, "Commander Keen", ThingCategory.Monster, "KEEN", "A", 0, 16, 72, Solid | Hanging | ThingTypeFlags.KeenDie,
 			Health: 100, Death: new ThingAnimation( "KEEN", "ABCDEFGHIJKL", 6 ) ),
 		new( 88, "Icon of Sin", ThingCategory.Monster, "BBRN", "A", 0, 16, 16, Solid | ThingTypeFlags.BossBrain, Health: 250 ),

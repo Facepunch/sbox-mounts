@@ -2,11 +2,7 @@ using System;
 
 namespace Doom;
 
-/// <summary>
-/// The Icon of Sin (MT_BOSSBRAIN): the face behind the wall in Doom II's last level. Every hit makes
-/// it cry out; when its health runs out it screams, explosions burst across it for a few seconds
-/// (A_BrainScream), and the level is over (A_BrainDie).
-/// </summary>
+/// <summary>The Icon of Sin (MT_BOSSBRAIN): on death it explodes (A_BrainScream) and ends the level (A_BrainDie).</summary>
 [Title( "Doom Icon of Sin" )]
 [Category( "Doom" )]
 [Icon( "face" )]
@@ -52,7 +48,7 @@ public sealed class DoomBrain : Component, Component.IDamageable
 	{
 		if ( IsProxy || !IsDead || _over ) return;
 
-		// A_BrainScream: rockets bursting along the face, from 196 left to 320 right of it.
+		// A_BrainScream: from 196 left to 320 right of it.
 		if ( _nextExplosion && _sinceDeath < 100f / 35f )
 		{
 			_nextExplosion = 3f / 35f;
@@ -85,11 +81,7 @@ public sealed class DoomBrain : Component, Component.IDamageable
 	}
 }
 
-/// <summary>
-/// The Icon of Sin's cube shooter (MT_BOSSSPIT), hidden in the map. It wakes once a player can see
-/// it or the Icon (A_Look, A_BrainAwake), then every 181 tics spits a spawn cube at the next spawn
-/// spot in turn (A_BrainSpit).
-/// </summary>
+/// <summary>The Icon of Sin's cube shooter (MT_BOSSSPIT): once woken, spits a cube at each spawn spot in turn (A_BrainSpit).</summary>
 [Title( "Doom Icon of Sin Shooter" )]
 [Category( "Doom" )]
 [Icon( "rocket_launch" )]
@@ -133,7 +125,7 @@ public sealed class DoomBrainShooter : Component
 		Spit();
 	}
 
-	/// <summary>Whether a living player has a clear line to this shooter or to the Icon of Sin.</summary>
+	// A living player can see this shooter or the Icon of Sin.
 	private bool PlayerSees()
 	{
 		var root = GameObject.Root;
@@ -160,7 +152,6 @@ public sealed class DoomBrainShooter : Component
 		return !tr.Hit;
 	}
 
-	/// <summary>A_BrainSpit: a cube toward the next spot, arriving when it gets there.</summary>
 	private void Spit()
 	{
 		var root = GameObject.Root;
@@ -190,10 +181,7 @@ public sealed class DoomBrainShooter : Component
 	}
 }
 
-/// <summary>
-/// A spawn cube (MT_SPAWNSHOT): flies straight through walls to its spot, then bursts into fire and
-/// leaves a random monster there (A_SpawnFly), killing anything already standing in its place.
-/// </summary>
+/// <summary>A spawn cube (MT_SPAWNSHOT): flies through walls to its spot and spawns a random monster there (A_SpawnFly).</summary>
 [Title( "Doom Spawn Cube" )]
 [Category( "Doom" )]
 [Icon( "deployed_code" )]
@@ -202,7 +190,7 @@ public sealed class DoomBrainCube : Component
 	/// <summary>World units per second.</summary>
 	[Property] public float Speed { get; set; }
 
-	/// <summary>What can arrive: each below its threshold out of 256, in the order of <see cref="BrainCube.Spawns"/>.</summary>
+	/// <summary>Roll thresholds out of 256, one per entry in <see cref="Monsters"/>.</summary>
 	[Property] public List<int> Thresholds { get; set; } = [];
 	[Property] public List<PrefabFile> Monsters { get; set; } = [];
 
@@ -210,7 +198,7 @@ public sealed class DoomBrainCube : Component
 	[Property] public SoundEvent FlySound { get; set; }
 	[Property] public SoundEvent ArriveSound { get; set; }
 
-	/// <summary>A_SpawnSound plays every 12 tics, once per turn of the cube.</summary>
+	// A_SpawnSound plays every 12 tics.
 	private const float FlySoundInterval = 12f / 35f;
 
 	private Vector3 _from, _to;
@@ -265,7 +253,7 @@ public sealed class DoomBrainCube : Component
 			var go = GameObject.Clone( prefab, new Transform( _to ), GameObject.Parent, false );
 			var monster = go.GetComponent<DoomMonster>( true );
 
-			// It turns to the nearest player, so it sees them and wakes (P_LookForPlayers, all around).
+			// Face the nearest player so it wakes (P_LookForPlayers, all around).
 			var player = Scene.GetAllComponents<PlayerController>().OrderBy( p => p.WorldPosition.Distance( _to ) ).FirstOrDefault();
 			if ( player.IsValid() )
 				go.WorldRotation = Rotation.LookAt( (player.WorldPosition - _to).WithZ( 0 ) );
@@ -279,7 +267,7 @@ public sealed class DoomBrainCube : Component
 		GameObject.Destroy();
 	}
 
-	/// <summary>P_TeleportMove: whatever stands where the monster arrives dies.</summary>
+	// P_TeleportMove: kills whatever stands where the monster arrives.
 	private void Telefrag( Vector3 at, float radius, GameObject arriving )
 	{
 		var victims = Scene.GetAllComponents<DoomMonster>().Select( m => (Component)m )

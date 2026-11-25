@@ -4,19 +4,13 @@ using Sandbox.Npcs.Schedules;
 
 namespace Doom;
 
-/// <summary>
-/// A Doom monster on the s&amp;box NPC system. It stands until it sees or hears a hostile (A_Look),
-/// then chases it across the navmesh (A_Chase) and attacks when it can. Hits can make it flinch
-/// (painchance) and turn it on whoever dealt them, other monsters included. It dies into a corpse
-/// sprite, or a gib one when overkilled. Values are in world units and seconds, built from
-/// <see cref="MonsterInfo"/> by the prefab.
-/// </summary>
+/// <summary>A Doom monster on the s&amp;box NPC system (A_Look, A_Chase), built from <see cref="MonsterInfo"/>. Values are in world units and seconds.</summary>
 [Title( "Doom Monster" )]
 [Category( "Doom" )]
 [Icon( "pest_control" )]
 public sealed partial class DoomMonster : BaseNpc
 {
-	/// <summary>The monster's editor number. Monsters of one kind don't take each other on.</summary>
+	/// <summary>Editor number. Monsters of one kind don't fight each other.</summary>
 	[Property] public int ThingId { get; set; }
 
 	/// <summary>World units per map unit.</summary>
@@ -31,7 +25,7 @@ public sealed partial class DoomMonster : BaseNpc
 	/// <summary>Out of 256: the chance a hit makes it flinch.</summary>
 	[Property] public int PainChance { get; set; }
 
-	/// <summary>Seconds between chase steps (the see state's tics). Retaliation lasts 100 of them (BASETHRESHOLD).</summary>
+	/// <summary>Seconds between chase steps (the see state's tics).</summary>
 	[Property] public float StepTime { get; set; } = 3f / 35f;
 
 	/// <summary>MTF_AMBUSH: waits for sight, ignoring noise.</summary>
@@ -49,10 +43,10 @@ public sealed partial class DoomMonster : BaseNpc
 
 	[Property, Group( "Missile" )] public bool HasMissile { get; set; }
 
-	/// <summary>Seconds into the missile animation at which it fires, once each.</summary>
+	/// <summary>Seconds into the missile animation at which it fires.</summary>
 	[Property, Group( "Missile" )] public List<float> MissileFireTimes { get; set; } = [];
 
-	/// <summary>Where a refiring attack goes back to, in seconds into the animation, or -1 if it doesn't refire.</summary>
+	/// <summary>Seconds into the animation a refiring attack loops back to, or -1 if it doesn't refire.</summary>
 	[Property, Group( "Missile" )] public float MissileLoopTime { get; set; } = -1f;
 
 	/// <summary>The missile it launches, or empty to fire bullets.</summary>
@@ -64,10 +58,7 @@ public sealed partial class DoomMonster : BaseNpc
 	/// <summary>Claws instead of firing when the target is in melee range (A_TroopAttack).</summary>
 	[Property, Group( "Missile" )] public bool MeleeIfClose { get; set; }
 
-	/// <summary>
-	/// For each firing in the missile animation, the two angles (degrees) its projectiles go off at
-	/// from the line to the target, like the mancubus's volleys. Empty fires one projectile straight.
-	/// </summary>
+	/// <summary>Per firing, the two angles (degrees) its projectiles go off at. Empty fires one straight.</summary>
 	[Property, Group( "Missile" )] public List<Vector2> MissileSpread { get; set; } = [];
 
 	/// <summary>Out of 256: the chance a refiring attack keeps going though the target is out of sight.</summary>
@@ -91,7 +82,7 @@ public sealed partial class DoomMonster : BaseNpc
 	/// <summary>The distance counted when deciding to fire is capped here, in map units.</summary>
 	[Property, Group( "Missile" )] public int MissileRangeCap { get; set; } = 200;
 
-	/// <summary>What it launches at its target, for the pain elemental: a lost soul.</summary>
+	/// <summary>Monster it launches at its target (the pain elemental's lost soul).</summary>
 	[Property, Group( "Missile" )] public PrefabFile SpawnedMonster { get; set; }
 
 	[Property, Group( "Missile" )] public PrefabFile PuffPrefab { get; set; }
@@ -102,7 +93,7 @@ public sealed partial class DoomMonster : BaseNpc
 	/// <summary>Whether it has an xdeath to play when overkilled.</summary>
 	[Property, Group( "Animation" )] public bool HasGibDeath { get; set; }
 
-	/// <summary>Its death ends in nothing: no corpse is left once the animation has played.</summary>
+	/// <summary>Leaves no corpse after the death animation.</summary>
 	[Property, Group( "Animation" )] public bool NoCorpse { get; set; }
 
 	/// <summary>Letters in its walk (see) animation, for timing footsteps.</summary>
@@ -113,7 +104,7 @@ public sealed partial class DoomMonster : BaseNpc
 
 	[Property, Group( "Sounds" )] public List<SoundEvent> StepSounds { get; set; } = [];
 
-	/// <summary>Takes no damage from explosions, like the Cyberdemon and Spider Mastermind.</summary>
+	/// <summary>Takes no explosion damage.</summary>
 	[Property] public bool SplashImmune { get; set; }
 
 	[Property, Group( "Sounds" )] public List<SoundEvent> SeeSounds { get; set; } = [];
@@ -123,39 +114,37 @@ public sealed partial class DoomMonster : BaseNpc
 	[Property, Group( "Sounds" )] public SoundEvent AttackSound { get; set; }
 	[Property, Group( "Sounds" )] public SoundEvent MeleeHitSound { get; set; }
 
-	/// <summary>Played on each ranged shot, such as the zombieman's pistol.</summary>
+	/// <summary>Played on each ranged shot.</summary>
 	[Property, Group( "Sounds" )] public SoundEvent ShotSound { get; set; }
 
-	/// <summary>Played as a ranged attack starts, such as the mancubus's roar.</summary>
+	/// <summary>Played as a ranged attack starts.</summary>
 	[Property, Group( "Sounds" )] public SoundEvent MissileStartSound { get; set; }
 
-	/// <summary>What it's after. Kept until it dies or goes, so a monster that's woken chases for good. Host only.</summary>
+	/// <summary>What it's after, kept until it dies or goes. Host only.</summary>
 	public GameObject Target { get; private set; }
 
 	/// <summary>MELEERANGE: 64 map units.</summary>
 	private float MeleeRange => 64f * Scale;
 
-	// Set by a hit that made it flinch, cleared when the pain schedule starts.
 	internal bool PainPending { get; set; }
 
-	/// <summary>MISSILERANGE: how far bullets reach, 32 * 64 map units.</summary>
+	/// <summary>MISSILERANGE: 32 * 64 map units.</summary>
 	private float MissileRange => 2048f * Scale;
 
 	/// <summary>What a chase step decided to do instead of walking on.</summary>
 	internal enum ChaseAction { Melee, Missile, Heal }
 
-	/// <summary>The action the chase picked, for the attack task to carry out.</summary>
+	/// <summary>The action the chase picked, for the attack task.</summary>
 	internal ChaseAction PendingAction { get; set; }
 
-	// Until this runs out it keeps its target rather than turning on whoever hits it next (threshold).
+	// Doom's threshold: keeps its target instead of turning on the next attacker.
 	private TimeUntil _threshold;
 
-	// A_Chase's counters, in chase steps: no shooting until reactiontime runs down, and only when
-	// movecount (steps left in the current direction) is at zero.
+	// A_Chase's reactiontime and movecount, in chase steps.
 	private int _reactionTime = 8;
 	private int _moveCount;
 
-	// MF_JUSTATTACKED: the step after an attack only moves. MF_JUSTHIT: the next missile check after flinching fires back.
+	// MF_JUSTATTACKED and MF_JUSTHIT.
 	private bool _justAttacked;
 	private bool _justHit;
 	private float _healthBeforeHit;
@@ -178,7 +167,6 @@ public sealed partial class DoomMonster : BaseNpc
 	{
 		UpdateTarget();
 
-		// A charging lost soul is out of its own hands until it hits something.
 		if ( IsCharging ) return;
 
 		base.Think();
@@ -192,10 +180,7 @@ public sealed partial class DoomMonster : BaseNpc
 		return GetSchedule<DoomLookSchedule>();
 	}
 
-	/// <summary>
-	/// Drops a target that died or went, then looks for one: P_LookForPlayers by sight, or the source
-	/// of a gunshot it heard unless it's waiting in ambush. Finding one from nothing wakes it.
-	/// </summary>
+	// Looks by sight (P_LookForPlayers), or by a heard gunshot unless in ambush.
 	private void UpdateTarget()
 	{
 		if ( Target is not null && !IsLiveTarget( Target ) )
@@ -212,15 +197,12 @@ public sealed partial class DoomMonster : BaseNpc
 			Wake( seen );
 	}
 
-	/// <summary>A_Look runs on every spawn state frame: 10 tics for most monsters.</summary>
+	// A_Look runs every spawn state frame: 10 tics for most monsters.
 	private const float LookInterval = 10f / 35f;
 
 	private TimeUntil _nextLook;
 
-	/// <summary>
-	/// P_LookForPlayers: the first live hostile player it can see (<see cref="CanSee"/>) in the half
-	/// in front of it, or anywhere around it within melee range. Nothing else wakes it by sight.
-	/// </summary>
+	// P_LookForPlayers: first visible hostile player in front, or anywhere within melee range.
 	private GameObject LookForPlayers()
 	{
 		if ( !_nextLook ) return null;
@@ -250,7 +232,7 @@ public sealed partial class DoomMonster : BaseNpc
 			PlaySound( Random( SeeSounds ) );
 	}
 
-	/// <summary>Turns to face a target at once, like A_FaceTarget.</summary>
+	/// <summary>A_FaceTarget: turns to face the target at once.</summary>
 	internal void FaceTarget()
 	{
 		if ( !Target.IsValid() ) return;
@@ -260,13 +242,10 @@ public sealed partial class DoomMonster : BaseNpc
 			WorldRotation = Rotation.LookAt( direction.Normal, Vector3.Up );
 	}
 
-	/// <summary>
-	/// P_CheckMeleeRange: within MELEERANGE - 20 plus the target's radius, overlapping it in height,
-	/// and in sight.
-	/// </summary>
+	/// <summary>P_CheckMeleeRange, for monsters with a melee attack.</summary>
 	internal bool CanMelee() => HasMelee && InMeleeRange();
 
-	/// <summary>Whether the target is in reach of a claw or bite, melee state or not (the cacodemon bites from its missile state).</summary>
+	/// <summary>Whether the target is within MELEERANGE - 20 plus its radius, and in sight.</summary>
 	internal bool InMeleeRange()
 	{
 		if ( !Target.IsValid() ) return false;
@@ -279,11 +258,7 @@ public sealed partial class DoomMonster : BaseNpc
 		return CanSee( Target );
 	}
 
-	/// <summary>
-	/// P_CheckSight: whether any of the target, from its feet to its eyes, can be seen from this
-	/// monster's eyes. Only the level's walls block sight: not things, and not impassable lines
-	/// such as windows, which stop movement but not sight.
-	/// </summary>
+	/// <summary>P_CheckSight: whether any of the target from feet to eyes is visible. Only level geometry blocks sight.</summary>
 	internal bool CanSee( GameObject target )
 	{
 		var feet = target.WorldPosition;
@@ -302,10 +277,7 @@ public sealed partial class DoomMonster : BaseNpc
 		return !tr.Hit || IsPartOf( tr.GameObject, target );
 	}
 
-	/// <summary>
-	/// Who's behind a GameObject in a fight: the NPC or player it belongs to, or its root. Monsters sit
-	/// under the map, so a monster's root is the map, not the monster.
-	/// </summary>
+	/// <summary>The NPC or player a GameObject belongs to, else its root. A monster's root is the map.</summary>
 	internal static GameObject Combatant( GameObject go )
 	{
 		if ( !go.IsValid() ) return null;
@@ -315,7 +287,6 @@ public sealed partial class DoomMonster : BaseNpc
 		return go.Root;
 	}
 
-	/// <summary>Whether <paramref name="go"/> is <paramref name="owner"/> or somewhere below it.</summary>
 	private static bool IsPartOf( GameObject go, GameObject owner )
 	{
 		for ( var current = go; current.IsValid(); current = current.Parent )
@@ -326,7 +297,7 @@ public sealed partial class DoomMonster : BaseNpc
 		return false;
 	}
 
-	/// <summary>A_TroopAttack's claw and the like: hits the target if it's still in reach.</summary>
+	/// <summary>A_TroopAttack-style melee: hits the target if still in reach.</summary>
 	internal void MeleeAttack()
 	{
 		FaceTarget();
@@ -337,12 +308,7 @@ public sealed partial class DoomMonster : BaseNpc
 		Hurt( Target, damage, "melee" );
 	}
 
-	/// <summary>
-	/// One step of A_Chase's decision making, run every <see cref="StepTime"/>: an arch-vile first
-	/// looks for a corpse to raise (A_VileChase); then count down reaction time, skip the step after
-	/// an attack, and when its current direction runs out, maybe fire (P_CheckMissileRange).
-	/// Null to keep walking.
-	/// </summary>
+	/// <summary>One A_Chase decision step, run every <see cref="StepTime"/>. Null to keep walking.</summary>
 	internal ChaseAction? ChaseStep()
 	{
 		if ( FindCorpseToRaise() is { } corpse )
@@ -353,7 +319,7 @@ public sealed partial class DoomMonster : BaseNpc
 
 		if ( _reactionTime > 0 ) _reactionTime--;
 
-		// MF_JUSTATTACKED: this step only picks a new direction (P_NewChaseDir), with a fresh movecount.
+		// MF_JUSTATTACKED: this step only picks a new direction.
 		if ( _justAttacked )
 		{
 			_justAttacked = false;
@@ -367,19 +333,13 @@ public sealed partial class DoomMonster : BaseNpc
 			return ChaseAction.Missile;
 		}
 
-		// P_NewChaseDir picks a new heading for up to 15 more steps.
 		if ( --_moveCount < 0 )
 			_moveCount = Game.Random.Int( 0, 255 ) & 15;
 
 		return null;
 	}
 
-	/// <summary>
-	/// P_CheckMissileRange: in sight, and then likelier the closer it is. Always after flinching,
-	/// never before reaction time runs out. Monsters without a melee attack are keener. Some have
-	/// their own limits: the arch-vile won't attack from too far, the revenant won't fire too close,
-	/// and the revenant, bosses and lost soul count the distance as half.
-	/// </summary>
+	// P_CheckMissileRange.
 	private bool CheckMissileRange()
 	{
 		if ( !Target.IsValid() || !CanSee( Target ) ) return false;
@@ -404,11 +364,7 @@ public sealed partial class DoomMonster : BaseNpc
 		return Game.Random.Int( 0, 255 ) >= distance;
 	}
 
-	/// <summary>
-	/// The missile state's action, the <paramref name="action"/>th in its animation: claws if close
-	/// and able to (A_TroopAttack), otherwise launches its projectiles or fires its bullets, or runs
-	/// its special attack.
-	/// </summary>
+	/// <summary>Runs the missile state's <paramref name="action"/>th action: special attack, claw if close, or fire.</summary>
 	internal void MissileAttack( int action )
 	{
 		FaceTarget();
@@ -452,24 +408,15 @@ public sealed partial class DoomMonster : BaseNpc
 		}
 	}
 
-	/// <summary>Plays the sound a ranged attack opens with, if it has one.</summary>
 	internal void PlayMissileStartSound() => PlaySound( MissileStartSound );
 
-	/// <summary>
-	/// A_CPosRefire and A_SpidRefire: keeps firing while the target is alive and in sight, or on a
-	/// <see cref="RefireChance"/> in 256 regardless.
-	/// </summary>
+	/// <summary>A_CPosRefire / A_SpidRefire: keep firing while the target is in sight, or on a <see cref="RefireChance"/> in 256.</summary>
 	internal bool ShouldRefire()
 		=> Target.IsValid() && (Game.Random.Int( 0, 255 ) < RefireChance || CanSee( Target ));
 
-	/// <summary>Where shots go: the middle of the target's body.</summary>
-	private Vector3 AimPoint( GameObject target ) => Vector3.Lerp( target.WorldPosition, CalculateEyePosition( target ), 0.5f );
+	private Vector3 AimPoint( GameObject target ) => CalculateEyePosition( target );
 
-	/// <summary>
-	/// P_SpawnMissile: from <see cref="MissileHeight"/> up, at the target, turned
-	/// <paramref name="angle"/> degrees off that line. A homing missile is given the target to follow.
-	/// Projectiles from monsters of one kind pass through each other harmlessly.
-	/// </summary>
+	// P_SpawnMissile, turned angle degrees off the line to the target.
 	private void LaunchProjectile( float angle )
 	{
 		if ( !ProjectilePrefab.IsValid() ) return;
@@ -480,11 +427,9 @@ public sealed partial class DoomMonster : BaseNpc
 		var start = WorldPosition + Vector3.Up * MissileHeight;
 		go.WorldPosition = start;
 
-		// It's still disabled, so look past that.
 		var projectile = go.GetComponent<DoomProjectile>( true );
 		if ( projectile.IsValid() )
 		{
-			// Aim the missile's middle at the target's middle.
 			var aim = AimPoint( Target ) - Vector3.Up * projectile.Height * 0.5f;
 			var direction = Rotation.FromAxis( Vector3.Up, angle ) * (aim - start);
 			projectile.Launch( GameObject, direction, Target );
@@ -495,24 +440,20 @@ public sealed partial class DoomMonster : BaseNpc
 		go.NetworkSpawn( true, null );
 	}
 
-	/// <summary>
-	/// A_PosAttack and A_SPosAttack: each bullet does (random % 5 + 1) * 3, aimed at the target but
-	/// thrown off up to 22.5 degrees either side (random - random), from half its height plus 8.
-	/// </summary>
+	// A_PosAttack / A_SPosAttack: (random % 5 + 1) * 3 per bullet, spread up to 22.5 degrees.
 	private void FireBullets()
 	{
 		var start = WorldPosition + Vector3.Up * (Height * 0.5f + 8f * Scale);
 		var aim = (AimPoint( Target ) - start).Normal;
 		var crowding = MonstersAround( start ).ToArray();
 
+		// we're a smaller guy than in Doom
+		const float HitboxSpreadScale = 0.15f;
 		for ( int i = 0; i < Pellets; i++ )
 		{
-			float spread = (Game.Random.Int( 0, 255 ) - Game.Random.Int( 0, 255 )) * 360f / 4096f;
+			float spread = (Game.Random.Int( 0, 255 ) - Game.Random.Int( 0, 255 )) * 360f / 4096f * HitboxSpreadScale;
 			var direction = Rotation.FromAxis( Vector3.Up, spread ) * aim;
 
-			// Like the other mounts' NPCs: bullet collision rules, players hit on their model's hitboxes
-			// rather than their movement capsule. Bullets pass through decorations: only shootable things
-			// stop them (PTR_ShootTraverse).
 			var trace = Scene.Trace.Ray( start, start + direction * MissileRange )
 				.IgnoreGameObjectHierarchy( GameObject )
 				.WithCollisionRules( "bullet" )
@@ -537,11 +478,7 @@ public sealed partial class DoomMonster : BaseNpc
 		}
 	}
 
-	/// <summary>
-	/// Other monsters whose hull contains a point. Doom's monsters are solid and never overlap, so a
-	/// shot never starts inside one; here agents can crowd into each other, and a shot fired from
-	/// inside a neighbour must pass out of it rather than hit it point blank.
-	/// </summary>
+	/// <summary>Other monsters whose hull contains a point. Agents can overlap, so shots fired from inside one must pass out of it.</summary>
 	internal IEnumerable<GameObject> MonstersAround( Vector3 point )
 	{
 		foreach ( var other in Scene.GetAllComponents<DoomMonster>() )
@@ -554,11 +491,10 @@ public sealed partial class DoomMonster : BaseNpc
 		}
 	}
 
-	/// <summary>Monsters and players bleed where bullets hit; everything else puffs.</summary>
 	private static bool Bleeds( GameObject go )
 		=> go.GetComponentInParent<BaseNpc>().IsValid() || go.GetComponentInParent<PlayerController>().IsValid();
 
-	/// <summary>A bullet puff or blood where a shot hit, spawned by every client for itself.</summary>
+	// Spawned locally on every client.
 	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
 	private void SpawnHitEffect( Vector3 position, bool blood )
 	{
@@ -569,14 +505,11 @@ public sealed partial class DoomMonster : BaseNpc
 		go.NetworkMode = NetworkMode.Never;
 	}
 
-	/// <summary>Missiles from a monster don't hurt its own kind; barons and hell knights count as one.</summary>
+	/// <summary>Whether two editor numbers are one kind for missile damage. Barons and hell knights count as one.</summary>
 	public static bool SameSpecies( int a, int b )
 		=> a != 0 && (a == b || (a is 69 or 3003 && b is 69 or 3003));
 
-	/// <summary>
-	/// Damages whatever was hit: the damageable it belongs to, or for a combatant (a melee target),
-	/// the damageable anywhere on it. Never anything else under the same map.
-	/// </summary>
+	// Falls back to a damageable anywhere on the hit NPC or player, never elsewhere under the map.
 	private void Hurt( GameObject hit, float damage, string tag, Vector3? position = null )
 	{
 		var damageable = hit.GetComponentInParent<Component.IDamageable>();
@@ -586,7 +519,7 @@ public sealed partial class DoomMonster : BaseNpc
 
 		var info = new DamageInfo
 		{
-			Damage = damage,
+			Damage = MathF.Max( 1f, damage ),
 			Attacker = GameObject,
 			Position = position ?? hit.WorldPosition,
 		};
@@ -602,18 +535,13 @@ public sealed partial class DoomMonster : BaseNpc
 	{
 		_healthBeforeHit = Health;
 
-		// PIT_RadiusAttack: the bosses shrug off explosions.
 		if ( SplashImmune && e.DamageInfo?.Tags.Has( "explosion" ) == true )
 			e.Cancelled = true;
 	}
 
-	/// <summary>The arch-vile: never fought back against, and itself fights back against anything.</summary>
 	private bool IsVile => SpecialAttack == "vile";
 
-	/// <summary>
-	/// P_DamageMobj: turn on the attacker unless still set on its target (threshold), and maybe flinch.
-	/// Nobody turns on an arch-vile, and an arch-vile turns on anyone regardless.
-	/// </summary>
+	/// <summary>P_DamageMobj: turn on the attacker unless threshold holds, and maybe flinch. Nobody turns on an arch-vile.</summary>
 	protected override void OnDamaged( Component.IDamageable.DamageEvent e )
 	{
 		var attacker = Combatant( e.Instigator );
@@ -625,7 +553,7 @@ public sealed partial class DoomMonster : BaseNpc
 			_threshold = 100 * StepTime;
 		}
 
-		// A lost soul in flight doesn't flinch (MF_SKULLFLY).
+		// MF_SKULLFLY: a charging lost soul doesn't flinch.
 		if ( Health >= 1f && !IsCharging && Game.Random.Int( 0, 255 ) < PainChance )
 		{
 			PainPending = true;
@@ -636,14 +564,14 @@ public sealed partial class DoomMonster : BaseNpc
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent e )
 	{
-		// P_KillMobj: overkill by more than the spawn health gibs it, if it has a gib death.
+		// P_KillMobj: overkill beyond spawn health gibs it.
 		float overkill = (e.DamageInfo?.Damage ?? 0f) - _healthBeforeHit;
 		_gibbed = HasGibDeath && overkill > MaxHealth;
 
-		// The monster is gone once this returns, so the sound stays where it died.
+		// The monster is destroyed after this, so play the sound in place.
 		PlaySoundAt( Random( DeathSounds ), WorldPosition );
 
-		// A_PainDie: three lost souls burst out, to the sides and behind.
+		// A_PainDie.
 		if ( SpecialAttack == "pain" )
 		{
 			float yaw = WorldRotation.Yaw();
@@ -656,7 +584,7 @@ public sealed partial class DoomMonster : BaseNpc
 		BossDeath();
 	}
 
-	/// <summary>Leaves the death animation behind as its own sprite, holding on the corpse frame. Corpses don't block.</summary>
+	/// <summary>Leaves the death animation behind as a separate non-blocking sprite.</summary>
 	protected override GameObject CreateRagdoll()
 	{
 		if ( !Networking.IsHost || !Animator.IsValid() || !Animator.Renderer.IsValid() )
@@ -685,7 +613,6 @@ public sealed partial class DoomMonster : BaseNpc
 		var death = _gibbed ? MonsterAnimations.GibDeath : MonsterAnimations.Death;
 		animator.Play( death );
 
-		// Some deaths end in nothing: the lost soul burns away, the pain elemental bursts.
 		if ( NoCorpse )
 		{
 			go.AddComponent<DoomEffect>().Lifetime = Animator.Duration( death );
@@ -694,15 +621,12 @@ public sealed partial class DoomMonster : BaseNpc
 			return go;
 		}
 
-		// It falls and settles on the level, carrying on the way it was going. No collider: nothing
-		// bumps into a corpse.
 		var corpse = go.AddComponent<DoomCorpse>();
 		corpse.Radius = Radius;
 		corpse.Scale = Scale;
 		corpse.DeathTime = Animator.Duration( death );
 		corpse.Velocity = Animation.IsValid() ? Animation.MoveVelocity : Vector3.Zero;
 
-		// An arch-vile can bring it back, unless it was gibbed.
 		if ( Raisable && !_gibbed )
 			corpse.MonsterPrefab = GameObject.PrefabInstanceSource;
 
@@ -715,7 +639,7 @@ public sealed partial class DoomMonster : BaseNpc
 	internal void PlayPainSound() => PlaySound( PainSound );
 	internal void PlayAttackSound() => PlaySound( AttackSound );
 
-	/// <summary>Plays a sound from the monster on every client, following it as it moves.</summary>
+	// Plays on every client, following the monster.
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	private void PlaySound( SoundEvent sound )
 	{

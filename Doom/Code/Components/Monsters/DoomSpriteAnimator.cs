@@ -3,10 +3,8 @@ using System;
 namespace Doom;
 
 /// <summary>
-/// Shows a monster's sprite the way Doom's renderer did (R_ProjectSprite): the frame its current
-/// state is on, drawn from whichever of the eight rotations faces the camera. The state and when it
-/// started are synced from the host, and every client picks the rotation for its own camera.
-/// The sprite needs one animation per state and rotation, named by <see cref="MonsterAnimations.Name"/>.
+/// Shows a monster's sprite for its host-synced state, from the rotation facing the local camera (R_ProjectSprite).
+/// Needs one animation per state and rotation, named by <see cref="MonsterAnimations.Name"/>.
 /// </summary>
 [Title( "Doom Sprite Animator" )]
 [Category( "Doom" )]
@@ -18,10 +16,10 @@ public sealed class DoomSpriteAnimator : Component, Component.ExecuteInEditor
 	/// <summary>The state being shown, such as <see cref="MonsterAnimations.See"/>.</summary>
 	[Property, Sync( SyncFlags.FromHost )] public string State { get; private set; } = MonsterAnimations.Spawn;
 
-	/// <summary>How long the current state has been playing. Frames are picked from this, so a rotation change keeps its place.</summary>
+	/// <summary>How long the current state has been playing; frames are picked from this.</summary>
 	[Sync( SyncFlags.FromHost )] public TimeSince StateTime { get; private set; }
 
-	/// <summary>Starts a state from its first frame, or <paramref name="from"/> seconds in, even if it's already playing. Host only.</summary>
+	/// <summary>Restarts a state, optionally some seconds in. Host only.</summary>
 	public void Play( string state, float from = 0f )
 	{
 		State = state;
@@ -65,13 +63,9 @@ public sealed class DoomSpriteAnimator : Component, Component.ExecuteInEditor
 			Renderer.CurrentFrameIndex = frame;
 	}
 
-	/// <summary>
-	/// Which rotation the camera sees, 1 (facing it) to 8: the angle from the camera to the thing
-	/// against the way the thing faces, in 45 degree steps centred on each rotation.
-	/// </summary>
+	// Rotation the camera sees, 1 (facing it) to 8.
 	private int ViewRotation()
 	{
-		// The scene's own camera when it has one, such as a thumbnail's; otherwise, in the editor, the viewport's.
 		var camera = Scene.Camera;
 		if ( !camera.IsValid() && Scene.IsEditor ) camera = Application.Editor.Camera;
 		if ( !camera.IsValid() ) return 1;

@@ -3,13 +3,13 @@ using Doom.Wad;
 
 namespace Doom;
 
-/// <summary>Object tags on things, for traces that treat them the way Doom did.</summary>
+/// <summary>Object tags on things, for Doom-style traces.</summary>
 public static class ThingTags
 {
-	/// <summary>Every drawn thing. Sight passes through them all (P_CheckSight only tests the level).</summary>
+	/// <summary>Every drawn thing. Sight ignores them (P_CheckSight only tests the level).</summary>
 	public const string Thing = "doom_thing";
 
-	/// <summary>Things that can't be shot, such as pillars and lamps. Bullets pass through them (only MF_SHOOTABLE stops a hitscan).</summary>
+	/// <summary>Unshootable things that bullets pass through (not MF_SHOOTABLE).</summary>
 	public const string Decoration = "doom_decoration";
 }
 
@@ -38,7 +38,6 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			{
 				go.Tags.Add( ThingTags.Thing );
 
-				// Monsters, barrels, Keen and the Icon of Sin can be shot; everything else lets bullets through.
 				if ( monster is null && (type.Flags & (ThingTypeFlags.Explosive | ThingTypeFlags.Special)) == 0 )
 					go.Tags.Add( ThingTags.Decoration );
 			}
@@ -157,10 +156,7 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			?? throw new InvalidOperationException( $"{Path}: could not create the thing prefab." );
 	}
 
-	/// <summary>
-	/// A monster: its NPC brain and layers, a hull of the thing's radius and height that walks the
-	/// navmesh at vanilla's chase speed, and the animator that picks its rotated frames.
-	/// </summary>
+	/// <summary>A monster: NPC brain and layers, a collision hull, and the sprite animator.</summary>
 	private void ConfigureMonster( GameObject go, SpriteRenderer renderer, float scale )
 	{
 		go.NetworkMode = NetworkMode.Object;
@@ -168,7 +164,6 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 		float radius = type.Radius * scale;
 		float height = type.Height * scale;
 
-		// The animator picks animations and frames itself.
 		renderer.StartingAnimationName = MonsterAnimations.Name( MonsterAnimations.Spawn, 1 );
 		var animator = go.AddComponent<DoomSpriteAnimator>();
 		animator.Renderer = renderer;
@@ -182,14 +177,13 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 		body.EnableImpactDamage = false;
 		body.Locking = new PhysicsLock { Pitch = true, Roll = true };
 
-		// A_Chase moves speed units every step, and a step lasts the see state's tics.
+		// A_Chase moves speed units per see-state step.
 		float stepTime = monster.See.Tics / 35f;
 		float speed = monster.Speed * scale / stepTime;
 
 		if ( monster.Floats )
 		{
-			// MF_FLOAT: straight at its target through the air, its bottom half its height above the
-			// target's feet (P_ZMovement floats it toward target z + height / 2). No navmesh.
+			// P_ZMovement floats toward target z + height / 2.
 			body.Gravity = false;
 			var flight = go.AddComponent<Sandbox.Npcs.Layers.FlyingLayer>();
 			flight.HoverHeight = height * 0.5f;
@@ -205,7 +199,6 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			agent.MaxSpeed = speed;
 			agent.Acceleration = 4000;
 
-			// Doom's monsters are solid and can't stand in each other; keep them apart as hard as the crowd allows.
 			agent.Separation = 1f;
 
 			var navigation = go.AddComponent<Sandbox.Npcs.Layers.NavigationLayer>();
@@ -238,7 +231,7 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 		npc.SplashImmune = monster.SplashImmune;
 		npc.SeeFrames = monster.See.Frames.Length;
 
-		// Bites and charges use the melee damage roll too, without a melee state.
+		// Bites and charges use the melee roll without a melee state.
 		npc.MeleeDice = monster.MeleeDice;
 		npc.MeleeMultiplier = monster.MeleeMultiplier;
 
@@ -273,7 +266,6 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 			npc.HalveMissileRange = attack.HalveRange;
 			npc.MissileRangeCap = attack.RangeCap;
 
-			// The pain elemental launches lost souls.
 			if ( attack.Special == "pain" && Host.ThingTable.TryGetValue( 3006, out var soul ) )
 				npc.SpawnedMonster = LoadThingPrefab( soul );
 
@@ -305,7 +297,7 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 		npc.MeleeHitSound = LoadSound( monster.MeleeHitSound );
 	}
 
-	/// <summary>Another thing's mounted prefab, or null if no mounted WAD can draw it.</summary>
+	/// <summary>Another thing's mounted prefab, or null if no WAD draws it.</summary>
 	private PrefabFile LoadThingPrefab( ThingType thing )
 		=> Host.ThingPrefabUrl( thing ) is { } url ? PrefabFile.Load( url ) : null;
 

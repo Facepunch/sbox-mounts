@@ -4,19 +4,16 @@ using Sandbox.Npcs.Layers;
 
 namespace Doom;
 
-/// <summary>
-/// The monsters that don't just walk and shoot: the lost soul's charge and the pain elemental
-/// launching them, the bosses' footsteps, and what killing a boss does to the level.
-/// </summary>
+/// <summary>Lost soul charges, pain elemental launches, boss footsteps and boss death specials.</summary>
 partial class DoomMonster
 {
-	/// <summary>SKULLSPEED: a charging lost soul covers 20 map units a tic.</summary>
+	// SKULLSPEED, in map units per tic.
 	private const float ChargeSpeed = 20f;
 
-	/// <summary>A charge that hits nothing gives up after this long.</summary>
+	// Seconds before a charge that hits nothing gives up.
 	private const float MaxChargeTime = 4f;
 
-	/// <summary>The lost soul's charge (MF_SKULLFLY): flying straight at where its target was until it hits something. Host only.</summary>
+	/// <summary>MF_SKULLFLY: the lost soul is charging. Host only.</summary>
 	public bool IsCharging { get; private set; }
 
 	private Vector3 _chargeVelocity;
@@ -47,10 +44,7 @@ partial class DoomMonster
 		UpdateFootsteps();
 	}
 
-	/// <summary>
-	/// A_SkullAttack: hurls itself at the middle of its target at <see cref="ChargeSpeed"/>, taking
-	/// the body from its flying layer until it hits something.
-	/// </summary>
+	/// <summary>A_SkullAttack: charges at the middle of the target.</summary>
 	internal void StartCharge()
 	{
 		if ( !Target.IsValid() ) return;
@@ -58,7 +52,7 @@ partial class DoomMonster
 		FaceTarget();
 		PlayAttackSound();
 
-		// A soul launched by a pain elemental goes straight into its charge frames.
+		// A soul launched by a pain elemental skips straight to its charge frames.
 		if ( Animator.IsValid() && Animator.State != MonsterAnimations.Missile )
 			Animator.Play( MonsterAnimations.Missile, Math.Max( MissileLoopTime, 0f ) );
 
@@ -74,24 +68,19 @@ partial class DoomMonster
 		}
 	}
 
-	/// <summary>A lost soul launched by a pain elemental charges at its target as soon as it exists. Host only.</summary>
+	/// <summary>Charges at the target as soon as it starts. Host only.</summary>
 	internal void ChargeAt( GameObject target )
 	{
 		Target = target;
 		_chargeOnStart = target.IsValid();
 	}
 
-	/// <summary>
-	/// Moves a charge on the way vanilla does: across the ground first (P_XYMovement), where a wall or a
-	/// thing stops it, then up or down (P_ZMovement), where a floor or ceiling bounces it back
-	/// (MF_SKULLFLY reverses momz) but a thing still stops it. Whatever thing it runs into takes
-	/// (random % 8 + 1) * 3.
-	/// </summary>
+	// P_XYMovement then P_ZMovement: walls and things stop it; floors and ceilings bounce it (MF_SKULLFLY).
 	private void UpdateCharge()
 	{
 		if ( !IsCharging ) return;
 
-		// Keep flapping through the D C D of the charge while it flies.
+		// Loop the charge frames while it flies.
 		if ( Animator.IsValid() && Animator.State == MonsterAnimations.Missile && MissileLoopTime >= 0f
 			&& Animator.StateTime >= Animator.Duration( MonsterAnimations.Missile ) )
 			Animator.Play( MonsterAnimations.Missile, MissileLoopTime );
@@ -104,10 +93,9 @@ partial class DoomMonster
 
 		var step = _chargeVelocity * Time.Delta;
 
-		// Shrunk a little so resting against a floor or wall doesn't count as running into it.
+		// Shrunk so resting against a floor or wall doesn't count as a hit.
 		var hull = (GetComponent<BoxCollider>() is { } box ? box.LocalBounds : BBox.FromPositionAndSize( Vector3.Up * Height * 0.5f, Radius * 2f )).Grow( -2f );
 
-		// Across: anything it meets ends the charge.
 		var position = WorldPosition;
 		var across = step.WithZ( 0 );
 		if ( !across.IsNearlyZero() )
@@ -123,7 +111,6 @@ partial class DoomMonster
 			if ( !tr.Hit ) position += across;
 		}
 
-		// Up or down: floors and ceilings send it back the other way.
 		if ( MathF.Abs( step.z ) > 0.001f )
 		{
 			var tr = ChargeSweep( hull, position, position + Vector3.Up * step.z );
@@ -153,7 +140,6 @@ partial class DoomMonster
 			.UseHitboxes()
 			.Run();
 
-	/// <summary>A thing rather than the level: a monster, a player, or anything placed as a Doom thing.</summary>
 	private static bool IsThing( GameObject go )
 		=> go.IsValid() && (go.Tags.Has( ThingTags.Thing ) || go.GetComponentInParent<BaseNpc>().IsValid()
 			|| go.GetComponentInParent<PlayerController>().IsValid() || go.GetComponentInParent<Component.IDamageable>() is not null);
@@ -166,7 +152,6 @@ partial class DoomMonster
 		EndCharge();
 	}
 
-	/// <summary>The charge is over: it stops dead and goes back to flying about.</summary>
 	private void EndCharge()
 	{
 		IsCharging = false;
@@ -176,12 +161,7 @@ partial class DoomMonster
 			SetMovement( mover );
 	}
 
-	/// <summary>
-	/// A_PainShootSkull: launches a lost soul just clear of its body toward <paramref name="yaw"/>,
-	/// to charge at its target. Not if there are more than 20 in the level already. Like vanilla's
-	/// P_TryMove, only where it appears is checked: if something's already there it dies at once,
-	/// so the attack still shows. It isn't made beyond a wall, which vanilla would let through.
-	/// </summary>
+	/// <summary>A_PainShootSkull: launches a lost soul toward <paramref name="yaw"/>, unless over 20 exist. One spawned into something dies at once.</summary>
 	internal void LaunchSoul( float yaw )
 	{
 		if ( !SpawnedMonster.IsValid() ) return;
@@ -195,7 +175,7 @@ partial class DoomMonster
 		float prestep = (4f + 3f * (Radius / Scale + SoulRadius) / 2f) * Scale;
 		var at = WorldPosition + Vector3.Up * 8f * Scale + direction * prestep;
 
-		// Through a wall: the level alone, from the elemental's middle to the soul's.
+		// Unlike vanilla, never spawn beyond a wall.
 		var middle = Vector3.Up * Height * 0.5f;
 		var wall = Scene.Trace.Ray( WorldPosition + middle, at + Vector3.Up * SoulHeight * 0.5f * Scale )
 			.IgnoreGameObjectHierarchy( GameObject )
@@ -203,7 +183,6 @@ partial class DoomMonster
 			.Run();
 		if ( wall.Hit ) return;
 
-		// Where it appears: is there room for it?
 		var hull = new BBox( new Vector3( -SoulRadius, -SoulRadius, 0 ) * Scale, new Vector3( SoulRadius, SoulRadius, SoulHeight ) * Scale ).Grow( -1f );
 		var crowded = Scene.Trace.Box( hull, at, at )
 			.IgnoreGameObjectHierarchy( GameObject )
@@ -225,10 +204,10 @@ partial class DoomMonster
 
 	private GameObject _dieOnStartBy;
 
-	/// <summary>A lost soul that can't fit where it was launched dies as soon as it exists (P_DamageMobj 10000). Host only.</summary>
+	/// <summary>Dies as soon as it starts (P_DamageMobj 10000), for a lost soul spawned with no room. Host only.</summary>
 	internal void DieOnStart( GameObject by ) => _dieOnStartBy = by.IsValid() ? by : GameObject;
 
-	/// <summary>A_Metal, A_Hoof and A_BabyMetal: footsteps on the walk frames that make them.</summary>
+	// A_Metal, A_Hoof and A_BabyMetal.
 	private void UpdateFootsteps()
 	{
 		if ( StepFrames.Count == 0 || !Animator.IsValid() || Animator.State != MonsterAnimations.See )
@@ -246,12 +225,7 @@ partial class DoomMonster
 			PlaySound( StepSounds[index] );
 	}
 
-	/// <summary>
-	/// A_BossDeath: when the last of a boss kind dies on its level, the level answers. The barons of
-	/// E1M8 and the spider of E4M8 lower the floor tagged 666; the Cyberdemon of E4M6 opens its door;
-	/// the mancubi and arachnotrons of MAP07 lower 666 and raise 667. The Cyberdemon of E2M8 and the
-	/// spider of E3M8 end the level.
-	/// </summary>
+	// A_BossDeath: runs the map's special once the last of a boss kind dies.
 	private void BossDeath()
 	{
 		var root = GameObject.Root;
