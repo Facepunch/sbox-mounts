@@ -357,7 +357,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		_eventAttachments = data.BuiltRightHanded == false && !mirror ? MirrorTwins( Renderer.Model ) : [];
 	}
 
-	bool Mirrored => Renderer.GameObject.LocalScale.y < 0;
+	internal bool Mirrored => Renderer.IsValid() && Renderer.GameObject.LocalScale.y < 0;
 
 	/// <summary>Counter-Strike hides the viewmodel, hands included, while looking through a scope.</summary>
 	void UpdateScopeVisibility()

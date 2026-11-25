@@ -158,7 +158,10 @@ public abstract class SourceWeapon : BaseCombatWeapon
 		var model = ViewModel?.GetComponentInChildren<SourceViewModel>();
 		if ( !model.IsValid() ) return;
 
-		model.Place( _viewModelView );
+		var placement = _viewModelView;
+		var owner = Owner;
+		if ( owner.IsValid() ) owner.GetOrAddComponent<SourceViewModelMotion>().Apply( ref placement, owner.Velocity, model.Mirrored );
+		model.Place( placement );
 		model.FollowCameraEffects( camera, view );
 		model.ApplyLens( camera, view );
 		OnViewModelPlaced( model );
