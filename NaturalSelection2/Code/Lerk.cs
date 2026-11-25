@@ -21,6 +21,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag;
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation View { get; set; }
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation BodyRotation { get; set; }
 	bool attacking, wantsSpikes, spiking;
 	TimeSince lastFlap = 1;
 	float energy = 100;
@@ -82,7 +83,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 7 * Scale / gravity;
-		View = WorldRotation;
+		View = BodyRotation = WorldRotation;
 		animationTime = 0;
 		weaponTag = OnWeaponTag;
 	}
@@ -120,12 +121,14 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		base.OnUpdate();
 		UpdateFlightSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		var aim = WorldRotation.Forward;
+		var aim = flying ? flightDirection : WorldRotation.Forward;
 		if ( Networking.IsHost )
 		{
 			if ( Animation.LookObject.IsValid() ) aim = CalculateAimPoint( Animation.LookObject ) - EyePosition;
 			View = AlienAim.Turn( View, aim, 5 );
+			BodyRotation = FlightBodyRotation( BodyRotation.Angles(), View.Angles(), Animation.IsGrounded, Time.Delta );
 		}
+		Renderer.WorldRotation = BodyRotation;
 		var moveInputs = MovementPose( Animation.MoveVelocity, View );
 		output?.Set( "move_speed", moveInputs.y );
 		output?.Set( "move_yaw", moveInputs.x );

@@ -10,6 +10,7 @@ public sealed partial class Lerk
 	TimeSince cruiseChanged;
 	bool forwardBlocked;
 	MapLocations flightLocations;
+	Vector3 flightDirection;
 	NavMeshPath flightPath;
 	int pathIndex;
 	TimeUntil checkPath;
@@ -34,6 +35,14 @@ public sealed partial class Lerk
 		return goal;
 	}
 
+	static Rotation FlightBodyRotation( Angles body, Angles head, bool grounded, float dt )
+	{
+		float turn = Angles.NormalizeAngle( body.yaw - head.yaw );
+		float bank = grounded ? head.roll : MathF.Abs( turn ) < 0.001f.RadianToDegree() ? 0 : Math.Clamp( turn, -10, 10 );
+		float pitch = grounded ? 0 : Math.Min( head.pitch, 0.4f.RadianToDegree() );
+		return Rotation.From( AlienAim.ApproachAngle( body.pitch, pitch, 3 * dt ),
+			AlienAim.ApproachAngle( body.yaw, head.yaw, 6 * dt ), AlienAim.ApproachAngle( body.roll, bank, 3 * dt ) );
+	}
 	// Spark applies flap, air strafe, glide and crouch dive in that order. Velocities here are in metres per second.
 	static Vector3 FlightVelocity( Vector3 v, Rotation facing, Vector3 move, bool grounded, bool flap, bool glide,
 		bool wasGliding, bool sneak, bool dive, float dt )
@@ -135,7 +144,8 @@ public sealed partial class Lerk
 		float steerDistance = ahead.Hit ? Math.Max( 2 * Scale, (ahead.EndPosition - WorldPosition).WithZ( 0 ).Length ) : 4 * Scale;
 		var waypoint = FlightWaypoint( goal, ground );
 		var forward = (waypoint - WorldPosition).WithZ( 0 ).Normal * steerDistance + Vector3.Up * (desiredZ - WorldPosition.z);
-		var facing = Rotation.LookAt( forward );
+		flightDirection = forward.Normal;
+		var facing = Rotation.LookAt( flightDirection );
 		var next = FlightVelocity( velocity, facing, Vector3.Forward, grounded, flap, jump, gliding, false, dive, Time.Delta ) * Scale;
 		flying = true;
 		gliding = jump;
