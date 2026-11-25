@@ -34,7 +34,7 @@ public sealed class GravityWeapon : Weapon
 	// Launching a held object consumes the current secondary press.
 	bool _attack2Debounce;
 	PhysCannonEffects _effects;
-	TimeUntil _tooHeavyCooldown;
+	bool _playedDenySound;
 
 	protected override void OnStart()
 	{
@@ -158,6 +158,7 @@ public sealed class GravityWeapon : Weapon
 	{
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost ) return;
+		if ( !Pulling || !Active ) _playedDenySound = false;
 		if ( HeldObject.IsValid() )
 		{
 			Hold();
@@ -170,11 +171,10 @@ public sealed class GravityWeapon : Weapon
 	{
 		SetNextSecondaryFire( 0.1f );
 		var body = FindBody( PullLength, out var hit );
-		if ( !CanMove( body ) ) return;
-		if ( body.Mass > MaxMass )
+		if ( !CanMove( body ) || body.Mass > MaxMass )
 		{
-			if ( _tooHeavyCooldown > 0 ) return;
-			_tooHeavyCooldown = 1;
+			if ( _playedDenySound ) return;
+			_playedDenySound = true;
 			DenyPickup();
 			return;
 		}
@@ -240,7 +240,7 @@ public sealed class GravityWeapon : Weapon
 		if ( Application.IsDedicatedServer ) return;
 		_effects ??= new PhysCannonEffects();
 		// Only the owner traces; other peers show the idle claws.
-		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is not null;
+		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass };
 		_effects.Update( this, HeldObject, ready );
 	}
 
