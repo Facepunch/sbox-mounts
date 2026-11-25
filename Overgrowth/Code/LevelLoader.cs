@@ -92,16 +92,16 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		}
 	}
 
-	readonly Dictionary<string, bool> waterHotspots = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, string> hotspotScripts = new( StringComparer.OrdinalIgnoreCase );
 
-	bool IsWaterHotspot( string file )
+	string HotspotScript( string file )
 	{
-		if ( string.IsNullOrWhiteSpace( file ) ) return false;
-		if ( waterHotspots.TryGetValue( file, out var water ) ) return water;
+		if ( string.IsNullOrWhiteSpace( file ) ) return null;
+		if ( hotspotScripts.TryGetValue( file, out var cached ) ) return cached;
 		var path = Host.Resolve( file );
 		var script = Host.FileSystem.FileExists( path )
 			? XmlAsset.Parse( Host.FileSystem.ReadAllText( path ) ).Element( "Hotspot" )?.Element( "Script" )?.Value : null;
-		return waterHotspots[file] = script is "hotspots/wet_cube.as" or "hotspots/wet_cylinder.as";
+		return hotspotScripts[file] = script;
 	}
 
 	void Place( XmlAsset node, Dictionary<int, XmlAsset> jumpNodes,
@@ -122,6 +122,16 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 		var transform = new Transform( Vector( node, "t", 0 ) * 40, Orientation( node ), Vector( node, "s", 1 ) );
 		GameObject Object() => new GameObject( true, name ) { WorldTransform = transform };
 
+		BoxCollider HotspotVolume( GameObject obj )
+		{
+			// Hotspot::UpdateCollisionShape uses a four-metre box scaled by the level object.
+			var volume = obj.AddComponent<BoxCollider>( false );
+			volume.Scale = 4f * 40f;
+			volume.Static = volume.IsTrigger = true;
+			volume.Enabled = true;
+			return volume;
+		}
+
 		void ConnectItems( RabbitGuard actor )
 		{
 			foreach ( var link in node.Element( "ItemConnections" )?.Elements( "ItemConnection" ) ?? [] )
@@ -130,14 +140,16 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 
 		switch(node.Name)
 		{
-			case "Hotspot" when IsWaterHotspot( file ):
-				// Hotspot::UpdateCollisionShape uses a four-metre box for both water scripts.
+			case "Hotspot" when HotspotScript( file ) == "hotspots/fire_test.as":
+				if ( node.Element( "parameters" )?.Elements( "parameter" ).FirstOrDefault( p => p.Attribute( "name" ) == "Ignite Characters" )?.Number( "val" ) == 0 ) return;
+				var fire = Object();
+				HotspotVolume( fire );
+				fire.AddComponent<FireHotspot>();
+				return;
+			case "Hotspot" when HotspotScript( file ) is "hotspots/wet_cube.as" or "hotspots/wet_cylinder.as":
 				var water = Object();
 				water.Tags.Add( "water" );
-				var volume = water.AddComponent<BoxCollider>( false );
-				volume.Scale = 4f * 40f;
-				volume.Static = volume.IsTrigger = true;
-				volume.Enabled = true;
+				var volume = HotspotVolume( water );
 				var hotspot = water.AddComponent<WaterHotspot>();
 				hotspot.Volume = volume;
 				hotspot.Lethal = node.Element( "parameters" )?.Elements( "parameter" ).Any( p => p.Attribute( "name" ) == "Lethal" ) == true;

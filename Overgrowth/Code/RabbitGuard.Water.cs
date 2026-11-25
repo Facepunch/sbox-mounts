@@ -14,6 +14,7 @@ public sealed partial class RabbitGuard
 		if ( Health <= 0f || boundAnimations is null || !Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) ) return;
 		var headPoint = head.Position - head.Rotation.Forward * (boundAnimations.Head.HeadHalfLength * WorldScale.z);
 		float headHeight = water.HeightAboveSurface( headPoint );
+		if ( headHeight < 0.7f ) SetOnFire( false );
 		underwaterBreath = headHeight < 0f ? underwaterBreath - dt : 10f;
 		var center = CharacterCenter( GameObject );
 		float height = water.HeightAboveSurface( center );

@@ -86,7 +86,7 @@ public sealed partial class RabbitGuard
 			InvestigatePatrolDamage();
 		if ( hit.DamageInfo is BloodDamage blood && hit.AcceptedDamage > 0f )
 		{
-			if ( hit.DamageInfo is not ExtractionDamage ) FlinchFromCut();
+			if ( hit.DamageInfo is not (ExtractionDamage or FireDamage) ) FlinchFromCut();
 			ApplyBloodLoss( hit.AcceptedDamage, blood );
 		}
 		if ( hit.DamageInfo is BluntDamage )
@@ -251,7 +251,8 @@ public sealed partial class RabbitGuard
 		UpdateCombatGroup();
 		extractionDeath = death.DamageInfo is ExtractionDamage;
 		cutThroat = death.DamageInfo is ExecutionDamage;
-		if ( extractionDeath ) ReportBodySound( HeardSound.Voice, 10f );
+		if ( death.DamageInfo is FireDamage ) PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_death.xml", CharacterCenter( GameObject ) );
+		if ( extractionDeath || death.DamageInfo is FireDamage ) ReportBodySound( HeardSound.Voice, 10f );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );
@@ -272,7 +273,7 @@ public sealed partial class RabbitGuard
 		corpseInjury = death.DamageInfo switch
 		{
 			ExtractionDamage => null,
-			ExecutionDamage => (0f, false, 0f, null),
+			ExecutionDamage or FireDamage => (0f, false, 0f, null),
 			ItemWound or ItemImpact when !Unconscious => (Random.Shared.Float( 0f, 12f ), true, 0.9f, null),
 			_ when sharp > 0f && awakeAtImpact => (Random.Shared.Float( 5f, 8f ), false, stun, null),
 			_ when sharp > 0f && previous is { Active: true } => (previous.Age + sharp * 10f, false, stun, previous),

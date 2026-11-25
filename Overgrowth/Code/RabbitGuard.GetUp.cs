@@ -195,6 +195,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDisabled()
 	{
+		fireLoop?.Stop();
 		UseAirHull( false );
 		motionSamples = 0;
 		if ( bodyDragger.IsValid() ) bodyDragger.ReleaseBodyDrag();
