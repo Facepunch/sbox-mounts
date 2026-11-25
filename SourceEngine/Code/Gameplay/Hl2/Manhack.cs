@@ -11,7 +11,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Manhack" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Manhack", "Hl2Manhack" )]
-public sealed class Manhack : Component, ISourceNpcPart
+public sealed class Manhack : Component, INpcPart
 {
 	/// <summary>How far from its centre it cuts, set by eye: the nose of the model, so a hit lands as it touches the body.</summary>
 	const float SliceReach = 7;
@@ -43,10 +43,10 @@ public sealed class Manhack : Component, ISourceNpcPart
 	TimeSince _lastWander;
 	TimeSince _lastSlice = 10;
 	TimeSince _lastGrind = 10;
-	SourceCreatureNpc _npc;
+	CreatureNpc _npc;
 
-	SourceCreatureNpc Npc => _npc.IsValid() ? _npc : _npc = GetComponent<SourceCreatureNpc>();
-	string Mount => SourceMount.Of( GameObject );
+	CreatureNpc Npc => _npc.IsValid() ? _npc : _npc = GetComponent<CreatureNpc>();
+	string Mount => MountContent.Of( GameObject );
 
 	/// <summary>Where to steer this frame, added to the creature's flight goal.</summary>
 	public Vector3 Offset => _wander + _apart;
@@ -144,7 +144,7 @@ public sealed class Manhack : Component, ISourceNpcPart
 			return;
 
 		var center = WorldPosition;
-		if ( !SourceNpcs.Touches( GameObject, target, center, SliceReach, out var closest ) )
+		if ( !Npcs.Touches( GameObject, target, center, SliceReach, out var closest ) )
 			return;
 
 		var away = (center - target.GetBounds().Center).WithZ( 0 ).Normal;
@@ -168,31 +168,31 @@ public sealed class Manhack : Component, ISourceNpcPart
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void Slice( Vector3 position )
 	{
-		if ( SourceSounds.Sound( "NPC_Manhack.Slice", Mount ) is { } sound )
+		if ( Sounds.Sound( "NPC_Manhack.Slice", Mount ) is { } sound )
 			Sound.Play( sound, position );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void Grind( Vector3 position, Vector3 direction )
 	{
-		if ( SourceSounds.Sound( "NPC_Manhack.Grind", Mount ) is { } sound )
+		if ( Sounds.Sound( "NPC_Manhack.Grind", Mount ) is { } sound )
 			Sound.Play( sound, position );
-		SourceWeaponEffects.SparkFan( position, direction, Mount );
+		WeaponEffects.SparkFan( position, direction, Mount );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void Sparks( Vector3 position, int magnitude, Vector3 direction ) => SourceWeaponEffects.ElectricSpark( position, magnitude, direction, Mount );
+	void Sparks( Vector3 position, int magnitude, Vector3 direction ) => WeaponEffects.ElectricSpark( position, magnitude, direction, Mount );
 
-	void ISourceNpcPart.OnNpcHurt( Component.IDamageable.DamageEvent damage )
+	void INpcPart.OnNpcHurt( Component.IDamageable.DamageEvent damage )
 	{
 		// CNPC_Manhack::TraceAttack: clubbed, it sparks where it was hit.
 		var info = damage.DamageInfo;
-		var clubbed = info.Tags.Has( "melee" ) || SourceWeaponSetup.IsMelee( info.Weapon?.GetComponent<BaseCombatWeapon>() );
+		var clubbed = info.Tags.Has( "melee" ) || WeaponSetup.IsMelee( info.Weapon?.GetComponent<BaseCombatWeapon>() );
 		if ( clubbed )
 			Sparks( info.Position, 1, (info.Origin - info.Position).Normal );
 	}
 
-	void ISourceNpcPart.OnNpcDeath( Component.IDamageable.DeathEvent death )
+	void INpcPart.OnNpcDeath( Component.IDamageable.DeathEvent death )
 	{
 		for ( var i = 0; i < 3; i++ )
 			Sparks( WorldPosition + new Vector3( Game.Random.Float( -12, 12 ), Game.Random.Float( -12, 12 ), Game.Random.Float( -12, 12 ) ), 2, Vector3.Zero );
@@ -214,8 +214,8 @@ public sealed class ScannerPhoto : Component
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	public void Flash( GameObject target )
 	{
-		var mount = SourceMount.Of( GameObject );
-		if ( SourceSounds.Sound( "NPC_CScanner.TakePhoto", mount ) is { } sound )
+		var mount = MountContent.Of( GameObject );
+		if ( Sounds.Sound( "NPC_CScanner.TakePhoto", mount ) is { } sound )
 			GameObject.PlaySound( sound );
 
 		Blind( target );
@@ -237,7 +237,7 @@ public sealed class ScannerPhoto : Component
 		}
 
 		// A 64 px sprite at scale 1.4, given as a radius.
-		go.AddComponent<SourceSpriteBurst>().Add( "sprites/blueflare1", mount, 0, 64 * 1.4f * 0.5f * distance / 200, Color.White, 0.3f );
+		go.AddComponent<SpriteBurst>().Add( "sprites/blueflare1", mount, 0, 64 * 1.4f * 0.5f * distance / 200, Color.White, 0.3f );
 	}
 
 	/// <summary>
@@ -258,6 +258,6 @@ public sealed class ScannerPhoto : Component
 		if ( Scene.Trace.Ray( WorldPosition, eye.Position ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "player", "npc", "trigger" ).Run().Hit )
 			return;
 
-		SourceScreenFade.Show( camera, Color.White.WithAlpha( BlindAlpha * dot ), 0.5f, 3 );
+		ScreenFade.Show( camera, Color.White.WithAlpha( BlindAlpha * dot ), 0.5f, 3 );
 	}
 }

@@ -10,7 +10,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Leap" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Leap", "Hl2Leap" )]
-public sealed class Leap : SourceCreatureBehaviour
+public sealed class Leap : CreatureBehaviour
 {
 	/// <summary>Sound script prefix for the attack and bite sounds, such as NPC_Headcrab.</summary>
 	[Property] public string SoundPrefix { get; set; }
@@ -51,13 +51,13 @@ public sealed class Leap : SourceCreatureBehaviour
 	int _releaseHops;
 	IReadOnlyDictionary<string, float> _skill = new Dictionary<string, float>();
 
-	protected override async void OnStart() => _skill = await SourceSkillData.Read( SourceMount.Of( GameObject ), "skill_episodic.cfg" );
+	protected override async void OnStart() => _skill = await SkillData.Read( MountContent.Of( GameObject ), "skill_episodic.cfg" );
 
 	public string Clip { get; private set; }
 	public override string Animation => WindingUp || Airborne && _airClip is null ? Clip : Airborne ? _airClip : null;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(Clip, false), (_airClip, false)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		Clip = sequences.FindActivity( "ACT_RANGE_ATTACK1" );
 		_airClip = sequences.FindActivity( "ACT_FASTZOMBIE_LEAP_STRIKE" );
@@ -140,7 +140,7 @@ public sealed class Leap : SourceCreatureBehaviour
 
 	static Vector3 AimPoint( GameObject target ) => target.GetComponent<PlayerController>() is { } player && player.IsValid()
 		? player.EyeTransform.Position
-		: SourceNpcs.CapturePoint( target );
+		: Npcs.CapturePoint( target );
 
 	/// <summary>A poison zombie flings this crab at a point, on the higher, faster thrown arc.</summary>
 	public void ThrowAt( Vector3 point )
@@ -223,7 +223,7 @@ public sealed class Leap : SourceCreatureBehaviour
 	{
 		var collider = GetComponentInChildren<BoxCollider>();
 		var reach = (collider.IsValid() ? MathF.Max( collider.Scale.x, collider.Scale.y ) * 0.5f : 12) + 4;
-		return SourceNpcs.Touches( GameObject, target, GameObject.GetBounds().Center, reach, out _ );
+		return Npcs.Touches( GameObject, target, GameObject.GetBounds().Center, reach, out _ );
 	}
 
 	internal static bool Touching( GameObject self, GameObject target )
@@ -242,7 +242,7 @@ public sealed class Leap : SourceCreatureBehaviour
 			return;
 
 		PlaySound( $"{SoundPrefix}.Bite" );
-		var health = SourceNpcs.HealthOf( target );
+		var health = Npcs.HealthOf( target );
 		var isNpc = target.GetComponent<BaseNpc>().IsValid();
 		var before = health?.Health ?? 0;
 		var amount = npc.AttackDamage;
@@ -293,7 +293,7 @@ public sealed class PoisonRecovery : Component
 			return;
 
 		_lastRestore = 0;
-		var health = SourceNpcs.HealthOf( GameObject );
+		var health = Npcs.HealthOf( GameObject );
 		if ( health is null || health.Health <= 0 || _pending <= 0 )
 		{
 			Destroy();

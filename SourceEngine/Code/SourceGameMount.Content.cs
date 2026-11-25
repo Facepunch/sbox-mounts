@@ -59,7 +59,7 @@ public abstract partial class SourceGameMount
 			var filename = ResolveContentFile( files, path );
 			if ( !files.MaterialSources.TryGetValue( filename, out source ) )
 				files.MaterialSources.Add( filename, source = new Lazy<SourceMaterial>( () =>
-					SourceMaterial.Read( this, path, files.SourceScope, ( file, root ) => OpenContentFile( files, file, root ) ) ) );
+					SourceMaterial.Read( this, path, files.Scope, ( file, root ) => OpenContentFile( files, file, root ) ) ) );
 		}
 		return source.Value;
 	}
@@ -132,7 +132,7 @@ public abstract partial class SourceGameMount
 	{
 		lock ( indexLock )
 		{
-			if ( !ReferenceEquals( source.Scope, index.SourceScope ) )
+			if ( !ReferenceEquals( source.Scope, index.Scope ) )
 				throw new ObjectDisposedException( nameof( SourceMaterial ), "The material import snapshot was retired." );
 			index.MaterialVariants[material] = new SourceMaterialVariant( source );
 		}
@@ -161,7 +161,7 @@ public abstract partial class SourceGameMount
 			if ( original is null )
 				throw new InvalidOperationException( "A missing material cannot be used to build a skin variant." );
 			if ( !index.MaterialVariants.TryGetValue( original, out source ) )
-				source = SourceMaterialVariant.ReadEngineFallback( original, index.SourceScope )
+				source = SourceMaterialVariant.ReadEngineFallback( original, index.Scope )
 					?? throw new InvalidOperationException( $"Material '{original.Name}' has no import provenance; a skin variant cannot be built." );
 		}
 		if ( bindings is not null )
@@ -169,7 +169,7 @@ public abstract partial class SourceGameMount
 		var material = source.Create( name );
 		lock ( indexLock )
 		{
-			if ( !ReferenceEquals( source.Scope, index.SourceScope ) )
+			if ( !ReferenceEquals( source.Scope, index.Scope ) )
 				throw new ObjectDisposedException( nameof( SourceMaterial ), "The material import snapshot was retired." );
 			index.MaterialVariants[material] = source;
 		}

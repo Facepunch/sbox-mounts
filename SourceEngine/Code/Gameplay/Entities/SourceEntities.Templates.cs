@@ -9,14 +9,14 @@ static partial class SourceEntities
 		[SourceEntityKind.Weapon] = """
 			{
 				".": {
-					"Source1.SourceBulletWeapon": {"CanCancelReload": false, "DeployTime": 0.2, "DroppedGameObject": {"ref": "standalone_wm"}, "PreferredSlot": 0, "SecondaryDelay": 1, "Value": 10},
+					"Source1.BulletWeapon": {"CanCancelReload": false, "DeployTime": 0.2, "DroppedGameObject": {"ref": "standalone_wm"}, "PreferredSlot": 0, "SecondaryDelay": 1, "Value": 10},
 					"Sandbox.ModelCollider": {},
 					"Sandbox.Rigidbody": {}
 				},
 				"standalone_wm": {
 					"Sandbox.BaseWeaponModel": {"EjectBrass": null, "Renderer": {"ref": "standalone_wm:Sandbox.SkinnedModelRenderer"}, "TracerEffect": null},
 					"Sandbox.SkinnedModelRenderer": {"CreateAttachments": true, "CreateBoneObjects": true, "Sequence": {"Blending": true, "Looping": true, "Name": null}, "UseAnimGraph": false},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": "standalone_wm:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
+					"Source1.MountedModel": {"Renderer": {"ref": "standalone_wm:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
 				}
 			}
 			""",
@@ -24,11 +24,11 @@ static partial class SourceEntities
 			{
 				".": {
 					"@": {"NetworkMode": 0},
-					"Source1.SourceViewModel": {"Renderer": {"ref": "Viewmodel:Sandbox.SkinnedModelRenderer"}, "MuzzleEffect": null, "TracerEffect": null}
+					"Source1.ViewModel": {"Renderer": {"ref": "Viewmodel:Sandbox.SkinnedModelRenderer"}, "MuzzleEffect": null, "TracerEffect": null}
 				},
 				"Viewmodel": {
 					"Sandbox.SkinnedModelRenderer": {"CreateAttachments": true, "CreateBoneObjects": true, "Parameters": {"bools": {}, "floats": {}, "ints": {}, "rotations": {}, "vectors": {}}, "RenderOptions": {"AfterUILayer": false, "BloomLayer": false, "GameLayer": false, "OverlayLayer": true}, "RenderType": "Off", "Sequence": {"Blending": true, "Looping": true, "Name": null}, "UseAnimGraph": false},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": "Viewmodel:Sandbox.SkinnedModelRenderer"}}
+					"Source1.MountedModel": {"Renderer": {"ref": "Viewmodel:Sandbox.SkinnedModelRenderer"}}
 				}
 			}
 			""",
@@ -36,11 +36,11 @@ static partial class SourceEntities
 			{
 				".": {
 					"@": {"NetworkMode": 0},
-					"Source1.SourceWeaponWorldModel": {"EjectBrass": null, "MuzzleEffect": null, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "TracerEffect": null}
+					"Source1.WeaponWorldModel": {"EjectBrass": null, "MuzzleEffect": null, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "TracerEffect": null}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"CreateAttachments": true, "CreateBoneObjects": true, "Sequence": {"Blending": true, "Looping": true, "Name": null}, "UseAnimGraph": false},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}}
+					"Source1.MountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}}
 				}
 			}
 			""",
@@ -54,12 +54,12 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.SpeechLayer": {},
 					"Sandbox.Npcs.Layers.SensesLayer": {"FieldOfView": 300, "HearingRange": 1200, "SightRange": 2048},
 					"Sandbox.Rigidbody": {"AngularDamping": 2, "EnableImpactDamage": false, "LinearDamping": 0.5, "Locking": {"Pitch": true, "Roll": true, "X": false, "Y": false, "Yaw": false, "Z": false}, "MotionEnabled": false},
-					"Source1.SourceNpcDefaults": {},
-					"Source1.SourceCreatureNpc": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}}
+					"Source1.NpcDefaults": {},
+					"Source1.CreatureNpc": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"CreateAttachments": true, "CreateBoneObjects": true, "MaterialGroup": "default", "Sequence": {"Blending": true, "Looping": true, "Name": null}, "UseAnimGraph": false},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}},
+					"Source1.MountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}},
 					"Sandbox.ModelHitboxes": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "Target": {"ref": "."}}
 				},
 				"collider": {
@@ -78,7 +78,7 @@ static partial class SourceEntities
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"UseAnimGraph": false},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
+					"Source1.MountedModel": {"Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
 				}
 			}
 			""",
@@ -89,7 +89,7 @@ static partial class SourceEntities
 					"Source1.Hl2.Charger": {},
 					"Sandbox.SkinnedModelRenderer": {"UseAnimGraph": false},
 					"Sandbox.ModelCollider": {"Static": true},
-					"Source1.SourceMountedModel": {"Renderer": {"ref": ".:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
+					"Source1.MountedModel": {"Renderer": {"ref": ".:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}
 				}
 			}
 			""",
@@ -97,7 +97,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"TemporaryEffect": {"BecomeOrphan": true, "DestroyAfterSeconds": 2},
-					"Source1.SourceMountedEffect": {}
+					"Source1.MountedEffect": {}
 				}
 			}
 			""",

@@ -34,7 +34,7 @@ static class Rules
 	static readonly float[] SniperRifleZoom = [40, 15];
 
 	/// <summary>True for a weapon made from Counter-Strike: Source content.</summary>
-	public static bool Owns( BaseCombatWeapon weapon ) => SourceMount.OfWeapon( weapon ) == Mount;
+	public static bool Owns( BaseCombatWeapon weapon ) => MountContent.OfWeapon( weapon ) == Mount;
 
 	/// <summary>
 	/// Seconds between a burst's rounds and from its first round to the next trigger pull: CWeaponGlock18's
@@ -88,11 +88,11 @@ static class Rules
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => Grenade.ThrowVelocity( forward, inherited );
 
 	/// <summary>The thrown grenades, or null for a projectile kind that isn't Counter-Strike's.</summary>
-	public static SourceProjectile Launch( SourceProjectile.Kinds kind, GameObject attacker, string mount, Vector3 origin, Vector3 velocity, float damage, float radius, string model, BaseCombatWeapon weapon ) => kind switch
+	public static Projectile Launch( Projectile.Kinds kind, GameObject attacker, string mount, Vector3 origin, Vector3 velocity, float damage, float radius, string model, BaseCombatWeapon weapon ) => kind switch
 	{
-		SourceProjectile.Kinds.HeGrenade => SourceProjectile.Spawn<HeGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-		SourceProjectile.Kinds.Flashbang => SourceProjectile.Spawn<Flashbang>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-		SourceProjectile.Kinds.SmokeGrenade => SourceProjectile.Spawn<SmokeGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+		Projectile.Kinds.HeGrenade => Projectile.Spawn<HeGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+		Projectile.Kinds.Flashbang => Projectile.Spawn<Flashbang>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+		Projectile.Kinds.SmokeGrenade => Projectile.Spawn<SmokeGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 		_ => null
 	};
 }

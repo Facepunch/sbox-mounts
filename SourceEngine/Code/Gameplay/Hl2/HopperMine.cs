@@ -19,7 +19,7 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 	Rigidbody _body;
 	MineState? _presented;
 	readonly Dictionary<string, SoundEvent> _sounds = new();
-	readonly SourceAnimationPlayer _animation = new();
+	readonly AnimationPlayer _animation = new();
 	Model _model;
 	(string, bool)[] _choices = [];
 	SourceModelSequenceData _hookSequence;
@@ -49,13 +49,13 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 		_phaseTime = 0;
 		try
 		{
-			var mount = SourceMount.Of( GameObject );
+			var mount = MountContent.Of( GameObject );
 			await Sandbox.Mounting.Directory.Mount( mount );
 			if ( !IsValid )
 				return;
 
 			foreach ( var name in new[] { "Hop", "TurnOn", "TurnOff" } )
-				_sounds[name] = SourceSounds.Sound( "NPC_CombineMine." + name, mount );
+				_sounds[name] = Sounds.Sound( "NPC_CombineMine." + name, mount );
 		}
 		catch ( Exception e )
 		{
@@ -71,7 +71,7 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 		if ( _model != Renderer.Model )
 		{
 			_model = Renderer.Model;
-			var sequences = SourceModelSequences.Of( _model );
+			var sequences = ModelSequences.Of( _model );
 			var idle = sequences.All.FirstOrDefault( s => s.Activity == "ACT_IDLE" )?.Name;
 			_hookSequence = sequences.Get( idle ) is { BlendPositions.Length: > 1 } hooks ? hooks : null;
 			_choices = [(idle, false)];
@@ -197,7 +197,7 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 		// The authored origin sits on the floor. Use the body center so the ground
 		// cannot occlude every blast ray when contact leaves the origin slightly buried.
 		var center = _body.IsValid() && _body.PhysicsBody.IsValid() ? _body.PhysicsBody.MassCenter : WorldPosition + Vector3.Up * 12;
-		new SourceExplosion
+		new Explosion
 		{
 			Source = GameObject,
 			Attacker = GameObject,
@@ -206,7 +206,7 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 			Radius = BlastRadius,
 			Damage = BlastDamage,
 			ForceScale = 1.5f,
-			Prefab = SourceMount.Prefab( SourceMount.Of( GameObject ), "explosion" )
+			Prefab = MountContent.Prefab( MountContent.Of( GameObject ), "explosion" )
 		}.Spawn();
 		GameObject.Destroy();
 	}
@@ -253,7 +253,7 @@ public sealed class DeployPrefab : Component
 		if ( !target.IsValid() || (target.WorldPosition - WorldPosition).WithZ( 0 ).Length > Range )
 			return;
 
-		if ( SourceMount.Prefab( SourceMount.Of( GameObject ), Prefab ) is not { } prefab )
+		if ( MountContent.Prefab( MountContent.Of( GameObject ), Prefab ) is not { } prefab )
 			return;
 
 		Deployed = true;

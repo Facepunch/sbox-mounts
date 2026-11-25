@@ -30,13 +30,13 @@ public sealed class Pickup : Component, Component.ITriggerListener, Component.IC
 		Collider.Enabled = false;
 		try
 		{
-			var mountName = SourceMount.Of( GameObject );
-			var values = await SourceSkillData.Read( mountName );
+			var mountName = MountContent.Of( GameObject );
+			var values = await SkillData.Read( mountName );
 			if ( !IsValid ) return;
 			if ( !string.IsNullOrWhiteSpace( AmountSetting ) && values.TryGetValue( AmountSetting, out var amount ) && amount > 0 ) Amount = amount;
 			if ( Kind == Kinds.Ammo && !string.IsNullOrWhiteSpace( AmmoName ) )
 				_ammo = GameResource.Load<BaseAmmoResource>( $"mount://{mountName}/scripts/ammo/{Uri.EscapeDataString( AmmoName.ToLowerInvariant() )}.ammo" );
-			PickupSound = SourceSounds.Sound( SoundName, mountName );
+			PickupSound = Sounds.Sound( SoundName, mountName );
 			_ready = Amount > 0;
 			Collider.Enabled = true;
 		}
@@ -45,8 +45,8 @@ public sealed class Pickup : Component, Component.ITriggerListener, Component.IC
 
 	bool CanPickup( GameObject player, BaseInventoryComponent inventory ) => _ready && (Kind switch
 	{
-		Kinds.Health => SourceNpcs.HealthOf( player ) is { } health && health.Health < health.MaxHealth,
-		Kinds.Armour => SourceNpcs.ArmourOf( player ) is { } armour && armour.Armour < armour.MaxArmour,
+		Kinds.Health => Npcs.HealthOf( player ) is { } health && health.Health < health.MaxHealth,
+		Kinds.Armour => Npcs.ArmourOf( player ) is { } armour && armour.Armour < armour.MaxArmour,
 		Kinds.Ammo => _ammo is not null && inventory.IsValid() && inventory.GetAmmo( _ammo ) < _ammo.MaxReserve,
 		_ => false
 	});
@@ -56,12 +56,12 @@ public sealed class Pickup : Component, Component.ITriggerListener, Component.IC
 		switch ( Kind )
 		{
 			case Kinds.Health:
-				if ( SourceNpcs.HealthOf( player ) is not { } health )
+				if ( Npcs.HealthOf( player ) is not { } health )
 					return false;
 				health.Health = Math.Min( health.MaxHealth, health.Health + Amount );
 				return true;
 			case Kinds.Armour:
-				if ( SourceNpcs.ArmourOf( player ) is not { } armour )
+				if ( Npcs.ArmourOf( player ) is not { } armour )
 					return false;
 				armour.Armour = Math.Min( armour.MaxArmour, armour.Armour + Amount );
 				return true;

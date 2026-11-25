@@ -6,7 +6,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Zombine Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2ZombineGrenade", "Hl2ZombineGrenade" )]
-public sealed class ZombineGrenade : SourceCreatureBehaviour
+public sealed class ZombineGrenade : CreatureBehaviour
 {
 	const float PullMaxDistance = 256;
 	const float PullCheckInterval = 0.5f;
@@ -30,7 +30,7 @@ public sealed class ZombineGrenade : SourceCreatureBehaviour
 	public override string Animation => Pulling ? _pull : Holding ? Charging ? _run : _idle : null;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_pull, false), (_run, true), (_idle, true)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		_pull = sequences.FindActivity( "ACT_ZOMBINE_GRENADE_PULL" );
 		_run = sequences.FindActivity( "ACT_ZOMBINE_GRENADE_RUN" );
@@ -42,12 +42,12 @@ public sealed class ZombineGrenade : SourceCreatureBehaviour
 
 	protected override async void OnStart()
 	{
-		_mountName = SourceMount.Of( GameObject );
-		_skill = await SourceSkillData.Read( _mountName, "skill_episodic.cfg" );
+		_mountName = MountContent.Of( GameObject );
+		_skill = await SkillData.Read( _mountName, "skill_episodic.cfg" );
 		if ( !IsValid || Application.IsDedicatedServer )
 			return;
 
-		if ( SourceSounds.Sound( "Zombine.ReadyGrenade", _mountName ) is { } ready )
+		if ( Sounds.Sound( "Zombine.ReadyGrenade", _mountName ) is { } ready )
 			foreach ( var sound in ready.Sounds )
 				await sound.LoadAsync();
 	}
@@ -62,7 +62,7 @@ public sealed class ZombineGrenade : SourceCreatureBehaviour
 		if ( distance > PullMaxDistance || Game.Random.Float() > 1 - distance / PullMaxDistance )
 			return false;
 
-		var trace = Scene.Trace.Ray( WorldPosition + Vector3.Up * 48, SourceNpcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
+		var trace = Scene.Trace.Ray( WorldPosition + Vector3.Up * 48, Npcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 		return !trace.Hit || trace.GameObject?.Root == target.Root;
 	}
 
@@ -127,7 +127,7 @@ public sealed class ZombineGrenade : SourceCreatureBehaviour
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void Ready()
 	{
-		if ( SourceSounds.Sound( "Zombine.ReadyGrenade", SourceMount.Of( GameObject ) ) is { } sound )
+		if ( Sounds.Sound( "Zombine.ReadyGrenade", MountContent.Of( GameObject ) ) is { } sound )
 			Sound.Play( sound, WorldPosition );
 	}
 }
@@ -157,7 +157,7 @@ public sealed class NpcGrenade : Component
 		go.Tags.Add( "projectile" );
 		go.Tags.Add( "removable" );
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
-		var loader = go.AddComponent<SourceMountedModel>();
+		var loader = go.AddComponent<MountedModel>();
 		loader.MountName = mountName;
 		loader.ModelPath = "models/weapons/w_grenade.mdl";
 		loader.Renderer = renderer;
@@ -190,8 +190,8 @@ public sealed class NpcGrenade : Component
 
 		if ( _age >= Fuse )
 		{
-			new SourceExplosion { Source = GameObject, Attacker = Attacker, Position = WorldPosition, Radius = Radius, Damage = Damage,
-				Prefab = SourceMount.Prefab( MountName, "explosion" ) }.Spawn();
+			new Explosion { Source = GameObject, Attacker = Attacker, Position = WorldPosition, Radius = Radius, Damage = Damage,
+				Prefab = MountContent.Prefab( MountName, "explosion" ) }.Spawn();
 			GameObject.Destroy();
 			return;
 		}

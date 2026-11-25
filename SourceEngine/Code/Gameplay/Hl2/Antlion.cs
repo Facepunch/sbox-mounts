@@ -7,7 +7,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Unburrow" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Unburrow", "Hl2Unburrow" )]
-public sealed class Unburrow : SourceCreatureBehaviour
+public sealed class Unburrow : CreatureBehaviour
 {
 	[Property] public string Activity { get; set; } = "ACT_ANTLION_BURROW_OUT";
 	[Property] public string Sound { get; set; } = "NPC_Antlion.BurrowOut";
@@ -19,7 +19,7 @@ public sealed class Unburrow : SourceCreatureBehaviour
 	public override string Animation => Digging ? _clip : null;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_clip, false)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences ) => _clip = sequences.FindActivity( Activity );
+	protected override void OnConfigure( Model model, ModelSequences sequences ) => _clip = sequences.FindActivity( Activity );
 
 	/// <summary>Host think; true while still digging out.</summary>
 	public override bool Think( GameObject target )
@@ -45,7 +45,7 @@ public sealed class Unburrow : SourceCreatureBehaviour
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlaySound()
 	{
-		if ( SourceSounds.Sound( Sound, SourceMount.Of( GameObject ) ) is { } sound )
+		if ( Sounds.Sound( Sound, MountContent.Of( GameObject ) ) is { } sound )
 			Sandbox.Sound.Play( sound, WorldPosition );
 	}
 }
@@ -59,7 +59,7 @@ public sealed class Unburrow : SourceCreatureBehaviour
 [Title( "HL2 Charge" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Charge", "Hl2Charge" )]
-public sealed class Charge : SourceCreatureBehaviour
+public sealed class Charge : CreatureBehaviour
 {
 	const float ChargeMin = 256;
 	const float ChargeHitRange = 80;
@@ -93,9 +93,9 @@ public sealed class Charge : SourceCreatureBehaviour
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_start, false), (_run, true), (_stop, false), (_crash, false)];
 	public override string Animation => State switch { Phase.Start => _start, Phase.Run => _run, Phase.Stop => _stop, Phase.Crash => _crash ?? _stop, _ => null };
 
-	protected override async void OnStart() => _skill = await SourceSkillData.Read( SourceMount.Of( GameObject ), "skill_episodic.cfg" );
+	protected override async void OnStart() => _skill = await SkillData.Read( MountContent.Of( GameObject ), "skill_episodic.cfg" );
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		var start = sequences.All.FirstOrDefault( s => s.Activity?.EndsWith( "_CHARGE_START", StringComparison.Ordinal ) == true )?.Activity;
 		var prefix = start?[..^"START".Length];
@@ -122,7 +122,7 @@ public sealed class Charge : SourceCreatureBehaviour
 				if ( distance < ChargeMin || distance > MaxRange )
 					return false;
 				var eye = WorldPosition + Vector3.Up * 60;
-				if ( Scene.Trace.Ray( eye, SourceNpcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run() is { Hit: true } tr && tr.GameObject?.Root != target.Root )
+				if ( Scene.Trace.Ray( eye, Npcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run() is { Hit: true } tr && tr.GameObject?.Root != target.Root )
 					return false;
 				if ( Game.Random.Float() >= Chance )
 				{
@@ -153,10 +153,10 @@ public sealed class Charge : SourceCreatureBehaviour
 				var chest = WorldPosition + Vector3.Up * 40;
 				if ( _target.GetBounds().ClosestPoint( chest ).Distance( chest ) < ChargeHitRange )
 				{
-					var damage = SourceNpcs.IsPlayer( _target ) ? _skill.Get( DamageSetting, 20 ) : ChargeDamageNonPlayer;
+					var damage = Npcs.IsPlayer( _target ) ? _skill.Get( DamageSetting, 20 ) : ChargeDamageNonPlayer;
 					PlaySound( HitSound );
-					npc.Damage( _target, WorldPosition, SourceNpcs.CapturePoint( _target ), "melee", damage );
-					SourceNpcs.Knockback( _target, forward.WithZ( 0 ).Normal * 400 + Vector3.Up * 200 );
+					npc.Damage( _target, WorldPosition, Npcs.CapturePoint( _target ), "melee", damage );
+					Npcs.Knockback( _target, forward.WithZ( 0 ).Normal * 400 + Vector3.Up * 200 );
 					Enter( Phase.Stop );
 					return true;
 				}
@@ -210,7 +210,7 @@ public sealed class AntlionGuard : Component, Component.IDamageable.IEvents
 		if ( e.DamageInfo.Attacker != GameObject || !e.DamageInfo.Tags.Contains( "melee" ) || GetComponent<Charge>() is { Charging: true } )
 			return;
 
-		SourceNpcs.Knockback( e.Victim, WorldRotation.Forward * 400 + Vector3.Up * 150 );
+		Npcs.Knockback( e.Victim, WorldRotation.Forward * 400 + Vector3.Up * 150 );
 	}
 }
 
@@ -223,7 +223,7 @@ public sealed class AntlionGuard : Component, Component.IDamageable.IEvents
 [Title( "HL2 Antlion Jump" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2AntlionJump", "Hl2AntlionJump" )]
-public sealed class AntlionJump : SourceCreatureBehaviour
+public sealed class AntlionJump : CreatureBehaviour
 {
 	const float JumpMin = 128;
 	const float NearTarget = 512;
@@ -258,9 +258,9 @@ public sealed class AntlionJump : SourceCreatureBehaviour
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_windUp, false), (_glide, true), (_land, false)];
 	public override string Animation => State switch { Phase.WindUp => _windUp, Phase.Air => _glide ?? _windUp, Phase.Land => _land, _ => null };
 
-	protected override async void OnStart() => _skill = await SourceSkillData.Read( SourceMount.Of( GameObject ), "skill_episodic.cfg" );
+	protected override async void OnStart() => _skill = await SkillData.Read( MountContent.Of( GameObject ), "skill_episodic.cfg" );
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		_windUp = sequences.FindActivity( "ACT_ANTLION_JUMP_START" );
 		_glide = sequences.FindActivity( "ACT_GLIDE" );
@@ -300,7 +300,7 @@ public sealed class AntlionJump : SourceCreatureBehaviour
 				if ( !_airHit && _target.IsValid() && Leap.Touching( GameObject, _target ) )
 				{
 					_airHit = true;
-					npc.Damage( _target, WorldPosition, SourceNpcs.CapturePoint( _target ), "melee", _skill.Get( "sk_antlion_air_attack_dmg", 0 ) );
+					npc.Damage( _target, WorldPosition, Npcs.CapturePoint( _target ), "melee", _skill.Get( "sk_antlion_air_attack_dmg", 0 ) );
 				}
 				if ( _phase > 0.2f && npc.IsOnGround || _phase > MaxAirTime )
 					Landed();
@@ -329,8 +329,8 @@ public sealed class AntlionJump : SourceCreatureBehaviour
 		var npc = Npc;
 		Enter( Phase.Land );
 		PlaySound( "NPC_Antlion.Land" );
-		if ( SourceNpcs.IsPlayer( _target ) && _target.GetBounds().ClosestPoint( WorldPosition ).Distance( WorldPosition ) <= MeleeRange )
-			npc.Damage( _target, WorldPosition, SourceNpcs.CapturePoint( _target ), "melee" );
+		if ( Npcs.IsPlayer( _target ) && _target.GetBounds().ClosestPoint( WorldPosition ).Distance( WorldPosition ) <= MeleeRange )
+			npc.Damage( _target, WorldPosition, Npcs.CapturePoint( _target ), "melee" );
 	}
 
 	bool ShouldJump( GameObject target )
@@ -424,7 +424,7 @@ public sealed class AntlionJump : SourceCreatureBehaviour
 		Npc.Renderer?.SetBodyGroup( 1, open ? 1 : 0 );
 		_wingSound?.Stop( 0.1f );
 		_wingSound = null;
-		if ( open && !Application.IsDedicatedServer && SourceSounds.Sound( "NPC_Antlion.WingsOpen", SourceMount.Of( GameObject ) ) is { } sound )
+		if ( open && !Application.IsDedicatedServer && Sounds.Sound( "NPC_Antlion.WingsOpen", MountContent.Of( GameObject ) ) is { } sound )
 			_wingSound = GameObject.PlaySound( sound );
 	}
 

@@ -11,7 +11,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Bird" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Bird", "Hl2Bird" )]
-public sealed class Bird : SourceCreatureBehaviour, ISourceNpcPart
+public sealed class Bird : CreatureBehaviour, INpcPart
 {
 	/// <summary>Approximation of how close a player or creature may come before the bird flies off.</summary>
 	const float FleeDistance = 240;
@@ -36,7 +36,7 @@ public sealed class Bird : SourceCreatureBehaviour, ISourceNpcPart
 	public override string Animation => Shown;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_idle, true), (_walk, true), (_hop, false), (_takeoff, false), (_fly, true), (_land, false)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		_idle = sequences.FindActivity( "ACT_IDLE" );
 		_walk = sequences.FindActivity( "ACT_WALK" );
@@ -50,7 +50,7 @@ public sealed class Bird : SourceCreatureBehaviour, ISourceNpcPart
 	float Duration( string clip ) => Duration( clip, 1 );
 
 	/// <summary>Flies off from whoever hurt it.</summary>
-	void ISourceNpcPart.OnNpcHurt( Component.IDamageable.DamageEvent damage )
+	void INpcPart.OnNpcHurt( Component.IDamageable.DamageEvent damage )
 	{
 		if ( State != Mode.Ground )
 			return;
@@ -161,7 +161,7 @@ public sealed class Bird : SourceCreatureBehaviour, ISourceNpcPart
 		}
 
 		foreach ( var player in Scene.GetAllComponents<PlayerController>() )
-			if ( SourceNpcs.HealthOf( player.GameObject ) is { Health: > 0 } )
+			if ( Npcs.HealthOf( player.GameObject ) is { Health: > 0 } )
 				Consider( player.GameObject );
 		foreach ( var creature in Scene.GetAllComponents<BaseNpc>() )
 			if ( creature.Health > 0 && !creature.GetComponent<Bird>().IsValid() )

@@ -10,7 +10,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Zombie" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Zombie", "Hl2Zombie" )]
-public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
+public sealed class Zombie : CreatureBehaviour, INpcPart
 {
 	/// <summary>MAX_CRABS, ZOMBIE_THROW_RANGE_MIN/MAX in npc_PoisonZombie.cpp.</summary>
 	const int MaxCrabs = 3;
@@ -46,7 +46,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 	bool _pickedUp;
 	TimeUntil _nextThrow;
 
-	string MountName => SourceMount.Of( GameObject );
+	string MountName => MountContent.Of( GameObject );
 
 	/// <summary>The crab throw, ACT_RANGE_ATTACK2.</summary>
 	string ThrowClip { get; set; }
@@ -54,7 +54,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 	public override string Animation => Throwing ? ThrowClip : null;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(ThrowClip, false)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences ) => ThrowClip = sequences.FindActivity( "ACT_RANGE_ATTACK2" );
+	protected override void OnConfigure( Model model, ModelSequences sequences ) => ThrowClip = sequences.FindActivity( "ACT_RANGE_ATTACK2" );
 
 	protected override void OnStart()
 	{
@@ -116,12 +116,12 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 
 	void ThrowCrab( GameObject target )
 	{
-		var events = SourceModelSequences.Of( Npc.Renderer.Model ).Get( ThrowClip )?.Events ?? [];
+		var events = ModelSequences.Of( Npc.Renderer.Model ).Get( ThrowClip )?.Events ?? [];
 		var duration = Duration( ThrowClip, 1 );
 		_pickupTime = (events.FirstOrDefault( e => e.Name == "AE_ZOMBIE_POISON_PICKUP_CRAB" )?.Cycle ?? 0.3f) * duration;
 		_releaseTime = (events.FirstOrDefault( e => e.Name == "AE_ZOMBIE_POISON_THROW_CRAB" )?.Cycle ?? 0.5f) * duration;
 		_throwTarget = target;
-		_throwPoint = SourceNpcs.CapturePoint( target );
+		_throwPoint = Npcs.CapturePoint( target );
 		_throwStarted = 0;
 		_pickedUp = false;
 		_nextThrow = Game.Random.Int( ThrowMinDelay, ThrowMaxDelay );
@@ -134,7 +134,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 
 		// A target that dies mid-throw still gets the crab flung at where it was.
 		if ( _throwTarget.IsValid() )
-			_throwPoint = SourceNpcs.CapturePoint( _throwTarget );
+			_throwPoint = Npcs.CapturePoint( _throwTarget );
 
 		if ( !_pickedUp && _throwStarted >= _pickupTime )
 		{
@@ -163,7 +163,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 
 	GameObject SpawnCrab( Vector3 origin )
 	{
-		var prefab = string.IsNullOrEmpty( Headcrab ) ? null : SourceMount.Prefab( MountName, Headcrab );
+		var prefab = string.IsNullOrEmpty( Headcrab ) ? null : MountContent.Prefab( MountName, Headcrab );
 		if ( prefab is null )
 			return null;
 
@@ -173,14 +173,14 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 	}
 
 	/// <summary>npc_BaseZombie halves bullet damage anywhere but the head.</summary>
-	void ISourceNpcPart.OnNpcDamaging( Component.IDamageable.DamageEvent damage )
+	void INpcPart.OnNpcDamaging( Component.IDamageable.DamageEvent damage )
 	{
-		if ( damage.DamageInfo.Tags.Contains( SourceDamageTags.Bullet ) && !damage.DamageInfo.Tags.Contains( SourceDamageTags.Headshot ) )
+		if ( damage.DamageInfo.Tags.Contains( DamageTags.Bullet ) && !damage.DamageInfo.Tags.Contains( DamageTags.Headshot ) )
 			damage.AcceptedDamage *= 0.5f;
 	}
 
 	/// <summary>The zombie's own death, before its ragdoll: a heavy blast leaves a torso, a body-shot kill frees the crab.</summary>
-	void ISourceNpcPart.OnNpcDeath( Component.IDamageable.DeathEvent death )
+	void INpcPart.OnNpcDeath( Component.IDamageable.DeathEvent death )
 	{
 		if ( Headless )
 			return;
@@ -188,7 +188,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 		var damage = death.DamageInfo;
 
 		var threshold = Npc.MaxHealth > 0 ? MathF.Min( 1, damage.Damage / Npc.MaxHealth ) : 1;
-		var blast = damage.Tags.Contains( SourceDamageTags.Explosion );
+		var blast = damage.Tags.Contains( DamageTags.Explosion );
 		if ( blast && threshold >= 0.5f && !string.IsNullOrEmpty( Torso ) )
 		{
 			BecomeTorso();
@@ -196,7 +196,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 		}
 
 		// ShouldReleaseHeadcrab: a body-shot kill frees a live crab; heads shots, blasts, fire and melee leave it on the corpse.
-		if ( !damage.Tags.Contains( SourceDamageTags.Bullet ) || damage.Tags.Contains( SourceDamageTags.Headshot ) )
+		if ( !damage.Tags.Contains( DamageTags.Bullet ) || damage.Tags.Contains( DamageTags.Headshot ) )
 			return;
 
 		var origin = Npc.Renderer.GetAttachment( "headcrab" )?.Position ?? WorldPosition + Vector3.Up * 60;
@@ -214,7 +214,7 @@ public sealed class Zombie : SourceCreatureBehaviour, ISourceNpcPart
 
 	void BecomeTorso()
 	{
-		var prefab = SourceMount.Prefab( MountName, Torso );
+		var prefab = MountContent.Prefab( MountName, Torso );
 		var torso = prefab is null ? null : GameObject.GetPrefab( prefab.ResourcePath )?.Clone( WorldTransform );
 		torso?.NetworkSpawn();
 

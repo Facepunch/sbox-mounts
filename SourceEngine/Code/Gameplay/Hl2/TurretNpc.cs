@@ -22,7 +22,7 @@ public sealed class TurretNpc : BaseNpc
 	IReadOnlyDictionary<string, float> _skill = new Dictionary<string, float>();
 	SpriteRenderer _eyeGlow;
 	LineRenderer _laser;
-	readonly SourceAnimationPlayer _animation = new();
+	readonly AnimationPlayer _animation = new();
 	(string, bool)[] _choices = [];
 	TimeSince _phaseTime, _lastSeen, _lastShot;
 	TurretState? _shownState;
@@ -58,7 +58,7 @@ public sealed class TurretNpc : BaseNpc
 	protected override void OnStart()
 	{
 		base.OnStart();
-		_mountName = SourceMount.Of( GameObject );
+		_mountName = MountContent.Of( GameObject );
 		if ( IsProxy )
 			_shownShot = ShotSerial;
 
@@ -80,15 +80,15 @@ public sealed class TurretNpc : BaseNpc
 				return;
 
 			var prefix = FloorMounted ? "NPC_FloorTurret" : "NPC_CeilingTurret";
-			_shootSound = SourceSounds.Sound( prefix + ".Shoot", _mountName );
-			_deploySound = SourceSounds.Sound( prefix + ".Deploy", _mountName );
-			_retireSound = SourceSounds.Sound( prefix + ".Retire", _mountName );
+			_shootSound = Sounds.Sound( prefix + ".Shoot", _mountName );
+			_deploySound = Sounds.Sound( prefix + ".Deploy", _mountName );
+			_retireSound = Sounds.Sound( prefix + ".Retire", _mountName );
 		}
 		catch ( Exception e )
 		{
 			Log.Warning( $"Mounted turret sounds: {e.Message}" );
 		}
-		_skill = await SourceSkillData.Read( _mountName );
+		_skill = await SkillData.Read( _mountName );
 	}
 
 	/// <summary>The red eye sprite of npc_turret_floor/ceiling's SetEyeState, and a citizen turret's laser.</summary>
@@ -98,7 +98,7 @@ public sealed class TurretNpc : BaseNpc
 			return;
 
 		if ( !_eyeGlow.IsValid() && Renderer.GetAttachmentObject( "light" ) is { } light )
-			_eyeGlow = SourceMountedEffects.AddSprite( light, "sprites/glow1", _mountName );
+			_eyeGlow = MountedEffects.AddSprite( light, "sprites/glow1", _mountName );
 
 		var (scale, brightness, color) = State switch
 		{
@@ -107,24 +107,24 @@ public sealed class TurretNpc : BaseNpc
 			TurretState.Closed => (0.1f, 64f, new Color( 1, 0, 0 )),
 			_ => (0f, 0f, Color.Black)
 		};
-		SourceMountedEffects.SetSprite( _eyeGlow, scale, brightness, color );
+		MountedEffects.SetSprite( _eyeGlow, scale, brightness, color );
 
 		var start = Renderer.GetAttachment( "laser_start" );
 		var end = Renderer.GetAttachment( "laser_end" );
 		if ( !Friendly || start is null || end is null )
 			return;
 
-		_laser ??= SourceMountedEffects.AddBeam( GameObject, "effects/laser1", _mountName );
+		_laser ??= MountedEffects.AddBeam( GameObject, "effects/laser1", _mountName );
 		var reach = Scene.Trace.Ray( start.Value.Position, start.Value.Position + (end.Value.Position - start.Value.Position).Normal * AttackRange )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run().EndPosition;
-		SourceMountedEffects.SetBeam( _laser, start.Value.Position, reach, State == TurretState.Tipped ? 0 : 1, 160, new Color( 1, 0, 0 ) );
+		MountedEffects.SetBeam( _laser, start.Value.Position, reach, State == TurretState.Tipped ? 0 : 1, 160, new Color( 1, 0, 0 ) );
 	}
 
 	void Configure( Model model )
 	{
 		_model = model;
-		var sequences = SourceModelSequences.Of( model );
-		_flashType = SourceWeaponEffects.FlashType( model ) ?? "SMG1";
+		var sequences = ModelSequences.Of( model );
+		_flashType = WeaponEffects.FlashType( model ) ?? "SMG1";
 		string Activity( string suffix, string fallback ) => sequences.All.FirstOrDefault( s => s.Activity?.EndsWith( suffix, StringComparison.Ordinal ) == true )?.Name ?? fallback;
 		_closed = Activity( "_CLOSED_IDLE", "idle" );
 		_open = Activity( "_OPEN", _closed );
@@ -185,11 +185,11 @@ public sealed class TurretNpc : BaseNpc
 		{
 			_shownShot = ShotSerial;
 			_animation.Play( _fire, restart: true );
-			if ( !GetComponent<SourceNpcRangedEffects>().IsValid() )
+			if ( !GetComponent<NpcRangedEffects>().IsValid() )
 			{
 				if ( _shootSound is not null )
 					Sound.Play( _shootSound, Muzzle.Position );
-				SourceWeaponEffects.MuzzleFlash( _flashType, Renderer.GetAttachmentObject( "eyes" ), false, _mountName );
+				WeaponEffects.MuzzleFlash( _flashType, Renderer.GetAttachmentObject( "eyes" ), false, _mountName );
 			}
 		}
 		else if ( State == TurretState.Active && _animation.Finished )
@@ -255,7 +255,7 @@ public sealed class TurretNpc : BaseNpc
 
 		if ( target.IsValid() )
 		{
-			var point = SourceNpcs.CapturePoint( target );
+			var point = Npcs.CapturePoint( target );
 			if ( TracksWithBody )
 				WorldRotation = Rotation.Slerp( WorldRotation, Rotation.LookAt( point - Muzzle.Position ), Time.Delta * 8 );
 
@@ -309,7 +309,7 @@ public sealed class TurretNpc : BaseNpc
 
 		_lastShot = 0;
 		ShotSerial++;
-		GetComponent<SourceNpcRangedEffects>()?.PresentShot( new( trace.EndPosition, trace.Hit, trace.Normal, trace.GameObject, trace.Surface, muzzle.Position ) );
+		GetComponent<NpcRangedEffects>()?.PresentShot( new( trace.EndPosition, trace.Hit, trace.Normal, trace.GameObject, trace.Surface, muzzle.Position ) );
 		var damage = new DamageInfo { Damage = ShotDamage, Attacker = GameObject, Weapon = GameObject, Origin = muzzle.Position, Position = trace.EndPosition };
 		damage.Tags.Add( "bullet" );
 		target.GetComponentInParent<Component.IDamageable>()?.OnDamage( damage );

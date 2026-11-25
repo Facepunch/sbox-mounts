@@ -21,20 +21,20 @@ sealed class RpgLaser : IDisposable
 	GameObject _laserEnd;
 	bool _on;
 
-	public void Update( SourceProjectileWeapon weapon, bool on )
+	public void Update( ProjectileWeapon weapon, bool on )
 	{
-		var mount = SourceMount.OfWeapon( weapon );
+		var mount = MountContent.OfWeapon( weapon );
 		UpdateDot( weapon, on, mount );
 		UpdateBeam( weapon, on, mount );
 	}
 
-	void UpdateDot( SourceProjectileWeapon weapon, bool on, string mount )
+	void UpdateDot( ProjectileWeapon weapon, bool on, string mount )
 	{
 		if ( !_dot.IsValid() )
 		{
 			_dot = new GameObject( true, "RPG laser dot" );
 			_dot.NetworkMode = NetworkMode.Never;
-			_dotSprite = SourceMountedEffects.AddSprite( _dot, GlowSprite, mount );
+			_dotSprite = MountedEffects.AddSprite( _dot, GlowSprite, mount );
 		}
 		var target = on ? weapon.TraceLaserTarget() : null;
 		_dot.Enabled = target is not null;
@@ -43,13 +43,13 @@ sealed class RpgLaser : IDisposable
 		var distance = eye.Distance( position );
 		// CLaserDot::LaserThink grows the dot with distance so its screen size stays readable.
 		var scale = Math.Clamp( MathX.Remap( distance, 32, 1024, 0.01f, 0.5f, false ), 0.1f, 32 );
-		SourceMountedEffects.SetSprite( _dotSprite, scale, 255 );
+		MountedEffects.SetSprite( _dotSprite, scale, 255 );
 		_dot.WorldPosition = position + (eye - position).Normal * MathF.Min( 8, distance * 0.5f );
 	}
 
-	void UpdateBeam( SourceProjectileWeapon weapon, bool on, string mount )
+	void UpdateBeam( ProjectileWeapon weapon, bool on, string mount )
 	{
-		var view = weapon.WeaponModel as SourceViewModel;
+		var view = weapon.WeaponModel as ViewModel;
 		var renderer = view.IsValid() ? view.Renderer : null;
 		if ( renderer != _viewModel )
 		{
@@ -65,8 +65,8 @@ sealed class RpgLaser : IDisposable
 			// Source's beam and sprite entities follow the viewmodel attachments in the world pass.
 			_beamRoot = new GameObject( true, "RPG laser beam" );
 			_beamRoot.NetworkMode = NetworkMode.Never;
-			_beam = SourceMountedEffects.AddBeam( _beamRoot, BeamSprite, mount );
-			_muzzle = SourceMountedEffects.AddSprite( _beamRoot, GlowSprite, mount );
+			_beam = MountedEffects.AddBeam( _beamRoot, BeamSprite, mount );
+			_muzzle = MountedEffects.AddSprite( _beamRoot, GlowSprite, mount );
 		}
 		_on = on;
 		Follow( view );
@@ -76,15 +76,15 @@ sealed class RpgLaser : IDisposable
 	/// Moves the beam and glow onto the viewmodel attachments. The weapon also calls this once the viewmodel is placed
 	/// for the frame, which happens after updates, so they don't trail the view.
 	/// </summary>
-	public void Follow( SourceViewModel view )
+	public void Follow( ViewModel view )
 	{
 		if ( !view.IsValid() || view.Renderer != _viewModel || !_laserStart.IsValid() || !_laserEnd.IsValid() ) return;
 		var start = view.DrawnPosition( _laserStart );
 		var end = view.DrawnPosition( _laserEnd );
 		// Wider and faded at the front than the SDK's 0.5: the gun no longer hides its end, which would otherwise cut off hard.
-		SourceMountedEffects.SetBeam( _beam, start, end, _on ? 1.2f : 0, 128, Red, fadeOut: 0.3f );
+		MountedEffects.SetBeam( _beam, start, end, _on ? 1.2f : 0, 128, Red, fadeOut: 0.3f );
 		// Dimmer than the SDK's 255: auto exposure brightens additive sprites past Source's clamp.
-		SourceMountedEffects.SetSprite( _muzzle, _on ? 0.25f : 0, 96 );
+		MountedEffects.SetSprite( _muzzle, _on ? 0.25f : 0, 96 );
 		if ( _muzzle.IsValid() ) view.PlaceBehind( _muzzle.GameObject, start );
 	}
 

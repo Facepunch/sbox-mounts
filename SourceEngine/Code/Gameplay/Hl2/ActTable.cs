@@ -11,16 +11,21 @@ public static class ActTable
 	/// <summary>The row of an NPC holding a weapon it has no activities for: the base, unarmed activities.</summary>
 	public const string Unarmed = "unarmed";
 
-	sealed record Row( SourceNpcActivities Activities, string GestureReload );
+	sealed record Row( NpcActivities Activities, string GestureReload );
 
+	[SkipHotload]
 	static readonly Row Base = new( new( "ACT_IDLE", "ACT_IDLE_ANGRY", "ACT_RANGE_ATTACK1", "ACT_RELOAD", "ACT_WALK", "ACT_WALK_AIM", "ACT_RUN", "ACT_RUN_AIM" ), "ACT_GESTURE_RELOAD" );
 
+	[SkipHotload]
 	static readonly Row Smg1 = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SMG1", "ACT_RANGE_ATTACK_SMG1", "ACT_RELOAD_SMG1", "ACT_WALK_RIFLE", "ACT_WALK_AIM_RIFLE", "ACT_RUN_RIFLE", "ACT_RUN_AIM_RIFLE" ), "ACT_GESTURE_RELOAD_SMG1" );
 
+	[SkipHotload]
 	static readonly Row Pistol = new( new( "ACT_IDLE_PISTOL", "ACT_IDLE_ANGRY_PISTOL", "ACT_RANGE_ATTACK_PISTOL", "ACT_RELOAD_PISTOL", "ACT_WALK_PISTOL", "ACT_WALK_AIM_PISTOL", "ACT_RUN_PISTOL", "ACT_RUN_AIM_PISTOL" ), "ACT_GESTURE_RELOAD_PISTOL" );
 
+	[SkipHotload]
 	static readonly Row Stunstick = new( new( "ACT_IDLE", "ACT_IDLE_ANGRY_MELEE", "ACT_MELEE_ATTACK_SWING", "ACT_RELOAD", "ACT_WALK", "ACT_WALK", "ACT_RUN", "ACT_RUN" ), null );
 
+	[SkipHotload]
 	static readonly Dictionary<string, Row> Rows = new( StringComparer.OrdinalIgnoreCase )
 	{
 		["weapon_smg1"] = Smg1,
@@ -39,7 +44,7 @@ public static class ActTable
 		[Unarmed] = Base,
 	};
 
-	/// <summary>The class whose row holds each well-known hold; the rest borrow a neighbour's (<see cref="SourceWeaponHolds"/>).</summary>
+	/// <summary>The class whose row holds each well-known hold; the rest borrow a neighbour's (<see cref="WeaponHoldFallbacks"/>).</summary>
 	static readonly Dictionary<string, string> HoldClasses = new( StringComparer.OrdinalIgnoreCase )
 	{
 		[WeaponHolds.Pistol] = "weapon_pistol",
@@ -79,15 +84,15 @@ public static class ActTable
 	/// well-known hold or the closest one, whichever the model has activities for first. Unarmed past those; a weapon without a
 	/// well-known hold is held like the SMG.
 	/// </summary>
-	public static string WeaponClass( SourceModelSequences sequences, BaseCombatWeapon weapon )
+	public static string WeaponClass( ModelSequences sequences, BaseCombatWeapon weapon )
 	{
-		if ( SourceWeaponSetup.WeaponData( weapon )?.ClassName is { } scripted && Has( sequences, scripted ) )
+		if ( WeaponSetup.WeaponData( weapon )?.ClassName is { } scripted && Has( sequences, scripted ) )
 			return scripted;
 
 		if ( Has( sequences, weapon?.HoldType ) )
 			return weapon.HoldType;
 
-		var holds = SourceWeaponHolds.For( weapon ).ToArray();
+		var holds = WeaponHoldFallbacks.For( weapon ).ToArray();
 		if ( holds.Select( x => HoldClasses.GetValueOrDefault( x ) ).FirstOrDefault( x => Has( sequences, x ) ) is { } held )
 			return held;
 
@@ -95,7 +100,7 @@ public static class ActTable
 	}
 
 	/// <summary>True when the model has any of a weapon row's own (not unarmed) activities.</summary>
-	static bool Has( SourceModelSequences sequences, string weaponClass ) => weaponClass is not null && weaponClass != Unarmed
+	static bool Has( ModelSequences sequences, string weaponClass ) => weaponClass is not null && weaponClass != Unarmed
 		&& Rows.TryGetValue( weaponClass, out var row )
 		&& row.Activities.All.Append( row.GestureReload ).Except( Base.Activities.All ).Any( x => x is not null && sequences.FindActivity( x ) is not null );
 
@@ -104,25 +109,25 @@ public static class ActTable
 	/// before the unarmed base activity, and without an armed aiming idle holds its armed attack, so the gun still comes up to aim
 	/// (the mounted monk has neither shoot_shotgun nor Idle_SMG1_Aim clips).
 	/// </summary>
-	public static SourceNpcWeaponLayers Resolve( SourceModelSequences sequences, string weaponClass )
+	public static NpcWeaponLayers Resolve( ModelSequences sequences, string weaponClass )
 		=> Resolve( sequences, Rows.GetValueOrDefault( weaponClass ?? "" ) ?? Smg1 );
 
-	/// <summary>Like <see cref="Resolve(SourceModelSequences, string)"/>, but false for a weapon HL2 gives no NPC acttable.</summary>
-	public static bool TryResolve( SourceModelSequences sequences, string weaponClass, out SourceNpcWeaponLayers layers )
+	/// <summary>Like <see cref="Resolve(ModelSequences, string)"/>, but false for a weapon HL2 gives no NPC acttable.</summary>
+	public static bool TryResolve( ModelSequences sequences, string weaponClass, out NpcWeaponLayers layers )
 	{
 		layers = Rows.TryGetValue( weaponClass ?? "", out var row ) ? Resolve( sequences, row ) : null;
 		return layers is not null;
 	}
 
-	static SourceNpcWeaponLayers Resolve( SourceModelSequences sequences, Row row )
+	static NpcWeaponLayers Resolve( ModelSequences sequences, Row row )
 	{
-		string Armed( Func<SourceNpcActivities, string> slot ) => sequences.FindActivity( slot( row.Activities ) ) ?? sequences.FindActivity( slot( Smg1.Activities ) );
-		string Find( Func<SourceNpcActivities, string> slot ) => Armed( slot ) ?? sequences.FindActivity( slot( Base.Activities ) );
+		string Armed( Func<NpcActivities, string> slot ) => sequences.FindActivity( slot( row.Activities ) ) ?? sequences.FindActivity( slot( Smg1.Activities ) );
+		string Find( Func<NpcActivities, string> slot ) => Armed( slot ) ?? sequences.FindActivity( slot( Base.Activities ) );
 
 		var idle = Find( x => x.Idle );
 		var walk = Find( x => x.Walk );
 		var run = Find( x => x.Run );
-		var clips = new SourceNpcActivities(
+		var clips = new NpcActivities(
 			Idle: idle,
 			AngryIdle: Armed( x => x.AngryIdle ) ?? Armed( x => x.Attack ) ?? Find( x => x.AngryIdle ) ?? idle,
 			Attack: Find( x => x.Attack ),
@@ -134,6 +139,6 @@ public static class ActTable
 
 		var gesture = sequences.FindActivity( row.GestureReload ) ?? sequences.FindActivity( Base.GestureReload );
 		var reload = sequences.Get( gesture )?.BoneMask is not null ? gesture : null;
-		return new SourceNpcWeaponLayers( clips ) { Reloads = [reload, reload, reload] };
+		return new NpcWeaponLayers( clips ) { Reloads = [reload, reload, reload] };
 	}
 }

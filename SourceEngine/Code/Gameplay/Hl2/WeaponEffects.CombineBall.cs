@@ -26,15 +26,15 @@ public sealed class CombineBallEffect : Component
 
 	protected override void OnStart()
 	{
-		_flicker = SourceMountedEffects.AddSprite( GameObject, "effects/combinemuzzle1", MountName );
+		_flicker = MountedEffects.AddSprite( GameObject, "effects/combinemuzzle1", MountName );
 		for ( var i = 0; i < 8; i++ )
-			if ( SourceMountedEffects.AddSprite( GameObject, "effects/ar2_altfire1b", MountName ) is { } blur ) _blur.Add( blur );
+			if ( MountedEffects.AddSprite( GameObject, "effects/ar2_altfire1b", MountName ) is { } blur ) _blur.Add( blur );
 		// effects/ar2_altfire1 animates effects/comball/comball.
-		_body = SourceMountedEffects.AddSprite( GameObject, "effects/comball/comball", MountName );
+		_body = MountedEffects.AddSprite( GameObject, "effects/comball/comball", MountName );
 		_trailRoot = new GameObject( false, "HL2 combine ball trail" );
 		_trailRoot.NetworkMode = NetworkMode.Never;
 		_trailRoot.Enabled = true;
-		_trail = SourceMountedEffects.AddBeam( _trailRoot, "sprites/combineball_trail_black_1", MountName );
+		_trail = MountedEffects.AddBeam( _trailRoot, "sprites/combineball_trail_black_1", MountName );
 		_lastPosition = WorldPosition;
 		_roll = Game.Random.Float( 0, 360 );
 	}
@@ -129,7 +129,7 @@ public sealed class FlatQuad : Component
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = position;
 		go.WorldRotation = Rotation.LookAt( normal ) * Rotation.FromRoll( Game.Random.Int( 0, 360 ) );
-		var sprite = SourceMountedEffects.AddSprite( go, material, mount );
+		var sprite = MountedEffects.AddSprite( go, material, mount );
 		if ( !sprite.IsValid() )
 		{
 			go.Destroy();
@@ -186,7 +186,7 @@ public sealed class BeamRing : Component
 		var go = new GameObject( false, "HL2 beam ring" );
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = center;
-		var line = SourceMountedEffects.AddBeam( go, "sprites/lgtning", mount );
+		var line = MountedEffects.AddBeam( go, "sprites/lgtning", mount );
 		if ( !line.IsValid() )
 		{
 			go.Destroy();

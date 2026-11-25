@@ -22,7 +22,7 @@ internal sealed class SourceEntityPrefabLoader( SourceEntity entity ) : Resource
 	};
 
 	// Components that load their art from a mount, which is always the one building them.
-	static readonly HashSet<string> MountNamed = [typeof( SourceMountedModel ).FullName, typeof( SourceMountedEffect ).FullName, typeof( Css.ExplosionEffect ).FullName];
+	static readonly HashSet<string> MountNamed = [typeof( MountedModel ).FullName, typeof( MountedEffect ).FullName, typeof( Css.ExplosionEffect ).FullName];
 
 	PrefabFile prefab;
 

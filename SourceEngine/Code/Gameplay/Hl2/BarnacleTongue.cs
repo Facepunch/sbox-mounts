@@ -63,7 +63,7 @@ public sealed class BarnacleTongue : Component
 		var first = renderer.SceneModel.GetBoneWorldTransform( _bones[0] );
 		var last = renderer.SceneModel.GetBoneWorldTransform( _bones[^1] );
 		var start = first.Position;
-		var end = Npc.CapturedTarget.IsValid() ? SourceNpcs.CapturePoint( Npc.CapturedTarget )
+		var end = Npc.CapturedTarget.IsValid() ? Npcs.CapturePoint( Npc.CapturedTarget )
 			: Scene.Trace.Ray( start, start + Vector3.Down * Npc.AttackRange ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run().EndPosition;
 		var direction = (end - start).Normal;
 		var rotation = Rotation.FromToRotation( (last.Position - start).Normal, direction );

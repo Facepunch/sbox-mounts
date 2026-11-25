@@ -7,7 +7,7 @@ namespace Source1.Css;
 /// reduced gravity and goes off on a timer. Throw, fuse and blast values are the game's code constants.
 /// </summary>
 [Alias( "Source1.CssGrenade", "CssGrenade" )]
-public abstract class Grenade : SourceProjectile, Component.ICollisionListener
+public abstract class Grenade : Projectile, Component.ICollisionListener
 {
 	// GRENADE_TIMER for the HE grenade and the flashbang; the smoke grenade waits as long before it can pop.
 	const float Fuse = 1.5f;
@@ -45,7 +45,7 @@ public abstract class Grenade : SourceProjectile, Component.ICollisionListener
 	public void OnCollisionStart( Collision collision )
 	{
 		if ( Application.IsDedicatedServer || collision.Contact.Speed.Length < 50 ) return;
-		if ( SourceSounds.Sound( BounceSound, MountName ) is { } sound ) Sound.Play( sound, WorldPosition );
+		if ( Sounds.Sound( BounceSound, MountName ) is { } sound ) Sound.Play( sound, WorldPosition );
 	}
 }
 
@@ -105,7 +105,7 @@ public sealed class Flashbang : Grenade
 		if ( Application.IsDedicatedServer ) return;
 		// RadiusFlash lifts the source an inch in case the grenade lies on the ground.
 		position += Vector3.Up;
-		if ( SourceSounds.Sound( "Flashbang.Explode", mount ) is { } sound ) Sound.Play( sound, position );
+		if ( Sounds.Sound( "Flashbang.Explode", mount ) is { } sound ) Sound.Play( sound, position );
 		var go = new GameObject( true, "Flashbang burst" );
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = position;
@@ -113,8 +113,8 @@ public sealed class Flashbang : Grenade
 		light.Radius = LightRadius;
 		light.LightColor = Color.White * 4;
 		light.Shadows = false;
-		var glow = SourceMountedEffects.AddSprite( go, "sprites/light_glow02", mount );
-		SourceMountedEffects.SetSprite( glow, 2, 255 );
+		var glow = MountedEffects.AddSprite( go, "sprites/light_glow02", mount );
+		MountedEffects.SetSprite( glow, 2, 255 );
 		go.AddComponent<TemporaryEffect>().DestroyAfterSeconds = LightTime;
 		var camera = Game.ActiveScene?.Camera;
 		if ( !camera.IsValid() ) return;
@@ -129,7 +129,7 @@ public sealed class Flashbang : Grenade
 		var flash = FlashDamage * (1 - distance / Range);
 		var seconds = flash * (facing >= 0.5f ? 2.5f : facing >= -0.5f ? 1.75f : 1) * percentage / 1.4f;
 		var white = Color.White.WithAlpha( facing >= -0.5f ? 1 : 200 / 255f );
-		SourceScreenFade.Show( camera, white, seconds - CertainBlindness, CertainBlindness, 2, FlashRamp, true );
+		ScreenFade.Show( camera, white, seconds - CertainBlindness, CertainBlindness, 2, FlashRamp, true );
 		if ( distance < 1000 ) EarRing.Play( distance < 600 ? 1.6f : distance < 800 ? 0.2f : 0.1f );
 	}
 }
@@ -164,7 +164,7 @@ public sealed class SmokeGrenade : Grenade
 	static void Cloud( Vector3 position, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		if ( SourceSounds.Sound( "BaseSmokeEffect.Sound", mount ) is { } sound ) Sound.Play( sound, position );
+		if ( Sounds.Sound( "BaseSmokeEffect.Sound", mount ) is { } sound ) Sound.Play( sound, position );
 		var go = new GameObject( true, "Smoke grenade cloud" );
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = position;

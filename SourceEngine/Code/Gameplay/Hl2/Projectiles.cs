@@ -6,7 +6,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Crossbow Bolt" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2CrossbowBolt", "Hl2CrossbowBolt" )]
-public sealed class CrossbowBolt : SourceProjectile
+public sealed class CrossbowBolt : Projectile
 {
 	public const float AirVelocity = 3500;
 	const float WaterVelocity = 1500;
@@ -28,14 +28,14 @@ public sealed class CrossbowBolt : SourceProjectile
 	void Sparkle()
 	{
 		if ( !Visual.IsValid() ) return;
-		_glow ??= SourceMountedEffects.AddSprite( Visual, "sprites/light_glow02", MountName );
+		_glow ??= MountedEffects.AddSprite( Visual, "sprites/light_glow02", MountName );
 		_glowAge = 0;
 	}
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( _glow.IsValid() ) SourceMountedEffects.SetSprite( _glow, 0.2f, 128 * MathF.Max( 0, 1 - _glowAge / 3 ) );
+		if ( _glow.IsValid() ) MountedEffects.SetSprite( _glow, 0.2f, 128 * MathF.Max( 0, 1 - _glowAge / 3 ) );
 	}
 
 	protected override bool Simulate()
@@ -97,7 +97,7 @@ public sealed class CrossbowBolt : SourceProjectile
 [Title( "HL2 Rocket" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Rocket", "Hl2Rocket" )]
-public sealed class Rocket : SourceProjectile
+public sealed class Rocket : Projectile
 {
 	const float IgniteDelay = 0.3f;
 	const float Speed = 1500;
@@ -133,7 +133,7 @@ public sealed class Rocket : SourceProjectile
 			_ignited = true;
 			Velocity = _aim * Speed;
 		}
-		if ( Weapon is not SourceProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.TraceLaserTarget() is not { } target ) return;
+		if ( Weapon is not ProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.TraceLaserTarget() is not { } target ) return;
 		// CMissile::SeekThink blends 1/8 toward the dot every 15 ms tick.
 		var blend = 1 - MathF.Pow( 1 - HomingPerTick, Time.Delta / 0.015f );
 		var speed = Velocity.Length;
@@ -145,7 +145,7 @@ public sealed class Rocket : SourceProjectile
 	{
 		base.OnUpdate();
 		if ( Application.IsDedicatedServer || Age < IgniteDelay ) return;
-		if ( _loop is null && SourceSounds.Sound( "Missile.Accelerate", MountName ) is { } sound ) _loop = Sound.Play( sound, WorldPosition );
+		if ( _loop is null && Sounds.Sound( "Missile.Accelerate", MountName ) is { } sound ) _loop = Sound.Play( sound, WorldPosition );
 		if ( _loop is not null ) _loop.Position = WorldPosition;
 		// IgniteThink starts CMissile's code-driven RocketTrail at the tail attachment.
 		if ( _smoke is null && Renderer.IsValid() && Renderer.Model.IsValid() )
@@ -155,7 +155,7 @@ public sealed class Rocket : SourceProjectile
 	protected override void OnDestroy()
 	{
 		_loop?.Stop( 0.1f );
-		if ( Networking.IsHost && Weapon is SourceProjectileWeapon launcher && launcher.LiveRocket == GameObject ) launcher.NotifyRocketDied();
+		if ( Networking.IsHost && Weapon is ProjectileWeapon launcher && launcher.LiveRocket == GameObject ) launcher.NotifyRocketDied();
 	}
 
 	protected override void Hit( SceneTraceResult tr ) => Explode();
@@ -166,7 +166,7 @@ public sealed class Rocket : SourceProjectile
 [Title( "HL2 Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Grenade", "Hl2Grenade" )]
-public sealed class Grenade : SourceProjectile
+public sealed class Grenade : Projectile
 {
 	// GRENADE_TIMER and GRENADE_RADIUS.
 	public const float Fuse = 3;
@@ -187,7 +187,7 @@ public sealed class Grenade : SourceProjectile
 [Title( "HL2 Contact Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2ContactGrenade", "Hl2ContactGrenade" )]
-public sealed class ContactGrenade : SourceProjectile
+public sealed class ContactGrenade : Projectile
 {
 	protected override float Gravity => 400;
 	protected override void Hit( SceneTraceResult tr ) => Explode();
@@ -198,7 +198,7 @@ public sealed class ContactGrenade : SourceProjectile
 [Title( "HL2 Energy Ball" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2EnergyBall", "Hl2EnergyBall" )]
-public sealed class EnergyBall : SourceProjectile
+public sealed class EnergyBall : Projectile
 {
 	float _duration = 2;
 	float _radius = 10;
@@ -211,7 +211,7 @@ public sealed class EnergyBall : SourceProjectile
 	{
 		base.OnStart();
 		// sk_weapon_ar2_alt_fire_duration and _radius, with the SDK's convar defaults.
-		var values = await SourceSkillData.Read( MountName );
+		var values = await SkillData.Read( MountName );
 		if ( !IsValid ) return;
 		_duration = values.Get( "sk_weapon_ar2_alt_fire_duration", _duration );
 		_radius = values.Get( "sk_weapon_ar2_alt_fire_radius", _radius );
@@ -241,7 +241,7 @@ public sealed class EnergyBall : SourceProjectile
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void Burst( Vector3 position, float radius, string mountName )
 	{
-		if ( SourceSounds.Sound( "NPC_CombineBall.Explosion", mountName ) is { } sound ) Sound.Play( sound, position );
+		if ( Sounds.Sound( "NPC_CombineBall.Explosion", mountName ) is { } sound ) Sound.Play( sound, position );
 		CombineBallEffect.Explode( position, radius, mountName );
 	}
 }
@@ -250,7 +250,7 @@ public sealed class EnergyBall : SourceProjectile
 [Title( "HL2 Bugbait" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Bugbait", "Hl2Bugbait" )]
-public sealed class Bugbait : SourceProjectile
+public sealed class Bugbait : Projectile
 {
 	public const float ThrowSpeed = 1000;
 
@@ -262,7 +262,7 @@ public sealed class Bugbait : SourceProjectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
-		SourceCreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
+		CreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
 		GameObject.Destroy();
 	}
 }
@@ -276,7 +276,7 @@ static class RocketTrail
 {
 	public static GameObject Create( GameObject parent, Vector3 offset, string mount )
 	{
-		var texture = SourceMountedEffects.SpriteTexture( "particle/particle_smokegrenade", mount );
+		var texture = MountedEffects.SpriteTexture( "particle/particle_smokegrenade", mount );
 		if ( texture is null || !parent.IsValid() ) return null;
 		var go = new GameObject( parent, false, "HL2 rocket trail" );
 		go.NetworkMode = NetworkMode.Never;

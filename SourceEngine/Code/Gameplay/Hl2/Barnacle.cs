@@ -14,7 +14,7 @@ public sealed class BarnacleNpc : BaseNpc
 	[Property] public float AttackInterval { get; set; } = 1;
 	[Sync( SyncFlags.FromHost )] public GameObject CapturedTarget { get; private set; }
 	[Sync( SyncFlags.FromHost )] int BiteSerial { get; set; }
-	readonly SourceAnimationPlayer _animation = new();
+	readonly AnimationPlayer _animation = new();
 	int _shownBite;
 	string _idle, _bite;
 	(string, bool)[] _choices = [];
@@ -67,7 +67,7 @@ public sealed class BarnacleNpc : BaseNpc
 		if ( _model != Renderer.Model )
 		{
 			_model = Renderer.Model;
-			var sequences = SourceModelSequences.Of( _model );
+			var sequences = ModelSequences.Of( _model );
 			_idle = sequences.FindActivity( "ACT_IDLE", "idle01" );
 			_bite = sequences.FindActivity( "ACT_BARNACLE_BITE_PLAYER", _idle );
 			_choices = [(_idle, true), (_bite, false)];
@@ -102,7 +102,7 @@ public sealed class BarnacleNpc : BaseNpc
 			return false;
 
 		var mouth = Mouth;
-		var end = SourceNpcs.CapturePoint( victim );
+		var end = Npcs.CapturePoint( victim );
 		if ( end.z > mouth.z || mouth.Distance( end ) > AttackRange || (end - mouth).WithZ( 0 ).Length > 35 )
 			return false;
 
@@ -137,18 +137,18 @@ public sealed class BarnacleNpc : BaseNpc
 
 		var mouth = Mouth;
 		var body = CapturedTarget.GetComponentInChildren<Rigidbody>();
-		if ( body.IsValid() && !SourceNpcs.IsPlayer( CapturedTarget ) )
+		if ( body.IsValid() && !Npcs.IsPlayer( CapturedTarget ) )
 		{
 			body.MotionEnabled = true;
-			body.Velocity = ((mouth - Vector3.Up * 35 - SourceNpcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
+			body.Velocity = ((mouth - Vector3.Up * 35 - Npcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
 		}
 
-		if ( mouth.Distance( SourceNpcs.CapturePoint( CapturedTarget ) ) > 60 || _lastBite < AttackInterval )
+		if ( mouth.Distance( Npcs.CapturePoint( CapturedTarget ) ) > 60 || _lastBite < AttackInterval )
 			return;
 
 		_lastBite = 0;
 		BiteSerial++;
-		var damage = new DamageInfo { Damage = AttackDamage, Attacker = GameObject, Weapon = GameObject, Origin = mouth, Position = SourceNpcs.CapturePoint( CapturedTarget ) };
+		var damage = new DamageInfo { Damage = AttackDamage, Attacker = GameObject, Weapon = GameObject, Origin = mouth, Position = Npcs.CapturePoint( CapturedTarget ) };
 		damage.Tags.Add( "melee" );
 		CapturedTarget.GetComponentInParent<Component.IDamageable>()?.OnDamage( damage );
 	}
@@ -166,7 +166,7 @@ public sealed class BarnacleNpc : BaseNpc
 
 		controller.PreventGrounding( 0.1f );
 		controller.WishVelocity = Vector3.Zero;
-		controller.Body.Velocity = ((Mouth - Vector3.Up * 35 - SourceNpcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
+		controller.Body.Velocity = ((Mouth - Vector3.Up * 35 - Npcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
 	}
 
 	void Capture( GameObject victim )

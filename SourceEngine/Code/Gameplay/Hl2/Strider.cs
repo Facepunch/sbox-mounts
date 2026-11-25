@@ -12,7 +12,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Strider Cannon" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2StriderCannon", "Hl2StriderCannon" )]
-public sealed class StriderCannon : SourceCreatureBehaviour
+public sealed class StriderCannon : CreatureBehaviour
 {
 	const string Cannon = "BigGun";
 	const float FaceTime = 1;
@@ -48,7 +48,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences ) { }
+	protected override void OnConfigure( Model model, ModelSequences sequences ) { }
 
 	Vector3 Muzzle => Npc.Renderer?.GetAttachment( Cannon )?.Position ?? WorldPosition + Vector3.Up * 200;
 
@@ -124,7 +124,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 		if ( _watchedStill < StillTime && MathF.Max( size.z, MathF.Max( size.x, size.y ) ) < LargeSize )
 			return false;
 
-		var tr = Scene.Trace.Ray( Muzzle, SourceNpcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
+		var tr = Scene.Trace.Ray( Muzzle, Npcs.CapturePoint( target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 		return !tr.Hit || tr.GameObject?.Root == target.Root;
 	}
 
@@ -148,7 +148,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 	void Fire()
 	{
 		_lastShot = 0;
-		var tr = Scene.Trace.Ray( Muzzle, SourceNpcs.CapturePoint( _target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
+		var tr = Scene.Trace.Ray( Muzzle, Npcs.CapturePoint( _target ) ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes().Run();
 		_reached = !tr.Hit || tr.GameObject?.Root == _target.Root;
 		_blastPoint = tr.EndPosition + tr.Normal * 16;
 		_blasted = false;
@@ -160,7 +160,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 	void Blast()
 	{
 		_blasted = true;
-		var explosion = new SourceExplosion
+		var explosion = new Explosion
 		{
 			Source = GameObject,
 			Attacker = GameObject,
@@ -168,7 +168,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 			Radius = BlastRadius,
 			Damage = BlastDamage,
 			ForceScale = 1,
-			Prefab = SourceMount.Prefab( SourceMount.Of( GameObject ), "explosion" )
+			Prefab = MountContent.Prefab( MountContent.Of( GameObject ), "explosion" )
 		}.Spawn();
 		if ( explosion.IsValid() )
 			explosion.WorldScale = ExplosionScale;
@@ -176,9 +176,9 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 		if ( !_reached || !_target.IsValid() )
 			return;
 
-		var health = SourceNpcs.HealthOf( _target )?.Health ?? 0;
+		var health = Npcs.HealthOf( _target )?.Health ?? 0;
 		if ( health > 0 )
-			Npc.Damage( _target, Muzzle, _blastPoint, SourceDamageTags.Explosion, health );
+			Npc.Damage( _target, Muzzle, _blastPoint, DamageTags.Explosion, health );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -187,7 +187,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 		if ( Application.IsDedicatedServer || !Npc.Renderer.IsValid() )
 			return;
 
-		StriderCannonEffect.Start( Npc.Renderer.GetAttachmentObject( Cannon ), target, SourceMount.Of( GameObject ) );
+		StriderCannonEffect.Start( Npc.Renderer.GetAttachmentObject( Cannon ), target, MountContent.Of( GameObject ) );
 		PlaySound( "NPC_Strider.Charge", Npc.Renderer.GetAttachment( Cannon )?.Position ?? WorldPosition );
 	}
 
@@ -216,11 +216,11 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 		if ( Application.IsDedicatedServer )
 			return;
 
-		var mount = SourceMount.Of( GameObject );
+		var mount = MountContent.Of( GameObject );
 		var flash = new GameObject( true, "Concussive blast" );
 		flash.NetworkMode = NetworkMode.Never;
 		flash.WorldPosition = position;
-		var burst = flash.AddComponent<SourceSpriteBurst>();
+		var burst = flash.AddComponent<SpriteBurst>();
 		var core = burst.Add( "effects/blueflare1", mount, 0, 16, Color.White * 0.5f, 0.2f );
 		burst.FadeTo( core, 64, Color.Black );
 		var halo = burst.Add( "effects/blueflare1", mount, 0, 64, Color.White * 0.125f, 0.2f );
@@ -235,7 +235,7 @@ public sealed class StriderCannon : SourceCreatureBehaviour
 
 	void PlaySound( string name, Vector3 position )
 	{
-		if ( SourceSounds.Sound( name, SourceMount.Of( GameObject ) ) is { } sound )
+		if ( Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
 			Sound.Play( sound, position );
 	}
 }
@@ -303,11 +303,11 @@ public sealed class StriderCannonEffect : Component
 		effect._gun = gun;
 		effect._target = target;
 		effect._end = target.IsValid() ? target.WorldPosition : gun.WorldPosition;
-		effect._narrow = SourceMountedEffects.AddBeam( go, "sprites/bluelaser1", mount );
-		effect._wide = SourceMountedEffects.AddBeam( go, "effects/blueblacklargebeam", mount );
-		effect._flare = SourceMountedEffects.AddSprite( go, "effects/blueblackflash", mount );
-		effect._afterglow = SourceMountedEffects.AddSprite( go, "effects/blueblackflash", mount );
-		effect._bubble = SourceMountedEffects.AddSprite( go, "effects/blueflare1", mount );
+		effect._narrow = MountedEffects.AddBeam( go, "sprites/bluelaser1", mount );
+		effect._wide = MountedEffects.AddBeam( go, "effects/blueblacklargebeam", mount );
+		effect._flare = MountedEffects.AddSprite( go, "effects/blueblackflash", mount );
+		effect._afterglow = MountedEffects.AddSprite( go, "effects/blueblackflash", mount );
+		effect._bubble = MountedEffects.AddSprite( go, "effects/blueflare1", mount );
 		effect.Draw();
 	}
 
@@ -341,10 +341,10 @@ public sealed class StriderCannonEffect : Component
 	void Draw()
 	{
 		var gun = _gun.WorldPosition;
-		SourceMountedEffects.SetBeam( _narrow, gun, _end, NarrowWidth * 2 * (Interp( NarrowSize, _t ) ?? 0), 255 * (Interp( NarrowColor, _t ) ?? 0) );
+		MountedEffects.SetBeam( _narrow, gun, _end, NarrowWidth * 2 * (Interp( NarrowSize, _t ) ?? 0), 255 * (Interp( NarrowColor, _t ) ?? 0) );
 
 		var wideStart = Vector3.Lerp( _end, gun, Interp( WideLength, _t ) ?? 1 );
-		SourceMountedEffects.SetBeam( _wide, wideStart, _end, WideWidth * 2, 255 * (Interp( WideColor, _t ) ?? 0) );
+		MountedEffects.SetBeam( _wide, wideStart, _end, WideWidth * 2, 255 * (Interp( WideColor, _t ) ?? 0) );
 
 		if ( _bubble.IsValid() )
 		{
@@ -407,7 +407,7 @@ public sealed class StriderCannonEffect : Component
 [Title( "HL2 Strider Stomp" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2StriderStomp", "Hl2StriderStomp" )]
-public sealed class StriderStomp : SourceCreatureBehaviour
+public sealed class StriderStomp : CreatureBehaviour
 {
 	const int StompHitLeft = 110;
 	const string Skewer = "left skewer";
@@ -433,7 +433,7 @@ public sealed class StriderStomp : SourceCreatureBehaviour
 	public override string Animation => Stomping ? _clip : null;
 	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(_clip, false)];
 
-	protected override void OnConfigure( Model model, SourceModelSequences sequences )
+	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		_clip = sequences.FindActivity( "ACT_STRIDER_STOMPL" );
 		var hit = sequences.Get( _clip )?.Events.FirstOrDefault( e => e.Id == StompHitLeft );
@@ -479,7 +479,7 @@ public sealed class StriderStomp : SourceCreatureBehaviour
 		if ( !target.IsValid() || _lastStomp < Cooldown )
 			return false;
 
-		var player = SourceNpcs.IsPlayer( target );
+		var player = Npcs.IsPlayer( target );
 		if ( player ? !StompsPlayers : !target.GetComponent<BaseNpc>().IsValid() )
 			return false;
 
@@ -508,11 +508,11 @@ public sealed class StriderStomp : SourceCreatureBehaviour
 		if ( Distance( _target ) > StompRange )
 			return;
 
-		var stab = (_target.GetBounds().Center + SourceNpcs.CapturePoint( _target )) * 0.5f;
+		var stab = (_target.GetBounds().Center + Npcs.CapturePoint( _target )) * 0.5f;
 		PlaySound( victimAt );
 		var npc = _target.GetComponent<BaseNpc>();
 		var wasNpc = npc.IsValid();
-		Npc.Damage( _target, Npc.Renderer?.GetAttachment( Skewer )?.Position ?? WorldPosition, stab, SourceDamageTags.Crush, StompDamage );
+		Npc.Damage( _target, Npc.Renderer?.GetAttachment( Skewer )?.Position ?? WorldPosition, stab, DamageTags.Crush, StompDamage );
 		if ( wasNpc && (!npc.IsValid() || npc.Health < 1) )
 			_victim = (victimAt, stab);
 	}
@@ -520,7 +520,7 @@ public sealed class StriderStomp : SourceCreatureBehaviour
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlaySound( Vector3 position )
 	{
-		if ( SourceSounds.Sound( "NPC_Strider.Skewer", SourceMount.Of( GameObject ) ) is { } sound )
+		if ( Sounds.Sound( "NPC_Strider.Skewer", MountContent.Of( GameObject ) ) is { } sound )
 			Sound.Play( sound, position );
 	}
 }

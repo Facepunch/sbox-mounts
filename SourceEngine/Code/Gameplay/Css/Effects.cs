@@ -10,7 +10,7 @@ static class Particles
 {
 	public static ParticleEffect Emitter( GameObject parent, string material, string mountName, bool additive, bool lit, int count )
 	{
-		var texture = SourceMountedEffects.SpriteTexture( material, mountName );
+		var texture = MountedEffects.SpriteTexture( material, mountName );
 		if ( texture is null || !parent.IsValid() ) return null;
 		var go = new GameObject( parent, false, material );
 		go.NetworkMode = NetworkMode.Never;
@@ -75,7 +75,7 @@ public sealed class ExplosionEffect : Component
 		await Sandbox.Mounting.Directory.Mount( MountName );
 		if ( !IsValid ) return;
 		_age = 0;
-		if ( SourceSounds.Sound( Sound, MountName ) is { } sound ) GameObject.PlaySound( sound );
+		if ( Sounds.Sound( Sound, MountName ) is { } sound ) GameObject.PlaySound( sound );
 		_direction = ForceDirection();
 		Glow();
 		Core();
@@ -98,7 +98,7 @@ public sealed class ExplosionEffect : Component
 
 	void Glow()
 	{
-		_glow = SourceMountedEffects.AddSprite( GameObject, "sprites/light_glow02", MountName );
+		_glow = MountedEffects.AddSprite( GameObject, "sprites/light_glow02", MountName );
 		var go = new GameObject( GameObject, true, "Flash" );
 		go.NetworkMode = NetworkMode.Never;
 		_light = go.AddComponent<PointLight>();

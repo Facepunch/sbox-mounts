@@ -19,16 +19,16 @@ public static class PlayerAnimState
 	const string UpperPrefix = "Idle_Upper_";
 
 	/// <summary>The acttable's legs with the player model's weapon layers over them, or null for a model without weapon sequences.</summary>
-	public static SourceNpcWeaponLayers Resolve( Model model, SourceModelSequences sequences, BaseCombatWeapon weapon, Model weaponModel, SourceNpcWeaponLayers legs )
+	public static NpcWeaponLayers Resolve( Model model, ModelSequences sequences, BaseCombatWeapon weapon, Model weaponModel, NpcWeaponLayers legs )
 	{
 		if ( PlayerAnimationExtension( sequences, weapon, weaponModel ) is not { } extension )
 			return null;
 
 		string SequenceName( string name ) => sequences.Get( name ) is { } sequence && model.AnimationClips().ContainsKey( sequence.Name ) ? sequence.Name : null;
 
-		var upper = new string[SourceNpcWeaponLayers.Stances];
-		var reloads = new string[SourceNpcWeaponLayers.Stances];
-		var shots = new string[SourceNpcWeaponLayers.Stances][];
+		var upper = new string[NpcWeaponLayers.Stances];
+		var reloads = new string[NpcWeaponLayers.Stances];
+		var shots = new string[NpcWeaponLayers.Stances][];
 		var loops = false;
 		for ( var i = 0; i < Stances.Length; i++ )
 		{
@@ -48,7 +48,7 @@ public static class PlayerAnimState
 		return legs with { Upper = upper, Reloads = reloads, Shots = shots, ReloadLoops = loops };
 	}
 
-	/// <summary>The extension each well-known hold's weapons share; the rest borrow a neighbour's (<see cref="SourceWeaponHolds"/>).</summary>
+	/// <summary>The extension each well-known hold's weapons share; the rest borrow a neighbour's (<see cref="WeaponHoldFallbacks"/>).</summary>
 	static readonly Dictionary<string, string> HoldExtensions = new( StringComparer.OrdinalIgnoreCase )
 	{
 		[WeaponHolds.Pistol] = "PISTOL",
@@ -68,7 +68,7 @@ public static class PlayerAnimState
 	/// has it, else the suffix for its well-known hold or the closest one the model has, else a suffix the world model's name matches.
 	/// Null for a model without weapon sequences, or when nothing fits and the weapon is held unarmed.
 	/// </summary>
-	static string PlayerAnimationExtension( SourceModelSequences sequences, BaseCombatWeapon weapon, Model weaponModel )
+	static string PlayerAnimationExtension( ModelSequences sequences, BaseCombatWeapon weapon, Model weaponModel )
 	{
 		var extensions = sequences.All.Select( x => x.Name ).Where( x => x.StartsWith( UpperPrefix, StringComparison.OrdinalIgnoreCase ) ).Select( x => x[UpperPrefix.Length..] ).ToArray();
 		if ( extensions.Length == 0 )
@@ -76,7 +76,7 @@ public static class PlayerAnimState
 
 		string Find( string name ) => extensions.FirstOrDefault( x => x.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 
-		var scripted = SourceWeaponSetup.WeaponData( weapon )?.PlayerAnimationExtension ?? weaponModel?.GetData<SourceModelWeaponData[]>()?.FirstOrDefault()?.PlayerAnimationExtension;
+		var scripted = WeaponSetup.WeaponData( weapon )?.PlayerAnimationExtension ?? weaponModel?.GetData<SourceModelWeaponData[]>()?.FirstOrDefault()?.PlayerAnimationExtension;
 		if ( Find( scripted ) is { } match )
 			return match;
 
@@ -86,7 +86,7 @@ public static class PlayerAnimState
 		if ( Find( weapon?.HoldType ) is { } holdType )
 			return holdType;
 
-		if ( SourceWeaponHolds.For( weapon ).Select( x => Find( HoldExtensions.GetValueOrDefault( x ) ) ).FirstOrDefault( x => x is not null ) is { } held )
+		if ( WeaponHoldFallbacks.For( weapon ).Select( x => Find( HoldExtensions.GetValueOrDefault( x ) ) ).FirstOrDefault( x => x is not null ) is { } held )
 			return held;
 
 		return NamedExtension( extensions, weaponModel );

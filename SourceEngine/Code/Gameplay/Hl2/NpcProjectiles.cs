@@ -24,12 +24,12 @@ public sealed class NpcProjectileAttack : Component
 
 	protected override async void OnStart()
 	{
-		_mountName = SourceMount.Of( GameObject );
-		_skill = await SourceSkillData.Read( _mountName, "skill_episodic.cfg" );
+		_mountName = MountContent.Of( GameObject );
+		_skill = await SkillData.Read( _mountName, "skill_episodic.cfg" );
 		if ( !IsValid || Application.IsDedicatedServer )
 			return;
 
-		if ( SourceSounds.Sound( FireSound, _mountName ) is { } sound )
+		if ( Sounds.Sound( FireSound, _mountName ) is { } sound )
 			foreach ( var wave in sound.Sounds )
 				await wave.LoadAsync();
 	}
@@ -56,7 +56,7 @@ public sealed class NpcProjectileAttack : Component
 
 		var attachment = _shot++ % 2 == 1 && !string.IsNullOrWhiteSpace( AlternateAttachment ) ? AlternateAttachment : Attachment;
 		var muzzle = npc.Renderer.GetAttachment( attachment ) ?? WorldTransform;
-		var target = SourceNpcs.CapturePoint( _target );
+		var target = Npcs.CapturePoint( _target );
 
 		if ( Kind == Kinds.Acid )
 			Spit( muzzle.Position, target );
@@ -93,7 +93,7 @@ public sealed class NpcProjectileAttack : Component
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PresentFire( Vector3 position )
 	{
-		if ( SourceSounds.Sound( FireSound, SourceMount.Of( GameObject ) ) is { } sound )
+		if ( Sounds.Sound( FireSound, MountContent.Of( GameObject ) ) is { } sound )
 			Sound.Play( sound, position );
 	}
 
@@ -109,8 +109,8 @@ public sealed class NpcProjectileAttack : Component
 		_target = null;
 	}
 
-	internal T Spawn<T>( Vector3 origin, Vector3 velocity, string model, string trail, float damage, float radius ) where T : SourceProjectile, new()
-		=> SourceProjectile.Spawn<T>( GameObject, _mountName ?? SourceMount.Of( GameObject ), origin, velocity, damage, radius, model, trail );
+	internal T Spawn<T>( Vector3 origin, Vector3 velocity, string model, string trail, float damage, float radius ) where T : Projectile, new()
+		=> Projectile.Spawn<T>( GameObject, _mountName ?? MountContent.Of( GameObject ), origin, velocity, damage, radius, model, trail );
 
 	internal float Skill( string name, float sourceDefault ) => _skill.Get( name, sourceDefault );
 }
@@ -119,7 +119,7 @@ public sealed class NpcProjectileAttack : Component
 [Title( "HL2 Antlion Spit" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2AntlionSpit", "Hl2AntlionSpit" )]
-public sealed class AntlionSpit : SourceProjectile
+public sealed class AntlionSpit : Projectile
 {
 	public const float SpitGravity = 600;
 	protected override float Gravity => SpitGravity;
@@ -136,10 +136,10 @@ public sealed class AntlionSpit : SourceProjectile
 		GameObject.Destroy();
 	}
 
-	internal static void Splash( SourceProjectile projectile, string effect, string tag, float damage )
+	internal static void Splash( Projectile projectile, string effect, string tag, float damage )
 	{
 		var center = projectile.WorldPosition;
-		var prefab = SourceMount.Prefab( projectile.MountName, effect );
+		var prefab = MountContent.Prefab( projectile.MountName, effect );
 		var visual = prefab is null ? null : GameObject.Clone( prefab, new Transform( center ) );
 		visual?.NetworkSpawn( true, null );
 		NpcBlast.RadiusDamage( projectile.Scene, center, projectile.Radius, damage, projectile.Attacker, tag, projectile.GameObject );
@@ -178,7 +178,7 @@ public static class NpcBlast
 [Title( "HL2 Hunter Flechette" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2HunterFlechette", "Hl2HunterFlechette" )]
-public sealed class HunterFlechette : SourceProjectile
+public sealed class HunterFlechette : Projectile
 {
 	GameObject _stuckTo;
 	Transform _stuckLocal;
@@ -211,7 +211,7 @@ public sealed class HunterFlechette : SourceProjectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
-		var character = tr.GameObject?.Root.GetComponent<BaseNpc>().IsValid() == true || SourceNpcs.IsPlayer( tr.GameObject?.Root );
+		var character = tr.GameObject?.Root.GetComponent<BaseNpc>().IsValid() == true || Npcs.IsPlayer( tr.GameObject?.Root );
 		var damaged = DamageVictim( tr, "bullet" );
 		PlayImpact( tr, damaged ? "NPC_Hunter.FlechetteHitBody" : "NPC_Hunter.FlechetteHitWorld", impactEffect: !damaged );
 		if ( character )

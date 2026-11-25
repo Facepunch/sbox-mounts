@@ -11,7 +11,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Gravity Weapon" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2GravityWeapon", "Hl2GravityWeapon" )]
-public sealed class GravityWeapon : SourceWeapon
+public sealed class GravityWeapon : Weapon
 {
 	public GravityWeapon()
 	{
@@ -38,7 +38,7 @@ public sealed class GravityWeapon : SourceWeapon
 	protected override void OnStart()
 	{
 		base.OnStart();
-		_ = SourceWeaponSetup.ConfigureWeapon( this );
+		_ = WeaponSetup.ConfigureWeapon( this );
 	}
 
 	protected override void OnControl()
@@ -119,7 +119,7 @@ public sealed class GravityWeapon : SourceWeapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayEffect( string role, bool launch )
 	{
-		if ( SourceSounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
+		if ( Sounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
 		if ( launch ) _effects?.Launch();
 	}
 
@@ -207,9 +207,9 @@ public sealed class GravityWeapon : SourceWeapon
 		_effects.Update( this, HeldObject, ready );
 	}
 
-	protected override void OnViewModelPlaced( SourceViewModel model ) => _effects?.Follow( this );
+	protected override void OnViewModelPlaced( ViewModel model ) => _effects?.Follow( this );
 
-	public override void DrawCrosshair( Painter painter, Vector2 center ) => SourceCrosshair.Draw( painter, center, CanPrimaryAttack(), 0 );
+	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), 0 );
 
 	protected override void OnHolstered()
 	{
@@ -246,7 +246,7 @@ sealed class PhysCannonEffects : IDisposable
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
 	static readonly Color GlowColor = new( 1, 0.5f, 0 );
 	SkinnedModelRenderer _renderer;
-	SourceViewModel _view;
+	ViewModel _view;
 	GameObject _root;
 	SpriteRenderer _core;
 	SpriteRenderer _blast;
@@ -273,43 +273,43 @@ sealed class PhysCannonEffects : IDisposable
 			_renderer = renderer;
 		}
 		if ( !renderer.IsValid() || !renderer.Model.IsValid() || !renderer.Enabled ) return;
-		var mount = SourceMount.Of( renderer.Model );
-		if ( !_root.IsValid() ) Build( renderer, model as SourceViewModel, mount );
+		var mount = MountContent.Of( renderer.Model );
+		if ( !_root.IsValid() ) Build( renderer, model as ViewModel, mount );
 		if ( ready != _ready && _view.IsValid() && held is null )
 		{
 			// OpenElements and CloseElements play the claw sounds as the prongs react.
-			if ( SourceSounds.WeaponSound( weapon, ready ? "special2" : "melee_hit" ) is { } sound ) renderer.GameObject.PlaySound( sound );
+			if ( Sounds.WeaponSound( weapon, ready ? "special2" : "melee_hit" ) is { } sound ) renderer.GameObject.PlaySound( sound );
 		}
 		_ready = ready;
 		var holding = held.IsValid();
 		UpdateElements( _view, holding || ready );
-		if ( holding && _holdSound is null && SourceSounds.Sound( "Weapon_PhysCannon.HoldSound", mount ) is { } hold ) _holdSound = weapon.GameObject.PlaySound( hold );
+		if ( holding && _holdSound is null && Sounds.Sound( "Weapon_PhysCannon.HoldSound", mount ) is { } hold ) _holdSound = weapon.GameObject.PlaySound( hold );
 		if ( !holding && _holdSound is not null )
 		{
 			_holdSound.Stop( 0.2f );
 			_holdSound = null;
 		}
-		if ( holding ) SourceMountedEffects.SetSprite( _core, 0.2f, 255 );
-		else if ( ready ) SourceMountedEffects.SetSprite( _core, 0.15f, 128 );
-		else SourceMountedEffects.SetSprite( _core, 0, 0 );
+		if ( holding ) MountedEffects.SetSprite( _core, 0.2f, 255 );
+		else if ( ready ) MountedEffects.SetSprite( _core, 0.15f, 128 );
+		else MountedEffects.SetSprite( _core, 0, 0 );
 		// DoEffectLaunch: the blast grows to scale 2 while fading out over 0.1s.
 		var blast = _launch / 0.1f;
-		SourceMountedEffects.SetSprite( _blast, blast < 1 ? float.Lerp( 0.1f, 2, blast ) : 0, 255 * (1 - blast) );
+		MountedEffects.SetSprite( _blast, blast < 1 ? float.Lerp( 0.1f, 2, blast ) : 0, 255 * (1 - blast) );
 		foreach ( var glow in _glows )
 		{
-			if ( holding ) SourceMountedEffects.SetSprite( glow, 0.5f, 64, GlowColor );
-			else if ( ready ) SourceMountedEffects.SetSprite( glow, 0.4f, 32, GlowColor );
-			else SourceMountedEffects.SetSprite( glow, Game.Random.Float( 0.3f, 0.35f ), Game.Random.Float( 16, 24 ), GlowColor );
+			if ( holding ) MountedEffects.SetSprite( glow, 0.5f, 64, GlowColor );
+			else if ( ready ) MountedEffects.SetSprite( glow, 0.4f, 32, GlowColor );
+			else MountedEffects.SetSprite( glow, Game.Random.Float( 0.3f, 0.35f ), Game.Random.Float( 16, 24 ), GlowColor );
 		}
 		foreach ( var endcap in _endcaps )
-			SourceMountedEffects.SetSprite( endcap, holding ? Game.Random.Float( 0.1f, 0.15f ) : 0, Game.Random.Float( 200, 255 ) );
+			MountedEffects.SetSprite( endcap, holding ? Game.Random.Float( 0.1f, 0.15f ) : 0, Game.Random.Float( 200, 255 ) );
 		var end = holding ? held.GetBounds().Center : Vector3.Zero;
 		foreach ( var (tip, beam) in _beams )
 		{
 			if ( !tip.IsValid() ) continue;
 			var start = Place( tip );
-			if ( blast < 1 ) SourceMountedEffects.SetBeam( beam, start, start + weapon.AimRay.Forward * BeamLength, 6.4f, 255 );
-			else SourceMountedEffects.SetBeam( beam, start, end, holding ? Game.Random.Float( 1, 2 ) : 0, 128 );
+			if ( blast < 1 ) MountedEffects.SetBeam( beam, start, start + weapon.AimRay.Forward * BeamLength, 6.4f, 255 );
+			else MountedEffects.SetBeam( beam, start, end, holding ? Game.Random.Float( 1, 2 ) : 0, 128 );
 		}
 		Follow( weapon );
 	}
@@ -338,7 +338,7 @@ sealed class PhysCannonEffects : IDisposable
 	/// OpenElements and CloseElements: the claws spline between closed and open over 0.2s
 	/// through the viewmodel's "active" pose parameter.
 	/// </summary>
-	void UpdateElements( SourceViewModel view, bool open )
+	void UpdateElements( ViewModel view, bool open )
 	{
 		var current = Element();
 		if ( open != _open )
@@ -362,12 +362,12 @@ sealed class PhysCannonEffects : IDisposable
 
 	SpriteRenderer AddSprite( GameObject anchor, string name, string mount )
 	{
-		var sprite = SourceMountedEffects.AddSprite( _root, name, mount );
+		var sprite = MountedEffects.AddSprite( _root, name, mount );
 		if ( sprite.IsValid() ) _anchors[sprite] = anchor;
 		return sprite;
 	}
 
-	void Build( SkinnedModelRenderer renderer, SourceViewModel view, string mount )
+	void Build( SkinnedModelRenderer renderer, ViewModel view, string mount )
 	{
 		_view = view;
 		var viewModel = view.IsValid();
@@ -384,7 +384,7 @@ sealed class PhysCannonEffects : IDisposable
 		foreach ( var tip in tips )
 		{
 			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
-			if ( SourceMountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam ) _beams.Add( (tip, beam) );
+			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam ) _beams.Add( (tip, beam) );
 		}
 	}
 

@@ -9,7 +9,7 @@ namespace Source1.Css;
 [Title( "CS:S Knife" )]
 [Category( "Counter-Strike: Source" )]
 [Alias( "Source1.CssKnife", "CssKnife" )]
-public sealed class Knife : SourceMeleeWeapon
+public sealed class Knife : MeleeWeapon
 {
 	/// <summary>Radius of the swing trace sphere.</summary>
 	[Property] public float SwingRadius { get; set; } = 10f;
@@ -29,7 +29,7 @@ public sealed class Knife : SourceMeleeWeapon
 
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
-		SourceWeaponSetup.ConfigureAmmo( this );
+		WeaponSetup.ConfigureAmmo( this );
 		return base.OnAdding( inventory );
 	}
 
@@ -38,7 +38,7 @@ public sealed class Knife : SourceMeleeWeapon
 		base.OnStart();
 		try
 		{
-			await SourceWeaponSetup.ConfigureWeapon( this );
+			await WeaponSetup.ConfigureWeapon( this );
 			// The script's single_shot is a leftover Desert Eagle shot; CKnife plays its own sounds.
 			if ( IsValid ) AttackSound = null;
 		}
@@ -76,8 +76,8 @@ public sealed class Knife : SourceMeleeWeapon
 		if ( Application.IsDedicatedServer ) return;
 		var flesh = shot.Surface?.ResourceName?.Contains( "flesh" ) == true;
 		var sound = !shot.Hit ? "Weapon_Knife.Slash" : !flesh ? "Weapon_Knife.HitWall" : stab ? "Weapon_Knife.Stab" : "Weapon_Knife.Hit";
-		if ( SourceSounds.Sound( sound, SourceMount.OfWeapon( this ) ) is { } swing ) GameObject.PlaySound( swing );
+		if ( Sounds.Sound( sound, MountContent.OfWeapon( this ) ) is { } swing ) GameObject.PlaySound( swing );
 		// The base played the slash clip; a stab replaces it on the same frame.
-		if ( stab && WeaponModel is SourceViewModel view ) view.OnAlternateAttack();
+		if ( stab && WeaponModel is ViewModel view ) view.OnAlternateAttack();
 	}
 }

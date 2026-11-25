@@ -11,7 +11,7 @@ namespace Source1.Hl2;
 [Title( "HL2 Stunstick" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Stunstick", "Hl2Stunstick" )]
-public sealed class Stunstick : SourceMeleeWeapon
+public sealed class Stunstick : MeleeWeapon
 {
 	[Sync( SyncFlags.FromHost )] public bool StunActive { get; private set; }
 
@@ -36,7 +36,7 @@ public sealed class Stunstick : SourceMeleeWeapon
 	{
 		base.OnShootImpact( shot );
 		if ( shot.Hit && !Application.IsDedicatedServer )
-			SourceWeaponEffects.StunstickImpact( shot.HitPosition, shot.Normal, SourceMount.Of( GameObject ) );
+			WeaponEffects.StunstickImpact( shot.HitPosition, shot.Normal, MountContent.Of( GameObject ) );
 	}
 
 	/// <summary>Switches the stick on or off, on the host.</summary>
@@ -54,8 +54,8 @@ public sealed class Stunstick : SourceMeleeWeapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void StunStateChanged( bool active, string soundName )
 	{
-		var mount = SourceMount.Of( GameObject );
-		if ( SourceSounds.Sound( soundName, mount ) is { } sound )
+		var mount = MountContent.Of( GameObject );
+		if ( Sounds.Sound( soundName, mount ) is { } sound )
 			GameObject.PlaySound( sound );
 
 		// The equipped model may still be loading its attachments on this peer.
@@ -77,14 +77,14 @@ public sealed class Stunstick : SourceMeleeWeapon
 		if ( _sparkOnActivation && tip is { } at )
 		{
 			_sparkOnActivation = false;
-			SourceWeaponEffects.ElectricSpark( at.Position, 1, Vector3.Zero, SourceMount.OfWeapon( this ) );
+			WeaponEffects.ElectricSpark( at.Position, 1, Vector3.Zero, MountContent.OfWeapon( this ) );
 		}
 		if ( tip.HasValue && !_glowLoaded )
 		{
 			_glowLoaded = true;
-			var mount = SourceMount.Of( GameObject );
-			_halo = SourceMountedEffects.AddSprite( GameObject, "effects/stunstick", mount );
-			_core = SourceMountedEffects.AddSprite( GameObject, "effects/stunstick", mount );
+			var mount = MountContent.Of( GameObject );
+			_halo = MountedEffects.AddSprite( GameObject, "effects/stunstick", mount );
+			_core = MountedEffects.AddSprite( GameObject, "effects/stunstick", mount );
 		}
 
 		Glow( _halo, tip, 4, 6, 0.1f, 0.2f );

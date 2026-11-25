@@ -100,7 +100,7 @@ public abstract partial class SourceGameMount
 	private sealed class FileIndex : IDisposable
 	{
 		private int references = 1;
-		public readonly object SourceScope = new();
+		public readonly object Scope = new();
 		public readonly List<IContentArchive> Packages = [];
 		public readonly Dictionary<string, SourceFile> Files = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, string> ContentParents = new( StringComparer.OrdinalIgnoreCase );

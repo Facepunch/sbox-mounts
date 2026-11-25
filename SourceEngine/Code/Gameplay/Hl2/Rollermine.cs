@@ -82,15 +82,15 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 
 		try
 		{
-			_mount = SourceMount.Of( GameObject );
+			_mount = MountContent.Of( GameObject );
 			await Sandbox.Mounting.Directory.Mount( _mount );
 			if ( !IsValid ) return;
-			_roll = SourceSounds.Sound( "NPC_RollerMine.Roll", _mount );
-			_rollSpikes = SourceSounds.Sound( "NPC_RollerMine.RollWithSpikes", _mount );
-			_openSpikes = SourceSounds.Sound( "NPC_RollerMine.OpenSpikes", _mount );
-			_closeSpikes = SourceSounds.Sound( "NPC_RollerMine.CloseSpikes", _mount );
-			_shock = SourceSounds.Sound( "NPC_RollerMine.Shock", _mount );
-			_taunt = SourceSounds.Sound( "NPC_RollerMine.Taunt", _mount );
+			_roll = Sounds.Sound( "NPC_RollerMine.Roll", _mount );
+			_rollSpikes = Sounds.Sound( "NPC_RollerMine.RollWithSpikes", _mount );
+			_openSpikes = Sounds.Sound( "NPC_RollerMine.OpenSpikes", _mount );
+			_closeSpikes = Sounds.Sound( "NPC_RollerMine.CloseSpikes", _mount );
+			_shock = Sounds.Sound( "NPC_RollerMine.Shock", _mount );
+			_taunt = Sounds.Sound( "NPC_RollerMine.Taunt", _mount );
 			var spikes = $"mount://{_mount}/models/roller_spikes.mdl.vmdl";
 			if ( Sandbox.Mounting.Directory.Get( _mount )?.GetByPath( spikes ) is not null )
 				_spikes = await Model.LoadAsync( spikes );
@@ -188,7 +188,7 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 		foreach ( var collider in GetComponentsInChildren<Collider>() )
 			collider.Enabled = false;
 
-		new SourceExplosion
+		new Explosion
 		{
 			Source = GameObject,
 			Attacker = GameObject,
@@ -196,7 +196,7 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 			Rotation = Rotation.Identity,
 			Radius = BlastRadius,
 			Damage = BlastDamage,
-			Prefab = SourceMount.Prefab( SourceMount.Of( GameObject ), "explosion" )
+			Prefab = MountContent.Prefab( MountContent.Of( GameObject ), "explosion" )
 		}.Spawn();
 		GameObject.Destroy();
 	}
