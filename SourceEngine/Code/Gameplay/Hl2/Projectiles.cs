@@ -15,6 +15,7 @@ public sealed class CrossbowBolt : Projectile
 	const float PinDistance = 128;
 	protected override float Gravity => _ricocheted ? 600 : 30;
 	protected override float TraceRadius => 1;
+	[Sync( SyncFlags.FromHost )] bool HiddenOnImpact { get; set; }
 	bool _ricocheted;
 	bool _stuck;
 	GameObject _hitObject;
@@ -37,6 +38,7 @@ public sealed class CrossbowBolt : Projectile
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( HiddenOnImpact && Visual.IsValid() ) Visual.Enabled = false;
 		if ( _glow.IsValid() ) MountedEffects.SetSprite( _glow, 0.2f, 128 * MathF.Max( 0, 1 - _glowAge / 3 ) );
 	}
 
@@ -47,7 +49,7 @@ public sealed class CrossbowBolt : Projectile
 	{
 		if ( !_stuck ) return true;
 		if ( _hitObject.IsValid() ) WorldTransform = _hitObject.WorldTransform.ToWorld( _hitLocal );
-		if ( Age > StuckLifetime || (_hitObject is not null && !_hitObject.IsValid()) ) GameObject.Destroy();
+		if ( Age > (HiddenOnImpact ? 2f : StuckLifetime) || (_hitObject is not null && !_hitObject.IsValid()) ) GameObject.Destroy();
 		return false;
 	}
 
@@ -74,7 +76,8 @@ public sealed class CrossbowBolt : Projectile
 			return;
 		}
 		var direction = Velocity.Normal;
-		if ( DamageTarget( tr ) )
+		var indestructible = tr.GameObject?.GetComponentInParent<Component.IDamageable>() is Prop { Health: <= 0 };
+		if ( DamageTarget( tr ) && !indestructible )
 		{
 			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody", impactEffect: false );
 			var wall = Scene.Trace.Ray( WorldPosition, WorldPosition + direction * PinDistance )
@@ -92,6 +95,14 @@ public sealed class CrossbowBolt : Projectile
 		{
 			Reflect( tr, 0.75f );
 			_ricocheted = true;
+			return;
+		}
+		if ( indestructible )
+		{
+			HiddenOnImpact = true;
+			_stuck = true;
+			Age = 0;
+			Velocity = Vector3.Zero;
 			return;
 		}
 		Sparkle();
