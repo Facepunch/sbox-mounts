@@ -226,7 +226,6 @@ public sealed partial class RabbitGuard
 		extractionDeath = death.DamageInfo is ExtractionDamage;
 		cutThroat = death.DamageInfo is ExecutionDamage;
 		if ( extractionDeath ) ReportBodySound( HeardSound.Voice, 10f );
-		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", CharacterCenter( GameObject ) );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );
@@ -241,6 +240,9 @@ public sealed partial class RabbitGuard
 		bool awakeAtImpact = death.DamageInfo is MeleeCut wound ? wound.AwakeAtImpact : !Unconscious;
 		float stun = death.DamageInfo is StrikeDamage or MeleeCut { AppliesImpact: true } ? (sharp >= 0.5f ? 0.9f : 0f) : limpStun;
 		var previous = ragdoll?.GetComponent<RagdollInjury>();
+		bool bluntFinisher = death.DamageInfo is StrikeDamage { SharpDamage: 0f } && previous is { Active: true };
+		if ( bluntFinisher || death.DamageInfo is FallImpactDamage or LandingDamage )
+			PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", CharacterCenter( GameObject ) );
 		corpseInjury = death.DamageInfo switch
 		{
 			ExtractionDamage => null,

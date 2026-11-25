@@ -570,7 +570,11 @@ public sealed partial class RabbitGuard
 		if ( Renderer.IsValid() ) voice.Play( Renderer, TargetPosition( GameObject, eyes: true ), path, volume, pitch, distance );
 	}
 
-	internal void StopLocalVoice() => voice.Stop();
+	internal void StopLocalVoice()
+	{
+		knockoutVoiceDelay = 0f;
+		voice.Stop();
+	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayCombatSound( string group, Vector3 position, float gain = 1f )

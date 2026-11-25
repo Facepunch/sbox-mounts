@@ -121,7 +121,7 @@ internal sealed class RagdollInjury : Component
 		if ( !Networking.IsHost || injuryPose is null ) return;
 		injuryPose = null;
 		MouthOpening = 0f;
-		if ( voiced ) StopVoice();
+		if ( voiced || injuryAge > 12f ) StopVoice();
 		if ( physics.IsValid() )
 		{
 			injuryMotor.Apply( physics, 0f );
