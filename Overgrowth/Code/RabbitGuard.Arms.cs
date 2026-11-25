@@ -38,14 +38,32 @@ public sealed partial class RabbitGuard
 			if ( (side == 0 ? LeftHandItem : RightHandItem).IsValid() ) continue;
 			var hand = boundAnimations.Arms[side][0];
 			if ( !TryGetAnimatedBone( Renderer.Model.Bones.GetBone( hand.Bone ), out var pose ) ) return default;
-			if ( chestMotion is { } m ) pose = m.HandTarget.ToWorld( m.Animated.ToLocal( pose ) );
+			pose = WristKey( side, pose );
 			center += pose.Position - pose.Rotation.Forward * (0.5f * hand.Length * WorldScale.z);
 			freeHands++;
 		}
 		if ( freeHands == 0 ) return default;
 		var offset = DragPoint - center / freeHands;
-		if ( freeHands == 1 ) offset += Vector3.Up * 4f + WorldRotation.Left * (LeftHandItem.IsValid() ? -2f : 2f);
+		if ( freeHands == 1 ) offset += Vector3.Up * 4f + Vector3.Up.Cross( WorldRotation.Forward ) * (LeftHandItem.IsValid() ? -2f : 2f);
 		return offset.WithZ( Math.Max( offset.z, -2f ) ) * DragStrength;
+	}
+
+	Transform WristKey( int side, Transform pose )
+	{
+		if ( chestMotion is { } m ) pose = m.HandTarget.ToWorld( m.Animated.ToLocal( pose ) );
+		pose.Position += Renderer.WorldRotation * footBalanceOffset * (0.5f * WorldScale.z);
+		if ( actionHandTargets[side] is { Weight: > 0f } hand )
+		{
+			// FinalAnimationMatrixUpdate balances the feet before hand IK and translates both keys with the hips afterward.
+			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Arms[side][0].Bone );
+			var bind = Renderer.Model.GetBoneTransform( bone.Index );
+			var inverseBind = bind.ToLocal( global::Transform.Zero );
+			var target = hand.Transform;
+			if ( plantedLegs && !OnLedge ) target.Position += Renderer.WorldRotation * hipOffset * WorldScale.z;
+			pose = global::Transform.Lerp( pose.ToWorld( inverseBind ), target.ToWorld( inverseBind ), hand.Weight, false ).ToWorld( bind );
+		}
+		if ( OnLedge ) pose.Position += handRelativeToBody[side];
+		return pose;
 	}
 
 	void SolveArms( float dt, Vector3 velocity, float breath, float loose )
@@ -88,20 +106,10 @@ public sealed partial class RabbitGuard
 				// The chest carries the shoulder. The hand target receives gaze and hip translation before the elbow solve.
 				armPose[5] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[5] ) );
 				armPose[4] = m.Solved.ToWorld( m.Animated.ToLocal( armPose[4] ) );
-				armPose[0] = m.HandTarget.ToWorld( m.Animated.ToLocal( armPose[0] ) );
 				shoulder = m.Solved.PointToWorld( m.Animated.PointToLocal( shoulder ) );
-				wrist = Start( 0 );
 			}
-			if ( actionHandTargets[side] is { Weight: > 0f } hand )
-			{
-				// FinalAnimationMatrixUpdate mixes hand keys in the skeleton's bind frame before CDrawArms.
-				var bind = Renderer.Model.GetBoneTransform( bones.GetBone( chain[0].Bone ).Index );
-				var inverseBind = bind.ToLocal( global::Transform.Zero );
-				armPose[0] = global::Transform.Lerp( armPose[0].ToWorld( inverseBind ), hand.Transform.ToWorld( inverseBind ), hand.Weight, false ).ToWorld( bind );
-				wrist = Start( 0 );
-			}
-			if ( OnLedge ) wrist += handRelativeToBody[side];
-			wrist += Renderer.WorldRotation * footBalanceOffset * (0.5f * WorldScale.z);
+			armPose[0] = WristKey( side, armPose[0] );
+			wrist = Start( 0 );
 			if ( DragStrength > 0f && !(side == 0 ? LeftHandItem : RightHandItem).IsValid() ) wrist += dragOffset;
 			var aim = Rotation.FromToRotation( authoredReach.Normal, (wrist - shoulder).Normal );
 			elbow = shoulder + aim * (elbow - oldShoulder) * (wrist.Distance( shoulder ) / Math.Max( 0.001f, authoredReach.Length ));

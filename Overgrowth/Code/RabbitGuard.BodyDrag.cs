@@ -54,7 +54,8 @@ public sealed partial class RabbitGuard
 
 		var body = draggedBody.PhysicsBody;
 		DragPoint = body.Transform.PointToWorld( localDragPoint );
-		var hand = CharacterCenter( GameObject ) + WorldRotation.Forward * 12f + WorldRotation.Right * (MirroredStance ? -6f : 6f)
+		var facing = WorldRotation.Forward;
+		var hand = CharacterCenter( GameObject ) + facing * 12f + facing.Cross( Vector3.Up ) * (MirroredStance ? -6f : 6f)
 			+ Vector3.Up * (4f - duckAmount * 8f);
 		var delta = (DragPoint - hand).WithZ( 0f );
 		if ( delta.Length > 8f )
