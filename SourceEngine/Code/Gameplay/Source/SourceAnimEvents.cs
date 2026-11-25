@@ -9,6 +9,7 @@ static class SourceAnimEvents
 	public const int ScriptSoundVoice = 1008;
 	public const int WeaponThrow = 3005;
 	public const int WeaponThrow2 = 3013;
+	public const int WeaponReload = 3015;
 	public const int WeaponThrow3 = 3016;
 	public const int WeaponSequenceFinished = 3900;
 	public const int ClientSound = 5004;

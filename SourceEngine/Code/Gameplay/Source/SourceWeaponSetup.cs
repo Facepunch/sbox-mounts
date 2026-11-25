@@ -243,6 +243,9 @@ static class SourceWeaponSetup
 		if ( weapon is SourceBulletWeapon bullet )
 		{
 			bullet.DryFireDuration = Duration( clips.DryFire );
+			if ( state.Data?.ClassName == "weapon_357"
+				&& SourceModelSequences.Of( model ).Get( clips.Reload )?.Events.FirstOrDefault( e => e.Id == SourceAnimEvents.WeaponReload ) is { } eject )
+				bullet.CylinderEjection = (eject.Cycle * reload, definition.MountName);
 			var secondary = Duration( clips.SecondaryFire );
 			if ( bullet.Secondary == SourceWeapon.SecondaryFires.DoubleShot && secondary > 0 )
 			{

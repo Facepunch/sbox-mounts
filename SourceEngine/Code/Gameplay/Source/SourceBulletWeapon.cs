@@ -79,6 +79,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
 	TimeUntil _nextEmptyClick;
 	internal float DryFireDuration { get; set; }
+	internal (float Delay, string Mount)? CylinderEjection { get; set; }
+	TimeUntil? _ejectCylinderAt;
 	bool _holdingEmptyTrigger;
 	/// <summary>Seconds of spread recovery added by each shot. The HL2 pistol recovers while the trigger is released.</summary>
 	[Property, Feature( "Shooting" )] public float AccuracyPenaltyPerShot { get; set; }
@@ -219,6 +221,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		SetZoom( 0 );
 		CancelBurst();
 		var animator = GetComponentInParent<SourceNpcAnimator>();
+		if ( !Application.IsDedicatedServer && HasOwner && CylinderEjection is { } cylinder ) _ejectCylinderAt = (TimeUntil)cylinder.Delay;
 		if ( Networking.IsHost && NpcControlled )
 		{
 			// The engine reads these settings after this callback. NPCs fill the magazine
@@ -235,6 +238,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnReloadFinished()
 	{
+		_ejectCylinderAt = null;
 		if ( _playerReloadSettings is { } settings )
 		{
 			(ReloadTime, IncrementalReloading) = settings;
@@ -246,6 +250,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( _ejectCylinderAt is { } ejectAt && ejectAt <= 0 )
+		{
+			_ejectCylinderAt = null;
+			if ( HasOwner && IsReloading && CylinderEjection is { } cylinder )
+				SourceWeaponEffects.EjectCylinder( Owner.WorldPosition + Vector3.Up * (Owner.CurrentHeight * 0.5f), WorldRotation, cylinder.Mount );
+		}
 		var npc = NpcControlled;
 		if ( npc != _tunedForNpc && SourceWeaponSetup.ApplyHolder( this, npc ) ) _tunedForNpc = npc;
 		if ( npc && Networking.IsHost && !IsReloading && !HasPrimaryAmmo() ) Reload();

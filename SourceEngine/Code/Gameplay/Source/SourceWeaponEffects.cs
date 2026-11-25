@@ -213,6 +213,16 @@ static class SourceWeaponEffects
 		return surface.AudioSurface == AudioSurface.Metal ? "impact_metal" : null;
 	}
 
+	/// <summary>The .357 tips all six casings out at the reload animation's weapon event.</summary>
+	public static void EjectCylinder( Vector3 center, Rotation facing, string mount )
+	{
+		for ( var i = 0; i < 6; i++ )
+		{
+			var offset = new Vector3( Game.Random.Float( -4, 4 ), Game.Random.Float( -4, 4 ), Game.Random.Float( -4, 4 ) );
+			EjectBrass( Shells[0], center + offset, Vector3.Down, default, default, null, facing, default, mount );
+		}
+	}
+
 	/// <summary>The shell model of an HL2 CL_EVENT_EJECTBRASS1 type.</summary>
 	public static string ShellModel( int type ) => Shells[Math.Clamp( type, 0, Shells.Length - 1 )];
 
