@@ -385,6 +385,8 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.Ballistics = ballistics;
 			gun.AttackSound = FiringSound( barrel, out var marker );
 			gun.AttackSoundMarker = marker;
+			gun.DryFireSound = FiringSound( barrel, out var dryMarker, dry: true );
+			gun.DryFireMarker = dryMarker;
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 			int playerControl = Block( Address( globals ) + 0xf0 );
 			gun.MagnetismFriction = Float( playerControl );

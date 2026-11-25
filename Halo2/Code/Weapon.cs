@@ -19,6 +19,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 	[Property] public string AnimationClass { get; set; }
 	[Property] public string AnimationType { get; set; }
 	[Property] public string AttackSoundMarker { get; set; }
+	[Property] public string DryFireMarker { get; set; }
+	bool dryTriggerHeld;
 
 	protected override void OnEquipped()
 	{
@@ -252,6 +254,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnDisabled()
 	{
+		dryTriggerHeld = false;
 		SetZoom( 0, audible: false );
 		ReleaseHolderAnimator();
 		base.OnDisabled();
@@ -296,6 +299,33 @@ public abstract partial class Weapon : BaseCombatWeapon
 	}
 
 	protected virtual void PlayFiringSound() => PlayFiringSound( AttackSound, AttackSoundMarker );
+
+	protected override void OnControl()
+	{
+		if ( !Input.Down( "attack1" ) || Input.Pressed( "attack1" ) ) dryTriggerHeld = false;
+		base.OnControl();
+		UpdateZoomInput();
+	}
+
+	public override void DryFire()
+	{
+		if ( DryFireMarker is null )
+		{
+			base.DryFire();
+			return;
+		}
+		if ( dryTriggerHeld ) return;
+		dryTriggerHeld = true;
+		PlayDrySound();
+		SetNextPrimaryFire( PrimaryDelay );
+		if ( AutoReload && CanReload() ) Reload();
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void PlayDrySound()
+	{
+		if ( !Application.IsDedicatedServer ) PlayFiringSound( DryFireSound, DryFireMarker );
+	}
 
 	protected void PlayFiringSound( SoundEvent cue, string marker )
 	{

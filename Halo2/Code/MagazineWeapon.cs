@@ -4,6 +4,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 {
 	[Property] public int BurstLength { get; set; }
 	[Property] public float RecoveryDelay { get; set; }
+	[Property] public bool HasIdleMagazineBarrel { get; set; }
 	int remainingShots;
 	GameObject burstAttacker;
 	double? transferAt;
@@ -81,6 +82,9 @@ public sealed class MagazineWeapon : HandheldWeapon
 		}
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
 			FirePrimary( burstAttacker );
+		if ( !IsProxy && IsActive && IsHeld && AutoReload && Clip1 == 0 &&
+			(HasIdleMagazineBarrel || NextPrimaryFire <= 0) && CanReload() )
+			Reload();
 	}
 
 	protected override void OnDisabled()

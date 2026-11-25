@@ -174,7 +174,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	protected override bool WantsPrimaryAttack() =>
-		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
+		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) &&
+		(CanPrimaryAttack() || (!HasPrimaryAmmo() && !IsReloading && !MeleeActive && CanUseHeldWeapon));
 
 	public override bool CanPrimaryAttack() =>
 		!MeleeActive && NextPrimaryFire <= 0 && CanUseHeldWeapon && (!IsReloading || CanCancelReload) && (HasPrimaryAmmo() || ShellDue);

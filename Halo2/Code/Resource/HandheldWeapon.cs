@@ -194,7 +194,16 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.ClipMaxSize = Short( magazine + 0xa );
 		gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
 		gun.BurstLength = Short( barrel + 0x1c );
+		gun.DryFireSound = FiringSound( barrel, out var dryMarker, dry: true );
+		gun.DryFireMarker = dryMarker;
 		gun.RecoveryDelay = RecoveryTime( barrel );
+		int barrels = Block( Header + 0x2d0 );
+		for ( int i = 0; i < map.ReadInt32( Header + 0x2d0 ); i++ )
+		{
+			int other = barrels + i * 0xec;
+			if ( other != barrel && Short( other + 0x28 ) == Short( barrel + 0x28 ) )
+				gun.HasIdleMagazineBarrel = true;
+		}
 		var rig = (Halo2ModelLoader)Host.GetByPath( $"mount://{Host.Ident}/weapons/{Name}/first_person.vmdl" );
 		var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
 		gun.ReloadTime = rig.GetClipInfo( actions["reload_full"] ).Frames / 30f;

@@ -14,9 +14,8 @@ public abstract partial class Weapon : Component.IDamageable.IEvents
 	[ConVar( "halo2.zoom_key", ConVarFlags.Saved )]
 	public static string ZoomKey { get; set; } = "mouse5";
 
-	protected override void OnControl()
+	void UpdateZoomInput()
 	{
-		base.OnControl();
 		if ( ZoomLevels <= 0 ) return;
 		if ( Owner is not { ThirdPerson: false } )
 		{
