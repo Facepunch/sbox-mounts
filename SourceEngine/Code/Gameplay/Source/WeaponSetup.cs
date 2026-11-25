@@ -219,6 +219,8 @@ static class WeaponSetup
 			weapon.DeployTime = draw / names.DrawPlaybackRate;
 		if ( weapon is ProjectileWeapon projectile && clips.Throws )
 		{
+			if ( projectile.Kind == Projectile.Kinds.Bugbait && clips.SecondaryFire is not null )
+				projectile.SecondaryDelay = Duration( clips.SecondaryFire );
 			projectile.WindupDuration = clips.WindupDuration;
 			projectile.ReleaseDelay = clips.ReleaseDelay;
 			projectile.AttackDuration = clips.ThrowDuration;

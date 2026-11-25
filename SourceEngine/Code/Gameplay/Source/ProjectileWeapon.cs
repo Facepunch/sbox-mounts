@@ -59,10 +59,16 @@ public sealed class ProjectileWeapon : Weapon
 	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
 		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
 
-	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom || (Secondary == SecondaryFires.Guide && base.CanSecondaryAttack());
+	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom ||
+		(Secondary == SecondaryFires.Guide || (Kind == Projectile.Kinds.Bugbait && !_redrawPending)) && base.CanSecondaryAttack();
 
 	public override void SecondaryAttack()
 	{
+		if ( Kind == Projectile.Kinds.Bugbait )
+		{
+			SqueezeEffects();
+			return;
+		}
 		if ( Secondary == SecondaryFires.Zoom )
 		{
 			if ( HasOwner && !IsProxy && Scene.Camera.IsValid() )
@@ -74,6 +80,14 @@ public sealed class ProjectileWeapon : Weapon
 		}
 		SetNextSecondaryFire( 0.3f );
 		if ( Secondary == SecondaryFires.Guide ) ToggleGuiding();
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void SqueezeEffects()
+	{
+		(WeaponModel as ViewModel)?.OnSqueeze();
+		if ( Sounds.Sound( "Weapon_Bugbait.Splat", MountContent.OfWeapon( this ) ) is { } sound )
+			GameObject.PlaySound( sound );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -237,7 +251,9 @@ public sealed class ProjectileWeapon : Weapon
 		_releasePending = true;
 		_releaseAt = ReleaseDelay;
 		_redrawAt = AttackDuration;
-		SetNextFire( Math.Max( PrimaryDelay, AttackDuration + RedrawDuration ) );
+		var delay = Math.Max( PrimaryDelay, AttackDuration + RedrawDuration );
+		if ( Kind == Projectile.Kinds.Bugbait ) SetNextPrimaryFire( delay );
+		else SetNextFire( delay );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
