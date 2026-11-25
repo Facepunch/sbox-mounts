@@ -61,10 +61,12 @@ public sealed partial class Lerk
 	{
 		var start = EyePosition + (View.Forward * 2 - View.Up * 0.1f + View.Left * (shootLeft ? -0.4f : 0.4f)) * Scale;
 		shootLeft = !shootLeft;
-		ShowSpike( start, end );
+		TraceEffect( start, end );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void TraceEffect( Vector3 start, Vector3 end ) => ShowSpike( start, end );
+
 	internal static void ShowSpike( Vector3 start, Vector3 end )
 	{
 		if ( !Graphics.IsAvailable || start.DistanceSquared( end ) < 0.001f ) return;

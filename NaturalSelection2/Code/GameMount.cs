@@ -111,7 +111,7 @@ public class GameMount : BaseGameMount
 		Gorge.RegisterSounds( context );
 		Lerk.RegisterSounds( context );
 		Babbler.RegisterSounds( context );
-		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
+		Hydra.RegisterSounds( context );
 		Mac.RegisterSounds( context );
 		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue, 0 ) );

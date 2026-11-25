@@ -10,6 +10,7 @@ public sealed class Hydra : AlienStructure
 	protected override int HealthPerBiomass => 18;
 	const float Range = 17.78f * Scale;
 	internal const string AttackSound = "alien/structures/hydra/attack";
+	const string MetalImpact = "alien/lerk/spikes_structure", ArmorImpact = "alien/common/spike_hit_marine", FleshImpact = "alien/lerk/spikes_pierce";
 	internal const string PainSound = "alien/structures/hydra/wound";
 	static readonly SparkAnimationGraph.PoseParameters BodyLayer = new( 0 ), FlinchLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose bodyPose { get; set; }
@@ -19,6 +20,12 @@ public sealed class Hydra : AlienStructure
 	Vector3 Barrel => WorldPosition + WorldRotation.Up * Scale;
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hydra>( root, renderer, "Hydra" );
+
+	internal static void RegisterSounds( MountContext context )
+	{
+		foreach ( var cue in new[] { AttackSound, MetalImpact, ArmorImpact, FleshImpact } )
+			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue ) );
+	}
 
 	protected override void OnUpdate()
 	{
@@ -120,22 +127,39 @@ public sealed class Hydra : AlienStructure
 		var direction = SpikeDirection( CalculateAimPoint( target ) - origin, GetVelocity( target ), Random.Shared.NextSingle(), Random.Shared.NextSingle() );
 		var hit = Scene.Trace.Ray( origin, origin + direction * Range ).IgnoreGameObjectHierarchy( GameObject )
 			.WithoutTags( "ns2_hydra", "trigger" ).UseHitboxes().Run();
+		GameObject targetHit = null;
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is Component victim && GetDisposition( victim.GameObject ) == Disposition.Hostile )
 		{
+			targetHit = victim.GameObject;
 			var damage = new DamageInfo { Damage = 15, Origin = origin, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
 			damage.Tags.Add( AlienWounds.ExtraFlinch );
 			((IDamageable)victim).OnDamage( damage );
 		}
-		if ( hit.Hit ) Lerk.ShowSpike( origin, hit.EndPosition );
-		AttackEffect( origin );
+		string surface = null;
+		if ( hit.Hit )
+		{
+			surface = hit.Surface?.ResourceName is { } name && name.StartsWith( "ns2_" ) ? name[4..] : "metal";
+			if ( targetHit.IsValid() )
+			{
+				surface = targetHit.Tags.Has( "burning" ) ? "flame" :
+					targetHit.Tags.Has( "ns2_exo" ) ? "robot" :
+					targetHit.Tags.Has( "ns2_marine" ) || targetHit.GetComponent<PlayerController>().IsValid() ? "flesh" : "metal";
+			}
+		}
+		AttackEffect( origin, hit.EndPosition, surface, targetHit );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void AttackEffect( Vector3 origin )
+	static void AttackEffect( Vector3 origin, Vector3 end, string surface, GameObject victim )
 	{
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{AttackSound}.sound" ) is { } sound ) Sound.Play( sound, origin );
-	}
+		if ( surface is null || victim?.GetComponent<PlayerController>() is { IsProxy: false } ) return;
 
+		var cue = surface switch { "metal" => MetalImpact, "armor" => ArmorImpact, "flesh" => FleshImpact, _ => "surfaces/materials/rock/ricochet" };
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{cue}.sound" ) is { } impact ) Sound.Play( impact, end );
+		CinematicLoader.Play( $"cinematics/materials/{surface}/sting.cinematic", end, Rotation.Identity );
+		Lerk.ShowSpike( origin, end );
+	}
 
 	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );
 }
