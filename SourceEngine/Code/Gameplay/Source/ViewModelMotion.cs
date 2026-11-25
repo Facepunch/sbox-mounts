@@ -12,17 +12,17 @@ public sealed class ViewModelMotion : Component
 	const float BobCycle = 0.45f;
 	double _lastTime = double.NaN;
 	double _phase;
-	readonly Queue<(double Time, Angles Angles)> _history = new();
-	(double Time, Angles Angles) _previous;
+	readonly Queue<(double Time, Rotation Rotation)> _history = new();
+	(double Time, Rotation Rotation) _previous;
 
 	internal void Apply( ref CameraView eye, Vector3 velocity, bool mirrored )
 	{
 		var now = Time.NowDouble;
 		var speed = Math.Min( velocity.WithZ( 0 ).Length, 320 );
 		var elapsed = now - _lastTime;
-		var reset = !double.IsFinite( elapsed ) || elapsed < 0 || elapsed > SwayDelay;
+		var reset = !double.IsFinite( elapsed ) || elapsed < 0;
 		if ( reset ) _history.Clear();
-		if ( elapsed > 0 ) _phase = (_phase + Math.Min( elapsed, Time.Delta ) * speed / 320) % (2 * BobCycle);
+		if ( elapsed > 0 ) _phase = (_phase + elapsed * speed / 320) % (2 * BobCycle);
 		float Bob( double cycle ) => speed * 0.005f * (0.3f + 0.7f * (float)Math.Sin( Math.Tau * _phase / cycle ));
 		var vertical = Bob( BobCycle );
 		var lateral = Bob( 2 * BobCycle );
@@ -30,18 +30,18 @@ public sealed class ViewModelMotion : Component
 			+ eye.Rotation.Right * (lateral * 0.8f);
 		var angles = eye.Rotation.Angles() + new Angles( -vertical * 0.4f, -lateral * 0.3f, vertical * 0.5f );
 
-		if ( reset ) _previous = (now, angles);
-		if ( now != _lastTime ) _history.Enqueue( (now, angles) );
+		var rotation = angles.ToRotation();
+		if ( reset ) _previous = (now, rotation);
+		if ( now != _lastTime ) _history.Enqueue( (now, rotation) );
 		_lastTime = now;
 		var sampleTime = now - SwayDelay;
 		while ( _history.TryPeek( out var entry ) && entry.Time <= sampleTime ) _previous = _history.Dequeue();
-		var lagged = _previous.Angles;
+		var lagged = _previous.Rotation;
 		if ( _history.TryPeek( out var next ) && next.Time > _previous.Time )
-			lagged = Angles.Lerp( lagged, next.Angles, (float)((sampleTime - _previous.Time) / (next.Time - _previous.Time)).Clamp( 0, 1 ) );
+			lagged = Rotation.Slerp( lagged, next.Rotation, (float)((sampleTime - _previous.Time) / (next.Time - _previous.Time)) );
 
-		var turn = angles - lagged;
+		var turn = angles - lagged.Angles();
 		if ( mirrored ) turn.yaw = -turn.yaw;
-		var rotation = angles.ToRotation();
 		origin += rotation * ((Vector3.Forward - turn.Forward) * 1.5f);
 		eye.Position = origin;
 		eye.Rotation = rotation;
