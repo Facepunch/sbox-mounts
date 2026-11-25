@@ -116,6 +116,7 @@ public class GameMount : BaseGameMount
 		context.Add( ResourceType.GameResource, $"sounds/{Marine.RifleSound}.sound", new SparkSoundLoader( Marine.RifleSound ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Marine.PistolSound}.sound", new SparkSoundLoader( Marine.PistolSound ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
+		Exo.RegisterSounds( context );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
@@ -125,7 +126,9 @@ public class GameMount : BaseGameMount
 			NpcPrefab.Register( context, "Lerk", Lerk.Configure ),
 			NpcPrefab.Register( context, "Drifter", Drifter.Configure, "ns2_drifter" ),
 			NpcPrefab.Register( context, "Harvester", Harvester.Configure, "ns2_harvester" ),
-			NpcPrefab.Register( context, "Marine", Marine.Configure, "ns2_marine", "marine", "male" ),
+			NpcPrefab.Register( context, "Marine", Marine.Configure, "ns2_marine", "marine", "male/male" ),
+			NpcPrefab.Register( context, "Minigun Exo", ( root, renderer ) => Exo.Configure( root, renderer, false ), "ns2_exo", "marine", "exosuit/exosuit_mm" ),
+			NpcPrefab.Register( context, "Railgun Exo", ( root, renderer ) => Exo.Configure( root, renderer, true ), "ns2_exo", "marine", "exosuit/exosuit_rr" ),
 			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine" ),
 			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
 			NpcPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),

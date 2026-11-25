@@ -4,6 +4,31 @@ namespace NS2;
 
 internal static class AlienAim
 {
+	internal sealed class Acquisition( float fieldOfView )
+	{
+		// BotAim passes its class FOV directly to the cone cosine.
+		readonly float cone = MathF.Cos( fieldOfView );
+		GameObject target;
+		TimeSince lastTracked;
+		TimeUntil acquired;
+
+		internal bool Ready( GameObject enemy, Vector3 offset, Rotation view )
+		{
+			const float panicDistance = 2 * MapLoader.Scale;
+			if ( offset.LengthSquared > panicDistance * panicDistance && Vector3.Dot( offset.Normal, view.Forward ) <= cone )
+				return false;
+
+			if ( target != enemy || lastTracked > 0.5f )
+			{
+				// Tier one acquisition time for a standalone encounter.
+				acquired = target == enemy && lastTracked < 1.5f ? 0.305f * 0.3f : 0.305f;
+				target = enemy;
+			}
+			lastTracked = 0;
+			return acquired <= 0;
+		}
+	}
+
 	// Spark's SlerpRadians advances by a fixed number of radians along the shortest arc.
 	internal static float ApproachAngle( float from, float to, float radians )
 	{

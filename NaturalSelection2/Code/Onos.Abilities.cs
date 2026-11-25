@@ -11,7 +11,7 @@ public sealed partial class Onos
 	[Property] public bool StompUnlocked { get; set; } = true;
 	[Sync( SyncFlags.FromHost )] public float ShieldHealth { get; private set; } = 1000;
 
-	[Sync( SyncFlags.FromHost )] bool Shielding { get; set; }
+	[Sync( SyncFlags.FromHost )] internal bool Shielding { get; private set; }
 	bool charging, wantsStomp, stomping, stompHit;
 	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp, sinceStompRequest = 10;
 	TimeUntil rechargeShield, nextHeal;
@@ -98,6 +98,9 @@ public sealed partial class Onos
 		}
 	}
 
+	internal bool BlocksShotAt( Vector3 position ) => Shielding &&
+		Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (position - WorldPosition).Normal ) >= 0.34f;
+
 	void BlockDamage( IDamageable.DamageEvent e )
 	{
 		if ( !Shielding ) return;
@@ -105,7 +108,7 @@ public sealed partial class Onos
 		var tags = hit.Tags;
 		if ( !(tags.Has( "bullet" ) || tags.Has( "blast" ) || tags.Has( "explosion" ) || tags.Has( "buckshot" ) ||
 			tags.Has( "melee" ) || tags.Has( "burn" ) || tags.Has( "heavy" ) ) ) return;
-		if ( Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (hit.Position - WorldPosition).Normal ) < 0.34f ) return;
+		if ( !BlocksShotAt( hit.Position ) ) return;
 		float factor = tags.Has( "heavy" ) ? 2 : 1;
 		float blocked = Math.Min( e.AcceptedDamage * factor, ShieldHealth );
 		ShieldHealth -= blocked;

@@ -37,11 +37,11 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	bool previousPress, skipDraw = true;
 	TimeSince weaponAge;
 	bool deployed, reloaded;
-	TimeSince age, lastShot, lastHit, lastRequest, lastTracked;
-	TimeUntil acquireTarget, combatUntil, blindFireUntil;
+	TimeSince age, lastShot, lastHit, lastRequest;
+	TimeUntil combatUntil, blindFireUntil;
 	Vector3 lastAimPoint;
 	GameObject firingTarget;
-	GameObject trackedTarget;
+	readonly AlienAim.Acquisition acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Rotation aim;
@@ -153,7 +153,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		bool mobile = visible && enemy.GetComponentInParent<AlienStructure>() is null;
 		bool clearShot = visible && (mobile ? distance < 32.5f * Scale : distance <= BulletRange);
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || CanAimAt( enemy, aimPoint ));
+		bool aimed = clearShot && (babbler || acquisition.Ready( enemy, aimPoint - EyePosition, aim ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
@@ -231,23 +231,6 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		{
 			SelectWeapon( false );
 		}
-	}
-
-	bool CanAimAt( GameObject enemy, Vector3 point )
-	{
-		var offset = point - EyePosition;
-		// BotAim passes the Marine FOV (90) directly to the cone cosine.
-		if ( offset.LengthSquared > 4 * Scale * Scale && Vector3.Dot( offset.Normal, aim.Forward ) <= MathF.Cos( 90 ) )
-			return false;
-
-		if ( trackedTarget != enemy || lastTracked > 0.5f )
-		{
-			// Tier one acquisition time for a standalone encounter.
-			acquireTarget = trackedTarget == enemy && lastTracked < 1.5f ? 0.305f * 0.3f : 0.305f;
-			trackedTarget = enemy;
-		}
-		lastTracked = 0;
-		return acquireTarget <= 0;
 	}
 
 	protected override void OnUpdate()
