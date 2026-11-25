@@ -4,6 +4,7 @@ namespace Halo2;
 public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
+	[Property] public ShotgunImpactSounds ImpactSounds { get; set; }
 	[Property] public string ArmsPath { get; set; }
 	[Property] public CurveRange ViewSmokeRadius { get; set; }
 	[Property] public CurveRange ViewSmokeAlpha { get; set; }
@@ -267,19 +268,19 @@ public sealed class Shotgun : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( shot.Hit ) PelletImpact( shot, GetShotDirection( shot ) );
+		if ( shot.Hit ) PelletImpact( ShotgunImpactSounds.For( this ), shot, GetShotDirection( shot ) );
 	}
 
-	static void PelletImpact( in ShotEffect shot, Vector3 direction )
+	static void PelletImpact( ShotgunImpactSounds sounds, in ShotEffect shot, Vector3 direction )
 	{
 		if ( Application.IsDedicatedServer ) return;
 		var loader = ShotgunLoader.Mounted;
-		if ( loader?.TryPlayPelletImpact( shot.Surface, shot.HitPosition ) != true )
+		if ( sounds?.PlayPellet( shot.Surface, shot.HitPosition ) != true )
 		{
 			ImpactEffect( shot, direction );
 			return;
 		}
-		if ( !loader.PlacePelletImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) )
+		if ( loader?.PlacePelletImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) != true )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 
@@ -295,11 +296,12 @@ public sealed class Shotgun : Weapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
 	{
+		var sounds = ShotgunImpactSounds.For( weapon );
 		foreach ( var contact in impacts )
 		{
 			// The final segment orients the contact. The tracer and water crossing span the full shot.
 			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, contact.Surface, muzzle, NoEvents: true );
-			PelletImpact( shot, contact.Direction );
+			PelletImpact( sounds, shot, contact.Direction );
 			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
 		}
 	}
@@ -608,7 +610,7 @@ public sealed class Shotgun : Weapon
 	void MeleeImpactSound( Surface surface, Vector3 position )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		ShotgunLoader.Mounted?.PlayMeleeImpact( surface, position );
+		ShotgunImpactSounds.For( this )?.PlayMelee( surface, position );
 	}
 
 	protected override void OnEquipped()

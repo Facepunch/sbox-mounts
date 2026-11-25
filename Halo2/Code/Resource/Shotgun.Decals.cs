@@ -74,7 +74,7 @@ internal sealed partial class ShotgunLoader
 	internal bool PlacePelletImpact( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction )
 	{
 		LoadMaterialEffects();
-		if ( !target.IsValid() || pelletEffects is null || ContactTag( pelletEffects, surface, true ) is not {} contact ) return false;
+		if ( !target.IsValid() || pelletEffects is null || ShotgunImpactSounds.Contact( pelletEffects, surface, true ) is not {} contact ) return false;
 		if ( !contactVisuals.TryGetValue( contact, out var visuals ) )
 			contactVisuals[contact] = visuals = ReadContactVisuals( contact );
 		if ( visuals is null ) return false;

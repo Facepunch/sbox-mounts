@@ -193,56 +193,12 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
-	static string SurfaceName( Surface surface )
-	{
-		var name = surface.ResourceName;
-		return name?.StartsWith( "gmod_", StringComparison.Ordinal ) == true ? name[5..] : name;
-	}
-
-	static string MaterialName( Surface surface ) => SurfaceName( surface ) switch
-	{
-		"default" => "default_material", "flesh" => "soft_organic_flesh", "glass" => "brittle_glass",
-		"concrete" => "hard_terrain_concrete", "rock" or "stone" => "hard_terrain_stone", "ice" => "hard_terrain_ice",
-		"wood" or "wood.sheet" => "tough_organic_wood", "metal" => "hard_metal_solid", "metal.sheet" => "hard_metal_thin",
-		"rubber" => "tough_inorganic_rubber", "plastic" or "plastic.sheet" => "tough_inorganic_plastic",
-		"cloth" or "fabric" => "soft_organic_cloth", "water" => "liquid_thin_water", "grass" => "tough_terrain_grass",
-		"dirt" => "tough_terrain_dirt", "sand" => "tough_terrain_sand", "gravel" => "tough_terrain_gravel",
-		"mud" => "tough_terrain_mud", "snow" => "soft_terrain_snow",
-		_ => surface.AudioSurface switch
-		{
-			AudioSurface.Concrete or AudioSurface.Brick => "hard_terrain_concrete",
-			AudioSurface.Rock or AudioSurface.Marble => "hard_terrain_stone",
-			AudioSurface.Metal or AudioSurface.Steel => "hard_metal_solid",
-			AudioSurface.Wood => "tough_organic_wood",
-			AudioSurface.Glass => "brittle_glass",
-			AudioSurface.Gravel => "tough_terrain_gravel",
-			AudioSurface.Soil => "tough_terrain_dirt",
-			AudioSurface.Sand => "tough_terrain_sand",
-			AudioSurface.Snow => "soft_terrain_snow",
-			AudioSurface.Fabric or AudioSurface.Curtain => "soft_organic_cloth",
-			AudioSurface.Water => "liquid_thin_water",
-			_ => null
-		}
-	};
-
-	static TagEntry ContactTag( Dictionary<string, TagEntry> sounds, Surface surface, bool useDefault )
-	{
-		for ( int depth = 0; surface.IsValid() && depth < 16; depth++, surface = surface.GetBaseSurface() )
-		{
-			if ( surface.ResourceName is {} name && sounds.TryGetValue( name, out var sound ) ) return sound;
-			if ( MaterialName( surface ) is {} material && sounds.TryGetValue( material, out sound ) ) return sound;
-		}
-		return useDefault ? sounds.GetValueOrDefault( "default_material" ) : null;
-	}
-
 	Dictionary<string, TagEntry> meleeMaterials, casingMaterials, pelletMaterials, pelletEffects;
-	uint impactSoundSeed = (uint)System.Random.Shared.Next();
 
 	void LoadMaterialEffects()
 	{
 		if ( pelletEffects is not null ) return;
 		meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
-		casingMaterials = new( StringComparer.OrdinalIgnoreCase );
 		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
 		if ( globals is null ) return;
 		int materials = Address( globals ) + 0x150;
@@ -288,41 +244,32 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		}
 	}
 
-	internal bool TryPlayPelletImpact( Surface surface, Vector3 position )
+	ShotgunImpactSounds ReadImpactSounds()
 	{
 		LoadMaterialEffects();
-		if ( pelletMaterials is null || pelletMaterials.Count == 0 ) return false;
-		// A material can have an impact effect with no sound in the projectile's bank.
-		PlayImpact( ContactTag( pelletMaterials, surface, false ), position );
-		return true;
-	}
-
-	SoundHandle PlayImpact( TagEntry sound, Vector3 position ) =>
-		sound is not null && Host.GetByPath( Host.AssetPath( map, sound.TagPath, "sound" ) ) is Halo2SoundLoader loader
-			? loader.PlayCue( position, ref impactSoundSeed ) : null;
-
-	internal SoundHandle PlayCasingImpact( Surface surface, Vector3 position, float gain )
-	{
-		if ( gain <= 0 ) return null;
-		LoadMaterialEffects();
-		var sound = ContactTag( casingMaterials, surface, true );
-		var handle = PlayImpact( sound, position );
-		if ( handle.IsValid() ) handle.Volume *= gain;
-		return handle;
-	}
-
-	internal void PlayMeleeImpact( Surface surface, Vector3 position )
-	{
-		LoadMaterialEffects();
-		Play( ContactTag( meleeMaterials, surface, false ) );
-
-		if ( Reference( Header + 0x1bc ) is {} damage ) Play( Reference( Address( damage ) + 0xa8 ) );
-
-		void Play( TagEntry tag )
+		var cues = new List<CuePlayback>();
+		var indices = new Dictionary<TagEntry, int>();
+		int CueIndex( TagEntry tag )
 		{
-			if ( tag?.PrimaryClass == "!dns" && GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) is {} sound )
-				Sound.Play( sound, position );
+			if ( tag?.PrimaryClass != "!dns" ) return 0;
+			if ( indices.TryGetValue( tag, out int index ) ) return index;
+			if ( Host.GetByPath( Host.AssetPath( map, tag.TagPath, "sound" ) ) is not Halo2SoundLoader sound ) return 0;
+			cues.Add( sound.Cue );
+			return indices[tag] = cues.Count;
 		}
+
+		Dictionary<string, int> Bank( Dictionary<string, TagEntry> materials ) =>
+			materials?.ToDictionary( entry => entry.Key, entry => CueIndex( entry.Value ), StringComparer.OrdinalIgnoreCase ) ?? new();
+
+		var damage = Reference( Header + 0x1bc );
+		return new ShotgunImpactSounds
+		{
+			Pellets = Bank( pelletMaterials ),
+			Casings = Bank( casingMaterials ),
+			Melee = Bank( meleeMaterials ),
+			Strike = damage is null ? 0 : CueIndex( Reference( Address( damage ) + 0xa8 ) ),
+			Cues = cues.ToArray()
+		};
 	}
 
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
@@ -353,6 +300,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
 			gun.BindHudTextures();
+			gun.ImpactSounds = ReadImpactSounds();
 			gun.HoldType = WeaponHolds.Shotgun;
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";

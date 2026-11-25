@@ -253,7 +253,7 @@ public partial class ShotgunModel : BaseWeaponModel
 			if ( firstContact )
 			{
 				float gain = (casing.Velocity.Length / 120 - 0.5f).Clamp( 0, 1 );
-				ShotgunLoader.Mounted?.PlayCasingImpact( hit.Surface, hit.HitPosition, gain );
+				ShotgunImpactSounds.For( Weapon )?.PlayCasing( hit.Surface, hit.HitPosition, gain );
 			}
 		}
 	}
