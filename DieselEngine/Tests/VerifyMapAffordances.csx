@@ -18,7 +18,9 @@ foreach ( var (level, expected, expectedCameras) in new[] { ("bank", 16, 21), ("
 		int exits = components.Count( c => c.GetType().Name == "PaydayEscapePoint" );
 		var cameras = components.Where( c => c.GetType().Name == "PaydaySecurityCamera" ).ToArray();
 		var doors = components.Where( c => c.GetType().Name == "PaydayDoor" ).ToArray();
-		if ( doors.Length != (level == "l4d" ? 15 : 0) ) throw new Exception( $"{level}: doors={doors.Length}" );
+		if ( doors.Length != (level == "l4d" ? 15 : level == "bank" ? 2 : level == "diamondheist" ? 5 : 15) ) throw new Exception( $"{level}: doors={doors.Length}" );
+		if ( components.Count( c => c.GetType().Name == "PaydayDoorGlass" ) != (level == "suburbia" ? 4 : 0) )
+			throw new Exception( $"{level}: unexpected moving pane count." );
 		if ( doors.Length > 0 && !scene.NavMesh.ExcludedBodies.Has( "payday_door" ) ) throw new Exception( "Door navigation exclusion was lost." );
 		foreach ( var door in doors )
 		{

@@ -3,11 +3,18 @@ namespace Diesel;
 /// <summary>Explicit installed unit identities, rather than matching decorative phone/pole names.</summary>
 static class MapInteractionDefinition
 {
-	// This unit is a single leaf under an authored hinge at its orientation root.
-	// Other door assets include frames, alternate leaves or scripted security machinery.
+	// Known suburban open states; damaged/missing-panel variants remain static imports.
+	public static bool IsFramedDoor( string unit, string variation ) =>
+		unit == "units/world/props/door_suburban_01/door_suburban_01"
+		&& variation is "a_open_90" or "a_open_full" or "b_open_90" or "b_open_full" or "c_open_90" or "c_open_full";
+
+	// These variants contain a single leaf under an authored hinge at the orientation root.
+	// Bank's list_* variants include wall trim that must not rotate with the leaf.
 	public static bool IsSwingDoor( string unit, string variation ) =>
-		unit == "units/world/architecture/hospital/hospital_door_1"
-		&& (string.IsNullOrEmpty( variation ) || variation is "default" or "closed");
+		(unit == "units/world/architecture/hospital/hospital_door_1"
+			&& (string.IsNullOrEmpty( variation ) || variation is "default" or "closed"))
+		|| (unit == "units/world/architecture/bank/bank_door_toilet/bank_door_toilet"
+			&& (string.IsNullOrEmpty( variation ) || variation is "default" or "man" or "woman"));
 
 	public static bool IsCamera( string unit ) => unit is
 		"units/world/props/security_camera/security_camera"

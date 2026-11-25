@@ -2,12 +2,15 @@ using Sandbox.Npcs;
 
 namespace Diesel;
 
-/// <summary>Single-leaf hospital door. The parent stays at the authored hinge.</summary>
+/// <summary>Single-leaf imported door. The parent stays at the authored hinge.</summary>
 [Title( "PAYDAY Swing Door" ), Group( "PAYDAY" )]
 public sealed class PaydayDoor : Component, Component.IPressable
 {
 	public const string NavigationTag = "payday_door";
 	[Property] public GameObject Leaf { get; set; }
+	[Property] public Vector3 Pivot { get; set; }
+	[Property] public float InitialOpenAngle { get; set; }
+	[Property] public bool OpenBothWays { get; set; } = true;
 	[Property, Range( 0, 180 )] public float OpenAngle { get; set; } = 95;
 	[Property] public float TravelTime { get; set; } = .45f;
 	[Sync( SyncFlags.FromHost )] public bool Open { get; private set; }
@@ -21,6 +24,17 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	protected override void OnStart()
 	{
 		Scene.NavMesh.ExcludedBodies.Add( NavigationTag );
+		if ( MathF.Abs( InitialOpenAngle ) > .01f )
+		{
+			OpenAngle = MathF.Abs( InitialOpenAngle );
+			if ( Networking.IsHost )
+			{
+				Direction = MathF.Sign( InitialOpenAngle );
+				Open = true;
+				Amount = 1;
+				if ( Leaf.IsValid() ) Leaf.LocalTransform = Pose( Amount );
+			}
+		}
 	}
 
 	protected override void OnUpdate()
@@ -54,7 +68,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		Leaf.LocalTransform = Pose( Amount );
 	}
 
-	Transform Pose( float amount ) => new( Vector3.Zero, Rotation.FromYaw( amount * OpenAngle * Direction ) );
+	Transform Pose( float amount ) => new Transform( Vector3.Zero ).RotateAround( Pivot, Rotation.FromYaw( amount * OpenAngle * Direction ) );
 
 	bool Occupied( float amount )
 	{
@@ -73,11 +87,11 @@ public sealed class PaydayDoor : Component, Component.IPressable
 
 	void OpenAway( GameObject actor )
 	{
-		if ( Amount <= .001f )
+		if ( OpenBothWays && Amount <= .001f )
 		{
 			var position = WorldTransform.PointToLocal( actor.WorldPosition );
 			var center = Model.Bounds.Center.WithZ( 0 );
-			var openingMotion = Vector3.Cross( Vector3.Up, center );
+			var openingMotion = Vector3.Cross( Vector3.Up, center - Pivot );
 			Direction = Vector3.Dot( position - center, openingMotion ) > 0 ? -1 : 1;
 		}
 		Open = true;

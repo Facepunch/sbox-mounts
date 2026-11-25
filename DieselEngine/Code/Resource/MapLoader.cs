@@ -90,14 +90,36 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
-				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) )
+				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) || model.DoorLeaf is not null )
 				{
 					go.IsStatic = false;
 					var door = go.AddComponent<PaydayDoor>();
+					door.Pivot = model.DoorPivot;
+					door.InitialOpenAngle = model.DoorOpenAngle;
+					door.OpenBothWays = model.DoorLeaf is null;
+					if ( model.DoorLeaf is not null )
+					{
+						var frame = new GameObject( true, "Door frame" ) { Parent = go, IsStatic = true };
+						frame.AddComponent<ModelRenderer>().Model = model.Model;
+						frame.AddComponent<ModelCollider>().Model = model.Model;
+					}
 					door.Leaf = new GameObject( true, "Door leaf" ) { Parent = go };
 					door.Leaf.Tags.Add( PaydayDoor.NavigationTag );
-					door.Leaf.AddComponent<ModelRenderer>().Model = model.Model;
-					door.Leaf.AddComponent<ModelCollider>().Model = model.Model;
+					door.Leaf.AddComponent<ModelRenderer>().Model = model.DoorLeaf ?? model.Model;
+					door.Leaf.AddComponent<ModelCollider>().Model = model.DoorLeaf ?? model.Model;
+					if ( model.DoorGlass is not null )
+					{
+						var glass = new GameObject( true, "Door glass" ) { Parent = door.Leaf };
+						glass.Tags.Add( PaydayDoor.NavigationTag );
+						var pane = glass.AddComponent<PaydayDoorGlass>();
+						pane.Renderer = glass.AddComponent<ModelRenderer>();
+						pane.Renderer.Model = model.DoorGlass;
+						pane.Collider = glass.AddComponent<ModelCollider>();
+						pane.Collider.Model = model.DoorGlass;
+					}
+					if ( model.DoorLeaf is not null )
+						door.Leaf.LocalTransform = new Transform( Vector3.Zero )
+							.RotateAround( door.Pivot, Rotation.FromYaw( door.InitialOpenAngle ) );
 					go.Scene.NavMesh.ExcludedBodies.Add( PaydayDoor.NavigationTag );
 					placed++;
 					continue;

@@ -1,7 +1,10 @@
 await Sandbox.Mounting.Directory.Mount( "payday" );
-var model = await ResourceLibrary.LoadAsync<Model>( "mount://payday/units/world/architecture/hospital/hospital_door_1.unit.vmdl" );
 await ResourceLibrary.LoadAsync<PrefabFile>( "mount://payday/entities/npcs/civilian.prefab" );
+foreach ( var unit in new[] { "hospital/hospital_door_1", "bank/bank_door_toilet/bank_door_toilet" } )
+{
+var model = await ResourceLibrary.LoadAsync<Model>( $"mount://payday/units/world/architecture/{unit}.unit.vmdl" );
 if ( model is null || model.IsError ) throw new Exception( "Door model missing." );
+var across = model.Bounds.Size.x < model.Bounds.Size.y ? Vector3.Forward : Vector3.Left;
 var scene = new Scene();
 try
 {
@@ -24,24 +27,24 @@ try
 	float Amount() => (float)door.GetType().GetProperty( "Amount" ).GetValue( door );
 	var center = model.Bounds.Center;
 	var player = new GameObject( true, "Player" );
-	player.WorldPosition = Point( center.WithZ( 0 ) + Vector3.Left * 80 );
+	player.WorldPosition = Point( center.WithZ( 0 ) + across * 80 );
 	player.AddComponent<PlayerController>().UseInputControls = false;
 	player.NetworkSpawn( true, Connection.Local );
 	void Toggle() => door.GetType().GetMethod( "Toggle" ).Invoke( door, new object[] { player } );
 	Tick( 2 );
-	var start = Point( center + Vector3.Left * 100 );
-	var end = Point( center - Vector3.Left * 100 );
+	var start = Point( center + across * 100 );
+	var end = Point( center - across * 100 );
 	if ( scene.Trace.Ray( start, end ).IgnoreGameObjectHierarchy( player ).Run().GameObject != leaf )
 		throw new Exception( "Closed door lacks solid leaf collision." );
-	player.WorldPosition = Point( center.WithZ( 0 ) + Vector3.Left * 500 );
+	player.WorldPosition = Point( center.WithZ( 0 ) + across * 500 );
 	Tick( 1 );
 	Toggle(); Tick( 15 );
 	if ( Amount() != 0 ) throw new Exception( "Distant player opened door." );
-	player.WorldPosition = Point( center.WithZ( 0 ) + Vector3.Left * 80 );
+	player.WorldPosition = Point( center.WithZ( 0 ) + across * 80 );
 	Tick( 1 );
 	var wall = new GameObject( true, "Use obstruction" );
-	wall.WorldPosition = Point( center.WithZ( 40 ) + Vector3.Left * 40 ); wall.WorldRotation = root.WorldRotation;
-	wall.AddComponent<BoxCollider>().Scale = new Vector3( 150, 10, 100 );
+	wall.WorldPosition = Point( center.WithZ( 40 ) + across * 40 ); wall.WorldRotation = root.WorldRotation;
+	wall.AddComponent<BoxCollider>().Scale = across == Vector3.Left ? new Vector3( 150, 10, 100 ) : new Vector3( 10, 150, 100 );
 	Toggle(); Tick( 15 );
 	if ( Amount() != 0 ) throw new Exception( "Player used door through obstruction." );
 	wall.Destroy(); Tick( 1 );
@@ -53,9 +56,13 @@ try
 	light.WorldPosition = view.WorldPosition; light.Radius = 600; light.LightColor = Color.White * 4;
 	void Screenshot( string state )
 	{
+		var bounds = leaf.GetComponent<ModelRenderer>().Bounds;
+		view.WorldPosition = bounds.Center + root.WorldRotation * (-across * 160 + Vector3.Cross( Vector3.Up, across ) * 60 + Vector3.Up * 20);
+		view.WorldRotation = Rotation.LookAt( bounds.Center - view.WorldPosition );
+		light.WorldPosition = view.WorldPosition;
 		using var bitmap = new Bitmap( 512, 512 );
 		view.RenderToBitmap( bitmap );
-		System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"door-{state}.png" ), bitmap.ToPng() );
+		System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"door-{unit.Split('/')[0]}-{state}.png" ), bitmap.ToPng() );
 	}
 	Tick( 1 ); Screenshot( "closed" );
 	Toggle(); Tick( 15 );
@@ -70,23 +77,24 @@ try
 	Tick( 1 );
 	Toggle(); Tick( 25 );
 	if ( Amount() < .9f ) throw new Exception( "Closing door did not reopen for occupant." );
-	player.WorldPosition = Point( center.WithZ( 0 ) + Vector3.Left * 80 );
+	player.WorldPosition = Point( center.WithZ( 0 ) + across * 80 );
 	Tick( 1 );
 	Toggle(); Tick( 15 );
 	if ( Amount() > .01f ) throw new Exception( "Cleared doorway could not close." );
 
 	var npcObject = GameObject.GetPrefab( "mount://payday/entities/npcs/civilian.prefab" )
-		.Clone( Point( center.WithZ( 0 ) - Vector3.Left * 250 ) );
+		.Clone( Point( center.WithZ( 0 ) - across * 250 ) );
 	var npc = npcObject.GetComponent<Sandbox.Npcs.BaseNpc>();
 	npc.GetType().GetProperty( "Wander" ).SetValue( npc, false );
-	player.WorldPosition = npcObject.WorldPosition + root.WorldRotation * Vector3.Left * 60;
+	player.WorldPosition = npcObject.WorldPosition + root.WorldRotation * across * 60;
 	Tick( 2 );
 	var command = npc.GetType().GetMethod( "Command" );
 	command.Invoke( npc, new object[] { player } ); command.Invoke( npc, new object[] { player } );
-	player.WorldPosition = Point( center.WithZ( 0 ) + Vector3.Left * 500 );
+	player.WorldPosition = Point( center.WithZ( 0 ) + across * 500 );
 	Tick( 150 );
-	if ( Amount() < .99f || root.WorldTransform.PointToLocal( npcObject.WorldPosition ).y < center.y + 70 )
+	if ( Amount() < .99f || Vector3.Dot( root.WorldTransform.PointToLocal( npcObject.WorldPosition ) - center, across ) < 70 )
 		throw new Exception( $"Following NPC failed to open/pass door: amount={Amount()}, npc={npcObject.WorldPosition}, schedule={npc.ActiveSchedule}." );
-	return "PASS: original hospital leaf collision, range-checked use, open/close, occupant reopening and NPC navmesh passage.";
 }
 finally { scene.Destroy(); }
+}
+return "PASS: hospital and bank leaf collision, range/occlusion-checked use, open/close, occupant reopening and NPC navmesh passage.";

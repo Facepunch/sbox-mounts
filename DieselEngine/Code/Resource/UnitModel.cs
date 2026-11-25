@@ -8,6 +8,10 @@ static class UnitModel
 	{
 		public static Result Empty { get; } = new( null, false, false );
 		public Transform? CameraLens { get; init; }
+		public Model DoorLeaf { get; init; }
+		public Model DoorGlass { get; init; }
+		public Vector3 DoorPivot { get; init; }
+		public float DoorOpenAngle { get; init; }
 	}
 	public static XmlNode Xml( byte[] bytes )
 	{
@@ -43,12 +47,43 @@ static class UnitModel
 		=> BuildPlaced( database, materials, unit, resourceName, materialVariation, null );
 
 	public static Result BuildPlaced( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation )
-		=> BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false );
+	{
+		if ( !MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
+			return BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false );
+		string panel = meshVariation[..1];
+		var leafParts = new HashSet<ulong> { IdString.Hash( $"g_door_{panel}" ), IdString.Hash( $"c_door_{panel}" ) };
+		var glassParts = new HashSet<ulong>();
+		if ( panel == "c" )
+		{
+			for ( int i = 1; i <= 8; i++ ) leafParts.Add( IdString.Hash( $"c_convex_door_c_{i:00}" ) );
+			glassParts.UnionWith( new[] { IdString.Hash( "g_door_c_glass" ), IdString.Hash( "c_door_c_glass" ) } );
+		}
+		var movingParts = new HashSet<ulong>( leafParts );
+		movingParts.UnionWith( glassParts );
+		var frame = BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false, movingParts, true );
+		var leaf = BuildCore( database, materials, unit, resourceName + ".leaf", materialVariation, meshVariation, false, leafParts );
+		var glass = panel == "c" ? BuildCore( database, materials, unit, resourceName + ".glass", materialVariation, meshVariation, false, glassParts ) : null;
+		var definition = Xml( database.Find( "unit", unit ) );
+		string path = definition.Element( "object" ).Attribute( "file" );
+		var obj = Xml( database.Find( "object", path ) );
+		string orientation = obj.Element( "diesel" ).Attribute( "orientation_object" );
+		var file = new ModelFile( database.Find( "model", path ) );
+		string hinge = $"a_door_{panel}";
+		var rest = file.Pose( null, 0 );
+		System.Numerics.Matrix4x4.Invert( file.NodePose( rest, orientation ), out var root );
+		var closed = ModelFile.Convert( file.NodePose( rest, hinge ) * root );
+		// Shipped editable states end at frame 79 (90 degrees) or 49 (fully open).
+		var pose = file.Pose( null, meshVariation.EndsWith( "_90" ) ? 79f / 30 : 49f / 30,
+			file.Controllers( new HashSet<ulong> { IdString.Hash( hinge ) } ) );
+		var opened = ModelFile.Convert( file.NodePose( pose, hinge ) * root );
+		float angle = (opened.Rotation * closed.Rotation.Inverse).Yaw();
+		return frame with { DoorLeaf = leaf.Model, DoorGlass = glass?.Model, DoorPivot = closed.Position, DoorOpenAngle = angle };
+	}
 
 	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 		=> BuildCore( database, materials, unit, resourceName, null, null, true );
 
-	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser )
+	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -59,7 +94,23 @@ static class UnitModel
 		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
 		SequenceVisibility visibility = null;
-		if ( !string.IsNullOrEmpty( meshVariation ) && meshVariation != "default"
+		if ( MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
+		{
+			// These known states also contain decal/animation actions, beyond the
+			// conservative general visibility evaluator. Keep their literal panel selection.
+			string panel = meshVariation[..1];
+			visibility = new SequenceVisibility();
+			foreach ( string part in new[] { "a", "b", "c" } )
+			{
+				visibility.Objects[$"g_door_{part}"] = part == panel;
+				visibility.Bodies[$"door_{part}"] = part == panel;
+			}
+			visibility.Objects["g_door_c_glass"] = panel == "c";
+			visibility.Bodies["door_c_window"] = panel == "c";
+			visibility.Objects["g_frame_a"] = panel != "b";
+			visibility.Objects["g_frame_b"] = panel == "b";
+		}
+		else if ( !string.IsNullOrEmpty( meshVariation ) && meshVariation != "default"
 			&& obj.Element( "sequence_manager" )?.Attribute( "file" ) is string sequencePath )
 		{
 			try
@@ -73,6 +124,11 @@ static class UnitModel
 		bool movablePreview = browser && UnitClassification.Classify( unit, definition ) == UnitKind.Prop;
 		var graphics = geometry.Graphics;
 		var collision = geometry.Collision;
+		if ( parts is not null )
+		{
+			graphics.RemoveWhere( id => parts.Contains( id ) == excludeParts );
+			collision.RemoveWhere( id => parts.Contains( id ) == excludeParts );
+		}
 		var selected = new HashSet<ulong>( graphics );
 		selected.UnionWith( collision );
 		if ( selected.Count == 0 ) return Result.Empty;
@@ -97,8 +153,9 @@ static class UnitModel
 			{
 				if ( movablePreview ) massShapes[part.Name] = part.Positions;
 				// Triangle meshes are static-only in the target physics engine. Browser props
-				// get one hull per authored collision mesh; map geometry keeps exact triangles.
-				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview )
+				// and articulated door parts get one hull per authored collision mesh;
+				// fixed map geometry keeps exact triangles.
+				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview || (parts is not null && !excludeParts) )
 					collisionHulls.Add( part.Positions );
 				else
 				{
@@ -143,7 +200,9 @@ static class UnitModel
 				}
 			}
 		}
-		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes, orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
+		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes
+			.Where( p => collision.Contains( p.Key ) ).ToDictionary( p => p.Key, p => p.Value ),
+			orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
 		if ( batches.Count == 0 && collisionIndices.Count == 0 && primitives.Length == 0 && collisionHulls.Count == 0 ) return Result.Empty;
 		var builder = Model.Builder.WithName( resourceName );
 		if ( movablePreview )
