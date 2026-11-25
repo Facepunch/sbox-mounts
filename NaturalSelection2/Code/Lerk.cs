@@ -21,14 +21,14 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag;
 	Rotation view;
-	bool attacking;
+	bool attacking, wantsSpikes, spiking;
 	TimeSince lastFlap = 1;
 	float energy = 100;
 	TimeUntil repath, nextHeal, underFire;
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spawn", "bite", "flap", "death", "wound", "wound_serious" } )
+		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "death", "wound", "wound_serious" } )
 		{
 			var id = $"alien/lerk/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -94,7 +94,9 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		Animation.SetLookTarget( visible ? enemy : null );
 		var goal = lastSeen ?? enemy?.WorldPosition;
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition : default;
-		attacking = visible && EyePosition.Distance( touch ) < 1.5f * Scale;
+		float distance = visible ? EyePosition.Distance( touch ) / Scale : float.PositiveInfinity;
+		attacking = distance < 1.5f;
+		wantsSpikes = !attacking && distance < 35 && IsSpikeTarget( enemy );
 		if ( goal is null )
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 		else if ( attacking && enemy.Tags.Has( "structure" ) )
@@ -142,7 +144,9 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
 		view = AlienAim.Turn( view, aim, 5 );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
-		var activity = attacking && energy >= 5 ? "primary" : "none";
+		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( view.Forward, aim.Normal ) > 0.98f;
+		if ( !spiking ) firingSpikes = false;
+		var activity = attacking && energy >= 5 ? "primary" : spiking ? "secondary" : "none";
 		var move = !Animation.IsGrounded ? "fly" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "attack_speed", 1 );
 		world.Set( "alive", 1 );
@@ -158,10 +162,16 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
 		weapon.Update( animationTime, tag: weaponTag );
+		if ( firingSpikes && nextSpikeSound < 0 )
+		{
+			nextSpikeSound = 0.1f;
+			PlayCue( "spikes" );
+		}
 	}
 
 	void OnWeaponTag( string tag )
 	{
+		if ( tag == "shoot" && spiking && energy > SpikeCost ) FireSpike();
 		if ( tag != "hit" ) return;
 		PlayCue( "bite" );
 		energy = Math.Max( 0, energy - 5 );

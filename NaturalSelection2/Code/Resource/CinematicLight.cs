@@ -13,7 +13,7 @@ internal sealed class CinematicLight( CinematicNode node, float duration )
 		var go = new GameObject( false, node.Get( "Name" ).AsString() ) { NetworkMode = NetworkMode.Never };
 		go.Parent = parent;
 		var light = go.AddComponent<PointLight>();
-		var playback = go.AddComponent<CinematicLightPlayback>();
+		var playback = go.AddComponent<CinematicPlayback>();
 		playback.Sample = time =>
 		{
 			if ( time >= duration ) { go.Destroy(); return; }
@@ -32,7 +32,7 @@ internal sealed class CinematicLight( CinematicNode node, float duration )
 	}
 }
 
-internal sealed class CinematicLightPlayback : Component
+internal sealed class CinematicPlayback : Component
 {
 	internal Action<float> Sample;
 	TimeSince started = 0;

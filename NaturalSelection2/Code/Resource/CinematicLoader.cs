@@ -33,6 +33,7 @@ internal sealed class CinematicLoader( string path ) : ResourceLoader<GameMount>
 			var visible = node.Get( "Visible" );
 			if ( !visible.IsVisibleAt( 0 ) && !visible.HasVisibilityKeys ) continue;
 			if ( node.Name is "Emitter" or "Physics Emitter" ) nodes.Add( new CinematicEmitter( node, file.Duration ).Play );
+			else if ( node.Name == "Actor" ) nodes.Add( new CinematicActor( node, file.Duration ).Play );
 			else if ( node.Name == "Point Light" ) nodes.Add( new CinematicLight( node, file.Duration ).Play );
 		}
 		return nodes.ToArray();
