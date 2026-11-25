@@ -54,6 +54,7 @@ public sealed partial class Onos
 			var height = Vector3.Up * (0.4f * Scale);
 			if ( TraceWorld( center + height, position + height ).Hit ) continue;
 			waveVictims.Add( victim );
+			ShowStompImpact( position, victim.WorldRotation.Up );
 			var player = victim.GetComponent<PlayerController>();
 			if ( player.IsValid() ) WebPlayer( player );
 			DealDamage( (IDamageable)victim, 50, position, "stomp" );
@@ -63,24 +64,38 @@ public sealed partial class Onos
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ShowStompCrack( Vector3 position, Vector3 direction )
 	{
+		SpawnDecal( "shockwave_crack", position, Rotation.LookAt( Vector3.Down, direction ),
+			Random.Shared.Next( 2 ) * 180, 2.7f, 6 );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowStompImpact( Vector3 position, Vector3 normal )
+	{
+		// Shared decals use the victim's up axis and the client's default twelve-second lifetime.
+		var tangent = new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -0.9f, 1.1f ), Random.Shared.Float( -1.1f, 0.9f ) );
+		SpawnDecal( "shockwave_hit", position, Rotation.LookAt( -normal, tangent ), 0, 2, 12 );
+	}
+
+	static void SpawnDecal( string material, Vector3 position, Rotation rotation, float roll, float size, float lifetime )
+	{
 		if ( !Graphics.IsAvailable ) return;
-		var definition = GameResource.Load<DecalDefinition>( "mount://ns2/ns2/cinematics/vfx_materials/decals/shockwave_crack.material.vmat/projected.decal" );
+		var definition = GameResource.Load<DecalDefinition>( $"mount://ns2/ns2/cinematics/vfx_materials/decals/{material}.material.vmat/projected.decal" );
 		if ( definition?.ColorTexture is null ) return;
 
-		var crack = new GameObject( false, "Stomp crack" )
+		var effect = new GameObject( false, material == "shockwave_hit" ? "Stomp impact" : "Stomp crack" )
 		{
 			NetworkMode = NetworkMode.Never,
 			WorldPosition = position,
-			WorldRotation = Rotation.LookAt( Vector3.Down, direction )
+			WorldRotation = rotation
 		};
-		var decal = crack.AddComponent<Decal>();
+		var decal = effect.AddComponent<Decal>();
 		decal.Decals.Add( definition );
-		decal.Size = 2.7f * Scale;
-		decal.Rotation = Random.Shared.Next( 2 ) * 180;
-		decal.LifeTime = 6;
+		decal.Size = size * Scale;
+		decal.Rotation = roll;
+		decal.LifeTime = lifetime;
 		decal.Transient = true;
-		crack.AddComponent<TemporaryEffect>();
-		crack.Enabled = true;
+		effect.AddComponent<TemporaryEffect>();
+		effect.Enabled = true;
 	}
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WebPlayer( PlayerController player )

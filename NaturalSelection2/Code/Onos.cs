@@ -31,7 +31,7 @@ public sealed partial class Onos : BaseNpc
 	{
 		const string shieldBreak = "alien/common/armor_break";
 		context.Add( ResourceType.GameResource, $"sounds/{shieldBreak}.sound", new SparkSoundLoader( shieldBreak ) );
-		foreach ( var cue in new[] { "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
+		foreach ( var cue in new[] { "spawn", "gore", "onos_step", "wound_serious", "charge_hit_marine", "land", "stomp", "wound", "death", "rumble" } )
 		{
 			var id = $"alien/onos/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -73,6 +73,7 @@ public sealed partial class Onos : BaseNpc
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
+		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
@@ -127,6 +128,7 @@ public sealed partial class Onos : BaseNpc
 		var velocity = Animation.MoveVelocity.WithZ( 0 );
 		float speedRatio = velocity.Length / RunSpeed;
 		UpdateRumble( Animation.MoveVelocity.Length / RunSpeed );
+		UpdateShieldRenderer();
 		if ( Networking.IsHost )
 		{
 			if ( Animation.IsGrounded && fallSpeed > 5 * Scale ) PlayCue( "land" );
@@ -172,6 +174,25 @@ public sealed partial class Onos : BaseNpc
 		if ( output is null ) return;
 		MovePose.Write( Locomotion, output, AnimationTime );
 		AttackPose.Write( ActionLayer, output, AnimationTime );
+	}
+
+	SkinnedModelRenderer shieldRenderer;
+
+	void UpdateShieldRenderer()
+	{
+		if ( !shieldRenderer.IsValid() )
+		{
+			if ( !Shielding || !Graphics.IsAvailable ) return;
+			var go = new GameObject( GameObject, false, "Bone Shield" ) { NetworkMode = NetworkMode.Never };
+			shieldRenderer = go.AddComponent<SkinnedModelRenderer>();
+			shieldRenderer.Model = Renderer.Model;
+			shieldRenderer.BoneMergeTarget = Renderer;
+			shieldRenderer.UseAnimGraph = false;
+			shieldRenderer.MaterialOverride = Material.Load( "mount://ns2/ns2/cinematics/vfx_materials/boneshield.material.vmat" );
+			shieldRenderer.RenderType = ModelRenderer.ShadowRenderType.Off;
+			go.Enabled = true;
+		}
+		shieldRenderer.Enabled = Shielding;
 	}
 
 	SoundHandle rumble;
