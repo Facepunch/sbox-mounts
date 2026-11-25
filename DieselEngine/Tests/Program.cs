@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence" or "--dump-strings")) || args.Length > 4 )
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence" or "--dump-strings" or "--dump-sound")) || args.Length > 4 )
 	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt] | --dump-sequence [units] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-sound" )
+	{
+		string level = args.Length > 2 ? args[2] : "bank";
+		string soundOutput = args.Length > 3 ? args[3] : $"sound_{level}.txt";
+		using ( var soundWriter = new StreamWriter( soundOutput ) ) SoundDump.Run( db, level, soundWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( soundOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-strings" )
 	{
 		string stringsOutput = args.Length > 2 ? args[2] : "strings_dump.txt";
@@ -492,6 +500,40 @@ foreach ( var aiMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l
 Console.WriteLine( $"  ElementEnemyDummyTrigger events: {string.Join( ", ", npcEventNames.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
 Console.WriteLine( $"  ElementSpecialObjectiveTrigger events: {string.Join( ", ", soTriggerEvents.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
 Console.WriteLine( $"  ElementSpecialObjective so_action (top 40): {string.Join( ", ", soActions.OrderByDescending( e => e.Value ).Take( 40 ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
+// General sound import: harvested event names vs. every bank's playable events, and world_sounds emitter resolution.
+var soundLevels = new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" }.Select( l => $"levels/{l}" ).ToList();
+var soundStarted = DateTime.UtcNow;
+var harvested = SoundNames.Collect( db, soundLevels );
+Console.WriteLine( $"  sound names harvested: {harvested.Count} in {(DateTime.UtcNow - soundStarted).TotalSeconds:0.0}s" );
+var bnkType = IdString.Hash( "bnk" );
+var bankNames = Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' )
+	.Where( n => n.Length > 0 && db.Entries.ContainsKey( (bnkType, IdString.Hash( n )) ) ).Distinct().OrderBy( n => n ).ToList();
+int allEvents = 0, playableEvents = 0, namedEvents = 0;
+var eventBanks = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
+foreach ( var bankPath in bankNames )
+{
+	string shortBank = SoundNames.BankShortName( bankPath );
+	try
+	{
+		var bank = new WwiseBank( db.Find( "bnk", bankPath ), id => db.Find( "stream", $"soundbanks/streamed/{shortBank}/{id}" ) );
+		var ids = bank.EventIds.ToList();
+		var playable = ids.Where( bank.IsPlayable ).ToList();
+		int namedHere = playable.Count( harvested.ContainsKey );
+		foreach ( var id in playable.Where( harvested.ContainsKey ) ) eventBanks.TryAdd( harvested[id], shortBank );
+		allEvents += ids.Count; playableEvents += playable.Count; namedEvents += namedHere;
+		Console.WriteLine( $"    {shortBank}: {ids.Count} events, {playable.Count} playable, {namedHere} named" );
+	}
+	catch ( Exception e ) { Console.WriteLine( $"    {shortBank}: unreadable ({e.Message})" ); }
+}
+int emittersTotal = 0, emittersResolved = 0;
+foreach ( var level in soundLevels )
+	if ( db.Find( "world_sounds", $"{level}/world_sounds" ) is { } worldSoundBytes )
+		foreach ( var emitter in ScriptData.Read( worldSoundBytes ).Table( "sound_emitters" )?.Children ?? [] )
+		{
+			emittersTotal++;
+			if ( emitter.Text( "emitter_event" ) is { } emitterEvent && eventBanks.ContainsKey( emitterEvent ) ) emittersResolved++;
+		}
+Console.WriteLine( $"PASS: {playableEvents} playable of {allEvents} sound events across {bankNames.Count} banks, {namedEvents} named; world_sounds emitters resolved {emittersResolved}/{emittersTotal}." );
 // Localization tables: waypoint text ids resolve through strings/system_text.
 var stringTables = StringTable.ReadAll( db );
 if ( stringTables.Count < 1000 || stringTables.GetValueOrDefault( IdString.Hash( "wp_bank_get_drill" ) ) is not { Length: > 0 } drillText )

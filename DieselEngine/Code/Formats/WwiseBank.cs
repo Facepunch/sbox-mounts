@@ -40,7 +40,8 @@ sealed partial class WwiseBank
 			}
 			p = checked(start + size);
 		}
-		if ( !version || payload == 0 || indexSize % 12 != 0 ) throw new InvalidDataException( "Unsupported Wwise bank." );
+		// Streaming-only banks (e.g. soundbanks/ambiences) have no DIDX/DATA: every source comes from bundle `stream` entries.
+		if ( !version || indexSize % 12 != 0 || (indexSize > 0 && payload == 0) ) throw new InvalidDataException( "Unsupported Wwise bank." );
 		for ( int i = 0; i < indexSize; i += 12 )
 		{
 			int offset = checked(payload + d.Int( index + i + 4 )), size = d.Int( index + i + 8 );
@@ -69,9 +70,23 @@ sealed partial class WwiseBank
 		return hash;
 	}
 	public bool HasEvent( string name ) => objects.TryGetValue( Hash( name ), out var entry ) && entry.Type == 4;
-	public uint[] Resolve( string name )
+	/// <summary>Every event object id (FNV-1 hash of its lower-case name) in the bank.</summary>
+	public IEnumerable<uint> EventIds => objects.Where( o => o.Value.Type == 4 ).Select( o => o.Key );
+	/// <summary>Number of HIRC objects per Wwise object type (2 sound, 4 event, 5 random/sequence container, …).</summary>
+	public IReadOnlyDictionary<byte, int> ObjectTypeCounts => objects.GroupBy( o => o.Value.Type ).ToDictionary( g => g.Key, g => g.Count() );
+	public uint[] Resolve( string name ) => Resolve( Hash( name ), name );
+
+	/// <summary>True if the event resolves to decodable media (without decoding it). Music segments, menus etc. may not.</summary>
+	public bool IsPlayable( uint eventId )
 	{
-		if ( !objects.TryGetValue( Hash( name ), out var entry ) || entry.Type != 4 ) throw new InvalidDataException( $"Missing Wwise event {name}." );
+		try { return Resolve( eventId, $"{eventId:x8}" ).Length > 0; }
+		catch ( InvalidDataException ) { return false; }
+		catch ( KeyNotFoundException ) { return false; }
+	}
+
+	public uint[] Resolve( uint eventId, string name )
+	{
+		if ( !objects.TryGetValue( eventId, out var entry ) || entry.Type != 4 ) throw new InvalidDataException( $"Missing Wwise event {name}." );
 		var d = new BinaryData( entry.Data );
 		int count = d.Int( 0 ); d.Check( 4, (long)count * 4 );
 		var result = new HashSet<uint>();

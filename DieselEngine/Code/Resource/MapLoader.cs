@@ -64,6 +64,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			}
 		}
 		AddBrushes( world, root, directory );
+		AddSounds( root, directory );
 		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
@@ -272,6 +273,41 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		}
 		placed += brushes;
 		Log.Info( $"PAYDAY {path}: placed {brushes} brush instances from {entries.Count} brush units." );
+	}
+
+	/// <summary>
+	/// <c>world_sounds</c>: positioned <c>sound_emitters</c> (<c>emitter_event</c>, position, rotation) loop in place;
+	/// <c>default_ambience</c> loops as a global bed and <c>default_occasional</c> repeats every 8–25 s (both skipped when
+	/// they're the authored silent variants). Events resolve through the mount's harvested sound names.
+	/// </summary>
+	void AddSounds( GameObject root, string directory )
+	{
+		if ( Host.Database.Find( "world_sounds", directory + "world_sounds" ) is not { } bytes ) return;
+		ScriptTable sounds;
+		try { sounds = ScriptData.Read( bytes ); }
+		catch ( InvalidDataException e ) { Log.Warning( $"PAYDAY {path} world_sounds: {e.Message}" ); return; }
+		var parent = new GameObject( true, "Ambience" ) { Parent = root };
+		int placed = 0, unresolved = 0;
+		void Global( string eventName, float min, float max )
+		{
+			if ( string.IsNullOrEmpty( eventName ) || eventName.Contains( "silen" ) ) return;
+			if ( Host.SoundPath( eventName ) is not { } soundPath ) { unresolved++; return; }
+			var ambient = new GameObject( true, eventName ) { Parent = parent }.AddComponent<PaydayAmbientSound>();
+			ambient.SoundPath = soundPath; ambient.Global = true; ambient.MinInterval = min; ambient.MaxInterval = max;
+			placed++;
+		}
+		Global( sounds.Text( "default_ambience" ), 0.05f, 0.05f );
+		Global( sounds.Text( "default_occasional" ), 8, 25 );
+		foreach ( var emitter in sounds.Table( "sound_emitters" )?.Children ?? [] )
+		{
+			string eventName = emitter.Text( "emitter_event" );
+			if ( Host.SoundPath( eventName ) is not { } soundPath ) { unresolved++; continue; }
+			var go = new GameObject( true, emitter.Text( "name" ) ?? eventName ) { Parent = parent };
+			ApplyTransform( go, emitter );
+			go.AddComponent<PaydayAmbientSound>().SoundPath = soundPath;
+			placed++;
+		}
+		Log.Info( $"PAYDAY {path}: {placed} ambience sounds placed, {unresolved} unresolved events." );
 	}
 
 	void AddSky( GameObject root, EnvironmentSettings environment )

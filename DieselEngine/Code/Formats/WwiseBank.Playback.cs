@@ -17,11 +17,13 @@ sealed partial class WwiseBank
 	}
 
 	/// <summary>Render finite event variants, preserving sample-accurate sequences and simultaneous play actions.</summary>
-	public IEnumerable<byte[]> Render( string name )
+	public IEnumerable<byte[]> Render( string name ) => Render( Hash( name ), name );
+
+	public IEnumerable<byte[]> Render( uint eventId, string name )
 	{
-		var mediaIds = Resolve( name );
+		var mediaIds = Resolve( eventId, name );
 		var decoded = mediaIds.ToDictionary( id => id, id => Pcm.Read( Decode( id ) ) );
-		var entry = new BinaryData( objects[Hash( name )].Data );
+		var entry = new BinaryData( objects[eventId].Data );
 		for ( int variant = 0; variant < Math.Min( 16, mediaIds.Length ); variant++ )
 		{
 			var active = new HashSet<uint>();

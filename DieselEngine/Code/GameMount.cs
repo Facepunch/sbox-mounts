@@ -82,9 +82,13 @@ public sealed class PaydayMount : BaseGameMount
 		var lookup = Database.Find( "idstring_lookup", "idstring_lookup" );
 		if ( lookup is null ) throw new InvalidDataException( "PAYDAY idstring lookup is missing." );
 		int maps = 0, textures = 0, models = 0, materials = 0;
+		ulong bankType = IdString.Hash( "bnk" );
+		var bankPaths = new List<string>();
+		var levelDirectories = new List<string>();
 		foreach ( var name in Encoding.Latin1.GetString( lookup ).Split( '\0' ).Distinct() )
 		{
 			ulong hash = IdString.Hash( name );
+			if ( Database.Entries.ContainsKey( (bankType, hash) ) ) bankPaths.Add( name );
 			if ( Database.Entries.ContainsKey( (materialType, hash) ) )
 			{
 				try
@@ -123,6 +127,7 @@ public sealed class PaydayMount : BaseGameMount
 			if ( name.StartsWith( "levels/", StringComparison.Ordinal ) && worlds.ContainsKey( hash ) )
 			{
 				context.Add( ResourceType.Scene, $"{name}.world", new MapLoader( name ) );
+				levelDirectories.Add( name[..name.LastIndexOf( '/' )] );
 				maps++;
 			}
 		}
@@ -149,6 +154,7 @@ public sealed class PaydayMount : BaseGameMount
 			context.Add( ResourceType.PrefabFile, definition.Root, weapon );
 		}
 		Log.Info( $"PAYDAY: indexed {Database.Entries.Count} resources, {maps} worlds, {textures} textures, {models} models and {materials} materials." );
+		RegisterSounds( context, bankPaths, levelDirectories );
 		foreach ( var definition in NpcDefinition.All )
 		{
 			context.Add( ResourceType.Model, definition.Model, new PaydayCharacterLoader( definition ) );
@@ -161,8 +167,46 @@ public sealed class PaydayMount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
+	/// <summary>Event name → short bank name, for every registered named event (map ambience looks sounds up here).</summary>
+	internal Dictionary<string, string> SoundEventBanks { get; } = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>Mounted path of a named soundbank event, or null if no bank has it.</summary>
+	internal string SoundPath( string eventName ) =>
+		!string.IsNullOrEmpty( eventName ) && SoundEventBanks.TryGetValue( eventName, out var bank )
+			? $"mount://payday/{PaydaySoundEventLoader.EventPath( bank, eventName.ToLowerInvariant() )}" : null;
+
+	/// <summary>
+	/// Every playable event of every soundbank as <c>sounds/&lt;bank&gt;/&lt;event&gt;.sound</c> (harvested name, else
+	/// <c>event_&lt;hash&gt;</c>). Streaming-only banks read media from bundle <c>stream</c> entries.
+	/// </summary>
+	void RegisterSounds( MountContext context, List<string> bankPaths, List<string> levelDirectories )
+	{
+		var started = DateTime.UtcNow;
+		var names = SoundNames.Collect( Database, levelDirectories );
+		int events = 0, named = 0, unreadable = 0;
+		foreach ( var bankPath in bankPaths.OrderBy( p => p, StringComparer.Ordinal ) )
+		{
+			string bankName = SoundNames.BankShortName( bankPath );
+			WwiseBank bank;
+			try { bank = new WwiseBank( Database.Find( "bnk", bankPath ), id => Database.Find( "stream", $"soundbanks/streamed/{bankName}/{id}" ) ); }
+			catch ( Exception ) { unreadable++; continue; }
+			foreach ( uint id in bank.EventIds.ToList() )
+			{
+				if ( !bank.IsPlayable( id ) ) continue;
+				string label = names.GetValueOrDefault( id );
+				if ( label is not null ) { named++; SoundEventBanks.TryAdd( label, bankName ); }
+				label ??= $"event_{id:x8}";
+				context.Add( ResourceType.GameResource, PaydaySoundEventLoader.EventPath( bankName, label ), new PaydaySoundEventLoader( bank, id, label ) );
+				events++;
+			}
+		}
+		Log.Info( $"PAYDAY: registered {events} sound events ({named} named) from {bankPaths.Count - unreadable} of {bankPaths.Count} banks "
+			+ $"in {(DateTime.UtcNow - started).TotalSeconds:0.0}s ({names.Count} candidate names)." );
+	}
+
 	protected override void Shutdown()
 	{
+		SoundEventBanks.Clear();
 		viewAssets.Clear();
 		WeaponAudio.Clear();
 		browserMaterials = null;
