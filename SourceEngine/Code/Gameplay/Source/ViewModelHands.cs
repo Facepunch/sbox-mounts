@@ -353,7 +353,11 @@ public sealed class ViewModelHands : Component
 	Clip Retarget( Clip source )
 	{
 		if ( _clips.Clips.TryGetValue( source, out var result ) ) return result;
-		var builder = new ClipBuilder { Skeleton = _clips.Skeleton, FrameRate = source.FrameCount == 1 ? 1 : source.FrameRate, IsAdditive = source.IsAdditive };
+		// Fitting the elbow and wrist between keys is nonlinear. Keep every authored key and sample
+		// the grip between them so fast swings stay attached when AG2 interpolates the fitted arm.
+		var subdivisions = source.FrameCount > 1 ? Math.Max( 1, (int)MathF.Ceiling( 60 / source.FrameRate ) ) : 1;
+		var frameCount = (source.FrameCount - 1) * subdivisions + 1;
+		var builder = new ClipBuilder { Skeleton = _clips.Skeleton, FrameRate = frameCount == 1 ? 1 : source.FrameRate * subdivisions, IsAdditive = source.IsAdditive };
 		var target = new Transform[_pose.Length];
 		var bones = source.Skeleton.Bones;
 		var indices = bones.Select( bone => _sourceModel.Bones.GetBone( bone.Name )?.Index ?? -1 ).ToArray();
@@ -367,9 +371,9 @@ public sealed class ViewModelHands : Component
 			RetargetPose();
 			reference = Enumerable.Range( 0, target.Length ).Select( ParentLocal ).ToArray();
 		}
-		for ( var frame = 0; frame < source.FrameCount; frame++ )
+		for ( var frame = 0; frame < frameCount; frame++ )
 		{
-			var cycle = frame / (float)Math.Max( 1, source.FrameCount - 1 );
+			var cycle = frame / (float)Math.Max( 1, frameCount - 1 );
 			foreach ( var bone in bones )
 			{
 				var local = source.GetLocalTransform( cycle, bone.Index );
