@@ -274,10 +274,11 @@ public sealed partial class RabbitGuard
 
 	void UpdateGrabFootStance( float dt, Vector3 velocity )
 	{
-		if ( !IsGrabClip( Stance ) || !HasGroundSupport ) return;
+		if ( !PlantGrabFeet || !HasGroundSupport ) return;
 		var pose = GrabPose( Stance );
-		bool HasTarget( int side ) => LimbPose.Sample( pose.Lower.Feet?[side], grabPhase ).Present
-			|| (pose.Weight > 0f && LimbPose.Sample( pose.Upper.Feet?[side], grabPhase ).Present);
+		float phase = IsGrabClip( Stance ) ? grabPhase : ReactionPhase;
+		bool HasTarget( int side ) => LimbPose.Sample( pose.Lower.Feet?[side], phase ).Present
+			|| (pose.Weight > 0f && LimbPose.Sample( pose.Upper.Feet?[side], phase ).Present);
 		var bones = Renderer.Model.Bones;
 		if ( TryGetAnimatedBone( bones.GetBone( boundAnimations.Legs[0][0].Bone ), out var left ) &&
 			TryGetAnimatedBone( bones.GetBone( boundAnimations.Legs[1][0].Bone ), out var right ) )

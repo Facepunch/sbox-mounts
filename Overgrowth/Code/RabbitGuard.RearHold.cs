@@ -13,7 +13,7 @@ public sealed partial class RabbitGuard
 	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold || Stance == CutFromHold && holdPartner.IsValid();
 	bool Held => Stance is RearHeld or ArmedGrabbed ? ReactionPhase >= 1f : Stance is RatHeldByRabbit or ArmedHeld or CutInHold;
 	internal static bool IsGrabClip( string pose ) => pose is RearHold or RearHoldRat or RearHeld or RatHeldByRabbit or ArmedGrab or ArmedGrabbed or ArmedHold or ArmedHeld;
-	bool PlantGrabFeet => (Holding || Held) && CaptureReactionEnded && IsGrabClip( Stance );
+	bool PlantGrabFeet => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
 	float grabPhase;
 	const float HoldStep = 2f / 120f;
 	int holdTick;
