@@ -295,9 +295,15 @@ public partial class ShotgunModel : BaseWeaponModel
 	void EjectCasing( Particle casing )
 	{
 		var marker = ejectionMarker;
-		casing.StartPosition = casing.Position = firstPersonEjection ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
+		bool firstPerson = firstPersonEjection;
+		if ( Weapon.IsValid() && !Weapon.IsHeld && Weapon.GetComponent<SkinnedModelRenderer>()?.GetAttachment( "primary_ejection" ) is {} looseMarker )
+		{
+			marker = looseMarker;
+			firstPerson = false;
+		}
+		casing.StartPosition = casing.Position = firstPerson ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
 		var direction = marker.Rotation.Forward;
-		if ( !firstPersonEjection )
+		if ( !firstPerson )
 		{
 			// The world emitter samples azimuth uniformly and polar angle from zero to ten degrees.
 			const double unit = 1f / 65535f;
