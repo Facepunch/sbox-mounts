@@ -300,7 +300,13 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
-		if ( ClingSlot != 0 ) e.AcceptedDamage = 0;
+		var tags = e.DamageInfo.Tags;
+		if ( ClingSlot != 0 || tags.HasAny( "splash", "structuresonly", "gas", "nervegas", "armoronly", "biological" ) )
+			e.AcceptedDamage = 0;
+		else if ( tags.Has( "clusterflame" ) && e.AcceptedDamage > 0 )
+			e.AcceptedDamage += 8f * 2.1f * 2.5f; // Cluster flame applies the full burn immediately.
+		else if ( tags.Has( "flame" ) )
+			e.AcceptedDamage *= 2.5f;
 		base.OnDamaging( e );
 	}
 
