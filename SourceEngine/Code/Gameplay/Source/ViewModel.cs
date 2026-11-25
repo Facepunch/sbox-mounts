@@ -71,7 +71,12 @@ public sealed class ViewModel : BaseWeaponModel
 	int _alternateShots;
 	string _pending;
 	BaseCombatWeapon _weapon;
-	string IdleClip => _clips.EmptyIdle is { } idle && _weapon is { UsesPrimaryClip: true, Clip1: 0 } ? idle : _clips.Idle;
+	string IdleClip => _weapon switch
+	{
+		Hl2.GravityWeapon gravity when gravity.HeldObject.IsValid() => _clips.Reload ?? _clips.Idle,
+		{ UsesPrimaryClip: true, Clip1: 0 } => _clips.EmptyIdle ?? _clips.Idle,
+		_ => _clips.Idle
+	};
 	string DrawClip => _clips.EmptyDraw is { } draw && _weapon is { UsesPrimaryClip: true, Clip1: 0 } ? draw : _clips.Draw;
 	bool _reloading;
 	bool _pumpAfterShot;
