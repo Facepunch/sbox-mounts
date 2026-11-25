@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Diesel;
 
-static class UnitModel
+static partial class UnitModel
 {
 	public sealed record Result( Model Model, bool HasGraphics, bool HasCollision )
 	{
@@ -13,6 +13,7 @@ static class UnitModel
 		public Vector3 DoorPivot { get; init; }
 		public float DoorOpenAngle { get; init; }
 		public float DoorSwingAngle { get; init; }
+		public List<DoorPart> DoorParts { get; init; }
 	}
 	public static XmlNode Xml( byte[] bytes )
 	{
@@ -49,6 +50,15 @@ static class UnitModel
 
 	public static Result BuildPlaced( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation )
 	{
+		if ( unit == "units/world/architecture/bank/bank_door_toilet/bank_door_toilet" && meshVariation is "list_man" or "list_woman" )
+		{
+			var trimFrame = BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false,
+				new HashSet<ulong> { IdString.Hash( "g_bank_door_toilet_wall" ) }, bankTrimFrame: true );
+			var trimLeaf = BuildCore( database, materials, unit, resourceName + ".leaf", materialVariation, meshVariation, false, bankTrimFrame: false );
+			return trimFrame with { DoorLeaf = trimLeaf.Model, DoorSwingAngle = -95 };
+		}
+		if ( ArticulatedDoorDefinition.Find( unit, meshVariation ) is { } articulated )
+			return BuildArticulatedDoor( database, materials, unit, resourceName, materialVariation, meshVariation, articulated );
 		if ( MapInteractionDefinition.IsApartmentDoor( unit, meshVariation ) )
 			return BuildApartmentDoor( database, materials, unit, resourceName, materialVariation, meshVariation );
 		if ( !MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
@@ -76,11 +86,13 @@ static class UnitModel
 		System.Numerics.Matrix4x4.Invert( file.NodePose( rest, orientation ), out var root );
 		var closed = ModelFile.Convert( file.NodePose( rest, hinge ) * root );
 		// Shipped editable states end at frame 79 (90 degrees) or 49 (fully open).
-		var pose = file.Pose( null, meshVariation.EndsWith( "_90" ) ? 79f / 30 : 49f / 30,
+		var pose = file.Pose( null, meshVariation.EndsWith( "_full" ) ? 49f / 30 : 79f / 30,
 			file.Controllers( new HashSet<ulong> { IdString.Hash( hinge ) } ) );
 		var opened = ModelFile.Convert( file.NodePose( pose, hinge ) * root );
 		float angle = (opened.Rotation * closed.Rotation.Inverse).Yaw();
-		return frame with { DoorLeaf = leaf.Model, DoorGlass = glass?.Model, DoorPivot = closed.Position, DoorOpenAngle = angle };
+		bool startsOpen = meshVariation.Contains( "_open_" );
+		return frame with { DoorLeaf = leaf.Model, DoorGlass = glass?.Model, DoorPivot = closed.Position,
+			DoorOpenAngle = startsOpen ? angle : 0, DoorSwingAngle = startsOpen ? 0 : angle };
 	}
 
 	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
@@ -88,8 +100,8 @@ static class UnitModel
 
 	static Result BuildApartmentDoor( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string variation )
 	{
-		string side = variation == "close_in" ? "in" : "out";
-		var parts = new HashSet<ulong> { IdString.Hash( "g_door" ), IdString.Hash( $"g_hinge_{side}" ), IdString.Hash( "c_door" ) };
+		string side = variation.EndsWith( "_in" ) ? "in" : "out";
+		var parts = new HashSet<ulong> { IdString.Hash( "g_door" ), IdString.Hash( "g_handle" ), IdString.Hash( $"g_hinge_{side}" ), IdString.Hash( "c_door" ) };
 		var result = BuildCore( database, materials, unit, resourceName, materialVariation, variation, false, parts );
 		string path = Xml( database.Find( "unit", unit ) ).Element( "object" ).Attribute( "file" );
 		string orientation = Xml( database.Find( "object", path ) ).Element( "diesel" ).Attribute( "orientation_object" );
@@ -104,10 +116,11 @@ static class UnitModel
 		System.Numerics.Matrix4x4.Invert( file.NodePose( rest, orientation ), out var root );
 		var closed = ModelFile.Convert( file.NodePose( rest, hinge ) * root );
 		var opened = ModelFile.Convert( file.NodePose( file.Pose( null, end, tracks ), hinge ) * root );
-		return result with { DoorPivot = closed.Position, DoorSwingAngle = (opened.Rotation * closed.Rotation.Inverse).Yaw() };
+		float angle = (opened.Rotation * closed.Rotation.Inverse).Yaw();
+		return result with { DoorPivot = closed.Position, DoorSwingAngle = angle, DoorOpenAngle = variation.StartsWith( "open_" ) ? angle : 0 };
 	}
 
-	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false )
+	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false, bool? bankTrimFrame = null )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -118,12 +131,34 @@ static class UnitModel
 		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
 		SequenceVisibility visibility = null;
-		if ( MapInteractionDefinition.IsApartmentDoor( unit, meshVariation ) )
+		if ( bankTrimFrame.HasValue )
+		{
+			visibility = new SequenceVisibility();
+			visibility.Objects["g_bank_door_toilet_wall"] = true;
+			visibility.Objects["g_bank_door_toilet"] = false;
+			visibility.Objects["g_bank_door_toilet_sign_01"] = meshVariation == "list_woman";
+			visibility.Objects["g_bank_door_toilet_sign_02"] = meshVariation == "list_man";
+		}
+		else if ( unit == "units/world/architecture/bank/bank_door_toilet/bank_door_toilet" && meshVariation is "man" or "woman" )
+		{
+			visibility = new SequenceVisibility();
+			visibility.Objects["g_bank_door_toilet"] = true;
+			visibility.Objects["g_bank_door_toilet_wall"] = false;
+			visibility.Objects["g_bank_door_toilet_sign_01"] = meshVariation == "woman";
+			visibility.Objects["g_bank_door_toilet_sign_02"] = meshVariation == "man";
+		}
+		else if ( unit == "units/world/architecture/slaughterhouse/slaughterhouse_int_fence_door" && meshVariation is "" or "default" or "show" )
+		{
+			visibility = new SequenceVisibility();
+			visibility.Objects["g_frame"] = true;
+			visibility.Objects["g_fence"] = true;
+		}
+		else if ( MapInteractionDefinition.IsApartmentDoor( unit, meshVariation ) )
 		{
 			visibility = new SequenceVisibility();
 			visibility.Objects["g_door"] = true;
-			visibility.Objects["g_hinge_in"] = meshVariation == "close_in";
-			visibility.Objects["g_hinge_out"] = meshVariation == "close_out";
+			visibility.Objects["g_hinge_in"] = meshVariation.EndsWith( "_in" );
+			visibility.Objects["g_hinge_out"] = meshVariation.EndsWith( "_out" );
 		}
 		else if ( MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
 		{
@@ -170,6 +205,14 @@ static class UnitModel
 		string defaultConfig = materialConfig;
 		materialConfig = materials.SelectConfig( materialConfig, materialVariation );
 		var file = new ModelFile( modelBytes );
+		HashSet<string> doorTriangles = null;
+		if ( bankTrimFrame.HasValue )
+		{
+			doorTriangles = [];
+			foreach ( var part in file.ReadGeometry( new HashSet<ulong> { IdString.Hash( "g_bank_door_toilet" ) }, IdString.Hash( orientation ) ) )
+				for ( int i = 0; i < part.Indices.Length; i += 3 )
+					doorTriangles.Add( TriangleKey( part.Positions, part.Indices, i ) );
+		}
 		var batches = new Dictionary<Material, List<Vertex>>();
 		var collisionVertices = new List<Vector3>();
 		var collisionIndices = new List<int>();
@@ -186,7 +229,7 @@ static class UnitModel
 				// Triangle meshes are static-only in the target physics engine. Browser props
 				// and articulated door parts get one hull per authored collision mesh;
 				// fixed map geometry keeps exact triangles.
-				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview || (parts is not null && !excludeParts) )
+				if ( geometry.CollisionTypes.GetValueOrDefault( part.Name ) == "convex" || movablePreview || bankTrimFrame == false || (parts is not null && !excludeParts) )
 					collisionHulls.Add( part.Positions );
 				else
 				{
@@ -204,6 +247,8 @@ static class UnitModel
 				if ( !batches.TryGetValue( material, out var vertices ) ) batches[material] = vertices = [];
 				for ( int i = draw.Start; i < draw.Start + draw.Count; i += 3 )
 				{
+					if ( bankTrimFrame.HasValue && part.Name == IdString.Hash( "g_bank_door_toilet_wall" )
+						&& doorTriangles.Contains( TriangleKey( part.Positions, part.Indices, i ) ) == bankTrimFrame.Value ) continue;
 					int ia = part.Indices[i], ib = part.Indices[i + 1], ic = part.Indices[i + 2];
 					var a = part.Positions[ia];
 					var b = part.Positions[ib];
@@ -244,6 +289,7 @@ static class UnitModel
 		}
 		foreach ( var (material, vertices) in batches )
 		{
+			if ( vertices.Count == 0 ) continue;
 			var mesh = new Mesh( material );
 			mesh.CreateVertexBuffer( vertices.Count, vertices );
 			mesh.CreateIndexBuffer( vertices.Count, Enumerable.Range( 0, vertices.Count ).ToArray() );
@@ -266,4 +312,8 @@ static class UnitModel
 		}
 		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 ) { CameraLens = lens };
 	}
+
+	static string TriangleKey( Vector3[] positions, int[] indices, int start ) =>
+		string.Join( "|", Enumerable.Range( start, 3 ).Select( i => positions[indices[i]] )
+			.Select( p => $"{(int)MathF.Round(p.x * 100)},{(int)MathF.Round(p.y * 100)},{(int)MathF.Round(p.z * 100)}" ).OrderBy( p => p, StringComparer.Ordinal ) );
 }

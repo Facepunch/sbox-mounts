@@ -86,10 +86,39 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					models[key] = model;
 				}
 				if ( model is null ) { missing++; continue; }
-				if ( model.Model is null ) continue;
+				if ( model.Model is null && model.DoorParts is null ) continue;
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
+				if ( model.DoorParts is { } parts )
+				{
+					go.IsStatic = false;
+					var doors = new List<PaydayDoor>();
+					if ( model.Model is not null )
+					{
+						go.AddComponent<ModelRenderer>().Model = model.Model;
+						go.AddComponent<ModelCollider>().Model = model.Model;
+					}
+					foreach ( var part in parts )
+					{
+						var holder = new GameObject( true, "Door panel" ) { Parent = go };
+						var door = holder.AddComponent<PaydayDoor>();
+						door.AuthoredMotion = true; door.TargetPose = part.Target; door.ClosedPose = part.Closed; door.Pivot = part.Pivot;
+						door.StartsOpen = part.StartsOpen; door.InitialAmount = part.Initial;
+						door.OpenBothWays = false; door.TravelTime = 1.2f;
+						door.Leaf = new GameObject( true, "Door leaf" ) { Parent = holder };
+						door.Leaf.Tags.Add( PaydayDoor.NavigationTag );
+						door.Leaf.AddComponent<ModelRenderer>().Model = part.Model;
+						door.Leaf.AddComponent<ModelCollider>().Model = part.Model;
+						door.Leaf.LocalTransform = part.StartsOpen ? part.Target : part.Closed;
+						doors.Add( door );
+					}
+					for ( int i = 0; i < doors.Count; i++ )
+						doors[i].LinkedDoors = doors.Where( (d, j) => i != j && parts[i].Group == parts[j].Group ).ToList();
+					go.Scene.NavMesh.ExcludedBodies.Add( PaydayDoor.NavigationTag );
+					placed++;
+					continue;
+				}
 				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) || model.DoorLeaf is not null || model.DoorSwingAngle != 0 )
 				{
 					go.IsStatic = false;
@@ -104,7 +133,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					{
 						var frame = new GameObject( true, "Door frame" ) { Parent = go, IsStatic = true };
 						frame.AddComponent<ModelRenderer>().Model = model.Model;
-						frame.AddComponent<ModelCollider>().Model = model.Model;
+						if ( model.HasCollision ) frame.AddComponent<ModelCollider>().Model = model.Model;
 					}
 					door.Leaf = new GameObject( true, "Door leaf" ) { Parent = go };
 					door.Leaf.Tags.Add( PaydayDoor.NavigationTag );
@@ -120,7 +149,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 						pane.Collider = glass.AddComponent<ModelCollider>();
 						pane.Collider.Model = model.DoorGlass;
 					}
-					if ( model.DoorLeaf is not null )
+					if ( door.InitialOpenAngle != 0 )
 						door.Leaf.LocalTransform = new Transform( Vector3.Zero )
 							.RotateAround( door.Pivot, Rotation.FromYaw( door.InitialOpenAngle ) );
 					go.Scene.NavMesh.ExcludedBodies.Add( PaydayDoor.NavigationTag );

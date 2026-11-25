@@ -2,7 +2,7 @@ using Sandbox.Npcs;
 
 namespace Diesel;
 
-/// <summary>Single-leaf imported door. The parent stays at the authored hinge.</summary>
+/// <summary>Imported moving door panel with optional linked panels and authored motion.</summary>
 [Title( "PAYDAY Swing Door" ), Group( "PAYDAY" )]
 public sealed class PaydayDoor : Component, Component.IPressable
 {
@@ -12,6 +12,12 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Property] public float InitialOpenAngle { get; set; }
 	[Property] public float FixedOpenAngle { get; set; }
 	[Property] public bool OpenBothWays { get; set; } = true;
+	[Property] public bool AuthoredMotion { get; set; }
+	[Property] public Transform TargetPose { get; set; } = global::Transform.Zero;
+	[Property] public Transform ClosedPose { get; set; } = global::Transform.Zero;
+	[Property] public bool StartsOpen { get; set; }
+	[Property] public float InitialAmount { get; set; } = 1;
+	[Property] public List<PaydayDoor> LinkedDoors { get; set; } = [];
 	[Property] public string OpenSoundPath { get; set; }
 	[Property, Range( 0, 180 )] public float OpenAngle { get; set; } = 95;
 	[Property] public float TravelTime { get; set; } = .45f;
@@ -47,6 +53,12 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			}
 		}
 		previousAmount = Amount;
+		if ( AuthoredMotion && StartsOpen && Networking.IsHost )
+		{
+			Open = true; Amount = InitialAmount;
+			if ( Leaf.IsValid() ) Leaf.LocalTransform = Pose( Amount );
+			previousAmount = Amount;
+		}
 		openingSoundPlayed = MathF.Abs( InitialOpenAngle ) > .01f;
 		if ( !string.IsNullOrEmpty( OpenSoundPath ) ) _ = LoadOpenSound();
 	}
@@ -81,10 +93,11 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			float next = Amount < target ? Math.Min( target, Amount + step ) : Math.Max( target, Amount - step );
 			Blocked = false;
 			int samples = Math.Max( 1, (int)MathF.Ceiling( MathF.Abs( next - Amount ) * OpenAngle / 5 ) );
+			if ( AuthoredMotion ) samples = Math.Max( samples, (int)MathF.Ceiling( MathF.Abs( next - Amount ) * TargetPose.Position.Length / 5 ) );
 			for ( int i = 1; i <= samples && next != Amount; i++ )
 				if ( Occupied( Amount + (next - Amount) * i / samples ) ) { Blocked = true; break; }
 			if ( !Blocked ) Amount = next;
-			else if ( !Open ) Open = true;
+			else if ( !Open ) SetOpen( true );
 		}
 		Leaf.LocalTransform = Pose( Amount );
 		// Observe actual movement on each peer: no spawn sound, no repeated sound while
@@ -107,7 +120,19 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		base.OnDisabled();
 	}
 
-	Transform Pose( float amount ) => new Transform( Vector3.Zero ).RotateAround( Pivot, Rotation.FromYaw( amount * OpenAngle * Direction ) );
+	Transform Pose( float amount )
+	{
+		if ( !AuthoredMotion ) return new Transform( Vector3.Zero ).RotateAround( Pivot, Rotation.FromYaw( amount * OpenAngle * Direction ) );
+		var pose = new Transform( Vector3.Zero ).RotateAround( Pivot, Rotation.Slerp( ClosedPose.Rotation, TargetPose.Rotation, amount ) );
+		pose.Position += Vector3.Lerp( ClosedPose.PointToWorld( Pivot ) - Pivot, TargetPose.PointToWorld( Pivot ) - Pivot, amount );
+		return pose;
+	}
+
+	void SetOpen( bool value )
+	{
+		Open = value;
+		foreach ( var door in LinkedDoors ) if ( door.IsValid() ) door.Open = value;
+	}
 
 	bool Occupied( float amount )
 	{
@@ -133,7 +158,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			var openingMotion = Vector3.Cross( Vector3.Up, center - Pivot );
 			Direction = Vector3.Dot( position - center, openingMotion ) > 0 ? -1 : 1;
 		}
-		Open = true;
+		SetOpen( true );
 	}
 
 	[Rpc.Host]
@@ -146,7 +171,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		if ( player.EyePosition.Distance( center ) > 150 ) return;
 		var trace = Scene.Trace.Ray( player.EyePosition, center ).IgnoreGameObjectHierarchy( player.GameObject ).WithoutTags( "trigger" ).Run();
 		if ( trace.Hit && !PaydayInteraction.BelongsTo( trace.GameObject, GameObject ) ) return;
-		if ( Open ) Open = false;
+		if ( Open ) SetOpen( false );
 		else OpenAway( player.GameObject );
 	}
 

@@ -18,7 +18,8 @@ foreach ( var (level, expected, expectedCameras) in new[] { ("bank", 16, 21), ("
 		int exits = components.Count( c => c.GetType().Name == "PaydayEscapePoint" );
 		var cameras = components.Where( c => c.GetType().Name == "PaydaySecurityCamera" ).ToArray();
 		var doors = components.Where( c => c.GetType().Name == "PaydayDoor" ).ToArray();
-		if ( doors.Length != (level == "bank" ? 13 : 15) ) throw new Exception( $"{level}: doors={doors.Length}" );
+		int expectedDoors = level switch { "bank" => 44, "suburbia" => 21, "l4d" => 35, "diamondheist" => 58, _ => 0 };
+		if ( doors.Length != expectedDoors ) throw new Exception( $"{level}: doors={doors.Length}" );
 		if ( components.Count( c => c.GetType().Name == "PaydayDoorGlass" ) != (level == "suburbia" ? 4 : 0) )
 			throw new Exception( $"{level}: unexpected moving pane count." );
 		if ( doors.Length > 0 && !scene.NavMesh.ExcludedBodies.Has( "payday_door" ) ) throw new Exception( "Door navigation exclusion was lost." );
@@ -28,7 +29,8 @@ foreach ( var (level, expected, expectedCameras) in new[] { ("bank", 16, 21), ("
 			if ( !leaf.IsValid() || leaf.GetComponent<ModelCollider>() is null || door.GameObject.IsStatic )
 				throw new Exception( "Door leaf/collider did not survive serialization." );
 			var sound = (string)door.GetType().GetProperty( "OpenSoundPath" ).GetValue( door );
-			if ( (level == "l4d") != !string.IsNullOrEmpty( sound ) ) throw new Exception( "Incorrect door audio assignment." );
+			bool hospitalSwing = level == "l4d" && !(bool)door.GetType().GetProperty( "AuthoredMotion" ).GetValue( door );
+			if ( hospitalSwing != !string.IsNullOrEmpty( sound ) ) throw new Exception( "Incorrect door audio assignment." );
 		}
 		if ( cameras.Length != expectedCameras ) throw new Exception( $"{level}: cameras={cameras.Length}" );
 		foreach ( var camera in cameras )
