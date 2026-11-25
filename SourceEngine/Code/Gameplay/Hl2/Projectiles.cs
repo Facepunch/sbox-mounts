@@ -306,17 +306,19 @@ public sealed class Bugbait : Projectile
 	{
 		var mark = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity.Normal * 64 )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
-		Splat( tr.HitPosition, MountName, mark.GameObject, mark.HitPosition, mark.Normal );
+		Splat( WorldPosition, -Velocity.Normal, MountName, mark.GameObject, mark.HitPosition, mark.Normal );
 		if ( !BugbaitSensor.Activate( Scene, WorldPosition, Attacker, squeezed: false ) )
 			CreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void Splat( Vector3 position, string mount, GameObject target, Vector3 markPosition, Vector3 normal )
+	static void Splat( Vector3 position, Vector3 direction, string mount, GameObject target, Vector3 markPosition, Vector3 normal )
 	{
 		if ( Sounds.Sound( "GrenadeBugBait.Splat", mount ) is { } sound ) Sound.Play( sound, position );
-		if ( !target.IsValid() || Application.IsDedicatedServer ) return;
+		if ( Application.IsDedicatedServer ) return;
+		SporeCloud.Create( position, direction, mount );
+		if ( !target.IsValid() ) return;
 		var decal = GameObject.GetPrefab( $"mount://{mount}/decals/{mount}_beersplash.prefab" );
 		WeaponEffects.PlaceDecal( decal, target, markPosition, normal );
 	}
