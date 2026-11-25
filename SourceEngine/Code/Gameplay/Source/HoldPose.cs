@@ -223,7 +223,7 @@ public sealed class HoldPose
 		if ( RightHand < 0 || LeftHand < 0 || rightShoulder < 0 || leftShoulder < 0 || elbow < 0 )
 			return;
 
-		EvaluateBase( 0, float.MaxValue, 0, 0 );
+		EvaluateBase( null, false, 0, 0, 0 );
 		Shoulders = (_pose[rightShoulder].Position + _pose[leftShoulder].Position) * 0.5f;
 		ArmLength = _bones[rightShoulder].Transform.Position.Distance( _bones[elbow].Transform.Position )
 			+ _bones[elbow].Transform.Position.Distance( _bones[RightHand].Transform.Position );
@@ -238,7 +238,7 @@ public sealed class HoldPose
 		LeftPalm = Palm( _bones[LeftHand].Transform, left[..Knuckles] );
 
 		var knuckles = Enumerable.Range( 1, Knuckles ).Select( finger => Track( $"ValveBiped.Bip01_R_Finger{finger}" ) ).ToArray();
-		EvaluateBase( 0, float.MaxValue, 0, 0 );
+		EvaluateBase( null, false, 0, 0, 0 );
 		var fist = knuckles.Aggregate( Vector3.Zero, ( sum, bone ) => sum + _pose[bone].Position ) / Knuckles;
 		Grip = _pose[RightHand].ToLocal( new Transform( fist ) );
 
@@ -293,7 +293,11 @@ public sealed class HoldPose
 	/// </summary>
 	public void Evaluate( int shot, float shotTime, float reloadCycle, float reloadWeight )
 	{
-		EvaluateBase( shot, shotTime, reloadCycle, reloadWeight );
+		var (shotClip, delta) = _shots.Length > 0 && shotTime < ShotDuration( shot ) ? _shots[shot % _shots.Length] : default;
+		var shotCycle = shotClip is null ? 0 : shotTime / shotClip.Duration;
+		// An additive firing gesture overlays the already animated idle.
+		var overlay = delta && _layerBase is not null ? shotClip : null;
+		EvaluateBase( overlay is null ? shotClip : null, delta, shotCycle, reloadCycle, reloadWeight );
 		if ( _layerBase is null ) return;
 
 		// Transfer the animated source pose to the holder's existing hand IK targets.
@@ -309,22 +313,21 @@ public sealed class HoldPose
 			var local = _layerBase[i];
 			for ( var j = 0; j < cycles.Length; j++ )
 				local = Add( local, _realTimeLayers[j].GetLocalTransform( cycles[j], i ) );
+			if ( overlay is not null ) local = Add( local, overlay.GetLocalTransform( shotCycle, i ) );
 			var parent = _bones[i].ParentIndex;
 			_pose[i] = parent < 0 ? local : _pose[parent].ToWorld( local );
 		}
 	}
 
-	void EvaluateBase( int shot, float shotTime, float reloadCycle, float reloadWeight )
+	void EvaluateBase( Clip shotClip, bool delta, float shotCycle, float reloadCycle, float reloadWeight )
 	{
-		var shooting = _shots.Length > 0 && shotTime < ShotDuration( shot );
+		var shooting = shotClip is not null;
 		var reloading = _reload is not null && reloadWeight > 0;
 		if ( !shooting && !reloading && _resting )
 			return;
 
 		_resting = !shooting && !reloading;
-		var (shotClip, delta) = shooting ? _shots[shot % _shots.Length] : default;
-		var shotCycle = shooting ? shotTime / shotClip.Duration : 0;
-		var shotWeight = shooting ? MathF.Min( 1, (shotClip.Duration - shotTime) / BlendTime ) : 0;
+		var shotWeight = shooting ? MathF.Min( 1, (1 - shotCycle) * shotClip.Duration / BlendTime ) : 0;
 		reloadCycle = Math.Clamp( reloadCycle, 0, 1 );
 
 		foreach ( var i in _order )
