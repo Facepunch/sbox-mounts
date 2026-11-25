@@ -34,7 +34,7 @@ public sealed partial class RabbitGuard
 			var right = normal.Cross( direction ).WithZ( 0f ).Normal;
 			velocity = right.Cross( normal ).Normal * GroundRunSpeed + normal * launchSpeed;
 		}
-		velocity.z = Math.Min( velocity.z, launchSpeed ) * (boundAnimations.Species == "rabbit" ? 1f : 0.6f);
+		velocity.z = Math.Min( velocity.z, launchSpeed );
 		return true;
 	}
 
@@ -43,7 +43,7 @@ public sealed partial class RabbitGuard
 		approachingLedge = true;
 		climbDirection = launch.WithZ( 0f ).Normal;
 		sinceClimbLaunch = 0f;
-		jumpFuel = JumpSustain * 40f * (boundAnimations.Species == "rabbit" ? 1f : 0.2f);
+		jumpFuel = JumpSustain * 40f * (boundAnimations.CharacterSpecies == "rabbit" ? 1f : 0.2f);
 	}
 
 	bool GetLedgeHeight( Vector3 center, Vector3 wall, out float height, out Surface surface )

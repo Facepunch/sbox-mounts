@@ -105,8 +105,7 @@ public sealed class CharacterNavigation : NavigationLayer
 					takeoff = fighter.PrepareJump();
 				}
 				if ( takeoff > 0f ) return;
-				if ( climb ) fighter.StartLedgeApproach( preparedVelocity.Value );
-				Npc.Launch( preparedVelocity.Value );
+				fighter.StartJump( preparedVelocity.Value, climb );
 				predictedClimb = null;
 				followingJump = true;
 			}

@@ -30,6 +30,19 @@ public sealed partial class RabbitGuard
 		return boundAnimations?.Species is "wolf" or "dog" ? 0.1f : 0.04f;
 	}
 
+	internal void StartJump( Vector3 velocity, bool climb )
+	{
+		if ( boundAnimations.CharacterSpecies != "rabbit" ) velocity.z *= 0.6f;
+		if ( climb ) StartLedgeApproach( velocity );
+		IncreaseBreathing( 2f );
+		LeftFootJump = nextJumpUsesLeft;
+		nextJumpUsesLeft = !nextJumpUsesLeft;
+		if ( WaterDepthAt( WorldPosition ) < 0.25f )
+			PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
+		ReportBodySound( HeardSound.Footstep, 2f );
+		Launch( velocity );
+	}
+
 	void UpdateJumpArms()
 	{
 		var duration = boundAnimations.Clips[JumpArms].Duration;
@@ -151,14 +164,6 @@ public sealed partial class RabbitGuard
 				jumpLaunch = jumping ? 1f : 0f;
 				if ( playing != Wall ) keepJumpFacing = jumping && velocity.WithZ( 0f ).Length <= 0.4f;
 				airPhase = 0;
-				if ( Networking.IsHost && jumping )
-				{
-					IncreaseBreathing( 2f );
-					LeftFootJump = nextJumpUsesLeft;
-					nextJumpUsesLeft = !nextJumpUsesLeft;
-					ReportBodySound( HeardSound.Footstep, 2f );
-					PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
-				}
 			}
 			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
 				TurnInAir( velocity, Time.Delta );
