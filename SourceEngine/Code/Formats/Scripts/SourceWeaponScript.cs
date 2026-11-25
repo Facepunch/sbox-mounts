@@ -32,9 +32,11 @@ internal static class SourceWeaponScript
 
 		var p = new VmtParameters( root.Values, path );
 		var weaponClass = Path.GetFileNameWithoutExtension( path );
-		var primaryAmmo = p.String( "primary_ammo" );
-		var secondaryAmmo = p.String( "secondary_ammo" );
+		var primaryAmmo = AmmoName( p.String( "primary_ammo" ) );
+		var secondaryAmmo = AmmoName( p.String( "secondary_ammo" ) );
 		var damage = p.Contains( "Damage" ) ? p.Float( "Damage" ) : (float?)null;
+		var clip = p.Integer( "clip_size", -1 );
+		var clip2 = p.Integer( "clip2_size", -1 );
 		var data = new SourceModelWeaponData
 		{
 			ClassName = weaponClass,
@@ -50,8 +52,10 @@ internal static class SourceWeaponScript
 			SecondaryNpcDamage = skill.WeaponDamage( secondaryAmmo, null, npc: true ),
 			BlastRadius = skill.WeaponRadius( primaryAmmo, weaponClass ),
 			SecondaryBlastRadius = skill.WeaponRadius( secondaryAmmo, null ),
-			ClipSize = p.Integer( "clip_size", -1 ),
-			SecondaryClipSize = p.Integer( "clip2_size", -1 ),
+			ClipSize = clip,
+			DefaultClip = p.Integer( "default_clip", clip ),
+			SecondaryClipSize = clip2,
+			SecondaryDefaultClip = p.Integer( "default_clip2", clip2 ),
 			Bucket = p.Integer( "bucket", 0 ),
 			BucketPosition = p.Integer( "bucket_position", -1 ) is var position && position >= 0 ? position : null,
 			Weight = p.Integer( "weight", -1 ) is var weight && weight >= 0 ? weight : null,
@@ -74,6 +78,8 @@ internal static class SourceWeaponScript
 		}
 		return data;
 	}
+
+	private static string AmmoName( string name ) => name is "" or "None" ? null : name;
 
 	private static string ModelPath( VmtParameters p, string key ) =>
 		p.String( key ) is { } value && !string.IsNullOrWhiteSpace( value ) ? ScriptManifest.ContentPath( value ) : null;

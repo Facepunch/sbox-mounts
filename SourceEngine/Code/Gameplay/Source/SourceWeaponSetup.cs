@@ -287,7 +287,7 @@ static class SourceWeaponSetup
 		// NPC-only weapons can share a player's viewmodel (Annabelle is one).
 		// Preserve every script in the mount and resolve by the actual world model.
 		return definitions.FirstOrDefault( x => x.WorldModel == worldModel )
-			?? definitions.FirstOrDefault( x => x.ViewModel?.EndsWith( "/v_" + x.ClassName["weapon_".Length..] + ".mdl", StringComparison.OrdinalIgnoreCase ) == true )
+			?? definitions.FirstOrDefault( x => x.ClassName.StartsWith( "weapon_", StringComparison.OrdinalIgnoreCase ) && x.ViewModel?.EndsWith( "/v_" + x.ClassName["weapon_".Length..] + ".mdl", StringComparison.OrdinalIgnoreCase ) == true )
 			?? definitions.FirstOrDefault();
 	}
 }

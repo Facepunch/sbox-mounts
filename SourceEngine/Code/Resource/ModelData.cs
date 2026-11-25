@@ -20,6 +20,8 @@ public sealed class SourceModelWeaponData
 	/// <summary>Mounted HUD icon texture, white on transparent, when the script's TextureData weapon entry resolves.</summary>
 	public string Icon { get; set; }
 	public int ClipSize { get; set; } = -1;
+	public int? DefaultClip { get; set; }
+	public int? SecondaryDefaultClip { get; set; }
 	public int SecondaryClipSize { get; set; } = -1;
 	public int Bucket { get; set; }
 	/// <summary>Position within the source inventory bucket, when authored.</summary>

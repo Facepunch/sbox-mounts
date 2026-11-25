@@ -78,12 +78,18 @@ public abstract partial class SourceGameMount
 	/// <summary>How much of an ammo type a player carries, for a game that keeps it in code instead of <c>cfg/skill.cfg</c>'s sk_max_ values.</summary>
 	private protected virtual int? AmmoCarryLimit( string ammo ) => null;
 
+	protected virtual string WeaponScriptPrefix => "scripts/weapon_";
+
 	// Source reads a plain .txt script in preference to its encrypted .ctx counterpart.
-	private IEnumerable<KeyValuePair<string, SourceFile>> WeaponScriptFiles( FileIndex files ) => files.Files
-		.Where( x => x.Key.StartsWith( "scripts/weapon_", StringComparison.OrdinalIgnoreCase )
+	private IEnumerable<KeyValuePair<string, SourceFile>> WeaponScriptFiles( FileIndex files )
+	{
+		var prefix = WeaponScriptPrefix;
+		return files.Files.Where( x => x.Key.StartsWith( prefix, StringComparison.OrdinalIgnoreCase )
+			&& x.Key.IndexOf( '/', prefix.Length ) < 0
 			&& (x.Key.EndsWith( ".txt", StringComparison.OrdinalIgnoreCase )
 				|| (WeaponScriptKey is not null && x.Key.EndsWith( ".ctx", StringComparison.OrdinalIgnoreCase ) && !files.Files.ContainsKey( Path.ChangeExtension( x.Key, ".txt" ) ))) )
-		.OrderBy( x => x.Key );
+			.OrderBy( x => x.Key );
+	}
 
 	internal SourceModelWeaponData[] GetWeaponData( string model )
 	{
