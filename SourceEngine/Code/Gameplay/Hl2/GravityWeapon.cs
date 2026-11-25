@@ -27,7 +27,6 @@ public sealed class GravityWeapon : Weapon
 	const float MaxMass = 250;
 	const float MinLaunchSpeed = 700;
 	const float MaxLaunchSpeed = 1500;
-	const float SourceGravity = 600;
 	[Sync( SyncFlags.FromHost )] public GameObject HeldObject { get; private set; }
 	[Sync] public bool Pulling { get; set; }
 	readonly PhysicsHold _hold = new();
@@ -83,9 +82,6 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
-	// Approximation: sandbox gravity is stronger than HL2's sv_gravity, so launches are scaled to carry as far.
-	float LaunchScale => MathF.Sqrt( Scene.PhysicsWorld.Gravity.Length / SourceGravity );
-
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void Punt()
 	{
@@ -97,7 +93,9 @@ public sealed class GravityWeapon : Weapon
 			if ( !held.IsValid() ) return;
 			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
 			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
-			held.Velocity += forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) ) * LaunchScale;
+			held.Velocity = forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) );
+			var spin = new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
+			held.AngularVelocity = held.WorldRotation * spin * (MathF.PI / 180);
 			PuntEffects( PuntResult.LaunchHeld );
 			return;
 		}
