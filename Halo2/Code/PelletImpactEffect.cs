@@ -7,13 +7,16 @@ namespace Halo2;
 public sealed partial class PelletImpactEffect : Component
 {
 	public sealed record ImpactDecal( string Tag, string Name, string TexturePath, Vector2 Modifier, Vector2 Radius,
-		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint );
+		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint )
+	{
+		DecalDefinition definition;
+		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1 };
+	}
 
-	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, bool HasMark, bool HasParticles, ImpactEmitter[] Emitters );
-	public sealed record ContactVisuals( ContactEvent[] Events, ImpactDecal Decal );
+	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters );
+	public sealed record ContactVisuals( ContactEvent[] Events );
 
 	[Property] public ContactVisuals Visuals { get; set; }
-	DecalDefinition definition;
 	static uint eventSeed = (uint)System.Random.Shared.Next();
 	static uint decalSeed = (uint)System.Random.Shared.Next();
 
@@ -51,7 +54,7 @@ public sealed partial class PelletImpactEffect : Component
 
 			using var scope = parent.Scene.Push();
 			var transform = parent.WorldTransform.ToWorld( local );
-			if ( entry.HasMark ) PlaceMark( visuals.Decal, parent, transform.Position, -transform.Rotation.Forward );
+			foreach ( var mark in entry.Marks ) PlaceMark( mark, parent, transform.Position, -transform.Rotation.Forward );
 			if ( entry.Emitters is {} emitters )
 				EmitImpactParticles( emitters, parent, transform, incoming );
 			else if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
@@ -95,7 +98,7 @@ public sealed partial class PelletImpactEffect : Component
 		var transform = new Transform( point, Rotation.LookAt( -normal, up ) );
 
 		// The original high-word selection multiplies by the last sequence index.
-		definition ??= new DecalDefinition { ColorTexture = Texture.Load( data.TexturePath ), Width = 1, Height = 1 };
+		var definition = data.Material;
 		bool sheet = definition.ColorTexture.SequenceCount > 0;
 		int sequence = sheet ? ((int)BlamRandom.Next( ref decalSeed ) * (data.Sizes.Length - 1)) >> 16 : 0;
 		float radius = Sample( data.Radius ) * (modifier == 0 ? 1 : modifier);

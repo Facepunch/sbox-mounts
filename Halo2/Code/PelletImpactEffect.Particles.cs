@@ -29,6 +29,7 @@ public sealed partial class PelletImpactEffect
 		public Vector2 RadiusBounds { get; set; }
 		public Vector2 AngleBounds { get; set; }
 		public int AlphaInput { get; set; }
+		public bool LitSmoke { get; set; }
 		public bool CollidesWithWater { get; set; }
 		public bool DiesInWater { get; set; }
 		public bool DiesOnStructure { get; set; }
@@ -71,11 +72,12 @@ public sealed partial class PelletImpactEffect
 		}
 		for ( int i = 0; i < emitters.Length; i++ )
 		{
+			if ( emitters[i] is not {} emitter ) continue;
 			var random = systemRandom[i];
 			// Particle random inputs are zero until a particle has been allocated.
-			float input = emitters[i].CountInput switch { 5 => random.x, 6 => random.y, _ => 0 };
-			int births = (int)(Sample( emitters[i].Count, input ) + 0.0001f);
-			EmitImpactLayer( emitters[i], births, parent, contact, incoming, random );
+			float input = emitter.CountInput switch { 5 => random.x, 6 => random.y, _ => 0 };
+			int births = (int)(Sample( emitter.Count, input ) + 0.0001f);
+			EmitImpactLayer( emitter, births, parent, contact, incoming, random );
 		}
 	}
 
@@ -141,7 +143,7 @@ public sealed partial class PelletImpactEffect
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
-		renderer.Lighting = smoke || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
+		renderer.Lighting = data.LitSmoke || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
 		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		if ( sparks ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;

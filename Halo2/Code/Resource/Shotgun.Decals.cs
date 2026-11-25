@@ -40,18 +40,25 @@ internal sealed partial class ShotgunLoader
 		int eventCount = map.ReadInt32( events );
 		if ( eventCount == 0 ) return default;
 		int row = Block( events );
-		int part = 0;
 		var timeline = new ContactEvent[eventCount];
 		for ( int i = 0; i < eventCount; i++, row += 56 )
 		{
 			int parts = map.ReadInt32( row + 24 );
+			var marks = new List<ImpactDecal>();
+			if ( parts > 0 )
+			{
+				int part = Block( row + 24 );
+				for ( int j = 0; j < parts; j++, part += 56 )
+					if ( ReadContactMark( part ) is {} mark ) marks.Add( mark );
+			}
 			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
-				new Vector2( Float( row + 16 ), Float( row + 20 ) ), parts > 0, map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) );
-			if ( parts == 0 ) continue;
-			if ( parts != 1 || part != 0 ) return default;
-			part = Block( row + 24 );
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) );
 		}
-		if ( part == 0 ) return timeline.Any( e => e.HasParticles ) ? new ContactVisuals( timeline, null ) : null;
+		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles ) ? new ContactVisuals( timeline ) : null;
+	}
+
+	ImpactDecal ReadContactMark( int part )
+	{
 		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
 		int header = Address( tag );
 		if ( Short( header + 4 ) != 2 || Reference( header + 8 ) is not null ) return default;
@@ -86,8 +93,8 @@ internal sealed partial class ShotgunLoader
 				new Gradient.ColorFrame( 1, Color.White.WithAlpha( 0 ) ) )
 		};
 		float rejection = Float( header + 24 );
-		return new ContactVisuals( timeline, new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,
+		return new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,
 			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
-			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ));
+			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint );
 	}
 }

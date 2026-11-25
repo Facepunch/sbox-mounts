@@ -10,12 +10,6 @@ internal sealed partial class ShotgunLoader
 	{
 		int count = map.ReadInt32( row + 48 );
 		if ( count == 0 ) return null;
-		var material = contact.TagPath[(contact.TagPath.LastIndexOf( '\\' ) + 1)..];
-		if ( !material.StartsWith( "hard_terrain", StringComparison.Ordinal ) &&
-			material is not ("default" or "brittle" or "brittle_elec" or "brittle_elec_cov" or "brittle_explosive" or "brittle_mech_cov" or "brittle_mech"
-				or "energy_shield_thin" or "energy_shield_thick" or "energy_shield_thick_cov"
-				or "soft" or "soft_inorganic" or "soft_organic" or "soft_organic_plant" or "soft_organic_plant_grassy"
-				or "tough_inorganic" or "tough_inorganic_plastic" or "tough_inorganic_rubber" or "tough_organic_wood" or "brittle_glass" or "brittle_glass_for_unbreakable" or "hard_metal_solid" or "hard_metal_thin" or "hard_metal_thick") ) return null;
 		var emitters = new ImpactEmitter[count];
 		int system = Block( row + 48 );
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
@@ -38,13 +32,14 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\glass_breakable" => GlassName,
 				@"effects\generic\solids\metal_chips" => MetalChipsName,
 				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
+				@"effects\generic\smoke\smoke_soft_small" => UnlitImpactSmokeName,
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
 				_ => null
 			};
-			if ( name is null || map.ReadInt32( system + 48 ) != 1 ) return null;
+			if ( name is null || map.ReadInt32( system + 48 ) != 1 ) continue;
 			var texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
 			var texture = Texture.Load( texturePath );
-			if ( !texture.IsValid() || texture.IsError ) return null;
+			if ( !texture.IsValid() || texture.IsError ) continue;
 			var layer = name switch
 			{
 				RubberName => ImpactLayer.Rubber,
@@ -99,6 +94,7 @@ internal sealed partial class ShotgunLoader
 				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				controller == 0 || animatedRadius || drift || dust ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
+				LitSmoke = layer == ImpactLayer.Smoke && (particleFlags & 0x80) != 0,
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
@@ -114,7 +110,7 @@ internal sealed partial class ShotgunLoader
 				Marker = map.ResolveStringId( map.ReadInt32( Block( Address( contact ) + 12 ) + 4 * Short( system + 8 ) ) )
 			};
 		}
-		return emitters;
+		return emitters.Any( e => e is not null ) ? emitters : null;
 	}
 
 	AnimatedFrame[] ReadAnimatedFrames( int definition )
