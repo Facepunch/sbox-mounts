@@ -3,6 +3,11 @@ namespace Diesel;
 /// <summary>Explicit installed unit identities, rather than matching decorative phone/pole names.</summary>
 static class MapInteractionDefinition
 {
+	public static bool IsCamera( string unit ) => unit is
+		"units/world/props/security_camera/security_camera"
+		or "units/world/props/security_camera/security_camera_white"
+		or "units/world/props/security_camera/security_camera_hospital";
+
 	public static bool IsAlarm( string unit ) => unit is
 		"units/world/props/office/desk_accessories/desk_phone_02"
 		or "units/world/props/office/phone/phone"

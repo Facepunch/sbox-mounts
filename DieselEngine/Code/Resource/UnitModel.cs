@@ -7,6 +7,7 @@ static class UnitModel
 	public sealed record Result( Model Model, bool HasGraphics, bool HasCollision )
 	{
 		public static Result Empty { get; } = new( null, false, false );
+		public Transform? CameraLens { get; init; }
 	}
 	public static XmlNode Xml( byte[] bytes )
 	{
@@ -87,8 +88,11 @@ static class UnitModel
 		var collisionIndices = new List<int>();
 		var collisionHulls = new List<Vector3[]>();
 		var massShapes = new Dictionary<ulong, Vector3[]>();
+		Vector3? cameraLamp = null;
 		foreach ( var part in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
 		{
+			if ( MapInteractionDefinition.IsCamera( unit ) && part.Name == IdString.Hash( "g_lamp" ) && part.Positions.Length > 0 )
+				cameraLamp = BBox.FromPoints( part.Positions ).Center;
 			if ( collision.Contains( part.Name ) )
 			{
 				if ( movablePreview ) massShapes[part.Name] = part.Positions;
@@ -159,6 +163,17 @@ static class UnitModel
 		if ( collisionIndices.Count > 0 ) builder.AddCollisionMesh( collisionVertices.ToArray(), collisionIndices.ToArray() );
 		foreach ( var hull in collisionHulls ) builder.AddCollisionHull( hull.AsSpan() );
 		foreach ( var primitive in primitives ) builder.AddCollisionHull( primitive.Points.AsSpan() );
-		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 );
+		Transform? lens = null;
+		if ( MapInteractionDefinition.IsCamera( unit ) )
+		{
+			var pose = file.Pose( null, 0 );
+			System.Numerics.Matrix4x4.Invert( file.NodePose( pose, orientation ), out var root );
+			var head = ModelFile.Convert( file.NodePose( pose, "g_security_camera" ) * root );
+			var lamp = ModelFile.Convert( file.NodePose( pose, "g_lamp" ) * root );
+			// The lens/indicator face the head's -Y in Diesel coordinates. Use the
+			// authored head, not the wall-mount axis; hospital assets also offset their root.
+			lens = new Transform( (cameraLamp ?? lamp.Position) - head.Rotation.Forward, Rotation.LookAt( -head.Rotation.Forward, head.Rotation.Up ) );
+		}
+		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 ) { CameraLens = lens };
 	}
 }

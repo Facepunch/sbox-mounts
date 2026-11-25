@@ -97,6 +97,13 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					go.AddComponent<PaydayAlarm>();
 					go.IsStatic = false;
 				}
+				if ( model.CameraLens is { } lens )
+				{
+					var camera = go.AddComponent<PaydaySecurityCamera>();
+					camera.Lens = lens;
+					camera.Renderer = go.GetComponent<ModelRenderer>();
+					go.IsStatic = false;
+				}
 				placed++;
 			}
 		}
