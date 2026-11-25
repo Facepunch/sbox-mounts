@@ -13,6 +13,8 @@ public sealed class CssKnife : SourceMeleeWeapon
 	/// <summary>Radius of the swing trace sphere.</summary>
 	[Property] public float SwingRadius { get; set; } = 10f;
 
+	[Property] public float SwingForce { get; set; } = 1000f;
+
 	const float SlashDamage = 15;
 	const float StabDamage = 65;
 	const float SlashRange = 48;

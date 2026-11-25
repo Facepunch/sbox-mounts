@@ -335,7 +335,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.SourceMeleeWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Crowbar", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.4, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/crowbar_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/crowbar_wm.prefab"}, "Damage": 25, "Range": 75, "SwingDelay": 0.4, "MissSwingDelay": 0.4}
+					"Source1.SourceMeleeWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Crowbar", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.4, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/crowbar_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/crowbar_wm.prefab"}, "Damage": 10, "Range": 75, "SwingDelay": 0.4, "MissSwingDelay": 0.4}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_crowbar.mdl"}
@@ -409,7 +409,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.Hl2Stunstick": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Stunstick", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/stunstick_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/stunstick_wm.prefab"}, "Damage": 15, "Range": 75, "SwingDelay": 0.8, "MissSwingDelay": 0.8}
+					"Source1.Hl2Stunstick": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Stunstick", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/stunstick_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/stunstick_wm.prefab"}, "Damage": 10, "Range": 75, "SwingDelay": 0.8, "MissSwingDelay": 0.8}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_stunbaton.mdl"}

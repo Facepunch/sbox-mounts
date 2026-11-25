@@ -22,8 +22,8 @@ public class SourceMeleeWeapon : SourceWeapon
 	static readonly BBox SwingHull = BBox.FromPositionAndSize( Vector3.Zero, 32 );
 	static readonly Vector3[] SwingCorners = SwingHull.Corners.ToArray();
 
-	/// <summary>Physics impulse magnitude applied to hit objects.</summary>
-	[Property] public float SwingForce { get; set; } = 1000f;
+	/// <summary>Each point of melee damage pushes a 75 kg body by four units per second.</summary>
+	const float ImpulsePerDamage = 75 * 4;
 
 	[Property] public SoundEvent HitSound { get; set; }
 
@@ -44,19 +44,20 @@ public class SourceMeleeWeapon : SourceWeapon
 	/// </summary>
 	public override void PrimaryAttack()
 	{
-		var tr = TraceSwing();
+		var aim = AimRay;
+		var tr = TraceSwing( aim );
 
 		// Hit and miss recover at different speeds: replace the flat cooldown FirePrimary set.
 		SetNextPrimaryFire( tr.Hit ? SwingDelay : MissSwingDelay );
 
 		SwingEffects( new ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) );
 
-		ShootBullet( tr, Damage, SwingForce, hitboxTags: true );
+		tr.Direction = aim.Forward;
+		ShootBullet( tr, Damage, Damage * ImpulsePerDamage, hitboxTags: true );
 	}
 
-	SceneTraceResult TraceSwing()
+	SceneTraceResult TraceSwing( Ray aim )
 	{
-		var aim = AimRay;
 		var trace = Scene.Trace.Ray( aim, Range )
 			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
 			.WithoutTags( "playercontroller" )

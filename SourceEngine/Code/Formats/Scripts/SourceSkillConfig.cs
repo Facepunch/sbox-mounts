@@ -51,6 +51,7 @@ internal sealed class SourceSkillConfig
 		var weapon = weaponClass?.StartsWith( "weapon_", StringComparison.OrdinalIgnoreCase ) == true ? weaponClass[7..] : weaponClass;
 		// These Source identifiers are aliases of the config's authored names.
 		if ( weapon?.Equals( "frag", StringComparison.OrdinalIgnoreCase ) == true ) weapon = "fraggrenade";
+		if ( weapon?.Equals( "stunstick_player", StringComparison.OrdinalIgnoreCase ) == true ) weapon = "stunstick";
 		if ( ammo?.Equals( "XBowBolt", StringComparison.OrdinalIgnoreCase ) == true ) ammo = "crossbow";
 		foreach ( var name in new[] { weapon, ammo }.Where( x => !string.IsNullOrWhiteSpace( x ) ) )
 		{
