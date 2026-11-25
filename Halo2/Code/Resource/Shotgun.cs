@@ -321,7 +321,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			var collider = root.AddComponent<BoxCollider>();
 			collider.Center = renderer.Model.Bounds.Center;
 			collider.Scale = renderer.Model.Bounds.Size;
-			root.AddComponent<Rigidbody>();
+			// Convert Halo 2 item gravity to inches/s² relative to standard s&box gravity.
+			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
 			gun.BindHudTextures();
