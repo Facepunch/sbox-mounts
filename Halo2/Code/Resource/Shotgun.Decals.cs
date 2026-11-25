@@ -49,7 +49,7 @@ internal sealed partial class ShotgunLoader
 			{
 				int part = Block( row + 24 );
 				for ( int j = 0; j < parts; j++, part += 56 )
-					if ( ReadContactMark( part ) is {} mark ) marks.Add( mark );
+					if ( ReadContactMark( contact, part ) is {} mark ) marks.Add( mark );
 			}
 			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
 				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) );
@@ -57,11 +57,22 @@ internal sealed partial class ShotgunLoader
 		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles ) ? new ContactVisuals( timeline ) : null;
 	}
 
-	ImpactDecal ReadContactMark( int part )
+	ImpactDecal ReadContactMark( TagEntry contact, int part )
 	{
 		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
 		int header = Address( tag );
-		if ( Short( header + 4 ) != 2 || Reference( header + 8 ) is not null ) return default;
+		int layer = Short( header + 4 );
+		if ( layer is not (2 or 3) || Reference( header + 8 ) is not null ) return default;
+		DecalProjection projection = null;
+		if ( layer == 3 )
+		{
+			int locations = Address( contact ) + 12;
+			int index = Short( part + 4 );
+			if ( (uint)index >= map.ReadInt32( locations ) ) return default;
+			var marker = map.ResolveStringId( map.ReadInt32( Block( locations ) + index * 4 ) );
+			if ( marker is not ("forward" or "gravity") ) return default;
+			projection = new DecalProjection( marker, new Vector2( Float( part + 20 ), Float( part + 24 ) ) * 120, Float( part + 28 ) );
+		}
 		if ( Reference( header + 136 ) is not {} bitmap ) return default;
 		int sequences = Address( bitmap ) + 60;
 		int count = map.ReadInt32( sequences );
@@ -95,6 +106,6 @@ internal sealed partial class ShotgunLoader
 		float rejection = Float( header + 24 );
 		return new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,
 			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
-			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint );
+			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ) { Projection = projection, Layer = layer };
 	}
 }

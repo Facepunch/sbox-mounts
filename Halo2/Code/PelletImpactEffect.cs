@@ -6,15 +6,22 @@ namespace Halo2;
 [Hide]
 public sealed partial class PelletImpactEffect : Component
 {
+	public sealed record DecalProjection( string Marker, Vector2 Distance, float Cone );
+
 	public sealed record ImpactDecal( string Tag, string Name, string TexturePath, Vector2 Modifier, Vector2 Radius,
 		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint )
 	{
+		public DecalProjection Projection { get; set; }
+		public int Layer { get; set; } = 2;
 		DecalDefinition definition;
 		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1 };
 	}
 
 	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters );
-	public sealed record ContactVisuals( ContactEvent[] Events );
+	public sealed record ContactVisuals( ContactEvent[] Events )
+	{
+		internal bool HasProjectedMarks { get; } = Events.Any( e => e.Marks.Any( m => m.Projection is not null ) );
+	}
 
 	[Property] public ContactVisuals Visuals { get; set; }
 	static uint eventSeed = (uint)System.Random.Shared.Next();
@@ -27,15 +34,15 @@ public sealed partial class PelletImpactEffect : Component
 		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin && skin.GetClosestBone( point ) is {} bone )
 			parent = skin.GetBoneObject( bone ) ?? target;
 		var contactTransform = new Transform( point, Rotation.LookAt( -normal, Vector3.Random ) );
-		_ = PlayContactEvents( Visuals, surface, parent, parent.WorldTransform.ToLocal( contactTransform ), contactTransform.Rotation.Inverse * direction );
-		if ( surface.IsValid() ) surface.PlaceSplatter( point, direction, target );
+		_ = PlayContactEvents( Visuals, surface, target, parent, parent.WorldTransform.ToLocal( contactTransform ), contactTransform.Rotation.Inverse * direction );
+		if ( !Visuals.HasProjectedMarks && surface.IsValid() ) surface.PlaceSplatter( point, direction, target );
 		return true;
 	}
 
 	double EventFraction() => BlamRandom.Next( ref eventSeed ) * (double)(1f / 65535f);
 	float EventTime( Vector2 range ) => range.x == range.y ? range.x : (float)(range.x + ((double)range.y - range.x) * EventFraction());
 
-	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject parent, Transform local, Vector3 incoming )
+	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject target, GameObject parent, Transform local, Vector3 incoming )
 	{
 		float elapsed = 0;
 		var started = Time.Now;
@@ -54,7 +61,13 @@ public sealed partial class PelletImpactEffect : Component
 
 			using var scope = parent.Scene.Push();
 			var transform = parent.WorldTransform.ToWorld( local );
-			foreach ( var mark in entry.Marks ) PlaceMark( mark, parent, transform.Position, -transform.Rotation.Forward );
+			foreach ( var mark in entry.Marks )
+			{
+				if ( mark.Projection is {} projection )
+					ProjectMark( mark, projection, target, transform.Position, transform.Rotation * incoming );
+				else
+					PlaceMark( mark, parent, transform.Position, -transform.Rotation.Forward );
+			}
 			if ( entry.Emitters is {} emitters )
 				EmitImpactParticles( emitters, parent, transform, incoming );
 			else if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
@@ -72,6 +85,21 @@ public sealed partial class PelletImpactEffect : Component
 			impact.SetParent( parent, true );
 			if ( impact.GetComponent<TemporaryEffect>() is {} effect ) effect.BecomeOrphan = true;
 		}
+	}
+
+	void ProjectMark( ImpactDecal mark, DecalProjection projection, GameObject target, Vector3 point, Vector3 incoming )
+	{
+		var axis = projection.Marker == "gravity" ? Vector3.Down : incoming;
+		var direction = Spread.Deviate( axis, 0, projection.Cone, ref decalSeed );
+		float distance = projection.Distance.x;
+		if ( distance != projection.Distance.y )
+			distance += (projection.Distance.y - distance) * BlamRandom.Next( ref decalSeed ) * (1f / 65535f);
+		var ray = target.Scene.Trace.Ray( point, point + direction * distance ).UseHitPosition();
+		if ( target.GetComponent<MapCollider>() is null )
+			ray = ray.IgnoreGameObjectHierarchy( target.GetComponentInParent<ModelPhysics>( true )?.GameObject ?? target );
+		var hit = ray.Run();
+		if ( hit.StartedSolid ) hit = ray.RunAll().FirstOrDefault( h => h.Hit && !h.StartedSolid && h.Distance > 0 );
+		if ( hit.Hit && hit.GameObject.IsValid() ) PlaceMark( mark, hit.GameObject, hit.HitPosition, hit.Normal );
 	}
 
 	void PlaceMark( ImpactDecal data, GameObject parent, Vector3 point, Vector3 normal )
@@ -121,7 +149,7 @@ public sealed partial class PelletImpactEffect : Component
 		decal.Rotation = 0;
 		decal.LifeTime = data.Lifetime;
 		decal.ColorTint = data.Tint;
-		decal.SortLayer = 2;
+		decal.SortLayer = (uint)data.Layer;
 		mark.AddComponent<TemporaryEffect>();
 		mark.Enabled = true;
 	}
