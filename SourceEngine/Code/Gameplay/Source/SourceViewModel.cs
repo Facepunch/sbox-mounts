@@ -30,6 +30,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	[Property] public string Draw { get; set; } = "draw";
 	[Property] public float DrawPlaybackRate { get; set; } = 1;
 	[Property] public string Fire { get; set; } = "fire01";
+	[Property] public float RecoilResetTime { get; set; }
 	[Property] public string DryFire { get; set; } = "dryfire";
 	[Property] public string Reload { get; set; } = "reload";
 	[Property] public string ReloadInsert { get; set; }
@@ -484,7 +485,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 		if ( weapon is SourceBulletWeapon { BurstMode: true } burst && _clips.Burst is not null ) return burst.BurstFollowUp ? null : _clips.Burst;
 		if ( _clips.Alternates ) return _alternateShots++ % 2 == 0 ? _clips.Fire : _clips.SecondaryFire;
 		if ( _clips.LastShot is not null && weapon.IsValid() && weapon.UsesAmmo && weapon.Clip1 <= 0 ) return _clips.LastShot;
-		if ( _lastPrimaryShot > Math.Max( 0.25f, (weapon?.PrimaryDelay ?? 0.1f) * 2 ) ) _burstShots = 0;
+		var resetTime = RecoilResetTime > 0 ? RecoilResetTime : Math.Max( 0.25f, (weapon?.PrimaryDelay ?? 0.1f) * 2 );
+		if ( _lastPrimaryShot > resetTime ) _burstShots = 0;
 		var recoil = _clips.Recoil;
 		var fire = _burstShots > 0 && recoil.Length > 0 ? recoil[Math.Min( _burstShots - 1, recoil.Length - 1 )] : _clips.Fire;
 		_burstShots++;

@@ -688,7 +688,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "pistol_vm", null, null, null, """
 			{
 				".": {
-					"Source1.SourceViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire", "DryFire": "fireempty"}
+					"Source1.SourceViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire", "DryFire": "fireempty", "RecoilResetTime": 0.5}
 				},
 				"Viewmodel": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/c_pistol.mdl", "FallbackModelPath": "models/weapons/v_pistol.mdl"}
