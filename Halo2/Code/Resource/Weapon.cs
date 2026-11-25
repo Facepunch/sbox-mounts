@@ -32,13 +32,19 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.KickJitter = new Vector2( Float( trigger + 0x84 ), Float( trigger + 0x88 ) ) * 120;
 	}
 
-	protected SoundEvent FiringSound( int barrel )
+	protected SoundEvent FiringSound( int barrel, out string marker )
 	{
+		marker = null;
 		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;
 		int events = Address( effect ) + 20;
 		if ( map.ReadInt32( events ) == 0 ) return null;
 		int part = FirstSoundPart( Block( events ) );
-		return part < 0 ? null : GameResource.Load<SoundEvent>( Host.AssetPath( map, Reference( part + 12 ).TagPath, "sound" ) );
+		if ( part < 0 ) return null;
+		int locations = Address( effect ) + 12;
+		int location = Short( part + 4 );
+		if ( (uint)location < map.ReadInt32( locations ) )
+			marker = map.ResolveStringId( map.ReadInt32( Block( locations ) + location * 4 ) );
+		return GameResource.Load<SoundEvent>( Host.AssetPath( map, Reference( part + 12 ).TagPath, "sound" ) );
 	}
 
 	protected int FirstSoundPart( int effectEvent )

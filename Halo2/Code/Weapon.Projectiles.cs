@@ -7,7 +7,7 @@ public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, flo
 
 public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistics, float Speed, float MinimumAngle, float DryGravity, float WetGravity,
 	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
-	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, float TurnRate, float TrackingAngle, float TrackingRange );
+	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange );
 
 public abstract partial class Weapon
 {

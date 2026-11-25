@@ -123,7 +123,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		float rate = Float( barrel + 4 );
 		float recovery = RecoveryTime( barrel );
 		gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
-		gun.AttackSound = FiringSound( barrel );
+		gun.AttackSound = FiringSound( barrel, out var marker );
+		gun.AttackSoundMarker = marker;
 		ConfigureKick( gun, barrel );
 		gun.Ballistics = ReadBallistics( gun.Ballistics, barrel, projectile, damage );
 		ConfigureProjectile( gun, barrel, projectile, damage );
@@ -217,7 +218,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				Float( secondary + 0x70 ).RadianToDegree(), Float( bolt + 0x164 ), Float( bolt + 0x170 ), Float( impact + 0x1c ),
 				fades ? Float( bolt + 0x16c ) * 120 : 0, fades ? Float( bolt + 0x178 ) * 120 : 0,
 				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
-				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary ),
+				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
 				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 );
 			gun = pistol;
 		}

@@ -515,8 +515,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		// MCC render models store named groups of 36-byte, bone-local markers.
 		int block = map.VaToOffset( (int)tag.DataVirtualAddress ) + 0x58;
 		int count = map.ReadInt32( block );
-		if ( count == 0 ) return;
-		int groups = map.VaToOffset( map.ReadInt32( block + 4 ) );
+		int groups = count > 0 ? map.VaToOffset( map.ReadInt32( block + 4 ) ) : 0;
 		var names = new string[count];
 		var reserved = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		for ( int i = 0; i < count; i++ )
@@ -553,6 +552,9 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				builder.AddAttachment( attachment, ConvertPosition( position ), rotation, node == byte.MaxValue ? null : bones[node].Name );
 			}
 		}
+		// Halo resolves a missing root marker to the first posed node.
+		if ( bones.Count > 0 && !used.Contains( "root" ) )
+			builder.AddAttachment( "root", Vector3.Zero, Rotation.Identity, bones[0].Name );
 	}
 
 	static List<ModelBuilder.Bone> BuildSkeleton( RenderModelTag model, MapFile map )

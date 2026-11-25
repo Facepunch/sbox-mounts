@@ -18,6 +18,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 	[Property] public bool NpcOnly { get; set; }
 	[Property] public string AnimationClass { get; set; }
 	[Property] public string AnimationType { get; set; }
+	[Property] public string AttackSoundMarker { get; set; }
 
 	protected override void OnEquipped()
 	{
@@ -289,12 +290,21 @@ public abstract partial class Weapon : BaseCombatWeapon
 				AttackSound = GameObject.GetPrefab( prefab )?.GetComponent<Weapon>( true )?.AttackSound;
 		}
 		var model = WeaponModel;
-		var muzzle = model?.MuzzleGameObject;
-		var emitter = muzzle.IsValid() ? muzzle : GameObject;
-		var sound = emitter.PlaySound( AttackSound );
+		var sound = SoundEmitter( AttackSoundMarker )?.PlaySound( AttackSound );
 		if ( sound.IsValid() && Holder is PlayerController player && player.Network.IsOwner ) sound.SpacialBlend = 0;
 		model?.OnAttack( shot.Hit || shot.HitPosition != default ? shot.HitPosition : null, shot.Origin );
 		PostWeaponEvent( WeaponEvents.Attack );
+	}
+
+	protected GameObject SoundEmitter( string marker )
+	{
+		var model = WeaponModel;
+		if ( string.IsNullOrEmpty( marker ) ) return model?.MuzzleGameObject ?? GameObject;
+		if ( marker == "primary_trigger" ) return model?.MuzzleGameObject;
+		if ( model is null ) return null;
+		foreach ( var renderer in model.GameObject.GetComponentsInChildren<SkinnedModelRenderer>() )
+			if ( renderer.CreateAttachments && renderer.GetAttachmentObject( marker ) is {} attachment ) return attachment;
+		return null;
 	}
 
 	protected override float GetHitForce( GameObject target, float force )
