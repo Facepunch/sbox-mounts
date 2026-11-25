@@ -230,7 +230,7 @@ public sealed partial class RabbitGuard
 		}
 		EnsurePoseBuffers();
 		bool grounded = !ledge && HasGroundSupport && blend.Lower.Feet is not null && blend.Upper.Feet is not null;
-		if ( grounded && PlantGrabFeet && !Networking.IsHost ) UpdateGrabFootStance( Time.Delta, Animation.MoveVelocity );
+		if ( grounded && InHoldMovementState && !Networking.IsHost ) UpdateGrabFootStance( Time.Delta, Animation.MoveVelocity );
 		for ( int side = 0; side < 2; side++ )
 		{
 			if ( grounded )
@@ -274,7 +274,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateGrabFootStance( float dt, Vector3 velocity )
 	{
-		if ( !PlantGrabFeet || !HasGroundSupport ) return;
+		if ( !InHoldMovementState || !HasGroundSupport ) return;
 		var pose = GrabPose( Stance );
 		float phase = IsGrabClip( Stance ) ? grabPhase : ReactionPhase;
 		bool HasTarget( int side ) => LimbPose.Sample( pose.Lower.Feet?[side], phase ).Present

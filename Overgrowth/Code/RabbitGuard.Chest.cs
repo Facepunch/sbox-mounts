@@ -37,7 +37,7 @@ public sealed partial class RabbitGuard
 	[Sync] bool NoticeLookOverride { get; set; }
 	float flipLookFade;
 	float IdleLookInertia => CombatPosture || NoticeLookOverride ? 0f : idleStance * (0.98f + 0.02f * MathF.Sin( Time.Now ));
-	float HeadLookWeight => Math.Max( 0f, 1f - flipLookFade ) * (displayedFlinch > 0.1f ? Math.Clamp( 1f - displayedFlinch * 0.5f, 0f, 1f ) : 1f);
+	float HeadLookWeight => Holding || Stance == CutFromHold ? 0f : Math.Max( 0f, 1f - flipLookFade ) * (displayedFlinch > 0.1f ? Math.Clamp( 1f - displayedFlinch * 0.5f, 0f, 1f ) : 1f);
 	TimeUntil nextLook;
 	TimeUntil nextChokeLook;
 	Vector3 noticePosition;
@@ -146,8 +146,8 @@ public sealed partial class RabbitGuard
 		return InterpolateFacing( facing, direction, 1f - MathF.Pow( 0.9f, Time.Delta * 120f ) );
 	}
 
-	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle or RatHeldByRabbit or ArmedHeld
-		|| Stance == RearHeld && Held && CaptureReactionEnded;
+	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle
+		|| InHoldMovementState;
 
 	bool stanceMove = true;
 

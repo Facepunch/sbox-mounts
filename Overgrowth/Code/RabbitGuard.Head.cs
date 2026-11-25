@@ -25,13 +25,13 @@ public sealed partial class RabbitGuard
 		head.Position -= Renderer.WorldRotation * footBalanceOffset * (0.1f * WorldScale.z);
 		var neck = chest.ToWorld( animatedChest.ToLocal( animatedNeck ) );
 		var basis = head.Rotation * Renderer.Model.GetBoneTransform( headBone.Index ).Rotation.Inverse;
-		var look = basis.Inverse * headDirection;
+		float weight = headDirection == Vector3.Zero ? 0f : HeadLookWeight;
+		var look = weight > 0f ? basis.Inverse * headDirection : Vector3.Zero;
 		float yaw = MathF.Abs( look.z ) > 0.9f ? lastHeadYaw : MathF.Atan2( look.y, look.x );
 		float limit = boundAnimations.Species == "rabbit" ? 1.3f : 1.3f * 0.7f;
 		if ( yaw > 2.2f && lastHeadYaw <= -limit ) yaw = -limit;
 		else if ( yaw < -2.2f && lastHeadYaw >= limit ) yaw = limit;
 		lastHeadYaw = Math.Clamp( yaw, -limit, limit );
-		float weight = headDirection == Vector3.Zero ? 0f : HeadLookWeight;
 		float pitch = Math.Clamp( MathF.Asin( Math.Clamp( look.z * weight, -1f, 1f ) ) - 0.2f, -0.8f, 0.8f );
 		var wanted = new Vector2( lastHeadYaw * weight + Random.Shared.Float( -0.001f, 0.001f ), pitch * weight + Random.Shared.Float( -0.001f, 0.001f ) );
 		var angles = SampleHeadSpring( wanted, basis, IdleLookInertia, Time.Delta, !chestActive || secondaryReset > 0f );

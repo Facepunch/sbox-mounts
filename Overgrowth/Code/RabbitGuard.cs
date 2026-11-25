@@ -212,7 +212,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );
 		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
-		if ( pose != Threat && !PlantGrabFeet ) ReleaseStanceFeet( Time.Delta );
+		if ( pose != Threat && !InHoldMovementState ) ReleaseStanceFeet( Time.Delta );
 		UpdateBalanceSupport();
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
