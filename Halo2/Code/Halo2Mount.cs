@@ -74,13 +74,13 @@ public class Halo2Mount : BaseGameMount
 		} );
 
 		var surfaces = new HashSet<string>( StringComparer.Ordinal );
-		bool eliteShotgunRegistered = false;
+		var weaponRigs = new HashSet<string>( StringComparer.Ordinal );
 		foreach ( var map in maps )
 		{
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map, surfaces, ref eliteShotgunRegistered );
+				RegisterMapTags( context, map, surfaces, weaponRigs );
 			}
 			catch ( Exception ex )
 			{
@@ -92,7 +92,7 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, ref bool eliteShotgunRegistered )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, HashSet<string> weaponRigs )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
@@ -190,6 +190,20 @@ public class Halo2Mount : BaseGameMount
 			var tagPath = tag.TagPath.Replace( '\\', '/' );
 			int tagIndex = (int)(tag.Datum & 0xFFFF);
 
+			if ( tag.PrimaryClass == "paew" )
+			{
+				var name = Path.GetFileName( tagPath );
+				for ( int i = 0; i < 2; i++ )
+				{
+					// Keep the original tutorial rig as the canonical Spartan shotgun.
+					if ( name == "shotgun" && i == 0 && mapName != "01a_tutorial" ) continue;
+					var path = $"weapons/{name}/{(i == 0 ? "first_person" : "first_person_elite")}.vmdl";
+					if ( weaponRigs.Contains( path ) || WeaponLoader.CreateRig( mapFile, tag, globals, i ) is not {} rig ) continue;
+					context.Add( ResourceType.Model, path, rig );
+					weaponRigs.Add( path );
+				}
+			}
+
 			switch ( tag.PrimaryClass )
 			{
 				case "paew" when mapName == "01a_tutorial" && tagPath == "objects/weapons/rifle/shotgun/shotgun":
@@ -198,16 +212,8 @@ public class Halo2Mount : BaseGameMount
 					shotgun.RegisterImpactEffects( context );
 					if ( shotgun.HudBitmap( "crosshair" ) is {} reticle ) context.Add( ResourceType.Texture, ShotgunLoader.ReticlePath, reticle );
 					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
-					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig( 0 ) );
 					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new ShotgunAmmoLoader( shotgun.MaxReserve ) );
 					context.Add( ResourceType.PrefabFile, ShotgunLoader.PrefabPath, shotgun );
-					break;
-				case "paew" when !eliteShotgunRegistered && tagPath == "objects/weapons/rifle/shotgun/shotgun":
-					if ( new ShotgunLoader( mapFile, tag ).CreateRig( 1 ) is {} eliteRig )
-					{
-						context.Add( ResourceType.Model, ShotgunLoader.EliteRigPath, eliteRig );
-						eliteShotgunRegistered = true;
-					}
 					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
 				case "!dns" when soundTable >= 0 && tag.DataSize >= 28:

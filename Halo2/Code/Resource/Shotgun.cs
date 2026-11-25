@@ -22,17 +22,6 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 	int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal const string RigPath = "weapons/shotgun/first_person.vmdl";
 	internal const string EliteRigPath = "weapons/shotgun/first_person_elite.vmdl";
-	internal Halo2ModelLoader CreateRig( int representationIndex )
-	{
-		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 );
-		if ( globals is null || map.ReadInt32( Address( globals ) + 0x138 ) <= representationIndex
-			|| map.ReadInt32( Header + 0x2a8 ) <= representationIndex ) return null;
-		int representation = Block( Address( globals ) + 0x138 ) + representationIndex * 0xbc;
-		int row = Block( Header + 0x2a8 ) + representationIndex * 16;
-		if ( Reference( representation ) is not { DataSize: > 0 } arms || Reference( representation + 0xb0 ) is not { DataSize: > 0 } biped
-			|| Reference( row + 8 ) is not { DataSize: > 0 } graph || Reference( row ) is not { DataSize: > 0 } gun ) return null;
-		return new Halo2ModelLoader( map, arms, biped: biped, graph: graph, firstPersonWeapon: gun );
-	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string AmmoMeterName = "ammo_meter.vtex";
 	internal const string AmmoBackgroundName = "ammo_background.vtex";
@@ -428,7 +417,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			var collider = root.AddComponent<BoxCollider>();
 			collider.Center = renderer.Model.Bounds.Center;
 			collider.Scale = renderer.Model.Bounds.Size;
-			// Convert Halo 2 item gravity to inches/sÃ‚Â² relative to standard s&box gravity.
+			// Convert Halo 2 item gravity to inches/sÃƒâ€šÃ‚Â² relative to standard s&box gravity.
 			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
