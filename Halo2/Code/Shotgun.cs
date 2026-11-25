@@ -119,7 +119,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var model = WorldModel.AddComponent<ShotgunModel>();
 		model.Renderer = renderer;
 		model.Weapon = this;
-		model.Chamber = Halo2ModelLoader.ForModel( renderer.Model )?.GetChamberAnimation();
+		model.Chamber = renderer.Model.GetData<WeaponChamber>()?.Load();
 		heldModel = model;
 		model.TracerEffect = model.MuzzleEffect = model.EjectBrass = null;
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );

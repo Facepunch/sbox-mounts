@@ -78,15 +78,12 @@ public partial class Halo2ModelLoader
 
 	string Label( int address ) => mapFile.ResolveStringId( mapFile.ReadInt32( address ) );
 
-	ChamberAnimation chamberAnimation;
-
-	internal ChamberAnimation GetChamberAnimation()
+	WeaponChamber GetChamberBinding()
 	{
-		if ( chamberAnimation is not null ) return chamberAnimation;
 		var actions = GetAnimationContext( "any", "any", "any" )?.Actions;
 		if ( actions is null || !actions.TryGetValue( "chamber_1", out int pump ) || !actions.TryGetValue( "idle", out int idle ) ) return null;
-		if ( LoadAnimationClip( idle ) is not {} rest || LoadAnimationClip( pump ) is not {} clip ) return null;
-		return chamberAnimation = new( rest, clip, GetClipInfo( pump ).Frames );
+		string ClipPath( int reference ) => (short)reference < 0 ? $"{Path}/clips/{reference >> 16}.anim" : $"{Path}/clips/{(short)reference}/{reference >> 16}.anim";
+		return new() { IdlePath = ClipPath( idle ), ChamberPath = ClipPath( pump ), Frames = GetClipInfo( pump ).Frames };
 	}
 
 	Graph BuildGraph( string path, string[] context )
@@ -114,7 +111,7 @@ public partial class Halo2ModelLoader
 		var variation = builder.AddControlParameter( "variation", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
 		var blend = builder.AddControlParameter( "action_blend", GraphBuilder.NodeKind.Float,
 			new() { Min = 0, Max = 1, DefaultFloat = new GraphBuilder.TransitionSettings().Duration } );
-		var chamber = biped is null && !HasFirstPersonWeapon && context is ["any", "any", "any"] && actions.ContainsKey( "chamber_1" ) ? GetChamberAnimation() : null;
+		var chamber = biped is null && !HasFirstPersonWeapon && context is ["any", "any", "any"] ? GetChamberBinding()?.Load() : null;
 		var chamberTime = chamber is null ? null : builder.AddControlParameter( "chamber_cycle", GraphBuilder.NodeKind.Float,
 			new() { Min = -1, Max = 1, DefaultFloat = -1 } );
 		var chamberWeight = chamber is null ? null : builder.FloatParameter( "chamber_weight", 0, 1 );

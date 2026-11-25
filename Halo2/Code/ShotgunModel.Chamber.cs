@@ -2,6 +2,21 @@ using Sandbox.Animation;
 
 namespace Halo2;
 
+[Sandbox.ModelEditor.GameData( "weapon_chamber" )]
+public sealed class WeaponChamber
+{
+	public string IdlePath { get; set; }
+	public string ChamberPath { get; set; }
+	public int Frames { get; set; }
+
+	internal ChamberAnimation Load()
+	{
+		var idle = Clip.Load( IdlePath );
+		var chamber = Clip.Load( ChamberPath );
+		return idle.IsValid() && chamber.IsValid() ? new( idle, chamber, Frames ) : null;
+	}
+}
+
 internal sealed record ChamberAnimation( Clip Idle, Clip Clip, int Frames )
 {
 	readonly Dictionary<string, (int Index, Transform IdlePose)> tracks = Clip.Skeleton.Bones
