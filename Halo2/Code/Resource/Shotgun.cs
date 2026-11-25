@@ -30,6 +30,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
 	internal const string AmmoMeterName = "ammo_meter.vtex";
+	internal const string AmmoBackgroundName = "ammo_background.vtex";
+	internal const string EmptyAmmoBackgroundName = "ammo_background_out.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
 	internal const string SplitReticleName = "split_reticle.vtex";
 	internal const string SplitWeakReticleName = "split_weak_reticle.vtex";
@@ -72,6 +74,10 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	{
 		type = ResourceType.Texture;
 		if ( name == AmmoMeterName ) return HudBitmap( "ammo_meter_single" );
+		if ( name == AmmoBackgroundName ) return HudBitmap( "weapon_background_single" );
+		if ( name == EmptyAmmoBackgroundName ) return HudBitmap( "weapon_background_out" );
+		if ( name == "ammo_background_elite.vtex" ) return HudBitmap( "weapon_background_single", elite: true );
+		if ( name == "ammo_background_out_elite.vtex" ) return HudBitmap( "weapon_background_out", elite: true );
 		const string meterPrefix = "ammo_meter_";
 		if ( name.StartsWith( meterPrefix, StringComparison.Ordinal ) && name.EndsWith( ".vtex", StringComparison.Ordinal )
 			&& int.TryParse( name.AsSpan()[meterPrefix.Length..^5], out int shells ) )
@@ -209,7 +215,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
-	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null )
+	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null, bool elite = false )
 	{
 		int hud = Address( Reference( Header + 0x2b0 ) );
 		int widgets = Block( hud + 8 );
@@ -230,7 +236,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			else
 			{
 				if ( sequence >= count ) return null;
-				index = Short( Block( sequences ) + sequence * 60 + 32 );
+				int selected = Block( sequences ) + sequence * 60;
+				index = Short( selected + 32 );
+				if ( elite && Short( selected + 34 ) > 1 ) index++;
 			}
 			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot", meterFill: meterFill );
 		}
