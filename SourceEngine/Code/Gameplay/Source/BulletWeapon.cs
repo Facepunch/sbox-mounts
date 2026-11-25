@@ -528,8 +528,8 @@ public sealed class BulletWeapon : Weapon
 		SetNextPrimaryFire( PrimaryDelayAfterLaunch );
 		SetNextSecondaryFire( SecondaryDelay );
 		AlternateEffects( [new ShotEffect()] );
-		KickView();
 		LaunchAlternate( AimRay.Position, AimRay.Forward, attacker );
+		if ( AlternateProjectile == Projectile.Kinds.EnergyBall ) KickView();
 	}
 
 	/// <summary>
