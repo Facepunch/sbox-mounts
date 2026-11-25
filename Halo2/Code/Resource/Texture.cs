@@ -8,7 +8,7 @@ namespace Halo2;
 /// <summary>
 /// Loads a Halo 2 bitmap (bitm) tag as a Texture.
 /// </summary>
-public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false ) : ResourceLoader<Halo2Mount>
+public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false, float? meterFill = null ) : ResourceLoader<Halo2Mount>
 {
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
@@ -75,11 +75,14 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 		// Decode directly to the runtime's smallest-first layout, preserving every authored mip.
 		var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, data, sizes, length );
 
-		if ( hudMask && data.Format == BitmapData.TextureFormats.A8R8G8B8 )
+		if ( (hudMask || meterFill.HasValue) && data.Format == BitmapData.TextureFormats.A8R8G8B8 )
 		{
 			// HUD shaders tint the mask. Keep the original edge coverage in alpha.
 			for ( int i = 0; i < length; i += 4 )
+			{
+				if ( meterFill is float fill && pixels[i] > fill * 255 ) pixels[i + 3] = 0;
 				pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
+			}
 		}
 
 		if ( data.Format == BitmapData.TextureFormats.X8R8G8B8 )

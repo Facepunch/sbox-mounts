@@ -474,6 +474,28 @@ public sealed class Shotgun : Weapon
 		base.ModifyCamera( camera, ref view );
 	}
 
+	Texture ammoMeter;
+	int displayedShells = -1;
+
+	public override void DrawHud( Painter painter, Vector2 crosshair )
+	{
+		base.DrawHud( painter, crosshair );
+		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
+		if ( viewport.z <= 0 || viewport.w <= 0 || (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
+		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
+		{
+			ammoMeter = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/ammo_meter_{Clip1}.vtex" );
+			displayedShells = Clip1;
+		}
+		if ( !ammoMeter.IsValid() || ammoMeter.IsError ) return;
+		var bounds = painter.Bounds;
+		float scale = System.MathF.Min( bounds.Width / (640 * viewport.z), bounds.Height / (480 * viewport.w) );
+		bool split = viewport.z < 1 || viewport.w < 1;
+		var safeCorner = new Vector2( bounds.Right, bounds.Top ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 )) * scale;
+		var offset = split ? new Vector2( -98, 21 ) : new Vector2( -200, 42 );
+		painter.Texture( ammoMeter, new Rect( safeCorner + offset * scale, new Vector2( 98, 13 ) * scale ), Color.FromBytes( 117, 186, 255 ) );
+	}
+
 	public override void DrawCrosshair( Painter painter, Vector2 center )
 	{
 		if ( !reticle.IsValid() ) BindHudTextures();

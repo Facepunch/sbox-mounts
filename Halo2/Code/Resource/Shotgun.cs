@@ -72,6 +72,14 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	{
 		type = ResourceType.Texture;
 		if ( name == AmmoMeterName ) return HudBitmap( "ammo_meter_single" );
+		const string meterPrefix = "ammo_meter_";
+		if ( name.StartsWith( meterPrefix, StringComparison.Ordinal ) && name.EndsWith( ".vtex", StringComparison.Ordinal )
+			&& int.TryParse( name.AsSpan()[meterPrefix.Length..^5], out int shells ) )
+		{
+			int capacity = Short( Block( Header + 0x2c0 ) + 0xa );
+			if ( capacity > 0 && shells >= 0 && shells <= capacity )
+				return HudBitmap( "ammo_meter_single", meterFill: shells / (float)capacity );
+		}
 		if ( name == SplitReticleName ) return HudBitmap( "crosshair", split: true );
 		if ( name == SplitWeakReticleName ) return HudBitmap( "crosshair_weakspot", split: true );
 		if ( name == WeakReticleName ) return HudBitmap( "crosshair_weakspot" );
@@ -201,7 +209,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
-	internal Halo2TextureLoader HudBitmap( string widget, bool split = false )
+	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null )
 	{
 		int hud = Address( Reference( Header + 0x2b0 ) );
 		int widgets = Block( hud + 8 );
@@ -224,7 +232,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 				if ( sequence >= count ) return null;
 				index = Short( Block( sequences ) + sequence * 60 + 32 );
 			}
-			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
+			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot", meterFill: meterFill );
 		}
 		return null;
 	}
