@@ -250,6 +250,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	protected override void OnReloadStarted()
 	{
+		// Starting a reload replaces the magazine's pending chamber action.
+		if ( !chamberPlaying ) chamberRenderer = null;
 		var actions = FirstPersonAnimations()?.Actions;
 		if ( actions is not null )
 		{
