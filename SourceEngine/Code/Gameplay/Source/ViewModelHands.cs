@@ -357,9 +357,12 @@ public sealed class ViewModelHands : Component
 		if ( _clips.Clips.TryGetValue( source, out var result ) ) return result;
 		// Fitting the elbow and wrist between keys is nonlinear. Keep every authored key and sample
 		// the grip between them so fast swings stay attached when AG2 interpolates the fitted arm.
-		var subdivisions = source.FrameCount > 1 ? Math.Max( 1, (int)MathF.Ceiling( 60 / source.FrameRate ) ) : 1;
-		var frameCount = (source.FrameCount - 1) * subdivisions + 1;
-		var builder = new ClipBuilder { Skeleton = _clips.Skeleton, FrameRate = frameCount == 1 ? 1 : source.FrameRate * subdivisions, IsAdditive = source.IsAdditive };
+		var sourceFrames = source.FrameCount;
+		var rate = sourceFrames == 1 ? 1 : source.FrameRate;
+		var additive = source.IsAdditive;
+		var subdivisions = sourceFrames == 1 ? 1 : Math.Max( 1, (int)MathF.Ceiling( 60 / rate ) );
+		var frameCount = (sourceFrames - 1) * subdivisions + 1;
+		var builder = new ClipBuilder { Skeleton = _clips.Skeleton, FrameRate = rate * subdivisions, IsAdditive = additive };
 		var target = new Transform[_pose.Length];
 		var bones = source.Skeleton.Bones;
 		var indices = bones.Select( bone => _sourceModel.Bones.GetBone( bone.Name )?.Index ?? -1 ).ToArray();
@@ -368,7 +371,7 @@ public sealed class ViewModelHands : Component
 		Transform ParentLocal( int i ) => _parents[i] < 0 ? _pose[i] : !_supported[_parents[i]] ? _local[i] : _pose[_parents[i]].ToLocal( _pose[i] );
 		// A delta must be measured against the same fitted grip as the animation.
 		Transform[] reference = null;
-		if ( source.IsAdditive )
+		if ( additive )
 		{
 			RetargetPose();
 			reference = Enumerable.Range( 0, target.Length ).Select( ParentLocal ).ToArray();
@@ -379,7 +382,7 @@ public sealed class ViewModelHands : Component
 			foreach ( var bone in bones )
 			{
 				var local = source.GetLocalTransform( cycle, bone.Index );
-				if ( source.IsAdditive )
+				if ( additive )
 				{
 					var bind = bone.LocalTransform;
 					local = new Transform( bind.Position + local.Position, bind.Rotation * local.Rotation, bind.Scale + local.Scale );
