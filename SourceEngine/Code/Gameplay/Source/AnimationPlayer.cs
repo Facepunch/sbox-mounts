@@ -261,7 +261,7 @@ public sealed class AnimationPlayer : IDisposable
 		}
 
 		// One state per key, switched by an id parameter, with a transition from every state to every other.
-		GraphBuilder.StateMachineBuilder Selector( GraphBuilder.Node id, IReadOnlyList<string> keys, Func<int, GraphBuilder.Node> state, Func<int, int, float> duration )
+		GraphBuilder.StateMachineBuilder Selector( GraphBuilder.Node id, IReadOnlyList<string> keys, Func<int, GraphBuilder.Node> state, Func<int, int, float> duration, GraphBuilder.Easing easing = GraphBuilder.Easing.Linear )
 		{
 			var machine = builder.StateMachine();
 			var states = keys.Select( ( _, i ) => machine.AddState( state( i ) ) ).ToArray();
@@ -271,7 +271,7 @@ public sealed class AnimationPlayer : IDisposable
 				for ( var from = 0; from < states.Length; from++ )
 					if ( from != to )
 						machine.AddTransition( states[from], states[to], condition,
-							new GraphBuilder.TransitionSettings { Duration = duration( from, to ), ClampDuration = false, CanBeForced = true } );
+							new GraphBuilder.TransitionSettings { Duration = duration( from, to ), BlendEasing = easing, ClampDuration = false, CanBeForced = true } );
 			}
 			return machine;
 		}
@@ -280,7 +280,7 @@ public sealed class AnimationPlayer : IDisposable
 			// A completed reload still needs its authored fade into idle; clamping to the outgoing clip's remaining time makes that fade zero.
 			_sequences.Get( clips[from].Name ) is { } outgoing && _sequences.Get( clips[to].Name ) is { } incoming
 				? incoming.Snap ? 0 : MathF.Min( outgoing.FadeOut, incoming.FadeIn )
-				: 0.08f );
+				: 0.08f, GraphBuilder.Easing.InOutSine ); // Closest built-in curve to the Source sequence fade (smoothstep).
 		var layers = builder.Layers( main.Build() );
 		foreach ( var overlay in overlayParameters )
 		{
