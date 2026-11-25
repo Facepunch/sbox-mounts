@@ -6,6 +6,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 	[Property] public float RecoveryDelay { get; set; }
 	[Property] public bool HasIdleMagazineBarrel { get; set; }
 	int remainingShots;
+	double burstRoundAt;
 	GameObject burstAttacker;
 	double? transferAt;
 	bool transferred;
@@ -15,6 +16,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 		if ( BurstLength > 1 && remainingShots == 0 )
 		{
 			remainingShots = BurstLength;
+			burstRoundAt = Time.NowDouble;
 			burstAttacker = Attacker;
 		}
 		if ( Instantaneous ) base.PrimaryAttack();
@@ -31,6 +33,12 @@ public sealed class MagazineWeapon : HandheldWeapon
 			remainingShots = 0;
 			burstAttacker = null;
 			SetNextPrimaryFire( RecoveryDelay );
+		}
+		else
+		{
+			// Keep each round on the burst's timeline when a frame lands late.
+			burstRoundAt += PrimaryDelay;
+			SetNextPrimaryFire( (float)System.Math.Max( 0, burstRoundAt - Time.NowDouble ) );
 		}
 	}
 
@@ -61,8 +69,12 @@ public sealed class MagazineWeapon : HandheldWeapon
 			if ( FirstPersonAnimations()?.Actions.TryGetValue( Clip1 == 0 ? "reload_empty" : "reload_full", out var clip ) == true )
 			{
 				ReloadTime = clip.Frames / 30f;
-				if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" )?.Frame is int frame && frame > 0 && frame < clip.Frames )
+				if ( clip.Frames > 0 )
+				{
+					var cue = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" );
+					int frame = cue?.Frame is int key && key >= 0 && key < clip.Frames ? key : clip.Frames - 1;
 					transferAt = Time.NowDouble + frame / 30.0;
+				}
 			}
 		}
 		base.Reload();

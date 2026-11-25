@@ -11,11 +11,13 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	[Sync( SyncFlags.FromHost )] bool HoldingTrigger { get; set; }
 	[Sync( SyncFlags.FromHost )] double PressedAt { get; set; }
+	[Sync( SyncFlags.FromHost )] Vector3? PendingRelease { get; set; }
 	bool showingCharge;
 	SoundHandle chargeVoice;
 	bool chargeStarted;
 
-	public bool FullyCharged => HoldingTrigger && Time.NowDouble >= PressedAt + (LatchTicks + ChargeTicks) / 30.0;
+	double ChargedAt => PressedAt + (LatchTicks + ChargeTicks) / 30.0;
+	public bool FullyCharged => (HoldingTrigger || PendingRelease.HasValue) && Time.NowDouble >= ChargedAt;
 	internal override string RestAction => FullyCharged ? "overcharged" : base.RestAction;
 	protected override bool WantsPrimaryAttack() => false;
 
@@ -31,7 +33,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void UpdateTrigger( bool pressed, Vector3 forward )
 	{
-		if ( !IsActive || pressed == HoldingTrigger ) return;
+		if ( !IsActive || PendingRelease.HasValue || pressed == HoldingTrigger ) return;
 		if ( pressed )
 		{
 			if ( !CanPrimaryAttack() ) return;
@@ -42,7 +44,19 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 		bool charged = FullyCharged;
 		HoldingTrigger = false;
-		if ( !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		if ( !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		// The trigger enters its charged state before it can discharge on the following tick.
+		if ( charged && Time.NowDouble < ChargedAt + 1 / 30.0 )
+		{
+			PendingRelease = forward;
+			return;
+		}
+		ReleaseShot( forward, charged );
+	}
+
+	void ReleaseShot( Vector3 forward, bool charged )
+	{
+		if ( !CanPrimaryAttack() ) return;
 		SetNextPrimaryFire( PrimaryDelay );
 		FireEnergy( forward, true, charged ? ChargedShot : null );
 	}
@@ -62,6 +76,11 @@ public sealed class PlasmaPistol : BatteryWeapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Networking.IsHost && PendingRelease is Vector3 forward && Time.NowDouble >= ChargedAt + 1 / 30.0 )
+		{
+			PendingRelease = null;
+			ReleaseShot( forward, true );
+		}
 		if ( !Application.IsDedicatedServer ) UpdateChargeSound();
 		bool charged = FullyCharged;
 		if ( charged && !showingCharge ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "overcharged" );
@@ -92,15 +111,22 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	protected override void OnDisabled()
 	{
-		StopChargeSound();
+		ResetTrigger();
 		base.OnDisabled();
 	}
 
 	protected override void OnHolstered()
 	{
-		StopChargeSound();
-		if ( Networking.IsHost ) HoldingTrigger = false;
-		showingCharge = false;
+		ResetTrigger();
 		base.OnHolstered();
+	}
+
+	void ResetTrigger()
+	{
+		StopChargeSound();
+		showingCharge = false;
+		if ( !Networking.IsHost ) return;
+		HoldingTrigger = false;
+		PendingRelease = null;
 	}
 }
