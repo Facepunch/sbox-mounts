@@ -47,7 +47,7 @@ public sealed partial class RabbitGuard
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
-		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
+		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this, struggleVelocity );
 		victim.QueueThrowDamage( this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
@@ -64,10 +64,9 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	void SetHoldPose( string pose, RabbitGuard partner )
+	void SetHoldPose( string pose, RabbitGuard partner, Vector3? inheritedVelocity = null )
 	{
 		holdPartner = partner;
-		struggleVelocity = default;
 		SinceGrab = 0f;
 		holdTick = 0;
 		nextCaptureTick = cutStartTick = 0;
@@ -75,7 +74,9 @@ public sealed partial class RabbitGuard
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
 		MirroredAction = MirroredStance;
-		BeginPairedMovement();
+		BeginPairedMovement( carryMomentum: !inheritedVelocity.HasValue );
+		struggleVelocity = inheritedVelocity ?? combatVelocity.WithZ( 0f );
+		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
 	}
 
@@ -189,6 +190,11 @@ public sealed partial class RabbitGuard
 			holdTick++;
 			if ( holdTick == 7 ) EndGroupAttack();
 			if ( holdTick > 6 ) MoveHoldPair( victim, distance, struggle );
+			else
+			{
+				AdvanceHoldEntry();
+				victim.AdvanceHoldEntry();
+			}
 			victim.AdvanceCaptureAlignment( holdTick );
 			victim.DropHandItem();
 			if ( !struggle )
@@ -213,6 +219,14 @@ public sealed partial class RabbitGuard
 
 	void ApplyChokeDamage( RabbitGuard victim, float rate ) =>
 		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * HoldStep } );
+
+	// Attack and hit-reaction states apply ground friction before integrating velocity.
+	void AdvanceHoldEntry()
+	{
+		struggleVelocity *= 0.95f * 0.95f;
+		MoveGroundDelta( struggleVelocity * HoldStep, out var slide );
+		struggleVelocity = slide.WithZ( 0f ) / HoldStep;
+	}
 
 	void MoveHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
@@ -292,6 +306,7 @@ public sealed partial class RabbitGuard
 		bool fall = Held && !Downed && Health > 0f && CaptureReactionEnded;
 		bool finishCapture = Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
 		bool clearPose = Held || Holding;
+		if ( partner is not null && !Downed ) combatVelocity = struggleVelocity.WithZ( combatVelocity.z );
 		holdPartner = null;
 		EndPairedMovement();
 		if ( finishCapture )
