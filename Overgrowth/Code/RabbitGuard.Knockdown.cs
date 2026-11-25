@@ -399,19 +399,21 @@ public sealed partial class RabbitGuard
 			// A compound world collider may expose the second wall of a corner only after the first correction.
 			for ( int pass = 0; floor.StartedSolid && pass < 4; pass++ )
 			{
-				// WakeUp resolves bumper contacts before placing the standing collider.
+				// ApplyScaledSphereSlide resolves the deepest contact plane first.
+				var axis = new Line( start + capsule.CenterA, start + capsule.CenterB );
 				var shift = Vector3.Zero;
-				foreach ( var hit in probe.Capsule( capsule, start, start ).UseHitPosition().RunAll() )
+				var contacts = probe.Capsule( capsule, start, start ).UseHitPosition().RunAll();
+				foreach ( var separation in contacts.Select( hit => axis.ClosestPoint( hit.HitPosition ) - hit.HitPosition ).OrderBy( offset => offset.LengthSquared ) )
 				{
-					var axis = new Line( start + shift + capsule.CenterA, start + shift + capsule.CenterB );
-					var separation = axis.ClosestPoint( hit.HitPosition ) - hit.HitPosition;
 					var distance = separation.Length;
-					if ( distance <= 0f || distance >= capsule.Radius || Math.Abs( separation.z ) > distance * 0.5f ) continue;
-					shift += separation.Normal * (capsule.Radius - distance + 0.03125f);
+					if ( distance <= 0f || distance >= capsule.Radius ) continue;
+					var normal = separation / distance;
+					var penetration = capsule.Radius - distance - shift.Dot( normal );
+					if ( penetration > 0f ) shift += normal * (penetration + 0.03125f);
 				}
 				if ( shift.IsNearlyZero() ) break;
 				start += shift;
-				end += shift;
+				end += shift.WithZ( 0f );
 				floor = probe.Capsule( capsule, start, end ).Run();
 			}
 			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
