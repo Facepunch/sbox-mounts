@@ -118,13 +118,6 @@ public sealed partial class Skulk
 		PlayCombatSound( $"alien/skulk/bite_hit_{material}", hit.HitPosition );
 	}
 
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		ConsumeArmor( e.AcceptedDamage, e.DamageInfo );
-		var fraction = e.AcceptedDamage / MaxHealth;
-		wounds.Hit( fraction, fraction );
-	}
-
 	void UpdateFlinch()
 	{
 		if ( wounds.Update() is { } cue ) PlayVoice( cue );

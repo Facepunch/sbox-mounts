@@ -7,11 +7,17 @@ internal sealed class AlienWounds
 	float intensity, damageFraction;
 	TimeUntil nextFlinch = 0.3f;
 
-	internal void Hit( float healthFraction, float effectiveHealthFraction )
+	internal float ApplyDamage( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, float maxArmor )
 	{
-		if ( healthFraction <= 0 ) return;
-		damageFraction += effectiveHealthFraction;
-		intensity = Math.Clamp( intensity + healthFraction / 0.2f, 0.2f, 1 );
+		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
+		float healthLost = hit.AcceptedDamage;
+		float armorLost = ratio == 0 ? 0 : Math.Min( armor, healthLost * (0.7f / 0.3f) / ratio );
+
+		// NS2 accumulates intensity from incoming damage and wound severity from effective health lost.
+		float damage = healthLost + armorLost * ratio;
+		damageFraction += (healthLost + armorLost * 2) / (maxHealth + maxArmor * 2);
+		intensity = Math.Clamp( intensity + damage / (maxHealth * 0.2f), 0.2f, 1 );
+		return armorLost;
 	}
 
 	internal string Update()

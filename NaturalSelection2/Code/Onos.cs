@@ -290,11 +290,7 @@ public sealed partial class Onos : BaseNpc
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
 		if ( e.AcceptedDamage <= 0 ) return;
-		float ratio = AlienArmor.HealthPerArmor( e.DamageInfo );
-		float absorbed = ratio == 0 ? 0 : Math.Min( Armor, e.AcceptedDamage * (0.7f / 0.3f) / ratio );
-		Armor -= absorbed;
-		float damage = e.AcceptedDamage + absorbed * ratio;
-		wounds.Hit( damage / MaxHealth, (e.AcceptedDamage + absorbed * 2) / (MaxHealth + MaxArmor * 2) );
+		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, MaxArmor );
 	}
 
 	readonly AlienWounds wounds = new();
