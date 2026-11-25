@@ -151,14 +151,14 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		}
 		if ( Ammo.Clip == 0 ) BeginReload();
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
-		float distance = 0;
-		if ( visible )
+		bool mobile = visible && enemy.GetComponentInParent<AlienStructure>() is null;
+		float distance = visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
+		if ( mobile )
 		{
 			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
-			distance = Math.Max( 0, EyePosition.Distance( enemy.WorldPosition ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f );
+			distance = Math.Max( 0, distance - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f );
 		}
-		bool mobile = visible && enemy.GetComponentInParent<AlienStructure>() is null;
-		bool clearShot = visible && (mobile ? distance < 32.5f * Scale : distance <= BulletRange);
+		bool clearShot = visible && distance < (mobile ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
 		bool aimed = clearShot && (babbler || acquisition.Ready( enemy, aimPoint - EyePosition, aim ));
 		if ( aimed )
@@ -177,7 +177,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 
 		if ( repath > 0 ) return;
 		repath = 0.2f;
-		if ( goal is { } p && (!visible || distance > 22 * Scale) )
+		if ( goal is { } p && !clearShot )
 			Movement.MoveTo( p, Scale, faceTarget: visible ? enemy : null );
 		else Movement.Stop();
 	}
