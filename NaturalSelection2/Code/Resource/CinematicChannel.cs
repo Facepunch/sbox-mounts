@@ -13,13 +13,14 @@ internal readonly struct CinematicChannel
 		var data = value.Data.AsSpan();
 		if ( value.Flags == 0 )
 		{
-			baseline = BitConverter.ToSingle( data[(component * 4)..] );
+			if ( data.Length >= (component + 1) * 4 ) baseline = BitConverter.ToSingle( data[(component * 4)..] );
 			return;
 		}
 
-		while ( true )
+		while ( data.Length >= 12 )
 		{
 			int count = BitConverter.ToInt32( data[8..] );
+			if ( count < 0 || count > (data.Length - 12) / 10 ) return;
 			if ( component-- == 0 )
 			{
 				baseline = BitConverter.ToSingle( data );

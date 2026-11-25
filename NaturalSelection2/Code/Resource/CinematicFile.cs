@@ -42,6 +42,9 @@ internal sealed class CinematicFile
 {
 	private readonly List<CinematicNode> nodes = new();
 
+	public IReadOnlyList<CinematicNode> Nodes => nodes;
+	public float Duration { get; private set; }
+
 	public CinematicNode Find( string name ) =>
 		nodes.FirstOrDefault( x => string.Equals( x.Name, name, StringComparison.OrdinalIgnoreCase ) );
 
@@ -65,7 +68,13 @@ internal sealed class CinematicFile
 			if ( start + size > length )
 				break;
 
-			if ( type == 2 )
+			if ( type == 1 && size == 8 )
+			{
+				int frames = r.ReadInt32();
+				float fps = r.ReadSingle();
+				if ( fps > 0 ) file.Duration = frames / fps;
+			}
+			else if ( type == 2 )
 			{
 				try { ReadNodes( r, file.nodes, start + size ); }
 				catch { }
@@ -161,6 +170,24 @@ internal readonly struct CinematicValue
 		Type = type;
 		Flags = flags;
 		Data = data ?? [];
+	}
+
+	internal int AsInt( int fallback = 0 ) => Data is { Length: >= 4 } ? BitConverter.ToInt32( Data ) : fallback;
+
+	internal bool HasVisibilityKeys => Data is { Length: > 8 };
+
+	internal bool IsVisibleAt( float time )
+	{
+		bool visible = AsInt( 1 ) != 0;
+		if ( Data is not { Length: >= 8 } ) return visible;
+		int count = Math.Min( BitConverter.ToInt32( Data, 4 ), (Data.Length - 8) / 8 );
+		for ( int i = 0; i < count; i++ )
+		{
+			int offset = 8 + i * 8;
+			if ( time < BitConverter.ToSingle( Data, offset ) ) break;
+			visible = BitConverter.ToInt32( Data, offset + 4 ) != 0;
+		}
+		return visible;
 	}
 
 	/// <summary>Types 0 and 4 are both length-prefixed UTF-16; 4 is used for asset paths.</summary>

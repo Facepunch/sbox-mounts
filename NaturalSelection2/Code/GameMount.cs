@@ -35,22 +35,26 @@ public class GameMount : BaseGameMount
 	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
 	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
 
-	CinematicBurst stompImpact;
-	internal CinematicBurst StompImpact
+	readonly Dictionary<string, CinematicEmitter[]> cinematicEmitters = new();
+
+	internal void PlayCinematic( string relative, Vector3 position, Rotation facing )
 	{
-		get
+		if ( !cinematicEmitters.TryGetValue( relative, out var emitters ) )
 		{
-			if ( stompImpact is not null ) return stompImpact;
-			if ( !TryResolve( FileSystem, "cinematics/alien/onos/shockwave_hit.cinematic", out var path ) ) return null;
+			if ( !TryResolve( FileSystem, relative, out var path ) ) return;
 			using var stream = FileSystem.OpenRead( path );
-			var node = CinematicFile.Read( stream ).Find( "Emitter" );
-			return node is null ? null : stompImpact = new CinematicBurst( node );
+			var file = CinematicFile.Read( stream );
+			emitters = file.Nodes.Where( n => n.Name is "Emitter" or "Physics Emitter" )
+				.Where( n => n.Get( "Visible" ).IsVisibleAt( 0 ) || n.Get( "Visible" ).HasVisibilityKeys )
+				.Select( n => new CinematicEmitter( n, file.Duration ) ).ToArray();
+			cinematicEmitters.Add( relative, emitters );
 		}
+		foreach ( var emitter in emitters ) emitter.Play( position, facing );
 	}
 
 	protected override void Shutdown()
 	{
-		stompImpact = null;
+		cinematicEmitters.Clear();
 		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
 		SoundBanks.Clear();
