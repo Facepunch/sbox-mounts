@@ -37,6 +37,26 @@ internal readonly struct CinematicChannel
 		}
 	}
 
+	// Integrate the acceleration curve from birth to the particle's current age.
+	internal float Integral( float time )
+	{
+		if ( keys is null || time <= 0 ) return baseline * time;
+
+		float area = 0;
+		float start = 0;
+		float value = At( 0 );
+		foreach ( var key in keys )
+		{
+			if ( key.Time <= 0 ) continue;
+			if ( key.Time >= time ) break;
+			float next = baseline + key.Offset;
+			area += (value + next) * 0.5f * (key.Time - start);
+			start = key.Time;
+			value = next;
+		}
+		return area + (value + At( time )) * 0.5f * (time - start);
+	}
+
 	internal float At( float time )
 	{
 		if ( keys is null ) return baseline;

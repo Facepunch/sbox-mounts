@@ -15,9 +15,10 @@ internal sealed class CinematicEmitter
 	readonly bool additive, continuous, loop;
 	readonly float duration, clipDuration, stretch, radius, bounce, friction, maxSpeed;
 	readonly Vector3 force;
+	readonly CinematicChannel accelerationX, accelerationY, accelerationZ;
 	readonly float lifetime, playback, minCos;
 	readonly Vector2 speed, size, opacity, roll;
-	readonly Color color;
+	readonly CinematicChannel red, green, blue;
 	readonly CinematicChannel sizeScale, opacityScale, rotationScale, velocityX, velocityY, velocityZ;
 
 	internal CinematicEmitter( CinematicNode node, float clipDuration )
@@ -65,10 +66,15 @@ internal sealed class CinematicEmitter
 		size = Range( "Particle Size" ) * MapLoader.Scale;
 		roll = Range( "Particle Rotation" ) * (180f / MathF.PI);
 		opacity = Range( "Particle Opacity" );
-		color = new Color( Value( "Particle Color" ), Value( "Particle Color", 1 ), Value( "Particle Color", 2 ) );
+		red = Channel( "Particle Color" );
+		green = Channel( "Particle Color", 1 );
+		blue = Channel( "Particle Color", 2 );
 		sizeScale = Channel( "Particle Size Scale" );
 		opacityScale = Channel( "Particle Opacity Scale" );
 		rotationScale = Channel( "Particle Rotation Scale" );
+		accelerationX = Channel( "Particle Force", 2 );
+		accelerationY = Channel( "Particle Force" );
+		accelerationZ = Channel( "Particle Force", 1 );
 		velocityX = Channel( "Particle Velocity Scale", 2 );
 		velocityY = Channel( "Particle Velocity Scale" );
 		velocityZ = Channel( "Particle Velocity Scale", 1 );
@@ -150,7 +156,7 @@ internal sealed class CinematicEmitter
 				}
 				p.StartScale = MathX.Lerp( size.x, size.y, p.Rand( 4 ) );
 				p.StartAngles.roll = MathX.Lerp( roll.x, roll.y, p.Rand( 5 ) );
-				p.Color = color;
+
 				Step( p, direction, 0 );
 			}
 		}
@@ -168,10 +174,12 @@ internal sealed class CinematicEmitter
 	void Step( Particle p, Rotation direction, float fraction )
 	{
 		float age = fraction * lifetime;
-		p.Velocity = InitialVelocity( p, direction ) * new Vector3( velocityX.At( age ), velocityY.At( age ), velocityZ.At( age ) );
+		var accelerationDelta = new Vector3( accelerationX.Integral( age ), accelerationY.Integral( age ), accelerationZ.Integral( age ) ) * MapLoader.Scale;
+		p.Velocity = (InitialVelocity( p, direction ) + accelerationDelta) * new Vector3( velocityX.At( age ), velocityY.At( age ), velocityZ.At( age ) );
 		p.Size = p.StartScale * sizeScale.At( age );
 		if ( alignment == 1 ) p.Size.y *= stretch;
 		p.Angles.roll = p.StartAngles.roll * rotationScale.At( age );
+		p.Color = new Color( red.At( age ), green.At( age ), blue.At( age ) );
 		p.Alpha = Math.Clamp( MathX.Lerp( opacity.x, opacity.y, p.Rand( 6 ) ) * opacityScale.At( age ), 0, 1 );
 	}
 }
