@@ -19,6 +19,8 @@ public sealed class GravityWeapon : Weapon
 		AttackDamageTags = [];
 	}
 
+	enum PuntResult { Miss, Hit, LaunchHeld }
+
 	const float TraceLength = 250;
 	const float PullLength = TraceLength * 4;
 	const float PullForce = 4000;
@@ -94,20 +96,20 @@ public sealed class GravityWeapon : Weapon
 			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
 			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
 			held.Velocity += forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) ) * LaunchScale;
-			PuntEffects( true );
+			PuntEffects( PuntResult.LaunchHeld );
 			return;
 		}
 		var body = FindBody( TraceLength, out _ );
 		if ( !CanMove( body ) )
 		{
-			PuntEffects( false );
+			PuntEffects( PuntResult.Miss );
 			return;
 		}
 		// PuntVPhysics: a 15000 impulse at the centre plus 600 per kg (up to 250 kg) at the hit point, flattened up off the floor.
 		if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
 		var mass = MathF.Max( body.Mass, 1 );
 		body.Velocity += forward * ((15000 + MathF.Min( mass, MaxMass ) * 600) / mass * LaunchScale);
-		PuntEffects( true );
+		PuntEffects( PuntResult.Hit );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -127,14 +129,15 @@ public sealed class GravityWeapon : Weapon
 	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PuntEffects( bool launch )
+	void PuntEffects( PuntResult result )
 	{
+		var launch = result != PuntResult.Miss;
 		if ( Sounds.WeaponSound( this, launch ? "single_shot" : "empty" ) is { } sound ) GameObject.PlaySound( sound );
 		(WeaponModel as ViewModel)?.OnPunt( launch );
 		if ( !launch ) return;
 
 		SetNextSecondaryFire( PrimaryDelay );
-		_effects?.Launch();
+		_effects?.Launch( result == PuntResult.LaunchHeld );
 	}
 
 	protected override void OnFixedUpdate()
@@ -269,13 +272,19 @@ sealed class PhysCannonEffects : IDisposable
 	readonly List<(GameObject Tip, LineRenderer Beam)> _beams = new();
 	readonly Dictionary<SpriteRenderer, GameObject> _anchors = new();
 	TimeSince _launch = 10;
-	bool _ready;
+	TimeUntil _changeAt;
+	bool _closePending;
 	bool _open;
 	float _elementFrom;
 	TimeSince _elementMoved = 10;
 	SoundHandle _holdSound;
 
-	public void Launch() => _launch = 0;
+	public void Launch( bool fromHold )
+	{
+		_launch = 0;
+		_changeAt = fromHold ? 0.1f : 0.5f;
+		_closePending = true;
+	}
 
 	public void Update( GravityWeapon weapon, GameObject held, bool ready )
 	{
@@ -289,14 +298,8 @@ sealed class PhysCannonEffects : IDisposable
 		if ( !renderer.IsValid() || !renderer.Model.IsValid() || !renderer.Enabled ) return;
 		var mount = MountContent.Of( renderer.Model );
 		if ( !_root.IsValid() ) Build( renderer, model as ViewModel, mount );
-		if ( ready != _ready && _view.IsValid() && held is null )
-		{
-			// OpenElements and CloseElements play the claw sounds as the prongs react.
-			if ( Sounds.WeaponSound( weapon, ready ? "special2" : "melee_hit" ) is { } sound ) renderer.GameObject.PlaySound( sound );
-		}
-		_ready = ready;
 		var holding = held.IsValid();
-		UpdateElements( _view, holding || ready );
+		UpdateElements( weapon, holding, ready );
 		if ( holding && _holdSound is null && Sounds.Sound( "Weapon_PhysCannon.HoldSound", mount ) is { } hold ) _holdSound = weapon.GameObject.PlaySound( hold );
 		if ( !holding && _holdSound is not null )
 		{
@@ -352,22 +355,41 @@ sealed class PhysCannonEffects : IDisposable
 	/// OpenElements and CloseElements: the claws spline between closed and open over 0.2s
 	/// through the viewmodel's "active" pose parameter.
 	/// </summary>
-	void UpdateElements( ViewModel view, bool open )
+	void UpdateElements( GravityWeapon weapon, bool holding, bool ready )
 	{
+		var open = _open;
+		if ( holding || (ready && _launch >= 0.25f) )
+		{
+			_closePending = false;
+			open = true;
+		}
+		else if ( _changeAt <= 0 )
+		{
+			if ( _closePending ) open = false;
+			else _changeAt = 0.5f;
+			_closePending = !_closePending;
+		}
+
 		var current = Element();
 		if ( open != _open )
 		{
 			_elementFrom = current;
 			_elementMoved = 0;
 			_open = open;
+			if ( _view.IsValid() )
+			{
+				_view.OnClawsChanged();
+				if ( Sounds.WeaponSound( weapon, open ? "special2" : "melee_hit" ) is { } sound )
+					_renderer.GameObject.PlaySound( sound );
+			}
 			current = Element();
 		}
-		view?.SetPoseParameter( "active", current );
+		_view?.SetPoseParameter( "active", current );
 	}
 
 	float Element()
 	{
-		var t = Math.Clamp( _elementMoved / 0.2f, 0, 1 );
+		var t = Math.Clamp( _elementMoved / (_open ? 0.2f : 0.5f), 0, 1 );
 		var spline = t * t * (3 - 2 * t);
 		return float.Lerp( _elementFrom, _open ? 1 : 0, spline );
 	}
