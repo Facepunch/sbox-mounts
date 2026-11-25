@@ -66,19 +66,39 @@ public sealed partial class PelletImpactEffect : Component
 			if ( wait > 0 ) await GameTask.DelaySeconds( wait );
 			if ( !parent.IsValid() ) return;
 
-			using var scope = parent.Scene.Push();
-			var transform = parent.WorldTransform.ToWorld( local );
-			foreach ( var mark in entry.Marks )
+			var duration = EventTime( entry.Duration );
+			using ( parent.Scene.Push() )
 			{
-				if ( mark.Projection is {} projection )
-					ProjectMark( mark, projection, target, transform.Position, transform.Rotation * incoming );
-				else
-					PlaceMark( mark, parent, transform.Position, -transform.Rotation.Forward );
+				var transform = parent.WorldTransform.ToWorld( local );
+				foreach ( var mark in entry.Marks )
+				{
+					if ( mark.Projection is {} projection )
+						ProjectMark( mark, projection, target, transform.Position, transform.Rotation * incoming );
+					else
+						PlaceMark( mark, parent, transform.Position, -transform.Rotation.Forward );
+				}
+				if ( entry.Emitters is null && entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
 			}
-			if ( entry.Emitters is {} emitters )
-				EmitImpactParticles( emitters, parent, transform, incoming );
-			else if ( entry.HasParticles && surface.IsValid() ) PlaceParticles( surface, parent, transform );
-			elapsed += EventTime( entry.Duration );
+
+			float end = elapsed + duration;
+			if ( entry.Emitters is { Length: > 0 } emitters && duration > 0 )
+			{
+				var random = InitializeImpactSystems( emitters.Length );
+				int tick = (int)System.MathF.Floor( elapsed * 30 + 0.00001f ) + 1;
+				float previous = 0;
+				while ( previous < duration )
+				{
+					float boundary = tick++ / 30f;
+					float delay = boundary - (Time.Now - started);
+					if ( delay > 0 ) await GameTask.DelaySeconds( delay );
+					if ( !parent.IsValid() ) return;
+					float active = boundary + 0.000001f >= end ? duration : boundary - elapsed;
+					using ( parent.Scene.Push() )
+						EmitImpactParticles( emitters, random, previous, active, parent, parent.WorldTransform.ToWorld( local ), incoming );
+					previous = active;
+				}
+			}
+			elapsed = end;
 		}
 	}
 

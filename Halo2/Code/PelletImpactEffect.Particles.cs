@@ -72,22 +72,28 @@ public sealed partial class PelletImpactEffect
 	float ParticleFraction() => BlamRandom.Next( ref impactParticleSeed ) * (1f / 65535f);
 	static float Sample( Vector2 bounds, float t ) => bounds.x + (bounds.y - bounds.x) * t;
 
-	void EmitImpactParticles( ImpactEmitter[] emitters, GameObject parent, Transform contact, Vector3 incoming )
+	Vector2[] InitializeImpactSystems( int count )
 	{
 		// World effects initialize every system and location before allocating the first particle.
-		Span<Vector2> systemRandom = stackalloc Vector2[emitters.Length];
-		for ( int i = 0; i < emitters.Length; i++ )
+		var systemRandom = new Vector2[count];
+		for ( int i = 0; i < count; i++ )
 		{
 			systemRandom[i] = new Vector2( ParticleFraction(), ParticleFraction() );
 			BlamRandom.Next( ref impactParticleSeed ); // Location random byte
 		}
+		return systemRandom;
+	}
+
+	void EmitImpactParticles( ImpactEmitter[] emitters, Vector2[] systemRandom, float previous, float active, GameObject parent, Transform contact, Vector3 incoming )
+	{
 		for ( int i = 0; i < emitters.Length; i++ )
 		{
 			if ( emitters[i] is not {} emitter ) continue;
 			var random = systemRandom[i];
 			// Particle random inputs are zero until a particle has been allocated.
-			float input = emitter.CountInput switch { 5 => random.x, 6 => random.y, _ => 0 };
-			int births = (int)(Sample( emitter.Count, input ) + 0.0001f);
+			float input = emitter.CountInput switch { 4 => 1, 5 => random.x, 6 => random.y, _ => 0 };
+			float rate = Sample( emitter.Count, input ) * 30;
+			int births = (int)(rate * active + 0.0001f) - (int)(rate * previous + 0.0001f);
 			EmitImpactLayer( emitter, births, parent, contact, incoming, random );
 		}
 	}
