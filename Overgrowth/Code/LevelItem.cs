@@ -57,18 +57,15 @@ public sealed partial class LevelItem : Component
 				return;
 			}
 			incomingVelocity = body.Velocity;
-			if ( thrower is not null )
-			{
-				if ( flyingStraight ) AlignWithFlight( body );
-				TraceFlight( body );
-			}
+			if ( flyingStraight ) AlignWithFlight( body );
+			TraceFlight( body );
 			return;
 		}
 		UpdateAttachment();
 		var pose = WorldTransform;
 		if ( lastHeldPose is { } previous )
 		{
-			var center = GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
+			var center = LocalMassCenter;
 			carryVelocity = (pose.PointToWorld( center ) - previous.PointToWorld( center )) / Time.Delta;
 			var delta = Rotation.Difference( previous.Rotation, pose.Rotation );
 			var axis = new Vector3( delta.x, delta.y, delta.z ).Normal;
@@ -91,7 +88,8 @@ public sealed partial class LevelItem : Component
 		carryVelocity = carryAngularVelocity = Vector3.Zero;
 	}
 
-	internal Vector3 PhysicsPosition => WorldTransform.PointToWorld( GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero );
+	Vector3 LocalMassCenter => GetComponent<ModelRenderer>()?.Model?.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
+	internal Vector3 PhysicsPosition => WorldTransform.PointToWorld( LocalMassCenter );
 	internal int Hands => Definition?.Element( "grip" )?.Number( "hands" ) is { } hands ? (int)hands : 1;
 	XmlAsset itemDefinition;
 	internal XmlAsset Definition => itemDefinition ??= (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader)?.ItemDefinition;
@@ -220,12 +218,19 @@ public sealed partial class LevelItem : Component
 		body.EnhancedCcd = true;
 		body.CollisionEventsEnabled = true;
 		body.Enabled = collider.Enabled = true;
-		item.GetOrAddComponent<LevelItem>();
+		var component = item.GetOrAddComponent<LevelItem>();
+		component.previousFlightPose = item.WorldTransform;
+		item.Tags.Add( ThrownItem );
 		return body;
 	}
 
 	protected override void OnStart()
 	{
+		// Loose items hit characters through their animated hulls.
+		var world = Scene.PhysicsWorld;
+		if ( world.CollisionRules.GetCollisionRule( ThrownItem, FighterHull ) != Sandbox.Physics.CollisionRules.Result.Ignore )
+			world.CollisionRules = new ItemCollisionRules( world.CollisionRules );
+		previousFlightPose = WorldTransform;
 		if ( GetComponent<Rigidbody>() is { } body ) body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 	}
 }

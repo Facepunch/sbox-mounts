@@ -10,6 +10,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	bool flyingStraight;
 	GameObject thrower;
 	Transform previousFlightPose;
+	TimeUntil nextCharacterImpact;
 	internal GameObject ThrownBy => thrower;
 
 	internal void MarkThrowSafe()
@@ -31,8 +32,10 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	void TraceFlight( Rigidbody body )
 	{
 		var pose = WorldTransform;
-		if ( body.Velocity.LengthSquared > 40f * 40f )
+		if ( body.Sleeping ) nextCharacterImpact = 0f;
+		else if ( nextCharacterImpact <= 0f && body.Velocity.LengthSquared > 40f * 40f )
 		{
+			var owner = thrower.IsValid() ? thrower : guard.IsValid() ? guard.GameObject : null;
 			for ( int i = 0; i <= 8; i++ )
 			{
 				var sample = global::Transform.Lerp( previousFlightPose, pose, i / 8f, true );
@@ -40,18 +43,26 @@ public sealed partial class LevelItem : Component.ICollisionListener
 				{
 					var (start, end) = line.ToWorld( sample );
 					var trace = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes();
-					if ( thrower.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( thrower );
+					if ( owner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( owner );
 					var hit = trace.Run();
 					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
-					if ( !fighter.DefendThrownItem( this, body ) )
+					float mass = body.Mass;
+					if ( thrower.IsValid() && !fighter.DefendThrownItem( this, body ) )
 						HitFighter( fighter, body, thrower, hit, sample, end, line );
-					thrower = null;
-					flyingStraight = false;
+					MarkThrowSafe();
+					nextCharacterImpact = 0.4f;
+					previousFlightPose = pose;
+					if ( body is { IsValid: true, Enabled: true } )
+					{
+						var velocity = body.Velocity;
+						var normal = Vector3.Lerp( Vector3.Random.Normal, (-velocity.Normal).WithZ( -velocity.Normal.z * 0.2f ), 0.6f ).Normal;
+						body.Velocity = Vector3.Reflect( velocity, normal ) * Random.Shared.Float( 0.1f, 0.25f );
+					}
+					PlayCharacterImpact( mass, hit.EndPosition );
 					return;
 				}
 			}
 		}
-		if ( body.Sleeping ) thrower = null;
 		previousFlightPose = pose;
 	}
 
@@ -69,16 +80,9 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	internal void Throw( RabbitGuard owner, Vector3 target, Vector3 velocity, bool fullBody )
 	{
-		// The native item body hits the environment. Characters are tested against the animated hulls.
-		var world = Scene.PhysicsWorld;
-		var rules = world.CollisionRules;
-		if ( rules.GetCollisionRule( ThrownItem, FighterHull ) != CollisionRules.Result.Ignore )
-			world.CollisionRules = new ItemCollisionRules( rules );
-		Tags.Add( ThrownItem );
 		thrower = owner.GameObject;
 		var throwerVelocity = owner.Animation.MoveVelocity;
 		Drop();
-		previousFlightPose = WorldTransform;
 		var body = GetComponent<Rigidbody>();
 		var delta = target - PhysicsPosition;
 		float mass = body.MassOverride;

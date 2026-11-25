@@ -49,6 +49,14 @@ public sealed partial class LevelItem
 		pendingEmbed = pose.WithPosition( pose.Position + contact.Point - point - normal * (6f * MathF.Sqrt( body.Mass )) );
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayCharacterImpact( float mass, Vector3 point )
+	{
+		var group = mass < 1f ? "weapon_knife_hilt" : mass < 3f ? "weapon_drop_medium_dirt" : "weapon_drop_heavy_dirt";
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
+	}
+
 	void HitFighter( RabbitGuard fighter, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 end, ItemLine line )
 	{
 		var velocity = body.Velocity;
@@ -68,11 +76,6 @@ public sealed partial class LevelItem
 			Bone = bone.Name;
 			Offset = bonePose.ToLocal( WorldTransform );
 			StuckIn = fighter.Renderer;
-		}
-		else
-		{
-			var normal = Vector3.Lerp( Vector3.Random.Normal, (-velocity.Normal).WithZ( -velocity.Normal.z * 0.2f ), 0.6f ).Normal;
-			body.Velocity = Vector3.Reflect( velocity, normal ) * Random.Shared.Float( 0.1f, 0.25f );
 		}
 		fighter.HitByItem( this, attacker, hit.EndPosition, velocity, mass, label, cut, embedded );
 	}
