@@ -137,18 +137,19 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		}
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
-		if ( visible && enemy.GetComponentInParent<IDamageable>() is { } target )
+		var target = visible ? enemy.GetComponentInParent<IDamageable>() : null;
+		if ( target is not null )
 		{
 			bool usePistol;
 			if ( target is Babbler )
 			{
 				usePistol = false;
 			}
-			else if ( target is AlienStructure )
+			else if ( target is Harvester )
 			{
 				float durability = target.Health + 2 * target.Armour;
 				float maxDurability = target.MaxHealth + 2 * target.MaxArmour;
-				usePistol = rifleAmmo.Reserve == 0 && (pistol || durability <= 0.15f * maxDurability && pistolAmmo.Reserve > 0);
+				usePistol = rifleAmmo.Reserve == 0 && (durability <= 0.15f * maxDurability ? pistolAmmo.Reserve > 0 : pistol);
 			}
 			else
 			{
@@ -163,24 +164,25 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		}
 		if ( Ammo.Clip == 0 ) BeginReload();
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
-		bool mobile = visible && enemy.GetComponentInParent<AlienStructure>() is null;
+		// NS2 uses the structure attack routine for Drifters even though they can move.
+		bool useEntityAttack = visible && target is not (AlienStructure or Drifter);
 		float distance = visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
-		if ( mobile )
+		if ( useEntityAttack )
 		{
 			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
 			distance = Math.Max( 0, distance - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f );
 		}
-		bool clearShot = visible && distance < (mobile ? 32.5f : 22) * Scale;
+		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
 		bool aimed = clearShot && (babbler || acquisition.Ready( enemy, aimPoint - EyePosition, aim ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
 			firingTarget = enemy;
-			blindFireUntil = mobile ? 0.5f : 0;
+			blindFireUntil = useEntityAttack ? 0.5f : 0;
 		}
 		wantsFire = !reloading && Ammo.Clip > 0 && (aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0);
-		if ( mobile && clearShot )
+		if ( useEntityAttack && clearShot )
 		{
 			if ( babbler ) Movement.Stop();
 			else Strafe( enemy, aimPoint, distance );
