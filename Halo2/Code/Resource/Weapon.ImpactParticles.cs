@@ -61,71 +61,60 @@ internal abstract partial class WeaponLoader
 		for ( int i = 0; i < emitters.Length; i++, system += 56 )
 		{
 			var particle = Reference( system );
-			var name = particle?.TagPath switch
+			if ( particle is null || map.ReadInt32( system + 48 ) != 1 ) continue;
+			int definition = Address( particle );
+			(string TextureName, ImpactLayer? Layer) style = particle.TagPath switch
 			{
-				@"effects\generic\solids\dirt_burst" => DirtBurstName,
-				@"effects\generic\smoke\dirt_puff" => DirtPuffName,
-				@"effects\generic\solids\dirt_burst_cone" => DirtConeName,
-				@"effects\generic\solids\rubber_impact" => RubberName,
-				@"effects\generic\smoke\blood_mist_impact" => MistName,
-				@"effects\generic\solids\debris_shirt" => ClothName,
-				@"effects\generic\solids\plant_leafy" => LeafName,
-				@"effects\generic\solids\plant_grassy" => GrassName,
-				@"effects\generic\solids\impact_burst" or @"effects\generic\solids\impact_burst_unlit" => BurstName,
-				@"effects\generic\solids\impact_burst_soft_unlit" => SoftBurstName,
-				@"effects\generic\solids\impact_clumps" or @"effects\generic\solids\impact_clumps_unlit" => ClumpsName,
-				@"effects\generic\solids\impact_ripple_unlit" => RippleName,
-				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => ShieldName,
-				@"effects\generic\solids\plant_wood" => WoodName,
-				@"effects\generic\smoke\smoke_impact" => DustName,
-				@"effects\generic\sparks\electric_arcs" => ArcName,
-				@"effects\generic\smoke\smoke_fiery_small" => SmallFierySmokeName,
-				@"effects\generic\smoke\smoke_drift" => DriftName,
-				@"effects\generic\solids\rocks" => RocksName,
-				@"effects\generic\solids\glass_breakable" => GlassName,
-				@"effects\generic\solids\metal_chips" => MetalChipsName,
-				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
-				@"effects\generic\solids\impact_spray" => SprayName,
-				@"effects\generic\solids\impact_spray_unlit" => UnlitSprayName,
-				@"effects\generic\solids\impact_spray_thick_unlit" => ThickSprayName,
-				@"effects\generic\smoke\smoke_soft_small" => UnlitImpactSmokeName,
-				@"effects\generic\sparks\sparks_trail" => SparkTrailName,
-				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
-				_ => null
+				@"effects\generic\solids\dirt_burst" => (DirtBurstName, ImpactLayer.Dirt),
+				@"effects\generic\smoke\dirt_puff" => (DirtPuffName, ImpactLayer.Dirt),
+				@"effects\generic\solids\dirt_burst_cone" => (DirtConeName, ImpactLayer.Dirt),
+				@"effects\generic\solids\rubber_impact" => (RubberName, ImpactLayer.Rubber),
+				@"effects\generic\smoke\blood_mist_impact" => (MistName, ImpactLayer.Mist),
+				@"effects\generic\solids\debris_shirt" => (ClothName, ImpactLayer.Cloth),
+				@"effects\generic\solids\plant_leafy" => (LeafName, ImpactLayer.Plant),
+				@"effects\generic\solids\plant_grassy" => (GrassName, ImpactLayer.Plant),
+				@"effects\generic\solids\impact_burst" or @"effects\generic\solids\impact_burst_unlit" => (BurstName, ImpactLayer.Burst),
+				@"effects\generic\solids\impact_burst_soft_unlit" => (SoftBurstName, ImpactLayer.Burst),
+				@"effects\generic\solids\impact_clumps" or @"effects\generic\solids\impact_clumps_unlit" => (ClumpsName, ImpactLayer.Clumps),
+				@"effects\generic\solids\impact_ripple_unlit" => (RippleName, ImpactLayer.Ripple),
+				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => (ShieldName, ImpactLayer.Shield),
+				@"effects\generic\solids\plant_wood" => (WoodName, ImpactLayer.Plant),
+				@"effects\generic\smoke\smoke_impact" => (DustName, ImpactLayer.Dust),
+				@"effects\generic\sparks\electric_arcs" => (ArcName, ImpactLayer.ElectricArcs),
+				@"effects\generic\smoke\smoke_fiery_small" => (SmallFierySmokeName, ImpactLayer.FierySmoke),
+				@"effects\generic\smoke\smoke_fiery" => (null, ImpactLayer.FierySmoke),
+				@"effects\generic\smoke\smoke_drift" => (DriftName, ImpactLayer.Drift),
+				@"effects\generic\solids\rocks" => (RocksName, ImpactLayer.Rocks),
+				@"effects\generic\solids\glass_breakable" => (GlassName, ImpactLayer.GlassShards),
+				@"effects\generic\solids\metal_chips" => (MetalChipsName, ImpactLayer.MetalChips),
+				@"effects\generic\smoke\smoke_soft_small_lit" => (ImpactSmokeName, ImpactLayer.Smoke),
+				@"effects\generic\solids\impact_spray" => (SprayName, ImpactLayer.Spray),
+				@"effects\generic\solids\impact_spray_unlit" => (UnlitSprayName, ImpactLayer.Spray),
+				@"effects\generic\solids\impact_spray_thick_unlit" => (ThickSprayName, ImpactLayer.Spray),
+				@"effects\generic\smoke\smoke_soft_small" => (UnlitImpactSmokeName, ImpactLayer.Smoke),
+				@"effects\generic\sparks\sparks_trail" => (SparkTrailName, ImpactLayer.SparkTrail),
+				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => (SparksName, ImpactLayer.Sparks),
+				@"effects\generic\flares\burst_additive" => (null, ImpactLayer.AdditiveFlare),
+				@"effects\objects\weapons\pistol\needler\shard_debris" => (null, ImpactLayer.GlassShards),
+				_ => (null, (ImpactLayer?)null)
 			};
-			if ( name is null || map.ReadInt32( system + 48 ) != 1 ) continue;
-			var texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
+			if ( style.Layer is not {} layer ) continue;
+			string texturePath;
+			if ( style.TextureName is {} name ) texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
+			else
+			{
+				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
+				if ( bitmap is null ) continue;
+				texturePath = Host.AssetPath( map, bitmap.TagPath, "vtex" );
+				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 ) texturePath += "/sheet.vtex";
+			}
 			var texture = Texture.Load( texturePath );
 			if ( !texture.IsValid() || texture.IsError ) continue;
-			var layer = name switch
-			{
-				SprayName or UnlitSprayName or ThickSprayName => ImpactLayer.Spray,
-				RubberName => ImpactLayer.Rubber,
-				MistName => ImpactLayer.Mist,
-				ShieldName => ImpactLayer.Shield,
-				RippleName => ImpactLayer.Ripple,
-				ClumpsName => ImpactLayer.Clumps,
-				BurstName or SoftBurstName => ImpactLayer.Burst,
-				WoodName or LeafName or GrassName => ImpactLayer.Plant,
-				ClothName => ImpactLayer.Cloth,
-				DirtBurstName or DirtPuffName or DirtConeName => ImpactLayer.Dirt,
-				DustName => ImpactLayer.Dust,
-				ArcName => ImpactLayer.ElectricArcs,
-				SmallFierySmokeName => ImpactLayer.FierySmoke,
-				RocksName => ImpactLayer.Rocks,
-				MetalChipsName => ImpactLayer.MetalChips,
-				GlassName => ImpactLayer.GlassShards,
-				SparksName => ImpactLayer.Sparks,
-				SparkTrailName => ImpactLayer.SparkTrail,
-				DriftName => ImpactLayer.Drift,
-				_ => ImpactLayer.Smoke
-			};
 			var origin = new Vector2( 0.5f, 0.5f );
-			int definition = Address( particle );
 			int sequence = Short( definition + 8 );
 			if ( layer == ImpactLayer.Sparks ) origin = new Vector2( 1 - 48f / 56f, (sequence == 1 ? 5 : 4) / 9f );
 			var geometry = new Vector2( Float( definition + 164 ), Float( definition + 168 ) );
-			if ( HasSpriteRadius( layer ) )
+			if ( HasSpriteRadius( layer ) || layer == ImpactLayer.AdditiveFlare )
 				origin = new Vector2( 1 + Float( definition + 156 ) / geometry.x, -Float( definition + 160 ) / geometry.y );
 			// Both frames of a burst share their footprint and pivot. The fourth random input blends the UVs.
 			if ( layer == ImpactLayer.Burst )

@@ -5,11 +5,11 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt, SparkTrail }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt, SparkTrail, AdditiveFlare }
 
 	internal static bool HasSpriteRadius( ImpactLayer layer ) => layer is ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Dirt;
 
-	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst;
+	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst or ImpactLayer.AdditiveFlare;
 
 	public sealed record ImpactEmitter( ImpactLayer Layer, ImpactSprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
@@ -144,7 +144,7 @@ public sealed partial class PelletImpactEffect
 	{
 		bool sparks = data.Layer == ImpactLayer.Sparks;
 		bool animatedRadius = HasAnimatedRadius( data.Layer );
-		var axis = data.Marker switch { "up" => Vector3.Up, "forward" => contact.Rotation * incoming, _ => -contact.Rotation.Forward };
+		var axis = data.Marker switch { "up" => Vector3.Up, "backward" => -(contact.Rotation * incoming), "forward" => contact.Rotation * incoming, _ => -contact.Rotation.Forward };
 		if ( data.Marker == "reflection" )
 		{
 			var ray = contact.Rotation * incoming;
@@ -162,8 +162,8 @@ public sealed partial class PelletImpactEffect
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = data.Lighting;
-		renderer.Additive = sparks || data.Layer is ImpactLayer.SparkTrail or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
-		if ( sparks || (data.Layer is ImpactLayer.Dirt or ImpactLayer.SparkTrail && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+		renderer.Additive = sparks || data.Layer is ImpactLayer.SparkTrail or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.AdditiveFlare;
+		if ( sparks || (data.Layer is ImpactLayer.Dirt or ImpactLayer.SparkTrail && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer is ImpactLayer.Burst or ImpactLayer.AdditiveFlare ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
 		void Appearance( Particle p )
@@ -229,10 +229,13 @@ public sealed partial class PelletImpactEffect
 			{
 				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
 				p.Size = data.RadiusCurve.Evaluate( input, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
-				if ( data.Layer == ImpactLayer.Burst )
+				if ( data.Layer is ImpactLayer.Burst or ImpactLayer.AdditiveFlare )
 				{
-					p.Size = new Vector2( data.SpriteAspect.x * p.Get<float>( "mirror" ), data.SpriteAspect.y ) * p.Size.x;
-					ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, true );
+					var aspect = data.SpriteAspect;
+					if ( data.Layer == ImpactLayer.AdditiveFlare ) aspect.y *= p.Get<float>( "mirror" );
+					else aspect.x *= p.Get<float>( "mirror" );
+					p.Size = aspect * p.Size.x;
+					ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, data.Layer == ImpactLayer.Burst || data.VerticalSprite );
 				}
 				if ( data.Layer is ImpactLayer.Shield or ImpactLayer.Spray or ImpactLayer.Ripple ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
 				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
@@ -294,6 +297,7 @@ public sealed partial class PelletImpactEffect
 				p.Set( "mirror", flipX == flipY ? 1f : -1f );
 				if ( flipX ) p.Angles.roll += 180;
 			}
+			if ( data.Layer == ImpactLayer.AdditiveFlare ) p.Set( "mirror", (r1 & 1) == 0 ? 1f : -1f );
 			if ( data.Layer == ImpactLayer.Burst )
 			{
 				p.SequenceTime = new Vector3( fourth, 0, 0 );
