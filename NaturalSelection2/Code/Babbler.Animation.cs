@@ -39,7 +39,7 @@ public sealed partial class Babbler
 		}
 		bool jumping = !Animation.IsGrounded;
 		bool running = !jumping && Movement.IsMoving;
-		if ( Networking.IsHost ) Attacking = lastHit < 0.2f;
+		if ( Networking.IsHost ) Attacking = feed <= 0 && lastHit < 0.2f;
 		if ( !Application.IsHeadless )
 		{
 			if ( jumping && !wasJumping && velocity.LengthSquared > 4 * Scale * Scale ) PlaySoundAt( "alien/babbler/jump", SphereCenter );
@@ -57,7 +57,9 @@ public sealed partial class Babbler
 		if ( Networking.IsHost )
 		{
 			if ( graph is null ) return;
-			graph.Set( "move", jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : "idle" );
+			graph.Set( "forage", feed > 0 && !hungry ? 1 : 0 );
+			graph.Set( "hungry", feed > 0 && hungry ? 1 : 0 );
+			graph.Set( "move", feed > 0 ? "idle" : jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : "idle" );
 			graph.Set( "attacking", Attacking ? 1 : 0 );
 			graph.Update( animationTime, output );
 			locomotion = graph.GetPose( 0 );

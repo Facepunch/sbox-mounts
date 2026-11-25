@@ -58,6 +58,7 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void Think()
 	{
+		bool wasHunting = target.IsValid();
 		target = null;
 		float closest = 12 * 12 * Scale * Scale;
 		foreach ( var candidate in Senses.VisibleHostiles )
@@ -67,7 +68,13 @@ public sealed partial class Babbler : BaseNpc
 			if ( distance < closest ) (target, closest) = (candidate, distance);
 		}
 		Animation.SetLookTarget( target );
-		if ( !target.IsValid() ) { Movement.Stop(); return; }
+		if ( !target.IsValid() )
+		{
+			if ( wasHunting ) Movement.Stop();
+			Roam();
+			return;
+		}
+		feed = 0;
 		var aim = CalculateAimPoint( target );
 		var path = Scene.Trace.Ray( EyePosition, aim ).WithTag( "world" ).Run();
 		if ( path.Fraction < 0.9f && (aim - EyePosition).WithZ( 0 ).Length >= 2 * Scale )
