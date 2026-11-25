@@ -217,9 +217,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		var contacts = ShotgunContacts.For( Weapon );
 		casings.OnPreStep += _ =>
 		{
-			if ( casings.DelayedParticles.Count == 0 || !IsValid || !Weapon.IsValid() ) return;
-			if ( Weapon.WeaponModel is not ShotgunModel model || !model.ShellEjectGameObject.IsValid() ) return;
-			TrackEjectionMarker( model );
+			if ( casings.DelayedParticles.Count > 0 ) TrackEjectionMarker();
 		};
 		casings.OnParticleCreated += EjectCasing;
 		casings.OnPostStep += dt => AdvanceCasings( casings, holder, contacts, dt );
@@ -292,18 +290,25 @@ public partial class ShotgunModel : BaseWeaponModel
 		firstPersonEjection = model is ShotgunViewModel;
 	}
 
+	void TrackEjectionMarker()
+	{
+		if ( !Weapon.IsValid() ) return;
+		if ( Weapon.WeaponModel is ShotgunModel model && model.ShellEjectGameObject.IsValid() )
+			TrackEjectionMarker( model );
+		else if ( !Weapon.IsHeld && Weapon.GetComponent<SkinnedModelRenderer>()?.GetAttachment( "primary_ejection" ) is {} looseMarker )
+		{
+			ejectionMarker = looseMarker;
+			firstPersonEjection = false;
+		}
+	}
+
 	void EjectCasing( Particle casing )
 	{
+		TrackEjectionMarker();
 		var marker = ejectionMarker;
-		bool firstPerson = firstPersonEjection;
-		if ( Weapon.IsValid() && !Weapon.IsHeld && Weapon.GetComponent<SkinnedModelRenderer>()?.GetAttachment( "primary_ejection" ) is {} looseMarker )
-		{
-			marker = looseMarker;
-			firstPerson = false;
-		}
-		casing.StartPosition = casing.Position = firstPerson ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
+		casing.StartPosition = casing.Position = firstPersonEjection ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
 		var direction = marker.Rotation.Forward;
-		if ( !firstPerson )
+		if ( !firstPersonEjection )
 		{
 			// The world emitter samples azimuth uniformly and polar angle from zero to ten degrees.
 			const double unit = 1f / 65535f;
