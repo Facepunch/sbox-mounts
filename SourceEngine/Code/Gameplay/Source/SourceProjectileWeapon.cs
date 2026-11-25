@@ -21,10 +21,12 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	[Sync( SyncFlags.FromHost )] public GameObject LiveRocket { get; private set; }
 	/// <summary>HL2's launcher guides by default; the SDK's multiplayer rules toggle it with attack2.</summary>
 	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; } = true;
+	internal float WindupDuration { get; set; }
 	internal float ReleaseDelay { get; set; }
 	internal float AttackDuration { get; set; }
 	internal float RedrawDuration { get; set; }
 	internal float? NpcDamage { get; set; }
+	bool _primed;
 	bool _releasePending;
 	GameObject _releaseAttacker;
 	bool _redrawPending;
@@ -46,9 +48,9 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 		_ = SourceWeaponSetup.ConfigureWeapon( this );
 	}
 
-	public override bool CanPrimaryAttack() => !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
+	public override bool CanPrimaryAttack() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
-	public override bool CanReload() => !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
+	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
 	public override bool CanSecondaryAttack() => Secondary is SecondaryFires.Zoom or SecondaryFires.Guide && base.CanSecondaryAttack();
 
 	public override void SecondaryAttack()
@@ -110,6 +112,7 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	protected override void OnHolstered()
 	{
 		_zoomed = false;
+		_primed = false;
 		_releasePending = false;
 		_releaseAttacker = null;
 		_redrawPending = false;
@@ -125,15 +128,17 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 
 	public override void PrimaryAttack()
 	{
-		if ( _releasePending || _redrawPending ) return;
-		if ( ReleaseDelay > 0 )
+		if ( _primed || _releasePending || _redrawPending ) return;
+		if ( AttackDuration > 0 )
 		{
-			_releasePending = true;
 			_releaseAttacker = Attacker;
-			_releaseAt = ReleaseDelay;
-			_redrawAt = AttackDuration;
-			SetNextFire( Math.Max( PrimaryDelay, AttackDuration + RedrawDuration ) );
 			ShootEffects();
+			if ( WindupDuration > 0 )
+			{
+				_primed = true;
+				_releaseAt = WindupDuration;
+			}
+			else BeginThrow();
 			return;
 		}
 		if ( UsesAmmo && HasOwner && !TakePrimaryAmmo( 1 ) )
@@ -158,9 +163,29 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 
 	protected override void OnViewModelPlaced( SourceViewModel model ) => _laser?.Follow( model );
 
+	protected override void Think()
+	{
+		base.Think();
+		if ( _primed && _releaseAt <= 0 && !Input.Down( "attack1" ) ) BeginThrow();
+	}
+
+	void BeginThrow()
+	{
+		if ( _primed ) ThrowEffects();
+		_primed = false;
+		_releasePending = true;
+		_releaseAt = ReleaseDelay;
+		_redrawAt = AttackDuration;
+		SetNextFire( Math.Max( PrimaryDelay, AttackDuration + RedrawDuration ) );
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void ThrowEffects() => (WeaponModel as SourceViewModel)?.OnThrow();
+
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( _primed && !HasOwner && _releaseAt <= 0 ) BeginThrow();
 		if ( _releasePending && _releaseAt <= 0 )
 		{
 			var attacker = _releaseAttacker;

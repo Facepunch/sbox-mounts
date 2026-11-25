@@ -213,6 +213,7 @@ static class SourceWeaponSetup
 		float Duration( string clip ) => SourceWeaponClips.Duration( model, clip );
 		if ( weapon is SourceProjectileWeapon projectile && clips.Throws )
 		{
+			projectile.WindupDuration = clips.WindupDuration;
 			projectile.ReleaseDelay = clips.ReleaseDelay;
 			projectile.AttackDuration = clips.ThrowDuration;
 			// Thrown weapons draw a new item rather than swapping a magazine.

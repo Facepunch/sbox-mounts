@@ -79,7 +79,6 @@ public sealed class SourceViewModel : BaseWeaponModel
 	int _burstShots;
 	int _tracerShots;
 	TimeSince _lastPrimaryShot = 10;
-	bool _throwReleasePending;
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
 	bool _scopeHidden;
@@ -313,11 +312,6 @@ public sealed class SourceViewModel : BaseWeaponModel
 		UpdateMirror();
 		UpdateScopeVisibility();
 		if ( _pending is not null ) Play( _pending );
-		else if ( _throwReleasePending && _animation.Finished )
-		{
-			_throwReleasePending = false;
-			Play( _clips.Fire );
-		}
 		else if ( _reloadFinish is not null && _animation.Finished )
 		{
 			var finish = _reloadFinish;
@@ -325,7 +319,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 			_reloading = false;
 			Play( finish );
 		}
-		else if ( !_reloading && _animation.Finished && _animation.Current != _clips.Idle )
+		else if ( !_reloading && _animation.Finished && _animation.Current != _clips.Idle && _animation.Current != _clips.ThrowWindup )
 		{
 			if ( _clips.Throws && _animation.Current == _clips.Fire )
 			{
@@ -407,7 +401,6 @@ public sealed class SourceViewModel : BaseWeaponModel
 	public override void OnDeploy()
 	{
 		if ( _plainClips is not null ) SelectClips();
-		_throwReleasePending = false;
 		ResetBurst();
 		Play( _clips?.Draw ?? Draw );
 	}
@@ -458,11 +451,12 @@ public sealed class SourceViewModel : BaseWeaponModel
 		Play( clip );
 	}
 
+	public void OnThrow() => Play( _clips?.Fire );
+
 	void BeginAttack()
 	{
 		_reloading = false;
 		_reloadFinish = null;
-		_throwReleasePending = _clips.Throws && !string.IsNullOrEmpty( _clips.ThrowWindup );
 		_pumpAfterShot = !string.IsNullOrEmpty( _clips.Pump );
 	}
 
@@ -475,7 +469,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 
 	string AttackClip()
 	{
-		if ( _throwReleasePending ) return _clips.ThrowWindup;
+		if ( _clips.ThrowWindup is not null ) return _clips.ThrowWindup;
 		var weapon = GetComponentInParent<BaseCombatWeapon>();
 		if ( weapon is SourceBulletWeapon { BurstMode: true } burst && _clips.Burst is not null ) return burst.BurstFollowUp ? null : _clips.Burst;
 		if ( _clips.Alternates ) return _alternateShots++ % 2 == 0 ? _clips.Fire : _clips.SecondaryFire;
@@ -499,7 +493,6 @@ public sealed class SourceViewModel : BaseWeaponModel
 		_reloadFinish = null;
 		_reloading = true;
 		_pumpAfterShot = false;
-		_throwReleasePending = false;
 		Play( _clips.Reload );
 		if ( !_clips.Incremental ) PlayReloadSound( _clips.Reload );
 	}

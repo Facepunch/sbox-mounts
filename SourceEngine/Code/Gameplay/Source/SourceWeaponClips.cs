@@ -32,6 +32,7 @@ sealed record SourceWeaponClips
 	public bool Incremental { get; init; }
 	/// <summary>An ACT_VM_THROW clip with a throw event; <see cref="Fire"/> is then the release.</summary>
 	public bool Throws { get; init; }
+	public float WindupDuration { get; init; }
 	public float ReleaseDelay { get; init; }
 	public float ThrowDuration { get; init; }
 
@@ -84,8 +85,9 @@ sealed record SourceWeaponClips
 			ThrowWindup = windup?.Name,
 			Incremental = incremental,
 			Throws = throws,
-			ReleaseDelay = throws ? preparation + Math.Clamp( launch.Cycle, 0, 1 ) * throwDuration : 0,
-			ThrowDuration = preparation + throwDuration
+			WindupDuration = preparation,
+			ReleaseDelay = throws ? Math.Clamp( launch.Cycle, 0, 1 ) * throwDuration : 0,
+			ThrowDuration = throwDuration
 		};
 	}
 }
