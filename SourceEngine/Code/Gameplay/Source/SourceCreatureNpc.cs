@@ -117,10 +117,10 @@ public sealed class SourceCreatureNpc : BaseNpc, Component.IPressable
 	SourceAnimationPlayer _animation = new();
 	SourceLinkAnimation _link;
 	SourceCreatureBehaviour[] _behaviours = [];
-	Hl2Manhack _manhack;
-	Hl2NpcProjectileAttack _projectile;
+	Hl2.Manhack _manhack;
+	Hl2.NpcProjectileAttack _projectile;
 	SourceNpcRangedEffects _rangedEffects;
-	Hl2ScannerPhoto _photo;
+	Hl2.ScannerPhoto _photo;
 	Rigidbody _body;
 	Vector3 _home;
 	Vector3? _command;
@@ -185,10 +185,10 @@ public sealed class SourceCreatureNpc : BaseNpc, Component.IPressable
 		base.OnStart();
 		_body = GetComponent<Rigidbody>( true );
 		_behaviours = GetComponents<SourceCreatureBehaviour>().ToArray();
-		_manhack = GetComponent<Hl2Manhack>();
-		_projectile = GetComponent<Hl2NpcProjectileAttack>();
+		_manhack = GetComponent<Hl2.Manhack>();
+		_projectile = GetComponent<Hl2.NpcProjectileAttack>();
 		_rangedEffects = GetComponent<SourceNpcRangedEffects>();
-		_photo = GetComponent<Hl2ScannerPhoto>();
+		_photo = GetComponent<Hl2.ScannerPhoto>();
 		_home = WorldPosition;
 		if ( IsProxy )
 		{
@@ -271,7 +271,7 @@ public sealed class SourceCreatureNpc : BaseNpc, Component.IPressable
 		_flinches = _sequences.All.Where( s => !s.Delta && s.BoneMask is not null && s.Activity?.StartsWith( "ACT_GESTURE_FLINCH", StringComparison.Ordinal ) == true && model.AnimationClips().ContainsKey( s.Name ) )
 			.Select( s => s.Name ).ToArray();
 		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>> { [FlinchLayer] = _flinches };
-		if ( _melee is null && !HasRangedAttack && !_behaviours.Any( x => x is Hl2Leap ) )
+		if ( _melee is null && !HasRangedAttack && !_behaviours.Any( x => x is Hl2.Leap ) )
 			_melee = Attack;
 		_attackActivities = _sequences.All.Where( s => !s.Looping && !string.IsNullOrEmpty( s.Activity ) && s.Activity != "ACT_IDLE" ).Select( s => s.Name )
 			.ToHashSet( StringComparer.OrdinalIgnoreCase );

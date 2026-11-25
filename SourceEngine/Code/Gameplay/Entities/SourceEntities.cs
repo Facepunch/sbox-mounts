@@ -153,9 +153,9 @@ public static partial class SourceEntities
 	// Properties naming an entity a component spawns, which it can't work without.
 	static readonly HashSet<string> NamedEntities =
 	[
-		$"{typeof( Hl2Zombie ).FullName}.{nameof( Hl2Zombie.Headcrab )}",
-		$"{typeof( Hl2Zombie ).FullName}.{nameof( Hl2Zombie.Torso )}",
-		$"{typeof( Hl2DeployPrefab ).FullName}.{nameof( Hl2DeployPrefab.Prefab )}"
+		$"{typeof( Hl2.Zombie ).FullName}.{nameof( Hl2.Zombie.Headcrab )}",
+		$"{typeof( Hl2.Zombie ).FullName}.{nameof( Hl2.Zombie.Torso )}",
+		$"{typeof( Hl2.DeployPrefab ).FullName}.{nameof( Hl2.DeployPrefab.Prefab )}"
 	];
 
 	/// <summary>

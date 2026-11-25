@@ -131,7 +131,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.CssKnife": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 45, "DeployTime": 0.2, "DisplayName": "CS:S Knife", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "knife", "PreferredSlot": 2, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "SecondaryDelay": 1, "StartingAmmo": 135, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/knife_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/knife_wm.prefab"}}
+					"Source1.Css.Knife": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 45, "DeployTime": 0.2, "DisplayName": "CS:S Knife", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "knife", "PreferredSlot": 2, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "SecondaryDelay": 1, "StartingAmmo": 135, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/knife_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/knife_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_knife_t.mdl"}
@@ -346,7 +346,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.Hl2GravityWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Gravity Gun", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "tool", "PreferredSlot": 4, "PrimaryAutomatic": false, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/gravity_gun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/gravity_gun_wm.prefab"}}
+					"Source1.Hl2.GravityWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Gravity Gun", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "tool", "PreferredSlot": 4, "PrimaryAutomatic": false, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/gravity_gun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/gravity_gun_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}
@@ -409,7 +409,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.Hl2Stunstick": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Stunstick", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/stunstick_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/stunstick_wm.prefab"}, "Damage": 10, "Range": 75, "SwingDelay": 0.8, "MissSwingDelay": 0.8}
+					"Source1.Hl2.Stunstick": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Stunstick", "DroppedGameObject": {"ref": "standalone_wm"}, "Handedness": "Right", "HoldType": "melee", "PreferredSlot": 0, "PrimaryAutomatic": true, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/stunstick_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/stunstick_wm.prefab"}, "Damage": 10, "Range": 75, "SwingDelay": 0.8, "MissSwingDelay": 0.8}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_stunbaton.mdl"}
@@ -1041,7 +1041,7 @@ static partial class SourceEntities
 					"Source1.SourceNpcSpawnChoice": {"ModelChoices": ["models/player/ct_gign.mdl", "models/player/ct_gsg9.mdl", "models/player/ct_sas.mdl", "models/player/ct_urban.mdl"], "Team": "CT"},
 					"Source1.SourceCombatNpc": {"DisplayName": "Counter-Terrorist", "Friendly": true, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.SourceBulletWeapon"}, "WeaponChoices": [{"prefab": "entities/weapons/glock.prefab"}, {"prefab": "entities/weapons/usp.prefab"}, {"prefab": "entities/weapons/p228.prefab"}, {"prefab": "entities/weapons/deagle.prefab"}, {"prefab": "entities/weapons/fiveseven.prefab"}, {"prefab": "entities/weapons/elite.prefab"}, {"prefab": "entities/weapons/mac10.prefab"}, {"prefab": "entities/weapons/tmp.prefab"}, {"prefab": "entities/weapons/mp5navy.prefab"}, {"prefab": "entities/weapons/ump45.prefab"}, {"prefab": "entities/weapons/p90.prefab"}, {"prefab": "entities/weapons/galil.prefab"}, {"prefab": "entities/weapons/famas.prefab"}, {"prefab": "entities/weapons/ak47.prefab"}, {"prefab": "entities/weapons/m4a1.prefab"}, {"prefab": "entities/weapons/sg552.prefab"}, {"prefab": "entities/weapons/aug.prefab"}, {"prefab": "entities/weapons/scout.prefab"}, {"prefab": "entities/weapons/awp.prefab"}, {"prefab": "entities/weapons/g3sg1.prefab"}, {"prefab": "entities/weapons/sg550.prefab"}, {"prefab": "entities/weapons/m3.prefab"}, {"prefab": "entities/weapons/xm1014.prefab"}, {"prefab": "entities/weapons/m249.prefab"}]},
 					"Source1.SourceNpcAnimator": {},
-					"Source1.CssPlayerSounds": {}
+					"Source1.Css.PlayerSounds": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/player/ct_gign.mdl"}
@@ -1065,7 +1065,7 @@ static partial class SourceEntities
 					"Source1.SourceNpcSpawnChoice": {"ModelChoices": ["models/player/t_arctic.mdl", "models/player/t_guerilla.mdl", "models/player/t_leet.mdl", "models/player/t_phoenix.mdl"], "Team": "TERRORIST"},
 					"Source1.SourceCombatNpc": {"DisplayName": "Terrorist", "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.SourceBulletWeapon"}, "WeaponChoices": [{"prefab": "entities/weapons/glock.prefab"}, {"prefab": "entities/weapons/usp.prefab"}, {"prefab": "entities/weapons/p228.prefab"}, {"prefab": "entities/weapons/deagle.prefab"}, {"prefab": "entities/weapons/fiveseven.prefab"}, {"prefab": "entities/weapons/elite.prefab"}, {"prefab": "entities/weapons/mac10.prefab"}, {"prefab": "entities/weapons/tmp.prefab"}, {"prefab": "entities/weapons/mp5navy.prefab"}, {"prefab": "entities/weapons/ump45.prefab"}, {"prefab": "entities/weapons/p90.prefab"}, {"prefab": "entities/weapons/galil.prefab"}, {"prefab": "entities/weapons/famas.prefab"}, {"prefab": "entities/weapons/ak47.prefab"}, {"prefab": "entities/weapons/m4a1.prefab"}, {"prefab": "entities/weapons/sg552.prefab"}, {"prefab": "entities/weapons/aug.prefab"}, {"prefab": "entities/weapons/scout.prefab"}, {"prefab": "entities/weapons/awp.prefab"}, {"prefab": "entities/weapons/g3sg1.prefab"}, {"prefab": "entities/weapons/sg550.prefab"}, {"prefab": "entities/weapons/m3.prefab"}, {"prefab": "entities/weapons/xm1014.prefab"}, {"prefab": "entities/weapons/m249.prefab"}]},
 					"Source1.SourceNpcAnimator": {},
-					"Source1.CssPlayerSounds": {}
+					"Source1.Css.PlayerSounds": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/player/t_arctic.mdl"}
@@ -1104,8 +1104,8 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 55, "Radius": 25},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_antlion_health", "DamageSetting": "sk_antlion_swipe_damage"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Antlion", "Idle": "Idle", "Move": "run_all", "Attack": "attack1", "MoveSpeed": 180, "AttackDamage": 20, "RespondsToBugbait": true, "AttackHeight": 35, "Voice": "NPC_Antlion", "EyeHeight": 35},
-					"Source1.Hl2Unburrow": {},
-					"Source1.Hl2AntlionJump": {}
+					"Source1.Hl2.Unburrow": {},
+					"Source1.Hl2.AntlionJump": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/antlion.mdl"}
@@ -1121,9 +1121,9 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 130, "Radius": 45},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_antlionguard_health", "PlayerDamageSetting": "sk_antlionguard_dmg_shove"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Antlion Guard", "Health": 500, "Move": "run1", "Attack": "shove", "MoveSpeed": 220, "AttackDamage": 250, "AttackRange": 140, "AttackHeight": 70, "Voice": "NPC_AntlionGuard", "EyeHeight": 70},
-					"Source1.Hl2Unburrow": {"Activity": "ACT_ANTLIONGUARD_UNBURROW", "Sound": "NPC_AntlionGuard.Roar"},
-					"Source1.Hl2AntlionGuard": {},
-					"Source1.Hl2Charge": {}
+					"Source1.Hl2.Unburrow": {"Activity": "ACT_ANTLIONGUARD_UNBURROW", "Sound": "NPC_AntlionGuard.Roar"},
+					"Source1.Hl2.AntlionGuard": {},
+					"Source1.Hl2.Charge": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/antlion_guard.mdl"}
@@ -1139,8 +1139,8 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 45, "Radius": 25},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_antlion_worker_health", "AdditionalConfig": "skill_episodic.cfg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Antlion Worker", "Health": 60, "Idle": "Idle", "Move": "run_all", "Attack": "spit", "MoveSpeed": 140, "AttackRange": 900, "AttackDamage": 5, "AttackInterval": 2, "Voice": "NPC_Antlion", "EyeHeight": 36},
-					"Source1.Hl2NpcProjectileAttack": {"FireSound": "NPC_Antlion.PoisonShoot"},
-					"Source1.Hl2Unburrow": {}
+					"Source1.Hl2.NpcProjectileAttack": {"FireSound": "NPC_Antlion.PoisonShoot"},
+					"Source1.Hl2.Unburrow": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/antlion_worker.mdl"}
@@ -1157,7 +1157,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_barnacle_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2BarnacleNpc": {"DisplayName": "Barnacle", "Health": 35, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 24}
+					"Source1.Hl2.BarnacleNpc": {"DisplayName": "Barnacle", "Health": 35, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 24}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/barnacle.mdl"}
@@ -1264,7 +1264,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_crow_health"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Crow", "Health": 5, "Idle": "Idle01", "Move": "Fly01", "Attack": "Idle01", "Passive": true, "Locomotion": "Flying", "Voice": "NPC_Crow", "EyeHeight": 14.4},
-					"Source1.Hl2Bird": {}
+					"Source1.Hl2.Bird": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/crow.mdl"}
@@ -1297,7 +1297,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.SensesLayer": {"SightRange": 2860},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_dropship_health", "DamageSetting": "sk_npc_dmg_dropship"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Combine Dropship", "Health": 1000, "Move": "hover", "Attack": "idle", "Locomotion": "Flying", "HatesCombine": false, "FlightHeight": 300, "MoveSpeed": 180, "AttackRange": 2200, "AttackDamage": 10, "AttackInterval": 0.3, "AttackDelay": 0, "Voice": "NPC_CombineDropship", "BlastHits": 5},
-					"Source1.Hl2DeployPrefab": {"Prefab": "combine_soldier", "Range": 1600, "Count": 3}
+					"Source1.Hl2.DeployPrefab": {"Prefab": "combine_soldier", "Range": 1600, "Count": 3}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/combine_dropship.mdl"}
@@ -1327,7 +1327,7 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 20, "Radius": 12.5},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_headcrab_fast_health", "DamageSetting": "sk_headcrab_melee_dmg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Fast Headcrab", "Idle": "Idle01", "Move": "Run1", "MoveSpeed": 210, "AttackDamage": 10, "AttackHeight": 15, "AttackDelay": 0.1, "AttackInterval": 0.7, "Voice": "NPC_FastHeadcrab", "EyeHeight": 15},
-					"Source1.Hl2Leap": {"SoundPrefix": "NPC_FastHeadcrab"}
+					"Source1.Hl2.Leap": {"SoundPrefix": "NPC_FastHeadcrab"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/headcrab.mdl"}
@@ -1342,8 +1342,8 @@ static partial class SourceEntities
 				".": {
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_zombie_health", "DamageSetting": "sk_zombie_dmg_one_slash"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Fast Zombie", "Move": "Run", "Attack": "Melee", "MoveSpeed": 220, "AttackInterval": 0.8, "AttackDelay": 0.2, "Voice": "NPC_FastZombie", "EyeHeight": 57.6},
-					"Source1.Hl2Leap": {"SoundPrefix": "NPC_FastZombie", "LeapSound": "NPC_FastZombie.LeapAttack"},
-					"Source1.Hl2Zombie": {"Headcrab": "fast_headcrab"}
+					"Source1.Hl2.Leap": {"SoundPrefix": "NPC_FastZombie", "LeapSound": "NPC_FastZombie.LeapAttack"},
+					"Source1.Hl2.Zombie": {"Headcrab": "fast_headcrab"}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"BodyGroups": 5},
@@ -1412,7 +1412,7 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 16, "Radius": 12},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_headcrab_health", "DamageSetting": "sk_headcrab_melee_dmg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Headcrab", "Idle": "Idle01", "Move": "Run1", "Attack": "jumpattack_broadcast", "MoveSpeed": 110, "AttackDamage": 10, "AttackHeight": 12, "AttackDelay": 0.2, "AttackRange": 60, "Voice": "NPC_Headcrab", "EyeHeight": 12},
-					"Source1.Hl2Leap": {"SoundPrefix": "NPC_Headcrab"}
+					"Source1.Hl2.Leap": {"SoundPrefix": "NPC_Headcrab"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/headcrabclassic.mdl"}
@@ -1448,7 +1448,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"Locking": {"X": false, "Y": false, "Z": false, "Pitch": false, "Yaw": false, "Roll": false}, "MotionEnabled": true},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_hopper_mine_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2HopperMine": {"DisplayName": "Hopper Mine", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 22.400000000000002},
+					"Source1.Hl2.HopperMine": {"DisplayName": "Hopper Mine", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 22.400000000000002},
 					"Sandbox.ModelCollider": {}
 				},
 				"model": {
@@ -1465,8 +1465,8 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 110, "Radius": 32.5},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_hunter_health", "AdditionalConfig": "skill_episodic.cfg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Hunter", "Health": 210, "Idle": "idle1", "Move": "canter_all", "Attack": "shoot_unplanted", "HatesCombine": false, "MoveSpeed": 180, "AttackRange": 1500, "AttackDamage": 20, "AttackInterval": 2.5, "StandOff": true, "Voice": "NPC_Hunter"},
-					"Source1.Hl2NpcProjectileAttack": {"Kind": "Flechette", "Attachment": "top_eye", "AlternateAttachment": "bottom_eye", "FireSound": "NPC_Hunter.FlechetteShoot"},
-					"Source1.Hl2Charge": {"MaxRange": 1024, "Delay": 10, "RandomDelay": 5, "Chance": 0.25, "DamageSetting": "sk_hunter_dmg_charge", "HitSound": "NPC_Hunter.ChargeHitEnemy", "CrashSound": "NPC_Hunter.ChargeHitWorld"}
+					"Source1.Hl2.NpcProjectileAttack": {"Kind": "Flechette", "Attachment": "top_eye", "AlternateAttachment": "bottom_eye", "FireSound": "NPC_Hunter.FlechetteShoot"},
+					"Source1.Hl2.Charge": {"MaxRange": 1024, "Delay": 10, "RandomDelay": 5, "Chance": 0.25, "DamageSetting": "sk_hunter_dmg_charge", "HitSound": "NPC_Hunter.ChargeHitEnemy", "CrashSound": "NPC_Hunter.ChargeHitWorld"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/hunter.mdl"}
@@ -1529,7 +1529,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_manhack_health", "DamageSetting": "sk_manhack_melee_dmg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Manhack", "Health": 25, "Move": "fly", "Attack": "fly2", "Locomotion": "Flying", "HatesCombine": false, "MoveSpeed": 180, "AttackHeight": 40, "AttackDamage": 20, "Voice": "NPC_Manhack", "EyeHeight": 40},
-					"Source1.Hl2Manhack": {}
+					"Source1.Hl2.Manhack": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/manhack.mdl"}
@@ -1565,7 +1565,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": {"RunSpeed": 180, "WalkSpeed": 85},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_metropolice_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.SourceCombatNpc": {"DisplayName": "Metrocop (Stunstick)", "Health": 40, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.Hl2Stunstick"}, "Manhacks": 1, "Voice": "NPC_MetroPolice", "EyeHeight": 57.6},
+					"Source1.SourceCombatNpc": {"DisplayName": "Metrocop (Stunstick)", "Health": 40, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.Hl2.Stunstick"}, "Manhacks": 1, "Voice": "NPC_MetroPolice", "EyeHeight": 57.6},
 					"Source1.SourceNpcAnimator": {}
 				},
 				"model": {
@@ -1620,7 +1620,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_pigeon_health"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Pigeon", "Health": 5, "Idle": "Idle01", "Move": "Fly01", "Attack": "Idle01", "Passive": true, "Locomotion": "Flying", "Voice": "NPC_Pigeon", "EyeHeight": 14.4},
-					"Source1.Hl2Bird": {}
+					"Source1.Hl2.Bird": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/pigeon.mdl"}
@@ -1636,7 +1636,7 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 22, "Radius": 14},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_headcrab_poison_health", "DamageSetting": "sk_headcrab_melee_dmg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Poison Headcrab", "Idle": "Idle01", "Move": "Run1", "Attack": "Spitattack", "MoveSpeed": 100, "AttackDamage": 30, "AttackHeight": 16, "AttackInterval": 2, "Voice": "NPC_BlackHeadcrab", "EyeHeight": 16},
-					"Source1.Hl2Leap": {"SoundPrefix": "NPC_BlackHeadcrab"}
+					"Source1.Hl2.Leap": {"SoundPrefix": "NPC_BlackHeadcrab"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/headcrabblack.mdl"}
@@ -1652,7 +1652,7 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 70, "Radius": 21},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_zombie_poison_health", "DamageSetting": "sk_zombie_dmg_one_slash"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Poison Zombie", "Idle": "Idle01", "Move": "Walk", "Attack": "Throw", "MoveSpeed": 65, "AttackDamage": 25, "AttackRange": 70, "AttackInterval": 1.5, "AttackDelay": 0.8, "Voice": "NPC_PoisonZombie", "EyeHeight": 56},
-					"Source1.Hl2Zombie": {"Headcrab": "poison_headcrab", "ThrowsCrabs": true}
+					"Source1.Hl2.Zombie": {"Headcrab": "poison_headcrab", "ThrowsCrabs": true}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"BodyGroups": 341},
@@ -1692,7 +1692,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"AngularDamping": 1.5, "LinearDamping": 0.3, "Locking": {"Pitch": false, "Roll": false, "X": false, "Y": false, "Yaw": false, "Z": false}, "MotionEnabled": true},
 					"Source1.SourceNpcDefaults": null,
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2Rollermine": {"DisplayName": "Rollermine", "Health": 35, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}},
+					"Source1.Hl2.Rollermine": {"DisplayName": "Rollermine", "Health": 35, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}},
 					"Sandbox.SphereCollider": {"Elasticity": 0.3, "Friction": 0.8, "Radius": 10},
 					"Source1.SourceIdleAnimation": {"Clip": "idle"}
 				},
@@ -1750,7 +1750,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_scanner_health"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "City Scanner", "Health": 40, "Move": "idle", "Attack": "alert", "Locomotion": "Flying", "HatesCombine": false, "MoveSpeed": 130, "AttackRange": 500, "AttackDamage": 0, "AttackInterval": 3, "Voice": "NPC_CScanner", "EyeHeight": 24},
-					"Source1.Hl2ScannerPhoto": {}
+					"Source1.Hl2.ScannerPhoto": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/combine_scanner.mdl"}
@@ -1767,7 +1767,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_seagull_health"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Seagull", "Health": 5, "Idle": "Idle01", "Move": "Fly", "Attack": "Idle01", "Passive": true, "Locomotion": "Flying", "Voice": "NPC_Seagull", "EyeHeight": 14.4},
-					"Source1.Hl2Bird": {}
+					"Source1.Hl2.Bird": {}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/seagull.mdl"}
@@ -1784,7 +1784,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": null,
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_scanner_health"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Shield Scanner", "Health": 50, "Idle": "Hover1", "Move": "Hover4", "Attack": "Hover6", "Locomotion": "Flying", "HatesCombine": false, "MoveSpeed": 130, "AttackRange": 80, "AttackDamage": 0, "AttackInterval": 2, "Voice": "NPC_SScanner", "EyeHeight": 36},
-					"Source1.Hl2DeployPrefab": {"Prefab": "hopper_mine"}
+					"Source1.Hl2.DeployPrefab": {"Prefab": "hopper_mine"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/shield_scanner.mdl"}
@@ -1816,8 +1816,8 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.SensesLayer": {"SightRange": 3120},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_strider_health", "DamageSetting": "sk_npc_dmg_strider", "PlayerDamageSetting": "sk_npc_dmg_strider_to_plr"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Strider", "Health": 1000, "Idle": "Idle01", "Move": "walk_all", "Attack": "Idle01", "HatesCombine": false, "MoveSpeed": 140, "AttackRange": 2400, "AttackInterval": 0.3, "AttackDelay": 0, "AttackHeight": 430, "Voice": "NPC_Strider", "BlastHits": 7, "EyeHeight": 430},
-					"Source1.Hl2StriderCannon": {},
-					"Source1.Hl2StriderStomp": {},
+					"Source1.Hl2.StriderCannon": {},
+					"Source1.Hl2.StriderStomp": {},
 					"Source1.SourceNpcRangedEffects": {"MuzzleAttachment": "MiniGun", "FireSound": "NPC_Strider.FireMinigun"}
 				},
 				"model": {
@@ -1837,7 +1837,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"Locking": {"X": false, "Y": false, "Z": false, "Pitch": false, "Yaw": false, "Roll": false}, "Gravity": false},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_turret_ceiling_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2TurretNpc": {"DisplayName": "Ceiling Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 48},
+					"Source1.Hl2.TurretNpc": {"DisplayName": "Ceiling Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "EyeHeight": 48},
 					"Source1.SourceNpcRangedEffects": {"MuzzleAttachment": "eyes", "FireSound": "NPC_CeilingTurret.Shoot"},
 					"Sandbox.ModelCollider": {}
 				},
@@ -1857,7 +1857,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"Locking": {"X": false, "Y": false, "Z": false, "Pitch": false, "Yaw": false, "Roll": false}, "MotionEnabled": true},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_turret_floor_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2TurretNpc": {"DisplayName": "Floor Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "FloorMounted": true, "EyeHeight": 48},
+					"Source1.Hl2.TurretNpc": {"DisplayName": "Floor Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "FloorMounted": true, "EyeHeight": 48},
 					"Source1.SourceNpcRangedEffects": {"MuzzleAttachment": "eyes", "FireSound": "NPC_FloorTurret.Shoot"},
 					"Sandbox.ModelCollider": {}
 				},
@@ -1877,7 +1877,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"Locking": {"X": false, "Y": false, "Z": false, "Pitch": false, "Yaw": false, "Roll": false}, "MotionEnabled": true},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_turret_floor_friendly_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2TurretNpc": {"DisplayName": "Friendly Floor Turret", "Friendly": true, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "FloorMounted": true, "EyeHeight": 48},
+					"Source1.Hl2.TurretNpc": {"DisplayName": "Friendly Floor Turret", "Friendly": true, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "FloorMounted": true, "EyeHeight": 48},
 					"Source1.SourceNpcRangedEffects": {"MuzzleAttachment": "eyes", "FireSound": "NPC_FloorTurret.Shoot"},
 					"Sandbox.ModelCollider": {}
 				},
@@ -1897,7 +1897,7 @@ static partial class SourceEntities
 					"Sandbox.Rigidbody": {"Locking": {"X": false, "Y": false, "Z": false, "Pitch": false, "Yaw": false, "Roll": false}, "Gravity": false},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_turret_ground_health"},
 					"Source1.SourceCreatureNpc": null,
-					"Source1.Hl2TurretNpc": {"DisplayName": "Ground Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "TracksWithBody": true, "EyeHeight": 48},
+					"Source1.Hl2.TurretNpc": {"DisplayName": "Ground Turret", "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "TracksWithBody": true, "EyeHeight": 48},
 					"Source1.SourceNpcRangedEffects": {"MuzzleAttachment": "eyes", "FireSound": "NPC_CeilingTurret.Shoot"},
 					"Sandbox.ModelCollider": {}
 				},
@@ -1929,7 +1929,7 @@ static partial class SourceEntities
 				".": {
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_zombie_health", "DamageSetting": "sk_zombie_dmg_both_slash"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Zombie", "Idle": "Idle01", "Attack": "attackA", "MoveSpeed": 55, "AttackInterval": 1.9, "AttackDelay": 0.55, "Voice": "Zombie", "EyeHeight": 57.6},
-					"Source1.Hl2Zombie": {"Headcrab": "headcrab", "Torso": "zombie_torso", "LegsModel": "models/zombie/classic_legs.mdl"}
+					"Source1.Hl2.Zombie": {"Headcrab": "headcrab", "Torso": "zombie_torso", "LegsModel": "models/zombie/classic_legs.mdl"}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"BodyGroups": 5},
@@ -1946,7 +1946,7 @@ static partial class SourceEntities
 					"Sandbox.NavMeshAgent": {"Height": 24},
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_zombie_health", "DamageSetting": "sk_zombie_dmg_one_slash"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Zombie Torso", "Idle": "Idle01", "Move": "crawl", "MoveSpeed": 35, "AttackDamage": 10, "AttackHeight": 15, "Voice": "Zombie", "EyeHeight": 15},
-					"Source1.Hl2Zombie": {"Headcrab": "headcrab"}
+					"Source1.Hl2.Zombie": {"Headcrab": "headcrab"}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"BodyGroups": 5},
@@ -1962,8 +1962,8 @@ static partial class SourceEntities
 				".": {
 					"Source1.SourceNpcDefaults": {"HealthSetting": "sk_zombie_soldier_health", "DamageSetting": "sk_zombie_dmg_both_slash", "AdditionalConfig": "skill_episodic.cfg"},
 					"Source1.SourceCreatureNpc": {"DisplayName": "Zombine", "Idle": "Idle01", "Move": "walk_All", "Attack": "AttackA", "MoveSpeed": 80, "AttackRange": 75, "AttackDamage": 20, "Voice": "Zombie", "EyeHeight": 57.6},
-					"Source1.Hl2ZombineGrenade": {},
-					"Source1.Hl2Zombie": {"Headcrab": "headcrab"}
+					"Source1.Hl2.ZombineGrenade": {},
+					"Source1.Hl2.Zombie": {"Headcrab": "headcrab"}
 				},
 				"model": {
 					"Sandbox.SkinnedModelRenderer": {"BodyGroups": 5},
@@ -1977,7 +1977,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_357", ".357 Ammo", "models/items/357ammo.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 6, "AmmoName": "357"}
+					"Source1.Hl2.Pickup": {"Amount": 6, "AmmoName": "357"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/357ammo.mdl"}
@@ -1987,7 +1987,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_ar2", "Pulse Rifle Ammo", "models/items/combine_rifle_cartridge01.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 20, "AmmoName": "ar2"}
+					"Source1.Hl2.Pickup": {"Amount": 20, "AmmoName": "ar2"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/combine_rifle_cartridge01.mdl"}
@@ -1997,7 +1997,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_ar2_altfire", "Pulse Rifle Orb", "models/items/combine_rifle_ammo01.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 1, "AmmoName": "ar2altfire"}
+					"Source1.Hl2.Pickup": {"Amount": 1, "AmmoName": "ar2altfire"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/combine_rifle_ammo01.mdl"}
@@ -2007,7 +2007,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_buckshot", "Shotgun Ammo", "models/items/boxbuckshot.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 20, "AmmoName": "buckshot"}
+					"Source1.Hl2.Pickup": {"Amount": 20, "AmmoName": "buckshot"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/boxbuckshot.mdl"}
@@ -2017,7 +2017,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_crossbow", "Crossbow Bolts", "models/items/crossbowrounds.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 6, "AmmoName": "xbowbolt"}
+					"Source1.Hl2.Pickup": {"Amount": 6, "AmmoName": "xbowbolt"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/crossbowrounds.mdl"}
@@ -2027,7 +2027,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_pistol", "Pistol Ammo", "models/items/boxsrounds.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 20, "AmmoName": "pistol"}
+					"Source1.Hl2.Pickup": {"Amount": 20, "AmmoName": "pistol"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/boxsrounds.mdl"}
@@ -2037,7 +2037,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_rpg", "RPG Rocket", "models/weapons/w_missile_closed.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 1, "AmmoName": "rpg_round"}
+					"Source1.Hl2.Pickup": {"Amount": 1, "AmmoName": "rpg_round"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_missile_closed.mdl"}
@@ -2047,7 +2047,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_smg1", "SMG Ammo", "models/items/boxmrounds.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 45, "AmmoName": "smg1"}
+					"Source1.Hl2.Pickup": {"Amount": 45, "AmmoName": "smg1"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/boxmrounds.mdl"}
@@ -2057,7 +2057,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "ammo_smg1_grenade", "SMG Grenade", "models/weapons/ar2_grenade.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Amount": 1, "AmmoName": "smg1_grenade"}
+					"Source1.Hl2.Pickup": {"Amount": 1, "AmmoName": "smg1_grenade"}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/ar2_grenade.mdl"}
@@ -2067,7 +2067,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "battery", "Suit Battery", "models/items/battery.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Kind": "Armour", "SoundName": "ItemBattery.Touch", "AmountSetting": "sk_battery", "Amount": 15}
+					"Source1.Hl2.Pickup": {"Kind": "Armour", "SoundName": "ItemBattery.Touch", "AmountSetting": "sk_battery", "Amount": 15}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/battery.mdl"}
@@ -2077,7 +2077,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "healthkit", "Health Kit", "models/items/healthkit.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Kind": "Health", "SoundName": "HealthKit.Touch", "AmountSetting": "sk_healthkit", "Amount": 25}
+					"Source1.Hl2.Pickup": {"Kind": "Health", "SoundName": "HealthKit.Touch", "AmountSetting": "sk_healthkit", "Amount": 25}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/items/healthkit.mdl"}
@@ -2087,7 +2087,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Pickup, "healthvial", "Health Vial", "models/healthvial.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Pickup": {"Kind": "Health", "SoundName": "HealthVial.Touch", "AmountSetting": "sk_healthvial", "Amount": 10}
+					"Source1.Hl2.Pickup": {"Kind": "Health", "SoundName": "HealthVial.Touch", "AmountSetting": "sk_healthvial", "Amount": 10}
 				},
 				"model": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/healthvial.mdl"}
@@ -2097,7 +2097,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Charger, "health_charger", "Health Charger", "models/props_combine/health_charger001.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Charger": {"CapacitySetting": "sk_healthcharger", "StartSound": "WallHealth.Start", "LoopSound": "WallHealth.LoopingContinueCharge", "DenySound": "WallHealth.Deny"},
+					"Source1.Hl2.Charger": {"CapacitySetting": "sk_healthcharger", "StartSound": "WallHealth.Start", "LoopSound": "WallHealth.LoopingContinueCharge", "DenySound": "WallHealth.Deny"},
 					"Source1.SourceMountedModel": {"ModelPath": "models/props_combine/health_charger001.mdl"}
 				}
 			}
@@ -2105,7 +2105,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Charger, "suit_charger", "Suit Charger", "models/props_combine/suit_charger001.mdl", null, """
 			{
 				".": {
-					"Source1.Hl2Charger": {"Armour": true, "CapacitySetting": "sk_suitcharger", "StartSound": "SuitRecharge.Start", "LoopSound": "SuitRecharge.ChargingLoop", "DenySound": "SuitRecharge.Deny"},
+					"Source1.Hl2.Charger": {"Armour": true, "CapacitySetting": "sk_suitcharger", "StartSound": "SuitRecharge.Start", "LoopSound": "SuitRecharge.ChargingLoop", "DenySound": "SuitRecharge.Deny"},
 					"Source1.SourceMountedModel": {"ModelPath": "models/props_combine/suit_charger001.mdl"}
 				}
 			}
@@ -2116,7 +2116,7 @@ static partial class SourceEntities
 					"TemporaryEffect": {"DestroyAfterSeconds": 3},
 					"Source1.SourceMountedEffect": null,
 					"Sandbox.RadiusDamage": {"Radius": 350, "PhysicsForceScale": 1.5},
-					"Source1.CssExplosionEffect": {}
+					"Source1.Css.ExplosionEffect": {}
 				}
 			}
 			""" ),

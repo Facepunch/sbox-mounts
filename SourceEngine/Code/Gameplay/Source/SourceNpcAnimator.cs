@@ -95,9 +95,9 @@ public sealed class SourceNpcAnimator : Component, BaseCombatWeapon.IEvents
 		_resolvedFor = key;
 		_sequences = SourceModelSequences.Of( model );
 		_link = new SourceLinkAnimation( _sequences );
-		var weaponClass = Hl2ActTable.WeaponClass( _sequences, weapon );
-		var acttable = Hl2ActTable.Resolve( _sequences, weaponClass );
-		_layers = CssPlayerAnimState.Resolve( model, _sequences, weapon, key.Item2, acttable ) ?? acttable;
+		var weaponClass = Hl2.ActTable.WeaponClass( _sequences, weapon );
+		var acttable = Hl2.ActTable.Resolve( _sequences, weaponClass );
+		_layers = Css.PlayerAnimState.Resolve( model, _sequences, weapon, key.Item2, acttable ) ?? acttable;
 		_reloadClip = _layers.Reloads[0];
 		_aimLayer = FindAimLayer( weaponClass );
 

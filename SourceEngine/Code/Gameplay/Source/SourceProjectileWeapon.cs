@@ -39,7 +39,7 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	bool _zoomed;
 	float _zoomStart;
 	TimeSince _zoomChanged;
-	Hl2RpgLaser _laser;
+	Hl2.RpgLaser _laser;
 
 	bool IsLauncher => Kind == SourceProjectile.Kinds.Rocket;
 	bool LaserOn => IsLauncher && Guiding && Active && !IsReloading;
@@ -211,7 +211,7 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 			if ( IsReloading && SourceSounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
 		}
 		if ( !IsLauncher || Application.IsDedicatedServer ) return;
-		_laser ??= new Hl2RpgLaser();
+		_laser ??= new Hl2.RpgLaser();
 		_laser.Update( this, LaserOn );
 	}
 
@@ -274,11 +274,11 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 		var inherited = Owner?.Velocity ?? Vector3.Zero;
 		var (origin, velocity) = Kind switch
 		{
-			SourceProjectile.Kinds.Grenade => (ThrowOrigin( eye, forward, 8 ), Hl2Grenade.ThrowVelocity( forward, inherited )),
-			SourceProjectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2Bugbait.ThrowVelocity( forward, inherited )),
-			SourceProjectile.Kinds.HeGrenade or SourceProjectile.Kinds.Flashbang or SourceProjectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), CssRules.ThrowVelocity( forward, inherited )),
-			SourceProjectile.Kinds.Rocket => (eye, Hl2Rocket.LaunchVelocity( forward )),
-			_ => (eye, Hl2CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
+			SourceProjectile.Kinds.Grenade => (ThrowOrigin( eye, forward, 8 ), Hl2.Grenade.ThrowVelocity( forward, inherited )),
+			SourceProjectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2.Bugbait.ThrowVelocity( forward, inherited )),
+			SourceProjectile.Kinds.HeGrenade or SourceProjectile.Kinds.Flashbang or SourceProjectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), Css.Rules.ThrowVelocity( forward, inherited )),
+			SourceProjectile.Kinds.Rocket => (eye, Hl2.Rocket.LaunchVelocity( forward )),
+			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
 		var projectile = SourceProjectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, ExplosionRadius, ProjectileModel );
 		if ( IsLauncher ) LiveRocket = projectile.GameObject;

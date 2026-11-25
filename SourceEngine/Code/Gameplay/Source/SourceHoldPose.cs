@@ -6,8 +6,8 @@ namespace Source1;
 /// <summary>
 /// How a mounted game's own human holds a weapon in third person, sampled from its sequences on its own skeleton:
 /// the hands and the bones a held model merges onto, in the human's model space, aimed along +X.
-/// A Counter-Strike player model has a weapon layer over its legs (<see cref="CssPlayerAnimState"/>); Garry's Mod's HL2 player
-/// has HL2MP's idle and gestures for the weapon's hold type; an HL2 NPC human has the weapon's acttable (<see cref="Hl2ActTable"/>),
+/// A Counter-Strike player model has a weapon layer over its legs (<see cref="Css.PlayerAnimState"/>); Garry's Mod's HL2 player
+/// has HL2MP's idle and gestures for the weapon's hold type; an HL2 NPC human has the weapon's acttable (<see cref="Hl2.ActTable"/>),
 /// whose attack sequence starts from the aimed pose.
 /// </summary>
 public sealed class SourceHoldPose
@@ -121,7 +121,7 @@ public sealed class SourceHoldPose
 
 		var sequences = SourceModelSequences.Of( human );
 		var weaponClass = SourceWeaponSetup.WeaponData( weapon )?.ClassName ?? weaponModel?.GetData<SourceModelWeaponData[]>()?.FirstOrDefault()?.ClassName;
-		var layers = CssPlayerAnimState.Resolve( human, sequences, weapon, weaponModel, Hl2ActTable.Resolve( sequences, weaponClass ) );
+		var layers = Css.PlayerAnimState.Resolve( human, sequences, weapon, weaponModel, Hl2.ActTable.Resolve( sequences, weaponClass ) );
 
 		string lower = null;
 		string aim;
@@ -135,7 +135,7 @@ public sealed class SourceHoldPose
 			shots = layers.Shots[0];
 			reload = layers.Reloads[0];
 		}
-		else if ( Hl2ActTable.PlayerActivities( weaponClass ) is { } player && sequences.FindActivity( player.Idle ) is { } idle )
+		else if ( Hl2.ActTable.PlayerActivities( weaponClass ) is { } player && sequences.FindActivity( player.Idle ) is { } idle )
 		{
 			aim = idle;
 			shots = [sequences.FindGesture( player.Attack )];
@@ -144,8 +144,8 @@ public sealed class SourceHoldPose
 		else if ( weaponClass is not null )
 		{
 			// A weapon without a row of its own is held like the SMG, as an NPC would hold it; see BindHolder.
-			borrowed = !Hl2ActTable.TryResolve( sequences, weaponClass, out var acttable );
-			acttable ??= Hl2ActTable.Resolve( sequences, weaponClass );
+			borrowed = !Hl2.ActTable.TryResolve( sequences, weaponClass, out var acttable );
+			acttable ??= Hl2.ActTable.Resolve( sequences, weaponClass );
 			aim = acttable.Clips.Attack;
 			shots = [aim];
 			reload = acttable.Clips.Reload;

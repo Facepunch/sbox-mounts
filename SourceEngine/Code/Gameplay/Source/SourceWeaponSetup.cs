@@ -46,7 +46,7 @@ static class SourceWeaponSetup
 
 	/// <summary>
 	/// The weapon family, such as Pistol or SniperRifle: the script's WeaponType, else read from a
-	/// Counter-Strike model name (<see cref="CssRules.WeaponTypeOf"/>), so content without its scripts still sorts.
+	/// Counter-Strike model name (<see cref="Css.Rules.WeaponTypeOf"/>), so content without its scripts still sorts.
 	/// </summary>
 	public static string WeaponType( BaseCombatWeapon weapon ) => weapon.IsValid() && Weapons.TryGetValue( weapon, out var state ) ? state.WeaponType : null;
 
@@ -61,7 +61,7 @@ static class SourceWeaponSetup
 	{
 		if ( !Weapons.TryGetValue( weapon, out var state ) || state.PlayerDamage is not { } playerDamage ) return false;
 		var data = state.Data;
-		var scale = CssRules.Owns( weapon ) ? CssRules.NpcDamageScale : 1;
+		var scale = Css.Rules.Owns( weapon ) ? Css.Rules.NpcDamageScale : 1;
 		var damage = npc ? (data?.NpcDamage ?? playerDamage) * scale : playerDamage;
 		weapon.Ballistics = weapon.Ballistics with { Damage = damage };
 		var npcSound = npc ? SourceSounds.WeaponSound( data, "single_shot_npc" ) : null;
@@ -194,15 +194,15 @@ static class SourceWeaponSetup
 		// Without its script (Garry's Mod's copy of Counter-Strike) the shot is the sound script the
 		// viewmodel's own events are named after: Weapon_AK47.Clipout's weapon fires Weapon_AK47.Single.
 		if ( state.Data is null && weapon is SourceBulletWeapon && ShotSoundOf( model, definition.MountName ) is { } shot ) weapon.AttackSound = shot;
-		var counterStrike = CssRules.Owns( weapon );
-		state.WeaponType = state.Data?.WeaponType ?? (counterStrike ? CssRules.WeaponTypeOf( worldModel ) : null);
-		if ( counterStrike && SourceSounds.WeaponSound( state.Data, "empty" ) is null && SourceSounds.Sound( CssRules.EmptySound( state.WeaponType ), definition.MountName ) is { } click )
+		var counterStrike = Css.Rules.Owns( weapon );
+		state.WeaponType = state.Data?.WeaponType ?? (counterStrike ? Css.Rules.WeaponTypeOf( worldModel ) : null);
+		if ( counterStrike && SourceSounds.WeaponSound( state.Data, "empty" ) is null && SourceSounds.Sound( Css.Rules.EmptySound( state.WeaponType ), definition.MountName ) is { } click )
 			weapon.DryFireSound = click;
 		state.FlashType = SourceWeaponEffects.FlashType( model.GetData<SourceModelSequenceData[]>() ?? [] );
 		// CCSWeaponInfo::Parse defaults a script without the keys to the plain flash at scale 1.
 		if ( state.FlashType is null && counterStrike && state.Data is { } script )
-			(state.FlashType, state.FlashScale) = (script.MuzzleFlashStyle ?? CssRules.Flash, script.MuzzleFlashScale ?? 1);
-		else if ( state.FlashType is null && counterStrike && CssRules.FlashFor( state.WeaponType, weapon.PrimaryAutomatic ) is { } flash )
+			(state.FlashType, state.FlashScale) = (script.MuzzleFlashStyle ?? Css.Rules.Flash, script.MuzzleFlashScale ?? 1);
+		else if ( state.FlashType is null && counterStrike && Css.Rules.FlashFor( state.WeaponType, weapon.PrimaryAutomatic ) is { } flash )
 			(state.FlashType, state.FlashScale) = flash;
 		state.Brass = BrassOf( model );
 		if ( weapon is SourceBulletWeapon gun )
@@ -260,7 +260,7 @@ static class SourceWeaponSetup
 					: clips.Burst is not null ? SourceWeapon.SecondaryFires.Burst
 					: model.Materials.Any( m => m.Name.Contains( "scope", StringComparison.OrdinalIgnoreCase ) ) ? SourceWeapon.SecondaryFires.Zoom
 					: SourceWeapon.SecondaryFires.Default;
-			if ( bullet.Secondary == SourceWeapon.SecondaryFires.Zoom && bullet.ZoomLevels is not { Count: > 0 } ) bullet.ZoomLevels = [.. CssRules.ZoomLevels( state.WeaponType )];
+			if ( bullet.Secondary == SourceWeapon.SecondaryFires.Zoom && bullet.ZoomLevels is not { Count: > 0 } ) bullet.ZoomLevels = [.. Css.Rules.ZoomLevels( state.WeaponType )];
 		}
 		// Warm each weapon's mounted dependencies once, keyed by path only so no
 		// model or task is rooted past scene teardown.

@@ -217,7 +217,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 		{
 			// npc_metropolice: SCHED_METROPOLICE_DEACTIVATE_BATON once calm again and m_flBatonDebounceTime has passed.
 			var calm = base.SelectSchedule();
-			if ( calm is { Priority: < SchedulePriorities.Alert } && Weapon is Hl2Stunstick { StunActive: true } activeStick && _batonDebounce && Clip( "ACT_DEACTIVATE_BATON" ) is { } offClip )
+			if ( calm is { Priority: < SchedulePriorities.Alert } && Weapon is Hl2.Stunstick { StunActive: true } activeStick && _batonDebounce && Clip( "ACT_DEACTIVATE_BATON" ) is { } offClip )
 				return BatonSchedule( activeStick, offClip, false, null );
 			return calm;
 		}
@@ -226,7 +226,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 			return ActionSchedule( deployClip, enemy, e => DeployManhack( e, manhack ) );
 
 		// npc_metropolice switches the baton on (SCHED_METROPOLICE_ACTIVATE_BATON) before anything else it does with it.
-		if ( Weapon is Hl2Stunstick { StunActive: false } stick && Clip( "ACT_ACTIVATE_BATON" ) is { } onClip )
+		if ( Weapon is Hl2.Stunstick { StunActive: false } stick && Clip( "ACT_ACTIVATE_BATON" ) is { } onClip )
 		{
 			_batonDebounce = Game.Random.Float( 2.5f, 4 );
 			return BatonSchedule( stick, onClip, true, enemy );
@@ -368,7 +368,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 
 		if ( enemy.IsValid() )
 			toss = Toss( EyePosition, enemy.WorldPosition );
-		Hl2NpcGrenade.Spawn( this, SourceMount.Of( GameObject ), Hl2NpcGrenade.FragFuse, _skill.Get( "sk_npc_dmg_fraggrenade", 75 ), _skill.Get( "sk_fraggrenade_radius", 250 ), toss );
+		Hl2.NpcGrenade.Spawn( this, SourceMount.Of( GameObject ), Hl2.NpcGrenade.FragFuse, _skill.Get( "sk_npc_dmg_fraggrenade", 75 ), _skill.Get( "sk_fraggrenade_radius", 250 ), toss );
 		Grenades--;
 		return true;
 	}
@@ -426,7 +426,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 	}
 
 	/// <summary>TASK_METROPOLICE_ACTIVATE_BATON: says so, and the stick switches at AE_METROPOLICE_BATON_ON or _OFF in the animation.</summary>
-	SourceActionSchedule BatonSchedule( Hl2Stunstick stick, string clip, bool on, GameObject faceTarget )
+	SourceActionSchedule BatonSchedule( Hl2.Stunstick stick, string clip, bool on, GameObject faceTarget )
 	{
 		SourceNpcVoice.Say( this, Voice, on ? SourceVoiceLine.BatonOn : SourceVoiceLine.BatonOff );
 		return ActionSchedule( clip, faceTarget, e =>
@@ -602,7 +602,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 		}
 
 		// COND_METROPOLICE_CHANGE_BATON_STATE: an ambient schedule gives way to switching the baton off.
-		if ( Networking.IsHost && Weapon is Hl2Stunstick { StunActive: true } && _batonDebounce && ActiveSchedule is { Priority: < SchedulePriorities.Alert } && Clip( "ACT_DEACTIVATE_BATON" ) is not null )
+		if ( Networking.IsHost && Weapon is Hl2.Stunstick { StunActive: true } && _batonDebounce && ActiveSchedule is { Priority: < SchedulePriorities.Alert } && Clip( "ACT_DEACTIVATE_BATON" ) is not null )
 			EndCurrentSchedule();
 		if ( _heldManhack.IsValid() && Renderer.IsValid() )
 			_heldManhack.WorldTransform = ManhackHand;
@@ -649,7 +649,7 @@ public sealed class SourceCombatNpc : BaseCombatNpc, Component.IDamageable.IEven
 		ISourceNpcPart.Death( this, death );
 
 		SourceNpcVoice.SayDeath( this, Voice );
-		if ( Weapon is Hl2Stunstick stick )
+		if ( Weapon is Hl2.Stunstick stick )
 			stick.SetStunState( false );
 		base.OnDeath( death );
 	}

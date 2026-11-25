@@ -63,13 +63,13 @@ public abstract class SourceProjectile : Component
 		model ??= ModelFor( kind );
 		return kind switch
 		{
-			Kinds.Bolt => Spawn<Hl2CrossbowBolt>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.Rocket => Spawn<Hl2Rocket>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.Grenade => Spawn<Hl2Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.ContactGrenade => Spawn<Hl2ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.EnergyBall => Spawn<Hl2EnergyBall>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.Bugbait => Spawn<Hl2Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			_ => CssRules.Launch( kind, attacker, mount, origin, velocity, damage, radius, model, weapon )
+			Kinds.Bolt => Spawn<Hl2.CrossbowBolt>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.Rocket => Spawn<Hl2.Rocket>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.Grenade => Spawn<Hl2.Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.ContactGrenade => Spawn<Hl2.ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.EnergyBall => Spawn<Hl2.EnergyBall>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.Bugbait => Spawn<Hl2.Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			_ => Css.Rules.Launch( kind, attacker, mount, origin, velocity, damage, radius, model, weapon )
 		};
 	}
 

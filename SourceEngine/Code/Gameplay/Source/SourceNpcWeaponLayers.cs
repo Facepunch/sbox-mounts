@@ -14,7 +14,7 @@ public sealed record SourceNpcActivities( string Idle, string AngryIdle, string 
 
 /// <summary>
 /// The clips an armed NPC plays for its weapon: the full-body activities, and per stance (idle, walk, run) the layers over the legs,
-/// a masked upper-body weapon pose, a masked reload and the additive shots. Made by <see cref="Hl2ActTable"/> or <see cref="CssPlayerAnimState"/>.
+/// a masked upper-body weapon pose, a masked reload and the additive shots. Made by <see cref="Hl2.ActTable"/> or <see cref="Css.PlayerAnimState"/>.
 /// </summary>
 public sealed record SourceNpcWeaponLayers( SourceNpcActivities Clips )
 {

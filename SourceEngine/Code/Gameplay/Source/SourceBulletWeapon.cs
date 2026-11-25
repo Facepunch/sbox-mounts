@@ -319,8 +319,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
-		var burst = CssRules.Burst( SourceWeaponSetup.WeaponType( this ) );
-		_burstRemaining = CssRules.BurstShots - 1;
+		var burst = Css.Rules.Burst( SourceWeaponSetup.WeaponType( this ) );
+		_burstRemaining = Css.Rules.BurstShots - 1;
 		_burstAttacker = Attacker;
 		_burstAt = burst.Interval;
 		SetNextFire( burst.Cycle );
@@ -330,7 +330,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		if ( _burstRemaining <= 0 || _burstAt > 0 ) return;
 		_burstRemaining--;
-		_burstAt = CssRules.Burst( SourceWeaponSetup.WeaponType( this ) ).Interval;
+		_burstAt = Css.Rules.Burst( SourceWeaponSetup.WeaponType( this ) ).Interval;
 		if ( !HasPrimaryAmmo() || IsReloading )
 		{
 			CancelBurst();
@@ -439,7 +439,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		if ( _alternatePending || !HasSecondaryAmmo() ) return;
 		if ( Secondary == SecondaryFires.Zoom )
 		{
-			SetNextSecondaryFire( CssRules.ToggleDelay );
+			SetNextSecondaryFire( Css.Rules.ToggleDelay );
 			var steps = ZoomLevels is { Count: > 0 } ? ZoomLevels.Count : 1;
 			SetZoom( (_zoomLevel + 1) % (steps + 1) );
 			if ( SourceSounds.WeaponSound( this, "special3" ) is { } zoomSound ) GameObject.PlaySound( zoomSound );
@@ -447,13 +447,13 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		}
 		if ( Secondary == SecondaryFires.Burst )
 		{
-			SetNextSecondaryFire( CssRules.ToggleDelay );
+			SetNextSecondaryFire( Css.Rules.ToggleDelay );
 			BurstMode = !BurstMode;
 			return;
 		}
 		if ( Secondary == SecondaryFires.Silencer )
 		{
-			SetNextFire( Math.Max( SilencerDuration, CssRules.ToggleDelay ) );
+			SetNextFire( Math.Max( SilencerDuration, Css.Rules.ToggleDelay ) );
 			Silenced = !Silenced;
 			SilencerEffects( Silenced );
 			return;

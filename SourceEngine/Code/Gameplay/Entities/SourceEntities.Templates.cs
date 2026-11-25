@@ -72,7 +72,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"@": {"Tags": "prop,removable", "NetworkMode": 1, "NetworkOrphaned": 3},
-					"Source1.Hl2Pickup": {"Kind": "Ammo", "SoundName": "BaseCombatCharacter.AmmoPickup"},
+					"Source1.Hl2.Pickup": {"Kind": "Ammo", "SoundName": "BaseCombatCharacter.AmmoPickup"},
 					"Sandbox.ModelCollider": {},
 					"Sandbox.Rigidbody": {"EnableImpactDamage": false}
 				},
@@ -86,7 +86,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"@": {"Tags": "prop,removable", "NetworkMode": 1},
-					"Source1.Hl2Charger": {},
+					"Source1.Hl2.Charger": {},
 					"Sandbox.SkinnedModelRenderer": {"UseAnimGraph": false},
 					"Sandbox.ModelCollider": {"Static": true},
 					"Source1.SourceMountedModel": {"Renderer": {"ref": ".:Sandbox.SkinnedModelRenderer"}, "Collider": {"ref": ".:Sandbox.ModelCollider"}}

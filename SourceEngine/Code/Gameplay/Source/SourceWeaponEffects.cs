@@ -46,16 +46,16 @@ static class SourceWeaponEffects
 	/// </summary>
 	public static void MuzzleFlash( string type, GameObject attachment, bool firstPerson, string mount, float scale = 1 )
 	{
-		if ( Application.IsDedicatedServer || !attachment.IsValid() || type == CssRules.FlashNone ) return;
+		if ( Application.IsDedicatedServer || !attachment.IsValid() || type == Css.Rules.FlashNone ) return;
 		var root = new GameObject( attachment, false, "HL2 muzzle flash" );
 		root.NetworkMode = NetworkMode.Never;
 		root.LocalTransform = global::Transform.Zero;
 		var burst = root.AddComponent<SourceSpriteBurst>();
-		if ( firstPerson && CssRules.IsFlash( type ) ) CounterStrikePlayerFlash( type, burst, mount, scale );
+		if ( firstPerson && Css.Rules.IsFlash( type ) ) CounterStrikePlayerFlash( type, burst, mount, scale );
 		else if ( firstPerson ) PlayerFlash( type, burst, mount );
-		else WorldFlash( type, burst, mount, CssRules.IsFlash( type ) ? scale * 0.75f : WorldScale( type ) );
+		else WorldFlash( type, burst, mount, Css.Rules.IsFlash( type ) ? scale * 0.75f : WorldScale( type ) );
 		root.Enabled = true;
-		if ( CssRules.IsFlash( type ) ) MuzzleLight( attachment );
+		if ( Css.Rules.IsFlash( type ) ) MuzzleLight( attachment );
 	}
 
 	/// <summary>
@@ -64,7 +64,7 @@ static class SourceWeaponEffects
 	/// </summary>
 	static void CounterStrikePlayerFlash( string type, SourceSpriteBurst burst, string mount, float scale )
 	{
-		if ( type == CssRules.FlashX )
+		if ( type == Css.Rules.FlashX )
 		{
 			var size = 6 * scale * Game.Random.Float( 0.9f, 1.1f );
 			var x = burst.Add( "effects/muzzleflashx", mount, 0, size, Color.White * (130 / 255f), 0.08f, Game.Random.Float( -0.25f, 0.25f ).RadianToDegree() );
