@@ -25,9 +25,8 @@ public sealed partial class Onos
 		ShowStompLaunch( WorldPosition, WorldRotation );
 	}
 
-	protected override void OnFixedUpdate()
+	void UpdateStompWave()
 	{
-		base.OnFixedUpdate();
 		if ( !Networking.IsHost || waveDirection == Vector3.Zero ) return;
 		if ( waveAge >= 0.7f )
 		{
@@ -75,7 +74,7 @@ public sealed partial class Onos
 		if ( !IsLooseProp( body ) || waveVictims.Contains( body ) ) return;
 		var point = body.FindClosestPoint( origin );
 		float strength = 1 - point.Distance( origin ) / radius;
-		if ( strength <= 0 || !CanReachProp( origin, point, body ) ) return;
+		if ( strength <= 0 || !CanReachProp( origin, point, body.GameObject ) ) return;
 		var outward = (body.PhysicsBody.MassCenter - origin).WithZ( 0 ).Normal;
 		var launch = (outward + Vector3.Up * 0.7f).Normal * (16 * Scale * strength);
 		waveVictims.Add( body );

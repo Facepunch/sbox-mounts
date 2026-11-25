@@ -126,6 +126,13 @@ public sealed partial class Onos : BaseNpc
 		repath = 0.2f;
 	}
 
+	protected override void OnFixedUpdate()
+	{
+		base.OnFixedUpdate();
+		UpdatePropPusher();
+		UpdateStompWave();
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
@@ -245,6 +252,7 @@ public sealed partial class Onos : BaseNpc
 
 	protected override void OnDisabled()
 	{
+		if ( propPusher.IsValid() ) propPusher.GameObject.Destroy();
 		rumble?.Stop();
 		rumble = null;
 		base.OnDisabled();

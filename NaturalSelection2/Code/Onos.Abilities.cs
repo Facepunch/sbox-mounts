@@ -149,26 +149,18 @@ public sealed partial class Onos
 		// The source query includes the half-diagonal of the impact box plus 1.5 metres.
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, (MathF.Sqrt( 3.88f ) + 1.5f) * Scale ) ) )
 		{
-			var body = obj.GetComponentInParent<Rigidbody>();
-			bool prop = IsLooseProp( body );
 			var target = obj.GetComponentInParent<IDamageable>() as Component;
-			if ( !prop && (!target.IsValid() || target.GameObject.Tags.Has( "structure" ) || GetDisposition( target.GameObject ) != Disposition.Hostile) ) continue;
-			var enemy = prop ? body.GameObject : target.GameObject;
+			if ( !target.IsValid() || target.GameObject.Tags.Has( "structure" ) || GetDisposition( target.GameObject ) != Disposition.Hostile || target is Prop ) continue;
+			var enemy = target.GameObject;
 			if ( StampedeCooldowns.TryGetValue( enemy, out var cooldown ) && cooldown.Remaining > 0 ) continue;
 			var collider = obj.GetComponent<Collider>() ?? enemy.GetComponentInChildren<Collider>();
 			if ( !collider.IsValid() ) continue;
 			var point = collider.FindClosestPoint( center );
 			var offset = facing.Inverse * (point - center);
 			if ( Math.Abs( offset.x ) > 1.2f * Scale || Math.Abs( offset.y ) > Scale || Math.Abs( offset.z ) > 1.2f * Scale ) continue;
-			if ( prop && !CanReachProp( WorldPosition + Vector3.Up * Scale, point, body ) ) continue;
 			(cooldown ?? StampedeCooldowns.GetValue( enemy, _ => new() )).Remaining = 0.7f;
 
-			if ( prop )
-			{
-				PushProp( body, point, velocity );
-				continue;
-			}
-			body = enemy.GetComponent<Rigidbody>();
+			var body = enemy.GetComponent<Rigidbody>();
 			if ( body.IsValid() && body.MotionEnabled )
 			{
 				var push = (CalculateAimPoint( enemy ) - WorldPosition).Normal;
@@ -192,18 +184,23 @@ public sealed partial class Onos
 		!body.GameObject.Tags.Has( "structure" ) && !body.GetComponentInParent<BaseNpc>().IsValid() &&
 		!body.GetComponentInParent<PlayerController>().IsValid();
 
-	bool CanReachProp( Vector3 origin, Vector3 point, Rigidbody body ) => !Scene.Trace.Ray( origin, point )
-		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( body.GameObject ).WithoutTags( "trigger" ).Run().Hit;
+	bool CanReachProp( Vector3 origin, Vector3 point, GameObject prop ) => !Scene.Trace.Ray( origin, point )
+		.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( prop ).WithoutTags( "trigger" ).Run().Hit;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PushProp( Rigidbody body, Vector3 point, Vector3 velocity )
 	{
 		if ( !body.IsValid() || body.IsProxy || !body.MotionEnabled || !body.PhysicsBody.IsValid() ) return;
-		float closingSpeed = Vector3.Dot( velocity - body.Velocity, velocity.Normal );
+		var direction = velocity.Normal;
+		ApplyPropImpulse( body, point, direction, Vector3.Dot( velocity - body.Velocity, direction ) );
+	}
+
+	static void ApplyPropImpulse( Rigidbody body, Vector3 point, Vector3 direction, float closingSpeed )
+	{
 		if ( closingSpeed <= 0 ) return;
 		float mass = body.PhysicsBody.Mass;
 		const float onosMass = 453;
-		body.ApplyImpulseAt( point, velocity.Normal * (closingSpeed * mass * onosMass / (mass + onosMass)) );
+		body.ApplyImpulseAt( point, direction * (closingSpeed * mass * onosMass / (mass + onosMass)) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
