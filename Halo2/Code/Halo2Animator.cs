@@ -29,7 +29,12 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	Halo2Transition pending, playing;
 	bool holdReaction;
 	Graph assigned;
-	readonly List<(ModelAttachments.Attachment Hand, string[] Targets, string Parameter)> grips = new();
+	sealed record Grip( ModelAttachments.Attachment Hand, string[] Targets, string Parameter, Halo2ModelLoader.WeaponGrip Binding )
+	{
+		public string Anchor { get; } = $"{Parameter}_anchor";
+		public string Offset { get; } = $"{Parameter}_offset";
+	}
+	readonly List<Grip> grips = new();
 
 	public bool Configure( string mode, string weaponClass, string weaponType )
 	{
@@ -50,11 +55,15 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		Renderer.Animation.Graph = assigned = graph;
 		action = bindings.Actions.ContainsKey( "idle" ) ? "idle" : bindings.Actions.Keys.FirstOrDefault();
 		grips.Clear();
+		var gripWeapon = context.Ik.Count > 0 ? loader.GripWeaponModel( weaponClass, weaponType ) : null;
 		foreach ( var group in context.Ik.GroupBy( p => p.Marker ) )
 		{
 			var hand = Renderer.Model.Attachments.Get( group.Key );
 			if ( hand?.Bone is not null )
-				grips.Add( (hand, group.Select( p => p.AttachTo ).ToArray(), $"ik_{group.Key}") );
+			{
+				var targets = group.Select( p => p.AttachTo ).ToArray();
+				grips.Add( new( hand, targets, $"ik_{group.Key}", Halo2ModelLoader.BindGrip( Renderer.Model, gripWeapon, group.Key, targets ) ) );
+			}
 		}
 		return true;
 	}
@@ -221,12 +230,12 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 				break;
 			}
 		}
-		foreach ( var (hand, targets, parameter) in grips )
+		foreach ( var binding in grips )
 		{
 			Transform? grip = null;
 			if ( Weapon.IsValid() && Weapon.Model.IsValid() )
 			{
-				foreach ( var marker in targets )
+				foreach ( var marker in binding.Targets )
 				{
 					grip = Weapon is SkinnedModelRenderer skinned ? skinned.GetAttachment( marker )
 						: Weapon.Model.Attachments.GetTransform( marker ) is { } local ? Weapon.WorldTransform.ToWorld( local ) : null;
@@ -235,13 +244,26 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			}
 			if ( grip is { } world )
 			{
-				var local = hand.LocalTransform;
+				var local = binding.Hand.LocalTransform;
 				var rotation = world.Rotation * local.Rotation.Inverse;
 				var scale = Renderer.WorldScale;
 				var target = new Transform( world.Position - rotation * (local.Position * scale), rotation );
-				Renderer.Animation.Parameters.TrySet( parameter, target );
+				var parameters = Renderer.Animation.Parameters;
+				if ( binding.Binding is {} gripBinding && Weapon.GameObject.Parent is {} parent
+					&& parent == Renderer.GetAttachmentObject( gripBinding.Anchor ) )
+				{
+					var relative = gripBinding.Anchor.LocalTransform.ToWorld( parent.WorldTransform.ToLocal( target ) );
+					if ( relative.Rotation.AlmostEqual( gripBinding.Rotation ) && parameters.TrySet( binding.Offset, relative.Position ) )
+					{
+						parameters.TrySetTargetBone( binding.Anchor, gripBinding.Anchor.Bone.Name );
+						parameters.TryUnsetTarget( binding.Parameter );
+						continue;
+					}
+				}
+				parameters.TrySet( binding.Parameter, target );
 			}
-			else Renderer.Animation.Parameters.TryUnsetTarget( parameter );
+			else Renderer.Animation.Parameters.TryUnsetTarget( binding.Parameter );
+			if ( binding.Binding is not null ) Renderer.Animation.Parameters.TryUnsetTarget( binding.Anchor );
 		}
 	}
 
@@ -255,7 +277,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			var slots = Renderer.Animation.ExternalGraphs;
 			foreach ( var slot in ReactionSlots )
 				if ( slots.IsConnected( slot ) ) slots.Disconnect( slot );
-			foreach ( var grip in grips ) Renderer.Animation.Parameters.TryUnsetTarget( grip.Parameter );
+			foreach ( var grip in grips )
+			{
+				Renderer.Animation.Parameters.TryUnsetTarget( grip.Parameter );
+				if ( grip.Binding is not null ) Renderer.Animation.Parameters.TryUnsetTarget( grip.Anchor );
+			}
 			if ( grips.Count > 0 ) Renderer.Animation.Parameters.TrySet( "weapon_grip_weight", -1f );
 		}
 		pending = playing = null;

@@ -111,8 +111,17 @@ public partial class Halo2ModelLoader
 		var offsetForward = hasOffsets ? builder.FloatParameter( "weapon_offset_forward", -1, 1 ) : null;
 		var offsetLeft = hasOffsets ? builder.FloatParameter( "weapon_offset_left", -1, 1 ) : null;
 		var previousWeight = HasFirstPersonWeapon ? builder.FloatParameter( "previous_action_weight", 0, 1 ) : null;
-		var ikTargets = bindings.Ik.Select( p => p.Marker ).Distinct().Select( marker =>
-			(Marker: marker, Bone: MarkerBone( marker ), Target: builder.TargetParameter( $"ik_{marker}" )) ).ToArray();
+		var gripWeapon = bindings.Ik.Count > 0 ? GripWeaponModel( context[1], context[2] ) : null;
+		var holder = gripWeapon is null ? null : Model.Load( Path );
+		var ikTargets = bindings.Ik.GroupBy( p => p.Marker ).Select( group =>
+		{
+			string marker = group.Key;
+			var grip = holder is null ? null : BindGrip( holder, gripWeapon, marker, group.Select( p => p.AttachTo ) );
+			string parameter = $"ik_{marker}";
+			return (Bone: MarkerBone( marker ), Target: builder.TargetParameter( parameter ), Grip: grip,
+				Anchor: grip is null ? null : builder.TargetParameter( $"{parameter}_anchor" ),
+				Offset: grip is null ? null : builder.VectorParameter( $"{parameter}_offset" ));
+		} ).ToArray();
 		var gripWeight = ikTargets.Length == 0 || HasFirstPersonWeapon ? null
 			: builder.AddControlParameter( "weapon_grip_weight", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
@@ -172,10 +181,10 @@ public partial class Halo2ModelLoader
 		}
 		var useClipFlags = gripWeight is null ? null : builder.Compare( gripWeight, GraphBuilder.FloatComparison.LessThan, 0 );
 		var solverWeight = gripWeight is null ? null : builder.Switch( useClipFlags, builder.Constant( 1f ), gripWeight );
-		foreach ( var (marker, bone, target) in ikTargets )
+		foreach ( var (bone, world, grip, anchor, offset) in ikTargets )
 		{
 			if ( bone is null ) continue;
-			var enabled = builder.IsTargetSet( target );
+			var enabled = grip is null ? builder.IsTargetSet( world ) : builder.Or( builder.IsTargetSet( world ), builder.IsTargetSet( anchor ) );
 			var excluded = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 12) != 0 ).Select( a => a.Key ).ToArray();
 			if ( excluded.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( action, excluded ) ) );
 			var freeHands = overlayClips.Where( o => (GetClipInfo( o.Value ).PlaybackFlags & 8) != 0 ).Select( o => o.Key ).ToArray();
@@ -185,7 +194,13 @@ public partial class Halo2ModelLoader
 				if ( useClipFlags is not null ) released = builder.And( released, useClipFlags );
 				enabled = builder.And( enabled, builder.Not( released ) );
 			}
-			output = builder.TwoBoneIK( output, bone, target, new() { Enabled = enabled, Weight = solverWeight } );
+			var settings = new GraphBuilder.TwoBoneIKSettings { Enabled = enabled, Weight = solverWeight };
+			output = builder.TwoBoneIK( output, bone, world, settings );
+			if ( grip is not null )
+			{
+				var target = builder.TargetOffset( anchor, Vector3.Zero, grip.Rotation, true, offset, true );
+				output = builder.TwoBoneIK( output, bone, target, settings );
+			}
 		}
 		if ( bindings.Transitions.Count > 0 || bindings.Damage.Count > 0 )
 		{

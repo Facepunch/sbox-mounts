@@ -20,6 +20,39 @@ public partial class Halo2ModelLoader
 		return null;
 	}
 
+	internal sealed record WeaponGrip( ModelAttachments.Attachment Anchor, Rotation Rotation );
+
+	internal Model GripWeaponModel( string weaponClass, string weaponType )
+	{
+		if ( biped is null || HasFirstPersonWeapon ) return null;
+		foreach ( var weapon in mapFile.Tags )
+		{
+			if ( weapon.PrimaryClass != "paew" || weapon.DataSize < 0x290 ) continue;
+			int address = mapFile.VaToOffset( (int)weapon.DataVirtualAddress );
+			if ( Label( address + 0x288 ) != weaponClass || Label( address + 0x28c ) != weaponType ) continue;
+			var model = mapFile.GetTag( mapFile.ReadInt32( address + 0x38 ) & 0xffff );
+			if ( model?.PrimaryClass != "tmlh" || model.DataSize < 8 ) continue;
+			int definition = mapFile.VaToOffset( (int)model.DataVirtualAddress );
+			var render = mapFile.GetTag( mapFile.ReadInt32( definition + 4 ) & 0xffff );
+			if ( render is not null ) return Model.Load( Host.AssetPath( mapFile, render.TagPath, "vmdl" ) );
+		}
+		return null;
+	}
+
+	internal static WeaponGrip BindGrip( Model holder, Model weapon, string marker, IEnumerable<string> targets )
+	{
+		if ( weapon is null || weapon.IsError || holder.GetData<WeaponAttachment>()?.PrimaryHand is not {} primary ) return null;
+		var anchor = holder.Attachments.Get( primary );
+		var hand = holder.Attachments.Get( marker );
+		if ( anchor?.Bone is null || hand?.Bone is null ) return null;
+		foreach ( var name in targets )
+		{
+			if ( weapon.Attachments.GetTransform( name ) is not {} grip ) continue;
+			return new( anchor, anchor.LocalTransform.Rotation * grip.Rotation * hand.LocalTransform.Rotation.Inverse );
+		}
+		return null;
+	}
+
 	sealed class MovementInputs
 	{
 		static readonly (string Name, Vector2 Point)[] Directions = [
