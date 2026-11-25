@@ -40,11 +40,14 @@ public sealed partial class ProjectileWeapon : Weapon
 	Zoom _zoom;
 	Hl2.RpgLaser _laser;
 
+	// MAX_TRACE_LENGTH is the diagonal of the Source world coordinate cube.
+	const float MaxTraceLength = 56755.84f;
+
 	bool IsLauncher => Kind == Projectile.Kinds.Rocket;
 	bool LaserOn => IsLauncher && Guiding && Active && !IsReloading;
 
 	/// <summary>Where the laser dot sits; the live rocket steers toward it.</summary>
-	public Vector3? TraceLaserTarget() => LaserOn ? Scene.Trace.Ray( AimRay, 16384 ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
+	public Vector3? TraceLaserTarget() => LaserOn ? Scene.Trace.Ray( AimRay, MaxTraceLength ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
 		.WithoutTags( "projectile", "trigger" ).Run().EndPosition : null;
 
 	protected override void OnStart()
