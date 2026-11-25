@@ -5,7 +5,7 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray }
 	public sealed record ImpactEmitter( ImpactLayer Layer, ImpactSprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
@@ -29,7 +29,7 @@ public sealed partial class PelletImpactEffect
 		public Vector2 RadiusBounds { get; set; }
 		public Vector2 AngleBounds { get; set; }
 		public int AlphaInput { get; set; }
-		public bool LitSmoke { get; set; }
+		public bool Lighting { get; set; }
 		public bool CollidesWithWater { get; set; }
 		public bool DiesInWater { get; set; }
 		public bool DiesOnStructure { get; set; }
@@ -124,8 +124,8 @@ public sealed partial class PelletImpactEffect
 
 	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform contact, Vector3 incoming, Vector2 random, int variant = 0 )
 	{
-		bool smoke = data.Layer == ImpactLayer.Smoke, sparks = data.Layer == ImpactLayer.Sparks;
-		bool animatedRadius = smoke || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
+		bool sparks = data.Layer == ImpactLayer.Sparks;
+		bool animatedRadius = data.Layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		var axis = data.Marker switch { "up" => Vector3.Up, "forward" => contact.Rotation * incoming, _ => -contact.Rotation.Forward };
 		if ( data.Marker == "reflection" )
 		{
@@ -143,7 +143,7 @@ public sealed partial class PelletImpactEffect
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
-		renderer.Lighting = data.LitSmoke || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
+		renderer.Lighting = (data.Layer is ImpactLayer.Smoke or ImpactLayer.Spray && data.Lighting) || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
 		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		if ( sparks ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
@@ -195,7 +195,7 @@ public sealed partial class PelletImpactEffect
 			{
 				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
 				p.Size = data.RadiusCurve.Evaluate( input, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
-				if ( data.Layer == ImpactLayer.Shield ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
+				if ( data.Layer is ImpactLayer.Shield or ImpactLayer.Spray ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
 				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
 				return;
 			}
@@ -248,7 +248,7 @@ public sealed partial class PelletImpactEffect
 			p.Velocity = go.WorldRotation * direction.Normal * Sample( data.Speed, RandomInput( data.SpeedInput ) );
 			p.Color = Color.Lerp( data.Tint, data.TintEnd, RandomInput( data.ColorInput ) );
 			p.Angles.roll = (data.Layer switch { ImpactLayer.Dust or ImpactLayer.Mist => fraction, ImpactLayer.Plant => size, ImpactLayer.Cloth => 0, _ => life }) * 360;
-			if ( data.Layer == ImpactLayer.Shield )
+			if ( data.Layer is ImpactLayer.Shield or ImpactLayer.Spray )
 			{
 				bool flipX = (r0 & 1) != 0, flipY = (r1 & 1) != 0;
 				p.Set( "mirror", flipX == flipY ? 1f : -1f );

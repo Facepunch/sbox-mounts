@@ -32,6 +32,8 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\glass_breakable" => GlassName,
 				@"effects\generic\solids\metal_chips" => MetalChipsName,
 				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
+				@"effects\generic\solids\impact_spray" => SprayName,
+				@"effects\generic\solids\impact_spray_thick_unlit" => ThickSprayName,
 				@"effects\generic\smoke\smoke_soft_small" => UnlitImpactSmokeName,
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
 				_ => null
@@ -42,6 +44,7 @@ internal sealed partial class ShotgunLoader
 			if ( !texture.IsValid() || texture.IsError ) continue;
 			var layer = name switch
 			{
+				SprayName or ThickSprayName => ImpactLayer.Spray,
 				RubberName => ImpactLayer.Rubber,
 				MistName => ImpactLayer.Mist,
 				ShieldName => ImpactLayer.Shield,
@@ -80,7 +83,7 @@ internal sealed partial class ShotgunLoader
 				int rgb = map.ReadInt32( color + offset );
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
-			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield, drift = layer == ImpactLayer.Drift;
+			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield, drift = layer == ImpactLayer.Drift;
 			bool dust = layer is ImpactLayer.Dust or ImpactLayer.Mist;
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
@@ -94,7 +97,7 @@ internal sealed partial class ShotgunLoader
 				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				controller == 0 || animatedRadius || drift || dust ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
-				LitSmoke = layer == ImpactLayer.Smoke && (particleFlags & 0x80) != 0,
+				Lighting = (particleFlags & 0x80) != 0,
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
