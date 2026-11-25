@@ -26,13 +26,14 @@ namespace Doom;
 /// <param name="NoCorpse">Death ends in S_NULL.</param>
 /// <param name="StepSounds">Footsteps by frame of <paramref name="See"/> (A_Metal, A_Hoof, A_BabyMetal).</param>
 /// <param name="SplashImmune">Takes no explosion damage (PIT_RadiusAttack).</param>
+/// <param name="NoLadders">Too big to climb ladders.</param>
 public sealed record MonsterInfo( int Id, int Health, int Speed, int PainChance,
 	ThingAnimation See, ThingAnimation Pain, ThingAnimation Death, ThingAnimation GibDeath = null,
 	ThingAnimation Melee = null, ThingAnimation Missile = null, int MeleeDice = 0, int MeleeMultiplier = 0,
 	string[] SeeSounds = null, string ActiveSound = null, string PainSound = null, string[] DeathSounds = null,
 	string AttackSound = null, string MeleeHitSound = null, bool Floats = false, MonsterAttack Attack = null,
 	bool Raisable = true, ThingAnimation Heal = null, bool NoCorpse = false, (int Frame, string Sound)[] StepSounds = null,
-	bool SplashImmune = false )
+	bool SplashImmune = false, bool NoLadders = false )
 {
 	/// <summary>The death animation backwards, for an arch-vile raise (S_*_RAISE).</summary>
 	public ThingAnimation Raise => Raisable
@@ -272,7 +273,8 @@ public static class MonsterInfos
 			Missile: new( "FATT", "GGGGHHIGHHIGHHIG", 5, ActionFrames: [4, 8, 12] ),
 			Attack: new( Projectile: "mancubus_fireball", StartSound: "DSMANATK",
 				Spread: [[0f, 11.25f], [0f, -22.5f], [-5.625f, 5.625f]] ),
-			SeeSounds: ["DSMANSIT"], ActiveSound: "DSPOSACT", PainSound: "DSMNPAIN", DeathSounds: ["DSMANDTH"] ),
+			SeeSounds: ["DSMANSIT"], ActiveSound: "DSPOSACT", PainSound: "DSMNPAIN", DeathSounds: ["DSMANDTH"],
+			NoLadders: true ),
 
 		// Arachnotron: S_BSPI_*
 		new( 68, 500, 12, 128,
@@ -281,7 +283,7 @@ public static class MonsterInfos
 			Missile: new( "BSPI", "AAAAAAAAAAAAAAAAAAAAGGGGHHHHH", 1, ActionFrames: [20], LoopFrame: 20 ),
 			Attack: new( Projectile: "arachnotron_plasma", RefireChance: 10 ),
 			SeeSounds: ["DSBSPSIT"], ActiveSound: "DSBSPACT", PainSound: "DSDMPAIN", DeathSounds: ["DSBSPDTH"],
-			StepSounds: [(0, "DSBSPWLK"), (6, "DSBSPWLK")] ),
+			StepSounds: [(0, "DSBSPWLK"), (6, "DSBSPWLK")], NoLadders: true ),
 
 		// Arch-vile: S_VILE_*. A_VileTarget at H, A_VileAttack at O.
 		new( 64, 700, 15, 10,
@@ -326,7 +328,7 @@ public static class MonsterInfos
 			Missile: new( "SPID", "AAAAAAAAAAAAAAAAAAAAGGGGHHHHHHHHHHH", 1, ActionFrames: [20, 24], LoopFrame: 20 ),
 			Attack: new( Pellets: 3, Sound: "DSSHOTGN", RefireChance: 10, HalveRange: true ),
 			SeeSounds: ["DSSPISIT"], ActiveSound: "DSDMACT", PainSound: "DSDMPAIN", DeathSounds: ["DSSPIDTH"],
-			StepSounds: [(0, "DSMETAL"), (4, "DSMETAL"), (8, "DSMETAL")], SplashImmune: true, Raisable: false ),
+			StepSounds: [(0, "DSMETAL"), (4, "DSMETAL"), (8, "DSMETAL")], SplashImmune: true, Raisable: false, NoLadders: true ),
 
 		// Cyberdemon: S_CYBER_*
 		new( 16, 4000, 16, 20,

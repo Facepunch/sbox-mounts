@@ -229,6 +229,7 @@ public sealed class ThingPrefabLoader( WadStack stack, ThingType type, SpriteFra
 		npc.HasGibDeath = monster.GibDeath is not null;
 		npc.NoCorpse = monster.NoCorpse;
 		npc.SplashImmune = monster.SplashImmune;
+		npc.NoLadders = monster.NoLadders;
 		npc.SeeFrames = monster.See.Frames.Length;
 
 		// Bites and charges use the melee roll without a melee state.

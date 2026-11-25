@@ -1,4 +1,5 @@
 using System;
+using Sandbox.Engine.Resources;
 using Sandbox.Npcs;
 using Sandbox.Npcs.Schedules;
 
@@ -107,6 +108,9 @@ public sealed partial class DoomMonster : BaseNpc
 	/// <summary>Takes no explosion damage.</summary>
 	[Property] public bool SplashImmune { get; set; }
 
+	/// <summary>Too big to climb ladders: its navmesh agent never takes ladder links.</summary>
+	[Property] public bool NoLadders { get; set; }
+
 	[Property, Group( "Sounds" )] public List<SoundEvent> SeeSounds { get; set; } = [];
 	[Property, Group( "Sounds" )] public SoundEvent ActiveSound { get; set; }
 	[Property, Group( "Sounds" )] public SoundEvent PainSound { get; set; }
@@ -155,6 +159,18 @@ public sealed partial class DoomMonster : BaseNpc
 	protected override void SetupRelationships()
 	{
 		SetRelationship( Factions.Player, Disposition.Hostile );
+	}
+
+	protected override void OnAwake()
+	{
+		base.OnAwake();
+
+		// Before NavigationLayer gives the agent its default links (it keeps a list the agent already has).
+		if ( NoLadders && GetComponent<NavMeshAgent>( true ) is { } agent )
+		{
+			agent.AllowAllLinkTypes = false;
+			agent.AllowedLinkTypes = [.. new[] { NavMeshLinkType.Jump, NavMeshLinkType.Drop, NavMeshLinkType.Climb }.Where( x => x is not null )];
+		}
 	}
 
 	protected override void OnStart()
