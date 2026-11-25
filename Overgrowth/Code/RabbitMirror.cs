@@ -48,8 +48,12 @@ internal sealed class RabbitMirror
 		return symmetry;
 	}
 
-	internal static string SwapSide( string label ) => label.Contains( "left" )
-		? label.Replace( "left", "right" ) : label.Replace( "right", "left" );
+	internal static string SwapSide( string label )
+	{
+		if ( !label.Contains( "left" ) ) return label.Replace( "right", "left" );
+		if ( !label.Contains( "right" ) ) return label.Replace( "left", "right" );
+		return string.Join( "right", label.Split( "left" ).Select( part => part.Replace( "right", "left" ) ) );
+	}
 
 	internal static Transform Reflect( Transform tx )
 	{

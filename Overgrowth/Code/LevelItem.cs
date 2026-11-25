@@ -179,8 +179,8 @@ public sealed partial class LevelItem : Component
 		attachmentComponent.flyingStraight = false;
 		attachmentComponent.lastHeldPose = null;
 		attachmentComponent.carryVelocity = attachmentComponent.carryAngularVelocity = Vector3.Zero;
-		if ( attachmentComponent.Holder.IsValid() && attachmentComponent.Holder != actor.Renderer &&
-			attachmentComponent.Holder.GetComponentInParent<RabbitGuard>() is { } previous )
+		if ( attachmentComponent.Holder.IsValid() &&
+			attachmentComponent.Holder.GetComponentInParent<RabbitGuard>( true ) is { } previous )
 		{
 			if ( previous.LeftHandItem == attachmentComponent ) previous.LeftHandItem = null;
 			if ( previous.RightHandItem == attachmentComponent ) previous.RightHandItem = null;

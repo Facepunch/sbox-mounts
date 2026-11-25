@@ -74,22 +74,22 @@ public partial class GameMount
 	readonly Dictionary<string, StretchedParticle.Definition> stretchedParticles = new();
 	float? clashFlashRadius;
 
-	internal void MetalSparks( Vector3 point )
+	internal void MetalSparks( Vector3 point, int characterFrames )
 	{
 		int count = Random.Shared.Next( 20 );
 		EmitClashParticles( "metalspark", point, count );
 		EmitClashParticles( "metalflash", point, count );
-		EmitClashFlash( point );
+		EmitClashFlash( point, characterFrames );
 	}
 
-	void EmitClashFlash( Vector3 point )
+	void EmitClashFlash( Vector3 point, int characterFrames )
 	{
 		if ( !clashFlashRadius.HasValue )
 		{
 			var light = XmlAsset.Read( FileSystem, "Data/Objects/default_light.xml", "ActorObjects" ).Element( "DynamicLightObject" );
 			clashFlashRadius = 40f * MathF.Min( light.Number( "s0" ).Value, MathF.Min( light.Number( "s1" ).Value, light.Number( "s2" ).Value ) );
 		}
-		ClashFlash.Emit( point, clashFlashRadius.Value );
+		ClashFlash.Emit( point, clashFlashRadius.Value, characterFrames );
 	}
 
 	internal void EmitClashParticles( string name, Vector3 point, int count )

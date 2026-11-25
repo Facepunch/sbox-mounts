@@ -157,9 +157,17 @@ public sealed partial class RabbitGuard
 		if ( !GrabWeaponAtHand() && ++reachAttempts > 4 ) reaching = false;
 	}
 
-	bool GrabWeaponAtHand()
+	bool GrabWeaponAtHand( bool rolling = false )
 	{
-		if ( WeaponAtHand( PickupLeft ) is not { } item || !TakeWeapon( item ) ) return false;
+		if ( WeaponAtHand( PickupLeft ) is not { } item ) return false;
+		// HandlePickUp extracts an embedded weapon during a flip. Only a loose item
+		// can enter the hand on that update. The grabitem animation event does both.
+		if ( rolling && item.StuckIn.IsValid() )
+		{
+			if ( item.StuckIn != Renderer ) ExtractWeapon( item, lift: true );
+			return false;
+		}
+		if ( !TakeWeapon( item ) ) return false;
 		StopSeekingWeapon();
 		return true;
 	}

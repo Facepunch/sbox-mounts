@@ -540,7 +540,7 @@ public sealed partial class RabbitGuard
 		mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
 		if ( a == "metal" && b == "metal" )
 		{
-			mount.MetalSparks( point );
+			mount.MetalSparks( point, SecondaryPoseFrames );
 			return;
 		}
 		mount.EmitClashParticles( "woodspeck", point, Random.Shared.Next( a == "wood" && b == "wood" ? 5 : 10 ) );

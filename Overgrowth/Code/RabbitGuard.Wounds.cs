@@ -227,7 +227,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/weapon_metal_hit_metal{(strong ? "_strong" : "")}.xml", position );
-		mount.MetalSparks( position );
+		mount.MetalSparks( position, SecondaryPoseFrames );
 	}
 
 	void TryDisarm( Vector3 direction, LevelItem strikingWeapon = null )

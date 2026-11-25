@@ -97,7 +97,7 @@ public sealed partial class RabbitGuard
 	bool AdvanceRoll()
 	{
 		if ( soughtItem.IsValid() && !Unconscious && !draggedBody.IsValid() && !bodyDragger.IsValid() && FreeHands > 0 )
-			GrabWeaponAtHand();
+			GrabWeaponAtHand( rolling: true );
 		AdvanceRollCrouch( Time.Delta, GroundCrouchTarget() );
 		RollProgress = Math.Min( 1f, RollProgress + Time.Delta * RollSpeed );
 		if ( RollProgress < 0.95f )

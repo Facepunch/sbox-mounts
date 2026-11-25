@@ -16,7 +16,6 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] float DrawWeight { get; set; }
 	float drawElapsed;
 	bool fadingThrow;
-	LevelItem drawing;
 	string appliedDrawLayer, appliedDrawAnimation;
 	bool appliedDrawLeft;
 
@@ -57,21 +56,16 @@ public sealed partial class RabbitGuard
 		bool sameSide = left == (item == LeftHipWeapon);
 		DrawAnimation = sameSide ? DrawSameSide : DrawAcross;
 		drawElapsed = 0f;
-		drawing = item;
 	}
 
-	void TakeDrawnWeapon()
+	void TakeDrawnWeapon( bool leftHand, bool leftHip )
 	{
-		if ( !drawing.IsValid() ) return;
-		var item = drawing;
-		drawing = null;
-		if ( (DrawLeft ? LeftHandItem : RightHandItem).IsValid() || item.Holder != Renderer ||
+		var item = leftHip ? LeftHipWeapon : RightHipWeapon;
+		if ( !item.IsValid() || (leftHand ? LeftHandItem : RightHandItem).IsValid() || item.Holder != Renderer ||
 			Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		var position = item.PhysicsPosition;
-		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, DrawLeft );
-		if ( (DrawLeft ? LeftHandItem : RightHandItem) != item ) return;
-		if ( item == RightHipWeapon ) RightHipWeapon = null;
-		else LeftHipWeapon = null;
+		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, leftHand );
+		if ( (leftHand ? LeftHandItem : RightHandItem) != item ) return;
 		PlayCombatSound( "Data/Sounds/weapon_foley/grab/weapon_grap_metal_leather_glove.xml", position, 0.5f );
 	}
 
@@ -82,16 +76,17 @@ public sealed partial class RabbitGuard
 			if ( DrawAnimation is null && !BeginHandSwap() && !BeginItemThrow() ) BeginWeaponDraw();
 			if ( DrawAnimation is not null )
 			{
-				var clip = boundAnimations.Clips[DrawAnimation];
+				var clip = boundAnimations.Clips[DrawAnimation].ForSide( DrawLeft );
 				var previous = drawElapsed;
 				drawElapsed += Time.Delta;
 				DrawPhase = Math.Min( 1f, drawElapsed / clip.Duration );
 				if ( fadingThrow ) DrawWeight = Math.Max( 0f, DrawWeight - 4f * Time.Delta );
 				else DrawWeight = Math.Clamp( Math.Min( (drawElapsed + 1f / 120f) * 8f, 1f - (drawElapsed - clip.Duration) * 8f ), 0f, 1f );
-				if ( (!fadingThrow || DrawWeight > 0f) && !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
+				if ( (!fadingThrow || DrawWeight > 0f) && !Downed && itemThrowTarget is not null && clip.WeaponRelease is { } release && drawElapsed >= release.Time )
 					ReleaseThrownItem( release.Left );
-				if ( !Downed && clip.DrawTime is { } grab && drawElapsed >= grab ) TakeDrawnWeapon();
-				if ( !Downed && clip.ForSide( DrawLeft ).HandSwap is { } swap && previous < swap.Time && drawElapsed >= swap.Time )
+				if ( !Downed && clip.DrawWeapon is { } draw && previous < draw.Time && drawElapsed >= draw.Time )
+					TakeDrawnWeapon( draw.LeftHand, draw.LeftHip );
+				if ( !Downed && clip.HandSwap is { } swap && previous < swap.Time && drawElapsed >= swap.Time )
 					SwapHeldWeapons( swap.Bone );
 				if ( DrawWeight <= 0f || Downed )
 				{
@@ -99,7 +94,6 @@ public sealed partial class RabbitGuard
 					fadingThrow = false;
 					handThrowLookTarget = null;
 					itemThrowTarget = null;
-					drawing = null;
 				}
 			}
 		}
