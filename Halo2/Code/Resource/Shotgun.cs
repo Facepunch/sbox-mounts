@@ -47,6 +47,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string ClothName = "debris_shirt.vtex";
 	internal const string LeafName = "plant_leafy.vtex";
 	internal const string GrassName = "plant_grassy.vtex";
+	internal const string ClumpsName = "impact_clumps.vtex";
 	internal const string RippleName = "impact_ripple.vtex";
 	internal const string ShieldName = "impact_energy.vtex";
 	internal const string WoodName = "plant_wood.vtex";
@@ -82,6 +83,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			ClothName => @"effects\generic\solids\debris_shirt",
 			LeafName => @"effects\generic\solids\plant_leafy",
 			GrassName => @"effects\generic\solids\plant_grassy",
+			ClumpsName => @"effects\generic\solids\impact_clumps",
 			RippleName => @"effects\generic\solids\impact_ripple_unlit",
 			ShieldName => @"effects\generic\energy\impact_energy",
 			WoodName => @"effects\generic\solids\plant_wood",
@@ -143,13 +145,14 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
 		int kind = map.ReadSpan( data, 1 )[0];
 		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;
-		int length = kind switch { 1 => 4, 4 => 24, 5 => 80, 7 => 48, _ => throw new NotSupportedException( $"Unsupported particle curve {kind}" ) };
+		int length = kind switch { 0 => 0, 1 => 4, 4 => 24, 5 => 80, 7 => 48, _ => throw new NotSupportedException( $"Unsupported particle curve {kind}" ) };
 		var first = ReadCurve( data + 20, false );
 		return new CurveRange( first, ranged ? ReadCurve( data + 20 + length, true ) : first );
 
 		Curve ReadCurve( int start, bool upper )
 		{
 			Curve.Frame Key( float t, float v ) => new( t, min + span * v ) { Mode = Curve.HandleMode.Linear };
+			if ( kind == 0 ) return new Curve( Key( 0, 0 ), Key( 1, 1 ) );
 			if ( kind == 1 ) return new Curve( Key( 0, upper ? 1 : 0 ) );
 			if ( kind == 4 )
 			{

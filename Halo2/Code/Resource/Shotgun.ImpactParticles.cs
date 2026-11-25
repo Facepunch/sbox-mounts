@@ -22,6 +22,7 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\debris_shirt" => ClothName,
 				@"effects\generic\solids\plant_leafy" => LeafName,
 				@"effects\generic\solids\plant_grassy" => GrassName,
+				@"effects\generic\solids\impact_clumps" or @"effects\generic\solids\impact_clumps_unlit" => ClumpsName,
 				@"effects\generic\solids\impact_ripple_unlit" => RippleName,
 				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => ShieldName,
 				@"effects\generic\solids\plant_wood" => WoodName,
@@ -51,6 +52,7 @@ internal sealed partial class ShotgunLoader
 				MistName => ImpactLayer.Mist,
 				ShieldName => ImpactLayer.Shield,
 				RippleName => ImpactLayer.Ripple,
+				ClumpsName => ImpactLayer.Clumps,
 				WoodName or LeafName or GrassName => ImpactLayer.Plant,
 				ClothName => ImpactLayer.Cloth,
 				DustName => ImpactLayer.Dust,
@@ -86,27 +88,30 @@ internal sealed partial class ShotgunLoader
 				int rgb = map.ReadInt32( color + offset );
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
-			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield or ImpactLayer.Ripple, drift = layer == ImpactLayer.Drift;
+			bool animatedRadius = HasAnimatedRadius( layer ), drift = layer == ImpactLayer.Drift;
 			bool dust = layer is ImpactLayer.Dust or ImpactLayer.Mist;
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
 			bool spriteCurves = drift || dust || spriteAngle || cloth;
 			var size = Bounds( emitter + 72 ) * 120;
 			if ( layer == ImpactLayer.Rubber ) size *= Bounds( definition + 60 ).x;
+			bool collides = movement is not null && map.ReadInt32( Address( movement ) + 12 ) > 1 && Short( controller + 20 ) == 1;
+			int mirrors = layer == ImpactLayer.Plant || (Short( definition + 10 ) & 1) != 0 ? 4 : 2;
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, new ImpactSprite( texturePath, origin ), Bounds( emitter + 8 ), Bounds( emitter + 24 ), Bounds( emitter + 40 ) * 120, Bounds( emitter + 140 ), Bounds( emitter + 56 ),
 				size, drift || dust ? ReadRange( definition + 60, 1 ) : animatedRadius || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
 				spriteCurves ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
 				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
-				controller == 0 || animatedRadius || drift || dust ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
+				collides ? new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) : default )
 			{
+				Collides = collides, MirrorsPerFrame = mirrors,
 				PerpendicularToDirection = Short( definition + 4 ) == 2,
 				Lighting = (particleFlags & 0x80) != 0,
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
 				SpinRange = Short( emitter + 58 ), SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
-				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber ? ReadDebrisFrames( definition, texturePath, layer == ImpactLayer.Plant ) : null,
+				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber or ImpactLayer.Clumps ? ReadDebrisFrames( definition, texturePath, layer == ImpactLayer.Plant, mirrors ) : null,
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
@@ -134,13 +139,12 @@ internal sealed partial class ShotgunLoader
 		} ).ToArray();
 	}
 
-	DebrisFrame[] ReadDebrisFrames( int definition, string texturePath, bool singleSequence )
+	DebrisFrame[] ReadDebrisFrames( int definition, string texturePath, bool singleSequence, int mirrors )
 	{
 		int shader = Block( definition + 140 );
 		var bitmap = map.GetTag( map.ReadInt32( Block( shader + 4 ) ) & 0xffff );
 		int sequences = Block( Address( bitmap ) + 60 ) + 60 * Short( definition + 8 );
 		int count = singleSequence ? map.ReadInt32( sequences + 52 ) : Short( definition + 10 );
-		int mirrors = singleSequence ? 4 : 2;
 		var frames = new DebrisFrame[count * mirrors];
 		for ( int i = 0; i < count; i++ )
 		{
@@ -150,7 +154,7 @@ internal sealed partial class ShotgunLoader
 			var aspect = size / MathF.Max( size.x, size.y );
 			for ( int mirror = 0; mirror < mirrors; mirror++ )
 			{
-				bool flipX = (mirror & 1) != 0, flipY = singleSequence ? (mirror & 2) != 0 : (i & 1) != 0;
+				bool flipX = (mirror & 1) != 0, flipY = mirrors == 4 ? (mirror & 2) != 0 : (i & 1) != 0;
 				var origin = new Vector2( flipX ? pivot.x : 1 - pivot.x, flipY ? 1 - pivot.y : pivot.y );
 				frames[i * mirrors + mirror] = new DebrisFrame( new Vector2( flipX ? -aspect.x : aspect.x, flipY ? -aspect.y : aspect.y ), new ImpactSprite( texturePath, origin ) );
 			}

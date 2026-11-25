@@ -5,7 +5,10 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps }
+
+	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps;
+
 	public sealed record ImpactEmitter( ImpactLayer Layer, ImpactSprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
 		float Gravity, float Drag, float AngularDrag, Vector2 Collision )
@@ -31,6 +34,8 @@ public sealed partial class PelletImpactEffect
 		public int AlphaInput { get; set; }
 		public bool PerpendicularToDirection { get; set; }
 		public bool Lighting { get; set; }
+		public int MirrorsPerFrame { get; set; } = 2;
+		public bool Collides { get; set; }
 		public bool CollidesWithWater { get; set; }
 		public bool DiesInWater { get; set; }
 		public bool DiesOnStructure { get; set; }
@@ -110,14 +115,15 @@ public sealed partial class PelletImpactEffect
 			BlamRandom.Next( ref seed );
 			int horizontal = (int)(BlamRandom.Next( ref seed ) & 1);
 			uint second = BlamRandom.Next( ref seed );
-			int variant = (int)(second % (frames.Length / 2)) * 2 + horizontal;
+			int mirrors = data.MirrorsPerFrame;
+			int count = frames.Length / mirrors;
+			int frame = (int)(second % count);
 			if ( data.Layer == ImpactLayer.Plant )
 			{
 				BlamRandom.Next( ref seed );
-				int count = frames.Length / 4;
-				int frame = (int)((1 + BlamRandom.Next( ref seed ) * (1f / 65535f)) * count) % count;
-				variant = frame * 4 + (int)(second & 1) * 2 + horizontal;
+				frame = (int)((1 + BlamRandom.Next( ref seed ) * (1f / 65535f)) * count) % count;
 			}
+			int variant = frame * mirrors + (mirrors == 4 ? (int)(second & 1) * 2 : 0) + horizontal;
 			var effect = effects[variant] ??= CreateImpactLayer( data, frames[variant].Sprite.Get(), parent, contact, incoming, random, variant );
 			effect.Emit( contact.Position, 0 );
 		}
@@ -126,7 +132,7 @@ public sealed partial class PelletImpactEffect
 	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform contact, Vector3 incoming, Vector2 random, int variant = 0 )
 	{
 		bool sparks = data.Layer == ImpactLayer.Sparks;
-		bool animatedRadius = data.Layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple;
+		bool animatedRadius = HasAnimatedRadius( data.Layer );
 		var axis = data.Marker switch { "up" => Vector3.Up, "forward" => contact.Rotation * incoming, _ => -contact.Rotation.Forward };
 		if ( data.Marker == "reflection" )
 		{
@@ -262,7 +268,7 @@ public sealed partial class PelletImpactEffect
 			if ( data.Layer == ImpactLayer.Rocks ) p.Sequence = (int)(r1 % 4);
 			if ( data.DebrisFrames is {} frames )
 			{
-				p.Sequence = variant / (data.Layer == ImpactLayer.Plant ? 4 : 2);
+				p.Sequence = variant / data.MirrorsPerFrame;
 				var aspect = frames[variant].Aspect;
 				// A half turn preserves the mirror while keeping the longest extent positive for sprite culling.
 				if ( (MathF.Abs( aspect.x ) >= MathF.Abs( aspect.y ) ? aspect.x : aspect.y) < 0 )
@@ -296,7 +302,7 @@ public sealed partial class PelletImpactEffect
 				float spin = p.Get<float>( "spin" );
 				p.Angles.roll += spin * dt;
 				p.Set( "spin", spin * (1 - (data.AngularDrag * dt).Clamp( 0, 1 )) );
-				if ( data.Layer is ImpactLayer.Rocks or ImpactLayer.Sparks or ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.Plant or ImpactLayer.Rubber or ImpactLayer.Cloth && dt > 0 && Collide( p, data, go.Scene, dt ) )
+				if ( data.Collides && dt > 0 && Collide( p, data, go.Scene, dt ) )
 				{
 					effect.Terminate( p );
 					continue;
