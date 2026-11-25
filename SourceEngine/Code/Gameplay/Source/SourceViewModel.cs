@@ -403,6 +403,12 @@ public sealed class SourceViewModel : BaseWeaponModel
 		return direction - 2 * direction.Dot( left ) * left;
 	}
 
+	internal void DelayRecoilReset( float delay )
+	{
+		_lastPrimaryShot = -delay;
+		_burstShots = Math.Max( _burstShots, 1 );
+	}
+
 	void ResetBurst()
 	{
 		_burstShots = 0;

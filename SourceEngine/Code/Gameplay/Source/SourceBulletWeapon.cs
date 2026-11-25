@@ -134,6 +134,16 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	}
 	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
 
+	protected override void OnControl()
+	{
+		base.OnControl();
+		if ( Secondary != SecondaryFires.DelayPrimary || IsReloading || !Input.Down( "attack2" ) ) return;
+
+		_tapReady = (TimeUntil)TapRefireDelay;
+		SetNextPrimaryFire( TapRefireDelay );
+		if ( WeaponModel is SourceViewModel model ) model.DelayRecoilReset( TapRefireDelay );
+	}
+
 	protected override void Think()
 	{
 		base.Think();

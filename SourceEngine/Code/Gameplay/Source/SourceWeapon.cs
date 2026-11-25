@@ -23,7 +23,9 @@ public abstract class SourceWeapon : BaseCombatWeapon
 		/// <summary>Counter-Strike's Glock and FAMAS: toggle three-round bursts.</summary>
 		Burst,
 		/// <summary>Counter-Strike's M4A1 and USP: attach or detach the silencer.</summary>
-		Silencer
+		Silencer,
+		/// <summary>Hold primary fire until the tap refire delay has elapsed after release.</summary>
+		DelayPrimary
 	}
 
 	/// <summary>Random pitch added to the aim per attack (min, max degrees).</summary>
