@@ -174,6 +174,8 @@ public partial class Halo2ModelLoader
 			var enabled = builder.IsTargetSet( target );
 			var excluded = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 12) != 0 ).Select( a => a.Key ).ToArray();
 			if ( excluded.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( action, excluded ) ) );
+			var freeHands = overlayClips.Where( o => (GetClipInfo( o.Value ).PlaybackFlags & 8) != 0 ).Select( o => o.Key ).ToArray();
+			if ( freeHands.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( overlay, freeHands ) ) );
 			output = builder.TwoBoneIK( output, bone, target, new() { Enabled = enabled } );
 		}
 		if ( bindings.Transitions.Count > 0 || bindings.Damage.Count > 0 )

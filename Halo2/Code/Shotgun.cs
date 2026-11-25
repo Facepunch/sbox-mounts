@@ -80,7 +80,13 @@ public sealed class Shotgun : Weapon
 		DestroyWorldModel();
 		if ( !HolderRenderer.IsValid() ) return;
 		var loose = GetComponent<SkinnedModelRenderer>( true );
-		WorldModel = new GameObject( HolderRenderer.GetBoneObject( HoldBone ) ?? GameObject, true, "Held shotgun" );
+		var hand = HolderRenderer.GetBoneObject( HoldBone );
+		if ( hand is null && HolderRenderer.Model?.Attachments.Get( "right_hand" ) is {} marker )
+		{
+			HolderRenderer.CreateAttachments = true;
+			hand = HolderRenderer.GetAttachmentObject( marker );
+		}
+		WorldModel = new GameObject( hand ?? GameObject, true, "Held shotgun" );
 		WorldModel.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		if ( loose.Model is { IsError: true } missing )
 		{
@@ -100,6 +106,7 @@ public sealed class Shotgun : Weapon
 		model.ConfigureMuzzleFlash( firstPerson: false );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
 		model.ConfigureCasings( firstPerson: false );
+		if ( HolderAnimator is {} animator ) animator.Weapon = renderer;
 		WorldModel.LocalTransform = global::Transform.Zero;
 		loose.Enabled = false;
 	}
@@ -119,6 +126,8 @@ public sealed class Shotgun : Weapon
 
 	protected override void DestroyWorldModel()
 	{
+		if ( HolderAnimator is {} animator && animator.Weapon.IsValid() && animator.Weapon.GameObject == WorldModel )
+			animator.Weapon = null;
 		base.DestroyWorldModel();
 		if ( GetComponent<SkinnedModelRenderer>( true ) is {} loose ) loose.Enabled = true;
 	}

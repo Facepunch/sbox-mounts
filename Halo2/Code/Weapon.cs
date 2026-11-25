@@ -114,11 +114,12 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
+	protected Halo2Animator HolderAnimator => HolderRenderer is {} body
+		&& body.GetComponentInParent<Halo2Animator>( true ) is {} animator && animator.Renderer == body ? animator : null;
+
 	protected void PlayHolderOverlay( string name )
 	{
-		if ( !Application.IsDedicatedServer && HolderRenderer is {} body
-			&& body.GetComponentInParent<Halo2Animator>( true ) is {} animator && animator.Renderer == body )
-			animator.PlayWeaponOverlay( name );
+		if ( !Application.IsDedicatedServer ) HolderAnimator?.PlayWeaponOverlay( name );
 	}
 
 	protected override void OnShootEffects( ShotEffect shot )
