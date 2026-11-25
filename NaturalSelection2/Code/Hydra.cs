@@ -56,7 +56,8 @@ public sealed class Hydra : AlienStructure
 	void ScanTargets()
 	{
 		GameObject target = null;
-		float closest = Range * Range;
+		float closest = float.MaxValue;
+		bool targetCanAttack = false;
 		bool enemyNearby = false;
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( WorldPosition, Range + 2 * Scale ) ) )
 		{
@@ -68,10 +69,16 @@ public sealed class Hydra : AlienStructure
 			float distance = WorldPosition.DistanceSquared( aim );
 			if ( distance < Range * Range && (enemy.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" ) || enemy.GetComponent<PlayerController>().IsValid()) )
 				enemyNearby = true;
-			if ( distance >= closest || Scene.Trace.Ray( Barrel, aim ).IgnoreGameObjectHierarchy( GameObject )
+			// Spark checks mobile target origins and static engagement points from the eye.
+			float range = Barrel.DistanceSquared( enemy.WorldPosition );
+			if ( (enemy.Tags.Has( "structure" ) ? Barrel.DistanceSquared( aim ) : range) > Range * Range ) continue;
+			bool canAttack = victim is BaseNpc and not (Mac or Drifter or Harvester) || enemy.GetComponent<PlayerController>().IsValid();
+			if ( targetCanAttack && !canAttack || canAttack == targetCanAttack && range >= closest ) continue;
+			if ( Scene.Trace.Ray( Barrel, aim ).IgnoreGameObjectHierarchy( GameObject )
 				.IgnoreGameObjectHierarchy( enemy ).WithoutTags( "ns2_hydra", "trigger", "weapon" ).Run().Hit ) continue;
 			target = enemy;
-			closest = distance;
+			closest = range;
+			targetCanAttack = canAttack;
 		}
 		if ( target.IsValid() )
 		{
