@@ -138,7 +138,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		if ( Input.Down( "reload" ) ) return !(WantsPrimaryAttack() && CanPrimaryAttack());
 		return AutoReload && Clip1 == 0 && NextSecondaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" );
 	}
-	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
+	protected override bool WantsSecondaryAttack() => _queuedSecondary || (!Launches && base.WantsSecondaryAttack());
 
 	protected override void OnControl()
 	{
@@ -154,7 +154,11 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		base.Think();
 		// A ready launcher takes priority over bullets and reload on the same frame.
-		if ( Launches && WantsSecondaryAttack() ) FireSecondary();
+		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && !IsReloading )
+		{
+			if ( HasSecondaryAmmo() ) FireSecondary();
+			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( _nextEmptyClick );
+		}
 		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
 		{
@@ -279,15 +283,21 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		_holdingEmptyTrigger = true;
 		if ( clickOnly )
 		{
-			if ( _nextEmptyClick > 0 ) return;
-			if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
-			_nextEmptyClick = EmptyClickInterval;
+			TryPlayEmptyClick( EmptyClickInterval );
 			return;
 		}
 		if ( SourceSounds.WeaponSound( this, "empty" ) is { } click ) GameObject.PlaySound( click );
 		WeaponModel?.OnDryFire();
 		SetNextPrimaryFire( Math.Max( DryTapRefireDelay, DryFireDuration ) );
 		_tapReady = (TimeUntil)DryTapRefireDelay;
+	}
+
+	bool TryPlayEmptyClick( float interval )
+	{
+		if ( _nextEmptyClick > 0 ) return false;
+		if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
+		_nextEmptyClick = interval;
+		return true;
 	}
 
 	void FirePrimaryRound()
