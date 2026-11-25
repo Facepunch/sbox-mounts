@@ -7,10 +7,11 @@ internal sealed class NpcPrefab( string title, string directory, string tag, Act
 	string ModelPath => $"mount://ns2/{directory}.model.vmdl";
 	PrefabFile prefab;
 
-	internal static string Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure, string tag = "ns2_lifeform", string team = "alien" )
+	internal static string Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure, string tag = "ns2_lifeform", string team = "alien", string modelName = null )
 	{
 		var name = title.ToLowerInvariant();
-		var directory = $"ns2/models/{team}/{name}/{name}";
+		modelName ??= name;
+		var directory = $"ns2/models/{team}/{modelName}/{modelName}";
 		var graph = $"{directory}.animation_graph";
 		context.Add( ResourceType.AnimationGraph, graph, new AnimationGraphLoader( $"{directory}.model", graph, npcPlayback: true ) );
 		var loader = new NpcPrefab( title, directory, tag, configure );
