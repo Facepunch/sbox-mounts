@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush")) || args.Length > 4 )
-	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush [level] [output.txt]]" );
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env")) || args.Length > 4 )
+	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env [level] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-env" )
+	{
+		string level = args.Length > 2 ? args[2] : "bank";
+		string envOutput = args.Length > 3 ? args[3] : $"env_{level}.txt";
+		using ( var envWriter = new StreamWriter( envOutput ) ) EnvDump.Run( db, level, envWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( envOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-brush" )
 	{
 		string level = args.Length > 2 ? args[2] : "bank";
@@ -289,6 +297,31 @@ foreach ( var sunMap in new[] { "apartment", "bank", "bridge", "diamondheist", "
 	Console.WriteLine( $"  {sunMap}: sun_anim={sunEnvironment.SunVertical:0.###} sun_anim_x={sunEnvironment.SunHorizontal:0.###} sky_rot={sunEnvironment.SkyRotation:0} -> elevation {sunElevation:0.0}°, azimuth {sunAzimuth:0.0}°" );
 }
 Console.WriteLine( "PASS: underlay sun rig reference poses, sky rotation, invalid inputs and nine authored sun directions." );
+// Distance fog: Bank's authored values; No Mercy authors none (alpha1 0, colour scale 0).
+var bankFog = bankEnvironment.Fog ?? throw new Exception( "Bank fog missing." );
+if ( MathF.Abs( bankFog.Start - 0.001f ) > 0.0001f || MathF.Abs( bankFog.End - 0.365f ) > 0.001f || MathF.Abs( bankFog.FarOpacity - 0.741f ) > 0.001f
+	|| MathF.Abs( bankFog.Color.x - 0.76f ) > 0.001f )
+	throw new Exception( $"Bank fog parse regressed: {bankFog}" );
+if ( EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", "levels/l4d/world" ) ) ).Fog is not null )
+	throw new Exception( "No Mercy's disabled fog was imported." );
+var counterfeitFog = EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", "levels/suburbia/world" ) ) ).Fog;
+if ( counterfeitFog is null || counterfeitFog.Color.x <= 1 ) throw new Exception( "Counterfeit's over-bright fog colour scale (2.56) was lost." );
+Console.WriteLine( "PASS: authored distance fog (Bank values, No Mercy disabled, Counterfeit HDR colour)." );
+// Underlay sky gradient: every map authors three colours; g_sky's V encodes height (horizon 0, zenith -1).
+var bankSky = bankEnvironment.SkyGradient ?? throw new Exception( "Bank sky gradient missing." );
+if ( MathF.Abs( bankSky[0].x - 0.637f * 0.8f ) > 0.001f || MathF.Abs( bankSky[2].z - 1f * 0.8f ) > 0.001f )
+	throw new Exception( "Bank sky colour scaling regressed." );
+if ( (EnvironmentSettings.SampleSky( bankSky, 1 ) - bankSky[0]).Length > 0.0001f || (EnvironmentSettings.SampleSky( bankSky, 0 ) - bankSky[2]).Length > 0.0001f
+	|| (EnvironmentSettings.SampleSky( bankSky, 0.5f ) - bankSky[1]).Length > 0.0001f || (EnvironmentSettings.SampleSky( bankSky, -1 ) - bankSky[2]).Length > 0.0001f )
+	throw new Exception( "Sky gradient stops regressed." );
+foreach ( var skyMap in new[] { "apartment", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+	if ( EnvironmentSettings.Read( db, ScriptData.Read( db.Find( "world", $"levels/{skyMap}/world" ) ) ).SkyGradient is null )
+		throw new Exception( $"{skyMap}: sky gradient missing." );
+var skyGeometry = new ModelFile( db.Find( "model", skyUnderlay ) ).ReadGeometry( new HashSet<ulong> { IdString.Hash( "g_sky" ) }, IdString.Hash( "rp_skydome" ) ).Single();
+int zenithIndex = Array.IndexOf( skyGeometry.Positions, skyGeometry.Positions.MaxBy( p => p.z ) );
+if ( skyGeometry.UVs[zenithIndex].y > -0.9f || skyGeometry.UVs.Max( uv => uv.y ) > 0.2f )
+	throw new Exception( "g_sky no longer maps V to dome height." );
+Console.WriteLine( "PASS: nine underlay sky gradients and g_sky height mapping." );
 // Brush scatter (massunit). Every referenced unit must resolve through the installed lookup, as MapLoader does.
 var unitTypeHash = IdString.Hash( "unit" );
 var lookupUnits = new Dictionary<ulong, string>();

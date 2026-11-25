@@ -1,0 +1,525 @@
+== bank: environments/env_bank/env_bank ==
+sky_orientation [1]:
+  param rotation = 0
+  param rotation = 0
+others [2]:
+  param sun_ray_color = 1,0.969,0.859
+  param flare_index_6 = 1
+  param flare_alpha_4 = 0
+  param flare_offset_7 = 0
+  param flare_index_7 = 1
+  param flare_scale_7 = 0
+  param flare_offset_8 = 0
+  param sun_anim_x = 0.2258
+  param sun_anim = 0.4624
+  param flare_scale_3 = 0
+  param flare_anim_y = 0
+  param flare_alpha_6 = 0
+  param flare_alpha_1 = 0
+  param flare_alpha_2 = 0
+  param flare_color = 0,0,0
+  param flare_alpha_8 = 0
+  param flare_offset_3 = 0
+  param flare_offset_4 = 0
+  param flare_scale_8 = 0
+  param flare_offset_6 = 0
+  param flare_offset_1 = 0
+  param flare_index_8 = 1
+  param flare_index_4 = 1
+  param flare_anim_x = 0
+  param flare_offset_5 = 0
+  param flare_alpha_5 = 0
+  param flare_alpha_7 = 0
+  param flare_scale_1 = 0
+  param flare_scale_6 = 0
+  param flare_index_2 = 1
+  param flare_scale_4 = 0
+  param sun_ray_color_scale = 1.5
+  param flare_index_1 = 1
+  param underlay = core/environments/skies/default/default
+  param flare_name = default
+  param flare_index_3 = 1
+  param flare_scale_5 = 0
+  param flare_index_5 = 1
+  param flare_alpha_3 = 0
+  param global_texture = environments/cubemaps/cubemap_bank_01
+  param flare_scale_2 = 0
+  param flare_offset_2 = 0
+  param sun_ray_color = 1,0.969,0.859
+post_effect [3]:
+  shadow_processor [1]:
+    shadow_rendering [1]:
+      shadow_modifier [1]:
+        param slice1 = 1267,3234,0
+        param shadow_fadeout = 49999,50000,0
+        param shadow_slice_overlap = 1,1,1
+        param shadow_slice_depths = 1268,3234,10000
+        param slice3 = 9999,50000,0
+        param slice0 = 0,1268,0
+        param slice2 = 3233,10000,0
+        param slice1 = 1267,3234,0
+      shadow_modifier [shadow_modifier]:
+    shadow_rendering [shadow_rendering]:
+  deferred [2]:
+    deferred_lighting [1]:
+      shadow [1]:
+        param fadeout_blend = 1
+        param fadeout_blend = 1
+      apply_ambient [2]:
+        param environment_map_intensity = 0
+        param environment_map_intensity_shadow = 0
+        param ambient_falloff_scale = 1
+        param ambient_color_scale = 0.32
+        param sky_reflection_top_color = 0,0,0
+        param sky_reflection_top_color_scale = 0
+        param sky_bottom_color = 1,0.898,0.749
+        param sky_top_color_scale = 0.4
+        param sun_specular_color = 0,0,0
+        param height_fade_intesity_clamp = 0,0,0
+        param sky_reflection_bottom_color = 0,0,0
+        param sky_bottom_color_scale = 0.4
+        param height_fade = -25000,-25000,0
+        param ambient_scale = 1.2
+        param sun_specular_color_scale = 0
+        param effect_light_scale = 1
+        param sky_reflection_bottom_color_scale = 0
+        param sky_top_color = 0.787,0.695,0.54
+        param ambient_color = 1,0.945,0.686
+        param environment_map_intensity = 0
+      global_ssao [3]:
+        param intensity = 0
+        param intensity = 0
+      local_ssao [4]:
+        param intensity = 0
+        param intensity = 0
+      ssao [5]:
+        param intensity = 0
+        param intensity = 0
+      apply_ambient [apply_ambient]:
+      global_ssao [global_ssao]:
+      local_ssao [local_ssao]:
+      shadow [shadow]:
+      ssao [ssao]:
+    deferred_lighting [deferred_lighting]:
+  hdr_post_processor [3]:
+    default [1]:
+      soften [1]:
+      dof [2]:
+        param near_focus_distance_min = 0
+        param near_focus_distance_max = 0
+        param far_focus_distance_min = 0
+        param far_focus_distance_max = 0
+        param clamp = 0
+        param near_focus_distance_min = 0
+      depth_blur [3]:
+      z [4]:
+      tone_mapping [5]:
+        param luminance_clamp = 0,0,0
+        param white_luminance = 0
+        param dark_to_bright_adaption_speed = 0
+        param bright_to_dark_adaption_speed = 0
+        param middle_grey = 0
+        param $template_mix = 
+        param luminance_clamp = 0,0,0
+      bloom_brightpass [6]:
+        param disable_tone_mapping = 0
+        param middle_grey = 0
+        param white_luminance = 0
+        param threshold = 0
+        param disable_tone_mapping = 0
+      bloom_apply [7]:
+        param opacity = 0
+        param opacity = 0
+      exposure_sepia_levels [8]:
+        param disable_tone_mapping = 0
+        param disable_tone_mapping = 0
+      bloom_apply [bloom_apply]:
+      bloom_brightpass [bloom_brightpass]:
+      depth_blur [depth_blur]:
+      dof [dof]:
+      exposure_sepia_levels [exposure_sepia_levels]:
+      soften [soften]:
+      tone_mapping [tone_mapping]:
+      z [z]:
+    default [default]:
+  fog_processor [4]:
+    fog [1]:
+      fog [1]:
+        param start_color_scale = 1
+        param end0 = 1
+        param color2_scale = 0
+        param end2 = 0
+        param color1_scale = 0
+        param start_color = 0.76,0.835,0.902
+        param color2 = 0,0,0
+        param alpha0 = 0
+        param alpha1 = 0.741
+        param color1 = 0,0,0
+        param start = 0.001
+        param end1 = 0.365
+        param color0 = 0,0,0
+        param color0_scale = 0
+        param start_color_scale = 1
+      fog [fog]:
+    fog [fog]:
+  deferred [deferred]:
+  fog_processor [fog_processor]:
+  hdr_post_processor [hdr_post_processor]:
+  shadow_processor [shadow_processor]:
+underlay_effect [4]:
+  sky_top [1]:
+    param sky_intensity = 0
+    param sky_intensity = 0
+  sun [2]:
+    param sun_color_scale = 10
+    param sun_color = 1,0.882,0.71
+    param sun_color_scale = 10
+  sky [3]:
+    param color2 = 0.945,0.969,1
+    param color1_scale = 0.8
+    param color2_scale = 0.8
+    param color1 = 0.834,0.871,0.937
+    param color0 = 0.637,0.727,0.85
+    param color0_scale = 0.8
+    param color2 = 0.945,0.969,1
+  cloud_overlay [4]:
+    param color_sun = 0.961,0.973,1
+    param alpha_scale_opposite_sun = 4
+    param color_opposite_sun_scale = 0.8
+    param uv_velocity_b_mask = 0.002,0.001,0
+    param uv_scale_b_mask = 0.158
+    param color_opposite_sun = 0.82,0.86,0.929
+    param uv_velocity_rg_mask = 0,0,0
+    param color_sun_scale = 0.8
+    param alpha_scale_sun = 0.46
+    param color_sun = 0.961,0.973,1
+  sky_bottom [5]:
+    param sky_intensity = 0
+    param sky_intensity = 0
+  cloud_overlay [cloud_overlay]:
+  sky [sky]:
+  sky_bottom [sky_bottom]:
+  sky_top [sky_top]:
+  sun [sun]:
+others [others]:
+post_effect [post_effect]:
+sky_orientation [sky_orientation]:
+underlay_effect [underlay_effect]:
+
+== sky underlay ==
+-- scene core/environments/skies/default/default:
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<underlay>
+	<load_scene file="core/environments/skies/default/default" materials="core/environments/skies/default/default">
+		<object name="g_sky" enabled="true" force_sort_depth="100000"/>
+		<object name="g_sun" enabled="true" force_sort_depth="98000"/>
+		<object name="g_clouds" enabled="true" force_sort_depth="97000"/>
+		
+		<animation_group name="sun_vertical" playing="false">
+			<object name="d_sun_vertical"/>
+		</animation_group>
+		
+		<animation_group name="sun_horizontal" playing="false">
+			<object name="d_sun_horizontal"/>
+		</animation_group>
+		
+<!--
+		<animation_group name="moon_vertical" playing="false">
+			<object name="d_sun_vertical"/>
+		</animation_group>
+		
+		<animation_group name="moon_horizontal" playing="false">
+			<object name="d_sun_horizontal"/>
+		</animation_group>
+-->
+		
+	</load_scene>
+</underlay>
+
+-- material_config core/environments/skies/default/default:
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<materials>
+	<material name="sky" render_template="dome_sky">
+		<diffuse_texture file="core/environments/skies/default/background_gradient"/>
+		
+		<variable name="color0" type="vector3" value="1.0 1.0 1.0"/>
+		<variable name="color1" type="vector3" value="1.0 1.0 1.0"/>
+		<variable name="color2" type="vector3" value="1.0 1.0 1.0"/>
+		
+		<!-- New
+		<variable name="global_sun_dir" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sun" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_a" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_b" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_c" type="vector3" value="1 1 1"/>
+		<variable name="global_fog_color" type="vector3" value="1 1 1"/>
+		-->
+	</material>
+	
+	<material name="cloud_overlay" render_template="dome_clouds">
+		
+		<diffuse_texture file="core/environments/skies/default/cloud_normal_df"/>
+	 	
+		<variable name="uv_velocity_rg_mask" type="vector3" value="1 0 0"/>
+		<variable name="uv_velocity_b_mask" type="vector3" value="1 0 0"/>
+		<variable name="uv_scale_b_mask" type="scalar" value="1"/>
+		
+		<variable name="color_sun" type="vector3" value="0.45 0.35 0.3"/>
+		<variable name="color_opposite_sun" type="vector3" value="1 0 0"/>
+		
+		<variable name="alpha_scale_sun" type="scalar" value="1"/>
+		<variable name="alpha_scale_opposite_sun" type="scalar" value="1"/>
+		
+		<!-- New -->
+		<variable name="global_sun_dir" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sun" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_a" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_b" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sky_c" type="vector3" value="1 1 1"/>
+		
+		<variable name="cloud_mask_clamp" type="scalar" value="1"/>
+		<variable name="cloud_sun_contour" type="scalar" value="1"/>
+		<variable name="cloud_sun_contour_pow" type="scalar" value="1"/>
+		<variable name="cloud_sun_contour_mask_pow" type="scalar" value="1"/>
+		<variable name="cloud_sun_contour_mask_slide" type="scalar" value="1"/>
+		
+	</material>
+	
+	<material name="sun" render_template="dome_sun">
+		<variable name="sun_color" type="vector3" value="1 1 1"/> 
+		
+		<!-- New
+		<variable name="global_sun_dir" type="vector3" value="1 1 1"/>
+		<variable name="global_color_sun" type="vector3" value="1 1 1"/>
+		<variable name="sun_core_size" type="scalar" value="0.0005"/>
+		<variable name="sun_core_pow" type="scalar" value="30"/>
+		-->
+	</material>	
+</materials>
+
+<!--
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<materials>
+	<material name="sky" render_template="color_lerp">
+		<diffuse_texture file="core/environments/skies/default/background_gradient"/>
+		<variable name="color0" type="vector3" value="1.0 1.0 1.0"/>
+		<variable name="color1" type="vector3" value="1.0 1.0 1.0"/>
+		<variable name="color2" type="vector3" value="1.0 1.0 1.0"/>
+	</material>
+	
+	<material name="cloud_overlay" render_template="clouds">
+		<diffuse_texture file="core/environments/skies/default/clouds_composite"/>
+		
+		<variable name="uv_velocity_rg_mask" type="vector3" value="0.008 0 0"/>
+		<variable name="uv_velocity_b_mask" type="vector3" value="0.007 0 0"/>
+		<variable name="uv_scale_b_mask" type="scalar" value="1"/>
+
+		<variable name="color_sun" type="vector3" value="0.45 0.35 0.3"/>
+		<variable name="alpha_scale_sun" type="scalar" value="3"/>
+		<variable name="color_opposite_sun" type="vector3" value="0.5 0.5 0.5"/>
+		<variable name="alpha_scale_opposite_sun" type="scalar" value="1"/>
+	</material>
+	
+	<material name="sun" render_template="sun">
+		<diffuse_texture file="core/environments/skies/default/sun"/>
+		<variable name="sun_color" type="vector3" value="1.0 1.0 1.0"/>
+	</material>
+</materials>
+
+-->
+-- texture core/environments/skies/default/background_gradient: 
+    8x8 DXT1; rows top→bottom, columns left→right, values r,g,b,a
+    y=    0: 0.26,0.14,0.10,1.00  0.26,0.14,0.10,1.00  0.65,0.52,0.44,1.00  0.65,0.52,0.44,1.00  0.54,0.42,0.34,1.00  0.40,0.34,0.30,1.00  0.26,0.25,0.26,1.00  0.26,0.25,0.26,1.00
+    y=    1: 0.26,0.14,0.10,1.00  0.65,0.52,0.44,1.00  0.84,0.71,0.61,1.00  0.84,0.71,0.61,1.00  0.68,0.51,0.39,1.00  0.54,0.42,0.34,1.00  0.26,0.25,0.26,1.00  0.26,0.25,0.26,1.00
+    y=    1: 0.26,0.14,0.10,1.00  0.65,0.52,0.44,1.00  0.84,0.71,0.61,1.00  0.84,0.71,0.61,1.00  0.68,0.51,0.39,1.00  0.54,0.42,0.34,1.00  0.26,0.25,0.26,1.00  0.26,0.25,0.26,1.00
+    y=    2: 0.45,0.33,0.27,1.00  0.84,0.71,0.61,1.00  0.65,0.52,0.44,1.00  0.65,0.52,0.44,1.00  0.68,0.51,0.39,1.00  0.54,0.42,0.34,1.00  0.40,0.34,0.30,1.00  0.26,0.25,0.26,1.00
+    y=    3: 0.65,0.52,0.44,1.00  0.65,0.52,0.44,1.00  0.45,0.33,0.27,1.00  0.65,0.52,0.44,1.00  0.40,0.34,0.30,1.00  0.54,0.42,0.34,1.00  0.40,0.34,0.30,1.00  0.26,0.25,0.26,1.00
+    y=    3: 0.65,0.52,0.44,1.00  0.65,0.52,0.44,1.00  0.45,0.33,0.27,1.00  0.65,0.52,0.44,1.00  0.40,0.34,0.30,1.00  0.54,0.42,0.34,1.00  0.40,0.34,0.30,1.00  0.26,0.25,0.26,1.00
+    y=    4: 0.55,0.44,0.39,1.00  0.55,0.44,0.39,1.00  0.45,0.37,0.32,1.00  0.35,0.29,0.26,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.23,0.17,0.16,1.00
+    y=    5: 0.45,0.37,0.32,1.00  0.55,0.44,0.39,1.00  0.45,0.37,0.32,1.00  0.45,0.37,0.32,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.23,0.17,0.16,1.00
+    y=    5: 0.45,0.37,0.32,1.00  0.55,0.44,0.39,1.00  0.45,0.37,0.32,1.00  0.45,0.37,0.32,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.39,0.31,0.29,1.00  0.23,0.17,0.16,1.00
+    y=    6: 0.35,0.29,0.26,1.00  0.55,0.44,0.39,1.00  0.65,0.52,0.45,1.00  0.65,0.52,0.45,1.00  0.71,0.59,0.55,1.00  0.55,0.45,0.42,1.00  0.23,0.17,0.16,1.00  0.23,0.17,0.16,1.00
+    y=    7: 0.35,0.29,0.26,1.00  0.35,0.29,0.26,1.00  0.35,0.29,0.26,1.00  0.45,0.37,0.32,1.00  0.39,0.31,0.29,1.00  0.23,0.17,0.16,1.00  0.23,0.17,0.16,1.00  0.23,0.17,0.16,1.00
+    y=    7: 0.35,0.29,0.26,1.00  0.35,0.29,0.26,1.00  0.35,0.29,0.26,1.00  0.45,0.37,0.32,1.00  0.39,0.31,0.29,1.00  0.23,0.17,0.16,1.00  0.23,0.17,0.16,1.00  0.23,0.17,0.16,1.00
+-- texture core/environments/skies/default/cloud_normal_df: 
+    512x512 DXT5; rows top→bottom, columns left→right, values r,g,b,a
+    y=   21: 0.39,0.41,1.00,0.19  0.65,0.43,0.97,0.71  0.52,0.67,0.97,0.39  0.74,0.21,0.84,0.51  0.38,0.39,0.98,0.75  0.62,0.59,0.98,0.58  0.46,0.47,0.99,0.35  0.52,0.33,0.96,0.45
+    y=   64: 0.41,0.26,0.92,0.59  0.61,0.56,1.00,0.42  0.61,0.51,1.00,0.69  0.55,0.29,0.97,0.90  0.69,0.38,0.96,0.40  0.42,0.67,0.97,0.37  0.45,0.76,0.94,0.34  0.23,0.37,0.90,0.78
+    y=  106: 0.35,0.22,0.90,0.33  0.55,0.30,0.97,0.34  0.42,0.56,1.00,0.58  0.65,0.35,0.97,0.20  0.26,0.71,0.90,0.61  0.42,0.46,1.00,0.24  0.77,0.63,0.94,0.21  0.58,0.51,1.00,0.70
+    y=  149: 0.52,0.43,1.00,0.66  0.35,0.49,0.97,0.66  0.54,0.54,0.99,0.45  0.33,0.53,0.98,0.28  0.34,0.40,0.96,0.22  0.48,0.19,0.90,0.33  0.26,0.62,0.94,0.52  0.62,0.48,0.95,0.62
+    y=  192: 0.45,0.52,0.98,0.21  0.68,0.57,0.97,0.20  0.43,0.48,0.99,0.42  0.52,0.51,1.00,0.26  0.45,0.31,0.96,0.32  0.48,0.59,1.00,0.65  0.58,0.67,0.97,0.21  0.45,0.75,0.94,0.21
+    y=  234: 0.71,0.68,0.94,0.55  0.61,0.78,0.89,0.57  0.43,0.37,0.97,0.48  0.49,0.49,0.99,0.32  0.58,0.71,0.96,0.70  0.55,0.57,1.00,0.68  0.42,0.37,0.97,0.18  0.48,0.60,1.00,0.38
+    y=  277: 0.54,0.28,0.95,0.39  0.49,0.48,0.97,0.50  0.26,0.54,0.92,0.36  0.25,0.57,0.94,0.56  0.71,0.39,0.92,0.49  0.45,0.71,0.94,0.49  0.71,0.63,0.91,0.45  0.52,0.81,0.90,0.47
+    y=  320: 0.58,0.49,1.00,0.27  0.65,0.65,0.97,0.28  0.46,0.31,0.91,0.48  0.42,0.49,1.00,0.36  0.42,0.59,1.00,0.25  0.61,0.52,1.00,0.78  0.68,0.43,0.97,0.21  0.42,0.62,0.97,0.58
+    y=  362: 0.70,0.55,0.96,0.82  0.52,0.63,1.00,0.51  0.56,0.32,0.96,0.42  0.67,0.62,0.96,0.41  0.63,0.65,0.96,0.34  0.37,0.45,0.96,0.65  0.45,0.38,0.97,0.72  0.37,0.47,0.97,0.28
+    y=  405: 0.72,0.63,0.94,0.68  0.35,0.54,0.97,0.13  0.69,0.39,0.95,0.48  0.61,0.79,0.90,0.48  0.52,0.31,0.96,0.43  0.71,0.78,0.87,0.16  0.52,0.25,0.97,0.52  0.67,0.53,0.97,0.27
+    y=  448: 0.65,0.40,0.96,0.51  0.52,0.46,1.00,0.60  0.48,0.38,1.00,0.32  0.74,0.62,0.94,0.45  0.29,0.51,0.97,0.26  0.63,0.58,0.96,0.47  0.35,0.26,0.90,0.17  0.31,0.60,0.94,0.54
+    y=  490: 0.32,0.43,0.97,0.39  0.32,0.37,0.94,0.28  0.68,0.51,0.97,0.30  0.61,0.59,0.97,0.42  0.57,0.60,0.97,0.15  0.29,0.24,0.88,0.29  0.74,0.57,0.94,0.51  0.52,0.29,0.97,0.60
+-- texture core/environments/skies/default/sun: 
+    8x8 DXT1; rows top→bottom, columns left→right, values r,g,b,a
+    y=    0: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    1: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    1: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    2: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    3: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    3: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    4: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    5: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    5: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    6: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    7: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+    y=    7: 1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00  1.00,0.98,1.00,1.00
+-- mesh g_sky: 404 vertices, 680 triangles, bounds -196850.4,-196850.4,-30293.6 .. 196850.4,196850.4,196850.4
+    uv u 0..0, v -0.995..0.146; vertex colour alpha 1..1
+    v0: pos 27564.57,-137822.8,137822.8 uv (0, -0.698) colour 1,1,1,1
+    v50: pos 95800.05,63866.71,159666.8 uv (0, -0.808) colour 1,1,1,1
+    v100: pos -30374.67,-151873.4,121498.7 uv (0, -0.616) colour 1,1,1,1
+    v150: pos 0,-196850.4,0 uv (0, -0.006) colour 1,1,1,1
+    v200: pos -73108.4,182771,-30293.6 uv (0, 0.146) colour 1,1,1,1
+    v250: pos 153714.3,-122971.5,0 uv (0, -0.006) colour 1,1,1,1
+    v300: pos -30374.67,151873.4,121498.7 uv (0, -0.616) colour 1,1,1,1
+    v350: pos -58689.45,-117378.9,146723.6 uv (0, -0.743) colour 1,1,1,1
+-- mesh g_clouds: 225 vertices, 416 triangles, bounds -192952,-192952,16202.34 .. 192952,192952.1,87240.94
+    uv u 0.007..0.993, v -0.993..-0.007; vertex colour alpha 1..1
+    v0: pos 189244.5,37643.11,16202.36 uv (0.404, -0.983) colour 1,1,1,1
+    v28: pos 37643.38,-189244.4,16202.39 uv (0.983, -0.596) colour 1,1,1,1
+    v56: pos -178264.4,-73839.73,16202.38 uv (0.689, -0.045) colour 1,1,1,1
+    v84: pos 0.3066,-139110.8,61391.2 uv (0.673, -0.5) colour 1,1,1,1
+    v112: pos 53235.41,128521.5,61391.2 uv (0.34, -0.566) colour 1,1,1,1
+    v140: pos -69555.22,-28810.85,80522.8 uv (0.514, -0.466) colour 1,1,1,1
+    v168: pos 75286.24,-0.0123,80522.8 uv (0.5, -0.537) colour 1,1,1,1
+    v196: pos -35458.91,14687.56,85545.1 uv (0.496, -0.489) colour 1,1,1,1
+-- mesh g_sun: 77 vertices, 100 triangles, bounds -150517.8,113116.1,-150517.8 .. 150517.7,189808.8,150517.7
+    uv u 0..0.996, v -0.997..-0; vertex colour alpha 1..1
+    v0: pos 143150.8,113116.1,-46512.55 uv (0.308, -0.948) colour 1,1,1,1
+    v9: pos -0.041,189808.8,-0.003 uv (0, -0) colour 1,1,1,1
+    v18: pos -0.0539,180702.8,-57492.67 uv (0.381, -0) colour 1,1,1,1
+    v27: pos -17766.27,180702.8,-54678.77 uv (0.362, -0.118) colour 1,1,1,1
+    v36: pos -54678.83,180702.8,-17766.17 uv (0.118, -0.362) colour 1,1,1,1
+    v45: pos -88472.01,113116.1,121771.5 uv (0.806, -0.586) colour 1,1,1,1
+    v54: pos -33793.32,180702.8,46512.58 uv (0.308, -0.224) colour 1,1,1,1
+    v63: pos 17766.26,180702.8,54678.73 uv (0.362, -0.118) colour 1,1,1,1
+
+== parameters across levels (path = value per level) ==
+path	apartment	bank	bridge	diamondheist	l4d	secret_stash	slaughterhouse	street	suburbia
+/others/flare_alpha_1	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_2	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_3	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_4	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_5	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_6	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_7	0	0	0	0	0	0	0	0	0
+/others/flare_alpha_8	0	0	0	0	0	0	0	0	0
+/others/flare_anim_x	0	0	0	0	0	0	0	0	0
+/others/flare_anim_y	0	0	0	0	0	0	0	0	0
+/others/flare_color	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0
+/others/flare_index_1	1	1	1	1	1	1	1	1	1
+/others/flare_index_2	1	1	1	1	1	1	1	1	1
+/others/flare_index_3	1	1	1	1	1	1	1	1	1
+/others/flare_index_4	1	1	1	1	1	1	1	1	1
+/others/flare_index_5	1	1	1	1	1	1	1	1	1
+/others/flare_index_6	1	1	1	1	1	1	1	1	1
+/others/flare_index_7	1	1	1	1	1	1	1	1	1
+/others/flare_index_8	1	1	1	1	1	1	1	1	1
+/others/flare_name	default	default	default	default	default	default	default	default	default
+/others/flare_offset_1	0	0	0	0	0	0	0	0	0
+/others/flare_offset_2	0	0	0	0	0	0	0	0	0
+/others/flare_offset_3	0	0	0	0	0	0	0	0	0
+/others/flare_offset_4	0	0	0	0	0	0	0	0	0
+/others/flare_offset_5	0	0	0	0	0	0	0	0	0
+/others/flare_offset_6	0	0	0	0	0	0	0	0	0
+/others/flare_offset_7	0	0	0	0	0	0	0	0	0
+/others/flare_offset_8	0	0	0	0	0	0	0	0	0
+/others/flare_scale_1	0	0	0	0	0	0	0	0	0
+/others/flare_scale_2	0	0	0	0	0	0	0	0	0
+/others/flare_scale_3	0	0	0	0	0	0	0	0	0
+/others/flare_scale_4	0	0	0	0	0	0	0	0	0
+/others/flare_scale_5	0	0	0	0	0	0	0	0	0
+/others/flare_scale_6	0	0	0	0	0	0	0	0	0
+/others/flare_scale_7	0	0	0	0	0	0	0	0	0
+/others/flare_scale_8	0	0	0	0	0	0	0	0	0
+/others/global_texture	environments/cubemaps/cubemap_apartment_01	environments/cubemaps/cubemap_bank_01	environments/cubemaps/cubemap_bridge_01	environments/cubemaps/cubemap_diamond_01	core/textures/cubemap_default	environments/cubemaps/cubemap_bank_01	environments/cubemaps/cubemap_slaughter_01	environments/cubemaps/cubemap_street_01	environments/cubemaps/cubemap_suburbia_01
+/others/sun_anim	0.4833	0.4624	0.4372	0.5842	0.1778	0.4823	0.5376	0.6418	0.4833
+/others/sun_anim_x	0.2361	0.2258	0.5771	0.8029	0.9167	0.6165	0.1362	0.1984	0.2361
+/others/sun_ray_color	0.929,0.772,0.579	1,0.969,0.859	0.782,0.895,0.992	0.597,0.694,0.85	0.757,0.794,0.85	1,0.914,0.761	1,0.757,0.569	0.906,0.856,0.707	0.929,0.911,0.805
+/others/sun_ray_color_scale	1.47	1.5	0.25	0.538	0.466	1.2	1.434	1.638	1
+/others/underlay	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default	core/environments/skies/default/default
+/post_effect/deferred/deferred_lighting/apply_ambient/ambient_color	1,0.992,0.859	1,0.945,0.686	1,1,1	0.875,0.91,1	0.875,0.91,1	1,0.945,0.686	1,1,1	1,0,0	1,0.992,0.859
+/post_effect/deferred/deferred_lighting/apply_ambient/ambient_color_scale	0.32	0.32	0.32	0.32	0.32	0.32	0.32	0.32	0.32
+/post_effect/deferred/deferred_lighting/apply_ambient/ambient_falloff_scale	1	1	1	1	0.276	1	1	0	1
+/post_effect/deferred/deferred_lighting/apply_ambient/ambient_scale	2.36	1.2	1	1.3	1.5	2	2	1.505	1.5
+/post_effect/deferred/deferred_lighting/apply_ambient/effect_light_scale	1	1	1	1	0.592	1	1	1	1
+/post_effect/deferred/deferred_lighting/apply_ambient/environment_map_intensity	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/apply_ambient/environment_map_intensity_shadow	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/apply_ambient/height_fade	-25000,-25000,0	-25000,-25000,0	25000,25000,0	25000,25000,0	25000,25000,0	-25000,-25000,0	-25000,-25000,0	25000,25000,0	-25000,-25000,0
+/post_effect/deferred/deferred_lighting/apply_ambient/height_fade_intesity_clamp	0,0,0	0,0,0	1,1,0	1,1,0	1,1,0	0,0,0	0,0,0	1,1,0	0,0,0
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_bottom_color	0.961,0.893,0.757	1,0.898,0.749	0.605,0.651,0.772	0.843,0.871,1	0.788,0.757,1	0.811,0.674,0.55	0.698,0.67,0.709	0.937,0.945,1	0.322,0.306,0.275
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_bottom_color_scale	0.25	0.4	0.43	0.2	0.1	0.05	0.4	0.5	1.183
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_reflection_bottom_color	0,0,0	0,0,0	1,0.902,0.765	1,0.902,0.765	1,0.902,0.765	0,0,0	0,0,0	1,0.902,0.765	0,0,0
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_reflection_bottom_color_scale	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_reflection_top_color	0,0,0	0,0,0	0.906,0.961,1	0.906,0.961,1	0.906,0.961,1	0,0,0	0,0,0	1,0,0	0,0,0
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_reflection_top_color_scale	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_top_color	0.89,0.89,0.89	0.787,0.695,0.54	0.71,0.761,0.902	0.843,0.894,1	0.914,1,0.949	0.763,0.784,0.913	0.542,0.639,0.709	0.812,0.859,1	0.89,0.89,0.89
+/post_effect/deferred/deferred_lighting/apply_ambient/sky_top_color_scale	0.25	0.4	0.45	0.3	0.15	0.25	0.3	0.4	0.6
+/post_effect/deferred/deferred_lighting/apply_ambient/sun_specular_color	0,0,0	0,0,0	0.969,0.98,1	0.969,0.98,1	0.969,0.98,1	0,0,0	0,0,0	1,0,0	0,0,0
+/post_effect/deferred/deferred_lighting/apply_ambient/sun_specular_color_scale	0	0	633.31	633.31	633.31	0	0	640	0
+/post_effect/deferred/deferred_lighting/global_ssao/intensity	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/local_ssao/intensity	0	0	0	0	0	0	0	0	0
+/post_effect/deferred/deferred_lighting/shadow/fadeout_blend	1	1	1	1	1	1	1	1	1
+/post_effect/deferred/deferred_lighting/ssao/intensity	0	0	0	0	0	0	0	0	0
+/post_effect/fog_processor/fog/fog/alpha0	0.1	0	0	0	0	0	0	0.01	0.01
+/post_effect/fog_processor/fog/fog/alpha1	0.727	0.741	1	0.314	0	0.461	1	0.75	0.263
+/post_effect/fog_processor/fog/fog/color0	0,0,0	0,0,0	0,0.106,1	0,0.106,1	0,0.106,1	0,0,0	0,0,0	1,0,0	0,0,0
+/post_effect/fog_processor/fog/fog/color0_scale	0	0	0	0	0	0	0	0	0
+/post_effect/fog_processor/fog/fog/color1	0,0,0	0,0,0	0.212,1,0	0.212,1,0	0.212,1,0	0,0,0	0,0,0	1,0,0	0,0,0
+/post_effect/fog_processor/fog/fog/color1_scale	0	0	0	0	0	0	0	19.2	0
+/post_effect/fog_processor/fog/fog/color2	0,0,0	0,0,0	1,0,0	1,0,0	1,0,0	0,0,0	0,0,0	1,0,0	0,0,0
+/post_effect/fog_processor/fog/fog/color2_scale	0	0	0	0	0	0	0	0	0
+/post_effect/fog_processor/fog/fog/end0	1	1	0.894	0.891	0	0.863	0.341	1	0.044
+/post_effect/fog_processor/fog/fog/end1	0.314	0.365	0.201	0.501	0	0.329	0.597	0.372	0.328
+/post_effect/fog_processor/fog/fog/end2	0	0	100000	100000	100000	0	0	0	0
+/post_effect/fog_processor/fog/fog/start	0.003	0.001	0.003	0.02	0	0	0.002	0.037	0.2
+/post_effect/fog_processor/fog/fog/start_color	0.561,0.58,0.614	0.76,0.835,0.902	0.425,0.439,0.504	0.386,0.342,0.295	0.945,0,0	0.378,0.348,0.289	0.772,0.753,0.705	0.937,0.965,1	0.667,0.539,0.379
+/post_effect/fog_processor/fog/fog/start_color_scale	1	1	1	1	0	2.6	1	0.5	2.56
+/post_effect/hdr_post_processor/default/bloom_apply/opacity	0	0	1	1	1	0	1	0	0
+/post_effect/hdr_post_processor/default/bloom_brightpass/disable_tone_mapping	0	0	0	0	0	0	0	0	0
+/post_effect/hdr_post_processor/default/bloom_brightpass/middle_grey	0	0	1	1	1	0	1	0	0
+/post_effect/hdr_post_processor/default/bloom_brightpass/threshold	0	0	0.011	0.011	0.011	0	0.011	0	0
+/post_effect/hdr_post_processor/default/bloom_brightpass/white_luminance	0	0	0.478	0.478	0.478	0	1.313	0	0
+/post_effect/hdr_post_processor/default/dof/clamp	0	0	0.765	0.765	0.765	0	0.799	0	0
+/post_effect/hdr_post_processor/default/dof/far_focus_distance_max	0	0	11381	11381	11381	0	0	0	0
+/post_effect/hdr_post_processor/default/dof/far_focus_distance_min	0	0	8582	8582	8582	0	21828	0	0
+/post_effect/hdr_post_processor/default/dof/near_focus_distance_max	0	0	149	149	149	0	149	0	0
+/post_effect/hdr_post_processor/default/dof/near_focus_distance_min	0	0	970	970	970	0	933	0	0
+/post_effect/hdr_post_processor/default/exposure_sepia_levels/disable_tone_mapping	0	0	0	0	0	0	0	0	0
+/post_effect/hdr_post_processor/default/tone_mapping/$template_mix									
+/post_effect/hdr_post_processor/default/tone_mapping/bright_to_dark_adaption_speed	0	0	10	10	10	0	10	0	0
+/post_effect/hdr_post_processor/default/tone_mapping/dark_to_bright_adaption_speed	0	0	10	10	10	0	10	0	0
+/post_effect/hdr_post_processor/default/tone_mapping/luminance_clamp	0,0,0	0,0,0	0,32,0	0,32,0	0,32,0	0,0,0	0,32,0	0,0,0	0,0,0
+/post_effect/hdr_post_processor/default/tone_mapping/middle_grey	0	0	0.153	0.153	0.153	0	0.153	0	0
+/post_effect/hdr_post_processor/default/tone_mapping/white_luminance	0	0	0.119	0.119	0.119	0	0.119	0.119	0
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/shadow_fadeout	0,1,0	49999,50000,0	23615,23616,0	23615,23616,0	23615,23616,0	49999,50000,0	13500,13501,0	23615,23616,0	0,1,0
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/shadow_slice_depths	1368,3067,8200	1268,3234,10000	1168,2401,10000	1168,2401,10000	1168,2401,10000	1368,3067,8200	1834,4467,9667	2020,3551,10000	1368,3067,8200
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/shadow_slice_overlap	1,1,1	1,1,1	1,1,1	1,1,1	1,1,1	1,1,1	1,1,1	1,1,1	1,1,1
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/slice0	0,1368,0	0,1268,0	0,1168,0	0,1168,0	0,1168,0	0,1368,0	0,1834,0	0,2020,0	0,1368,0
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/slice1	1367,3067,0	1267,3234,0	1167,2401,0	1167,2401,0	1167,2401,0	1367,3067,0	1833,4467,0	2019,3551,0	1367,3067,0
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/slice2	3066,8200,0	3233,10000,0	2400,10000,0	2400,10000,0	2400,10000,0	3066,8200,0	4466,9667,0	3550,10000,0	3066,8200,0
+/post_effect/shadow_processor/shadow_rendering/shadow_modifier/slice3	8199,1,0	9999,50000,0	9999,23616,0	9999,23616,0	9999,23616,0	8199,50000,0	9666,13501,0	9999,23616,0	8199,1,0
+/underlay_effect/cloud_overlay/alpha_scale_opposite_sun	1.577	4	0.573	1.183	0	0.202	1.362	0	1.577
+/underlay_effect/cloud_overlay/alpha_scale_sun	1	0.46	0.148	0.348	1	0.25	0.599	0.645	0.889
+/underlay_effect/cloud_overlay/color_opposite_sun	0.766,0.837,0.953	0.82,0.86,0.929	0.246,0.251,0.291	0.158,0.156,0.181	1,0,0	0.882,0.925,1	0.748,0.748,0.748	0.907,0.946,0.984	0.766,0.837,0.953
+/underlay_effect/cloud_overlay/color_opposite_sun_scale	1	0.8	1.685	1	0.96	0.732	1	1.22	1
+/underlay_effect/cloud_overlay/color_sun	1,1,1	0.961,0.973,1	0.242,0.259,0.299	0.125,0.157,0.2	1,1,1	0.961,0.973,1	0.773,0.78,0.78	0.813,0.869,0.898	1,1,1
+/underlay_effect/cloud_overlay/color_sun_scale	1	0.8	1.254	1	0.96	0.808	1	0.8	1
+/underlay_effect/cloud_overlay/uv_scale_b_mask	0	0.158	0.106	0.014	0.014	0.158	0.001	0	0
+/underlay_effect/cloud_overlay/uv_velocity_b_mask	0.001,0.001,0	0.002,0.001,0	0,0.003,0	0.001,0.001,0	0.001,0.001,0	0.002,0.001,0	0,0.001,0	0.002,0.002,0	0.005,0.001,0
+/underlay_effect/cloud_overlay/uv_velocity_rg_mask	0.916,1,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0,0,0	0.94,0.815,0
+/underlay_effect/sky/color0	0.6,0.737,1	0.637,0.727,0.85	0.399,0.428,0.512	0.171,0.193,0.228	0.046,0.066,0.094	0.297,0.664,0.85	0.498,0.671,1	0.607,0.732,0.906	0.6,0.737,1
+/underlay_effect/sky/color0_scale	1	0.8	1.075	0.96	0.96	0.8	1	0.9	1
+/underlay_effect/sky/color1	0.82,0.902,1	0.834,0.871,0.937	0.451,0.471,0.537	0.169,0.192,0.227	0.189,0.212,0.252	0.724,0.722,0.554	0.748,0.736,0.701	0.723,0.802,0.882	0.82,0.902,1
+/underlay_effect/sky/color1_scale	1	0.8	1	0.96	0.96	0.8	1	0.9	1
+/underlay_effect/sky/color2	0.85,0.847,0.744	0.945,0.969,1	0.258,0.269,0.307	0.181,0.17,0.15	0.134,0.134,0.134	0.685,0.74,0.641	0.756,0.744,0.714	0.803,0.775,0.633	0.85,0.847,0.744
+/underlay_effect/sky/color2_scale	1	0.8	1.649	0.96	0.96	0.8	1	0.9	1
+/underlay_effect/sky_top/sky_intensity	0	0	0	0	0	0.179	0	0	0
+/underlay_effect/sun/sun_color	1,0.553,0.443	1,0.882,0.71	0,0,0	0.671,0.784,1	1,1,1	1,0.882,0.71	1,0.529,0.31	1,0.475,0.067	1,0.553,0.443
+/underlay_effect/sun/sun_color_scale	10	10	0	0	10	10	10	10	10

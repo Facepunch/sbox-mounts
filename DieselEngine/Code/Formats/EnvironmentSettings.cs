@@ -14,6 +14,20 @@ sealed record EnvironmentSettings( string Reflection, Vector3? Sun, Vector3? Sky
 	public float SkyRotation { get; init; }
 	/// <summary>Unit direction towards the sun in s&amp;box axes, evaluated from the underlay rig.</summary>
 	public Vector3? SunDirection { get; init; }
+	/// <summary><c>post_effect/fog_processor/fog/fog</c>, or null when absent/invisible.</summary>
+	public FogSettings Fog { get; init; }
+	/// <summary>
+	/// <c>underlay_effect/sky/color0–2 × scale</c>: the underlay dome's zenith, middle and horizon colours,
+	/// or null if any is missing. (<c>g_sky</c>'s V coordinate runs from the horizon at 0 to the zenith at −1.)
+	/// </summary>
+	public Vector3[] SkyGradient { get; init; }
+
+	/// <summary>
+	/// Diesel's distance fog. <c>start</c>/<c>end1</c> are fractions of the fog range, <c>alpha1</c> is the
+	/// far opacity and <c>start_color × start_color_scale</c> the colour (the <c>color0–2</c> layers are unused in
+	/// shipped PDTH environments: their scales are 0 except one debug-red Heat Street layer).
+	/// </summary>
+	public sealed record FogSettings( Vector3 Color, float Start, float End, float NearOpacity, float FarOpacity );
 
 	public static EnvironmentSettings Read( BundleDatabase database, ScriptTable world )
 	{
@@ -40,7 +54,32 @@ sealed record EnvironmentSettings( string Reflection, Vector3? Sun, Vector3? Sky
 			Underlay = Parameter( others, "underlay" ) as string,
 			SunVertical = Fraction( others, "sun_anim" ),
 			SunHorizontal = Fraction( others, "sun_anim_x" ),
+			Fog = ReadFog( data?.Table( "post_effect" )?.Table( "fog_processor" )?.Table( "fog" )?.Table( "fog" ) ),
+			SkyGradient = ReadSkyGradient( data?.Table( "underlay_effect" )?.Table( "sky" ) ),
 		};
+	}
+
+	static Vector3[] ReadSkyGradient( ScriptTable sky )
+	{
+		var colors = new[] { "color0", "color1", "color2" }.Select( c => ScaledColor( sky, c ) ).ToArray();
+		return colors.All( c => c.HasValue ) ? colors.Select( c => c.Value ).ToArray() : null;
+	}
+
+	/// <summary>Sky colour at a height on the dome: 0 = horizon (color2), 0.5 = color1, 1 = zenith (color0).</summary>
+	public static Vector3 SampleSky( Vector3[] gradient, float height )
+	{
+		float t = Math.Clamp( height, 0, 1 );
+		return t < 0.5f ? Vector3.Lerp( gradient[2], gradient[1], t * 2 ) : Vector3.Lerp( gradient[1], gradient[0], (t - 0.5f) * 2 );
+	}
+
+	static FogSettings ReadFog( ScriptTable fog )
+	{
+		if ( ScaledColor( fog, "start_color" ) is not { } color ) return null;
+		if ( Fraction( fog, "start" ) is not { } start || Fraction( fog, "end1" ) is not { } end || Fraction( fog, "alpha1" ) is not { } far ) return null;
+		float near = Fraction( fog, "alpha0" ) ?? 0;
+		// No Mercy authors alpha1 = 0 with a zero colour scale: no fog at all.
+		if ( far <= 0 || end <= start || color == Vector3.Zero ) return null;
+		return new( color, start, end, near, far );
 	}
 
 	static float? Fraction( ScriptTable table, string name ) =>

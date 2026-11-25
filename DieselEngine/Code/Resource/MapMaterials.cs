@@ -73,6 +73,7 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 
 	public Material Resolve( string config, ulong name ) => ResolveVariant( config, name, null );
 
+
 	public Material ResolveVariant( string config, ulong name, string fallbackConfig )
 	{
 		config ??= "";
@@ -96,9 +97,6 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 			return stock;
 		}
 		var material = Material.Create( materialPath, SurfaceShader );
-		material.Set( "g_flEnvironmentSky", Environment?.HasSky == true ? 1f : 0f );
-		material.Set( "g_vEnvironmentSkyTop", Environment?.SkyTop ?? Vector3.Zero );
-		material.Set( "g_vEnvironmentSkyBottom", Environment?.SkyBottom ?? Vector3.Zero );
 		var diffuse = LoadTexture( definition?.Diffuse );
 		var opacity = LoadTexture( definition?.Opacity );
 		var normal = LoadTexture( definition?.Normal );

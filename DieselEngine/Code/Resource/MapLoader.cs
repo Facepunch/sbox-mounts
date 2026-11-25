@@ -18,11 +18,13 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	readonly Dictionary<(string Unit, string Material, string Mesh), UnitModel.Result> models = [];
 	MapMaterials materials;
 	MapLights lights;
+	Material sky;
 	int placed, missing;
 
 	protected override void OnSceneUnloaded()
 	{
 		models.Clear();
+		sky = null;
 		materials = null;
 		lights = null;
 	}
@@ -57,6 +59,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			}
 		}
 		AddBrushes( world, root, directory );
+		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
@@ -239,6 +242,17 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		}
 		placed += brushes;
 		Log.Info( $"PAYDAY {path}: placed {brushes} brush instances from {entries.Count} brush units." );
+	}
+
+	void AddSky( GameObject root, EnvironmentSettings environment )
+	{
+		try { sky = SkyDome.Build( environment, $"paydaysky/{path.Replace( '/', '_' )}.vmat" ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY {path} sky: {e}" ); }
+		if ( sky is null ) return;
+		var skybox = new GameObject( true, "Underlay sky" ) { Parent = root }.AddComponent<SkyBox2D>();
+		skybox.SkyMaterial = sky;
+		// Ambient comes from the authored sky hemisphere (PaydayEnvironmentLighting); sky IBL would double it.
+		skybox.SkyIndirectLighting = false;
 	}
 
 	static void ApplyTransform( GameObject go, ScriptTable unit )

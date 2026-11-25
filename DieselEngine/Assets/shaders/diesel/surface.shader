@@ -89,9 +89,11 @@ PS
 	CreateTextureCube( g_tReflection ) < Channel( RGB, Box( Reflection ), Srgb ); OutputFormat( DXT1 ); SrgbRead( true ); >;
 	SamplerState g_sReflection < Filter( TRILINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); AddressW( CLAMP ); >;
 	float g_flHasReflection < Default1( 0 ); >;
-	float g_flEnvironmentSky < Default1( 0 ); >;
-	float3 g_vEnvironmentSkyTop < Default3( 0, 0, 0 ); >;
-	float3 g_vEnvironmentSkyBottom < Default3( 0, 0, 0 ); >;
+	// Scene-wide (PaydayEnvironmentLighting sets these on Scene.RenderAttributes), so props, NPCs and
+	// weapons spawned into a PAYDAY map share its sky hemisphere. Unset elsewhere: no sky term.
+	float g_flEnvironmentSky < Attribute( "DieselEnvironmentSky" ); Default1( 0 ); >;
+	float3 g_vEnvironmentSkyTop < Attribute( "DieselEnvironmentSkyTop" ); Default3( 0, 0, 0 ); >;
+	float3 g_vEnvironmentSkyBottom < Attribute( "DieselEnvironmentSkyBottom" ); Default3( 0, 0, 0 ); >;
 	float g_flReflectionMaxMip < Default1( 0 ); >;
 	float g_flCubeFresnel < Default1( 0 ); >;
 	float3 g_vReflectionFresnel < Default3( 0, 1, 1 ); >;
