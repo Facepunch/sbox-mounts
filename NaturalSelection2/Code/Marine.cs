@@ -14,6 +14,9 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 30 ); }
 	float IDamageable.MaxArmour => 30;
 	bool wantsFire;
+	Rigidbody body;
+	float fallSpeed;
+	[Sync( SyncFlags.FromHost )] bool jumping { get; set; }
 	[Sync( SyncFlags.FromHost )] bool trigger { get; set; }
 	[Sync( SyncFlags.FromHost )] bool reloading { get; set; }
 	sealed class Magazine
@@ -78,14 +81,15 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		body = GetComponent<Rigidbody>();
 		if ( Scene.PhysicsWorld.Gravity.z < 0 )
-			GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
+			body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 		age = 0;
 		lastRequest = lastShot = lastHit = 1;
 		aim = WorldRotation;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader body )
-			graph = new( body.PropGraph, body );
+		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+			graph = new( model.PropGraph, model );
 		if ( !Application.IsHeadless ) worldTag = OnWorldTag;
 		weaponTag = OnWeaponTag;
 		if ( Renderer.GetAttachmentObject( "RHand_Weapon" ) is { } hand )
@@ -199,6 +203,8 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		{
 			nextDodge = 2;
 			Launch( Animation.MoveVelocity.WithZ( MathF.Sqrt( 2 * 21.5f * 1.25f ) * Scale ) );
+			jumping = true;
+			PlayMovementSound( "marine/common/jump" );
 			return;
 		}
 		if ( IsAirborne ) return;
@@ -235,6 +241,29 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		}
 	}
 
+	protected override void OnFixedUpdate()
+	{
+		base.OnFixedUpdate();
+		if ( !Networking.IsHost || Health <= 0 ) return;
+		if ( !IsOnGround )
+		{
+			fallSpeed = -body.Velocity.z;
+			return;
+		}
+
+		jumping = false;
+		if ( fallSpeed > 5 * Scale )
+			PlayMovementSound( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" );
+		fallSpeed = 0;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayMovementSound( string cue )
+	{
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{SurfaceLoader.SoundPath( cue )}" ) is { } sound )
+			Sound.Play( sound, WorldPosition );
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( GameObject.IsDestroyed ) return;
@@ -253,7 +282,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, 5 );
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
-		var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
+		var move = jumping ? "jump" : Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
 		UpdateInputs( graph, move, activity );
 		graph?.Update( age, PlayerGait.UpdatePose( this, 5.75f ), worldTag );
 		if ( weapon is not null )
