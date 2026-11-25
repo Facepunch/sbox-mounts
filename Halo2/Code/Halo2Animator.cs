@@ -184,12 +184,21 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	internal bool Bound => Renderer.IsValid() && assigned is not null && Renderer.Animation.Graph == assigned && Renderer.Animation.IsValid;
 
+	// Retail admits these secondary actions before checking the two animation records.
+	static bool AllowsWeaponGrip( string overlay ) => overlay is null or "" or "fire_1" or "fire_2"
+		or "chamber_1" or "chamber_2" or "charged_1" or "charged_2" or "melee" or "leap_melee"
+		or "melee_back" or "melee_dash" or "melee_lunge" or "melee_1sthit" or "melee_2ndhit"
+		or "melee_3rdhit" or "melee_flurry" or "melee_tackle" or "melee_airborne" or "melee_strike_1"
+		or "melee_strike_2" or "melee_strike_3" or "melee_strike_4" or "melee_off_hand"
+		or "melee_1sthit2idle" or "melee_2ndhit2idle" or "melee_dash_airborne" or "melee_lunge_airborne";
+
 	protected override void OnFixedUpdate()
 	{
 		if ( !Bound || grips.Count == 0 ) return;
 		var parameters = Renderer.Animation.Parameters;
 		string overlay = parameters.GetString( "overlay" );
-		bool active = string.IsNullOrEmpty( overlay ) || ((GetOverlayClip( overlay )?.PlaybackFlags ?? 0) & 8) == 0;
+		bool active = AllowsWeaponGrip( overlay )
+			&& (string.IsNullOrEmpty( overlay ) || ((GetOverlayClip( overlay )?.PlaybackFlags ?? 0) & 8) == 0);
 		float duration = active ? 0.267f : 0.06675f;
 		gripBlend.Advance();
 		gripBlend.Select( active, (int)MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency * duration ) );
