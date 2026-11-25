@@ -31,7 +31,7 @@ public sealed partial class RabbitGuard
 	RabbitGuard holdPartner;
 	Vector3 holdDirection;
 	Vector3 struggleVelocity, struggleDirection;
-	TimeUntil changeStruggleDirection, changeStruggleCrouch;
+	float changeStruggleDirection, changeStruggleCrouch;
 	bool struggleCrouch;
 	[Sync] TimeSince SinceGrab { get; set; }
 	// The original compares its 120 Hz game clock strictly past the 12th frame.
@@ -68,7 +68,6 @@ public sealed partial class RabbitGuard
 	{
 		holdPartner = partner;
 		struggleVelocity = default;
-		changeStruggleDirection = changeStruggleCrouch = 0f;
 		SinceGrab = 0f;
 		holdTick = 0;
 		nextCaptureTick = 0;
@@ -138,7 +137,7 @@ public sealed partial class RabbitGuard
 		bool armed = PrimaryItem.IsValid();
 		bool rat = victim.boundAnimations.Species == "rat";
 		bool blade = armed && boundAnimations.WeaponLabel != "staff";
-		AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing );
+		if ( !AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing ) ) return;
 		if ( CaptureReactionEnded && !executing )
 		{
 			if ( blade )
@@ -164,28 +163,16 @@ public sealed partial class RabbitGuard
 				victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
 			}
 		}
-		victim.DropHandItem();
 		if ( executing )
 		{
 			float elapsed = ReactionPhase * reactionDuration + Time.Delta;
 			ReactionPhase = Math.Min( 1f, elapsed / reactionDuration );
 			victim.ReactionPhase = Math.Min( 1f, elapsed / victim.boundAnimations.Clips[CutInHold].Duration );
 			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut ) FinishCut( victim );
-			return;
-		}
-		if ( blade ) return;
-		victim.KnockoutShield = 0;
-		float rate = 0.7f - 0.4f * GameDifficulty + (victim.boundAnimations.Species == "rat" ? 0.4f : 0f);
-		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * Time.Delta } );
-		if ( !victim.IsValid() || victim.Downed || victim.Unconscious )
-		{
-			if ( victim.IsValid() ) chokeVictim = victim.GameObject;
-			if ( victim.IsValid() ) victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundMaterialName, 1f );
-			ReleaseHold();
 		}
 	}
 
-	void AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle )
+	bool AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
 		// SetAnimUpdateFreqs advances both tethered actors once every two physics frames.
 		int elapsed = ElapsedHoldTicks;
@@ -195,8 +182,25 @@ public sealed partial class RabbitGuard
 			if ( holdTick == 7 ) EndGroupAttack();
 			if ( holdTick > 6 ) MoveHoldPair( victim, distance, struggle );
 			victim.AdvanceCaptureAlignment( holdTick );
+			victim.DropHandItem();
+			if ( !struggle ) continue;
+			victim.KnockoutShield = 0;
+			ApplyChokeDamage( victim, 0.7f - 0.4f * GameDifficulty );
+			if ( victim.IsValid() && victim.boundAnimations.Species == "rat" ) ApplyChokeDamage( victim, 0.4f );
+			if ( victim.IsValid() && !victim.Downed && !victim.Unconscious ) continue;
+			if ( victim.IsValid() )
+			{
+				chokeVictim = victim.GameObject;
+				victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundMaterialName, 1f );
+			}
+			ReleaseHold();
+			return false;
 		}
+		return true;
 	}
+
+	void ApplyChokeDamage( RabbitGuard victim, float rate ) =>
+		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * HoldStep } );
 
 	void MoveHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
@@ -228,12 +232,12 @@ public sealed partial class RabbitGuard
 
 	void UpdateHoldVelocity( bool struggling, bool movementState )
 	{
-		if ( struggling && changeStruggleDirection <= 0f )
+		if ( struggling && (changeStruggleDirection -= HoldStep) <= 0f )
 		{
 			struggleDirection = new Vector3( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), 0f ).Normal;
 			changeStruggleDirection = Random.Shared.Float( 0.1f, 0.3f );
 		}
-		if ( struggling && changeStruggleCrouch <= 0f )
+		if ( struggling && (changeStruggleCrouch -= HoldStep) <= 0f )
 		{
 			struggleCrouch = Random.Shared.Next( 2 ) == 0;
 			changeStruggleCrouch = Random.Shared.Float( 0.1f, 0.3f );
