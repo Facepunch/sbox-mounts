@@ -240,7 +240,16 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 				index = Short( selected + 32 );
 				if ( elite && Short( selected + 34 ) > 1 ) index++;
 			}
-			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot", meterFill: meterFill );
+			if ( meterFill is float fill )
+			{
+				int shader = Address( Reference( row + 0x28 ) );
+				int constants = Block( shader + 0x20 ) + 12;
+				if ( map.ReadInt32( constants ) < 2 ) return null;
+				// The ammo meter's first color register after the input is its loaded-shell tint.
+				int rgb = map.ReadInt32( Block( constants ) + 4 );
+				return new Halo2TextureLoader( map, bitmap, index, meter: (fill, rgb) );
+			}
+			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
 		}
 		return null;
 	}

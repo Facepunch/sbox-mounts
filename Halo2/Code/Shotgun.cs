@@ -493,7 +493,7 @@ public sealed class Shotgun : Weapon
 		bool split = viewport.z < 1 || viewport.w < 1;
 		var safeCorner = new Vector2( bounds.Right, bounds.Top ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 )) * scale;
 		var offset = split ? new Vector2( -98, 21 ) : new Vector2( -200, 42 );
-		painter.Texture( ammoMeter, new Rect( safeCorner + offset * scale, new Vector2( 98, 13 ) * scale ), Color.FromBytes( 117, 186, 255 ) );
+		painter.Texture( ammoMeter, new Rect( safeCorner + offset * scale, new Vector2( 98, 13 ) * scale ) );
 	}
 
 	public override void DrawCrosshair( Painter painter, Vector2 center )
