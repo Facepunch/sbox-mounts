@@ -366,6 +366,7 @@ public sealed class Shotgun : Weapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
 	{
+		if ( Application.IsDedicatedServer ) return;
 		var contacts = ShotgunContacts.For( weapon );
 		foreach ( var contact in impacts )
 		{
