@@ -2,8 +2,13 @@
 var mount = await Sandbox.Mounting.Directory.Mount( "payday" );
 await mount.RefreshInternal();
 var results = new System.Collections.Generic.List<string>();
-foreach ( var id in new[] { "civilian", "civilian_female", "bank_manager", "security", "cop", "swat" } )
+var definitions = ((System.Collections.IEnumerable)mount.GetType().Assembly.GetType( "Diesel.NpcDefinition" ).GetProperty( "All" ).GetValue( null )).Cast<object>().ToArray();
+if ( definitions.Select( d => (string)d.GetType().GetProperty( "Id" ).GetValue( d ) ).Distinct().Count() != definitions.Length )
+	throw new Exception( "Duplicate NPC definitions after hotload." );
+foreach ( var definition in definitions )
 {
+	var id = (string)definition.GetType().GetProperty( "Id" ).GetValue( definition );
+	bool isCivilian = (bool)definition.GetType().GetProperty( "Civilian" ).GetValue( definition );
 	var scene = new Scene();
 	try
 	{
@@ -37,7 +42,7 @@ foreach ( var id in new[] { "civilian", "civilian_female", "bank_manager", "secu
 		camera.RenderToBitmap( bitmap );
 		System.IO.File.WriteAllBytes( System.IO.Path.Combine( System.IO.Path.GetTempPath(), "opencode", $"npc-{id}.png" ), bitmap.ToPng() );
 		animation.Enabled = false;
-		foreach ( var clip in new[] { "walk", "run", id is "civilian" or "civilian_female" or "bank_manager" ? "surrender" : "reload" } )
+		foreach ( var clip in new[] { "walk", "run", isCivilian ? "surrender" : "reload" } )
 		{
 			animation.GetType().GetMethod( "SamplePose" ).Invoke( animation, new object[] { clip, .5f } );
 			scene.GameTick( .02 );

@@ -5,11 +5,21 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 	public bool Civilian => Weapon is null;
 	public string Prefab => $"entities/npcs/{Id}.prefab";
 	public string Model => $"characters/{Id}.model";
-	public static readonly NpcDefinition[] All =
+	// Recreate declarations after hotload instead of migrating old array entries by index.
+	public static NpcDefinition[] All =>
 	[
 		new( "civilian", "Civilian", "units/characters/civilians/casual_male_1/casual_male_1" ),
 		new( "civilian_female", "Civilian (female)", "units/characters/civilians/casual_female_1/casual_female_1", Female: true ),
 		new( "bank_manager", "Bank manager", "units/characters/bank_manager/bank_manager2" ),
+		new( "bank_staff", "Bank staff (male)", "units/characters/civilians/suit_male_1/suit_male_1" ),
+		new( "bank_staff_female", "Bank staff (female)", "units/characters/civilians/suit_female_1/suit_female_1", Female: true ),
+		new( "doctor", "Hospital doctor", "units/characters/civilians/hospital_doctor1/hospital_doctor1" ),
+		new( "nurse", "Hospital nurse (female)", "units/characters/civilians/hospital_female_nurse1/hospital_female_nurse1", Female: true ),
+		new( "nurse_male", "Hospital nurse (male)", "units/characters/civilians/hospital_male_nurse1/hospital_male_nurse1" ),
+		new( "suburban_male", "Suburban resident (male)", "units/characters/civilians/suburbia_male1/suburbia_male1" ),
+		new( "suburban_female", "Suburban resident (female)", "units/characters/civilians/suburbia_female1/suburbia_female1", Female: true ),
+		new( "builder", "Construction worker", "units/characters/civilians/builder_1/builder_1" ),
+		new( "butcher", "Slaughterhouse worker", "units/characters/civilians/butcher_1/butcher_1" ),
 		new( "security", "Security guard", "units/characters/enemies/security/security_guard_01", "crosskill" ),
 		new( "cop", "Police officer", "units/characters/enemies/cop/cop", "b9s" ),
 		new( "swat", "SWAT", "units/characters/enemies/swat/swat", "amcar4", Health: 200 )

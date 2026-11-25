@@ -36,6 +36,6 @@ static class NpcVerification
 				}
 			}
 		}
-		Console.WriteLine( "PASS: six original character rigs, 24 animation references, packed rotation order and upright poses." );
+		Console.WriteLine( $"PASS: {NpcDefinition.All.Length} original character rigs, {NpcDefinition.All.Sum( n => n.Clips().Count )} animation references, packed rotation order, neck proportions and upright poses." );
 	}
 }
