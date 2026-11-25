@@ -24,6 +24,16 @@ public sealed class PaydayMount : BaseGameMount
 	internal Dictionary<ulong, string> UnitNames { get; } = [];
 
 	readonly Dictionary<string, UnitEndurance> endurance = new( StringComparer.Ordinal );
+	Dictionary<ulong, string> strings;
+
+	/// <summary>Localized text for a Diesel string id (all <c>strings/*</c> tables), or null.</summary>
+	internal string Localize( string id )
+	{
+		if ( string.IsNullOrEmpty( id ) || Database is null ) return null;
+		try { strings ??= StringTable.ReadAll( Database ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY strings: {e.Message}" ); strings = new Dictionary<ulong, string>(); }
+		return strings.GetValueOrDefault( IdString.Hash( id ) );
+	}
 	MapMaterials runtimeMaterials;
 
 	/// <summary>Materials for geometry rebuilt at runtime (breakables, mission sequences), shared across maps.</summary>
@@ -159,6 +169,7 @@ public sealed class PaydayMount : BaseGameMount
 		Characters.Clear();
 		UnitNames.Clear();
 		endurance.Clear();
+		strings = null;
 		runtimeMaterials = null;
 		Database = null;
 	}

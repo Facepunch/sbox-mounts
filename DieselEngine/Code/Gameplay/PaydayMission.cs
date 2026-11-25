@@ -14,8 +14,12 @@ namespace Diesel;
 [Hide]
 public sealed class PaydayMission : Component
 {
-	[ConVar( "payday_mission", Help = "Run PAYDAY heist mission scripts on map load (0 = off)." )]
-	public static bool Enabled { get; set; } = true;
+	/// <summary>
+	/// Opt-in. The mount's goal is the game's assets (maps, models, sounds…) for sandbox play and other games; running the
+	/// original heist scripts (spawns, objectives, waypoints) is an optional extra.
+	/// </summary>
+	[ConVar( "payday_mission", Help = "Run PAYDAY heist mission scripts on map load: spawns, objectives, waypoints (opt-in)." )]
+	public static bool Enabled { get; set; } = false;
 
 	[ConVar( "payday_mission_enemies", Help = "Let PAYDAY mission scripts spawn enemies (guards, police, SWAT waves)." )]
 	public static bool SpawnEnemies { get; set; } = false;
@@ -308,6 +312,27 @@ public sealed class PaydayMission : Component
 			case "ElementSpecialObjective":
 				Administer( element, instigator );
 				break;
+			case "ElementWaypoint":
+			{
+				string textId = element.Text( "text_id" );
+				string label = mount.Localize( textId ) ?? StringTable.Humanize( textId?.StartsWith( "wp_" ) == true ? textId[3..] : textId );
+				PaydayMissionSync.For( Scene )?.SetWaypoint( element.Id, Coordinates.Position( element.Position ), label );
+				break;
+			}
+			case "ElementObjective":
+				UpdateObjective( element );
+				break;
+			case "ElementOperator":
+				// Shipped uses: remove waypoints (173) and special objectives (54); scenario/alert/sound/police-force operators are
+				// for systems not imported, so they pass through.
+				if ( element.Text( "operation" ) == "remove" )
+					foreach ( int target in element.Ids( "elements" ) )
+						if ( data.Elements.TryGetValue( target, out var removed ) )
+						{
+							if ( removed.Class == "ElementWaypoint" ) PaydayMissionSync.For( Scene )?.RemoveWaypoint( target );
+							else if ( removed.Class == "ElementSpecialObjective" ) CancelObjective( target );
+						}
+				break;
 			case "ElementSpecialObjectiveTrigger": // fired by FireObjectiveEvent; executing it just passes on.
 			case "ElementEnemyDummyTrigger": // fired by FireNpcEvent; executing it just passes on.
 			case "ElementUnitSequenceTrigger": // fired by NotifySequence; executing it just passes on.
@@ -503,6 +528,42 @@ public sealed class PaydayMission : Component
 		if ( orders.Any( o => o.Element == element.Id && !o.Completed ) || pendingObjectives.Any( p => p.Element.Id == element.Id ) ) return;
 		if ( PickNpc( element, instigator ) is { } npc ) Assign( element, npc );
 		else pendingObjectives.Add( (element, instigator, Time.Now + 30) );
+	}
+
+	string currentObjective;
+
+	/// <summary>
+	/// ElementObjective states across nine maps: complete 137, activate 127, remove 12, update 2. activate/update show the
+	/// objective; complete/remove clear it if it's the current one. Text: the id itself or <c>&lt;id&gt;_hl</c> from the strings
+	/// tables, else the humanized id. (Objective ids aren't string ids; the `objective` definition resource is still to be read.)
+	/// </summary>
+	void UpdateObjective( MissionData.Element element )
+	{
+		string id = element.Text( "objective" );
+		if ( string.IsNullOrEmpty( id ) || PaydayMissionSync.For( Scene ) is not { } sync ) return;
+		switch ( element.Text( "state" ) )
+		{
+			case "activate":
+			case "update":
+				currentObjective = id;
+				sync.Objective = mount.Localize( id ) ?? mount.Localize( id + "_hl" ) ?? StringTable.Humanize( id );
+				break;
+			case "complete":
+			case "remove":
+				if ( currentObjective == id ) { currentObjective = null; sync.Objective = ""; }
+				break;
+		}
+	}
+
+	/// <summary>An ElementOperator removed a special objective: drop its order or pending assignment.</summary>
+	void CancelObjective( int objective )
+	{
+		pendingObjectives.RemoveAll( p => p.Element.Id == objective );
+		foreach ( var order in orders.Where( o => o.Element == objective && !o.Completed ).ToList() )
+		{
+			if ( order.Order.IsValid() ) { order.Order.Enabled = false; Reselect( order.Npc.Go ); }
+			orders.Remove( order );
+		}
 	}
 
 	static bool Available( TrackedNpc npc ) => npc.Go.IsValid() && !npc.Dead

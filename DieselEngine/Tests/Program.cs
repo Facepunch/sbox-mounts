@@ -2,13 +2,20 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence")) || args.Length > 4 )
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence" or "--dump-strings")) || args.Length > 4 )
 	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt] | --dump-sequence [units] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-strings" )
+	{
+		string stringsOutput = args.Length > 2 ? args[2] : "strings_dump.txt";
+		using ( var stringsWriter = new StreamWriter( stringsOutput ) ) StringsDump.Run( db, stringsWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( stringsOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-sequence" )
 	{
 		string wantedUnits = args.Length > 2 ? args[2] : "bank_window_large,diamondheist_rooftop_window,slaughterhouse_glass_tall,hanging_lightbulb,diamond_stand";
@@ -485,6 +492,11 @@ foreach ( var aiMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l
 Console.WriteLine( $"  ElementEnemyDummyTrigger events: {string.Join( ", ", npcEventNames.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
 Console.WriteLine( $"  ElementSpecialObjectiveTrigger events: {string.Join( ", ", soTriggerEvents.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
 Console.WriteLine( $"  ElementSpecialObjective so_action (top 40): {string.Join( ", ", soActions.OrderByDescending( e => e.Value ).Take( 40 ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
+// Localization tables: waypoint text ids resolve through strings/system_text.
+var stringTables = StringTable.ReadAll( db );
+if ( stringTables.Count < 1000 || stringTables.GetValueOrDefault( IdString.Hash( "wp_bank_get_drill" ) ) is not { Length: > 0 } drillText )
+	throw new Exception( "strings tables / waypoint text lookup regressed." );
+Console.WriteLine( $"PASS: {stringTables.Count} localized strings; wp_bank_get_drill = \"{drillText}\"." );
 var unmappedSpawns = new SortedSet<string>();
 foreach ( var spawnMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
 	foreach ( var spawn in MissionData.Read( db, $"levels/{spawnMap}" ).Elements.Values.Where( e => e.Class is "ElementSpawnCivilian" or "ElementSpawnEnemyDummy" ) )
