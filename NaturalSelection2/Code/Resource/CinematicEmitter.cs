@@ -16,7 +16,9 @@ internal sealed class CinematicEmitter
 	readonly float duration, clipDuration, stretch, radius, bounce, friction, maxSpeed;
 	readonly Vector3 force;
 	readonly CinematicChannel accelerationX, accelerationY, accelerationZ;
-	readonly float lifetime, playback, minCos;
+	readonly float lifetime, framesPerSecond, minCos;
+	readonly int frameCount;
+	readonly CinematicChannel playback;
 	readonly Vector2 speed, size, opacity, roll;
 	readonly CinematicChannel red, green, blue;
 	readonly CinematicChannel sizeScale, opacityScale, rotationScale, velocityX, velocityY, velocityZ;
@@ -58,7 +60,10 @@ internal sealed class CinematicEmitter
 		sprite = GameResource.Load<Sprite>( $"{material}/particle.sprite" );
 		if ( sprite is null ) normal = Material.Load( material )?.GetTexture( "g_tNormalMap" );
 		lifetime = Value( "Particle Life Span" );
-		playback = Value( "Texture Animation Scale" );
+		var animation = sprite?.Animations[0];
+		frameCount = animation?.Frames[0].Texture.GetSequenceFrameCount( 0 ) ?? 0;
+		framesPerSecond = animation?.FrameRate ?? 0;
+		playback = Channel( "Texture Animation Scale" );
 		alignment = node.Get( "Particle Alignment" ).AsInt();
 		additive = node.Get( "blendMode" ).AsInt() == 0;
 		stretch = Value( "Particle Motion Stretch" );
@@ -107,7 +112,7 @@ internal sealed class CinematicEmitter
 			particles.OnStep = ( p, fraction ) => Step( p, direction, fraction );
 			var sprites = emitter.AddComponent<ParticleSpriteRenderer>();
 			sprites.Sprite = sprite;
-			sprites.PlaybackSpeed = playback;
+			particles.SnapToFrame = true;
 			sprites.Additive = additive && normal is null;
 			sprites.Refraction = normal is not null;
 			sprites.NormalTexture = normal;
@@ -174,6 +179,8 @@ internal sealed class CinematicEmitter
 	void Step( Particle p, Rotation direction, float fraction )
 	{
 		float age = fraction * lifetime;
+		if ( frameCount > 1 )
+			p.SequenceTime.y = MathF.Floor( age * playback.At( age ) * framesPerSecond ) / frameCount;
 		var accelerationDelta = new Vector3( accelerationX.Integral( age ), accelerationY.Integral( age ), accelerationZ.Integral( age ) ) * MapLoader.Scale;
 		p.Velocity = (InitialVelocity( p, direction ) + accelerationDelta) * new Vector3( velocityX.At( age ), velocityY.At( age ), velocityZ.At( age ) );
 		p.Size = p.StartScale * sizeScale.At( age );
