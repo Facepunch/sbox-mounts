@@ -230,12 +230,11 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		return null;
 	}
 
-	Dictionary<string, TagEntry> meleeMaterials, casingMaterials, pelletMaterials, pelletEffects;
+	Dictionary<string, TagEntry> casingMaterials, pelletMaterials, pelletEffects;
 
 	void LoadMaterialEffects()
 	{
 		if ( pelletEffects is not null ) return;
-		meleeMaterials = new( StringComparer.OrdinalIgnoreCase );
 		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
 		if ( globals is null ) return;
 		int materials = Address( globals ) + 0x150;
@@ -245,11 +244,6 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		casingMaterials = ReadBank( casing, 0x6c, 10, 8 );
 		pelletMaterials = ReadBank( projectile, 0x54, 15, 8 );
 		pelletEffects = ReadBank( projectile, 0x54, 15, 16 );
-		for ( int i = 0; i < count; i++ )
-		{
-			int row = rows + i * 0xb4;
-			if ( map.ResolveStringId( map.ReadInt32( row ) ) is {} name ) meleeMaterials[name] = Reference( row + 0x60 );
-		}
 
 		Dictionary<string, TagEntry> ReadBank( TagEntry source, int referenceOffset, int action, int bankOffset )
 		{
@@ -298,14 +292,11 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		Dictionary<string, int> Bank( Dictionary<string, TagEntry> materials ) =>
 			materials?.ToDictionary( entry => entry.Key, entry => CueIndex( entry.Value ), StringComparer.OrdinalIgnoreCase ) ?? new();
 
-		var damage = Reference( Header + 0x1bc );
 		return new ShotgunContacts
 		{
 			Pellets = Bank( pelletMaterials ),
 			Effects = pelletEffects?.ToDictionary( e => e.Key, e => e.Value is null ? null : $"mount://{Host.Ident}/{ImpactPath( e.Value )}" ),
 			Casings = Bank( casingMaterials ),
-			Melee = Bank( meleeMaterials ),
-			Strike = damage is null ? 0 : CueIndex( Reference( Address( damage ) + 0xa8 ) ),
 			Cues = cues.ToArray()
 		};
 	}

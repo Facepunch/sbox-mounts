@@ -27,6 +27,7 @@ public class Halo2Mount : BaseGameMount
 	const string MapsDir = "halo2/h2_maps_win64_dx11";
 
 	BaseFileSystem appFs;
+	internal Dictionary<string, string> MeleeMaterialSounds { get; } = new( StringComparer.Ordinal );
 
 	/// <summary>The game's install folder. Loaders read shared maps and textures.dat through this.</summary>
 	public BaseFileSystem FileSystem => appFs;
@@ -73,7 +74,7 @@ public class Halo2Mount : BaseGameMount
 			}
 		} );
 
-		var surfaces = new HashSet<string>( StringComparer.Ordinal );
+		MeleeMaterialSounds.Clear();
 		var weaponRigs = new HashSet<string>( StringComparer.Ordinal );
 		var handhelds = new Dictionary<string, HandheldWeaponLoader>( StringComparer.Ordinal );
 		foreach ( var map in maps )
@@ -81,7 +82,7 @@ public class Halo2Mount : BaseGameMount
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map, surfaces, weaponRigs, handhelds );
+				RegisterMapTags( context, map, weaponRigs, handhelds );
 			}
 			catch ( Exception ex )
 			{
@@ -102,7 +103,7 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, HashSet<string> weaponRigs, Dictionary<string, HandheldWeaponLoader> handhelds )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> weaponRigs, Dictionary<string, HandheldWeaponLoader> handhelds )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
@@ -117,7 +118,9 @@ public class Halo2Mount : BaseGameMount
 			for ( int i = 0; i < materialNames.Length; i++, row += 0xb4 )
 			{
 				var name = materialNames[i] = mapFile.ResolveStringId( mapFile.ReadInt32( row ) );
-				if ( string.IsNullOrWhiteSpace( name ) || !surfaces.Add( name ) ) continue;
+				if ( string.IsNullOrWhiteSpace( name ) || MeleeMaterialSounds.ContainsKey( name ) ) continue;
+				var sound = mapFile.GetTag( mapFile.ReadInt32( row + 0x64 ) & 0xffff );
+				MeleeMaterialSounds[name] = sound?.PrimaryClass == "!dns" ? AssetPath( mapFile, sound.TagPath, "sound" ) : null;
 				context.Add( ResourceType.GameResource, $"surfaces/{name}.surface", new SurfaceLoader( mapFile, row ) );
 			}
 		}

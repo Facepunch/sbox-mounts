@@ -359,7 +359,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			ImpactEffect( shot, direction );
 			return;
 		}
-		var path = contacts.Effects is {} effects ? ShotgunContacts.Contact( effects, shot.Surface, true ) : null;
+		var path = contacts.Effects is {} effects ? ContactMaterial.Lookup( effects, shot.Surface, true ) : null;
 		var effect = path is null ? null : PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>();
 		if ( effect?.Place( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction, bone ) != true )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
@@ -586,13 +586,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			CreateViewModel();
 		UpdateWorldAnimations();
 		heldModel?.UpdateChamberPose();
-	}
-
-	[Rpc.Broadcast( NetFlags.HostOnly )]
-	protected override void MeleeImpactSound( string surfacePath, Vector3 position )
-	{
-		if ( Application.IsDedicatedServer ) return;
-		ShotgunContacts.For( this )?.PlayMelee( GameResource.Load<Surface>( surfacePath ), position );
 	}
 
 	protected override void OnEquipped()

@@ -102,9 +102,72 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.MeleeBodyScales = strike.BodyScales;
 		gun.MeleeExplosive = strike.Explosive;
 		gun.MeleeForce = strike.Force;
+		gun.ContactSounds = ReadMeleeSounds( Address( globals ) );
 		gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
 		if ( gun is EnergySword sword && Reference( Header + 0x1ec ) is { PrimaryClass: "!tpj" } lunge )
 			sword.LungeDamage = ReadMeleeDamage( Address( lunge ), globals );
+	}
+
+	MeleeContactSounds ReadMeleeSounds( int globals )
+	{
+		bool meleeOnly = (map.ReadInt32( Header + 0x12c ) & (1 << 24)) != 0;
+		int count = map.ReadInt32( globals + 0x150 ), rows = Block( globals + 0x150 );
+		var contacts = new Dictionary<string, int[]>();
+		var cues = new List<CuePlayback>();
+		var indices = new Dictionary<string, int>();
+		var sounds = new List<int>( 3 );
+		string SoundPath( TagEntry tag ) => tag?.PrimaryClass == "!dns" ? Host.AssetPath( map, tag.TagPath, "sound" ) : null;
+		void Add( string path )
+		{
+			if ( path is null ) return;
+			if ( !indices.TryGetValue( path, out int index ) )
+			{
+				if ( Host.GetByPath( path ) is not Halo2SoundLoader sound ) return;
+				indices[path] = index = cues.Count;
+				cues.Add( sound.Cue );
+			}
+			sounds.Add( index );
+		}
+
+		if ( !meleeOnly )
+		{
+			var damage = Reference( Header + 0x1bc );
+			string strike = damage is null ? null : SoundPath( Reference( Address( damage ) + 0xa8 ) );
+			foreach ( var (name, material) in Host.MeleeMaterialSounds )
+			{
+				sounds.Clear();
+				Add( material );
+				Add( strike );
+				contacts[name] = sounds.ToArray();
+			}
+			return new( false, contacts, cues.ToArray() );
+		}
+
+		if ( Reference( Header + 0x54 ) is not { PrimaryClass: "toof" } foot || map.ReadInt32( Address( foot ) ) <= 15 ) return null;
+		int bank = Block( Address( foot ) ) + 15 * 24 + 8;
+		var footRows = new Dictionary<int, int>();
+		for ( int i = 0, entry = Block( bank ); i < map.ReadInt32( bank ); i++, entry += 24 )
+			footRows.TryAdd( Short( entry + 20 ), entry );
+		for ( int i = 0; i < count; i++ )
+		{
+			int row = rows + i * 0xb4;
+			if ( map.ResolveStringId( map.ReadInt32( row ) ) is not {} name ) continue;
+			sounds.Clear();
+			int index = i;
+			for ( int depth = 0; (uint)index < count && depth < count; depth++ )
+			{
+				if ( footRows.TryGetValue( index, out var entry ) )
+				{
+					Add( SoundPath( Reference( entry ) ) );
+					if ( ((map.ReadInt32( entry + 20 ) >> 16) & 255) == 1 ) Add( SoundPath( Reference( row + 0x38 ) ) );
+					Add( SoundPath( Reference( entry + 8 ) ) );
+					break;
+				}
+				index = Short( rows + index * 0xb4 + 8 );
+			}
+			contacts[name] = sounds.ToArray();
+		}
+		return new( true, contacts, cues.ToArray() );
 	}
 
 	MeleeDamageProfile ReadMeleeDamage( int effect, TagEntry globals ) => new(

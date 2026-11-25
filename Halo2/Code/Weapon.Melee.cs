@@ -1,8 +1,11 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Halo2;
 
 public sealed record MeleeDamageProfile( float Minimum, float Maximum, float Force, Dictionary<string, float> BodyScales, bool Explosive );
+
+public sealed record MeleeContactSounds( bool AtContact, Dictionary<string, int[]> Materials, CuePlayback[] Cues );
 
 public abstract partial class Weapon
 {
@@ -30,7 +33,18 @@ public abstract partial class Weapon
 	protected abstract string FirstPersonRig { get; }
 	protected virtual FirstPersonAnimation FirstPersonAnimations() => Model.Load( FirstPersonRig )?.GetData<FirstPersonAnimation>();
 	protected abstract void PlayMeleeView( string action );
-	protected virtual void MeleeImpactSound( string surfacePath, Vector3 position ) { }
+	[Property] public MeleeContactSounds ContactSounds { get; set; }
+	uint contactSeed = (uint)System.Random.Shared.Next();
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayContactSounds( string surfacePath, Vector3 position )
+	{
+		if ( Application.IsDedicatedServer || ContactSounds is null || string.IsNullOrEmpty( surfacePath ) ) return;
+		var indices = ContactMaterial.Lookup( ContactSounds.Materials, GameResource.Load<Surface>( surfacePath ), false );
+		if ( indices is null ) return;
+		foreach ( var index in indices )
+			ContactSounds.Cues[index].Play( position, ref contactSeed, null );
+	}
 	protected virtual bool CanUseHeldWeapon => Inventory is not {} inventory || inventory.ActiveItem == this;
 
 	public override bool CanReload() => !MeleeActive && CanUseHeldWeapon && base.CanReload();
@@ -57,6 +71,8 @@ public abstract partial class Weapon
 	protected virtual string PrimaryMeleeAction() => null;
 	protected virtual MeleeDamageProfile LungeProfile => null;
 
+	static readonly string[] strikeActions = ["melee_strike_1", "melee_strike_2", "melee_strike_3", "melee_strike_4"];
+
 	void StartMelee( bool primary )
 	{
 		var actions = FirstPersonAnimations()?.Actions;
@@ -64,9 +80,14 @@ public abstract partial class Weapon
 		var action = primary ? PrimaryMeleeAction() : null;
 		if ( action is null )
 		{
-			if ( !actions.ContainsKey( "melee_strike_1" ) ) return;
-			action = !actions.ContainsKey( "melee_strike_2" ) || BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) < 32768
-				? "melee_strike_1" : "melee_strike_2";
+			Span<int> available = stackalloc int[strikeActions.Length];
+			int count = 0;
+			for ( int i = 0; i < strikeActions.Length; i++ )
+				if ( actions.ContainsKey( strikeActions[i] ) ) available[count++] = i;
+
+			if ( count == 0 ) return;
+			var roll = BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) );
+			action = strikeActions[available[(int)(roll * (uint)count >> 16)]];
 		}
 		PerformMeleeAction( action, actions );
 	}
@@ -121,9 +142,14 @@ public abstract partial class Weapon
 	void MeleeContact( GameObject attacker, float fraction, MeleeDamageProfile profile )
 	{
 		var aim = Holder is PlayerController player ? player.EyeTransform.ForwardRay : AimRay;
-		var hit = TraceMelee( aim, out var impactPosition );
+		var hit = TraceMelee( aim, out var lastContact );
 		if ( !hit.Hit ) return;
-		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
+		if ( ContactSounds is {} sounds )
+		{
+			// Melee-only material effects use the final cast point plus 0.01 Halo world units.
+			var position = sounds.AtContact ? lastContact.HitPosition + lastContact.Normal * 1.2f : MeleeOwner.WorldPosition;
+			PlayContactSounds( hit.Surface?.ResourcePath, position );
+		}
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
 		float damage = (1 - fraction) * (profile?.Minimum ?? MinimumMeleeDamage) + fraction * (profile?.Maximum ?? MeleeDamage);
@@ -152,9 +178,9 @@ public abstract partial class Weapon
 			: abs.y <= abs.z ? new Vector3( -forward.z, 0, forward.x ) : new Vector3( forward.y, -forward.x, 0 )).Normal;
 	}
 
-	SceneTraceResult TraceMelee( Ray aim, out Vector3 impactPosition )
+	SceneTraceResult TraceMelee( Ray aim, out SceneTraceResult lastContact )
 	{
-		impactPosition = aim.Position;
+		lastContact = default;
 		var forward = aim.Forward;
 		var axis = Perpendicular( forward );
 		var stepY = Vector3.Cross( forward, axis ) * (MeleeHalfExtents.y * 0.5f);
@@ -170,7 +196,7 @@ public abstract partial class Weapon
 			if ( !hit.Hit || !hit.GameObject.IsValid() ) continue;
 
 			// The last contact positions the effect, even when an earlier target wins.
-			impactPosition = hit.HitPosition;
+			lastContact = hit;
 
 			// The first object beats scenery. A biped beats other objects and the closest biped wins.
 			var obj = hit.GameObject;
