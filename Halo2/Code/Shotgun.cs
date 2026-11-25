@@ -175,9 +175,21 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			// An inventory drop rolls the speed before deviating the holder's facing.
 			float speed = (0.8f + 0.4f * (BlamRandom.Next( ref randomState ) / 65535f)) * 120;
 			var direction = Spread.Deviate( ray.Forward, 0, System.MathF.PI / 8, ref randomState );
-			body.Velocity = (velocity + direction * speed).ClampLength( 4 * 120 );
+			var toss = (velocity + direction * speed).ClampLength( 4 * 120 );
+			body.Velocity = toss;
+			body.AngularVelocity = DropSpin( toss / 120 );
 		}
 		return true;
+	}
+
+	Vector3 DropSpin( Vector3 velocity )
+	{
+		float speed = velocity.Length;
+		if ( speed < 0.0001f ) speed = BlamRandom.Next( ref randomState ) / 65535f;
+		var axis = Vector3.Cross( Vector3.Up, velocity );
+		float length = axis.Length;
+		axis = length < 0.0001f ? Spread.RandomDirection( ref randomState ) : axis / length;
+		return axis * ((BlamRandom.Next( ref randomState ) / 65535f) * (System.MathF.PI / 2) * speed);
 	}
 
 	bool triggerConsumed;
