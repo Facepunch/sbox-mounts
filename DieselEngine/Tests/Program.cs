@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env")) || args.Length > 4 )
-	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env [level] [output.txt]]" );
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission")) || args.Length > 4 )
+	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-mission" )
+	{
+		string level = args.Length > 2 ? args[2] : "bank";
+		string missionOutput = args.Length > 3 ? args[3] : $"mission_{level}.txt";
+		using ( var missionWriter = new StreamWriter( missionOutput ) ) MissionDump.Run( db, level, missionWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( missionOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-env" )
 	{
 		string level = args.Length > 2 ? args[2] : "bank";
@@ -322,6 +330,41 @@ int zenithIndex = Array.IndexOf( skyGeometry.Positions, skyGeometry.Positions.Ma
 if ( skyGeometry.UVs[zenithIndex].y > -0.9f || skyGeometry.UVs.Max( uv => uv.y ) > 0.2f )
 	throw new Exception( "g_sky no longer maps V to dome height." );
 Console.WriteLine( "PASS: nine underlay sky gradients and g_sky height mapping." );
+// Mission scripts: every level parses, startup scripts exist, and mission-referenced unit ids resolve to placements.
+foreach ( var missionMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+{
+	var mission = MissionData.Read( db, $"levels/{missionMap}" );
+	if ( mission.Elements.Count == 0 ) throw new Exception( $"{missionMap}: no mission elements." );
+	var placedIds = new HashSet<int>();
+	void CollectIds( ScriptTable layer )
+	{
+		foreach ( var category in new[] { "statics", "dynamics" } )
+			foreach ( var entry in layer.Table( category )?.Children ?? [] )
+				if ( entry.Table( "unit_data" )?.GetValueOrDefault( "unit_id" ) is float uid ) placedIds.Add( (int)uid );
+	}
+	var missionWorld = ScriptData.Read( db.Find( "world", $"levels/{missionMap}/world" ) );
+	CollectIds( missionWorld );
+	if ( missionWorld.Table( "world_data" )?.Text( "continents_file" ) is { } continentsName
+		&& db.Find( "continents", $"levels/{missionMap}/{continentsName}" ) is { } continentsBytes )
+		foreach ( var (continentName, _) in ScriptData.Read( continentsBytes ) )
+			if ( db.Find( "continent", $"levels/{missionMap}/{continentName}/{continentName}" ) is { } layerBytes ) CollectIds( ScriptData.Read( layerBytes ) );
+	var referenced = mission.ReferencedUnits();
+	int resolved = referenced.Count( placedIds.Contains );
+	var startup = mission.Scripts.Where( s => s.ActivateOnParsed || s.Name == "default" ).ToList();
+	var dangling = mission.Elements.Values.SelectMany( e => e.OnExecuted ).Count( l => !mission.Elements.ContainsKey( l.Id ) );
+	Console.WriteLine( $"  {missionMap}: {mission.Scripts.Count} scripts ({string.Join( ", ", mission.Scripts.Where( s => s.ActivateOnParsed ).Select( s => s.Name ) )} on parse), "
+		+ $"default={mission.Scripts.Any( s => s.Name == "default" )}, {mission.Elements.Count} elements, "
+		+ $"{startup.Sum( s => s.Elements.Count( e => e.ExecuteOnStartup ) )} startup elements, {dangling} dangling links, "
+		+ $"units {resolved}/{referenced.Count} resolved ({placedIds.Count} placements carry unit_id)" );
+	if ( startup.Count == 0 ) throw new Exception( $"{missionMap}: no mission script would start (no activate_on_parsed and no 'default')." );
+	if ( referenced.Count > 0 && resolved < referenced.Count * 0.9f ) throw new Exception( $"{missionMap}: only {resolved}/{referenced.Count} mission units resolve to placements." );
+}
+var unmappedSpawns = new SortedSet<string>();
+foreach ( var spawnMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+	foreach ( var spawn in MissionData.Read( db, $"levels/{spawnMap}" ).Elements.Values.Where( e => e.Class is "ElementSpawnCivilian" or "ElementSpawnEnemyDummy" ) )
+		if ( NpcDefinition.ForUnit( spawn.Text( "enemy" ) ) is { } npc && npc.Unit != spawn.Text( "enemy" ) ) unmappedSpawns.Add( $"{spawn.Text( "enemy" )} -> {npc.Id}" );
+Console.WriteLine( $"  spawn units approximated by roster: {string.Join( "; ", unmappedSpawns )}" );
+Console.WriteLine( "PASS: nine mission script sets, startup scripts and mission unit references." );
 // Brush scatter (massunit). Every referenced unit must resolve through the installed lookup, as MapLoader does.
 var unitTypeHash = IdString.Hash( "unit" );
 var lookupUnits = new Dictionary<ulong, string>();

@@ -25,6 +25,34 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 		new( "swat", "SWAT", "units/characters/enemies/swat/swat", "amcar4", Health: 200 )
 	];
 	public static NpcDefinition Get( string id ) => All.First( n => n.Id == id );
+
+	/// <summary>
+	/// The closest roster entry for a mission spawn's unit path (<c>ElementSpawnCivilian/EnemyDummy.enemy</c>).
+	/// Exact units first, then family. Unported specials (FBI, heavy SWAT, Bulldozer, Shield, Taser, Cloaker,
+	/// gangsters, ...) fall back to SWAT for law enforcement; unknown civilians to the casual roster.
+	/// </summary>
+	public static NpcDefinition ForUnit( string unit )
+	{
+		if ( string.IsNullOrEmpty( unit ) ) return null;
+		if ( All.FirstOrDefault( n => n.Unit == unit ) is { } exact ) return exact;
+		string u = unit.ToLowerInvariant();
+		bool female = u.Contains( "female" ) || u.Contains( "woman" );
+		string id = u switch
+		{
+			_ when u.Contains( "/enemies/security" ) || u.Contains( "/enemies/guard" ) => "security",
+			_ when u.Contains( "/enemies/cop" ) || u.Contains( "/enemies/police" ) => "cop",
+			_ when u.Contains( "/enemies/" ) => "swat",
+			_ when u.Contains( "bank_manager" ) => "bank_manager",
+			_ when u.Contains( "hospital_doctor" ) => "doctor",
+			_ when u.Contains( "nurse" ) => female ? "nurse" : "nurse_male",
+			_ when u.Contains( "suburbia" ) => female ? "suburban_female" : "suburban_male",
+			_ when u.Contains( "builder" ) || u.Contains( "worker" ) => "builder",
+			_ when u.Contains( "butcher" ) => "butcher",
+			_ when u.Contains( "suit" ) || u.Contains( "bank" ) || u.Contains( "office" ) => female ? "bank_staff_female" : "bank_staff",
+			_ => female ? "civilian_female" : "civilian",
+		};
+		return Get( id );
+	}
 	public Dictionary<string, string> Clips()
 	{
 		if ( Civilian ) return new()

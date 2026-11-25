@@ -19,7 +19,8 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	MapMaterials materials;
 	MapLights lights;
 	Material sky;
-	int placed, missing;
+	HashSet<int> missionUnits = [];
+	int placed, missing, taggedUnits;
 
 	protected override void OnSceneUnloaded()
 	{
@@ -31,8 +32,12 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 
 	protected override void BuildScene()
 	{
-		placed = missing = 0;
+		placed = missing = taggedUnits = 0;
 		var db = Host.Database;
+		string levelDirectory = path[..path.LastIndexOf( '/' )];
+		MissionData mission = null;
+		try { mission = MissionData.Read( db, levelDirectory ); missionUnits = mission.ReferencedUnits(); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY {path} mission: {e.Message}" ); missionUnits = []; }
 		lights = new MapLights( db );
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
@@ -62,6 +67,11 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
+		if ( mission is { Elements.Count: > 0 } )
+		{
+			root.AddComponent<PaydayMission>().Level = levelDirectory;
+			Log.Info( $"PAYDAY {path}: mission has {mission.Scripts.Count} scripts, {mission.Elements.Count} elements; tagged {taggedUnits} of {missionUnits.Count} referenced units." );
+		}
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 
@@ -95,6 +105,16 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
+				if ( unit.GetValueOrDefault( "unit_id" ) is float unitId && missionUnits.Contains( (int)unitId ) )
+				{
+					// The mission can disable this unit or switch it to another sequence state at runtime.
+					go.IsStatic = false;
+					var marker = go.AddComponent<PaydayMissionUnit>();
+					marker.Id = (int)unitId;
+					marker.Unit = name;
+					marker.MaterialVariation = variation;
+					taggedUnits++;
+				}
 				if ( model.DoorParts is { } parts )
 				{
 					go.IsStatic = false;
