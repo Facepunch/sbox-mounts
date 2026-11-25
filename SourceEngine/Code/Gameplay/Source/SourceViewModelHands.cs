@@ -1,4 +1,6 @@
 using System;
+using Sandbox.Animation;
+using System.Runtime.CompilerServices;
 
 namespace Source1;
 
@@ -10,6 +12,7 @@ public sealed class SourceViewModelHands : Component
 	[Property] public SkinnedModelRenderer Source { get; set; }
 	SkinnedModelRenderer _hands;
 	Model _sourceModel;
+	Transform[] _sourcePose;
 	Model _failedModel;
 	bool _loading;
 	Transform[] _local;
@@ -18,7 +21,7 @@ public sealed class SourceViewModelHands : Component
 	bool[] _fingers;
 	bool[] _supported;
 	bool[] _contacts;
-	int[] _metacarpals;
+	int[] _aimChild;
 	(int End, int Hand)[] _arms;
 	int[] _mapping;
 	Transform?[] _gripPose;
@@ -29,9 +32,15 @@ public sealed class SourceViewModelHands : Component
 	(int Lower, int Hand, float Weight)[] _twists;
 	int _handMaterial = -1;
 	bool _mirrored;
-	Transform[] _sourcePose;
 	(int Lower, int Hand)[] _upperArms;
-	IDisposable _poseHook;
+	SourceAnimationPlayer _player;
+	sealed class HandClips
+	{
+		public Skeleton Skeleton;
+		public readonly Dictionary<Clip, Clip> Clips = new();
+	}
+	static readonly ConditionalWeakTable<Model, Dictionary<(Model, bool), HandClips>> Cache = new();
+	HandClips _clips;
 	bool _waitingForPose;
 	bool _renderGame;
 	bool _renderOverlay;
@@ -54,17 +63,8 @@ public sealed class SourceViewModelHands : Component
 		return slot;
 	}
 
-	protected override void OnEnabled()
-	{
-		// Camera placement dirties renderer transforms after animation. FinishUpdate
-		// rebuilds their render bones at priority 0, so retarget only after that pass.
-		_poseHook = Scene.AddHook( GameObjectSystem.Stage.FinishUpdate, 100, UpdatePose, nameof( SourceViewModelHands ), "Retarget after viewmodel transforms" );
-	}
-
 	protected override void OnDisabled()
 	{
-		_poseHook?.Dispose();
-		_poseHook = null;
 		Release();
 		_sourceModel = null;
 		_failedModel = null;
@@ -73,7 +73,7 @@ public sealed class SourceViewModelHands : Component
 	protected override void OnUpdate()
 	{
 		if ( !Source.IsValid() || !Source.Model.IsValid() || Source.Model.IsError ) return;
-		var stale = _sourceModel != Source.Model || _mirrored != SourceMirrored || _upperArms is null || _mapped is null || _supported is null || _contacts is null || _metacarpals is null || _palmOffsets is null;
+		var stale = _sourceModel != Source.Model || _mirrored != SourceMirrored || _player is null;
 		if ( !_loading && _failedModel != Source.Model && stale ) _ = Configure();
 		if ( _hands.IsValid() ) _hands.Enabled = Source.Enabled;
 	}
@@ -108,7 +108,8 @@ public sealed class SourceViewModelHands : Component
 			// Not the citizen arms these are fitted to: keep the gloves.
 			if ( arms.Bones.GetBone( "hand_L" ) is null || arms.Bones.GetBone( "hand_R" ) is null || arms.Bones.GetBone( "arm_lower_L" ) is null || arms.Bones.GetBone( "arm_lower_R" ) is null ) return;
 			Release();
-			_sourceModel = Source.Model;
+			_sourceModel = model;
+			_sourcePose = new Transform[model.BoneCount];
 			// Our own arm mesh is never drawn mirrored: it takes the mirrored pose on the opposite arm instead.
 			var go = new GameObject( _mirrored ? Source.GameObject.Parent : Source.GameObject, true, "Sandbox hands" );
 			if ( _mirrored ) go.LocalTransform = Source.LocalTransform.WithScale( 1 );
@@ -129,7 +130,7 @@ public sealed class SourceViewModelHands : Component
 			_fingers = new bool[bones.Count];
 			_supported = new bool[bones.Count];
 			_contacts = new bool[bones.Count];
-			_metacarpals = new int[bones.Count];
+			_aimChild = new int[bones.Count];
 			_arms = new (int, int)[bones.Count];
 			_mapping = new int[bones.Count];
 			_parents = new int[bones.Count];
@@ -139,7 +140,6 @@ public sealed class SourceViewModelHands : Component
 			_anchors = new int[bones.Count];
 			_twists = new (int, int, float)[bones.Count];
 			_upperArms = new (int, int)[bones.Count];
-			_sourcePose = new Transform[model.Bones.AllBones.Count];
 			var mesh = new SourceHandPose.HandMesh( model );
 			var referenceMesh = new SourceHandPose.HandMesh( reference );
 			var wristMesh = new SourceHandPose.HandMesh( wristReference );
@@ -157,7 +157,7 @@ public sealed class SourceViewModelHands : Component
 			{
 				var bone = bones[i];
 				_fingers[i] = bone.Name.StartsWith( "finger_" );
-				_metacarpals[i] = bone.Name.Contains( "_meta_" ) ? bones.FirstOrDefault( b => b.Parent == bone )?.Index ?? -1 : -1;
+				_aimChild[i] = _fingers[i] ? bones.FirstOrDefault( b => b.Parent == bone )?.Index ?? -1 : -1;
 				_supported[i] = (!bone.Name.Contains( "_L" ) || hasLeft) && (!bone.Name.Contains( "_R" ) || hasRight);
 				_arms[i] = (-1, -1);
 				if ( bone.Name.StartsWith( "arm_" ) && !bone.Name.Contains( "twist" ) )
@@ -223,9 +223,14 @@ public sealed class SourceViewModelHands : Component
 				if ( fit.HasValue )
 					_palmOffsets[hand.Index] = wrist.WithRotation( wrist.Rotation * _axes[hand.Index] ).ToLocal( fit.Value.ToWorld( hand.LocalTransform ) );
 			}
-			for ( var i = 0; i < bones.Count; i++ )
-				if ( _fingers[i] && !_contacts[i] )
-					_metacarpals[i] = bones.FirstOrDefault( child => child.Parent == bones[i] )?.Index ?? -1;
+			var rigs = Cache.GetOrCreateValue( model );
+			if ( !rigs.TryGetValue( (arms, _mirrored), out _clips ) )
+			{
+				var skeleton = new SkeletonBuilder();
+				foreach ( var bone in bones ) skeleton.AddBone( bone.Name, _local[bone.Index], bone.Parent?.Name );
+				rigs[(arms, _mirrored)] = _clips = new HandClips { Skeleton = skeleton.Create() };
+			}
+			_player = new SourceAnimationPlayer();
 			_handMaterial = HideOriginalHands( Source );
 			_failedModel = null;
 			configured = true;
@@ -301,11 +306,7 @@ public sealed class SourceViewModelHands : Component
 	/// <summary>Reflects a model space transform across the viewmodel's forward-up plane, as a proper rotation.</summary>
 	static Transform Mirror( Transform t ) => new( t.Position * new Vector3( 1, -1, 1 ), new Rotation( -t.Rotation.x, t.Rotation.y, -t.Rotation.z, t.Rotation.w ), t.Scale );
 
-	/// <summary>
-	/// Bip01 bones share one axis convention, fixed up by roll. Other rigs (Counter-Strike: Source's
-	/// v_weapon) use different axes, so match each bone's bind frame using the finger or arm direction
-	/// and an axis from the palm.
-	/// </summary>
+	/// <summary>Aligns the source and target bind frames using the palm and joint directions.</summary>
 	void FitRigAxes( Model arms )
 	{
 		var bones = arms.Bones.AllBones;
@@ -325,7 +326,7 @@ public sealed class SourceViewModelHands : Component
 		for ( var i = 0; i < bones.Count; i++ )
 		{
 			var name = bones[i].Name;
-			if ( _mapping[i] < 0 || _sourceModel.Bones.AllBones[_mapping[i]].Name.Contains( "Bip01" ) ) continue;
+			if ( _mapping[i] < 0 ) continue;
 			var side = name[^1];
 			int? next;
 			var transverse = false;
@@ -347,24 +348,49 @@ public sealed class SourceViewModelHands : Component
 		}
 	}
 
-	/// <summary>A source bone where the world sees it. Mirrored viewmodels are read in model space, as their world transforms carry the reflection.</summary>
-	Transform SourcePose( int index ) => _mirrored ? _sourcePose[index] : Source.SceneModel.GetBoneWorldTransform( index );
-
-	/// <summary>The frame the hands are posed in: the viewmodel's, without its mirroring.</summary>
-	Transform HandsFrame => _mirrored ? new Transform( Source.WorldPosition, Source.WorldRotation ) : Source.WorldTransform;
-
-	void ReadMirroredPose()
+	// Retarget before the viewmodel lens stretches the rendered pose.
+	Clip Retarget( Clip source )
 	{
-		var bones = _sourceModel.Bones.AllBones;
-		var frame = HandsFrame;
-		Array.Clear( _sourcePose );
-		for ( var i = 0; i < bones.Count; i++ )
+		if ( _clips.Clips.TryGetValue( source, out var result ) ) return result;
+		var builder = new ClipBuilder { Skeleton = _clips.Skeleton, FrameRate = source.FrameCount == 1 ? 1 : source.FrameRate, IsAdditive = source.IsAdditive };
+		var target = new Transform[_pose.Length];
+		var bones = source.Skeleton.Bones;
+		var indices = bones.Select( bone => _sourceModel.Bones.GetBone( bone.Name )?.Index ?? -1 ).ToArray();
+		var sourcePose = new Transform[bones.Count];
+		foreach ( var bone in _sourceModel.Bones.AllBones ) _sourcePose[bone.Index] = SourceBind( bone.Index );
+		Transform ParentLocal( int i ) => _parents[i] < 0 ? _pose[i] : !_supported[_parents[i]] ? _local[i] : _pose[_parents[i]].ToLocal( _pose[i] );
+		// A delta must be measured against the same fitted grip as the animation.
+		Transform[] reference = null;
+		if ( source.IsAdditive )
 		{
-			var local = Source.SceneModel.GetBoneLocalTransform( i );
-			_sourcePose[i] = bones[i].Parent is { } parent ? _sourcePose[parent.Index].ToWorld( local ) : local;
+			RetargetPose();
+			reference = Enumerable.Range( 0, target.Length ).Select( ParentLocal ).ToArray();
 		}
-		for ( var i = 0; i < bones.Count; i++ )
-			_sourcePose[i] = frame.ToWorld( Mirror( _sourcePose[i] ) );
+		for ( var frame = 0; frame < source.FrameCount; frame++ )
+		{
+			var cycle = frame / (float)Math.Max( 1, source.FrameCount - 1 );
+			foreach ( var bone in bones )
+			{
+				var local = source.GetLocalTransform( cycle, bone.Index );
+				if ( source.IsAdditive )
+				{
+					var bind = bone.LocalTransform;
+					local = new Transform( bind.Position + local.Position, bind.Rotation * local.Rotation, bind.Scale + local.Scale );
+				}
+				var pose = bone.ParentIndex < 0 ? local : sourcePose[bone.ParentIndex].ToWorld( local );
+				sourcePose[bone.Index] = pose;
+				if ( indices[bone.Index] >= 0 ) _sourcePose[indices[bone.Index]] = _mirrored ? Mirror( pose ) : pose;
+			}
+			RetargetPose();
+			for ( var i = 0; i < target.Length; i++ )
+			{
+				var local = ParentLocal( i );
+				target[i] = reference is null ? local : new Transform( local.Position - reference[i].Position,
+					reference[i].Rotation.Inverse * local.Rotation, local.Scale - reference[i].Scale );
+			}
+			builder.AddFrame( target );
+		}
+		return _clips.Clips[source] = builder.Create();
 	}
 
 	int FindAnchor( Transform? recovered, Model reference, string side )
@@ -377,18 +403,14 @@ public sealed class SourceViewModelHands : Component
 			.OrderBy( b => b.LocalTransform.Position.DistanceSquared( hand ) ).FirstOrDefault()?.Index ?? -1;
 	}
 
-	void UpdatePose()
+	void RetargetPose()
 	{
-		if ( !_hands.IsValid() || !_hands.SceneModel.IsValid() || !Source.IsValid() || !Source.SceneModel.IsValid()
-			|| !_sourceModel.IsValid() || _pose is null || _upperArms is null || _mapped is null || _supported is null || _contacts is null || _anchors is null || _metacarpals is null ) return;
-		var bounds = Source.SceneModel.Bounds;
-		if ( _mirrored ) ReadMirroredPose();
 		for ( var i = 0; i < _pose.Length; i++ )
 		{
-			Transform? mapped = _mapping[i] >= 0 ? SourcePose( _mapping[i] )
-				: _anchors[i] >= 0 && _gripPose[i].HasValue ? SourcePose( _anchors[i] ).ToWorld( _gripPose[i].Value ) : null;
+			Transform? mapped = _mapping[i] >= 0 ? _sourcePose[_mapping[i]]
+				: _anchors[i] >= 0 && _gripPose[i].HasValue ? _sourcePose[_anchors[i]].ToWorld( _gripPose[i].Value ) : null;
 			_mapped[i] = mapped.HasValue ? mapped.Value.WithRotation( mapped.Value.Rotation * _axes[i] ) : null;
-			if ( _palmOffsets?[i] is { } palm && _mapped[i] is { } wrist ) _mapped[i] = wrist.ToWorld( palm );
+			if ( _palmOffsets?[i] is { } palm && _mapped[i] is { } wrist ) _mapped[i] = wrist.ToWorld( palm ).WithScale( wrist.Scale );
 		}
 		// A rig without upper arms (Counter-Strike: Source's) still drives our elbow: continue the forearm's line back.
 		for ( var i = 0; i < _pose.Length; i++ )
@@ -406,22 +428,17 @@ public sealed class SourceViewModelHands : Component
 			if ( arm.End < 0 || arm.End != arm.Hand || _mapped[i] is not { } elbow || _mapped[arm.Hand] is not { } hand ) continue;
 			var direction = (hand.Position - elbow.Position).Normal;
 			var forward = hand.Rotation.Forward;
-			if ( direction.Dot( forward ) < 0.8f )
-			{
-				direction = Vector3.Lerp( direction, forward, 0.65f ).Normal;
-				_mapped[i] = elbow.WithPosition( hand.Position - direction * _local[arm.Hand].Position.Length );
-			}
+			var bend = (1 - direction.Dot( forward )).Clamp( 0, 1 );
+			direction = Vector3.Lerp( direction, forward, bend * 0.65f ).Normal;
+			_mapped[i] = elbow.WithPosition( hand.Position - direction * _local[arm.Hand].Position.Length );
 		}
 		for ( var i = 0; i < _pose.Length; i++ )
 		{
-			var pose = _parents[i] < 0 ? HandsFrame.ToWorld( _local[i] ) : _pose[_parents[i]].ToWorld( _local[i] );
+			var pose = _parents[i] < 0 ? _local[i] : _pose[_parents[i]].ToWorld( _local[i] );
 			if ( _mapped[i] is { } mapped )
 			{
-				// Authored finger joints are weapon contact points. Keeping our longer
-				// finger segments here pushes the tips through narrow grips and pumps.
-				// Only synthesized fingers retain our bind lengths: the pistol fallback
-				// is a rotation reference, not a contact pose for another weapon.
-				pose = _fingers[i] && !_contacts[i] ? pose.WithRotation( mapped.Rotation ) : mapped;
+				// Transfer the curl while keeping the replacement fingers attached at their own joint lengths.
+				pose = _fingers[i] && (!_contacts[i] || _parents[i] >= 0 && _contacts[_parents[i]] && _fingers[_parents[i]]) ? pose.WithRotation( mapped.Rotation ) : mapped;
 				var arm = _arms[i];
 				if ( arm.End >= 0 && _mapped[arm.End] is { } end && _mapped[arm.Hand] is { } hand )
 					pose = pose.WithRotation( Rotation.LookAt( end.Position - pose.Position, hand.Rotation.Up ) );
@@ -429,7 +446,7 @@ public sealed class SourceViewModelHands : Component
 			// Source has no separate metacarpals. Aim our palm bones and any
 			// unrecovered finger segment at its next known contact, instead of
 			// leaving it in the replacement mesh's open-hand bind orientation.
-			var knuckle = _metacarpals[i];
+			var knuckle = _aimChild[i];
 			if ( knuckle >= 0 && _mapped[knuckle] is { } contact && _contacts[knuckle] )
 			{
 				var from = pose.Rotation * _local[knuckle].Position;
@@ -443,14 +460,17 @@ public sealed class SourceViewModelHands : Component
 					Rotation.Slerp( _pose[twist.Lower].Rotation, _pose[twist.Hand].Rotation, twist.Weight ) );
 			// Match the hands actually present in the mounted viewmodel. An absent
 			// arm has no authored grip or animation and must not be synthesized.
-			if ( !_supported[i] ) pose = new Transform( Source.WorldPosition, Rotation.Identity, Vector3.Zero );
+			if ( !_supported[i] ) pose = new Transform( Vector3.Zero, Rotation.Identity, Vector3.Zero );
 			_pose[i] = pose;
-			_hands.SceneModel.SetBoneWorldTransform( i, pose );
-			bounds = bounds.AddPoint( pose.Position );
+
 		}
-		// Direct bone writes don't rebuild the model's authored culling bounds.
-		// Include the retargeted pose, otherwise camera turns can cull visible hands.
-		_hands.SceneModel.Bounds = bounds.Grow( 4 );
+	}
+
+	internal void Animate( SourceAnimationPlayer weapon, (string Name, bool Loop)[] choices )
+	{
+		if ( _loading || _player is null || !_hands.IsValid() || !_hands.SceneModel.IsValid() ) return;
+		if ( !_player.IsReady && !_player.Ensure( _hands, choices, weapon.Current, _sourceModel, _clips.Skeleton, Retarget ) ) return;
+		weapon.ApplySequence( _hands );
 		if ( _waitingForPose && !_loading )
 		{
 			Source.RenderOptions.Game = _renderGame;
@@ -463,6 +483,8 @@ public sealed class SourceViewModelHands : Component
 
 	void Release()
 	{
+		_player?.Dispose();
+		_player = null;
 		if ( Source.IsValid() && _waitingForPose && !_loading )
 		{
 			Source.RenderOptions.Game = _renderGame;

@@ -339,6 +339,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 			else Play( _clips.Idle );
 		}
 		_animation.Tick();
+		GetComponent<SourceViewModelHands>()?.Animate( _animation, _choices );
 	}
 
 	/// <summary>

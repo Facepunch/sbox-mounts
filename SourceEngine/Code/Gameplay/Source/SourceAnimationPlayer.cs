@@ -103,13 +103,16 @@ public sealed class SourceAnimationPlayer : IDisposable
 	/// Builds the graph once per model, starting directly in <paramref name="initial"/> so the first clip does not blend in from another.
 	/// A model with none of the choices playable is not tried again.
 	/// </summary>
-	public bool Ensure( SkinnedModelRenderer renderer, IEnumerable<(string Name, bool Loop)> choices, string initial = null )
+	public bool Ensure( SkinnedModelRenderer renderer, IEnumerable<(string Name, bool Loop)> choices, string initial = null,
+		Model animationModel = null, Skeleton targetSkeleton = null, Func<Clip, Clip> retarget = null )
 	{
-		if ( !renderer.IsValid() || !renderer.Model.IsValid() || !renderer.Model.AnimationSkeleton().IsValid() ) return false;
-		if ( _model == renderer.Model && _graph.IsValid() ) return true;
-		if ( _unplayable == renderer.Model ) return false;
+		if ( !renderer.IsValid() || !renderer.Model.IsValid() ) return false;
+		animationModel ??= renderer.Model;
+		if ( !animationModel.AnimationSkeleton().IsValid() ) return false;
+		if ( _model == animationModel && _graph.IsValid() ) return true;
+		if ( _unplayable == animationModel ) return false;
 		Dispose();
-		_model = renderer.Model;
+		_model = animationModel;
 		_renderer = renderer;
 		_sequences = SourceModelSequences.Of( _model );
 		_eventSounds.Clear();
@@ -124,12 +127,17 @@ public sealed class SourceAnimationPlayer : IDisposable
 			return false;
 		}
 
-		if ( !Application.IsDedicatedServer )
+		if ( retarget is null && !Application.IsDedicatedServer )
 			foreach ( var sound in _sequences.All.SelectMany( s => s.Events ).Where( SourceSounds.IsSoundEvent ).Select( e => e.Options ).Distinct() )
 				if ( !string.IsNullOrWhiteSpace( sound ) ) _eventSounds[sound] = SourceSounds.Sound( sound, SourceMount.Of( _model ) );
 
 		var builder = Graph.Builder;
-		builder.Skeleton = _model.AnimationSkeleton().Name;
+		builder.WithSkeleton( targetSkeleton ?? _model.AnimationSkeleton() );
+		Clip ResolveClip( string name )
+		{
+			var clip = _model.AnimationClips()[name];
+			return retarget is null ? clip : retarget( clip );
+		}
 		// Two playback slots let a repeated shot crossfade from the current pose.
 		// ResetTime on a shared parameter also rewinds the outgoing clip, causing
 		// a visible snap on shots, shell inserts and interrupted reloads.
@@ -210,7 +218,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 
 		GraphBuilder.Node Cell( string clip, bool loop )
 		{
-			var animation = _model.AnimationClips()[clip];
+			var animation = ResolveClip( clip );
 			return animation.FrameCount <= 1
 				? builder.Pose( animation, new GraphBuilder.PoseSettings() )
 				: builder.Clip( animation, new() { Looping = loop, SampleRootMotion = false } );
@@ -242,13 +250,13 @@ public sealed class SourceAnimationPlayer : IDisposable
 			{
 				var blend = builder.BlendSpace( poseParameters[sequence.BlendParameter], looping: false );
 				for ( var i = 0; i < sequence.BlendClips.Length; i++ )
-					blend.Add( sequence.BlendPositions[i], builder.Pose( _model.AnimationClips()[sequence.BlendClips[i]], new GraphBuilder.PoseSettings() ) );
+					blend.Add( sequence.BlendPositions[i], builder.Pose( ResolveClip( sequence.BlendClips[i] ), new GraphBuilder.PoseSettings() ) );
 				return blend;
 			}
 			var metadata = _sequences.Get( name );
 			if ( UseBlendGrids && metadata is { Delta: false } && HasGrid( metadata ) )
 				return Grid( metadata );
-			return builder.Clip( _model.AnimationClips()[name], new() { Looping = metadata?.Looping ?? loop, SampleRootMotion = false } );
+			return builder.Clip( ResolveClip( name ), new() { Looping = metadata?.Looping ?? loop, SampleRootMotion = false } );
 		}
 
 		// One state per key, switched by an id parameter, with a transition from every state to every other.
@@ -279,7 +287,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 			// as a one-shot fades out before its end and a caller may loop a non-looping clip.
 			// The inactive state must share the clips' parent space; ZeroPose is additive.
 			var machine = Selector( overlay.Id, overlay.Keys, i => i == 0 ? builder.ReferencePose()
-				: builder.SpeedScale( builder.Clip( _model.AnimationClips()[ClipOf( overlay.Keys[i] )], new() { Looping = true, SampleRootMotion = false } ), overlay.Rates[SlotOf( overlay.Keys[i] )] ),
+				: builder.SpeedScale( builder.Clip( ResolveClip( ClipOf( overlay.Keys[i] ) ), new() { Looping = true, SampleRootMotion = false } ), overlay.Rates[SlotOf( overlay.Keys[i] )] ),
 				( _, _ ) => 0.15f );
 			layers.AddLayer( machine, new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, IgnoreEvents = true, Weight = overlay.Weight, BoneMask = OverlayMask( builder, overlay.Keys, overlay.Id ) } );
 
@@ -305,7 +313,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 		{
 			var blend = builder.BlendSpace( poseParameters[pose.Parameter], looping: false );
 			for ( var i = 0; i < pose.Clips.Length; i++ )
-				blend.Add( pose.Positions[i], builder.Pose( _model.AnimationClips()[pose.Clips[i]], new GraphBuilder.PoseSettings() ) );
+				blend.Add( pose.Positions[i], builder.Pose( ResolveClip( pose.Clips[i] ), new GraphBuilder.PoseSettings() ) );
 			layers.AddLayer( blend, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true } );
 		}
 		foreach ( var sequence in additive )
@@ -314,7 +322,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 		{
 			// One-shot additive gestures, two slots each so a repeat restarts cleanly.
 			var gestures = Selector( gestureId, gestureKeys, i => i == 0 ? builder.ZeroPose()
-				: builder.Clip( _model.AnimationClips()[ClipOf( gestureKeys[i] )], new() { Looping = false, SampleRootMotion = false } ), ( _, _ ) => 0.1f );
+				: builder.Clip( ResolveClip( ClipOf( gestureKeys[i] ) ), new() { Looping = false, SampleRootMotion = false } ), ( _, _ ) => 0.1f );
 			layers.AddLayer( gestures, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true, Weight = gestureWeight } );
 		}
 		GraphBuilder.Node root = layers;
@@ -422,15 +430,21 @@ public sealed class SourceAnimationPlayer : IDisposable
 		_rates[_slot] = _rate;
 	}
 
-	public void Tick()
+	internal void ApplySequence( SkinnedModelRenderer renderer )
 	{
-		if ( !IsReady ) return;
-		var parameters = _renderer.Animation.Parameters;
+		var parameters = renderer.Animation.Parameters;
 		parameters.TrySet( "sequence", _selection );
 		parameters.TrySet( "rate0", _rates[0] );
 		parameters.TrySet( "rate1", _rates[1] );
 		foreach ( var pose in _poses.Values )
 			parameters.TrySet( pose.Key, _axes.TryGetValue( pose.Name, out var axis ) ? Wrap( axis, pose.Value ) : pose.Value );
+	}
+
+	public void Tick()
+	{
+		if ( !IsReady ) return;
+		ApplySequence( _renderer );
+		var parameters = _renderer.Animation.Parameters;
 		foreach ( var layer in _layerWeights.Values )
 			parameters.TrySet( layer.Key, layer.Value );
 		if ( _gestures.Length > 0 )
