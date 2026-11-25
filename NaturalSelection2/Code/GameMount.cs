@@ -114,6 +114,7 @@ public class GameMount : BaseGameMount
 		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
 		Mac.RegisterSounds( context );
 		context.Add( ResourceType.GameResource, $"sounds/{Marine.RifleSound}.sound", new SparkSoundLoader( Marine.RifleSound ) );
+		context.Add( ResourceType.GameResource, $"sounds/{Marine.PistolSound}.sound", new SparkSoundLoader( Marine.PistolSound ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )

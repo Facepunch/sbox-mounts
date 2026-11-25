@@ -194,7 +194,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 		AlienMelee.PlayImpact( hit, stab ? AlienMelee.Attack.Stab : AlienMelee.Attack.Swipe );
 		if ( victim is not Component target ) return;
 
-		bool player = target.GameObject.Tags.HasAny( "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
+		bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
 		float amount = player ? 75 : 37.5f;
 		if ( stab )
 		{
