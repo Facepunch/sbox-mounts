@@ -762,7 +762,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	TimeUntil meleeEnds;
-	(double Time, float Damage, GameObject Attacker)? pendingStrike;
 
 	public override bool CanReload() => meleeEnds <= 0 && CanUseHeldWeapon && base.CanReload();
 
@@ -796,8 +795,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		float duration = CooldownSeconds( clip.Frames );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
 		PlayMeleeAnimation( firstStrike, duration, CooldownSeconds( recovery ) );
-		pendingStrike = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact
-			? (Time.NowDouble + impact.Frame / 30.0, StrikeDamage(), Attacker) : null;
+		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact )
+			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), Time.NowDouble + impact.Frame / 30.0 );
 	}
 
 	FirstPersonAnimation FirstPersonAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
@@ -816,7 +815,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		PlayHolderOverlay( action );
 	}
 
-	float StrikeDamage()
+	float StrikeFraction()
 	{
 		var holder = Holder;
 		var player = holder as PlayerController;
@@ -824,8 +823,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( holder?.GameObject );
 		float forward = Vector3.Dot( velocity, horizontalAim ) / 120;
 		// The action stores a byte at swing start. A moving strike uses 127 of the 255 damage steps.
-		float fraction = MeleeForwardSpeed > 0 && forward / MeleeForwardSpeed > 0.9f ? 127f / 255f : 0;
-		return (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
+		return MeleeForwardSpeed > 0 && forward / MeleeForwardSpeed > 0.9f ? 127f / 255f : 0;
 	}
 
 	protected override void OnUpdate()
@@ -836,15 +834,28 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			CreateWorldModel();
 		UpdateWorldAnimations();
 		heldModel?.UpdateChamberPose();
-		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
-		pendingStrike = null;
+	}
+
+	async System.Threading.Tasks.Task ResolveStrike( BaseInventoryComponent inventory, GameObject attacker, float fraction, double impactAt )
+	{
+		// The unit owns the swing. Its equipped weapon supplies the contact geometry on the impact tick.
+		var clock = TaskSource.Create( (inventory?.GameObject ?? GameObject).EnabledToken );
+		while ( Time.NowDouble < impactAt ) await clock.Frame();
+		var weapon = inventory.IsValid() ? inventory.ActiveItem as Shotgun : null;
+		if ( inventory is null && IsValid && !IsHeld ) weapon = this;
+		if ( weapon.IsValid() ) weapon.MeleeContact( attacker, fraction );
+	}
+
+	void MeleeContact( GameObject attacker, float fraction )
+	{
 		var aim = Holder is PlayerController player ? player.EyeTransform.ForwardRay : AimRay;
 		var hit = TraceMelee( aim, out var impactPosition );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
-		ApplyDelayedHit( hit, strike.Damage * BodyMaterial.DamageScale( hit, MeleeBodyScales, MeleeExplosive ), MeleeForce, strike.Attacker, new TagSet { "melee" }, false );
+		float damage = (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
+		ApplyDelayedHit( hit, damage * BodyMaterial.DamageScale( hit, MeleeBodyScales, MeleeExplosive ), MeleeForce, attacker, new TagSet { "melee" }, false );
 	}
 
 	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
@@ -939,7 +950,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		{
 			requestedItem = next;
 			CancelReload();
-			pendingStrike = null;
 			BeginPutAway( clip.Frames );
 		}
 		return false;
@@ -997,7 +1007,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void OnDisabled()
 	{
 		ClearPutAway();
-		pendingStrike = null;
 		firstInsertAt = null;
 		chamberRenderer = null;
 		base.OnDisabled();
@@ -1009,7 +1018,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		HolderAnimator?.StopWeaponOverlay( "ready" );
 		triggerConsumed = false;
 		SetNextPrimaryFire( BarrelRecoveryTime );
-		pendingStrike = null;
 		meleeEnds = default;
 		base.OnHolstered();
 	}
