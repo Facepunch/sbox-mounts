@@ -51,6 +51,9 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 	public void Scare( GameObject source )
 		=> Scare( source, true );
 
+	/// <summary>A mission order was assigned or removed: drop the current schedule so it's reselected.</summary>
+	internal void ReceiveOrder() => EndCurrentSchedule();
+
 	void Scare( GameObject source, bool warnOthers )
 	{
 		if ( !Networking.IsHost || Health <= 0 || Surrendered || !source.IsValid() ) return;
@@ -98,6 +101,12 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 				escape.Exit = exit; return escape;
 			}
 			var flee = GetSchedule<FleeSchedule>(); flee.Source = threat; flee.PanicLevel = .7f; return flee;
+		}
+		// Mission special objective (walk to a point and stay), unless surrendered or panicking (handled above).
+		if ( PaydayMissionOrder.Active( this ) is { } order )
+		{
+			if ( order.Arrived ) return GetSchedule<PaydayHoldObjective>();
+			var objective = GetSchedule<PaydayObjectiveSchedule>(); objective.Order = order; return objective;
 		}
 		return Wander ? GetSchedule<WanderSchedule>() : GetSchedule<IdleSchedule>();
 	}

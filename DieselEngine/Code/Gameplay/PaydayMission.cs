@@ -1,3 +1,5 @@
+using Sandbox.Npcs;
+
 namespace Diesel;
 
 /// <summary>
@@ -36,6 +38,26 @@ public sealed class PaydayMission : Component
 	readonly Dictionary<string, PrefabFile> prefabs = [];
 	/// <summary>ElementUnitSequenceTrigger ids listening for (unit_id, sequence).</summary>
 	readonly Dictionary<(int Unit, string Sequence), List<int>> sequenceTriggers = [];
+
+	/// <summary>ElementEnemyDummyTrigger (trigger id, event) per spawn element it watches.</summary>
+	readonly Dictionary<int, List<(int Trigger, string Event)>> npcTriggers = [];
+	/// <summary>
+	/// NPC events this runtime produces. Shipped missions listen for spawn 209, death 166, anim_act_01–04 29 and panic 2
+	/// (verifier); tied/fled are produced too but never listened for in PDTH.
+	/// </summary>
+	static readonly HashSet<string> NpcEvents = ["spawn", "death", "panic", "anim_act_01", "anim_act_02", "anim_act_03", "anim_act_04", "fled", "tied"];
+
+	/// <summary>ElementSpecialObjectiveTrigger (trigger id, event) per special objective it watches.</summary>
+	readonly Dictionary<int, List<(int Trigger, string Event)>> objectiveTriggers = [];
+	sealed class ActiveOrder { public int Element; public TrackedNpc Npc; public PaydayMissionOrder Order; public float Expires, ArrivedAt; public int Acts; public bool Started, Completed; }
+	readonly List<ActiveOrder> orders = [];
+	readonly List<(MissionData.Element Element, GameObject Instigator, float Expires)> pendingObjectives = [];
+	readonly Dictionary<string, int> objectiveEventsFired = [];
+	int navigationLinksSkipped;
+	sealed class TrackedNpc { public GameObject Go; public int Element, Group; public bool Dead, Tied, Panicked; }
+	readonly List<TrackedNpc> spawned = [];
+	readonly Dictionary<string, int> npcEventsFired = [];
+	TimeUntil nextNpcPoll;
 	PaydayMount mount;
 	bool loaded, started;
 	string loadProblem = "OnLoad has not run";
@@ -71,6 +93,23 @@ public sealed class PaydayMission : Component
 			+ $"{spawners.Count( e => activeScripts.Contains( e.Script ) && e.ExecuteOnStartup )} run at startup; prefabs loaded: "
 			+ string.Join( ", ", prefabs.Select( p => $"{p.Key}={(p.Value is null ? "FAILED" : "ok")}" ) ) );
 		Log.Info( $"  spawns: {(spawnLog.Count == 0 ? "none attempted" : string.Join( " | ", spawnLog.TakeLast( 10 ) ))}" );
+		var armed = Scene.GetAllComponents<PaydayCombatNpc>().Where( n => n.IsValid() ).ToList();
+		Log.Info( $"  armed NPCs in scene: {armed.Count}" );
+		foreach ( var npc in armed.Take( 16 ) )
+		{
+			var source = npc.GameObject.Components.Get<PaydayMissionSpawn>();
+			var element = source is not null && data.Elements.TryGetValue( source.ElementId, out var spawnElement ) ? spawnElement : null;
+			var order = PaydayMissionOrder.Active( npc );
+			Log.Info( $"    {npc.GameObject.Name} at {npc.WorldPosition}: doing {npc.ActiveSchedule?.GetType().Name ?? "nothing"}"
+				+ (element is null ? ", not mission-spawned" : $", spawned by {element.Id} '{element.Name}' ({element.Script}) at {Coordinates.Position( element.Position )}")
+				+ (order is null ? "" : $", order {order.Element} -> {order.Target}{(order.Arrived ? " (arrived)" : "")}")
+				+ (npc.ReportedPosition is { } reported ? $", investigating report at {reported}" : "") );
+		}
+		Log.Info( $"  special objectives: {orders.Count( o => !o.Completed )} in progress, {orders.Count( o => o.Completed )} completed, {pendingObjectives.Count} waiting for an NPC, "
+			+ $"{navigationLinksSkipped} navigation links skipped; events fired {(objectiveEventsFired.Count == 0 ? "none" : string.Join( ", ", objectiveEventsFired.Select( e => $"{e.Key}×{e.Value}" ) ))}" );
+		var listened = npcTriggers.Values.SelectMany( w => w ).GroupBy( w => w.Event ).ToDictionary( g => g.Key, g => g.Count() );
+		Log.Info( $"  NPC events: tracking {spawned.Count} mission NPCs; fired {(npcEventsFired.Count == 0 ? "none" : string.Join( ", ", npcEventsFired.Select( e => $"{e.Key}×{e.Value}" ) ))}; "
+			+ $"listened {string.Join( ", ", listened.Select( e => $"{e.Key}×{e.Value}{(NpcEvents.Contains( e.Key ) ? "" : "(undetected)")}" ) )}" );
 		var interactive = units.Keys.Select( u => (Unit: u, Sequence: InteractionFor( u )) ).Where( u => u.Sequence is not null ).ToList();
 		var endurance = Scene.GetAllComponents<PaydayMissionUnit>().Where( u => u.Breakable ).ToList();
 		Log.Info( $"  breakable by unit damage rules: {endurance.Count} placements ({string.Join( ", ", endurance.GroupBy( u => u.Unit[(u.Unit.LastIndexOf( '/' ) + 1)..] ).OrderByDescending( g => g.Count() ).Take( 8 ).Select( g => $"{g.Key}×{g.Count()}" ) )}); endurance stages run: {PaydayMissionUnit.BrokenStages}" );
@@ -101,6 +140,15 @@ public sealed class PaydayMission : Component
 		foreach ( var element in data.Elements.Values )
 		{
 			states[element.Id] = new State { Enabled = element.Enabled, Remaining = element.TriggerTimes, Counter = (int)element.Number( "counter_target" ) };
+			if ( element.Class is "ElementEnemyDummyTrigger" or "ElementSpecialObjectiveTrigger" && element.Text( "event" ) is { Length: > 0 } watchedEvent )
+			{
+				var index = element.Class == "ElementEnemyDummyTrigger" ? npcTriggers : objectiveTriggers;
+				foreach ( int source in element.Ids( "elements" ) )
+				{
+					if ( !index.TryGetValue( source, out var watchers ) ) index[source] = watchers = [];
+					watchers.Add( (element.Id, watchedEvent) );
+				}
+			}
 			if ( element.Class != "ElementUnitSequenceTrigger" ) continue;
 			foreach ( var entry in element.Values.Table( "sequence_list" )?.Children ?? [] )
 				if ( entry.GetValueOrDefault( "unit_id" ) is float unit && entry.Text( "sequence" ) is { Length: > 0 } sequence )
@@ -167,6 +215,7 @@ public sealed class PaydayMission : Component
 			runningDevices.Remove( unit );
 			RunSequence( unit, sequence, 0, by );
 		}
+		if ( nextNpcPoll <= 0 ) { nextNpcPoll = 0.25f; PollNpcs(); PollObjectives( now ); }
 		UpdateAreas( now );
 	}
 
@@ -251,11 +300,16 @@ public sealed class PaydayMission : Component
 				if ( element.Flag( "random" ) ) members = members.OrderBy( _ => Game.Random.Float() ).ToList();
 				int amount = (int)element.Number( "amount" );
 				foreach ( int member in amount > 0 ? members.Take( amount ) : members )
-					Spawn( data.Elements[member], enemy: enemyGroup );
+					Spawn( data.Elements[member], enemy: enemyGroup, group: element.Id );
 				break;
 			}
 			// Handled elsewhere or meaningless in the sandbox: area triggers fire from UpdateAreas, flee points are
 			// imported at build time, the sandbox owns player spawning/state, and difficulty is fixed.
+			case "ElementSpecialObjective":
+				Administer( element, instigator );
+				break;
+			case "ElementSpecialObjectiveTrigger": // fired by FireObjectiveEvent; executing it just passes on.
+			case "ElementEnemyDummyTrigger": // fired by FireNpcEvent; executing it just passes on.
 			case "ElementUnitSequenceTrigger": // fired by NotifySequence; executing it just passes on.
 			case "ElementAreaTrigger":
 			case "ElementFleePoint":
@@ -390,7 +444,7 @@ public sealed class PaydayMission : Component
 		}
 	}
 
-	void Spawn( MissionData.Element element, bool enemy )
+	void Spawn( MissionData.Element element, bool enemy, int group = 0 )
 	{
 		string unit = element.Text( "enemy" );
 		if ( NpcDefinition.ForUnit( unit ) is not { } npc ) { spawnLog.Add( $"{element.Id}: no roster match for {unit}" ); return; }
@@ -398,8 +452,164 @@ public sealed class PaydayMission : Component
 		if ( enemy != !npc.Civilian ) { spawnLog.Add( $"{element.Id}: {unit} mapped to {npc.Id}, wrong side" ); return; }
 		var transform = new Transform( Coordinates.Position( element.Position ), Coordinates.Rotation( element.Rotation ) );
 		var go = GameObject.Clone( prefab, transform );
+		go.AddComponent<PaydayMissionSpawn>().ElementId = element.Id;
 		go.NetworkSpawn();
 		spawnLog.Add( $"{element.Id}: {npc.Id} at {transform.Position}" );
+		spawned.Add( new TrackedNpc { Go = go, Element = element.Id, Group = group } );
+		FireNpcEvent( element.Id, "spawn", go );
+		if ( group != 0 ) FireNpcEvent( group, "spawn", go );
+	}
+
+	/// <summary>
+	/// Poll mission spawns for ElementEnemyDummyTrigger events: death (health ≤ 0), fled (removed while alive, e.g. reached an
+	/// escape point), tied (civilian surrendered) and panic (civilian panicking). Each fires once per NPC.
+	/// </summary>
+	void PollNpcs()
+	{
+		for ( int i = spawned.Count - 1; i >= 0; i-- )
+		{
+			var npc = spawned[i];
+			if ( !npc.Go.IsValid() )
+			{
+				if ( !npc.Dead ) Fire( npc, "fled", null );
+				spawned.RemoveAt( i );
+				continue;
+			}
+			if ( !npc.Dead && npc.Go.Components.Get<BaseNpc>() is { } body && body.Health <= 0 )
+			{
+				npc.Dead = true;
+				Fire( npc, "death", npc.Go );
+			}
+			if ( npc.Dead || npc.Go.Components.Get<PaydayCivilian>() is not { } civilian ) continue;
+			if ( !npc.Tied && civilian.Surrendered ) { npc.Tied = true; Fire( npc, "tied", npc.Go ); }
+			if ( !npc.Panicked && civilian.Panicking ) { npc.Panicked = true; Fire( npc, "panic", npc.Go ); }
+		}
+	}
+
+	/// <summary>
+	/// ElementSpecialObjective (first pass). Navigation links (jump/climb/slide hints for Diesel's own pathing, the
+	/// majority) are skipped. Otherwise the objective goes to the instigator (when <c>use_instigator</c> and it's a
+	/// live mission NPC) or the nearest live NPC spawned by its <c>spawn_instigator_ids</c> (within <c>search_distance</c>).
+	/// Objectives without spawn ids (group-AI posts for reinforcements) aren't handed to existing NPCs. If nobody
+	/// qualifies yet, the objective is retried for 30 s (spawns often follow it in the same chain).
+	/// </summary>
+	void Administer( MissionData.Element element, GameObject instigator )
+	{
+		if ( element.Flag( "is_navigation_link" ) ) { navigationLinksSkipped++; return; }
+		// Group-AI posts with no named spawns and no usable instigator can never be assigned; don't queue them.
+		if ( element.Ids( "spawn_instigator_ids" ).Length == 0 && !(element.Flag( "use_instigator" ) && instigator.IsValid()) ) return;
+		// One NPC per objective: re-executing it while it's assigned or waiting does nothing. (Without this, Bank's
+		// repeatedly executed objective 102160 pulled all nine lobby guards onto the same point.)
+		if ( orders.Any( o => o.Element == element.Id && !o.Completed ) || pendingObjectives.Any( p => p.Element.Id == element.Id ) ) return;
+		if ( PickNpc( element, instigator ) is { } npc ) Assign( element, npc );
+		else pendingObjectives.Add( (element, instigator, Time.Now + 30) );
+	}
+
+	static bool Available( TrackedNpc npc ) => npc.Go.IsValid() && !npc.Dead
+		&& npc.Go.Components.Get<PaydayCivilian>() is not { Surrendered: true };
+
+	TrackedNpc PickNpc( MissionData.Element element, GameObject instigator )
+	{
+		if ( element.Flag( "use_instigator" ) && instigator.IsValid() && spawned.FirstOrDefault( s => s.Go == instigator && Available( s ) ) is { } own )
+			return own;
+		// Only NPCs the objective names. Objectives without spawn ids are group-AI posts for reinforcement squads in
+		// Diesel; handing them to any combat NPC pulled every Bank guard onto the same few points.
+		var sources = element.Ids( "spawn_instigator_ids" );
+		if ( sources.Length == 0 ) return null;
+		var target = Coordinates.Position( element.Position );
+		float search = element.Number( "search_distance" ) * Coordinates.Scale;
+		// NPCs busy with an unfinished objective aren't taken off it.
+		return spawned
+			.Where( s => Available( s )
+				&& (sources.Contains( s.Element ) || sources.Contains( s.Group ))
+				&& !orders.Any( o => o.Npc == s && !o.Completed )
+				&& (search <= 0 || s.Go.WorldPosition.Distance( target ) <= search) )
+			.OrderBy( s => s.Go.WorldPosition.Distance( target ) )
+			.FirstOrDefault();
+	}
+
+	void Assign( MissionData.Element element, TrackedNpc npc )
+	{
+		orders.RemoveAll( o => o.Npc == npc );
+		var order = npc.Go.Components.Get<PaydayMissionOrder>() ?? npc.Go.AddComponent<PaydayMissionOrder>();
+		order.Element = element.Id;
+		// Authored points can be above the walkable floor (perches, ledges, anchor heights); walk to the nearest navmesh point.
+		var point = Coordinates.Position( element.Position );
+		order.Target = Scene.NavMesh.GetClosestPoint( point, 150 ) ?? point;
+		order.Facing = Coordinates.Rotation( element.Rotation );
+		order.Run = element.Text( "path_haste" ) == "run";
+		order.Arrived = false;
+		order.Enabled = true;
+		orders.Add( new ActiveOrder { Element = element.Id, Npc = npc, Order = order, Expires = Time.Now + 60 } );
+		Reselect( npc.Go );
+		FireObjectiveEvent( element.Id, "administered", npc.Go );
+	}
+
+	static void Reselect( GameObject go )
+	{
+		go.Components.Get<PaydayCivilian>()?.ReceiveOrder();
+		go.Components.Get<PaydayCombatNpc>()?.ReceiveOrder();
+	}
+
+	/// <summary>
+	/// Objective progress: arrival fires <c>anim_start</c>, then the act markers <c>anim_act_01–04</c> (on both the
+	/// objective and the NPC's spawn triggers) 0.3 s apart, then <c>complete</c> 1.5 s after arrival. The NPC keeps holding
+	/// the point. Death, removal, or not arriving within 60 s fires <c>fail</c>. Act timing stands in for animation markers.
+	/// </summary>
+	void PollObjectives( float now )
+	{
+		for ( int i = pendingObjectives.Count - 1; i >= 0; i-- )
+		{
+			var (element, instigator, expires) = pendingObjectives[i];
+			if ( now > expires ) { pendingObjectives.RemoveAt( i ); continue; }
+			if ( PickNpc( element, instigator ) is not { } npc ) continue;
+			pendingObjectives.RemoveAt( i );
+			Assign( element, npc );
+		}
+		for ( int i = orders.Count - 1; i >= 0; i-- )
+		{
+			var order = orders[i];
+			if ( order.Completed ) continue;
+			if ( !Available( order.Npc ) || !order.Order.IsValid() || (!order.Order.Arrived && now > order.Expires) )
+			{
+				FireObjectiveEvent( order.Element, "fail", order.Npc.Go.IsValid() ? order.Npc.Go : null );
+				if ( order.Order.IsValid() ) { order.Order.Enabled = false; Reselect( order.Npc.Go ); }
+				orders.RemoveAt( i );
+				continue;
+			}
+			if ( !order.Order.Arrived ) continue;
+			if ( !order.Started ) { order.Started = true; order.ArrivedAt = now; FireObjectiveEvent( order.Element, "anim_start", order.Npc.Go ); }
+			while ( order.Acts < 4 && now >= order.ArrivedAt + 0.3f * (order.Acts + 1) )
+			{
+				string act = $"anim_act_0{++order.Acts}";
+				FireObjectiveEvent( order.Element, act, order.Npc.Go );
+				Fire( order.Npc, act, order.Npc.Go );
+			}
+			if ( now >= order.ArrivedAt + 1.5f ) { order.Completed = true; FireObjectiveEvent( order.Element, "complete", order.Npc.Go ); }
+		}
+	}
+
+	void FireObjectiveEvent( int objective, string objectiveEvent, GameObject instigator )
+	{
+		objectiveEventsFired[objectiveEvent] = objectiveEventsFired.GetValueOrDefault( objectiveEvent ) + 1;
+		if ( !objectiveTriggers.TryGetValue( objective, out var watchers ) ) return;
+		foreach ( var (trigger, wanted) in watchers )
+			if ( wanted == objectiveEvent && activeScripts.Contains( data.Elements[trigger].Script ) ) Execute( trigger, instigator );
+	}
+
+	/// <summary>An event fires for the spawn element and, for group spawns, the group element too.</summary>
+	void Fire( TrackedNpc npc, string npcEvent, GameObject instigator )
+	{
+		FireNpcEvent( npc.Element, npcEvent, instigator );
+		if ( npc.Group != 0 ) FireNpcEvent( npc.Group, npcEvent, instigator );
+	}
+
+	void FireNpcEvent( int spawnElement, string npcEvent, GameObject instigator )
+	{
+		npcEventsFired[npcEvent] = npcEventsFired.GetValueOrDefault( npcEvent ) + 1;
+		if ( !npcTriggers.TryGetValue( spawnElement, out var watchers ) ) return;
+		foreach ( var (trigger, wanted) in watchers )
+			if ( wanted == npcEvent && activeScripts.Contains( data.Elements[trigger].Script ) ) Execute( trigger, instigator );
 	}
 
 	/// <summary>

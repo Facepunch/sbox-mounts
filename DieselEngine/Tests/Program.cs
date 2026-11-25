@@ -355,7 +355,11 @@ bool LenientChanges( string unitPath, string sequence )
 		{
 			var graphicsNames = UnitGeometry.GraphicsObjects( objXml ).Select( e => e.Attribute( "name" ) ).ToHashSet();
 			var bodyNames = (objXml.Element( "bodies" )?.Elements( "body" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
-			changes = state.Objects.Keys.Any( graphicsNames.Contains ) || state.Bodies.Keys.Any( bodyNames.Contains );
+			// Mirror UnitModel.Consistent: hide-only states (no replacement, collision kept) aren't applied at runtime.
+			bool shows = state.Objects.Any( o => o.Value && graphicsNames.Contains( o.Key ) );
+			bool hides = state.Objects.Any( o => !o.Value && graphicsNames.Contains( o.Key ) );
+			bool removesBody = state.Bodies.Any( b => !b.Value && bodyNames.Contains( b.Key ) );
+			changes = (state.Objects.Keys.Any( graphicsNames.Contains ) || state.Bodies.Keys.Any( bodyNames.Contains )) && (shows || removesBody || !hides);
 		}
 	}
 	catch ( Exception ) { }
@@ -460,6 +464,27 @@ foreach ( var breakMap in new[] { "apartment", "bank", "bridge", "diamondheist",
 	Console.WriteLine( $"  {breakMap}: {mapBreakables} breakable placements" );
 }
 Console.WriteLine( $"PASS: unit endurance rules (Bank window stages, rooftop body hand-off); {enduranceUnits} placed unit types, {breakablePlacements} breakable placements." );
+// AI-facing elements: which NPC event names and special-objective actions the shipped missions use.
+var npcEventNames = new Dictionary<string, int>();
+var soActions = new Dictionary<string, int>();
+var soTriggerEvents = new Dictionary<string, int>();
+foreach ( var aiMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+	foreach ( var element in MissionData.Read( db, $"levels/{aiMap}" ).Elements.Values )
+	{
+		var counts = element.Class switch
+		{
+			"ElementEnemyDummyTrigger" => npcEventNames,
+			"ElementSpecialObjective" => soActions,
+			"ElementSpecialObjectiveTrigger" => soTriggerEvents,
+			_ => null,
+		};
+		if ( counts is null ) continue;
+		string key = element.Class == "ElementSpecialObjective" ? element.Text( "so_action" ) ?? "nil" : element.Text( "event" ) ?? "nil";
+		counts[key] = counts.GetValueOrDefault( key ) + 1;
+	}
+Console.WriteLine( $"  ElementEnemyDummyTrigger events: {string.Join( ", ", npcEventNames.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
+Console.WriteLine( $"  ElementSpecialObjectiveTrigger events: {string.Join( ", ", soTriggerEvents.OrderByDescending( e => e.Value ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
+Console.WriteLine( $"  ElementSpecialObjective so_action (top 40): {string.Join( ", ", soActions.OrderByDescending( e => e.Value ).Take( 40 ).Select( e => $"{e.Key}×{e.Value}" ) )}" );
 var unmappedSpawns = new SortedSet<string>();
 foreach ( var spawnMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
 	foreach ( var spawn in MissionData.Read( db, $"levels/{spawnMap}" ).Elements.Values.Where( e => e.Class is "ElementSpawnCivilian" or "ElementSpawnEnemyDummy" ) )

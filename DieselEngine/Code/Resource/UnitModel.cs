@@ -118,13 +118,27 @@ static partial class UnitModel
 		var bodies = (obj.Element( "bodies" )?.Elements( "body" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
 		var merged = new SequenceVisibility();
 		foreach ( var sequence in sequences )
-			if ( SequenceVisibility.Read( root, sequence, lenient: true ) is { } state )
+			if ( SequenceVisibility.Read( root, sequence, lenient: true ) is { } state && Consistent( state, graphics, bodies ) )
 			{
 				foreach ( var (name, enabled) in state.Objects ) if ( graphics.Contains( name ) ) merged.Objects[name] = enabled;
 				foreach ( var (name, enabled) in state.Bodies ) if ( bodies.Contains( name ) ) merged.Bodies[name] = enabled;
 			}
 		if ( merged.Objects.Count + merged.Bodies.Count == 0 ) return null;
 		return BuildCore( database, materials, unit, resourceName, materialVariation, null, false, runtimeVisibility: merged );
+	}
+
+	/// <summary>
+	/// Only show a lenient (partially evaluated) sequence state when it's self-consistent: it shows a replacement mesh
+	/// (cracked glass, broken bulb), or it also removes a collision body (shattered, gone), or it hides nothing. A state
+	/// that only hides geometry while the collision stays is half a sequence whose replacement came from skipped actions
+	/// (spawned units, debris, expressions). Applying it made pillar faces vanish on Bank, so it's left unchanged instead.
+	/// </summary>
+	static bool Consistent( SequenceVisibility state, HashSet<string> graphics, HashSet<string> bodies )
+	{
+		bool shows = state.Objects.Any( o => o.Value && graphics.Contains( o.Key ) );
+		bool hides = state.Objects.Any( o => !o.Value && graphics.Contains( o.Key ) );
+		bool removesBody = state.Bodies.Any( b => !b.Value && bodies.Contains( b.Key ) );
+		return shows || removesBody || !hides;
 	}
 
 	static Result BuildApartmentDoor( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string variation )

@@ -69,9 +69,18 @@ public sealed class PaydayCombatNpc : BaseCombatNpc
 			.OrderBy( c => c.WorldPosition.Distance( WorldPosition ) ).FirstOrDefault();
 	}
 
+	/// <summary>A mission order was assigned or removed: drop the current schedule so it's reselected.</summary>
+	internal void ReceiveOrder() => EndCurrentSchedule();
+
 	protected override BaseSchedule SelectSchedule()
 	{
 		var normal = base.SelectSchedule();
+		// Mission special objectives (guard posts, sniper spots, patrol points) yield to alert and combat behaviour.
+		if ( normal.Priority < SchedulePriorities.Alert && PaydayMissionOrder.Active( this ) is { } order )
+		{
+			if ( order.Arrived ) return GetSchedule<PaydayHoldObjective>();
+			var objective = GetSchedule<PaydayObjectiveSchedule>(); objective.Order = order; return objective;
+		}
 		if ( normal.Priority < SchedulePriorities.Combat && ReportedPosition is { } position && reportExpiry > 0 )
 		{
 			var investigate = GetSchedule<PaydayInvestigateReport>();
