@@ -10,7 +10,9 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Property] public GameObject Leaf { get; set; }
 	[Property] public Vector3 Pivot { get; set; }
 	[Property] public float InitialOpenAngle { get; set; }
+	[Property] public float FixedOpenAngle { get; set; }
 	[Property] public bool OpenBothWays { get; set; } = true;
+	[Property] public string OpenSoundPath { get; set; }
 	[Property, Range( 0, 180 )] public float OpenAngle { get; set; } = 95;
 	[Property] public float TravelTime { get; set; } = .45f;
 	[Sync( SyncFlags.FromHost )] public bool Open { get; private set; }
@@ -18,12 +20,21 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Sync( SyncFlags.FromHost )] public bool Blocked { get; private set; }
 	[Sync( SyncFlags.FromHost )] float Direction { get; set; } = 1;
 	TimeUntil scan;
+	SoundEvent openSound;
+	SoundHandle openingSound;
+	bool openingSoundPlayed;
+	float previousAmount;
 	Model Model => Leaf.IsValid() ? Leaf.GetComponent<ModelRenderer>()?.Model : null;
 	Vector3 Center => WorldTransform.PointToWorld( Model?.Bounds.Center ?? Vector3.Up * 40 );
 
 	protected override void OnStart()
 	{
 		Scene.NavMesh.ExcludedBodies.Add( NavigationTag );
+		if ( !OpenBothWays && MathF.Abs( FixedOpenAngle ) > .01f )
+		{
+			OpenAngle = MathF.Abs( FixedOpenAngle );
+			if ( Networking.IsHost ) Direction = MathF.Sign( FixedOpenAngle );
+		}
 		if ( MathF.Abs( InitialOpenAngle ) > .01f )
 		{
 			OpenAngle = MathF.Abs( InitialOpenAngle );
@@ -35,11 +46,21 @@ public sealed class PaydayDoor : Component, Component.IPressable
 				if ( Leaf.IsValid() ) Leaf.LocalTransform = Pose( Amount );
 			}
 		}
+		previousAmount = Amount;
+		openingSoundPlayed = MathF.Abs( InitialOpenAngle ) > .01f;
+		if ( !string.IsNullOrEmpty( OpenSoundPath ) ) _ = LoadOpenSound();
+	}
+
+	async Task LoadOpenSound()
+	{
+		try { openSound = await ResourceLibrary.LoadAsync<SoundEvent>( OpenSoundPath ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY door sound {OpenSoundPath}: {e.Message}" ); }
 	}
 
 	protected override void OnUpdate()
 	{
 		if ( !Leaf.IsValid() || Model is null ) return;
+		if ( !Open ) openingSoundPlayed = false;
 		if ( Networking.IsHost )
 		{
 			if ( !Open && scan <= 0 )
@@ -66,6 +87,24 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			else if ( !Open ) Open = true;
 		}
 		Leaf.LocalTransform = Pose( Amount );
+		// Observe actual movement on each peer: no spawn sound, no repeated sound while
+		// held open, and no sound until an obstructed opening can start moving.
+		if ( Open && Amount > previousAmount && !openingSoundPlayed )
+		{
+			openingSoundPlayed = true;
+			if ( openSound is not null )
+			{
+				openingSound?.Stop();
+				openingSound = Leaf.PlaySound( openSound );
+			}
+		}
+		previousAmount = Amount;
+	}
+
+	protected override void OnDisabled()
+	{
+		openingSound?.Stop();
+		base.OnDisabled();
 	}
 
 	Transform Pose( float amount ) => new Transform( Vector3.Zero ).RotateAround( Pivot, Rotation.FromYaw( amount * OpenAngle * Direction ) );

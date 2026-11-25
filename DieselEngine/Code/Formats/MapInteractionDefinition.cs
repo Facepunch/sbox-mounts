@@ -3,6 +3,10 @@ namespace Diesel;
 /// <summary>Explicit installed unit identities, rather than matching decorative phone/pole names.</summary>
 static class MapInteractionDefinition
 {
+	public static bool IsApartmentDoor( string unit, string variation ) =>
+		unit == "units/world/architecture/apartment/door/apartment_door_03"
+		&& variation is "close_in" or "close_out";
+
 	// Known suburban open states; damaged/missing-panel variants remain static imports.
 	public static bool IsFramedDoor( string unit, string variation ) =>
 		unit == "units/world/props/door_suburban_01/door_suburban_01"

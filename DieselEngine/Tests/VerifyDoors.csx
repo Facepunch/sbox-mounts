@@ -1,4 +1,6 @@
 await Sandbox.Mounting.Directory.Mount( "payday" );
+var doorSound = await ResourceLibrary.LoadAsync<SoundEvent>( "mount://payday/sounds/doors/hos_icu_doors_open.sound" );
+if ( doorSound is null || doorSound.Sounds.Count == 0 ) throw new Exception( "Original hospital door sound missing." );
 await ResourceLibrary.LoadAsync<PrefabFile>( "mount://payday/entities/npcs/civilian.prefab" );
 foreach ( var unit in new[] { "hospital/hospital_door_1", "bank/bank_door_toilet/bank_door_toilet" } )
 {
@@ -16,6 +18,9 @@ try
 	root.WorldPosition = new Vector3( 100, 150, 0 ); root.WorldRotation = Rotation.FromYaw( 37 );
 	Vector3 Point( Vector3 p ) => root.WorldTransform.PointToWorld( p );
 	var door = root.Components.Create( TypeLibrary.GetType( "Diesel.PaydayDoor" ) );
+	bool audible = unit.StartsWith( "hospital/" );
+	if ( audible ) door.GetType().GetProperty( "OpenSoundPath" ).SetValue( door, "mount://payday/sounds/doors/hos_icu_doors_open.sound" );
+	object SoundHandle() => door.GetType().GetField( "openingSound", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic ).GetValue( door );
 	var leaf = new GameObject( true, "Door leaf" ) { Parent = root };
 	leaf.Tags.Add( "payday_door" );
 	leaf.AddComponent<ModelRenderer>().Model = model;
@@ -32,6 +37,7 @@ try
 	player.NetworkSpawn( true, Connection.Local );
 	void Toggle() => door.GetType().GetMethod( "Toggle" ).Invoke( door, new object[] { player } );
 	Tick( 2 );
+	if ( SoundHandle() is not null ) throw new Exception( "Door played opening audio at spawn." );
 	var start = Point( center + across * 100 );
 	var end = Point( center - across * 100 );
 	if ( scene.Trace.Ray( start, end ).IgnoreGameObjectHierarchy( player ).Run().GameObject != leaf )
@@ -47,6 +53,7 @@ try
 	wall.AddComponent<BoxCollider>().Scale = across == Vector3.Left ? new Vector3( 150, 10, 100 ) : new Vector3( 10, 150, 100 );
 	Toggle(); Tick( 15 );
 	if ( Amount() != 0 ) throw new Exception( "Player used door through obstruction." );
+	if ( SoundHandle() is not null ) throw new Exception( "Rejected interaction played door audio." );
 	wall.Destroy(); Tick( 1 );
 	var view = new GameObject( true, "Door preview" ).AddComponent<CameraComponent>();
 	view.WorldPosition = Point( center + new Vector3( 120, 160, 30 ) );
@@ -66,13 +73,19 @@ try
 	}
 	Tick( 1 ); Screenshot( "closed" );
 	Toggle(); Tick( 15 );
+	var firstSound = SoundHandle();
+	if ( audible && firstSound is null ) throw new Exception( "Opening did not play original door audio." );
+	Tick( 5 );
+	if ( !object.ReferenceEquals( firstSound, SoundHandle() ) ) throw new Exception( "Open door retriggered audio." );
 	Screenshot( "open" );
 	if ( Amount() < .99f ) throw new Exception( $"Player door opening failed: {Amount()}, bounds={model.Bounds}." );
 	if ( scene.Trace.Ray( start, end ).IgnoreGameObjectHierarchy( player ).Run().GameObject == leaf )
 		throw new Exception( "Open door retained closed collision." );
 	Toggle(); Tick( 15 );
 	if ( Amount() > .01f ) throw new Exception( "Door did not close." );
+	if ( !object.ReferenceEquals( firstSound, SoundHandle() ) ) throw new Exception( "Closing replayed opening audio." );
 	Toggle(); Tick( 15 );
+	if ( audible && object.ReferenceEquals( firstSound, SoundHandle() ) ) throw new Exception( "Reopening did not play audio again." );
 	player.WorldPosition = Point( center.WithZ( 0 ) );
 	Tick( 1 );
 	Toggle(); Tick( 25 );

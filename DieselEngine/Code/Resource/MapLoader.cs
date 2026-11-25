@@ -90,13 +90,16 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
-				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) || model.DoorLeaf is not null )
+				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) || model.DoorLeaf is not null || model.DoorSwingAngle != 0 )
 				{
 					go.IsStatic = false;
 					var door = go.AddComponent<PaydayDoor>();
 					door.Pivot = model.DoorPivot;
 					door.InitialOpenAngle = model.DoorOpenAngle;
-					door.OpenBothWays = model.DoorLeaf is null;
+					door.FixedOpenAngle = model.DoorSwingAngle;
+					door.OpenBothWays = model.DoorLeaf is null && model.DoorSwingAngle == 0;
+					if ( name == "units/world/architecture/hospital/hospital_door_1" )
+						door.OpenSoundPath = "mount://payday/sounds/doors/hos_icu_doors_open.sound";
 					if ( model.DoorLeaf is not null )
 					{
 						var frame = new GameObject( true, "Door frame" ) { Parent = go, IsStatic = true };

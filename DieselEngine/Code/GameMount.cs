@@ -86,6 +86,10 @@ public sealed class PaydayMount : BaseGameMount
 			}
 		}
 		if ( maps == 0 ) throw new InvalidDataException( "No PAYDAY worlds were found in the installed bundles." );
+		var hospitalAudio = new WwiseBank( Database.Find( "bnk", "soundbanks/lvl_hos_sfx" ),
+			id => Database.Find( "stream", $"soundbanks/streamed/lvl_hos_sfx/{id}" ) );
+		context.Add( ResourceType.GameResource, "sounds/doors/hos_icu_doors_open.sound",
+			new PaydayWeaponSoundLoader( "hos_icu_doors_open", hospitalAudio ) );
 		var banks = WeaponDefinition.All.ToDictionary( w => w.Bank, w => new WwiseBank( Database.Find( "bnk", $"soundbanks/weapon_{w.Bank}" ),
 			id => Database.Find( "stream", $"soundbanks/streamed/weapon_{w.Bank}/{id}" ) ) );
 		var registeredSounds = new HashSet<string>();

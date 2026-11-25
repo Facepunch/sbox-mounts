@@ -12,6 +12,7 @@ static class UnitModel
 		public Model DoorGlass { get; init; }
 		public Vector3 DoorPivot { get; init; }
 		public float DoorOpenAngle { get; init; }
+		public float DoorSwingAngle { get; init; }
 	}
 	public static XmlNode Xml( byte[] bytes )
 	{
@@ -48,6 +49,8 @@ static class UnitModel
 
 	public static Result BuildPlaced( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation )
 	{
+		if ( MapInteractionDefinition.IsApartmentDoor( unit, meshVariation ) )
+			return BuildApartmentDoor( database, materials, unit, resourceName, materialVariation, meshVariation );
 		if ( !MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
 			return BuildCore( database, materials, unit, resourceName, materialVariation, meshVariation, false );
 		string panel = meshVariation[..1];
@@ -83,6 +86,27 @@ static class UnitModel
 	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 		=> BuildCore( database, materials, unit, resourceName, null, null, true );
 
+	static Result BuildApartmentDoor( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string variation )
+	{
+		string side = variation == "close_in" ? "in" : "out";
+		var parts = new HashSet<ulong> { IdString.Hash( "g_door" ), IdString.Hash( $"g_hinge_{side}" ), IdString.Hash( "c_door" ) };
+		var result = BuildCore( database, materials, unit, resourceName, materialVariation, variation, false, parts );
+		string path = Xml( database.Find( "unit", unit ) ).Element( "object" ).Attribute( "file" );
+		string orientation = Xml( database.Find( "object", path ) ).Element( "diesel" ).Attribute( "orientation_object" );
+		var file = new ModelFile( database.Find( "model", path ) );
+		string hinge = $"a_{side}";
+		ulong hash = IdString.Hash( hinge );
+		// The out controller parents the in controller. Only the selected group runs;
+		// sampling both would cancel the two opposite hinge rotations.
+		var tracks = file.Controllers( new HashSet<ulong> { hash } ).Where( p => p.Key == hash ).ToDictionary( p => p.Key, p => p.Value );
+		float end = tracks[hash].RotationTimes[^1];
+		var rest = file.Pose( null, 0 );
+		System.Numerics.Matrix4x4.Invert( file.NodePose( rest, orientation ), out var root );
+		var closed = ModelFile.Convert( file.NodePose( rest, hinge ) * root );
+		var opened = ModelFile.Convert( file.NodePose( file.Pose( null, end, tracks ), hinge ) * root );
+		return result with { DoorPivot = closed.Position, DoorSwingAngle = (opened.Rotation * closed.Rotation.Inverse).Yaw() };
+	}
+
 	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false )
 	{
 		var unitBytes = database.Find( "unit", unit );
@@ -94,7 +118,14 @@ static class UnitModel
 		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
 		SequenceVisibility visibility = null;
-		if ( MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
+		if ( MapInteractionDefinition.IsApartmentDoor( unit, meshVariation ) )
+		{
+			visibility = new SequenceVisibility();
+			visibility.Objects["g_door"] = true;
+			visibility.Objects["g_hinge_in"] = meshVariation == "close_in";
+			visibility.Objects["g_hinge_out"] = meshVariation == "close_out";
+		}
+		else if ( MapInteractionDefinition.IsFramedDoor( unit, meshVariation ) )
 		{
 			// These known states also contain decal/animation actions, beyond the
 			// conservative general visibility evaluator. Keep their literal panel selection.
