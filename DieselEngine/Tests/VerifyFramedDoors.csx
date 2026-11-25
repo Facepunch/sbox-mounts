@@ -1,19 +1,21 @@
 await Sandbox.Mounting.Directory.Mount( "payday" );
 await ResourceLibrary.LoadAsync<PrefabFile>( "mount://payday/entities/npcs/civilian.prefab" );
 var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
-var loader = Sandbox.Mounting.MountUtility.FindLoader( "mount://payday/levels/suburbia/world.world.scene" );
+var results = new System.Collections.Generic.List<string>();
+foreach ( var (level, expected) in new[] { ("suburbia",18), ("bank",4), ("diamondheist",2) } )
+{
+var loader = Sandbox.Mounting.MountUtility.FindLoader( $"mount://payday/levels/{level}/world.world.scene" );
 loader.GetType().GetMethod( "OnSceneUnloaded", flags ).Invoke( loader, null );
 var file = (SceneFile)loader.GetType().GetMethod( "Load", flags ).Invoke( loader, null );
 var imported = new Scene();
-var results = new System.Collections.Generic.List<string>();
 string stage = "import";
 try
 {
 	using var importScope = imported.Push();
 	if ( !imported.Load( file ) ) throw new Exception( "Counterfeit import failed." );
 	var doors = imported.GetAllObjects( true ).SelectMany( g => g.Components.GetAll() )
-		.Where( c => c.GetType().Name == "PaydayDoor" ).ToArray();
-	if ( doors.Length != 15 ) throw new Exception( $"Expected 15 framed doors, got {doors.Length}." );
+		.Where( c => c.GetType().Name == "PaydayDoor" && c.GameObject.Children.Any( g => g.Name == "Door frame" ) ).ToArray();
+	if ( doors.Length != expected ) throw new Exception( $"{level}: expected {expected} framed doors, got {doors.Length}." );
 	foreach ( var source in doors.GroupBy( d => ((GameObject)d.GetType().GetProperty( "Leaf" ).GetValue( d )).GetComponent<ModelRenderer>().Model ).Select( g => g.First() ) )
 	{
 		var scene = new Scene();
@@ -37,10 +39,12 @@ try
 			float Amount() => (float)type.GetProperty( "Amount" ).GetValue( door );
 			Tick( 2 );
 			float angle = (float)type.GetProperty( "InitialOpenAngle" ).GetValue( door );
-			if ( MathF.Abs( angle ) < 80 || Amount() != 1 ) throw new Exception( $"Authored open pose missing: {angle}." );
+			bool startsOpen = angle != 0;
+			if ( !startsOpen ) angle = (float)type.GetProperty( "FixedOpenAngle" ).GetValue( door );
+			if ( MathF.Abs( angle ) < 80 || Amount() != (startsOpen ? 1 : 0) ) throw new Exception( $"Starting pose missing: {angle}." );
 			if ( (bool)type.GetProperty( "OpenBothWays" ).GetValue( door ) )
 				throw new Exception( "Framed door permits reverse swing." );
-			var authoredForward = leaf.LocalRotation.Forward;
+			var authoredForward = Rotation.FromYaw( angle ).Forward;
 			if ( frame.Tags.Has( "payday_door" ) || !leaf.Tags.Has( "payday_door" ) )
 				throw new Exception( "Frame incorrectly excluded from navigation." );
 			var player = new GameObject( true, "Player" );
@@ -66,7 +70,7 @@ try
 				player.WorldPosition = new Vector3( 700, 700, 0 );
 				Tick( 20 );
 			}
-			Use();
+			if ( startsOpen ) Use();
 			stage = $"closed {root.Name}";
 			if ( Amount() > .01f ) throw new Exception( $"Framed door did not close: {Amount()}." );
 			var center = root.WorldTransform.PointToWorld( model.Bounds.Center );
@@ -154,7 +158,8 @@ try
 		}
 		finally { scene.Destroy(); }
 	}
-	return results;
 }
 catch ( Exception e ) { throw new Exception( $"{stage}: {e}", e ); }
 finally { imported.Destroy(); }
+}
+return results;
