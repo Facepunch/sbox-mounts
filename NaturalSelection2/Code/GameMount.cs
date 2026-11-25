@@ -110,6 +110,7 @@ public class GameMount : BaseGameMount
 		Fade.RegisterSounds( context );
 		Gorge.RegisterSounds( context );
 		Lerk.RegisterSounds( context );
+		Babbler.RegisterSounds( context );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
@@ -117,6 +118,7 @@ public class GameMount : BaseGameMount
 			AlienPrefab.Register( context, "Fade", Fade.Configure ),
 			AlienPrefab.Register( context, "Gorge", Gorge.Configure ),
 			AlienPrefab.Register( context, "Lerk", Lerk.Configure ),
+			AlienPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),
 			AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
 		};
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
