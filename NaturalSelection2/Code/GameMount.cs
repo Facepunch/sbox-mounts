@@ -107,16 +107,20 @@ public class GameMount : BaseGameMount
 			return Task.CompletedTask;
 
 		Skulk.RegisterSounds( context );
-		var skulk = AlienPrefab.Register( context, "Skulk", Skulk.Configure );
 		Onos.RegisterSounds( context );
-		var onos = AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) );
+		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
+		{
+			AlienPrefab.Register( context, "Skulk", Skulk.Configure ),
+			AlienPrefab.Register( context, "Fade", Fade.Configure ),
+			AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
+		};
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{
 			var resourceType = GetFileType( Path.GetExtension( path ) );
 
 			if ( resourceType == ResourceType.Model )
 			{
-				context.Add( resourceType, path, new ModelLoader( path ) { IsNpc = path == skulk || path == onos } );
+				context.Add( resourceType, path, new ModelLoader( path ) { IsNpc = npcModels.Contains( path ) } );
 			}
 			else if ( resourceType == ResourceType.AnimationGraph )
 			{

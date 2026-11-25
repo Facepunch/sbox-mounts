@@ -19,6 +19,18 @@ public partial class ModelLoader
 			if ( bone.Parent >= 0 ) bind = model.Bones[bone.Parent].Transform.WithScale( 1 ).ToLocal( bind );
 			bones.AddBone( bone.Name, bind, bone.Parent >= 0 ? model.Bones[bone.Parent].Name : null );
 		}
+		// Sparse absolute clips only replace the bones the source actually animated.
+		var masks = new Dictionary<int, string>();
+		for ( int i = 0; i < animations.Animations.Length; i++ )
+		{
+			var anim = animations.Animations[i];
+			if ( !npcPlayback || anim.Additive || anim.BoneCurves.Length >= model.Bones.Length ) continue;
+			var weights = model.Bones.ToDictionary( bone => bone.Name, _ => 0f );
+			foreach ( var (index, _) in anim.BoneCurves ) weights[model.Bones[index].Name] = 1f;
+			var name = $"tracks_{i}";
+			bones.AddBoneMask( name, weights );
+			masks.Add( i, name );
+		}
 		var skeleton = bones.Create( $"{Path}/skeleton.skel" );
 		var graph = new GraphBuilder().WithSkeleton( skeleton );
 		var clips = new Dictionary<int, Clip>();
@@ -73,6 +85,8 @@ public partial class ModelLoader
 				var time = anim.NumFrames <= 1 ? graph.Constant( 0f ) : graph.Multiply( seconds, anim.FrameRate / (anim.NumFrames - 1) );
 				time = anim.Looping ? graph.Subtract( time, graph.Floor( time ) ) : graph.Clamp( time, 0, 1 );
 				var sampled = graph.TimeControlledClip( clip, time, new() { SampleRootMotion = false } );
+				if ( incoming is not null && masks.TryGetValue( node.AnimationIndex, out var mask ) )
+					return (graph.Layers( incoming ).AddLayer( sampled, new() { BoneMask = graph.BoneMask( mask ), BlendMode = GraphBuilder.LayerBlendMode.Overlay } ), false);
 				return (sampled, anim.Additive);
 			}
 
