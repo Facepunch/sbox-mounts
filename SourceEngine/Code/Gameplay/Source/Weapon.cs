@@ -40,7 +40,14 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModelPrefab = RefreshPrefab( ViewModelPrefab );
 		WorldModelPrefab = RefreshPrefab( WorldModelPrefab );
 		_deployUntil = DeployTime;
+		var primary = NextPrimaryFire;
+		var secondary = NextSecondaryFire;
 		base.OnEquipped();
+		if ( !IsValid || !IsActive || this is not (BulletWeapon or MeleeWeapon) || MountContent.OfWeapon( this ) != "hl2" ) return;
+
+		// Drawing sets the earliest attack time, including any shot or swing still on cooldown.
+		if ( primary > (float)NextPrimaryFire ) NextPrimaryFire = primary;
+		if ( secondary > (float)NextSecondaryFire ) NextSecondaryFire = secondary;
 	}
 
 	// A remount replaces prefab scenes while weapons already in an inventory keep the old references.

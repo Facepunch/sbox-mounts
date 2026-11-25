@@ -193,18 +193,6 @@ public sealed class BulletWeapon : Weapon
 
 	protected override bool OnHolstering( BaseInventoryItem next ) => !_alternatePending && base.OnHolstering( next );
 
-	protected override void OnEquipped()
-	{
-		var primary = NextPrimaryFire;
-		var secondary = NextSecondaryFire;
-		base.OnEquipped();
-		if ( !IsValid || !IsActive || MountContent.OfWeapon( this ) != "hl2" ) return;
-
-		// Drawing the gun imposes a minimum wait. It cannot shorten a shot already on cooldown.
-		if ( primary > (float)NextPrimaryFire ) NextPrimaryFire = primary;
-		if ( secondary > (float)NextSecondaryFire ) NextSecondaryFire = secondary;
-	}
-
 	protected override void OnHolstered()
 	{
 		if ( IsReloading && MountContent.OfWeapon( this ) == "hl2" ) SetNextFire( 0 );
