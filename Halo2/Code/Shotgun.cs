@@ -162,7 +162,7 @@ public sealed class Shotgun : Weapon
 	}
 
 	public override bool CanPrimaryAttack() =>
-		NextPrimaryFire <= 0 && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
+		meleeEnds <= 0 && NextPrimaryFire <= 0 && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
 
 	public override void PrimaryAttack()
 	{
@@ -497,8 +497,7 @@ public sealed class Shotgun : Weapon
 
 	public override void SecondaryAttack()
 	{
-		var actions = (ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
-			?? Model.Load( ArmsPath )?.GetData<FirstPersonAnimation>())?.Actions;
+		var actions = StrikeAnimations()?.Actions;
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
@@ -515,12 +514,18 @@ public sealed class Shotgun : Weapon
 			_ = Strike( serial, impact.Frame / 30f, StrikeDamage(), Attacker );
 	}
 
+	FirstPersonAnimation StrikeAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
+		?? Model.Load( ArmsPath )?.GetData<FirstPersonAnimation>();
+
 	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
 	void PlayMeleeAnimation( bool firstStrike )
 	{
 		var action = MeleeAction( firstStrike );
+		// SecondaryAttack runs on the owner. Other peers need the same window before the chamber overlay can take over.
+		if ( IsProxy && StrikeAnimations()?.Actions.TryGetValue( action, out var clip ) == true )
+			meleeEnds = clip.Frames / 30f;
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		PlayHolderOverlay( action );
 	}
