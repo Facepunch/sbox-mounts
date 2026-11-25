@@ -20,6 +20,7 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	private protected SparkAnimationGraph.Playback graph;
 	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
 	protected float FlinchIntensity => AlienWounds.Intensity( flinchEnd );
+	SupportPain pain;
 	TimeUntil nextMaturityUpdate;
 	TimeSince maturityTick;
 	float previousGrowth, maturity, maturityStart, lastSprayTime;
@@ -100,6 +101,8 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		pain = GetComponent<SupportPain>();
+		pain?.StartListening( flinchEnd );
 		if ( !Networking.IsHost ) return;
 		age = 0;
 		maxArmor = Stats.Armor;
@@ -111,6 +114,7 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	protected override void OnUpdate()
 	{
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;
+		pain?.UpdateSound( flinchEnd );
 		if ( !Networking.IsHost ) return;
 		if ( enzymeActive && (enzymeExpires <= 0 || IsBuilt) )
 		{

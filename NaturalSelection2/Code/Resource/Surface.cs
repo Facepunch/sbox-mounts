@@ -81,15 +81,27 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 	}
 }
 
-internal sealed class SparkSoundLoader( string id ) : ResourceLoader<GameMount>
+internal sealed class SparkSoundLoader( string id, int? layerIndex = null ) : ResourceLoader<GameMount>
 {
 	protected override object Load()
 	{
 		var e = Host.FindSoundEvent( $"sound/NS2.fev/{id}" );
 		var sound = new SoundEvent { Sounds = [], SelectionMode = SoundEvent.SoundSelectionMode.RandomExclusive };
-		var layer = e?.Layers.FirstOrDefault( x => x.Playlist.Waves.Length > 0 );
+		var layer = layerIndex is int index ? e?.Layers.ElementAtOrDefault( index ) : e?.Layers.FirstOrDefault( x => x.Playlist.Waves.Length > 0 );
 		if ( layer is null ) return sound; // Some shipped event slots are empty.
 		var settings = layer.Playlist.Settings;
+		if ( layerIndex.HasValue )
+		{
+			if ( settings.Order == 3 ) sound.SelectionMode = SoundEvent.SoundSelectionMode.Random;
+			var volumeCurve = layer.Envelopes.FirstOrDefault( x => x.ParameterName == "(distance)" && x.Effect == SoundProject.Effect.Volume );
+			if ( volumeCurve is { Max: > 0 } )
+			{
+				sound.Distance = volumeCurve.Max * MapLoader.Scale;
+				sound.FalloffMode = SoundFalloffMode.Curve;
+				sound.Falloff = new Curve( volumeCurve.Points.Select( p => new Curve.Frame(
+					(volumeCurve.Min + p.x * (volumeCurve.Max - volumeCurve.Min)) / volumeCurve.Max, p.y ) { Mode = Curve.HandleMode.Linear } ) );
+			}
+		}
 		var volume = e.Volume * layer.Volume * settings.Volume;
 		var pitch = e.Pitch + layer.Pitch + settings.Pitch;
 		var variation = e.PitchRandom + settings.PitchRandom;

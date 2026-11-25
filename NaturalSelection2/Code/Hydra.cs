@@ -9,6 +9,7 @@ public sealed class Hydra : AlienStructure
 	protected override GrowthStats Stats => new( 8, 0.375f, 145, 5, 140, 175, 25 );
 	const float Range = 17.78f * Scale;
 	internal const string AttackSound = "alien/structures/hydra/attack";
+	internal const string PainSound = "alien/structures/hydra/wound";
 	static readonly SparkAnimationGraph.PoseParameters BodyLayer = new( 0 ), FlinchLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose bodyPose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose flinchPose { get; set; }

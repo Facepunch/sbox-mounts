@@ -113,6 +113,9 @@ public class GameMount : BaseGameMount
 		Babbler.RegisterSounds( context );
 		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
 		Mac.RegisterSounds( context );
+		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound } )
+			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue, 0 ) );
+		context.Add( ResourceType.GameResource, $"sounds/{Mac.PainSound}_impact.sound", new SparkSoundLoader( Mac.PainSound, 1 ) );
 		foreach ( var cue in new[] { Marine.RifleSound, Marine.PistolSound, "marine/rifle/reload", "marine/pistol/reload",
 			"marine/common/wound", "marine/common/wound_serious", "marine/common/spore_wound" } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue ) );
@@ -125,13 +128,13 @@ public class GameMount : BaseGameMount
 			NpcPrefab.Register( context, "Fade", Fade.Configure ),
 			NpcPrefab.Register( context, "Gorge", Gorge.Configure ),
 			NpcPrefab.Register( context, "Lerk", Lerk.Configure ),
-			NpcPrefab.Register( context, "Drifter", Drifter.Configure, "ns2_drifter" ),
-			NpcPrefab.Register( context, "Harvester", Harvester.Configure, "ns2_harvester" ),
+			NpcPrefab.Register( context, "Drifter", Drifter.Configure, "ns2_drifter", painSound: Drifter.PainSound ),
+			NpcPrefab.Register( context, "Harvester", Harvester.Configure, "ns2_harvester", painSound: Harvester.PainSound ),
 			NpcPrefab.Register( context, "Marine", Marine.Configure, "ns2_marine", "marine", "male/male" ),
 			NpcPrefab.Register( context, "Minigun Exo", ( root, renderer ) => Exo.Configure( root, renderer, false ), "ns2_exo", "marine", "exosuit/exosuit_mm" ),
 			NpcPrefab.Register( context, "Railgun Exo", ( root, renderer ) => Exo.Configure( root, renderer, true ), "ns2_exo", "marine", "exosuit/exosuit_rr" ),
-			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine" ),
-			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
+			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine", painSound: Mac.PainSound ),
+			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra", painSound: Hydra.PainSound ),
 			NpcPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),
 			NpcPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
 		};

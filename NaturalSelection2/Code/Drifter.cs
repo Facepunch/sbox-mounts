@@ -21,6 +21,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
+	SupportPain pain;
+	internal const string PainSound = "alien/drifter/wound";
 	SparkAnimationGraph.Playback graph;
 	SoundHandle constructLoop;
 	Action<string> onTag;
@@ -51,6 +53,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		pain = GetComponent<SupportPain>();
+		pain?.StartListening( flinchEnd );
 		if ( !Networking.IsHost ) return;
 		AnimationTime = 0;
 		onTag = OnTag;
@@ -116,6 +120,7 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	{
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
+		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
 		if ( !Application.IsDedicatedServer )
 		{
 			if ( constructing && NpcConVars.Enabled )

@@ -19,6 +19,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
+	SupportPain pain;
+	internal const string PainSound = "marine/structures/mac/pain";
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
 
@@ -58,6 +60,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		pain = GetComponent<SupportPain>();
+		pain?.StartListening( flinchEnd );
 		if ( !Networking.IsHost ) return;
 		anchor = WorldPosition;
 		AnimationTime = 0;
@@ -175,6 +179,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	{
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
+		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
 		if ( !Application.IsDedicatedServer )
 		{
 			if ( Animation.MoveVelocity.LengthSquared > 1 )
