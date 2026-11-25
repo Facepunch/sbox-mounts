@@ -52,7 +52,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, weaponTag;
 	bool leftFoot = true;
-	SoundHandle rifleLoop;
+	SoundHandle rifleLoop, reloadSound;
 	ModelRenderer heldModel;
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
@@ -103,6 +103,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 
 	void EquipWeapon()
 	{
+		if ( Networking.IsHost && reloading ) CancelReloadSound();
 		skipDraw = equippedPistol is null;
 		equippedPistol = pistol;
 		weaponAge = 0;
@@ -148,7 +149,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		{
 			MaintainWeapons();
 		}
-		if ( deployed && Ammo.Clip == 0 && Ammo.Reserve > 0 ) reloading = true;
+		if ( Ammo.Clip == 0 ) BeginReload();
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
 		float distance = 0;
 		if ( visible )
@@ -221,6 +222,24 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		EquipWeapon();
 	}
 
+	void BeginReload()
+	{
+		if ( !deployed || reloading || Ammo.Clip == Ammo.Capacity || Ammo.Reserve <= 0 ) return;
+		reloading = true;
+		PlayReloadSound( pistol );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayReloadSound( bool isPistol )
+	{
+		var weaponName = isPistol ? "pistol" : "rifle";
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/marine/{weaponName}/reload.sound" ) is { } sound )
+			reloadSound = GameObject.PlaySound( sound );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void CancelReloadSound() => reloadSound?.Stop();
+
 	void MaintainWeapons()
 	{
 		if ( reloading ) return;
@@ -233,7 +252,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		if ( reloadRifle || reloadPistol )
 		{
 			SelectWeapon( !reloadRifle );
-			reloading = deployed;
+			BeginReload();
 		}
 		else if ( rifleAmmo.Clip > 0 )
 		{
@@ -330,7 +349,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		if ( tag == "shoot" && lastRequest < 0.1f && !reloading && Ammo.Clip > 0 && NpcConVars.Enabled )
 		{
 			FireBullet();
-			if ( --Ammo.Clip == 0 && deployed && Ammo.Reserve > 0 ) reloading = true;
+			if ( --Ammo.Clip == 0 ) BeginReload();
 		}
 		else if ( tag == "deploy_end" ) deployed = true;
 		else if ( tag == "reload" )
@@ -400,6 +419,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	protected override void OnDisabled()
 	{
 		StopRifleSound();
+		reloadSound?.Stop();
 		base.OnDisabled();
 	}
 
