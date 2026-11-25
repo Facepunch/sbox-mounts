@@ -1221,7 +1221,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": {"RunSpeed": 180, "WalkSpeed": 85},
 					"Source1.NpcDefaults": {"HealthSetting": "sk_combine_guard_health"},
 					"Source1.CreatureNpc": null,
-					"Source1.CombatNpc": {"DisplayName": "Combine Elite", "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Elite": true, "Grenades": 5, "EyeHeight": 57.6},
+					"Source1.CombatNpc": {"DisplayName": "Combine Elite", "DistractedByBugbait": true, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Elite": true, "Grenades": 5, "EyeHeight": 57.6},
 					"Source1.NpcAnimator": {}
 				},
 				"model": {
@@ -1243,7 +1243,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.SensesLayer": {"FieldOfView": 200, "SightRange": 8192},
 					"Source1.NpcDefaults": {"HealthSetting": "sk_combine_s_health"},
 					"Source1.CreatureNpc": null,
-					"Source1.CombatNpc": {"DisplayName": "Combine Soldier", "Health": 50, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Grenades": 5},
+					"Source1.CombatNpc": {"DisplayName": "Combine Soldier", "DistractedByBugbait": true, "Health": 50, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Grenades": 5},
 					"Source1.NpcAnimator": {}
 				},
 				"model": {
@@ -1669,7 +1669,7 @@ static partial class SourceEntities
 					"Sandbox.Npcs.Layers.NavigationLayer": {"RunSpeed": 180, "WalkSpeed": 85},
 					"Source1.NpcDefaults": {"HealthSetting": "sk_combine_s_health"},
 					"Source1.CreatureNpc": null,
-					"Source1.CombatNpc": {"DisplayName": "Prison Guard", "Health": 60, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Grenades": 5, "EyeHeight": 57.6},
+					"Source1.CombatNpc": {"DisplayName": "Prison Guard", "DistractedByBugbait": true, "Health": 60, "PatrolRadius": 2048, "Renderer": {"ref": "model:Sandbox.SkinnedModelRenderer"}, "SearchTimeout": 20, "Weapon": {"ref": "weapon:Source1.BulletWeapon"}, "Grenades": 5, "EyeHeight": 57.6},
 					"Source1.NpcAnimator": {}
 				},
 				"model": {

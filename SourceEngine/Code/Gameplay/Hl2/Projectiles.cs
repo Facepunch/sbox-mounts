@@ -360,6 +360,18 @@ public sealed class Bugbait : Projectile
 		var mark = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity.Normal * 64 )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
 		Splat( WorldPosition, -Velocity.Normal, MountName, mark.GameObject, mark.HitPosition, mark.Normal );
+		foreach ( var npc in Scene.GetAllComponents<CombatNpc>() )
+		{
+			if ( !npc.DistractedByBugbait || npc.Health <= 0 ) continue;
+			var hull = npc.GetComponentInChildren<BoxCollider>();
+			if ( !hull.IsValid() ) continue;
+			var delta = hull.WorldTransform.PointToWorld( hull.Center ) - WorldPosition;
+			if ( MathF.Abs( delta.x ) + MathF.Abs( delta.y ) + MathF.Abs( delta.z ) >= 150 ) continue;
+			var sight = Scene.Trace.Ray( WorldPosition, npc.EyePosition )
+				.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( Attacker ).WithoutTags( "trigger" ).Run();
+			if ( !sight.Hit || sight.GameObject.GetComponentInParent<CombatNpc>() == npc )
+				npc.HearBugbaitImpact();
+		}
 		if ( !BugbaitSensor.Activate( Scene, WorldPosition, Attacker, squeezed: false ) )
 			CreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
 		GameObject.Destroy();

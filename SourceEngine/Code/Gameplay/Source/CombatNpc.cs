@@ -104,6 +104,8 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 	/// <summary>npc_combine_s on the super soldier model: fires its weapon's combine ball at players and their allies instead of throwing grenades, while it has <see cref="Grenades"/>.</summary>
 	[Property] public bool Elite { get; set; }
 
+	[Property] public bool DistractedByBugbait { get; set; }
+
 	/// <summary>Manhacks this metrocop can deploy, like npc_metropolice's manhacks keyvalue.</summary>
 	[Property] public int Manhacks { get; set; }
 
@@ -123,6 +125,7 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 	TimeSince _actionTime;
 	float _actionDuration;
 	Func<SourceModelSequenceData.Event, bool> _actionRelease;
+	TimeUntil? _bugbaitReaction;
 	string _queuedAction;
 	GameObject _actionTarget;
 	GameObject _heldManhack;
@@ -587,12 +590,29 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 		_actionTarget = damage.Instigator;
 	}
 
+	internal void HearBugbaitImpact()
+	{
+		if ( !_bugbaitReaction.HasValue ) _bugbaitReaction = Game.Random.Float( 0, 0.5f );
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
 
 		if ( Networking.IsHost )
+		{
 			UpdateVoice();
+			if ( _bugbaitReaction is { } delay && delay <= 0 )
+			{
+				_bugbaitReaction = null;
+				if ( Health > 0 && Clip( "ACT_COMBINE_BUGBAIT" ) is { } clip && Action != clip )
+				{
+					EndCurrentSchedule();
+					_queuedAction = clip;
+					_actionTarget = null;
+				}
+			}
+		}
 
 		// Ambient schedules can run indefinitely; a medic drops them once someone needs healing.
 		if ( Networking.IsHost && Medic && Friendly && _lastPatientCheck > 1 && ActiveSchedule is { Priority: < SchedulePriorities.Alert } )
