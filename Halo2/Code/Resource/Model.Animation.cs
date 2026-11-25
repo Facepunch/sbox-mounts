@@ -248,8 +248,8 @@ public partial class Halo2ModelLoader
 			var automatic = builder.Compare( chamberTime, GraphBuilder.FloatComparison.LessThan, 0 );
 			var controlled = builder.Not( automatic );
 			playback.SetEntryCondition( sampled, controlled );
-			playback.AddTransition( normal, sampled, controlled, new() { Duration = 0 } );
-			playback.AddTransition( sampled, normal, automatic, new() { Duration = 0 } );
+			playback.AddTransition( normal, sampled, controlled, new GraphBuilder.TransitionSettings { Duration = 0 } );
+			playback.AddTransition( sampled, normal, automatic, new GraphBuilder.TransitionSettings { Duration = 0 } );
 			output = playback.Build();
 		}
 		return builder.Create( output, path );

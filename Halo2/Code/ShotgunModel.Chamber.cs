@@ -4,7 +4,7 @@ namespace Halo2;
 
 internal sealed record ChamberAnimation( Clip Idle, Clip Clip, int Frames )
 {
-	readonly Dictionary<string, (int Index, Transform Rest)> tracks = Clip.Skeleton.Bones
+	readonly Dictionary<string, (int Index, Transform IdlePose)> tracks = Clip.Skeleton.Bones
 		.ToDictionary( b => b.Name, b => (b.Index, Idle.GetLocalTransform( 0, b.Index )) );
 
 	public Transform SampleMarker( ModelAttachments.Attachment marker, float cycle, float weight )

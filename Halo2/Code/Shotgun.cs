@@ -311,7 +311,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	void ChamberWorldModel()
 	{
 		chamberRenderer = WorldModel.IsValid() ? WorldModel.GetComponent<SkinnedModelRenderer>() : null;
-		chamberStarts = Time.NowDouble + 1.0 / 30;
+		// The magazine requests the pump on its next simulation update.
+		chamberStarts = Time.NowDouble + (Sandbox.ProjectSettings.Physics.UseFixedUpdate ? 1.0 / Sandbox.ProjectSettings.Physics.FixedUpdateFrequency : 0);
 		chamberPlaying = false;
 	}
 
@@ -326,6 +327,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 		if ( !chamberRenderer.IsValid() || !chamberRenderer.Animation.IsValid ) return;
 		if ( now < (chamberPlaying ? chamberEnds : chamberStarts) ) return;
+		if ( !chamberPlaying && !Sandbox.ProjectSettings.Physics.UseFixedUpdate )
+		{
+			if ( now == chamberStarts ) return;
+			chamberStarts = now;
+		}
 		var parameters = chamberRenderer.Animation.Parameters;
 		if ( chamberPlaying )
 		{
@@ -341,9 +347,14 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		parameters.Trigger( "action_restart" );
 		chamberPlaying = true;
 		// The original channel signals completion when its next tick would reach the end.
-		float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
-		chamberEnds = now + System.Math.Max( 0, ChamberDuration - tick );
-		heldModel?.StartChamber( now, chamberEnds );
+		if ( Sandbox.ProjectSettings.Physics.UseFixedUpdate )
+		{
+			float rate = Sandbox.ProjectSettings.Physics.FixedUpdateFrequency;
+			int lastTick = System.Math.Max( 0, (int)System.MathF.Ceiling( ChamberDuration * rate ) - 1 );
+			chamberEnds = chamberStarts + lastTick / (double)rate;
+		}
+		else chamberEnds = chamberStarts + System.Math.Max( 0, ChamberDuration - Time.Delta );
+		heldModel?.StartChamber( chamberStarts, chamberEnds );
 	}
 
 	void LaunchPellets( Ray ray )
