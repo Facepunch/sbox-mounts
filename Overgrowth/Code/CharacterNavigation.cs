@@ -64,6 +64,15 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		if ( !Networking.IsHost ) return;
 		requestedGroundSpeed = 0f;
+		// UpdateGroundState leaves all travel and facing to the mobile get-up clip.
+		// Moving the agent with that clip can register a velocity even on a stopped route.
+		if ( Npc is RabbitGuard { GettingUp: true } )
+		{
+			if ( Agent is { Active: true } ) Agent.MaxSpeed = 0f;
+			Npc.Animation.Traversal = null;
+			Npc.Animation.SetMove( Vector3.Zero );
+			return;
+		}
 		if ( Npc is RabbitGuard { PairedGroundVelocity: { } pairedVelocity } )
 		{
 			Npc.Animation.SetMove( pairedVelocity );

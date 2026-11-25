@@ -96,8 +96,16 @@ public sealed partial class RabbitGuard
 			ReactionPhase = 1f;
 			return false;
 		}
+		if ( Time.Delta <= 0f ) return true;
 		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction ).Animation;
 		var from = clip.GetRootMotion( ReactionPhase );
+		if ( ReactionPhase == 0f )
+		{
+			// A fresh animation reader starts at identity. Consume its first 120 Hz
+			// sample before applying the rest of the displacement in the new facing.
+			from = clip.GetRootMotion( Math.Min( 1f, Math.Min( Time.Delta, 1f / 120f ) / reactionDuration ) );
+			ApplyRootMotion( global::Transform.Zero, from );
+		}
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
 		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
 		if ( IsGetUp( Stance ) && ReactionPhase >= 1f )

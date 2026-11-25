@@ -6,6 +6,7 @@ public sealed partial class RabbitGuard
 {
 	internal const string StandFromFront = "r_standfromfront", StandFromBack = "r_standfromback2", BlockFromGround = "r_blockfrontfromground";
 	internal static bool IsGetUp( string stance ) => stance is StandFromFront or StandFromBack or BlockFromGround;
+	internal bool GettingUp => IsGetUp( Stance ) && ReactionPhase < 1f;
 	[ConVar( "overgrowth_sparring", ConVarFlags.Replicated, Help = "Overgrowth fighters recover their health on a lethal hit and can keep fighting." )]
 	public static bool Sparring { get; set; }
 	[Property] public CapsuleCollider MovementCapsule { get; set; }

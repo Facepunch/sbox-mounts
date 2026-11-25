@@ -8,7 +8,8 @@ public sealed partial class RabbitGuard
 	// Blend the solved animation (including IK and roll), in the skeleton's weighted parent space.
 	Transform[] lastPhysicsPose, recoveryPose;
 	Vector3 recoveryOrigin;
-	float recoveryRate, recoveryAge;
+	float recoveryRate;
+	TimeSince recoveryAge;
 	int recoveryStep;
 
 	void CapturePhysicsPose()
@@ -29,7 +30,7 @@ public sealed partial class RabbitGuard
 		recoveryPose = lastPhysicsPose;
 		lastPhysicsPose = null;
 		recoveryRate = rate;
-		recoveryStep = 0;
+		recoveryStep = -1;
 		recoveryAge = 0f;
 		recoveryOrigin = WorldPosition;
 		var model = Renderer.WorldTransform;
@@ -50,7 +51,6 @@ public sealed partial class RabbitGuard
 		const float rate = 30f; // Four 120 Hz ticks per nearby NPC animation update.
 		if ( recoveryAge >= 1f / recoveryRate ) { EndRecovery(); return; }
 		float frame = recoveryAge * rate;
-		recoveryAge += Time.Delta;
 		int step = (int)frame;
 		var model = Renderer.WorldTransform;
 		var bones = poseModel.Bones.AllBones;
