@@ -367,6 +367,8 @@ public sealed class GravityWeapon : Weapon
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), 0 );
 
+	protected override bool OnHolstering( BaseInventoryItem next ) => !HeldObject.IsValid() && base.OnHolstering( next );
+
 	protected override void OnHolstered()
 	{
 		if ( Networking.IsHost ) Release();
