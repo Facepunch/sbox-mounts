@@ -49,6 +49,7 @@ public sealed partial class Babbler : BaseNpc
 	[Sync( SyncFlags.FromHost )] internal int ClingSlot { get; private set; }
 	internal Gorge OwnerGorge { get; set; }
 	TimeUntil nextClingLeap;
+	TimeUntil? ownerLossTimeout;
 
 	internal void ClingTo( GameObject point, int slot )
 	{
@@ -57,12 +58,35 @@ public sealed partial class Babbler : BaseNpc
 		ClingSlot = slot;
 		LocalTransform = global::Transform.Zero;
 		Renderer.LocalTransform = global::Transform.Zero;
-		GetComponent<Rigidbody>( true ).Enabled = false;
-		GetComponentInChildren<SphereCollider>( true ).Enabled = false;
-		GetComponent<ModelHitboxes>( true ).Enabled = false;
-		GetComponent<NavigationLayer>( true ).Enabled = false;
-		GetComponent<SensesLayer>( true ).Enabled = false;
-		GetComponent<AnimationLayer>( true ).Enabled = false;
+		SetFreeMovement( false );
+	}
+
+	void SetFreeMovement( bool enabled )
+	{
+		GetComponent<Rigidbody>( true ).Enabled = enabled;
+		GetComponentInChildren<SphereCollider>( true ).Enabled = enabled;
+		GetComponent<ModelHitboxes>( true ).Enabled = enabled;
+		GetComponent<NavigationLayer>( true ).Enabled = enabled;
+		GetComponent<SensesLayer>( true ).Enabled = enabled;
+		GetComponent<AnimationLayer>( true ).Enabled = enabled;
+	}
+
+	public override void OnParentDestroy()
+	{
+		if ( Networking.IsHost && ClingSlot != 0 && !GameObject.IsDestroyed ) DetachFromSocket();
+	}
+
+	void DetachFromSocket()
+	{
+		var position = WorldPosition;
+		GameObject.Parent = null;
+		WorldPosition = position - Vector3.Up * Radius;
+		Renderer.LocalPosition = Vector3.Up * Radius;
+		ClingSlot = 0;
+		SetFreeMovement( true );
+		body = GetComponent<Rigidbody>();
+		previousRenderPosition = WorldPosition;
+		GameObject.Network.Refresh();
 	}
 
 	void ApproachOwner()
@@ -90,7 +114,7 @@ public sealed partial class Babbler : BaseNpc
 		nextClingLeap = arc.FlightTime * 0.5f + Random.Shared.Float( 0, 0.3f );
 	}
 
-	internal void BreakShield()
+	internal void Kill()
 	{
 		DeathEffect( WorldPosition );
 		GameObject.Destroy();
@@ -195,9 +219,25 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnFixedUpdate()
 	{
+		if ( Networking.IsHost && OwnerGorge is not null && !OwnerGorge.IsValid() )
+		{
+			if ( ClingSlot != 0 ) DetachFromSocket();
+			OwnerGorge = null;
+			ownerLossTimeout = 1;
+		}
 		if ( ClingSlot != 0 ) return;
 		base.OnFixedUpdate();
-		if ( !Networking.IsHost || !body.IsValid() || Health <= 0 || PhysicsCarrier.IsValid() ) return;
+		if ( !Networking.IsHost || !body.IsValid() || Health <= 0 ) return;
+		if ( ownerLossTimeout is { } timeout )
+		{
+			if ( OwnerGorge.IsValid() ) ownerLossTimeout = null;
+			else if ( timeout <= 0 )
+			{
+				Kill();
+				return;
+			}
+		}
+		if ( PhysicsCarrier.IsValid() ) return;
 		if ( OwnerGorge.IsValid() )
 		{
 			ApproachOwner();

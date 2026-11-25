@@ -63,6 +63,6 @@ public sealed partial class Gorge
 	void BreakBabbler( Babbler babbler )
 	{
 		BabblerRemoved( babbler );
-		babbler.BreakShield();
+		babbler.Kill();
 	}
 }
