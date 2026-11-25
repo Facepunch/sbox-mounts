@@ -38,6 +38,9 @@ public sealed class CrossbowBolt : Projectile
 		if ( _glow.IsValid() ) MountedEffects.SetSprite( _glow, 0.2f, 128 * MathF.Max( 0, 1 - _glowAge / 3 ) );
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void ImpactSparks( Vector3 position, string mount ) => WeaponEffects.ElectricSpark( position, 1, Vector3.Zero, mount );
+
 	protected override bool Simulate()
 	{
 		if ( !_stuck ) return true;
@@ -70,14 +73,16 @@ public sealed class CrossbowBolt : Projectile
 		}
 		if ( DamageTarget( tr ) )
 		{
-			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody" );
+			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody", impactEffect: false );
 			GameObject.Destroy();
 			return;
 		}
 		var direction = Velocity.Normal;
 		var hitDot = tr.Normal.Dot( -direction );
-		PlayImpact( tr, "Weapon_Crossbow.BoltHitWorld" );
-		if ( hitDot < 0.5f && Velocity.Length > 100 )
+		var ricochet = hitDot < 0.5f && Velocity.Length > 100;
+		PlayImpact( tr, "Weapon_Crossbow.BoltHitWorld", impactEffect: !ricochet );
+		if ( !SourceWaterMap.IsUnderwater( Scene, WorldPosition ) ) ImpactSparks( WorldPosition, MountName );
+		if ( ricochet )
 		{
 			Reflect( tr, 0.75f );
 			_ricocheted = true;
