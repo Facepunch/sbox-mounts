@@ -4,6 +4,12 @@ namespace Source1;
 
 // Stored on imported models through ModelBuilder.WithData; game code reads them into its own types with the same GameData names.
 
+[Sandbox.ModelEditor.GameData( "source_prop_damage" ), Hide]
+public sealed class PropDamageModifiers
+{
+	public float Club { get; set; } = 1;
+}
+
 [Sandbox.ModelEditor.GameData( "physgun_interactions" ), Hide]
 public sealed class PhysGunInteractions
 {

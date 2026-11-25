@@ -57,7 +57,10 @@ public class MeleeWeapon : Weapon
 		SwingEffects( new ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) );
 
 		tr.Direction = aim.Forward;
-		ShootBullet( tr, Damage, Damage * ImpulsePerDamage, hitboxTags: true );
+		var damage = Damage;
+		if ( tr.GameObject.IsValid() && tr.GameObject.GetComponentInParent<IDamageable>() is Prop prop )
+			damage *= prop.Model?.GetData<PropDamageModifiers>()?.Club ?? 1;
+		ShootBullet( tr, damage, Damage * ImpulsePerDamage, hitboxTags: true );
 	}
 
 	SceneTraceResult TraceSwing( Ray aim )

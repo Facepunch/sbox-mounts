@@ -18,7 +18,7 @@ internal sealed class SourcePropData
 		}
 	}
 
-	internal (ModelPropData Prop, PhysGunInteractions PhysGun) Read( IReadOnlyList<VmtNode> roots, string path, Action<string> report, bool hasAuthoredPieces = false )
+	internal (ModelPropData Prop, PhysGunInteractions PhysGun, PropDamageModifiers Modifiers) Read( IReadOnlyList<VmtNode> roots, string path, Action<string> report, bool hasAuthoredPieces = false )
 	{
 		if ( roots.Count == 1 && roots[0].IsBlock && roots[0].Name.Equals( "mdlkeyvalue", StringComparison.OrdinalIgnoreCase ) )
 			roots = roots[0].Children;
@@ -28,7 +28,7 @@ internal sealed class SourcePropData
 			physGun = new() { PreferredCarryAngles = angles };
 		var prop = roots.FirstOrDefault( node => node.IsBlock && node.Name.Equals( "prop_data", StringComparison.OrdinalIgnoreCase ) );
 		if ( prop is null )
-			return (null, physGun);
+			return (null, physGun, null);
 
 		var values = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var bases = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
@@ -47,6 +47,7 @@ internal sealed class SourcePropData
 			&& !string.IsNullOrWhiteSpace( parameters.String( "breakable_model" ) ) )
 			report( $"{path}: script-selected random breakable chunks are not supported." );
 
+		var club = parameters.Float( "dmg.club", 1 );
 		return (new ModelPropData
 		{
 			Health = parameters.Integer( "health", -1 ),
@@ -54,7 +55,7 @@ internal sealed class SourcePropData
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		}, physGun);
+		}, physGun, club == 1 ? null : new PropDamageModifiers { Club = club });
 
 		void Apply( VmtNode section )
 		{
