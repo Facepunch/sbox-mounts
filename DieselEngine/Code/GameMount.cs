@@ -20,6 +20,8 @@ public sealed class PaydayMount : BaseGameMount
 	}
 	internal Dictionary<string, WeaponAudio> WeaponAudio { get; } = [];
 	internal Dictionary<string, PaydayCharacter> Characters { get; } = [];
+	/// <summary>Unit path for each unit IdString in the installed lookup.</summary>
+	internal Dictionary<ulong, string> UnitNames { get; } = [];
 	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
 	protected override void Initialize( InitializeContext context )
@@ -69,6 +71,8 @@ public sealed class PaydayMount : BaseGameMount
 			}
 			if ( Database.Entries.ContainsKey( (unitType, hash) ) )
 			{
+				// Binary formats (e.g. massunit brushes) reference units by hash only.
+				UnitNames.TryAdd( hash, name );
 				try
 				{
 					if ( UnitModel.DescribeForBrowser( Database, name ) is { } info )
@@ -126,6 +130,7 @@ public sealed class PaydayMount : BaseGameMount
 		WeaponAudio.Clear();
 		browserMaterials = null;
 		Characters.Clear();
+		UnitNames.Clear();
 		Database = null;
 	}
 }

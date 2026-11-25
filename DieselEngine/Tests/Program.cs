@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky")) || args.Length > 4 )
-	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky [level] [output.txt]]" );
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush")) || args.Length > 4 )
+	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush [level] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-brush" )
+	{
+		string level = args.Length > 2 ? args[2] : "bank";
+		string brushOutput = args.Length > 3 ? args[3] : $"brush_{level}.txt";
+		using ( var brushWriter = new StreamWriter( brushOutput ) ) BrushDump.Run( db, level, brushWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( brushOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-sky" )
 	{
 		string level = args.Length > 2 ? args[2] : "suburbia";
@@ -281,6 +289,33 @@ foreach ( var sunMap in new[] { "apartment", "bank", "bridge", "diamondheist", "
 	Console.WriteLine( $"  {sunMap}: sun_anim={sunEnvironment.SunVertical:0.###} sun_anim_x={sunEnvironment.SunHorizontal:0.###} sky_rot={sunEnvironment.SkyRotation:0} -> elevation {sunElevation:0.0}°, azimuth {sunAzimuth:0.0}°" );
 }
 Console.WriteLine( "PASS: underlay sun rig reference poses, sky rotation, invalid inputs and nine authored sun directions." );
+// Brush scatter (massunit). Every referenced unit must resolve through the installed lookup, as MapLoader does.
+var unitTypeHash = IdString.Hash( "unit" );
+var lookupUnits = new Dictionary<ulong, string>();
+foreach ( var lookupName in Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' ) )
+	if ( lookupName.Length > 0 && db.Entries.ContainsKey( (unitTypeHash, IdString.Hash( lookupName )) ) )
+		lookupUnits.TryAdd( IdString.Hash( lookupName ), lookupName );
+int brushInstances = 0, brushUnits = 0;
+foreach ( var brushMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+{
+	var brushWorld = ScriptData.Read( db.Find( "world", $"levels/{brushMap}/world" ) );
+	string brushFile = brushWorld.Table( "brush" )?.Text( "file" ) ?? throw new Exception( $"{brushMap}: world has no brush file." );
+	var massUnits = MassUnitFile.Read( db.Find( "massunit", $"levels/{brushMap}/{brushFile}" ) ?? throw new Exception( $"{brushMap}: missing massunit." ) );
+	foreach ( var entry in massUnits )
+	{
+		if ( !lookupUnits.TryGetValue( entry.Unit, out var brushUnit ) ) throw new Exception( $"{brushMap}: brush unit {entry.Unit:x16} is not an installed unit." );
+		foreach ( var instance in entry.Instances )
+			if ( instance.Position.Length > 1_000_000 ) throw new Exception( $"{brushMap}: brush {brushUnit} placed implausibly far away." );
+		brushInstances += entry.Instances.Length;
+	}
+	brushUnits += massUnits.Count;
+	Console.WriteLine( $"  {brushMap}: {massUnits.Count} brush units, {massUnits.Sum( e => e.Instances.Length )} instances" );
+}
+var bankBrushes = MassUnitFile.Read( db.Find( "massunit", "levels/bank/massunit" ) );
+if ( bankBrushes.Count != 27 || bankBrushes[0].Unit != IdString.Hash( "units/world/brushes/bank_papers/bank_papers_2" ) || bankBrushes[0].Instances.Length != 11 )
+	throw new Exception( "Bank massunit header/entry layout regressed." );
+Reject( () => MassUnitFile.Read( db.Find( "massunit", "levels/bank/massunit" )[..900] ) );
+Console.WriteLine( $"PASS: {brushUnits} brush unit entries and {brushInstances} brush instances across nine massunit files." );
 var units = new HashSet<string>();
 var configs = new Dictionary<string, Dictionary<ulong, MaterialDefinition>>();
 var texturePaths = new HashSet<string>();

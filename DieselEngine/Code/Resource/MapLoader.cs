@@ -56,6 +56,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				AddLayer( ScriptData.Read( layer ), go );
 			}
 		}
+		AddBrushes( world, root, directory );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
@@ -189,6 +190,55 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			ApplyTransform( go, unit );
 			go.AddComponent<SpawnPoint>();
 		}
+	}
+
+	/// <summary>
+	/// Editor-painted brush scatter from the world's <c>brush/file</c> massunit resource (papers, litter,
+	/// soot, post-its, bushes). These are ordinary units, so they share the placement model cache; they
+	/// carry no per-instance variations, lights or interactions.
+	/// </summary>
+	void AddBrushes( ScriptTable world, GameObject root, string directory )
+	{
+		string file = world.Table( "brush" )?.Text( "file" );
+		if ( string.IsNullOrEmpty( file ) ) return;
+		var bytes = Host.Database.Find( "massunit", directory + file );
+		if ( bytes is null ) { Log.Warning( $"PAYDAY {path}: missing brush file {directory + file}.massunit" ); return; }
+		List<MassUnitFile.Entry> entries;
+		try { entries = MassUnitFile.Read( bytes ); }
+		catch ( InvalidDataException e ) { Log.Warning( $"PAYDAY {path} brushes: {e.Message}" ); return; }
+		var parent = new GameObject( true, "Brushes" ) { Parent = root, IsStatic = true };
+		int brushes = 0;
+		foreach ( var entry in entries )
+		{
+			if ( !Host.UnitNames.TryGetValue( entry.Unit, out var name ) )
+			{
+				Log.Warning( $"PAYDAY {path}: unknown brush unit {entry.Unit:x16} ({entry.Instances.Length} instances)" );
+				missing += entry.Instances.Length;
+				continue;
+			}
+			var key = (name, "", "");
+			if ( !models.TryGetValue( key, out var model ) )
+			{
+				try { model = UnitModel.BuildPlaced( Host.Database, materials, name, $"mount://payday/{path}/{IdString.Hash( name ):x16}.vmdl", "", "" ); }
+				catch ( Exception e ) { Log.Warning( $"PAYDAY: unable to import brush {name}: {e.Message}" ); }
+				models[key] = model;
+			}
+			if ( model is null ) { missing += entry.Instances.Length; continue; }
+			if ( model.Model is null || !(model.HasGraphics || model.HasCollision) ) continue;
+			var group = new GameObject( true, name[(name.LastIndexOf( '/' ) + 1)..] ) { Parent = parent, IsStatic = true };
+			foreach ( var instance in entry.Instances )
+			{
+				var go = new GameObject( true, "brush" ) { Parent = group, IsStatic = true };
+				go.LocalPosition = Coordinates.Position( instance.Position );
+				go.LocalRotation = Coordinates.Rotation( instance.Rotation );
+				go.Tags.Add( "world" );
+				if ( model.HasGraphics ) go.AddComponent<ModelRenderer>().Model = model.Model;
+				if ( model.HasCollision ) go.AddComponent<ModelCollider>().Model = model.Model;
+				brushes++;
+			}
+		}
+		placed += brushes;
+		Log.Info( $"PAYDAY {path}: placed {brushes} brush instances from {entries.Count} brush units." );
 	}
 
 	static void ApplyTransform( GameObject go, ScriptTable unit )
