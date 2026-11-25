@@ -42,9 +42,12 @@ public sealed partial class Onos
 		waveOrigin = next;
 		if ( nextPulse > 0 ) return;
 		nextPulse = 0.1f;
+		// The visible wave reaches floors below gaps that are too deep to step down.
+		if ( !floor.Hit ) floor = TraceWorld( waveOrigin, waveOrigin - Vector3.Up * (3 * Scale) );
 		if ( !floor.Hit ) return;
 		var center = floor.EndPosition;
 		ShowStompCrack( center, waveDirection );
+		if ( waveOrigin.z - center.z > Scale ) return;
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, 2.2f * Scale ) ) )
 		{
 			if ( obj.GetComponentInParent<IDamageable>() is not Component victim || waveVictims.Contains( victim ) ||
