@@ -120,6 +120,7 @@ public sealed class BulletWeapon : Weapon
 	bool _scoped;
 
 	bool Launches => Secondary == SecondaryFires.Default && AlternateProjectile is not null;
+	bool BlocksUnusedSecondaryUnderwater => !FiresUnderwater && Secondary == SecondaryFires.Default && AlternateProjectile is null;
 
 	protected override GameObject Attacker => BurstFollowUp && _burstAttacker.IsValid() ? _burstAttacker : base.Attacker;
 
@@ -140,6 +141,9 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnControl()
 	{
+		// Source checks water before dispatching even an unimplemented secondary attack.
+		if ( BlocksUnusedSecondaryUnderwater && !IsDeploying && !IsReloading && NextSecondaryFire <= 0 && Input.Down( "attack2" )
+			&& BlockSubmergedShot( blockBothTriggers: true, playEmptySound: false ) ) return;
 		base.OnControl();
 		if ( Secondary != SecondaryFires.DelayPrimary || IsReloading || !Input.Down( "attack2" ) ) return;
 
@@ -305,7 +309,7 @@ public sealed class BulletWeapon : Weapon
 	{
 		base.PrimaryAttack();
 		if ( AccuracyPenaltyPerShot > 0 && HasOwner ) _accuracyPenalty += AccuracyPenaltyPerShot;
-		if ( Secondary == SecondaryFires.DoubleShot ) SetNextFire( PrimaryDelay );
+		if ( Secondary == SecondaryFires.DoubleShot || BlocksUnusedSecondaryUnderwater ) SetNextFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		if ( HasOwner && MachineGunKick.y > 0 )
 		{
