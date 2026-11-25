@@ -257,27 +257,44 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		if ( effect is not { DataSize: > 0 } ) return null;
 		int header = Address( effect );
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
-		int systems = Block( header + 20 ) + 48;
-		for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
+		string marker = null;
+		var layers = new List<MuzzleFlashLayer>();
+		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
+			ReadSystems( ev + 48 );
+		return layers.Count == 0 ? null : new( marker, layers.ToArray() );
+
+		void ReadSystems( int systems )
 		{
-			if ( Reference( row ) is not { TagPath: @"effects\generic\energy\flash_c_generic" } particle || map.ReadInt32( row + 48 ) != 1 ) continue;
-			int definition = Address( particle );
-			var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
-			if ( bitmap is null ) return null;
-			int emitter = Block( row + 48 ), color = Block( emitter + 96 );
-			Color Tint( int offset )
+			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
-				int rgb = map.ReadInt32( color + offset );
-				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
+				var particle = Reference( row );
+				if ( particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst") ) continue;
+				int definition = Address( particle );
+				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
+				if ( bitmap is null ) continue;
+				var frame = ReadAnimatedFrames( definition )[0];
+				var pivot = frame.Pivot * frame.InverseSize;
+				marker ??= map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
+				for ( int j = 0, emitter = Block( row + 48 ); j < map.ReadInt32( row + 48 ); j++, emitter += 0xb8 )
+				{
+					int color = Block( emitter + 96 );
+					Color Tint( int offset )
+					{
+						int rgb = map.ReadInt32( color + offset );
+						return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
+					}
+					var offset = new Vector3( Float( emitter + 156 ), Float( emitter + 160 ), Float( emitter + 164 ) ) * 120;
+					var direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 );
+					Vector2 Bounds( int property ) => new( Float( Block( property + 8 ) + 4 ), Float( Block( property + 8 ) + 8 ) );
+					layers.Add( new( Host.AssetPath( map, bitmap.TagPath, "vtex" ) + "/sheet.vtex", Short( definition + 8 ),
+						new Vector2( 1 - pivot.x, pivot.y ), frame.Aspect, Bounds( emitter + 24 ),
+						ReadRange( emitter + 72, 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ), ReadRange( definition + 92, 1 ),
+						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
+						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
+						Bounds( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ).x * 120, Short( emitter + 72 ) == 2 ) );
+				}
 			}
-			var frame = ReadAnimatedFrames( definition )[0];
-			var pivot = frame.Pivot * frame.InverseSize;
-			string marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
-			return new( marker, Host.AssetPath( map, bitmap.TagPath, "vtex" ) + "/sheet.vtex", Short( definition + 8 ),
-				new Vector2( 1 - pivot.x, pivot.y ), frame.Aspect, Float( Block( emitter + 32 ) + 4 ),
-				ReadRange( emitter + 72, 120 ), ReadRange( emitter + 56, 1 ), ReadRange( definition + 92, 1 ), Tint( 4 ), Tint( 16 ) );
 		}
-		return null;
 	}
 
 	ChargeSoundTrack ReadChargeSound()
