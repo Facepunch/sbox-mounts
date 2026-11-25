@@ -8,20 +8,31 @@ public sealed partial class RabbitGuard
 	TimeUntil contactReady = 0.2f;
 	[Sync( SyncFlags.Interpolate )] Vector3 ContactVelocity { get; set; }
 	readonly HashSet<RabbitGuard> contactCandidates = new();
+	readonly HashSet<ModelPhysics> nearbyRagdolls = new();
 
 	bool CanTouchCharacters => !Downed && !Unconscious && !InThrow && Health > 0 && boundAnimations is not null && contactReady <= 0f;
 
 	void UpdateCharacterContacts()
 	{
-		if ( !Networking.IsHost || !CanTouchCharacters ) return;
+		if ( !Networking.IsHost || Downed || boundAnimations is null ) return;
+		bool uprightContact = CanTouchCharacters;
+		bool ragdollContact = !StaticCharacter && IsOnGround;
+		if ( !uprightContact && !ragdollContact ) return;
 		ContactVelocity = Animation.IsGrounded ? ContactVelocity * MathF.Pow( 0.9f, Time.Delta * 120f ) : default;
 		var center = CharacterCenter( GameObject );
 		Vector3? massCenter = null;
 		contactCandidates.Clear();
-		foreach ( var hit in Scene.FindInPhysics( new Sphere( center, ContactDistance ) ) )
+		nearbyRagdolls.Clear();
+		foreach ( var hit in Scene.FindInPhysics( new Sphere( center, 40f + LegRadius ) ) )
 		{
 			var other = hit.GetComponentInParent<RabbitGuard>();
-			if ( !other.IsValid() || !other.CanTouchCharacters || other == holdPartner || Id.CompareTo( other.Id ) >= 0 ||
+			if ( ragdollContact && hit.GetComponentInParent<ModelPhysics>() is { Active: true } physics &&
+				(other is { Downed: true } || physics.GetComponent<CharacterRemains>().IsValid()) && nearbyRagdolls.Add( physics ) )
+			{
+				ReceiveRagdollContact( physics, center );
+				if ( Downed ) return;
+			}
+			if ( !uprightContact || !other.IsValid() || !other.CanTouchCharacters || other == holdPartner || Id.CompareTo( other.Id ) >= 0 ||
 				StaticCharacter && other.StaticCharacter || !contactCandidates.Add( other ) ) continue;
 			massCenter ??= ContactCenter();
 			if ( massCenter is not { } here || other.ContactCenter() is not { } there ) continue;
@@ -34,6 +45,26 @@ public sealed partial class RabbitGuard
 			other.ReceiveCharacterContact( this, offset, -direction );
 			if ( !StaticCharacter ) massCenter -= offset;
 		}
+	}
+
+	void ReceiveRagdollContact( ModelPhysics physics, Vector3 center )
+	{
+		if ( CharacterLoader.RagdollCenter( physics ) is not { } position ||
+			position.DistanceSquared( center ) > (40f + LegRadius) * (40f + LegRadius) ||
+			(position - center).WithZ( 0f ).LengthSquared >= 16f * 16f ||
+			CharacterLoader.RagdollVelocity( physics ) is not { } velocity || velocity.LengthSquared <= 80f * 80f ) return;
+
+		var relative = (velocity - BodyVelocity - combatVelocity).WithZ( 0f );
+		bool wolf = boundAnimations.Species == "wolf";
+		if ( !wolf && velocity.LengthSquared > 120f * 120f && relative.LengthSquared > 160f * 160f )
+		{
+			EnterRagdoll( passive: true );
+			return;
+		}
+
+		float frames = Time.Delta * 120f;
+		ApplyHitImpulse( physics, center, relative * (-500f / 120f * frames), Vector3.Up );
+		if ( !wolf ) combatVelocity += relative * frames;
 	}
 
 	Vector3? ContactCenter()

@@ -158,7 +158,11 @@ public sealed partial class RabbitGuard
 		earliestRollAge = earliestRoll;
 	}
 
-	void GoLimp()
+	bool passiveRagdoll;
+
+	void GoLimp() => EnterRagdoll( passive: false );
+
+	void EnterRagdoll( bool passive )
 	{
 		RestartRecovery();
 		if ( Downed && ragdoll is { Active: true } )
@@ -167,6 +171,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		EndLedge();
+		passiveRagdoll = passive;
 		fallAge = sinceRagdollImpact = 0;
 		limpStun = 0f;
 		displayingRoll = false;

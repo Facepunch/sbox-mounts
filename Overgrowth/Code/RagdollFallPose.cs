@@ -91,7 +91,7 @@ public sealed partial class RabbitGuard
 		}
 		UpdateCharacterContacts();
 		if ( Networking.IsHost && (dragWindow > 0f || draggedPhysics is not null) ) UpdateBodyDrag();
-		if ( Downed && Networking.IsHost && ActiveInjury is not { Active: true } ) DriveFallingPose();
+		if ( Downed && !passiveRagdoll && Networking.IsHost && ActiveInjury is not { Active: true } ) DriveFallingPose();
 	}
 
 	void DriveFallingPose()

@@ -210,6 +210,7 @@ public sealed partial class RabbitGuard
 			{
 				chokeVictim = victim.GameObject;
 				victim.PlayMaterialEvent( "choke_fall", victim.WorldPosition, victim.GroundMaterialName, 1f );
+				if ( victim.Unconscious && !victim.Downed ) victim.EnterRagdoll( passive: true );
 			}
 			ReleaseHold();
 			return false;
