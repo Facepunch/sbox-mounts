@@ -5,7 +5,7 @@ namespace Source1.Hl2;
 /// <summary>
 /// weapon_physcannon: punts with attack1, pulls and carries with attack2. Values follow the SDK
 /// (physcannon_tracelength 250, punt impulse per mass, 250 kg carry limit); the body is held with
-/// <see cref="PhysicsHold"/> on the host, which simulates it. An NPC it carries is told through
+/// velocity control on the host, which simulates it. An NPC it carries is told through
 /// <see cref="Sandbox.Npcs.BaseNpc.StartCarry"/> and <see cref="Sandbox.Npcs.BaseNpc.StopCarry"/>.
 /// </summary>
 [Title( "HL2 Gravity Weapon" )]
@@ -30,9 +30,12 @@ public sealed class GravityWeapon : Weapon
 	const float MaxLaunchSpeed = 1500;
 	[Sync( SyncFlags.FromHost )] public GameObject HeldObject { get; private set; }
 	[Sync] public bool Pulling { get; set; }
-	readonly PhysicsHold _hold = new();
+	const float MaxCarrySpeed = 2500;
+	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
+	Vector3 _carryTarget;
 	Rotation _holdOffset;
 	float _carryError;
+	float _carryTurnRate;
 	TimeUntil _carryGrace;
 	// Launching a held object consumes the current secondary press.
 	bool _attack2Debounce;
@@ -215,9 +218,10 @@ public sealed class GravityWeapon : Weapon
 		}
 		HeldObject = body.GameObject;
 		_holdOffset = Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
-		_hold.Hold( body, body.PhysicsBody.MassCenter );
+		_carryTarget = body.PhysicsBody.MassCenter;
 		_carryGrace = 1;
 		_carryError = 0;
+		_carryTurnRate = 0;
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
 		CarryEffects( CarryResult.Pickup );
@@ -225,12 +229,12 @@ public sealed class GravityWeapon : Weapon
 
 	bool CanContinueCarry( Rigidbody body )
 	{
-		if ( !_hold.IsHolding || !CanMove( body ) || Owner.GroundObject == HeldObject ) return false;
+		if ( !CanMove( body ) || Owner.GroundObject == HeldObject ) return false;
 		if ( _carryGrace > 0 ) return true;
 
-		var error = body.PhysicsBody.MassCenter.Distance( _hold.TargetPosition );
+		var error = body.PhysicsBody.MassCenter.Distance( _carryTarget );
 		// The grab controller discounts errors beyond its 2500 units/s tracking speed.
-		if ( error > 2500 * Time.Delta ) error *= 0.5f;
+		if ( error > MaxCarrySpeed * Time.Delta ) error *= 0.5f;
 		_carryError = float.Lerp( _carryError, error, MathF.Min( Time.Delta, 1 ) );
 		return _carryError <= 12;
 	}
@@ -258,12 +262,34 @@ public sealed class GravityWeapon : Weapon
 		var axis = Owner.WorldPosition.WithZ( target.z );
 		var offset = target - axis;
 		if ( offset.LengthSquared < radius * radius ) target = axis + offset.Normal * radius;
-		_hold.Move( new Transform( target, eye.Rotation * _holdOffset ) );
+		_carryTarget = target;
+		MoveCarriedBody( body, target, eye.Rotation * _holdOffset );
 	}
+
+	void MoveCarriedBody( Rigidbody body, Vector3 target, Rotation orientation )
+	{
+		var velocity = CarryVelocity( body.Velocity, target - body.PhysicsBody.MassCenter, MaxCarrySpeed, MaxCarrySpeed * 2 );
+		var contact = Scene.Trace.Body( body, body.PhysicsBody.Position + velocity * Time.Delta )
+			.IgnoreGameObjectHierarchy( HeldObject ).WithoutTags( "trigger" ).Run();
+		var other = contact.GameObject?.GetComponentInParent<Rigidbody>();
+		bool obstructed = contact.Hit && (other is not { MotionEnabled: true } || other.Mass > body.Mass);
+		if ( obstructed )
+			velocity -= contact.Normal * (MathF.Min( velocity.Dot( contact.Normal ), 0 ) * (1 - contact.Fraction));
+		body.Velocity = velocity;
+
+		_carryTurnRate = _carryTurnRate.Approach( obstructed ? 0.1f : 1, 2 * Time.Delta );
+		var rotation = Rotation.Difference( body.WorldRotation, orientation );
+		var spinAxis = new Vector3( rotation.x, rotation.y, rotation.z ).Normal;
+		var angle = rotation.Angle().DegreeToRadian() * (rotation.w < 0 ? -1 : 1);
+		var spinLimit = MaxCarrySpin * _carryTurnRate * _carryTurnRate * _carryTurnRate;
+		body.AngularVelocity = CarryVelocity( body.AngularVelocity, spinAxis * angle, spinLimit, MaxCarrySpin * 2 );
+	}
+
+	static Vector3 CarryVelocity( Vector3 velocity, Vector3 delta, float limit, float dampingLimit ) =>
+		velocity - velocity.ClampLength( dampingLimit ) + (delta / Time.Delta).ClampLength( limit );
 
 	void Release()
 	{
-		_hold.Release();
 		var held = HeldObject;
 		HeldObject = null;
 		if ( !held.IsValid() ) return;
