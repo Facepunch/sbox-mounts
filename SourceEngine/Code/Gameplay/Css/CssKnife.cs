@@ -10,6 +10,9 @@ namespace Source1;
 [Category( "Counter-Strike: Source" )]
 public sealed class CssKnife : SourceMeleeWeapon
 {
+	/// <summary>Radius of the swing trace sphere.</summary>
+	[Property] public float SwingRadius { get; set; } = 10f;
+
 	const float SlashDamage = 15;
 	const float StabDamage = 65;
 	const float SlashRange = 48;

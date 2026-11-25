@@ -19,8 +19,8 @@ public class SourceMeleeWeapon : SourceWeapon
 	/// <summary>Reach of the swing trace.</summary>
 	[Property] public float Range { get; set; } = 128f;
 
-	/// <summary>Radius of the swing trace sphere.</summary>
-	[Property] public float SwingRadius { get; set; } = 10f;
+	static readonly BBox SwingHull = BBox.FromPositionAndSize( Vector3.Zero, 32 );
+	static readonly Vector3[] SwingCorners = SwingHull.Corners.ToArray();
 
 	/// <summary>Physics impulse magnitude applied to hit objects.</summary>
 	[Property] public float SwingForce { get; set; } = 1000f;
@@ -44,21 +44,48 @@ public class SourceMeleeWeapon : SourceWeapon
 	/// </summary>
 	public override void PrimaryAttack()
 	{
-		var trace = Scene.Trace.Ray( AimRay, Range )
-			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
-			.WithoutTags( "playercontroller" )
-			.UseHitboxes();
-
-		var tr = trace.Run();
-		if ( !tr.Hit )
-			tr = trace.Radius( SwingRadius ).Run();
+		var tr = TraceSwing();
 
 		// Hit and miss recover at different speeds: replace the flat cooldown FirePrimary set.
-		SetNextPrimaryFire( tr.GameObject.IsValid() ? SwingDelay : MissSwingDelay );
+		SetNextPrimaryFire( tr.Hit ? SwingDelay : MissSwingDelay );
 
 		SwingEffects( new ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) );
 
 		ShootBullet( tr, Damage, SwingForce, hitboxTags: true );
+	}
+
+	SceneTraceResult TraceSwing()
+	{
+		var aim = AimRay;
+		var trace = Scene.Trace.Ray( aim, Range )
+			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
+			.WithoutTags( "playercontroller" )
+			.UseHitboxes();
+		var line = trace.Run();
+		if ( line.Hit ) return line;
+
+		// Stop the box a corner's length short so the wider swing can't extend the reach.
+		var end = aim.Position + aim.Forward * Math.Max( 0, Range - SwingHull.Maxs.Length );
+		var hull = trace.FromTo( aim.Position, end ).Size( SwingHull ).Run();
+		if ( !hull.Hit || !hull.GameObject.IsValid() ) return line;
+		if ( (hull.GameObject.WorldPosition - aim.Position).Normal.Dot( aim.Forward ) < 0.70721f ) return line;
+
+		// Refine the contact with a line, then the closest of the eight corner rays.
+		end = aim.Position + (hull.EndPosition - aim.Position) * 2;
+		line = trace.FromTo( aim.Position, end ).Run();
+		if ( line.Hit ) return line;
+
+		var nearest = float.MaxValue;
+		foreach ( var corner in SwingCorners )
+		{
+			var hit = trace.FromTo( aim.Position, end + corner ).Run();
+			if ( !hit.Hit ) continue;
+			var distance = (hit.EndPosition - aim.Position).LengthSquared;
+			if ( distance >= nearest ) continue;
+			hull = hit;
+			nearest = distance;
+		}
+		return hull;
 	}
 
 	/// <summary>Lets melee weapons relay extra presentation data alongside the hit.</summary>
