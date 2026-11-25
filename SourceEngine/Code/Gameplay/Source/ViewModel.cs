@@ -320,10 +320,12 @@ public sealed class ViewModel : BaseWeaponModel
 	{
 		if ( !Renderer.IsValid() || !Renderer.SceneModel.IsValid() ) return;
 		ConfigureSequences();
+		UpdateMirror();
+		var hands = GetComponent<ViewModelHands>();
+		if ( hands.IsValid() && !hands.Prepare() ) return;
 		if ( !_animation.IsReady && !_animation.Ensure( Renderer, _choices, _pending ?? IdleClip ) ) return;
 		if ( ResetRecoilOnRelease && !Input.Down( "attack1" ) ) _burstShots = 0;
 		ResolveAttachments();
-		UpdateMirror();
 		UpdateScopeVisibility();
 		if ( _pending is not null ) Play( _pending );
 		else if ( _reloadFinish is not null && _animation.Finished )
@@ -357,7 +359,7 @@ public sealed class ViewModel : BaseWeaponModel
 				Play( IdleClip );
 		}
 		_animation.Tick();
-		GetComponent<ViewModelHands>()?.Animate( _animation, _choices );
+		hands?.Animate( _animation, _choices );
 		// The pulse rifle samples its shot count before the next attack updates it.
 		if ( _hasVentPose ) _animation.SetPoseParameter( "VentPoses", Math.Clamp( _burstShots / 5f, 0, 1 ) );
 	}

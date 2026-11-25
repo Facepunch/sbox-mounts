@@ -71,12 +71,14 @@ public sealed class ViewModelHands : Component
 		_failedModel = null;
 	}
 
-	protected override void OnUpdate()
+	/// <summary>Wait for the replacement renderer so both graphs can start on the same frame.</summary>
+	internal bool Prepare()
 	{
-		if ( !Source.IsValid() || !Source.Model.IsValid() || Source.Model.IsError ) return;
+		if ( !Active || !Source.IsValid() || !Source.Model.IsValid() || Source.Model.IsError ) return true;
 		var stale = _sourceModel != Source.Model || _mirrored != SourceMirrored || _player is null;
 		if ( !_loading && _failedModel != Source.Model && stale ) _ = Configure();
 		if ( _hands.IsValid() ) _hands.Enabled = Source.Enabled;
+		return _failedModel == Source.Model || !_loading && _hands.IsValid() && _hands.SceneModel.IsValid();
 	}
 
 	async Task Configure()
