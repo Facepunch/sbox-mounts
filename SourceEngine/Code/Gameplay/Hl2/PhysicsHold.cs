@@ -13,6 +13,7 @@ sealed class PhysicsHold
 	Vector3 _massCenterOffset;
 
 	public bool IsHolding => _joint is not null;
+	public Vector3 TargetPosition => _body.Position;
 
 	/// <summary>Starts holding <paramref name="body"/> by <paramref name="grabPoint"/>, in world space. Does nothing while holding.</summary>
 	public void Hold( Rigidbody body, Vector3 grabPoint, float damping = 4.0f )

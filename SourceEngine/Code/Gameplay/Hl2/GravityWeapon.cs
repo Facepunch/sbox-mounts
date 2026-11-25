@@ -20,6 +20,7 @@ public sealed class GravityWeapon : Weapon
 	}
 
 	enum PuntResult { Miss, Hit, LaunchHeld }
+	enum CarryResult { Pickup, Drop, ForcedDrop }
 
 	const float TraceLength = 250;
 	const float PullLength = TraceLength * 4;
@@ -31,6 +32,8 @@ public sealed class GravityWeapon : Weapon
 	[Sync] public bool Pulling { get; set; }
 	readonly PhysicsHold _hold = new();
 	Rotation _holdOffset;
+	float _carryError;
+	TimeUntil _carryGrace;
 	// Launching a held object consumes the current secondary press.
 	bool _attack2Debounce;
 	PhysCannonEffects _effects;
@@ -143,16 +146,16 @@ public sealed class GravityWeapon : Weapon
 	{
 		if ( !HeldObject.IsValid() ) return;
 		Release();
-		CarryEffects( pickup: false );
+		CarryEffects( CarryResult.Drop );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void CarryEffects( bool pickup )
+	void CarryEffects( CarryResult result )
 	{
-		if ( pickup ) SetNextSecondaryFire( 0.5f );
-		else SetNextFire( 0.5f );
-		(WeaponModel as ViewModel)?.PlayGravityGunAttack();
-		if ( Sounds.WeaponSound( this, pickup ? "special1" : "melee_miss" ) is { } sound ) GameObject.PlaySound( sound );
+		if ( result == CarryResult.Pickup ) SetNextSecondaryFire( 0.5f );
+		if ( result == CarryResult.Drop ) SetNextFire( 0.5f );
+		if ( result != CarryResult.ForcedDrop ) (WeaponModel as ViewModel)?.PlayGravityGunAttack();
+		if ( Sounds.WeaponSound( this, result == CarryResult.Pickup ? "special1" : "melee_miss" ) is { } sound ) GameObject.PlaySound( sound );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -213,17 +216,32 @@ public sealed class GravityWeapon : Weapon
 		HeldObject = body.GameObject;
 		_holdOffset = Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
 		_hold.Hold( body, body.PhysicsBody.MassCenter );
+		_carryGrace = 1;
+		_carryError = 0;
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
-		CarryEffects( pickup: true );
+		CarryEffects( CarryResult.Pickup );
+	}
+
+	bool CanContinueCarry( Rigidbody body )
+	{
+		if ( !_hold.IsHolding || !CanMove( body ) || Owner.GroundObject == HeldObject ) return false;
+		if ( _carryGrace > 0 ) return true;
+
+		var error = body.PhysicsBody.MassCenter.Distance( _hold.TargetPosition );
+		// The grab controller discounts errors beyond its 2500 units/s tracking speed.
+		if ( error > 2500 * Time.Delta ) error *= 0.5f;
+		_carryError = float.Lerp( _carryError, error, MathF.Min( Time.Delta, 1 ) );
+		return _carryError <= 12;
 	}
 
 	void Hold()
 	{
 		var body = HeldObject.GetComponent<Rigidbody>();
-		if ( !Active || !CanMove( body ) )
+		if ( !Active || !CanContinueCarry( body ) )
 		{
 			Release();
+			if ( Active ) CarryEffects( CarryResult.ForcedDrop );
 			return;
 		}
 		var eye = Owner.EyeTransform;
@@ -240,11 +258,6 @@ public sealed class GravityWeapon : Weapon
 		var axis = Owner.WorldPosition.WithZ( target.z );
 		var offset = target - axis;
 		if ( offset.LengthSquared < radius * radius ) target = axis + offset.Normal * radius;
-		if ( body.PhysicsBody.MassCenter.Distance( target ) > PullLength )
-		{
-			Release();
-			return;
-		}
 		_hold.Move( new Transform( target, eye.Rotation * _holdOffset ) );
 	}
 
