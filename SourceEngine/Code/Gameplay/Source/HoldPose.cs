@@ -31,6 +31,8 @@ public sealed class HoldPose
 	readonly Dictionary<string, int> _indices = new( StringComparer.OrdinalIgnoreCase );
 	readonly (Clip Clip, bool Delta)[] _shots;
 	readonly Clip _reload;
+	readonly Clip[] _realTimeLayers;
+	readonly Transform[] _layerBase;
 	readonly Transform[] _rest;
 	readonly Transform[] _pose;
 	readonly SortedSet<int> _tracked = new();
@@ -170,22 +172,28 @@ public sealed class HoldPose
 		var layerClips = aimSequence.BoneMask is null ? [] : aimSequence.AdditiveLayers.Select( sequences.Get ).Where( x => x is { Delta: true } )
 			.Select( x => Find( x.Name ) ).Where( x => x is not null ).ToArray();
 
+		var realTimeLayers = aimSequence.BoneMask is null ? aimSequence.AdditiveLayers.Select( sequences.Get )
+			.Where( layer => layer is { Delta: true, RealTime: true } ).Select( layer => Find( layer.Name ) )
+			.Where( clip => clip is { Duration: > 0 } ).ToArray() : [];
+
 		// A clip samples as garbage until it and its skeleton have streamed in.
-		Clip[] used = [aimClip, lowerClip, reloadClip, .. layerClips, .. shotClips.Select( x => x.Item1 )];
+		Clip[] used = [aimClip, lowerClip, reloadClip, .. layerClips, .. realTimeLayers, .. shotClips.Select( x => x.Item1 )];
 		if ( used.Any( x => x is not null && (!x.IsBound || !IsPosed( x, skeleton.Bones.Count )) ) )
 			return false;
 
-		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed };
+		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed };
 		if ( pose.Knuckles < 2 )
 			pose = null;
 
 		return true;
 	}
 
-	HoldPose( Skeleton skeleton, SourceModelSequenceData aim, Clip aimClip, Clip lower, Clip[] layers, (Clip, bool)[] shots, Clip reload, bool reloadLoops )
+	HoldPose( Skeleton skeleton, SourceModelSequenceData aim, Clip aimClip, Clip lower, Clip[] layers, Clip[] realTimeLayers, (Clip, bool)[] shots, Clip reload, bool reloadLoops )
 	{
 		_bones = skeleton.Bones;
 		_shots = shots;
+		_realTimeLayers = realTimeLayers;
+		if ( realTimeLayers.Length > 0 ) _layerBase = new Transform[_bones.Count];
 		_reload = reload;
 		ReloadLoops = reloadLoops;
 		_rest = new Transform[_bones.Count];
@@ -215,7 +223,7 @@ public sealed class HoldPose
 		if ( RightHand < 0 || LeftHand < 0 || rightShoulder < 0 || leftShoulder < 0 || elbow < 0 )
 			return;
 
-		Evaluate( 0, float.MaxValue, 0, 0 );
+		EvaluateBase( 0, float.MaxValue, 0, 0 );
 		Shoulders = (_pose[rightShoulder].Position + _pose[leftShoulder].Position) * 0.5f;
 		ArmLength = _bones[rightShoulder].Transform.Position.Distance( _bones[elbow].Transform.Position )
 			+ _bones[elbow].Transform.Position.Distance( _bones[RightHand].Transform.Position );
@@ -230,7 +238,7 @@ public sealed class HoldPose
 		LeftPalm = Palm( _bones[LeftHand].Transform, left[..Knuckles] );
 
 		var knuckles = Enumerable.Range( 1, Knuckles ).Select( finger => Track( $"ValveBiped.Bip01_R_Finger{finger}" ) ).ToArray();
-		Evaluate( 0, float.MaxValue, 0, 0 );
+		EvaluateBase( 0, float.MaxValue, 0, 0 );
 		var fist = knuckles.Aggregate( Vector3.Zero, ( sum, bone ) => sum + _pose[bone].Position ) / Knuckles;
 		Grip = _pose[RightHand].ToLocal( new Transform( fist ) );
 
@@ -285,6 +293,29 @@ public sealed class HoldPose
 	/// </summary>
 	public void Evaluate( int shot, float shotTime, float reloadCycle, float reloadWeight )
 	{
+		EvaluateBase( shot, shotTime, reloadCycle, reloadWeight );
+		if ( _layerBase is null ) return;
+
+		// Transfer the animated source pose to the holder's existing hand IK targets.
+		// The clock continues across deploys and shots.
+		Span<float> cycles = stackalloc float[_realTimeLayers.Length];
+		for ( var j = 0; j < cycles.Length; j++ )
+		{
+			var duration = _realTimeLayers[j].Duration;
+			cycles[j] = (float)(Time.NowDouble % duration / duration);
+		}
+		foreach ( var i in _order )
+		{
+			var local = _layerBase[i];
+			for ( var j = 0; j < cycles.Length; j++ )
+				local = Add( local, _realTimeLayers[j].GetLocalTransform( cycles[j], i ) );
+			var parent = _bones[i].ParentIndex;
+			_pose[i] = parent < 0 ? local : _pose[parent].ToWorld( local );
+		}
+	}
+
+	void EvaluateBase( int shot, float shotTime, float reloadCycle, float reloadWeight )
+	{
 		var shooting = _shots.Length > 0 && shotTime < ShotDuration( shot );
 		var reloading = _reload is not null && reloadWeight > 0;
 		if ( !shooting && !reloading && _resting )
@@ -321,6 +352,12 @@ public sealed class HoldPose
 		{
 			if ( _tracked.Contains( bone ) )
 				_pose[bone] = Blend( _pose[bone], _pose[target], reloading ? 1 - reloadWeight : 1 );
+		}
+		if ( _layerBase is null ) return;
+		foreach ( var i in _order )
+		{
+			var parent = _bones[i].ParentIndex;
+			_layerBase[i] = parent < 0 ? _pose[i] : _pose[parent].ToLocal( _pose[i] );
 		}
 	}
 

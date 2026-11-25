@@ -52,6 +52,7 @@ internal sealed partial class MdlFile
 
 	// mstudioseqdesc_t flags
 	private const int SequenceLooping = 0x0001;
+	private const int SequenceRealTime = 0x0100;
 	private const int SequenceSnap = 0x0002;
 	private const int SequenceDelta = 0x0004;
 	private const int SequenceAutoplay = 0x0008;
@@ -138,6 +139,7 @@ internal sealed partial class MdlFile
 			Activity = ReadRelativeString( data, offset, sequence.ActivityNameIndex ),
 			ActivityWeight = sequence.ActWeight,
 			Looping = (sequence.Flags & SequenceLooping) != 0,
+			RealTime = (sequence.Flags & SequenceRealTime) != 0,
 			Snap = (sequence.Flags & SequenceSnap) != 0,
 			Delta = (sequence.Flags & SequenceDelta) != 0,
 			FadeIn = float.IsFinite( sequence.FadeInTime ) ? Math.Max( 0, sequence.FadeInTime ) : 0,

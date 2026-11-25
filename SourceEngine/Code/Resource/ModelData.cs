@@ -92,6 +92,9 @@ public sealed class SourceModelSequenceData
 	public int ActivityWeight { get; set; }
 	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
 	public bool Looping { get; set; }
+	/// <summary>The source sequence takes its phase from game time.</summary>
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	public bool RealTime { get; set; }
 	/// <summary>Enter this sequence immediately, without blending from the previous pose.</summary>
 	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
 	public bool Snap { get; set; }
