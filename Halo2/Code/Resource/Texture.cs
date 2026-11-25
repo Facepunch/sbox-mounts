@@ -8,7 +8,7 @@ namespace Halo2;
 /// <summary>
 /// Loads a Halo 2 bitmap (bitm) tag as a Texture.
 /// </summary>
-public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false, (float Fill, int Rgb)? meter = null ) : ResourceLoader<Halo2Mount>
+public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex = 0, bool hudMask = false, Rect[][] spriteSequences = null, bool loop = false, (float Fill, int Rgb)? meter = null, (int Dark, int Light, int Accent)? hudGradient = null ) : ResourceLoader<Halo2Mount>
 {
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
@@ -74,6 +74,25 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 
 		// Decode directly to the runtime's smallest-first layout, preserving every authored mip.
 		var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, data, sizes, length );
+
+		if ( hudGradient is {} gradient && data.Format == BitmapData.TextureFormats.A8R8G8B8 )
+		{
+			// The HUD pass uses green to sample the gradient and blue to blend in the highlight.
+			for ( int i = 0; i < length; i += 4 )
+			{
+				int green = pixels[i + 1], blue = pixels[i];
+				for ( int channel = 0; channel < 3; channel++ )
+				{
+					int shift = channel * 8;
+					int dark = (byte)(gradient.Dark >> shift), light = (byte)(gradient.Light >> shift);
+					int accent = (byte)(gradient.Accent >> shift);
+					int ramp = dark * (255 - green) + light * green;
+					const int denominator = 255 * 255;
+					int blended = ramp * (255 - blue) + accent * blue * 255;
+					pixels[i + channel] = (byte)((blended + denominator / 2) / denominator);
+				}
+			}
+		}
 
 		if ( (hudMask || meter.HasValue) && data.Format == BitmapData.TextureFormats.A8R8G8B8 )
 		{

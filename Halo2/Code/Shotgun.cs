@@ -482,6 +482,7 @@ public sealed class Shotgun : Weapon
 	}
 
 	Texture ammoMeter;
+	Texture ammoBackground, emptyAmmoBackground;
 	(Color Loaded, Color Empty)? reserveColors;
 	readonly Texture[] reserveDigits = new Texture[10];
 	int displayedShells = -1;
@@ -496,6 +497,15 @@ public sealed class Shotgun : Weapon
 		if ( scale <= 0 ) return;
 		bool split = viewport.z < 1 || viewport.w < 1;
 		var safeCorner = new Vector2( bounds.Width / scale, 0 ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 ));
+		bool empty = Clip1 == 0 && Ammo1 == 0;
+		ref var background = ref (empty ? ref emptyAmmoBackground : ref ammoBackground);
+		if ( !background.IsValid() )
+		{
+			var name = empty ? ShotgunLoader.EmptyAmmoBackgroundName : ShotgunLoader.AmmoBackgroundName;
+			background = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{name}" );
+		}
+		if ( background.IsValid() && !background.IsError )
+			painter.Texture( background, new Rect( bounds.Position + (safeCorner + new Vector2( -103, 0 )) * scale, new Vector2( 103, 19 ) * scale ) );
 		// The original shotgun HUD uses the same logical offsets in full and split views.
 		DrawReserve( painter, safeCorner + new Vector2( -82, -1 ), scale );
 		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;

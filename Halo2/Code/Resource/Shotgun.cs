@@ -274,6 +274,15 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 				int rgb = map.ReadInt32( Block( constants ) + 4 );
 				return new Halo2TextureLoader( map, bitmap, index, meter: (fill, rgb) );
 			}
+			if ( widget is "weapon_background_single" or "weapon_background_out" )
+			{
+				int shader = Address( Reference( row + 0x28 ) );
+				int functions = Block( shader + 0x20 ) + 60;
+				if ( map.ReadInt32( functions ) < 5 ) return null;
+				int colors = Block( functions );
+				int ColorAt( int slot ) => map.ReadInt32( Block( colors + slot * 20 + 12 ) + (elite ? 16 : 4) );
+				return new Halo2TextureLoader( map, bitmap, index, hudGradient: (ColorAt( 1 ), ColorAt( 0 ), ColorAt( 4 )) );
+			}
 			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
 		}
 		return null;
