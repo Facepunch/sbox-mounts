@@ -3,6 +3,12 @@ namespace Diesel;
 /// <summary>Explicit installed unit identities, rather than matching decorative phone/pole names.</summary>
 static class MapInteractionDefinition
 {
+	// This unit is a single leaf under an authored hinge at its orientation root.
+	// Other door assets include frames, alternate leaves or scripted security machinery.
+	public static bool IsSwingDoor( string unit, string variation ) =>
+		unit == "units/world/architecture/hospital/hospital_door_1"
+		&& (string.IsNullOrEmpty( variation ) || variation is "default" or "closed");
+
 	public static bool IsCamera( string unit ) => unit is
 		"units/world/props/security_camera/security_camera"
 		or "units/world/props/security_camera/security_camera_white"

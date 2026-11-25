@@ -90,6 +90,18 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
+				if ( MapInteractionDefinition.IsSwingDoor( name, meshVariation ) )
+				{
+					go.IsStatic = false;
+					var door = go.AddComponent<PaydayDoor>();
+					door.Leaf = new GameObject( true, "Door leaf" ) { Parent = go };
+					door.Leaf.Tags.Add( PaydayDoor.NavigationTag );
+					door.Leaf.AddComponent<ModelRenderer>().Model = model.Model;
+					door.Leaf.AddComponent<ModelCollider>().Model = model.Model;
+					go.Scene.NavMesh.ExcludedBodies.Add( PaydayDoor.NavigationTag );
+					placed++;
+					continue;
+				}
 				if ( model.HasGraphics ) go.AddComponent<ModelRenderer>().Model = model.Model;
 				if ( model.HasCollision ) go.AddComponent<ModelCollider>().Model = model.Model;
 				if ( MapInteractionDefinition.IsAlarm( name ) )

@@ -17,6 +17,15 @@ foreach ( var (level, expected, expectedCameras) in new[] { ("bank", 16, 21), ("
 		var alarms = components.Where( c => c.GetType().Name == "PaydayAlarm" ).ToArray();
 		int exits = components.Count( c => c.GetType().Name == "PaydayEscapePoint" );
 		var cameras = components.Where( c => c.GetType().Name == "PaydaySecurityCamera" ).ToArray();
+		var doors = components.Where( c => c.GetType().Name == "PaydayDoor" ).ToArray();
+		if ( doors.Length != (level == "l4d" ? 15 : 0) ) throw new Exception( $"{level}: doors={doors.Length}" );
+		if ( doors.Length > 0 && !scene.NavMesh.ExcludedBodies.Has( "payday_door" ) ) throw new Exception( "Door navigation exclusion was lost." );
+		foreach ( var door in doors )
+		{
+			var leaf = (GameObject)door.GetType().GetProperty( "Leaf" ).GetValue( door );
+			if ( !leaf.IsValid() || leaf.GetComponent<ModelCollider>() is null || door.GameObject.IsStatic )
+				throw new Exception( "Door leaf/collider did not survive serialization." );
+		}
 		if ( cameras.Length != expectedCameras ) throw new Exception( $"{level}: cameras={cameras.Length}" );
 		foreach ( var camera in cameras )
 		{
@@ -51,7 +60,7 @@ foreach ( var (level, expected, expectedCameras) in new[] { ("bank", 16, 21), ("
 			}
 			finally { preview.Destroy(); }
 		}
-		results.Add( $"{level}: {alarms.Length} phones/buttons, {cameras.Length} cameras and {exits} authored flee point" );
+		results.Add( $"{level}: {alarms.Length} phones/buttons, {cameras.Length} cameras, {doors.Length} doors and {exits} authored flee point" );
 	}
 	finally { scene.Destroy(); }
 }
