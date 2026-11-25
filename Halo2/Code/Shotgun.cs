@@ -883,7 +883,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	{
 		float remaining = NextPrimaryFire;
 		base.OnEquipped();
-		if ( IsValid && IsHeld && remaining > DeployTime ) SetNextPrimaryFire( remaining );
+		if ( !IsValid || !IsHeld || IsHolstered ) return;
+		if ( remaining > DeployTime ) SetNextPrimaryFire( remaining );
+		PlayHolderOverlay( "ready" );
 	}
 
 	protected override void OnDisabled()
@@ -896,6 +898,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	protected override void OnHolstered()
 	{
+		HolderAnimator?.StopWeaponOverlay( "ready" );
 		triggerConsumed = false;
 		SetNextPrimaryFire( BarrelRecoveryTime );
 		pendingStrike = null;

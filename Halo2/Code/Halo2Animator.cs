@@ -94,7 +94,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	void ReleaseWeaponOverlay()
 	{
 		if ( weaponOverlay is null ) return;
-		if ( Bound && Renderer.Animation.Parameters.GetString( "overlay" ) == weaponOverlay )
+		if ( Bound && string.Equals( Renderer.Animation.Parameters.GetString( "overlay" ), weaponOverlay, StringComparison.OrdinalIgnoreCase ) )
 			Renderer.Animation.Parameters.Set( "overlay", "" );
 		weaponOverlay = null;
 	}
