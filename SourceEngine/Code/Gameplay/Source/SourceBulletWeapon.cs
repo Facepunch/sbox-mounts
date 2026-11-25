@@ -126,8 +126,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	public override bool CanReload() => !_alternatePending && (!NpcControlled || _weaponConfigured) && base.CanReload();
 
 	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
-	protected override bool WantsReload() => base.WantsReload() || (DryTapRefireDelay > 0 && AutoReload && Clip1 == 0
-		&& NextPrimaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" ));
+	protected override bool WantsReload()
+	{
+		if ( DryTapRefireDelay <= 0 ) return base.WantsReload();
+		if ( NextPrimaryFire > 0 ) return false;
+		return Input.Down( "reload" ) || (AutoReload && Clip1 == 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" ));
+	}
 	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
 
 	protected override void Think()
