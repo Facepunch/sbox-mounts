@@ -11,10 +11,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 50;
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 50 ); }
 	float IDamageable.MaxArmour => 50;
+	const float ArrivalDistance = 0.01f * Scale;
 	Vector3 anchor;
+	bool AtAnchor => (WorldPosition - anchor).WithZ( 0 ).LengthSquared <= ArrivalDistance * ArrivalDistance;
 	Component target;
 	float targetRadius;
-	TimeUntil search, nextPositionCheck, nextWeld, inCombat;
+	TimeUntil nextIdleSearch, nextPositionCheck, nextWeld, inCombat;
 	TimeSince age;
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
@@ -72,12 +74,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 
 	protected override void Think()
 	{
-		if ( search <= 0 )
+		if ( nextIdleSearch <= 0 )
 		{
-			search = 0.35f;
 			var found = FindWeldTarget();
 			if ( found != target ) nextPositionCheck = 0;
 			target = found;
+			if ( !target.IsValid() && AtAnchor ) nextIdleSearch = 0.35f;
 		}
 		if ( nextPositionCheck <= 0 )
 		{
@@ -95,7 +97,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		}
 		else
 		{
-			if ( hp.Armour >= hp.MaxArmour || OtherMacIsWelding( target ) ) return;
+			if ( hp.Armour >= hp.MaxArmour ) return;
 			hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + 5 );
 		}
 		nextWeld = 0.5f;
@@ -108,7 +110,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		if ( !target.IsValid() )
 		{
 			Animation.SetLookTarget( null );
-			if ( WorldPosition.Distance( anchor ) > Scale ) Movement.MoveTo( anchor, Scale, speed );
+			if ( !AtAnchor ) Movement.MoveTo( anchor, ArrivalDistance, speed );
 			else Movement.Stop();
 			return;
 		}
@@ -140,8 +142,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		return origin.DistanceSquared( back - side ) < origin.DistanceSquared( back + side ) ? back - side : back + side;
 	}
 
-	bool OtherMacIsWelding( Component candidate ) =>
-		Scene.GetAllComponents<Mac>().Any( mac => mac != this && mac.target == candidate && mac.nextWeld > 0 );
+	bool OtherMacIsWelding( Component candidate )
+	{
+		foreach ( var mac in Scene.GetAllComponents<Mac>() )
+			if ( mac != this && mac.target == candidate && mac.nextWeld > 0 ) return true;
+		return false;
+	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WeldEffect()
