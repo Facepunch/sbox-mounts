@@ -41,6 +41,10 @@ public abstract class SourceWeapon : BaseCombatWeapon
 	/// <summary>Random roll of the first-person view punch per attack (min, max degrees).</summary>
 	[Property, Group( "Camera" )] public Vector2 PunchRoll { get; set; } = new( 0.5f, 0.5f );
 
+	public enum PunchResponses { Oscillate, AddImpulse, ResetImpulse }
+
+	[Property, Group( "Camera" )] public PunchResponses PunchResponse { get; set; }
+
 	/// <summary>How many times the view punch oscillates before it lapses.</summary>
 	[Property, Group( "Camera" )] public float PunchFrequency { get; set; } = 2f;
 
@@ -127,7 +131,8 @@ public abstract class SourceWeapon : BaseCombatWeapon
 		if ( Owner.ThirdPerson || Owner.IsProxy ) return false;
 
 		var punch = new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
-		Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
+		if ( PunchResponse == PunchResponses.Oscillate ) Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
+		else SourceViewPunch.Apply( Scene.Camera, punch, PunchResponse == PunchResponses.ResetImpulse );
 
 		if ( ShakeAmplitude > 0f )
 			Scene.Camera?.AddShake( ShakeAmplitude, ShakeFrequency, ShakeDuration );
