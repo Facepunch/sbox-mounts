@@ -85,10 +85,11 @@ internal sealed class CinematicEmitter
 		velocityZ = Channel( "Particle Velocity Scale", 1 );
 	}
 
-	internal void Play( Vector3 position, Rotation facing )
+	internal void Play( Vector3 position, Rotation facing, GameObject parent )
 	{
 		if ( sprite is null && normal is null && model is null ) return;
 		var emitter = new GameObject( false, name ) { NetworkMode = NetworkMode.Never };
+		emitter.Parent = parent;
 		emitter.WorldPosition = position;
 		var direction = facing * rotation;
 		var particles = emitter.AddComponent<ParticleEffect>();
@@ -148,7 +149,7 @@ internal sealed class CinematicEmitter
 		void Emit( int amount, float time )
 		{
 			var offset = new Vector3( originX.At( time ), originY.At( time ), originZ.At( time ) );
-			var spawn = position + facing * (offset * MapLoader.Scale);
+			var spawn = emitter.WorldPosition + facing * (offset * MapLoader.Scale);
 			int available = Math.Min( amount, capacity - particles.ParticleCount );
 			for ( int i = 0; i < available; i++ )
 			{
