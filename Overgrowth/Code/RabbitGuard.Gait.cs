@@ -4,7 +4,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	float stridePhase;
+	float stridePhase, strideFrequency;
 	bool walkingSinceLanding;
 	readonly Vector3[] lastSkidPosition = new Vector3[2];
 
@@ -32,7 +32,24 @@ public sealed partial class RabbitGuard
 	}
 
 	// UpdateAnimation reads velocity between UpdateMovementControls and ApplyPhysics.
-	float GaitSpeed => Animation.MoveVelocity.WithZ( 0f ).Length * PreFrictionSpeedScale;
+	float GaitSpeed
+	{
+		get
+		{
+			var velocity = Networking.IsHost && Movement is CharacterNavigation navigation ? navigation.GaitVelocity : null;
+			return (velocity ?? Animation.MoveVelocity).WithZ( 0f ).Length * PreFrictionSpeedScale;
+		}
+	}
+
+	// Between script updates the 120 Hz animation reader continues at its previous
+	// rate. The final tick sees the new controls, including on a reader's first frame.
+	static float AdvanceReaderPhase( float start, float frequency, ref float previousFrequency, bool entering )
+	{
+		float lastTick = Math.Min( Time.Delta, 1f / 120f );
+		float next = entering ? 0f : start + (Time.Delta - lastTick) * previousFrequency;
+		previousFrequency = frequency;
+		return next + lastTick * frequency;
+	}
 
 	void UpdateGait()
 	{
@@ -42,7 +59,8 @@ public sealed partial class RabbitGuard
 		// Overgrowth attaches a fresh animation reader when it switches back to movement.
 		bool continuing = playing == Locomotion;
 		float start = continuing ? stridePhase : 0f;
-		float next = continuing ? start + Time.Delta * motion.Evaluate( controls, start, MirroredStance ).Frequency : 0f;
+		float frequency = motion.Evaluate( controls, start, MirroredStance ).Frequency;
+		float next = AdvanceReaderPhase( start, frequency, ref strideFrequency, !continuing );
 		var queued = motion.Evaluate( controls, next % 1f, MirroredStance );
 		if ( continuing ) ReadGaitPose( controls, next % 1f );
 		UpdateBodyLean( queued.Lift );

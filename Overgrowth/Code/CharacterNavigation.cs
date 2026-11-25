@@ -16,6 +16,8 @@ public sealed class CharacterNavigation : NavigationLayer
 	internal Vector3? RequestedHeading { get; set; }
 	Vector3 brakingVelocity;
 	internal Vector3 BrakingVelocity => brakingVelocity;
+	internal Vector3? GaitVelocity => !brakingVelocity.IsNearlyZero() ? brakingVelocity
+		: MoveTarget.HasValue && Agent is { Active: true } && !IsTraversingLink ? Agent.Velocity : null;
 	TimeUntil runOffTimeout;
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;

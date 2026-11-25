@@ -16,7 +16,7 @@ public sealed partial class RabbitGuard
 	TimeUntil startled;
 	float blockHealth = 1f;
 	int hitsOnGround;
-	float duckAmount, duckVelocity;
+	float duckAmount, duckVelocity, groundCrouchTarget;
 	float reactionDuration;
 	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
@@ -72,7 +72,11 @@ public sealed partial class RabbitGuard
 	bool UpdateDefense( bool advanceCrouch = true )
 	{
 		if ( advanceCrouch && strike is not { AsLayer: false } && (ReactionPhase >= 1f || IsGetUp( Stance )) )
-			AdvanceCrouch( GroundCrouchTarget() );
+		{
+			// UpdateDuckAmount integrates the target from the preceding movement update.
+			AdvanceCrouchSpring( groundCrouchTarget, Time.Delta );
+			if ( !IsGetUp( Stance ) ) groundCrouchTarget = GroundCrouchTarget();
+		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
 		float elapsed = ReactionPhase * reactionDuration;
 		if ( activeBlockReaction && elapsed > 0.1f && Animation.IsGrounded && startled <= 0f )
@@ -96,13 +100,11 @@ public sealed partial class RabbitGuard
 		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
 		if ( IsGetUp( Stance ) && ReactionPhase >= 1f )
 		{
-			duckAmount = CrouchAmount = 1f;
+			duckAmount = CrouchAmount = groundCrouchTarget = 1f;
 			duckVelocity = 0f;
 		}
 		return ReactionPhase < 1f;
 	}
-
-	void AdvanceCrouch( float target ) => AdvanceCrouchSpring( target, Time.Delta );
 
 	// UpdateDuckAmount updates velocity before position once per four game ticks.
 	// Taking a fractional power of that update preserves both the pose and momentum between ticks.

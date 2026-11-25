@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 
 	bool hasStanceAnchors;
 	int steppingFoot;
-	float stepProgress, stancePhase;
+	float stepProgress, stancePhase, stanceFrequency;
 	RabbitMovement.Sample evaluatedStance;
 	[Sync] float CloseAmount { get; set; }
 	[Sync] float ThreatAmount { get; set; }
@@ -109,8 +109,8 @@ public sealed partial class RabbitGuard
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
 		var controls = new RabbitMovement.Controls( 0f, 1f - crouch, threat, CloseAmount );
 		var current = tree.Evaluate( controls, stancePhase, mirrored );
-		float next = stancePhase + Time.Delta * current.Frequency;
-		stancePhase = entering ? 0f : tree.Looping ? next % 1f : Math.Min( next, 1f );
+		float next = AdvanceReaderPhase( stancePhase, current.Frequency, ref stanceFrequency, entering );
+		stancePhase = tree.Looping ? next % 1f : Math.Min( next, 1f );
 		var queued = tree.Evaluate( controls, stancePhase, mirrored );
 		var pose = entering || evaluatedStance.Events is null ? queued : evaluatedStance;
 		evaluatedStance = queued;

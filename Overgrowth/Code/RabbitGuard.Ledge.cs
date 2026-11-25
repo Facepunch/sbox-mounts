@@ -221,7 +221,7 @@ public sealed partial class RabbitGuard
 		var support = ClimbTrace( Scene.Trace.Sphere( LegRadius, center + Vector3.Up * 4f, center + Vector3.Down * depth ) ).Run();
 		WorldPosition = (support.Hit && !support.StartedSolid ? support.EndPosition : center) - Vector3.Up * LegRadius;
 		EndLedge();
-		duckAmount = CrouchAmount = 1f;
+		duckAmount = CrouchAmount = groundCrouchTarget = 1f;
 		duckVelocity = 2f;
 		body.Velocity = climbDirection * (0.2f * GroundRunSpeed);
 		leavingLedge = support.Hit && Movement.MoveTarget.HasValue;

@@ -360,7 +360,7 @@ public sealed partial class RabbitGuard
 		{
 			RecoveredInAir = true;
 			Stance = Locomotion;
-			duckAmount = CrouchAmount = 1f;
+			duckAmount = CrouchAmount = groundCrouchTarget = 1f;
 			duckVelocity = 0f;
 			ReactionPhase = 1f;
 			Launch( velocity );
@@ -413,6 +413,7 @@ public sealed partial class RabbitGuard
 		activeBlockReaction = false;
 		MirroredAction = MirroredStance = LeftHanded;
 		duckAmount = 1f;
+		groundCrouchTarget = 0f;
 		duckVelocity = 0f;
 		Stance = stance;
 		BeginRecovery( 1f );

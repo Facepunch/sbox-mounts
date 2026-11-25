@@ -81,7 +81,8 @@ public sealed partial class RabbitGuard
 		{
 			float phase = rollCrouchTicks * CrouchStep * RollSpeed;
 			float step = Math.Min( delta, CrouchStep - rollCrouchRemainder );
-			AdvanceCrouchSpring( phase < 0.8f ? 1f : groundTarget, step );
+			groundCrouchTarget = phase < 0.8f ? 1f : groundTarget;
+			AdvanceCrouchSpring( groundCrouchTarget, step );
 			delta -= step;
 			rollCrouchRemainder += step;
 			if ( rollCrouchRemainder < CrouchStep - 0.000001f ) break;
