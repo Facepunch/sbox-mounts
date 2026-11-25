@@ -334,6 +334,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
 		} ).ToArray();
 		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
+		var wallState = states[System.Array.IndexOf( names, RabbitGuard.Wall )];
 		var patrolState = states[System.Array.IndexOf( names, RabbitGuard.PatrolIdle )];
 		for ( int i = 0; i < states.Length; i++ )
 		{
@@ -343,10 +344,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			// Get-up already blends from the captured ragdoll pose after the full body is posed.
 			float duration = target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
+			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
 			foreach ( var previous in states )
 			{
 				if ( previous == states[i] ) continue;
-				bool landing = previous == airState && target is RabbitGuard.Idle or RabbitGuard.Threat or RabbitGuard.Locomotion or RabbitGuard.HalfWounded or RabbitGuard.Wounded;
+				bool landing = groundPose && (previous == airState || previous == wallState);
 				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
 				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = waking ? 0.05f : landing ? 0.1f : duration } );
 			}

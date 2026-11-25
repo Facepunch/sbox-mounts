@@ -91,13 +91,15 @@ public sealed partial class RabbitGuard
 		}
 		gripShift = Vector3.Lerp( (gripCorrection[0] + gripCorrection[1]) * 0.5f, gripShift, MathF.Pow( 0.9f, samples ) );
 		bool climbing = LedgeAnimation == ClimbUp;
-		// UpdateLedge advances the grab transition before it disables IK and starts the pull-up.
+		// The first pull-up pose is sampled one physics frame after the grab transition advances.
 		float elapsed = climbing ? LedgePhase * boundAnimations.Clips[ClimbUp].Duration : 0f;
-		float weight = 1f - Math.Clamp( (elapsed - ClimbStep) * 5f, 0f, 1f );
+		float pullTime = Math.Max( 0f, elapsed - 1f / 120f );
+		float weight = 1f - Math.Min( 1f, pullTime * 5f );
 		var height = Vector3.Up * (LedgeHeightOffset * (1f - weight));
 		var body = ((gripShift * 0.5f).WithZ( gripShift.z ) - wall * 4f + Vector3.Down * (climbing ? 0.4f : 0f)) * weight + height;
 		float difference = LedgeHeight - LedgeGrabOrigin.z;
-		float progress = Math.Clamp( elapsed * 400f / (MathF.Abs( difference ) + 2f), 0f, 1f );
+		float grabTime = climbing ? pullTime + ClimbStep : elapsed;
+		float progress = Math.Clamp( grabTime * 400f / (MathF.Abs( difference ) + 2f), 0f, 1f );
 		Vector3 Relative( Vector3 target )
 		{
 			var delta = target - body;

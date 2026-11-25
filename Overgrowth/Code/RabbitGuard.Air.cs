@@ -177,7 +177,7 @@ public sealed partial class RabbitGuard
 	string AirPose()
 	{
 		if ( LedgeAnimation is not null ) return LedgeAnimation;
-		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion ? FreeAir : Stance;
+		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle ? FreeAir : Stance;
 
 		if ( pose == FreeAir && !WallDirection.IsNearlyZero() ) return Wall;
 
