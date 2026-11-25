@@ -15,7 +15,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	Vector3 anchor;
 	Component target;
 	float targetRadius;
-	TimeUntil search, nextWeld, inCombat;
+	TimeUntil search, nextPositionCheck, nextWeld, inCombat;
 	TimeSince age;
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
@@ -67,21 +67,14 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		if ( search <= 0 )
 		{
 			search = 0.35f;
-			target = FindWeldTarget();
-			if ( !target.IsValid() )
-			{
-				Animation.SetLookTarget( null );
-				if ( WorldPosition.Distance( anchor ) > Scale ) Movement.MoveTo( anchor, Scale );
-				else Movement.Stop();
-				return;
-			}
-			var obj = target.GameObject;
-			targetRadius = target.GetComponentInChildren<Collider>()?.LocalBounds.Size.WithZ( 0 ).Length * 0.5f ?? 0.1f * Scale;
-			float reach = 2 * Scale + targetRadius;
-			if ( WorldPosition.Distance( target.WorldPosition ) > reach )
-				Movement.MoveTo( target.WorldPosition, reach, (inCombat > 0 ? 5.5f : 7) * Scale, obj );
-			else Movement.Stop();
-			Animation.SetLookTarget( obj );
+			var found = FindWeldTarget();
+			if ( found != target ) nextPositionCheck = 0;
+			target = found;
+		}
+		if ( nextPositionCheck <= 0 )
+		{
+			nextPositionCheck = 0.4f;
+			UpdateWeldPosition();
 		}
 		if ( !target.IsValid() || nextWeld > 0 || target is not IDamageable { Health: > 0 } hp ) return;
 		if ( WorldPosition.Distance( target.WorldPosition ) >= 2.5f * Scale + targetRadius ) return;
@@ -99,6 +92,44 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		}
 		nextWeld = weldEnds = 0.5f;
 		WeldEffect();
+	}
+
+	void UpdateWeldPosition()
+	{
+		if ( !target.IsValid() )
+		{
+			Animation.SetLookTarget( null );
+			if ( WorldPosition.Distance( anchor ) > Scale ) Movement.MoveTo( anchor, Scale );
+			else Movement.Stop();
+			return;
+		}
+
+		var obj = target.GameObject;
+		Animation.SetLookTarget( obj );
+		targetRadius = target.GetComponentInChildren<Collider>()?.LocalBounds.Size.WithZ( 0 ).Length * 0.5f ?? 0.1f * Scale;
+		float distance = WorldPosition.Distance( target.WorldPosition ) - targetRadius;
+		float speed = (inCombat > 0 ? 5.5f : 7) * Scale;
+		if ( distance < 2.5f * Scale && !obj.Tags.Has( "structure" ) )
+		{
+			var forward = target.GetComponent<PlayerController>()?.EyeTransform.Forward ?? target.WorldRotation.Forward;
+			if ( BackPosition( WorldPosition, target.WorldPosition, forward, targetRadius ) is { } position )
+			{
+				Movement.MoveTo( position, 0, speed, obj );
+				return;
+			}
+		}
+		if ( distance > 2 * Scale ) Movement.MoveTo( target.WorldPosition, targetRadius + 2 * Scale, speed, obj );
+		else Movement.Stop();
+	}
+
+	static Vector3? BackPosition( Vector3 origin, Vector3 target, Vector3 forward, float radius )
+	{
+		forward = forward.WithZ( 0 ).Normal;
+		var offset = (origin - target).WithZ( 0 );
+		if ( offset.Length >= 1.5f * Scale && Vector3.Dot( forward, offset.Normal ) <= 0.866f ) return null;
+		var back = target - forward * (radius + 1.6f * Scale);
+		var side = Vector3.Cross( Vector3.Up, forward ) * (2 * Scale);
+		return origin.DistanceSquared( back - side ) < origin.DistanceSquared( back + side ) ? back - side : back + side;
 	}
 
 	bool OtherMacIsWelding( Component candidate ) =>
