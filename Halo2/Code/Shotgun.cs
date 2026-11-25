@@ -178,10 +178,34 @@ public sealed class Shotgun : Weapon
 		LaunchPellets( new Ray( AimRay.Position, direction ) );
 	}
 
+	uint reloadSequence;
+
+	protected override void OnReloadStarted()
+	{
+		base.OnReloadStarted();
+		_ = StartFirstInsert( ++reloadSequence );
+	}
+
+	async System.Threading.Tasks.Task StartFirstInsert( uint sequence )
+	{
+		await Task.DelaySeconds( System.Math.Max( 0, ReloadStartTime - ReloadTime ) );
+		if ( IsValid && IsHeld && IsReloading && sequence == reloadSequence ) PlayHolderOverlay( "reload_1" );
+	}
+
+	protected override void OnReloadFinished()
+	{
+		++reloadSequence;
+		base.OnReloadFinished();
+		HolderAnimator?.StopWeaponOverlay( "reload_1" );
+	}
+
 	protected override void OnReloadInserted()
 	{
 		base.OnReloadInserted();
-		if ( Networking.IsHost && IsHeld && (Clip1 == ClipMaxSize || Ammo1 == 0) )
+		if ( !IsHeld ) return;
+		if ( Clip1 < ClipMaxSize && Ammo1 > 0 )
+			PlayHolderOverlay( "reload_1" );
+		else if ( Networking.IsHost )
 			ChamberWorldModel();
 	}
 
@@ -199,6 +223,7 @@ public sealed class Shotgun : Weapon
 		await Task.DelaySeconds( 1f / 30 );
 		if ( sequence != chamberSequence || !renderer.IsValid() || !renderer.Animation.IsValid ) return;
 		var parameters = renderer.Animation.Parameters;
+		if ( meleeEnds <= 0 && !IsReloading ) PlayHolderOverlay( "chamber_1" );
 		parameters.Set( "action_once", true );
 		parameters.Set( "action", "chamber_1" );
 		parameters.Trigger( "action_restart" );

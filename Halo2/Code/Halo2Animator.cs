@@ -75,6 +75,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 		overlayEnds = clip.Frames / 30f;
 	}
 
+	internal void StopWeaponOverlay( string name )
+	{
+		if ( weaponOverlay == name ) ReleaseWeaponOverlay();
+	}
+
 	void ReleaseWeaponOverlay()
 	{
 		if ( weaponOverlay is null ) return;
