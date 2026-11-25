@@ -490,9 +490,10 @@ public sealed class Shotgun : Weapon
 		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
 		var bounds = painter.Bounds;
 		float scale = System.MathF.Min( bounds.Width / (640 * viewport.z), bounds.Height / (480 * viewport.w) );
+		if ( scale <= 0 ) return;
 		bool split = viewport.z < 1 || viewport.w < 1;
-		var safeCorner = new Vector2( bounds.Right, bounds.Top ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 )) * scale;
-		DrawReserve( painter, safeCorner + (split ? new Vector2( -82, -1 ) : new Vector2( -164, -2 )) * scale, scale );
+		var safeCorner = new Vector2( bounds.Width / scale, 0 ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 ));
+		DrawReserve( painter, safeCorner + (split ? new Vector2( -82, -1 ) : new Vector2( -164, -2 )), scale );
 		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
 		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
 		{
@@ -501,7 +502,7 @@ public sealed class Shotgun : Weapon
 		}
 		if ( !ammoMeter.IsValid() || ammoMeter.IsError ) return;
 		var offset = split ? new Vector2( -98, 21 ) : new Vector2( -200, 42 );
-		painter.Texture( ammoMeter, new Rect( safeCorner + offset * scale, new Vector2( 98, 13 ) * scale ) );
+		painter.Texture( ammoMeter, new Rect( bounds.Position + (safeCorner + offset) * scale, new Vector2( 98, 13 ) * scale ) );
 	}
 
 	void DrawReserve( Painter painter, Vector2 anchor, float scale )
@@ -516,7 +517,9 @@ public sealed class Shotgun : Weapon
 		static int Width( char digit ) => digit switch { '4' => 9, '9' => 8, _ => 7 };
 		char last = digits[length - 1];
 		int inkWidth = (length - 1) * 9 + Bearing( last ) + Width( last ) + 1 - Bearing( digits[0] );
-		anchor.x -= (inkWidth / 2) * scale;
+		// Text anchors truncate in logical pixels relative to the player's viewport.
+		anchor = painter.Bounds.Position + new Vector2(
+			System.MathF.Truncate( anchor.x - inkWidth / 2 ), System.MathF.Truncate( anchor.y ) ) * scale;
 		var tint = Color.FromBytes( 147, 201, 255, Clip1 == 0 && reserve == 0 ? (byte)64 : (byte)153 );
 		for ( int i = 0; i < length; i++ )
 		{
