@@ -68,6 +68,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
+		if ( MissingMountedHolder( HolderRenderer?.Model ) || Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.IsMounted != true ) return;
 		var go = new GameObject( GameObject, false, "Shotgun view model" );
 		go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.Tags.Add( "firstperson", "viewmodel" );
@@ -840,9 +841,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		// A joining peer can receive the equipped item before its holder's renderer.
+		// The active item can arrive before the controller and its mounted character.
 		if ( !WorldModel.IsValid() && Inventory?.ActiveItem == this && HolderRenderer.IsValid() )
 			CreateWorldModel();
+		if ( !ViewModel.IsValid() && !IsProxy && Inventory?.ActiveItem == this && Holder is PlayerController )
+			CreateViewModel();
 		UpdateWorldAnimations();
 		heldModel?.UpdateChamberPose();
 	}
