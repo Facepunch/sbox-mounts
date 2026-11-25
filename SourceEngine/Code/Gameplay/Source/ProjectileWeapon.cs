@@ -53,7 +53,7 @@ public sealed class ProjectileWeapon : Weapon
 		_ = WeaponSetup.ConfigureWeapon( this );
 	}
 
-	public override bool CanPrimaryAttack() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
+	public override bool CanPrimaryAttack() => (!_primed || HasLowThrow) && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
 	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
 	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
@@ -62,10 +62,13 @@ public sealed class ProjectileWeapon : Weapon
 	bool HasLowThrow => Kind == Projectile.Kinds.Grenade && ThrowClips?.LowWindup is not null
 		&& ThrowClips.Lob.Clip is not null && ThrowClips.Roll.Clip is not null;
 
-	protected override bool WantsPrimaryAttack() => base.WantsPrimaryAttack() && !(HasLowThrow && WantsSecondaryAttack() && CanSecondaryAttack());
-
-	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom ||
-		(Secondary == SecondaryFires.Guide || (HasLowThrow && CanPrimaryAttack()) || (Kind == Projectile.Kinds.Bugbait && !_primed && !_redrawPending)) && base.CanSecondaryAttack();
+	public override bool CanSecondaryAttack()
+	{
+		if ( Secondary == SecondaryFires.Zoom ) return true;
+		if ( !base.CanSecondaryAttack() ) return false;
+		if ( HasLowThrow ) return !_releasePending && !_redrawPending && HasPrimaryAmmo();
+		return Secondary == SecondaryFires.Guide || (Kind == Projectile.Kinds.Bugbait && !_primed && !_redrawPending);
+	}
 
 	public override void SecondaryAttack()
 	{
@@ -186,6 +189,7 @@ public sealed class ProjectileWeapon : Weapon
 	{
 		if ( Networking.IsHost && IsLauncher ) SetGuiding( false );
 		ReleaseZoom();
+		if ( _primed && HasLowThrow ) SetNextFire( 0 );
 		_primed = false;
 		_releasePending = false;
 		_releaseAttacker = null;
@@ -203,7 +207,7 @@ public sealed class ProjectileWeapon : Weapon
 
 	public override void PrimaryAttack()
 	{
-		if ( _primed || _releasePending || _redrawPending ) return;
+		if ( (_primed && (!HasLowThrow || _throwStyle == ThrowStyle.Overhand)) || _releasePending || _redrawPending ) return;
 		if ( ThrowClips is not null )
 		{
 			PrimeThrow( false );
@@ -223,6 +227,12 @@ public sealed class ProjectileWeapon : Weapon
 
 	void PrimeThrow( bool low )
 	{
+		// Each frag trigger locks itself until release. The other can still change the pullback.
+		if ( HasLowThrow )
+		{
+			if ( low ) SetNextSecondaryFire( float.MaxValue );
+			else SetNextPrimaryFire( float.MaxValue );
+		}
 		_throwStyle = low ? ThrowStyle.Lob : ThrowStyle.Overhand;
 		_releaseAttacker = Attacker;
 		if ( Kind == Projectile.Kinds.Grenade ) ThrowEffects( low ? ThrowClips.LowWindup : ThrowClips.ThrowWindup );
@@ -272,6 +282,8 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void Think()
 	{
 		base.Think();
+		// Frag checks secondary first and can start the high pullback on the same tick.
+		if ( HasLowThrow && WantsSecondaryAttack() ) FireSecondary();
 		if ( IsLauncher && _redrawPending && _redrawAt <= 0 && !AttackOrReloadHeld ) FinishRedraw();
 	}
 
