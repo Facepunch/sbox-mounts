@@ -215,6 +215,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		if ( !Input.Down( "attack1" ) ) triggerConsumed = false;
 		// The unit admits melee before processing weapon fire and reload on this tick.
 		if ( WantsSecondaryAttack() && FireSecondary() ) return;
+		// Firing interrupts an active magazine update after that tick's shell transfer.
+		if ( IsReloading && WantsPrimaryAttack() && FirePrimary() ) return;
 		base.OnControl();
 		if ( ShouldAutoReload && !WantsReload() && CanReload() ) StartReload( true );
 	}
@@ -223,11 +225,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 
 	public override bool CanPrimaryAttack() =>
-		meleeEnds <= 0 && NextPrimaryFire <= 0 && CanUseHeldWeapon && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
+		meleeEnds <= 0 && NextPrimaryFire <= 0 && CanUseHeldWeapon && (!IsReloading || CanCancelReload) && (HasPrimaryAmmo() || ShellDue);
 
 	public override void PrimaryAttack()
 	{
-		if ( IsHeld && !HasPrimaryAmmo() ) return;
+		if ( IsHeld && !HasPrimaryAmmo() && !ShellDue ) return;
 		var ray = AimRay;
 		triggerConsumed = true;
 		TimeSinceShoot = 0;
@@ -251,13 +253,19 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	void FireVolley( Ray ray )
 	{
+		while ( ShellDue )
+		{
+			int loaded = TakeReserveAmmo( PrimaryAmmoType, 1 );
+			if ( loaded == 0 ) break;
+			Clip1 += loaded;
+		}
+		CancelReload();
 		if ( Holder is PlayerController player )
 		{
 			// Halo 2 decrements the magazine only while the item is bound to a player.
 			if ( !TakePrimaryAmmo() ) return;
 			ray = PlayerFiringRay( player, ray.Forward );
 		}
-		CancelReload();
 		ShootEffects();
 		LaunchPellets( ray );
 	}
@@ -277,6 +285,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	double? firstInsertAt;
 	double transferAt;
 	float shellInterval;
+	bool ShellDue => IsReloading && IncrementalReloading && shellInterval > 0 && Time.NowDouble >= transferAt &&
+		Clip1 < ReloadFillTarget && Ammo1 > 0;
 	[Sync( SyncFlags.FromHost )] internal bool AutomaticReload { get; private set; }
 
 	bool ShouldAutoReload => AutoReload && Clip1 == 0 && NextPrimaryFire <= 0;
@@ -321,11 +331,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	protected override void OnReloadInserted()
 	{
-		if ( Networking.IsHost && shellInterval > 0 )
+		if ( shellInterval > 0 )
 		{
 			// Schedule from the authored transfer tick so frame rounding doesn't accumulate per shell.
 			transferAt += shellInterval;
-			ReloadTime = (float)System.Math.Max( 0, transferAt - Time.NowDouble );
+			if ( Networking.IsHost ) ReloadTime = (float)System.Math.Max( 0, transferAt - Time.NowDouble );
 		}
 		base.OnReloadInserted();
 		if ( !IsHeld ) return;
