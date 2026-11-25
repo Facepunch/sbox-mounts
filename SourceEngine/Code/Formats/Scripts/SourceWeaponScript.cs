@@ -46,6 +46,7 @@ internal static class SourceWeaponScript
 			PrimaryAmmo = primaryAmmo,
 			SecondaryAmmo = secondaryAmmo,
 			PrintName = p.String( "printname" ),
+			ScriptDamage = damage,
 			PlayerDamage = damage ?? skill.WeaponDamage( primaryAmmo, weaponClass ),
 			NpcDamage = damage ?? skill.WeaponDamage( primaryAmmo, weaponClass, npc: true ),
 			SecondaryPlayerDamage = skill.WeaponDamage( secondaryAmmo, null ),

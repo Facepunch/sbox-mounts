@@ -152,7 +152,9 @@ static class WeaponSetup
 		if ( weapon is MeleeWeapon melee && data.PlayerDamage is { } meleeDamage ) melee.Damage = meleeDamage;
 		if ( weapon is ProjectileWeapon projectile )
 		{
-			if ( data.PlayerDamage is { } damage ) projectile.ProjectileDamage = damage;
+			// The multiplayer RPG takes player damage from the weapon script; its prefab supplies the missing-script default.
+			var playerDamage = projectile.Kind == Projectile.Kinds.Rocket ? data.ScriptDamage : data.PlayerDamage;
+			if ( playerDamage is { } damage ) projectile.ProjectileDamage = damage;
 			if ( data.BlastRadius is { } radius ) projectile.ExplosionRadius = radius;
 			projectile.NpcDamage = data.NpcDamage;
 		}

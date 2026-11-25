@@ -28,6 +28,8 @@ public sealed class SourceModelWeaponData
 	public int? BucketPosition { get; set; }
 	/// <summary>Source weapon selection priority, when authored.</summary>
 	public int? Weight { get; set; }
+	/// <summary>Damage explicitly authored in the weapon script.</summary>
+	public float? ScriptDamage { get; set; }
 	/// <summary>Damage from the weapon script, or the mounted game's numeric skill settings, if supplied.</summary>
 	public float? PlayerDamage { get; set; }
 	public float? NpcDamage { get; set; }

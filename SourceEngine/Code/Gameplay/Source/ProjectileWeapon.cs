@@ -280,7 +280,8 @@ public sealed class ProjectileWeapon : Weapon
 			Projectile.Kinds.Rocket => (eye + Rotation.LookAt( forward ) * new Vector3( 12, -6, -3 ), Hl2.Rocket.LaunchVelocity( forward )),
 			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
-		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, ExplosionRadius, ProjectileModel );
+		var radius = IsLauncher ? damage * 2 : ExplosionRadius;
+		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, radius, ProjectileModel );
 		if ( projectile is Hl2.Rocket rocket )
 		{
 			rocket.ClearLaunch = !Scene.Trace.Ray( eye, eye + forward * 128 )
