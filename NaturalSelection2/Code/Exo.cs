@@ -56,9 +56,10 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> onTag;
 	TimeSince age;
-	TimeUntil repath;
+	TimeUntil repath, fireUntil;
+	GameObject firingTarget;
 	Rotation aim;
-	bool attack, closePlayer;
+	bool attack, closePlayer, inRailRange;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -116,17 +117,25 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		float distance = float.MaxValue;
-		if ( visible )
+		var goal = memory ?? enemy?.WorldPosition;
+		if ( goal is { } position )
 		{
 			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
-			distance = (EyePosition.Distance( enemy.WorldPosition ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f) / Scale;
+			distance = (EyePosition.Distance( position ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f) / Scale;
 		}
-		closePlayer = distance < 10 && enemy.GetComponentInParent<AlienStructure>() is null;
-		attack = visible && distance < (Railguns ? 32 : 45) && acquisition.Ready( enemy, CalculateAimPoint( enemy ) - EyePosition, aim );
+		closePlayer = distance < 10 && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
+		inRailRange = distance <= 32;
+		bool aimed = visible && distance < 45 && acquisition.Ready( enemy, CalculateAimPoint( enemy ) - EyePosition, aim );
+		if ( aimed )
+		{
+			firingTarget = enemy;
+			fireUntil = 0.5f;
+		}
+		attack = enemy.IsValid() && enemy == firingTarget && fireUntil > 0;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
-		if ( (memory ?? enemy?.WorldPosition) is { } goal && distance > 10 )
-			Movement.MoveTo( goal, Scale, faceTarget: visible ? enemy : null );
+		if ( goal is { } destination && (!visible || distance > 10) )
+			Movement.MoveTo( destination, Scale, faceTarget: visible ? enemy : null );
 		else Movement.Stop();
 	}
 
@@ -162,7 +171,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			return request;
 		}
 
-		request &= pressed ? arm.Charge < (closePlayer ? 0.8f : 1) : arm.Released >= 1;
+		request &= pressed ? arm.Charge < (closePlayer ? 0.8f : 1) : inRailRange && arm.Released >= 1;
 		if ( request && !pressed ) arm.Charge = 0;
 		if ( !request && pressed ) arm.Released = 0;
 		return request;
