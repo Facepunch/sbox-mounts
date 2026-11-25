@@ -26,6 +26,10 @@ public sealed partial class Skulk
 			var point = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) : Animation.CalculateLookPosition();
 			aim = point - EyePosition;
 		}
+		else if ( mover.OnWall && mover.MoveTarget is { } goal )
+		{
+			aim = goal - WorldPosition;
+		}
 		ViewRotation = AlienAim.Turn( ViewRotation, aim, AimTurnRate );
 	}
 
