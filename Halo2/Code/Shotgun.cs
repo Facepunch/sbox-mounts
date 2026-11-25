@@ -331,20 +331,26 @@ public sealed class Shotgun : Weapon
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
 		var flight = TaskSource.Create( scene.EnabledToken );
 		System.Collections.Generic.List<PelletContact> impacts = null;
-		// Newly dispatched projectiles travel during the firing tick.
-		for ( bool first = true; flying > 0; first = false )
+		// Halo advances a new projectile once during the firing tick, then at 30 Hz.
+		const float dt = 1f / 30;
+		double firedAt;
+		using ( scene.Push() ) firedAt = Time.NowDouble;
+		for ( int tick = 0; flying > 0; tick++ )
 		{
-			if ( !first ) await flight.FixedUpdate();
+			while ( tick > 0 && scene.IsValid() )
+			{
+				using ( scene.Push() )
+					if ( Time.NowDouble >= firedAt + tick / 30.0 ) break;
+				await flight.Frame();
+			}
 			if ( !scene.IsValid() ) return;
 			using var sceneScope = scene.Push();
-			float dt = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? scene.FixedDelta : Time.Delta;
-			if ( dt <= 0 ) continue;
 			for ( int i = 0; i < pellets.Length; i++ )
 			{
 				var pellet = pellets[i];
 				if ( pellet.Velocity == Vector3.Zero ) continue;
 				var start = origin + pellet.Offset;
-				bool wet = first ? originWet : InWater( start );
+				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
