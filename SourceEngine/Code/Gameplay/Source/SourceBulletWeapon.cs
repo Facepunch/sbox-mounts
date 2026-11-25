@@ -101,6 +101,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	[Sync( SyncFlags.FromHost )] bool AlternateReserveSeeded { get; set; }
 	internal float? AlternateDamage { get; set; }
 	internal float? AlternateRadius { get; set; }
+	[Property, Feature( "Shooting" )] public float PrimaryDelayAfterLaunch { get; set; } = 1;
 	internal SourceProjectile.Kinds? AlternateProjectile { get; set; }
 	internal float AlternatePumpDelay { get; set; }
 	internal float AlternateDuration { get; set; } = 1;
@@ -499,7 +500,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		if ( IsHeld && !TakeSecondaryAmmo( 1 ) ) return;
 		TimeSinceShoot = 0;
-		SetNextFire( AlternateProjectile == SourceProjectile.Kinds.EnergyBall ? SecondaryDelay : AlternateDuration );
+		SetNextPrimaryFire( PrimaryDelayAfterLaunch );
+		SetNextSecondaryFire( SecondaryDelay );
 		AlternateEffects( [new ShotEffect()] );
 		KickView();
 		LaunchAlternate( AimRay.Position, AimRay.Forward, attacker );

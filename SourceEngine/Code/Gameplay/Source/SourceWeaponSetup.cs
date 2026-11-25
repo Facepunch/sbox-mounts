@@ -244,14 +244,10 @@ static class SourceWeaponSetup
 		{
 			bullet.DryFireDuration = Duration( clips.DryFire );
 			var secondary = Duration( clips.SecondaryFire );
-			if ( secondary > 0 )
+			if ( bullet.Secondary == SourceWeapon.SecondaryFires.DoubleShot && secondary > 0 )
 			{
-				bullet.AlternateDuration = secondary;
-				if ( bullet.Secondary == SourceWeapon.SecondaryFires.DoubleShot )
-				{
-					bullet.AlternatePumpDelay = secondary;
-					bullet.AlternateDuration += Duration( clips.Pump );
-				}
+				bullet.AlternatePumpDelay = secondary;
+				bullet.AlternateDuration = secondary + Duration( clips.Pump );
 			}
 			bullet.SilencerDuration = Duration( clips.AttachSilencer );
 			// Counter-Strike's attack2 is code; infer it from what the viewmodel authors for it.
