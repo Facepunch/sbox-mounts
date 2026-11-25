@@ -61,12 +61,14 @@ public sealed partial class RabbitGuard
 
 	internal void HitByItem( LevelItem item, GameObject attacker, Vector3 point, Vector3 velocity, float mass, string label, bool cut, bool embedded )
 	{
-		var force = (velocity - BodyVelocity) * mass;
+		var airborneBody = AirborneBody;
+		var force = (velocity - (airborneBody?.Velocity ?? BodyVelocity)) * mass;
 		var impulse = force * (200f / 120f);
 		float strength = force.Length / 40f;
 		string species = boundAnimations?.Species;
 		bool wasAwake = !Unconscious;
-		combatVelocity += force.WithZ( 0f ) * 0.1f;
+		if ( airborneBody is not null ) airborneBody.Velocity += force * 0.1f;
+		else if ( !Downed ) combatVelocity += force * 0.1f;
 		if ( cut )
 		{
 			var sound = mass < 1f ? (embedded ? "weapon_foley/impact/weapon_knife_hit" : "weapon_foley/impact/weapon_knife_hit_neck") : mass < 3f ? "hit/hit_medium" : "hit/hit_hard";

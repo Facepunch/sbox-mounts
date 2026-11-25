@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	Vector3 combatVelocity;
+	Rigidbody AirborneBody => IsAirborne && !Downed && GetComponent<Rigidbody>() is { MotionEnabled: true } body ? body : null;
 	[Sync( SyncFlags.Interpolate )] float GroundRecoilHeight { get; set; }
 	bool restoreAgentPosition;
 	internal bool PairedGroundSupport { get; private set; }

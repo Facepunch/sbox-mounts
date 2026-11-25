@@ -21,8 +21,9 @@ public sealed partial class RabbitGuard
 
 	void BeginWeaponDraw()
 	{
-		if ( Downed || InThrow || !CanAttack( enemy ) || startled > 0f ) return;
+		if ( Unconscious || Downed || InThrow || !CanAttack( enemy ) || startled > 0f ) return;
 		bool secondary = PrimaryItem.IsValid();
+		if ( IsTethered && !(Holding && secondary) ) return;
 		bool left = secondary ? !LeftHanded : LeftHanded;
 		if ( secondary && boundAnimations.Species != "cat" || (left ? LeftHandItem : RightHandItem).IsValid() ) return;
 		var item = RightHipWeapon.IsValid() ? RightHipWeapon : LeftHipWeapon;

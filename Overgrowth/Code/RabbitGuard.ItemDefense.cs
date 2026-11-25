@@ -63,7 +63,7 @@ public sealed partial class RabbitGuard
 		}
 		var incoming = body.Velocity.WithZ( 0f ).Normal;
 		var toward = (position - WorldPosition).WithZ( 0f ).Normal;
-		var airborneBody = IsAirborne ? GetComponent<Rigidbody>() : null;
+		var airborneBody = AirborneBody;
 		var recoil = (body.Velocity - (airborneBody?.Velocity ?? Animation.MoveVelocity)) * (body.Mass * 0.1f);
 		string animation = CatchFront;
 		if ( incoming.Dot( toward ) >= -0.95f )
@@ -73,7 +73,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( !TakeWeapon( item ) ) return false;
 		BeginReaction( null, position, animation, boundAnimations.Clips[animation] );
-		if ( airborneBody is { MotionEnabled: true } )
+		if ( airborneBody is not null )
 		{
 			combatVelocity = default;
 			airborneBody.Velocity = recoil;
