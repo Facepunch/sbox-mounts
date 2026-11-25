@@ -110,6 +110,7 @@ public sealed class BulletWeapon : Weapon
 	bool? _tunedForNpc;
 	bool _alternatePending;
 	bool _queuedPrimary, _queuedSecondary;
+	internal bool ShotQueued => _queuedPrimary || _queuedSecondary;
 	TimeUntil? _pumpStarts;
 	bool _reloadOnPump;
 	internal bool ReloadingDuringPump { get; private set; }
@@ -132,7 +133,11 @@ public sealed class BulletWeapon : Weapon
 
 	public override bool CanReload() => !_alternatePending && (!NpcControlled || _weaponConfigured) && base.CanReload();
 
-	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
+	protected override bool WantsPrimaryAttack()
+	{
+		if ( Secondary == SecondaryFires.DoubleShot && WantsSecondaryAttack() && (!IsReloading || HasSecondaryAmmo()) ) return false;
+		return _queuedPrimary || base.WantsPrimaryAttack();
+	}
 	protected override bool WantsReload()
 	{
 		if ( !UsesPrimaryClip ) return base.WantsReload();

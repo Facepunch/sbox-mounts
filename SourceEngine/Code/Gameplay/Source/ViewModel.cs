@@ -614,6 +614,11 @@ public sealed class ViewModel : BaseWeaponModel
 	{
 		// A shot or an earlier cancel already ended this reload; don't replace that clip.
 		if ( !_reloading ) return;
+		if ( _weapon is BulletWeapon { ShotQueued: true } )
+		{
+			_reloading = false;
+			return;
+		}
 		// Ammo replication can finish on the same frame as the last shell insert.
 		// Let that insert complete before lowering the reload hand.
 		if ( _clips.Incremental && _animation?.Current == _clips.ReloadInsert && !_animation.Finished )
@@ -627,7 +632,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	public override void OnReloadCancel()
 	{
-		if ( !_reloading ) return;
+		if ( !_reloading || _weapon is BulletWeapon { ShotQueued: true } ) return;
 		_reloadFinish = null;
 		_reloading = false;
 		Play( _clips.ReloadEnd ?? IdleClip );
