@@ -448,9 +448,9 @@ public sealed class Shotgun : Weapon
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
-		var action = BlamRandom.Next( ref randomState ) < 32768 ? "melee_strike_1" : "melee_strike_2";
-		var clip = actions[action];
-		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
+		bool firstStrike = BlamRandom.Next( ref randomState ) < 32768;
+		var clip = actions[MeleeAction( firstStrike )];
+		PlayMeleeAnimation( firstStrike );
 		float duration = clip.Frames / 30f;
 		meleeEnds = duration;
 		SetNextPrimaryFire( duration );
@@ -459,6 +459,16 @@ public sealed class Shotgun : Weapon
 		int serial = ++swing;
 		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is { } impact )
 			_ = Strike( serial, impact.Frame / 30f, StrikeDamage(), Attacker );
+	}
+
+	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void PlayMeleeAnimation( bool firstStrike )
+	{
+		var action = MeleeAction( firstStrike );
+		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
+		PlayHolderOverlay( action );
 	}
 
 	float StrikeDamage()

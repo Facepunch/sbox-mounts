@@ -114,12 +114,16 @@ public abstract class Weapon : BaseCombatWeapon
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
 	}
 
+	protected void PlayHolderOverlay( string name )
+	{
+		if ( !Application.IsDedicatedServer && HolderRenderer is {} body
+			&& body.GetComponentInParent<Halo2Animator>( true ) is {} animator && animator.Renderer == body )
+			animator.PlayWeaponOverlay( name );
+	}
+
 	protected override void OnShootEffects( ShotEffect shot )
 	{
-		if ( !shot.NoEvents && !Application.IsDedicatedServer && HolderRenderer is {} body
-			&& body.GetComponentInParent<Halo2Animator>( true ) is {} animator && animator.Renderer == body )
-			animator.PlayWeaponOverlay( "fire_1" );
-
+		if ( !shot.NoEvents ) PlayHolderOverlay( "fire_1" );
 		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 ) kickEnds = KickDuration;
 
 		if ( shot.NoEvents || Application.IsDedicatedServer || WeaponModel is not { MuzzleGameObject: { } muzzle } model || !muzzle.IsValid() )
