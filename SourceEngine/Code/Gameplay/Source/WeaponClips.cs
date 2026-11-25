@@ -37,7 +37,7 @@ sealed record WeaponClips
 	public bool Incremental { get; init; }
 	/// <summary>An ACT_VM_THROW clip with a throw event; <see cref="Fire"/> is then the release.</summary>
 	public bool Throws { get; init; }
-	public float WindupDuration { get; init; }
+	public float? WindupDuration { get; init; }
 	public float ReleaseDelay { get; init; }
 	public float ThrowDuration { get; init; }
 
@@ -63,7 +63,18 @@ sealed record WeaponClips
 			: sequences.FirstOrDefault( s => s.Activity == "ACT_VM_PULLBACK_HIGH" && model.AnimationClips().ContainsKey( s.Name ) )
 			?? sequences.FirstOrDefault( s => s.Activity == "ACT_VM_HAULBACK" && s.Events.Any( e => e.Id == AnimEvents.WeaponSequenceFinished )
 				&& model.AnimationClips().ContainsKey( s.Name ) );
-		var preparation = Duration( model, windup?.Name );
+		float? preparation = null;
+		if ( windup is not null )
+		{
+			var duration = Duration( model, windup.Name );
+			preparation = duration;
+			if ( windup.Events.FirstOrDefault( e => e.Id == AnimEvents.WeaponSequenceFinished ) is { } ready )
+			{
+				// Source dispatches the remaining events of a non-looping sequence at the start of its fade-out.
+				var end = windup.Looping ? duration : MathF.Max( 0, duration - windup.FadeOut );
+				preparation = Math.Clamp( duration * ready.Cycle, 0, end );
+			}
+		}
 		var throwDuration = throws ? Duration( model, release.Name ) : 0;
 		var dryFire = Find( "ACT_VM_DRYFIRE", names.DryFire );
 		var lastShot = Muzzles( dryFire ).Length > 0 ? dryFire : null;

@@ -24,7 +24,7 @@ public sealed class ProjectileWeapon : Weapon
 	[Sync( SyncFlags.FromHost )] public GameObject LiveRocket { get; private set; }
 	/// <summary>HL2's launcher guides by default; the SDK's multiplayer rules toggle it with attack2.</summary>
 	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; }
-	internal float WindupDuration { get; set; }
+	internal float? WindupDuration { get; set; }
 	internal float ReleaseDelay { get; set; }
 	internal float AttackDuration { get; set; }
 	internal float RedrawDuration { get; set; }
@@ -176,10 +176,10 @@ public sealed class ProjectileWeapon : Weapon
 		{
 			_releaseAttacker = Attacker;
 			ShootEffects();
-			if ( WindupDuration > 0 )
+			if ( WindupDuration is { } windup )
 			{
 				_primed = true;
-				_releaseAt = WindupDuration;
+				_releaseAt = windup;
 			}
 			else BeginThrow();
 			return;
