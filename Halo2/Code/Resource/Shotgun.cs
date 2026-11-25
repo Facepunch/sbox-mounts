@@ -12,7 +12,6 @@ internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mo
 internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
-	internal static ShotgunLoader Mounted => Directory.Get( Halo2Mount.MountIdent )?.GetByPath( $"mount://{Halo2Mount.MountIdent}/{PrefabPath}" ) as ShotgunLoader;
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
 	int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
 	int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
@@ -244,7 +243,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		}
 	}
 
-	ShotgunImpactSounds ReadImpactSounds()
+	ShotgunContacts ReadContacts()
 	{
 		LoadMaterialEffects();
 		var cues = new List<CuePlayback>();
@@ -262,9 +261,10 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			materials?.ToDictionary( entry => entry.Key, entry => CueIndex( entry.Value ), StringComparer.OrdinalIgnoreCase ) ?? new();
 
 		var damage = Reference( Header + 0x1bc );
-		return new ShotgunImpactSounds
+		return new ShotgunContacts
 		{
 			Pellets = Bank( pelletMaterials ),
+			Effects = pelletEffects?.ToDictionary( e => e.Key, e => e.Value is null ? null : $"mount://{Host.Ident}/{ImpactPath( e.Value )}" ),
 			Casings = Bank( casingMaterials ),
 			Melee = Bank( meleeMaterials ),
 			Strike = damage is null ? 0 : CueIndex( Reference( Address( damage ) + 0xa8 ) ),
@@ -300,7 +300,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
 			gun.BindHudTextures();
-			gun.ImpactSounds = ReadImpactSounds();
+			gun.Contacts = ReadContacts();
 			gun.HoldType = WeaponHolds.Shotgun;
 			gun.ViewModelPath = Host.AssetPath( map, firstPerson.TagPath, "vmdl" );
 			gun.ArmsPath = $"mount://{Host.Ident}/{RigPath}";

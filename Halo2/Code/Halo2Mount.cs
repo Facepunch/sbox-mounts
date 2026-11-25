@@ -192,6 +192,7 @@ public class Halo2Mount : BaseGameMount
 				case "paew" when mapName == "01a_tutorial" && tagPath == "objects/weapons/rifle/shotgun/shotgun":
 					var shotgun = new ShotgunLoader( mapFile, tag );
 					shotgun.Tags.Add( "weapon" );
+					shotgun.RegisterImpactEffects( context );
 					if ( shotgun.HudBitmap( "crosshair" ) is {} reticle ) context.Add( ResourceType.Texture, ShotgunLoader.ReticlePath, reticle );
 					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
 					context.Add( ResourceType.Model, ShotgunLoader.RigPath, shotgun.CreateRig() );

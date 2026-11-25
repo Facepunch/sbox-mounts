@@ -2,21 +2,22 @@ using System;
 
 namespace Halo2;
 
-public sealed class ShotgunImpactSounds
+public sealed class ShotgunContacts
 {
 	public CuePlayback[] Cues { get; set; }
 	public Dictionary<string, int> Pellets { get; set; }
 	public Dictionary<string, int> Casings { get; set; }
 	public Dictionary<string, int> Melee { get; set; }
+	public Dictionary<string, string> Effects { get; set; }
 	public int Strike { get; set; }
 
 	uint seed = (uint)Random.Shared.Next();
 
-	internal static ShotgunImpactSounds For( Shotgun weapon )
+	internal static ShotgunContacts For( Shotgun weapon )
 	{
-		if ( weapon.IsValid() && weapon.ImpactSounds is {} sounds ) return sounds;
+		if ( weapon.IsValid() && weapon.Contacts is { Effects: not null } contacts ) return contacts;
 		// A pellet can outlive its weapon. Older scene instances can also lack the authored bank.
-		return PrefabFile.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}" )?.GetScene().GetComponent<Shotgun>()?.ImpactSounds;
+		return PrefabFile.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}" )?.GetScene().GetComponent<Shotgun>()?.Contacts;
 	}
 
 	CuePlayback Cue( int index ) => index > 0 && index <= Cues.Length ? Cues[index - 1] : null;

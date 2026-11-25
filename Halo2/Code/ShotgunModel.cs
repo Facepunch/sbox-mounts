@@ -232,7 +232,7 @@ public partial class ShotgunModel : BaseWeaponModel
 			// Halo probes twelve steps ahead and accepts contacts within the first two.
 			var step = casing.Velocity * dt;
 			var start = casing.Position - step;
-			var hit = ShotgunLoader.TraceParticleStructure( Scene.Trace.Ray( start, start + 12 * step )
+			var hit = PelletImpactEffect.TraceParticleStructure( Scene.Trace.Ray( start, start + 12 * step )
 				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ) );
 			if ( !hit.Hit )
 			{
@@ -253,7 +253,7 @@ public partial class ShotgunModel : BaseWeaponModel
 			if ( firstContact )
 			{
 				float gain = (casing.Velocity.Length / 120 - 0.5f).Clamp( 0, 1 );
-				ShotgunImpactSounds.For( Weapon )?.PlayCasing( hit.Surface, hit.HitPosition, gain );
+				ShotgunContacts.For( Weapon )?.PlayCasing( hit.Surface, hit.HitPosition, gain );
 			}
 		}
 	}

@@ -4,7 +4,7 @@ namespace Halo2;
 public sealed class Shotgun : Weapon
 {
 	[Property] public string ViewModelPath { get; set; }
-	[Property] public ShotgunImpactSounds ImpactSounds { get; set; }
+	[Property] public ShotgunContacts Contacts { get; set; }
 	[Property] public string ArmsPath { get; set; }
 	[Property] public CurveRange ViewSmokeRadius { get; set; }
 	[Property] public CurveRange ViewSmokeAlpha { get; set; }
@@ -268,19 +268,20 @@ public sealed class Shotgun : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( shot.Hit ) PelletImpact( ShotgunImpactSounds.For( this ), shot, GetShotDirection( shot ) );
+		if ( shot.Hit ) PelletImpact( ShotgunContacts.For( this ), shot, GetShotDirection( shot ) );
 	}
 
-	static void PelletImpact( ShotgunImpactSounds sounds, in ShotEffect shot, Vector3 direction )
+	static void PelletImpact( ShotgunContacts contacts, in ShotEffect shot, Vector3 direction )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		var loader = ShotgunLoader.Mounted;
-		if ( sounds?.PlayPellet( shot.Surface, shot.HitPosition ) != true )
+		if ( contacts?.PlayPellet( shot.Surface, shot.HitPosition ) != true )
 		{
 			ImpactEffect( shot, direction );
 			return;
 		}
-		if ( loader?.PlacePelletImpact( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) != true )
+		var path = contacts.Effects is {} effects ? ShotgunContacts.Contact( effects, shot.Surface, true ) : null;
+		var effect = path is null ? null : PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>();
+		if ( effect?.Place( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) != true )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 
@@ -291,17 +292,17 @@ public sealed class Shotgun : Weapon
 		public float Travelled;
 	}
 
-	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, Surface Surface );
+	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, string SurfacePath );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
 	{
-		var sounds = ShotgunImpactSounds.For( weapon );
+		var contacts = ShotgunContacts.For( weapon );
 		foreach ( var contact in impacts )
 		{
 			// The final segment orients the contact. The tracer and water crossing span the full shot.
-			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, contact.Surface, muzzle, NoEvents: true );
-			PelletImpact( sounds, shot, contact.Direction );
+			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, GameResource.Load<Surface>( contact.SurfacePath ), muzzle, NoEvents: true );
+			PelletImpact( contacts, shot, contact.Direction );
 			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
 		}
 	}
@@ -371,7 +372,7 @@ public sealed class Shotgun : Weapon
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				hit.StartPosition = origin;
-				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface ) );
+				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
@@ -544,7 +545,7 @@ public sealed class Shotgun : Weapon
 		var aim = AimRay;
 		var hit = TraceMelee( aim, out var impactPosition );
 		if ( !hit.Hit ) return;
-		MeleeImpactSound( hit.Surface, impactPosition );
+		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
 		ApplyDelayedHit( hit, damage, MeleeForce, attacker, new TagSet { "melee" }, false );
@@ -607,10 +608,10 @@ public sealed class Shotgun : Weapon
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	void MeleeImpactSound( Surface surface, Vector3 position )
+	void MeleeImpactSound( string surfacePath, Vector3 position )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		ShotgunImpactSounds.For( this )?.PlayMelee( surface, position );
+		ShotgunContacts.For( this )?.PlayMelee( GameResource.Load<Surface>( surfacePath ), position );
 	}
 
 	protected override void OnEquipped()
