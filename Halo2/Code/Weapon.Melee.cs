@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 
 namespace Halo2;
 
+public sealed record MeleeDamageProfile( float Minimum, float Maximum, float Force, Dictionary<string, float> BodyScales, bool Explosive );
+
 public abstract partial class Weapon
 {
 	[Property] public Dictionary<string, float> MeleeBodyScales { get; set; }
@@ -38,37 +40,51 @@ public abstract partial class Weapon
 
 	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && Recovery.NextStrike <= 0 && CanUseHeldWeapon;
 
-	public override void SecondaryAttack()
+	public override void SecondaryAttack() => BeginMelee( false );
+
+	protected void BeginMelee( bool primary )
 	{
-		if ( Networking.IsHost ) StartMelee();
-		else RequestMelee();
+		if ( Networking.IsHost ) StartMelee( primary );
+		else RequestMelee( primary );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void RequestMelee()
+	void RequestMelee( bool primary )
 	{
-		if ( IsActive && CanSecondaryAttack() ) StartMelee();
+		if ( IsActive && CanSecondaryAttack() && (!primary || CanPrimaryAttack()) ) StartMelee( primary );
 	}
 
-	void StartMelee()
+	protected virtual string PrimaryMeleeAction() => null;
+	protected virtual MeleeDamageProfile LungeProfile => null;
+
+	void StartMelee( bool primary )
 	{
 		var actions = FirstPersonAnimations()?.Actions;
-		if ( actions?.ContainsKey( MeleeAction( true ) ) != true ) return;
-		CancelReload();
-		// A second authored strike participates in variant selection.
-		bool firstStrike = !actions.ContainsKey( MeleeAction( false ) ) || BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) < 32768;
-		var clip = actions[MeleeAction( firstStrike )];
-		float duration = CooldownSeconds( clip.Frames );
-		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
-		PlayMeleeAnimation( MeleeOwner, firstStrike, duration, CooldownSeconds( recovery ) );
-		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact )
-			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), Time.NowDouble + impact.Frame / 30.0 );
+		if ( actions is null ) return;
+		var action = primary ? PrimaryMeleeAction() : null;
+		if ( action is null )
+		{
+			if ( !actions.ContainsKey( "melee_strike_1" ) ) return;
+			action = !actions.ContainsKey( "melee_strike_2" ) || BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) < 32768
+				? "melee_strike_1" : "melee_strike_2";
+		}
+		PerformMeleeAction( action, actions );
 	}
 
-	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
+	protected void PerformMeleeAction( string action, IReadOnlyDictionary<string, Halo2ClipInfo> actions )
+	{
+		if ( actions?.TryGetValue( action, out var clip ) != true ) return;
+		bool lunge = action is "melee_lunge" or "melee_lunge_airborne";
+		CancelReload();
+		float duration = CooldownSeconds( clip.Frames );
+		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
+		PlayMeleeAnimation( MeleeOwner, action, duration, CooldownSeconds( recovery ) );
+		if ( action is not ("melee_dash" or "melee_dash_airborne") && clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact )
+			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), lunge, Time.NowDouble + impact.Frame / 30.0 );
+	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMeleeAnimation( GameObject wielder, bool firstStrike, float duration, float recovery )
+	void PlayMeleeAnimation( GameObject wielder, string action, float duration, float recovery )
 	{
 		if ( !wielder.IsValid() ) return;
 		var state = meleeRecovery.GetValue( wielder, static _ => new MeleeRecovery() );
@@ -77,7 +93,6 @@ public abstract partial class Weapon
 		if ( wielder != MeleeOwner ) return;
 		SetNextSecondaryFire( 0 );
 		SetZoom( 0 );
-		var action = MeleeAction( firstStrike );
 		PlayMeleeView( action );
 		PlayHolderOverlay( action );
 	}
@@ -93,17 +108,17 @@ public abstract partial class Weapon
 		return MeleeForwardSpeed > 0 && forward / MeleeForwardSpeed > 0.9f ? 127f / 255f : 0;
 	}
 
-	async System.Threading.Tasks.Task ResolveStrike( BaseInventoryComponent inventory, GameObject attacker, float fraction, double impactAt )
+	async System.Threading.Tasks.Task ResolveStrike( BaseInventoryComponent inventory, GameObject attacker, float fraction, bool lunge, double impactAt )
 	{
 		// The unit owns the swing. Its equipped weapon supplies the contact geometry on the impact tick.
 		var clock = TaskSource.Create( (inventory?.GameObject ?? GameObject).EnabledToken );
 		while ( Time.NowDouble < impactAt ) await clock.Frame();
 		var weapon = inventory.IsValid() ? inventory.ActiveItem as Weapon : null;
 		if ( inventory is null && IsValid && !IsHeld ) weapon = this;
-		if ( weapon.IsValid() ) weapon.MeleeContact( attacker, fraction );
+		if ( weapon.IsValid() ) weapon.MeleeContact( attacker, fraction, lunge ? weapon.LungeProfile : null );
 	}
 
-	void MeleeContact( GameObject attacker, float fraction )
+	void MeleeContact( GameObject attacker, float fraction, MeleeDamageProfile profile )
 	{
 		var aim = Holder is PlayerController player ? player.EyeTransform.ForwardRay : AimRay;
 		var hit = TraceMelee( aim, out var impactPosition );
@@ -111,8 +126,8 @@ public abstract partial class Weapon
 		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
-		float damage = (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
-		ApplyDelayedHit( hit, damage * BodyMaterial.DamageScale( hit, MeleeBodyScales, MeleeExplosive ), MeleeForce, attacker, new TagSet { "melee" }, false );
+		float damage = (1 - fraction) * (profile?.Minimum ?? MinimumMeleeDamage) + fraction * (profile?.Maximum ?? MeleeDamage);
+		ApplyDelayedHit( hit, damage * BodyMaterial.DamageScale( hit, profile?.BodyScales ?? MeleeBodyScales, profile?.Explosive ?? MeleeExplosive ), profile?.Force ?? MeleeForce, attacker, new TagSet { "melee" }, false );
 	}
 
 	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )

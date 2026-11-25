@@ -83,14 +83,20 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 		gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
 		gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
-		int strike = Address( Reference( Header + 0x1bc ) );
-		gun.MinimumMeleeDamage = Float( strike + 0x1c );
-		gun.MeleeDamage = Float( strike + 0x20 );
-		gun.MeleeBodyScales = BodyDamageScales( Address( globals ), strike );
-		gun.MeleeExplosive = (map.ReadInt32( strike + 0x14 ) & 0x20) != 0;
+		var strike = ReadMeleeDamage( Address( Reference( Header + 0x1bc ) ), globals );
+		gun.MinimumMeleeDamage = strike.Minimum;
+		gun.MeleeDamage = strike.Maximum;
+		gun.MeleeBodyScales = strike.BodyScales;
+		gun.MeleeExplosive = strike.Explosive;
+		gun.MeleeForce = strike.Force;
 		gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
-		gun.MeleeForce = Float( strike + 0x40 ) * 120;
+		if ( gun is EnergySword sword && Reference( Header + 0x1ec ) is { PrimaryClass: "!tpj" } lunge )
+			sword.LungeDamage = ReadMeleeDamage( Address( lunge ), globals );
 	}
+
+	MeleeDamageProfile ReadMeleeDamage( int effect, TagEntry globals ) => new(
+		Float( effect + 0x1c ), Float( effect + 0x20 ), Float( effect + 0x40 ) * 120,
+		BodyDamageScales( Address( globals ), effect ), (map.ReadInt32( effect + 0x14 ) & 0x20) != 0 );
 
 	SoundEvent ZoomSound( int reference ) => Reference( reference ) is { PrimaryClass: "!dns" } sound
 		? GameResource.Load<SoundEvent>( Host.AssetPath( map, sound.TagPath, "sound" ) ) : null;

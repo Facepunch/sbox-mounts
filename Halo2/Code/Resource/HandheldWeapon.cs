@@ -55,6 +55,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	EnergySword CreateSword( GameObject root, string world )
 	{
 		var sword = ConfigurePickup<EnergySword>( root, world, title );
+		sword.TargetAngle = Float( Header + 0x208 );
+		sword.TargetRange = Float( Header + 0x20c ) * 120;
 		sword.Powered = Reference( Header + 0x300 ) is { PrimaryClass: "paew" };
 		if ( Reference( Header + 0x140 ) is not { PrimaryClass: "effe" } ready ) return sword;
 
