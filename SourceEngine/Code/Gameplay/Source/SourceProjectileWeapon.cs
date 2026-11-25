@@ -215,7 +215,15 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 		_laser.Update( this, LaserOn );
 	}
 
-	protected override void OnViewModelPlaced( SourceViewModel model ) => _laser?.Follow( model );
+	protected override void OnViewModelPlaced( SourceViewModel model )
+	{
+		_laser?.Follow( model );
+		if ( Kind != SourceProjectile.Kinds.Bolt || !model.Renderer.IsValid() ) return;
+
+		var charged = Clip1 > 0 || (IsReloading && BoltChargeDelay.HasValue && _boltChargeAt is null);
+		var skin = charged ? "Skin 1" : "Skin 0";
+		if ( model.Renderer.MaterialGroup != skin && model.Renderer.Model is { MaterialGroupCount: >= 2 } ) model.Renderer.MaterialGroup = skin;
+	}
 
 	protected override void Think()
 	{
