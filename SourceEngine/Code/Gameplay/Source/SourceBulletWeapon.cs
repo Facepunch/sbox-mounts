@@ -71,6 +71,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	// weapon_shotgun SecondaryAttack fires a literal 12 pellets.
 	const int DoubleShotPellets = 12;
 
+	[Property, Feature( "Shooting" )] public bool FiresUnderwater { get; set; } = true;
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
 	[Property, Feature( "Shooting" )] public float DryTapRefireDelay { get; set; }
@@ -164,8 +165,10 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		{
 			// Only catch up time spent holding the trigger during this frame.
 			var remaining = Math.Max( (float)NextPrimaryFire, -Time.Delta );
-			while ( remaining <= 0 && FirePrimary() )
+			while ( remaining <= 0 )
 			{
+				var rounds = Clip1;
+				if ( !FirePrimary() || (UsesPrimaryClip && Clip1 == rounds) ) break;
 				remaining += PrimaryDelay;
 				SetNextPrimaryFire( remaining );
 			}
@@ -253,7 +256,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
 		_queuedPrimary = _queuedSecondary = false;
-		if ( Secondary == SecondaryFires.DoubleShot && BlockSubmergedShot() ) return;
+		if ( BlockSubmergedShot( Secondary == SecondaryFires.DoubleShot ) ) return;
 		FirePrimaryRound();
 	}
 
@@ -436,6 +439,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			DoubleShot();
 			return;
 		}
+		if ( BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( AlternateProjectile == SourceProjectile.Kinds.EnergyBall )
 		{
 			_alternatePending = true;
@@ -456,7 +460,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			FirePrimaryRound();
 			return;
 		}
-		if ( BlockSubmergedShot() ) return;
+		if ( BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
 		var config = Ballistics;
 		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
@@ -467,11 +471,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
 	}
 
-	bool BlockSubmergedShot()
+	bool BlockSubmergedShot( bool blockBothTriggers )
 	{
-		if ( !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
+		if ( FiresUnderwater || !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
 		if ( SourceSounds.WeaponSound( this, "empty" ) is { } sound ) GameObject.PlaySound( sound );
-		SetNextFire( 0.2f );
+		SetNextPrimaryFire( 0.2f );
+		if ( blockBothTriggers ) SetNextSecondaryFire( 0.2f );
 		return true;
 	}
 
