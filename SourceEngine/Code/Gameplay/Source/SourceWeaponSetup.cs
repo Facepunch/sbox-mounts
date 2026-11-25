@@ -93,9 +93,7 @@ static class SourceWeaponSetup
 		if ( !weapon.IsValid() ) return null;
 		var state = Weapons.GetValue( weapon, _ => new() );
 		state.Data ??= ReadData( weapon );
-		// A handless viewmodel whose world model the script does not name either is only linked through the viewmodel it replaced.
-		var definition = weapon.ViewModelPrefab?.GetComponentInChildren<SourceMountedModel>();
-		var icon = state.Data?.Icon ?? ReadData( definition, definition?.FallbackModelPath, null )?.Icon;
+		var icon = state.Data?.Icon;
 		if ( icon is null || Sandbox.Mounting.Directory.Get( SourceMount.Of( icon ) )?.GetByPath( icon ) is null ) return null;
 		weapon.DisplayIcon = Texture.Load( icon );
 		return weapon.DisplayIcon;
@@ -104,17 +102,21 @@ static class SourceWeaponSetup
 	static SourceModelWeaponData ReadData( BaseCombatWeapon weapon )
 	{
 		var definition = weapon.ViewModelPrefab?.GetComponentInChildren<SourceMountedModel>();
-		return ReadData( definition, definition?.ResolvedModelPath, WorldModelPath( weapon ) );
-	}
+		if ( !definition.IsValid() ) return null;
+		var world = WorldModelPath( weapon );
+		var mount = Sandbox.Mounting.Directory.Get( definition.MountName );
+		if ( mount is null ) return null;
 
-	static SourceModelWeaponData ReadData( SourceMountedModel definition, string viewModel, string worldModel )
-	{
-		if ( !definition.IsValid() || string.IsNullOrEmpty( viewModel ) ) return null;
-		// Pickup needs the script synchronously.
-		var path = $"mount://{definition.MountName}/{viewModel}.vmdl";
-		if ( Sandbox.Mounting.Directory.Get( definition.MountName )?.GetByPath( path ) is null ) return null;
-		var model = Model.Load( path );
-		return model.IsValid() && !model.IsError ? WeaponData( model, worldModel ) : null;
+		SourceModelWeaponData Read( string path )
+		{
+			if ( string.IsNullOrEmpty( path ) ) return null;
+			var resource = $"mount://{definition.MountName}/{path}.vmdl";
+			if ( mount.GetByPath( resource ) is null ) return null;
+			return SelectWeaponData( Model.Load( resource ), world );
+		}
+
+		// Replacement hands and world models can both differ from the ones named by the script.
+		return Read( definition.ModelPath ) ?? Read( world ) ?? Read( definition.FallbackModelPath );
 	}
 
 	static void ApplyAmmo( BaseCombatWeapon weapon, SourceModelWeaponData data )
@@ -173,7 +175,7 @@ static class SourceWeaponSetup
 		var skill = await SourceSkillData.Read( definition.MountName );
 		if ( !weapon.IsValid() ) return false;
 		var worldModel = WorldModelPath( weapon );
-		state.Data ??= WeaponData( model, worldModel );
+		state.Data ??= ReadData( weapon );
 		if ( state.Data is { } data )
 		{
 			ApplyAmmo( weapon, data );
@@ -279,18 +281,10 @@ static class SourceWeaponSetup
 		return null;
 	}
 
-	public static SourceModelWeaponData WeaponData( Model model, string worldModel )
+	static SourceModelWeaponData SelectWeaponData( Model model, string worldModel )
 	{
-		var definitions = model?.GetData<SourceModelWeaponData[]>() ?? [];
-		// Separate-hand viewmodels can replace the script's original model. The
-		// selected world model still identifies that same mounted weapon script.
-		if ( definitions.Length == 0 && !string.IsNullOrWhiteSpace( worldModel ) )
-		{
-			var mountName = SourceMount.Of( model );
-			var path = $"mount://{mountName}/{worldModel}.vmdl";
-			if ( Sandbox.Mounting.Directory.Get( mountName )?.GetByPath( path ) is not null )
-				definitions = Model.Load( path )?.GetData<SourceModelWeaponData[]>() ?? [];
-		}
+		var definitions = model?.GetData<SourceModelWeaponData[]>();
+		if ( definitions is null ) return null;
 		// NPC-only weapons can share a player's viewmodel (Annabelle is one).
 		// Preserve every script in the mount and resolve by the actual world model.
 		return definitions.FirstOrDefault( x => x.WorldModel == worldModel )
