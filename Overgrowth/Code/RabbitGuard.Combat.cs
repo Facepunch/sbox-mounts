@@ -180,7 +180,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( Flee() || SeekWeapon() ) return;
+		if ( Flee() || (soughtItem is not null && SeekWeapon()) ) return;
 		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
 		{
 			Remember( closest, engage: false );
@@ -224,7 +224,7 @@ public sealed partial class RabbitGuard
 			Stance = Ready;
 			return;
 		}
-		if ( TryCounterThrow() ) return;
+		if ( FindWeapon() || TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
 		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
 		float distance = delta.Length;

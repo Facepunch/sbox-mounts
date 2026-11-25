@@ -48,38 +48,40 @@ public sealed partial class RabbitGuard
 		return closest;
 	}
 
-	bool SeekWeapon()
+	bool FindWeapon()
 	{
-		if ( PrimaryItem.IsValid() || boundAnimations.Species == "wolf" || seekTime > 15f || Downed || Unconscious )
+		if ( boundAnimations.Species == "wolf" || seekTime >= 15f ) return false;
+		if ( PrimaryItem.IsValid() )
 		{
-			StopSeekingWeapon();
+			seekDelay = 0.4f;
 			return false;
 		}
-		var center = CharacterCenter( GameObject );
-		if ( !soughtItem.IsValid() )
+		const float tick = 4f / 120f;
+		searchRemainder += Time.Delta;
+		int polls = (int)(searchRemainder / tick);
+		if ( polls == 0 ) return false;
+		searchRemainder -= polls * tick;
+		var candidate = NearestWeapon( CharacterCenter( GameObject ), 400f );
+		if ( candidate?.StuckIn?.GetComponentInParent<RabbitGuard>() is { Unconscious: false } ) candidate = null;
+		if ( candidate is not null )
 		{
-			if ( !enemy.IsValid() && !investigatePoint.HasValue ) return false;
-			const float tick = 4f / 120f;
-			searchRemainder += Time.Delta;
-			int polls = (int)(searchRemainder / tick);
-			if ( polls == 0 ) return false;
-			searchRemainder -= polls * tick;
-			var candidate = NearestWeapon( center, 400f );
-			if ( candidate?.StuckIn?.GetComponentInParent<RabbitGuard>() is { Unconscious: false } ) candidate = null;
-			if ( candidate is not null )
-			{
-				var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = candidate.PhysicsPosition, Agent = GetComponent<NavMeshAgent>() } );
-				if ( path.Status != NavMeshPathStatus.Complete ) candidate = null;
-			}
-			if ( candidate is null )
-			{
-				seekDelay = 0.4f;
-				return false;
-			}
-			if ( !WantsToSeekWeapon( polls ) ) return false;
-			soughtItem = candidate;
+			var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = candidate.PhysicsPosition, Agent = GetComponent<NavMeshAgent>() } );
+			if ( path.Status != NavMeshPathStatus.Complete ) candidate = null;
 		}
-		if ( !CanPickUp( soughtItem ) || center.DistanceSquared( soughtItem.PhysicsPosition ) > 600f * 600f )
+		if ( candidate is null )
+		{
+			seekDelay = 0.4f;
+			return false;
+		}
+		if ( !WantsToSeekWeapon( polls ) ) return false;
+		soughtItem = candidate;
+		return SeekWeapon();
+	}
+
+	bool SeekWeapon()
+	{
+		var center = CharacterCenter( GameObject );
+		if ( PrimaryItem.IsValid() || seekTime > 15f || !CanPickUp( soughtItem ) || center.DistanceSquared( soughtItem.PhysicsPosition ) > 600f * 600f )
 		{
 			StopSeekingWeapon();
 			return false;
@@ -122,7 +124,6 @@ public sealed partial class RabbitGuard
 		if ( soughtItem.IsValid() && Movement.MoveTarget.HasValue ) ReleaseMovementInput();
 		soughtItem = null;
 		reaching = false;
-		seekDelay = 0.4f;
 		searchRemainder = 0f;
 	}
 

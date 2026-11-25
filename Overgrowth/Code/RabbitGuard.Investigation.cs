@@ -141,6 +141,8 @@ public sealed partial class RabbitGuard
 			if ( ApproachSite( pointToCheck, false, 1f ) is null ) return true;
 			lastKnownSearchPoint = null;
 		}
+		if ( FindWeapon() ) return true;
+
 		var agent = GetComponent<NavMeshAgent>();
 		if ( searchPoints.Count == 0 )
 		{
