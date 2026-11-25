@@ -605,7 +605,7 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 			if ( _bugbaitReaction is { } delay && delay <= 0 )
 			{
 				_bugbaitReaction = null;
-				if ( Health > 0 && Clip( "ACT_COMBINE_BUGBAIT" ) is { } clip && Action != clip )
+				if ( Health > 0 && Clip( "ACT_COMBINE_BUGBAIT" ) is { } clip )
 				{
 					EndCurrentSchedule();
 					_queuedAction = clip;
