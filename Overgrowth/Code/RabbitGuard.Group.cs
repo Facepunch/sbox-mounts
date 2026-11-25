@@ -79,18 +79,18 @@ public sealed partial class RabbitGuard
 		}
 
 		const float range = 3f * 40f;
-		var target = TargetPosition( enemy );
+		var target = CharacterCenter( enemy );
 		if ( groupLeader.IsValid() )
 		{
 			if ( groupLeader.Unconscious || groupLeader.Downed || !groupLeader.Active || groupLeader.Health <= 0 ||
-				groupLeader.groupLeader.IsValid() || groupLeader.WorldPosition.DistanceSquared( target ) > range * range )
+				groupLeader.groupLeader.IsValid() || CharacterCenter( groupLeader.GameObject ).DistanceSquared( target ) > range * range )
 				FollowLeader( null );
 		}
 		else if ( followerCount == 0 )
 		{
 			foreach ( var ally in Scene.GetAllComponents<RabbitGuard>() )
 			{
-				if ( !CanLead( ally ) || ally.groupLeader.IsValid() || ally.WorldPosition.DistanceSquared( target ) >= range * range ) continue;
+				if ( !CanLead( ally ) || ally.groupLeader.IsValid() || CharacterCenter( ally.GameObject ).DistanceSquared( target ) >= range * range ) continue;
 				FollowLeader( ally );
 				break;
 			}
