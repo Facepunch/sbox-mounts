@@ -26,6 +26,8 @@ public partial class ShotgunModel : BaseWeaponModel
 	public override void OnReloadCancel() => LocalView?.OnReloadCancel();
 
 	ParticleEffect casings;
+	Transform ejectionMarker;
+	bool firstPersonEjection;
 	double shotStart;
 	int nextParticleTick;
 	uint seed = (uint)Random.Shared.Next();
@@ -197,6 +199,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.WorldTransform = ShellEjectGameObject.WorldTransform;
 		var casings = go.AddComponent<ParticleEffect>();
+		casings.StartDelay = 14f / 30;
 		casings.Lifetime = new ParticleFloat( 2, 5 );
 		casings.ApplyShape = true;
 		casings.InitialScale = 4.8f;
@@ -212,6 +215,13 @@ public partial class ShotgunModel : BaseWeaponModel
 		casings.SequenceSpeed = 0;
 		var holder = Weapon?.Holder?.GameObject;
 		var contacts = ShotgunContacts.For( Weapon );
+		casings.OnPreStep += _ =>
+		{
+			if ( casings.DelayedParticles.Count == 0 || !IsValid || !Weapon.IsValid() ) return;
+			if ( Weapon.WeaponModel is not ShotgunModel model || !model.ShellEjectGameObject.IsValid() ) return;
+			TrackEjectionMarker( model );
+		};
+		casings.OnParticleCreated += EjectCasing;
 		casings.OnPostStep += dt => AdvanceCasings( casings, holder, contacts, dt );
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
@@ -276,17 +286,18 @@ public partial class ShotgunModel : BaseWeaponModel
 		return System.MathF.Round( (1 - fade) * 255 ) / 255;
 	}
 
-	void EjectCasing()
+	void TrackEjectionMarker( ShotgunModel model )
 	{
-		if ( !ShellEjectGameObject.IsValid() ) return;
-		if ( !casings.IsValid() ) casings = CreateCasings();
-		if ( !casings.IsValid() ) return;
-		bool viewCasing = this is ShotgunViewModel;
-		var marker = ShellEjectGameObject.WorldTransform;
-		var position = viewCasing ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
-		if ( casings.Emit( position, 0 ) is not {} casing ) return;
+		ejectionMarker = model.ShellEjectGameObject.WorldTransform;
+		firstPersonEjection = model is ShotgunViewModel;
+	}
+
+	void EjectCasing( Particle casing )
+	{
+		var marker = ejectionMarker;
+		casing.StartPosition = casing.Position = firstPersonEjection ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
 		var direction = marker.Rotation.Forward;
-		if ( !viewCasing )
+		if ( !firstPersonEjection )
 		{
 			// The world emitter samples azimuth uniformly and polar angle from zero to ten degrees.
 			const double unit = 1f / 65535f;
@@ -305,6 +316,12 @@ public partial class ShotgunModel : BaseWeaponModel
 		LocalView?.PlayFireAnimation();
 		shotStart = Time.NowDouble;
 		nextParticleTick = 1;
+		if ( ShellEjectGameObject.IsValid() )
+		{
+			TrackEjectionMarker( this );
+			if ( !casings.IsValid() ) casings = CreateCasings();
+			casings?.Emit( ShellEjectGameObject.WorldPosition, 0 );
+		}
 	}
 
 	void EmitMuzzleParticles()
@@ -329,18 +346,17 @@ public partial class ShotgunModel : BaseWeaponModel
 			return;
 		}
 		if ( nextParticleTick == 0 ) return;
-		int due = Math.Min( 14, (int)((Time.NowDouble - shotStart) * 30) );
+		int due = Math.Min( 13, (int)((Time.NowDouble - shotStart) * 30) );
 		if ( nextParticleTick > due ) return;
 		var model = Weapon.WeaponModel as ShotgunModel;
 		// Each emitter accumulates its rate over the elapsed part of its event.
-		// At 30 Hz this gives one flash tick, twelve smoke ticks, then the casing.
+		// At 30 Hz this gives one flash tick and twelve smoke ticks.
 		while ( nextParticleTick <= due )
 		{
 			if ( nextParticleTick == 1 ) model?.EmitMuzzleParticles();
-			else if ( nextParticleTick == 14 ) model?.EjectCasing();
 			else if ( model?.trailingSmoke is {} smoke && smoke.IsValid() ) smoke.Emit( smoke.WorldPosition, 0 );
 			nextParticleTick++;
 		}
-		if ( nextParticleTick > 14 ) nextParticleTick = 0;
+		if ( nextParticleTick > 13 ) nextParticleTick = 0;
 	}
 }
