@@ -342,7 +342,7 @@ public sealed class Shotgun : Weapon
 		var contacts = ShotgunContacts.For( weapon );
 		foreach ( var contact in impacts )
 		{
-			// The final segment orients the contact. The tracer and water crossing span the full shot.
+			// The incoming velocity orients the contact. The tracer and water crossing span the full shot.
 			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, GameResource.Load<Surface>( contact.SurfacePath ), muzzle, NoEvents: true );
 			PelletImpact( contacts, shot, contact.Direction );
 			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
@@ -389,6 +389,7 @@ public sealed class Shotgun : Weapon
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
+				pellet.Velocity.z -= fall;
 				float distance = displacement.Length;
 				bool atRange = step < dt || pellet.Travelled + distance >= ballistics.Range;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
@@ -401,7 +402,6 @@ public sealed class Shotgun : Weapon
 				if ( !hit.Hit )
 				{
 					pellet.Offset += displacement;
-					pellet.Velocity.z -= fall;
 					pellet.Travelled += distance;
 					if ( atRange )
 					{
@@ -423,6 +423,7 @@ public sealed class Shotgun : Weapon
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
 				hit.StartPosition = origin;
+				hit.Direction = pellet.Velocity.Normal;
 				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
