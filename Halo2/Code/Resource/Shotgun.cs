@@ -29,6 +29,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return new Halo2ModelLoader( map, Reference( representation ), biped: Reference( representation + 0xb0 ), graph: Reference( row + 8 ), firstPersonWeapon: Reference( row ) );
 	}
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
+	internal const string AmmoMeterName = "ammo_meter.vtex";
 	internal const string IconPath = "weapons/shotgun/icon.vtex";
 	internal const string SplitReticleName = "split_reticle.vtex";
 	internal const string SplitWeakReticleName = "split_weak_reticle.vtex";
@@ -70,6 +71,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
+		if ( name == AmmoMeterName ) return HudBitmap( "ammo_meter_single" );
 		if ( name == SplitReticleName ) return HudBitmap( "crosshair", split: true );
 		if ( name == SplitWeakReticleName ) return HudBitmap( "crosshair_weakspot", split: true );
 		if ( name == WeakReticleName ) return HudBitmap( "crosshair_weakspot" );
@@ -210,8 +212,18 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			var bitmap = Reference( row + 0x20 );
 			int sequence = map.ReadSpan( row + (split ? 0x31 : 0x30), 1 )[0];
 			int sequences = Address( bitmap ) + 60;
-			if ( sequence >= map.ReadInt32( sequences ) ) return null;
-			int index = Short( Block( sequences ) + sequence * 60 + 32 );
+			int count = map.ReadInt32( sequences );
+			// HUD sequence zero addresses the first image when the bitmap has no sequences.
+			int index = 0;
+			if ( count == 0 )
+			{
+				if ( sequence != 0 || map.ReadInt32( sequences + 8 ) <= 0 ) return null;
+			}
+			else
+			{
+				if ( sequence >= count ) return null;
+				index = Short( Block( sequences ) + sequence * 60 + 32 );
+			}
 			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
 		}
 		return null;
