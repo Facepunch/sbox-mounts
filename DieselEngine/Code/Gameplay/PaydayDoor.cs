@@ -16,6 +16,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Property] public Transform TargetPose { get; set; } = global::Transform.Zero;
 	[Property] public Transform ClosedPose { get; set; } = global::Transform.Zero;
 	[Property] public bool StartsOpen { get; set; }
+	[Property] public bool ResolveDoorway { get; set; }
 	[Property] public float InitialAmount { get; set; } = 1;
 	[Property] public List<PaydayDoor> LinkedDoors { get; set; } = [];
 	[Property] public string OpenSoundPath { get; set; }
@@ -26,6 +27,15 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Sync( SyncFlags.FromHost )] public float Amount { get; private set; }
 	[Sync( SyncFlags.FromHost )] public bool Blocked { get; private set; }
 	[Sync( SyncFlags.FromHost )] float Direction { get; set; } = 1;
+	/// <summary>Holding its placed ajar angle until first used.</summary>
+	[Sync( SyncFlags.FromHost )] bool Resting { get; set; }
+	[ConVar( "payday_door_debug", Help = "Log PAYDAY door state at start and on every use." )]
+	public static bool Debug { get; set; }
+
+	string State => $"{GameObject.Name} ({GameObject.Id}) at {WorldPosition} yaw {WorldRotation.Yaw():0.#}: open={Open} amount={Amount:0.###} "
+		+ $"openAngle={OpenAngle:0.#} dir={Direction} resting={Resting} blocked={Blocked} initial={InitialOpenAngle:0.#} fixed={FixedOpenAngle:0.#} "
+		+ $"bothWays={OpenBothWays} authored={AuthoredMotion} startsOpen={StartsOpen} leafYaw={(Leaf.IsValid() ? Leaf.LocalRotation.Yaw() : 0):0.#} leaf={(Leaf.IsValid() ? Leaf.Id : Guid.Empty)}";
+
 	TimeUntil scan;
 	SoundEvent openSound, closeSound;
 	SoundHandle openingSound;
@@ -36,6 +46,12 @@ public sealed class PaydayDoor : Component, Component.IPressable
 
 	protected override void OnStart()
 	{
+		// Import callbacks are batched: wall collision becomes available only after scene load.
+		if ( ResolveDoorway )
+		{
+			MapLoader.SettleAjarDoor( GameObject, this );
+			ResolveDoorway = false;
+		}
 		Scene.NavMesh.ExcludedBodies.Add( NavigationTag );
 		if ( !OpenBothWays && MathF.Abs( FixedOpenAngle ) > .01f )
 		{
@@ -44,12 +60,19 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		}
 		if ( MathF.Abs( InitialOpenAngle ) > .01f )
 		{
-			OpenAngle = MathF.Abs( InitialOpenAngle );
+			// A one-way door placed part-open (ajar) rests at that angle until used; its full swing stays FixedOpenAngle.
+			bool partial = !OpenBothWays && MathF.Abs( FixedOpenAngle ) > .01f && MathF.Sign( FixedOpenAngle ) == MathF.Sign( InitialOpenAngle );
+			if ( !partial ) OpenAngle = MathF.Abs( InitialOpenAngle );
+			// Placed mostly open: the designer's angle (usually against a wall) becomes the full open angle.
+			// Placed slightly ajar: rest there, but count as open so player use closes it.
+			float placed = MathF.Abs( InitialOpenAngle );
+			if ( partial && placed >= OpenAngle * 0.5f ) { OpenAngle = placed; partial = false; }
 			if ( Networking.IsHost )
 			{
 				Direction = MathF.Sign( InitialOpenAngle );
+				Amount = partial ? placed / OpenAngle : 1;
 				Open = true;
-				Amount = 1;
+				Resting = partial;
 				if ( Leaf.IsValid() ) Leaf.LocalTransform = Pose( Amount );
 			}
 		}
@@ -62,6 +85,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		}
 		openingSoundPlayed = MathF.Abs( InitialOpenAngle ) > .01f;
 		closingSoundPlayed = !Open; // a door placed open can still play its closing sound
+		if ( Debug ) Log.Info( $"PAYDAY door start: {State}" );
 		_ = LoadSounds();
 	}
 
@@ -84,7 +108,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		if ( !Open ) openingSoundPlayed = false;
 		if ( Networking.IsHost )
 		{
-			if ( !Open && scan <= 0 )
+			if ( (!Open || Resting) && scan <= 0 )
 			{
 				scan = .1f;
 				foreach ( var npc in Scene.GetAllComponents<BaseNpc>() )
@@ -97,7 +121,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 					break;
 				}
 			}
-			float target = Open ? 1 : 0;
+			float target = Resting ? Amount : Open ? 1 : 0;
 			float step = Time.Delta / Math.Max( .1f, TravelTime );
 			float next = Amount < target ? Math.Min( target, Amount + step ) : Math.Max( target, Amount - step );
 			Blocked = false;
@@ -106,7 +130,11 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			for ( int i = 1; i <= samples && next != Amount; i++ )
 				if ( Occupied( Amount + (next - Amount) * i / samples ) ) { Blocked = true; break; }
 			if ( !Blocked ) Amount = next;
-			else if ( !Open ) SetOpen( true );
+			else
+			{
+				if ( Debug ) Log.Info( $"PAYDAY door blocked: {State}" );
+				if ( !Open ) SetOpen( true );
+			}
 		}
 		Leaf.LocalTransform = Pose( Amount );
 		// Observe actual movement on each peer: no spawn sound, no repeated sound while
@@ -150,7 +178,8 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	void SetOpen( bool value )
 	{
 		Open = value;
-		foreach ( var door in LinkedDoors ) if ( door.IsValid() ) door.Open = value;
+		Resting = false;
+		foreach ( var door in LinkedDoors ) if ( door.IsValid() ) { door.Open = value; door.Resting = false; }
 	}
 
 	bool Occupied( float amount )
@@ -164,12 +193,15 @@ public sealed class PaydayDoor : Component, Component.IPressable
 				&& point.y >= bounds.Mins.y - 14 && point.y <= bounds.Maxs.y + 14
 				&& point.z >= bounds.Mins.z - 30 && point.z <= bounds.Maxs.z + 30;
 		}
-		return Scene.GetAllComponents<PlayerController>().Any( p => p.Active && Intersects( p.GameObject ) )
+		// One-way doors can't swing away from a player, and players stand in the swing path to use them; letting players
+		// block made those doors freeze or bounce back open. Only both-way doors (which open away from the user) and NPCs block.
+		return (OpenBothWays && Scene.GetAllComponents<PlayerController>().Any( p => p.Active && Intersects( p.GameObject ) ))
 			|| Scene.GetAllComponents<BaseNpc>().Any( n => n.Active && n.Health > 0 && Intersects( n.GameObject ) );
 	}
 
 	void OpenAway( GameObject actor )
 	{
+		if ( Debug ) Log.Info( $"PAYDAY door opened for {actor?.Name}: {State}" );
 		if ( OpenBothWays && Amount <= .001f )
 		{
 			var position = WorldTransform.PointToLocal( actor.WorldPosition );
@@ -183,13 +215,19 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Rpc.Host]
 	public void Toggle( GameObject source )
 	{
+		if ( Debug ) Log.Info( $"PAYDAY door use: {State}" );
 		if ( !Leaf.IsValid() || Model is null || !source.IsValid() || source.Scene != Scene ) return;
 		var player = source.Root?.GetComponent<PlayerController>();
 		if ( !player.IsValid() || (Rpc.Caller is not null && player.Network.Owner != Rpc.Caller) ) return;
 		var center = Leaf.WorldTransform.PointToWorld( Model.Bounds.Center );
-		if ( player.EyePosition.Distance( center ) > 150 ) return;
+		if ( player.EyePosition.Distance( center ) > 150 ) { if ( Debug ) Log.Info( "  rejected: too far" ); return; }
 		var trace = Scene.Trace.Ray( player.EyePosition, center ).IgnoreGameObjectHierarchy( player.GameObject ).WithoutTags( "trigger" ).Run();
-		if ( trace.Hit && !PaydayInteraction.BelongsTo( trace.GameObject, GameObject ) ) return;
+		if ( trace.Hit && !PaydayInteraction.BelongsTo( trace.GameObject, GameObject ) )
+		{
+			if ( Debug ) Log.Info( $"  rejected: line of sight blocked by {trace.GameObject?.Name} ({trace.GameObject?.Id})" );
+			return;
+		}
+		if ( Debug ) Log.Info( Open ? "  -> closing" : "  -> opening" );
 		if ( Open ) SetOpen( false );
 		else
 		{

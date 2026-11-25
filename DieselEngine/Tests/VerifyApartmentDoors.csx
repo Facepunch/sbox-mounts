@@ -2,7 +2,7 @@ await Sandbox.Mounting.Directory.Mount( "payday" );
 await ResourceLibrary.LoadAsync<PrefabFile>( "mount://payday/entities/npcs/civilian.prefab" );
 var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
 var results = new System.Collections.Generic.List<string>();
-foreach ( var (level, count) in new[] { ("bank", 12), ("diamondheist", 10), ("street", 5), ("bridge", 1), ("slaughterhouse", 25), ("apartment", 59) } )
+foreach ( var (level, count) in new[] { ("bank", 12), ("diamondheist", 10), ("street", 5), ("bridge", 1), ("slaughterhouse", 24), ("apartment", 57) } )
 {
 	var loader = Sandbox.Mounting.MountUtility.FindLoader( $"mount://payday/levels/{level}/world.world.scene" );
 	loader.GetType().GetMethod( "OnSceneUnloaded", flags ).Invoke( loader, null );
@@ -12,6 +12,9 @@ foreach ( var (level, count) in new[] { ("bank", 12), ("diamondheist", 10), ("st
 	{
 		using var importScope = imported.Push();
 		if ( !imported.Load( file ) ) throw new Exception( $"{level} load failed." );
+		foreach ( var door in imported.GetAllObjects( true ).SelectMany( g => g.Components.GetAll() )
+			.Where( c => c.GetType().Name == "PaydayDoor" && (bool)c.GetType().GetProperty( "ResolveDoorway" ).GetValue( c ) ) )
+			door.GetType().GetMethod( "OnStart", flags ).Invoke( door, null );
 		var doors = imported.GetAllObjects( true ).SelectMany( g => g.Components.GetAll() )
 			.Where( c => c.GetType().Name == "PaydayDoor" && (float)c.GetType().GetProperty( "FixedOpenAngle" ).GetValue( c ) != 0
 				&& !c.GameObject.Children.Any( g => g.Name == "Door frame" ) ).ToArray();
@@ -31,7 +34,8 @@ foreach ( var (level, count) in new[] { ("bank", 12), ("diamondheist", 10), ("st
 				var leaf = (GameObject)type.GetProperty( "Leaf" ).GetValue( door );
 				var model = leaf.GetComponent<ModelRenderer>().Model;
 				float angle = (float)type.GetProperty( "FixedOpenAngle" ).GetValue( door );
-				bool startsOpen = (float)type.GetProperty( "InitialOpenAngle" ).GetValue( door ) != 0;
+				float initialAngle = (float)type.GetProperty( "InitialOpenAngle" ).GetValue( door );
+				bool startsOpen = initialAngle != 0;
 				if ( model.IsError || model.MeshCount == 0 || MathF.Abs( angle ) < 90 || (bool)type.GetProperty( "OpenBothWays" ).GetValue( door ) )
 					throw new Exception( "Invalid apartment door geometry/swing." );
 				if ( source.GameObject.Name.Contains( "apartment_door_04" ) && model.MeshCount < 2 )
@@ -41,11 +45,13 @@ foreach ( var (level, count) in new[] { ("bank", 12), ("diamondheist", 10), ("st
 				var center = root.WorldTransform.PointToWorld( model.Bounds.Center );
 				void Tick( int n ) { for ( int i = 0; i < n; i++ ) scene.GameTick( .05 ); }
 				float Amount() => (float)type.GetProperty( "Amount" ).GetValue( door );
-				var initialForward = (startsOpen ? Rotation.FromYaw( angle ) : Rotation.Identity).Forward;
+				var initialForward = Rotation.FromYaw( initialAngle ).Forward;
 				if ( Vector3.Dot( leaf.LocalRotation.Forward, initialForward ) < .999f )
 					throw new Exception( "Serialized starting pose was lost." );
 				Tick( 2 );
-				if ( Amount() != (startsOpen ? 1 : 0) || Vector3.Dot( leaf.LocalRotation.Forward, initialForward ) < .999f )
+				angle = (float)type.GetProperty( "OpenAngle" ).GetValue( door ) * MathF.Sign( angle );
+				float initialAmount = startsOpen ? MathF.Abs( initialAngle / angle ) : 0;
+				if ( MathF.Abs( Amount() - initialAmount ) > .001f || Vector3.Dot( leaf.LocalRotation.Forward, initialForward ) < .999f )
 					throw new Exception( "Runtime starting pose was lost." );
 				var player = new GameObject( true, "Player" );
 				player.AddComponent<PlayerController>().UseInputControls = false;
