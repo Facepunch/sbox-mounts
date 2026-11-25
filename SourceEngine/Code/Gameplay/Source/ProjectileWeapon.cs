@@ -227,6 +227,7 @@ public sealed class ProjectileWeapon : Weapon
 	{
 		base.Think();
 		if ( _primed && _releaseAt <= 0 && !Input.Down( "attack1" ) ) BeginThrow();
+		if ( IsLauncher && _redrawPending && _redrawAt <= 0 && !AttackOrReloadHeld ) FinishRedraw();
 	}
 
 	void BeginThrow()
@@ -259,12 +260,14 @@ public sealed class ProjectileWeapon : Weapon
 			Launch( AimRay.Position, AimRay.Forward, attacker );
 			_redrawPending = true;
 		}
-		if ( _redrawPending && _redrawAt <= 0 )
-		{
-			_redrawPending = false;
-			if ( IsLauncher && !UsesPrimaryClip ) OnReloadFinished();
-			else if ( IsHeld && AutoReload && CanReload() ) Reload();
-		}
+		if ( _redrawPending && _redrawAt <= 0 && (!IsLauncher || !HasOwner || IsProxy) ) FinishRedraw();
+	}
+
+	void FinishRedraw()
+	{
+		_redrawPending = false;
+		if ( IsLauncher && !UsesPrimaryClip ) OnReloadFinished();
+		else if ( IsHeld && AutoReload && CanReload() ) Reload();
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]

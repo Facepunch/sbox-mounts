@@ -375,7 +375,7 @@ public sealed class ViewModel : BaseWeaponModel
 				Play( _clips.Pump );
 			}
 			else if ( _weapon is not BulletWeapon { UsesPrimaryClip: true, IncrementalReloading: false } ||
-				!(Input.Down( "attack1" ) || Input.Down( "attack2" ) || Input.Down( "reload" )) )
+				!Source1.Weapon.AttackOrReloadHeld )
 				Play( IdleClip );
 		}
 		_animation.Tick();
