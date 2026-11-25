@@ -106,16 +106,6 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
 			repath = 0.2f;
 		}
-		if ( !attacking && Movement.MoveTarget is { } destination && IsOnGround && lastFlap > 0.45f && energy > 3 && !PhysicsCarrier.IsValid() )
-		{
-			var velocity = Animation.MoveVelocity;
-			if ( velocity.WithZ( 0 ).Length < 4.5f * Scale ) velocity += (destination - WorldPosition).Normal * (4.15f * Scale);
-			velocity.z = velocity.z * 0.5f + 5 * Scale;
-			Launch( velocity );
-			energy -= 3;
-			lastFlap = 0;
-			PlayCue( "flap" );
-		}
 	}
 
 	protected override void OnUpdate()
