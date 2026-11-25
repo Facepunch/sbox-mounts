@@ -40,6 +40,46 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		return null;
 	}
 
+	protected Dictionary<string, float> BodyDamageScales( int globals, int effect )
+	{
+		var result = new Dictionary<string, float>();
+		if ( map.ReadInt32( globals + 0xd0 ) <= 0 ) return result;
+		int table = Block( globals + 0xd0 );
+		int groupA = map.ReadInt32( effect + 0x50 ), groupB = map.ReadInt32( effect + 0x54 );
+		var modifiers = new Dictionary<(int Group, int Armor), float>();
+		for ( int i = 0, count = map.ReadInt32( table ), row = Block( table ); i < count; i++, row += 12 )
+		{
+			int group = map.ReadInt32( row );
+			if ( group != groupA && group != groupB ) continue;
+			for ( int j = 0, entries = map.ReadInt32( row + 4 ), entry = Block( row + 4 ); j < entries; j++, entry += 8 )
+				modifiers[(group, map.ReadInt32( entry ))] = Float( entry + 4 );
+		}
+
+		float Modifier( int group, int armor ) => modifiers.GetValueOrDefault( (group, armor), 1f );
+		for ( int i = 0, count = map.ReadInt32( globals + 0x150 ), row = Block( globals + 0x150 ); i < count; i++, row += 0xb4 )
+		{
+			int armorA = map.ReadInt32( row + 0x10 ), armorB = map.ReadInt32( row + 0x14 );
+			float scale = Modifier( groupA, armorA ) * Modifier( groupA, armorB ) * Modifier( groupB, armorA ) * Modifier( groupB, armorB );
+			if ( scale != 1 && map.ResolveStringId( map.ReadInt32( row ) ) is { Length: > 0 } name )
+				result[$"mount://{Host.Ident}/surfaces/{name}.surface"] = scale;
+		}
+		return result;
+	}
+
+	void ConfigureMelee( Weapon gun )
+	{
+		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+		gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
+		gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
+		int strike = Address( Reference( Header + 0x1bc ) );
+		gun.MinimumMeleeDamage = Float( strike + 0x1c );
+		gun.MeleeDamage = Float( strike + 0x20 );
+		gun.MeleeBodyScales = BodyDamageScales( Address( globals ), strike );
+		gun.MeleeExplosive = (map.ReadInt32( strike + 0x14 ) & 0x20) != 0;
+		gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
+		gun.MeleeForce = Float( strike + 0x40 ) * 120;
+	}
+
 	protected T ConfigurePickup<T>( GameObject root, string world, string title ) where T : Weapon, new()
 	{
 		root.NetworkMode = NetworkMode.Object;
@@ -53,6 +93,7 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		var gun = root.AddComponent<T>();
 		gun.DisplayName = title;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+		ConfigureMelee( gun );
 		return gun;
 	}
 

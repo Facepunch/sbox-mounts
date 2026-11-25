@@ -12,7 +12,7 @@ public sealed class PlayerRepresentation
 	public int Index { get; set; }
 }
 
-public abstract class Weapon : BaseCombatWeapon
+public abstract partial class Weapon : BaseCombatWeapon
 {
 	[Property] public string AnimationClass { get; set; }
 	[Property] public string AnimationType { get; set; }
@@ -110,6 +110,41 @@ public abstract class Weapon : BaseCombatWeapon
 		// Drop and transfer have already reparented the weapon. Removal for destruction has not.
 		if ( Inventory != inventory && UsesClips && UsesAmmo )
 			looseReserve = LooseReserve + inventory.TakeAmmo( PrimaryAmmoType, CarriedReserve( inventory ) );
+	}
+
+	protected override bool OnDrop()
+	{
+		var ray = AimRay;
+		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
+		var renderer = HolderRenderer;
+		var grip = renderer?.Model?.GetData<WeaponAttachment>()?.PrimaryHand ?? "right_hand";
+		var release = renderer?.GetAttachment( "drop" ) ?? renderer?.GetAttachment( grip );
+		if ( release is null && renderer is not null && renderer.TryGetBoneTransform( HoldBone, out var hand ) )
+			release = hand;
+		var transform = release ?? new Transform( ray.Position, Rotation.LookAt( ray.Forward ) );
+		if ( !base.OnDrop() ) return false;
+		WorldTransform = transform.WithScale( WorldScale );
+		if ( GetComponent<Rigidbody>( true ) is {} body )
+		{
+			// An inventory drop rolls the speed before deviating the holder's facing.
+			ref uint randomState = ref BlamRandom.GameplayState( Scene );
+			float speed = (0.8f + 0.4f * (BlamRandom.Next( ref randomState ) / 65535f)) * 120;
+			var direction = Spread.Deviate( ray.Forward, 0, System.MathF.PI / 8, ref randomState );
+			var toss = (velocity + direction * speed).ClampLength( 4 * 120 );
+			body.Velocity = toss;
+			body.AngularVelocity = DropSpin( toss / 120, ref randomState );
+		}
+		return true;
+	}
+
+	static Vector3 DropSpin( Vector3 velocity, ref uint randomState )
+	{
+		float speed = velocity.Length;
+		if ( speed < 0.0001f ) speed = BlamRandom.Next( ref randomState ) / 65535f;
+		var axis = Vector3.Cross( Vector3.Up, velocity );
+		float length = axis.Length;
+		axis = length < 0.0001f ? Spread.RandomDirection( ref randomState ) : axis / length;
+		return axis * ((BlamRandom.Next( ref randomState ) / 65535f) * (System.MathF.PI / 2) * speed);
 	}
 
 	Transform cameraAdjustment = global::Transform.Zero;

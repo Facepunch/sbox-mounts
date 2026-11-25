@@ -79,11 +79,16 @@ public sealed class MagazineWeapon : Weapon
 		if ( GetComponent<SkinnedModelRenderer>( true ) is {} loose ) loose.Enabled = true;
 	}
 
+	bool UseEliteRig => EliteModel is not null && HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
+	protected override string FirstPersonRig => $"{RigDirectory}/{(UseEliteRig ? "first_person_elite" : "first_person")}.vmdl";
+	protected override void PlayMeleeView( string action ) => ViewModel?.GetComponent<MagazineWeaponModel>()?.Play( action );
+	public override bool CanSecondaryAttack() => remainingShots == 0 && base.CanSecondaryAttack();
+
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
-		bool elite = EliteModel is not null && HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
-		var rig = $"{RigDirectory}/{(elite ? "first_person_elite" : "first_person")}.vmdl";
+		bool elite = UseEliteRig;
+		var rig = FirstPersonRig;
 		var view = new GameObject( GameObject, false, $"{DisplayName} view model" );
 		view.Flags |= GameObjectFlags.Absolute | GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		view.Tags.Add( "firstperson", "viewmodel" );
@@ -115,7 +120,7 @@ public sealed class MagazineWeaponModel : BaseWeaponModel
 {
 	internal MagazineWeapon Weapon { get; set; }
 
-	void Play( string action )
+	internal void Play( string action )
 	{
 		if ( !Renderer.Animation.IsValid ) return;
 		var parameters = Renderer.Animation.Parameters;
