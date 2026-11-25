@@ -61,7 +61,7 @@ public sealed partial class RabbitGuard
 			if ( GazeTarget is { } target && boundAnimations.Head.Eyes is { } eyes
 				&& Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) )
 			{
-				bool useLeft = eyes.SideFacing && Scene.Camera is { } camera && head.PointToLocal( camera.WorldPosition ).y < 0f;
+				bool useLeft = eyes.SideFacing && Scene.Camera is { } camera && head.PointToLocal( camera.View.Position ).y < 0f;
 				look += eyes.Evaluate( head.PointToLocal( target ), useLeft );
 			}
 			foreach ( var shape in boundAnimations.Morphs )
@@ -98,7 +98,8 @@ public sealed partial class RabbitGuard
 		{
 			Renderer.Morphs.Set( "wink_l", blinkAmount, 0f );
 			Renderer.Morphs.Set( "wink_r", blinkAmount, 0f );
-			blinkAmount = 0.9f + (blinkAmount - 0.9f) * MathF.Pow( 0.9f, Time.Delta * 120f );
+			// UpdateBlink closes unconscious eyes by 10% per character script update (30 Hz).
+			blinkAmount = 0.9f + (blinkAmount - 0.9f) * MathF.Pow( 0.9f, Time.Delta * 30f );
 			return;
 		}
 		if ( nextBlink <= 0f )

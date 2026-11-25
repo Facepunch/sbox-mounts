@@ -141,6 +141,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		Renderer.Animation.Parameters.Set( "mirrored_flinch", MirroredFlinch );
 		Renderer.Animation.Parameters.Set( "block_flinch", FlinchWeight );
+		if ( Networking.IsHost && !Unconscious ) UpdateGazeTarget();
 		UpdateMorphs();
 		UpdatePickupLayer();
 		UpdateWeaponDraw();
@@ -167,7 +168,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			else if ( IsGetUp( Stance ) || Stance == Roll ) BeginRecovery( Stance == Roll ? 2f : 1f );
 			else lastPhysicsPose = null;
 		}
-		if ( Networking.IsHost ) UpdateGazeTarget();
 		getUpPoseOffset = GetUpPoseOffset();
 		hasSampledPose = false;
 		if ( GettingUp && recoveryRate > 0f && (Stance == BlockFromGround || recoveryStep < 0) )
