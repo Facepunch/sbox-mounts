@@ -111,6 +111,7 @@ public class GameMount : BaseGameMount
 		Gorge.RegisterSounds( context );
 		Lerk.RegisterSounds( context );
 		Babbler.RegisterSounds( context );
+		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
@@ -118,6 +119,7 @@ public class GameMount : BaseGameMount
 			AlienPrefab.Register( context, "Fade", Fade.Configure ),
 			AlienPrefab.Register( context, "Gorge", Gorge.Configure ),
 			AlienPrefab.Register( context, "Lerk", Lerk.Configure ),
+			AlienPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
 			AlienPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),
 			AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
 		};

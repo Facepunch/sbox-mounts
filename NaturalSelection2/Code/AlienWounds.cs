@@ -5,6 +5,7 @@ namespace NS2;
 internal sealed class AlienWounds
 {
 	float intensity, damageFraction;
+	internal bool IsFlinching => intensity > 0;
 	TimeUntil nextFlinch = 0.3f;
 
 	internal float ApplyDamage( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, float maxArmor )

@@ -65,10 +65,10 @@ public sealed partial class Lerk
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ShowSpike( Vector3 start, Vector3 end )
+	internal static void ShowSpike( Vector3 start, Vector3 end )
 	{
 		if ( !Graphics.IsAvailable || start.DistanceSquared( end ) < 0.001f ) return;
-		var tracer = new GameObject( false, "Lerk spike" ) { NetworkMode = NetworkMode.Never, WorldPosition = start, WorldRotation = Rotation.LookAt( end - start ) };
+		var tracer = new GameObject( false, "Spike tracer" ) { NetworkMode = NetworkMode.Never, WorldPosition = start, WorldRotation = Rotation.LookAt( end - start ) };
 		tracer.AddComponent<LerkSpikeTracer>().End = end;
 		tracer.Enabled = true;
 		CinematicLoader.Play( "cinematics/alien/tracer.cinematic", start, tracer.WorldRotation, tracer );
