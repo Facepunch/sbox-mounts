@@ -223,6 +223,9 @@ static class SourceWeaponSetup
 		}
 		var reload = Duration( clips.Incremental ? clips.ReloadInsert : clips.Reload );
 		if ( reload > 0 && weapon.UsesAmmo ) weapon.ReloadTime = reload;
+		if ( weapon is SourceProjectileWeapon { Kind: SourceProjectile.Kinds.Bolt } crossbow
+			&& SourceModelSequences.Of( model ).Get( clips.Reload )?.Events.FirstOrDefault( e => e.Id == SourceAnimEvents.WeaponThrow ) is { } charge )
+			crossbow.BoltChargeDelay = charge.Cycle * reload;
 		if ( clips.Incremental && weapon.UsesAmmo )
 		{
 			weapon.IncrementalReloading = true;

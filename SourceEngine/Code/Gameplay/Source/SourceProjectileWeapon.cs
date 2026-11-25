@@ -27,6 +27,8 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	internal float ReleaseDelay { get; set; }
 	internal float AttackDuration { get; set; }
 	internal float RedrawDuration { get; set; }
+	internal float? BoltChargeDelay { get; set; }
+	TimeUntil? _boltChargeAt;
 	internal float? NpcDamage { get; set; }
 	bool _primed;
 	bool _releasePending;
@@ -135,7 +137,22 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	protected override void OnReloadStarted()
 	{
 		base.OnReloadStarted();
+		if ( !Application.IsDedicatedServer && BoltChargeDelay is { } delay ) _boltChargeAt = (TimeUntil)delay;
 		if ( WeaponModel is not SourceViewModel ) SourceSounds.PlayReloadSound( this, GameObject );
+	}
+
+	protected override void OnReloadFinished()
+	{
+		_boltChargeAt = null;
+		base.OnReloadFinished();
+	}
+
+	protected override void OnShootEffects( ShotEffect shot )
+	{
+		base.OnShootEffects( shot );
+		if ( Kind == SourceProjectile.Kinds.Bolt && !shot.NoEvents && !Application.IsDedicatedServer
+			&& SourceSounds.WeaponSound( this, "special2" ) is { } flight )
+			GameObject.PlaySound( flight );
 	}
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => SourceCrosshair.Draw( painter, center, CanPrimaryAttack(), SpreadBloom );
@@ -188,6 +205,11 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( _boltChargeAt is { } charge && charge <= 0 )
+		{
+			_boltChargeAt = null;
+			if ( IsReloading && SourceSounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
+		}
 		if ( !IsLauncher || Application.IsDedicatedServer ) return;
 		_laser ??= new Hl2RpgLaser();
 		_laser.Update( this, LaserOn );
