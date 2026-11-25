@@ -171,7 +171,12 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		if ( !base.OnDrop() ) return false;
 		WorldTransform = transform.WithScale( WorldScale );
 		if ( GetComponent<Rigidbody>( true ) is {} body )
-			body.Velocity = velocity + ray.Forward * 200 + Vector3.Up * 100;
+		{
+			// An inventory drop rolls the speed before deviating the holder's facing.
+			float speed = (0.8f + 0.4f * (BlamRandom.Next( ref randomState ) / 65535f)) * 120;
+			var direction = Spread.Deviate( ray.Forward, 0, System.MathF.PI / 8, ref randomState );
+			body.Velocity = (velocity + direction * speed).ClampLength( 4 * 120 );
+		}
 		return true;
 	}
 
