@@ -300,8 +300,12 @@ public sealed class Bugbait : Projectile
 	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;
 
+	internal bool ClearLaunch { get; set; }
+	protected override bool CanCollide => !ClearLaunch || Age >= 0.1f;
+	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Vector3.One * 4 ).Run();
+
 	protected override float Gravity => 600;
-	protected override float TraceRadius => 2;
+	protected override float TraceRadius => 0;
 
 	protected override void Hit( SceneTraceResult tr )
 	{

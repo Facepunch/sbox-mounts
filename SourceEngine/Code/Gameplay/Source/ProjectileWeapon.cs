@@ -354,7 +354,7 @@ public sealed class ProjectileWeapon : Weapon
 			Projectile.Kinds.Grenade when style == ThrowStyle.Roll && Owner.IsValid() => RollLaunch( forward, inherited ),
 			Projectile.Kinds.Grenade when style == ThrowStyle.Lob => (ThrowOrigin( eye, forward, 8, -8 ), inherited + forward * 350 + Vector3.Up * 50),
 			Projectile.Kinds.Grenade => (ThrowOrigin( eye, forward, 8 ), Hl2.Grenade.ThrowVelocity( forward, inherited )),
-			Projectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2.Bugbait.ThrowVelocity( forward, inherited )),
+			Projectile.Kinds.Bugbait => (eye + forward * 18 + Rotation.LookAt( forward ).Right * 12, Hl2.Bugbait.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.HeGrenade or Projectile.Kinds.Flashbang or Projectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), Css.Rules.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.Rocket => (eye + Rotation.LookAt( forward ) * new Vector3( 12, -6, -3 ), Hl2.Rocket.LaunchVelocity( forward )),
 			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
@@ -371,11 +371,15 @@ public sealed class ProjectileWeapon : Weapon
 		}
 		if ( projectile is Hl2.Rocket rocket )
 		{
-			rocket.ClearLaunch = !Scene.Trace.Ray( eye, eye + forward * 128 )
-				.IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "projectile", "trigger" ).UseHitboxes().Run().Hit;
+			rocket.ClearLaunch = HasClearLaunch( eye, forward );
 			LiveRocket = rocket.GameObject;
 		}
+		else if ( projectile is Hl2.Bugbait bait )
+			bait.ClearLaunch = HasClearLaunch( eye, forward );
 	}
+
+	bool HasClearLaunch( Vector3 eye, Vector3 forward ) => !Scene.Trace.Ray( eye, eye + forward * 128 )
+		.IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "projectile", "trigger" ).UseHitboxes().Run().Hit;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ThrowSound( string role )
@@ -393,10 +397,6 @@ public sealed class ProjectileWeapon : Weapon
 		return (CheckThrowPosition( center, feet + facing * 18 ), inherited + facing * 700);
 	}
 
-	/// <summary>
-	/// weapon_frag and weapon_bugbait release 18 units ahead of the eye and a little to the right,
-	/// pulled back along the line when that would start inside a wall (CheckThrowPosition).
-	/// </summary>
 	Vector3 ThrowOrigin( Vector3 eye, Vector3 forward, float right, float up = 0 )
 	{
 		return CheckThrowPosition( eye, eye + forward * 18 + Rotation.LookAt( forward ).Right * right + Vector3.Up * up );
