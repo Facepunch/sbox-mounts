@@ -120,7 +120,7 @@ public sealed class ProjectileWeapon : Weapon
 	{
 		base.OnReloadStarted();
 		if ( !Application.IsDedicatedServer && BoltChargeDelay is { } delay ) _boltChargeAt = (TimeUntil)delay;
-		if ( WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
+		if ( HasOwner && !Owner.IsProxy && WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
 	}
 
 	protected override void OnReloadFinished()
