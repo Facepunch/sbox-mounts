@@ -73,7 +73,7 @@ public sealed partial class RabbitGuard
 	GameObject ForcedLookTarget()
 	{
 		if ( StaticCharacter ) return null;
-		if ( HasCombatTarget && !soughtItem.IsValid() && (visible || sinceEnemySeen <= 2f) ) return enemy;
+		if ( HasAttackGoal && (visible || sinceEnemySeen <= 2f) ) return enemy;
 		if ( strike is { AsLayer: false } && strikeTarget.IsValid() ) return strikeTarget;
 
 		var center = CharacterCenter( GameObject );

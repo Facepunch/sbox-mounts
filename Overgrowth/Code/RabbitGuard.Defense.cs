@@ -160,7 +160,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		if ( boundAnimations.Species == "wolf" ) return;
-		var opponent = startled <= 0f && HasCombatTarget ? enemy.GetComponent<RabbitGuard>() : null;
+		var opponent = startled <= 0f && HasAttackGoal ? enemy.GetComponent<RabbitGuard>() : null;
 		var move = opponent?.strike;
 		if ( move is not null && opponent.Stance == move.Blocked ) move = null;
 		if ( move is { AsLayer: false } && blockDelay is null && blockRecharge <= 0f )

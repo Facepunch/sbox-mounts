@@ -14,6 +14,7 @@ public sealed partial class RabbitGuard
 	Vector3? fleeDestination;
 
 	bool HasCombatTarget => !Fleeing && IsKnownThreat( enemy );
+	bool HasAttackGoal => HasCombatTarget && !soughtItem.IsValid() && (!holdPartner.IsValid() || Holding);
 	bool Fleeing => fleeFrom.IsValid() && fleeFrom == enemy;
 
 	bool Flee()

@@ -44,7 +44,7 @@ public sealed partial class RabbitGuard
 
 	void BeginWeaponDraw()
 	{
-		if ( Unconscious || Downed || InThrow || !CanAttack( enemy ) || startled > 0f ) return;
+		if ( Unconscious || Downed || InThrow || !HasAttackGoal || startled > 0f ) return;
 		bool secondary = PrimaryItem.IsValid();
 		if ( IsTethered && !(Holding && secondary) ) return;
 		bool left = secondary ? !LeftHanded : LeftHanded;

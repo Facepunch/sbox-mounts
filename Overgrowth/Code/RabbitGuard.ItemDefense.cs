@@ -9,7 +9,7 @@ public sealed partial class RabbitGuard
 
 	internal bool DefendThrownItem( LevelItem item, Rigidbody body )
 	{
-		if ( !InMovementState || !IsOnGround || !HasCombatTarget || boundAnimations is null ) return false;
+		if ( !InMovementState || !IsOnGround || !HasAttackGoal || boundAnimations is null ) return false;
 		float chance = boundAnimations.Species switch { "cat" => 1f, "wolf" => 0.3f, _ => 0.7f };
 		if ( followerCount > 0 || groupLeader.IsValid() ) chance *= 0.4f;
 		if ( Random.Shared.Float() >= chance * WeaponCatchSkill * (0.5f + 0.5f * GameDifficulty) ) return false;

@@ -345,7 +345,7 @@ public sealed partial class RabbitGuard
 			if ( wakeRoll ) rollAfterRagdollDelay = Math.Max( rollAfterRagdollDelay, (float)sinceKnockdown + 1f );
 			return false;
 		}
-		if ( wakeRoll && (!CombatAllowed || !Sandbox.Npcs.NpcConVars.Enabled || !HasCombatTarget || startled > 0f ||
+		if ( wakeRoll && (!CombatAllowed || !Sandbox.Npcs.NpcConVars.Enabled || !HasAttackGoal || startled > 0f ||
 			sinceKnockdown < earliestRollAge || sinceKnockdown <= rollAfterRagdollDelay) ) return false;
 
 		// On a slope the bottom sphere touches uphill of the point directly below its center.
