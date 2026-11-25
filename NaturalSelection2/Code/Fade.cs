@@ -5,8 +5,10 @@ using System;
 namespace NS2;
 
 [Title( "Fade" ), Category( "Natural Selection 2" )]
-public sealed partial class Fade : BaseNpc, Component.IDamageable
+public sealed partial class Fade : AlienNpc, Component.IDamageable
 {
+	protected override int HealthPerBiomass => 5;
+
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 80 ); }
 	float IDamageable.MaxArmour => 80;
 

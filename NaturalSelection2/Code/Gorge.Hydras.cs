@@ -7,6 +7,12 @@ public sealed partial class Gorge
 	readonly List<Hydra> planted = new( 3 );
 	TimeUntil nextPlantCheck, dropCooldown;
 
+	protected override void OnBiomassChanged()
+	{
+		foreach ( var hydra in planted )
+			if ( hydra.IsValid() ) hydra.BiomassLevel = BiomassLevel;
+	}
+
 	bool PlantHydra( Vector3? threat )
 	{
 		if ( nextPlantCheck > 0 ) return false;
@@ -34,7 +40,10 @@ public sealed partial class Gorge
 			{
 				var child = GameObject.Clone( PrefabFile.Load( "mount://ns2/entities/npcs/hydra.prefab" ), pose );
 				if ( !child.IsValid() ) return true;
-				planted.Add( child.GetComponent<Hydra>() );
+				var hydra = child.GetComponent<Hydra>();
+				hydra.BiomassLevel = BiomassLevel;
+				hydra.UpdateBiomass();
+				planted.Add( hydra );
 				if ( Networking.IsActive ) child.NetworkSpawn();
 				energy -= 30;
 				dropCooldown = 1;

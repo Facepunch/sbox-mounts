@@ -5,8 +5,10 @@ using System;
 namespace NS2;
 
 [Title( "Lerk" ), Category( "Natural Selection 2" )]
-public sealed partial class Lerk : BaseNpc, Component.IDamageable
+public sealed partial class Lerk : AlienNpc, Component.IDamageable
 {
+	protected override int HealthPerBiomass => 2;
+
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 30 ); }
 	float IDamageable.MaxArmour => 30;
 

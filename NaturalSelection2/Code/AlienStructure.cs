@@ -3,7 +3,7 @@ using System;
 
 namespace NS2;
 
-public abstract class AlienStructure : BaseNpc, Component.IDamageable
+public abstract class AlienStructure : AlienNpc, Component.IDamageable
 {
 	protected readonly record struct GrowthStats( float BuildSeconds, float AutoRate, float Health, float Armor, float MatureSeconds, float MatureHealth, float MatureArmor );
 	protected abstract GrowthStats Stats { get; }
@@ -87,14 +87,6 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 		publishedMaturity = maturity;
 	}
 
-	protected void AdjustHealthLimit( float delta )
-	{
-		if ( delta == 0 ) return;
-		float fraction = Health / MaxHealth;
-		MaxHealth += delta;
-		Health = MaxHealth * fraction;
-	}
-
 	protected static void Configure<T>( GameObject root, SkinnedModelRenderer renderer, string name ) where T : AlienStructure, new()
 	{
 		root.Tags.Add( "structure" );
@@ -128,6 +120,7 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;
 		pain?.UpdateSound( flinchEnd );
 		if ( !Networking.IsHost ) return;
+		UpdateBiomass();
 		if ( enzymeActive && (enzymeExpires <= 0 || IsBuilt) )
 		{
 			assistedGrowth += EnzymeGrowth;

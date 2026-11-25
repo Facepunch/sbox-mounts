@@ -5,8 +5,10 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Gorge" ), Category( "Natural Selection 2" )]
-public sealed partial class Gorge : BaseNpc, Component.IDamageable
+public sealed partial class Gorge : AlienNpc, Component.IDamageable
 {
+	protected override int HealthPerBiomass => 2;
+
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 50 ); }
 	float IDamageable.MaxArmour => 50;
 

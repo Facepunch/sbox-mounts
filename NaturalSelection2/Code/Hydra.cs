@@ -7,8 +7,7 @@ namespace NS2;
 public sealed class Hydra : AlienStructure
 {
 	protected override GrowthStats Stats => new( 8, 0.375f, 145, 5, 140, 175, 25 );
-	[Property, Range( 0, 12 )] public int BiomassLevel { get; set; } = 1;
-	int biomassHealth;
+	protected override int HealthPerBiomass => 18;
 	const float Range = 17.78f * Scale;
 	internal const string AttackSound = "alien/structures/hydra/attack";
 	internal const string PainSound = "alien/structures/hydra/wound";
@@ -24,12 +23,6 @@ public sealed class Hydra : AlienStructure
 	protected override void OnUpdate()
 	{
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;
-		if ( Networking.IsHost )
-		{
-			int bonus = 18 * (Math.Clamp( BiomassLevel, 1, 12 ) - 1);
-			AdjustHealthLimit( bonus - biomassHealth );
-			biomassHealth = bonus;
-		}
 		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		output?.Set( "grow", Growth );

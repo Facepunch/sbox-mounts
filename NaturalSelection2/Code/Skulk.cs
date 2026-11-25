@@ -5,8 +5,10 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
-public sealed partial class Skulk : BaseNpc, Component.IDamageable
+public sealed partial class Skulk : AlienNpc, Component.IDamageable
 {
+	protected override int HealthPerBiomass => 3;
+
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
 	float IDamageable.MaxArmour => MaxArmor;
 

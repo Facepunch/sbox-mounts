@@ -5,8 +5,10 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Onos" ), Category( "Natural Selection 2" )]
-public sealed partial class Onos : BaseNpc, Component.IDamageable
+public sealed partial class Onos : AlienNpc, Component.IDamageable
 {
+	protected override int HealthPerBiomass => 50;
+
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
 	float IDamageable.MaxArmour => MaxArmor;
 
