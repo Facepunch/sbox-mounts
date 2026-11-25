@@ -6,6 +6,7 @@ public sealed partial class Skulk
 {
 	static readonly SparkAnimationGraph.PoseParameters LocomotionParameters = new( 0 ), ActionParameters = new( 1 );
 	float standingYaw, runningYaw;
+	Angles desiredBodyAngles;
 	const SyncFlags PoseSync = SyncFlags.FromHost | SyncFlags.Interpolate;
 	[Sync( PoseSync )] Rotation BodyRotation { get; set; }
 	[Sync( PoseSync )] float StandingOffset { get; set; }
@@ -31,18 +32,19 @@ public sealed partial class Skulk
 	void UpdateBodyRotation( Vector3 up, bool onWall, bool moving )
 	{
 		var facing = ViewRotation.Forward - up * Vector3.Dot( ViewRotation.Forward, up );
-		if ( facing.Length > 0.001f )
+		// Looking straight into the surface leaves no heading. Spark keeps the previous goal.
+		if ( facing.LengthSquared >= 0.001f * 0.001f )
+			desiredBodyAngles = Rotation.LookAt( facing, up ).Angles();
+		if ( onWall )
 		{
-			var desired = Rotation.LookAt( facing, up );
-			if ( onWall )
-				BodyRotation = Rotation.Slerp( BodyRotation, desired, Math.Clamp( Time.Delta * 5, 0, 1 ) );
-			else
-			{
-				var angles = BodyRotation.Angles();
-				float tiltDelta = mover.JustJumped ? 0 : Time.Delta;
-				BodyRotation = Rotation.From( AlienAim.ApproachAngle( angles.pitch, 0, tiltDelta * 3 ),
-					AlienAim.ApproachAngle( angles.yaw, desired.Angles().yaw, Time.Delta * 6 ), AlienAim.ApproachAngle( angles.roll, 0, tiltDelta * 5 ) );
-			}
+			BodyRotation = Rotation.Lerp( BodyRotation, Rotation.From( desiredBodyAngles ), Time.Delta * 5 );
+		}
+		else
+		{
+			var angles = BodyRotation.Angles();
+			float tiltDelta = mover.JustJumped ? 0 : Time.Delta;
+			BodyRotation = Rotation.From( AlienAim.ApproachAngle( angles.pitch, desiredBodyAngles.pitch, tiltDelta * 3 ),
+				AlienAim.ApproachAngle( angles.yaw, desiredBodyAngles.yaw, Time.Delta * 6 ), AlienAim.ApproachAngle( angles.roll, desiredBodyAngles.roll, tiltDelta * 5 ) );
 		}
 		var yaw = BodyRotation.Angles().yaw;
 		float standingOffset = 0, runningOffset = 0;

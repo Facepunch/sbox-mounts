@@ -54,6 +54,7 @@ public sealed partial class Skulk : BaseNpc
 		mover = GetComponent<SkulkMovement>();
 		if ( !Networking.IsHost ) return;
 		ViewRotation = BodyRotation = Renderer.WorldRotation;
+		desiredBodyAngles = BodyRotation.Angles();
 		standingYaw = runningYaw = BodyRotation.Angles().yaw;
 		AnimationTime = 0;
 		sneaky = Random.Shared.Next( 2 ) == 0;
