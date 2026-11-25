@@ -50,15 +50,17 @@ public sealed class GravityWeapon : Weapon
 
 	public override void PrimaryAttack()
 	{
-		SetNextFire( 0.5f );
+		SetNextPrimaryFire( PrimaryDelay );
 		if ( HeldObject.IsValid() ) _attack2Debounce = true;
 		Punt();
 	}
 
+	public override bool CanSecondaryAttack() => HeldObject.IsValid() && base.CanSecondaryAttack();
+
 	public override void SecondaryAttack()
 	{
-		SetNextSecondaryFire( 0.3f );
 		if ( !HeldObject.IsValid() ) return;
+		SetNextSecondaryFire( 0.3f );
 		_attack2Debounce = true;
 		Drop();
 	}
@@ -92,20 +94,20 @@ public sealed class GravityWeapon : Weapon
 			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
 			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
 			held.Velocity += forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) ) * LaunchScale;
-			PlayEffect( "single_shot", true );
+			PuntEffects( true );
 			return;
 		}
 		var body = FindBody( TraceLength, out _ );
 		if ( !CanMove( body ) )
 		{
-			PlayEffect( "empty", false );
+			PuntEffects( false );
 			return;
 		}
 		// PuntVPhysics: a 15000 impulse at the centre plus 600 per kg (up to 250 kg) at the hit point, flattened up off the floor.
 		if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
 		var mass = MathF.Max( body.Mass, 1 );
 		body.Velocity += forward * ((15000 + MathF.Min( mass, MaxMass ) * 600) / mass * LaunchScale);
-		PlayEffect( "single_shot", true );
+		PuntEffects( true );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -113,14 +115,26 @@ public sealed class GravityWeapon : Weapon
 	{
 		if ( !HeldObject.IsValid() ) return;
 		Release();
-		PlayEffect( "melee_miss", false );
+		PlaySound( "melee_miss" );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayEffect( string role, bool launch )
+	void PlaySound( string role )
 	{
 		if ( Sounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
-		if ( launch ) _effects?.Launch();
+	}
+
+	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PuntEffects( bool launch )
+	{
+		if ( Sounds.WeaponSound( this, launch ? "single_shot" : "empty" ) is { } sound ) GameObject.PlaySound( sound );
+		(WeaponModel as ViewModel)?.OnPunt( launch );
+		if ( !launch ) return;
+
+		SetNextSecondaryFire( PrimaryDelay );
+		_effects?.Launch();
 	}
 
 	protected override void OnFixedUpdate()
@@ -132,7 +146,7 @@ public sealed class GravityWeapon : Weapon
 			Hold();
 			return;
 		}
-		if ( Pulling && Active ) Pull();
+		if ( Pulling && Active && NextSecondaryFire <= 0 ) Pull();
 	}
 
 	void Pull()
@@ -151,7 +165,7 @@ public sealed class GravityWeapon : Weapon
 		{
 			if ( _tooHeavyCooldown > 0 ) return;
 			_tooHeavyCooldown = 1;
-			PlayEffect( "special3", false );
+			PlaySound( "special3" );
 			return;
 		}
 		HeldObject = body.GameObject;
@@ -159,7 +173,7 @@ public sealed class GravityWeapon : Weapon
 		_hold.Hold( body, body.PhysicsBody.MassCenter );
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
-		PlayEffect( "special1", false );
+		PlaySound( "special1" );
 	}
 
 	void Hold()

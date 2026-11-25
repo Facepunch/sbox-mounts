@@ -514,6 +514,8 @@ public sealed class ViewModel : BaseWeaponModel
 		Play( clip );
 	}
 
+	internal void OnPunt( bool launch ) => Play( launch ? _clips?.SecondaryFire : _clips?.Fire );
+
 	public void OnSqueeze() => Play( _clips?.SecondaryFire );
 
 	public void OnThrow( string clip ) => Play( clip );

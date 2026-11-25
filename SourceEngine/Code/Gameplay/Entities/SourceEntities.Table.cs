@@ -346,7 +346,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.BulletWeapon": null,
-					"Source1.Hl2.GravityWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Gravity Gun", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "tool", "PreferredSlot": 4, "PrimaryAutomatic": false, "PrimaryDelay": 0.8, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/gravity_gun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/gravity_gun_wm.prefab"}}
+					"Source1.Hl2.GravityWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0, "DisplayName": "HL2 Gravity Gun", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "tool", "PreferredSlot": 4, "PrimaryAutomatic": true, "PrimaryDelay": 0.5, "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "UsableByNpcs": false, "UsesAmmo": false, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/gravity_gun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/gravity_gun_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}
