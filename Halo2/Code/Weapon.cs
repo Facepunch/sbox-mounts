@@ -140,7 +140,7 @@ public abstract class Weapon : BaseCombatWeapon
 		if ( !shot.NoEvents ) PlayHolderOverlay( "fire_1" );
 		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 ) kickEnds = KickDuration;
 
-		if ( shot.NoEvents || Application.IsDedicatedServer || WeaponModel is not { MuzzleGameObject: { } muzzle } model || !muzzle.IsValid() )
+		if ( shot.NoEvents || Application.IsDedicatedServer )
 		{
 			base.OnShootEffects( shot );
 			return;
@@ -150,9 +150,12 @@ public abstract class Weapon : BaseCombatWeapon
 		// A held weapon can outlive its mounted sound event across an editor hotload.
 		if ( !AttackSound.IsValid() && AttackSound?.ResourcePath is { Length: > 0 } path )
 			AttackSound = GameResource.Load<SoundEvent>( path );
-		var sound = muzzle.PlaySound( AttackSound );
-		if ( sound.IsValid() && Network.IsOwner ) sound.SpacialBlend = 0;
-		model.OnAttack( shot.Hit || shot.HitPosition != default ? shot.HitPosition : null, shot.Origin );
+		var model = WeaponModel;
+		var muzzle = model?.MuzzleGameObject;
+		var emitter = muzzle.IsValid() ? muzzle : GameObject;
+		var sound = emitter.PlaySound( AttackSound );
+		if ( sound.IsValid() && Holder is PlayerController player && player.Network.IsOwner ) sound.SpacialBlend = 0;
+		model?.OnAttack( shot.Hit || shot.HitPosition != default ? shot.HitPosition : null, shot.Origin );
 		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
