@@ -43,10 +43,7 @@ static class SourceSounds
 	public static SoundEvent WeaponSound( SourceModelWeaponData data, string role ) => data?.Sounds.TryGetValue( role, out var path ) == true
 		&& Sandbox.Mounting.Directory.Get( SourceMount.Of( path ) )?.GetByPath( path ) is not null ? GameResource.Load<SoundEvent>( path ) : null;
 
-	/// <summary>
-	/// The script's reload sound, which Source's DefaultReload plays for everyone. The owner's
-	/// viewmodel skips it when the played clip authors its own reload sounds.
-	/// </summary>
+	/// <summary>Play the reload sound named in the weapon script.</summary>
 	public static void PlayReloadSound( BaseCombatWeapon weapon, GameObject source )
 	{
 		if ( !Application.IsDedicatedServer && source.IsValid() && WeaponSound( weapon, "reload" ) is { } sound ) source.PlaySound( sound );

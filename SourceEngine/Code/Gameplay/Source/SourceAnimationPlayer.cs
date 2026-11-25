@@ -478,6 +478,12 @@ public sealed class SourceAnimationPlayer : IDisposable
 		return Math.Clamp( value, axis.Min, axis.Max );
 	}
 
+	SoundEvent EventSound( SourceModelSequenceData.Event evt ) =>
+		SourceSounds.IsSoundEvent( evt ) && evt.Options is { } name ? _eventSounds.GetValueOrDefault( name ) : null;
+
+	internal bool PlaysSound( string clip, SoundEvent sound ) =>
+		_sequences?.Get( clip )?.Events.Any( evt => EventSound( evt ) == sound ) == true;
+
 	void DispatchEvents()
 	{
 		if ( _sequences?.Get( Current ) is not { } sequence || Duration <= 0 ) return;
@@ -493,7 +499,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 				var eventTime = (loop + evt.Cycle) * Duration;
 				if ( eventTime > _eventTime && eventTime <= end )
 				{
-					if ( SourceSounds.IsSoundEvent( evt ) && evt.Options is { } name && _eventSounds.TryGetValue( name, out var sound ) && sound is not null )
+					if ( EventSound( evt ) is { } sound )
 						_renderer.GameObject.PlaySound( sound );
 					EventFired?.Invoke( evt );
 				}

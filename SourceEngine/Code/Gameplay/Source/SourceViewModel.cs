@@ -79,7 +79,6 @@ public sealed class SourceViewModel : BaseWeaponModel
 	string _reloadFinish;
 	(string Name, bool Loop)[] _choices = [];
 	readonly HashSet<string> _muzzleEventClips = new( StringComparer.OrdinalIgnoreCase );
-	readonly HashSet<string> _soundEventClips = new( StringComparer.OrdinalIgnoreCase );
 	bool _hasVentPose;
 	int _burstShots;
 	int _tracerShots;
@@ -112,12 +111,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 		IsIncremental = _clips.Incremental;
 		_choices = [.. Choices( _plainClips ), .. _silencedClips is null ? [] : Choices( _silencedClips )];
 		_muzzleEventClips.Clear();
-		_soundEventClips.Clear();
 		foreach ( var sequence in sequences )
-		{
 			if ( sequence.Events.Any( SourceAnimEvents.IsMuzzleFlash ) ) _muzzleEventClips.Add( sequence.Name );
-			if ( sequence.Events.Any( SourceSounds.IsSoundEvent ) ) _soundEventClips.Add( sequence.Name );
-		}
 		_hasVentPose = model.GetData<SourceModelPoseLayerData[]>()?.Any( p => p.Parameter == "VentPoses" ) == true;
 		_animation?.Dispose();
 		_animation = new();
@@ -527,7 +522,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 
 	void PlayReloadSound( string clip )
 	{
-		if ( !_soundEventClips.Contains( clip ?? "" ) ) SourceSounds.PlayReloadSound( _weapon, GameObject );
+		if ( SourceSounds.WeaponSound( _weapon, "reload" ) is { } sound && _animation?.PlaysSound( clip, sound ) != true )
+			GameObject.PlaySound( sound );
 	}
 
 	public override void OnReloadFinish()
