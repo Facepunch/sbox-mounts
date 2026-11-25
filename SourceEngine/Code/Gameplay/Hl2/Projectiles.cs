@@ -211,13 +211,43 @@ public sealed class Rocket : Projectile
 public sealed class Grenade : Projectile
 {
 	// GRENADE_TIMER and GRENADE_RADIUS.
-	public const float Fuse = 3;
+	public const float Fuse = 2.5f;
 	const float HalfSize = 4;
 	public const float ThrowSpeed = 1200;
 	internal const float RethrowDelay = 0.5f;
 
 	/// <summary>CWeaponFrag::ThrowGrenade: forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + (forward + Vector3.Up * 0.1f) * ThrowSpeed;
+
+	// Source rounds its 0.1-second grenade think to seven 15 ms simulation ticks.
+	const float ThinkInterval = 7 * 0.015f;
+	float nextThink;
+	float nextBlip = 1;
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
+	}
+
+	protected override bool Simulate()
+	{
+		if ( Age < nextThink ) return false;
+		var now = nextThink;
+		nextThink += ThinkInterval;
+		if ( now <= Fuse && now > nextBlip )
+		{
+			Blip( WorldPosition, MountName );
+			nextBlip = now + 0.3f;
+		}
+		return true;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void Blip( Vector3 position, string mount )
+	{
+		if ( Sounds.Sound( "Grenade.Blip", mount ) is { } sound ) Sound.Play( sound, position );
+	}
 
 	protected override float Lifetime => Fuse;
 	protected override float? Physical => HalfSize;
