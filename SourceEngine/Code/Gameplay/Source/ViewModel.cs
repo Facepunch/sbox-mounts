@@ -582,6 +582,8 @@ public sealed class ViewModel : BaseWeaponModel
 		ResetBurst();
 		_reloadFinish = null;
 		_reloading = true;
+		// A queued shell reload uses the pump as its opening animation.
+		if ( _clips.Incremental && _clips.Pump is { } pump && _animation is { Finished: false } && _animation.Current == pump ) return;
 		_pumpAfterShot = false;
 		Play( _clips.Reload );
 		if ( !_clips.Incremental ) PlayReloadSound( _clips.Reload );

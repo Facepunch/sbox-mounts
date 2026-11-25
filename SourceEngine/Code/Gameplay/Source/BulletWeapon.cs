@@ -110,6 +110,8 @@ public sealed class BulletWeapon : Weapon
 	bool? _tunedForNpc;
 	bool _alternatePending;
 	bool _queuedPrimary, _queuedSecondary;
+	TimeUntil? _pumpStarts;
+	bool _reloadOnPump;
 	TimeUntil _alternateAt;
 	GameObject _alternateAttacker;
 	int _zoomLevel;
@@ -166,6 +168,16 @@ public sealed class BulletWeapon : Weapon
 			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( 0.5f );
 		}
 		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
+		if ( _pumpStarts is { } pumpStarts )
+		{
+			_reloadOnPump |= Input.Down( "reload" );
+			if ( pumpStarts <= 0 ) _pumpStarts = null;
+		}
+		if ( _reloadOnPump && !_pumpStarts.HasValue && NextPrimaryFire <= ReloadStartTime )
+		{
+			_reloadOnPump = false;
+			if ( CanReload() ) Reload();
+		}
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
 		{
 			// Finish the current shell insert before firing the trigger that interrupted it.
@@ -204,6 +216,8 @@ public sealed class BulletWeapon : Weapon
 		_holdingEmptyTrigger = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
+		_pumpStarts = null;
+		_reloadOnPump = false;
 		_alternatePending = false;
 		_alternateAttacker = null;
 		CancelBurst();
@@ -312,6 +326,7 @@ public sealed class BulletWeapon : Weapon
 	void FirePrimaryRound()
 	{
 		base.PrimaryAttack();
+		if ( Secondary == SecondaryFires.DoubleShot && WeaponSetup.PumpDelay( this ) is { } delay ) _pumpStarts = delay;
 		if ( AccuracyPenaltyPerShot > 0 && HasOwner ) _accuracyPenalty += AccuracyPenaltyPerShot;
 		if ( Secondary == SecondaryFires.DoubleShot || BlocksUnusedSecondaryUnderwater ) SetNextFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
@@ -492,6 +507,7 @@ public sealed class BulletWeapon : Weapon
 		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
 		var volley = hits.Select( tr => new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) ).ToArray();
 		TimeSinceShoot = 0;
+		_pumpStarts = AlternatePumpDelay;
 		SetNextFire( AlternateDuration );
 		AlternateEffects( volley );
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
