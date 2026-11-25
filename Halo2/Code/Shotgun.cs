@@ -106,9 +106,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		}
 		WorldModel = new GameObject( hand ?? GameObject, true, "Held shotgun" );
 		WorldModel.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-		if ( loose.Model is { IsError: true } missing )
+		if ( loose.Model is { IsError: true } || MissingMountedHolder( holderModel ) )
 		{
-			_ = RestoreWorldModel( WorldModel, loose, missing.Name );
+			_ = RestoreWorldModel( WorldModel, loose );
 			return;
 		}
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
@@ -134,16 +134,28 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		loose.Enabled = false;
 	}
 
-	// A joining client can receive the held weapon before its mount has registered.
-	async System.Threading.Tasks.Task RestoreWorldModel( GameObject held, SkinnedModelRenderer loose, string path )
+	static bool MissingMountedHolder( Model model ) => model is { IsError: true }
+		&& model.Name.StartsWith( $"mount://{Halo2Mount.MountIdent}/", System.StringComparison.OrdinalIgnoreCase );
+
+	// A joining client can receive both renderers before the mount has registered.
+	async System.Threading.Tasks.Task RestoreWorldModel( GameObject held, SkinnedModelRenderer loose )
 	{
 		while ( held.IsValid() && Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.IsMounted != true )
 			await Task.DelaySeconds( 0.5f );
 
-		if ( !held.IsValid() || held != WorldModel || !loose.IsValid() ) return;
-		var model = Model.Load( path );
-		if ( !model.IsValid() || model.IsError ) return;
-		loose.Model = model;
+		if ( !held.IsValid() || held != WorldModel || !loose.IsValid() || !HolderRenderer.IsValid() ) return;
+		if ( MissingMountedHolder( HolderRenderer.Model ) )
+		{
+			var holder = Model.Load( HolderRenderer.Model.Name );
+			if ( !holder.IsValid() || holder.IsError ) return;
+			HolderRenderer.Model = holder;
+		}
+		if ( loose.Model is { IsError: true } missing )
+		{
+			var model = Model.Load( missing.Name );
+			if ( !model.IsValid() || model.IsError ) return;
+			loose.Model = model;
+		}
 		CreateWorldModel();
 	}
 

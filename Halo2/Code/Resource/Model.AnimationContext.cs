@@ -48,28 +48,11 @@ public sealed class FirstPersonAnimation
 
 public partial class Halo2ModelLoader
 {
-	internal void PlaySoundCue( string tagPath, Vector3 position, ref uint seed, GameObject owner )
-	{
-		// A playing graph can survive the mount that originally loaded its model.
-		var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent ) as Halo2Mount;
-		if ( mount?.GetByPath( mount.AssetPath( mapFile, tagPath, "sound" ) ) is Halo2SoundLoader loader )
-			loader.PlayCue( position, ref seed, owner );
-	}
-
 	public static Halo2ModelLoader ForModel( Model model ) => model is null ? null :
 		Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( model.Name ) as Halo2ModelLoader;
 
 	readonly Dictionary<(string, string, string), Halo2AnimationContext> contexts = new();
 	readonly Dictionary<int, Halo2ClipInfo> clipInfo = new();
-	readonly Dictionary<int, Graph> oneShots = new();
-
-	internal Graph OneShot( int reference )
-	{
-		if ( oneShots.TryGetValue( reference, out var graph ) ) return graph;
-		if ( LoadAnimationClip( reference ) is not { } clip ) return null;
-		var builder = Graph.Builder.WithSkeleton( skeleton );
-		return oneShots[reference] = builder.Create( builder.Clip( clip, new() { Looping = false } ), $"{Path}/oneshot_{reference}.ag" );
-	}
 
 	public IEnumerable<(string Mode, string WeaponClass, string WeaponType)> AnimationContexts()
 	{

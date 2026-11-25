@@ -26,6 +26,13 @@ public partial class Halo2ModelLoader
 				&& int.TryParse( leaf, out var inheritedIndex ) && (uint)inheritedIndex <= short.MaxValue:
 				type = ResourceType.AnimationClip;
 				return new ClipLoader( inheritedIndex, slot );
+			case ".json" when parts.Length == 3:
+				parts[2] = leaf;
+				type = ResourceType.Text;
+				return new BindingsLoader( parts );
+			case ".ag" when parts is ["oneshots", _] && int.TryParse( leaf, out int reference ):
+				type = ResourceType.AnimationGraph;
+				return new OneShotLoader( reference );
 			case ".ag" when parts.Length == 3:
 				parts[2] = leaf;
 				type = ResourceType.AnimationGraph;
@@ -61,6 +68,17 @@ public partial class Halo2ModelLoader
 		protected override object Load() => ((Halo2ModelLoader)Parent).BuildGraph( Path, context );
 	}
 
+	sealed class OneShotLoader( int reference ) : ResourceLoader<Halo2Mount>
+	{
+		protected override object Load()
+		{
+			var model = (Halo2ModelLoader)Parent;
+			if ( model.LoadAnimationClip( reference ) is not {} clip ) return null;
+			var builder = Graph.Builder.WithSkeleton( model.skeleton );
+			return builder.Create( builder.Clip( clip, new() { Looping = false } ), Path );
+		}
+	}
+
 	Skeleton skeleton;
 	Transform[] bindPose;
 	int[] nodeMap;
@@ -82,9 +100,11 @@ public partial class Halo2ModelLoader
 	{
 		var actions = GetAnimationContext( "any", "any", "any" )?.Actions;
 		if ( actions is null || !actions.TryGetValue( "chamber_1", out int pump ) || !actions.TryGetValue( "idle", out int idle ) ) return null;
-		string ClipPath( int reference ) => (short)reference < 0 ? $"{Path}/clips/{reference >> 16}.anim" : $"{Path}/clips/{(short)reference}/{reference >> 16}.anim";
-		return new() { IdlePath = ClipPath( idle ), ChamberPath = ClipPath( pump ), Frames = GetClipInfo( pump ).Frames };
+		return new() { IdlePath = ClipPath( Path, idle ), ChamberPath = ClipPath( Path, pump ), Frames = GetClipInfo( pump ).Frames };
 	}
+
+	internal static string ClipPath( string model, int reference ) => (short)reference < 0
+		? $"{model}/clips/{reference >> 16}.anim" : $"{model}/clips/{(short)reference}/{reference >> 16}.anim";
 
 	Graph BuildGraph( string path, string[] context )
 	{
@@ -493,10 +513,13 @@ public partial class Halo2ModelLoader
 			motion = nextMotion;
 		}
 		var cues = GetClipInfo( reference ).Cues;
+		var eventType = cues.Count == 0 ? null : TypeLibrary.GetTypes<AnimationEvent>()
+			.First( type => type.FullName == typeof( Halo2CueEvent ).FullName );
 		foreach ( var cue in cues )
 		{
 			float cycle = (float)cue.Frame / intervals;
-			if ( cycle >= 0 && cycle <= 1 ) builder.AddEvent( cycle, new Halo2CueEvent { Cue = cue } );
+			if ( cycle >= 0 && cycle <= 1 )
+				builder.AddEvent( cycle, eventType.Create<AnimationEvent>( [cue.Frame, cue.Kind, cue.Index, cue.TagPath, cue.Marker, cue.Flags] ) );
 		}
 		bool needsOrigin = HasFirstPersonWeapon;
 		foreach ( var group in cues.Where( c => c.Kind != "sound" && c.Kind != "effect" ).GroupBy( c => c.Frame ) )

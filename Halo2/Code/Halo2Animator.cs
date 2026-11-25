@@ -7,6 +7,12 @@ namespace Halo2;
 public sealed class Halo2CueEvent : AnimationEvent
 {
 	public Halo2AnimationCue Cue { get; set; }
+
+	public Halo2CueEvent() { }
+	public Halo2CueEvent( int frame, string kind, int index, string tagPath, string marker, int flags )
+	{
+		Cue = new( frame, kind, index, tagPath, marker, flags );
+	}
 }
 
 public sealed class Halo2Animator : Component, Component.IAnimationEvent
@@ -20,9 +26,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	public Action<Halo2AnimationCue, Transform> CueFired { get; set; }
 
 	uint soundSeed = (uint)Random.Shared.Next();
-	Halo2ModelLoader model;
+	AnimationBindings bindings;
 	Halo2AnimationContext context;
-	string mode, weaponClass, weaponType;
+	[Sync( SyncFlags.FromHost )] string HolderContext { get; set; }
+	string configuredContext, weaponClass, weaponType;
+	Model configuredModel;
 	string action;
 	string weaponOverlay;
 	TimeUntil? overlayEnds;
@@ -41,22 +49,25 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	{
 		Renderer ??= Components.Get<SkinnedModelRenderer>();
 		if ( !Renderer.IsValid() ) return false;
-		var loader = Halo2ModelLoader.ForModel( Renderer.Model );
-		var bindings = loader?.GetAnimationContext( mode, weaponClass, weaponType );
-		if ( bindings is null ) return false;
-		var graph = Graph.Load( $"{Renderer.Model.Name}/{mode}/{weaponClass}/{weaponType}.ag" );
+		if ( !Renderer.Model.IsValid() || Renderer.Model.IsError ) return false;
+		configuredContext = $"{mode}/{weaponClass}/{weaponType}";
+		configuredModel = Renderer.Model;
+		var path = $"{configuredModel.Name}/{configuredContext}";
+		var data = AnimationBindings.Load( $"{path}.json" );
+		if ( data is null ) return false;
+		var graph = Graph.Load( $"{path}.ag" );
 		if ( !graph.IsValid() || graph.IsError ) return false;
 		ReleaseSlots();
-		this.mode = mode;
+		if ( Networking.IsHost ) HolderContext = configuredContext;
 		this.weaponClass = weaponClass;
 		this.weaponType = weaponType;
-		model = loader;
-		context = bindings;
+		bindings = data;
+		context = data.Context();
 		Renderer.UseAnimGraph = true;
 		Renderer.Animation.Graph = assigned = graph;
 		action = bindings.Actions.ContainsKey( "idle" ) ? "idle" : bindings.Actions.Keys.FirstOrDefault();
 		grips.Clear();
-		var gripWeapon = context.Ik.Count > 0 ? loader.GripWeaponModel( weaponClass, weaponType ) : null;
+		var gripWeapon = data.GripModel is {} gripPath ? Model.Load( gripPath ) : null;
 		foreach ( var group in context.Ik.GroupBy( p => p.Marker ) )
 		{
 			var hand = Renderer.Model.Attachments.Get( group.Key );
@@ -70,10 +81,10 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	}
 
 	internal Halo2ClipInfo CurrentActionClip => context?.Actions.TryGetValue( action, out var reference ) == true
-		? model.GetClipInfo( reference ) : null;
+		? bindings.Clips.GetValueOrDefault( reference ) : null;
 
 	internal Halo2ClipInfo GetOverlayClip( string name ) => context?.Overlays.TryGetValue( name, out var reference ) == true
-		? model.GetClipInfo( reference ) : null;
+		? bindings.Clips.GetValueOrDefault( reference ) : null;
 
 	internal void PlayWeaponOverlay( string name )
 	{
@@ -170,7 +181,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	{
 		if ( !Bound ) return false;
 		var link = context.Transitions.FirstOrDefault( t => t.SourceState == action && t.Mode == nextMode && t.State == state );
-		if ( link is null || model.GetAnimationContext( nextMode, weaponClass, weaponType ) is not { } target
+		if ( link is null || AnimationBindings.Load( $"{Renderer.Model.Name}/{nextMode}/{weaponClass}/{weaponType}.json" ) is not { } target
 			|| !target.Actions.ContainsKey( state ) ) return false;
 		if ( link.Keyframe != 0 )
 		{
@@ -192,8 +203,8 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	bool Play( int reference, out string slot )
 	{
 		slot = null;
-		var clip = model.LoadAnimationClip( reference );
-		var graph = model.OneShot( reference );
+		var clip = Clip.Load( Halo2ModelLoader.ClipPath( Renderer.Model.Name, reference ) );
+		var graph = Graph.Load( $"{Renderer.Model.Name}/oneshots/{reference}.ag" );
 		if ( clip is null || graph is null ) return false;
 		slot = clip.IsAdditive ? "reaction_additive" : "reaction";
 		var slots = Renderer.Animation.ExternalGraphs;
@@ -228,6 +239,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	protected override void OnUpdate()
 	{
+		if ( !Networking.IsHost && HolderContext is {} requested && Renderer.IsValid() && Renderer.Model is { IsError: false } model
+			&& (configuredContext != requested || configuredModel != model) )
+		{
+			if ( requested.Split( '/' ) is [var mode, var category, var weapon] ) Configure( mode, category, weapon );
+		}
 		if ( !Bound ) return;
 		if ( weaponOverlay is not null && overlayEnds is {} end && end <= 0 ) ReleaseWeaponOverlay();
 		var slots = Renderer.Animation.ExternalGraphs;
@@ -319,7 +335,8 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 				if ( soundOwner.IsValid() ) soundOwner.PlaySound( sound );
 				else if ( sound.IsValid() ) Sound.Play( sound, position.Position );
 			}
-			else model.PlaySoundCue( cue.TagPath, position.Position, ref soundSeed, soundOwner );
+			else if ( bindings.Sounds.TryGetValue( cue.TagPath, out var playback ) )
+				playback.Play( position.Position, ref soundSeed, soundOwner );
 		}
 		if ( cue.Kind == "effect" && cue.TagPath is not null && Effects.TryGetValue( cue.TagPath, out var effect ) && effect.IsValid() )
 			effect.Clone( position );
