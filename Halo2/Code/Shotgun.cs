@@ -195,10 +195,13 @@ public sealed class Shotgun : Weapon
 
 	void FireVolley( Ray ray )
 	{
-		if ( IsHeld && !TakePrimaryAmmo() ) return;
-		CancelReload();
 		if ( Holder is PlayerController player )
+		{
+			// Halo 2 decrements the magazine only while the item is bound to a player.
+			if ( !TakePrimaryAmmo() ) return;
 			ray = PlayerFiringRay( player, ray.Forward );
+		}
+		CancelReload();
 		ShootEffects();
 		LaunchPellets( ray );
 	}
