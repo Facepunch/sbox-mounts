@@ -9,10 +9,18 @@ public sealed class BatteryWeapon : RangedWeapon
 	[Property] public float CooledThreshold { get; set; }
 	[Property] public float OverheatThreshold { get; set; }
 
-	[Sync] public float Spent { get; private set; }
-	[Sync] float ShotHeat { get; set; }
-	[Sync] double LastEnergyShot { get; set; }
-	[Sync] bool Venting { get; set; }
+	[Property] public bool Instantaneous { get; set; }
+	[Property] public float MisfireThreshold { get; set; }
+	[Property] public float MisfireChance { get; set; }
+	[Property] public Vector2 FiringRate { get; set; }
+	[Property] public float RateRise { get; set; }
+	[Property] public float RateFall { get; set; }
+	float rateFraction;
+
+	[Sync( SyncFlags.FromHost )] public float Spent { get; private set; }
+	[Sync( SyncFlags.FromHost )] float ShotHeat { get; set; }
+	[Sync( SyncFlags.FromHost )] double LastEnergyShot { get; set; }
+	[Sync( SyncFlags.FromHost )] bool Venting { get; set; }
 	bool showingVentExit;
 
 	float CoolingRate => Venting && OverheatedLoss > 0 ? OverheatedLoss : HeatLoss;
@@ -38,8 +46,41 @@ public sealed class BatteryWeapon : RangedWeapon
 	public override void PrimaryAttack()
 	{
 		if ( Spent >= 1 || Overheated ) return;
+		var forward = AimRay.Forward;
+		if ( Networking.IsHost )
+		{
+			FireEnergy( forward, false );
+			return;
+		}
+		bool awaitCue = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold;
+		if ( !awaitCue ) OnShootEffects( default );
+		TimeSinceShoot = 0;
+		RequestEnergyShot( forward, awaitCue );
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void RequestEnergyShot( Vector3 forward, bool awaitingCue )
+	{
+		if ( !IsHeld || !IsActive || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		float delay = FiringRate.y > 0 ? CooldownSeconds( (int)System.MathF.Ceiling( 30 / FiringRate.y ) ) : PrimaryDelay;
+		SetNextPrimaryFire( delay );
+		FireEnergy( forward, awaitingCue );
+	}
+
+	void FireEnergy( Vector3 forward, bool awaitingCue )
+	{
 		float heat = System.MathF.Min( 1, Heat + HeatPerShot );
-		base.PrimaryAttack();
+		bool misfire = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold
+			&& (Spent - MisfireThreshold) * MisfireChance / (1 - MisfireThreshold) > BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) / 65535.0;
+		if ( misfire ) ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "misfire_1" );
+		else if ( Instantaneous ) base.PrimaryAttack();
+		else
+		{
+			ShootEffects();
+			LaunchBolt( forward );
+			TimeSinceShoot = 0;
+		}
+		if ( IsProxy && (awaitingCue || misfire) ) PresentOwnerShot( misfire );
 		Spent = System.MathF.Min( 1, Spent + SpentPerShot );
 		ShotHeat = heat;
 		LastEnergyShot = Time.NowDouble;
@@ -47,9 +88,50 @@ public sealed class BatteryWeapon : RangedWeapon
 		showingVentExit = false;
 		if ( Venting )
 		{
-			SetZoom( 0 );
-			ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "overheating" );
+			if ( IsProxy ) BeginOwnerVent();
+			else BeginVent();
 		}
+	}
+
+	[Rpc.Owner( NetFlags.HostOnly )]
+	void PresentOwnerShot( bool misfire )
+	{
+		if ( misfire ) ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "misfire_1" );
+		else OnShootEffects( default );
+	}
+
+	[Rpc.Owner( NetFlags.HostOnly )]
+	void BeginOwnerVent() => BeginVent();
+
+	void BeginVent()
+	{
+		showingVentExit = false;
+		SetZoom( 0 );
+		ViewModel?.GetComponent<RangedWeaponModel>()?.Play( "overheating" );
+	}
+
+	void LaunchBolt( Vector3 forward )
+	{
+		var ray = Holder is PlayerController player ? PlayerFiringRay( player, forward ) : new Ray( AimRay.Position, forward );
+		LaunchProjectiles( ray, CurrentSpread.x );
+	}
+
+	protected override void OnControl()
+	{
+		if ( FiringRate.y > FiringRate.x && FiringRate.x > 0 )
+		{
+			bool firing = Input.Down( "attack1" ) && !Overheated && Spent < 1 && !MeleeActive;
+			rateFraction = (rateFraction + Time.Delta * (firing ? RateRise : -RateFall)).Clamp( 0, 1 );
+			float rate = MathX.Lerp( FiringRate.x, FiringRate.y, rateFraction );
+			PrimaryDelay = CooldownSeconds( (int)System.MathF.Ceiling( 30 / rate ) );
+		}
+		base.OnControl();
+	}
+
+	protected override void OnDisabled()
+	{
+		rateFraction = 0;
+		base.OnDisabled();
 	}
 
 	protected override void OnUpdate()

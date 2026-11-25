@@ -15,20 +15,23 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		"battle_rifle" => new( map, weapon, "Battle Rifle", WeaponHolds.Rifle ),
 		"sniper_rifle" => new( map, weapon, "Sniper Rifle", WeaponHolds.Rifle ),
 		"covenant_carbine" => new( map, weapon, "Carbine", WeaponHolds.Rifle ),
+		"plasma_rifle" => new( map, weapon, "Plasma Rifle", WeaponHolds.Rifle ),
+		"brute_plasma_rifle" => new( map, weapon, "Brute Plasma Rifle", WeaponHolds.Rifle ),
 		"beam_rifle" => new( map, weapon, "Beam Rifle", WeaponHolds.Rifle ),
 		_ => null
 	};
 
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
-	internal bool UsesMagazine => map.ReadInt32( Header + 0x2c0 ) > 0;
+	int PrimaryTrigger => Block( Header + 0x2c8 );
+	int PrimaryBarrel => Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 8 ) * 0xec;
+	internal bool UsesMagazine => Short( PrimaryBarrel + 0x2a ) > 0;
 	internal string AmmoPath => $"ammo/{Name}.ammo";
 	PrefabFile prefab;
 
 	protected override object Load()
 	{
 		var world = WorldModelPath;
-		int trigger = Block( Header + 0x2c8 );
-		int barrel = Block( Header + 0x2d0 ) + Short( trigger + 8 ) * 0xec;
+		int barrel = PrimaryBarrel;
 		int projectile = Address( Reference( barrel + 0x8c ) );
 		int damage = Address( Reference( projectile + 0x148 ) );
 		var builder = new PrefabBuilder().WithName( Path ).WithMetadata( "Title", title ).WithMetadata( "PreviewModel", world );
@@ -36,7 +39,7 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		{
 			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, title );
-			RangedWeapon gun = UsesMagazine ? CreateMagazine( root, world, barrel ) : CreateBattery( root, world, barrel );
+			RangedWeapon gun = UsesMagazine ? CreateMagazine( root, world, barrel ) : CreateBattery( root, world, barrel, projectile, damage );
 			gun.HoldType = hold;
 			gun.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
 			int models = Block( Header + 0x2a8 );
@@ -45,7 +48,7 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 				gun.EliteModel = Host.AssetPath( map, elite.TagPath, "vmdl" );
 			gun.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			gun.DeployTime = Float( Header + 0x13c );
-			gun.PrimaryAutomatic = Short( trigger + 6 ) == 0;
+			gun.PrimaryAutomatic = Short( PrimaryTrigger + 6 ) == 0;
 			float rate = Float( barrel + 4 );
 			float recovery = RecoveryTime( barrel );
 			gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
@@ -81,7 +84,7 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		return gun;
 	}
 
-	BatteryWeapon CreateBattery( GameObject root, string world, int barrel )
+	BatteryWeapon CreateBattery( GameObject root, string world, int barrel, int projectile, int damage )
 	{
 		var gun = ConfigurePickup<BatteryWeapon>( root, world, title );
 		gun.UsesAmmo = gun.UsesClips = false;
@@ -91,6 +94,22 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		gun.OverheatThreshold = Float( Header + 0x154 );
 		gun.HeatLoss = Float( Header + 0x160 );
 		gun.OverheatedLoss = Float( Header + 0x168 );
+		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
+		gun.MisfireThreshold = Float( Header + 0x25c );
+		gun.MisfireChance = Float( Header + 0x260 );
+		gun.FiringRate = new Vector2( Float( barrel + 4 ), Float( barrel + 8 ) );
+		gun.RateRise = Float( barrel + 0xd4 );
+		gun.RateFall = Float( barrel + 0xd8 );
+		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
+		gun.MinimumPelletAngle = Float( barrel + 0x70 ).RadianToDegree();
+		gun.AirGravityScale = Float( projectile + 0x164 );
+		gun.WaterGravityScale = Float( projectile + 0x170 );
+		bool falloff = (map.ReadInt32( projectile + 0xbc ) & 16) != 0;
+		gun.DamageFalloffRange = falloff ? Float( projectile + 0x16c ) * 120 : 0;
+		gun.UnderwaterDamageFalloffRange = falloff ? Float( projectile + 0x178 ) * 120 : 0;
+		gun.MinimumDamage = Float( damage + 0x1c );
+		gun.PelletBodyScales = BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), damage );
+		gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
 		return gun;
 	}
 
