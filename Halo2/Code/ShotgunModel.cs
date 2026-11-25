@@ -28,7 +28,6 @@ public partial class ShotgunModel : BaseWeaponModel
 	ParticleEffect casings;
 	double shotStart;
 	int nextParticleTick;
-	bool viewCasing;
 	uint seed = (uint)Random.Shared.Next();
 
 	ParticleEffect muzzleFlash, shortFlare, longFlare, fierySmoke;
@@ -189,14 +188,15 @@ public partial class ShotgunModel : BaseWeaponModel
 		CurveA = new Curve( frames )
 	};
 
-	internal void ConfigureCasings( bool firstPerson )
+	ParticleEffect CreateCasings()
 	{
-		viewCasing = firstPerson;
-		if ( !ShellEjectGameObject.IsValid() ) return;
 		var texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{ShotgunLoader.CasingName}" );
-		if ( !texture.IsValid() || texture.IsError ) return;
-		var go = new GameObject( ShellEjectGameObject, false, "Shotgun casings" );
-		casings = go.AddComponent<ParticleEffect>();
+		if ( !texture.IsValid() || texture.IsError ) return null;
+		var go = Scene.CreateObject( false );
+		go.Name = "Shotgun casings";
+		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		go.WorldTransform = ShellEjectGameObject.WorldTransform;
+		var casings = go.AddComponent<ParticleEffect>();
 		casings.Lifetime = new ParticleFloat( 2, 5 );
 		casings.ApplyShape = true;
 		casings.InitialScale = 4.8f;
@@ -210,14 +210,18 @@ public partial class ShotgunModel : BaseWeaponModel
 			CurveA = new Curve( new Curve.Frame( 0, 0, 0, 13.513514f ), new Curve.Frame( 1, 5, 0, 0 ) )
 		};
 		casings.SequenceSpeed = 0;
-		casings.OnPostStep += AdvanceCasings;
+		var holder = Weapon?.Holder?.GameObject;
+		var contacts = ShotgunContacts.For( Weapon );
+		casings.OnPostStep += dt => AdvanceCasings( casings, holder, contacts, dt );
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Lighting = true;
+		go.AddComponent<TemporaryEffect>().DestroyAfterSeconds = 0;
 		go.Enabled = true;
+		return casings;
 	}
 
-	void AdvanceCasings( float dt )
+	static void AdvanceCasings( ParticleEffect casings, GameObject holder, ShotgunContacts contacts, float dt )
 	{
 		if ( dt <= 0 ) return;
 		// The stones particle controller advances position, applies gravity, then damps velocity.
@@ -232,8 +236,9 @@ public partial class ShotgunModel : BaseWeaponModel
 			// Halo probes twelve steps ahead and accepts contacts within the first two.
 			var step = casing.Velocity * dt;
 			var start = casing.Position - step;
-			var hit = PelletImpactEffect.TraceParticleStructure( Scene.Trace.Ray( start, start + 12 * step )
-				.IgnoreGameObjectHierarchy( Weapon?.Holder?.GameObject ?? GameObject ) );
+			var trace = casings.Scene.Trace.Ray( start, start + 12 * step );
+			if ( holder.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( holder );
+			var hit = PelletImpactEffect.TraceParticleStructure( trace );
 			if ( !hit.Hit )
 			{
 				casing.HitNormal = Vector3.Zero;
@@ -253,7 +258,7 @@ public partial class ShotgunModel : BaseWeaponModel
 			if ( firstContact )
 			{
 				float gain = (casing.Velocity.Length / 120 - 0.5f).Clamp( 0, 1 );
-				ShotgunContacts.For( Weapon )?.PlayCasing( hit.Surface, hit.HitPosition, gain );
+				contacts?.PlayCasing( hit.Surface, hit.HitPosition, gain );
 			}
 		}
 	}
@@ -273,7 +278,10 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	void EjectCasing()
 	{
-		if ( !casings.IsValid() || !ShellEjectGameObject.IsValid() ) return;
+		if ( !ShellEjectGameObject.IsValid() ) return;
+		if ( !casings.IsValid() ) casings = CreateCasings();
+		if ( !casings.IsValid() ) return;
+		bool viewCasing = this is ShotgunViewModel;
 		var marker = ShellEjectGameObject.WorldTransform;
 		var position = viewCasing ? marker.PointToWorld( Vector3.Down * 12 ) : marker.Position;
 		if ( casings.Emit( position, 0 ) is not {} casing ) return;

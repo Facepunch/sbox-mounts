@@ -79,7 +79,6 @@ public sealed class Shotgun : Weapon
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
 		view.ConfigureMuzzleFlash( firstPerson: true );
 		view.ShellEjectGameObject = gun.GetAttachmentObject( "primary_ejection" );
-		view.ConfigureCasings( firstPerson: true );
 		ViewModel = go;
 		view.OnDeploy();
 	}
@@ -114,7 +113,6 @@ public sealed class Shotgun : Weapon
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );
 		model.ConfigureMuzzleFlash( firstPerson: false );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
-		model.ConfigureCasings( firstPerson: false );
 		if ( HolderAnimator is {} animator ) animator.Weapon = renderer;
 		WorldModel.LocalTransform = global::Transform.Zero;
 		loose.Enabled = false;
