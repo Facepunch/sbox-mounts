@@ -850,8 +850,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 	float? previousYaw;
 	float yawDelta, turn, turnVelocity;
 	float offsetForward, forwardVelocity, offsetLeft, leftVelocity;
-	int aimTick, aimTicks;
-	bool aimEnabled;
+	AnimationBlend aimBlend;
 	int fadeTick, fadeTicks;
 	double lastBlendTick;
 	float previousFade, previousAim;
@@ -899,36 +898,17 @@ public sealed class ShotgunViewModel : ShotgunModel
 		return 1 - t * t * (3 - 2 * t);
 	}
 
-	void SelectAim( bool enabled, int rate )
-	{
-		int ticks = ((int)((enabled ? 0.4f : 0.2f) * rate + 0.5f)).Clamp( 1, 127 ) - 1;
-		if ( ticks == aimTicks && enabled == aimEnabled ) return;
-		if ( ticks == 0 ) aimTick = 0;
-		else if ( aimTicks > 0 ) aimTick = (int)(aimTick / (float)aimTicks * (ticks - 1));
-		else aimTick = enabled ? 1 : ticks - 1;
-		aimTicks = ticks;
-		aimEnabled = enabled;
-	}
-
-	float AimWeight()
-	{
-		if ( aimTicks == 0 ) return 0;
-		float t = aimTick / (float)aimTicks;
-		float square = t * t;
-		return 3 * square - (square + square) * t;
-	}
-
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
 		lastBlendTick = Time.NowDouble;
 		previousFade = FadeWeight();
-		previousAim = AimWeight();
+		previousAim = aimBlend.Weight;
 		if ( fadeTicks > 0 && ++fadeTick >= fadeTicks ) fadeTick = fadeTicks = 0;
 		if ( Weapon?.Holder is not PlayerController player ) return;
 		float dt = Time.Delta;
 		if ( dt <= 0 ) return;
-		aimTick = (aimTick + (aimEnabled ? 1 : -1)).Clamp( 0, aimTicks );
+		aimBlend.Advance();
 		var throttle = player.UseInputControls ? Input.AnalogMove.ClampLength( 1 ) : Vector3.Zero;
 		movingClip ??= AnimationData?.Movement;
 		if ( movingClip is not null )
@@ -1087,12 +1067,14 @@ public sealed class ShotgunViewModel : ShotgunModel
 
 		if ( Weapon.Holder is not PlayerController player ) return;
 		var p = Renderer.Animation.Parameters;
-		SelectAim( ((clip?.PlaybackFlags ?? 0) & 16) == 0, (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency ) );
+		bool aiming = ((clip?.PlaybackFlags ?? 0) & 16) == 0;
+		int rate = (int)System.MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency );
+		aimBlend.Select( aiming, (int)((aiming ? 0.4f : 0.2f) * rate + 0.5f) );
 		// Present the blend between adjacent simulation ticks, including in slow motion.
 		float fraction = Sandbox.ProjectSettings.Physics.UseFixedUpdate
 			? ((float)(Time.NowDouble - lastBlendTick) / Scene.FixedDelta).Clamp( 0, 1 ) : 1;
 		p.Set( "previous_action_weight", MathX.Lerp( previousFade, FadeWeight(), fraction ) );
-		float aimWeight = MathX.Lerp( previousAim, AimWeight(), fraction );
+		float aimWeight = MathX.Lerp( previousAim, aimBlend.Weight, fraction );
 		p.Set( "weapon_aim_weight", aimWeight );
 		p.Set( "weapon_offset_forward", offsetForward * aimWeight );
 		p.Set( "weapon_offset_left", offsetLeft * aimWeight );

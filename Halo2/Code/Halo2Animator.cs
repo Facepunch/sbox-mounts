@@ -25,6 +25,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	string action;
 	string weaponOverlay;
 	TimeUntil overlayEnds;
+	AnimationBlend gripBlend;
 	Halo2Transition pending, playing;
 	bool holdReaction;
 	Graph assigned;
@@ -183,6 +184,18 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	internal bool Bound => Renderer.IsValid() && assigned is not null && Renderer.Animation.Graph == assigned && Renderer.Animation.IsValid;
 
+	protected override void OnFixedUpdate()
+	{
+		if ( !Bound || grips.Count == 0 ) return;
+		var parameters = Renderer.Animation.Parameters;
+		string overlay = parameters.GetString( "overlay" );
+		bool active = string.IsNullOrEmpty( overlay ) || ((GetOverlayClip( overlay )?.PlaybackFlags ?? 0) & 8) == 0;
+		float duration = active ? 0.267f : 0.06675f;
+		gripBlend.Advance();
+		gripBlend.Select( active, (int)MathF.Round( Sandbox.ProjectSettings.Physics.FixedUpdateFrequency * duration ) );
+		parameters.TrySet( "weapon_grip_weight", Weapon.IsValid() ? gripBlend.Weight : -1f );
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( !Bound ) return;
@@ -234,9 +247,11 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			foreach ( var slot in ReactionSlots )
 				if ( slots.IsConnected( slot ) ) slots.Disconnect( slot );
 			foreach ( var grip in grips ) Renderer.Animation.Parameters.TryUnsetTarget( grip.Parameter );
+			if ( grips.Count > 0 ) Renderer.Animation.Parameters.TrySet( "weapon_grip_weight", -1f );
 		}
 		pending = playing = null;
 		holdReaction = false;
+		gripBlend = default;
 	}
 
 	protected override void OnDisabled() => ReleaseSlots();

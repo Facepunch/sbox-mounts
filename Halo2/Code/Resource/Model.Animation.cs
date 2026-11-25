@@ -113,6 +113,8 @@ public partial class Halo2ModelLoader
 		var previousWeight = HasFirstPersonWeapon ? builder.FloatParameter( "previous_action_weight", 0, 1 ) : null;
 		var ikTargets = bindings.Ik.Select( p => p.Marker ).Distinct().Select( marker =>
 			(Marker: marker, Bone: MarkerBone( marker ), Target: builder.TargetParameter( $"ik_{marker}" )) ).ToArray();
+		var gripWeight = ikTargets.Length == 0 || HasFirstPersonWeapon ? null
+			: builder.AddControlParameter( "weapon_grip_weight", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
 		var noBlendIn = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 1) != 0 ).Select( a => a.Key ).ToArray();
 		var duration = noBlendIn.Length == 0 ? blend : builder.Switch( builder.IdCompare( action, noBlendIn ), builder.Constant( 0f ), blend );
@@ -168,6 +170,8 @@ public partial class Halo2ModelLoader
 				} );
 			}
 		}
+		var useClipFlags = gripWeight is null ? null : builder.Compare( gripWeight, GraphBuilder.FloatComparison.LessThan, 0 );
+		var solverWeight = gripWeight is null ? null : builder.Switch( useClipFlags, builder.Constant( 1f ), gripWeight );
 		foreach ( var (marker, bone, target) in ikTargets )
 		{
 			if ( bone is null ) continue;
@@ -175,8 +179,13 @@ public partial class Halo2ModelLoader
 			var excluded = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 12) != 0 ).Select( a => a.Key ).ToArray();
 			if ( excluded.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( action, excluded ) ) );
 			var freeHands = overlayClips.Where( o => (GetClipInfo( o.Value ).PlaybackFlags & 8) != 0 ).Select( o => o.Key ).ToArray();
-			if ( freeHands.Length > 0 ) enabled = builder.And( enabled, builder.Not( builder.IdCompare( overlay, freeHands ) ) );
-			output = builder.TwoBoneIK( output, bone, target, new() { Enabled = enabled } );
+			if ( freeHands.Length > 0 )
+			{
+				var released = builder.IdCompare( overlay, freeHands );
+				if ( useClipFlags is not null ) released = builder.And( released, useClipFlags );
+				enabled = builder.And( enabled, builder.Not( released ) );
+			}
+			output = builder.TwoBoneIK( output, bone, target, new() { Enabled = enabled, Weight = solverWeight } );
 		}
 		if ( bindings.Transitions.Count > 0 || bindings.Damage.Count > 0 )
 		{
