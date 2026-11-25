@@ -1,7 +1,7 @@
 namespace Halo2;
 
 [Title( "Shotgun" ), Category( "Halo 2" )]
-public sealed class Shotgun : Weapon
+public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 {
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public ShotgunContacts Contacts { get; set; }

@@ -475,6 +475,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.WaterGravityScale = Float( projectile + 0x170 );
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
+			gun.AutoAimAngle = Float( Header + 0x208 );
+			gun.MagnetismAngle = Float( Header + 0x210 );
+			gun.MagnetismRange = Float( Header + 0x214 ) * 120;
 			bool damageFallsOff = (map.ReadInt32( projectile + 0xbc ) & 16) != 0;
 			gun.DamageFalloffRange = damageFallsOff ? Float( projectile + 0x16c ) * 120 : 0;
 			gun.UnderwaterDamageFalloffRange = damageFallsOff ? Float( projectile + 0x178 ) * 120 : 0;
@@ -494,6 +497,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.MinimumMeleeDamage = Float( strike + 0x1c );
 			gun.MeleeDamage = Float( strike + 0x20 );
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+			gun.MagnetismFriction = Float( Block( Address( globals ) + 0xf0 ) );
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.MeleeBodyScales = BodyDamageScales( Address( globals ), strike );
 			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
