@@ -28,6 +28,9 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property] public float KickDuration { get; set; }
 	[Property] public float KickDegrees { get; set; }
 	[Property] public float KickDistance { get; set; }
+	[Property] public Vector2 KickJitter { get; set; }
+	uint kickSeed = (uint)System.Random.Shared.Next();
+	Vector3 kickOffset;
 	TimeUntil kickEnds;
 
 	internal static float CooldownSeconds( int ticks )
@@ -135,7 +138,7 @@ public abstract class Weapon : BaseCombatWeapon
 			float elapsedTicks = kickEnds.Passed * 30;
 			// A new impulse has full weight until the first tick. The countdown stores whole ticks.
 			float weight = elapsedTicks < 1 ? 1 : KickWeight( ((int)durationTicks - elapsedTicks) / durationTicks );
-			view.Position -= view.Rotation.Forward * (KickDistance * weight);
+			view.Position += view.Rotation * (kickOffset * weight);
 			view.Rotation *= Rotation.FromPitch( -KickDegrees * weight );
 		}
 
@@ -219,7 +222,14 @@ public abstract class Weapon : BaseCombatWeapon
 	protected override void OnShootEffects( ShotEffect shot )
 	{
 		if ( !shot.NoEvents ) PlayHolderOverlay( "fire_1" );
-		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 ) kickEnds = KickDuration;
+		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 )
+		{
+			float radius = KickJitter.x + (KickJitter.y - KickJitter.x) * (BlamRandom.Next( ref kickSeed ) / 65535f);
+			float angle = System.MathF.Tau * (BlamRandom.Next( ref kickSeed ) / 65535f);
+			var (sin, cos) = System.MathF.SinCos( angle );
+			kickOffset = new Vector3( -KickDistance, radius * cos, -radius * sin );
+			kickEnds = KickDuration;
+		}
 
 		if ( shot.NoEvents || Application.IsDedicatedServer )
 		{

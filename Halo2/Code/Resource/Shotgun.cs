@@ -428,7 +428,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			var collider = root.AddComponent<BoxCollider>();
 			collider.Center = renderer.Model.Bounds.Center;
 			collider.Scale = renderer.Model.Bounds.Size;
-			// Convert Halo 2 item gravity to inches/s² relative to standard s&box gravity.
+			// Convert Halo 2 item gravity to inches/sÂ² relative to standard s&box gravity.
 			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
@@ -465,6 +465,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.KickDuration = Float( trigger + 0x74 );
 			gun.KickDegrees = Float( trigger + 0x7c ).RadianToDegree();
 			gun.KickDistance = Float( trigger + 0x80 ) * 120;
+			gun.KickJitter = new Vector2( Float( trigger + 0x84 ), Float( trigger + 0x88 ) ) * 120;
 			gun.IncrementalReloading = Short( magazine + 0x14 ) == 1;
 			gun.CanCancelReload = true;
 			gun.DeployTime = Float( Header + 0x13c );
