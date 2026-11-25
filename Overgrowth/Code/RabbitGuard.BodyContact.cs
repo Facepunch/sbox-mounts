@@ -29,7 +29,7 @@ public sealed partial class RabbitGuard
 			bool awake = !Unconscious;
 			((IDamageable)this).OnDamage( new FallImpactDamage { Damage = impulse * 0.5f * multiplier, Position = point } );
 			if ( !IsValid || Health <= 0f ) return;
-			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", point );
+			if ( awake && Unconscious ) PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", CharacterCenter( GameObject ) );
 		}
 		if ( zoneKilled || bodyDragger.IsValid() || (impulse <= 1f && queuedThrowDamage <= 0f) ) return;
 		var center = CharacterCenter( GameObject );

@@ -191,8 +191,9 @@ public sealed partial class RabbitGuard
 		throwDamageAttacker = null;
 		if ( ThrowTrainer )
 		{
-			PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", WorldPosition );
-			PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_metal_hit_metal.xml", WorldPosition );
+			var center = CharacterCenter( GameObject );
+			PlayCombatSound( "Data/Sounds/hit/hit_medium_juicy.xml", center );
+			PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_metal_hit_metal.xml", center );
 		}
 		((IDamageable)this).OnDamage( damage );
 	}

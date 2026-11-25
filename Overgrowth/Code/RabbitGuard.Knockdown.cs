@@ -111,7 +111,7 @@ public sealed partial class RabbitGuard
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
 		if ( wasAwake ) InvestigatePatrolDamage();
-		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage);
+		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage or LandingDamage);
 		if ( hitVoice ) Speak( "hit" );
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
@@ -132,13 +132,16 @@ public sealed partial class RabbitGuard
 
 	void ReceiveSurpriseSwordHit()
 	{
-		if ( !Downed )
-		{
-			GoLimp();
-			if ( boundAnimations.FallPose is { Writhe: not null } pose )
-				ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, 0f, false );
-		}
+		EnterInjuredRagdoll();
 		RestartRecovery( 1f );
+	}
+
+	void EnterInjuredRagdoll()
+	{
+		if ( Downed ) return;
+		GoLimp();
+		if ( boundAnimations?.FallPose is { Writhe: not null } pose )
+			ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, 0f, false );
 	}
 
 	void RestartRecovery( float earliestRoll = 0.2f )
@@ -216,7 +219,7 @@ public sealed partial class RabbitGuard
 		UpdateCombatGroup();
 		extractionDeath = death.DamageInfo is ExtractionDamage;
 		if ( extractionDeath ) ReportBodySound( HeardSound.Voice, 10f );
-		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", death.DamageInfo.Position );
+		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", CharacterCenter( GameObject ) );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );

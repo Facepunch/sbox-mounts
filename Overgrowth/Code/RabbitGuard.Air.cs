@@ -130,8 +130,8 @@ public sealed partial class RabbitGuard
 		if ( excess <= 0f ) return;
 		((IDamageable)this).OnDamage( new LandingDamage { Damage = excess * 10f, Position = WorldPosition } );
 		if ( !IsValid || Health < 1f ) return;
-		PlayCombatSound( Unconscious || Downed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_medium_juicy.xml", WorldPosition );
-		if ( Unconscious && !Downed ) GoLimp();
+		PlayCombatSound( Unconscious || Downed ? "Data/Sounds/hit/hit_hard.xml" : "Data/Sounds/hit/hit_medium_juicy.xml", CharacterCenter( GameObject ) );
+		if ( Unconscious ) EnterInjuredRagdoll();
 	}
 
 	string AirPose()
