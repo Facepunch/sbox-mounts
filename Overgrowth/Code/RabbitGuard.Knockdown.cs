@@ -297,6 +297,8 @@ public sealed partial class RabbitGuard
 		remains.StaticCharacter = StaticCharacter;
 		remains.Physics = physics;
 		remains.Burning = Burning;
+		remains.FireParticles = fireParticles;
+		fireParticles = default;
 		remains.FireRig = boundAnimations;
 		remains.BodySounds = bodySounds;
 		if ( !zoneKilled )

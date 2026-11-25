@@ -5,10 +5,32 @@ namespace Overgrowth;
 internal struct CharacterFireParticles
 {
 	float sparkDelay, smokeDelay;
+	CharacterFlames flames;
 
-	internal void Update( SkinnedModelRenderer renderer, RabbitGuard fighter )
+	internal void Clear()
 	{
+		flames?.Light?.Delete();
+		flames?.Delete();
+		flames = null;
+	}
+
+	internal void Update( SkinnedModelRenderer renderer, RabbitGuard fighter, bool burning )
+	{
+		if ( !burning && flames is null ) return;
 		if ( !renderer.IsValid() || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		if ( CharacterLoader.FromModel( renderer.Model ) is not { FireAnchorCount: > 0 } loader )
+		{
+			Clear();
+			return;
+		}
+		if ( flames?.BoneCount != loader.FireAnchorCount )
+		{
+			Clear();
+			if ( !burning ) return;
+			flames = new( renderer.Scene.SceneWorld, loader.FireAnchorCount, mount );
+		}
+		if ( !flames.Advance( loader, renderer, fighter, burning ) && !burning ) Clear();
+		if ( !burning ) return;
 		sparkDelay -= Time.Delta;
 		smokeDelay -= Time.Delta;
 		if ( sparkDelay <= 0f && CharacterLoader.RandomPhysicsBonePosition( renderer, fighter ) is { } spark )

@@ -92,7 +92,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			awakeTime += Time.Delta;
 			if ( !StaticCharacter ) suspicion = Math.Max( 0f, suspicion - Time.Delta * 0.1f );
 		}
-		if ( Burning && !Application.IsDedicatedServer ) fireParticles.Update( Renderer, this );
+		if ( !Application.IsDedicatedServer ) fireParticles.Update( Renderer, this, Burning );
 		if ( Networking.IsHost && Burning && Health > 0f )
 		{
 			UpdateFire();
@@ -377,7 +377,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	// Standing navigation roots are at the feet. MovementObject.position is at
 	// the leg sphere center until the ragdoll takes over.
-	Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true } || target.GetComponent<CharacterRemains>().IsValid()
+	internal Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true } || target.GetComponent<CharacterRemains>().IsValid()
 		? TargetPosition( target ) : target.WorldPosition + Vector3.Up * (0.45f * 40f);
 
 	void NoticeAttacker( GameObject attacker )

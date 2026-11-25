@@ -195,6 +195,7 @@ public sealed partial class RabbitGuard
 
 	protected override void OnDisabled()
 	{
+		fireParticles.Clear();
 		fireLoop?.Stop();
 		UseAirHull( false );
 		motionSamples = 0;

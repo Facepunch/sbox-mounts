@@ -79,6 +79,18 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return loader;
 	}
 
+	internal int FireAnchorCount => bodyPoints.Length;
+
+	internal bool FireAnchor( int index, SkinnedModelRenderer renderer, ModelPhysics physics, RabbitGuard fighter, out Vector3 position, out Vector3? velocity )
+	{
+		var point = bodyPoints[index];
+		Rigidbody body = null;
+		var pose = physics is { Active: true } ? RagdollBone( point, physics, out body ) : BodyTransform( point, renderer, null, fighter );
+		position = pose?.Position ?? default;
+		velocity = body.IsValid() ? body.Velocity : null;
+		return pose.HasValue;
+	}
+
 	internal static Vector3? RandomPhysicsBonePosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
 	{
 		if ( FromRenderer( renderer )?.bodyPoints is not { Length: > 0 } points ) return null;

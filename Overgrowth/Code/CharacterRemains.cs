@@ -10,24 +10,28 @@ internal sealed class CharacterRemains : Component
 	[Sync] internal bool Burning { get; set; }
 	internal RabbitGuardAnimations FireRig { get; set; }
 	SoundHandle fireLoop;
-	CharacterFireParticles fireParticles;
+	internal CharacterFireParticles FireParticles;
 
 	protected override void OnUpdate()
 	{
+		if ( !Application.IsDedicatedServer ) FireParticles.Update( GetComponent<SkinnedModelRenderer>(), null, Burning );
 		if ( !Burning )
 		{
 			fireLoop?.Stop();
 			fireLoop = null;
 			return;
 		}
-		if ( !Application.IsDedicatedServer ) fireParticles.Update( GetComponent<SkinnedModelRenderer>(), null );
 		var physics = GetComponent<ModelPhysics>();
 		if ( physics is not { Active: true } || CharacterLoader.RagdollCenter( physics ) is not { } center ) return;
 		if ( !fireLoop.IsValid() ) fireLoop = RabbitGuard.PlayFireSound( "character_on_fire_loop_small", GameObject, center );
 		else fireLoop.LocalTransform = WorldTransform.ToLocal( new Transform( center ) );
 	}
 
-	protected override void OnDisabled() => fireLoop?.Stop();
+	protected override void OnDisabled()
+	{
+		FireParticles.Clear();
+		fireLoop?.Stop();
+	}
 
 	internal void SetOnFire( bool burning )
 	{
