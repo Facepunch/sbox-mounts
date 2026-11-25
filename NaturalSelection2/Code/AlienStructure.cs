@@ -51,7 +51,6 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 			lastSprayTime = Time.Now;
 			ApplyGrowth( Growth );
 		}
-		GameObject.Tags.Remove( "burning" );
 		if ( IsBuilt ) AddMaturity( 1, true );
 	}
 

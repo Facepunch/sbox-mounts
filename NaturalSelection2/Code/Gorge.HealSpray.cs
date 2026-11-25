@@ -22,7 +22,7 @@ public sealed partial class Gorge
 	{
 		var stance = GetDisposition( other.GameObject );
 		return stance == Disposition.Friendly || stance == Disposition.Neutral &&
-			other is BaseNpc npc && npc.Faction == Faction && (other is AlienStructure || other.GameObject.Tags.Has( "ns2_lifeform" ));
+			other is BaseNpc npc && npc.Faction == Faction && AlienHealing.IsAlien( other );
 	}
 
 	void FindPatients( Vector3 origin, float range )
@@ -125,10 +125,7 @@ public sealed partial class Gorge
 			if ( along < 0 || (offset - forward * along).LengthSquared > 9 * Scale * Scale ) continue;
 			if ( offset.LengthSquared >= range * range && WallBetween( eye, c.WorldPosition ) ) continue;
 			if ( Friendly( c ) )
-			{
 				Restore( c );
-				if ( c is AlienStructure structure ) structure.OnHealSpray();
-			}
 			else if ( GetDisposition( c.GameObject ) == Disposition.Hostile && !c.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit", "structure" ) &&
 				(c is BaseNpc || c.GetComponentInParent<PlayerController>().IsValid()) )
 			{
@@ -155,11 +152,14 @@ public sealed partial class Gorge
 		var hp = (IDamageable)c;
 		float amount = c.GameObject.Tags.Has( "structure" ) ? 60 : (8 + hp.MaxHealth * 0.03f) * (c == this ? 0.5f : 1);
 		if ( c is AlienStructure structure ) amount = structure.SprayHealingLimit;
-		if ( hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour ) return;
-		var state = healing.GetValue( c, _ => new() );
-		state.Last = 0;
-		state.Sprayer = this;
-		AlienHealing.Restore( c, amount, 1 );
+		if ( AlienHealing.Restore( c, amount, 1 ) && c != this && c.GameObject.Tags.Has( "ns2_lifeform" ) )
+		{
+			var state = healing.GetValue( c, static _ => new() );
+			state.Last = 0;
+			state.Sprayer = this;
+		}
+		if ( c is AlienStructure building ) building.OnHealSpray();
+		if ( AlienHealing.IsAlien( c ) ) c.GameObject.Tags.Remove( "burning" );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
