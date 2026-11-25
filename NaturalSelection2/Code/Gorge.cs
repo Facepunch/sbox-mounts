@@ -87,16 +87,25 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 		var enemy = targeting.FindEnemy( this, out var lastSeen );
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
-		if ( SupportAlly( visible ) ) return;
+		if ( SupportAlly( visible ) )
+		{
+			escort = null;
+			return;
+		}
 		bombarding = visible && BileBombUnlocked && enemy.Tags.HasAny( "structure", "ns2_exo", "ns2_mac" );
-		Animation.SetLookTarget( visible ? enemy : null );
 		var goal = lastSeen ?? enemy?.WorldPosition;
 		firing = visible && EyePosition.Distance( goal.Value ) <= (bombarding ? 12 : 20) * Scale;
 		if ( goal is null )
 		{
-			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+			if ( !FollowLifeform() )
+			{
+				Animation.SetLookTarget( null );
+				GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+			}
 			return;
 		}
+		escort = null;
+		Animation.SetLookTarget( visible ? enemy : null );
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		float distance = EyePosition.Distance( goal.Value ) / Scale;
@@ -106,6 +115,32 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 			Movement.MoveTo( WorldPosition - WorldRotation.Forward * (1.5f * Scale), 0, faceTarget: enemy );
 		else if ( firing ) Movement.Stop();
 		else Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
+	}
+
+	BaseNpc escort;
+	TimeUntil checkEscort;
+
+	bool FollowLifeform()
+	{
+		if ( checkEscort > 0 ) return escort.IsValid() && escort.Health > 0;
+		checkEscort = 0.25f;
+		escort = null;
+		float nearest = 30 * Scale;
+		foreach ( var npc in Scene.GetAllComponents<BaseNpc>() )
+		{
+			if ( npc is not (Skulk or Onos or Fade or Lerk) || npc.Health <= 0 || npc.Faction != Faction ||
+				npc.GameObject.Tags.Has( "ns2_hallucination" ) ) continue;
+			float distance = npc.WorldPosition.Distance( WorldPosition );
+			if ( distance > nearest || Scene.GetAllComponents<Gorge>().Any( g => g != this && g.Health > 0 && g.escort == npc ) ) continue;
+			nearest = distance;
+			escort = npc;
+		}
+		if ( !escort.IsValid() ) return false;
+		Animation.SetLookTarget( nearest >= 2.5f * Scale && nearest <= 6 * Scale ? escort.GameObject : null );
+		if ( nearest > 6 * Scale ) Movement.MoveTo( escort.WorldPosition, 0 );
+		else if ( nearest < 2.5f * Scale ) Movement.MoveTo( WorldPosition + (WorldPosition - escort.WorldPosition).Normal * (2 * Scale), 0 );
+		else Movement.Stop();
+		return true;
 	}
 
 	protected override void OnUpdate()
