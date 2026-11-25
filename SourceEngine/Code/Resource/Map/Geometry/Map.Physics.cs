@@ -13,68 +13,62 @@ partial class MapLoader
 		BuildWaterPhysics( fluids, world, modelIndex );
 		if ( skybox )
 			bsp.FilterSkyboxPhysics( hulls, meshes );
-		var bodies = new Dictionary<(Surface Surface, bool PassAudio), PhysicsBodyBuilder>();
+		var bodies = new Dictionary<(Surface Surface, BspCollisionKind Kind), PhysicsBodyBuilder>();
 		var surfaces = new List<Surface>();
 		var surfaceIndices = new Dictionary<Surface, byte>();
 		foreach ( var hull in hulls )
-			GetBody( hull.SurfaceName, hull.PassAudio ).AddHull( CollectionsMarshal.AsSpan( hull.Vertices ) );
+			GetBody( hull.SurfaceName, hull.Kind ).AddHull( CollectionsMarshal.AsSpan( hull.Vertices ) );
 		foreach ( var mesh in meshes )
 		{
 			var materials = mesh.SurfaceNames.Select( name => GetMaterial( Host.GetSurface( name, FullPath ) ) ).ToArray();
-			GetBody( mesh.SurfaceName, mesh.PassAudio ).AddMesh( CollectionsMarshal.AsSpan( mesh.Vertices ), CollectionsMarshal.AsSpan( mesh.Indices ), materials );
+			GetBody( mesh.SurfaceName, mesh.Kind ).AddMesh( CollectionsMarshal.AsSpan( mesh.Vertices ), CollectionsMarshal.AsSpan( mesh.Indices ), materials );
 		}
 
-		bool hasDisplacements = modelIndex == 0 && virtualTerrain && AddDisplacementPhysics( bsp, name => GetBody( name, false ), GetMaterial, skybox );
+		bool hasDisplacements = modelIndex == 0 && virtualTerrain && AddDisplacementPhysics( bsp, name => GetBody( name, BspCollisionKind.Solid ), GetMaterial, skybox );
 		if ( hulls.Count == 0 && meshes.Count == 0 && !hasDisplacements )
 			return;
 		var mixed = hulls.Count( hull => hull.MixedSurfaces );
 		if ( mixed > 0 )
 			Log.Warning( $"{FullPath}: {mixed} convex collision hulls have multiple Source surfaces; native hull builders cannot store per-face surfaces, so those hulls retain their solid's surface. Geometry is unchanged." );
-		foreach ( bool passAudio in new[]
+		foreach ( var group in bodies.GroupBy( entry => entry.Key.Kind ) )
 		{
-			false,
-			true
-		}
-
-		)
-		{
-			var parts = bodies.Where( entry => entry.Key.PassAudio == passAudio ).Select( entry => entry.Value ).ToList();
-			if ( parts.Count == 0 )
-				continue;
+			var kind = group.Key;
+			var parts = group.Select( entry => entry.Value ).ToList();
 			var target = world;
-			if ( passAudio )
+			if ( kind != BspCollisionKind.Solid )
 			{
-				target = new GameObject( false, "audio transparent collision" )
+				target = new GameObject( false, kind == BspCollisionKind.Sky ? "sky collision" : "audio transparent collision" )
 				{
 					Parent = world,
 					IsStatic = staticCollider
 				};
 				target.Tags.Add( "world" );
 				target.Tags.Add( "passaudio" );
+				if ( kind == BspCollisionKind.Sky ) target.Tags.Add( "source1_sky" );
 			}
 
-			var suffix = passAudio ? "_passaudio" : "";
+			var suffix = kind switch { BspCollisionKind.Clip => "_passaudio", BspCollisionKind.Sky => "_sky", _ => "" };
 			var physics = PhysicsGroupDescription.Create( $"source1/{Host.Ident}/{FullPath}/{(skybox ? "skybox_" : "")}model_{modelIndex}{suffix}.vphys", parts, surfaces );
 			_worldPhysics.Add( physics );
 			var collider = target.AddComponent<PhysicsCollider>( false );
 			collider.Static = staticCollider;
 			collider.Physics = physics;
 			collider.Enabled = true;
-			if ( passAudio )
+			if ( kind != BspCollisionKind.Solid )
 				target.Enabled = true;
 		}
 
-		PhysicsBodyBuilder GetBody( string name, bool passAudio )
+		PhysicsBodyBuilder GetBody( string name, BspCollisionKind kind )
 		{
 			var surface = Host.GetSurface( name, FullPath );
-			if ( !bodies.TryGetValue( (surface, passAudio), out var body ) )
+			if ( !bodies.TryGetValue( (surface, kind), out var body ) )
 			{
 				body = new PhysicsBodyBuilder
 				{
 					Mass = 1000,
 					Surface = surface
 				};
-				bodies.Add( (surface, passAudio), body );
+				bodies.Add( (surface, kind), body );
 			}
 
 			return body;

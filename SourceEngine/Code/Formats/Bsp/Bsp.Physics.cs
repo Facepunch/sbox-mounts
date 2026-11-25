@@ -3,16 +3,18 @@ using System.Runtime.InteropServices;
 
 namespace Source1;
 
+internal enum BspCollisionKind { Solid, Clip, Sky }
+
 internal sealed class BspPhysicsMesh
 {
 	public readonly List<Vector3> Vertices = [];
 	public readonly List<uint> Indices = [];
 	public readonly List<string> SurfaceNames = [];
 	public string SurfaceName = "default";
-	public bool PassAudio;
+	public BspCollisionKind Kind;
 }
 
-internal sealed record BspPhysicsHull( List<Vector3> Vertices, string SurfaceName, bool MixedSurfaces, bool PassAudio );
+internal sealed record BspPhysicsHull( List<Vector3> Vertices, string SurfaceName, bool MixedSurfaces, BspCollisionKind Kind );
 internal sealed record BspPhysicsFluid( Vector4 Plane, Vector3 Velocity, string SurfaceName )
 {
 	public readonly List<BspPhysicsHull> Hulls = [];
@@ -252,7 +254,7 @@ internal partial class BspFile
 					mesh ??= new BspPhysicsMesh
 					{
 						SurfaceName = surface,
-						PassAudio = passAudio
+						Kind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid
 					};
 					meshVertices ??= [];
 					ExtractLedgeMesh( data, ledgePos, blobStart, blobEnd, mesh, meshVertices, scale, surface, materialTable );
@@ -288,7 +290,7 @@ internal partial class BspFile
 
 		// IVP_Compact_Ledge_Solver::get_all_ledges stops at the first ledge's shared point array.
 		int points = ResolvePhysicsOffset( ledge, BitConverter.ToInt32( data, ledge ), 16, ledge + 16, tree );
-		var mesh = new BspPhysicsMesh { SurfaceName = surface, PassAudio = passAudio };
+		var mesh = new BspPhysicsMesh { SurfaceName = surface, Kind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid };
 		var vertices = new Dictionary<int, uint>();
 		while ( ledge < points )
 		{
@@ -385,7 +387,7 @@ internal partial class BspFile
 
 		if ( fluid )
 		{
-			hulls.Add( new( vertices, surface, false, false ) );
+			hulls.Add( new( vertices, surface, false, BspCollisionKind.Solid ) );
 			return;
 		}
 
@@ -393,6 +395,7 @@ internal partial class BspFile
 		ValidateRange( brushIndex, 1, collisionBrushes.Length, "IVP collision brush index" );
 		var brush = collisionBrushes[brushIndex];
 		passAudio |= (brush.Contents & ContentsClip) != 0 && (brush.Contents & ContentsBlockAudio) == 0;
+		var otherKind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid;
 		bool hasSky = false;
 		for ( int index = brush.FirstSide; index < brush.FirstSide + brush.SideCount && !hasSky; index++ )
 		{
@@ -400,9 +403,9 @@ internal partial class BspFile
 			hasSky = texInfo >= 0 && (TexInfos[texInfo].Flags & SurfaceSky) != 0;
 		}
 
-		if ( passAudio || !hasSky )
+		if ( !hasSky )
 		{
-			hulls.Add( new( vertices, surfaceNames.Count == 1 ? surfaceNames.First() : surface, surfaceNames.Count > 1, passAudio ) );
+			hulls.Add( new( vertices, surfaceNames.Count == 1 ? surfaceNames.First() : surface, surfaceNames.Count > 1, otherKind ) );
 			return;
 		}
 
@@ -410,8 +413,8 @@ internal partial class BspFile
 		foreach ( int idx in uniqueIndices )
 			vertexMap.Add( idx, (uint)vertexMap.Count );
 		var triangles = new uint[nTriangles * 3];
-		var audioFaces = new bool[nTriangles];
-		bool anyPassAudio = false, anyBlocking = false;
+		var skyFaces = new bool[nTriangles];
+		bool anySky = false, anyOther = false;
 		for ( int triangle = 0; triangle < nTriangles; triangle++ )
 		{
 			int tp = triStart + triangle * 16;
@@ -421,34 +424,28 @@ internal partial class BspFile
 			var b = vertices[(int)triangles[triangle * 3 + 1]];
 			var c = vertices[(int)triangles[triangle * 3 + 2]];
 			var normal = Vector3.Cross( c - a, b - a ).Normal;
-			audioFaces[triangle] = BrushSidePassesAudio( brushIndex, normal );
-			anyPassAudio |= audioFaces[triangle];
-			anyBlocking |= !audioFaces[triangle];
+			skyFaces[triangle] = BrushSideIsSky( brushIndex, normal );
+			anySky |= skyFaces[triangle];
+			anyOther |= !skyFaces[triangle];
 		}
 
-		if ( !anyPassAudio || !anyBlocking )
+		if ( !anySky || !anyOther )
 		{
-			hulls.Add( new( vertices, surfaceNames.Count == 1 ? surfaceNames.First() : surface, surfaceNames.Count > 1, anyPassAudio ) );
+			hulls.Add( new( vertices, surfaceNames.Count == 1 ? surfaceNames.First() : surface, surfaceNames.Count > 1, anySky ? BspCollisionKind.Sky : otherKind ) );
 			return;
 		}
 
-		foreach ( bool transparent in new[]
-		{
-			false,
-			true
-		}
-
-		)
+		foreach ( bool sky in new[] { false, true } )
 		{
 			var mesh = new BspPhysicsMesh
 			{
 				SurfaceName = surface,
-				PassAudio = transparent
+				Kind = sky ? BspCollisionKind.Sky : otherKind
 			};
 			mesh.Vertices.AddRange( vertices );
 			for ( int triangle = 0; triangle < nTriangles; triangle++ )
 			{
-				if ( audioFaces[triangle] != transparent )
+				if ( skyFaces[triangle] != sky )
 					continue;
 				var name = TriangleSurface( data, triStart + triangle * 16, surface, materialTable );
 				mesh.SurfaceNames.Add( name );
@@ -465,7 +462,7 @@ internal partial class BspFile
 		}
 	}
 
-	internal bool BrushSidePassesAudio( int brushIndex, Vector3 normal )
+	internal bool BrushSideIsSky( int brushIndex, Vector3 normal )
 	{
 		var brush = collisionBrushes[brushIndex];
 		float best = -1;

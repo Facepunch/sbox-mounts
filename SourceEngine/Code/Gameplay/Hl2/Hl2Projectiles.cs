@@ -62,6 +62,11 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
+		if ( tr.HasTag( "source1_sky" ) )
+		{
+			GameObject.Destroy();
+			return;
+		}
 		if ( DamageTarget( tr ) )
 		{
 			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody" );

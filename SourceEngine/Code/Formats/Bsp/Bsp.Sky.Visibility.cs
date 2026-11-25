@@ -209,7 +209,7 @@ internal partial class BspFile
 			var filtered = new BspPhysicsMesh
 			{
 				SurfaceName = source.SurfaceName,
-				PassAudio = source.PassAudio
+				Kind = source.Kind
 			};
 			var vertices = new Dictionary<uint, uint>();
 			for ( int offset = 0; offset < source.Indices.Count; offset += 3 )
