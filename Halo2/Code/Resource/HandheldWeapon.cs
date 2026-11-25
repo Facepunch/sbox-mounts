@@ -16,6 +16,9 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		"energy_blade_useless" => new( map, weapon, "Depleted Energy Sword", WeaponHolds.Melee ),
 		"plasma_pistol" => new( map, weapon, "Plasma Pistol", WeaponHolds.Pistol ),
 		"magnum" => new( map, weapon, "Magnum", WeaponHolds.Pistol ),
+		"rocket_launcher" => new( map, weapon, "Rocket Launcher", WeaponHolds.Shoulder ),
+		"flak_cannon" => new( map, weapon, "Fuel Rod Gun", WeaponHolds.Shoulder ),
+		"needler" => new( map, weapon, "Needler", WeaponHolds.Pistol ),
 		"smg" => new( map, weapon, "SMG", WeaponHolds.Smg ),
 		"battle_rifle" => new( map, weapon, "Battle Rifle", WeaponHolds.Rifle ),
 		"sniper_rifle" => new( map, weapon, "Sniper Rifle", WeaponHolds.Rifle ),
@@ -25,6 +28,24 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		"beam_rifle" => new( map, weapon, "Beam Rifle", WeaponHolds.Rifle ),
 		_ => null
 	};
+
+	bool ExplodesOnContact => Name is "flak_cannon" or "rocket_launcher";
+
+	TagEntry DetonationEffect
+	{
+		get
+		{
+			if ( !ExplodesOnContact ) return null;
+			int projectile = Address( Reference( PrimaryBarrel + 0x8c ) );
+			return Reference( projectile + 0x140 ) ?? Reference( projectile + 0xf8 );
+		}
+	}
+
+	internal void RegisterDetonation( MountContext context )
+	{
+		if ( DetonationEffect is { PrimaryClass: "effe" } tag )
+			context.Add( ResourceType.PrefabFile, ImpactPath( tag ), new ImpactLoader( this, tag ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+	}
 
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
@@ -103,6 +124,24 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 
 	void ConfigureProjectile( HandheldWeapon gun, int barrel, int projectile, int damage )
 	{
+		if ( Name == "needler" )
+		{
+			int detonation = Address( Reference( projectile + 0x108 ) );
+			gun.Shard = new( new Vector2( Float( projectile + 0x184 ), Float( projectile + 0x188 ) ),
+				Float( Header + 0x208 ), Float( Header + 0x20c ) * 120, new Vector2( Float( projectile + 0xd4 ), Float( projectile + 0xd8 ) ),
+				Float( detonation + 0x20 ), Float( detonation + 0x40 ) * 120,
+				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), detonation ) );
+			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
+		}
+		if ( ExplodesOnContact && Reference( projectile + 0x100 ) is { PrimaryClass: "!tpj" } explosion )
+		{
+			int area = Address( explosion );
+			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
+			if ( DetonationEffect is {} effect ) gun.DetonationEffectPath = Host.AssetPath( map, effect.TagPath, "prefab" );
+			gun.ImpactBlast = new( Float( area ) * 120, Float( area + 4 ) * 120, Float( area + 0x18 ) * 120,
+				Float( area + 0x1c ), Float( area + 0x20 ), Float( area + 0x40 ) * 120,
+				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), area ) );
+		}
 		gun.Trail = ReadTrail( projectile );
 		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
 		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;

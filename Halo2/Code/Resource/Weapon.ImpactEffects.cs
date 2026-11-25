@@ -1,0 +1,118 @@
+using Halo2.Blam;
+using Sandbox.Mounting;
+using static Halo2.PelletImpactEffect;
+
+namespace Halo2;
+
+internal abstract partial class WeaponLoader
+{
+	protected string ImpactPath( TagEntry tag ) => $"{map.Header.MapName}/{tag.TagPath.Replace( '\\', '/' )}.prefab";
+
+	protected sealed class ImpactLoader( WeaponLoader source, TagEntry tag ) : ResourceLoader<Halo2Mount>
+	{
+		PrefabFile prefab;
+		protected override object Load()
+		{
+			var builder = new PrefabBuilder().WithName( Path );
+			using ( builder.Scope() )
+				new GameObject().AddComponent<PelletImpactEffect>().Visuals = source.ReadContactVisuals( tag );
+			return prefab = builder.Create();
+		}
+
+		protected override void Shutdown()
+		{
+			PrefabBuilder.Destroy( prefab );
+			base.Shutdown();
+		}
+	}
+
+	ContactVisuals ReadContactVisuals( TagEntry contact )
+	{
+		int events = Address( contact ) + 20;
+		int eventCount = map.ReadInt32( events );
+		if ( eventCount == 0 ) return default;
+		int row = Block( events );
+		var timeline = new ContactEvent[eventCount];
+		for ( int i = 0; i < eventCount; i++, row += 56 )
+		{
+			int parts = map.ReadInt32( row + 24 );
+			var marks = new List<ImpactDecal>();
+			var lights = new List<ImpactLight>();
+			if ( parts > 0 )
+			{
+				int part = Block( row + 24 );
+				for ( int j = 0; j < parts; j++, part += 56 )
+				{
+					if ( ReadContactMark( contact, part ) is {} mark ) marks.Add( mark );
+					else if ( ReadLight( part ) is {} light ) lights.Add( light );
+				}
+			}
+			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) ) { Lights = lights.ToArray() };
+		}
+		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles || e.Lights.Length > 0 ) ? new ContactVisuals( timeline ) : null;
+	}
+
+	ImpactLight ReadLight( int part )
+	{
+		if ( Reference( part + 12 ) is not { PrimaryClass: "hgil", DataSize: >= 228 } tag ) return null;
+		int p = Address( tag );
+		if ( Short( p + 4 ) != 0 || Short( p + 0xb6 ) != 0 || Float( p + 0xb0 ) <= 0 ||
+			map.ReadInt32( p + 0x34 ) != 0 || map.ReadInt32( p + 0xc4 ) != 0 || map.ReadInt32( p + 0xcc ) != 0 || map.ReadInt32( p + 0xd4 ) != 0 ) return null;
+		Color ColorAt( int i ) => new( Float( p + i ), Float( p + i + 4 ), Float( p + i + 8 ) );
+		return new( Float( p + 0xb0 ), new Vector2( Float( p + 8 ), Float( p + 12 ) ) * (120 * Float( p + 24 )),
+			ColorAt( 0x58 ), ColorAt( 0x64 ), new Vector2( Float( p + 0x70 ), Float( p + 0x74 ) ) * 2 );
+	}
+
+	ImpactDecal ReadContactMark( TagEntry contact, int part )
+	{
+		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
+		int header = Address( tag );
+		int layer = Short( header + 4 );
+		if ( layer is not (2 or 3) || Reference( header + 8 ) is not null ) return default;
+		DecalProjection projection = null;
+		if ( layer == 3 )
+		{
+			int locations = Address( contact ) + 12;
+			int index = Short( part + 4 );
+			if ( (uint)index >= map.ReadInt32( locations ) ) return default;
+			var marker = map.ResolveStringId( map.ReadInt32( Block( locations ) + index * 4 ) );
+			if ( marker is not ("forward" or "gravity") ) return default;
+			projection = new DecalProjection( marker, new Vector2( Float( part + 20 ), Float( part + 24 ) ) * 120, Float( part + 28 ) );
+		}
+		if ( Reference( header + 136 ) is not {} bitmap ) return default;
+		int sequences = Address( bitmap ) + 60;
+		int count = map.ReadInt32( sequences );
+		string path = Host.AssetPath( map, bitmap.TagPath, "vtex" );
+		if ( count > 0 ) path += "/sheet.vtex";
+		var texture = Texture.Load( path );
+		if ( !texture.IsValid() || texture.IsError || (count > 0 && texture.SequenceCount != count) ) return default;
+
+		var sizes = new Vector2[System.Math.Max( count, 1 )];
+		var centers = new Vector2[sizes.Length];
+		sizes[0] = Vector2.One * 2;
+		if ( count > 0 )
+		{
+			int sequence = Block( sequences );
+			var scale = new Vector2( texture.Width, texture.Height ) / Float( header + 164 );
+			for ( int i = 0; i < count; i++, sequence += 60 )
+			{
+				int sprite = Block( sequence + 52 );
+				var bounds = Halo2TextureLoader.SpriteBounds( map, sprite + 8 );
+				sizes[i] = bounds.Size * scale;
+				centers[i] = (bounds.Size * 0.5f - new Vector2( Float( sprite + 24 ), Float( sprite + 28 ) )) * scale;
+			}
+		}
+		float lifetime = Float( header + 52 );
+		var tint = new ParticleGradient
+		{
+			Type = ParticleGradient.ValueType.Gradient,
+			GradientA = new Gradient( new Gradient.ColorFrame( 0, Color.White ), new Gradient.ColorFrame( 1 - Float( header + 60 ) / lifetime, Color.White ),
+				new Gradient.ColorFrame( 1, Color.White.WithAlpha( 0 ) ) )
+		};
+		float rejection = Float( header + 24 );
+		return new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,
+			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
+			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ) { Projection = projection, Layer = layer };
+	}
+}

@@ -9,7 +9,7 @@ internal sealed class WeaponAmmoLoader( string title, int capacity ) : ResourceL
 	protected override object Load() => new BaseAmmoResource { Title = title, MaxReserve = capacity };
 }
 
-internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceLoader<Halo2Mount>
+internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : ResourceLoader<Halo2Mount>
 {
 	protected readonly MapFile map = source;
 	protected readonly TagEntry weapon = tag;

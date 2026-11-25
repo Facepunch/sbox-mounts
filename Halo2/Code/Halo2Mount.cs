@@ -204,6 +204,7 @@ public class Halo2Mount : BaseGameMount
 					if ( i == 0 && HandheldWeaponLoader.ForTag( mapFile, tag, name ) is {} item )
 					{
 						item.Tags.Add( "weapon" );
+						item.RegisterDetonation( context );
 						if ( item.UsesMagazine )
 							context.Add( ResourceType.GameResource, item.AmmoPath, new WeaponAmmoLoader( $"{item.Title} rounds", item.MaxReserve ) );
 						context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", item );

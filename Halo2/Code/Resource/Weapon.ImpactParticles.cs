@@ -1,11 +1,57 @@
 using Halo2.Blam;
 using System;
 using static Halo2.PelletImpactEffect;
+using static Halo2.ShotgunLoader;
 
 namespace Halo2;
 
-internal sealed partial class ShotgunLoader
+internal abstract partial class WeaponLoader
 {
+	protected CurveRange ReadRange( int property, float units )
+	{
+		int data = Block( property + 8 );
+		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
+		int kind = map.ReadSpan( data, 1 )[0];
+		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;
+		int length = kind switch { 0 => 0, 1 => 4, 4 => 24, 5 => 80, 7 or 10 => 48, _ => throw new NotSupportedException( $"Unsupported particle curve {kind}" ) };
+		var first = ReadCurve( data + 20, false );
+		return new CurveRange( first, ranged ? ReadCurve( data + 20 + length, true ) : first );
+
+		Curve ReadCurve( int start, bool upper )
+		{
+			Curve.Frame Key( float t, float v ) => new( t, min + span * v ) { Mode = Curve.HandleMode.Linear };
+			if ( kind == 0 ) return new Curve( Key( 0, 0 ), Key( 1, 1 ) );
+			if ( kind == 1 ) return new Curve( Key( 0, upper ? 1 : 0 ) );
+			if ( kind == 4 )
+			{
+				float slope = Float( start + 16 ), intercept = Float( start + 20 );
+				return new Curve( Key( 0, intercept ), Key( 1, intercept + slope ) );
+			}
+			if ( kind == 5 )
+				return new Curve( Enumerable.Range( 0, 4 ).Select( i => Key( Float( start + 8 * i ), Float( start + 8 * i + 4 ) ) ) );
+
+			// The remaining four words of a cubic hold its polynomial coefficients.
+			int offset = start + 32;
+			float a = Float( offset ), b = Float( offset + 4 ), c = Float( offset + 8 ), d = Float( offset + 12 );
+			if ( kind == 10 )
+			{
+				Vector2 Point( int i ) => new( Float( start + i * 8 ), Float( start + i * 8 + 4 ) );
+				float head = (Point( 1 ) - Point( 0 )).LengthSquared;
+				float tail = (Point( 3 ) - Point( 2 )).LengthSquared;
+				float exponent = tail <= 0.0001f || MathF.Abs( head - tail ) <= 0.0001f ? 1
+					: head <= 0.0001f ? 0 : BitConverter.Int32BitsToSingle( (BitConverter.SingleToInt32Bits( head ) >> 1) + 0x1fc00000 ) / MathF.Sqrt( tail );
+				// Bake the power-remapped cubic into the particle system's normalized curve.
+				return new Curve( Enumerable.Range( 0, 65 ).Select( i =>
+				{
+					float time = i / 64f, t = MathF.Pow( time, exponent );
+					return Key( time, (((a * t + b) * t + c) * t + d).Clamp( 0, 1 ) );
+				} ) );
+			}
+			return new Curve( new Curve.Frame( 0, min + span * d, 0, span * c ),
+				new Curve.Frame( 1, min + span * (a + b + c + d), -span * (3 * a + 2 * b + c), 0 ) );
+		}
+	}
+
 	ImpactEmitter[] ReadImpactEmitters( TagEntry contact, int row )
 	{
 		int count = map.ReadInt32( row + 48 );

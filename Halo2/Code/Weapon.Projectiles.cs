@@ -1,5 +1,8 @@
 namespace Halo2;
 
+public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
+	float Damage, float Force, Dictionary<string, float> BodyScales );
+
 public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistics, float Speed, float MinimumAngle, float DryGravity, float WetGravity,
 	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
 	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, float TurnRate, float TrackingAngle, float TrackingRange );
@@ -7,6 +10,8 @@ public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistic
 public abstract partial class Weapon
 {
 	[Property] public float MinimumPelletAngle { get; set; } = 2;
+	[Property] public ShardDefinition Shard { get; set; }
+	[Property] public string ProjectileModel { get; set; }
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AirGravityScale { get; set; }
 	[Property] public float WaterGravityScale { get; set; } = 0.2f;
@@ -35,7 +40,10 @@ public abstract partial class Weapon
 		public Vector3 Offset;
 		public Vector3 Velocity;
 		public float Travelled;
+		public float TurnRate;
+		public float FuseSeconds;
 		public ProjectileContrail Trail;
+		public GameObject Model;
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
@@ -51,20 +59,38 @@ public abstract partial class Weapon
 		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
 		// Project before spread, then apply the inherited speed along each pellet's direction.
 		float inherited = System.MathF.Max( 0, (aim.x * velocity.x + aim.z * velocity.z) + aim.y * velocity.y );
-		var pellets = new Pellet[(discharge?.Ballistics ?? Ballistics).Pellets];
+		var ballistics = discharge?.Ballistics ?? Ballistics;
+		if ( speed <= 0 || ballistics.Range <= 0 ) return;
+		var model = ProjectileModel is { Length: > 0 } path ? Model.Load( path ) : null;
+		var pellets = new Pellet[ballistics.Pellets];
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
 		for ( int i = 0; i < pellets.Length; i++ )
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
 			pellets[i].Velocity = forward * speed + forward * inherited;
+			pellets[i].TurnRate = discharge?.TurnRate ?? 0;
+			if ( Shard is {} shard )
+			{
+				pellets[i].TurnRate = (float)SampleRange( shard.TurnRate, ref randomState );
+				pellets[i].FuseSeconds = (float)(System.Math.Ceiling( SampleRange( shard.FuseSeconds, ref randomState ) * 30 ) / 30);
+			}
+			if ( model is { IsError: false } )
+			{
+				var body = new GameObject( false, model.Name );
+				body.NetworkMode = NetworkMode.Object;
+				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward ) );
+				body.AddComponent<ModelRenderer>().Model = model;
+				body.NetworkSpawn( true, null );
+				pellets[i].Model = body;
+			}
 			if ( trail is { Lifetime: > 0, PointRate: > 0 } )
 				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity );
 		}
 		GameObject target = null;
 		Vector3 localPoint = default;
-		if ( discharge is { TurnRate: > 0 } && Holder is PlayerController player )
+		if ( (discharge is { TurnRate: > 0 } || Shard is not null) && Holder is PlayerController player )
 		{
-			target = FindAttackTarget( player, new Ray( player.EyeTransform.Position, aim ), new( discharge.TrackingAngle, discharge.TrackingRange ), out var point );
+			target = FindAttackTarget( player, new Ray( player.EyeTransform.Position, aim ), new( discharge?.TrackingAngle ?? Shard.TrackingAngle, discharge?.TrackingRange ?? Shard.TrackingRange ), out var point );
 			if ( target.IsValid() ) localPoint = target.WorldTransform.PointToLocal( point );
 		}
 		_ = FlyPellets( ray.Position, pellets, Attacker, discharge, target, localPoint );
@@ -90,7 +116,8 @@ public abstract partial class Weapon
 		bool explosive = discharge?.Explosive ?? PelletExplosive;
 		float airGravity = discharge?.DryGravity ?? AirGravityScale, waterGravity = discharge?.WetGravity ?? WaterGravityScale;
 		var tags = AttackDamageTags;
-		if ( (discharge?.Speed ?? PelletSpeed) <= 0 || ballistics.Range <= 0 ) return;
+		var blast = ImpactBlast;
+		var detonation = DetonationEffectPath;
 		bool originWet = InWater( origin );
 		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
@@ -122,7 +149,7 @@ public abstract partial class Weapon
 					var direction = pellet.Velocity.Normal;
 					float angle = System.MathF.Acos( Vector3.Dot( direction, desired ).Clamp( -1, 1 ) );
 					if ( angle > 0 && desired.LengthSquared > 0 )
-						pellet.Velocity = Vector3.Slerp( direction, desired, System.MathF.Min( 1, discharge.TurnRate * dt / angle ) ).Normal * pellet.Velocity.Length;
+						pellet.Velocity = Vector3.Slerp( direction, desired, System.MathF.Min( 1, pellet.TurnRate * dt / angle ) ).Normal * pellet.Velocity.Length;
 				}
 				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
@@ -147,6 +174,11 @@ public abstract partial class Weapon
 				{
 					pellet.Offset += displacement;
 					pellet.Travelled += distance;
+					if ( pellet.Model.IsValid() )
+					{
+						if ( atRange ) pellet.Model.Destroy();
+						else pellet.Model.WorldTransform = new Transform( origin + pellet.Offset, Rotation.LookAt( pellet.Velocity ) );
+					}
 					if ( atRange )
 					{
 						pellet.Trail?.Finish( origin + pellet.Offset, firedAt + tick / 30.0 + step );
@@ -177,6 +209,11 @@ public abstract partial class Weapon
 				hit.Direction = pellet.Velocity.Normal;
 				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
+				if ( Shard is {} shard && hit.GameObject.IsValid() && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
+					_ = AttachShard( scene, shard, pellet, hit, attacker );
+				else if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
+				if ( blast is not null ) Detonate( scene, blast, hit.HitPosition, hit.Normal, attacker );
+				if ( detonation is not null ) PresentDetonation( detonation, hit.GameObject, hit.HitPosition, hit.Normal, hit.Direction );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
 			}
@@ -187,6 +224,38 @@ public abstract partial class Weapon
 			}
 
 		}
+	}
+
+	static double SampleRange( Vector2 range, ref uint random ) => range.x == range.y ? range.x
+		: range.x + ((double)range.y - range.x) * (BlamRandom.Next( ref random ) * (double)(1f / 65535));
+
+	async System.Threading.Tasks.Task AttachShard( Scene scene, ShardDefinition shard, Pellet pellet, SceneTraceResult hit, GameObject attacker )
+	{
+		var target = hit.GameObject;
+		if ( !target.IsValid() ) { if ( pellet.Model.IsValid() ) pellet.Model.Destroy(); return; }
+		var local = target.WorldTransform.PointToLocal( hit.HitPosition );
+		if ( pellet.Model.IsValid() )
+		{
+			pellet.Model.WorldPosition = hit.HitPosition;
+			pellet.Model.SetParent( target, true );
+		}
+		var clock = TaskSource.Create( scene.EnabledToken );
+		double due = Time.NowDouble + pellet.FuseSeconds;
+		while ( target.IsValid() )
+		{
+			using ( scene.Push() )
+			{
+				if ( Time.NowDouble >= due )
+				{
+					hit.StartPosition = hit.HitPosition = target.WorldTransform.PointToWorld( local );
+					float damage = shard.Damage * BodyMaterial.DamageScale( hit, shard.BodyScales, true );
+					ApplyDelayedHit( hit, damage, shard.Force, attacker, new TagSet { "explosion" }, false );
+					break;
+				}
+			}
+			await clock.Frame();
+		}
+		if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
 	}
 
 	protected virtual void ProjectileImpacts( Vector3 origin, PelletResult[] results ) =>

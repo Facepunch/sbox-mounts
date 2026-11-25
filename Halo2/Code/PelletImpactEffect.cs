@@ -17,7 +17,12 @@ public sealed partial class PelletImpactEffect : Component
 		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1 };
 	}
 
-	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters );
+	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness );
+
+	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters )
+	{
+		public ImpactLight[] Lights { get; init; } = [];
+	}
 	public sealed record ContactVisuals
 	{
 		public ContactEvent[] Events { get; }
@@ -85,6 +90,7 @@ public sealed partial class PelletImpactEffect : Component
 			using ( parent.Scene.Push() )
 			{
 				var transform = parent.WorldTransform.ToWorld( local );
+				foreach ( var light in entry.Lights ) _ = PlayLight( parent, transform, light );
 				foreach ( var mark in entry.Marks )
 				{
 					if ( mark.Projection is {} projection )
@@ -114,6 +120,30 @@ public sealed partial class PelletImpactEffect : Component
 			}
 			elapsed = end;
 		}
+	}
+
+	static async Task PlayLight( GameObject parent, Transform transform, ImpactLight data )
+	{
+		var go = new GameObject( parent, false, "Impact light" );
+		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		go.WorldTransform = transform;
+		var light = go.AddComponent<PointLight>();
+		var clock = TaskSource.Create();
+		TimeSince elapsed = 0;
+		while ( go.IsValid() )
+		{
+			using ( go.Scene.Push() )
+			{
+				float control = 1 - System.MathF.Floor( elapsed * 30 ) / (data.Duration * 30);
+				if ( control <= 0 ) break;
+				light.Radius = MathX.Lerp( data.Radius.x, data.Radius.y, control );
+				light.LightColor = Color.Lerp( data.EndColor, data.StartColor, control );
+				light.Intensity = MathX.Lerp( data.Brightness.x, data.Brightness.y, control ).Clamp( 0, 4 );
+				go.Enabled = true;
+			}
+			await clock.Frame();
+		}
+		if ( go.IsValid() ) go.Destroy();
 	}
 
 	static void PlaceParticles( Surface surface, GameObject parent, Transform transform )
