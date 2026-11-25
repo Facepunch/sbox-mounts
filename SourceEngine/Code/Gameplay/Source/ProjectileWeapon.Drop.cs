@@ -24,7 +24,8 @@ public sealed partial class ProjectileWeapon
 		var velocity = _dropVelocity.Value;
 		var gravityStep = Vector3.Down * (600f * Time.Delta);
 		var end = WorldPosition + (velocity + gravityStep * 0.5f) * Time.Delta;
-		SceneTraceResult Sweep( Vector3 to ) => Scene.Trace.Ray( WorldPosition, to ).Size( new Vector3( 8 ) ).WithTag( "world" ).Run();
+		SceneTraceResult Sweep( Vector3 to ) => Scene.Trace.Ray( WorldPosition, to ).Size( new Vector3( 8 ) )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "player", "npc", "vehicle", "projectile" ).Run();
 		var hit = Sweep( end );
 		WorldPosition = hit.EndPosition;
 		velocity += gravityStep;
@@ -32,7 +33,7 @@ public sealed partial class ProjectileWeapon
 		if ( !hit.Hit && !hit.StartedSolid ) return;
 
 		// After the sticky touch expires, the pod slides like an ordinary dropped weapon.
-		if ( _pickupAllowed > 0 || hit.StartedSolid )
+		if ( hit.StartedSolid || (_pickupAllowed > 0 && hit.GameObject.Tags.Has( "world" )) )
 		{
 			_dropVelocity = null;
 			return;
