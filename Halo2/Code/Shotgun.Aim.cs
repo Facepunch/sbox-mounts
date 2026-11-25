@@ -44,7 +44,7 @@ public sealed partial class Shotgun
 	}
 
 	// Both angular and distance confidence are full up to half the authored limit.
-	static float Falloff( float value, float limit ) => limit > 0 ? (2 * (1 - value / limit)).Clamp( 0, 1 ) : 0;
+	static float Falloff( float value, float limit ) => limit > 0 ? ((limit - value) / (limit * 0.5f)).Clamp( 0, 1 ) : 0;
 
 	float LookConfidence( PlayerController player, out GameObject targetObject, out Vector3 targetOffset )
 	{
