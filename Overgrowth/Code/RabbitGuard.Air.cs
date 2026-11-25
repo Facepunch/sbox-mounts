@@ -23,6 +23,8 @@ public sealed partial class RabbitGuard
 		hull.Tags.Add( "playercontroller", CharacterCollisionRules.FighterHull );
 		var sphere = hull.AddComponent<SphereCollider>( false );
 		sphere.Radius = LegRadius;
+		// HandleAirCollisions slides along walls with no tangential friction.
+		sphere.Friction = 0f;
 		return sphere;
 	}
 
@@ -81,7 +83,31 @@ public sealed partial class RabbitGuard
 
 	[Sync] bool LeftFootJump { get; set; }
 	bool nextJumpUsesLeft, keepJumpFacing;
-	float jumpLaunch, airPhase, pendingTuck;
+	float jumpLaunch, pendingTuck;
+	AirCycle jumpCycle, wallCycle;
+
+	// Overgrowth keeps the outgoing reader advancing at its last blend coordinates during a fade.
+	struct AirCycle
+	{
+		public float Phase;
+		float frequency;
+		TimeSince lastSample;
+
+		public float Advance( float rate )
+		{
+			frequency = rate;
+			lastSample = 0f;
+			float next = Phase + Time.Delta * rate;
+			Phase = next % 1f;
+			return next;
+		}
+
+		public void Fade( RabbitGuard guard, string channel )
+		{
+			if ( frequency > 0f && lastSample <= 0.25f )
+				guard.Renderer.Animation.Parameters.Set( channel, (Phase + lastSample * frequency) % 1f );
+		}
+	}
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
 	BodyFallSounds bodySounds;
@@ -190,7 +216,7 @@ public sealed partial class RabbitGuard
 				bool jumping = playing != Wall && Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
 				jumpLaunch = jumping ? 1f : 0f;
 				if ( playing != Wall ) keepJumpFacing = jumping && velocity.WithZ( 0f ).Length <= 0.4f;
-				airPhase = 0;
+				jumpCycle.Phase = 0f;
 			}
 			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
 				TurnInAir( velocity, Time.Delta );
@@ -198,13 +224,14 @@ public sealed partial class RabbitGuard
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
 			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + jumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
-			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = AirTuck };
-			float frequency = boundAnimations.AirMovement.Evaluate( controls, airPhase, LeftFootJump ).Frequency;
+			up = Math.Clamp( 0.5f - up * 0.5f, 0f, 1f );
+			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = AirTuck, Up = up };
+			float frequency = boundAnimations.AirMovement.Evaluate( controls, jumpCycle.Phase, LeftFootJump ).Frequency;
 			Renderer.Animation.Parameters.Set( "tuck_coord", AirTuck );
-			airPhase = (airPhase + Time.Delta * frequency) % 1f;
-			Renderer.Animation.Parameters.Set( "up_coord", Math.Clamp( 0.5f - up * 0.5f, 0f, 1f ) );
+			jumpCycle.Advance( frequency );
+			Renderer.Animation.Parameters.Set( "up_coord", up );
 			Renderer.Animation.Parameters.Set( "flail_coord", flail );
-			Renderer.Animation.Parameters.Set( "air_phase", airPhase );
+			Renderer.Animation.Parameters.Set( "air_phase", jumpCycle.Phase );
 			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		return pose;

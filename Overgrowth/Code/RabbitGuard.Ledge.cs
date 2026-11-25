@@ -15,7 +15,8 @@ public sealed partial class RabbitGuard
 	Vector3 climbDirection, climbOrigin;
 	Vector3 climbPreviousTravel, climbNextTravel;
 	int climbTravelTick;
-	float climbEntryVelocity, climbInitialHeightOffset;
+	[Sync] float ClimbEntryVelocity { get; set; }
+	float climbInitialHeightOffset;
 	internal bool OnLedge => LedgeAnimation is not null;
 	float jumpFuel, climbAirClock;
 	TimeSince sinceClimbLaunch;
@@ -23,6 +24,7 @@ public sealed partial class RabbitGuard
 	Vector3 climbApproachVelocity;
 	float climbStartDuck, climbStartDuckVelocity;
 	int climbGroundTicks, climbWindupTicks;
+	const float GhostClimbSpeed = 0.1f * 40f;
 	const float ClimbStep = 4f / 120f;
 	internal const float LegRadius = 18f;
 
@@ -249,9 +251,9 @@ public sealed partial class RabbitGuard
 			// UpdateLedge applies its height spring and forward input once before ghost movement.
 			// The reach animation suppresses the forward input while the height spring stays active.
 			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
-			climbEntryVelocity = (gravity * ClimbStep + climbInitialHeightOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
+			ClimbEntryVelocity = (gravity * ClimbStep + climbInitialHeightOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
 			const float ledgeMoveSpeed = 10f;
-			if ( LedgeAnimation == LedgeHang ) climbEntryVelocity += 40f * (70f * ledgeMoveSpeed / 120f) * ClimbStep * ledgeMoveSpeed;
+			if ( LedgeAnimation == LedgeHang ) ClimbEntryVelocity += 40f * (70f * ledgeMoveSpeed / 120f) * ClimbStep * ledgeMoveSpeed;
 			climbTravelTick = 0;
 			climbPreviousTravel = climbNextTravel = default;
 			LedgeAnimation = ClimbUp;
@@ -269,7 +271,7 @@ public sealed partial class RabbitGuard
 			float entry = Math.Min( time, ClimbStep );
 			float ghost = time - entry;
 			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
-			float rise = entry * climbEntryVelocity + ghost * 4f + time * gravity * ClimbStep;
+			float rise = entry * ClimbEntryVelocity + ghost * GhostClimbSpeed + time * gravity * ClimbStep;
 			// The native step moves by 4 * 0.02 of the offset, then retains 0.98^4.
 			float retain = MathF.Pow( 0.98f, ghost * 120f );
 			float correction = climbInitialHeightOffset * (1f - retain) * (0.08f / (1f - MathF.Pow( 0.98f, 4f )));

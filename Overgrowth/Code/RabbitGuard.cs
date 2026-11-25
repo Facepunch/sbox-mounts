@@ -188,6 +188,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
+		if ( pose != FreeAir ) jumpCycle.Fade( this, "air_phase" );
+		if ( pose != Wall ) wallCycle.Fade( this, "wall_phase" );
 		if ( pose == Locomotion && Animation.IsGrounded && GaitSpeed <= 0.6f * 40f )
 			pose = CombatPosture || AlertStage == 2 ? Ready : AlertStage == 1 ? Watch : Idle;
 		if ( pose == Ready && CombatPosture ) pose = Threat;

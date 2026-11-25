@@ -60,6 +60,15 @@ public sealed partial class RabbitGuard
 		return pose;
 	}
 
+	// ShimmyAnim updates its lagged velocity on entry. Ghost movement then stops updating the grippers.
+	float PullUpBodyLag( float pullTime )
+	{
+		float lag = ClimbEntryVelocity * (1f - MathF.Pow( 0.95f, 4f ));
+		float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
+		float velocity = float.Lerp( ClimbEntryVelocity, GhostClimbSpeed, Math.Min( 1f, pullTime / ClimbStep ) );
+		return (lag - (velocity + gravity * ClimbStep)) * 0.1f;
+	}
+
 	Vector3 LedgeGripOffsets( Transform model, Vector3 wall, float dt )
 	{
 		if ( previousGrabTime != LedgeGrabTime )
@@ -96,7 +105,7 @@ public sealed partial class RabbitGuard
 		float pullTime = Math.Max( 0f, elapsed - 1f / 120f );
 		float weight = 1f - Math.Min( 1f, pullTime * 5f );
 		var height = Vector3.Up * (LedgeHeightOffset * (1f - weight));
-		var body = ((gripShift * 0.5f).WithZ( gripShift.z ) - wall * 4f + Vector3.Down * (climbing ? 0.4f : 0f)) * weight + height;
+		var body = ((gripShift * 0.5f).WithZ( gripShift.z ) - wall * 4f + Vector3.Up * (climbing ? PullUpBodyLag( pullTime ) : 0f)) * weight + height;
 		float difference = LedgeHeight - LedgeGrabOrigin.z;
 		float grabTime = climbing ? pullTime + ClimbStep : elapsed;
 		float progress = Math.Clamp( grabTime * 400f / (MathF.Abs( difference ) + 2f), 0f, 1f );

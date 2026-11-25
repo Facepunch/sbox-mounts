@@ -60,7 +60,7 @@ public sealed partial class RabbitGuard
 	void ReadWallPose()
 	{
 		var parameters = Renderer.Animation.Parameters;
-		parameters.TryGetFloat( "air_phase", out float phase );
+		parameters.TryGetFloat( "wall_phase", out float phase );
 		parameters.TryGetFloat( "wall_speed_coord", out float speed );
 		parameters.TryGetFloat( "wall_dir_coord", out float direction );
 		ReadMovementPose( boundAnimations.WallMovement, boundAnimations.WallRig, new( speed, 0f, 0f ) { Direction = direction }, phase, false );
@@ -75,13 +75,13 @@ public sealed partial class RabbitGuard
 			Direction = velocity.Normal.Dot( right ),
 			GroundSpeed = velocity.Length
 		};
-		if ( playing != Wall ) airPhase = 0f;
-		var motion = boundAnimations.WallMovement.Evaluate( controls, airPhase, false );
-		float next = airPhase + Time.Delta * motion.Frequency;
-		PlayCycleSteps( motion.Events, airPhase, next );
-		airPhase = next % 1f;
+		if ( playing != Wall ) wallCycle.Phase = 0f;
+		var motion = boundAnimations.WallMovement.Evaluate( controls, wallCycle.Phase, false );
+		float previous = wallCycle.Phase;
+		float next = wallCycle.Advance( motion.Frequency );
+		PlayCycleSteps( motion.Events, previous, next );
 		Renderer.Animation.Parameters.Set( "wall_speed_coord", controls.Speed );
 		Renderer.Animation.Parameters.Set( "wall_dir_coord", controls.Direction );
-		Renderer.Animation.Parameters.Set( "air_phase", airPhase );
+		Renderer.Animation.Parameters.Set( "wall_phase", wallCycle.Phase );
 	}
 }

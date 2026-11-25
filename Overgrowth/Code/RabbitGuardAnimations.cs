@@ -83,6 +83,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
+		var wallPhase = graph.FloatParameter( "wall_phase" );
 		var wallSpeed = graph.FloatParameter( "wall_speed_coord" );
 		var wallDirection = graph.FloatParameter( "wall_dir_coord", -1f, 1f );
 		var speed = graph.FloatParameter( "ground_speed" );
@@ -263,7 +264,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( CombatPose( ledgeClip, ledgePhase ) );
 			}
 			if ( name == RabbitGuard.Wall )
-				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, coordinates["air_phase"], false ) );
+				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, wallPhase, false ) );
 			if ( name == RabbitGuard.FreeAir )
 			{
 				GraphBuilder.Node Jump( bool mirrored ) => air.Build( graph, label => coordinates[label], coordinates["air_phase"], mirrored );
