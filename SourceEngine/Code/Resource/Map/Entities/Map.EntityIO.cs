@@ -18,6 +18,9 @@ partial class MapLoader
 			{
 				switch ( component )
 				{
+					case Hl2.BugbaitSensor sensor:
+						sensor.OnBaited = BuildOutput( entity, "OnBaited", true );
+						break;
 					case SourceGlassPane pane:
 						pane.OnBreak = BuildOutput( entity, "OnBreak", true );
 						break;
@@ -38,7 +41,8 @@ partial class MapLoader
 						continue;
 					var supported = ioEntities.TryGetValue( entity, out var component ) && (component is Door
 						&& (key.Equals( "OnOpen", StringComparison.OrdinalIgnoreCase ) || key.Equals( "OnClose", StringComparison.OrdinalIgnoreCase ))
-						|| component is SourceGlassPane && key.Equals( "OnBreak", StringComparison.OrdinalIgnoreCase )
+						|| component is Hl2.BugbaitSensor && key.Equals( "OnBaited", StringComparison.OrdinalIgnoreCase )
+					|| component is SourceGlassPane && key.Equals( "OnBreak", StringComparison.OrdinalIgnoreCase )
 						|| component is Button && key.Equals( "OnPressed", StringComparison.OrdinalIgnoreCase ));
 					if ( !supported )
 						warnings.Add( $"Entity '{entity.Get( "classname" )}' output '{key}' has no native component/Doo event; omitted." );
@@ -98,6 +102,23 @@ partial class MapLoader
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
 					Member = $"{typeof( SourceGlassPane ).FullName}.{(restore ? nameof( SourceGlassPane.Restore ) : nameof( SourceGlassPane.ShatterAt ))}",
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
+				};
+			}
+			if ( target is Hl2.BugbaitSensor )
+			{
+				var listener = input.ToLowerInvariant() switch
+				{
+					"enable" => nameof( Hl2.BugbaitSensor.StartListening ),
+					"disable" => nameof( Hl2.BugbaitSensor.StopListening ),
+					"toggle" => nameof( Hl2.BugbaitSensor.ToggleListening ),
+					_ => null
+				};
+				if ( listener is null ) return null;
+				return new Doo.InvokeBlock
+				{
+					InvokeType = Doo.InvokeType.Member,
+					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
+					Member = $"{typeof( Hl2.BugbaitSensor ).FullName}.{listener}"
 				};
 			}
 			if ( target is not Door ) return null;

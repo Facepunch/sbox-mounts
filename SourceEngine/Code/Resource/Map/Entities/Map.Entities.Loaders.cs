@@ -26,6 +26,7 @@ partial class MapLoader
 			"func_door" => new DoorEntityLoader(),
 			"func_door_rotating" => new RotatingDoorEntityLoader(),
 			"func_button" => new ButtonEntityLoader(),
+			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
 			"info_projecteddecal" => new ProjectedDecalEntityLoader(),
 			"env_soundscape" => new SoundscapeEntityLoader(),
@@ -72,6 +73,29 @@ partial class MapLoader
 		}
 
 		builder.Finish();
+	}
+
+	private sealed class BugbaitSensorLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			var point = new GameObject( true, entity.Get( "targetname", "point_bugbait" ) )
+			{
+				Parent = builder.World,
+				LocalPosition = entity.Vector( "origin" )
+			};
+			var sensor = point.AddComponent<Hl2.BugbaitSensor>();
+			var flags = entity.Integer( "spawnflags" );
+			var radius = entity.Number( "radius" );
+			sensor.Radius = radius == 0 ? 512 : radius;
+			sensor.Listening = entity.Integer( "Enabled" ) != 0;
+			sensor.SuppressCall = (flags & 1) != 0;
+			sensor.DetectThrows = (flags & 2) == 0;
+			sensor.DetectSqueezes = (flags & 4) == 0;
+			builder.RegisterEntityIO( entity, sensor );
+		}
 	}
 
 	private sealed class SpawnEntityLoader : EntityLoader
