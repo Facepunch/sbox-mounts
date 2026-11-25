@@ -88,6 +88,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
 	bool _scopeHidden;
+	SourceModelSequenceData[] _hitSwings = [], _missSwings = [];
 	string _flashType;
 	string _mount;
 
@@ -103,7 +104,12 @@ public sealed class SourceViewModel : BaseWeaponModel
 		EjectBrass = null;
 		TracerEffect = null;
 		_mount = SourceMount.Of( model );
-		var sequences = model.GetData<SourceModelSequenceData[]>() ?? [];
+		var sequences = SourceModelSequences.Of( model ).All;
+		var clips = model.AnimationClips();
+		SourceModelSequenceData[] Swings( string activity ) => _weapon is SourceMeleeWeapon
+			? sequences.Where( s => !s.Delta && s.Activity == activity && clips.ContainsKey( s.Name ) ).ToArray() : [];
+		_hitSwings = Swings( "ACT_VM_HITCENTER" );
+		_missSwings = Swings( "ACT_VM_MISSCENTER" );
 		_flashType = SourceWeaponEffects.FlashType( sequences );
 		_plainClips = SourceWeaponClips.Resolve( model, this );
 		_silencedClips = _plainClips.AttachSilencer is null ? null : SourceWeaponClips.Resolve( model, this, true );
@@ -111,7 +117,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 		SelectClips();
 		if ( _pending == Draw ) _pending = DrawClip;
 		IsIncremental = _clips.Incremental;
-		_choices = [.. Choices( _plainClips ), .. _silencedClips is null ? [] : Choices( _silencedClips )];
+		_choices = [.. Choices( _plainClips ), .. _silencedClips is null ? [] : Choices( _silencedClips ),
+			.. _hitSwings.Select( s => (s.Name, false) ), .. _missSwings.Select( s => (s.Name, false) )];
 		_muzzleEventClips.Clear();
 		foreach ( var sequence in sequences )
 			if ( sequence.Events.Any( SourceAnimEvents.IsMuzzleFlash ) ) _muzzleEventClips.Add( sequence.Name );
@@ -451,6 +458,12 @@ public sealed class SourceViewModel : BaseWeaponModel
 	{
 		if ( _clips is null ) return;
 		BeginAttack();
+		var swings = hitPoint.HasValue ? _hitSwings : _missSwings;
+		if ( swings.Length > 0 )
+		{
+			Play( PickSwing( swings ) );
+			return;
+		}
 		var clip = AttackClip();
 		if ( hitPoint is { } hit && SourceWeaponEffects.HasTracer( _flashType, _tracerShots++ ) && Scene.Camera.IsValid() )
 			SourceWeaponEffects.PlayerTracer( _flashType, Scene.Camera.WorldTransform, hit, _mount );
@@ -484,6 +497,23 @@ public sealed class SourceViewModel : BaseWeaponModel
 	void FlashUnlessAuthored( string clip )
 	{
 		if ( !_muzzleEventClips.Contains( clip ?? "" ) ) MuzzleFlash( null, null );
+	}
+
+	string PickSwing( SourceModelSequenceData[] swings )
+	{
+		var total = 0;
+		foreach ( var swing in swings )
+		{
+			if ( swing.ActivityWeight < 0 && swing.Name == _animation.Current ) return swing.Name;
+			total += Math.Abs( swing.ActivityWeight );
+		}
+		var choice = Random.Shared.Next( total );
+		foreach ( var swing in swings )
+		{
+			choice -= Math.Abs( swing.ActivityWeight );
+			if ( choice < 0 ) return swing.Name;
+		}
+		return swings[0].Name;
 	}
 
 	string AttackClip()

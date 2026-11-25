@@ -68,7 +68,8 @@ public class SourceMeleeWeapon : SourceWeapon
 	{
 		if ( Application.IsDedicatedServer ) return;
 
-		base.OnShootEffects( shot );
+		// A missed swing has no impact point. The trace endpoint would select a hit animation.
+		base.OnShootEffects( shot.Hit ? shot : shot with { HitPosition = default } );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )

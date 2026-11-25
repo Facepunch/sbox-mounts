@@ -23,7 +23,7 @@ static class SourceWeaponEffects
 	/// <summary>The flash type authored on a model's own muzzle events.</summary>
 	public static string FlashType( Model model ) => FlashType( model?.GetData<SourceModelSequenceData[]>() ?? [] );
 
-	public static string FlashType( SourceModelSequenceData[] sequences ) => sequences.SelectMany( s => s.Events )
+	public static string FlashType( IEnumerable<SourceModelSequenceData> sequences ) => sequences.SelectMany( s => s.Events )
 		.Where( e => e.Name is "AE_MUZZLEFLASH" or "AE_NPC_MUZZLEFLASH" ).Select( e => FlashType( e.Options ) ).FirstOrDefault( x => x is not null );
 
 	/// <summary>
