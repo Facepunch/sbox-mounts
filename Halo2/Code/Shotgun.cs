@@ -197,8 +197,22 @@ public sealed class Shotgun : Weapon
 	{
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
 		CancelReload();
+		if ( Holder is PlayerController player )
+			ray = PlayerFiringRay( player, ray.Forward );
 		ShootEffects();
 		LaunchPellets( ray );
+	}
+
+	Ray PlayerFiringRay( PlayerController player, Vector3 aim )
+	{
+		var eye = player.EyeTransform.Position;
+		var muzzle = WorldModel.IsValid() ? WorldModel.GetComponent<SkinnedModelRenderer>()?.GetAttachment( "primary_trigger" ) : null;
+		if ( muzzle is null ) return new Ray( eye, aim );
+
+		var offset = muzzle.Value.Position - eye;
+		float distance = (aim.x * offset.x + aim.z * offset.z) + aim.y * offset.y;
+		var trace = BulletTrace( new Ray( eye, distance < 0 ? -aim : aim ), System.MathF.Abs( distance ), 0 ).Run();
+		return new Ray( trace.StartedSolid ? eye : trace.EndPosition, aim );
 	}
 
 	double? firstInsertAt;
