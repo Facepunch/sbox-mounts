@@ -73,6 +73,9 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
+	[Property, Feature( "Shooting" )] public float DryTapRefireDelay { get; set; }
+	internal float DryFireDuration { get; set; }
+	bool _holdingEmptyTrigger;
 	/// <summary>Seconds of spread recovery added by each shot. The HL2 pistol recovers while the trigger is released.</summary>
 	[Property, Feature( "Shooting" )] public float AccuracyPenaltyPerShot { get; set; }
 	float _accuracyPenalty;
@@ -123,11 +126,14 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	public override bool CanReload() => !_alternatePending && (!NpcControlled || _weaponConfigured) && base.CanReload();
 
 	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
+	protected override bool WantsReload() => base.WantsReload() || (DryTapRefireDelay > 0 && AutoReload && Clip1 == 0
+		&& NextPrimaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" ));
 	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
 
 	protected override void Think()
 	{
 		base.Think();
+		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
 		{
 			// Finish the current shell insert before firing the trigger that interrupted it.
@@ -157,6 +163,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnHolstered()
 	{
+		_holdingEmptyTrigger = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
 		_alternatePending = false;
@@ -175,6 +182,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnReloadStarted()
 	{
+		_holdingEmptyTrigger = false;
 		_accuracyPenalty = 0;
 		_tapReady = null;
 		SetZoom( 0 );
@@ -227,6 +235,25 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		_queuedPrimary = _queuedSecondary = false;
 		if ( Secondary == SecondaryFires.DoubleShot && BlockSubmergedShot() ) return;
 		FirePrimaryRound();
+	}
+
+	public override void DryFire()
+	{
+		if ( DryTapRefireDelay <= 0 || !HasOwner )
+		{
+			base.DryFire();
+			return;
+		}
+		if ( _holdingEmptyTrigger && AutoReload && CanReload() )
+		{
+			Reload();
+			return;
+		}
+		_holdingEmptyTrigger = true;
+		if ( SourceSounds.WeaponSound( this, "empty" ) is { } click ) GameObject.PlaySound( click );
+		WeaponModel?.OnDryFire();
+		SetNextPrimaryFire( Math.Max( DryTapRefireDelay, DryFireDuration ) );
+		_tapReady = (TimeUntil)DryTapRefireDelay;
 	}
 
 	void FirePrimaryRound()

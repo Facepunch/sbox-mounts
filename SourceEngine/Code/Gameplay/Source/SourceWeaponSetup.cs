@@ -242,6 +242,7 @@ static class SourceWeaponSetup
 		}
 		if ( weapon is SourceBulletWeapon bullet )
 		{
+			bullet.DryFireDuration = Duration( clips.DryFire );
 			var secondary = Duration( clips.SecondaryFire );
 			if ( secondary > 0 )
 			{
