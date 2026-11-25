@@ -18,9 +18,16 @@ public sealed partial class PelletImpactEffect : Component
 	}
 
 	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters );
-	public sealed record ContactVisuals( ContactEvent[] Events )
+	public sealed record ContactVisuals
 	{
-		internal bool HasProjectedMarks { get; } = Events.Any( e => e.Marks.Any( m => m.Projection is not null ) );
+		public ContactEvent[] Events { get; }
+		internal bool HasProjectedMarks { get; }
+
+		public ContactVisuals( ContactEvent[] events )
+		{
+			Events = events;
+			HasProjectedMarks = events.Any( e => e.Marks.Any( m => m.Projection is not null ) );
+		}
 	}
 
 	[Property] public ContactVisuals Visuals { get; set; }

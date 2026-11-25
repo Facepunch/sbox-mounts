@@ -5,7 +5,9 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt }
+
+	internal static bool HasSpriteRadius( ImpactLayer layer ) => layer is ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Dirt;
 
 	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst;
 
@@ -32,6 +34,8 @@ public sealed partial class PelletImpactEffect
 		public Vector2 RadiusBounds { get; set; }
 		public Vector2 AngleBounds { get; set; }
 		public int AlphaInput { get; set; }
+		public bool VerticalSprite { get; set; }
+		public bool ParallelToDirection { get; set; }
 		public bool PerpendicularToDirection { get; set; }
 		public bool Lighting { get; set; }
 		public int MirrorsPerFrame { get; set; } = 2;
@@ -152,7 +156,7 @@ public sealed partial class PelletImpactEffect
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = data.Lighting;
 		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
-		if ( sparks || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+		if ( sparks || (data.Layer == ImpactLayer.Dirt && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
 		void Appearance( Particle p )
@@ -177,9 +181,17 @@ public sealed partial class PelletImpactEffect
 				p.SequenceTime = new Vector3( cycle, 0, 0 );
 				return;
 			}
-			if ( data.Layer is ImpactLayer.Dust or ImpactLayer.Mist )
+			if ( HasSpriteRadius( data.Layer ) )
 			{
-				p.Size = data.SpriteAspect * (Sample( data.Size, life ) * data.RadiusCurve.Evaluate( t, life ).Clamp( data.RadiusBounds.x, data.RadiusBounds.y ));
+				var aspect = data.DebrisFrames is null ? data.SpriteAspect : p.Get<Vector2>( "debris_aspect" );
+				if ( data.Layer == ImpactLayer.Dirt )
+				{
+					p.Angles.roll = 0;
+					if ( data.ParallelToDirection ) ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, data.VerticalSprite );
+					else if ( data.VerticalSprite ) p.Angles.roll = 90;
+					p.Angles.roll += p.Get<float>( "mirror_angle" );
+				}
+				p.Size = aspect * (Sample( data.Size, p.Get<float>( "size" ) ) * data.RadiusCurve.Evaluate( t, life ).Clamp( data.RadiusBounds.x, data.RadiusBounds.y ));
 				p.Alpha = p.Get<float>( "base_alpha" ) * data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
 				return;
 			}
@@ -236,7 +248,7 @@ public sealed partial class PelletImpactEffect
 			p.DeathTime = p.BornTime + lifetime;
 			if ( animatedRadius ) p.Set( "radius_range", RandomInput( data.RadiusRange ) );
 			p.Set( "size", RandomInput( data.SizeInput ) );
-			if ( data.Layer is ImpactLayer.Dust or ImpactLayer.Mist ) p.Set( "base_alpha", Sample( data.Alpha, RandomInput( data.AlphaInput ) ) );
+			if ( HasSpriteRadius( data.Layer ) ) p.Set( "base_alpha", Sample( data.Alpha, RandomInput( data.AlphaInput ) ) );
 			if ( data.Layer == ImpactLayer.Drift ) p.Set( "variation", fraction );
 			float cone = Sample( data.Cone, RandomInput( data.ConeInput ) ).DegreeToRadian();
 			Vector3 direction;
@@ -285,7 +297,7 @@ public sealed partial class PelletImpactEffect
 				{
 					aspect = -aspect;
 					p.Angles.roll += 180;
-					if ( data.Layer is ImpactLayer.GlassShards or ImpactLayer.Rubber ) p.Set( "mirror_angle", 180f );
+					if ( data.Layer is ImpactLayer.GlassShards or ImpactLayer.Rubber or ImpactLayer.Dirt ) p.Set( "mirror_angle", 180f );
 				}
 				p.Set( "debris_aspect", aspect );
 			}

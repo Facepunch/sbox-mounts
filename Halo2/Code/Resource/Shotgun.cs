@@ -53,6 +53,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string RippleName = "impact_ripple.vtex";
 	internal const string ShieldName = "impact_energy.vtex";
 	internal const string WoodName = "plant_wood.vtex";
+	internal const string DirtBurstName = "dirt_burst.vtex";
+	internal const string DirtPuffName = "dirt_puff.vtex";
+	internal const string DirtConeName = "dirt_burst_cone.vtex";
 	internal const string DustName = "smoke_impact.vtex";
 	internal const string ArcName = "electric_arcs.vtex";
 	internal const string SmallFierySmokeName = "smoke_fiery_small.vtex";
@@ -91,6 +94,9 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			RippleName => @"effects\generic\solids\impact_ripple_unlit",
 			ShieldName => @"effects\generic\energy\impact_energy",
 			WoodName => @"effects\generic\solids\plant_wood",
+			DirtBurstName => @"effects\generic\solids\dirt_burst",
+			DirtPuffName => @"effects\generic\smoke\dirt_puff",
+			DirtConeName => @"effects\generic\solids\dirt_burst_cone",
 			DustName => @"effects\generic\smoke\smoke_impact",
 			ArcName => @"effects\generic\sparks\electric_arcs",
 			SmallFierySmokeName => @"effects\generic\smoke\smoke_fiery_small",

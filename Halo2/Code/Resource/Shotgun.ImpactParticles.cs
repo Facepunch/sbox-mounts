@@ -17,6 +17,9 @@ internal sealed partial class ShotgunLoader
 			var particle = Reference( system );
 			var name = particle?.TagPath switch
 			{
+				@"effects\generic\solids\dirt_burst" => DirtBurstName,
+				@"effects\generic\smoke\dirt_puff" => DirtPuffName,
+				@"effects\generic\solids\dirt_burst_cone" => DirtConeName,
 				@"effects\generic\solids\rubber_impact" => RubberName,
 				@"effects\generic\smoke\blood_mist_impact" => MistName,
 				@"effects\generic\solids\debris_shirt" => ClothName,
@@ -58,6 +61,7 @@ internal sealed partial class ShotgunLoader
 				BurstName or SoftBurstName => ImpactLayer.Burst,
 				WoodName or LeafName or GrassName => ImpactLayer.Plant,
 				ClothName => ImpactLayer.Cloth,
+				DirtBurstName or DirtPuffName or DirtConeName => ImpactLayer.Dirt,
 				DustName => ImpactLayer.Dust,
 				ArcName => ImpactLayer.ElectricArcs,
 				SmallFierySmokeName => ImpactLayer.FierySmoke,
@@ -73,7 +77,7 @@ internal sealed partial class ShotgunLoader
 			int sequence = Short( definition + 8 );
 			if ( layer == ImpactLayer.Sparks ) origin = new Vector2( 1 - 48f / 56f, (sequence == 1 ? 5 : 4) / 9f );
 			var geometry = new Vector2( Float( definition + 164 ), Float( definition + 168 ) );
-			if ( layer is ImpactLayer.Dust or ImpactLayer.Mist )
+			if ( HasSpriteRadius( layer ) )
 				origin = new Vector2( 1 + Float( definition + 156 ) / geometry.x, -Float( definition + 160 ) / geometry.y );
 			// Both frames of a burst share their footprint and pivot. The fourth random input blends the UVs.
 			if ( layer == ImpactLayer.Burst )
@@ -100,14 +104,14 @@ internal sealed partial class ShotgunLoader
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
 			bool animatedRadius = HasAnimatedRadius( layer ), drift = layer == ImpactLayer.Drift;
-			bool dust = layer is ImpactLayer.Dust or ImpactLayer.Mist;
+			bool dust = HasSpriteRadius( layer );
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
 			bool spriteCurves = drift || dust || spriteAngle || cloth;
 			var size = Bounds( emitter + 72 ) * 120;
 			if ( layer == ImpactLayer.Rubber ) size *= Bounds( definition + 60 ).x;
 			bool collides = movement is not null && map.ReadInt32( Address( movement ) + 12 ) > 1 && Short( controller + 20 ) == 1;
-			int mirrors = layer == ImpactLayer.Plant || (Short( definition + 10 ) & 1) != 0 ? 4 : 2;
+			int mirrors = layer is ImpactLayer.Plant or ImpactLayer.Dirt || (Short( definition + 10 ) & 1) != 0 ? 4 : 2;
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, new ImpactSprite( texturePath, origin ), Bounds( emitter + 8 ), Bounds( emitter + 24 ), Bounds( emitter + 40 ) * 120, Bounds( emitter + 140 ), Bounds( emitter + 56 ),
 				size, drift || dust ? ReadRange( definition + 60, 1 ) : animatedRadius || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
@@ -115,6 +119,8 @@ internal sealed partial class ShotgunLoader
 				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				collides ? new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) : default )
 			{
+				ParallelToDirection = Short( definition + 4 ) == 1,
+				VerticalSprite = (particleFlags & 0x2000) != 0,
 				Collides = collides, MirrorsPerFrame = mirrors,
 				PerpendicularToDirection = Short( definition + 4 ) == 2,
 				Lighting = (particleFlags & 0x80) != 0,
@@ -122,7 +128,7 @@ internal sealed partial class ShotgunLoader
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
 				SpinRange = Short( emitter + 58 ), SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
-				DebrisFrames = layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber or ImpactLayer.Clumps ? ReadDebrisFrames( definition, texturePath, layer == ImpactLayer.Plant, mirrors ) : null,
+				DebrisFrames = layer == ImpactLayer.Dirt ? FixedFrames( texturePath, origin, geometry * 0.5f, particleFlags ) : layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber or ImpactLayer.Clumps ? ReadDebrisFrames( definition, texturePath, layer == ImpactLayer.Plant, mirrors ) : null,
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
@@ -148,6 +154,19 @@ internal sealed partial class ShotgunLoader
 			var size = Halo2TextureLoader.SpriteBounds( map, frame + 8 ).Size;
 			return new AnimatedFrame( Vector2.One / size, size / MathF.Max( size.x, size.y ), new Vector2( Float( frame + 24 ), Float( frame + 28 ) ));
 		} ).ToArray();
+	}
+
+	static DebrisFrame[] FixedFrames( string texture, Vector2 origin, Vector2 aspect, int flags )
+	{
+		var frames = new DebrisFrame[4];
+		for ( int i = 0; i < frames.Length; i++ )
+		{
+			bool flipX = (flags & 2) != 0 && (i & 1) != 0;
+			bool flipY = (flags & 4) != 0 && (i & 2) != 0;
+			var pivot = new Vector2( flipX ? 1 - origin.x : origin.x, flipY ? 1 - origin.y : origin.y );
+			frames[i] = new DebrisFrame( new Vector2( flipX ? -aspect.x : aspect.x, flipY ? -aspect.y : aspect.y ), new ImpactSprite( texture, pivot ) );
+		}
+		return frames;
 	}
 
 	DebrisFrame[] ReadDebrisFrames( int definition, string texturePath, bool singleSequence, int mirrors )
