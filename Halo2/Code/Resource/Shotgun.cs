@@ -82,13 +82,14 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		if ( name == EmptyAmmoBackgroundName ) return HudBitmap( "weapon_background_out" );
 		if ( name == "ammo_background_elite.vtex" ) return HudBitmap( "weapon_background_single", elite: true );
 		if ( name == "ammo_background_out_elite.vtex" ) return HudBitmap( "weapon_background_out", elite: true );
-		const string meterPrefix = "ammo_meter_";
+		bool eliteMeter = name.StartsWith( "ammo_meter_elite_", StringComparison.Ordinal );
+		string meterPrefix = eliteMeter ? "ammo_meter_elite_" : "ammo_meter_";
 		if ( name.StartsWith( meterPrefix, StringComparison.Ordinal ) && name.EndsWith( ".vtex", StringComparison.Ordinal )
 			&& int.TryParse( name.AsSpan()[meterPrefix.Length..^5], out int shells ) )
 		{
 			int capacity = Short( Block( Header + 0x2c0 ) + 0xa );
 			if ( capacity > 0 && shells >= 0 && shells <= capacity )
-				return HudBitmap( "ammo_meter_single", meterFill: shells / (float)capacity );
+				return HudBitmap( "ammo_meter_single", meterFill: shells / (float)capacity, elite: eliteMeter );
 		}
 		if ( name == SplitReticleName ) return HudBitmap( "crosshair", split: true );
 		if ( name == SplitWeakReticleName ) return HudBitmap( "crosshair_weakspot", split: true );
@@ -219,7 +220,13 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 		return null;
 	}
 
-	internal (Color Loaded, Color Empty) ReserveColors()
+	int HudColor( int postprocess, int curve, bool elite )
+	{
+		int functions = Block( postprocess + 60 );
+		return map.ReadInt32( Block( functions + curve * 20 + 12 ) + (elite ? 16 : 4) );
+	}
+
+	internal (Color Loaded, Color Empty) ReserveColors( bool elite )
 	{
 		int widgets = Address( Reference( Header + 0x2b0 ) ) + 16;
 		int rows = Block( widgets );
@@ -229,10 +236,11 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			int row = rows + i * 84;
 			var name = map.ResolveStringId( map.ReadInt32( row ) );
 			if ( name is not ("bullets_single" or "bullets_out") || Reference( row + 0x20 ) is not {} shader ) continue;
-			int constants = Block( Address( shader ) + 0x20 ) + 12;
-			if ( map.ReadInt32( constants ) < 6 ) continue;
+			int postprocess = Block( Address( shader ) + 0x20 );
+			int constants = postprocess + 12;
+			if ( map.ReadInt32( constants ) < 6 || map.ReadInt32( postprocess + 60 ) == 0 ) continue;
 			// The text pass tints white glyphs with the first color and the sixth register's alpha.
-			int data = Block( constants ), rgb = map.ReadInt32( data );
+			int data = Block( constants ), rgb = HudColor( postprocess, 0, elite );
 			var color = Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, (byte)(map.ReadInt32( data + 20 ) >> 24) );
 			if ( name == "bullets_single" ) loaded = color;
 			else empty = color;
@@ -268,19 +276,17 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			if ( meterFill is float fill )
 			{
 				int shader = Address( Reference( row + 0x28 ) );
-				int constants = Block( shader + 0x20 ) + 12;
-				if ( map.ReadInt32( constants ) < 2 ) return null;
-				// The ammo meter's first color register after the input is its loaded-shell tint.
-				int rgb = map.ReadInt32( Block( constants ) + 4 );
+				int postprocess = Block( shader + 0x20 );
+				if ( map.ReadInt32( postprocess + 60 ) == 0 ) return null;
+				int rgb = HudColor( postprocess, 0, elite );
 				return new Halo2TextureLoader( map, bitmap, index, meter: (fill, rgb) );
 			}
 			if ( widget is "weapon_background_single" or "weapon_background_out" )
 			{
 				int shader = Address( Reference( row + 0x28 ) );
-				int functions = Block( shader + 0x20 ) + 60;
-				if ( map.ReadInt32( functions ) < 5 ) return null;
-				int colors = Block( functions );
-				int ColorAt( int slot ) => map.ReadInt32( Block( colors + slot * 20 + 12 ) + (elite ? 16 : 4) );
+				int postprocess = Block( shader + 0x20 );
+				if ( map.ReadInt32( postprocess + 60 ) < 5 ) return null;
+				int ColorAt( int slot ) => HudColor( postprocess, slot, elite );
 				return new Halo2TextureLoader( map, bitmap, index, hudGradient: (ColorAt( 1 ), ColorAt( 0 ), ColorAt( 4 )) );
 			}
 			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );

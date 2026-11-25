@@ -483,6 +483,8 @@ public sealed class Shotgun : Weapon
 
 	Texture ammoMeter;
 	Texture ammoBackground, emptyAmmoBackground;
+	Model hudHolderModel;
+	bool eliteHud;
 	(Color Loaded, Color Empty)? reserveColors;
 	readonly Texture[] reserveDigits = new Texture[10];
 	int displayedShells = -1;
@@ -497,11 +499,20 @@ public sealed class Shotgun : Weapon
 		if ( scale <= 0 ) return;
 		bool split = viewport.z < 1 || viewport.w < 1;
 		var safeCorner = new Vector2( bounds.Width / scale, 0 ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 ));
+		var holderModel = HolderRenderer?.Model;
+		if ( hudHolderModel != holderModel )
+		{
+			hudHolderModel = holderModel;
+			eliteHud = holderModel?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
+			ammoBackground = emptyAmmoBackground = ammoMeter = null;
+			reserveColors = null;
+		}
 		bool empty = Clip1 == 0 && Ammo1 == 0;
 		ref var background = ref (empty ? ref emptyAmmoBackground : ref ammoBackground);
 		if ( !background.IsValid() )
 		{
 			var name = empty ? ShotgunLoader.EmptyAmmoBackgroundName : ShotgunLoader.AmmoBackgroundName;
+			if ( eliteHud ) name = empty ? "ammo_background_out_elite.vtex" : "ammo_background_elite.vtex";
 			background = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{name}" );
 		}
 		if ( background.IsValid() && !background.IsError )
@@ -511,7 +522,8 @@ public sealed class Shotgun : Weapon
 		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
 		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
 		{
-			ammoMeter = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/ammo_meter_{Clip1}.vtex" );
+			var prefix = eliteHud ? "ammo_meter_elite_" : "ammo_meter_";
+			ammoMeter = Texture.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}/{prefix}{Clip1}.vtex" );
 			displayedShells = Clip1;
 		}
 		if ( !ammoMeter.IsValid() || ammoMeter.IsError ) return;
@@ -527,7 +539,7 @@ public sealed class Shotgun : Weapon
 		{
 			var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent );
 			if ( mount?.GetByPath( $"mount://{mount.Ident}/{ShotgunLoader.PrefabPath}" ) is not ShotgunLoader loader ) return;
-			reserveColors = loader.ReserveColors();
+			reserveColors = loader.ReserveColors( eliteHud );
 		}
 		System.Span<char> digits = stackalloc char[10];
 		if ( !reserve.TryFormat( digits, out int length ) ) return;

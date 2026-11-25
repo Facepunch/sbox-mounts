@@ -6,6 +6,12 @@ public sealed class WeaponAttachment
 	public string PrimaryHand { get; set; }
 }
 
+[Sandbox.ModelEditor.GameData( "player_representation" )]
+public sealed class PlayerRepresentation
+{
+	public int Index { get; set; }
+}
+
 public abstract class Weapon : BaseCombatWeapon
 {
 	[Property] public Vector3 ViewOffset { get; set; }
