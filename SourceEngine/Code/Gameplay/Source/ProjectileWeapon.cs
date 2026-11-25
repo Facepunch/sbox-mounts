@@ -195,6 +195,17 @@ public sealed class ProjectileWeapon : Weapon
 		_releaseAttacker = null;
 		_redrawPending = false;
 		base.OnHolstered();
+		if ( Networking.IsHost && IsSpentFrag ) _ = RetireFrag( Inventory );
+	}
+
+	bool IsSpentFrag => Kind == Projectile.Kinds.Grenade && HasOwner && Inventory.IsValid() && !HasPrimaryAmmo();
+
+	async Task RetireFrag( BaseInventoryComponent inventory )
+	{
+		await GameTask.DelaySeconds( 0.1f );
+		if ( !this.IsValid() || !inventory.IsValid() || Inventory != inventory ) return;
+		if ( Active ) inventory.Remove( this );
+		else GameObject.Destroy();
 	}
 
 	protected override void OnDisabled()
@@ -376,6 +387,12 @@ public sealed class ProjectileWeapon : Weapon
 		}
 		else if ( projectile is Hl2.Bugbait bait )
 			bait.ClearLaunch = HasClearLaunch( eye, forward );
+
+		if ( IsSpentFrag )
+		{
+			Inventory.SwitchToBest();
+			if ( Active ) _ = RetireFrag( Inventory );
+		}
 	}
 
 	bool HasClearLaunch( Vector3 eye, Vector3 forward ) => !Scene.Trace.Ray( eye, eye + forward * 128 )
