@@ -35,6 +35,9 @@ public class MeleeWeapon : Weapon
 		AttackDamageTags = [DamageTags.Melee];
 	}
 
+	// The secondary input consumes the weapon's idle frame, even though it has no attack.
+	internal override bool ShouldPlayIdle => !Input.Down( "attack2" );
+
 	public bool CanAttack() => NextPrimaryFire <= 0;
 
 	public override bool CanSecondaryAttack() => false;

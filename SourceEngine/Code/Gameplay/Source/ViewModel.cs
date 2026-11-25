@@ -383,8 +383,7 @@ public sealed class ViewModel : BaseWeaponModel
 				_pumpAfterShot = false;
 				Play( _clips.Pump );
 			}
-			else if ( _weapon is not BulletWeapon { UsesPrimaryClip: true, IncrementalReloading: false } ||
-				!Source1.Weapon.AttackOrReloadHeld )
+			else if ( _weapon is not Source1.Weapon { ShouldPlayIdle: false } )
 				Play( IdleClip );
 		}
 		_animation.Tick();

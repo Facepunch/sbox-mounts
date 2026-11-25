@@ -54,6 +54,8 @@ public abstract class Weapon : BaseCombatWeapon
 
 	public override bool CanReload() => (!HasOwner || !IsDeploying) && base.CanReload();
 
+	internal virtual bool ShouldPlayIdle => true;
+
 	internal static bool AttackOrReloadHeld => Input.Down( "attack1" ) || Input.Down( "attack2" ) || Input.Down( "reload" );
 
 	protected bool WantsEmptyClick => HasOwner && EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();

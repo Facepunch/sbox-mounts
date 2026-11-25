@@ -25,6 +25,8 @@ public sealed class Knife : MeleeWeapon
 	const float StabHitDelay = 1.1f;
 	const float StabMissDelay = 1;
 
+	internal override bool ShouldPlayIdle => true;
+
 	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && NextPrimaryFire <= 0;
 
 	protected override bool OnAdding( BaseInventoryComponent inventory )

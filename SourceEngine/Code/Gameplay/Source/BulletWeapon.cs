@@ -425,6 +425,8 @@ public sealed class BulletWeapon : Weapon
 		_ => base.HasSecondaryAmmo()
 	};
 
+	internal override bool ShouldPlayIdle => !UsesPrimaryClip || IncrementalReloading || !AttackOrReloadHeld;
+
 	public override bool CanSecondaryAttack() => !_alternatePending && _burstRemaining <= 0
 		&& (Launches || Secondary is SecondaryFires.DoubleShot or SecondaryFires.Zoom or SecondaryFires.Burst or SecondaryFires.Silencer)
 		&& (IsReloading && Launches && CanLaunchDuringReload ? NextSecondaryFire <= 0 && HasSecondaryAmmo() : base.CanSecondaryAttack());
