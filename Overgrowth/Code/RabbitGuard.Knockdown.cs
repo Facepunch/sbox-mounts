@@ -358,8 +358,24 @@ public sealed partial class RabbitGuard
 			var support = ground.Value;
 			var lift = capsule.Radius * (1f / support.Normal.z - 1f);
 			feet = support.Point + Vector3.Up * lift;
-			var floor = MovementTrace( Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, support.Point + Vector3.Down ) )
-				.WithoutTags( "trigger", CharacterCollisionRules.FighterHull ).Run();
+			var probe = MovementTrace( Scene.Trace ).WithoutTags( "trigger", CharacterCollisionRules.FighterHull );
+			var start = feet + Vector3.Up * 0.5f;
+			var end = support.Point + Vector3.Down;
+			var floor = probe.Capsule( capsule, start, end ).Run();
+			if ( floor.StartedSolid )
+			{
+				// WakeUp resolves bumper contacts before placing the standing collider.
+				var shift = Vector3.Zero;
+				foreach ( var hit in probe.Capsule( capsule, start, start ).UseHitPosition().RunAll() )
+				{
+					var axis = new Line( start + shift + capsule.CenterA, start + shift + capsule.CenterB );
+					var separation = axis.ClosestPoint( hit.HitPosition ) - hit.HitPosition;
+					var distance = separation.Length;
+					if ( distance <= 0f || distance >= capsule.Radius || Math.Abs( separation.z ) > distance * 0.5f ) continue;
+					shift += separation.Normal * (capsule.Radius - distance + 0.03125f);
+				}
+				floor = probe.Capsule( capsule, start + shift, end + shift ).Run();
+			}
 			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
 			feet = floor.EndPosition;
 		}

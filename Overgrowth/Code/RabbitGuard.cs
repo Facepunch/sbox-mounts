@@ -288,7 +288,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( rolling && AdvanceRoll() ) return;
 		UpdateStanceAmounts();
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense( !rolling ) ) return;
-		if ( RollProgress >= 1f && !IsGetUp( Stance ) ) hitsOnGround = 0;
+		if ( RollProgress >= 1f && !GettingUp && strike is not { AsLayer: false } ) hitsOnGround = 0;
 		UpdateCombat();
 		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length * PreFrictionSpeedScale > 0.6f * 40f )
 			Stance = Locomotion;

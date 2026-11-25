@@ -447,7 +447,7 @@ public sealed partial class RabbitGuard
 			rabbit.InterruptWeaponLayers();
 			if ( rabbit.boundAnimations?.Species == "wolf" && !rabbit.knownCharacters.ContainsKey( GameObject ) ) rabbit.blockStun = 1f;
 			rabbit.NoticeAttacker( GameObject );
-			if ( rabbit.Downed || rabbit.RollProgress < 1f || IsGetUp( rabbit.Stance ) ) rabbit.hitsOnGround++;
+			if ( rabbit.Downed || rabbit.RollProgress < 1f || rabbit.GettingUp ) rabbit.hitsOnGround++;
 		}
 		if ( !reached || AvoidsStrike( strikeTarget, strike.Height ) )
 		{
