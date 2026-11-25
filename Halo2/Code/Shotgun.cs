@@ -283,9 +283,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	double? firstInsertAt;
-	double transferAt;
+	[Sync( SyncFlags.FromHost )] double NextShellAt { get; set; }
 	float shellInterval;
-	bool ShellDue => IsReloading && IncrementalReloading && shellInterval > 0 && Time.NowDouble >= transferAt &&
+	bool ShellDue => IsReloading && IncrementalReloading && NextShellAt > 0 && Time.NowDouble >= NextShellAt &&
 		Clip1 < ReloadFillTarget && Ammo1 > 0;
 	[Sync( SyncFlags.FromHost )] internal bool AutomaticReload { get; private set; }
 
@@ -316,7 +316,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		}
 		base.OnReloadStarted();
 		shellInterval = ReloadTime;
-		transferAt = Time.NowDouble + ReloadStartTime;
+		if ( Networking.IsHost ) NextShellAt = Time.NowDouble + ReloadStartTime;
 		int enterFrames = (int)System.MathF.Round( System.MathF.Max( 0, ReloadStartTime - ReloadTime ) * 30 );
 		firstInsertAt = Time.NowDouble + enterFrames / 30.0;
 	}
@@ -324,18 +324,22 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void OnReloadFinished()
 	{
 		firstInsertAt = null;
-		if ( Networking.IsHost && shellInterval > 0 ) ReloadTime = shellInterval;
+		if ( Networking.IsHost )
+		{
+			NextShellAt = 0;
+			if ( shellInterval > 0 ) ReloadTime = shellInterval;
+		}
 		base.OnReloadFinished();
 		HolderAnimator?.StopWeaponOverlay( "reload_1" );
 	}
 
 	protected override void OnReloadInserted()
 	{
-		if ( shellInterval > 0 )
+		if ( Networking.IsHost && shellInterval > 0 )
 		{
 			// Schedule from the authored transfer tick so frame rounding doesn't accumulate per shell.
-			transferAt += shellInterval;
-			if ( Networking.IsHost ) ReloadTime = (float)System.Math.Max( 0, transferAt - Time.NowDouble );
+			NextShellAt += shellInterval;
+			ReloadTime = (float)System.Math.Max( 0, NextShellAt - Time.NowDouble );
 		}
 		base.OnReloadInserted();
 		if ( !IsHeld ) return;
