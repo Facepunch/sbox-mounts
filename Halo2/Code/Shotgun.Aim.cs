@@ -9,6 +9,8 @@ public sealed partial class Shotgun
 	[Property] public float MagnetismAdhesion { get; set; } = 0.7f;
 	[Property] public float InconsequentialTargetScale { get; set; } = 0.5f;
 
+	readonly HashSet<Sandbox.Npcs.BaseNpc> aimCandidates = new();
+
 	void PlayerController.IEvents.OnEyeAngles( ref Angles angles )
 	{
 		if ( !Input.UsingController || Input.MouseDelta != Vector2.Zero || Holder is not PlayerController player ) return;
@@ -54,7 +56,7 @@ public sealed partial class Shotgun
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( ray.Position, System.MathF.Max( AutoAimRange, MagnetismRange ) ) ) )
 		{
 			var npc = obj.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
-			if ( !npc.IsValid() || npc.Health <= 0 || !npc.Renderer.IsValid() ) continue;
+			if ( !npc.IsValid() || !aimCandidates.Add( npc ) || npc.Health <= 0 || !npc.Renderer.IsValid() ) continue;
 			if ( npc.GetDisposition( player.GameObject ) != Sandbox.Npcs.Disposition.Hostile ) continue;
 			var renderer = npc.Renderer;
 			if ( renderer.Model is not {} model ) continue;
@@ -82,6 +84,7 @@ public sealed partial class Shotgun
 				targetOffset = offset;
 			}
 		}
+		aimCandidates.Clear();
 		return bestMagnetism;
 	}
 }
