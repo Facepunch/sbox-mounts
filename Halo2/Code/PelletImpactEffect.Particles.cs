@@ -170,6 +170,13 @@ public sealed partial class PelletImpactEffect
 		{
 			float t = p.LifeDelta;
 			float life = p.Get<float>( "life_fraction" );
+			if ( data.ColorInput == 13 && go.Scene.Camera is {} camera )
+			{
+				// The explosion-rotation input projects accumulated turns onto the camera's left axis.
+				var direction = (p.Position - camera.WorldPosition).Normal;
+				float phase = Vector3.Dot( direction, camera.WorldRotation.Left ) * p.Get<float>( "turns" );
+				p.Color = Color.Lerp( data.Tint, data.TintEnd, phase - MathF.Floor( phase ) );
+			}
 			if ( data.AnimatedFrames is {} frames )
 			{
 				float cycle = data.FrameCurve is {} curve ? curve.Evaluate( t, life ).Clamp( 0, 1 ) : t * data.Cycles;
@@ -331,6 +338,7 @@ public sealed partial class PelletImpactEffect
 				p.Velocity = (p.Velocity - Vector3.Up * gravity) * drag;
 				float spin = p.Get<float>( "spin" );
 				p.Angles.roll += spin * dt;
+				if ( data.ColorInput == 13 ) p.Set( "turns", p.Get<float>( "turns" ) + spin * dt / 360 );
 				p.Set( "spin", spin * (1 - (data.AngularDrag * dt).Clamp( 0, 1 )) );
 				if ( data.Collides && dt > 0 && Collide( p, data, go.Scene, dt ) )
 				{
