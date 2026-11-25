@@ -72,6 +72,6 @@ public partial class ShotgunModel
 	internal Transform? ChamberMarker( string name )
 	{
 		if ( !ChamberSample( out float cycle, out float weight ) || Renderer.Model.Attachments.Get( name ) is not {} marker ) return null;
-		return Renderer.WorldTransform.ToWorld( Chamber.SampleMarker( marker, cycle, weight ) );
+		return Chamber.SampleMarker( marker, cycle, weight );
 	}
 }

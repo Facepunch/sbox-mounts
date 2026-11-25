@@ -272,23 +272,29 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			{
 				foreach ( var marker in binding.Targets )
 				{
-					grip = SampleWeaponMarker?.Invoke( marker ) ?? (Weapon is SkinnedModelRenderer skinned ? skinned.GetAttachment( marker )
-						: Weapon.Model.Attachments.GetTransform( marker ) is { } local ? Weapon.WorldTransform.ToWorld( local ) : null);
+					grip = SampleWeaponMarker?.Invoke( marker ) ?? (Weapon is SkinnedModelRenderer skinned ? skinned.GetAttachment( marker, false )
+						: Weapon.Model.Attachments.GetTransform( marker ));
 					if ( grip.HasValue ) break;
 				}
 			}
-			if ( grip is { } world )
+			if ( grip is { } localMarker )
 			{
-				var local = binding.Hand.LocalTransform;
-				var rotation = world.Rotation * local.Rotation.Inverse;
-				var scale = Renderer.WorldScale;
-				var target = new Transform( world.Position - rotation * (local.Position * scale), rotation );
-				target.Position = LimitGripReach( binding.Hand.Bone, target.Position );
+				Transform anchor = default;
+				var gripBinding = binding.Binding;
+				bool anchored = gripBinding is not null && Weapon.GameObject.Parent is {} parent
+					&& parent == Renderer.GetAttachmentObject( gripBinding.Anchor )
+					&& Renderer.TryGetBoneTransform( gripBinding.Anchor.Bone, out anchor );
+				// Evaluate the weapon and the arm from the same holder pose while the player moves.
+				var world = anchored ? anchor.ToWorld( gripBinding.Anchor.LocalTransform.ToWorld( Weapon.LocalTransform.ToWorld( localMarker ) ) )
+					: Weapon.WorldTransform.ToWorld( localMarker );
+				var hand = binding.Hand.LocalTransform;
+				var rotation = world.Rotation * hand.Rotation.Inverse;
+				var position = world.Position - rotation * (hand.Position * Renderer.WorldScale);
+				var target = new Transform( LimitGripReach( binding.Hand.Bone, position ), rotation );
 				var parameters = Renderer.Animation.Parameters;
-				if ( binding.Binding is {} gripBinding && Weapon.GameObject.Parent is {} parent
-					&& parent == Renderer.GetAttachmentObject( gripBinding.Anchor ) )
+				if ( anchored )
 				{
-					var relative = gripBinding.Anchor.LocalTransform.ToWorld( parent.WorldTransform.ToLocal( target ) );
+					var relative = anchor.ToLocal( target );
 					if ( relative.Rotation.AlmostEqual( gripBinding.Rotation ) && parameters.TrySet( binding.Offset, relative.Position ) )
 					{
 						parameters.TrySetTargetBone( binding.Anchor, gripBinding.Anchor.Bone.Name );
