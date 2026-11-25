@@ -274,9 +274,21 @@ public sealed partial class Onos : BaseNpc
 		var (hit, victim) = TraceGore();
 		AlienMelee.PlayImpact( hit, gore: true );
 		PushHitProp( hit, ViewRotation.Forward * RunSpeed );
-		if ( victim is null ) return;
+
 		bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
+		if ( smash && hit.Hit && (structural || hit.HasTag( "world" ) && victim is null) )
+			ShowSmashImpact( hit.EndPosition, ViewRotation );
+		if ( victim is null ) return;
 		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowSmashImpact( Vector3 position, Rotation facing ) => PlayCinematic( "door_hit", position, facing );
+
+	static void PlayCinematic( string name, Vector3 position, Rotation facing )
+	{
+		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
+			mount.PlayCinematic( $"cinematics/alien/onos/{name}.cinematic", position, facing );
 	}
 
 	(SceneTraceResult Hit, IDamageable Victim) TraceGore()

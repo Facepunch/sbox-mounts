@@ -81,24 +81,18 @@ public sealed partial class Onos
 		PushProp( body, point, launch );
 	}
 
-	static void PlayStompEffect( string name, Vector3 position, Rotation facing )
-	{
-		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
-			mount.PlayCinematic( $"cinematics/alien/onos/{name}.cinematic", position, facing );
-	}
-
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ShowStompLaunch( Vector3 position, Rotation facing )
 	{
 		if ( !Graphics.IsAvailable ) return;
 		CameraEffectSystem.Get( Scene ).AddShake( position, 25 * Scale, 12, 24, 0.45f );
-		PlayStompEffect( "stomp_trimmed", position, facing );
+		PlayCinematic( "stomp_trimmed", position, facing );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ShowStompCrack( Vector3 position, Vector3 direction )
 	{
-		PlayStompEffect( "shockwave_segment", position, Rotation.LookAt( direction ) );
+		PlayCinematic( "shockwave_segment", position, Rotation.LookAt( direction ) );
 		SparkDecal.Spawn( "Stomp crack", "shockwave_crack", position, Rotation.LookAt( Vector3.Down, direction ),
 			Random.Shared.Next( 2 ) * 180, 2.7f, 6 );
 	}
@@ -107,7 +101,7 @@ public sealed partial class Onos
 	void ShowStompImpact( Vector3 position, Rotation facing )
 	{
 		if ( !Graphics.IsAvailable ) return;
-		PlayStompEffect( "shockwave_hit", position, facing );
+		PlayCinematic( "shockwave_hit", position, facing );
 
 		// Shared decals use the victim's up axis and the client's default twelve-second lifetime.
 		var tangent = new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -0.9f, 1.1f ), Random.Shared.Float( -1.1f, 0.9f ) );

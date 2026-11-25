@@ -5,7 +5,14 @@ namespace NS2;
 /// <summary>The named volumes and exploration destinations authored in a Spark level.</summary>
 public sealed class MapLocations : Component
 {
-	public readonly record struct Volume( string Name, Transform Bounds );
+	public readonly record struct Volume( string Name, Transform Bounds )
+	{
+		internal bool Contains( Vector3 position )
+		{
+			var p = Bounds.PointToLocal( position );
+			return p.x is >= -1 and < 1 && p.y is >= -1 and < 1 && p.z is >= -1 and < 1;
+		}
+	}
 	public readonly record struct Destination( string Name, Vector3 Position, bool Strategic );
 	[Property] public Volume[] Volumes { get; set; } = [];
 	[Property] public Destination[] Destinations { get; set; } = [];
@@ -58,11 +65,26 @@ public sealed class MapLocations : Component
 	{
 		foreach ( var volume in Volumes )
 		{
-			var p = volume.Bounds.PointToLocal( position );
-			if ( p.x is >= -1 and < 1 && p.y is >= -1 and < 1 && p.z is >= -1 and < 1 )
+			if ( volume.Contains( position ) )
 				return volume.Name;
 		}
 		return null;
+	}
+
+	Dictionary<string, Vector3[]> roomLights;
+
+	internal Vector3[] LightsNear( Vector3 origin )
+	{
+		var room = LocationAt( origin );
+		if ( room is null ) return [];
+		if ( roomLights is null )
+		{
+			var lights = GetComponentsInChildren<Light>().Where( l => l.GameObject.Parent == GameObject && l is PointLight or SpotLight )
+				.Select( l => l.WorldPosition ).ToArray();
+			roomLights = Volumes.GroupBy( v => v.Name ).ToDictionary( g => g.Key,
+				g => g.SelectMany( v => lights.Where( v.Contains ) ).ToArray() );
+		}
+		return roomLights[room];
 	}
 
 	Vector3? Project( Destination destination )
