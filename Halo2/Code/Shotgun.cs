@@ -68,13 +68,16 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
-		if ( MissingMountedHolder( HolderRenderer?.Model ) || Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.IsMounted != true ) return;
+		if ( HolderRenderer is {} body && (body.Model is null || MissingMountedHolder( body.Model )) ) return;
+		if ( Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.IsMounted != true ) return;
 		var go = new GameObject( GameObject, false, "Shotgun view model" );
 		go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.Tags.Add( "firstperson", "viewmodel" );
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
-		var rig = FirstPersonRig;
-		renderer.Model = Model.Load( rig );
+		var view = go.AddComponent<ShotgunViewModel>();
+		view.Renderer = renderer;
+		view.Weapon = this;
+		view.BindRig( FirstPersonRig );
 		renderer.RenderOptions.Game = false;
 		renderer.RenderOptions.Overlay = true;
 		var gun = new GameObject( go, true, "Shotgun" ).AddComponent<SkinnedModelRenderer>();
@@ -83,13 +86,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		gun.BoneMergeTarget = renderer;
 		gun.RenderOptions.Game = false;
 		gun.RenderOptions.Overlay = true;
-		var view = go.AddComponent<ShotgunViewModel>();
-		view.Renderer = renderer;
-		view.Weapon = this;
 		view.TracerEffect = view.MuzzleEffect = view.EjectBrass = null;
-		renderer.UseAnimGraph = true;
-		renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{rig}/any/any/any.ag" );
-		view.AnimationData = renderer.Model.GetData<FirstPersonAnimation>();
 		go.Enabled = true;
 		view.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
 		view.ConfigureMuzzleFlash( firstPerson: true );
@@ -101,7 +98,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void CreateWorldModel()
 	{
 		DestroyWorldModel();
-		if ( !HolderRenderer.IsValid() ) return;
+		if ( !HolderRenderer.IsValid() || HolderRenderer.Model is null ) return;
 		var loose = GetComponent<SkinnedModelRenderer>( true );
 		var hand = HolderRenderer.GetBoneObject( HoldBone );
 		var holderModel = HolderRenderer.Model;
@@ -137,6 +134,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			animator.Weapon = renderer;
 			animator.SampleWeaponMarker = model.ChamberMarker;
 		}
+		ViewModel?.GetComponent<ShotgunViewModel>()?.RequestRig( FirstPersonRig );
 		WorldModel.LocalTransform = global::Transform.Zero;
 		loose.Enabled = false;
 	}
@@ -808,8 +806,13 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), Time.NowDouble + impact.Frame / 30.0 );
 	}
 
-	FirstPersonAnimation FirstPersonAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
-		?? Model.Load( FirstPersonRig )?.GetData<FirstPersonAnimation>();
+	FirstPersonAnimation FirstPersonAnimations()
+	{
+		var rig = FirstPersonRig;
+		var view = ViewModel?.GetComponent<ShotgunViewModel>();
+		return view?.Renderer.Model?.Name == rig && view?.AnimationData is {} data
+			? data : Model.Load( rig )?.GetData<FirstPersonAnimation>();
+	}
 
 	static string MeleeAction( bool firstStrike ) => firstStrike ? "melee_strike_1" : "melee_strike_2";
 
@@ -842,7 +845,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	{
 		base.OnUpdate();
 		// The active item can arrive before the controller and its mounted character.
-		if ( !WorldModel.IsValid() && Inventory?.ActiveItem == this && HolderRenderer.IsValid() )
+		if ( !WorldModel.IsValid() && Inventory?.ActiveItem == this && HolderRenderer?.Model is not null )
 			CreateWorldModel();
 		if ( !ViewModel.IsValid() && !IsProxy && Inventory?.ActiveItem == this && Holder is PlayerController )
 			CreateViewModel();
@@ -1057,8 +1060,31 @@ public sealed class ShotgunViewModel : ShotgunModel
 	double lastBlendTick;
 	float previousFade, previousAim;
 
+	string pendingRig;
+
+	internal void BindRig( string path )
+	{
+		Renderer.Model = Model.Load( path );
+		Renderer.UseAnimGraph = true;
+		Renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{path}/any/any/any.ag" );
+		AnimationData = Renderer.Model.GetData<FirstPersonAnimation>();
+		movingClip = AnimationData?.Movement;
+	}
+
+	internal void RequestRig( string path )
+	{
+		pendingRig = Renderer.Model?.Name == path ? null : path;
+		if ( pendingRig is not null && clip is null ) SelectAction( "idle" );
+	}
+
 	bool SelectAction( string action, bool once = false )
 	{
+		// Finish the current clip and its cues before changing character rigs.
+		if ( pendingRig is {} path )
+		{
+			pendingRig = null;
+			BindRig( path );
+		}
 		if ( AnimationData?.Actions.ContainsKey( action ) != true || !Renderer.Animation.IsValid ) return false;
 		var graph = Renderer.Animation;
 		if ( action == "ready" && string.Equals( graph.Parameters.GetString( "action" ), action, System.StringComparison.OrdinalIgnoreCase ) )
