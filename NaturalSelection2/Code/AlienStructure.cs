@@ -23,7 +23,7 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	SupportPain pain;
 	TimeUntil nextMaturityUpdate;
 	TimeSince maturityTick;
-	float previousGrowth, maturity, maturityStart, lastSprayTime;
+	float previousGrowth, maturity, publishedMaturity, maturityStart, lastSprayTime;
 	protected float Growth => Math.Clamp( age * Stats.AutoRate / Stats.BuildSeconds + assistedGrowth + EnzymeGrowth, 0, 1 );
 	float EnzymeGrowth => enzymeActive ? enzymeAge * 0.75f / Stats.BuildSeconds : 0;
 	internal bool HasEnzyme => enzymeActive;
@@ -75,12 +75,24 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 		maturity = Math.Min( 1, maturity + amount * (0.25f + 0.75f * uncapped) );
 		if ( !publish && maturity < 1 && nextMaturityUpdate > 0 ) return;
 		nextMaturityUpdate = 1;
-		float healthLimit = Stats.Health + MathF.Floor( (Stats.MatureHealth - Stats.Health) * maturity );
-		float armorLimit = Stats.Armor + MathF.Floor( (Stats.MatureArmor - Stats.Armor) * maturity );
-		Health *= healthLimit / MaxHealth;
-		armor *= armorLimit / maxArmor;
-		MaxHealth = healthLimit;
-		maxArmor = armorLimit;
+		float Gain( float total ) => MathF.Floor( total * maturity ) - MathF.Floor( total * publishedMaturity );
+		AdjustHealthLimit( Gain( Stats.MatureHealth - Stats.Health ) );
+		float armorGain = Gain( Stats.MatureArmor - Stats.Armor );
+		if ( armorGain != 0 )
+		{
+			float fraction = maxArmor > 0 ? armor / maxArmor : 1;
+			maxArmor += armorGain;
+			armor = maxArmor * fraction;
+		}
+		publishedMaturity = maturity;
+	}
+
+	protected void AdjustHealthLimit( float delta )
+	{
+		if ( delta == 0 ) return;
+		float fraction = Health / MaxHealth;
+		MaxHealth += delta;
+		Health = MaxHealth * fraction;
 	}
 
 	protected static void Configure<T>( GameObject root, SkinnedModelRenderer renderer, string name ) where T : AlienStructure, new()
