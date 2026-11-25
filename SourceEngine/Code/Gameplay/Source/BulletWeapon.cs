@@ -95,7 +95,6 @@ public sealed class BulletWeapon : Weapon
 	internal float SilencerDuration { get; set; }
 	/// <summary>True while firing the second and later rounds of a burst.</summary>
 	internal bool BurstFollowUp { get; private set; }
-	[Sync( SyncFlags.FromHost )] bool AlternateReserveSeeded { get; set; }
 	internal float? AlternateDamage { get; set; }
 	internal float? AlternateRadius { get; set; }
 	[Property, Feature( "Shooting" )] public bool CanLaunchDuringReload { get; set; }
@@ -371,10 +370,6 @@ public sealed class BulletWeapon : Weapon
 	{
 		CancelBurst();
 		base.OnAdded( inventory );
-		if ( AlternateReserveSeeded ) return;
-		AlternateReserveSeeded = true;
-		if ( SecondaryAmmoType is not null && !inventory.HasAmmo( SecondaryAmmoType ) )
-			inventory.GiveAmmo( SecondaryAmmoType, SecondaryAmmoType.MaxReserve );
 	}
 
 	protected override async void OnStart()
