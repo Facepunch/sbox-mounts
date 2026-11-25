@@ -292,7 +292,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "357", ".357 Magnum", "models/weapons/w_357.mdl", null, """
 			{
 				".": {
-					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.2,0.2", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "DisplayName": "HL2 .357 Magnum", "HoldType": "pistol_two_handed", "Npc": {"MinRange": 65, "MaxRange": 1024, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryAutomatic": false, "PrimaryDelay": 0.7, "ReloadTime": 1.5, "StartingAmmo": 36, "ViewModelPrefab": {"prefab": "entities/parts/357_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/357_wm.prefab"}}
+					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.2,0.2", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "ClipMaxSize": 6, "DisplayName": "HL2 .357 Magnum", "HoldType": "pistol_two_handed", "Npc": {"MinRange": 65, "MaxRange": 1024, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryAutomatic": true, "PrimaryDelay": 0.75, "ReloadTime": 1.5, "StartingAmmo": 36, "ViewModelPrefab": {"prefab": "entities/parts/357_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/357_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_357.mdl"}
@@ -367,7 +367,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "pistol", "Pistol", "models/weapons/w_pistol.mdl", null, """
 			{
 				".": {
-					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.2,0.2", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "DisplayName": "HL2 Pistol", "HoldType": "pistol", "Npc": {"MinRange": 24, "MaxRange": 1500, "BurstMin": 1, "BurstMax": 3, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryAutomatic": false, "PrimaryDelay": 0.15, "ReloadTime": 1.5, "StartingAmmo": 150, "ViewModelPrefab": {"prefab": "entities/parts/pistol_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/pistol_wm.prefab"}}
+					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.2,0.2", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "ClipMaxSize": 18, "DisplayName": "HL2 Pistol", "HoldType": "pistol", "Npc": {"MinRange": 24, "MaxRange": 1500, "BurstMin": 1, "BurstMax": 3, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryAutomatic": true, "PrimaryDelay": 0.5, "TapRefireDelay": 0.1, "ReloadTime": 1.5, "StartingAmmo": 150, "ViewModelPrefab": {"prefab": "entities/parts/pistol_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/pistol_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_pistol.mdl"}

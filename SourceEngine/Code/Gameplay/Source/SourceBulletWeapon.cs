@@ -72,6 +72,10 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	// weapon_shotgun SecondaryAttack fires a literal 12 pellets.
 	const int DoubleShotPellets = 12;
 
+	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
+	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
+	TimeUntil? _tapReady;
+
 	[Property] public SecondaryFires Secondary { get; set; }
 	/// <summary>Field of view of each <see cref="SecondaryFires.Zoom"/> step; empty zooms once to <see cref="SourceZoom.FieldOfView"/>.</summary>
 	[Property] public List<float> ZoomLevels { get; set; }
@@ -109,8 +113,17 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	public override bool CanReload() => !_alternatePending && (!NpcControlled || _weaponConfigured) && base.CanReload();
 
+	protected override void Think()
+	{
+		base.Think();
+		if ( _tapReady is not { } ready || ready > 0 || Input.Down( "attack1" ) ) return;
+		_tapReady = null;
+		SetNextPrimaryFire( 0 );
+	}
+
 	protected override void OnHolstered()
 	{
+		_tapReady = null;
 		_alternatePending = false;
 		_alternateAttacker = null;
 		CancelBurst();
@@ -127,6 +140,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnReloadStarted()
 	{
+		_tapReady = null;
 		SetZoom( 0 );
 		CancelBurst();
 		var animator = GetComponentInParent<SourceNpcAnimator>();
@@ -174,6 +188,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
 		base.PrimaryAttack();
+		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
 		var burst = CssRules.Burst( SourceWeaponSetup.WeaponType( this ) );
