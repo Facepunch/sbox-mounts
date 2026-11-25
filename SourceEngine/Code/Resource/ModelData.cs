@@ -7,6 +7,7 @@ namespace Source1;
 [Sandbox.ModelEditor.GameData( "source_prop_damage" ), Hide]
 public sealed class PropDamageModifiers
 {
+	public float Bullet { get; set; } = 1;
 	public float Club { get; set; } = 1;
 }
 

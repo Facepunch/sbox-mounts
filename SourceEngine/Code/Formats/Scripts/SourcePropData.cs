@@ -47,6 +47,7 @@ internal sealed class SourcePropData
 			&& !string.IsNullOrWhiteSpace( parameters.String( "breakable_model" ) ) )
 			report( $"{path}: script-selected random breakable chunks are not supported." );
 
+		var bullet = parameters.Float( "dmg.bullets", 1 );
 		var club = parameters.Float( "dmg.club", 1 );
 		return (new ModelPropData
 		{
@@ -55,7 +56,7 @@ internal sealed class SourcePropData
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		}, physGun, club == 1 ? null : new PropDamageModifiers { Club = club });
+		}, physGun, bullet == 1 && club == 1 ? null : new PropDamageModifiers { Bullet = bullet, Club = club });
 
 		void Apply( VmtNode section )
 		{
