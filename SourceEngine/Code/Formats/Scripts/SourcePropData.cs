@@ -18,17 +18,18 @@ internal sealed class SourcePropData
 		}
 	}
 
-	internal ModelPropData Read( IReadOnlyList<VmtNode> roots, string path, Action<string> report, bool hasAuthoredPieces = false )
+	internal (ModelPropData Prop, PhysGunInteractions PhysGun) Read( IReadOnlyList<VmtNode> roots, string path, Action<string> report, bool hasAuthoredPieces = false )
 	{
 		if ( roots.Count == 1 && roots[0].IsBlock && roots[0].Name.Equals( "mdlkeyvalue", StringComparison.OrdinalIgnoreCase ) )
 			roots = roots[0].Children;
 		var prop = roots.FirstOrDefault( node => node.IsBlock && node.Name.Equals( "prop_data", StringComparison.OrdinalIgnoreCase ) );
 		if ( prop is null )
-			return null;
+			return default;
 
 		var values = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var bases = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		var flammable = false;
+		PhysGunInteractions physGun = null;
 		Apply( prop );
 		foreach ( var block in roots )
 			ReadInteractions( block );
@@ -43,14 +44,14 @@ internal sealed class SourcePropData
 			&& !string.IsNullOrWhiteSpace( parameters.String( "breakable_model" ) ) )
 			report( $"{path}: script-selected random breakable chunks are not supported." );
 
-		return new ModelPropData
+		return (new ModelPropData
 		{
 			Health = parameters.Integer( "health", -1 ),
 			Flammable = false,
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		};
+		}, physGun);
 
 		void Apply( VmtNode section )
 		{
@@ -71,6 +72,14 @@ internal sealed class SourcePropData
 
 		void ReadInteractions( VmtNode block )
 		{
+			if ( block.IsBlock && block.Name.Equals( "physgun_interactions", StringComparison.OrdinalIgnoreCase )
+				&& block.Values.TryGetValue( "onlaunch", out var launch ) )
+			{
+				if ( launch.Equals( "spin_zaxis", StringComparison.OrdinalIgnoreCase ) )
+					physGun = new() { LaunchSpin = 5000 };
+				else if ( physGun is null && launch.Equals( "spin_none", StringComparison.OrdinalIgnoreCase ) )
+					physGun = new();
+			}
 			if ( block.IsBlock && block.Name.Equals( "fire_interactions", StringComparison.OrdinalIgnoreCase )
 				&& block.Values.TryGetValue( "flammable", out var value ) )
 				flammable = value.Equals( "yes", StringComparison.OrdinalIgnoreCase );

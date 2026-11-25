@@ -4,6 +4,13 @@ namespace Source1;
 
 // Stored on imported models through ModelBuilder.WithData; game code reads them into its own types with the same GameData names.
 
+[Sandbox.ModelEditor.GameData( "physgun_interactions" ), Hide]
+public sealed class PhysGunInteractions
+{
+	/// <summary>Authored angular speed about the prop's local Z axis in degrees per second.</summary>
+	public float LaunchSpin { get; set; }
+}
+
 /// <summary>Weapon-script data associated with imported first- and third-person models.</summary>
 [Sandbox.ModelEditor.GameData( "weapon_data", AllowMultiple = true ), Hide]
 public sealed class SourceModelWeaponData

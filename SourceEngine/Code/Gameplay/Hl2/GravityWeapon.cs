@@ -126,7 +126,10 @@ public sealed class GravityWeapon : Weapon
 			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
 			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
 			held.Velocity = forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) );
-			var spin = new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
+			var model = held.GetComponent<ModelRenderer>()?.Model;
+			var spin = model?.GetData<PhysGunInteractions>() is { } interaction
+				? Vector3.Up * interaction.LaunchSpin
+				: new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
 			held.AngularVelocity = held.WorldRotation * spin * (MathF.PI / 180);
 			PuntEffects( PuntResult.LaunchHeld );
 			return;
