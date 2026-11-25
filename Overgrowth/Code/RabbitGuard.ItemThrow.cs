@@ -85,17 +85,19 @@ public sealed partial class RabbitGuard
 
 	GameObject SelectThrowTarget( string label )
 	{
-		float range = label == "spear" ? 800f : 400f;
+		// GetCharactersInSphere tests the character sphere against the throw radius.
+		float range = (label == "spear" ? 800f : 400f) + CharacterQueryRadius;
 		var camera = Scene.Camera;
 		var origin = camera.IsValid() ? camera.WorldPosition : EyePosition;
 		var forward = camera.IsValid() ? camera.WorldRotation.Forward : WorldRotation.Forward;
 		float best = 0.4f;
 		GameObject chosen = null;
-		foreach ( var (target, seen) in seenHostiles )
+		var centerOfThrower = CharacterCenter( GameObject );
+		foreach ( var (target, memory) in knownCharacters )
 		{
-			if ( Time.Now - seen >= 1f || !CanAttack( target ) || target.GetComponent<RabbitGuard>() is { Downed: true } ) continue;
+			if ( Time.Now - memory.SeenTime >= 1f || !CanAttack( target ) || target.GetComponent<RabbitGuard>() is { Downed: true } ) continue;
 			var center = CharacterCenter( target );
-			var distance = center.DistanceSquared( CharacterCenter( GameObject ) );
+			var distance = center.DistanceSquared( centerOfThrower );
 			if ( distance <= 80f * 80f || distance > range * range ) continue;
 			float dot = (center - origin).Normal.Dot( forward );
 			if ( dot <= best ) continue;

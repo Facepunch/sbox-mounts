@@ -294,18 +294,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Stance = Locomotion;
 	}
 
-	// NeedsCombatPose considers every hostile seen in the last second, including those outside the current goal.
-	readonly Dictionary<GameObject, float> seenHostiles = new();
-
 	bool IsUnaware => AlwaysUnaware || startled > 0f ||
 		!enemy.IsValid() && !escortTarget.IsValid() && !soughtItem.IsValid();
 
 	bool NeedsCombatPose()
 	{
 		if ( startled > 0 ) return false;
-		foreach ( var (other, seen) in seenHostiles )
+		foreach ( var (other, memory) in knownCharacters )
 		{
-			if ( Time.Now - seen >= 1f || !CanAttack( other ) ) continue;
+			if ( !memory.Hostile || !memory.Awake || Time.Now - memory.SeenTime >= 1f || !CanAttack( other ) ) continue;
 			if ( other.GetComponent<RabbitGuard>() is { IsUnaware: true } ) continue;
 			if ( CharacterCenter( GameObject ).DistanceSquared( CharacterCenter( other ) ) < 200f * 200f ) return true;
 		}
@@ -393,7 +390,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		searchUntil = 0f;
 		casualty = null;
 		inspectPosition = null;
-		seenHostiles[target] = Time.Now;
 		escortTarget = null;
 		investigatePoint = null;
 		urgentInvestigation = false;

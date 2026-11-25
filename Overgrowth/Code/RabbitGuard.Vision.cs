@@ -11,7 +11,7 @@ public sealed partial class RabbitGuard
 	[Property] public bool Omniscient { get; set; }
 	bool noticedAllCharacters;
 	VisionHull focusHull, peripheralHull;
-	readonly record struct KnownCharacter( Vector3 Position, bool Awake, bool Hostile );
+	readonly record struct KnownCharacter( Vector3 Position, bool Awake, bool Hostile, float SeenTime );
 	readonly Dictionary<GameObject, KnownCharacter> knownCharacters = [];
 
 	void NoticeCharacter( GameObject actor )
@@ -20,7 +20,7 @@ public sealed partial class RabbitGuard
 		if ( npc is RabbitGuard { StaticCharacter: true } || actor.GetComponent<CharacterRemains>() is { StaticCharacter: true } ) return;
 		bool awake = IsLiveTarget( actor ) && npc is not ({ Health: < 1 } or RabbitGuard { Unconscious: true }) &&
 			!actor.GetComponent<CharacterRemains>().IsValid();
-		knownCharacters[actor] = new( CharacterCenter( actor ), awake, GetDisposition( actor ) == Disposition.Hostile );
+		knownCharacters[actor] = new( CharacterCenter( actor ), awake, GetDisposition( actor ) == Disposition.Hostile, Time.Now );
 	}
 
 	// A native character retains its identity after death. Keep the last observation
@@ -28,7 +28,6 @@ public sealed partial class RabbitGuard
 	void FollowCorpse( GameObject actor, GameObject corpse )
 	{
 		if ( knownCharacters.Remove( actor, out var memory ) ) knownCharacters[corpse] = memory;
-		if ( seenHostiles.Remove( actor, out var seen ) ) seenHostiles[corpse] = seen;
 		if ( enemy == actor ) enemy = corpse;
 		if ( observedTarget == actor ) observedTarget = corpse;
 		if ( fleeFrom == actor ) fleeFrom = corpse;
@@ -58,15 +57,16 @@ public sealed partial class RabbitGuard
 		return closest;
 	}
 
+	const float CharacterQueryRadius = 0.5f * 40f;
+
 	static bool InView( ref VisionHull hull, Vector3 settings, Vector3 center )
 	{
-		const float characterRadius = 0.5f * 40f;
 		float range = settings.z * 40f;
-		if ( range <= 0f ) return center.LengthSquared <= characterRadius * characterRadius;
-		if ( center.LengthSquared > (range + characterRadius) * (range + characterRadius) ) return false;
+		if ( range <= 0f ) return center.LengthSquared <= CharacterQueryRadius * CharacterQueryRadius;
+		if ( center.LengthSquared > (range + CharacterQueryRadius) * (range + CharacterQueryRadius) ) return false;
 		var angles = new Vector2( settings.x, settings.y );
 		if ( hull?.Angles != angles ) hull = new VisionHull( angles );
-		return hull.IntersectsSphere( center / range, characterRadius / range );
+		return hull.IntersectsSphere( center / range, CharacterQueryRadius / range );
 	}
 
 	(Vector3 Position, Vector3 Forward, Vector3 Left, Vector3 Up) GetViewBasis()
@@ -99,7 +99,6 @@ public sealed partial class RabbitGuard
 		noticedAllCharacters = Omniscient;
 		if ( enemy.IsValid() && IsIgnoredPlayer( enemy ) )
 		{
-			seenHostiles.Remove( enemy );
 			enemy = null;
 			visible = false;
 			enemySeen = 0;
@@ -118,7 +117,6 @@ public sealed partial class RabbitGuard
 				lastSeen = TargetPosition( enemy );
 				NoticeCharacter( enemy );
 				sinceEnemySeen = 0;
-				seenHostiles[enemy] = Time.Now;
 			}
 		}
 	}
@@ -136,8 +134,6 @@ public sealed partial class RabbitGuard
 	{
 		foreach ( var other in knownCharacters.Keys )
 			if ( !other.IsValid() ) knownCharacters.Remove( other );
-		foreach ( var (other, seen) in seenHostiles )
-			if ( !other.IsValid() || Time.Now - seen >= 1f ) seenHostiles.Remove( other );
 		GameObject closest = null;
 		float nearest = float.MaxValue;
 		float attention = 0f;
@@ -181,7 +177,6 @@ public sealed partial class RabbitGuard
 			}
 			if ( hidden ) continue;
 			detectedEnemy = true;
-			seenHostiles[candidate] = Time.Now;
 			if ( !enemy.IsValid() && !escortTarget.IsValid() )
 			{
 				LookAtNotice( center + TargetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
