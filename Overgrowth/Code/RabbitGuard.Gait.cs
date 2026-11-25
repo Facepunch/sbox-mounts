@@ -1,3 +1,4 @@
+using Sandbox.Npcs;
 using System;
 
 namespace Overgrowth;
@@ -25,9 +26,7 @@ public sealed partial class RabbitGuard
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			if ( SolvedBodyTransform( bone.Index ) is not { } foot || lastSkidPosition[side].DistanceSquared( foot.Position ) <= 4f * 4f ) continue;
 			lastSkidPosition[side] = foot.Position;
-			var hit = Scene.Trace.Ray( foot.Position + Vector3.Up * 12f, foot.Position + Vector3.Down * 48f )
-				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-			if ( hit.Hit ) EmitFootParticle( side, "skid", TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName, hit );
+			EmitFootParticle( side, "skid" );
 		}
 	}
 
@@ -69,7 +68,7 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "threat_coord", controls.Threat );
 		stridePhase = next % 1f;
 		Renderer.Animation.Parameters.Set( "stride_phase", stridePhase );
-		if ( IsOnGround ) PlayCycleSteps( queued.Events, start, next, Vector3.Down );
+		if ( IsOnGround ) PlayCycleSteps( queued.Events, start, next );
 		for ( int side = 0; side < 2; side++ )
 		{
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
@@ -80,7 +79,7 @@ public sealed partial class RabbitGuard
 		SolveGroundedLegs();
 	}
 
-	void PlayCycleSteps( RabbitClip clip, float start, float end, Vector3 surfaceDirection )
+	void PlayCycleSteps( RabbitClip clip, float start, float end )
 	{
 		if ( !Networking.IsHost || clip.Steps.Count == 0 ) return;
 		// AnimationReader activates the nearest authored clip's events in [start, end), including wraps.
@@ -91,18 +90,38 @@ public sealed partial class RabbitGuard
 				float contact = cycle + step.Phase;
 				if ( contact < start || contact >= end ) continue;
 				var position = Renderer.TryGetBoneTransform( $"bone_{step.Bone}", out var bone ) ? bone.Position : WorldPosition;
-				if ( !HandleFootstep( step.Event, position ) ) continue;
-				var hit = Scene.Trace.Ray( position - surfaceDirection * 12f, position + surfaceDirection * 48f )
-					.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
-				PlayFootContact( step.Event, position, hit, step.Event.Contains( "crouch" ) ? 3f : 5f );
+				PlayFootContact( step.Event, position );
 			}
 		}
 	}
 
-	void PlayFootContact( string step, Vector3 position, in SceneTraceResult hit, float gain )
+	// SceneGraph::GetClosestObject looks within 0.4 m and excludes movement objects.
+	SceneTraceResult FootMaterialContact( Vector3 position )
 	{
-		var surface = hit.Hit ? TerrainLoader.ContactSurface( hit, hit.EndPosition )?.ResourceName ?? "default" : null;
-		if ( hit.Hit ) EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step", surface, hit );
+		SceneTraceResult closest = default;
+		float distance = float.PositiveInfinity;
+		for ( int radius = 4; radius <= 16 && !closest.Hit; radius += 4 )
+		{
+			foreach ( var hit in Scene.Trace.Sphere( radius, position, position ).UseHitPosition()
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", CharacterCollisionRules.RagdollPart, CharacterCollisionRules.FighterHull ).RunAll() )
+			{
+				float next = position.DistanceSquared( hit.HitPosition );
+				if ( next >= distance || !hit.GameObject.IsValid() || hit.GameObject.GetComponentInParent<BaseNpc>().IsValid() ||
+					hit.GameObject.GetComponentInParent<PlayerController>().IsValid() ) continue;
+				distance = next;
+				closest = hit;
+			}
+		}
+		return closest;
+	}
+
+	void PlayFootContact( string step, Vector3 position )
+	{
+		if ( !HandleFootstep( step, position ) ) return;
+		var hit = FootMaterialContact( position );
+		var surface = hit.Hit ? TerrainLoader.ContactSurface( hit, hit.HitPosition )?.ResourceName ?? "default" : null;
+		EmitFootParticle( step.StartsWith( "left" ) ? 0 : 1, "step" );
+		float gain = step.Contains( "crouch" ) ? 3f : 5f;
 		if ( boundAnimations.CharacterSpecies == "cat" )
 		{
 			if ( IsAudibleStep( step ) ) (step, gain) = ("leftcrouchwalkstep", 1f);
@@ -111,9 +130,8 @@ public sealed partial class RabbitGuard
 		EmitMaterialEvent( step, position, surface, gain );
 	}
 
-	void EmitFootParticle( int side, string action, string surface, in SceneTraceResult hit )
+	void EmitFootParticle( int side, string action )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount || mount.MaterialParticle( surface, action ) is not { } path ) return;
 		var bone = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 		if ( !Renderer.TryGetBoneTransform( bone, out var foot ) ) return;
 		float speed = Animation.MoveVelocity.Length;
@@ -123,7 +141,12 @@ public sealed partial class RabbitGuard
 			foot = currentMotionRoot.ToWorld( currentMotionPose[bone.Index] );
 			speed = foot.Position.Distance( previous.Position ) / motionStep;
 		}
-		EmitSurfaceParticle( path, foot.Position + Vector3.Down * 4f, Math.Min( 40f, speed ), TerrainLoader.ContactColor( hit ) );
+		var hit = FootMaterialContact( foot.Position );
+		if ( !hit.Hit || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		var surface = TerrainLoader.ContactSurface( hit, hit.HitPosition )?.ResourceName;
+		if ( mount.MaterialParticle( surface, action ) is not { } path ) return;
+		var position = foot.Position + Vector3.Down * 4f;
+		EmitSurfaceParticle( path, position, Math.Min( 40f, speed ), TerrainLoader.ContactColor( hit, position ) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

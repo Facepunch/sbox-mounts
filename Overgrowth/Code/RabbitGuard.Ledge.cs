@@ -199,8 +199,10 @@ public sealed partial class RabbitGuard
 			LedgePhase = 0f;
 		}
 		var clip = boundAnimations.Clips[LedgeAnimation].ForSide( LedgeMirrored );
-		var from = clip.Animation.GetRootMotion( LedgePhase );
+		float previousPhase = LedgePhase;
+		var from = clip.Animation.GetRootMotion( previousPhase );
 		LedgePhase = Math.Min( 1f, LedgePhase + Time.Delta / clip.Duration );
+		PlayCycleSteps( clip, previousPhase, LedgePhase );
 		var to = clip.Animation.GetRootMotion( LedgePhase );
 		float correction = LedgeHeightOffset * (1f - MathF.Pow( 0.98f, Time.Delta * 120f ));
 		LedgeHeightOffset -= correction;

@@ -164,14 +164,11 @@ public sealed partial class RabbitGuard
 				{
 					plantedRoot[side] = Goal( side );
 					var contact = Renderer.TryGetBoneTransform( boundAnimations.Legs[side][0].Bone, out var toe ) ? toe.Position : foot.Position;
-					var floor = Scene.Trace.Ray( contact + Vector3.Up * 8f, contact + Vector3.Down * 24f )
-						.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();
 					if ( Networking.IsHost && (!(Held || Holding) || movement.LengthSquared > 40f * 40f) )
 					{
 						var gait = speed < 2f ? "crouchwalk" : speed < MathF.Sqrt( 20f ) ? "walk" : "run";
 						var step = (side == 0 ? "left" : "right") + gait + "step";
-						if ( HandleFootstep( step, contact ) )
-							PlayFootContact( step, contact, floor, speed < 2f ? 3f : 5f );
+						PlayFootContact( step, contact );
 					}
 					steppingFoot = NeedsStep( 1 - side ) ? 1 - side : -1;
 					stepProgress = 0;

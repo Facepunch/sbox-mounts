@@ -78,7 +78,7 @@ public sealed partial class RabbitGuard
 		if ( playing != Wall ) airPhase = 0f;
 		var motion = boundAnimations.WallMovement.Evaluate( controls, airPhase, false );
 		float next = airPhase + Time.Delta * motion.Frequency;
-		PlayCycleSteps( motion.Events, airPhase, next, WallDirection );
+		PlayCycleSteps( motion.Events, airPhase, next );
 		airPhase = next % 1f;
 		Renderer.Animation.Parameters.Set( "wall_speed_coord", controls.Speed );
 		Renderer.Animation.Parameters.Set( "wall_dir_coord", controls.Direction );

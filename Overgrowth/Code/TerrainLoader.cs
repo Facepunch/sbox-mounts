@@ -16,10 +16,10 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 		return Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( path ) as TerrainLoader;
 	}
 
-	internal static Color ContactColor( in SceneTraceResult hit )
+	internal static Color ContactColor( in SceneTraceResult hit, Vector3? point = null )
 	{
 		if ( hit.Collider is not ModelCollider collider || LoaderFor( collider ) is not { colorMap: not null, materials: { } terrain } loader ||
-			terrain.UvAt( hit.Triangle, collider.WorldTransform.PointToLocal( hit.EndPosition ) ) is not { } uv ) return Color.White;
+			terrain.UvAt( hit.Triangle, collider.WorldTransform.PointToLocal( point ?? hit.EndPosition ) ) is not { } uv ) return Color.White;
 		loader.terrainColor ??= new ImageSampler( loader.Host, loader.colorMap );
 		var pixel = loader.terrainColor.Sample( uv );
 		return new( MathF.Pow( pixel.r / 255f, 2.2f ), MathF.Pow( pixel.g / 255f, 2.2f ), MathF.Pow( pixel.b / 255f, 2.2f ) );
