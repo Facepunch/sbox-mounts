@@ -8,14 +8,14 @@ internal abstract partial class WeaponLoader
 {
 	protected string ImpactPath( TagEntry tag ) => $"{map.Header.MapName}/{tag.TagPath.Replace( '\\', '/' )}.prefab";
 
-	protected sealed class ImpactLoader( WeaponLoader source, TagEntry tag ) : ResourceLoader<Halo2Mount>
+	protected sealed class ImpactLoader( WeaponLoader source, TagEntry tag, bool includeSounds = false ) : ResourceLoader<Halo2Mount>
 	{
 		PrefabFile prefab;
 		protected override object Load()
 		{
 			var builder = new PrefabBuilder().WithName( Path );
 			using ( builder.Scope() )
-				new GameObject().AddComponent<PelletImpactEffect>().Visuals = source.ReadContactVisuals( tag );
+				new GameObject().AddComponent<PelletImpactEffect>().Visuals = source.ReadContactVisuals( tag, includeSounds );
 			return prefab = builder.Create();
 		}
 
@@ -26,7 +26,7 @@ internal abstract partial class WeaponLoader
 		}
 	}
 
-	ContactVisuals ReadContactVisuals( TagEntry contact )
+	ContactVisuals ReadContactVisuals( TagEntry contact, bool includeSounds )
 	{
 		int events = Address( contact ) + 20;
 		int eventCount = map.ReadInt32( events );
@@ -38,6 +38,7 @@ internal abstract partial class WeaponLoader
 			int parts = map.ReadInt32( row + 24 );
 			var marks = new List<ImpactDecal>();
 			var lights = new List<ImpactLight>();
+			var sounds = new List<SoundEvent>();
 			if ( parts > 0 )
 			{
 				int part = Block( row + 24 );
@@ -45,12 +46,14 @@ internal abstract partial class WeaponLoader
 				{
 					if ( ReadContactMark( contact, part ) is {} mark ) marks.Add( mark );
 					else if ( ReadLight( part ) is {} light ) lights.Add( light );
+					else if ( includeSounds && Reference( part + 12 ) is { PrimaryClass: "!dns" } sound &&
+						GameResource.Load<SoundEvent>( Host.AssetPath( map, sound.TagPath, "sound" ) ) is {} cue ) sounds.Add( cue );
 				}
 			}
 			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
-				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) ) { Lights = lights.ToArray() };
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) ) { Lights = lights.ToArray(), Sounds = sounds.ToArray() };
 		}
-		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles || e.Lights.Length > 0 ) ? new ContactVisuals( timeline ) : null;
+		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles || e.Lights.Length > 0 || e.Sounds.Length > 0 ) ? new ContactVisuals( timeline ) : null;
 	}
 
 	ImpactLight ReadLight( int part )

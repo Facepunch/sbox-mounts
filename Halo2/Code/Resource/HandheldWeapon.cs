@@ -42,7 +42,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	{
 		get
 		{
-			if ( !HasImpactBlast && Name is not ("big_needler_handheld" or "phantom_turret_handheld") ) return null;
+			if ( !HasImpactBlast && Name is not ("big_needler_handheld" or "phantom_turret_handheld" or "needler") ) return null;
 			int projectile = Address( Reference( PrimaryBarrel + 0x8c ) );
 			return Reference( projectile + 0x140 ) ?? Reference( projectile + 0xf8 );
 		}
@@ -51,7 +51,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	internal void RegisterDetonation( MountContext context, HashSet<string> registered )
 	{
 		if ( DetonationEffect is { PrimaryClass: "effe" } tag && registered.Add( ImpactPath( tag ) ) )
-			context.Add( ResourceType.PrefabFile, ImpactPath( tag ), new ImpactLoader( this, tag ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+			context.Add( ResourceType.PrefabFile, ImpactPath( tag ), new ImpactLoader( this, tag, includeSounds: true ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
 	}
 
 	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
@@ -157,7 +157,12 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				Float( area + 0x1c ), Float( area + 0x20 ), Float( area + 0x40 ) * 120,
 				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), area ) );
 		}
-		if ( DetonationEffect is { PrimaryClass: "effe" } effect ) gun.DetonationEffectPath = Host.AssetPath( map, effect.TagPath, "prefab" );
+		if ( DetonationEffect is { PrimaryClass: "effe" } effect )
+		{
+			string path = Host.AssetPath( map, effect.TagPath, "prefab" );
+			if ( gun.Shard is {} shard ) gun.Shard = shard with { DetonationEffect = path };
+			else gun.DetonationEffectPath = path;
+		}
 		gun.Trail = ReadTrail( projectile );
 		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
 		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;

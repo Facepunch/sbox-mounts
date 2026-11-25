@@ -3,7 +3,10 @@ namespace Halo2;
 public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
 
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
-	float Damage, float Force, Dictionary<string, float> BodyScales );
+	float Damage, float Force, Dictionary<string, float> BodyScales )
+{
+	public string DetonationEffect { get; init; }
+}
 
 public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistics, float Speed, float MinimumAngle, float DryGravity, float WetGravity,
 	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
@@ -266,10 +269,14 @@ public abstract partial class Weapon
 	{
 		var target = hit.GameObject;
 		if ( !target.IsValid() ) { if ( pellet.Model.IsValid() ) pellet.Model.Destroy(); return; }
-		var local = target.WorldTransform.PointToLocal( hit.HitPosition );
+		var body = hit.Hitbox?.Body;
+		var contact = new Transform( hit.HitPosition, Rotation.LookAt( hit.Direction ) );
+		var targetLocal = target.WorldTransform.ToLocal( contact );
+		var boneLocal = body.IsValid() ? body.Transform.ToLocal( contact ) : default;
+		var localNormal = contact.Rotation.Inverse * hit.Normal;
 		if ( pellet.Model.IsValid() )
 		{
-			pellet.Model.WorldPosition = hit.HitPosition;
+			pellet.Model.WorldTransform = contact;
 			pellet.Model.SetParent( target, true );
 		}
 		var clock = TaskSource.Create( scene.EnabledToken );
@@ -278,9 +285,19 @@ public abstract partial class Weapon
 		{
 			using ( scene.Push() )
 			{
+				if ( body.IsValid() )
+				{
+					contact = body.Transform.ToWorld( boneLocal );
+					targetLocal = target.WorldTransform.ToLocal( contact );
+					if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = contact;
+				}
+				else contact = target.WorldTransform.ToWorld( targetLocal );
 				if ( Time.NowDouble >= due )
 				{
-					hit.StartPosition = hit.HitPosition = target.WorldTransform.PointToWorld( local );
+					hit.StartPosition = hit.HitPosition = contact.Position;
+					hit.Direction = contact.Rotation.Forward;
+					hit.Normal = contact.Rotation * localNormal;
+					if ( shard.DetonationEffect is {} path ) PresentDetonation( path, target, hit.HitPosition, hit.Normal, hit.Direction );
 					float damage = shard.Damage * BodyMaterial.DamageScale( hit, shard.BodyScales, true );
 					ApplyDelayedHit( hit, damage, shard.Force, attacker, new TagSet { "explosion" }, false );
 					break;

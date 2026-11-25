@@ -22,6 +22,7 @@ public sealed partial class PelletImpactEffect : Component
 	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters )
 	{
 		public ImpactLight[] Lights { get; init; } = [];
+		public SoundEvent[] Sounds { get; init; } = [];
 	}
 	public sealed record ContactVisuals
 	{
@@ -90,6 +91,7 @@ public sealed partial class PelletImpactEffect : Component
 			using ( parent.Scene.Push() )
 			{
 				var transform = parent.WorldTransform.ToWorld( local );
+				foreach ( var sound in entry.Sounds ) Sound.Play( sound, transform.Position );
 				foreach ( var light in entry.Lights ) _ = PlayLight( parent, transform, light );
 				foreach ( var mark in entry.Marks )
 				{
