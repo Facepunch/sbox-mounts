@@ -486,7 +486,7 @@ public sealed class Shotgun : Weapon
 
 	TimeUntil meleeEnds;
 	uint randomState = (uint)System.Random.Shared.Next();
-	int swing;
+	(double Time, float Damage, GameObject Attacker)? pendingStrike;
 
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
@@ -511,9 +511,8 @@ public sealed class Shotgun : Weapon
 		SetNextPrimaryFire( duration );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
 		SetNextSecondaryFire( recovery / 30f );
-		int serial = ++swing;
-		if ( clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is { } impact )
-			_ = Strike( serial, impact.Frame / 30f, StrikeDamage(), Attacker );
+		pendingStrike = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact
+			? (Time.NowDouble + impact.Frame / 30.0, StrikeDamage(), Attacker) : null;
 	}
 
 	FirstPersonAnimation StrikeAnimations() => ViewModel?.GetComponent<ShotgunViewModel>()?.AnimationData
@@ -544,18 +543,18 @@ public sealed class Shotgun : Weapon
 		return (1 - fraction) * MinimumMeleeDamage + fraction * MeleeDamage;
 	}
 
-	async System.Threading.Tasks.Task Strike( int serial, float delay, float damage, GameObject attacker )
+	protected override void OnUpdate()
 	{
-		await Task.DelaySeconds( delay );
-		if ( !IsValid || serial != swing ) return;
-		using var sceneScope = Scene.Push();
+		base.OnUpdate();
+		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
+		pendingStrike = null;
 		var aim = AimRay;
 		var hit = TraceMelee( aim, out var impactPosition );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
-		ApplyDelayedHit( hit, damage, MeleeForce, attacker, new TagSet { "melee" }, false );
+		ApplyDelayedHit( hit, strike.Damage, MeleeForce, strike.Attacker, new TagSet { "melee" }, false );
 	}
 
 	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
@@ -628,11 +627,17 @@ public sealed class Shotgun : Weapon
 		if ( IsValid && IsHeld && remaining > DeployTime ) SetNextPrimaryFire( remaining );
 	}
 
+	protected override void OnDisabled()
+	{
+		pendingStrike = null;
+		base.OnDisabled();
+	}
+
 	protected override void OnHolstered()
 	{
 		triggerConsumed = false;
 		SetNextPrimaryFire( PrimaryDelay );
-		swing++;
+		pendingStrike = null;
 		meleeEnds = default;
 		base.OnHolstered();
 	}
