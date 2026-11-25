@@ -668,7 +668,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "gravity_gun_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"Idle": "idle", "Fire": "fire", "Reload": null, "EjectBrass": null}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "Idle": "idle", "Fire": "fire", "Reload": null, "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_physcannon.mdl", "FallbackModelPath": "models/weapons/v_physcannon.mdl"}
