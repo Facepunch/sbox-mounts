@@ -56,6 +56,8 @@ public sealed partial class ProjectileWeapon : Weapon
 	public override bool CanPrimaryAttack() => (!_primed || HasLowThrow) && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
 	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
+	internal override bool ShouldPlayIdle => Kind != Projectile.Kinds.Bolt || !AttackOrReloadHeld;
+
 	bool _reloadAfterShot;
 	protected override bool WantsReload()
 	{
