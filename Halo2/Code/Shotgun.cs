@@ -231,7 +231,8 @@ public sealed class Shotgun : Weapon
 	protected override void OnReloadStarted()
 	{
 		base.OnReloadStarted();
-		firstInsertAt = Time.NowDouble + System.Math.Max( 0, ReloadStartTime - ReloadTime );
+		int enterFrames = (int)System.MathF.Round( System.MathF.Max( 0, ReloadStartTime - ReloadTime ) * 30 );
+		firstInsertAt = Time.NowDouble + enterFrames / 30.0;
 	}
 
 	protected override void OnReloadFinished()
@@ -981,7 +982,8 @@ public sealed class ShotgunViewModel : ShotgunModel
 		// Native traversal excludes the end frame of each tick. A one-shot returns to idle one tick early.
 		float endTick = System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick );
 		float lastTick = enterReload ? endTick : endTick - 1;
-		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsed / tick ), lastTick );
+		float elapsedTicks = enterReload ? elapsed * 30 : elapsed / tick;
+		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsedTicks ), lastTick );
 		float frame = sampleTick * framesPerTick;
 		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
 		{
