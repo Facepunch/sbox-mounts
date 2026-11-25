@@ -5,8 +5,11 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Gorge" ), Category( "Natural Selection 2" )]
-public sealed class Gorge : BaseNpc
+public sealed partial class Gorge : BaseNpc, Component.IDamageable
 {
+	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 50 ); }
+	float IDamageable.MaxArmour => 50;
+
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();
@@ -24,7 +27,7 @@ public sealed class Gorge : BaseNpc
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spit", "spit_hit", "spawn", "wound", "wound_serious", "death" } )
+		foreach ( var cue in new[] { "spit", "spit_hit", "heal_spray", "spawn", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/gorge/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -77,6 +80,7 @@ public sealed class Gorge : BaseNpc
 	{
 		var enemy = targeting.FindEnemy( this, out var lastSeen );
 		bool visible = enemy.IsValid() && lastSeen is null;
+		if ( SupportAlly( visible ) ) return;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var goal = lastSeen ?? enemy?.WorldPosition;
 		firing = visible && EyePosition.Distance( goal.Value ) <= 20 * Scale;
@@ -122,9 +126,15 @@ public sealed class Gorge : BaseNpc
 		if ( world is null || weapon is null ) return;
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		var direction = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
+		if ( wantsSpray && patient.IsValid() && patient.GetComponent<Rigidbody>() is { } body )
+		{
+			float distance = Math.Min( EyePosition.Distance( patient.WorldPosition ) / Scale, 1 );
+			direction += body.Velocity * (distance * 0.6f);
+		}
 		aim = AlienAim.Turn( aim, direction, 5 );
 		primaryHeld = firing && energy >= 7 && Vector3.Dot( aim.Forward, direction.Normal ) > 0.98f;
-		var activity = primaryHeld ? "primary" : "none";
+		UpdateSprayInput( direction );
+		var activity = secondaryAttacking && energy >= 10 || sprayAnimation > 0 ? "secondary" : primaryHeld ? "primary" : "none";
 		var move = !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "move", move );
 		world.Set( "alive", 1 );
@@ -143,6 +153,7 @@ public sealed class Gorge : BaseNpc
 
 	void OnWeaponTag( string tag )
 	{
+		if ( tag == "heal" && secondaryAttacking && energy >= 10 ) Spray();
 		if ( tag != "shoot" || !primaryHeld || energy < 7 ) return;
 		energy -= 7;
 		GorgeSpit.Fire( this, aim );

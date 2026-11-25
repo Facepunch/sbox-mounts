@@ -5,8 +5,11 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
-public sealed partial class Skulk : BaseNpc
+public sealed partial class Skulk : BaseNpc, Component.IDamageable
 {
+	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
+	float IDamageable.MaxArmour => MaxArmor;
+
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		var hull = new GameObject( root, true, "Collider" );

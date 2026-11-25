@@ -5,8 +5,11 @@ using System;
 namespace NS2;
 
 [Title( "Fade" ), Category( "Natural Selection 2" )]
-public sealed partial class Fade : BaseNpc
+public sealed partial class Fade : BaseNpc, Component.IDamageable
 {
+	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 80 ); }
+	float IDamageable.MaxArmour => 80;
+
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();

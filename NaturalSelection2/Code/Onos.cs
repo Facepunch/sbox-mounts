@@ -5,8 +5,11 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Onos" ), Category( "Natural Selection 2" )]
-public sealed partial class Onos : BaseNpc
+public sealed partial class Onos : BaseNpc, Component.IDamageable
 {
+	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
+	float IDamageable.MaxArmour => MaxArmor;
+
 	const float Scale = MapLoader.Scale;
 	const float RunSpeed = 6.6f * Scale;
 	const float MaxArmor = 450;
