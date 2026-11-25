@@ -52,18 +52,30 @@ public sealed partial class PelletImpactEffect : Component
 	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject target, GameObject parent, Transform local, Vector3 incoming )
 	{
 		float elapsed = 0;
-		var started = Time.Now;
+		var clock = TaskSource.Create();
+		double started;
+		var scene = parent.Scene;
+		using ( scene.Push() ) started = Time.NowDouble;
+
+		async Task WaitUntil( float elapsed )
+		{
+			while ( parent.IsValid() )
+			{
+				using ( scene.Push() )
+					if ( Time.NowDouble >= started + elapsed ) return;
+				await clock.Frame();
+			}
+		}
 		for ( int i = 0; i < visuals.Events.Length; i++ )
 		{
 			var entry = visuals.Events[i];
-			float remaining = elapsed - (Time.Now - started);
-			if ( remaining > 0 ) await GameTask.DelaySeconds( remaining );
+			if ( i > 0 ) await WaitUntil( elapsed );
 			if ( !parent.IsValid() ) return;
 			// Retail selects event zero directly. Only transitions roll skip probability.
 			if ( i > 0 && entry.Skip > 0 && EventFraction() < entry.Skip ) continue;
-			elapsed += EventTime( entry.Delay );
-			float wait = elapsed - (Time.Now - started);
-			if ( wait > 0 ) await GameTask.DelaySeconds( wait );
+			float delay = EventTime( entry.Delay );
+			elapsed += delay;
+			if ( delay > 0 ) await WaitUntil( elapsed );
 			if ( !parent.IsValid() ) return;
 
 			var duration = EventTime( entry.Duration );
@@ -89,8 +101,7 @@ public sealed partial class PelletImpactEffect : Component
 				while ( previous < duration )
 				{
 					float boundary = tick++ / 30f;
-					float delay = boundary - (Time.Now - started);
-					if ( delay > 0 ) await GameTask.DelaySeconds( delay );
+					await WaitUntil( boundary );
 					if ( !parent.IsValid() ) return;
 					float active = boundary + 0.000001f >= end ? duration : boundary - elapsed;
 					using ( parent.Scene.Push() )
