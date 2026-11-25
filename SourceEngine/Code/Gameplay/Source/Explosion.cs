@@ -38,6 +38,7 @@ sealed class Explosion
 			x.Radius = Radius;
 			x.PhysicsForceScale = ForceScale;
 			x.DamageAmount = Damage;
+			x.Weapon = Source;
 			x.Attacker = Attacker.IsValid() ? Attacker : go;
 			x.DamageTags ??= new();
 			x.DamageTags.Add( DamageTags.Explosion );
