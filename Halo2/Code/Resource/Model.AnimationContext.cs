@@ -98,7 +98,8 @@ public partial class Halo2ModelLoader
 		foreach ( int category in Matches( mode + 4, 20, weaponClass ) )
 		foreach ( int weapon in Matches( category + 4, 52, weaponType ) )
 		{
-			found |= Label( mode ) == modeName && Label( category ) == weaponClass && Label( weapon ) == weaponType;
+			// A weapon can use its class's "any" row when the rig has no weapon-specific stance.
+			found |= Label( mode ) == modeName && Label( category ) == weaponClass;
 			ReadBindings( weapon + 4, actions );
 			ReadBindings( weapon + 12, overlays );
 			foreach ( int d in Rows( weapon + 20, 12 ) )
