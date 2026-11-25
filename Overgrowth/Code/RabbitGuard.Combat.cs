@@ -247,9 +247,7 @@ public sealed partial class RabbitGuard
 		{
 			repath = 0.2f;
 			var intent = ChaseApproach( destination, out var point );
-			if ( !intent.IsNearlyZero() )
-				Movement.MoveTo( point, 0f, intent.Length * GroundRunSpeed, footStanceTarget );
-			else ReleaseMovementInput();
+			MoveWithIntent( point, intent, 1f, footStanceTarget );
 		}
 		Stance = !Movement.MoveTarget.HasValue || footStanceTarget.IsValid() || speed <= 0.6f * 40f ? Threat : Locomotion;
 	}

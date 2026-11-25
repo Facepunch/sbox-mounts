@@ -23,14 +23,15 @@ public sealed partial class RabbitGuard
 
 	// UpdateGroundMovementControls adds acceleration before ApplyPhysics damps the body.
 	// Give the crowd the speed reachable in its next step so it can still steer around actors and walls.
-	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step )
+	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step, Vector3? requestedHeading )
 	{
 		if ( step <= 0f ) return;
 		const float tick = 4f / 120f, acceleration = 35f * 40f;
 		var velocity = agent.Velocity.WithZ( 0f );
 		float speed = velocity.Length;
 		float run = GroundRunSpeed;
-		var direction = (agent.GetLookAhead( 40f ) - agent.AgentPosition).WithZ( 0f ).Normal;
+		// A new AI request can precede the crowd's next corridor update.
+		var direction = requestedHeading ?? (agent.GetLookAhead( 40f ) - agent.AgentPosition).WithZ( 0f ).Normal;
 		var ground = FloorNormal();
 		runGroundNormal = runGroundNormal.IsNearlyZero() || speed < 0.01f ? ground
 			: Vector3.Lerp( ground, runGroundNormal, MathF.Pow( 0.9f, step / tick ) ).Normal;
@@ -45,9 +46,20 @@ public sealed partial class RabbitGuard
 		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
 		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (MathF.Exp( friction * tick ) - 1f);
 		float response = 1f - MathF.Exp( -friction * step );
-		agent.MaxSpeed = speed + (terminal - speed) * response;
-		// Reversing input both brakes the old motion and accelerates toward the new route.
-		agent.Acceleration = Math.Max( acceleration, (direction * terminal - velocity).Length * (response / step) );
+		float steeringAcceleration = (direction * terminal - velocity).Length * (response / step);
+		// The crowd limits its wish speed by braking distance. While there is room,
+		// approach the authored velocity vector, preserving momentum through turns.
+		float distance = agent.TargetPosition is { } target ? (target - agent.AgentPosition).WithZ( 0f ).Length : 0f;
+		if ( terminal * terminal <= 2f * steeringAcceleration * distance )
+		{
+			agent.MaxSpeed = terminal;
+			agent.Acceleration = steeringAcceleration;
+		}
+		else
+		{
+			agent.MaxSpeed = speed + (terminal - speed) * response;
+			agent.Acceleration = Math.Max( acceleration, steeringAcceleration );
+		}
 	}
 
 	void ReleaseMovementInput()
@@ -69,14 +81,15 @@ public sealed partial class RabbitGuard
 		return MoveWithIntent( point, intent, speed );
 	}
 
-	bool MoveWithIntent( Vector3 point, Vector3 intent, float speed )
+	bool MoveWithIntent( Vector3 point, Vector3 intent, float speed, GameObject faceTarget = null )
 	{
 		if ( intent.IsNearlyZero() )
 		{
 			ReleaseMovementInput();
 			return false;
 		}
-		Movement.MoveTo( point, 0f, intent.Length * speed * GroundRunSpeed );
+		Movement.MoveTo( point, 0f, intent.Length * speed * GroundRunSpeed, faceTarget );
+		if ( Movement is CharacterNavigation navigation ) navigation.RequestedHeading = intent.WithZ( 0f ).Normal;
 		return true;
 	}
 

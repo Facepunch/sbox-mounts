@@ -134,18 +134,9 @@ public sealed partial class RabbitGuard
 			if ( !following && intent.LengthSquared > 0.2f ) intent = intent.Normal * 0.2f;
 		}
 		// GetPatrolMovement adds separation again after limiting the path-following speed.
-		intent += separation;
-		float speed = Math.Min( 1f, intent.Length );
-		if ( speed > 0f )
-		{
-			Movement.MoveTo( WorldPosition + intent.Normal * (speed * 40f), 0f, speed * GroundRunSpeed );
-			Stance = target.HasValue ? Locomotion : Threat;
-		}
-		else
-		{
-			ReleaseMovementInput();
-			Stance = Idle;
-		}
+		intent = (intent + separation).ClampLength( 1f );
+		bool moving = MoveWithIntent( WorldPosition + intent * 40f, intent, 1f );
+		Stance = moving ? (target.HasValue ? Locomotion : Threat) : Idle;
 		return true;
 	}
 }

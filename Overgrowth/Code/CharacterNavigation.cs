@@ -12,6 +12,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	Vector3? predictedClimb, runOffDirection;
 	float runOffSpeed;
 	float requestedGroundSpeed;
+	internal Vector3? RequestedHeading { get; set; }
 	Vector3 brakingVelocity;
 	internal Vector3 BrakingVelocity => brakingVelocity;
 	TimeUntil runOffTimeout;
@@ -26,18 +27,20 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		if ( !MoveTarget.HasValue ) return;
 		var velocity = Agent is { Active: true } && !IsTraversingLink ? Agent.Velocity.WithZ( 0f ) : default;
-		base.Stop();
+		Stop();
 		brakingVelocity = velocity;
 	}
 
 	public override void Stop()
 	{
+		RequestedHeading = null;
 		brakingVelocity = default;
 		base.Stop();
 	}
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10f, float? speed = null, GameObject faceTarget = null )
 	{
+		RequestedHeading = null;
 		if ( Agent is { Active: true } && Npc is RabbitGuard fighter )
 		{
 			var carried = brakingVelocity + fighter.TakeCombatVelocity();
@@ -45,6 +48,8 @@ public sealed class CharacterNavigation : NavigationLayer
 		}
 		brakingVelocity = default;
 		base.MoveTo( target, stopDistance, speed, faceTarget );
+		if ( speed.HasValue && Agent is { Active: true, MaxSpeed: > 0f } )
+			requestedGroundSpeed = speed.Value;
 	}
 
 	protected override void OnUpdate()
@@ -116,7 +121,8 @@ public sealed class CharacterNavigation : NavigationLayer
 		if ( !brakingVelocity.IsNearlyZero() && Agent is { Active: true } )
 			fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, Agent.AgentPosition );
 		else if ( requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne && Agent is { Active: true } && !IsTraversingLink )
-			fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta );
+			fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta, RequestedHeading );
+		RequestedHeading = null;
 	}
 
 	// UpdateAnimation turns toward actual travel at ten radians per second. When the desired
