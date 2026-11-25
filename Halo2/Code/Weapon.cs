@@ -1,5 +1,11 @@
 namespace Halo2;
 
+[Sandbox.ModelEditor.GameData( "weapon_attachment" )]
+public sealed class WeaponAttachment
+{
+	public string PrimaryHand { get; set; }
+}
+
 public abstract class Weapon : BaseCombatWeapon
 {
 	[Property] public Vector3 ViewOffset { get; set; }

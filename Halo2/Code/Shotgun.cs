@@ -92,7 +92,9 @@ public sealed class Shotgun : Weapon
 		if ( !HolderRenderer.IsValid() ) return;
 		var loose = GetComponent<SkinnedModelRenderer>( true );
 		var hand = HolderRenderer.GetBoneObject( HoldBone );
-		if ( hand is null && HolderRenderer.Model?.Attachments.Get( "right_hand" ) is {} marker )
+		var holderModel = HolderRenderer.Model;
+		var handMarker = holderModel?.GetData<WeaponAttachment>()?.PrimaryHand ?? "right_hand";
+		if ( hand is null && holderModel?.Attachments.Get( handMarker ) is {} marker )
 		{
 			HolderRenderer.CreateAttachments = true;
 			hand = HolderRenderer.GetAttachmentObject( marker );

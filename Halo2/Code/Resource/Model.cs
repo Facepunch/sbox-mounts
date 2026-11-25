@@ -70,6 +70,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 	{
 		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
+		if ( biped is { DataSize: >= 0x15c } && Label( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0x158 ) is { Length: > 0 } hand )
+			builder.WithData( new WeaponAttachment { PrimaryHand = hand } );
 		if ( ReadBodyMaterial() is {} bodyMaterial ) builder.WithData( bodyMaterial );
 		if ( HasFirstPersonWeapon && GetAnimationContext( "any", "any", "any" ) is {} context )
 		{
