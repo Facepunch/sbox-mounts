@@ -22,6 +22,13 @@ public sealed partial class SourceWeaponWorldModel : BaseWeaponModel
 
 	public override void OnAttack( Vector3? hitPoint = null, Vector3? origin = null )
 	{
+		Attack( hitPoint, origin, false );
+	}
+
+	internal void OnDoubleShot( Vector3? hitPoint ) => Attack( hitPoint, null, true );
+
+	void Attack( Vector3? hitPoint, Vector3? origin, bool doubleShot )
+	{
 		base.OnAttack( hitPoint, origin );
 		_heldShot++;
 		_shotTime = 0;
@@ -36,7 +43,7 @@ public sealed partial class SourceWeaponWorldModel : BaseWeaponModel
 		if ( SourceWeaponSetup.PumpDelay( weapon ) is { } delay )
 		{
 			_pumpPending = true;
-			_pumpAt = delay;
+			_pumpAt = doubleShot ? weapon.AlternatePumpDelay : delay;
 		}
 		else EjectShell();
 	}

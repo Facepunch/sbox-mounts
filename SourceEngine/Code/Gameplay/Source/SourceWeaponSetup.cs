@@ -240,7 +240,15 @@ static class SourceWeaponSetup
 		if ( weapon is SourceBulletWeapon bullet )
 		{
 			var secondary = Duration( clips.SecondaryFire );
-			if ( secondary > 0 ) bullet.AlternateDuration = secondary;
+			if ( secondary > 0 )
+			{
+				bullet.AlternateDuration = secondary;
+				if ( bullet.Secondary == SourceWeapon.SecondaryFires.DoubleShot )
+				{
+					bullet.AlternatePumpDelay = secondary;
+					bullet.AlternateDuration += Duration( clips.Pump );
+				}
+			}
 			bullet.SilencerDuration = Duration( clips.AttachSilencer );
 			// Counter-Strike's attack2 is code; infer it from what the viewmodel authors for it.
 			if ( bullet.Secondary == SourceWeapon.SecondaryFires.Default && bullet.AlternateProjectile is null )

@@ -388,7 +388,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "shotgun", "Shotgun", "models/weapons/w_shotgun.mdl", null, """
 			{
 				".": {
-					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "4,4", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "DisplayName": "HL2 Shotgun", "HoldType": "shotgun", "Npc": {"MinRange": 0, "MaxRange": 500, "BurstMin": 1, "BurstMax": 1, "RestMin": 0.75, "RestMax": 1.2, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryDelay": 0.75, "ReloadTime": 1.5, "StartingAmmo": 30, "ViewModelPrefab": {"prefab": "entities/parts/shotgun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/shotgun_wm.prefab"}, "Secondary": "DoubleShot"}
+					"Source1.SourceBulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "4,4", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "DisplayName": "HL2 Shotgun", "HoldType": "shotgun", "Npc": {"MinRange": 0, "MaxRange": 500, "BurstMin": 1, "BurstMax": 1, "RestMin": 0.75, "RestMax": 1.2, "SpreadScale": 3, "CanBePickedUp": true}, "PrimaryDelay": 0.75, "ReloadTime": 1.5, "StartingAmmo": 30, "ViewModelPrefab": {"prefab": "entities/parts/shotgun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/shotgun_wm.prefab"}, "Secondary": "DoubleShot", "SecondaryAutomatic": true}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_shotgun.mdl"}

@@ -90,6 +90,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	internal float? AlternateDamage { get; set; }
 	internal float? AlternateRadius { get; set; }
 	internal SourceProjectile.Kinds? AlternateProjectile { get; set; }
+	internal float AlternatePumpDelay { get; set; }
 	internal float AlternateDuration { get; set; } = 1;
 	internal bool NpcControlled => Holder is BaseNpc;
 	// The host picks the NPC's reload clip and shares its duration for animation on other peers.
@@ -98,6 +99,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	bool _weaponConfigured;
 	bool? _tunedForNpc;
 	bool _alternatePending;
+	bool _queuedPrimary, _queuedSecondary;
 	TimeUntil _alternateAt;
 	GameObject _alternateAttacker;
 	int _zoomLevel;
@@ -115,9 +117,20 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	public override bool CanReload() => !_alternatePending && (!NpcControlled || _weaponConfigured) && base.CanReload();
 
+	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
+	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
+
 	protected override void Think()
 	{
 		base.Think();
+		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
+		{
+			// Finish the current shell insert before firing the trigger that interrupted it.
+			_queuedPrimary |= Clip1 >= 1 && base.WantsPrimaryAttack();
+			_queuedSecondary |= !_queuedPrimary && Clip1 >= 2 && base.WantsSecondaryAttack();
+		}
+		if ( Secondary == SecondaryFires.DoubleShot && Clip1 == 0 && NextPrimaryFire <= 0 && AutoReload && CanReload() )
+			Reload();
 		if ( ContinuousFireRate && PrimaryDelay > 0 && Input.Down( "attack1" ) && !Input.Pressed( "attack1" ) && !WantsReload() )
 		{
 			// Only catch up time spent holding the trigger during this frame.
@@ -135,6 +148,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnHolstered()
 	{
+		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
 		_alternatePending = false;
 		_alternateAttacker = null;
@@ -165,6 +179,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			NpcReloadAnimationTime = ReloadTime = Math.Max( duration ?? ReloadTime, 0.1f );
 			IncrementalReloading = false;
 		}
+		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled ) SetNextFire( ReloadStartTime );
 		base.OnReloadStarted();
 		if ( !animator.IsValid() && WeaponModel is not SourceViewModel ) SourceSounds.PlayReloadSound( this, GameObject );
 	}
@@ -199,7 +214,9 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	{
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
+		_queuedPrimary = _queuedSecondary = false;
 		base.PrimaryAttack();
+		if ( Secondary == SecondaryFires.DoubleShot ) SetNextSecondaryFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
@@ -268,6 +285,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	protected override void OnReloadInserted()
 	{
+		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled ) SetNextFire( ReloadTime );
 		base.OnReloadInserted();
 		if ( WeaponModel is not SourceViewModel ) SourceSounds.PlayReloadSound( this, GameObject );
 	}
@@ -308,7 +326,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	public override bool HasSecondaryAmmo() => Secondary switch
 	{
-		SecondaryFires.DoubleShot => !IsHeld || Clip1 >= 2,
+		SecondaryFires.DoubleShot => HasPrimaryAmmo() && (!IsReloading || Clip1 >= 2),
 		SecondaryFires.Zoom or SecondaryFires.Burst or SecondaryFires.Silencer => true,
 		_ => base.HasSecondaryAmmo()
 	};
@@ -360,6 +378,12 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	void DoubleShot()
 	{
+		_queuedPrimary = _queuedSecondary = false;
+		if ( IsHeld && Clip1 == 1 )
+		{
+			FirePrimary();
+			return;
+		}
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
 		var config = Ballistics;
 		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
@@ -408,6 +432,7 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		if ( Application.IsDedicatedServer ) return;
 		if ( SourceSounds.WeaponSound( this, "double_shot" ) is { } sound ) GameObject.PlaySound( sound );
 		if ( WeaponModel is SourceViewModel view ) view.OnAlternateAttack();
+		else if ( WeaponModel is SourceWeaponWorldModel world ) world.OnDoubleShot( volley[0].Hit ? volley[0].HitPosition : null );
 		else WeaponModel?.OnAttack( volley[0].Hit ? volley[0].HitPosition : null );
 	}
 
