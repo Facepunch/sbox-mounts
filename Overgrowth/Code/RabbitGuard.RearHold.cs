@@ -192,6 +192,7 @@ public sealed partial class RabbitGuard
 		while ( holdTick < elapsed )
 		{
 			holdTick++;
+			if ( holdTick == 7 ) EndGroupAttack();
 			if ( holdTick > 6 ) MoveHoldPair( victim, distance, struggle );
 			victim.AdvanceCaptureAlignment( holdTick );
 		}

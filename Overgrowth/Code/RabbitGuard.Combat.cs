@@ -252,7 +252,7 @@ public sealed partial class RabbitGuard
 		Stance = !Movement.MoveTarget.HasValue || footStanceTarget.IsValid() || speed <= 0.6f * 40f ? Threat : Locomotion;
 	}
 
-	bool InAttackState => strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem;
+	bool InAttackState => !Downed && (strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem || Holding && !CaptureReactionEnded);
 
 	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.
 	// The chosen target remains bound to this strike while the AI continues tracking its chase target.

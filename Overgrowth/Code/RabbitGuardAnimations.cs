@@ -45,9 +45,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 		var characterAttacks = character.Element( "attacks" );
 		var weaponAttacks = item?.Element( "attack_override" );
-		var attacks = attackSlots.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, weaponAttacks?.Attribute( kv.Value ) ?? characterAttacks.Attribute( kv.Value ), "attack" ) );
+		var attackPaths = attackSlots.ToDictionary( kv => kv.Key, kv => weaponAttacks?.Attribute( kv.Value ) ?? characterAttacks.Attribute( kv.Value ) );
 		var label = item?.Element( "label" )?.Value;
-		if ( label is "sword" or "rapier" ) attacks[RabbitGuard.SwordSlashRight] = XmlAsset.Read( fs, "Data/Attacks/smallswordslashright.xml", "attack" );
+		if ( label is "sword" or "rapier" ) attackPaths[RabbitGuard.SwordSlashRight] = "Data/Attacks/smallswordslashright.xml";
+		var attacks = attackPaths.ToDictionary( kv => kv.Key, kv => XmlAsset.Read( fs, kv.Value, "attack" ) );
 		var layeredSlots = attacks.Where( pair => pair.Value.Element( "flags" ).Attribute( "as_layer" ) == "true" ).Select( pair => pair.Key ).ToHashSet();
 		bool usesKnife = layeredSlots.Count > 0;
 		var bodyAttacks = attacks.Where( pair => !layeredSlots.Contains( pair.Key ) ).ToDictionary();
@@ -194,7 +195,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} );
 		var movementRig = movementRigs.Count == 1 ? movementRigs.First() : null;
 		movementRig?.PrepareMirroredJoints( library.Mirror );
-		RabbitAttack ReadMove( XmlAsset attack, RabbitAttack.Pose[] poses )
+		RabbitAttack ReadMove( string assetPath, XmlAsset attack, RabbitAttack.Pose[] poses )
 		{
 			var cut = attack.Element( "cut_plane" );
 			var block = attack.Element( "block_damage" );
@@ -203,6 +204,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new RabbitAttack( poses, attack.Element( "reaction" ).Value, block.Number( "min" ).Value, block.Number( "max" ).Value, System.IO.Path.GetFileNameWithoutExtension( attack.Element( "animations" ).Attribute( "blocked" ) ), Guard( attack ), flags.Attribute( "height" ), flags.Attribute( "direction" ),
 				new Vector3( direction.Number( "z" ) ?? 0, direction.Number( "x" ) ?? 0, direction.Number( "y" ) ?? 0 ), attack.Element( "force" ).Number( "val" ).Value, flags.Attribute( "swap_stance" ) == "true", flags.Attribute( "swap_stance_blocked" ) == "true" )
 			{
+				AssetPath = assetPath,
 				CutPlane = cut is null ? null : new Vector3( cut.Number( "z" ) ?? 0f, cut.Number( "x" ) ?? 0f, cut.Number( "y" ) ?? 0f ).Normal,
 				// attacks.cpp tests strcmp's nonzero result, so the "light" token selects _heavy.
 				HeavyCut = cut?.Attribute( "type" ) is null or "light",
@@ -287,7 +289,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 						.Select( x => LoadPose( x.Attribute( "path" ), x.Number( "coord" ).Value ) ).OrderBy( p => p.Height ).ToArray()
 					: [LoadPose( pathToAnimation, 0 )];
 
-				moves[name] = ReadMove( attack, poses );
+				moves[name] = ReadMove( attackPaths[name], attack, poses );
 				if ( poses.Length == 1 )
 					return machine.AddState( CombatPose( poses[0].Clip, attackPhase ) );
 
@@ -412,11 +414,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var swingNodes = new Dictionary<string, (GraphBuilder.Node Pose, GraphBuilder.Node Mask)>();
 		foreach ( string name in knifeLayers )
 		{
-			var attack = XmlAsset.Read( fs, $"Data/Attacks/{name[2..]}.xml", "attack" );
+			var attackPath = $"Data/Attacks/{name[2..]}.xml";
+			var attack = XmlAsset.Read( fs, attackPath, "attack" );
 			var animation = XmlAsset.Read( fs, $"Data/Animations/{name}.xml", "SyncedAnimationGroup" );
 			var poses = animation.Element( "Animations" ).Elements( "Animation" ).Select( a =>
 				new RabbitAttack.Pose( a.Number( "coord" ).Value, CombatClip( System.IO.Path.GetFileNameWithoutExtension( a.Attribute( "path" ) ), false, attack.Element( "damage" ), true ) ) ).ToArray();
-			knifeSwings[name] = ReadMove( attack, poses ) with { AsLayer = true };
+			knifeSwings[name] = ReadMove( attackPath, attack, poses ) with { AsLayer = true };
 			var controls = swingParameters[name];
 			GraphBuilder.Node Side( bool left )
 			{

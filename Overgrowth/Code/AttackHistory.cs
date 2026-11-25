@@ -5,7 +5,7 @@ namespace Overgrowth;
 // MovementObject::CheckAttackHistory and AddToAttackHistory.
 internal sealed class AttackHistory
 {
-	readonly Dictionary<(RabbitAttack From, RabbitAttack To), float> transitions = new();
+	readonly Dictionary<(string From, string To), float> transitions = new();
 	RabbitAttack previous;
 	string previousDirection;
 	TimeSince elapsed;
@@ -18,12 +18,12 @@ internal sealed class AttackHistory
 		{
 			score += Similarity( previousDirection, direction, "left", "right" );
 			score += Similarity( previous.Height, move.Height, "low", "high" );
-			score += previous == move ? 0.15f : -0.15f;
+			score += previous.AssetPath == move.AssetPath ? 0.15f : -0.15f;
 			if ( elapsed < 2f )
 			{
-				var pair = (previous, move);
+				var pair = (previous.AssetPath, move.AssetPath);
 				if ( transitions.TryGetValue( pair, out var count ) )
-					score += (1f - score) * count / transitions.Where( entry => entry.Key.From == previous ).Sum( entry => entry.Value );
+					score += (1f - score) * count / transitions.Where( entry => entry.Key.From == previous.AssetPath ).Sum( entry => entry.Value );
 				foreach ( var key in transitions.Keys.ToArray() )
 				{
 					var weight = transitions[key] * 0.9f - 0.05f;
