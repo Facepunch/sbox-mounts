@@ -54,7 +54,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
 	SparkAnimationGraph.Playback graph, weapon;
-	Action<string> onTag;
+	Action<string> worldTag, onTag;
 	TimeSince age;
 	TimeUntil repath, fireUntil, nextJuke;
 	int strafeSide = 1;
@@ -64,7 +64,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spin", "spin_2", "railgun_fire" } )
+		foreach ( var cue in new[] { "spin", "spin_2", "railgun_fire", "step" } )
 		{
 			var path = $"marine/heavy/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{path}.sound", new SparkSoundLoader( path ) );
@@ -100,6 +100,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		base.OnStart();
 		age = 0;
 		aim = WorldRotation;
+		if ( !Application.IsHeadless ) worldTag = OnWorldTag;
 		left.Released = right.Released = 1;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		var path = Renderer.Model.ResourcePath;
@@ -167,9 +168,13 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
 		}
+		var velocity = Animation.MoveVelocity.WithZ( 0 );
+		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		output?.Set( "move_speed", velocity.Length / (5.95f * Scale) );
+		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f : MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Left ) ).RadianToDegree() );
 		var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
 		UpdateInputs( graph, move );
-		graph?.Update( age, Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null );
+		graph?.Update( age, output, worldTag );
 		UpdateInputs( weapon, move );
 		weapon?.Update( age, tag: onTag );
 		if ( !leftPressed ) StopSound( left );
@@ -202,6 +207,12 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		playback.Set( "activity_left", leftPressed ? "primary" : "none" );
 		playback.Set( "activity_right", rightPressed ? "primary" : "none" );
 		playback.Set( "overheat_speed", 1.1666666269302368 / 2 );
+	}
+
+	void OnWorldTag( string tag )
+	{
+		if ( tag == "step" && Animation.IsGrounded && Animation.MoveVelocity.LengthSquared > 0.75f * 0.75f * Scale * Scale )
+			PlayHeavySound( "step" );
 	}
 
 	void OnWeaponTag( string tag )
@@ -273,12 +284,12 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		var arm = isLeft ? left : right;
 		if ( !Railguns && arm.Loop is not null ) return;
 		var cue = Railguns ? "railgun_fire" : isLeft ? "spin_2" : "spin";
-		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/marine/heavy/{cue}.sound" ) is { } sound )
-		{
-			var handle = GameObject.PlaySound( sound );
-			if ( !Railguns ) arm.Loop = handle;
-		}
+		var handle = PlayHeavySound( cue );
+		if ( !Railguns ) arm.Loop = handle;
 	}
+
+	SoundHandle PlayHeavySound( string cue ) =>
+		GameResource.Load<SoundEvent>( $"mount://ns2/sounds/marine/heavy/{cue}.sound" ) is { } sound ? GameObject.PlaySound( sound ) : null;
 
 	static void StopSound( Arm arm )
 	{
