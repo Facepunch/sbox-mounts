@@ -142,6 +142,8 @@ public sealed class ProjectileWeapon : Weapon
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), SpreadBloom );
 
+	protected override bool OnHolstering( BaseInventoryItem next ) => !LiveRocket.IsValid() && base.OnHolstering( next );
+
 	protected override void OnEquipped()
 	{
 		if ( Networking.IsHost && IsLauncher && Secondary == SecondaryFires.Guide ) Guiding = true;
