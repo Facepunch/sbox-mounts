@@ -302,9 +302,13 @@ static class WeaponEffects
 	}
 
 	/// <summary>The bolt load event emits sparks and fades a blue flare on the viewmodel's first attachment.</summary>
-	public static void CrossbowLoad( GameObject attachment, Vector3 position, string mount )
+	public static void CrossbowLoad( BaseWeaponModel model, string mount )
 	{
-		ElectricSpark( position, 1, Vector3.Zero, mount );
+		var renderer = model?.Renderer;
+		if ( !renderer.IsValid() || !renderer.Model.IsValid() || renderer.Model.Attachments.All.Count == 0 ) return;
+		var attachment = renderer.GetAttachmentObject( renderer.Model.Attachments.All[0] );
+		if ( !attachment.IsValid() ) return;
+		ElectricSpark( model is ViewModel view ? view.DrawnPosition( attachment ) : attachment.WorldPosition, 1, Vector3.Zero, mount );
 		const string material = "sprites/blueflare1";
 		if ( MountedEffects.SpriteTexture( material, mount ) is not { } texture ) return;
 		var root = new GameObject( attachment, true, "Crossbow load flare" );

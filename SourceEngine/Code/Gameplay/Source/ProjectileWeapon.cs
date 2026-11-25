@@ -132,9 +132,9 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void OnShootEffects( ShotEffect shot )
 	{
 		base.OnShootEffects( shot );
-		if ( Kind == Projectile.Kinds.Bolt && !shot.NoEvents && !Application.IsDedicatedServer
-			&& Sounds.WeaponSound( this, "special2" ) is { } flight )
-			GameObject.PlaySound( flight );
+		if ( Kind != Projectile.Kinds.Bolt || shot.NoEvents || Application.IsDedicatedServer ) return;
+		WeaponEffects.CrossbowLoad( WeaponModel, MountContent.OfWeapon( this ) );
+		if ( Sounds.WeaponSound( this, "special2" ) is { } flight ) GameObject.PlaySound( flight );
 	}
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), SpreadBloom );
@@ -190,7 +190,11 @@ public sealed class ProjectileWeapon : Weapon
 		if ( _boltChargeAt is { } charge && charge <= 0 )
 		{
 			_boltChargeAt = null;
-			if ( IsReloading && Sounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
+			if ( IsReloading )
+			{
+				WeaponEffects.CrossbowLoad( WeaponModel, MountContent.OfWeapon( this ) );
+				if ( Sounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
+			}
 		}
 		if ( !IsLauncher || Application.IsDedicatedServer ) return;
 		_laser ??= new Hl2.RpgLaser();
