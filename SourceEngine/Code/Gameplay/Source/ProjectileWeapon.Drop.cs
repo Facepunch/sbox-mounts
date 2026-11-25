@@ -3,6 +3,7 @@ namespace Source1;
 public sealed partial class ProjectileWeapon
 {
 	Vector3? _dropVelocity;
+	BBox? _dropBounds;
 	TimeUntil _pickupAllowed;
 
 	protected override void StartDrop( Vector3 velocity )
@@ -15,6 +16,7 @@ public sealed partial class ProjectileWeapon
 
 		if ( GetComponent<Rigidbody>( true ) is { } body ) body.MotionEnabled = false;
 		_dropVelocity = velocity;
+		_dropBounds = null;
 		_pickupAllowed = 3;
 	}
 
@@ -24,7 +26,8 @@ public sealed partial class ProjectileWeapon
 		var velocity = _dropVelocity.Value;
 		var gravityStep = Vector3.Down * (600f * Time.Delta);
 		var end = WorldPosition + (velocity + gravityStep * 0.5f) * Time.Delta;
-		SceneTraceResult Sweep( Vector3 to ) => Scene.Trace.Ray( WorldPosition, to ).Size( new Vector3( 8 ) )
+		var bounds = (_dropBounds ??= GetComponent<ModelCollider>( true )?.Model?.Bounds) ?? BBox.FromPositionAndSize( Vector3.Zero, new Vector3( 8 ) );
+		SceneTraceResult Sweep( Vector3 to ) => Scene.Trace.Box( bounds, WorldPosition, to )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "player", "npc", "vehicle", "projectile" ).Run();
 		var hit = Sweep( end );
 		WorldPosition = hit.EndPosition;
