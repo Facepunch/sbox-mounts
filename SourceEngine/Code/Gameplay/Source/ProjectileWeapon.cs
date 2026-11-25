@@ -266,6 +266,7 @@ public sealed class ProjectileWeapon : Weapon
 	{
 		base.OnControl();
 		if ( _primed && _releaseAt <= 0 && !Input.Down( _throwStyle == ThrowStyle.Overhand ? "attack1" : "attack2" ) ) BeginThrow();
+		ReleaseIfReady();
 	}
 
 	protected override void Think()
@@ -307,18 +308,21 @@ public sealed class ProjectileWeapon : Weapon
 		if ( Networking.IsHost && IsLauncher && Active && Secondary != SecondaryFires.Guide )
 			SetGuiding( !HasOwner || (!IsDeploying && (HasPrimaryAmmo() || LiveRocket.IsValid())) );
 		if ( _primed && !HasOwner && _releaseAt <= 0 ) BeginThrow();
-		if ( _releasePending && _releaseAt <= 0 )
-		{
-			var attacker = _releaseAttacker;
-			_releasePending = false;
-			_releaseAttacker = null;
-			if ( UsesAmmo && IsHeld && !TakePrimaryAmmo( 1 ) ) return;
-			TimeSinceShoot = 0;
-			KickView();
-			Launch( AimRay.Position, AimRay.Forward, attacker, _throwStyle );
-			_redrawPending = true;
-		}
+		ReleaseIfReady();
 		if ( _redrawPending && _redrawAt <= 0 && (!IsLauncher || !HasOwner || IsProxy) ) FinishRedraw();
+	}
+
+	void ReleaseIfReady()
+	{
+		if ( !_releasePending || _releaseAt > 0 ) return;
+		var attacker = _releaseAttacker;
+		_releasePending = false;
+		_releaseAttacker = null;
+		if ( UsesAmmo && IsHeld && !TakePrimaryAmmo( 1 ) ) return;
+		TimeSinceShoot = 0;
+		KickView();
+		Launch( AimRay.Position, AimRay.Forward, attacker, _throwStyle );
+		_redrawPending = true;
 	}
 
 	void FinishRedraw()
