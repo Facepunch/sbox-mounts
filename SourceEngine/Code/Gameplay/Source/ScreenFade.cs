@@ -94,26 +94,12 @@ public sealed class ScreenFade : PanelComponent
 			alpha = left >= _fade ? _color.a : _color.a * MathF.Pow( left / _fade, _power );
 		}
 
-		Panel.Style.Position = Sandbox.UI.PositionMode.Absolute;
-		Panel.Style.Width = Sandbox.UI.Length.Percent( 100 );
-		Panel.Style.Height = Sandbox.UI.Length.Percent( 100 );
-		_burn ??= Layer();
-		_tint ??= Layer();
+		_burn ??= new Sandbox.UI.Panel( Panel );
+		_tint ??= new Sandbox.UI.Panel( Panel );
 		_burn.Style.BackgroundImage = _afterimage;
 		_burn.Style.Opacity = Math.Clamp( _color.a * left / Duration, 0, _color.a );
 		_tint.Style.BackgroundColor = _color.WithAlpha( 1 );
 		_tint.Style.Opacity = Math.Clamp( alpha, 0, _color.a );
-	}
-
-	Sandbox.UI.Panel Layer()
-	{
-		var layer = new Sandbox.UI.Panel( Panel );
-		layer.Style.Position = Sandbox.UI.PositionMode.Absolute;
-		layer.Style.Width = Sandbox.UI.Length.Percent( 100 );
-		layer.Style.Height = Sandbox.UI.Length.Percent( 100 );
-		layer.Style.BackgroundSizeX = Sandbox.UI.Length.Percent( 100 );
-		layer.Style.BackgroundSizeY = Sandbox.UI.Length.Percent( 100 );
-		return layer;
 	}
 
 	protected override void OnDestroy()
