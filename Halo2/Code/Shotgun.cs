@@ -119,11 +119,17 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var model = WorldModel.AddComponent<ShotgunModel>();
 		model.Renderer = renderer;
 		model.Weapon = this;
+		model.Chamber = Halo2ModelLoader.ForModel( renderer.Model )?.GetChamberAnimation();
+		heldModel = model;
 		model.TracerEffect = model.MuzzleEffect = model.EjectBrass = null;
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );
 		model.ConfigureMuzzleFlash( firstPerson: false );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
-		if ( HolderAnimator is {} animator ) animator.Weapon = renderer;
+		if ( HolderAnimator is {} animator )
+		{
+			animator.Weapon = renderer;
+			animator.SampleWeaponMarker = model.ChamberMarker;
+		}
 		WorldModel.LocalTransform = global::Transform.Zero;
 		loose.Enabled = false;
 	}
@@ -144,7 +150,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	protected override void DestroyWorldModel()
 	{
 		if ( HolderAnimator is {} animator && animator.Weapon.IsValid() && animator.Weapon.GameObject == WorldModel )
+		{
 			animator.Weapon = null;
+			animator.SampleWeaponMarker = null;
+		}
+		heldModel = null;
 		base.DestroyWorldModel();
 		if ( GetComponent<SkinnedModelRenderer>( true ) is {} loose ) loose.Enabled = true;
 	}
@@ -292,6 +302,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			ChamberWorldModel();
 	}
 
+	ShotgunModel heldModel;
 	SkinnedModelRenderer chamberRenderer;
 	double chamberStarts, chamberEnds;
 	bool chamberPlaying;
@@ -332,6 +343,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		// The original channel signals completion when its next tick would reach the end.
 		float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
 		chamberEnds = now + System.Math.Max( 0, ChamberDuration - tick );
+		heldModel?.StartChamber( now, chamberEnds );
 	}
 
 	void LaunchPellets( Ray ray )
@@ -735,6 +747,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	{
 		base.OnUpdate();
 		UpdateWorldAnimations();
+		heldModel?.UpdateChamberPose();
 		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
 		pendingStrike = null;
 		var aim = Holder is PlayerController player ? player.EyeTransform.ForwardRay : AimRay;

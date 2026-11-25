@@ -78,6 +78,17 @@ public partial class Halo2ModelLoader
 
 	string Label( int address ) => mapFile.ResolveStringId( mapFile.ReadInt32( address ) );
 
+	ChamberAnimation chamberAnimation;
+
+	internal ChamberAnimation GetChamberAnimation()
+	{
+		if ( chamberAnimation is not null ) return chamberAnimation;
+		var actions = GetAnimationContext( "any", "any", "any" )?.Actions;
+		if ( actions is null || !actions.TryGetValue( "chamber_1", out int pump ) || !actions.TryGetValue( "idle", out int idle ) ) return null;
+		if ( LoadAnimationClip( idle ) is not {} rest || LoadAnimationClip( pump ) is not {} clip ) return null;
+		return chamberAnimation = new( rest, clip, GetClipInfo( pump ).Frames );
+	}
+
 	Graph BuildGraph( string path, string[] context )
 	{
 		var bindings = GetAnimationContext( context[0], context[1], context[2] );
@@ -103,6 +114,10 @@ public partial class Halo2ModelLoader
 		var variation = builder.AddControlParameter( "variation", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
 		var blend = builder.AddControlParameter( "action_blend", GraphBuilder.NodeKind.Float,
 			new() { Min = 0, Max = 1, DefaultFloat = new GraphBuilder.TransitionSettings().Duration } );
+		var chamber = biped is null && !HasFirstPersonWeapon && context is ["any", "any", "any"] && actions.ContainsKey( "chamber_1" ) ? GetChamberAnimation() : null;
+		var chamberTime = chamber is null ? null : builder.AddControlParameter( "chamber_cycle", GraphBuilder.NodeKind.Float,
+			new() { Min = -1, Max = 1, DefaultFloat = -1 } );
+		var chamberWeight = chamber is null ? null : builder.FloatParameter( "chamber_weight", 0, 1 );
 		var strength = overlay is null ? null : builder.AddControlParameter( "overlay_weight", GraphBuilder.NodeKind.Float, new() { Min = 0, Max = 1, DefaultFloat = 1 } );
 		var movement = new MovementInputs( builder, bindings );
 		var screens = new ScreenInputs( this, mapFile, builder, overlayClips );
@@ -222,6 +237,20 @@ public partial class Halo2ModelLoader
 				BlendMode = GraphBuilder.LayerBlendMode.NormalizedOverlay
 			} );
 			output = layers;
+		}
+		if ( chamber is not null )
+		{
+			var timed = builder.Layers( builder.TimeControlledClip( chamber.Idle, builder.Constant( 0f ) ) );
+			timed.AddLayer( builder.TimeControlledClip( chamber.Clip, chamberTime ), new() { Weight = chamberWeight } );
+			var playback = builder.StateMachine();
+			var normal = playback.AddState( output );
+			var sampled = playback.AddState( timed );
+			var automatic = builder.Compare( chamberTime, GraphBuilder.FloatComparison.LessThan, 0 );
+			var controlled = builder.Not( automatic );
+			playback.SetEntryCondition( sampled, controlled );
+			playback.AddTransition( normal, sampled, controlled, new() { Duration = 0 } );
+			playback.AddTransition( sampled, normal, automatic, new() { Duration = 0 } );
+			output = playback.Build();
 		}
 		return builder.Create( output, path );
 

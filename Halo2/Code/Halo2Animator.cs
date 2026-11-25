@@ -15,6 +15,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	[Property] public ModelRenderer Weapon { get; set; }
 	[Property] public Dictionary<string, SoundEvent> Sounds { get; set; } = new();
 	[Property] public Dictionary<string, GameObject> Effects { get; set; } = new();
+	internal Func<string, Transform?> SampleWeaponMarker { get; set; }
 	internal bool SampleCuesFromGraph { get; set; } = true;
 	public Action<Halo2AnimationCue, Transform> CueFired { get; set; }
 
@@ -237,8 +238,8 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			{
 				foreach ( var marker in binding.Targets )
 				{
-					grip = Weapon is SkinnedModelRenderer skinned ? skinned.GetAttachment( marker )
-						: Weapon.Model.Attachments.GetTransform( marker ) is { } local ? Weapon.WorldTransform.ToWorld( local ) : null;
+					grip = SampleWeaponMarker?.Invoke( marker ) ?? (Weapon is SkinnedModelRenderer skinned ? skinned.GetAttachment( marker )
+						: Weapon.Model.Attachments.GetTransform( marker ) is { } local ? Weapon.WorldTransform.ToWorld( local ) : null);
 					if ( grip.HasValue ) break;
 				}
 			}
