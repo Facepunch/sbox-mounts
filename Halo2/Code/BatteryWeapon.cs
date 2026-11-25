@@ -144,13 +144,14 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected virtual void PresentDischarge() => ShootEffects();
 
-	protected override bool HoldingAutomaticTrigger => !Overheated && Spent < 1 && base.HoldingAutomaticTrigger;
+	protected override bool CanCycleBarrel => !Overheated && Spent < 1 && base.CanCycleBarrel;
 
 	protected override void OnControl()
 	{
 		if ( FiringRate.y > FiringRate.x && FiringRate.x > 0 )
 		{
-			rateFraction = (rateFraction + Time.Delta * (HoldingAutomaticTrigger ? RateRise : -RateFall)).Clamp( 0, 1 );
+			bool held = CanCycleBarrel && Input.Down( "attack1" );
+			rateFraction = (rateFraction + Time.Delta * (held ? RateRise : -RateFall)).Clamp( 0, 1 );
 			float rate = MathX.Lerp( FiringRate.x, FiringRate.y, rateFraction );
 			PrimaryDelay = CooldownSeconds( (int)System.MathF.Ceiling( 30 / rate ) );
 		}

@@ -9,14 +9,23 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public bool Instantaneous { get; set; } = true;
 	double? lastAutomaticRound;
 	double? automaticRoundAt;
+	bool roundQueued;
 
-	protected virtual bool HoldingAutomaticTrigger => PrimaryAutomatic && Input.Down( "attack1" ) &&
+	protected virtual bool CanCycleBarrel => PrimaryAutomatic &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
+
+	protected override bool WantsPrimaryAttack() => roundQueued || base.WantsPrimaryAttack();
 
 	protected override void OnControl()
 	{
 		double now = Time.NowDouble;
-		if ( HoldingAutomaticTrigger && PrimaryDelay > 0 )
+		bool held = Input.Down( "attack1" );
+		bool canCycle = CanCycleBarrel;
+		if ( !canCycle ) roundQueued = false;
+		else if ( held && lastAutomaticRound is double last && now >= last + 1 / 30.0 )
+			roundQueued = true;
+
+		if ( canCycle && (held || roundQueued) && PrimaryDelay > 0 )
 		{
 			automaticRoundAt = now;
 			if ( lastAutomaticRound is double previous )
@@ -34,6 +43,7 @@ public abstract class HandheldWeapon : Weapon
 
 	protected double RecordRound()
 	{
+		roundQueued = false;
 		if ( automaticRoundAt is not double time ) return Time.NowDouble;
 		lastAutomaticRound = time;
 		return time;
@@ -43,6 +53,7 @@ public abstract class HandheldWeapon : Weapon
 	{
 		lastAutomaticRound = null;
 		automaticRoundAt = null;
+		roundQueued = false;
 		base.OnDisabled();
 	}
 
