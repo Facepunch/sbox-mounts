@@ -94,6 +94,7 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		gun.OverheatThreshold = Float( Header + 0x154 );
 		gun.HeatLoss = Float( Header + 0x160 );
 		gun.OverheatedLoss = Float( Header + 0x168 );
+		gun.Trail = ReadTrail( projectile );
 		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
 		gun.MisfireThreshold = Float( Header + 0x25c );
 		gun.MisfireChance = Float( Header + 0x260 );
@@ -111,6 +112,28 @@ internal sealed class RangedWeaponLoader( MapFile source, TagEntry tag, string t
 		gun.PelletBodyScales = BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), damage );
 		gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
 		return gun;
+	}
+
+	ContrailAppearance ReadTrail( int projectile )
+	{
+		int attachments = projectile + 0x94;
+		for ( int i = 0, row = Block( attachments ); i < map.ReadInt32( attachments ); i++, row += 24 )
+		{
+			if ( Reference( row ) is not { PrimaryClass: "tnoc", DataSize: >= 0xf0 } tag ) continue;
+			int trail = Address( tag );
+			if ( Short( trail + 0x18 ) != 4 || Short( trail + 0x66 ) != 3 ||
+				Reference( trail + 0x30 ) is not { PrimaryClass: "mtib" } texture || map.ReadInt32( trail + 0xe8 ) != 2 ) continue;
+			int first = Block( trail + 0xe8 ), last = first + 0x40;
+			Color Tint( int state ) => new( Float( state + 32 ), Float( state + 36 ), Float( state + 40 ), Float( state + 28 ) );
+			return new ContrailAppearance
+			{
+				TexturePath = Host.AssetPath( map, texture.TagPath, "vtex" ),
+				PointRate = Float( trail + 4 ), Repeats = Float( trail + 0x1c ),
+				Transition = Float( first + 8 ), Lifetime = Float( first + 8 ) + Float( last ),
+				Width = Float( first + 24 ) * 120, StartColor = Tint( first ), EndColor = Tint( last )
+			};
+		}
+		return null;
 	}
 
 	protected override void Shutdown()

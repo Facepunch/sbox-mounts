@@ -24,11 +24,14 @@ public abstract partial class Weapon
 		return new Ray( trace.StartedSolid ? eye : trace.EndPosition, aim );
 	}
 
+	[Property] public ContrailAppearance Trail { get; set; }
+
 	struct Pellet
 	{
 		public Vector3 Offset;
 		public Vector3 Velocity;
 		public float Travelled;
+		public ProjectileContrail Trail;
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
@@ -48,6 +51,8 @@ public abstract partial class Weapon
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
 			pellets[i].Velocity = forward * PelletSpeed + forward * inherited;
+			if ( Trail is { Lifetime: > 0, PointRate: > 0 } )
+				pellets[i].Trail = ProjectileContrail.Create( Trail, ray.Position, pellets[i].Velocity );
 		}
 		_ = FlyPellets( ray.Position, pellets, Attacker );
 	}
@@ -103,6 +108,8 @@ public abstract partial class Weapon
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
 				pellet.Velocity.z -= fall;
 				float distance = displacement.Length;
+				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )
+					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
 				bool atRange = step < dt || pellet.Travelled + distance >= ballistics.Range;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
 				// but requires an object contact to be strictly nearer.
@@ -120,6 +127,7 @@ public abstract partial class Weapon
 					pellet.Travelled += distance;
 					if ( atRange )
 					{
+						pellet.Trail?.Finish( origin + pellet.Offset, firedAt + tick / 30.0 + step );
 						(results ??= new()).Add( new( origin + pellet.Offset ) );
 						pellet.Velocity = Vector3.Zero;
 						flying--;
@@ -139,6 +147,7 @@ public abstract partial class Weapon
 					if ( InWater( new Vector3( Before( p.x, d.x ), Before( p.y, d.y ), Before( p.z, d.z ) ) ) )
 						range = wetRange;
 				}
+				pellet.Trail?.Finish( hit.HitPosition, firedAt + tick / 30.0 + step * (hit.Distance / distance) );
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
