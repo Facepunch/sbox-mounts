@@ -1,4 +1,5 @@
 using System;
+using Sandbox.Physics;
 
 namespace Source1.Hl2;
 
@@ -11,6 +12,7 @@ public sealed class CrossbowBolt : Projectile
 	public const float AirVelocity = 3500;
 	const float WaterVelocity = 1500;
 	const float StuckLifetime = 30;
+	const float PinDistance = 128;
 	protected override float Gravity => _ricocheted ? 600 : 30;
 	protected override float TraceRadius => 1;
 	bool _ricocheted;
@@ -71,13 +73,17 @@ public sealed class CrossbowBolt : Projectile
 			GameObject.Destroy();
 			return;
 		}
+		var direction = Velocity.Normal;
 		if ( DamageTarget( tr ) )
 		{
 			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody", impactEffect: false );
-			GameObject.Destroy();
+			var wall = Scene.Trace.Ray( WorldPosition, WorldPosition + direction * PinDistance )
+				.IgnoreGameObjectHierarchy( tr.GameObject ).WithoutTags( "projectile", "trigger", "ragdoll" ).Run();
+			if ( wall.Hit && wall.Body?.BodyType == PhysicsBodyType.Static && !wall.HasTag( "source1_sky" ) )
+				Embed( wall, direction );
+			else GameObject.Destroy();
 			return;
 		}
-		var direction = Velocity.Normal;
 		var hitDot = tr.Normal.Dot( -direction );
 		var ricochet = hitDot < 0.5f && Velocity.Length > 100;
 		PlayImpact( tr, "Weapon_Crossbow.BoltHitWorld", impactEffect: !ricochet );
@@ -89,11 +95,24 @@ public sealed class CrossbowBolt : Projectile
 			return;
 		}
 		Sparkle();
+		Embed( tr, direction );
+	}
+
+	void Embed( SceneTraceResult wall, Vector3 direction )
+	{
+		var anchor = wall.HitPosition;
+		var ragdoll = Scene.Trace.Ray( anchor, anchor - direction * PinDistance ).WithTag( "ragdoll" ).Run();
+		if ( ragdoll.Body is { BodyType: PhysicsBodyType.Dynamic } bone )
+		{
+			bone.Mass *= 2;
+			PhysicsJoint.CreateBallSocket( PhysicsPoint.World( Scene.PhysicsWorld.Body, anchor ), PhysicsPoint.World( bone, ragdoll.HitPosition ) );
+			PlayImpact( ragdoll, "Weapon_Crossbow.BoltSkewer", impactEffect: false );
+		}
 		_stuck = true;
 		Age = 0;
 		Velocity = Vector3.Zero;
-		WorldPosition = tr.HitPosition - direction * 4;
-		_hitObject = tr.GameObject;
+		WorldPosition = anchor - direction * 8;
+		_hitObject = wall.GameObject;
 		if ( _hitObject.IsValid() ) _hitLocal = _hitObject.WorldTransform.ToLocal( WorldTransform );
 	}
 }
