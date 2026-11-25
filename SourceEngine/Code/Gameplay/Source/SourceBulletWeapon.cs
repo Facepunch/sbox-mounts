@@ -74,6 +74,9 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
 	[Property, Feature( "Shooting" )] public float DryTapRefireDelay { get; set; }
+	/// <summary>Minimum interval between empty primary clicks for weapons that can fire as soon as ammo arrives.</summary>
+	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
+	TimeUntil _nextEmptyClick;
 	internal float DryFireDuration { get; set; }
 	bool _holdingEmptyTrigger;
 	/// <summary>Seconds of spread recovery added by each shot. The HL2 pistol recovers while the trigger is released.</summary>
@@ -254,7 +257,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	public override void DryFire()
 	{
-		if ( DryTapRefireDelay <= 0 || !HasOwner )
+		var clickOnly = EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();
+		if ( !HasOwner || (!clickOnly && DryTapRefireDelay <= 0) )
 		{
 			base.DryFire();
 			return;
@@ -265,6 +269,13 @@ public sealed class SourceBulletWeapon : SourceWeapon
 			return;
 		}
 		_holdingEmptyTrigger = true;
+		if ( clickOnly )
+		{
+			if ( _nextEmptyClick > 0 ) return;
+			if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
+			_nextEmptyClick = EmptyClickInterval;
+			return;
+		}
 		if ( SourceSounds.WeaponSound( this, "empty" ) is { } click ) GameObject.PlaySound( click );
 		WeaponModel?.OnDryFire();
 		SetNextPrimaryFire( Math.Max( DryTapRefireDelay, DryFireDuration ) );
