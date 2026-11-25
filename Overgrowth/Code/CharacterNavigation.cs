@@ -13,6 +13,9 @@ public sealed class CharacterNavigation : NavigationLayer
 	float runOffSpeed;
 	float requestedGroundSpeed;
 	bool placingOnGround;
+	Vector3 routeStepStart;
+	double routeStepTime;
+	float routeStepDuration;
 	internal Vector3? RequestedHeading { get; set; }
 	Vector3 brakingVelocity;
 	internal Vector3 BrakingVelocity => brakingVelocity;
@@ -29,13 +32,14 @@ public sealed class CharacterNavigation : NavigationLayer
 	internal void ReleaseInput()
 	{
 		if ( !MoveTarget.HasValue ) return;
-		var velocity = Agent is { Active: true } && !IsTraversingLink ? Agent.Velocity.WithZ( 0f ) : default;
-		Stop();
-		brakingVelocity = velocity;
+		brakingVelocity = Agent is { Active: true } && !IsTraversingLink ? Agent.Velocity.WithZ( 0f ) : default;
+		RequestedHeading = null;
+		base.Stop();
 	}
 
 	public override void Stop()
 	{
+		routeStepDuration = 0f;
 		ReleaseGroundPlacement();
 		RequestedHeading = null;
 		brakingVelocity = default;
@@ -121,13 +125,14 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	internal void PlaceOnGround( RabbitGuard fighter )
 	{
-		if ( !MoveTarget.HasValue || LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
+		if ( routeStepDuration <= 0f || (!MoveTarget.HasValue && brakingVelocity.IsNearlyZero()) || LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
 		{
 			ReleaseGroundPlacement();
 			return;
 		}
 		if ( !placingOnGround && !Agent.UpdatePosition ) return;
-		var next = Vector3.Lerp( WorldPosition, Agent.AgentPosition, Math.Clamp( Time.Delta * 20f, 0f, 1f ) );
+		float fraction = Math.Clamp( (float)(Time.NowDouble - routeStepTime) / routeStepDuration, 0f, 1f );
+		var next = Vector3.Lerp( routeStepStart, Agent.AgentPosition, fraction );
 		if ( fighter.StandingPosition( next.WithZ( WorldPosition.z ) ) is not { } position )
 		{
 			ReleaseGroundPlacement();
@@ -148,10 +153,19 @@ public sealed class CharacterNavigation : NavigationLayer
 	protected override void OnFixedUpdate()
 	{
 		if ( !Networking.IsHost || Npc is not RabbitGuard fighter ) return;
-		if ( !brakingVelocity.IsNearlyZero() && Agent is { Active: true } )
-			fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, Agent.AgentPosition );
-		else if ( requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne && Agent is { Active: true } && !IsTraversingLink )
-			fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta, RequestedHeading );
+		bool braking = !brakingVelocity.IsNearlyZero();
+		bool following = requestedGroundSpeed > 0f && MoveTarget.HasValue && !Npc.IsAirborne && !IsTraversingLink;
+		if ( Agent is { Active: true } && (braking || following) )
+		{
+			// The crowd advances after component fixed updates. Interpolate its last
+			// completed step so the renderer follows the same path at any frame rate.
+			routeStepStart = Agent.AgentPosition;
+			routeStepTime = Time.NowDouble;
+			routeStepDuration = Time.Delta;
+			if ( braking ) fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, routeStepStart );
+			else fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta, RequestedHeading );
+		}
+		else routeStepDuration = 0f;
 		RequestedHeading = null;
 	}
 
@@ -219,6 +233,7 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	protected override void OnDisabled()
 	{
+		routeStepDuration = 0f;
 		ReleaseGroundPlacement();
 		requestedGroundSpeed = 0f;
 		brakingVelocity = default;

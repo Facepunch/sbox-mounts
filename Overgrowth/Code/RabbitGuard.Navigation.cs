@@ -53,8 +53,12 @@ public sealed partial class RabbitGuard
 		bool wolf = boundAnimations?.Species == "wolf";
 		if ( wolf ) limit *= 1.5f;
 		float friction = acceleration / limit;
-		float crouch = 1f - duckAmount * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
-		float drive = acceleration * crouch * PlantMovementScale * (wolf ? 0.8f : 1f);
+		// The crowd steps before the displayed pose. Sample the spring at the motor's
+		// simulation time without advancing the pose a second time.
+		float elapsed = (float)(Time.NowDouble - groundCrouchTime);
+		float duck = groundCrouchTime > 0 && elapsed > 0f && InLocomotion ? SampleCrouchSpring( groundCrouchTarget, elapsed ).Amount : duckAmount;
+		float crouch = 1f - duck * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
+		float drive = acceleration * crouch * PlantMovementScale( duck ) * (wolf ? 0.8f : 1f);
 		PreFrictionSpeedScale = MathF.Exp( friction * tick );
 		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (PreFrictionSpeedScale - 1f);
 		float response = 1f - MathF.Exp( -friction * step );

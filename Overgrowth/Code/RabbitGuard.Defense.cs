@@ -17,6 +17,7 @@ public sealed partial class RabbitGuard
 	float blockHealth = 1f;
 	int hitsOnGround;
 	float duckAmount, duckVelocity, groundCrouchTarget;
+	double groundCrouchTime;
 	float reactionDuration;
 	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
@@ -75,6 +76,7 @@ public sealed partial class RabbitGuard
 		{
 			// UpdateDuckAmount integrates the target from the preceding movement update.
 			AdvanceCrouchSpring( groundCrouchTarget, Time.Delta );
+			groundCrouchTime = Time.NowDouble;
 			if ( !IsGetUp( Stance ) ) groundCrouchTarget = GroundCrouchTarget();
 		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
@@ -116,17 +118,19 @@ public sealed partial class RabbitGuard
 	static readonly float CrouchAngle = MathF.Atan2( CrouchSine, CrouchTraceHalf );
 
 	void AdvanceCrouchSpring( float target, float delta )
+		=> (duckAmount, duckVelocity) = SampleCrouchSpring( target, delta );
+
+	(float Amount, float Velocity) SampleCrouchSpring( float target, float delta )
 	{
 		float offset = duckAmount - target;
-		if ( offset == 0f && duckVelocity == 0f ) return;
+		if ( offset == 0f && duckVelocity == 0f ) return (duckAmount, duckVelocity);
 		float nextVelocity = CrouchDamping * duckVelocity - CrouchImpulse * offset;
 		float nextOffset = offset + CrouchStep * nextVelocity;
 		float steps = delta / CrouchStep;
 		float decay = MathF.Pow( CrouchDamping, steps * 0.5f );
 		float next = decay * MathF.Sin( steps * CrouchAngle ) / CrouchSine;
 		float current = decay * MathF.Cos( steps * CrouchAngle ) - next * CrouchTraceHalf;
-		duckAmount = target + current * offset + next * nextOffset;
-		duckVelocity = current * duckVelocity + next * nextVelocity;
+		return (target + current * offset + next * nextOffset, current * duckVelocity + next * nextVelocity);
 	}
 
 	void UpdateActiveBlock( float step )

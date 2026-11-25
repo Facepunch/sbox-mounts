@@ -6,7 +6,7 @@ public sealed partial class RabbitGuard
 {
 	float plantDepth, leafRemainder;
 	TimeUntil plantRustleDelay;
-	internal float PlantMovementScale => 1f - plantDepth * (0.4f - 0.3f * duckAmount);
+	float PlantMovementScale( float duck ) => 1f - plantDepth * (0.4f - 0.3f * duck);
 
 	void UpdatePlantContact()
 	{
