@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 	Vector3? ApproachSite( Vector3 target, bool urgent, float speed )
 	{
 		var point = Movement.ProjectPoint( target ) ?? target;
-		var corner = NextPathCorner( point, out var end );
+		var corner = NextPathCorner( point, out var end ) ?? end ?? point;
 		// The AI checks the reachable end of the route, including for a partial path.
 		if ( end is { } reached && (Movement.ProjectPoint( WorldPosition ) ?? WorldPosition).DistanceSquared( reached ) < (urgent ? 2f : 1f) * 40f * 40f )
 			return reached;

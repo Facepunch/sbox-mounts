@@ -121,13 +121,18 @@ public sealed partial class RabbitGuard
 	Vector3 MovementToPoint( Vector3 target, float slowRadius, float preferredRange, float strafeOffset, out Vector3 point, Vector3? separation = null )
 	{
 		var toward = (target - WorldPosition).WithZ( 0f ).Normal;
-		point = Movement.ProjectPoint( target ) ?? target;
-		var corner = NextPathCorner( point, out _ );
+		point = target.DistanceSquared( WorldPosition ) > 0.2f * 40f * 40f ? Movement.ProjectPoint( target ) ?? target : target;
+		var next = NextPathCorner( point, out _ );
+		if ( !next.HasValue && Movement is CharacterNavigation { StickToNavMesh: true }
+			&& Movement.ProjectPoint( WorldPosition ) is { } surface && surface != WorldPosition )
+			return Vector3.Zero;
+
+		var corner = next ?? point;
 		if ( corner.DistanceSquared( target ) < preferredRange * preferredRange )
 		{
 			var offset = -toward * preferredRange + Vector3.Up.Cross( toward ) * strafeOffset;
-			point = WalkableRay( point, point + offset );
-			corner = NextPathCorner( point, out _ );
+			point = WalkableRay( target, target + offset );
+			corner = NextPathCorner( point, out _ ) ?? point;
 		}
 		return PathSteering( corner, toward, slowRadius, ref point, separation );
 	}
@@ -144,11 +149,11 @@ public sealed partial class RabbitGuard
 		return intent;
 	}
 
-	Vector3 NextPathCorner( Vector3 goal, out Vector3? end )
+	Vector3? NextPathCorner( Vector3 goal, out Vector3? end )
 	{
 		var path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal, Agent = GetComponent<NavMeshAgent>() } );
 		end = path.IsValid && path.Points.Count > 0 ? path.Points[^1].Position : null;
-		if ( !end.HasValue || path.Points.Count < 2 ) return end ?? goal;
+		if ( !end.HasValue || path.Points.Count < 2 ) return null;
 		for ( int i = 1; i < path.Points.Count - 1; i++ )
 		{
 			var corner = path.Points[i].Position;
