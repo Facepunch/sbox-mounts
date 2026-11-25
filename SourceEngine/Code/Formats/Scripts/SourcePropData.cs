@@ -22,14 +22,17 @@ internal sealed class SourcePropData
 	{
 		if ( roots.Count == 1 && roots[0].IsBlock && roots[0].Name.Equals( "mdlkeyvalue", StringComparison.OrdinalIgnoreCase ) )
 			roots = roots[0].Children;
+		PhysGunInteractions physGun = null;
+		var interactions = roots.FirstOrDefault( node => node.IsBlock && node.Name.Equals( "physgun_interactions", StringComparison.OrdinalIgnoreCase ) );
+		if ( interactions is not null && interactions.Values.TryGetValue( "preferred_carryangles", out var text ) && Angles.TryParse( text, out var angles ) )
+			physGun = new() { PreferredCarryAngles = angles };
 		var prop = roots.FirstOrDefault( node => node.IsBlock && node.Name.Equals( "prop_data", StringComparison.OrdinalIgnoreCase ) );
 		if ( prop is null )
-			return default;
+			return (null, physGun);
 
 		var values = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var bases = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		var flammable = false;
-		PhysGunInteractions physGun = null;
 		Apply( prop );
 		foreach ( var block in roots )
 			ReadInteractions( block );
@@ -76,9 +79,9 @@ internal sealed class SourcePropData
 				&& block.Values.TryGetValue( "onlaunch", out var launch ) )
 			{
 				if ( launch.Equals( "spin_zaxis", StringComparison.OrdinalIgnoreCase ) )
-					physGun = new() { LaunchSpin = 5000 };
-				else if ( physGun is null && launch.Equals( "spin_none", StringComparison.OrdinalIgnoreCase ) )
-					physGun = new();
+					(physGun ??= new()).LaunchSpin = 5000;
+				else if ( launch.Equals( "spin_none", StringComparison.OrdinalIgnoreCase ) )
+					(physGun ??= new()).LaunchSpin ??= 0;
 			}
 			if ( block.IsBlock && block.Name.Equals( "fire_interactions", StringComparison.OrdinalIgnoreCase )
 				&& block.Values.TryGetValue( "flammable", out var value ) )

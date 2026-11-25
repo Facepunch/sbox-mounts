@@ -8,7 +8,8 @@ namespace Source1;
 public sealed class PhysGunInteractions
 {
 	/// <summary>Authored angular speed about the prop's local Z axis in degrees per second.</summary>
-	public float LaunchSpin { get; set; }
+	public float? LaunchSpin { get; set; }
+	public Angles? PreferredCarryAngles { get; set; }
 }
 
 /// <summary>Weapon-script data associated with imported first- and third-person models.</summary>

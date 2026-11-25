@@ -34,6 +34,7 @@ public sealed class GravityWeapon : Weapon
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
 	Vector3 _carryTarget;
 	Rotation _holdOffset;
+	float? _launchSpin;
 	float _carryError;
 	float _carryTurnRate;
 	TimeUntil _carryGrace;
@@ -126,9 +127,8 @@ public sealed class GravityWeapon : Weapon
 			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
 			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
 			held.Velocity = forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) );
-			var model = held.GetComponent<ModelRenderer>()?.Model;
-			var spin = model?.GetData<PhysGunInteractions>() is { } interaction
-				? Vector3.Up * interaction.LaunchSpin
+			var spin = _launchSpin is { } launchSpin
+				? Vector3.Up * launchSpin
 				: new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
 			held.AngularVelocity = held.WorldRotation * spin * (MathF.PI / 180);
 			PuntEffects( PuntResult.LaunchHeld );
@@ -220,7 +220,9 @@ public sealed class GravityWeapon : Weapon
 			return;
 		}
 		HeldObject = body.GameObject;
-		_holdOffset = Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
+		var interactions = body.GetComponent<ModelRenderer>()?.Model?.GetData<PhysGunInteractions>();
+		_holdOffset = interactions?.PreferredCarryAngles is { } angles ? Rotation.From( angles ) : Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
+		_launchSpin = interactions?.LaunchSpin;
 		_carryTarget = body.PhysicsBody.MassCenter;
 		_carryGrace = 1;
 		_carryError = 0;
