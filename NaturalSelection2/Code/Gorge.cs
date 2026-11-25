@@ -27,7 +27,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spit", "spit_hit", "heal_spray", "spawn", "wound", "wound_serious", "death" } )
+		foreach ( var cue in new[] { "spit", "spit_hit", "heal_spray", "slide_loop", "spawn", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/gorge/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -101,7 +101,9 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		UpdateSlideSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		output?.Set( "belly_yaw", bellyYaw * 45 );
 		output?.Set( "move_speed", Animation.MoveVelocity.Length / (6 * Scale) );
 		if ( !Networking.IsHost )
 		{
@@ -135,7 +137,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 		primaryHeld = firing && energy >= 7 && Vector3.Dot( aim.Forward, direction.Normal ) > 0.98f;
 		UpdateSprayInput( direction );
 		var activity = secondaryAttacking && energy >= 10 || sprayAnimation > 0 ? "secondary" : primaryHeld ? "primary" : "none";
-		var move = !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";
+		var move = sliding ? "belly" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "move", move );
 		world.Set( "alive", 1 );
 		world.Set( "ability", "spit" );
