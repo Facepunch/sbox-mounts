@@ -207,7 +207,7 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ) || IsGrabClip( Stance ));
+	bool UsesCombatIK => boundAnimations is { } animations && (animations.AttackStates.Contains( Stance ) || animations.ReactionStates.Contains( Stance ) || IsGrabClip( Stance ) || Stance is CutFromHold or CutInHold);
 
 	void UpdateActionIK( string pose )
 	{
