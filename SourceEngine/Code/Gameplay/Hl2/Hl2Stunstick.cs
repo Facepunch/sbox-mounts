@@ -15,8 +15,21 @@ public sealed class Hl2Stunstick : SourceMeleeWeapon
 	[Sync( SyncFlags.FromHost )] public bool StunActive { get; private set; }
 
 	bool _glowLoaded;
+	bool _sparkOnActivation;
 	SpriteRenderer _halo;
 	SpriteRenderer _core;
+
+	protected override void OnEquipped()
+	{
+		base.OnEquipped();
+		if ( Networking.IsHost && IsValid && IsActive && HasOwner ) SetStunState( true );
+	}
+
+	protected override void OnHolstered()
+	{
+		if ( Networking.IsHost && HasOwner ) SetStunState( false );
+		base.OnHolstered();
+	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
@@ -32,18 +45,20 @@ public sealed class Hl2Stunstick : SourceMeleeWeapon
 			return;
 
 		StunActive = active;
-		StunStateChanged( active );
+		// The multiplayer player weapon requests Deactive; the NPC uses Deactivate.
+		var sound = active ? "Weapon_StunStick.Activate" : Holder is Sandbox.Npcs.BaseNpc ? "Weapon_StunStick.Deactivate" : "Weapon_StunStick.Deactive";
+		StunStateChanged( active, sound );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void StunStateChanged( bool active )
+	void StunStateChanged( bool active, string soundName )
 	{
 		var mount = SourceMount.Of( GameObject );
-		if ( SourceSounds.Sound( active ? "Weapon_StunStick.Activate" : "Weapon_StunStick.Deactivate", mount ) is { } sound )
+		if ( SourceSounds.Sound( soundName, mount ) is { } sound )
 			GameObject.PlaySound( sound );
 
-		if ( active && Tip() is { } tip )
-			SourceWeaponEffects.ElectricSpark( tip.Position, 1, Vector3.Zero, mount );
+		// The equipped model may still be loading its attachments on this peer.
+		_sparkOnActivation = active;
 	}
 
 	/// <summary>The weapon model's first attachment, GetAttachment( 1 ).</summary>
@@ -58,6 +73,11 @@ public sealed class Hl2Stunstick : SourceMeleeWeapon
 	{
 		base.OnUpdate();
 		var tip = StunActive && !Application.IsDedicatedServer ? Tip() : null;
+		if ( _sparkOnActivation && tip is { } at )
+		{
+			_sparkOnActivation = false;
+			SourceWeaponEffects.ElectricSpark( at.Position, 1, Vector3.Zero, SourceMount.OfWeapon( this ) );
+		}
 		if ( tip.HasValue && !_glowLoaded )
 		{
 			_glowLoaded = true;
