@@ -32,6 +32,15 @@ public abstract class Weapon : BaseCombatWeapon
 	/// <summary>Minimum interval between empty primary clicks for weapons that can fire as soon as ammo arrives.</summary>
 	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
 	TimeUntil _nextEmptyClick;
+	TimeUntil _deployUntil;
+
+	protected override void OnEquipped()
+	{
+		_deployUntil = DeployTime;
+		base.OnEquipped();
+	}
+
+	public override bool CanReload() => (!HasOwner || _deployUntil <= 0) && base.CanReload();
 
 	protected bool WantsEmptyClick => HasOwner && EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();
 
