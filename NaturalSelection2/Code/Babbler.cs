@@ -12,6 +12,7 @@ public sealed partial class Babbler : BaseNpc
 	const float Gravity = 9.7f;
 	Rigidbody body;
 	GameObject target;
+	bool reachedTarget;
 	TimeUntil nextAttack, nextHit, nextNudge;
 	TimeSince lastHit = 1;
 	int nudges;
@@ -58,19 +59,24 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void Think()
 	{
-		bool wasHunting = target.IsValid();
-		target = null;
-		float closest = 12 * 12 * Scale * Scale;
-		foreach ( var candidate in Senses.VisibleHostiles )
+		var previous = target;
+		if ( !CanHunt( target ) ) target = null;
+		if ( target is null )
 		{
-			if ( !candidate.IsValid() || AlienTargeting.IsIgnoredPlayer( candidate ) ) continue;
-			float distance = WorldPosition.DistanceSquared( candidate.WorldPosition );
-			if ( distance < closest ) (target, closest) = (candidate, distance);
+			float closest = 12 * 12 * Scale * Scale;
+			foreach ( var candidate in Senses.VisibleHostiles )
+			{
+				if ( !CanHunt( candidate ) ) continue;
+				float distance = WorldPosition.DistanceSquared( candidate.WorldPosition );
+				if ( distance < closest ) (target, closest) = (candidate, distance);
+			}
+			if ( target is null && IsOnGround && nextRoam <= 0 ) target = SiblingTarget();
 		}
+		if ( previous != target ) reachedTarget = false;
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{
-			if ( wasHunting ) Movement.Stop();
+			if ( previous is not null ) Movement.Stop();
 			Roam();
 			return;
 		}
@@ -78,8 +84,38 @@ public sealed partial class Babbler : BaseNpc
 		var aim = CalculateAimPoint( target );
 		var path = Scene.Trace.Ray( EyePosition, aim ).WithTag( "world" ).Run();
 		if ( path.Fraction < 0.9f && (aim - EyePosition).WithZ( 0 ).Length >= 2 * Scale )
-			Movement.MoveTo( target.WorldPosition, Radius, faceTarget: target );
+		{
+			float distance = WorldPosition.DistanceSquared( target.WorldPosition );
+			reachedTarget |= distance < 25 * Scale * Scale;
+			if ( reachedTarget && distance > 30 * 30 * Scale * Scale )
+			{
+				target = null;
+				reachedTarget = false;
+				Animation.SetLookTarget( null );
+				Movement.Stop();
+				return;
+			}
+			Movement.MoveTo( target.WorldPosition, Radius, 8.2f * Scale, target );
+		}
 		else Movement.Stop();
+	}
+
+	bool CanHunt( GameObject enemy )
+	{
+		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || GetDisposition( enemy ) != Disposition.Hostile ) return false;
+		var victim = enemy.GetComponentInChildren<IDamageable>();
+		return victim is Component { Active: true } && (victim.MaxHealth <= 0 || victim.Health > 0);
+	}
+
+	GameObject SiblingTarget()
+	{
+		foreach ( var sibling in Scene.GetAllComponents<Babbler>() )
+		{
+			if ( sibling == this || sibling.Faction != Faction || !sibling.target.IsValid() ) continue;
+			if ( WorldPosition.DistanceSquared( sibling.WorldPosition ) < 30 * 30 * Scale * Scale && CanHunt( sibling.target ) )
+				return sibling.target;
+		}
+		return null;
 	}
 
 	internal static (Vector3 Velocity, float FlightTime) JumpArc( Vector3 offset, float heightRoll, float speedRoll )
@@ -107,7 +143,7 @@ public sealed partial class Babbler : BaseNpc
 		if ( !target.IsValid() || Movement.MoveTarget.HasValue ) return;
 		var aim = CalculateAimPoint( target );
 		var player = target.GetComponent<PlayerController>();
-		var lead = target.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+		var lead = GetVelocity( target );
 		bool playerTarget = player.IsValid() || target.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" );
 		aim += lead * (playerTarget ? 0.9f : 0.4f);
 		var offset = (aim - origin) / Scale;
@@ -116,7 +152,7 @@ public sealed partial class Babbler : BaseNpc
 			nudges = 0;
 			if ( nextAttack > 0 ) return;
 			if ( lead.LengthSquared > 0.0001f )
-				offset += new Vector3( Random.Shared.Float( -0.55f, 0.55f ), Random.Shared.Float( -0.55f, 0.55f ), Random.Shared.Float( -0.5f, 0.5f ) );
+				offset += new Vector3( Random.Shared.Float( -0.55f, 0.55f ), Random.Shared.Float( -0.55f, 0.55f ), 0 );
 			else if ( offset.z <= 0.5f )
 				offset += Rotation.FromYaw( Random.Shared.Float( 0, 360 ) ).Forward * Random.Shared.Float( 0.2f, 0.4f ) + Vector3.Up * Random.Shared.Float( -0.075f, 0.075f );
 			else offset.z += Random.Shared.Float( -0.2f, 0.2f );
