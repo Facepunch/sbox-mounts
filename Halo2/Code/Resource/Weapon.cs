@@ -1,12 +1,60 @@
 using Halo2.Blam;
 using Sandbox.Mounting;
+using System;
 
 namespace Halo2;
+
+internal sealed class WeaponAmmoLoader( string title, int capacity ) : ResourceLoader<Halo2Mount>
+{
+	protected override object Load() => new BaseAmmoResource { Title = title, MaxReserve = capacity };
+}
 
 internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceLoader<Halo2Mount>
 {
 	protected readonly MapFile map = source;
 	protected readonly TagEntry weapon = tag;
+
+	protected int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
+	protected int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
+	protected int Short( int offset ) => (short)map.ReadInt32( offset );
+	protected float Float( int offset ) => BitConverter.Int32BitsToSingle( map.ReadInt32( offset ) );
+	protected TagEntry Reference( int offset ) => map.GetTag( map.ReadInt32( offset + 4 ) & 0xffff );
+	protected int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
+	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
+
+	protected SoundEvent FiringSound( int barrel )
+	{
+		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;
+		int events = Address( effect ) + 20;
+		if ( map.ReadInt32( events ) == 0 ) return null;
+		int parts = Block( events ) + 0x18;
+		int count = map.ReadInt32( parts );
+		if ( count == 0 ) return null;
+		int first = Block( parts );
+		for ( int i = 0; i < count; i++ )
+		{
+			var tag = Reference( first + i * 0x38 + 0xc );
+			if ( tag?.PrimaryClass == "!dns" && tag.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
+				return GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) );
+		}
+		return null;
+	}
+
+	protected T ConfigurePickup<T>( GameObject root, string world, string title ) where T : Weapon, new()
+	{
+		root.NetworkMode = NetworkMode.Object;
+		root.Tags.Add( "removable", "nocollide_props" );
+		var renderer = root.AddComponent<SkinnedModelRenderer>();
+		renderer.Model = Model.Load( world );
+		var collider = root.AddComponent<BoxCollider>();
+		collider.Center = renderer.Model.Bounds.Center;
+		collider.Scale = renderer.Model.Bounds.Size;
+		root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
+		var gun = root.AddComponent<T>();
+		gun.DisplayName = title;
+		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+		return gun;
+	}
 
 	internal string WorldModelPath => ModelPath( Host, map, weapon );
 

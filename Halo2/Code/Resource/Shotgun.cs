@@ -4,22 +4,11 @@ using System;
 
 namespace Halo2;
 
-internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mount>
-{
-	protected override object Load() => new BaseAmmoResource { Title = "Shotgun shells", MaxReserve = capacity };
-}
-
 internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : WeaponLoader( source, tag )
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
 	internal static BaseAmmoResource LoadShells() => GameResource.Load<BaseAmmoResource>( $"mount://{Halo2Mount.MountIdent}/{AmmoPath}" );
-	int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
-	int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
-	int Short( int offset ) => (short)map.ReadInt32( offset );
-	float Float( int offset ) => BitConverter.Int32BitsToSingle( map.ReadInt32( offset ) );
-	TagEntry Reference( int offset ) => map.GetTag( map.ReadInt32( offset + 4 ) & 0xffff );
-	int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal const string RigPath = "weapons/shotgun/first_person.vmdl";
 	internal const string EliteRigPath = "weapons/shotgun/first_person_elite.vmdl";
 	internal const string ReticlePath = "weapons/shotgun/reticle.vtex";
@@ -198,21 +187,6 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 
 	int FiringEvent( int barrel ) => Block( Address( Reference( Block( barrel + 0xe4 ) + 4 ) ) + 20 );
 
-	SoundEvent FiringSound( int barrel )
-	{
-		int parts = FiringEvent( barrel ) + 0x18;
-		int count = map.ReadInt32( parts );
-		if ( count == 0 ) return null;
-		int first = Block( parts );
-		for ( int i = 0; i < count; i++ )
-		{
-			var tag = Reference( first + i * 0x38 + 0xc );
-			if ( tag?.PrimaryClass == "!dns" && tag.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
-				return GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) );
-		}
-		return null;
-	}
-
 	int HudColor( int postprocess, int curve, bool elite )
 	{
 		int functions = Block( postprocess + 60 );
@@ -367,7 +341,6 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		};
 	}
 
-	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
 
 	Dictionary<string, float> BodyDamageScales( int globals, int effect )
 	{
@@ -410,18 +383,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		{
 			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, "Shotgun" );
-			root.NetworkMode = NetworkMode.Object;
-			root.Tags.Add( "removable", "nocollide_props" );
-			var renderer = root.AddComponent<SkinnedModelRenderer>();
-			renderer.Model = Model.Load( world );
-			var collider = root.AddComponent<BoxCollider>();
-			collider.Center = renderer.Model.Bounds.Center;
-			collider.Scale = renderer.Model.Bounds.Size;
-			// Convert Halo 2 item gravity to inches/sÃƒâ€šÃ‚Â² relative to standard s&box gravity.
-			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
-			var gun = root.AddComponent<Shotgun>();
-			gun.DisplayName = "Shotgun";
-			(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+			var gun = ConfigurePickup<Shotgun>( root, world, "Shotgun" );
 			gun.SpartanAmmoText = ReserveColors( false );
 			gun.EliteAmmoText = ReserveColors( true );
 			gun.BindHudTextures();

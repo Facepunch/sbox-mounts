@@ -201,6 +201,12 @@ public class Halo2Mount : BaseGameMount
 					if ( weaponRigs.Contains( path ) || WeaponLoader.CreateRig( mapFile, tag, globals, i ) is not {} rig ) continue;
 					context.Add( ResourceType.Model, path, rig );
 					weaponRigs.Add( path );
+					if ( i == 0 && MagazineWeaponLoader.ForTag( mapFile, tag, name ) is {} magazine )
+					{
+						magazine.Tags.Add( "weapon" );
+						context.Add( ResourceType.GameResource, magazine.AmmoPath, new WeaponAmmoLoader( $"{magazine.Title} rounds", magazine.MaxReserve ) );
+						context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", magazine );
+					}
 				}
 			}
 
@@ -212,7 +218,7 @@ public class Halo2Mount : BaseGameMount
 					shotgun.RegisterImpactEffects( context );
 					if ( shotgun.HudBitmap( "crosshair" ) is {} reticle ) context.Add( ResourceType.Texture, ShotgunLoader.ReticlePath, reticle );
 					if ( shotgun.HudBitmap( "backpack" ) is {} icon ) context.Add( ResourceType.Texture, ShotgunLoader.IconPath, icon );
-					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new ShotgunAmmoLoader( shotgun.MaxReserve ) );
+					context.Add( ResourceType.GameResource, ShotgunLoader.AmmoPath, new WeaponAmmoLoader( "Shotgun shells", shotgun.MaxReserve ) );
 					context.Add( ResourceType.PrefabFile, ShotgunLoader.PrefabPath, shotgun );
 					break;
 				// sound - FourCC "snd!" stored LE as "!dns"
