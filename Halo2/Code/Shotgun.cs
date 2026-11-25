@@ -600,7 +600,7 @@ public sealed class Shotgun : Weapon
 		UpdateWorldAnimations();
 		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
 		pendingStrike = null;
-		var aim = AimRay;
+		var aim = Holder is PlayerController player ? player.EyeTransform.ForwardRay : AimRay;
 		var hit = TraceMelee( aim, out var impactPosition );
 		if ( !hit.Hit ) return;
 		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
