@@ -64,6 +64,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 	internal const string ThickSprayName = "impact_spray_thick_unlit.vtex";
 	internal const string UnlitImpactSmokeName = "smoke_soft_small.vtex";
 	internal const string ImpactSmokeName = "smoke_soft_small_lit.vtex";
+	internal const string SparkTrailName = "sparks_trail.vtex";
 	internal const string SparksName = "sparks_animated.vtex";
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
@@ -105,6 +106,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			UnlitSprayName => @"effects\generic\solids\impact_spray_unlit",
 			ThickSprayName => @"effects\generic\solids\impact_spray_thick_unlit",
 			UnlitImpactSmokeName => @"effects\generic\smoke\smoke_soft_small",
+			SparkTrailName => @"effects\generic\sparks\sparks_trail",
 			SparksName => @"effects\generic\sparks\sparks_animated_soft",
 			_ => null
 		};

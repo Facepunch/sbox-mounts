@@ -5,7 +5,7 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt, SparkTrail }
 
 	internal static bool HasSpriteRadius( ImpactLayer layer ) => layer is ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Dirt;
 
@@ -28,6 +28,7 @@ public sealed partial class PelletImpactEffect
 		public int Sequence { get; set; }
 		public DebrisFrame[] DebrisFrames { get; set; }
 		public AnimatedFrame[] AnimatedFrames { get; set; }
+		public CurveRange? FrameCurve { get; set; }
 		public float Cycles { get; set; }
 		public string Marker { get; set; }
 		public Vector2 SpriteAspect { get; set; }
@@ -96,7 +97,7 @@ public sealed partial class PelletImpactEffect
 		if ( births == 0 ) return;
 		if ( data.AnimatedFrames is not null )
 		{
-			// A cloth fragment's atlas pivot changes with its own age.
+			// Each particle needs its own sprite because its atlas pivot changes with age.
 			for ( int i = 0; i < births; i++ )
 			{
 				var sprite = Sprite.FromTexture( Texture.Load( data.Sprite.TexturePath ) );
@@ -150,13 +151,13 @@ public sealed partial class PelletImpactEffect
 		var effect = go.AddComponent<ParticleEffect>();
 		effect.Lifetime = MathF.Max( data.Lifetime.x, data.Lifetime.y );
 		if ( data.Layer == ImpactLayer.Rubber ) effect.SequenceTime = 0;
-		effect.SnapToFrame = data.Layer is not (ImpactLayer.Drift or ImpactLayer.Cloth or ImpactLayer.Burst);
+		effect.SnapToFrame = data.Layer is not (ImpactLayer.Drift or ImpactLayer.Cloth or ImpactLayer.Burst or ImpactLayer.SparkTrail);
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = data.Lighting;
-		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
-		if ( sparks || (data.Layer == ImpactLayer.Dirt && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+		renderer.Additive = sparks || data.Layer is ImpactLayer.SparkTrail or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
+		if ( sparks || (data.Layer is ImpactLayer.Dirt or ImpactLayer.SparkTrail && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer == ImpactLayer.Burst ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
 		void Appearance( Particle p )
@@ -165,7 +166,7 @@ public sealed partial class PelletImpactEffect
 			float life = p.Get<float>( "life_fraction" );
 			if ( data.AnimatedFrames is {} frames )
 			{
-				float cycle = t * data.Cycles;
+				float cycle = data.FrameCurve is {} curve ? curve.Evaluate( t, life ).Clamp( 0, 1 ) : t * data.Cycles;
 				float frame = cycle * frames.Length;
 				int index = (int)frame;
 				float blend = frame - index;
@@ -179,6 +180,7 @@ public sealed partial class PelletImpactEffect
 				p.Size = aspect * Sample( data.Size, life );
 				p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
 				p.SequenceTime = new Vector3( cycle, 0, 0 );
+				if ( data.ParallelToDirection ) ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, data.VerticalSprite );
 				return;
 			}
 			if ( HasSpriteRadius( data.Layer ) )

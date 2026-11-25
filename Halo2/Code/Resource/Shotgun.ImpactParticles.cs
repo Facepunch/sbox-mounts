@@ -43,6 +43,7 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\impact_spray_unlit" => UnlitSprayName,
 				@"effects\generic\solids\impact_spray_thick_unlit" => ThickSprayName,
 				@"effects\generic\smoke\smoke_soft_small" => UnlitImpactSmokeName,
+				@"effects\generic\sparks\sparks_trail" => SparkTrailName,
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
 				_ => null
 			};
@@ -69,6 +70,7 @@ internal sealed partial class ShotgunLoader
 				MetalChipsName => ImpactLayer.MetalChips,
 				GlassName => ImpactLayer.GlassShards,
 				SparksName => ImpactLayer.Sparks,
+				SparkTrailName => ImpactLayer.SparkTrail,
 				DriftName => ImpactLayer.Drift,
 				_ => ImpactLayer.Smoke
 			};
@@ -107,7 +109,7 @@ internal sealed partial class ShotgunLoader
 			bool dust = HasSpriteRadius( layer );
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
-			bool spriteCurves = drift || dust || spriteAngle || cloth;
+			bool spriteCurves = drift || dust || spriteAngle || cloth || layer == ImpactLayer.SparkTrail;
 			var size = Bounds( emitter + 72 ) * 120;
 			if ( layer == ImpactLayer.Rubber ) size *= Bounds( definition + 60 ).x;
 			bool collides = movement is not null && map.ReadInt32( Address( movement ) + 12 ) > 1 && Short( controller + 20 ) == 1;
@@ -132,7 +134,8 @@ internal sealed partial class ShotgunLoader
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				AnimatedFrames = cloth ? ReadAnimatedFrames( definition ) : null, Cycles = cloth ? Bounds( definition + 92 ).y : 0,
+				FrameCurve = layer == ImpactLayer.SparkTrail ? ReadRange( definition + 92, 1 ) : null,
+				AnimatedFrames = cloth || layer == ImpactLayer.SparkTrail ? ReadAnimatedFrames( definition ) : null, Cycles = cloth ? Bounds( definition + 92 ).y : 0,
 				SpriteAspect = geometry * 0.5f, RadiusBounds = dust ? Bounds( definition + 60 ) : default,
 				AngleBounds = spriteAngle ? Bounds( definition + 76 ) : default, AlphaInput = Short( emitter + 104 ),
 				SpriteAngle = drift || spriteAngle ? ReadRange( definition + 76, 1 ) : default,
