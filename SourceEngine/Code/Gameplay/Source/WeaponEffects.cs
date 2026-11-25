@@ -301,6 +301,20 @@ static class WeaponEffects
 		}
 	}
 
+	/// <summary>The bolt load event emits sparks and fades a blue flare on the viewmodel's first attachment.</summary>
+	public static void CrossbowLoad( GameObject attachment, Vector3 position, string mount )
+	{
+		ElectricSpark( position, 1, Vector3.Zero, mount );
+		const string material = "sprites/blueflare1";
+		if ( MountedEffects.SpriteTexture( material, mount ) is not { } texture ) return;
+		var root = new GameObject( attachment, true, "Crossbow load flare" );
+		root.NetworkMode = NetworkMode.Never;
+		var burst = root.AddComponent<SpriteBurst>();
+		var radius = texture.Width * 0.1f; // A Source sprite scale of 0.2 is its full width.
+		var flare = burst.Add( material, mount, 0, radius, Color.White * 0.5f, 0.25f, 0 );
+		burst.FadeTo( flare, radius, Color.Black );
+	}
+
 	/// <summary>FX_ElectricSpark with a trail length of 1, as g_pEffects->Sparks draws it: big and little streaks and a yellow flare.</summary>
 	public static void ElectricSpark( Vector3 position, int magnitude, Vector3 direction, string mount )
 	{

@@ -140,7 +140,10 @@ public sealed class ViewModel : BaseWeaponModel
 
 	void OnSequenceEvent( SourceModelSequenceData.Event e )
 	{
-		if ( e.Name == "AE_MUZZLEFLASH" )
+		if ( e.Id == AnimEvents.WeaponThrow && _weapon is ProjectileWeapon { Kind: Projectile.Kinds.Bolt }
+			&& AttachmentObject( 0 ) is { } spark )
+			WeaponEffects.CrossbowLoad( spark, DrawnPosition( spark ), _mount );
+		else if ( e.Name == "AE_MUZZLEFLASH" )
 		{
 			// Options are "<weapon type> <attachment name>".
 			var attachment = e.Options?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).ElementAtOrDefault( 1 );
