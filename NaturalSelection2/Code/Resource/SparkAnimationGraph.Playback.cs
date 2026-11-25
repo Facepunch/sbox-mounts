@@ -93,6 +93,8 @@ internal sealed partial class SparkAnimationGraph
 			}
 		}
 
+		internal void ClearInputs() => Array.Clear( inputs );
+
 		internal void Set( string input, double value )
 		{
 			int i = Array.IndexOf( graph.inputs, input );
@@ -105,9 +107,11 @@ internal sealed partial class SparkAnimationGraph
 			if ( i >= 0 ) inputs[i] = Math.Max( 0, Array.IndexOf( graph.values[i], value ) );
 		}
 
-		internal void Update( float elapsed, GraphParameters output = null, Action<string> tag = null )
+		internal void Update( float elapsed, GraphParameters output = null, Action<string> tag = null ) =>
+			UpdateInterval( time, elapsed, output, tag );
+
+		internal void UpdateInterval( float before, float elapsed, GraphParameters output, Action<string> tag )
 		{
-			float before = time;
 			time = elapsed;
 			Span<int> visited = stackalloc int[32];
 			foreach ( var layer in graph.layers )
