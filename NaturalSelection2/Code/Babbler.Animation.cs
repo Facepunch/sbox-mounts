@@ -23,8 +23,13 @@ public sealed partial class Babbler
 
 	protected override void OnUpdate()
 	{
-		base.OnUpdate();
+		if ( ClingSlot == 0 ) base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		if ( ClingSlot != 0 )
+		{
+			UpdateGraph( output, "idle" );
+			return;
+		}
 		float dt = Math.Clamp( Time.Delta, 0.001f, 0.1f );
 		var velocity = (WorldPosition - previousRenderPosition) / dt;
 		previousRenderPosition = WorldPosition;
@@ -54,12 +59,17 @@ public sealed partial class Babbler
 		float yaw = MathF.Atan2( Vector3.Dot( Renderer.WorldRotation.Forward, planar ), Vector3.Dot( Renderer.WorldRotation.Left, planar ) ).RadianToDegree();
 		output?.Set( "move_speed", moveSpeed );
 		output?.Set( "move_yaw", (yaw + 180) % 360 );
+		UpdateGraph( output, feed > 0 ? "idle" : jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : "idle" );
+	}
+
+	void UpdateGraph( Sandbox.Animation.GraphParameters output, string move )
+	{
 		if ( Networking.IsHost )
 		{
 			if ( graph is null ) return;
 			graph.Set( "forage", feed > 0 && !hungry ? 1 : 0 );
 			graph.Set( "hungry", feed > 0 && hungry ? 1 : 0 );
-			graph.Set( "move", feed > 0 ? "idle" : jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : "idle" );
+			graph.Set( "move", move );
 			graph.Set( "attacking", Attacking ? 1 : 0 );
 			graph.Update( animationTime, output );
 			locomotion = graph.GetPose( 0 );

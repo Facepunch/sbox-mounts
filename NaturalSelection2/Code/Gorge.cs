@@ -39,6 +39,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
+		renderer.CreateAttachments = true;
 		var hull = new GameObject( root, true, "Collider" );
 		hull.Tags.Add( "playercontroller" );
 		var sphere = hull.AddComponent<SphereCollider>();
@@ -77,6 +78,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 		weaponTag = OnWeaponTag;
 		animationTime = 0;
 		aim = WorldRotation;
+		nextHatch = 2.5f;
 		PlayCue( "spawn", WorldPosition );
 	}
 
@@ -121,6 +123,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 			return;
 		}
 		if ( Health <= 0 ) return;
+		UpdateBrood();
 		if ( wounds.Update() is { } cue ) PlayCue( cue, WorldPosition );
 		if ( nextHeal <= 0 )
 		{
@@ -177,6 +180,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
+		AbsorbWithBabblers( e );
 		AlienArmor.Absorb( e, Armor );
 	}
 
@@ -189,6 +193,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
+		while ( brood.Count > 0 ) BreakBabbler();
 		PlayCue( "death", WorldPosition );
 		base.OnDeath( e );
 	}

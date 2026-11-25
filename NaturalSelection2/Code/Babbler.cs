@@ -46,8 +46,42 @@ public sealed partial class Babbler : BaseNpc
 		npc.DisplayName = "Babbler";
 	}
 
+	[Sync( SyncFlags.FromHost )] internal int ClingSlot { get; private set; }
+	Gorge owner;
+
+	internal void ClingTo( Gorge gorge, int slot )
+	{
+		owner = gorge;
+		ClingSlot = slot;
+		LocalTransform = global::Transform.Zero;
+		Renderer.LocalTransform = global::Transform.Zero;
+		GetComponent<Rigidbody>( true ).Enabled = false;
+		GetComponentInChildren<SphereCollider>( true ).Enabled = false;
+		GetComponent<ModelHitboxes>( true ).Enabled = false;
+		GetComponent<NavigationLayer>( true ).Enabled = false;
+		GetComponent<SensesLayer>( true ).Enabled = false;
+		GetComponent<AnimationLayer>( true ).Enabled = false;
+	}
+
+	internal void BreakShield()
+	{
+		DeathEffect( WorldPosition );
+		GameObject.Destroy();
+	}
+
+	protected override void OnDestroy()
+	{
+		if ( owner.IsValid() ) owner.BabblerRemoved( this );
+		base.OnDestroy();
+	}
+
 	protected override void OnStart()
 	{
+		if ( ClingSlot != 0 )
+		{
+			if ( Networking.IsHost ) StartGraph();
+			return;
+		}
 		base.OnStart();
 		body = GetComponent<Rigidbody>();
 		previousRenderPosition = WorldPosition;
@@ -111,7 +145,7 @@ public sealed partial class Babbler : BaseNpc
 	{
 		foreach ( var sibling in Scene.GetAllComponents<Babbler>() )
 		{
-			if ( sibling == this || sibling.Faction != Faction || !sibling.target.IsValid() ) continue;
+			if ( sibling == this || sibling.Faction != Faction || sibling.owner != owner || sibling.ClingSlot != 0 || !sibling.target.IsValid() ) continue;
 			if ( WorldPosition.DistanceSquared( sibling.WorldPosition ) < 30 * 30 * Scale * Scale && CanHunt( sibling.target ) )
 				return sibling.target;
 		}
@@ -132,6 +166,7 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnFixedUpdate()
 	{
+		if ( ClingSlot != 0 ) return;
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost || !body.IsValid() || Health <= 0 || PhysicsCarrier.IsValid() ) return;
 		var origin = SphereCenter;
@@ -187,6 +222,12 @@ public sealed partial class Babbler : BaseNpc
 		((IDamageable)victim).OnDamage( new DamageInfo { Damage = 8, Position = SphereCenter, Origin = start, Attacker = GameObject, Weapon = GameObject } );
 		if ( victim.IsValid() && (victim.GameObject.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" ) || victim.GetComponent<PlayerController>().IsValid()) )
 			Launch( (victim.WorldPosition - SphereCenter).Normal * (2 * Scale) );
+	}
+
+	protected override void OnDamaging( IDamageable.DamageEvent e )
+	{
+		if ( ClingSlot != 0 ) e.AcceptedDamage = 0;
+		base.OnDamaging( e );
 	}
 
 	protected override GameObject CreateRagdoll() => null;

@@ -52,7 +52,7 @@ public sealed partial class Babbler
 			for ( int i = 0; i < 3; i++ )
 			{
 				var sibling = neighbors[Random.Shared.Next( neighbors.Count )];
-				if ( sibling != this && sibling.Health > 0 ) return sibling.WorldPosition;
+				if ( sibling != this && sibling is Babbler { ClingSlot: 0, Health: > 0 } ) return sibling.WorldPosition;
 			}
 
 		Vector3 destination;
