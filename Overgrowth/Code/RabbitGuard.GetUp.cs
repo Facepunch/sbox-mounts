@@ -12,6 +12,33 @@ public sealed partial class RabbitGuard
 	TimeSince recoveryAge;
 	int recoveryStep;
 
+	// RiggedObject adds the pending center offset to the pose before aschar transforms
+	// the bones into world space. MovementObject then consumes it for the actor root.
+	Vector3 GetUpPoseOffset()
+	{
+		if ( !GettingUp ) return default;
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		float start = Math.Max( 0f, ReactionPhase - SecondaryPoseFrames / (120f * clip.Duration) );
+		var travel = clip.Animation.GetRootMotion( ReactionPhase ).Position - clip.Animation.GetRootMotion( start ).Position;
+		var consumed = WorldRotation * (travel * WorldScale);
+		return WorldRotation * consumed - consumed;
+	}
+
+	// A newly woken graph can still expose the pose from before the ragdoll.
+	// Initialize secondary motion from the mobile clip's first evaluated key.
+	void ReadFirstGetUpPose()
+	{
+		var model = PrepareSampledPose();
+		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		float phase = Math.Min( 1f, 1f / (120f * clip.Duration) );
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			var local = clip.Animation.GetLocalTransform( phase, rigIndices[bone.Index] );
+			sampledPose[bone.Index] = bone.Parent is { } parent ? sampledPose[parent.Index].ToWorld( local ) : local;
+		}
+		hasSampledPose = true;
+	}
+
 	void CapturePhysicsPose()
 	{
 		EnsurePoseBuffers();

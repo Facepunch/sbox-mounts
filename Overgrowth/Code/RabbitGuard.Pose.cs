@@ -18,6 +18,7 @@ public sealed partial class RabbitGuard
 	int[] rigIndices;
 	Model sampledModel;
 	bool hasSampledPose;
+	Vector3 getUpPoseOffset;
 	readonly List<RabbitMovement.PoseInput> gaitInputs = [], nextStrideInputs = [];
 	(Transform Unit, Rotation Raw)[] gaitBlend = [];
 
@@ -139,8 +140,11 @@ public sealed partial class RabbitGuard
 
 	bool TryGetAnimatedBone( BoneCollection.Bone bone, out Transform world )
 	{
-		if ( !hasSampledPose || bone is null ) return Renderer.TryGetBoneTransformAnimation( bone, out world );
-		world = Renderer.WorldTransform.ToWorld( sampledPose[bone.Index] );
+		if ( hasSampledPose && bone is not null )
+			world = Renderer.WorldTransform.ToWorld( sampledPose[bone.Index] );
+		else if ( !Renderer.TryGetBoneTransformAnimation( bone, out world ) )
+			return false;
+		world.Position += getUpPoseOffset;
 		return true;
 	}
 
