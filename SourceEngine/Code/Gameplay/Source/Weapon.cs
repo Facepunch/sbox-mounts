@@ -121,6 +121,11 @@ public abstract class Weapon : BaseCombatWeapon
 			inventory.GiveAmmo( PrimaryAmmoType, Clip1 - PrimaryClipSize );
 			Clip1 = PrimaryClipSize;
 		}
+		if ( UsesAmmo && !UsesClips && PrimaryAmmoType is not null && StartingAmmo > 0 && inventory.GetAmmo( PrimaryAmmoType ) != int.MaxValue )
+		{
+			inventory.GiveAmmo( PrimaryAmmoType, StartingAmmo );
+			StartingAmmo = 0;
+		}
 		base.OnAdded( inventory );
 	}
 

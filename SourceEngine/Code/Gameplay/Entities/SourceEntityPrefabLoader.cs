@@ -49,6 +49,11 @@ internal sealed class SourceEntityPrefabLoader( SourceEntity entity ) : Resource
 			// Through text, so numbers read back as whatever type the engine asks for.
 			root.Deserialize( JsonNode.Parse( build.Root().ToJsonString() ).AsObject() );
 			build.ResolveNested( root.Scene );
+
+			// Store the pickup payload on the prefab so reconfiguring a dropped weapon cannot refill it.
+			if ( root.GetComponent<Weapon>() is { } weapon && weapon.ViewModelPrefab?.GetComponentInChildren<MountedModel>() is { } model
+				&& WeaponSetup.FindWeaponData( weapon, model, Host.GetWeaponData ) is { ClipSize: -1, DefaultClip: >= 0 } data )
+				weapon.StartingAmmo = data.DefaultClip.Value;
 		}
 
 		prefab = builder.Create() ?? throw new InvalidOperationException( $"{Path}: could not create the prefab." );
