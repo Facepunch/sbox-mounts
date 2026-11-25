@@ -6,6 +6,8 @@ public sealed class AntlionBurrow : Component
 	[Property] public string Group { get; set; }
 	[Property] public bool Available { get; set; } = true;
 
+	internal TimeUntil ReuseDelay { get; set; }
+
 	public void EnableHint() => Available = true;
 	public void DisableHint() => Available = false;
 }

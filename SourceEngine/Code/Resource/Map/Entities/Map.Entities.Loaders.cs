@@ -26,6 +26,7 @@ partial class MapLoader
 			"func_door" => new DoorEntityLoader(),
 			"func_door_rotating" => new RotatingDoorEntityLoader(),
 			"func_button" => new ButtonEntityLoader(),
+			"npc_antlion_template_maker" => new AntlionMakerLoader(),
 			"info_node_hint" => new NodeHintLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
@@ -74,6 +75,46 @@ partial class MapLoader
 		}
 
 		builder.Finish();
+	}
+
+	private sealed class AntlionMakerLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildAntlionMaker( entity );
+	}
+
+	private sealed partial class EntityBuilder
+	{
+		public void BuildAntlionMaker( MapEntity entity )
+		{
+			var group = entity.Get( "spawngroup" );
+			var template = entity.Get( "TemplateName" );
+			if ( string.IsNullOrEmpty( group ) || string.IsNullOrEmpty( template ) ) return;
+			var child = bsp.Entities.FirstOrDefault( e => e.Get( "classname" ) == "npc_antlion"
+				&& string.Equals( e.Get( "targetname" ), template, StringComparison.OrdinalIgnoreCase ) );
+			if ( child is null ) return;
+
+			var point = new GameObject( true, entity.Get( "targetname", "npc_antlion_template_maker" ) )
+			{
+				Parent = World,
+				LocalPosition = entity.Vector( "origin" ),
+				LocalRotation = Rotation.From( entity.Angles )
+			};
+			var maker = point.AddComponent<Hl2.AntlionMaker>();
+			var flags = entity.Integer( "spawnflags" );
+			maker.Group = group;
+			maker.TemplateName = template;
+			var prefab = (child.Integer( "spawnflags" ) & (1 << 18)) != 0 ? "antlion_worker" : "antlion";
+			maker.ChildPrefab = $"mount://{owner.Host.Ident}/entities/npcs/{prefab}.prefab";
+			maker.SpawnTarget = entity.Get( "spawntarget", "" );
+			maker.Radius = entity.Number( "spawnradius" );
+			maker.Interval = entity.Number( "SpawnFrequency" );
+			maker.MaxAlive = entity.Integer( "MaxLiveChildren" );
+			maker.Remaining = (flags & 32) != 0 ? -1 : entity.Integer( "MaxNPCCount" );
+			maker.RandomBurrow = (flags & 1024) != 0;
+			maker.Spawning = entity.Integer( "StartDisabled" ) == 0;
+			RegisterEntityIO( entity, maker );
+		}
 	}
 
 	private sealed class NodeHintLoader : EntityLoader

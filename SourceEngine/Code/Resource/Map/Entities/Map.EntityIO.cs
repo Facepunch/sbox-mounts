@@ -104,13 +104,15 @@ partial class MapLoader
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
 				};
 			}
-			if ( target is Hl2.BugbaitSensor or Hl2.AntlionBurrow )
+			if ( target is Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
 			{
 				var listener = (target, input.ToLowerInvariant()) switch
 				{
 					(Hl2.BugbaitSensor, "enable") => nameof( Hl2.BugbaitSensor.StartListening ),
 					(Hl2.BugbaitSensor, "disable") => nameof( Hl2.BugbaitSensor.StopListening ),
 					(Hl2.BugbaitSensor, "toggle") => nameof( Hl2.BugbaitSensor.ToggleListening ),
+					(Hl2.AntlionMaker, "enable") => nameof( Hl2.AntlionMaker.StartSpawning ),
+					(Hl2.AntlionMaker, "disable") => nameof( Hl2.AntlionMaker.StopSpawning ),
 					(Hl2.AntlionBurrow, "enablehint") => nameof( Hl2.AntlionBurrow.EnableHint ),
 					(Hl2.AntlionBurrow, "disablehint") => nameof( Hl2.AntlionBurrow.DisableHint ),
 					_ => null
