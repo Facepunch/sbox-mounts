@@ -194,14 +194,17 @@ static class WeaponEffects
 		var sound = surface.SoundCollection.Bullet ?? baseSurface?.SoundCollection.Bullet;
 		if ( sound.IsValid() ) Sound.Play( sound, shot.HitPosition );
 		var decal = surface.PrefabCollection.BulletImpactDecal ?? baseSurface?.PrefabCollection.BulletImpactDecal;
-		if ( decal.IsValid() && shot.HitObject.IsValid() )
-		{
-			var mark = decal.Clone( new CloneConfig { Transform = new Transform( shot.HitPosition, Rotation.LookAt( -shot.Normal, Vector3.Random ) ), StartEnabled = true } );
-			mark.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-			mark.SetParent( shot.HitObject, true );
-		}
+		PlaceDecal( decal, shot.HitObject, shot.HitPosition, shot.Normal );
 		MountedEffects.Spawn( particle, new Transform( shot.HitPosition, Rotation.LookAt( shot.Normal ) * Rotation.FromPitch( 90 ) ), mount );
 		return true;
+	}
+
+	internal static void PlaceDecal( GameObject prefab, GameObject target, Vector3 position, Vector3 normal )
+	{
+		if ( !prefab.IsValid() || !target.IsValid() ) return;
+		var mark = prefab.Clone( new CloneConfig { Transform = new Transform( position, Rotation.LookAt( -normal, Vector3.Random ) ), StartEnabled = true } );
+		mark.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		mark.SetParent( target, true );
 	}
 
 	/// <summary>Source surfaceprops by name: alien, antlion and zombie flesh bleed yellow, other flesh red.</summary>
