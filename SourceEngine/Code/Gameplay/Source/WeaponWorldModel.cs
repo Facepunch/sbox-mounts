@@ -49,6 +49,13 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		else EjectShell();
 	}
 
+	internal void PlayPump()
+	{
+		_pumpPending = false;
+		if ( Sounds.WeaponSound( _weapon, "special1" ) is { } pump ) GameObject.PlaySound( pump );
+		EjectShell();
+	}
+
 	/// <summary>
 	/// Counter-Strike's dual Elites flash muzzle_flash_l and muzzle_flash_r in turn (CWeaponElite::GetMuzzleAttachment);
 	/// other guns always use their muzzle.
@@ -99,11 +106,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		UpdateSilencer();
 		if ( _effectsModel != Renderer.Model ) Configure();
 		if ( _pumpPending && _pumpAt <= 0 )
-		{
-			_pumpPending = false;
-			if ( Sounds.WeaponSound( _weapon, "special1" ) is { } pump ) GameObject.PlaySound( pump );
-			EjectShell();
-		}
+			PlayPump();
 		MuzzleGameObject = _muzzleName is null ? null : Renderer.GetAttachmentObject( _muzzleName );
 		if ( Renderer.BoneMergeTarget.IsValid() )
 		{

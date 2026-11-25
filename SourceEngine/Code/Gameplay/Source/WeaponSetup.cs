@@ -256,7 +256,7 @@ static class WeaponSetup
 			if ( bullet.Secondary == Weapon.SecondaryFires.DoubleShot && secondary > 0 )
 			{
 				bullet.AlternatePumpDelay = secondary;
-				bullet.AlternateDuration = secondary + Duration( clips.Pump );
+				bullet.PumpDuration = Duration( clips.Pump );
 			}
 			bullet.SilencerDuration = Duration( clips.AttachSilencer );
 			// Counter-Strike's attack2 is code; infer it from what the viewmodel authors for it.

@@ -101,7 +101,7 @@ public sealed class BulletWeapon : Weapon
 	[Property, Feature( "Shooting" )] public float PrimaryDelayAfterLaunch { get; set; } = 1;
 	internal Projectile.Kinds? AlternateProjectile { get; set; }
 	internal float AlternatePumpDelay { get; set; }
-	internal float AlternateDuration { get; set; } = 1;
+	internal float PumpDuration { get; set; } = 1;
 	internal bool NpcControlled => Holder is BaseNpc;
 	// The host picks the NPC's reload clip and shares its duration for animation on other peers.
 	[Sync( SyncFlags.FromHost )] internal float NpcReloadAnimationTime { get; private set; }
@@ -112,6 +112,8 @@ public sealed class BulletWeapon : Weapon
 	bool _queuedPrimary, _queuedSecondary;
 	TimeUntil? _pumpStarts;
 	bool _reloadOnPump;
+	internal bool ReloadingDuringPump { get; private set; }
+	bool _pumpOnDeploy;
 	TimeUntil _alternateAt;
 	GameObject _alternateAttacker;
 	int _zoomLevel;
@@ -168,15 +170,26 @@ public sealed class BulletWeapon : Weapon
 			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( 0.5f );
 		}
 		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
+		if ( _pumpOnDeploy && !IsDeploying )
+		{
+			_pumpOnDeploy = false;
+			_reloadOnPump |= Input.Down( "reload" );
+			SetNextFire( PumpDuration );
+			PumpEffects();
+		}
 		if ( _pumpStarts is { } pumpStarts )
 		{
 			_reloadOnPump |= Input.Down( "reload" );
 			if ( pumpStarts <= 0 ) _pumpStarts = null;
 		}
-		if ( _reloadOnPump && !_pumpStarts.HasValue && NextPrimaryFire <= ReloadStartTime )
+		if ( _reloadOnPump && !_pumpOnDeploy && !_pumpStarts.HasValue && NextPrimaryFire <= ReloadStartTime )
 		{
 			_reloadOnPump = false;
-			if ( CanReload() ) Reload();
+			if ( CanReload() )
+			{
+				ReloadingDuringPump = true;
+				Reload();
+			}
 		}
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
 		{
@@ -216,8 +229,10 @@ public sealed class BulletWeapon : Weapon
 		_holdingEmptyTrigger = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
+		_pumpOnDeploy |= _pumpStarts.HasValue;
 		_pumpStarts = null;
-		_reloadOnPump = false;
+		if ( !_pumpOnDeploy ) _reloadOnPump = false;
+		ReloadingDuringPump = false;
 		_alternatePending = false;
 		_alternateAttacker = null;
 		CancelBurst();
@@ -258,6 +273,7 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnReloadFinished()
 	{
+		ReloadingDuringPump = false;
 		_ejectCylinderAt = null;
 		if ( _playerReloadSettings is { } settings )
 		{
@@ -493,6 +509,13 @@ public sealed class BulletWeapon : Weapon
 		ReleaseAlternate( Attacker );
 	}
 
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void PumpEffects()
+	{
+		if ( WeaponModel is ViewModel view ) view.PlayPump();
+		else if ( WeaponModel is WeaponWorldModel world ) world.PlayPump();
+	}
+
 	void DoubleShot()
 	{
 		_queuedPrimary = _queuedSecondary = false;
@@ -508,7 +531,7 @@ public sealed class BulletWeapon : Weapon
 		var volley = hits.Select( tr => new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) ).ToArray();
 		TimeSinceShoot = 0;
 		_pumpStarts = AlternatePumpDelay;
-		SetNextFire( AlternateDuration );
+		SetNextFire( AlternatePumpDelay + PumpDuration );
 		AlternateEffects( volley );
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
 	}

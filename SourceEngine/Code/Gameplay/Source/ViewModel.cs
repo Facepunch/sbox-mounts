@@ -384,10 +384,7 @@ public sealed class ViewModel : BaseWeaponModel
 				};
 			}
 			else if ( _pumpAfterShot && !string.IsNullOrEmpty( _clips.Pump ) )
-			{
-				_pumpAfterShot = false;
-				Play( _clips.Pump );
-			}
+				PlayPump();
 			else if ( _weapon is not Source1.Weapon { ShouldPlayIdle: false } )
 				Play( IdleClip );
 		}
@@ -519,6 +516,12 @@ public sealed class ViewModel : BaseWeaponModel
 		Play( clip );
 	}
 
+	internal void PlayPump()
+	{
+		_pumpAfterShot = false;
+		Play( _clips?.Pump );
+	}
+
 	internal void OnClawsChanged() => Play( _clips?.Idle );
 
 	internal void PlayGravityGunAttack( bool launch = false ) => Play( launch ? _clips?.SecondaryFire : _clips?.Fire );
@@ -583,7 +586,11 @@ public sealed class ViewModel : BaseWeaponModel
 		_reloadFinish = null;
 		_reloading = true;
 		// A queued shell reload uses the pump as its opening animation.
-		if ( _clips.Incremental && _clips.Pump is { } pump && _animation is { Finished: false } && _animation.Current == pump ) return;
+		if ( _weapon is BulletWeapon { ReloadingDuringPump: true } )
+		{
+			if ( _pumpAfterShot ) PlayPump();
+			return;
+		}
 		_pumpAfterShot = false;
 		Play( _clips.Reload );
 		if ( !_clips.Incremental ) PlayReloadSound( _clips.Reload );
