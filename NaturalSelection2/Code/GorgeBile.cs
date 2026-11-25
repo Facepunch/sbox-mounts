@@ -55,7 +55,7 @@ public sealed class GorgeBile : Component
 			if ( !target.IsValid() || target is not IDamageable hp || hp.MaxHealth > 0 && hp.Health <= 0 ) continue;
 			float amount = damage;
 			if ( target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) ) amount *= 0.4f;
-			else if ( target.GameObject.Tags.Has( "ns2_lifeform" ) || target.GetComponentInParent<PlayerController>().IsValid() )
+			else if ( target.GameObject.Tags.HasAny( "ns2_lifeform", "ns2_marine" ) || target.GetComponentInParent<PlayerController>().IsValid() )
 			{
 				hp.Armour = Math.Max( 0, hp.Armour - damage * 0.12f * 0.5f );
 				continue;
