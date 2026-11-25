@@ -161,21 +161,34 @@ public sealed class Shotgun : Weapon
 
 	public override void PrimaryAttack()
 	{
-		if ( IsHeld && !(Networking.IsHost ? TakePrimaryAmmo() : HasPrimaryAmmo()) ) return;
+		if ( IsHeld && !HasPrimaryAmmo() ) return;
 		var ray = AimRay;
-		CancelReload();
 		triggerConsumed = true;
 		TimeSinceShoot = 0;
-		if ( !Networking.IsHost ) FireOnHost( ray.Forward );
-		ShootEffects();
-		if ( Networking.IsHost ) LaunchPellets( ray );
+		if ( Networking.IsHost )
+		{
+			FireVolley( ray );
+			return;
+		}
+
+		OnShootEffects( default );
+		FireOnHost( ray.Forward );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void FireOnHost( Vector3 direction )
 	{
-		if ( !IsHeld || !direction.LengthSquared.AlmostEqual( 1, 0.001f ) || !TakePrimaryAmmo() ) return;
-		LaunchPellets( new Ray( AimRay.Position, direction ) );
+		if ( !IsHeld || !CanPrimaryAttack() || !direction.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		SetNextPrimaryFire( PrimaryDelay );
+		FireVolley( new Ray( AimRay.Position, direction ) );
+	}
+
+	void FireVolley( Ray ray )
+	{
+		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		CancelReload();
+		ShootEffects();
+		LaunchPellets( ray );
 	}
 
 	uint reloadSequence;
