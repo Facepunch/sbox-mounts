@@ -37,8 +37,19 @@ public abstract class Weapon : BaseCombatWeapon
 
 	protected override void OnEquipped()
 	{
+		ViewModelPrefab = RefreshPrefab( ViewModelPrefab );
+		WorldModelPrefab = RefreshPrefab( WorldModelPrefab );
 		_deployUntil = DeployTime;
 		base.OnEquipped();
+	}
+
+	// A remount replaces prefab scenes while weapons already in an inventory keep the old references.
+	static GameObject RefreshPrefab( GameObject prefab )
+	{
+		if ( prefab is PrefabScene scene && !scene.IsValid() && scene.Source?.ResourcePath is { } path )
+			return GameObject.GetPrefab( path );
+
+		return prefab;
 	}
 
 	public override bool CanReload() => (!HasOwner || !IsDeploying) && base.CanReload();
