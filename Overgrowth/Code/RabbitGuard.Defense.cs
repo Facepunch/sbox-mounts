@@ -138,6 +138,9 @@ public sealed partial class RabbitGuard
 		=> (duckAmount, duckVelocity) = SampleCrouchSpring( target, delta );
 
 	(float Amount, float Velocity) SampleCrouchSpring( float target, float delta )
+		=> CrouchSpringAt( duckAmount, duckVelocity, target, delta );
+
+	static (float Amount, float Velocity) CrouchSpringAt( float duckAmount, float duckVelocity, float target, float delta )
 	{
 		float offset = duckAmount - target;
 		if ( offset == 0f && duckVelocity == 0f ) return (duckAmount, duckVelocity);

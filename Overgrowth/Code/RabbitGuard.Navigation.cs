@@ -6,6 +6,13 @@ public sealed partial class RabbitGuard
 {
 	Vector3 runGroundNormal;
 	float groundSpeedLimit;
+	const float GroundAcceleration = 35f * 40f;
+
+	float GroundDrive( float duck )
+	{
+		float crouch = 1f - duck * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
+		return GroundAcceleration * crouch * PlantMovementScale( duck ) * (boundAnimations?.Species == "wolf" ? 0.8f : 1f);
+	}
 	[Sync] float PreFrictionSpeedScale { get; set; } = 1f;
 
 	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
@@ -38,7 +45,7 @@ public sealed partial class RabbitGuard
 	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step, Vector3? requestedHeading )
 	{
 		if ( step <= 0f ) return;
-		const float tick = 4f / 120f, acceleration = 35f * 40f;
+		const float tick = 4f / 120f, acceleration = GroundAcceleration;
 		var velocity = agent.Velocity.WithZ( 0f );
 		float speed = velocity.Length;
 		float run = GroundRunSpeed;
@@ -59,8 +66,7 @@ public sealed partial class RabbitGuard
 		// simulation time without advancing the pose a second time.
 		float elapsed = (float)(Time.NowDouble - groundCrouchTime);
 		float duck = groundCrouchTime > 0 && elapsed > 0f && InLocomotion ? SampleCrouchSpring( groundCrouchTarget, elapsed ).Amount : duckAmount;
-		float crouch = 1f - duck * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
-		float drive = acceleration * crouch * PlantMovementScale( duck ) * (wolf ? 0.8f : 1f);
+		float drive = GroundDrive( duck );
 		PreFrictionSpeedScale = MathF.Exp( friction * tick );
 		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (PreFrictionSpeedScale - 1f);
 		float response = 1f - MathF.Exp( -friction * step );

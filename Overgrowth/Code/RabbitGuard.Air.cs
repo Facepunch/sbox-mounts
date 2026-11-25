@@ -12,6 +12,28 @@ public sealed partial class RabbitGuard
 	[Property] public float JumpSustainBoost { get; set; } = 10f;
 	[Sync] TimeSince SinceJumpPreparation { get; set; } = 10f;
 	bool jumpArmsActive;
+	[Property] public SphereCollider AirHull { get; set; }
+
+	internal static SphereCollider CreateAirHull( CapsuleCollider standing )
+	{
+		// GetCollisionSphere uses the leg sphere plus the airborne offset, scaled vertically.
+		var hull = new GameObject( standing.GameObject, true, "air collider" );
+		hull.LocalPosition = Vector3.Up * (LegRadius + 8f);
+		hull.LocalScale = new Vector3( 1f, 1f, 1.25f );
+		hull.Tags.Add( "playercontroller", CharacterCollisionRules.FighterHull );
+		var sphere = hull.AddComponent<SphereCollider>( false );
+		sphere.Radius = LegRadius;
+		return sphere;
+	}
+
+	void UseAirHull( bool airborne )
+	{
+		if ( !MovementCapsule.IsValid() ) return;
+		if ( airborne && !AirHull.IsValid() ) AirHull = CreateAirHull( MovementCapsule );
+		if ( !AirHull.IsValid() || AirHull.Enabled == airborne ) return;
+		AirHull.Enabled = airborne;
+		MovementCapsule.Enabled = !airborne;
+	}
 
 	TimeUntil jumpNodeDelay;
 	internal bool CanLaunchJump( bool climb ) => boundAnimations is { Species: not "wolf" } && (climb || jumpNodeDelay <= 0f);
@@ -30,8 +52,9 @@ public sealed partial class RabbitGuard
 		return boundAnimations?.Species is "wolf" or "dog" ? 0.1f : 0.04f;
 	}
 
-	internal void StartJump( Vector3 velocity, bool climb )
+	internal void StartJump( Vector3 velocity, bool climb, Vector3 releaseDrive )
 	{
+		if ( StandingPosition( WorldPosition ) is { } feet ) WorldPosition = feet;
 		if ( boundAnimations.CharacterSpecies != "rabbit" ) velocity.z *= 0.6f;
 		if ( climb ) StartLedgeApproach( velocity );
 		IncreaseBreathing( 2f );
@@ -40,7 +63,8 @@ public sealed partial class RabbitGuard
 		if ( WaterDepthAt( WorldPosition ) < 0.25f )
 			PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
 		ReportBodySound( HeardSound.Footstep, 2f );
-		Launch( velocity );
+		Launch( velocity + releaseDrive );
+		UseAirHull( true );
 	}
 
 	void UpdateJumpArms()
@@ -74,13 +98,16 @@ public sealed partial class RabbitGuard
 	{
 		if ( Downed || !IsAirborne || GetComponent<Rigidbody>() is not { MotionEnabled: true } body )
 		{
+			UseAirHull( false );
 			terminalRemainder = 0f;
 			return;
 		}
+		UseAirHull( !OnLedge && !IsTethered && !PhysicsCarrier.IsValid() );
 
 		const float step = 4f / 120f;
 		const float threshold = 50f * 40f;
 		var velocity = body.Velocity;
+		if ( approachingLedge ) velocity = AdvanceClimbVelocity( velocity, Time.Delta );
 		if ( ReactionPhase < 1f && !InThrow && !IsThrowingItem && !Held && !Holding && !IsGetUp( Stance ) )
 		{
 			// UpdateHitReaction damps all three axes. Gravity resumes with movement controls.

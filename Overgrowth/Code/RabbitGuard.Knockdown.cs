@@ -177,6 +177,7 @@ public sealed partial class RabbitGuard
 		Movement.Stop();
 		combatVelocity = default;
 		Movement.Enabled = false;
+		UseAirHull( false );
 		MovementCapsule.Enabled = false;
 		strike = null;
 		// Copy the live pose before letting the physics skeleton drive it.

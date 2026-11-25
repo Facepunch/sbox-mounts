@@ -14,12 +14,46 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] float LedgePhase { get; set; }
 	Vector3 climbDirection, climbPosition;
 	internal bool OnLedge => LedgeAnimation is not null;
-	float jumpFuel;
+	float jumpFuel, climbAirClock;
 	TimeSince sinceClimbLaunch;
 	bool approachingLedge, leavingLedge;
+	Vector3 climbApproachVelocity;
+	float climbStartDuck, climbStartDuckVelocity;
+	int climbGroundTicks, climbWindupTicks;
+	const float ClimbStep = 4f / 120f;
 	internal const float LegRadius = 18f;
 
 	SceneTrace ClimbTrace( SceneTrace trace ) => trace.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().WithoutTags( "npc", "player", "trigger" );
+
+	internal float BeginClimbPreparation( Vector3 end, float delay )
+	{
+		climbApproachVelocity = BodyVelocity;
+		climbStartDuck = duckAmount;
+		climbStartDuckVelocity = duckVelocity;
+		climbGroundTicks = 0;
+		climbWindupTicks = (int)MathF.Ceiling( delay / ClimbStep );
+		AdvanceClimbPreparation( end );
+		return climbWindupTicks * ClimbStep;
+	}
+
+	// Ground controls still run on each crouch tick, including the tick which releases the jump.
+	internal Vector3 AdvanceClimbPreparation( Vector3 end )
+	{
+		const float tick = ClimbStep;
+		int due = Math.Min( climbWindupTicks, 1 + (int)((float)SinceJumpPreparation / tick) );
+		var normal = runGroundNormal.IsNearlyZero() ? FloorNormal() : runGroundNormal;
+		var heading = GroundDirection( (end - WorldPosition).WithZ( 0f ).Normal, normal );
+		Vector3 DriveAt( int index ) => heading * (tick * GroundDrive( CrouchSpringAt( climbStartDuck, climbStartDuckVelocity, groundCrouchTarget, index * tick ).Amount ));
+		while ( climbGroundTicks < due )
+		{
+			groundSpeedLimit = Math.Min( GroundRunSpeed * 1.5f, Math.Max( climbApproachVelocity.Length * 0.98f, GroundRunSpeed * (1f - 0.7f * heading.z) ) );
+			climbApproachVelocity = (climbApproachVelocity + DriveAt( climbGroundTicks++ )) * MathF.Exp( -GroundAcceleration * tick / groundSpeedLimit );
+			MoveGroundDelta( climbApproachVelocity * tick, out var travel );
+			climbApproachVelocity = travel / tick;
+		}
+		Animation.SetMove( climbApproachVelocity );
+		return DriveAt( climbWindupTicks );
+	}
 
 	internal bool TryClimbLaunch( Vector3 destination, out Vector3 velocity )
 	{
@@ -46,7 +80,23 @@ public sealed partial class RabbitGuard
 		approachingLedge = true;
 		climbDirection = launch.WithZ( 0f ).Normal;
 		sinceClimbLaunch = 0f;
-		jumpFuel = JumpSustain * 40f * (boundAnimations.CharacterSpecies == "rabbit" ? 1f : 0.2f);
+		jumpFuel = JumpSustain * (boundAnimations.CharacterSpecies == "rabbit" ? 1f : 0.2f);
+		climbAirClock = 0f;
+	}
+
+	Vector3 AdvanceClimbVelocity( Vector3 velocity, float delta )
+	{
+		while ( climbAirClock >= ClimbStep )
+		{
+			climbAirClock -= ClimbStep;
+			velocity += climbDirection * (JumpAirControl * 40f * ClimbStep);
+			if ( jumpFuel <= 0f || velocity.z <= 0f ) continue;
+			float burn = JumpSustainBoost * ClimbStep;
+			jumpFuel -= burn;
+			velocity.z += burn * 40f;
+		}
+		climbAirClock += delta;
+		return velocity;
 	}
 
 	bool GetLedgeHeight( Vector3 center, Vector3 wall, out float height, out Surface surface )
@@ -164,14 +214,7 @@ public sealed partial class RabbitGuard
 		if ( LedgeAnimation is null )
 		{
 			if ( sinceClimbLaunch > 2f || IsOnGround && sinceClimbLaunch > 0.1f ) { EndLedge(); return false; }
-			var velocity = body.Velocity + climbDirection * (JumpAirControl * 40f * Time.Delta);
-			if ( jumpFuel > 0f && velocity.z > 0f )
-			{
-				float burn = JumpSustainBoost * 40f * Time.Delta;
-				jumpFuel -= burn;
-				velocity.z += burn;
-			}
-			body.Velocity = velocity;
+			var velocity = body.Velocity;
 			var center = physics.Position + Vector3.Up * LegRadius;
 			if ( velocity.z <= -600f || !FindLedge( ref center, velocity.z, out var wall, out float height, out var surface, out var contact ) ) return false;
 			if ( SelectBodyImpact( velocity.Dot( wall ) / 40f ) is { } impact )
@@ -190,6 +233,7 @@ public sealed partial class RabbitGuard
 			PlayMaterialEvent( "edge_grab", center + wall * LegRadius, surface?.ResourceName, 1f );
 			body.MotionEnabled = false;
 			body.Velocity = Vector3.Zero;
+			UseAirHull( false );
 			MovementCapsule.Enabled = false;
 			FaceInAir( Rotation.LookAt( wall ) );
 		}

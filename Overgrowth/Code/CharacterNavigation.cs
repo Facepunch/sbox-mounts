@@ -92,7 +92,12 @@ public sealed class CharacterNavigation : NavigationLayer
 				var end = predictedClimb ?? crossing.Value.End;
 				if ( sinceAirborne <= 0.1f ) return;
 				bool preparing = !preparedVelocity.HasValue;
-				if ( !preparing && takeoff > 0f ) return;
+				Vector3 releaseDrive = default;
+				if ( !preparing )
+				{
+					if ( climb ) releaseDrive = fighter.AdvanceClimbPreparation( end );
+					if ( takeoff > 0f ) return;
+				}
 				if ( preparing || climb )
 				{
 					Vector3 velocity;
@@ -108,10 +113,11 @@ public sealed class CharacterNavigation : NavigationLayer
 				if ( preparing )
 				{
 					if ( !climb ) fighter.AnnounceTargetedJump();
-					takeoff = fighter.PrepareJump();
+					float delay = fighter.PrepareJump();
+					takeoff = climb ? fighter.BeginClimbPreparation( end, delay ) : delay;
 					return;
 				}
-				fighter.StartJump( preparedVelocity.Value, climb );
+				fighter.StartJump( preparedVelocity.Value, climb, releaseDrive );
 				predictedClimb = null;
 				followingJump = true;
 			}

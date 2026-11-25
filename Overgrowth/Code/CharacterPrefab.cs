@@ -63,6 +63,7 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		var npc = go.AddComponent<RabbitGuard>();
 		go.AddComponent<RabbitAirContact>().Fighter = npc;
 		npc.MovementCapsule = collider;
+		npc.AirHull = RabbitGuard.CreateAirHull( collider );
 		npc.SetSpecies( character.Species );
 		npc.DisplayName = title;
 		npc.Renderer = renderer;

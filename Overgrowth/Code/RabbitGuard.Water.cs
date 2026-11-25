@@ -29,7 +29,7 @@ public sealed partial class RabbitGuard
 				if ( GetComponent<Rigidbody>() is { MotionEnabled: true } body ) body.Velocity = Slow( body.Velocity );
 				else if ( GetComponent<NavMeshAgent>() is { Active: true } agent ) agent.Velocity = Slow( agent.Velocity );
 			}
-			jumpFuel = Math.Min( jumpFuel, JumpSustain * 40f * (1f - depth) );
+			jumpFuel = Math.Min( jumpFuel, JumpSustain * (1f - depth) );
 		}
 		if ( underwaterBreath < 0f || height < -3f || (water.Lethal && height < -1f) )
 		{
