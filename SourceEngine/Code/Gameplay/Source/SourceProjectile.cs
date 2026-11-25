@@ -203,20 +203,10 @@ public abstract class SourceProjectile : Component
 		WorldPosition += tr.Normal * TraceRadius;
 	}
 
-	protected bool DamageVictim( SceneTraceResult tr, string tag )
+	protected bool DamageVictim( SceneTraceResult tr, string tag, float impulse = 0, bool hitboxTags = false )
 	{
-		var victim = tr.GameObject?.GetComponentInParent<Component.IDamageable>();
-		if ( victim is null ) return false;
-		var damage = new DamageInfo
-		{
-			Damage = Damage,
-			Attacker = Attacker,
-			Weapon = Weapon.IsValid() ? Weapon.GameObject : GameObject,
-			Origin = WorldPosition - Velocity.Normal * 8,
-			Position = tr.HitPosition
-		};
-		damage.Tags.Add( tag );
-		victim.OnDamage( damage );
+		if ( tr.GameObject?.GetComponentInParent<Component.IDamageable>() is null ) return false;
+		BaseCombatWeapon.ShootBullet( tr, Damage, impulse, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, [tag], hitboxTags );
 		return true;
 	}
 

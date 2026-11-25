@@ -47,7 +47,8 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
-		if ( DamageVictim( tr, "bullet" ) )
+		// Source scales melee impulse for bolts to move 75 kg by 4 units/s per damage point at 70% strength.
+		if ( DamageVictim( tr, "bullet", Damage * 75 * 4 * 0.7f, hitboxTags: true ) )
 		{
 			PlayImpact( tr, "Weapon_Crossbow.BoltHitBody" );
 			GameObject.Destroy();
