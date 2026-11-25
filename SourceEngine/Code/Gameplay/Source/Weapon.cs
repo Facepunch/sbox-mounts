@@ -124,6 +124,7 @@ public abstract class Weapon : BaseCombatWeapon
 		Rpc.Caller == Connection.Local && attacker.IsValid() ? attacker : Attacker;
 
 	[Sync( SyncFlags.FromHost )] public bool WasDropped { get; private set; }
+	TimeUntil _touchPickupAllowed;
 
 	protected bool BlockSubmergedShot( bool blockBothTriggers, bool playEmptySound = true )
 	{
@@ -134,10 +135,19 @@ public abstract class Weapon : BaseCombatWeapon
 		return true;
 	}
 
+	protected override bool OnCanPickup( BaseInventoryComponent inventory ) =>
+		(inventory.PickupMode != BaseInventoryComponent.PickupBehaviour.Touch || _touchPickupAllowed <= 0)
+		&& base.OnCanPickup( inventory );
+
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		WeaponSetup.ConfigureAmmo( this );
-		return base.OnAdding( inventory );
+		if ( base.OnAdding( inventory ) ) return true;
+
+		// Sandbox consumes a world duplicate even when that weapon carries no ammunition.
+		if ( Inventory is null && !UsesAmmo && PrimaryAmmoType is null && MountContent.OfWeapon( this ) == "hl2" )
+			GameObject.Destroy();
+		return false;
 	}
 
 	protected override void OnAdded( BaseInventoryComponent inventory )
@@ -316,6 +326,7 @@ public abstract class Weapon : BaseCombatWeapon
 
 	protected virtual void StartDrop( Vector3 velocity )
 	{
+		if ( MountContent.OfWeapon( this ) == "hl2" ) _touchPickupAllowed = 1;
 		if ( GetComponent<Rigidbody>( true ) is { } body )
 		{
 			body.Velocity = velocity;
