@@ -12,7 +12,7 @@ internal sealed class SparkRoomRoutes
 		public readonly HashSet<int> Links = [];
 	}
 
-	readonly record struct Floor( int Region, float Z );
+	readonly record struct Floor( int Region, float Z, int Portals );
 	readonly List<Region> regions = [];
 	readonly Dictionary<(int, int), List<Floor>> borders = [];
 	readonly int[] anchors;
@@ -25,11 +25,11 @@ internal sealed class SparkRoomRoutes
 		var ids = destinations.Select( (d, i) => (d.Name, i) ).ToDictionary( d => d.Name, d => d.i );
 		var bounds = new BBox( -Vector3.One, Vector3.One );
 		var rooms = volumes.Select( v => (v.Bounds, Box: bounds.Transform( v.Bounds ), Room: ids[v.Name]) ).ToArray();
-		SparkNavGrid.Read( data, ( layer, heights, areas ) =>
+		SparkNavGrid.Read( data, ( layer, heights, areas, connections ) =>
 		{
 			var candidates = rooms.Where( r => r.Box.Mins.x <= layer.Max.x && r.Box.Maxs.x >= layer.Min.x &&
 				r.Box.Mins.y <= layer.Max.y && r.Box.Maxs.y >= layer.Min.y ).ToArray();
-			graph.AddLayer( layer, heights, areas, cellHeight, climb, candidates, destinations );
+			graph.AddLayer( layer, heights, areas, connections, cellHeight, climb, candidates, destinations );
 		} );
 		return graph.DirectPaths( destinations );
 	}
@@ -42,7 +42,7 @@ internal sealed class SparkRoomRoutes
 		Array.Fill( nearest, float.PositiveInfinity );
 	}
 
-	void AddLayer( SparkNavGrid.Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas,
+	void AddLayer( SparkNavGrid.Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas, ReadOnlySpan<byte> connections,
 		float cellHeight, float climb, (Transform Bounds, BBox Box, int Room)[] volumes, MapLocations.Destination[] destinations )
 	{
 		int count = areas.Length, stride = layer.Height;
@@ -90,13 +90,14 @@ internal sealed class SparkRoomRoutes
 					float distance = p.DistanceSquared( destinations[room].Position );
 					if ( distance < nearest[room] ) { nearest[room] = distance; anchors[room] = id; }
 				}
-				bool border = false;
-				for ( int ax = -1; ax <= 1; ax++ )
-				for ( int ay = -1; ay <= 1; ay++ )
+				int links = connections[cell];
+				for ( int dir = 0; dir < 4; dir++ )
 				{
-					int nx = x + ax, ny = y + ay, n = nx * stride + ny;
-					if ( nx < 0 || nx >= layer.Width || ny < 0 || ny >= stride || areas[n] == 0 ||
-						MathF.Abs( p.z - positions[n].z ) > climb + 0.01f ) { border = true; continue; }
+					if ( (links & (1 << dir)) == 0 ) continue;
+					var (stepX, stepY) = Direction( dir );
+					int nx = x + stepX, ny = y + stepY;
+					if ( (uint)nx >= layer.Width || (uint)ny >= stride ) continue;
+					int n = nx * stride + ny;
 					if ( groups[n] >= 0 )
 					{
 						if ( groups[n] != id ) Link( id, groups[n] );
@@ -107,23 +108,27 @@ internal sealed class SparkRoomRoutes
 						queue[length++] = n;
 					}
 				}
-				if ( border ) JoinBorders( layer.X * layer.Width + x, layer.Y * stride + y, id, p.z, climb );
+				if ( links >= 16 ) JoinBorders( layer.X * layer.Width + x, layer.Y * stride + y, id, p.z, links >> 4, climb );
 			}
 			region.Center /= length;
 		}
 	}
 
-	void JoinBorders( int x, int y, int id, float z, float climb )
+	// Detour numbers edges in Spark axes. Mounted X is Spark Z and mounted Y is Spark X.
+	static (int X, int Y) Direction( int dir ) => dir switch { 0 => (0, -1), 1 => (1, 0), 2 => (0, 1), _ => (-1, 0) };
+
+	void JoinBorders( int x, int y, int id, float z, int portals, float climb )
 	{
-		for ( int dx = -1; dx <= 1; dx++ )
-		for ( int dy = -1; dy <= 1; dy++ )
+		for ( int dir = 0; dir < 4; dir++ )
 		{
-			if ( dx == 0 && dy == 0 || !borders.TryGetValue( (x + dx, y + dy), out var adjacent ) ) continue;
+			if ( (portals & (1 << dir)) == 0 ) continue;
+			var (dx, dy) = Direction( dir );
+			if ( !borders.TryGetValue( (x + dx, y + dy), out var adjacent ) ) continue;
 			foreach ( var floor in adjacent )
-				if ( id != floor.Region && MathF.Abs( floor.Z - z ) <= climb + 0.01f ) Link( id, floor.Region );
+				if ( (floor.Portals & (1 << (dir ^ 2))) != 0 && MathF.Abs( floor.Z - z ) <= climb + 0.01f ) Link( id, floor.Region );
 		}
 		if ( !borders.TryGetValue( (x, y), out var floors ) ) borders[(x, y)] = floors = [];
-		floors.Add( new( id, z ) );
+		floors.Add( new( id, z, portals ) );
 	}
 
 	void Link( int a, int b )

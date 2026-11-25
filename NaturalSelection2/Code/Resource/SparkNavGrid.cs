@@ -8,7 +8,7 @@ namespace NS2;
 internal static class SparkNavGrid
 {
 	internal readonly record struct Layer( int X, int Y, int Width, int Height, int BaseHeight, Vector3 Min, Vector3 Max );
-	internal delegate void Visit( Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas );
+	internal delegate void Visit( Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas, ReadOnlySpan<byte> connections );
 
 	internal static void Read( byte[] data, Visit visit )
 	{
@@ -34,7 +34,7 @@ internal static class SparkNavGrid
 			Expand( bytes[56..], buffer.AsSpan( 0, count * 3 ) );
 			var layer = new Layer( BitConverter.ToInt32( bytes[12..] ), BitConverter.ToInt32( bytes[8..] ),
 				width, height, BitConverter.ToUInt16( bytes[44..] ), Point( bytes[20..] ), Point( bytes[32..] ) );
-			visit( layer, buffer.AsSpan( 0, count ), buffer.AsSpan( count, count ) );
+			visit( layer, buffer.AsSpan( 0, count ), buffer.AsSpan( count, count ), buffer.AsSpan( 2 * count, count ) );
 		}
 	}
 

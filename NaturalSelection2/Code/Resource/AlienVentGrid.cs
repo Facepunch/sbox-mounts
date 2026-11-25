@@ -21,7 +21,7 @@ internal sealed class AlienVentGrid
 
 	internal AlienVentGrid( byte[] data )
 	{
-		SparkNavGrid.Read( data, ( tile, heights, areas ) =>
+		SparkNavGrid.Read( data, ( tile, heights, areas, _ ) =>
 		{
 			int x = tile.X * tile.Width, y = tile.Y * tile.Height;
 			if ( floors.Count == 0 ) origin = tile.Min - new Vector3( x, y, tile.BaseHeight ) * Cell;
