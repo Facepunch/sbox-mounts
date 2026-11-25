@@ -430,7 +430,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 				hit = ray.FromTo( eye, hit.EndPosition ).Size( -extents, extents ).Run();
 			}
 			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
-			var corpse = hit.GameObject?.GetComponentInParent<AlienCorpse>();
+			var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();
 			var obj = (hp as Component)?.GameObject ?? corpse?.GameObject ?? hit.GameObject;
 			bool pass = corpse.IsValid() || obj.IsValid() && (hp is { MaxHealth: > 0, Health: <= 0 } || obj.Tags.HasAny( "ragdoll", "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ));
 			if ( hp is { Health: > 0 } && GetDisposition( obj ) == Disposition.Hostile )
@@ -479,4 +479,6 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );
 		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30 );
 	}
+
+	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 3f );
 }

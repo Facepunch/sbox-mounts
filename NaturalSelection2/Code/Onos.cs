@@ -353,13 +353,6 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 
 	readonly AlienWounds wounds = new();
 
-	protected override GameObject CreateRagdoll()
-	{
-		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() ) corpse.AddComponent<AlienCorpse>().Age = 0;
-		return corpse;
-	}
-
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
 		PlayCue( "death" );

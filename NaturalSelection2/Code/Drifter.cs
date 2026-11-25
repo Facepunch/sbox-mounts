@@ -183,4 +183,6 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	{
 		if ( hit.AcceptedDamage > 0 ) (armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
 	}
+
+	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 1.5f );
 }

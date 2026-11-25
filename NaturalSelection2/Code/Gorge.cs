@@ -227,13 +227,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		base.OnDeath( e );
 	}
 
-	protected override GameObject CreateRagdoll()
-	{
-		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() ) corpse.AddComponent<AlienCorpse>().Age = 0;
-		return corpse;
-	}
-
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	internal static void PlayCue( string cue, Vector3 position )
 	{

@@ -95,13 +95,7 @@ public sealed partial class Skulk
 		CinematicLoader.Play( $"cinematics/alien/skulk/{name}.cinematic", position, rotation );
 	}
 
-	protected override GameObject CreateRagdoll()
-	{
-		if ( xenociding && detonation <= 0 ) return null;
-		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() ) corpse.AddComponent<AlienCorpse>().Age = 0;
-		return corpse;
-	}
+	protected override GameObject CreateRagdoll() => xenociding && detonation <= 0 ? null : base.CreateRagdoll();
 
 	void DealDamage( IDamageable victim, float amount, Vector3 position, string tag )
 	{

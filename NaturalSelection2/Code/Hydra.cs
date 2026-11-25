@@ -127,4 +127,6 @@ public sealed class Hydra : AlienStructure
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{AttackSound}.sound" ) is { } sound ) Sound.Play( sound, origin );
 	}
 
+
+	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 1.5f );
 }

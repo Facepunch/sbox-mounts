@@ -234,4 +234,6 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		inCombat = 3;
 		(armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
 	}
+
+	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 1.5f );
 }

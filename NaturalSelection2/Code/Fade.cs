@@ -230,11 +230,4 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		PlayCue( "death" );
 		base.OnDeath( e );
 	}
-
-	protected override GameObject CreateRagdoll()
-	{
-		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() ) corpse.AddComponent<AlienCorpse>().Age = 0;
-		return corpse;
-	}
 }

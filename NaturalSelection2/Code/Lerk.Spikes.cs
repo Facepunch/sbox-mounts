@@ -40,7 +40,7 @@ public sealed partial class Lerk
 			}
 			var position = hit.EndPosition - direction * (0.13f * Scale);
 			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
-			var corpse = hit.GameObject?.GetComponentInParent<AlienCorpse>();
+			var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();
 			var obj = (hp as Component)?.GameObject ?? corpse?.GameObject ?? hit.GameObject;
 			bool pass = corpse.IsValid() || hp is { MaxHealth: > 0, Health: <= 0 } ||
 				obj?.Tags.HasAny( "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ) == true;

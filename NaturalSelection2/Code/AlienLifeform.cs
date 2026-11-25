@@ -19,4 +19,6 @@ public abstract class AlienLifeform : AlienNpc
 			: Math.Clamp( BaseHealth * 0.06f, 6, 80 ) * shells / 3;
 		AlienHealing.Restore( this, amount, 0.5f );
 	}
+
+	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 3f );
 }
