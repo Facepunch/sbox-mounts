@@ -30,4 +30,12 @@ public sealed class Harvester : AlienStructure
 		graph.Update( age, output );
 		pose = graph.GetBodyPose();
 	}
+
+	protected override GameObject CreateRagdoll()
+	{
+		if ( graph is null ) return NpcCorpse.Attach( base.CreateRagdoll(), 3 );
+		graph.Set( "built", IsBuilt ? 1 : 0 );
+		graph.Set( "onfire", 0 );
+		return NpcCorpse.AnimateUntilRagdoll( Renderer, graph, age, flinchEnd );
+	}
 }

@@ -8,6 +8,7 @@ public sealed class NpcCorpse : Component
 	[Sync( SyncFlags.FromHost )] float Lifetime { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
+	[Sync( SyncFlags.FromHost )] TimeUntil FlinchEnd { get; set; }
 	SkinnedModelRenderer renderer;
 	SparkAnimationGraph.Playback graph;
 	Action<string> onTag;
@@ -15,6 +16,18 @@ public sealed class NpcCorpse : Component
 	float nextGraphUpdate = -1;
 
 	internal static GameObject Animate( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime )
+	{
+		graph.ClearInputs();
+		graph.Set( "active", 1 );
+		graph.Set( "built", 1 );
+		return CreateAnimated( source, graph, animationTime, lifetime: 1.5f );
+	}
+
+	// Actors using RagdollMixin start their three-second removal timer at the death_end marker.
+	internal static GameObject AnimateUntilRagdoll( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, TimeUntil flinchEnd ) =>
+		CreateAnimated( source, graph, animationTime, lifetime: 0, flinchEnd: flinchEnd );
+
+	static GameObject CreateAnimated( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, float lifetime, TimeUntil flinchEnd = default )
 	{
 		if ( !source.IsValid() || source.Model is null ) return null;
 		var body = new GameObject( false, "Ragdoll" );
@@ -26,16 +39,14 @@ public sealed class NpcCorpse : Component
 		renderer.Animation.Graph = source.Animation.Graph;
 
 		var corpse = body.AddComponent<NpcCorpse>();
-		corpse.Lifetime = 1.5f;
+		corpse.Lifetime = lifetime;
+		corpse.FlinchEnd = flinchEnd;
 		corpse.Age = 0;
 		corpse.AnimationTime = animationTime;
 		corpse.graph = graph;
 		corpse.onTag = tag => corpse.deathEnded |= tag == "death_end";
 		corpse.pose = graph.GetBodyPose();
-		graph.ClearInputs();
 		graph.Set( "alive", 0 );
-		graph.Set( "active", 1 );
-		graph.Set( "built", 1 );
 		body.Enabled = true;
 		body.NetworkSpawn();
 		return body;
@@ -56,9 +67,10 @@ public sealed class NpcCorpse : Component
 
 	void UpdateDeathAnimation()
 	{
-		if ( deathEnded )
+		if ( deathEnded || Networking.IsHost && graph is null )
 		{
-			// The preceding update submitted the final animated pose. Start the bodies from those bones.
+			// After a host migration the new host can hand off the last replicated pose.
+			if ( Lifetime == 0 ) Lifetime = Age + 3;
 			var physics = GameObject.AddComponent<ModelPhysics>( false );
 			physics.Model = renderer.Model;
 			physics.Renderer = renderer;
@@ -70,11 +82,15 @@ public sealed class NpcCorpse : Component
 		}
 
 		var output = renderer.Animation.IsValid ? renderer.Animation.Parameters : null;
-		output?.TrySet( "grow", 1f );
+		if ( Lifetime == 0 )
+			output?.TrySet( "intensity", AlienWounds.Intensity( FlinchEnd ) );
+		else
+			output?.TrySet( "grow", 1f );
 		if ( Networking.IsHost && graph is not null && Age >= nextGraphUpdate )
 		{
 			// NS2 schedules corpse transitions at 4 Hz and samples tags over the current server frame.
 			nextGraphUpdate = Age + 0.25f;
+			if ( Lifetime == 0 ) graph.Set( "flinch", FlinchEnd > 0 ? 1 : 0 );
 			graph.UpdateInterval( AnimationTime - Time.Delta, AnimationTime, output, onTag );
 			pose = graph.GetBodyPose();
 		}
@@ -83,7 +99,7 @@ public sealed class NpcCorpse : Component
 
 	protected override void OnUpdate()
 	{
-		if ( Age >= Lifetime && Networking.IsHost )
+		if ( Lifetime > 0 && Age >= Lifetime && Networking.IsHost )
 		{
 			GameObject.Destroy();
 			return;

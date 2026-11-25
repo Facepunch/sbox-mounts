@@ -18,7 +18,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, maxArmor ); }
 	float IDamageable.MaxArmour => maxArmor;
 	private protected SparkAnimationGraph.Playback graph;
-	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
+	[Sync( SyncFlags.FromHost )] private protected TimeUntil flinchEnd { get; private set; }
 	protected float FlinchIntensity => AlienWounds.Intensity( flinchEnd );
 	SupportPain pain;
 	TimeUntil nextMaturityUpdate;
