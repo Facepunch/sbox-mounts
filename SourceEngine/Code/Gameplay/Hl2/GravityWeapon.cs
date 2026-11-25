@@ -168,21 +168,22 @@ public sealed class GravityWeapon : Weapon
 
 	void Pull()
 	{
+		SetNextSecondaryFire( 0.1f );
 		var body = FindBody( PullLength, out var hit );
 		if ( !CanMove( body ) ) return;
-		var eye = AimRay.Position;
-		if ( eye.Distance( hit ) > TraceLength )
-		{
-			// Approximation: the SDK pulls with physcannon_pullforce until the object is in reach.
-			var direction = (eye - body.WorldPosition).Normal;
-			body.Velocity += direction * (PullForce / MathF.Max( body.Mass, 1 )) * Time.Delta * 6;
-			return;
-		}
 		if ( body.Mass > MaxMass )
 		{
 			if ( _tooHeavyCooldown > 0 ) return;
 			_tooHeavyCooldown = 1;
 			DenyPickup();
+			return;
+		}
+		var eye = AimRay.Position;
+		if ( eye.Distance( hit ) > TraceLength )
+		{
+			var direction = (eye - body.GameObject.GetBounds().Center).Normal;
+			var scale = body.Mass < 50 ? (body.Mass + 0.5f) / 50 : 1;
+			body.ApplyImpulse( direction * (PullForce * scale) );
 			return;
 		}
 		HeldObject = body.GameObject;
