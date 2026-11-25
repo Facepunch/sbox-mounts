@@ -163,6 +163,7 @@ public sealed partial class Lerk
 	protected override void OnDisabled()
 	{
 		if ( Networking.IsHost && GetComponent<Rigidbody>() is { } body ) ReleaseFlight( body );
+		StopFlightSound();
 		base.OnDisabled();
 	}
 }

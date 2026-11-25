@@ -23,7 +23,7 @@ public sealed partial class Lerk
 	{
 		energy -= SpikeCost;
 		firingSpikes = true;
-		var direction = SpikeDirection( view, Random.Shared.NextSingle(), Random.Shared.NextSingle() );
+		var direction = SpikeDirection( View, Random.Shared.NextSingle(), Random.Shared.NextSingle() );
 		var origin = EyePosition;
 		var end = origin + direction * (41 * Scale);
 		var trace = Scene.Trace.Ray( origin, end ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseHitboxes();
@@ -59,7 +59,7 @@ public sealed partial class Lerk
 
 	void TraceSpike( Vector3 end )
 	{
-		var start = EyePosition + (view.Forward * 2 - view.Up * 0.1f + view.Left * (shootLeft ? -0.4f : 0.4f)) * Scale;
+		var start = EyePosition + (View.Forward * 2 - View.Up * 0.1f + View.Left * (shootLeft ? -0.4f : 0.4f)) * Scale;
 		shootLeft = !shootLeft;
 		ShowSpike( start, end );
 	}

@@ -20,7 +20,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag;
-	Rotation view;
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation View { get; set; }
 	bool attacking, wantsSpikes, spiking;
 	TimeSince lastFlap = 1;
 	float energy = 100;
@@ -28,7 +28,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "death", "wound", "wound_serious" } )
+		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "flying_3D", "death", "wound", "wound_serious" } )
 		{
 			var id = $"alien/lerk/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -82,7 +82,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 7 * Scale / gravity;
-		view = WorldRotation;
+		View = WorldRotation;
 		animationTime = 0;
 		weaponTag = OnWeaponTag;
 	}
@@ -108,14 +108,28 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		}
 	}
 
+	static Vector2 MovementPose( Vector3 velocity, Rotation head )
+	{
+		var planar = velocity.WithZ( 0 );
+		float yaw = planar.LengthSquared > 0 ? MathF.Atan2( Vector3.Dot( head.Forward, planar ), Vector3.Dot( head.Left, planar ) ).RadianToDegree() : 0;
+		return new( yaw, planar.Length / (2.8f * Scale) );
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		UpdateFlightSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		var velocity = Animation.MoveVelocity;
-		output?.Set( "move_speed", Animation.IsGrounded ? 2.8f : Math.Clamp( (velocity.Length / Scale - 2.8f) / 13, 0, 1 ) );
-		output?.Set( "move_yaw", !Animation.IsGrounded ? 90f : velocity.IsNearlyZero() ? 0f :
-			MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Left ) ).RadianToDegree() );
+		var aim = WorldRotation.Forward;
+		if ( Networking.IsHost )
+		{
+			if ( Animation.LookObject.IsValid() ) aim = CalculateAimPoint( Animation.LookObject ) - EyePosition;
+			View = AlienAim.Turn( View, aim, 5 );
+		}
+		var moveInputs = MovementPose( Animation.MoveVelocity, View );
+		output?.Set( "move_speed", moveInputs.y );
+		output?.Set( "move_yaw", moveInputs.x );
+		output?.Set( "body_pitch", -View.Angles().pitch );
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
@@ -131,10 +145,8 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 			if ( underFire <= 0 ) Heal( Math.Clamp( MaxHealth * 0.02f, 1, 20 ) );
 		}
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
-		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
-		view = AlienAim.Turn( view, aim, 5 );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
-		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( view.Forward, aim.Normal ) > 0.98f;
+		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( View.Forward, aim.Normal ) > 0.98f;
 		if ( !spiking ) firingSpikes = false;
 		var activity = attacking && energy >= 5 ? "primary" : spiking ? "secondary" : "none";
 		var move = !Animation.IsGrounded ? "fly" : Movement.IsMoving ? "run" : "idle";
@@ -165,7 +177,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		if ( tag != "hit" ) return;
 		PlayCue( "bite" );
 		energy = Math.Max( 0, energy - 5 );
-		var (hit, victim) = AlienMelee.Trace( this, view, 1.5f * Scale, 0.9f, 1.2f );
+		var (hit, victim) = AlienMelee.Trace( this, View, 1.5f * Scale, 0.9f, 1.2f );
 		if ( victim is not Component target ) return;
 		victim.OnDamage( new DamageInfo { Damage = 60, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject } );
 		if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
