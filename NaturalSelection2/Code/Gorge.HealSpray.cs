@@ -24,7 +24,7 @@ public sealed partial class Gorge
 	{
 		var stance = GetDisposition( other.GameObject );
 		return stance == Disposition.Friendly || stance == Disposition.Neutral &&
-			other is BaseNpc npc && npc.Faction == Faction && (other is Hydra || other.GameObject.Tags.Has( "ns2_lifeform" ));
+			other is BaseNpc npc && npc.Faction == Faction && (other is AlienStructure || other.GameObject.Tags.Has( "ns2_lifeform" ));
 	}
 
 	void FindPatients( Vector3 origin, float range )
@@ -41,7 +41,7 @@ public sealed partial class Gorge
 	bool NeedsHelp( Component c )
 	{
 		if ( !c.IsValid() || c is not IDamageable { Health: > 0 } hp || !Friendly( c ) ) return false;
-		if ( c is Hydra { IsBuilt: false } ) return true;
+		if ( c is AlienStructure { IsBuilt: false } ) return true;
 		float fraction = (hp.Health + 2 * hp.Armour) / (hp.MaxHealth + 2 * hp.MaxArmour);
 		return fraction < 0.85f || fraction < 0.98f && c.GameObject.Tags.Has( "ns2_lifeform" ) &&
 			healing.TryGetValue( c, out var h ) && h.Sprayer == this && h.Last < 1.5f;
@@ -129,7 +129,7 @@ public sealed partial class Gorge
 			if ( Friendly( c ) )
 			{
 				Restore( c );
-				if ( c is Hydra hydra ) hydra.OnHealSpray();
+				if ( c is AlienStructure structure ) structure.OnHealSpray();
 			}
 			else if ( GetDisposition( c.GameObject ) == Disposition.Hostile && !c.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit", "structure" ) &&
 				(c is BaseNpc || c.GetComponentInParent<PlayerController>().IsValid()) )
@@ -156,7 +156,7 @@ public sealed partial class Gorge
 	{
 		var hp = (IDamageable)c;
 		float amount = c.GameObject.Tags.Has( "structure" ) ? 60 : (8 + hp.MaxHealth * 0.03f) * (c == this ? 0.5f : 1);
-		if ( c is Hydra hydra ) amount = hydra.SprayHealingLimit;
+		if ( c is AlienStructure structure ) amount = structure.SprayHealingLimit;
 		if ( hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour ) return;
 		var state = healing.GetValue( c, _ => new() );
 		float limit = (hp.MaxHealth + 2 * hp.MaxArmour) * 0.12f;

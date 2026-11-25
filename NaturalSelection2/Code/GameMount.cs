@@ -113,6 +113,7 @@ public class GameMount : BaseGameMount
 		Babbler.RegisterSounds( context );
 		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
 		Mac.RegisterSounds( context );
+		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
@@ -120,6 +121,8 @@ public class GameMount : BaseGameMount
 			NpcPrefab.Register( context, "Fade", Fade.Configure ),
 			NpcPrefab.Register( context, "Gorge", Gorge.Configure ),
 			NpcPrefab.Register( context, "Lerk", Lerk.Configure ),
+			NpcPrefab.Register( context, "Drifter", Drifter.Configure, "ns2_drifter" ),
+			NpcPrefab.Register( context, "Harvester", Harvester.Configure, "ns2_harvester" ),
 			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine" ),
 			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
 			NpcPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),

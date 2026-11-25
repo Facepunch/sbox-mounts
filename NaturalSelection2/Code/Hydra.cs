@@ -4,105 +4,26 @@ using System;
 namespace NS2;
 
 [Title( "Hydra" ), Category( "Natural Selection 2" )]
-public sealed class Hydra : BaseNpc, Component.IDamageable
+public sealed class Hydra : AlienStructure
 {
-	const float Scale = MapLoader.Scale;
-	const float BuildTime = 8 / (0.5f * 0.75f);
+	protected override GrowthStats Stats => new( 8, 0.375f, 145, 5, 140, 175, 25 );
 	const float Range = 17.78f * Scale;
 	internal const string AttackSound = "alien/structures/hydra/attack";
 	static readonly SparkAnimationGraph.PoseParameters BodyLayer = new( 0 ), FlinchLayer = new( 1 );
-	[Sync( SyncFlags.FromHost )] TimeSince age { get; set; }
-	[Sync( SyncFlags.FromHost )] float assistedGrowth { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose bodyPose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose flinchPose { get; set; }
-	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 1.5f;
-	[Sync( SyncFlags.FromHost )] float maxArmor { get; set; } = 5;
-	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, maxArmor ); }
-	float IDamageable.MaxArmour => maxArmor;
-	SparkAnimationGraph.Playback graph;
-	TimeUntil scan, nextFire, nextAlert, nextMaturityUpdate;
-	readonly AlienWounds wounds = new();
-	float previousGrowth, maturity, maturityStart, lastSprayTime;
-	TimeSince maturityTick;
-	float Growth => Math.Clamp( age / BuildTime + assistedGrowth, 0, 1 );
-	internal bool IsBuilt => Growth >= 1;
-
-	internal float SprayHealingLimit => IsBuilt ? 60 :
-		Math.Clamp( (MaxHealth + maxArmor) * (0.3f + 0.7f * previousGrowth) - Health - armor, 0, 60 );
-
-	internal void OnHealSpray()
-	{
-		if ( !IsBuilt )
-		{
-			assistedGrowth += Math.Clamp( 0.9f + Time.Now - lastSprayTime, 0.9f, 1.8f ) / 8;
-			lastSprayTime = Time.Now;
-			ApplyGrowth( Growth );
-		}
-		GameObject.Tags.Remove( "burning" );
-		if ( IsBuilt ) AddMaturity( 1, true );
-	}
-
-	void ApplyGrowth( float growth )
-	{
-		if ( growth <= previousGrowth ) return;
-		float before = 0.3f + previousGrowth * 0.7f;
-		float after = 0.3f + growth * 0.7f;
-		Health = Math.Clamp( after * MaxHealth - (before * MaxHealth - Health), 0, MaxHealth );
-		armor = Math.Clamp( after * maxArmor - (before * maxArmor - armor), 0, maxArmor );
-		previousGrowth = growth;
-		if ( growth == 1 ) maturityTick = 0;
-	}
-
-	void AddMaturity( float seconds, bool publish )
-	{
-		if ( maturity >= 1 ) return;
-		float amount = seconds / 140;
-		// The native soft cap is 1.5 times the combined built and nutrient mist rates.
-		float uncapped = Math.Clamp( (Time.Now - maturityStart) * (4.5f / 140) / (maturity + amount), 0, 1 );
-		maturity = Math.Min( 1, maturity + amount * (0.25f + 0.75f * uncapped) );
-		if ( !publish && maturity < 1 && nextMaturityUpdate > 0 ) return;
-		nextMaturityUpdate = 1;
-		float healthLimit = 145 + MathF.Floor( 30 * maturity );
-		float armorLimit = 5 + MathF.Floor( 20 * maturity );
-		Health *= healthLimit / MaxHealth;
-		armor *= armorLimit / maxArmor;
-		MaxHealth = healthLimit;
-		maxArmor = armorLimit;
-	}
+	TimeUntil scan = 0.5f, nextFire, nextAlert;
 	bool attacking, alerting;
 	Vector3 Barrel => WorldPosition + WorldRotation.Up * Scale;
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
-	{
-		root.Tags.Add( "structure" );
-		var npc = root.AddComponent<Hydra>();
-		npc.Faction = Factions.Monster;
-		npc.DisplayName = "Hydra";
-		npc.Renderer = renderer;
-		npc.MaxHealth = 145;
-		npc.Health = 145 * 0.3f;
-		npc.EyeHeight = Scale;
-		var shape = root.AddComponent<BoxCollider>();
-		shape.Scale = renderer.Model.Bounds.Size;
-		shape.Center = renderer.Model.Bounds.Center;
-	}
-
-	protected override void OnStart()
-	{
-		base.OnStart();
-		if ( !Networking.IsHost ) return;
-		age = 0;
-		scan = 0.5f;
-		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			graph = new( model.PropGraph, model );
-	}
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hydra>( root, renderer, "Hydra" );
 
 	protected override void OnUpdate()
 	{
-		if ( Health <= 0 ) return;
+		if ( Health <= 0 || GameObject.IsDestroyed ) return;
+		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		float growth = Growth;
-		output?.Set( "grow", growth );
+		output?.Set( "grow", Growth );
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
@@ -110,24 +31,17 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 			flinchPose.Write( FlinchLayer, output, age );
 			return;
 		}
-		ApplyGrowth( growth );
-		if ( growth >= 1 && maturity < 1 && maturityTick >= 0.1f )
-		{
-			if ( maturityStart == 0 ) maturityStart = Time.Now;
-			AddMaturity( maturityTick, false );
-			maturityTick = 0;
-		}
 		bool burning = GameObject.Tags.Has( "burning" );
 		if ( scan < 0 )
 		{
 			scan = 0.5f;
 			attacking = false;
-			if ( growth >= 1 && NpcConVars.Enabled && !burning && !GameObject.Tags.Has( "electrified" ) ) ScanTargets();
+			if ( IsBuilt && NpcConVars.Enabled && !burning && !GameObject.Tags.Has( "electrified" ) ) ScanTargets();
 		}
 		wounds.Update();
 		if ( graph is null ) return;
 		graph.Set( "alive", 1 );
-		graph.Set( "built", growth >= 1 ? 1 : 0 );
+		graph.Set( "built", IsBuilt ? 1 : 0 );
 		graph.Set( "attacking", attacking ? 1 : 0 );
 		graph.Set( "alerting", alerting ? 1 : 0 );
 		graph.Set( "onfire", burning ? 1 : 0 );
@@ -199,10 +113,4 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{AttackSound}.sound" ) is { } sound ) Sound.Play( sound, origin );
 	}
 
-	protected override void OnDamaging( IDamageable.DamageEvent e ) => AlienArmor.Absorb( e, armor );
-
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.AcceptedDamage > 0 ) armor -= wounds.ApplyDamage( e, armor, MaxHealth, maxArmor );
-	}
 }

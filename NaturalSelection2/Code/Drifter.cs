@@ -1,0 +1,142 @@
+using Sandbox.Npcs;
+using Sandbox.Npcs.Layers;
+using System;
+
+namespace NS2;
+
+[Title( "Drifter" ), Category( "Natural Selection 2" )]
+public sealed class Drifter : BaseNpc, Component.IDamageable
+{
+	const float Scale = MapLoader.Scale;
+	internal const string ConstructSound = "alien/drifter/drift";
+	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 20;
+	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 20 ); }
+	float IDamageable.MaxArmour => 20;
+	[Sync( SyncFlags.FromHost )] bool hasOrder { get; set; }
+	[Sync( SyncFlags.FromHost )] bool constructing { get; set; }
+	Harvester target;
+	Vector3 returnPosition;
+	TimeUntil search;
+	TimeSince age;
+	SparkAnimationGraph.Playback graph;
+	SoundHandle constructLoop;
+	Action<string> onTag;
+
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
+	{
+		renderer.LocalPosition = Vector3.Up * Scale;
+		var capsule = root.AddComponent<CapsuleCollider>();
+		capsule.Start = Vector3.Up * (0.5f * Scale);
+		capsule.End = Vector3.Up * (0.55f * Scale);
+		capsule.Radius = 0.5f * Scale;
+		var body = root.AddComponent<Rigidbody>();
+		body.EnableImpactDamage = false;
+		var agent = root.AddComponent<NavMeshAgent>();
+		agent.Height = 1.05f * Scale;
+		agent.Radius = capsule.Radius;
+		agent.Enabled = false;
+		root.AddComponent<NavigationLayer>().RunSpeed = 11 * Scale;
+		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
+		var npc = root.AddComponent<Drifter>();
+		npc.DisplayName = "Drifter";
+		npc.Faction = Factions.Monster;
+		npc.MaxHealth = npc.Health = 300;
+		npc.Renderer = renderer;
+		npc.EyeHeight = Scale;
+	}
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		age = 0;
+		onTag = OnTag;
+		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+			graph = new( model.PropGraph, model );
+	}
+
+	protected override void Think()
+	{
+		if ( !hasOrder && search <= 0 && Time.Now > 3 )
+		{
+			search = 4;
+			foreach ( var candidate in Scene.GetAllComponents<Harvester>() )
+			{
+				if ( candidate.Health <= 0 || candidate.IsBuilt || candidate.HasEnzyme || candidate.Faction != Faction ||
+					WorldPosition.DistanceSquared( candidate.WorldPosition ) > 144 * Scale * Scale ) continue;
+				if ( Scene.GetAllComponents<Drifter>().Any( other => other != this && other.target == candidate && other.Health > 0 ) ) continue;
+				target = candidate;
+				returnPosition = WorldPosition;
+				hasOrder = true;
+				Movement.MoveTo( target.WorldPosition, 2.9f * Scale );
+				break;
+			}
+		}
+		if ( !hasOrder ) return;
+		if ( target.IsValid() && !target.IsBuilt && target.Health > 0 )
+		{
+			constructing = WorldPosition.Distance( target.WorldPosition ) <= 3 * Scale;
+			if ( constructing )
+			{
+				Movement.Stop();
+				Animation.SetLookTarget( target.GameObject );
+				target.RefreshEnzyme();
+			}
+			else if ( !Movement.MoveTarget.HasValue ) Movement.MoveTo( target.WorldPosition, 2.9f * Scale );
+			return;
+		}
+		constructing = false;
+		Animation.SetLookTarget( null );
+		target = null;
+		if ( WorldPosition.Distance( returnPosition ) <= 0.5f * Scale )
+		{
+			Movement.Stop();
+			hasOrder = false;
+		}
+		else if ( Movement.MoveTarget != returnPosition ) Movement.MoveTo( returnPosition, 0.5f * Scale );
+	}
+
+	void OnTag( string tag )
+	{
+		if ( constructing && tag == "attack_end" )
+			CinematicLoader.Play( "cinematics/alien/drifter/construct.cinematic", WorldPosition, WorldRotation );
+	}
+
+	protected override void OnUpdate()
+	{
+		if ( GameObject.IsDestroyed ) return;
+		base.OnUpdate();
+		if ( !Application.IsDedicatedServer )
+		{
+			if ( constructing && NpcConVars.Enabled )
+			{
+				if ( constructLoop is null && GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{ConstructSound}.sound" ) is { } sound )
+					constructLoop = GameObject.PlaySound( sound );
+			}
+			else StopLoop();
+		}
+		if ( graph is null || !Renderer.Animation.IsValid ) return;
+		graph.Set( "move", hasOrder ? "run" : "idle" );
+		graph.Set( "activity", constructing ? "parasite" : "none" );
+		graph.Update( age, Renderer.Animation.Parameters, onTag );
+	}
+
+	void StopLoop()
+	{
+		constructLoop?.Stop();
+		constructLoop = null;
+	}
+
+	protected override void OnDisabled()
+	{
+		StopLoop();
+		base.OnDisabled();
+	}
+
+	protected override void OnDamaging( IDamageable.DamageEvent hit ) => AlienArmor.Absorb( hit, armor );
+
+	protected override void OnDamaged( IDamageable.DamageEvent hit )
+	{
+		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
+		if ( ratio > 0 && hit.AcceptedDamage > 0 ) armor = Math.Max( 0, armor - hit.AcceptedDamage * (0.7f / 0.3f) / ratio );
+	}
+}
