@@ -52,7 +52,6 @@ public sealed class GravityWeapon : Weapon
 	public override void PrimaryAttack()
 	{
 		SetNextPrimaryFire( PrimaryDelay );
-		if ( HeldObject.IsValid() ) _attack2Debounce = true;
 		Punt();
 	}
 
@@ -87,6 +86,12 @@ public sealed class GravityWeapon : Weapon
 		var forward = AimRay.Forward;
 		if ( HeldObject.IsValid() )
 		{
+			var playerCenter = Owner.WorldPosition + Vector3.Up * (Owner.CurrentHeight * 0.5f);
+			if ( playerCenter.Distance( HeldObject.GetBounds().Center ) > TraceLength )
+			{
+				PuntEffects( PuntResult.Miss );
+				return;
+			}
 			var held = HeldObject.GetComponent<Rigidbody>();
 			Release();
 			if ( !held.IsValid() ) return;
@@ -144,6 +149,7 @@ public sealed class GravityWeapon : Weapon
 		(WeaponModel as ViewModel)?.PlayGravityGunAttack( launch );
 		if ( !launch ) return;
 
+		if ( result == PuntResult.LaunchHeld ) _attack2Debounce = true;
 		SetNextSecondaryFire( PrimaryDelay );
 		_effects?.Launch( result == PuntResult.LaunchHeld );
 	}
