@@ -101,7 +101,6 @@ public sealed partial class Onos : BaseNpc
 		standingYaw = WorldRotation.Angles().yaw;
 		weaponTag = OnWeaponTag;
 		worldTag = OnWorldTag;
-		weapon?.Set( "attack_speed", 1 );
 	}
 
 	protected override void Think()
@@ -181,6 +180,8 @@ public sealed partial class Onos : BaseNpc
 			else smashSwing = null;
 			var activity = stomping ? (sinceStomp < stompDuration * 0.95f ? "secondary" : "none")
 				: Shielding ? "primary" : canSwing ? (smashSwing == true ? "smash" : "primary") : "none";
+			float attackSpeed = smashSwing == true ? 1.35f : 1;
+			world.Set( "attack_speed", attackSpeed );
 			world.Set( "alive", Health > 0 ? 1 : 0 );
 			world.Set( "ability", ability );
 			world.Set( "move", move );
@@ -188,6 +189,7 @@ public sealed partial class Onos : BaseNpc
 			world.Update( AnimationTime, output, worldTag );
 			MovePose = world.GetPose( 0 );
 			AttackPose = world.GetPose( 1 );
+			weapon?.Set( "attack_speed", attackSpeed );
 			weapon?.Set( "ability", ability );
 			weapon?.Set( "move", Shielding ? (velocity.Length > 0.1f * Scale ? "run" : "idle") : move );
 			weapon?.Set( "activity", activity );
