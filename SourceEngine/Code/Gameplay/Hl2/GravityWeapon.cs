@@ -226,19 +226,26 @@ public sealed class GravityWeapon : Weapon
 			Release();
 			return;
 		}
-		var aim = AimRay;
-		// UpdateObject: 24 + 2 * (player radius 16 + the object's extent along the aim).
-		var extents = HeldObject.GetBounds().Size * 0.5f;
-		var forward = aim.Forward;
-		var radial = MathF.Abs( forward.x ) * extents.x + MathF.Abs( forward.y ) * extents.y + MathF.Abs( forward.z ) * extents.z;
-		var distance = 24 + 2 * (16 + radial);
-		var target = aim.Position + forward * distance;
+		var eye = Owner.EyeTransform;
+		var angles = eye.Rotation.Angles();
+		var forward = angles.WithPitch( Math.Clamp( angles.pitch, -75, 75 ) ).Forward;
+		var nearFace = body.PhysicsBody.FindClosestPoint( body.WorldPosition - forward * PullLength );
+		var extent = MathF.Abs( forward.Dot( nearFace - body.WorldPosition ) );
+		var radius = Owner.BodyRadius * MathF.Sqrt( 2 ) + extent;
+		var wall = Scene.Trace.Ray( eye.Position, eye.Position + forward * (24 + 2 * radius) )
+			.WithTag( "world" ).IgnoreGameObjectHierarchy( HeldObject ).Run();
+		var target = eye.Position + forward * (wall.Fraction < 0.5f ? radius * 0.5f : 24 + radius);
+
+		// Keep the prop outside the player's vertical axis even when looking straight down.
+		var axis = Owner.WorldPosition.WithZ( target.z );
+		var offset = target - axis;
+		if ( offset.LengthSquared < radius * radius ) target = axis + offset.Normal * radius;
 		if ( body.PhysicsBody.MassCenter.Distance( target ) > PullLength )
 		{
 			Release();
 			return;
 		}
-		_hold.Move( new Transform( target, Owner.EyeTransform.Rotation * _holdOffset ) );
+		_hold.Move( new Transform( target, eye.Rotation * _holdOffset ) );
 	}
 
 	void Release()
