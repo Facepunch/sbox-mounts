@@ -441,7 +441,16 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker )
 	{
 		var scene = Scene;
-		bool InWater( Vector3 point ) => scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers().Run().StartedSolid;
+		bool InWater( Vector3 point )
+		{
+			if ( WaterBody.Find( scene, point ).IsValid() ) return true;
+			var trace = scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers();
+			var hit = trace.Run();
+			if ( !hit.StartedSolid ) return false;
+			// A wave's trigger covers its entire height envelope. Only independent water volumes count here.
+			static bool IsLegacyWater( SceneTraceResult hit ) => hit.StartedSolid && !hit.GameObject.GetComponentInParent<WaterBody>().IsValid();
+			return IsLegacyWater( hit ) || trace.RunAll().Any( IsLegacyWater );
+		}
 		var ballistics = Ballistics;
 		float minDamage = MinimumDamage, dryRange = DamageFalloffRange, wetRange = UnderwaterDamageFalloffRange;
 		var bodyScales = PelletBodyScales;
