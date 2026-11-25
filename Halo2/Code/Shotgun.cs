@@ -140,7 +140,7 @@ public sealed class Shotgun : Weapon
 	protected override bool OnDrop()
 	{
 		var ray = AimRay;
-		var velocity = (Holder as PlayerController)?.Velocity ?? Vector3.Zero;
+		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
 		var renderer = HolderRenderer;
 		var release = renderer?.GetAttachment( "drop" ) ?? renderer?.GetAttachment( "right_hand" );
 		if ( release is null && renderer?.Model?.Bones.Root is {} root && renderer.TryGetBoneTransform( root, out var pose ) )
@@ -556,7 +556,7 @@ public sealed class Shotgun : Weapon
 		var holder = Holder;
 		var player = holder as PlayerController;
 		var horizontalAim = player.IsValid() ? Rotation.FromYaw( player.EyeAngles.yaw ).Forward : AimRay.Forward.WithZ( 0 ).Normal;
-		var velocity = player?.Velocity ?? holder?.GameObject.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( holder?.GameObject );
 		float forward = Vector3.Dot( velocity, horizontalAim ) / 120;
 		// The action stores a byte at swing start. A moving strike uses 127 of the 255 damage steps.
 		float fraction = MeleeForwardSpeed > 0 && forward / MeleeForwardSpeed > 0.9f ? 127f / 255f : 0;
