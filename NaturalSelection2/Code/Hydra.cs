@@ -12,6 +12,7 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 	internal const string AttackSound = "alien/structures/hydra/attack";
 	static readonly SparkAnimationGraph.PoseParameters BodyLayer = new( 0 ), FlinchLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] TimeSince age { get; set; }
+	[Sync( SyncFlags.FromHost )] float assistedGrowth { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose bodyPose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose flinchPose { get; set; }
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 1.5f;
@@ -21,7 +22,53 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback graph;
 	TimeUntil scan, nextFire, nextAlert, nextMaturityUpdate;
 	readonly AlienWounds wounds = new();
-	float previousGrowth;
+	float previousGrowth, maturity, maturityStart, lastSprayTime;
+	TimeSince maturityTick;
+	float Growth => Math.Clamp( age / BuildTime + assistedGrowth, 0, 1 );
+	internal bool IsBuilt => Growth >= 1;
+
+	internal float SprayHealingLimit => IsBuilt ? 60 :
+		Math.Clamp( (MaxHealth + maxArmor) * (0.3f + 0.7f * previousGrowth) - Health - armor, 0, 60 );
+
+	internal void OnHealSpray()
+	{
+		if ( !IsBuilt )
+		{
+			assistedGrowth += Math.Clamp( 0.9f + Time.Now - lastSprayTime, 0.9f, 1.8f ) / 8;
+			lastSprayTime = Time.Now;
+			ApplyGrowth( Growth );
+		}
+		GameObject.Tags.Remove( "burning" );
+		if ( IsBuilt ) AddMaturity( 1, true );
+	}
+
+	void ApplyGrowth( float growth )
+	{
+		if ( growth <= previousGrowth ) return;
+		float before = 0.3f + previousGrowth * 0.7f;
+		float after = 0.3f + growth * 0.7f;
+		Health = Math.Clamp( after * MaxHealth - (before * MaxHealth - Health), 0, MaxHealth );
+		armor = Math.Clamp( after * maxArmor - (before * maxArmor - armor), 0, maxArmor );
+		previousGrowth = growth;
+		if ( growth == 1 ) maturityTick = 0;
+	}
+
+	void AddMaturity( float seconds, bool publish )
+	{
+		if ( maturity >= 1 ) return;
+		float amount = seconds / 140;
+		// The native soft cap is 1.5 times the combined built and nutrient mist rates.
+		float uncapped = Math.Clamp( (Time.Now - maturityStart) * (4.5f / 140) / (maturity + amount), 0, 1 );
+		maturity = Math.Min( 1, maturity + amount * (0.25f + 0.75f * uncapped) );
+		if ( !publish && maturity < 1 && nextMaturityUpdate > 0 ) return;
+		nextMaturityUpdate = 1;
+		float healthLimit = 145 + MathF.Floor( 30 * maturity );
+		float armorLimit = 5 + MathF.Floor( 20 * maturity );
+		Health *= healthLimit / MaxHealth;
+		armor *= armorLimit / maxArmor;
+		MaxHealth = healthLimit;
+		maxArmor = armorLimit;
+	}
 	bool attacking, alerting;
 	Vector3 Barrel => WorldPosition + WorldRotation.Up * Scale;
 
@@ -54,7 +101,7 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 	{
 		if ( Health <= 0 ) return;
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		float growth = Math.Clamp( age / BuildTime, 0, 1 );
+		float growth = Growth;
 		output?.Set( "grow", growth );
 		if ( !Networking.IsHost )
 		{
@@ -63,24 +110,12 @@ public sealed class Hydra : BaseNpc, Component.IDamageable
 			flinchPose.Write( FlinchLayer, output, age );
 			return;
 		}
-		if ( previousGrowth < growth )
+		ApplyGrowth( growth );
+		if ( growth >= 1 && maturity < 1 && maturityTick >= 0.1f )
 		{
-			float before = 0.3f + previousGrowth * 0.7f;
-			float after = 0.3f + growth * 0.7f;
-			Health = Math.Clamp( after * MaxHealth - (before * MaxHealth - Health), 0, MaxHealth );
-			armor = Math.Clamp( after * 5 - (before * 5 - armor), 0, 5 );
-			previousGrowth = growth;
-		}
-		if ( growth >= 1 && MaxHealth < 175 && nextMaturityUpdate <= 0 )
-		{
-			nextMaturityUpdate = 1;
-			float maturity = Math.Clamp( (age - BuildTime) / 140, 0, 1 );
-			float healthLimit = 145 + MathF.Floor( 30 * maturity );
-			float armorLimit = 5 + MathF.Floor( 20 * maturity );
-			Health *= healthLimit / MaxHealth;
-			armor *= armorLimit / maxArmor;
-			MaxHealth = healthLimit;
-			maxArmor = armorLimit;
+			if ( maturityStart == 0 ) maturityStart = Time.Now;
+			AddMaturity( maturityTick, false );
+			maturityTick = 0;
 		}
 		bool burning = GameObject.Tags.Has( "burning" );
 		if ( scan < 0 )
