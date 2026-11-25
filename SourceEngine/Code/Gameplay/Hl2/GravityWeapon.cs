@@ -64,9 +64,12 @@ public sealed class GravityWeapon : Weapon
 		Drop();
 	}
 
+	SceneTrace TargetTrace( Ray ray, float range ) => Scene.Trace.Ray( ray, range )
+		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" );
+
 	Rigidbody FindBody( float range, out Vector3 hitPosition, bool punt = false )
 	{
-		var ray = Scene.Trace.Ray( AimRay, range ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" );
+		var ray = TargetTrace( AimRay, range );
 		var tr = punt ? ray.Size( 16 ).Run() : ray.Run();
 		var body = tr.GameObject?.GetComponentInParent<Rigidbody>();
 		if ( !body.IsValid() || !body.MotionEnabled )
@@ -76,6 +79,25 @@ public sealed class GravityWeapon : Weapon
 		}
 		hitPosition = punt ? tr.EndPosition : tr.HitPosition;
 		return body.IsValid() && body.MotionEnabled ? body : null;
+	}
+
+	Rigidbody FindBodyInCone( Ray aim )
+	{
+		var nearest = TraceLength + 1;
+		Rigidbody result = null;
+		foreach ( var obj in Scene.FindInPhysics( new Sphere( aim.Position, nearest ) ) )
+		{
+			var body = obj.GetComponentInParent<Rigidbody>();
+			if ( !body.IsValid() ) continue;
+			var offset = body.GameObject.GetBounds().Center - aim.Position;
+			var distance = offset.Length;
+			if ( distance >= nearest || offset.Dot( aim.Forward ) <= distance * 0.97f ) continue;
+			var trace = TargetTrace( new Ray( aim.Position, offset / distance ), distance ).Run();
+			if ( trace.GameObject?.GetComponentInParent<Rigidbody>() != body ) continue;
+			nearest = distance;
+			result = body;
+		}
+		return result;
 	}
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
@@ -170,7 +192,10 @@ public sealed class GravityWeapon : Weapon
 	void Pull()
 	{
 		SetNextSecondaryFire( 0.1f );
+		var aim = AimRay;
 		var body = FindBody( PullLength, out var hit );
+		bool pull = body.IsValid() && aim.Position.Distance( hit ) > TraceLength;
+		body ??= FindBodyInCone( aim );
 		if ( !CanMove( body ) || body.Mass > MaxMass )
 		{
 			if ( _playedDenySound ) return;
@@ -178,10 +203,9 @@ public sealed class GravityWeapon : Weapon
 			DenyPickup();
 			return;
 		}
-		var eye = AimRay.Position;
-		if ( eye.Distance( hit ) > TraceLength )
+		if ( pull )
 		{
-			var direction = (eye - body.GameObject.GetBounds().Center).Normal;
+			var direction = (aim.Position - body.GameObject.GetBounds().Center).Normal;
 			var scale = body.Mass < 50 ? (body.Mass + 0.5f) / 50 : 1;
 			body.ApplyImpulse( direction * (PullForce * scale) );
 			return;
