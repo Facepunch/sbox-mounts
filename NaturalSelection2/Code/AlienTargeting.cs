@@ -23,7 +23,7 @@ internal sealed class AlienTargeting
 		return false;
 	}
 
-	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition )
+	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition, Func<GameObject, Vector3, bool> ignore = null )
 	{
 		lastKnownPosition = null;
 		var hostiles = alien.Senses.VisibleHostiles;
@@ -40,6 +40,7 @@ internal sealed class AlienTargeting
 				memories.Remove( target );
 				continue;
 			}
+			if ( ignore?.Invoke( target, memory.Position ) == true ) continue;
 			var relationship = alien.GetRelationship( target );
 			if ( relationship.Disposition != Disposition.Hostile || relationship.Priority < bestPriority ) continue;
 			float distance = alien.WorldPosition.Distance( target.WorldPosition ) / MapLoader.Scale;

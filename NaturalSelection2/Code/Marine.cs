@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Marine" ), Category( "Natural Selection 2" )]
-public sealed class Marine : BaseNpc, Component.IDamageable
+public sealed partial class Marine : BaseNpc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	internal const string PistolSound = "marine/pistol/fire";
@@ -84,6 +84,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		body = GetComponent<Rigidbody>();
 		if ( Scene.PhysicsWorld.Gravity.z < 0 )
 			body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
+		ignoreTarget = IsIgnoredTarget;
 		age = 0;
 		lastRequest = lastShot = lastHit = 1;
 		aim = WorldRotation;
@@ -121,8 +122,19 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = targeting.FindEnemy( this, out var memory );
+		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		var goal = memory ?? enemy?.WorldPosition;
+		if ( enemy.IsValid() && TrackReachability( enemy ) && sinceProgress > 5 )
+		{
+			ignoredEnemy = enemy;
+			ignoredPosition = memory ?? enemy.WorldPosition;
+			ignoreUntil = 15;
+			trackedEnemy = null;
+			wantsFire = false;
+			Animation.SetLookTarget( null );
+			Movement.Stop();
+			return;
+		}
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		if ( visible && enemy.GetComponentInParent<IDamageable>() is { } target )
@@ -177,6 +189,11 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 
 		if ( repath > 0 ) return;
 		repath = 0.2f;
+		if ( goal is { } unseen && trackedEnemy == enemy && unreachable && !clearShot )
+		{
+			ApproachUnreachable( unseen );
+			return;
+		}
 		if ( goal is { } p && !clearShot )
 			Movement.MoveTo( p, Scale, faceTarget: visible ? enemy : null );
 		else Movement.Stop();
@@ -394,6 +411,11 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 				hp.OnDamage( info );
 				combatUntil = 3;
 				lastHit = 0;
+				if ( unreachable && obj == trackedEnemy )
+				{
+					lastFiringPosition = WorldPosition;
+					sinceProgress = 0;
+				}
 			}
 			if ( !pass ) break;
 			ray = ray.IgnoreGameObjectHierarchy( obj );
