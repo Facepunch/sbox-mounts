@@ -215,8 +215,14 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
 		_queuedPrimary = _queuedSecondary = false;
+		if ( Secondary == SecondaryFires.DoubleShot && BlockSubmergedShot() ) return;
+		FirePrimaryRound();
+	}
+
+	void FirePrimaryRound()
+	{
 		base.PrimaryAttack();
-		if ( Secondary == SecondaryFires.DoubleShot ) SetNextSecondaryFire( PrimaryDelay );
+		if ( Secondary == SecondaryFires.DoubleShot ) SetNextFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
@@ -381,9 +387,10 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		_queuedPrimary = _queuedSecondary = false;
 		if ( IsHeld && Clip1 == 1 )
 		{
-			FirePrimary();
+			FirePrimaryRound();
 			return;
 		}
+		if ( BlockSubmergedShot() ) return;
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
 		var config = Ballistics;
 		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
@@ -392,6 +399,14 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		SetNextFire( AlternateDuration );
 		AlternateEffects( volley );
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
+	}
+
+	bool BlockSubmergedShot()
+	{
+		if ( !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
+		if ( SourceSounds.WeaponSound( this, "empty" ) is { } sound ) GameObject.PlaySound( sound );
+		SetNextFire( 0.2f );
+		return true;
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
