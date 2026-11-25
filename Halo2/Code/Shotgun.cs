@@ -173,6 +173,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		// The unit admits melee before processing weapon fire and reload on this tick.
 		if ( WantsSecondaryAttack() && FireSecondary() ) return;
 		base.OnControl();
+		if ( ShouldAutoReload && !WantsReload() && CanReload() ) StartReload( true );
 	}
 
 	protected override bool WantsPrimaryAttack() =>
@@ -233,6 +234,19 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	double? firstInsertAt;
 	double transferAt;
 	float shellInterval;
+	[Sync( SyncFlags.FromHost )] internal bool AutomaticReload { get; private set; }
+
+	bool ShouldAutoReload => AutoReload && Clip1 == 0 && NextPrimaryFire <= 0;
+
+	public override void Reload() => StartReload( false );
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void StartReload( bool automatic )
+	{
+		if ( !CanReload() || (automatic && !ShouldAutoReload) ) return;
+		AutomaticReload = automatic;
+		base.Reload();
+	}
 
 	protected override void OnReloadStarted()
 	{
@@ -241,7 +255,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		{
 			int insertFrames = actions[Clip1 == 0 ? "reload_continue_empty" : "reload_continue_full"].Frames;
 			ReloadTime = insertFrames / 30f;
-			ReloadStartTime = (actions["reload_enter"].Frames + insertFrames) / 30f;
+			// An explicit request advances the magazine on its starting tick. Auto-reload starts after that update.
+			int enterTicks = actions["reload_enter"].Frames - (AutomaticReload ? 0 : 1);
+			ReloadStartTime = CooldownSeconds( enterTicks + insertFrames );
 		}
 		base.OnReloadStarted();
 		shellInterval = ReloadTime;
@@ -661,7 +677,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
 
 	protected override bool WantsReload() =>
-		Input.Down( "reload" ) || base.WantsReload() || (AutoReload && Clip1 == 0 && NextPrimaryFire <= 0);
+		Input.Down( "reload" ) || base.WantsReload();
 
 	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
@@ -1032,7 +1048,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		if ( framesPerTick <= 0 ) return;
 		// Native traversal excludes the end frame of each tick. A one-shot returns to idle one tick early.
 		float endTick = System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick );
-		float lastTick = enterReload ? endTick : endTick - 1;
+		float lastTick = enterReload && Weapon.AutomaticReload ? endTick : endTick - 1;
 		float elapsedTicks = elapsed * ticksPerSecond;
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsedTicks ), lastTick );
 		float frame = sampleTick * framesPerTick;
