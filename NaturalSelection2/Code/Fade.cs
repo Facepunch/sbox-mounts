@@ -5,8 +5,9 @@ using System;
 namespace NS2;
 
 [Title( "Fade" ), Category( "Natural Selection 2" )]
-public sealed partial class Fade : AlienNpc, Component.IDamageable
+public sealed partial class Fade : AlienLifeform, Component.IDamageable
 {
+	protected override int BaseHealth => 250;
 	protected override int HealthPerBiomass => 5;
 
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 80 ); }
@@ -27,7 +28,7 @@ public sealed partial class Fade : AlienNpc, Component.IDamageable
 	TimeUntil weaponSwitch;
 	[Property] public bool StabUnlocked { get; set; } = true;
 	float energy = 100;
-	TimeUntil repath, nextHeal, underFire;
+	TimeUntil repath, underFire;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -71,7 +72,7 @@ public sealed partial class Fade : AlienNpc, Component.IDamageable
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Fade>();
 		npc.Faction = Factions.Monster;
-		npc.Health = 250;
+		npc.Health = npc.BaseHealth;
 		npc.EyeHeight = 1.7f * Scale;
 		npc.DisplayName = "Fade";
 		npc.Renderer = renderer;
@@ -150,11 +151,7 @@ public sealed partial class Fade : AlienNpc, Component.IDamageable
 		}
 
 		if ( world is null || weapon is null || Health <= 0 ) return;
-		if ( nextHeal <= 0 )
-		{
-			nextHeal = 2;
-			if ( underFire <= 0 ) Heal( Math.Clamp( MaxHealth * 0.02f, 1, 20 ) );
-		}
+		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
 		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
 		view = AlienAim.Turn( view, aim, 5 );
@@ -226,13 +223,6 @@ public sealed partial class Fade : AlienNpc, Component.IDamageable
 		if ( e.AcceptedDamage <= 0 ) return;
 		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 80 );
 		underFire = 3;
-	}
-
-	void Heal( float amount )
-	{
-		float health = Math.Clamp( MaxHealth - Health, 0, amount );
-		Health += health;
-		Armor = Math.Min( 80, Armor + (amount - health) * 0.5f );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

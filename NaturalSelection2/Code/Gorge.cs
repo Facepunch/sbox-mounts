@@ -5,8 +5,9 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Gorge" ), Category( "Natural Selection 2" )]
-public sealed partial class Gorge : AlienNpc, Component.IDamageable
+public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 {
+	protected override int BaseHealth => 160;
 	protected override int HealthPerBiomass => 2;
 
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 50 ); }
@@ -27,7 +28,7 @@ public sealed partial class Gorge : AlienNpc, Component.IDamageable
 	[Property] public bool BileBombUnlocked { get; set; } = true;
 	bool firing, primaryHeld, bombarding;
 	float ShotCost => bombarding ? 20 : 7;
-	TimeUntil repath, nextHeal, underFire;
+	TimeUntil repath, underFire;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -61,7 +62,7 @@ public sealed partial class Gorge : AlienNpc, Component.IDamageable
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Gorge>();
 		npc.Faction = Factions.Monster;
-		npc.Health = 160;
+		npc.Health = npc.BaseHealth;
 		npc.EyeHeight = 0.6f * Scale;
 		npc.DisplayName = "Gorge";
 		npc.Renderer = renderer;
@@ -163,17 +164,7 @@ public sealed partial class Gorge : AlienNpc, Component.IDamageable
 		if ( Health <= 0 ) return;
 		UpdateBrood();
 		if ( wounds.Update() is { } cue ) PlayCue( cue, WorldPosition );
-		if ( nextHeal <= 0 )
-		{
-			nextHeal = 2;
-			if ( underFire <= 0 )
-			{
-				float heal = Math.Clamp( MaxHealth * 0.02f, 1, 20 );
-				float missing = Math.Clamp( MaxHealth - Health, 0, heal );
-				Health += missing;
-				Armor = Math.Min( 50, Armor + (heal - missing) * 0.5f );
-			}
-		}
+		Regenerate( underFire > 0 );
 		if ( world is null || weapon is null ) return;
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		var direction = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;

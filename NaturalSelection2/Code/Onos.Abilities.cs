@@ -14,7 +14,7 @@ public sealed partial class Onos
 	[Sync( SyncFlags.FromHost )] internal bool Shielding { get; private set; }
 	bool charging, wantsStomp, stomping, stompHit;
 	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp, sinceStompRequest = 10;
-	TimeUntil rechargeShield, nextHeal;
+	TimeUntil rechargeShield;
 	float stompDuration;
 	sealed class StampedeCooldown { public TimeUntil Remaining; }
 	static readonly ConditionalWeakTable<GameObject, StampedeCooldown> StampedeCooldowns = new();
@@ -133,17 +133,7 @@ public sealed partial class Onos
 		var speed = (RunSpeed + (charging ? Math.Min( 1, sinceCharge / 0.5f ) * (12.5f * Scale - RunSpeed) : 0)) * (Shielding ? 0.682f : 1);
 		Movement.RunSpeed = Movement.WalkSpeed = speed;
 		if ( rechargeShield <= 0 && ShieldHealth < 1000 ) ShieldHealth = Math.Min( 1000, ShieldHealth + 80 * Time.Delta );
-		if ( nextHeal <= 0 )
-		{
-			nextHeal = 2;
-			if ( sinceDamage > 3 && !Shielding )
-			{
-				float heal = Math.Clamp( MaxHealth * 0.02f, 1, 20 );
-				float missing = Math.Min( MaxHealth - Health, heal );
-				Health += missing;
-				Armor = Math.Min( MaxArmor, Armor + (heal - missing) * 0.5f );
-			}
-		}
+		Regenerate( sinceDamage < 3 );
 		if ( stomping && sinceStomp > stompDuration + 0.15f ) wantsStomp = stomping = false;
 		if ( velocity.Length > 8.5f * Scale ) Stampede( velocity );
 

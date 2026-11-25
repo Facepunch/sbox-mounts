@@ -5,8 +5,9 @@ using System;
 namespace NS2;
 
 [Title( "Lerk" ), Category( "Natural Selection 2" )]
-public sealed partial class Lerk : AlienNpc, Component.IDamageable
+public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 {
+	protected override int BaseHealth => 180;
 	protected override int HealthPerBiomass => 2;
 
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 30 ); }
@@ -28,7 +29,7 @@ public sealed partial class Lerk : AlienNpc, Component.IDamageable
 	bool attacking, wantsSpikes, spiking;
 	TimeSince lastFlap = 1;
 	float energy = 100;
-	TimeUntil repath, nextHeal, underFire;
+	TimeUntil repath, underFire;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -70,7 +71,7 @@ public sealed partial class Lerk : AlienNpc, Component.IDamageable
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Lerk>();
 		npc.Faction = Factions.Monster;
-		npc.Health = 180;
+		npc.Health = npc.BaseHealth;
 		npc.EyeHeight = 0.5f * Scale;
 		npc.DisplayName = "Lerk";
 		npc.Renderer = renderer;
@@ -168,11 +169,7 @@ public sealed partial class Lerk : AlienNpc, Component.IDamageable
 		}
 
 		if ( world is null || weapon is null || Health <= 0 ) return;
-		if ( nextHeal <= 0 )
-		{
-			nextHeal = 2;
-			if ( underFire <= 0 ) Heal( Math.Clamp( MaxHealth * 0.02f, 1, 20 ) );
-		}
+		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( View.Forward, aim.Normal ) > 0.98f;
@@ -233,13 +230,6 @@ public sealed partial class Lerk : AlienNpc, Component.IDamageable
 		if ( e.AcceptedDamage <= 0 ) return;
 		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 30 );
 		underFire = 3;
-	}
-
-	void Heal( float amount )
-	{
-		float health = Math.Clamp( MaxHealth - Health, 0, amount );
-		Health += health;
-		Armor = Math.Min( 30, Armor + (amount - health) * 0.5f );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

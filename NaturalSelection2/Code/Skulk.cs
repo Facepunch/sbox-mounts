@@ -5,8 +5,9 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
-public sealed partial class Skulk : AlienNpc, Component.IDamageable
+public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 {
+	protected override int BaseHealth => 75;
 	protected override int HealthPerBiomass => 3;
 
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
@@ -35,7 +36,7 @@ public sealed partial class Skulk : AlienNpc, Component.IDamageable
 		var npc = root.AddComponent<Skulk>();
 		npc.Faction = Factions.Monster;
 		npc.EyeHeight = 0.55f * MapLoader.Scale;
-		npc.Health = 75;
+		npc.Health = npc.BaseHealth;
 		npc.DisplayName = "Skulk";
 		npc.Renderer = renderer;
 	}
@@ -88,7 +89,7 @@ public sealed partial class Skulk : AlienNpc, Component.IDamageable
 				Detonate();
 				return;
 			}
-			Regenerate();
+			Regenerate( underFire > 0 );
 			UpdateFlinch();
 			energy = Math.Min( 100, energy + Time.Delta * 10 );
 			if ( Leaping && leapEnds <= 0 ) Leaping = false;

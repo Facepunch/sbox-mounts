@@ -21,7 +21,7 @@ public sealed partial class Fade
 	{
 		metabolizeCooldown = 2;
 		energy = Math.Min( 100, energy - 10 + 20 );
-		if ( MetabolizeHealthUnlocked ) Heal( 15 );
+		if ( MetabolizeHealthUnlocked ) AlienHealing.Restore( this, 15, 0.5f );
 		PlayCue( "metabolize" );
 	}
 }

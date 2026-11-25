@@ -5,8 +5,9 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Onos" ), Category( "Natural Selection 2" )]
-public sealed partial class Onos : AlienNpc, Component.IDamageable
+public sealed partial class Onos : AlienLifeform, Component.IDamageable
 {
+	protected override int BaseHealth => 700;
 	protected override int HealthPerBiomass => 50;
 
 	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
@@ -75,7 +76,7 @@ public sealed partial class Onos : AlienNpc, Component.IDamageable
 		npc.DisplayName = "Onos";
 		npc.Faction = Factions.Monster;
 		npc.EyeHeight = 2.5f * Scale;
-		npc.Health = 700;
+		npc.Health = npc.BaseHealth;
 		npc.Renderer = renderer;
 		var layer = mount.FindSoundEvent( "sound/NS2.fev/alien/onos/rumble" )?.Layers.FirstOrDefault();
 		var volume = layer?.Envelopes.FirstOrDefault( e => e.ParameterName == "speed" && e.Effect == SoundProject.Effect.Volume );

@@ -6,10 +6,8 @@ namespace NS2;
 
 public sealed partial class Gorge
 {
-	// NS2 shares this healing allowance between every Gorge spraying the same alien.
 	sealed class Healing
 	{
-		public float Received;
 		public TimeSince Last;
 		public Gorge Sprayer;
 	}
@@ -159,22 +157,9 @@ public sealed partial class Gorge
 		if ( c is AlienStructure structure ) amount = structure.SprayHealingLimit;
 		if ( hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour ) return;
 		var state = healing.GetValue( c, _ => new() );
-		float limit = (hp.MaxHealth + 2 * hp.MaxArmour) * 0.12f;
-		state.Received = Math.Max( 0, state.Received - state.Last * limit );
 		state.Last = 0;
 		state.Sprayer = this;
-		float health = Math.Clamp( hp.MaxHealth - hp.Health, 0, amount );
-		hp.Health += Clamp( health );
-		if ( amount > health ) hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + Clamp( amount - health ) );
-
-		float Clamp( float value )
-		{
-			if ( !c.GameObject.Tags.Has( "ns2_lifeform" ) ) return value;
-			float free = Math.Clamp( limit - state.Received, 0, value );
-			float applied = free + (value - free) * 0.34f;
-			state.Received += applied;
-			return applied;
-		}
+		AlienHealing.Restore( c, amount, 1 );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
