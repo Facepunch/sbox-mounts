@@ -60,6 +60,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		settled = false;
 		var loader = CharacterLoader.FromModel( model.Model );
 		loader?.FilterRagdollContacts( model );
+		CharacterCollisionRules.Apply( Scene.PhysicsWorld );
 		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		float scale = model.WorldScale.z;
 		var parts = model.Model.Physics.Parts;
@@ -67,6 +68,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		{
 			var part = physics.Bodies[i];
 			if ( !part.Component.IsValid() ) continue;
+			part.Component.GameObject.Tags.Add( CharacterCollisionRules.RagdollPart );
 			part.Component.MassOverride = parts[i].Mass * scale * scale * scale;
 			if ( loader is not null )
 				part.Component.PhysicsBody.SetInertiaTensor( loader.RagdollInertiaPerMass( part.Bone ) * (part.Component.Mass * scale * scale), Rotation.Identity );

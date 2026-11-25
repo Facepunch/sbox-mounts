@@ -76,7 +76,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		if ( Renderer.IsValid() && Renderer.Model is not null ) BindAnimations();
-		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( LevelItem.FighterHull );
+		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( CharacterCollisionRules.FighterHull );
 		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.
 		FatalImpactSpeed = 0f;
 		initialKnockoutShield = KnockoutShield;

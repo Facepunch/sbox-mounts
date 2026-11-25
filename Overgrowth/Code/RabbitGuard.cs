@@ -49,7 +49,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	void IHotloadManaged.Created( IReadOnlyDictionary<string, object> state )
 	{
 		boundAnimations = null;
-		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( LevelItem.FighterHull );
+		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( CharacterCollisionRules.FighterHull );
 		strike = null;
 	}
 

@@ -220,16 +220,14 @@ public sealed partial class LevelItem : Component
 		body.Enabled = collider.Enabled = true;
 		var component = item.GetOrAddComponent<LevelItem>();
 		component.previousFlightPose = item.WorldTransform;
-		item.Tags.Add( ThrownItem );
+		item.Tags.Add( CharacterCollisionRules.ThrownItem );
 		return body;
 	}
 
 	protected override void OnStart()
 	{
 		// Loose items hit characters through their animated hulls.
-		var world = Scene.PhysicsWorld;
-		if ( world.CollisionRules.GetCollisionRule( ThrownItem, FighterHull ) != Sandbox.Physics.CollisionRules.Result.Ignore )
-			world.CollisionRules = new ItemCollisionRules( world.CollisionRules );
+		CharacterCollisionRules.Apply( Scene.PhysicsWorld );
 		previousFlightPose = WorldTransform;
 		if ( GetComponent<Rigidbody>() is { } body ) body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 	}

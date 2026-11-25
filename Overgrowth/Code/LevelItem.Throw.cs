@@ -1,12 +1,9 @@
 using System;
-using Sandbox.Physics;
 
 namespace Overgrowth;
 
 public sealed partial class LevelItem : Component.ICollisionListener
 {
-	internal const string FighterHull = "overgrowth_fighter_hull";
-	const string ThrownItem = "overgrowth_thrown_item";
 	bool flyingStraight;
 	GameObject thrower;
 	Transform previousFlightPose;
@@ -17,16 +14,6 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	{
 		thrower = null;
 		flyingStraight = false;
-	}
-
-	sealed class ItemCollisionRules : CollisionRules
-	{
-		internal ItemCollisionRules( CollisionRules original )
-		{
-			Defaults = new( original.Defaults );
-			Pairs = new( original.Pairs ) { [(ThrownItem, FighterHull)] = Result.Ignore };
-			OnValidate();
-		}
 	}
 
 	void TraceFlight( Rigidbody body )

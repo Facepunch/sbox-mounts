@@ -101,7 +101,7 @@ public sealed class BillboardParticle : Component
 
 	void CheckCollision( Vector3 last, float size )
 	{
-		var hit = Scene.Trace.Ray( last, position ).WithoutTags( "playercontroller", "trigger", LevelItem.FighterHull ).Run();
+		var hit = Scene.Trace.Ray( last, position ).WithoutTags( "playercontroller", "trigger", CharacterCollisionRules.FighterHull ).Run();
 		if ( !hit.Hit || hit.StartedSolid ) return;
 		collided = true;
 		float width = size * 0.5f * definition.DecalScale;
