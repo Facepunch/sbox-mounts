@@ -12,6 +12,7 @@ public sealed class CharacterNavigation : NavigationLayer
 	Vector3? predictedClimb, runOffDirection;
 	float runOffSpeed;
 	float requestedGroundSpeed;
+	bool placingOnGround;
 	internal Vector3? RequestedHeading { get; set; }
 	Vector3 brakingVelocity;
 	internal Vector3 BrakingVelocity => brakingVelocity;
@@ -33,6 +34,7 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	public override void Stop()
 	{
+		ReleaseGroundPlacement();
 		RequestedHeading = null;
 		brakingVelocity = default;
 		base.Stop();
@@ -115,6 +117,32 @@ public sealed class CharacterNavigation : NavigationLayer
 		Npc.Animation.Traversal = NavMeshLinkType.Jump;
 	}
 
+	internal void PlaceOnGround( RabbitGuard fighter )
+	{
+		if ( !MoveTarget.HasValue || LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
+		{
+			ReleaseGroundPlacement();
+			return;
+		}
+		if ( !placingOnGround && !Agent.UpdatePosition ) return;
+		var next = Vector3.Lerp( WorldPosition, Agent.AgentPosition, Math.Clamp( Time.Delta * 20f, 0f, 1f ) );
+		if ( fighter.StandingPosition( next.WithZ( WorldPosition.z ) ) is not { } position )
+		{
+			ReleaseGroundPlacement();
+			return;
+		}
+		placingOnGround = true;
+		Agent.UpdatePosition = false;
+		WorldPosition = position;
+	}
+
+	void ReleaseGroundPlacement()
+	{
+		if ( !placingOnGround ) return;
+		placingOnGround = false;
+		if ( Agent.IsValid() ) Agent.UpdatePosition = true;
+	}
+
 	protected override void OnFixedUpdate()
 	{
 		if ( !Networking.IsHost || Npc is not RabbitGuard fighter ) return;
@@ -189,6 +217,7 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	protected override void OnDisabled()
 	{
+		ReleaseGroundPlacement();
 		requestedGroundSpeed = 0f;
 		brakingVelocity = default;
 		followingJump = false;

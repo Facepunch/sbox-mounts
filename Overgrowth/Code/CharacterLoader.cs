@@ -299,10 +299,9 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		overlappingBodies ??= FindOverlaps();
 		foreach ( var (a, b) in overlappingBodies )
 		{
-			var body = physics.Bodies[a].Component;
-			var other = physics.Bodies[b].Component.GameObject;
-			if ( !body.GetComponents<PhysicsFilter>().Any( filter => filter.Body == other ) )
-				body.AddComponent<PhysicsFilter>().Body = other;
+			// Bind the filter while both ragdoll bodies exist. Recovery can remove them
+			// before a PhysicsFilter component gets its first update.
+			Sandbox.Physics.PhysicsJoint.CreateFilter( physics.Bodies[a].Component.PhysicsBody, physics.Bodies[b].Component.PhysicsBody );
 		}
 
 		(int, int)[] FindOverlaps()

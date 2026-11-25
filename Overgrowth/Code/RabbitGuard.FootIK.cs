@@ -17,16 +17,22 @@ public sealed partial class RabbitGuard
 	static readonly Vector3[] SupportDirections = Enumerable.Range( 0, 8 )
 		.Select( i => Rotation.FromAxis( Vector3.Up, (3.1417f * 0.25f * i).RadianToDegree() ) * Vector3.Left ).ToArray();
 
+	(Vector3 Start, Vector3 End) StandingSweep( Vector3 position )
+	{
+		var center = position + Vector3.Up * LegRadius;
+		var navPoint = Movement.MoveTarget.HasValue && !InThrow && RollProgress >= 1f ? Scene.NavMesh.GetClosestPoint( center, 40f ) : null;
+		bool onNav = navPoint is { } point && point != center && MathF.Abs( point.z - center.z ) <= 40f && (point - center).WithZ( 0f ).LengthSquared < 16f;
+		var start = center + Vector3.Up * (onNav ? 40f : 4f);
+		var end = center + Vector3.Down * (onNav ? 60f : boundAnimations.Species == "wolf" ? 20f : 8f);
+		return (start, end);
+	}
+
 	void UpdateBalanceSupport()
 	{
 		balanceContact = null;
 		footBalanceOffset = Vector3.Zero;
 		if ( !HasGroundSupport || !Scene.GetAllComponents<BalanceSurface>().Any() ) return;
-		var center = WorldPosition + Vector3.Up * LegRadius;
-		var navPoint = Movement.MoveTarget.HasValue && !InThrow && RollProgress >= 1f ? Scene.NavMesh.GetClosestPoint( center, 40f ) : null;
-		bool onNav = navPoint is { } point && point != center && MathF.Abs( point.z - center.z ) <= 40f && (point - center).WithZ( 0f ).LengthSquared < 16f;
-		var start = center + Vector3.Up * (onNav ? 40f : 4f);
-		var end = center + Vector3.Down * (onNav ? 60f : boundAnimations.Species == "wolf" ? 20f : 8f);
+		var (start, end) = StandingSweep( WorldPosition );
 		var total = Vector3.Zero;
 		int count = 0;
 		foreach ( var surface in Scene.GetAllComponents<BalanceSurface>() )

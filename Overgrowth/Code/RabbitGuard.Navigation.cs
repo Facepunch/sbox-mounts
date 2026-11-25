@@ -22,6 +22,16 @@ public sealed partial class RabbitGuard
 		return floor.Hit && !floor.StartedSolid ? floor.Normal : Vector3.Up;
 	}
 
+	internal Vector3? StandingPosition( Vector3 position )
+	{
+		if ( boundAnimations is null || !IsOnGround || Downed || Health <= 0f || PhysicsCarrier.IsValid() || RollProgress < 1f ) return null;
+		var (start, end) = StandingSweep( position );
+		var ground = Scene.Trace.Sphere( LegRadius, start, end ).IgnoreGameObjectHierarchy( GameObject )
+			.IgnoreDynamic().WithoutTags( "npc", "trigger" ).Run();
+		return ground.Hit && !ground.StartedSolid && ground.Normal.z > 0.5f
+			? position.WithZ( ground.EndPosition.z - LegRadius ) : null;
+	}
+
 	// UpdateGroundMovementControls adds acceleration before ApplyPhysics damps the body.
 	// Give the crowd the speed reachable in its next step so it can still steer around actors and walls.
 	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step, Vector3? requestedHeading )

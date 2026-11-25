@@ -117,7 +117,7 @@ public sealed partial class RabbitGuard
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
 		if ( !Downed )
 			GoLimp();
-		else ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
+		else ragdoll.GetComponent<RagdollDamping>()?.Refresh();
 
 		RestartRecovery();
 		if ( hit.DamageInfo is StrikeDamage )
