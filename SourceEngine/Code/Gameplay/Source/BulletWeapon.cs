@@ -131,10 +131,14 @@ public sealed class BulletWeapon : Weapon
 	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
 	protected override bool WantsReload()
 	{
-		if ( IncrementalReloading || !UsesPrimaryClip ) return base.WantsReload();
+		if ( !UsesPrimaryClip ) return base.WantsReload();
 		if ( NextPrimaryFire > 0 ) return false;
-		if ( Input.Down( "reload" ) ) return !(WantsPrimaryAttack() && CanPrimaryAttack());
-		return AutoReload && Clip1 == 0 && NextSecondaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" );
+		if ( Input.Down( "reload" ) )
+		{
+			if ( IncrementalReloading && WantsSecondaryAttack() && CanSecondaryAttack() ) return false;
+			return !(WantsPrimaryAttack() && CanPrimaryAttack());
+		}
+		return !IncrementalReloading && AutoReload && Clip1 == 0 && NextSecondaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" );
 	}
 	protected override bool WantsSecondaryAttack() => _queuedSecondary || (!Launches && base.WantsSecondaryAttack());
 
