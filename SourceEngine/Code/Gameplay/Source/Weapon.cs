@@ -292,13 +292,15 @@ public abstract class Weapon : BaseCombatWeapon
 	{
 		var holder = Owner;
 		var position = WorldPosition;
+		var rotation = WorldRotation;
 		var velocity = Vector3.Up * 50f;
 
 		if ( holder.IsValid() )
 		{
 			var eye = holder.EyeTransform;
-			position = eye.Position + eye.Forward * 48f;
-			velocity = holder.Velocity + eye.Forward * 200f + Vector3.Up * 100f;
+			position = eye.Position + Vector3.Down * 12f;
+			rotation = Rotation.FromYaw( eye.Rotation.Yaw() );
+			velocity = eye.Forward * 400f;
 		}
 
 		WasDropped = true;
@@ -307,11 +309,12 @@ public abstract class Weapon : BaseCombatWeapon
 		WorldScale = PrefabWorldScale();
 		GameObject.Enabled = true;
 		WorldPosition = position;
+		WorldRotation = rotation;
 
 		if ( GetComponent<Rigidbody>( true ) is { } body )
 		{
 			body.Velocity = velocity;
-			body.AngularVelocity = Vector3.Random * 8.0f;
+			body.AngularVelocity = rotation * new Vector3( 200f.DegreeToRadian() );
 		}
 
 		return true;
