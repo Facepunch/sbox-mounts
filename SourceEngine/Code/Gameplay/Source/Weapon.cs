@@ -33,6 +33,7 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
 	TimeUntil _nextEmptyClick;
 	TimeUntil _deployUntil;
+	protected bool IsDeploying => _deployUntil > 0;
 
 	protected override void OnEquipped()
 	{
@@ -40,7 +41,7 @@ public abstract class Weapon : BaseCombatWeapon
 		base.OnEquipped();
 	}
 
-	public override bool CanReload() => (!HasOwner || _deployUntil <= 0) && base.CanReload();
+	public override bool CanReload() => (!HasOwner || !IsDeploying) && base.CanReload();
 
 	protected bool WantsEmptyClick => HasOwner && EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();
 

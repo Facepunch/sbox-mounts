@@ -23,7 +23,7 @@ public sealed class ProjectileWeapon : Weapon
 	[Property] public float AutoReloadDelay { get; set; }
 	[Sync( SyncFlags.FromHost )] public GameObject LiveRocket { get; private set; }
 	/// <summary>HL2's launcher guides by default; the SDK's multiplayer rules toggle it with attack2.</summary>
-	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; } = true;
+	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; }
 	internal float WindupDuration { get; set; }
 	internal float ReleaseDelay { get; set; }
 	internal float AttackDuration { get; set; }
@@ -77,10 +77,13 @@ public sealed class ProjectileWeapon : Weapon
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void ToggleGuiding()
+	void ToggleGuiding() => SetGuiding( !Guiding );
+
+	void SetGuiding( bool on )
 	{
-		Guiding = !Guiding;
-		GuidingSound( Guiding );
+		if ( Guiding == on ) return;
+		Guiding = on;
+		GuidingSound( on );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -139,8 +142,15 @@ public sealed class ProjectileWeapon : Weapon
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), SpreadBloom );
 
+	protected override void OnEquipped()
+	{
+		if ( Networking.IsHost && IsLauncher && Secondary == SecondaryFires.Guide ) Guiding = true;
+		base.OnEquipped();
+	}
+
 	protected override void OnHolstered()
 	{
+		if ( Networking.IsHost && IsLauncher ) SetGuiding( false );
 		ReleaseZoom();
 		_primed = false;
 		_releasePending = false;
@@ -233,6 +243,8 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( Networking.IsHost && IsLauncher && Active && Secondary != SecondaryFires.Guide )
+			SetGuiding( !HasOwner || (!IsDeploying && (HasPrimaryAmmo() || LiveRocket.IsValid())) );
 		if ( _primed && !HasOwner && _releaseAt <= 0 ) BeginThrow();
 		if ( _releasePending && _releaseAt <= 0 )
 		{
