@@ -12,6 +12,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 
 	internal void EnterWater( WaterHotspot volume )
 	{
+		GetComponent<CharacterRemains>()?.EnterWater( volume );
 		if ( physics.IsValid() && CharacterLoader.RagdollCenter( physics ) is { } center && volume.HeightAboveSurface( center ) < -0.8f )
 			water = volume;
 		else if ( water == volume ) water = null;

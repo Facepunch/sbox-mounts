@@ -7,7 +7,7 @@ public sealed class BillboardParticle : Component
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
 		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent, bool DestroyOnCollision,
-		bool CharacterCollide, bool CharacterAddBlood, bool VelocityAxis, bool SpeedStretch, bool MinSquash, float SpeedMultiplier );
+		bool CharacterCollide, bool CharacterAddBlood, bool VelocityAxis, bool SpeedStretch, bool MinSquash, float SpeedMultiplier, float MinSpin, float MaxSpin, bool NoRotation, bool Glow );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -37,15 +37,19 @@ public sealed class BillboardParticle : Component
 		cloud.definition = definition;
 		cloud.diameter = Random.Shared.Float( definition.MinSize, definition.MaxSize ) * 40f;
 		cloud.opacity = Random.Shared.Float( definition.MinAlpha, definition.MaxAlpha );
-		cloud.spin = Random.Shared.Float( -360f, 360f );
-		cloud.angle = Random.Shared.Next( -360, 360 );
+		if ( !definition.NoRotation )
+		{
+			cloud.spin = Random.Shared.Float( definition.MinSpin, definition.MaxSpin );
+			cloud.angle = Random.Shared.Next( -360, 360 );
+		}
 		cloud.position = position;
 		cloud.velocity = velocity;
 		cloud.tint = definition.Color * tint;
 		var effect = go.AddComponent<ParticleEffect>();
 		cloud.renderer = go.AddComponent<ParticleSpriteRenderer>();
 		cloud.renderer.Sprite = definition.Sprite;
-		cloud.renderer.Lighting = true;
+		cloud.renderer.Lighting = !definition.Glow;
+		if ( definition.Glow ) cloud.tint *= 5f;
 		// envobject fades across 0.2 to 2.2 metres at the camera.
 		cloud.renderer.CameraFadeNear = 8f;
 		cloud.renderer.CameraFadeFar = 88f;
@@ -243,6 +247,9 @@ public partial class GameMount
 			var behavior = xml.Element( "behavior" );
 			var collision = xml.Element( "collision" );
 			var stretch = xml.Element( "stretch" );
+			var rotation = xml.Element( "rotation" );
+			var textures = xml.Element( "textures" );
+			string shader = textures.Attribute( "soft_shader" ) ?? textures.Attribute( "shader" );
 			DecalDefinition decal = null;
 			DecalDefinition wetSurface = null;
 			if ( collision?.Attribute( "decal" ) is { } decalPath )
@@ -252,8 +259,8 @@ public partial class GameMount
 				if ( asset.Element( "SpecialType" )?.Value == "2" )
 					wetSurface = BloodSpatter.WetSurface( decal.ColorTexture );
 			}
-			definition = new( Sprite.FromTexture( LoadTexture( xml.Element( "textures" ).Attribute( "color_map" ) ) ),
-				size.Number( "min" ).Value, size.Number( "max" ).Value, color.Number( "alpha_min" ).Value, color.Number( "alpha_max" ).Value,
+			definition = new( Sprite.FromTexture( LoadTexture( textures.Attribute( "color_map" ) ) ),
+				size.Number( "min" ).Value, size.Number( "max" ).Value, color.Number( "alpha" ) ?? color.Number( "alpha_min" ) ?? 1f, color.Number( "alpha" ) ?? color.Number( "alpha_max" ) ?? 1f,
 				xml.Element( "quadratic_expansion" )?.Number( "speed" ) ?? 0f, xml.Element( "quadratic_dispersion" )?.Number( "persistence" ),
 				behavior.Number( "inertia" ).Value, behavior.Number( "wind" ).Value,
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
@@ -261,7 +268,9 @@ public partial class GameMount
 				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ),
 				collision?.Attribute( "destroy" ) == "true", collision?.Attribute( "character_collide" ) == "true",
 				collision?.Attribute( "character_add_blood" ) == "true", stretch?.Attribute( "velocity_axis" ) == "true",
-				stretch?.Attribute( "speed_stretch" ) == "true", stretch?.Attribute( "min_squash" ) == "true", stretch?.Number( "speed_mult" ) ?? 1f );
+				stretch?.Attribute( "speed_stretch" ) == "true", stretch?.Attribute( "min_squash" ) == "true", stretch?.Number( "speed_mult" ) ?? 1f,
+				rotation?.Number( "val" ) ?? rotation?.Number( "min" ) ?? -360f, rotation?.Number( "val" ) ?? rotation?.Number( "max" ) ?? 360f,
+				xml.Element( "no_rotation" ) is not null, shader?.Split( ' ' ).Contains( "#GLOW" ) == true );
 			billboards.Add( path, definition );
 		}
 		return definition;

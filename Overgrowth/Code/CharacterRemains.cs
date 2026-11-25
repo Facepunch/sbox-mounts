@@ -7,6 +7,51 @@ internal sealed class CharacterRemains : Component
 	internal string[] Teams { get; set; }
 	internal ModelPhysics Physics { get; set; }
 	internal BodyFallSounds BodySounds;
+	[Sync] internal bool Burning { get; set; }
+	internal RabbitGuardAnimations FireRig { get; set; }
+	SoundHandle fireLoop;
+	CharacterFireParticles fireParticles;
+
+	protected override void OnUpdate()
+	{
+		if ( !Burning )
+		{
+			fireLoop?.Stop();
+			fireLoop = null;
+			return;
+		}
+		if ( !Application.IsDedicatedServer ) fireParticles.Update( GetComponent<SkinnedModelRenderer>(), null );
+		var physics = GetComponent<ModelPhysics>();
+		if ( physics is not { Active: true } || CharacterLoader.RagdollCenter( physics ) is not { } center ) return;
+		if ( !fireLoop.IsValid() ) fireLoop = RabbitGuard.PlayFireSound( "character_on_fire_loop_small", GameObject, center );
+		else fireLoop.LocalTransform = WorldTransform.ToLocal( new Transform( center ) );
+	}
+
+	protected override void OnDisabled() => fireLoop?.Stop();
+
+	internal void SetOnFire( bool burning )
+	{
+		if ( Burning == burning ) return;
+		Burning = burning;
+		PlayFireCue( burning );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayFireCue( bool burning )
+	{
+		var physics = GetComponent<ModelPhysics>();
+		if ( physics is { Active: true } && CharacterLoader.RagdollCenter( physics ) is { } center )
+			RabbitGuard.PlayFireSound( burning ? "character_catch_fire_small" : "character_fire_extinguish_small_shortened", GameObject, center );
+	}
+
+	internal void EnterWater( WaterHotspot volume )
+	{
+		if ( !Burning || FireRig is null || GetComponent<SkinnedModelRenderer>() is not { } renderer ||
+			!renderer.TryGetBoneTransform( FireRig.HeadBone, out var head ) ) return;
+		if ( volume.HeightAboveSurface( head.Position - head.Rotation.Forward * (FireRig.Head.HeadHalfLength * WorldScale.z) ) < 0.7f )
+			SetOnFire( false );
+	}
+
 	internal RabbitGuard Dragger { get; set; }
 
 	internal void OnBodyContact( Collision collision )

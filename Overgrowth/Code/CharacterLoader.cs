@@ -79,7 +79,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		return loader;
 	}
 
-	internal static Vector3? RandomSightPosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
+	internal static Vector3? RandomPhysicsBonePosition( SkinnedModelRenderer renderer, RabbitGuard fighter )
 	{
 		if ( FromRenderer( renderer )?.bodyPoints is not { Length: > 0 } points ) return null;
 		return BodyTransform( points[Random.Shared.Next( points.Length )], renderer, renderer.GetComponent<ModelPhysics>(), fighter )?.Position;

@@ -89,6 +89,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			awakeTime += Time.Delta;
 			if ( !StaticCharacter ) suspicion = Math.Max( 0f, suspicion - Time.Delta * 0.1f );
 		}
+		if ( Burning && !Application.IsDedicatedServer ) fireParticles.Update( Renderer, this );
 		if ( Networking.IsHost && Burning && Health > 0f )
 		{
 			UpdateFire();

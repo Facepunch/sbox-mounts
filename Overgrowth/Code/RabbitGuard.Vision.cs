@@ -204,7 +204,7 @@ public sealed partial class RabbitGuard
 		if ( Omniscient ) return true;
 		remains ??= target.GetComponent<CharacterRemains>();
 		var renderer = fighter?.Renderer ?? (remains.IsValid() ? target.GetComponent<SkinnedModelRenderer>() : null);
-		var end = CharacterLoader.RandomSightPosition( renderer, fighter ) ?? TargetPosition( target, eyes: true );
+		var end = CharacterLoader.RandomPhysicsBonePosition( renderer, fighter ) ?? TargetPosition( target, eyes: true );
 		var start = TargetPosition( GameObject, eyes: true );
 		if ( Scene.Trace.Ray( start, end )
 			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player" ).Run().Hit ) return false;

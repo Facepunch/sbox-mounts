@@ -296,6 +296,8 @@ public sealed partial class RabbitGuard
 		remains.Teams = Teams;
 		remains.StaticCharacter = StaticCharacter;
 		remains.Physics = physics;
+		remains.Burning = Burning;
+		remains.FireRig = boundAnimations;
 		remains.BodySounds = bodySounds;
 		if ( !zoneKilled )
 		{
@@ -394,7 +396,8 @@ public sealed partial class RabbitGuard
 			var start = feet + Vector3.Up * 0.5f;
 			var end = support.Point + Vector3.Down;
 			var floor = probe.Capsule( capsule, start, end ).Run();
-			if ( floor.StartedSolid )
+			// A compound world collider may expose the second wall of a corner only after the first correction.
+			for ( int pass = 0; floor.StartedSolid && pass < 4; pass++ )
 			{
 				// WakeUp resolves bumper contacts before placing the standing collider.
 				var shift = Vector3.Zero;
@@ -406,7 +409,10 @@ public sealed partial class RabbitGuard
 					if ( distance <= 0f || distance >= capsule.Radius || Math.Abs( separation.z ) > distance * 0.5f ) continue;
 					shift += separation.Normal * (capsule.Radius - distance + 0.03125f);
 				}
-				floor = probe.Capsule( capsule, start + shift, end + shift ).Run();
+				if ( shift.IsNearlyZero() ) break;
+				start += shift;
+				end += shift;
+				floor = probe.Capsule( capsule, start, end ).Run();
 			}
 			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
 			feet = floor.EndPosition;
