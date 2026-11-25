@@ -166,7 +166,9 @@ public sealed partial class ProjectileWeapon : Weapon
 	protected override void OnReloadStarted()
 	{
 		_reloadAfterShot = false;
-		base.OnReloadStarted();
+		// The clipless RPG plays a weapon animation on impact without a player reload gesture.
+		if ( IsLauncher && !UsesPrimaryClip ) WeaponModel?.OnReloadStart();
+		else base.OnReloadStarted();
 		if ( !Application.IsDedicatedServer && BoltChargeDelay is { } delay ) _boltChargeAt = (TimeUntil)delay;
 		if ( HasOwner && !Owner.IsProxy && WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
 	}
