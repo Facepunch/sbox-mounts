@@ -56,8 +56,10 @@ public sealed partial class ProjectileWeapon : Weapon
 	public override bool CanPrimaryAttack() => (!_primed || HasLowThrow) && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanPrimaryAttack();
 	// CWeaponRPG reloads only once its missile is gone (NotifyRocketDied).
 	public override bool CanReload() => !_primed && !_releasePending && !_redrawPending && !LiveRocket.IsValid() && base.CanReload();
+	bool _reloadAfterShot;
 	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
-		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
+		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0
+		&& (_reloadAfterShot || !Input.Down( "attack2" )));
 
 	bool HasLowThrow => Kind == Projectile.Kinds.Grenade && ThrowClips?.LowWindup is not null
 		&& ThrowClips.Lob.Clip is not null && ThrowClips.Roll.Clip is not null;
@@ -156,6 +158,7 @@ public sealed partial class ProjectileWeapon : Weapon
 	}
 	protected override void OnReloadStarted()
 	{
+		_reloadAfterShot = false;
 		base.OnReloadStarted();
 		if ( !Application.IsDedicatedServer && BoltChargeDelay is { } delay ) _boltChargeAt = (TimeUntil)delay;
 		if ( HasOwner && !Owner.IsProxy && WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
@@ -239,6 +242,7 @@ public sealed partial class ProjectileWeapon : Weapon
 			return;
 		}
 		TimeSinceShoot = 0;
+		_reloadAfterShot = AutoReloadDelay > 0;
 		SetNextFire( PrimaryDelay );
 		ShootEffects();
 		KickView();
