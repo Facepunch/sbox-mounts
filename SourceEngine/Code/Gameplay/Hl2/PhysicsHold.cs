@@ -52,14 +52,4 @@ sealed class PhysicsHold
 		_body?.Remove();
 		_body = null;
 	}
-
-	/// <summary>The yaw of a view rotation, so a held object doesn't tumble as the view pitches.</summary>
-	public static Rotation Stabilize( Rotation rotation )
-	{
-		var forward = rotation.Forward.WithZ( 0 );
-		var up = rotation.Up.WithZ( 0 );
-
-		var heading = forward.LengthSquared >= up.LengthSquared ? forward : (rotation.Forward.z > 0 ? -up : up);
-		return Rotation.FromYaw( MathX.RadianToDegree( MathF.Atan2( heading.y, heading.x ) ) );
-	}
 }

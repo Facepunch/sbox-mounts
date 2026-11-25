@@ -211,7 +211,7 @@ public sealed class GravityWeapon : Weapon
 			return;
 		}
 		HeldObject = body.GameObject;
-		_holdOffset = PhysicsHold.Stabilize( Rotation.LookAt( AimRay.Forward ) ).Inverse * body.WorldRotation;
+		_holdOffset = Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
 		_hold.Hold( body, body.PhysicsBody.MassCenter );
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
@@ -238,7 +238,7 @@ public sealed class GravityWeapon : Weapon
 			Release();
 			return;
 		}
-		_hold.Move( new Transform( target, PhysicsHold.Stabilize( Rotation.LookAt( forward ) ) * _holdOffset ) );
+		_hold.Move( new Transform( target, Owner.EyeTransform.Rotation * _holdOffset ) );
 	}
 
 	void Release()
