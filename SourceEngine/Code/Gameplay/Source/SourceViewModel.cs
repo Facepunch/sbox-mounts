@@ -30,6 +30,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 	[Property] public string Draw { get; set; } = "draw";
 	[Property] public float DrawPlaybackRate { get; set; } = 1;
 	[Property] public string Fire { get; set; } = "fire01";
+	[Property] public int[] RecoilStages { get; set; } = [1, 2, 3];
+	[Property] public bool ResetRecoilOnRelease { get; set; }
 	[Property] public float RecoilResetTime { get; set; }
 	[Property] public string DryFire { get; set; } = "dryfire";
 	[Property] public string Reload { get; set; } = "reload";
@@ -311,6 +313,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		if ( !Renderer.IsValid() || !Renderer.SceneModel.IsValid() ) return;
 		ConfigureSequences();
 		if ( !_animation.IsReady && !_animation.Ensure( Renderer, _choices, _pending ?? IdleClip ) ) return;
+		if ( ResetRecoilOnRelease && !Input.Down( "attack1" ) ) _burstShots = 0;
 		ResolveAttachments();
 		UpdateMirror();
 		UpdateScopeVisibility();
@@ -347,6 +350,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 		}
 		_animation.Tick();
 		GetComponent<SourceViewModelHands>()?.Animate( _animation, _choices );
+		// The pulse rifle samples its shot count before the next attack updates it.
+		if ( _hasVentPose ) _animation.SetPoseParameter( "VentPoses", Math.Clamp( _burstShots / 5f, 0, 1 ) );
 	}
 
 	/// <summary>
@@ -409,7 +414,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	void ResetBurst()
 	{
 		_burstShots = 0;
-		if ( _animation?.IsReady == true ) _animation.SetPoseParameter( "VentPoses", 0 );
+		if ( _hasVentPose ) _animation?.SetPoseParameter( "VentPoses", 0 );
 	}
 
 	public override void OnDeploy()
@@ -489,13 +494,11 @@ public sealed class SourceViewModel : BaseWeaponModel
 		if ( _clips.Alternates ) return _alternateShots++ % 2 == 0 ? _clips.Fire : _clips.SecondaryFire;
 		if ( _clips.LastShot is not null && weapon.IsValid() && weapon.UsesAmmo && weapon.Clip1 <= 0 ) return _clips.LastShot;
 		var resetTime = RecoilResetTime > 0 ? RecoilResetTime : Math.Max( 0.25f, (weapon?.PrimaryDelay ?? 0.1f) * 2 );
-		if ( _lastPrimaryShot > resetTime ) _burstShots = 0;
+		if ( !ResetRecoilOnRelease && _lastPrimaryShot > resetTime ) _burstShots = 0;
 		var recoil = _clips.Recoil;
 		var fire = _burstShots > 0 && recoil.Length > 0 ? recoil[Math.Min( _burstShots - 1, recoil.Length - 1 )] : _clips.Fire;
 		_burstShots++;
 		_lastPrimaryShot = 0;
-		// weapon_ar2: RemapValClamped( m_nShotsFired, 0, 5, 0, 1 ).
-		if ( _hasVentPose ) _animation?.SetPoseParameter( "VentPoses", Math.Clamp( _burstShots / 5f, 0, 1 ) );
 		return fire;
 	}
 

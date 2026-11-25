@@ -81,7 +81,7 @@ sealed record SourceWeaponClips
 			AttachSilencer = Find( "ACT_VM_ATTACH_SILENCER", null ),
 			DetachSilencer = Find( "ACT_VM_DETACH_SILENCER", null ),
 			SecondaryWindup = Find( "ACT_VM_FIDGET", null ),
-			Recoil = [.. Enumerable.Range( 1, 3 ).Select( i => Find( $"ACT_VM_RECOIL{i}", fire ) )],
+			Recoil = [.. (names.RecoilStages ?? []).Select( i => Find( $"ACT_VM_RECOIL{i}", fire ) )],
 			Reload = throws ? draw : Find( incremental ? "ACT_SHOTGUN_RELOAD_START" : "ACT_VM_RELOAD", names.Reload ),
 			ReloadInsert = incremental ? Find( "ACT_VM_RELOAD", names.ReloadInsert ) : names.ReloadInsert,
 			ReloadEnd = Find( "ACT_SHOTGUN_RELOAD_FINISH", names.ReloadEnd ),

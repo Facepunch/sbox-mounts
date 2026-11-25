@@ -628,7 +628,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "ar2_vm", null, null, null, """
 			{
 				".": {
-					"Source1.SourceViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Idle": "IR_idle", "Draw": "IR_draw", "Fire": "IR_fire", "Reload": "IR_reload"}
+					"Source1.SourceViewModel": {"ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Idle": "IR_idle", "Draw": "IR_draw", "Fire": "IR_fire", "Reload": "IR_reload"}
 				},
 				"Viewmodel": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/c_irifle.mdl", "FallbackModelPath": "models/weapons/v_irifle.mdl"}
@@ -718,7 +718,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "smg_vm", null, null, null, """
 			{
 				".": {
-					"Source1.SourceViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}}
+					"Source1.SourceViewModel": {"RecoilStages": [1, 3], "ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}}
 				},
 				"Viewmodel": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/c_smg1.mdl", "FallbackModelPath": "models/weapons/v_smg1.mdl"}
