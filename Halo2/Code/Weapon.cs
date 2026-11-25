@@ -15,6 +15,7 @@ public sealed class PlayerRepresentation
 
 public abstract partial class Weapon : BaseCombatWeapon
 {
+	[Property] public bool NpcOnly { get; set; }
 	[Property] public string AnimationClass { get; set; }
 	[Property] public string AnimationType { get; set; }
 
@@ -53,6 +54,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override bool OnCanPickup( BaseInventoryComponent inventory )
 	{
+		if ( NpcOnly && inventory.GetComponentInParent<PlayerController>().IsValid() ) return false;
 		if ( !UsesClips || !UsesAmmo ) return base.OnCanPickup( inventory );
 		if ( LoadedRounds == 0 && LooseReserve == 0 ) return false;
 		if ( MatchingWeapon( inventory ) is not {} held ) return base.OnCanPickup( inventory );
@@ -67,6 +69,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
+		if ( NpcOnly && inventory.GetComponentInParent<PlayerController>().IsValid() ) return false;
 		if ( !UsesClips || !UsesAmmo ) return base.OnAdding( inventory );
 		var held = MatchingWeapon( inventory );
 		if ( held is null ) return base.OnAdding( inventory );

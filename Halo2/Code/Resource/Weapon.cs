@@ -113,6 +113,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 		var gun = root.AddComponent<T>();
 		gun.DisplayName = title;
+		gun.NpcOnly = (map.ReadInt32( Header + 0x12c ) & (1 << 29)) != 0;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
 		gun.ZoomLevels = Short( Header + 0x1fe );
 		if ( gun.ZoomLevels > 0 )

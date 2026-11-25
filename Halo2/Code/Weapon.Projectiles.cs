@@ -1,5 +1,7 @@
 namespace Halo2;
 
+public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
+
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
 	float Damage, float Force, Dictionary<string, float> BodyScales );
 
@@ -10,6 +12,7 @@ public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistic
 public abstract partial class Weapon
 {
 	[Property] public float MinimumPelletAngle { get; set; } = 2;
+	[Property] public BounceDefinition Bounce { get; set; }
 	[Property] public ShardDefinition Shard { get; set; }
 	[Property] public string ProjectileModel { get; set; }
 	[Property] public float PelletSpeed { get; set; }
@@ -40,6 +43,7 @@ public abstract partial class Weapon
 		public Vector3 Offset;
 		public Vector3 Velocity;
 		public float Travelled;
+		public int DetonateAtTick;
 		public float TurnRate;
 		public float FuseSeconds;
 		public ProjectileContrail Trail;
@@ -60,7 +64,7 @@ public abstract partial class Weapon
 		// Project before spread, then apply the inherited speed along each pellet's direction.
 		float inherited = System.MathF.Max( 0, (aim.x * velocity.x + aim.z * velocity.z) + aim.y * velocity.y );
 		var ballistics = discharge?.Ballistics ?? Ballistics;
-		if ( speed <= 0 || ballistics.Range <= 0 ) return;
+		if ( speed <= 0 || ballistics.Range < 0 ) return;
 		var model = ProjectileModel is { Length: > 0 } path ? Model.Load( path ) : null;
 		var pellets = new Pellet[ballistics.Pellets];
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
@@ -117,6 +121,8 @@ public abstract partial class Weapon
 		float airGravity = discharge?.DryGravity ?? AirGravityScale, waterGravity = discharge?.WetGravity ?? WaterGravityScale;
 		var tags = AttackDamageTags;
 		var blast = ImpactBlast;
+		var bounce = Bounce;
+		float maxRange = ballistics.Range > 0 ? ballistics.Range : float.PositiveInfinity;
 		var detonation = DetonationEffectPath;
 		bool originWet = InWater( origin );
 		int flying = pellets.Length;
@@ -141,8 +147,18 @@ public abstract partial class Weapon
 			for ( int i = 0; i < pellets.Length; i++ )
 			{
 				var pellet = pellets[i];
-				if ( pellet.Velocity == Vector3.Zero ) continue;
 				var start = origin + pellet.Offset;
+				if ( pellet.DetonateAtTick > 0 && tick >= pellet.DetonateAtTick )
+				{
+					if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
+					pellet.Trail?.Finish( start, firedAt + tick / 30.0 );
+					if ( blast is not null ) Detonate( scene, blast, start, Vector3.Zero, attacker );
+					if ( detonation is not null ) PresentDetonation( detonation, scene, start, Vector3.Up, pellet.Velocity.Normal );
+					pellets[i] = default;
+					flying--;
+					continue;
+				}
+				if ( pellet.Velocity == Vector3.Zero ) continue;
 				if ( target.IsValid() )
 				{
 					var desired = (target.WorldTransform.PointToWorld( localPoint ) - start).Normal;
@@ -153,13 +169,13 @@ public abstract partial class Weapon
 				}
 				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
-				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
+				float step = dt * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
 				pellet.Velocity.z -= fall;
 				float distance = displacement.Length;
 				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )
 					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
-				bool atRange = step < dt || pellet.Travelled + distance >= ballistics.Range;
+				bool atRange = step < dt || pellet.Travelled + distance >= maxRange;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
 				// but requires an object contact to be strictly nearer.
 				var sweep = atRange ? displacement * 2 : displacement;
@@ -189,6 +205,23 @@ public abstract partial class Weapon
 					pellets[i] = pellet;
 					continue;
 				}
+				if ( bounce is not null && !hit.StartedSolid && hit.GameObject.IsValid() &&
+					!hit.GameObject.GetComponentInParent<PlayerController>().IsValid() && !hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid() )
+				{
+					float dot = Vector3.Dot( hit.Normal, pellet.Velocity );
+					float angle = System.MathF.Asin( (-dot / pellet.Velocity.Length).Clamp( -1, 1 ) );
+					if ( angle >= bounce.MinimumAngle && angle <= bounce.MaximumAngle )
+					{
+						var perpendicular = hit.Normal * dot;
+						pellet.Velocity = (pellet.Velocity - perpendicular) * (1 - bounce.ParallelFriction) - perpendicular * (1 - bounce.NormalFriction);
+						pellet.Offset = OutsideSurface( hit.HitPosition, hit.Normal ) - origin;
+						pellet.Travelled += hit.Distance;
+						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
+						if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = new Transform( hit.HitPosition, Rotation.LookAt( pellet.Velocity ) );
+						pellets[i] = pellet;
+						continue;
+					}
+				}
 				// Halo switches the range at water crossings and retains total flight distance.
 				var range = dryRange;
 				if ( range != wetRange )
@@ -214,7 +247,7 @@ public abstract partial class Weapon
 				else if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
 				if ( blast is not null ) Detonate( scene, blast, hit.HitPosition, hit.Normal, attacker );
 				if ( detonation is not null ) PresentDetonation( detonation, hit.GameObject, hit.HitPosition, hit.Normal, hit.Direction );
-				pellets[i].Velocity = Vector3.Zero;
+				pellets[i] = default;
 				flying--;
 			}
 			if ( results is { Count: > 0 } )

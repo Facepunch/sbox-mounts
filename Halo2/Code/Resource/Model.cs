@@ -109,6 +109,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					sounds[path] = sound.Cue;
 			}
 			builder.WithData( new FirstPersonAnimation { Actions = actions, Sounds = sounds,
+				AmmunitionFrames = context.Overlays.TryGetValue( "ammunition", out var ammunition ) ? GetClipInfo( ammunition ).Frames : 0,
 				Movement = context.Overlays.TryGetValue( "moving", out var movement ) ? GetClipInfo( movement ) : null } );
 		}
 		if ( biped is not null && ReadTargets() is { Length: > 0 } targets )

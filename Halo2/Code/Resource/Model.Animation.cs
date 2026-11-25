@@ -156,6 +156,9 @@ public partial class Halo2ModelLoader
 		} ).ToArray();
 		var gripWeight = ikTargets.Length == 0 || HasFirstPersonWeapon ? null
 			: builder.AddControlParameter( "weapon_grip_weight", GraphBuilder.NodeKind.Float, new() { Min = -1, Max = 1, DefaultFloat = -1 } );
+		int ammunition = 0;
+		var ammoTime = HasFirstPersonWeapon && overlays.TryGetValue( "ammunition", out ammunition )
+			? builder.FloatParameter( "ammunition_time", 0, 1 ) : null;
 		var sample = builder.Switch( builder.Compare( variation, GraphBuilder.FloatComparison.LessThan, 0 ), builder.RandomFloat(), variation );
 		var noBlendIn = options.Where( a => (GetClipInfo( a.Value ).PlaybackFlags & 1) != 0 ).Select( a => a.Key ).ToArray();
 		var duration = noBlendIn.Length == 0 ? blend : builder.Switch( builder.IdCompare( action, noBlendIn ), builder.Constant( 0f ), blend );
@@ -190,6 +193,13 @@ public partial class Halo2ModelLoader
 					} );
 				}
 			}
+			output = layers;
+		}
+		if ( ammoTime is not null && GetClip( ammunition ) is {} ammoClip && clipMasks.TryGetValue( ammunition, out var ammoMask ) )
+		{
+			var layers = builder.Layers( output );
+			layers.AddLayer( builder.TimeControlledClip( ammoClip, ammoTime ),
+				new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, BoneMask = builder.BoneMask( ammoMask ) } );
 			output = layers;
 		}
 		// First-person weapons apply the movement channel before the pitch-and-turn screen.

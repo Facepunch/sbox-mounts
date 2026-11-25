@@ -16,13 +16,18 @@ public abstract partial class Weapon
 		PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, target, point, normal, incoming );
 	}
 
-	void Detonate( Scene scene, BlastDamage blast, Vector3 origin, Vector3 normal, GameObject attacker )
+	static Vector3 OutsideSurface( Vector3 origin, Vector3 normal )
 	{
 		// Start visibility rays on the exposed side of the impact plane. The hit coordinate
 		// can round back inside the collider, especially on an axis-aligned wall.
 		static float Outside( float coordinate, float axis ) => axis > 0 ? System.MathF.BitIncrement( coordinate )
 			: axis < 0 ? System.MathF.BitDecrement( coordinate ) : coordinate;
-		var exposed = new Vector3( Outside( origin.x, normal.x ), Outside( origin.y, normal.y ), Outside( origin.z, normal.z ) );
+		return new Vector3( Outside( origin.x, normal.x ), Outside( origin.y, normal.y ), Outside( origin.z, normal.z ) );
+	}
+
+	void Detonate( Scene scene, BlastDamage blast, Vector3 origin, Vector3 normal, GameObject attacker )
+	{
+		var exposed = OutsideSurface( origin, normal );
 		var nearest = new Dictionary<GameObject, (Collider Collider, Vector3 Point, float Distance)>();
 		foreach ( var obj in scene.FindInPhysics( new Sphere( origin, blast.OuterRadius ) ) )
 		{

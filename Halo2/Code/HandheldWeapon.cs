@@ -54,7 +54,7 @@ public abstract class HandheldWeapon : Weapon
 		if ( GetComponent<SkinnedModelRenderer>( true ) is {} loose ) loose.Enabled = true;
 	}
 
-	bool UseEliteRig => EliteModel is not null && HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
+	bool UseEliteRig => EliteModel is not null && (SpartanModel is null || HolderRenderer?.Model?.GetData<PlayerRepresentation>()?.Index is 1 or 3);
 	protected override string FirstPersonRig => $"{RigDirectory}/{(UseEliteRig ? "first_person_elite" : "first_person")}.vmdl";
 	protected override void PlayMeleeView( string action ) => ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( action );
 
@@ -118,6 +118,17 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Weapon.IsValid() && AnimationData is { AmmunitionFrames: > 1 } data && Renderer.Animation.IsValid )
+		{
+			int loaded = Weapon.Clip1;
+			if ( Weapon.Shard is not null && currentAction is ("reload_full" or "reload_empty") && frame >= 44 )
+			{
+				float fraction = ((int)frame - 44) * 0.2f;
+				int fill = System.Math.Min( Weapon.ClipMaxSize - loaded, Weapon.Ammo1 );
+				loaded += (int)(fill * fraction.Clamp( 0, 1 ));
+			}
+			Renderer.Animation.Parameters.Set( "ammunition_time", (loaded / (data.AmmunitionFrames - 1f)).Clamp( 0, 1 ) );
+		}
 		if ( clip is null || !Weapon.IsValid() || currentAction is "idle" or "overheated" or "overcharged" ) return;
 		frame += Time.Delta * 30 * Renderer.PlaybackRate;
 		sounds.Advance( clip, System.MathF.Min( frame, clip.Frames - 1 ), AnimationData, Weapon, GameObject );

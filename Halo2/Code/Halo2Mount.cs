@@ -75,12 +75,13 @@ public class Halo2Mount : BaseGameMount
 
 		var surfaces = new HashSet<string>( StringComparer.Ordinal );
 		var weaponRigs = new HashSet<string>( StringComparer.Ordinal );
+		var handhelds = new Dictionary<string, HandheldWeaponLoader>( StringComparer.Ordinal );
 		foreach ( var map in maps )
 		{
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map, surfaces, weaponRigs );
+				RegisterMapTags( context, map, surfaces, weaponRigs, handhelds );
 			}
 			catch ( Exception ex )
 			{
@@ -88,11 +89,20 @@ public class Halo2Mount : BaseGameMount
 			}
 		}
 
+		var registeredEffects = new HashSet<string>( StringComparer.Ordinal );
+		foreach ( var (name, item) in handhelds )
+		{
+			item.Tags.Add( "weapon" );
+			item.RegisterDetonation( context, registeredEffects );
+			if ( item.UsesMagazine )
+				context.Add( ResourceType.GameResource, item.AmmoPath, new WeaponAmmoLoader( $"{item.Title} rounds", item.MaxReserve ) );
+			context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", item );
+		}
 		IsMounted = true;
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, HashSet<string> weaponRigs )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> surfaces, HashSet<string> weaponRigs, Dictionary<string, HandheldWeaponLoader> handhelds )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
@@ -201,14 +211,8 @@ public class Halo2Mount : BaseGameMount
 					if ( weaponRigs.Contains( path ) || WeaponLoader.CreateRig( mapFile, tag, globals, i ) is not {} rig ) continue;
 					context.Add( ResourceType.Model, path, rig );
 					weaponRigs.Add( path );
-					if ( i == 0 && HandheldWeaponLoader.ForTag( mapFile, tag, name ) is {} item )
-					{
-						item.Tags.Add( "weapon" );
-						item.RegisterDetonation( context );
-						if ( item.UsesMagazine )
-							context.Add( ResourceType.GameResource, item.AmmoPath, new WeaponAmmoLoader( $"{item.Title} rounds", item.MaxReserve ) );
-						context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", item );
-					}
+					if ( (i == 0 || !handhelds.ContainsKey( name )) && HandheldWeaponLoader.ForTag( mapFile, tag, name ) is {} item )
+						handhelds[name] = item;
 				}
 			}
 

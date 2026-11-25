@@ -43,6 +43,7 @@ public sealed class FirstPersonAnimation
 {
 	public Dictionary<string, Halo2ClipInfo> Actions { get; set; }
 	public Halo2ClipInfo Movement { get; set; }
+	public int AmmunitionFrames { get; set; }
 	public Dictionary<string, CuePlayback> Sounds { get; set; }
 }
 
