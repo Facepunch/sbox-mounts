@@ -483,8 +483,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 				var sweep = atRange ? displacement * 2 : displacement;
 				var hit = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
-				if ( atRange && hit.Hit && hit.Fraction >= 0.5f )
-					hit.Hit = hit.Fraction == 0.5f && hit.GameObject.Tags.Has( "world" );
+				if ( atRange && hit.Hit )
+				{
+					float remaining = Vector3.Dot( start + displacement - hit.HitPosition, displacement );
+					hit.Hit = remaining > 0 || (remaining == 0 && (hit.Collider is Terrain || hit.GameObject.Tags.Has( "world" )));
+				}
 				if ( !hit.Hit )
 				{
 					pellet.Offset += displacement;
