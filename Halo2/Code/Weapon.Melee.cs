@@ -76,6 +76,7 @@ public abstract partial class Weapon
 		state.NextStrike = recovery;
 		if ( wielder != MeleeOwner ) return;
 		SetNextSecondaryFire( 0 );
+		SetZoom( 0 );
 		var action = MeleeAction( firstStrike );
 		PlayMeleeView( action );
 		PlayHolderOverlay( action );

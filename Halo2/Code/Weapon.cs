@@ -10,6 +10,7 @@ public sealed class WeaponAttachment
 public sealed class PlayerRepresentation
 {
 	public int Index { get; set; }
+	public float CameraFieldOfView { get; set; }
 }
 
 public abstract partial class Weapon : BaseCombatWeapon
@@ -167,6 +168,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
+		ApplyZoomLens( ref view );
+
 		if ( kickEnds > 0 && KickDuration > 0 )
 		{
 			float durationTicks = KickDuration * 30;
@@ -245,6 +248,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnDisabled()
 	{
+		SetZoom( 0, audible: false );
 		ReleaseHolderAnimator();
 		base.OnDisabled();
 	}

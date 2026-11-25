@@ -80,6 +80,9 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		gun.MeleeForce = Float( strike + 0x40 ) * 120;
 	}
 
+	SoundEvent ZoomSound( int reference ) => Reference( reference ) is { PrimaryClass: "!dns" } sound
+		? GameResource.Load<SoundEvent>( Host.AssetPath( map, sound.TagPath, "sound" ) ) : null;
+
 	protected T ConfigurePickup<T>( GameObject root, string world, string title ) where T : Weapon, new()
 	{
 		root.NetworkMode = NetworkMode.Object;
@@ -93,6 +96,13 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		var gun = root.AddComponent<T>();
 		gun.DisplayName = title;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+		gun.ZoomLevels = Short( Header + 0x1fe );
+		if ( gun.ZoomLevels > 0 )
+		{
+			gun.ZoomRange = new Vector2( Float( Header + 0x200 ), Float( Header + 0x204 ) );
+			gun.ZoomInSound = ZoomSound( Header + 0x26c );
+			gun.ZoomOutSound = ZoomSound( Header + 0x274 );
+		}
 		ConfigureMelee( gun );
 		return gun;
 	}

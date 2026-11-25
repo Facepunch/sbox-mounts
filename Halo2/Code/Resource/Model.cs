@@ -87,7 +87,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			{
 				if ( (uint)mapFile.ReadInt32( row + 0xb4 ) == biped.Datum )
 				{
-					builder.WithData( new PlayerRepresentation { Index = index } );
+					builder.WithData( new PlayerRepresentation { Index = index, CameraFieldOfView = Float( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0xcc ) } );
 					break;
 				}
 				index++;
