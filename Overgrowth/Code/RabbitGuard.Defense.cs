@@ -81,6 +81,14 @@ public sealed partial class RabbitGuard
 			if ( !IsGetUp( Stance ) ) groundCrouchTarget = GroundCrouchTarget();
 		}
 		if ( ReactionPhase >= 1f || reactionDuration <= 0f ) return false;
+		// The brain can reconsider its attack during a hit reaction, including an active block.
+		// A block follow-up keeps its existing window until the next tactic pick is due.
+		if ( CombatAllowed && HasAttackGoal && !IsGetUp( Stance ) && airResponse == AirResponse.None && nextTactic <= 0f )
+		{
+			rangeChanged |= tactic != CombatTactic.Defend;
+			tactic = CombatTactic.Defend;
+			nextTactic = TacticInterval();
+		}
 		float elapsed = ReactionPhase * reactionDuration;
 		if ( activeBlockReaction && elapsed > 0.1f && Animation.IsGrounded && startled <= 0f )
 		{

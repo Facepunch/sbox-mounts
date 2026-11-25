@@ -19,6 +19,7 @@ public sealed partial class RabbitGuard
 	TimeSince sinceTargetDown;
 	bool rangeChanged = true;
 	TimeUntil nextTactic;
+	static float TacticInterval() => GameDifficulty >= 0.25f ? Random.Shared.Float( 0.35f, 1.25f ) : 0f;
 	TimeUntil dontAttackBefore;
 	float preferredRange;
 	float strafeOffset;
@@ -99,7 +100,7 @@ public sealed partial class RabbitGuard
 		}
 		else if ( nextTactic <= 0 )
 		{
-			nextTactic = GameDifficulty >= 0.25f ? Random.Shared.Float( 0.35f, 1.25f ) : 0f;
+			nextTactic = TacticInterval();
 			var next = CombatTactic.Defend;
 			if ( GameDifficulty < 0.25f || boundAnimations.Species == "wolf" ) next = CombatTactic.Rush;
 			else if ( Random.Shared.Float() < Aggression + (!groupLeader.IsValid() && followerCount > 0 ? 0.125f : 0f) )
@@ -107,7 +108,7 @@ public sealed partial class RabbitGuard
 				next = Random.Shared.Float() > 0.5f ? CombatTactic.Wait : CombatTactic.Rush;
 				var opponent = enemy.GetComponent<RabbitGuard>();
 				if ( !UsesPolearm && opponent.IsValid() && opponent.PrimaryItem.IsValid()
-					&& (opponent.strike?.AsLayer != false || opponent.strikeTarget == GameObject) )
+					&& (!opponent.InAttackState || opponent.CurrentAttackTarget == GameObject) )
 				{
 					if ( opponent.boundAnimations.WeaponLabel == "knife" || (!PrimaryItem.IsValid() && (throwRecharge > 0f || sinceDodgeAttempt < 3f)) )
 						next = CombatTactic.Rush;

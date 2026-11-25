@@ -254,6 +254,11 @@ public sealed partial class RabbitGuard
 
 	bool InAttackState => !Downed && (strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem || Holding && !CaptureReactionEnded);
 
+	GameObject CurrentAttackTarget => Stance == "throw" ? throwPartner?.GameObject
+		: IsThrowingItem ? bodyThrowTarget
+		: Holding ? holdPartner?.GameObject
+		: strikeTarget;
+
 	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.
 	// The chosen target remains bound to this strike while the AI continues tracking its chase target.
 	GameObject FindStrikeTarget( out float distance )
