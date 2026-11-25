@@ -27,6 +27,7 @@ sealed class PhysicsHold
 
 		var point1 = new PhysicsPoint( _body );
 		var point2 = new PhysicsPoint( physicsBody, physicsBody.LocalMassCenter );
+		_body.Transform = point2.Transform;
 		var maxForce = physicsBody.Mass * MaxLinearAcceleration;
 
 		var inertia = physicsBody.Inertia;
