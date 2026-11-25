@@ -173,16 +173,17 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		if ( GetComponent<Rigidbody>( true ) is {} body )
 		{
 			// An inventory drop rolls the speed before deviating the holder's facing.
+			ref uint randomState = ref BlamRandom.GameplayState( Scene );
 			float speed = (0.8f + 0.4f * (BlamRandom.Next( ref randomState ) / 65535f)) * 120;
 			var direction = Spread.Deviate( ray.Forward, 0, System.MathF.PI / 8, ref randomState );
 			var toss = (velocity + direction * speed).ClampLength( 4 * 120 );
 			body.Velocity = toss;
-			body.AngularVelocity = DropSpin( toss / 120 );
+			body.AngularVelocity = DropSpin( toss / 120, ref randomState );
 		}
 		return true;
 	}
 
-	Vector3 DropSpin( Vector3 velocity )
+	static Vector3 DropSpin( Vector3 velocity, ref uint randomState )
 	{
 		float speed = velocity.Length;
 		if ( speed < 0.0001f ) speed = BlamRandom.Next( ref randomState ) / 65535f;
@@ -385,6 +386,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		// Project before spread, then apply the inherited speed along each pellet's direction.
 		float inherited = System.MathF.Max( 0, (aim.x * velocity.x + aim.z * velocity.z) + aim.y * velocity.y );
 		var pellets = new Pellet[Ballistics.Pellets];
+		ref uint randomState = ref BlamRandom.GameplayState( Scene );
 		for ( int i = 0; i < pellets.Length; i++ )
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
@@ -716,7 +718,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	TimeUntil meleeEnds;
-	uint randomState = (uint)System.Random.Shared.Next();
 	(double Time, float Damage, GameObject Attacker)? pendingStrike;
 
 	public override bool CanReload() => meleeEnds <= 0 && base.CanReload();
@@ -734,7 +735,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		if ( actions is null ) return;
 		CancelReload();
 		// Halo selects among the shotgun's two strikes using the upper bit of its next random value.
-		bool firstStrike = BlamRandom.Next( ref randomState ) < 32768;
+		bool firstStrike = BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) < 32768;
 		var clip = actions[MeleeAction( firstStrike )];
 		PlayMeleeAnimation( firstStrike );
 		float duration = CooldownSeconds( clip.Frames );
