@@ -104,13 +104,15 @@ partial class MapLoader
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
 				};
 			}
-			if ( target is Hl2.BugbaitSensor )
+			if ( target is Hl2.BugbaitSensor or Hl2.AntlionBurrow )
 			{
-				var listener = input.ToLowerInvariant() switch
+				var listener = (target, input.ToLowerInvariant()) switch
 				{
-					"enable" => nameof( Hl2.BugbaitSensor.StartListening ),
-					"disable" => nameof( Hl2.BugbaitSensor.StopListening ),
-					"toggle" => nameof( Hl2.BugbaitSensor.ToggleListening ),
+					(Hl2.BugbaitSensor, "enable") => nameof( Hl2.BugbaitSensor.StartListening ),
+					(Hl2.BugbaitSensor, "disable") => nameof( Hl2.BugbaitSensor.StopListening ),
+					(Hl2.BugbaitSensor, "toggle") => nameof( Hl2.BugbaitSensor.ToggleListening ),
+					(Hl2.AntlionBurrow, "enablehint") => nameof( Hl2.AntlionBurrow.EnableHint ),
+					(Hl2.AntlionBurrow, "disablehint") => nameof( Hl2.AntlionBurrow.DisableHint ),
 					_ => null
 				};
 				if ( listener is null ) return null;
@@ -118,7 +120,7 @@ partial class MapLoader
 				{
 					InvokeType = Doo.InvokeType.Member,
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
-					Member = $"{typeof( Hl2.BugbaitSensor ).FullName}.{listener}"
+					Member = $"{target.GetType().FullName}.{listener}"
 				};
 			}
 			if ( target is not Door ) return null;

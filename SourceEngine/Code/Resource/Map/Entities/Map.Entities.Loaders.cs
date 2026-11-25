@@ -26,6 +26,7 @@ partial class MapLoader
 			"func_door" => new DoorEntityLoader(),
 			"func_door_rotating" => new RotatingDoorEntityLoader(),
 			"func_button" => new ButtonEntityLoader(),
+			"info_node_hint" => new NodeHintLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
 			"info_projecteddecal" => new ProjectedDecalEntityLoader(),
@@ -73,6 +74,28 @@ partial class MapLoader
 		}
 
 		builder.Finish();
+	}
+
+	private sealed class NodeHintLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			const int antlionBurrowPoint = 400;
+			if ( entity.Integer( "hinttype" ) != antlionBurrowPoint ) return;
+
+			var point = new GameObject( true, entity.Get( "targetname", "info_node_hint" ) )
+			{
+				Parent = builder.World,
+				LocalPosition = entity.Vector( "origin" ),
+				LocalRotation = Rotation.From( entity.Angles )
+			};
+			var burrow = point.AddComponent<Hl2.AntlionBurrow>();
+			burrow.Group = entity.Get( "Group" );
+			burrow.Available = entity.Integer( "StartHintDisabled" ) == 0;
+			builder.RegisterEntityIO( entity, burrow );
+		}
 	}
 
 	private sealed class BugbaitSensorLoader : EntityLoader
