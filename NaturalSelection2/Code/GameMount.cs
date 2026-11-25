@@ -112,16 +112,18 @@ public class GameMount : BaseGameMount
 		Lerk.RegisterSounds( context );
 		Babbler.RegisterSounds( context );
 		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
+		Mac.RegisterSounds( context );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
-			AlienPrefab.Register( context, "Skulk", Skulk.Configure ),
-			AlienPrefab.Register( context, "Fade", Fade.Configure ),
-			AlienPrefab.Register( context, "Gorge", Gorge.Configure ),
-			AlienPrefab.Register( context, "Lerk", Lerk.Configure ),
-			AlienPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
-			AlienPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),
-			AlienPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
+			NpcPrefab.Register( context, "Skulk", Skulk.Configure ),
+			NpcPrefab.Register( context, "Fade", Fade.Configure ),
+			NpcPrefab.Register( context, "Gorge", Gorge.Configure ),
+			NpcPrefab.Register( context, "Lerk", Lerk.Configure ),
+			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine" ),
+			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra" ),
+			NpcPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),
+			NpcPrefab.Register( context, "Onos", ( root, renderer ) => Onos.Configure( root, renderer, this ) )
 		};
 		foreach ( var path in FileSystem.FindFile( "", "*", true ) )
 		{

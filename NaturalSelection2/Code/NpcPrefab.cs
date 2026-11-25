@@ -2,18 +2,18 @@ using System;
 
 namespace NS2;
 
-internal sealed class AlienPrefab( string title, string directory, string tag, Action<GameObject, SkinnedModelRenderer> configure ) : ResourceLoader<GameMount>
+internal sealed class NpcPrefab( string title, string directory, string tag, Action<GameObject, SkinnedModelRenderer> configure ) : ResourceLoader<GameMount>
 {
 	string ModelPath => $"mount://ns2/{directory}.model.vmdl";
 	PrefabFile prefab;
 
-	internal static string Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure, string tag = "ns2_lifeform" )
+	internal static string Register( MountContext context, string title, Action<GameObject, SkinnedModelRenderer> configure, string tag = "ns2_lifeform", string team = "alien" )
 	{
 		var name = title.ToLowerInvariant();
-		var directory = $"ns2/models/alien/{name}/{name}";
+		var directory = $"ns2/models/{team}/{name}/{name}";
 		var graph = $"{directory}.animation_graph";
 		context.Add( ResourceType.AnimationGraph, graph, new AnimationGraphLoader( $"{directory}.model", graph, npcPlayback: true ) );
-		var loader = new AlienPrefab( title, directory, tag, configure );
+		var loader = new NpcPrefab( title, directory, tag, configure );
 		loader.Tags.Add( "npc" );
 		context.Add( ResourceType.PrefabFile, $"entities/npcs/{name}.prefab", loader );
 		return $"{directory}.model";
