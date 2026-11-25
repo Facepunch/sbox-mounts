@@ -37,6 +37,7 @@ sealed class ViewPunch : CameraEffectSystem.BaseEffect
 			if ( _angle.LengthSquared <= 0.001f && _velocity.LengthSquared <= 0.001f )
 			{
 				_angle = 0;
+				_velocity = 0;
 				Stop();
 				break;
 			}
