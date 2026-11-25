@@ -24,9 +24,9 @@ public sealed class ProjectileWeapon : Weapon
 	[Sync( SyncFlags.FromHost )] public GameObject LiveRocket { get; private set; }
 	/// <summary>HL2's launcher guides by default; the SDK's multiplayer rules toggle it with attack2.</summary>
 	[Sync( SyncFlags.FromHost )] public bool Guiding { get; private set; }
-	internal float? WindupDuration { get; set; }
-	internal float ReleaseDelay { get; set; }
-	internal float AttackDuration { get; set; }
+	internal WeaponClips ThrowClips { get; set; }
+	enum ThrowStyle { Overhand, Lob, Roll }
+	ThrowStyle _throwStyle;
 	internal float RedrawDuration { get; set; }
 	internal float? BoltChargeDelay { get; set; }
 	TimeUntil? _boltChargeAt;
@@ -59,11 +59,21 @@ public sealed class ProjectileWeapon : Weapon
 	protected override bool WantsReload() => base.WantsReload() || (AutoReload && AutoReloadDelay > 0
 		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
 
+	bool HasLowThrow => Kind == Projectile.Kinds.Grenade && ThrowClips?.LowWindup is not null
+		&& ThrowClips.Lob.Clip is not null && ThrowClips.Roll.Clip is not null;
+
+	protected override bool WantsPrimaryAttack() => base.WantsPrimaryAttack() && !(HasLowThrow && WantsSecondaryAttack() && CanSecondaryAttack());
+
 	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom ||
-		(Secondary == SecondaryFires.Guide || (Kind == Projectile.Kinds.Bugbait && !_primed && !_redrawPending)) && base.CanSecondaryAttack();
+		(Secondary == SecondaryFires.Guide || (HasLowThrow && CanPrimaryAttack()) || (Kind == Projectile.Kinds.Bugbait && !_primed && !_redrawPending)) && base.CanSecondaryAttack();
 
 	public override void SecondaryAttack()
 	{
+		if ( HasLowThrow )
+		{
+			PrimeThrow( true );
+			return;
+		}
 		if ( Kind == Projectile.Kinds.Bugbait )
 		{
 			if ( _releasePending )
@@ -194,16 +204,9 @@ public sealed class ProjectileWeapon : Weapon
 	public override void PrimaryAttack()
 	{
 		if ( _primed || _releasePending || _redrawPending ) return;
-		if ( AttackDuration > 0 )
+		if ( ThrowClips is not null )
 		{
-			_releaseAttacker = Attacker;
-			ShootEffects();
-			if ( WindupDuration is { } windup )
-			{
-				_primed = true;
-				_releaseAt = windup;
-			}
-			else BeginThrow();
+			PrimeThrow( false );
 			return;
 		}
 		if ( UsesAmmo && HasOwner && !TakePrimaryAmmo( 1 ) )
@@ -216,6 +219,20 @@ public sealed class ProjectileWeapon : Weapon
 		ShootEffects();
 		KickView();
 		Launch( AimRay.Position, AimRay.Forward, Attacker );
+	}
+
+	void PrimeThrow( bool low )
+	{
+		_throwStyle = low ? ThrowStyle.Lob : ThrowStyle.Overhand;
+		_releaseAttacker = Attacker;
+		if ( Kind == Projectile.Kinds.Grenade ) ThrowEffects( low ? ThrowClips.LowWindup : ThrowClips.ThrowWindup );
+		else ShootEffects();
+		if ( (low ? ThrowClips.LowWindupDuration : ThrowClips.WindupDuration) is { } windup )
+		{
+			_primed = true;
+			_releaseAt = windup;
+		}
+		else BeginThrow();
 	}
 
 	protected override void OnUpdate()
@@ -248,7 +265,7 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void OnControl()
 	{
 		base.OnControl();
-		if ( _primed && _releaseAt <= 0 && !Input.Down( "attack1" ) ) BeginThrow();
+		if ( _primed && _releaseAt <= 0 && !Input.Down( _throwStyle == ThrowStyle.Overhand ? "attack1" : "attack2" ) ) BeginThrow();
 	}
 
 	protected override void Think()
@@ -259,18 +276,30 @@ public sealed class ProjectileWeapon : Weapon
 
 	void BeginThrow()
 	{
-		if ( _primed ) ThrowEffects();
+		if ( _throwStyle == ThrowStyle.Lob && Owner?.DuckButton is { Length: > 0 } duck && Input.Down( duck ) )
+			_throwStyle = ThrowStyle.Roll;
+		var release = _throwStyle switch
+		{
+			ThrowStyle.Roll => ThrowClips.Roll,
+			ThrowStyle.Lob => ThrowClips.Lob,
+			_ => ThrowClips.PrimaryThrow
+		};
+		if ( _primed ) ThrowEffects( release.Clip, released: true );
 		_primed = false;
 		_releasePending = true;
-		_releaseAt = ReleaseDelay;
-		_redrawAt = AttackDuration;
-		var delay = Math.Max( PrimaryDelay, AttackDuration + RedrawDuration );
+		_releaseAt = release.Delay;
+		_redrawAt = _throwStyle == ThrowStyle.Overhand ? release.Duration : release.Delay + Hl2.Grenade.RethrowDelay;
+		var delay = Math.Max( PrimaryDelay, (float)_redrawAt + RedrawDuration );
 		if ( Kind == Projectile.Kinds.Bugbait ) SetNextPrimaryFire( delay );
 		else SetNextFire( delay );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
-	void ThrowEffects() => (WeaponModel as ViewModel)?.OnThrow();
+	void ThrowEffects( string clip, bool released = false )
+	{
+		(WeaponModel as ViewModel)?.OnThrow( clip );
+		if ( released && Kind == Projectile.Kinds.Grenade ) PostWeaponEvent( WeaponEvents.Attack );
+	}
 
 	protected override void OnFixedUpdate()
 	{
@@ -286,7 +315,7 @@ public sealed class ProjectileWeapon : Weapon
 			if ( UsesAmmo && IsHeld && !TakePrimaryAmmo( 1 ) ) return;
 			TimeSinceShoot = 0;
 			KickView();
-			Launch( AimRay.Position, AimRay.Forward, attacker );
+			Launch( AimRay.Position, AimRay.Forward, attacker, _throwStyle );
 			_redrawPending = true;
 		}
 		if ( _redrawPending && _redrawAt <= 0 && (!IsLauncher || !HasOwner || IsProxy) ) FinishRedraw();
@@ -300,12 +329,14 @@ public sealed class ProjectileWeapon : Weapon
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void Launch( Vector3 eye, Vector3 forward, GameObject attacker )
+	void Launch( Vector3 eye, Vector3 forward, GameObject attacker, ThrowStyle style = ThrowStyle.Overhand )
 	{
 		var damage = GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid() ? NpcDamage ?? ProjectileDamage : ProjectileDamage;
 		var inherited = Owner?.Velocity ?? Vector3.Zero;
 		var (origin, velocity) = Kind switch
 		{
+			Projectile.Kinds.Grenade when style == ThrowStyle.Roll && Owner.IsValid() => RollLaunch( forward, inherited ),
+			Projectile.Kinds.Grenade when style == ThrowStyle.Lob => (ThrowOrigin( eye, forward, 8, -8 ), inherited + forward * 350 + Vector3.Up * 50),
 			Projectile.Kinds.Grenade => (ThrowOrigin( eye, forward, 8 ), Hl2.Grenade.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2.Bugbait.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.HeGrenade or Projectile.Kinds.Flashbang or Projectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), Css.Rules.ThrowVelocity( forward, inherited )),
@@ -314,6 +345,14 @@ public sealed class ProjectileWeapon : Weapon
 		};
 		var radius = IsLauncher ? damage * 2 : ExplosionRadius;
 		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, radius, ProjectileModel );
+		if ( projectile is Hl2.Grenade grenade && style != ThrowStyle.Overhand )
+		{
+			var roll = style == ThrowStyle.Roll;
+			grenade.WorldRotation = roll ? Rotation.From( 0, Rotation.LookAt( forward ).Yaw(), -90 ) : Rotation.Identity;
+			grenade.GetComponent<Rigidbody>().AngularVelocity = grenade.WorldRotation * (roll ? new Vector3( 0, 0, 720 )
+				: new Vector3( 200, Game.Random.Int( -600, 600 ), 0 )) * (MathF.PI / 180);
+			ThrowSound( roll ? "special1" : "double_shot" );
+		}
 		if ( projectile is Hl2.Rocket rocket )
 		{
 			rocket.ClearLaunch = !Scene.Trace.Ray( eye, eye + forward * 128 )
@@ -322,13 +361,33 @@ public sealed class ProjectileWeapon : Weapon
 		}
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ThrowSound( string role )
+	{
+		if ( Sounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
+	}
+
+	(Vector3 Origin, Vector3 Velocity) RollLaunch( Vector3 forward, Vector3 inherited )
+	{
+		var feet = Owner.WorldPosition + Vector3.Up * 4;
+		var facing = forward.WithZ( 0 ).Normal;
+		var floor = Scene.Trace.Ray( feet, feet + Vector3.Down * 16 ).IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "trigger" ).Run();
+		if ( floor.Hit ) facing -= floor.Normal * facing.Dot( floor.Normal );
+		var center = Owner.WorldPosition + Vector3.Up * (Owner.CurrentHeight * 0.5f);
+		return (CheckThrowPosition( center, feet + facing * 18 ), inherited + facing * 700);
+	}
+
 	/// <summary>
 	/// weapon_frag and weapon_bugbait release 18 units ahead of the eye and a little to the right,
 	/// pulled back along the line when that would start inside a wall (CheckThrowPosition).
 	/// </summary>
-	Vector3 ThrowOrigin( Vector3 eye, Vector3 forward, float right )
+	Vector3 ThrowOrigin( Vector3 eye, Vector3 forward, float right, float up = 0 )
 	{
-		var target = eye + forward * 18 + Rotation.LookAt( forward ).Right * right;
+		return CheckThrowPosition( eye, eye + forward * 18 + Rotation.LookAt( forward ).Right * right + Vector3.Up * up );
+	}
+
+	Vector3 CheckThrowPosition( Vector3 eye, Vector3 target )
+	{
 		var tr = Scene.Trace.Box( BBox.FromPositionAndSize( Vector3.Zero, 12 ), eye, target )
 			.IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "trigger", "ragdoll", "projectile" ).Run();
 		return tr.Hit ? tr.EndPosition : target;

@@ -221,9 +221,7 @@ static class WeaponSetup
 		{
 			if ( projectile.Kind == Projectile.Kinds.Bugbait && clips.SecondaryFire is not null )
 				projectile.SecondaryDelay = Duration( clips.SecondaryFire );
-			projectile.WindupDuration = clips.WindupDuration;
-			projectile.ReleaseDelay = clips.ReleaseDelay;
-			projectile.AttackDuration = clips.ThrowDuration;
+			projectile.ThrowClips = clips;
 			// Thrown weapons draw a new item rather than swapping a magazine.
 			weapon.ReloadTime = draw;
 			projectile.RedrawDuration = weapon.ReloadTime;

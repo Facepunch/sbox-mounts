@@ -214,6 +214,7 @@ public sealed class Grenade : Projectile
 	public const float Fuse = 3;
 	const float HalfSize = 4;
 	public const float ThrowSpeed = 1200;
+	internal const float RethrowDelay = 0.5f;
 
 	/// <summary>CWeaponFrag::ThrowGrenade: forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + (forward + Vector3.Up * 0.1f) * ThrowSpeed;

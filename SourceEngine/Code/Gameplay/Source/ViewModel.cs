@@ -134,7 +134,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	static (string Name, bool Loop)[] Choices( WeaponClips clips ) => [(clips.Idle, true), (clips.EmptyIdle, true), (clips.Draw, false), (clips.EmptyDraw, false), (clips.Fire, false),
 		(clips.SecondaryFire, false), (clips.DryFire, false), (clips.LastShot, false), (clips.Reload, false), (clips.ReloadInsert, false),
-		(clips.ReloadEnd, false), (clips.Pump, false), (clips.ThrowWindup, false), (clips.SecondaryWindup, false),
+		(clips.ReloadEnd, false), (clips.Pump, false), (clips.ThrowWindup, false), (clips.LowWindup, false), (clips.Lob.Clip, false), (clips.SecondaryWindup, false),
 		(clips.AttachSilencer, false), (clips.DetachSilencer, false), .. clips.Recoil.Select( name => (name, false) )];
 
 	/// <summary>Silenced weapons play their *_SILENCED clips.</summary>
@@ -354,13 +354,19 @@ public sealed class ViewModel : BaseWeaponModel
 			_reloading = false;
 			Play( finish );
 		}
+		else if ( _clips.Lob.Clip is not null && (_animation.Current == _clips.Lob.Clip || _animation.Current == _clips.Roll.Clip) )
+		{
+			var release = _animation.Current == _clips.Lob.Clip ? _clips.Lob : _clips.Roll;
+			if ( _animation.Elapsed >= release.Delay + Hl2.Grenade.RethrowDelay )
+				Play( _weapon.HasPrimaryAmmo() ? _clips.Draw : _clips.Idle, redraw: true );
+		}
 		else if ( !_reloading && LauncherIdleTransition() is { } transition ) Play( transition );
 		// Bugbait redraws at normal speed but schedules idle using its deploy time.
 		else if ( _weapon is ProjectileWeapon { Kind: Projectile.Kinds.Bugbait } bait && _animation.Current == _clips.Draw && _animation.Elapsed >= bait.DeployTime )
 			Play( IdleClip );
 		// The empty draw holds its last frame until the original sequence duration elapses.
 		else if ( !_reloading && _animation.Finished && (_animation.Current != _clips.EmptyDraw || _animation.Elapsed >= _animation.Duration)
-			&& _animation.Current != IdleClip && _animation.Current != _clips.LoweredIdle && _animation.Current != _clips.ThrowWindup )
+			&& _animation.Current != IdleClip && _animation.Current != _clips.LoweredIdle && _animation.Current != _clips.ThrowWindup && _animation.Current != _clips.LowWindup )
 		{
 			if ( _clips.Throws && _animation.Current == _clips.Fire )
 			{
@@ -511,7 +517,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	public void OnSqueeze() => Play( _clips?.SecondaryFire );
 
-	public void OnThrow() => Play( _clips?.Fire );
+	public void OnThrow( string clip ) => Play( clip );
 
 	void BeginAttack()
 	{
