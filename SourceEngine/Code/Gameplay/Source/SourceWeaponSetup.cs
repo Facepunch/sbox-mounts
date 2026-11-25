@@ -127,6 +127,11 @@ static class SourceWeaponSetup
 		if ( data.Weight is { } weight ) weapon.Value = weight;
 		if ( data.ClipSize > 0 && weapon.UsesAmmo ) weapon.ClipMaxSize = data.ClipSize;
 		if ( data.PrimaryAmmoResource is { } primary ) weapon.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( primary );
+		if ( data is { ClipSize: -1, DefaultClip: >= 0 } && weapon.UsesAmmo && weapon.PrimaryAmmoType is not null )
+		{
+			weapon.UsesClips = false;
+			weapon.StartingAmmo = data.DefaultClip.Value;
+		}
 		if ( data.SecondaryAmmoResource is { } secondary ) weapon.SecondaryAmmoType = GameResource.Load<BaseAmmoResource>( secondary );
 		if ( weapon.DisplayIcon is null && data.Icon is { } icon && Sandbox.Mounting.Directory.Get( SourceMount.Of( icon ) )?.GetByPath( icon ) is not null )
 			weapon.DisplayIcon = Texture.Load( icon );

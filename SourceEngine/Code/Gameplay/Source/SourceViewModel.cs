@@ -329,10 +329,13 @@ public sealed class SourceViewModel : BaseWeaponModel
 		{
 			if ( _clips.Throws && _animation.Current == _clips.Fire )
 			{
-				// Ammo-bearing throws redraw through the authoritative reload. Starting
+				// Magazine-fed throws redraw through the authoritative reload. Starting
 				// Draw here as well would restart it on the following physics tick.
 				var weapon = GetComponentInParent<BaseCombatWeapon>();
-				if ( !weapon.IsValid() || !weapon.UsesAmmo ) Play( _clips.Draw );
+				if ( !weapon.IsValid() || !weapon.UsesPrimaryClip )
+				{
+					Play( weapon.IsValid() && !weapon.HasPrimaryAmmo() ? _clips.Idle : _clips.Draw );
+				};
 			}
 			else if ( _pumpAfterShot && !string.IsNullOrEmpty( _clips.Pump ) )
 			{

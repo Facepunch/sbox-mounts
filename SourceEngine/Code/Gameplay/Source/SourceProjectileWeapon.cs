@@ -76,7 +76,21 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	{
 		LiveRocket = null;
 		if ( !IsValid ) return;
-		if ( IsHeld && AutoReload && CanReload() ) Reload();
+		if ( !IsHeld || !Active || !AutoReload ) return;
+		if ( UsesPrimaryClip )
+		{
+			if ( CanReload() ) Reload();
+		}
+		else if ( HasPrimaryAmmo() ) ReloadLauncher();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ReloadLauncher()
+	{
+		SetNextFire( ReloadTime );
+		_redrawPending = true;
+		_redrawAt = ReloadTime;
+		OnReloadStarted();
 	}
 
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
@@ -161,7 +175,8 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 		if ( _redrawPending && _redrawAt <= 0 )
 		{
 			_redrawPending = false;
-			if ( IsHeld && AutoReload && CanReload() ) Reload();
+			if ( IsLauncher && !UsesPrimaryClip ) OnReloadFinished();
+			else if ( IsHeld && AutoReload && CanReload() ) Reload();
 		}
 	}
 
