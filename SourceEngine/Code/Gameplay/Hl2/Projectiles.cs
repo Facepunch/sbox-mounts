@@ -1,5 +1,6 @@
 using System;
 using Sandbox.Physics;
+using Sandbox.Npcs;
 
 namespace Source1.Hl2;
 
@@ -66,7 +67,13 @@ public sealed class CrossbowBolt : Projectile
 	}
 
 	// Source scales melee impulse for bolts to move 75 kg by 4 units/s per damage point at 70% strength.
-	bool DamageTarget( SceneTraceResult tr ) => DamageVictim( tr, "bullet", Damage * 75 * 4 * 0.7f, hitboxTags: true );
+	bool DamageTarget( SceneTraceResult tr )
+	{
+		TagSet tags = ["nevergib"];
+		if ( !Npcs.IsPlayer( Attacker ) || tr.GameObject?.GetComponentInParent<BaseNpc>() is null )
+			tags.Add( DamageTags.Bullet );
+		return DamageVictim( tr, tags, Damage * 75 * 4 * 0.7f, hitboxTags: true );
+	}
 
 	protected override void Hit( SceneTraceResult tr )
 	{
@@ -307,7 +314,7 @@ public sealed class EnergyBall : Projectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
-		var damaged = DamageVictim( tr, "energy" );
+		var damaged = DamageVictim( tr, ["energy"] );
 		PlayImpact( tr, damaged ? "NPC_CombineBall.KillImpact" : "NPC_CombineBall.Impact", impactEffect: false );
 		BounceEffect( tr.HitPosition, tr.Normal, MountName );
 		Reflect( tr, 1 );

@@ -215,13 +215,13 @@ public abstract class Projectile : Component
 		WorldPosition += tr.Normal * TraceRadius;
 	}
 
-	protected bool DamageVictim( SceneTraceResult tr, string tag, float impulse = 0, bool hitboxTags = false )
+	protected bool DamageVictim( SceneTraceResult tr, TagSet tags, float impulse = 0, bool hitboxTags = false )
 	{
 		if ( tr.GameObject?.GetComponentInParent<Component.IDamageable>() is not { } victim ) return false;
 		var damage = Damage;
-		if ( tag == "bullet" && victim is Prop prop && prop.Model?.GetData<PropDamageModifiers>() is { } modifiers )
+		if ( tags.Contains( DamageTags.Bullet ) && victim is Prop prop && prop.Model?.GetData<PropDamageModifiers>() is { } modifiers )
 			damage = MathF.Truncate( damage * modifiers.Bullet );
-		BaseCombatWeapon.ShootBullet( tr, damage, impulse, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, [tag], hitboxTags );
+		BaseCombatWeapon.ShootBullet( tr, damage, impulse, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, tags, hitboxTags );
 		return true;
 	}
 

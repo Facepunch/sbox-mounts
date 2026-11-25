@@ -212,7 +212,7 @@ public sealed class HunterFlechette : Projectile
 	protected override void Hit( SceneTraceResult tr )
 	{
 		var character = tr.GameObject?.Root.GetComponent<BaseNpc>().IsValid() == true || Npcs.IsPlayer( tr.GameObject?.Root );
-		var damaged = DamageVictim( tr, "bullet" );
+		var damaged = DamageVictim( tr, [DamageTags.Bullet] );
 		PlayImpact( tr, damaged ? "NPC_Hunter.FlechetteHitBody" : "NPC_Hunter.FlechetteHitWorld", impactEffect: !damaged );
 		if ( character )
 		{
