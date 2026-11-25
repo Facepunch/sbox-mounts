@@ -906,11 +906,13 @@ public sealed class ShotgunViewModel : ShotgunModel
 			SelectAction( "idle" );
 		}
 		if ( clip is null ) return;
+		// The magazine advances from reload_enter on its authored 30 Hz clock.
+		bool enterReload = entering && reload;
+		if ( enterReload ) tick = 1f / 30;
 		float framesPerTick = tick * 30 * Renderer.PlaybackRate;
 		if ( framesPerTick <= 0 ) return;
 		// Native traversal excludes the end frame of each tick. A one-shot returns to idle one tick early.
 		float endTick = System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick );
-		bool enterReload = entering && reload;
 		float lastTick = enterReload ? endTick : endTick - 1;
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsed / tick ), lastTick );
 		float frame = sampleTick * framesPerTick;
