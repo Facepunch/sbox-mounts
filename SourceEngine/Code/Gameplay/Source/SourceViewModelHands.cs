@@ -447,7 +447,7 @@ public sealed class SourceViewModelHands : Component
 			// unrecovered finger segment at its next known contact, instead of
 			// leaving it in the replacement mesh's open-hand bind orientation.
 			var knuckle = _aimChild[i];
-			if ( knuckle >= 0 && _mapped[knuckle] is { } contact && _contacts[knuckle] )
+			if ( !_contacts[i] && knuckle >= 0 && _mapped[knuckle] is { } contact && _contacts[knuckle] )
 			{
 				var from = pose.Rotation * _local[knuckle].Position;
 				var to = contact.Position - pose.Position;
