@@ -13,6 +13,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
+	internal static BaseAmmoResource LoadShells() => GameResource.Load<BaseAmmoResource>( $"mount://{Halo2Mount.MountIdent}/{AmmoPath}" );
 	int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
 	int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
 	int Short( int offset ) => (short)map.ReadInt32( offset );
@@ -403,7 +404,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			float moveAcceleration = Float( Header + 0x2e0 ), moveSpeed = Float( Header + 0x2e4 );
 			if ( moveAcceleration != 0 ) gun.MovementAcceleration = moveAcceleration;
 			if ( moveSpeed != 0 ) gun.MovementSpeed = moveSpeed;
-			gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
+			gun.PrimaryAmmoType = LoadShells();
 			gun.ClipMaxSize = Short( magazine + 0xa );
 			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
 			gun.PrimaryAutomatic = Short( Block( Header + 0x2c8 ) + 6 ) == 0;

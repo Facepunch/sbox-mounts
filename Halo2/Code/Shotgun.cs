@@ -50,8 +50,11 @@ public sealed class Shotgun : Weapon
 	{
 		await base.OnLoad();
 		await Sandbox.Mounting.Directory.Mount( Halo2Mount.MountIdent );
-		if ( IsValid ) BindHudTextures();
+		if ( !IsValid ) return;
+		if ( !PrimaryAmmoType.IsValid() ) PrimaryAmmoType = ShotgunLoader.LoadShells();
+		BindHudTextures();
 	}
+
 	protected override void CreateViewModel()
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
