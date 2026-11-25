@@ -56,7 +56,8 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> onTag;
 	TimeSince age;
-	TimeUntil repath, fireUntil;
+	TimeUntil repath, fireUntil, nextJuke;
+	int strafeSide = 1;
 	GameObject firingTarget;
 	Rotation aim;
 	bool attack, closePlayer, inRailRange;
@@ -123,7 +124,8 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
 			distance = (EyePosition.Distance( position ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f) / Scale;
 		}
-		closePlayer = distance < 10 && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
+		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
+		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
 		bool aimed = visible && distance < 45 && acquisition.Ready( enemy, CalculateAimPoint( enemy ) - EyePosition, aim );
 		if ( aimed )
@@ -136,6 +138,20 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		repath = 0.2f;
 		if ( goal is { } destination && (!visible || distance > 10) )
 			Movement.MoveTo( destination, Scale, faceTarget: visible ? enemy : null );
+		else if ( visible && player )
+		{
+			if ( nextJuke <= 0 )
+			{
+				strafeSide = -strafeSide;
+				nextJuke = Random.Shared.Float( 0.35f, 1 );
+			}
+			// Spark tests a step beside the eye, so an ordinary flat floor is too far below it.
+			var side = Vector3.Cross( EyePosition - CalculateAimPoint( enemy ), Vector3.Up ).Normal;
+			var step = EyePosition + side * (strafeSide * 0.5f * Scale);
+			if ( side.LengthSquared > 0 && Scene.NavMesh.GetClosestPoint( step ) is { } point && point.Distance( step ) < 0.2f * Scale )
+				Movement.MoveTo( point, 1, faceTarget: enemy );
+			else Movement.Stop();
+		}
 		else Movement.Stop();
 	}
 
