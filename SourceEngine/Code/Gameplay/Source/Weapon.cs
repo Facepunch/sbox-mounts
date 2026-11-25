@@ -108,6 +108,8 @@ public abstract class Weapon : BaseCombatWeapon
 	internal GameObject ResolveLaunchAttacker( GameObject attacker ) =>
 		Rpc.Caller == Connection.Local && attacker.IsValid() ? attacker : Attacker;
 
+	[Sync( SyncFlags.FromHost )] public bool WasDropped { get; private set; }
+
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		WeaponSetup.ConfigureAmmo( this );
@@ -121,9 +123,10 @@ public abstract class Weapon : BaseCombatWeapon
 			inventory.GiveAmmo( PrimaryAmmoType, Clip1 - PrimaryClipSize );
 			Clip1 = PrimaryClipSize;
 		}
-		if ( UsesAmmo && !UsesClips && PrimaryAmmoType is not null && StartingAmmo > 0 && inventory.GetAmmo( PrimaryAmmoType ) != int.MaxValue )
+		if ( UsesAmmo && !UsesClips && PrimaryAmmoType is not null && WeaponSetup.WeaponData( this ) is { ClipSize: -1, DefaultClip: >= 0 } )
 		{
-			inventory.GiveAmmo( PrimaryAmmoType, StartingAmmo );
+			// A dropped weapon can donate ammo as a duplicate, but equipping it gives no reserve.
+			if ( !WasDropped ) inventory.GiveAmmo( PrimaryAmmoType, StartingAmmo );
 			StartingAmmo = 0;
 		}
 		base.OnAdded( inventory );
@@ -274,6 +277,7 @@ public abstract class Weapon : BaseCombatWeapon
 			velocity = holder.Velocity + eye.Forward * 200f + Vector3.Up * 100f;
 		}
 
+		WasDropped = true;
 		Network.DropOwnership();
 		GameObject.SetParent( null, true );
 		WorldScale = PrefabWorldScale();
