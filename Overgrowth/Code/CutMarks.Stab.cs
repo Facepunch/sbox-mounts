@@ -8,6 +8,7 @@ public sealed partial class CutMarks
 	internal void DrawStab( Vector4[] corners )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		WakeDrying();
 		DrawProjection( corners, mount.StabDecal, false );
 	}
 

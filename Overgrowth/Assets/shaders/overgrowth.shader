@@ -66,6 +66,7 @@ PS
 	Texture2D g_tTranslucency < Channel( RGBA, Box( TranslucencyMap ), Srgb ); OutputFormat( DXT5 ); SrgbRead( true ); >;
 	Texture2D g_tCutMask < Attribute( "CutMask" ); SrgbRead( false ); >;
 	bool g_bHasCuts < Attribute( "HasCuts" ); Default( 0 ); >;
+	float g_flCutDryTick < Attribute( "CutDryTick" ); Default( 0 ); >;
 	float3 g_vCutTint < Attribute( "CutTint" ); Default3( 0.4, 0, 0 ); >;
 	float g_flKind < Default( 0 ); >;
 	float g_flTangentSpace < Default( 0 ); >;
@@ -204,8 +205,7 @@ PS
 		float itemBlood = 0;
 		if ( g_bHasCuts )
 		{
-			float2 mask = g_tCutMask.SampleLevel( g_sClamp, uv, 0 ).rg;
-			float amount = saturate( mask.r * 5.0 );
+			float amount = saturate( g_tCutMask.SampleLevel( g_sClamp, uv, 0 ).r * 5.0 );
 			if ( g_flKind == 2 )
 			{
 				itemBlood = amount;
@@ -214,7 +214,15 @@ PS
 			}
 			else
 			{
-				float wet = lerp( max( 0.0, mask.g * 1.4 - 0.4 ), 0.4, color.a );
+				// Dry each texel before filtering so fresh cuts cannot rewet adjacent old ones.
+				uint width, height;
+				g_tCutMask.GetDimensions( width, height );
+				float2 blend = frac( uv * float2( width, height ) - 0.5 );
+				float4 expiry = round( g_tCutMask.GatherGreen( g_sClamp, uv ) * 255.0 )
+					+ round( g_tCutMask.GatherBlue( g_sClamp, uv ) * 255.0 ) * 256.0;
+				float4 moisture = saturate( (expiry - g_flCutDryTick) / 255.0 );
+				float filtered = lerp( lerp( moisture.w, moisture.z, blend.x ), lerp( moisture.x, moisture.y, blend.x ), blend.y );
+				float wet = lerp( max( 0.0, filtered * 1.4 - 0.4 ), 0.4, color.a );
 				float4 oldBlood = float4( g_vCutTint * (0.8 * wet + 0.2), wet );
 				float4 newBlood = float4( color.rgb * g_vCutTint, wet * 0.5 + 0.5 );
 				color = lerp( color, lerp( oldBlood, newBlood, (1.0 - wet) * 0.5 ), amount );

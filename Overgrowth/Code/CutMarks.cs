@@ -16,6 +16,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void DrawLines( Vector4[] lines, int seed )
 	{
+		WakeDrying();
 		PaintLines( lines, seed );
 	}
 
@@ -23,6 +24,9 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	{
 		var renderer = PrepareBitmap();
 		var size = new Vector2( bitmap.Width, bitmap.Height );
+		// Store when each wet texel will dry, in units of six native physics frames.
+		int expiry = DryTick + 253;
+		bitmap.SetPen( new Color32( 255, (byte)(expiry & 255), (byte)(expiry >> 8), 255 ), 1f );
 		var random = new Random( seed );
 		foreach ( var line in lines )
 		{
@@ -43,14 +47,17 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 			var color = renderer.Model.Materials[0].GetTexture( "g_tColor" );
 			bitmap = new Bitmap( Math.Max( 1, color.Width / 4 ), Math.Max( 1, color.Height / 4 ) );
 			bitmap.Clear( Color.Transparent );
-			ConfigurePen();
+			bitmap.SetAntialias( false );
 		}
 		return renderer;
 	}
 
 	void INetworkSnapshot.WriteSnapshot( ref ByteStream writer )
 	{
-		if ( bitmap is not null ) writer.WriteArray( bitmap.ToPng() );
+		if ( bitmap is null ) return;
+		writer.WriteArray( bitmap.ToPng() );
+		writer.Write( DrySeconds );
+		writer.Write( Math.Max( 0d, dryEnd - Time.NowDouble ) );
 	}
 
 	void INetworkSnapshot.ReadSnapshot( ref ByteStream reader )
@@ -58,8 +65,11 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		if ( reader.ReadRemaining == 0 ) return;
 		bitmap?.Dispose();
 		bitmap = Bitmap.CreateFromBytes( reader.ReadArray<byte>() );
+		dryElapsed = reader.ReadRemaining > 0 ? reader.Read<double>() : 0d;
+		dryStart = Time.NowDouble;
+		dryEnd = dryStart + (reader.ReadRemaining > 0 ? reader.Read<double>() : 0d);
 		if ( Active && GetComponent<ModelRenderer>() is { } renderer ) Upload( renderer );
-		ConfigurePen();
+		bitmap.SetAntialias( false );
 	}
 
 	protected override void OnEnabled()
@@ -67,10 +77,40 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		if ( bitmap is not null && GetComponent<ModelRenderer>() is { } renderer ) Upload( renderer );
 	}
 
-	void ConfigurePen()
+	double dryElapsed, dryStart, dryEnd;
+	int displayedDryTick = -1;
+	double DrySeconds => dryElapsed + Math.Clamp( Time.NowDouble - dryStart, 0d, dryEnd - dryStart );
+	int DryTick => (int)Math.Ceiling( DrySeconds * 20d );
+
+	void WakeDrying()
 	{
-		bitmap.SetAntialias( false );
-		bitmap.SetPen( new Color( 1f, 253f / 255f, 0f ), 1f );
+		dryElapsed = DrySeconds;
+		dryStart = Time.NowDouble;
+		dryEnd = dryStart + 5d;
+		// Rebase before the two-byte expiry overflows after 50 minutes of active drying.
+		if ( dryElapsed < 3000d ) return;
+		dryElapsed -= 3000d;
+		if ( bitmap is not null )
+		{
+			for ( int y = 0; y < bitmap.Height; y++ )
+			for ( int x = 0; x < bitmap.Width; x++ )
+			{
+				var pixel = bitmap.GetPixel( x, y ).ToColor32();
+				int expiry = (pixel.b << 8) + pixel.g;
+				if ( expiry == 0 ) continue;
+				expiry = Math.Max( 0, expiry - 60000 );
+				pixel.g = (byte)(expiry & 255);
+				pixel.b = (byte)(expiry >> 8);
+				bitmap.SetPixel( x, y, pixel );
+			}
+			Upload( GetComponent<ModelRenderer>() );
+		}
+	}
+
+	void SetDryTick( ModelRenderer renderer )
+	{
+		displayedDryTick = DryTick;
+		renderer.Attributes.Set( "CutDryTick", (float)displayedDryTick );
 	}
 
 	void Upload( ModelRenderer renderer )
@@ -79,6 +119,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		if ( texture is null ) texture = bitmap.ToTexture( false );
 		else texture.Update( bitmap );
 		renderer.Attributes.Set( "CutMask", texture );
+		SetDryTick( renderer );
 		UpdateAppearance( renderer );
 	}
 
@@ -102,6 +143,9 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		next.drips.AddRange( drips );
 		drips.Clear();
 		next.dripClock = dripClock;
+		next.dryElapsed = dryElapsed;
+		next.dryStart = dryStart;
+		next.dryEnd = dryEnd;
 		next.bitmap = bitmap;
 		next.texture = texture;
 		next.Upload( corpse.GetComponent<ModelRenderer>() );

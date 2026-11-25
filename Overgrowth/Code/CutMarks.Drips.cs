@@ -11,6 +11,7 @@ public sealed partial class CutMarks
 	{
 		var renderer = GetComponent<SkinnedModelRenderer>();
 		if ( CharacterLoader.FromModel( renderer.Model )?.Surface is not { } surface ) return;
+		WakeDrying();
 		var posed = surface.Pose( renderer );
 		if ( posed.Length > 0 && surface.NearestDrip( posed, point ) is { } drip )
 			drips.Add( drip );
@@ -18,12 +19,14 @@ public sealed partial class CutMarks
 
 	internal void AddHeadDrip( CharacterLoader character, Vector3 direction )
 	{
+		WakeDrying();
 		if ( character.InitialChainCenter( "head", 1 ) is { } origin && character.Surface.DirectedDrip( origin, direction ) is { } drip )
 			drips.Add( drip );
 	}
 
 	protected override void OnUpdate()
 	{
+		if ( texture is not null && DryTick != displayedDryTick ) SetDryTick( GetComponent<ModelRenderer>() );
 		if ( drips.Count == 0 ) return;
 		const float step = 4f / 120f;
 		dripClock += Time.Delta;
