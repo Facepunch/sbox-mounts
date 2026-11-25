@@ -188,13 +188,15 @@ public sealed partial class WeaponWorldModel
 		var upper = Rotation.LookAt( elbow - _rightShoulder, hinge ) * _upperInBend;
 		var lower = Rotation.LookAt( _rightShoulder + along * distance - elbow, hinge ) * _lowerInBend;
 
-		ReadOnlySpan<Rotation> parents = [_clavicle, upper, lower];
-		ReadOnlySpan<Rotation> bones = [upper, lower, hand.Rotation];
-		for ( var i = 0; i < _arm.Length; i++ )
-		{
-			_arm[i].Flags |= GameObjectFlags.ProceduralBone;
-			_arm[i].LocalTransform = new Transform( _armOffsets[i], (parents[i].Inverse * bones[i]).Normal );
-		}
+		SetArmBoneRotation( 0, _clavicle, upper );
+		SetArmBoneRotation( 1, upper, lower );
+		SetArmBoneRotation( 2, lower, hand.Rotation );
+	}
+
+	void SetArmBoneRotation( int index, Rotation parent, Rotation bone )
+	{
+		_arm[index].Flags |= GameObjectFlags.ProceduralBone;
+		_arm[index].LocalTransform = new Transform( _armOffsets[index], (parent.Inverse * bone).Normal );
 	}
 
 	/// <summary>
