@@ -85,7 +85,7 @@ public partial class ModelLoader
 		{
 			// Additive clips store displacements from the bind pose. Stretch the full joint offset.
 			var origin = additive ? source.LocalTransform.Position : default;
-			pose.Position = System.Numerics.Vector3.Transform( origin + pose.Position, inherited ) - origin;
+			pose.Position = (Vector3)System.Numerics.Vector3.Transform( origin + pose.Position, inherited ) - origin;
 			if ( !source.HasChildren ) return;
 			var rotation = Matrix4x4.CreateFromQuaternion( additive ? source.LocalTransform.Rotation * pose.Rotation : pose.Rotation );
 			stretch *= rotation * inherited * Matrix4x4.Transpose( rotation );
