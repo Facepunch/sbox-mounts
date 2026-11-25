@@ -11,11 +11,15 @@ public partial class ModelLoader
 		if ( sequence < 0 || to <= from ) return;
 		var source = AnimationSource().Source;
 		ref var seq = ref source.Sequences[sequence];
-		bool loop = seq.Duration > 0 && (seq.Looping ??= Loops( seq.AnimationNodeIndex ));
-		float start = loop ? from % seq.Duration : from;
-		float end = loop ? to % seq.Duration : to;
-		if ( seq.Duration > 0 && start <= seq.Duration && (end > seq.Duration || (end <= start && end > 0)) ) emit( "end" );
-		if ( seq.Duration > 0 && end > 0 && (start <= 0 || end <= start) ) emit( "start" );
+		bool loop = seq.Looping ??= Loops( seq.AnimationNodeIndex );
+		// A zero-length non-looping clip crosses both boundaries on its first update.
+		if ( !loop || seq.Duration > 0 )
+		{
+			float start = loop ? from % seq.Duration : from;
+			float end = loop ? to % seq.Duration : to;
+			if ( start <= seq.Duration && (end > seq.Duration || (end <= start && end > 0)) ) emit( "end" );
+			if ( end > 0 && (start <= 0 || end <= start) ) emit( "start" );
+		}
 
 		tags.Clear();
 		Visit( seq.AnimationNodeIndex );
