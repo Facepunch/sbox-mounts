@@ -251,9 +251,17 @@ public sealed partial class RabbitGuard
 			// UpdateLedge applies its height spring and forward input once before ghost movement.
 			// The reach animation suppresses the forward input while the height spring stays active.
 			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
-			ClimbEntryVelocity = (gravity * ClimbStep + climbInitialHeightOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
+			float springOffset = LedgeHeight - 42f - LedgeGrabOrigin.z;
+			ClimbEntryVelocity = (gravity * ClimbStep + springOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
 			const float ledgeMoveSpeed = 10f;
 			if ( LedgeAnimation == LedgeHang ) ClimbEntryVelocity += 40f * (70f * ledgeMoveSpeed / 120f) * ClimbStep * ledgeMoveSpeed;
+			if ( ClimbEntryVelocity >= (3f + 4f * 0.25f) * 40f )
+			{
+				WorldPosition = WorldPosition.WithZ( LedgeHeight + LegRadius * 0.7f - LegRadius ) + climbDirection * (0.7f * 40f);
+				EndLedge();
+				body.Velocity = Vector3.Zero;
+				return true;
+			}
 			climbTravelTick = 0;
 			climbPreviousTravel = climbNextTravel = default;
 			LedgeAnimation = ClimbUp;
