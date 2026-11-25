@@ -16,7 +16,17 @@ public sealed partial class RabbitGuard
 		return severe ? Wounded : HalfWounded;
 	}
 	int initialKnockoutShield;
-	class BloodDamage : DamageInfo;
+	class BloodDamage : DamageInfo
+	{
+		internal float HealthBeforeHit { get; set; }
+	}
+	sealed class MeleeCut : BloodDamage
+	{
+		internal float SharpDamage { get; init; }
+		internal bool AwakeAtImpact { get; init; }
+		internal bool AppliesImpact { get; init; }
+		internal (Vector3 Impulse, Vector3 Line) Contact { get; set; }
+	}
 
 	readonly List<float> painStarts = new();
 
@@ -44,14 +54,16 @@ public sealed partial class RabbitGuard
 
 	// BaseNpc has already subtracted the accepted hit. Apply TakeBloodDamage's
 	// separate blood, permanent and temporary health changes after damage listeners.
-	void ApplyBloodLoss( float amount )
+	void ApplyBloodLoss( float amount, BloodDamage damage )
 	{
-		float permanent = Health + amount;
+		// BaseNpc clamps Health at zero when a cut exceeds the remaining permanent health.
+		float permanent = Health > 0f ? Health + amount : damage.HealthBeforeHit;
 		float temporary = permanent - recoverableDamage;
 		BloodLost += amount;
 		float blood = MaxHealth - BloodLost;
 		Health = permanent > blood ? permanent - 0.5f * amount : permanent;
 		recoverableDamage = Math.Max( 0f, Health - temporary );
+		if ( damage is MeleeCut cut ) cut.Contact = (cut.Contact.Impulse * StrikeForceScale, cut.Contact.Line);
 		if ( blood <= 0f && !Unconscious ) Health = 0f;
 	}
 
@@ -63,10 +75,18 @@ public sealed partial class RabbitGuard
 		var victim = target.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var weapon = PrimaryItem.IsValid() ? PrimaryItem.GameObject : GameObject;
+		var contact = !parried && defender.IsValid() ? StrikeContact( direction ) : default;
+		bool awakeAtImpact = defender.IsValid() && !defender.Unconscious;
+		bool appliesImpact = !parried;
 		void Cut( float amount, bool allowHeavy = false )
 		{
 			if ( !target.IsValid() || amount <= 0f ) return;
-			var damage = new BloodDamage { Damage = amount * 100f, Origin = CharacterCenter( GameObject ), Position = position, Attacker = GameObject, Weapon = weapon };
+			var damage = new MeleeCut
+			{
+				Damage = amount * 100f, SharpDamage = sharp, AwakeAtImpact = awakeAtImpact,
+				AppliesImpact = appliesImpact, Contact = contact, Origin = CharacterCenter( GameObject ),
+				Position = position, Attacker = GameObject, Weapon = weapon
+			};
 			damage.Tags.Add( "slash" );
 			damage.Tags.Add( "nevergib" );
 			if ( strike.LightStab is { } light && defender.IsValid() && PrimaryItem.IsValid() )
@@ -120,13 +140,16 @@ public sealed partial class RabbitGuard
 			}
 		}
 
+		// Later flesh cuts occur after the impact and must not impart the same impulse twice.
+		contact = default;
+		appliesImpact = false;
 		if ( defender.IsValid() )
 		{
 			if ( !parried )
 			{
 				if ( defender.Health > 0f && (defender.Unconscious || defender.blockHealth <= 0f) )
 				{
-					ApplyStrikeImpulse( clip, position, direction );
+					ApplyStrikeImpulse( clip, position, direction, sharp );
 					if ( defender.IsValid() && sharp < 0.5f ) defender.limpStun = 0f;
 				}
 				else defender.KnockoutShield = Math.Max( 0, defender.KnockoutShield - 1 );

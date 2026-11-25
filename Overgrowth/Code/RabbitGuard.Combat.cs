@@ -59,7 +59,8 @@ public sealed partial class RabbitGuard
 
 	bool InStrikeReach( GameObject target, Vector3 offset )
 	{
-		if ( !CanAttack( target ) ) return false;
+		// An attack already in motion keeps its target through a knockout.
+		if ( !IsHostileTarget( target ) ) return false;
 		float reach = StrikeReach( target.GetComponent<RabbitGuard>() );
 		return offset.LengthSquared < reach * reach;
 	}
@@ -481,19 +482,25 @@ public sealed partial class RabbitGuard
 		if ( strikeTarget.IsValid() ) ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
 	}
 
-	void ApplyStrikeImpulse( RabbitClip clip, Vector3 position, Vector3 direction )
+	(Vector3 Impulse, Vector3 Line) StrikeContact( Vector3 direction )
+	{
+		var impulse = strike.WorldImpact( direction, flippedAttack ) * (strike.Force * AttackKnockback * 40f / 120f);
+		return (impulse, PrimaryItem.IsValid() ? PrimaryItem.StrikeLineDirection() : default);
+	}
+
+	void ApplyStrikeImpulse( RabbitClip clip, Vector3 position, Vector3 direction, float sharp = 0f )
 	{
 		var victim = strikeTarget.GetComponentInParent<IDamageable>();
 		if ( victim is null ) return;
 		var origin = CharacterCenter( GameObject );
-		float force = strike.Force * AttackKnockback;
+		var (impulse, line) = StrikeContact( direction );
 		if ( strikeTarget.GetComponent<RabbitGuard>() is { MaxHealth: > 0 } defender )
-			force *= 1f - Math.Clamp( defender.TemporaryHealth / defender.MaxHealth, 0f, 1f ) * 0.5f;
+			impulse *= defender.StrikeForceScale;
 		var damage = new StrikeDamage
 		{
-			// Overgrowth applies the authored force for one 120 Hz physics step (40 units/metre).
-			Impulse = strike.WorldImpact( direction, flippedAttack ) * (force * 40f / 120f),
-			LineDirection = PrimaryItem.IsValid() ? PrimaryItem.StrikeLineDirection() : default,
+			SharpDamage = sharp,
+			Impulse = impulse,
+			LineDirection = line,
 			Damage = Random.Shared.Float( clip.DamageMin, clip.DamageMax ) * 100f * AttackDamage,
 			Origin = origin,
 			Position = position,

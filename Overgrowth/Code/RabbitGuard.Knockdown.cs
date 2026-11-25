@@ -16,6 +16,7 @@ public sealed partial class RabbitGuard
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
 	float TemporaryHealth => Math.Max( 0f, Health - recoverableDamage );
+	float StrikeForceScale => MaxHealth > 0f ? 1f - Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) * 0.5f : 1f;
 	const float PermanentDamageFraction = 0.4f;
 	[Property] public float DamageResistance { get; set; } = 1f;
 	[Property] public int KnockoutShield { get; set; }
@@ -29,18 +30,19 @@ public sealed partial class RabbitGuard
 	class BluntDamage : DamageInfo;
 	sealed class StrikeDamage : BluntDamage
 	{
+		public float SharpDamage { get; init; }
 		public Vector3 Impulse { get; init; }
 		public Vector3 LineDirection { get; init; }
 	}
 
 	(Vector3 Point, Vector3 Impulse, Vector3 LineDirection)? deathImpulse;
-	float? injuryAge;
-	bool itemInjury;
+	(float Age, bool Item, float Stun, RagdollInjury Previous)? corpseInjury;
 	bool extractionDeath;
 
 	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
 	{
 		StrikeDamage strike => strike.Impulse,
+		MeleeCut cut => cut.Contact.Impulse,
 		ItemWound wound => wound.Impulse,
 		ItemImpact impact => impact.Impulse,
 		ExtractionDamage extraction => extraction.Impulse,
@@ -51,6 +53,7 @@ public sealed partial class RabbitGuard
 	protected override void OnDamaging( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaging( hit );
+		if ( hit.DamageInfo is BloodDamage blood ) blood.HealthBeforeHit = Health;
 		if ( hit.DamageInfo is not ExecutionDamage ) hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
 		if ( hit.DamageInfo is BluntDamage )
 		{
@@ -66,10 +69,10 @@ public sealed partial class RabbitGuard
 	{
 		bool wasAwake = !Unconscious;
 		base.OnDamaged( hit );
-		if ( hit.DamageInfo is BloodDamage && hit.AcceptedDamage > 0f )
+		if ( hit.DamageInfo is BloodDamage blood && hit.AcceptedDamage > 0f )
 		{
 			if ( hit.DamageInfo is not ExtractionDamage ) FlinchFromCut();
-			ApplyBloodLoss( hit.AcceptedDamage );
+			ApplyBloodLoss( hit.AcceptedDamage, blood );
 		}
 		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
 		if ( sparringKnockout )
@@ -128,6 +131,8 @@ public sealed partial class RabbitGuard
 		}
 		var impulse = DamageImpulse( hit.DamageInfo );
 		if ( !impulse.IsNearlyZero() ) ApplyHitImpulse( ragdoll, hit.DamageInfo.Position, impulse, (hit.DamageInfo as StrikeDamage)?.LineDirection ?? default );
+		if ( wasAwake && Unconscious && hit.DamageInfo is StrikeDamage { SharpDamage: > 0f } && boundAnimations?.FallPose is { Writhe: not null } pose )
+			ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, Random.Shared.Float( 5f, 8f ), false );
 	}
 
 	void ReceiveSurpriseSwordHit()
@@ -223,14 +228,24 @@ public sealed partial class RabbitGuard
 		// The engine removes the NPC on death, so release both hands before it removes the children.
 		while ( LeftHandItem.IsValid() || RightHandItem.IsValid() ) DropHandItem();
 		var impulse = DamageImpulse( death.DamageInfo );
-		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse, (death.DamageInfo as StrikeDamage)?.LineDirection ?? default);
-		itemInjury = death.DamageInfo is ItemWound or ItemImpact && !Unconscious;
-		injuryAge = death.DamageInfo switch
+		var line = death.DamageInfo is MeleeCut cut ? cut.Contact.Line : (death.DamageInfo as StrikeDamage)?.LineDirection ?? default;
+		deathImpulse = impulse.IsNearlyZero() ? null : (death.DamageInfo.Position, impulse, line);
+		float sharp = death.DamageInfo switch
+		{
+			StrikeDamage strike => strike.SharpDamage,
+			MeleeCut melee => melee.SharpDamage,
+			_ => 0f
+		};
+		bool awakeAtImpact = death.DamageInfo is MeleeCut wound ? wound.AwakeAtImpact : !Unconscious;
+		float stun = death.DamageInfo is StrikeDamage or MeleeCut { AppliesImpact: true } ? (sharp >= 0.5f ? 0.9f : 0f) : limpStun;
+		var previous = ragdoll?.GetComponent<RagdollInjury>();
+		corpseInjury = death.DamageInfo switch
 		{
 			ExtractionDamage => null,
-			ExecutionDamage => 0f,
-			ItemWound or ItemImpact when !Unconscious => Random.Shared.Float( 0f, 12f ),
-			BloodDamage when !Unconscious => Random.Shared.Float( 5f, 8f ),
+			ExecutionDamage => (0f, false, 0f, null),
+			ItemWound or ItemImpact when !Unconscious => (Random.Shared.Float( 0f, 12f ), true, 0.9f, null),
+			_ when sharp > 0f && awakeAtImpact => (Random.Shared.Float( 5f, 8f ), false, stun, null),
+			_ when sharp > 0f && previous is { Active: true } => (previous.Age + sharp * 10f, false, stun, previous),
 			_ => null
 		};
 		base.OnDeath( death );
@@ -279,8 +294,8 @@ public sealed partial class RabbitGuard
 		}
 		else InheritPoseMotion( physics );
 		if ( extractionDeath ) corpse.GetOrAddComponent<RagdollInjury>().QueueDeathVoice();
-		if ( injuryAge is { } age && boundAnimations?.FallPose is { Writhe: not null } pose )
-			corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, age, itemInjury );
+		if ( corpseInjury is { } injury && boundAnimations?.FallPose is { Writhe: not null } pose )
+			corpse.GetOrAddComponent<RagdollInjury>().StartInjury( physics, pose, injury.Age, injury.Item, injury.Previous, injury.Stun );
 		if ( corpse.GetComponent<SkinnedModelRenderer>() is { } corpseRenderer )
 			foreach ( var item in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer || item.Holder == Renderer ).ToArray() )
 			{

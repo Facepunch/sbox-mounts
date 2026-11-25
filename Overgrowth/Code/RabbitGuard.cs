@@ -335,8 +335,10 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget &&
 		(target.Root.Tags.Has( Factions.Player ) || target.GetComponentInParent<PlayerController>().IsValid());
 
-	bool CanAttack( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
-		&& !other.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { Unconscious: true } or RabbitGuard { StaticCharacter: true })
+	bool CanAttack( GameObject other ) => IsHostileTarget( other ) && other.GetComponent<RabbitGuard>() is not { Unconscious: true };
+
+	bool IsHostileTarget( GameObject other ) => other.IsValid() && other != GameObject && !IsIgnoredPlayer( other )
+		&& !other.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { StaticCharacter: true })
 		&& GetDisposition( other ) == Disposition.Hostile;
 
 	// MovementObject follows the mean physics-bone position while ragdolled. Here the

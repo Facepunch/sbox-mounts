@@ -9,6 +9,7 @@ internal sealed class RagdollInjury : Component
 	readonly RagdollMotorPose injuryMotor = new();
 	RagdollFallPose injuryPose;
 	float injuryAge, writheTime;
+	internal float Age => injuryAge;
 	float initialStun;
 	float injuryMouth, mouthRemainder;
 	[Sync( SyncFlags.Interpolate )] internal float MouthOpening { get; private set; }
@@ -49,7 +50,7 @@ internal sealed class RagdollInjury : Component
 		displayedMouth = MouthOpening;
 	}
 
-	internal void StartInjury( ModelPhysics model, RagdollFallPose pose, float age, bool itemInjury )
+	internal void StartInjury( ModelPhysics model, RagdollFallPose pose, float age, bool itemInjury, RagdollInjury previous = null, float stun = 0f )
 	{
 		Enabled = true;
 		physics = model;
@@ -59,10 +60,12 @@ internal sealed class RagdollInjury : Component
 		SetAutoSleep( false );
 		injuryPose = pose;
 		injuryAge = age;
-		writheTime = 0f;
-		MouthOpening = injuryMouth = mouthRemainder = 0f;
+		writheTime = previous?.writheTime ?? 0f;
+		MouthOpening = previous?.MouthOpening ?? 0f;
+		injuryMouth = previous?.injuryMouth ?? 0f;
+		mouthRemainder = previous?.mouthRemainder ?? 0f;
 		nextVoice = itemInjury ? 0 : ItemVoiceTimes.Length;
-		initialStun = itemInjury ? 0.9f : 0f;
+		initialStun = writheTime + (itemInjury ? 0.9f : stun);
 	}
 
 	protected override void OnFixedUpdate()
