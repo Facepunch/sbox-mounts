@@ -55,10 +55,15 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		int block = mapFile.VaToOffset( (int)collisionModel.DataVirtualAddress ) + 0x60;
 		if ( mapFile.ReadInt32( block ) == 0 ) return null;
 		int info = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+		bool explosivesOnly = (mapFile.ReadInt32( info ) & 0x20) != 0;
 		int index = (short)mapFile.ReadInt32( info + 0xce );
-		if ( index < 0 ) return null;
-		var name = materialNames is { Length: > 0 } ? materialNames.ElementAtOrDefault( index ) : Label( info + 4 );
-		return string.IsNullOrEmpty( name ) ? null : new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface" };
+		if ( index >= 0 )
+		{
+			var name = materialNames is { Length: > 0 } ? materialNames.ElementAtOrDefault( index ) : Label( info + 4 );
+			if ( !string.IsNullOrEmpty( name ) )
+				return new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface", ExplosivesOnly = explosivesOnly };
+		}
+		return explosivesOnly ? new BodyMaterial { ExplosivesOnly = true } : null;
 	}
 
 	protected override object Load()

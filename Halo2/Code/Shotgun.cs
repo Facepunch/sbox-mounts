@@ -24,6 +24,8 @@ public sealed class Shotgun : Weapon
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public Dictionary<string, float> PelletBodyScales { get; set; }
 	[Property] public Dictionary<string, float> MeleeBodyScales { get; set; }
+	[Property] public bool PelletExplosive { get; set; }
+	[Property] public bool MeleeExplosive { get; set; }
 	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float UnderwaterDamageFalloffRange { get; set; } = 120;
 	[Property] public float MinimumMeleeDamage { get; set; } = 20;
@@ -354,6 +356,7 @@ public sealed class Shotgun : Weapon
 		var ballistics = Ballistics;
 		float minDamage = MinimumDamage, dryRange = DamageFalloffRange, wetRange = UnderwaterDamageFalloffRange;
 		var bodyScales = PelletBodyScales;
+		bool explosive = PelletExplosive;
 		float airGravity = AirGravityScale, waterGravity = WaterGravityScale;
 		var tags = AttackDamageTags;
 		if ( PelletSpeed <= 0 || ballistics.Range <= 0 ) return;
@@ -418,7 +421,7 @@ public sealed class Shotgun : Weapon
 				}
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
-				damage *= BodyDamageScale( hit, bodyScales );
+				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
 				hit.StartPosition = origin;
 				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
@@ -603,11 +606,8 @@ public sealed class Shotgun : Weapon
 		MeleeImpactSound( hit.Surface?.ResourcePath, impactPosition );
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
-		ApplyDelayedHit( hit, strike.Damage * BodyDamageScale( hit, MeleeBodyScales ), MeleeForce, strike.Attacker, new TagSet { "melee" }, false );
+		ApplyDelayedHit( hit, strike.Damage * BodyMaterial.DamageScale( hit, MeleeBodyScales, MeleeExplosive ), MeleeForce, strike.Attacker, new TagSet { "melee" }, false );
 	}
-
-	static float BodyDamageScale( SceneTraceResult hit, Dictionary<string, float> scales ) =>
-		BodyMaterial.ForHit( hit ) is {} path && scales?.TryGetValue( path, out var scale ) == true ? scale : 1;
 
 	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
 	{

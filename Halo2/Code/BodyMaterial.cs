@@ -6,13 +6,16 @@ namespace Halo2;
 public sealed class BodyMaterial
 {
 	public string SurfacePath { get; set; }
+	public bool ExplosivesOnly { get; set; }
 
 	static readonly ConditionalWeakTable<Model, BodyMaterial> Materials = new();
 
-	internal static string ForHit( SceneTraceResult hit )
+	internal static float DamageScale( SceneTraceResult hit, Dictionary<string, float> scales, bool explosive )
 	{
-		if ( hit.Hitbox is not null ) return hit.Surface?.ResourcePath;
 		var model = (hit.Collider as ModelCollider)?.Model ?? hit.GameObject?.GetComponent<ModelRenderer>()?.Model;
-		return model.IsValid() ? Materials.GetValue( model, static m => m.GetData<BodyMaterial>() ?? new() ).SurfacePath : null;
+		var body = model.IsValid() ? Materials.GetValue( model, static m => m.GetData<BodyMaterial>() ?? new() ) : null;
+		if ( body is { ExplosivesOnly: true } && !explosive ) return 0;
+		var path = hit.Hitbox is not null ? hit.Surface?.ResourcePath : body?.SurfacePath;
+		return path is not null && scales?.TryGetValue( path, out var scale ) == true ? scale : 1;
 	}
 }

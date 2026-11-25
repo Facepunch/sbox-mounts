@@ -413,6 +413,8 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.MeleeBodyScales = BodyDamageScales( Address( globals ), strike );
+			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
+			gun.MeleeExplosive = (map.ReadInt32( strike + 0x14 ) & 0x20) != 0;
 			gun.VerticalAimOffset = Float( Block( Address( globals ) + 0xf0 ) + 0x1c );
 			gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
 			gun.MeleeForce = Float( strike + 0x40 ) * 120;
