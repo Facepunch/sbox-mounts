@@ -112,12 +112,16 @@ public sealed partial class Onos
 		e.AcceptedDamage -= blocked / factor;
 		sinceBlocked = 0;
 		rechargeShield = 3;
+		ShowShieldImpact( hit.Position );
 		if ( ShieldHealth <= 0 )
 		{
 			SetShield( false );
 			PlaySoundEvent( "alien/common/armor_break" );
 		}
 	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowShieldImpact( Vector3 position ) => PlayCinematic( "boneshieldricochet", position, Rotation.Identity );
 
 	void UpdateAbilities( Vector3 velocity )
 	{
