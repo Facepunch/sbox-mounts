@@ -141,8 +141,13 @@ public sealed class Shotgun : Weapon
 	{
 		var ray = AimRay;
 		var velocity = (Holder as PlayerController)?.Velocity ?? Vector3.Zero;
+		var renderer = HolderRenderer;
+		var release = renderer?.GetAttachment( "drop" ) ?? renderer?.GetAttachment( "right_hand" );
+		if ( release is null && renderer?.Model?.Bones.Root is {} root && renderer.TryGetBoneTransform( root, out var pose ) )
+			release = pose;
+		var transform = release ?? Inventory?.WorldTransform ?? WorldTransform;
 		if ( !base.OnDrop() ) return false;
-		WorldPosition = ray.Position + ray.Forward * 48;
+		WorldTransform = transform.WithScale( WorldScale );
 		if ( GetComponent<Rigidbody>( true ) is {} body )
 			body.Velocity = velocity + ray.Forward * 200 + Vector3.Up * 100;
 		return true;
