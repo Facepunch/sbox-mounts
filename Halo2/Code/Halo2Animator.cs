@@ -276,6 +276,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 				var rotation = world.Rotation * local.Rotation.Inverse;
 				var scale = Renderer.WorldScale;
 				var target = new Transform( world.Position - rotation * (local.Position * scale), rotation );
+				target.Position = LimitGripReach( binding.Hand.Bone, target.Position );
 				var parameters = Renderer.Animation.Parameters;
 				if ( binding.Binding is {} gripBinding && Weapon.GameObject.Parent is {} parent
 					&& parent == Renderer.GetAttachmentObject( gripBinding.Anchor ) )
@@ -293,6 +294,18 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 			else Renderer.Animation.Parameters.TryUnsetTarget( binding.Parameter );
 			if ( binding.Binding is not null ) Renderer.Animation.Parameters.TryUnsetTarget( binding.Anchor );
 		}
+	}
+
+	Vector3 LimitGripReach( BoneCollection.Bone hand, Vector3 target )
+	{
+		if ( hand.Parent?.Parent is not {} shoulder || !Renderer.TryGetBoneTransform( shoulder, out var root )
+			|| !Renderer.TryGetBoneTransform( hand.Parent, out var elbow ) || !Renderer.TryGetBoneTransform( hand, out var wrist ) )
+			return target;
+
+		// Halo's two-bone solver caps wrist travel at 98% of the posed chain length.
+		float reach = ((elbow.Position - root.Position).Length + (wrist.Position - elbow.Position).Length) * 0.98f;
+		var delta = target - root.Position;
+		return reach > 0 && delta.LengthSquared > reach * reach ? root.Position + delta.Normal * reach : target;
 	}
 
 	static readonly string[] ReactionSlots = ["reaction", "reaction_additive"];
