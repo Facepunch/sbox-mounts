@@ -22,7 +22,8 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\debris_shirt" => ClothName,
 				@"effects\generic\solids\plant_leafy" => LeafName,
 				@"effects\generic\solids\plant_grassy" => GrassName,
-				@"effects\generic\energy\impact_energy" => ShieldName,
+				@"effects\generic\solids\impact_ripple_unlit" => RippleName,
+				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => ShieldName,
 				@"effects\generic\solids\plant_wood" => WoodName,
 				@"effects\generic\smoke\smoke_impact" => DustName,
 				@"effects\generic\sparks\electric_arcs" => ArcName,
@@ -49,6 +50,7 @@ internal sealed partial class ShotgunLoader
 				RubberName => ImpactLayer.Rubber,
 				MistName => ImpactLayer.Mist,
 				ShieldName => ImpactLayer.Shield,
+				RippleName => ImpactLayer.Ripple,
 				WoodName or LeafName or GrassName => ImpactLayer.Plant,
 				ClothName => ImpactLayer.Cloth,
 				DustName => ImpactLayer.Dust,
@@ -84,7 +86,7 @@ internal sealed partial class ShotgunLoader
 				int rgb = map.ReadInt32( color + offset );
 				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
 			}
-			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield, drift = layer == ImpactLayer.Drift;
+			bool animatedRadius = layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.FierySmoke or ImpactLayer.ElectricArcs or ImpactLayer.Shield or ImpactLayer.Ripple, drift = layer == ImpactLayer.Drift;
 			bool dust = layer is ImpactLayer.Dust or ImpactLayer.Mist;
 			bool spriteAngle = layer is ImpactLayer.Rubber or ImpactLayer.GlassShards;
 			bool cloth = layer == ImpactLayer.Cloth;
@@ -98,6 +100,7 @@ internal sealed partial class ShotgunLoader
 				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
 				controller == 0 || animatedRadius || drift || dust ? default : new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) )
 			{
+				PerpendicularToDirection = Short( definition + 4 ) == 2,
 				Lighting = (particleFlags & 0x80) != 0,
 				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
