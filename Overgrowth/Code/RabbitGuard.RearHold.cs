@@ -17,7 +17,7 @@ public sealed partial class RabbitGuard
 	float grabPhase;
 	const float HoldStep = 2f / 120f;
 	int holdTick;
-	int nextCaptureTick;
+	int nextCaptureTick, cutStartTick;
 	int ElapsedHoldTicks => (int)((float)SinceGrab / HoldStep + 0.5f);
 	Vector3 fadingCaptureOffset;
 	RabbitClip CaptureClip => boundAnimations.Clips[Stance].ForSide( MirroredAction );
@@ -70,7 +70,7 @@ public sealed partial class RabbitGuard
 		struggleVelocity = default;
 		SinceGrab = 0f;
 		holdTick = 0;
-		nextCaptureTick = 0;
+		nextCaptureTick = cutStartTick = 0;
 		strike = null;
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
@@ -82,7 +82,8 @@ public sealed partial class RabbitGuard
 	void AdvanceCaptureAlignment( int tick )
 	{
 		if ( nextCaptureTick == 0 ) return;
-		if ( Downed || Stance is not (RearHeld or ArmedGrabbed) )
+		bool cut = Stance == CutInHold;
+		if ( Downed || !cut && Stance is not (RearHeld or ArmedGrabbed) )
 		{
 			nextCaptureTick = 0;
 			return;
@@ -99,10 +100,18 @@ public sealed partial class RabbitGuard
 			float stance = Math.Min( 1f, (sample + frame) * fadeRate );
 			if ( nextCaptureTick == 1 )
 				MoveGroundDelta( fadingCaptureOffset * (stance * (1f - active)) );
-			var from = clip.Animation.GetRootMotion( Math.Max( 0f, sample - step ) / clip.Duration );
+			float weight = active * stance;
+			if ( cut )
+			{
+				// Switching the mobile reader keeps the capture offset still waiting to be applied.
+				sample = (nextCaptureTick - cutStartTick - 0.5f) * step;
+				weight *= Math.Min( 1f, sample * 10f );
+			}
+			var from = cut && nextCaptureTick == cutStartTick + 1 ? global::Transform.Zero
+				: clip.Animation.GetRootMotion( Math.Max( 0f, sample - step ) / clip.Duration );
 			var to = clip.Animation.GetRootMotion( sample / clip.Duration );
-			ApplyPairedRootMotion( from, to, active * stance );
-			if ( active >= 1f )
+			ApplyPairedRootMotion( from, to, weight );
+			if ( weight >= 1f && !cut )
 			{
 				nextCaptureTick = 0;
 				break;
@@ -138,37 +147,36 @@ public sealed partial class RabbitGuard
 		bool rat = victim.boundAnimations.Species == "rat";
 		bool blade = armed && boundAnimations.WeaponLabel != "staff";
 		if ( !AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing ) ) return;
-		if ( CaptureReactionEnded && !executing )
+		if ( CaptureReactionEnded && !blade && Stance != CutFromHold )
 		{
-			if ( blade )
-			{
-				Stance = CutFromHold;
-				victim.Stance = CutInHold;
-				reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
-				ReactionPhase = victim.ReactionPhase = 0f;
-				if ( CharacterLoader.FromModel( victim.Renderer.Model ) is { } character )
-				{
-					var faces = character.Surface.CutFaces( victim.Renderer, Vector3.Up, PrimaryItem.PhysicsPosition, -WorldRotation.Forward );
-					if ( faces.Count > 0 )
-					{
-						victim.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
-						EmitCutParticles( faces, false );
-					}
-				}
-				executing = true;
-			}
-			else
-			{
-				Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
-				victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
-			}
+			Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
+			victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
 		}
-		if ( executing )
+		if ( Stance == CutFromHold )
 		{
-			float elapsed = ReactionPhase * reactionDuration + Time.Delta;
+			float elapsed = (float)SinceGrab - (victim.cutStartTick - 0.5f) * HoldStep;
 			ReactionPhase = Math.Min( 1f, elapsed / reactionDuration );
-			victim.ReactionPhase = Math.Min( 1f, elapsed / victim.boundAnimations.Clips[CutInHold].Duration );
+			victim.ReactionPhase = Math.Min( 1f, elapsed / victim.CaptureClip.Duration );
 			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut ) FinishCut( victim );
+		}
+	}
+
+	void BeginCut( RabbitGuard victim )
+	{
+		Stance = CutFromHold;
+		victim.Stance = CutInHold;
+		victim.cutStartTick = holdTick;
+		victim.nextCaptureTick = holdTick + 1;
+		reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
+		ReactionPhase = victim.ReactionPhase = 0f;
+		if ( CharacterLoader.FromModel( victim.Renderer.Model ) is { } character )
+		{
+			var faces = character.Surface.CutFaces( victim.Renderer, Vector3.Up, PrimaryItem.PhysicsPosition, -WorldRotation.Forward );
+			if ( faces.Count > 0 )
+			{
+				victim.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
+				EmitCutParticles( faces, false );
+			}
 		}
 	}
 
@@ -183,7 +191,11 @@ public sealed partial class RabbitGuard
 			if ( holdTick > 6 ) MoveHoldPair( victim, distance, struggle );
 			victim.AdvanceCaptureAlignment( holdTick );
 			victim.DropHandItem();
-			if ( !struggle ) continue;
+			if ( !struggle )
+			{
+				if ( holdTick >= 7 && Stance != CutFromHold ) BeginCut( victim );
+				continue;
+			}
 			victim.KnockoutShield = 0;
 			ApplyChokeDamage( victim, 0.7f - 0.4f * GameDifficulty );
 			if ( victim.IsValid() && victim.boundAnimations.Species == "rat" ) ApplyChokeDamage( victim, 0.4f );
