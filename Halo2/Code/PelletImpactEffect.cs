@@ -34,12 +34,15 @@ public sealed partial class PelletImpactEffect : Component
 	static uint eventSeed = (uint)System.Random.Shared.Next();
 	static uint decalSeed = (uint)System.Random.Shared.Next();
 
-	internal bool Place( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction )
+	internal bool Place( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction, string hitBone = null )
 	{
 		if ( Visuals is null || !target.IsValid() ) return false;
 		var parent = target;
-		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin && skin.GetClosestBone( point ) is {} bone )
+		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin )
+		{
+			var bone = hitBone is null ? skin.GetClosestBone( point ) : skin.Model?.Bones.GetBone( hitBone );
 			parent = skin.GetBoneObject( bone ) ?? target;
+		}
 		var contactTransform = new Transform( point, Rotation.LookAt( -normal, Vector3.Random ) );
 		_ = PlayContactEvents( Visuals, surface, target, parent, parent.WorldTransform.ToLocal( contactTransform ), contactTransform.Rotation.Inverse * direction );
 		if ( !Visuals.HasProjectedMarks && surface.IsValid() ) surface.PlaceSplatter( point, direction, target );

@@ -313,7 +313,7 @@ public sealed class Shotgun : Weapon
 		if ( shot.Hit ) PelletImpact( ShotgunContacts.For( this ), shot, GetShotDirection( shot ) );
 	}
 
-	static void PelletImpact( ShotgunContacts contacts, in ShotEffect shot, Vector3 direction )
+	static void PelletImpact( ShotgunContacts contacts, in ShotEffect shot, Vector3 direction, string bone = null )
 	{
 		if ( Application.IsDedicatedServer ) return;
 		if ( contacts?.PlayPellet( shot.Surface, shot.HitPosition ) != true )
@@ -323,7 +323,7 @@ public sealed class Shotgun : Weapon
 		}
 		var path = contacts.Effects is {} effects ? ShotgunContacts.Contact( effects, shot.Surface, true ) : null;
 		var effect = path is null ? null : PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>();
-		if ( effect?.Place( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction ) != true )
+		if ( effect?.Place( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction, bone ) != true )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
 
@@ -334,7 +334,7 @@ public sealed class Shotgun : Weapon
 		public float Travelled;
 	}
 
-	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, string SurfacePath );
+	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, string SurfacePath, string Bone );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
@@ -344,7 +344,7 @@ public sealed class Shotgun : Weapon
 		{
 			// The incoming velocity orients the contact. The tracer and water crossing span the full shot.
 			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, GameResource.Load<Surface>( contact.SurfacePath ), muzzle, NoEvents: true );
-			PelletImpact( contacts, shot, contact.Direction );
+			PelletImpact( contacts, shot, contact.Direction, contact.Bone );
 			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
 		}
 	}
@@ -424,7 +424,7 @@ public sealed class Shotgun : Weapon
 				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
 				hit.StartPosition = origin;
 				hit.Direction = pellet.Velocity.Normal;
-				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath ) );
+				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
