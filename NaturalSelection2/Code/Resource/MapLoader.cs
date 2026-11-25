@@ -95,13 +95,15 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		var ventPath = System.IO.Path.ChangeExtension( FilePath.Replace( "/maps/", "/fastload/maps/" ), "level-server-alien.tile_cache_grid" );
 		bool hasVents = Host.FileSystem.FileExists( ventPath );
-		if ( locations.Count > 0 || hasVents )
+		if ( locations.Count > 0 || hasVents || landmarks.Any( x => x.Priority >= 2 ) )
 		{
 			var map = root.AddComponent<MapLocations>();
 			if ( hasVents ) map.AlienGridPath = ventPath;
 			var gridPath = System.IO.Path.ChangeExtension( FilePath.Replace( "/maps/", "/fastload/maps/" ), "level-server.tile_cache_grid" );
 			if ( Host.FileSystem.FileExists( gridPath ) ) map.GridPath = gridPath;
 			map.CellHeight = cellHeight;
+			map.ResourcePoints = landmarks.Where( x => x.Priority == 2 ).Select( x => x.Position ).ToArray();
+			map.TechPoints = landmarks.Where( x => x.Priority == 3 ).Select( x => x.Position ).ToArray();
 			map.Volumes = locations.ToArray();
 			// Spark visits rooms in landmark order, including when two exploration targets have equal weight.
 			var destinations = new Dictionary<string, MapLocations.Destination>();

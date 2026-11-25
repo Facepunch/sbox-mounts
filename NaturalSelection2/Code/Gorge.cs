@@ -30,7 +30,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 	internal static void RegisterSounds( MountContext context )
 	{
 		AlienFootsteps.Register( context, "gorge" );
-		foreach ( var cue in new[] { "spit", "spit_hit", "bilebomb", "bilebomb_hit", "heal_spray", "slide_loop", "spawn", "wound", "wound_serious", "death" } )
+		foreach ( var cue in new[] { "spit", "spit_hit", "bilebomb", "bilebomb_hit", "heal_spray", "slide_loop", "create_structure_start", "spawn", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/gorge/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -87,7 +87,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 		var enemy = targeting.FindEnemy( this, out var lastSeen );
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
-		if ( SupportAlly( visible ) )
+		if ( SupportAlly( visible ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			escort = null;
 			return;

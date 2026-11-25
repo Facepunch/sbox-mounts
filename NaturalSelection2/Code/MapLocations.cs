@@ -16,6 +16,19 @@ public sealed class MapLocations : Component
 	public readonly record struct Destination( string Name, Vector3 Position, bool Strategic );
 	[Property] public Volume[] Volumes { get; set; } = [];
 	[Property] public Destination[] Destinations { get; set; } = [];
+	[Property] internal Vector3[] ResourcePoints { get; set; } = [];
+	[Property] internal Vector3[] TechPoints { get; set; } = [];
+
+	internal bool BlocksStructure( Vector3 position )
+	{
+		const float nozzleRadius = 1.5f * MapLoader.Scale, techRadius = 3.2f * MapLoader.Scale;
+		foreach ( var point in ResourcePoints )
+			if ( position.DistanceSquared( point ) <= nozzleRadius * nozzleRadius ) return true;
+		foreach ( var point in TechPoints )
+			if ( position.DistanceSquared( point ) <= techRadius * techRadius ) return true;
+		return false;
+	}
+
 	[Property] internal string AlienGridPath { get; set; }
 	[Property] internal string GridPath { get; set; }
 	[Property] internal float CellHeight { get; set; }
