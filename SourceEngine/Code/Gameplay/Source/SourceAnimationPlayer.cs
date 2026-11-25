@@ -97,6 +97,7 @@ public sealed class SourceAnimationPlayer : IDisposable
 	public bool IsReady => _graph.IsValid() && _renderer.IsValid() && _renderer.Animation.IsValid;
 	public float Duration => ClipDuration( Current );
 	public float ClipDuration( string name ) => _model?.AnimationClips().TryGetValue( name ?? "", out var clip ) == true ? clip.Duration : 0;
+	public float Elapsed => _elapsed;
 	public bool Finished => _elapsed >= Duration / MathF.Max( _rate, 0.01f );
 
 	/// <summary>

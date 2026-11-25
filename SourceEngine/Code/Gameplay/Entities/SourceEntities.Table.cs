@@ -324,7 +324,7 @@ static partial class SourceEntities
 			{
 				".": {
 					"Source1.SourceBulletWeapon": null,
-					"Source1.SourceProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.2, "DisplayName": "HL2 Crossbow", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "rifle", "Npc": {"MinRange": 65, "MaxRange": 1024, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PreferredSlot": 4, "PrimaryAutomatic": true, "PrimaryDelay": 0.75, "AutoReloadDelay": 0.1, "PunchResponse": "AddImpulse", "PunchPitch": "-2,-2", "PunchYaw": "0,0", "PunchRoll": "0,0", "RecoilPitch": "0,0", "RecoilYaw": "0,0", "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/crossbow_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/crossbow_wm.prefab"}, "ProjectileModel": "models/crossbow_bolt.mdl", "Secondary": "Zoom"}
+					"Source1.SourceProjectileWeapon": {"Ballistics": {"Damage": 8, "Pellets": 1, "Range": 4096, "Radius": 1, "Force": 300, "SpreadBase": "0.200000003,0.200000003", "SpreadGrowth": "1.5,1.5", "SpreadRecovery": 0.2}, "CanCancelReload": false, "ClipMaxSize": 1, "DeployTime": 0.25, "DisplayName": "HL2 Crossbow", "DroppedGameObject": {"ref": "standalone_wm"}, "HoldType": "rifle", "Npc": {"MinRange": 65, "MaxRange": 1024, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "PreferredSlot": 4, "PrimaryAutomatic": true, "PrimaryDelay": 0.75, "AutoReloadDelay": 0.1, "PunchResponse": "AddImpulse", "PunchPitch": "-2,-2", "PunchYaw": "0,0", "PunchRoll": "0,0", "RecoilPitch": "0,0", "RecoilYaw": "0,0", "ReloadTime": 1.7, "SecondaryDelay": 1, "StartingAmmo": 12, "Value": 10, "ViewModelPrefab": {"prefab": "entities/parts/crossbow_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/crossbow_wm.prefab"}, "ProjectileModel": "models/crossbow_bolt.mdl", "Secondary": "Zoom"}
 				},
 				"standalone_wm": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/w_crossbow.mdl"}
@@ -648,7 +648,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "crossbow_vm", null, null, null, """
 			{
 				".": {
-					"Source1.SourceViewModel": {"Idle": "idle", "Fire": "fire", "EjectBrass": null}
+					"Source1.SourceViewModel": {"DrawPlaybackRate": 4, "Idle": "idle", "Fire": "fire", "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.SourceMountedModel": {"ModelPath": "models/weapons/c_crossbow.mdl", "FallbackModelPath": "models/weapons/v_crossbow.mdl"}

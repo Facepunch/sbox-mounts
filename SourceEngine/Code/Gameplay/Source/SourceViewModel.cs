@@ -28,6 +28,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	/// <summary>Fallback clip names for models whose sequences carry no activities; see <see cref="SourceWeaponClips"/>.</summary>
 	[Property] public string Idle { get; set; } = "idle01";
 	[Property] public string Draw { get; set; } = "draw";
+	[Property] public float DrawPlaybackRate { get; set; } = 1;
 	[Property] public string Fire { get; set; } = "fire01";
 	[Property] public string DryFire { get; set; } = "dryfire";
 	[Property] public string Reload { get; set; } = "reload";
@@ -65,6 +66,9 @@ public sealed class SourceViewModel : BaseWeaponModel
 	SourceWeaponClips _silencedClips;
 	int _alternateShots;
 	string _pending;
+	BaseCombatWeapon _weapon;
+	string IdleClip => _clips.EmptyIdle is { } idle && _weapon is { UsesPrimaryClip: true, Clip1: 0 } ? idle : _clips.Idle;
+	string DrawClip => _clips.EmptyDraw is { } draw && _weapon is { UsesPrimaryClip: true, Clip1: 0 } ? draw : _clips.Draw;
 	bool _reloading;
 	bool _pumpAfterShot;
 	Model _configuredModel;
@@ -90,6 +94,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		var model = Renderer.Model;
 		if ( _configuredModel == model ) return;
 		_configuredModel = model;
+		_weapon = GetComponentInParent<BaseCombatWeapon>();
 		_attachmentsResolved = false;
 		// Flashes, tracers and shells are rebuilt from HL2's code; see SourceWeaponEffects.
 		MuzzleEffect = null;
@@ -102,6 +107,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		_silencedClips = _plainClips.AttachSilencer is null ? null : SourceWeaponClips.Resolve( model, this, true );
 		_clips = _plainClips;
 		SelectClips();
+		if ( _pending == Draw ) _pending = DrawClip;
 		IsIncremental = _clips.Incremental;
 		_choices = [.. Choices( _plainClips ), .. _silencedClips is null ? [] : Choices( _silencedClips )];
 		_muzzleEventClips.Clear();
@@ -118,7 +124,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		UpdateHands();
 	}
 
-	static (string Name, bool Loop)[] Choices( SourceWeaponClips clips ) => [(clips.Idle, true), (clips.Draw, false), (clips.Fire, false),
+	static (string Name, bool Loop)[] Choices( SourceWeaponClips clips ) => [(clips.Idle, true), (clips.EmptyIdle, true), (clips.Draw, false), (clips.EmptyDraw, false), (clips.Fire, false),
 		(clips.SecondaryFire, false), (clips.DryFire, false), (clips.LastShot, false), (clips.Reload, false), (clips.ReloadInsert, false),
 		(clips.ReloadEnd, false), (clips.Pump, false), (clips.ThrowWindup, false), (clips.SecondaryWindup, false),
 		(clips.AttachSilencer, false), (clips.DetachSilencer, false), .. clips.Recoil.Select( name => (name, false) )];
@@ -258,7 +264,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	{
 		if ( !attachment.IsValid() || !Scene.Camera.IsValid() ) return;
 		var port = attachment.WorldRotation;
-		var owner = GetComponentInParent<BaseCombatWeapon>()?.Owner;
+		var owner = _weapon?.Owner;
 		var inherited = owner.IsValid() ? owner.Velocity : Vector3.Zero;
 		SourceWeaponEffects.EjectBrass( model, DrawnPosition( attachment ), DrawnDirection( port.Forward ), DrawnDirection( port.Right ),
 			DrawnDirection( port.Up ), speed, Scene.Camera.WorldRotation, inherited, _mount );
@@ -269,8 +275,8 @@ public sealed class SourceViewModel : BaseWeaponModel
 		_pending = name;
 		_animation ??= new();
 		if ( !_animation.IsReady || string.IsNullOrEmpty( name ) ) return;
-		var rate = 1f;
-		var weapon = GetComponentInParent<BaseCombatWeapon>();
+		var rate = !_reloading && (name == _clips.Draw || name == _clips.EmptyDraw) ? DrawPlaybackRate : 1f;
+		var weapon = _weapon;
 		if ( _reloading && weapon.IsValid() && Renderer.Model.AnimationClips().TryGetValue( name, out var clip ) )
 		{
 			var duration = name == _clips.Reload && _clips.Incremental ? weapon.ReloadStartTime : weapon.ReloadTime;
@@ -308,7 +314,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	{
 		if ( !Renderer.IsValid() || !Renderer.SceneModel.IsValid() ) return;
 		ConfigureSequences();
-		if ( !_animation.Ensure( Renderer, _choices, _pending ?? _clips.Idle ) ) return;
+		if ( !_animation.IsReady && !_animation.Ensure( Renderer, _choices, _pending ?? IdleClip ) ) return;
 		ResolveAttachments();
 		UpdateMirror();
 		UpdateScopeVisibility();
@@ -320,13 +326,15 @@ public sealed class SourceViewModel : BaseWeaponModel
 			_reloading = false;
 			Play( finish );
 		}
-		else if ( !_reloading && _animation.Finished && _animation.Current != _clips.Idle && _animation.Current != _clips.ThrowWindup )
+		// The empty draw holds its last frame until the original sequence duration elapses.
+		else if ( !_reloading && _animation.Finished && (_animation.Current != _clips.EmptyDraw || _animation.Elapsed >= _animation.Duration)
+			&& _animation.Current != IdleClip && _animation.Current != _clips.ThrowWindup )
 		{
 			if ( _clips.Throws && _animation.Current == _clips.Fire )
 			{
 				// Magazine-fed throws redraw through the authoritative reload. Starting
 				// Draw here as well would restart it on the following physics tick.
-				var weapon = GetComponentInParent<BaseCombatWeapon>();
+				var weapon = _weapon;
 				if ( !weapon.IsValid() || !weapon.UsesPrimaryClip )
 				{
 					Play( weapon.IsValid() && !weapon.HasPrimaryAmmo() ? _clips.Idle : _clips.Draw );
@@ -337,7 +345,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 				_pumpAfterShot = false;
 				Play( _clips.Pump );
 			}
-			else Play( _clips.Idle );
+			else Play( IdleClip );
 		}
 		_animation.Tick();
 		GetComponent<SourceViewModelHands>()?.Animate( _animation, _choices );
@@ -350,7 +358,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	void UpdateMirror()
 	{
 		if ( _mirroredModel == Renderer.Model ) return;
-		var data = SourceWeaponSetup.WeaponData( GetComponentInParent<BaseCombatWeapon>() );
+		var data = SourceWeaponSetup.WeaponData( _weapon );
 		if ( data is null ) return;
 		_mirroredModel = Renderer.Model;
 		var mirror = data.BuiltRightHanded == false && data.ViewModel is { } path && Renderer.Model.Name.Contains( path, StringComparison.OrdinalIgnoreCase );
@@ -404,7 +412,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	{
 		if ( _plainClips is not null ) SelectClips();
 		ResetBurst();
-		Play( _clips?.Draw ?? Draw );
+		Play( _clips is null ? Draw : DrawClip );
 	}
 
 	public void SetPoseParameter( string name, float value )
@@ -472,7 +480,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 	string AttackClip()
 	{
 		if ( _clips.ThrowWindup is not null ) return _clips.ThrowWindup;
-		var weapon = GetComponentInParent<BaseCombatWeapon>();
+		var weapon = _weapon;
 		if ( weapon is SourceBulletWeapon { BurstMode: true } burst && _clips.Burst is not null ) return burst.BurstFollowUp ? null : _clips.Burst;
 		if ( _clips.Alternates ) return _alternateShots++ % 2 == 0 ? _clips.Fire : _clips.SecondaryFire;
 		if ( _clips.LastShot is not null && weapon.IsValid() && weapon.UsesAmmo && weapon.Clip1 <= 0 ) return _clips.LastShot;
@@ -486,7 +494,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		return fire;
 	}
 
-	public override void OnDryFire() => Play( string.IsNullOrEmpty( _clips?.DryFire ) ? _clips?.Idle : _clips.DryFire );
+	public override void OnDryFire() => Play( _clips is null ? Idle : _clips.DryFire ?? IdleClip );
 
 	public override void OnReloadStart()
 	{
@@ -509,7 +517,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 
 	void PlayReloadSound( string clip )
 	{
-		if ( !_soundEventClips.Contains( clip ?? "" ) ) SourceSounds.PlayReloadSound( GetComponentInParent<BaseCombatWeapon>(), GameObject );
+		if ( !_soundEventClips.Contains( clip ?? "" ) ) SourceSounds.PlayReloadSound( _weapon, GameObject );
 	}
 
 	public override void OnReloadFinish()
@@ -520,11 +528,11 @@ public sealed class SourceViewModel : BaseWeaponModel
 		// Let that insert complete before lowering the reload hand.
 		if ( _clips.Incremental && _animation?.Current == _clips.ReloadInsert && !_animation.Finished )
 		{
-			_reloadFinish = _clips.ReloadEnd ?? _clips.Idle;
+			_reloadFinish = _clips.ReloadEnd ?? IdleClip;
 			return;
 		}
 		_reloading = false;
-		Play( _clips.ReloadEnd ?? _clips.Idle );
+		Play( _clips.ReloadEnd ?? IdleClip );
 	}
 
 	public override void OnReloadCancel()
@@ -532,7 +540,7 @@ public sealed class SourceViewModel : BaseWeaponModel
 		if ( !_reloading ) return;
 		_reloadFinish = null;
 		_reloading = false;
-		Play( _clips.ReloadEnd ?? _clips.Idle );
+		Play( _clips.ReloadEnd ?? IdleClip );
 	}
 
 	protected override void OnDestroy()

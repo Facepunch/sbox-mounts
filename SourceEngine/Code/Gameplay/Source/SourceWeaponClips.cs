@@ -10,6 +10,8 @@ sealed record SourceWeaponClips
 {
 	public string Idle { get; init; }
 	public string Draw { get; init; }
+	public string EmptyIdle { get; init; }
+	public string EmptyDraw { get; init; }
 	public string Fire { get; init; }
 	public string DryFire { get; init; }
 	public string SecondaryFire { get; init; }
@@ -68,6 +70,8 @@ sealed record SourceWeaponClips
 		{
 			Idle = Find( "ACT_VM_IDLE", names.Idle ),
 			Draw = draw,
+			EmptyDraw = Find( "ACT_VM_DRAW_EMPTY", null ),
+			EmptyIdle = Find( "ACT_VM_IDLE_EMPTY", null ) ?? (lookup.Get( "idle_empty" ) is { } empty ? empty.Name : null),
 			Fire = throws ? release.Name : fire,
 			DryFire = lastShot is null ? dryFire : null,
 			LastShot = lastShot,
