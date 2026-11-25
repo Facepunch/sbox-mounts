@@ -28,7 +28,8 @@ public abstract class Weapon : BaseCombatWeapon
 
 		int loaded = Clip1 < 0 ? ClipMaxSize : Clip1;
 		int reserve = LooseReserve;
-		var source = Inventory;
+		// Pickup(prefab) parents the new item before Add assigns its inventory slot.
+		var source = Slot >= 0 ? Inventory : null;
 		if ( source == inventory ) return false;
 		int carried = CarriedReserve( source );
 		int taken = inventory.GiveAmmo( held.PrimaryAmmoType, reserve + carried + loaded );
