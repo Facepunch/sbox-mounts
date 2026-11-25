@@ -110,6 +110,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
+		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		UpdateSlideSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;

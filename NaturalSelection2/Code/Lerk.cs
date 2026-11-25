@@ -141,6 +141,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
+		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		UpdateFlightSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;

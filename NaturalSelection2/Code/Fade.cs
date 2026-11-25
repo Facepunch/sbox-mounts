@@ -134,6 +134,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
+		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		UpdateBlinkPresentation();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;

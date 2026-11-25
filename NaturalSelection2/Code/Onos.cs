@@ -144,6 +144,7 @@ public sealed partial class Onos : BaseNpc, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
+		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		var velocity = Animation.MoveVelocity.WithZ( 0 );

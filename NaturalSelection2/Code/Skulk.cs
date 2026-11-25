@@ -77,6 +77,7 @@ public sealed partial class Skulk : BaseNpc, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
+		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Networking.IsHost && Health > 0 )
 		{
