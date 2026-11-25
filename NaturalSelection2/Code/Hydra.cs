@@ -54,20 +54,29 @@ public sealed class Hydra : AlienStructure
 		flinchPose = graph.GetPose( 1 );
 	}
 
+	protected override Vector3 CalculateAimPoint( GameObject target ) => target.GetComponent<BaseNpc>() switch
+	{
+		Marine marine => marine.EngagementPoint,
+		Mac mac => mac.EyePosition,
+		Exo => target.WorldPosition + Vector3.Up * (1.5f * Scale),
+		_ => base.CalculateAimPoint( target )
+	};
+
 	void ScanTargets()
 	{
 		GameObject target = null;
 		float closest = float.MaxValue;
 		bool targetCanAttack = false;
 		bool enemyNearby = false;
-		foreach ( var obj in Scene.FindInPhysics( new Sphere( WorldPosition, Range + 2 * Scale ) ) )
+		var alertOrigin = ModelOrigin;
+		foreach ( var obj in Scene.FindInPhysics( new Sphere( alertOrigin, Range + 2 * Scale ) ) )
 		{
 			if ( obj.GetComponentInParent<IDamageable>() is not Component { Active: true } victim ) continue;
 			var enemy = victim.GameObject;
 			if ( AlienTargeting.IsIgnoredPlayer( enemy ) || GetDisposition( enemy ) != Disposition.Hostile ) continue;
 			if ( victim is IDamageable { MaxHealth: > 0, Health: <= 0 } ) continue;
 			var aim = CalculateAimPoint( enemy );
-			float distance = WorldPosition.DistanceSquared( aim );
+			float distance = alertOrigin.DistanceSquared( aim );
 			if ( distance < Range * Range && (enemy.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" ) || enemy.GetComponent<PlayerController>().IsValid()) )
 				enemyNearby = true;
 			// Spark checks mobile target origins and static engagement points from the eye.

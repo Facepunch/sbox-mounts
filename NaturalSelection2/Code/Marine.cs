@@ -49,7 +49,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	TimeSince lastShot, lastHit, lastRequest;
 	TimeUntil combatUntil, blindFireUntil;
-	Vector3 lastAimPoint;
+	Vector3 lastAimPoint, modelOrigin;
+	internal Vector3 EngagementPoint => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	GameObject firingTarget;
 	readonly AlienAim.Acquisition acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
@@ -99,7 +100,10 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			age = 0;
 			var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+			{
+				modelOrigin = model.BoundsCenter;
 				graph = new( model.PropGraph, model );
+			}
 			worldTag = OnWorldTag;
 		}
 		weaponTag = OnWeaponTag;

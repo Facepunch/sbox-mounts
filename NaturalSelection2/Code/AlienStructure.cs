@@ -18,6 +18,8 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, maxArmor ); }
 	float IDamageable.MaxArmour => maxArmor;
 	private protected SparkAnimationGraph.Playback graph;
+	Vector3 modelOrigin;
+	protected Vector3 ModelOrigin => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	[Sync( SyncFlags.FromHost )] private protected TimeUntil flinchEnd { get; private set; }
 	protected float FlinchIntensity => AlienWounds.Intensity( flinchEnd );
 	SupportPain pain;
@@ -111,7 +113,10 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		maxArmor = Stats.Armor;
 		armor = maxArmor * 0.3f;
 		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+		{
+			modelOrigin = model.BoundsCenter;
 			graph = new( model.PropGraph, model );
+		}
 	}
 
 	protected override void OnUpdate()
