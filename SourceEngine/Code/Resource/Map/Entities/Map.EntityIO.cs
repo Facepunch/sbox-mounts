@@ -55,7 +55,8 @@ partial class MapLoader
 			foreach ( var (_, value) in source.KeyValues.Where( entry => entry.Key.Equals( output, StringComparison.OrdinalIgnoreCase ) ) )
 			{
 				var connection = BspEntityConnection.Read( output, value );
-				if ( connection.FireCount > 0 || (connection.Parameter.Length > 0 && !connection.Input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )) )
+				if ( connection.FireCount > 0 || (connection.Parameter.Length > 0 && !connection.Input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )
+					&& !connection.Input.Equals( "SetFightTarget", StringComparison.OrdinalIgnoreCase )) )
 				{
 					warnings.Add( $"Output '{output}' to '{connection.Target}.{connection.Input}' requires a parameter or finite fire count not supported by native Doo events; omitted." );
 					continue;
@@ -111,6 +112,7 @@ partial class MapLoader
 					(Hl2.BugbaitSensor, "enable") => nameof( Hl2.BugbaitSensor.StartListening ),
 					(Hl2.BugbaitSensor, "disable") => nameof( Hl2.BugbaitSensor.StopListening ),
 					(Hl2.BugbaitSensor, "toggle") => nameof( Hl2.BugbaitSensor.ToggleListening ),
+					(Hl2.AntlionMaker, "setfighttarget") when parameter.Length > 0 && (!parameter.StartsWith( '!' ) || parameter == "!player") => nameof( Hl2.AntlionMaker.SetFightTarget ),
 					(Hl2.AntlionMaker, "enable") => nameof( Hl2.AntlionMaker.StartSpawning ),
 					(Hl2.AntlionMaker, "disable") => nameof( Hl2.AntlionMaker.StopSpawning ),
 					(Hl2.AntlionBurrow, "enablehint") => nameof( Hl2.AntlionBurrow.EnableHint ),
@@ -122,7 +124,8 @@ partial class MapLoader
 				{
 					InvokeType = Doo.InvokeType.Member,
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
-					Member = $"{target.GetType().FullName}.{listener}"
+					Member = $"{target.GetType().FullName}.{listener}",
+					Arguments = listener == nameof( Hl2.AntlionMaker.SetFightTarget ) ? [new Doo.LiteralExpression { LiteralValue = parameter }] : null
 				};
 			}
 			if ( target is not Door ) return null;

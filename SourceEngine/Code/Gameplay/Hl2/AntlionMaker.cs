@@ -39,8 +39,7 @@ public sealed class AntlionMaker : Component
 				maker._fightGoal = fightGoal;
 				maker._fightTarget = null;
 			}
-			foreach ( var child in maker._children )
-				if ( child.IsValid() && child.Health > 0 ) maker.ApplyOrder( child );
+			maker.UpdateChildren();
 		}
 	}
 	TimeUntil _nextSpawn;
@@ -103,6 +102,21 @@ public sealed class AntlionMaker : Component
 		if ( string.IsNullOrEmpty( name ) ) return null;
 		if ( name == "!player" ) return Scene.GetAllComponents<PlayerController>().FirstOrDefault()?.GameObject;
 		return Scene.Directory.FindByName( name ).FirstOrDefault();
+	}
+
+	public void SetFightTarget( string name )
+	{
+		FightTarget = name;
+		_fightTarget = ResolveTarget( name );
+		_fightGoal = null;
+		_following = false;
+		UpdateChildren();
+	}
+
+	void UpdateChildren()
+	{
+		foreach ( var child in _children )
+			if ( child.IsValid() && child.Health > 0 ) ApplyOrder( child );
 	}
 
 	void ApplyOrder( CreatureNpc npc ) =>
