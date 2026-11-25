@@ -10,9 +10,9 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 	public const float AirVelocity = 3500;
 	const float WaterVelocity = 1500;
 	const float StuckLifetime = 30;
-	// BOLT_AIR_VELOCITY flies with SetGravity( 0.05 ) under sv_gravity 600.
-	protected override float Gravity => 30;
+	protected override float Gravity => _ricocheted ? 600 : 30;
 	protected override float TraceRadius => 1;
+	bool _ricocheted;
 	bool _stuck;
 	GameObject _hitObject;
 	Transform _hitLocal;
@@ -56,12 +56,13 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 		var direction = Velocity.Normal;
 		var hitDot = tr.Normal.Dot( -direction );
 		PlayImpact( tr, "Weapon_Crossbow.BoltHitWorld" );
-		Sparkle();
 		if ( hitDot < 0.5f && Velocity.Length > 100 )
 		{
 			Reflect( tr, 0.75f );
+			_ricocheted = true;
 			return;
 		}
+		Sparkle();
 		_stuck = true;
 		Age = 0;
 		Velocity = Vector3.Zero;
