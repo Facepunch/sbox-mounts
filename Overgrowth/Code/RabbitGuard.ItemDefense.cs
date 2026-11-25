@@ -41,7 +41,7 @@ public sealed partial class RabbitGuard
 		float distance = 80f * 80f;
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( center, 80f ) ) )
 		{
-			if ( obj.GetComponent<LevelItem>() is not { ThrownBy: not null } item ) continue;
+			if ( obj.GetComponent<LevelItem>() is not { IsThrown: true } item ) continue;
 			float d = center.DistanceSquared( item.PhysicsPosition );
 			if ( d >= distance ) continue;
 			nearest = item;

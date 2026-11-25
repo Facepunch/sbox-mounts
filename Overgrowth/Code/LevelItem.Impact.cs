@@ -11,16 +11,21 @@ public sealed partial class LevelItem
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
 		if ( !Networking.IsHost || collision.Other.IsTrigger || Holder.IsValid() || StuckIn.IsValid() || pendingEmbed.HasValue ) return;
-		flyingStraight = false;
+		if ( flight is FlightState.Thrown or FlightState.Straight ) flight = FlightState.Bounced;
 		var body = collision.Self.Body;
 		if ( !body.IsValid() || !body.MotionEnabled || collision.Other.GameObject?.GetComponentInParent<RabbitGuard>() is not null ) return;
-		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface )?.ResourceName;
+		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, collision.Contact.Point, collision.Other.Surface, out var terrainHit )?.ResourceName;
 		var point = collision.Contact.Point;
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		if ( mount.AllowsPenetration( surface ) && !incomingVelocity.IsNearlyZero() )
 			TryEmbed( mount, body, collision.Contact );
 		float impulse = pendingEmbed.HasValue ? body.Mass : RabbitGuard.BodyImpactImpulse( collision ) / 40f;
-		if ( !pendingEmbed.HasValue && (impactSoundDelay > 0f || body.Velocity.LengthSquared < 160f || impulse <= 0.1f) ) return;
+		if ( !pendingEmbed.HasValue )
+		{
+			if ( body.Velocity.LengthSquared < 160f || impulse <= 0.1f ) return;
+			BillboardParticle.EmitSkid( surface, point, terrainHit );
+			if ( impactSoundDelay > 0f ) return;
+		}
 		string step = body.Mass < 1f ? "weapon_drop_light" : body.Mass < 3f ? "weapon_drop_medium" : "weapon_drop_heavy";
 		PlayImpact( surface, step, point, impulse, Definition?.Element( "physics" )?.Attribute( "sound_modifier" ) );
 		impactSoundDelay = 0.2f;

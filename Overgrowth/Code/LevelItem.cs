@@ -53,11 +53,13 @@ public sealed partial class LevelItem : Component
 				body.Enabled = false;
 				GetComponent<ModelCollider>().Enabled = false;
 				WorldTransform = stuck;
-				thrower = null;
+				MarkThrowSafe();
 				return;
 			}
 			incomingVelocity = body.Velocity;
-			if ( flyingStraight ) AlignWithFlight( body );
+			if ( flight == FlightState.Straight ) AlignWithFlight( body );
+			else if ( flight is FlightState.Safe or FlightState.Bounced && body.AngularVelocity.LengthSquared > 15f * 15f )
+				body.AngularVelocity = body.AngularVelocity.Normal * 15f;
 			TraceFlight( body );
 			return;
 		}
@@ -175,8 +177,7 @@ public sealed partial class LevelItem : Component
 		var attachmentComponent = item.GetOrAddComponent<LevelItem>();
 		attachmentComponent.StuckIn = null;
 		attachmentComponent.pendingEmbed = null;
-		attachmentComponent.thrower = null;
-		attachmentComponent.flyingStraight = false;
+		attachmentComponent.MarkThrowSafe();
 		attachmentComponent.lastHeldPose = null;
 		attachmentComponent.carryVelocity = attachmentComponent.carryAngularVelocity = Vector3.Zero;
 		if ( attachmentComponent.Holder.IsValid() &&

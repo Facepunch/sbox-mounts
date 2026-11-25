@@ -4,16 +4,18 @@ namespace Overgrowth;
 
 public sealed partial class LevelItem : Component.ICollisionListener
 {
-	bool flyingStraight;
+	enum FlightState { Safe, Thrown, Straight, Bounced }
+	FlightState flight;
 	GameObject thrower;
 	Transform previousFlightPose;
 	TimeUntil nextCharacterImpact;
 	internal GameObject ThrownBy => thrower;
+	internal bool IsThrown => flight != FlightState.Safe;
 
 	internal void MarkThrowSafe()
 	{
 		thrower = null;
-		flyingStraight = false;
+		flight = FlightState.Safe;
 	}
 
 	void TraceFlight( Rigidbody body )
@@ -34,7 +36,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					var hit = trace.Run();
 					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
 					float mass = body.Mass;
-					if ( thrower.IsValid() && !fighter.DefendThrownItem( this, body ) )
+					if ( IsThrown && !fighter.DefendThrownItem( this, body ) )
 						HitFighter( fighter, body, thrower, hit, sample, end, line );
 					MarkThrowSafe();
 					nextCharacterImpact = 0.4f;
@@ -84,8 +86,8 @@ public sealed partial class LevelItem : Component.ICollisionListener
 			launch = FlightPath.Velocity( delta + velocity * time, gravity, speed, up, 0f, out time );
 		if ( launch == Vector3.Zero ) launch = horizontal * speed + Vector3.Up * up;
 		body.Velocity = incomingVelocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
-		flyingStraight = fullBody && Definition.Element( "label" )?.Value is ("spear" or "staff");
-		if ( flyingStraight )
+		flight = fullBody && Definition.Element( "label" )?.Value is ("spear" or "staff") ? FlightState.Straight : FlightState.Thrown;
+		if ( flight == FlightState.Straight )
 		{
 			body.CollisionEventsEnabled = true;
 			AlignWithFlight( body );

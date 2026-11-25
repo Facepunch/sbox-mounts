@@ -20,7 +20,7 @@ internal sealed class CharacterRemains : Component
 
 		var point = collision.Contact.Point;
 		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface, out var terrainHit );
-		RabbitBodyContact.EmitSkid( surface?.ResourceName, point, terrainHit );
+		BillboardParticle.EmitSkid( surface?.ResourceName, point, terrainHit );
 		if ( BodySounds.PlayRagdoll( impulse, point, surface?.ResourceName, PlayBodySound ) )
 			RabbitGuard.ReportSound( GameObject, center, RabbitGuard.HeardSound.LoudFoley, 5f );
 	}

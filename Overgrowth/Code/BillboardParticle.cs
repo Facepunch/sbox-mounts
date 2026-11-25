@@ -24,6 +24,12 @@ public sealed class BillboardParticle : Component
 	}
 	Vector3? lastConnectedPosition;
 
+	internal static void EmitSkid( string surface, Vector3 point, in SceneTraceResult terrainHit )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount && mount.MaterialParticle( surface, "skid" ) is { } path )
+			RabbitGuard.EmitSurfaceParticle( path, point, 40f, TerrainLoader.ContactColor( terrainHit ) );
+	}
+
 	internal static BillboardParticle Emit( Definition definition, Vector3 position, Vector3 velocity, Color tint )
 	{
 		var go = new GameObject( false, "Overgrowth particle" ) { NetworkMode = NetworkMode.Never, WorldPosition = position };

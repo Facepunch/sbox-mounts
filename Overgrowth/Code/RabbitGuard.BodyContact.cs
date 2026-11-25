@@ -40,7 +40,7 @@ public sealed partial class RabbitGuard
 			if ( !IsValid || Health <= 0f ) return;
 		}
 
-		if ( impulse > 1f ) RabbitBodyContact.EmitSkid( surface, point, terrainHit );
+		if ( impulse > 1f ) BillboardParticle.EmitSkid( surface, point, terrainHit );
 		if ( bodySounds.PlayRagdoll( impulse, point, surface, PlayMaterialEvent ) )
 			ReportSound( GameObject, center, HeardSound.LoudFoley, 5f );
 	}
@@ -107,12 +107,6 @@ internal sealed class RabbitBodyContact : Component, Component.ICollisionListene
 	internal RabbitGuard Fighter { get; set; }
 	internal bool Head { get; set; }
 	internal CharacterRemains Remains { get; set; }
-
-	internal static void EmitSkid( string surface, Vector3 point, in SceneTraceResult terrainHit )
-	{
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount && mount.MaterialParticle( surface, "skid" ) is { } path )
-			RabbitGuard.EmitSurfaceParticle( path, point, 40f, TerrainLoader.ContactColor( terrainHit ) );
-	}
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
