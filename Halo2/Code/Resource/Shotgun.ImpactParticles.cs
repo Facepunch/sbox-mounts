@@ -33,6 +33,7 @@ internal sealed partial class ShotgunLoader
 				@"effects\generic\solids\metal_chips" => MetalChipsName,
 				@"effects\generic\smoke\smoke_soft_small_lit" => ImpactSmokeName,
 				@"effects\generic\solids\impact_spray" => SprayName,
+				@"effects\generic\solids\impact_spray_unlit" => UnlitSprayName,
 				@"effects\generic\solids\impact_spray_thick_unlit" => ThickSprayName,
 				@"effects\generic\smoke\smoke_soft_small" => UnlitImpactSmokeName,
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => SparksName,
@@ -44,7 +45,7 @@ internal sealed partial class ShotgunLoader
 			if ( !texture.IsValid() || texture.IsError ) continue;
 			var layer = name switch
 			{
-				SprayName or ThickSprayName => ImpactLayer.Spray,
+				SprayName or UnlitSprayName or ThickSprayName => ImpactLayer.Spray,
 				RubberName => ImpactLayer.Rubber,
 				MistName => ImpactLayer.Mist,
 				ShieldName => ImpactLayer.Shield,

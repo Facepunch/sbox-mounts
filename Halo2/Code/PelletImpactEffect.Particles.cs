@@ -143,7 +143,7 @@ public sealed partial class PelletImpactEffect
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
-		renderer.Lighting = (data.Layer is ImpactLayer.Smoke or ImpactLayer.Spray && data.Lighting) || data.Layer is ImpactLayer.Plant or ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Rubber or ImpactLayer.Rocks or ImpactLayer.MetalChips or ImpactLayer.GlassShards;
+		renderer.Lighting = data.Lighting;
 		renderer.Additive = sparks || data.Layer is ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield;
 		if ( sparks ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
