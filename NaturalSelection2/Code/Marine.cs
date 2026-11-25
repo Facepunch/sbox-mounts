@@ -42,7 +42,8 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	Vector3 lastAimPoint;
 	GameObject firingTarget;
 	GameObject trackedTarget;
-	TimeUntil repath;
+	TimeUntil repath, nextJuke, nextDodge;
+	int strafeSide = 1;
 	Rotation aim;
 	readonly AlienTargeting targeting = new();
 	SparkAnimationGraph.Playback graph, weapon;
@@ -76,6 +77,8 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( Scene.PhysicsWorld.Gravity.z < 0 )
+			GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 		age = 0;
 		lastRequest = lastShot = lastHit = 1;
 		aim = WorldRotation;
@@ -118,7 +121,11 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		if ( visible && enemy.GetComponentInParent<IDamageable>() is { } target )
 		{
 			bool usePistol;
-			if ( target is AlienStructure )
+			if ( target is Babbler )
+			{
+				usePistol = false;
+			}
+			else if ( target is AlienStructure )
 			{
 				float durability = target.Health + 2 * target.Armour;
 				float maxDurability = target.MaxHealth + 2 * target.MaxArmour;
@@ -137,18 +144,65 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		}
 		if ( deployed && Ammo.Clip == 0 && Ammo.Reserve > 0 ) reloading = true;
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
-		bool aimed = visible && CanAimAt( enemy, aimPoint ) && WorldPosition.Distance( enemy.WorldPosition ) <= BulletRange;
+		float distance = 0;
+		if ( visible )
+		{
+			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
+			distance = Math.Max( 0, EyePosition.Distance( enemy.WorldPosition ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f );
+		}
+		bool mobile = visible && enemy.GetComponentInParent<AlienStructure>() is null;
+		bool clearShot = visible && (mobile ? distance < 32.5f * Scale : distance <= BulletRange);
+		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
+		bool aimed = clearShot && (babbler || CanAimAt( enemy, aimPoint ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
 			firingTarget = enemy;
-			blindFireUntil = enemy.GetComponentInParent<AlienStructure>().IsValid() ? 0 : 0.5f;
+			blindFireUntil = mobile ? 0.5f : 0;
 		}
 		wantsFire = !reloading && Ammo.Clip > 0 && (aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0);
+		if ( mobile && clearShot )
+		{
+			if ( babbler ) Movement.Stop();
+			else Strafe( enemy, aimPoint, distance );
+			return;
+		}
+
 		if ( repath > 0 ) return;
 		repath = 0.2f;
-		if ( goal is { } p && (!visible || WorldPosition.Distance( p ) > 22 * Scale) )
+		if ( goal is { } p && (!visible || distance > 22 * Scale) )
 			Movement.MoveTo( p, Scale, faceTarget: visible ? enemy : null );
+		else Movement.Stop();
+	}
+
+	void Strafe( GameObject enemy, Vector3 aimPoint, float distance )
+	{
+		if ( repath > 0 ) return;
+		repath = 0.1f;
+		var toward = (enemy.WorldPosition - WorldPosition).WithZ( 0 ).Normal;
+		var velocity = enemy.GetComponent<BaseNpc>()?.Animation?.MoveVelocity ?? enemy.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+		if ( distance > 22 * Scale && Vector3.Dot( toward, velocity.WithZ( 0 ).Normal ) < -0.5f )
+		{
+			Movement.Stop();
+			return;
+		}
+
+		if ( nextJuke <= 0 )
+		{
+			strafeSide = -strafeSide;
+			nextJuke = Random.Shared.Float( 0.35f, 1 );
+		}
+		var side = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
+		if ( distance < 6 * Scale && nextDodge <= 0 && IsOnGround )
+		{
+			nextDodge = 2;
+			Launch( Animation.MoveVelocity.WithZ( MathF.Sqrt( 2 * 21.5f * 1.25f ) * Scale ) );
+			return;
+		}
+		if ( IsAirborne ) return;
+		var destination = WorldPosition + side * Scale;
+		if ( Movement.ProjectPoint( destination ) is { } point )
+			Movement.MoveTo( point, 4, 5 * Scale, enemy );
 		else Movement.Stop();
 	}
 
