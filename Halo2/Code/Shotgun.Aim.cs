@@ -11,7 +11,14 @@ public sealed partial class Shotgun
 	void PlayerController.IEvents.OnEyeAngles( ref Angles angles )
 	{
 		if ( !Input.UsingController || Input.MouseDelta != Vector2.Zero || Holder is not PlayerController player ) return;
-		if ( angles == Angles.Zero && Input.AnalogMove.IsNearlyZero() ) return;
+		// Halo checks the look rates in radians per second and the two movement axes independently.
+		const float threshold = 0.0001f;
+		float frame = RealTime.Delta;
+		if ( frame <= 0 ) return;
+		float lookThreshold = threshold.RadianToDegree() * frame;
+		var move = Input.AnalogMove;
+		if ( System.MathF.Abs( angles.yaw ) <= lookThreshold && System.MathF.Abs( angles.pitch ) <= lookThreshold &&
+			System.MathF.Abs( move.x ) <= threshold && System.MathF.Abs( move.y ) <= threshold ) return;
 		float confidence = LookConfidence( player, out var target, out var offset );
 		if ( confidence <= 0 ) return;
 		angles *= 1 - MagnetismFriction.Clamp( 0, 1 ) * confidence;
