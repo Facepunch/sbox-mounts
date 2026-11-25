@@ -40,14 +40,8 @@ public sealed class ShotgunContacts
 
 	internal void PlayMelee( Surface surface, Vector3 position )
 	{
-		Play( Contact( Melee, surface, false ) );
-		Play( Strike );
-
-		void Play( int index )
-		{
-			if ( Cue( index ) is {} cue && GameResource.Load<SoundEvent>( cue.Path ) is {} sound )
-				Sound.Play( sound, position );
-		}
+		Cue( Contact( Melee, surface, false ) )?.Play( position, ref seed, null );
+		Cue( Strike )?.Play( position, ref seed, null );
 	}
 
 	static string SurfaceName( Surface surface )
