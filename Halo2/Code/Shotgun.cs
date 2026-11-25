@@ -507,8 +507,12 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 				var range = dryRange;
 				if ( range != wetRange )
 				{
-					var point = hit.HitPosition - hit.Direction * 0.01f;
-					if ( InWater( point ) )
+					// Sample the incoming side of a coincident water face without skipping a nearby crossing.
+					static float Before( float value, float direction ) => direction > 0 ? System.MathF.BitDecrement( value )
+						: direction < 0 ? System.MathF.BitIncrement( value ) : value;
+					var p = hit.HitPosition;
+					var d = hit.Direction;
+					if ( InWater( new Vector3( Before( p.x, d.x ), Before( p.y, d.y ), Before( p.z, d.z ) ) ) )
 						range = wetRange;
 				}
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
