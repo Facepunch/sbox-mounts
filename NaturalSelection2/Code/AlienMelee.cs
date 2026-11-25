@@ -65,10 +65,7 @@ internal static class AlienMelee
 		if ( !wall.Hit || wall.StartedSolid ) return;
 		var (material, size) = surface switch
 		{
-			"flesh" => ($"marine_blood_0{Game.Random.Next( 1, 5 )}", 2f),
-			"robot" => ($"robot_blood_0{Game.Random.Next( 1, 5 )}", 2f),
-			"organic" => ($"alien_blood_0{Game.Random.Next( 1, 5 )}", 0.75f),
-			"membrane" => ("alien_blood_02", 0.75f),
+			_ when SparkDecal.HasBlood( surface ) => SparkDecal.Blood( surface ),
 			_ when claw => ($"clawmark_0{Game.Random.Next( 1, 5 )}", 0.25f),
 			_ => gore ? ("bash_01", 1f) : ("bite_02", 0.5f)
 		};

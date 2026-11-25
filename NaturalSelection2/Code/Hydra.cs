@@ -109,11 +109,12 @@ public sealed class Hydra : AlienStructure
 		}
 	}
 
-	internal static Vector3 SpikeDirection( Vector3 offset, Vector3 velocity, float angleRoll, float radiusRoll )
+	internal static Vector3 SpikeDirection( Vector3 offset, Vector3 velocity, float angleRoll, float radiusRoll, out Vector3 fireDirection )
 	{
 		float distance = offset.Length / Scale;
 		// Spark subtracts the target's travel during the notional flight time before the hitscan.
-		var aim = Rotation.LookAt( offset - velocity * (distance / 50) );
+		fireDirection = (offset - velocity * (distance / 50)).Normal;
+		var aim = Rotation.LookAt( fireDirection );
 		float spread = 1 + Math.Clamp( (distance - 2) / 8, 0, 1 );
 		float radius = radiusRoll * MathF.Tan( spread.DegreeToRadian() );
 		float angle = angleRoll * MathF.Tau;
@@ -124,7 +125,7 @@ public sealed class Hydra : AlienStructure
 	{
 		nextFire = 0.8f;
 		var origin = Barrel;
-		var direction = SpikeDirection( CalculateAimPoint( target ) - origin, GetVelocity( target ), Random.Shared.NextSingle(), Random.Shared.NextSingle() );
+		var direction = SpikeDirection( CalculateAimPoint( target ) - origin, GetVelocity( target ), Random.Shared.NextSingle(), Random.Shared.NextSingle(), out var fireDirection );
 		var hit = Scene.Trace.Ray( origin, origin + direction * Range ).IgnoreGameObjectHierarchy( GameObject )
 			.WithoutTags( "ns2_hydra", "trigger" ).UseHitboxes().Run();
 		GameObject targetHit = null;
@@ -146,11 +147,12 @@ public sealed class Hydra : AlienStructure
 					targetHit.Tags.Has( "ns2_marine" ) || targetHit.GetComponent<PlayerController>().IsValid() ? "flesh" : "metal";
 			}
 		}
-		AttackEffect( origin, hit.EndPosition, surface, targetHit );
+		byte projection = hit.Hit && (!targetHit.IsValid() || SparkDecal.HasBlood( surface )) ? HitDirection.Encode( fireDirection ) : (byte)0;
+		AttackEffect( origin, hit.EndPosition, surface, targetHit, projection );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void AttackEffect( Vector3 origin, Vector3 end, string surface, GameObject victim )
+	static void AttackEffect( Vector3 origin, Vector3 end, string surface, GameObject victim, byte projection )
 	{
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{AttackSound}.sound" ) is { } sound ) Sound.Play( sound, origin );
 		if ( surface is null || victim?.GetComponent<PlayerController>() is { IsProxy: false } ) return;
@@ -159,6 +161,7 @@ public sealed class Hydra : AlienStructure
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{cue}.sound" ) is { } impact ) Sound.Play( impact, end );
 		CinematicLoader.Play( $"cinematics/materials/{surface}/sting.cinematic", end, Rotation.Identity );
 		Lerk.ShowSpike( origin, end );
+		if ( projection != 0 ) SparkDecal.ProjectBlood( end, HitDirection.Decode( projection ), victim, surface );
 	}
 
 	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );
