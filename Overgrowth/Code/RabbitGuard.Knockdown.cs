@@ -427,21 +427,25 @@ public sealed partial class RabbitGuard
 		return support;
 	}
 
-	void StartGetUp( string stance )
+	float getUpEndTime;
+
+	void StartGetUp( string stance, bool interrupt = false )
 	{
 		activeBlockReaction = false;
 		MirroredAction = MirroredStance = LeftHanded;
 		duckAmount = 1f;
 		groundCrouchTarget = 0f;
 		duckVelocity = 0f;
+		// SetAnimation keeps the reader and its phase when the requested clip is already playing.
+		if ( interrupt && Stance == stance ) return;
 		Stance = stance;
 		BeginRecovery( 1f );
 		Renderer.Animation.Parameters.Set( "stance", Stance );
 		Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
 		playing = Stance;
 		reactionDuration = boundAnimations.Clips[Stance].Duration;
-		if ( Movement is Sandbox.Npcs.Layers.NavigationLayer navigation )
-			navigation.HoldMovement( reactionDuration );
+		// The outgoing stand reader calls EndGetUp when its fade completes.
+		getUpEndTime = interrupt ? 1f / 200f : reactionDuration;
 		ReactionPhase = 0;
 	}
 

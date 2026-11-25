@@ -116,8 +116,9 @@ public sealed partial class RabbitGuard
 			}
 			ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
 		}
-		if ( IsGetUp( Stance ) && ReactionPhase >= 1f )
+		if ( IsGetUp( Stance ) && (ReactionPhase >= 1f || ReactionPhase * reactionDuration >= getUpEndTime) )
 		{
+			ReactionPhase = 1f;
 			duckAmount = CrouchAmount = groundCrouchTarget = 1f;
 			duckVelocity = 0f;
 		}
@@ -204,13 +205,13 @@ public sealed partial class RabbitGuard
 		if ( TryDodge( attacker, move ) ) return false;
 		bool active = TrainingThrows || activeBlock > 0f || boundAnimations.Species == "cat" && hitsOnGround > 0;
 		if ( !active && (hitsOnGround <= 1 || Random.Shared.Float() <= MathF.Pow( 0.5f, hitsOnGround )) ) return false;
-		if ( Downed || IsGetUp( Stance ) || RollProgress < 1f ) throwRecharge = Math.Max( (float)throwRecharge, 1f );
+		if ( Downed || GettingUp || RollProgress < 1f ) throwRecharge = Math.Max( (float)throwRecharge, 1f );
 		if ( move.Unblockable || move.FleshUnblockable && (!PrimaryItem.IsValid() || boundAnimations.WeaponLabel == "knife") ) return false;
 		var slot = attacker.flippedAttack != MirroredStance ? RabbitMirror.SwapSide( move.Guard ) : move.Guard;
 		if ( !boundAnimations.Clips.TryGetValue( slot, out var guard ) ) return false;
 		flinching = false;
 		flinchFadeOut = 100f;
-		if ( Downed || IsGetUp( Stance ) )
+		if ( Downed || GettingUp )
 		{
 			var direction = (CharacterCenter( GameObject ) - CharacterCenter( attacker.GameObject )).Normal;
 			var facing = move.WorldImpact( direction, attacker.flippedAttack ).WithZ( 0 );
@@ -220,10 +221,8 @@ public sealed partial class RabbitGuard
 			}
 			else
 			{
-				EndRecovery();
-				CapturePhysicsPose();
 				if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
-				StartGetUp( BlockFromGround );
+				StartGetUp( BlockFromGround, interrupt: true );
 			}
 		}
 		else
