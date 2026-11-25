@@ -965,7 +965,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		nextCue = 0;
 	}
 
-	void AdvanceAction( float tick )
+	void AdvanceAction( float ticksPerSecond )
 	{
 		if ( reloadCancelled )
 		{
@@ -976,13 +976,14 @@ public sealed class ShotgunViewModel : ShotgunModel
 		if ( clip is null ) return;
 		// The magazine advances from reload_enter on its authored 30 Hz clock.
 		bool enterReload = entering && reload;
-		if ( enterReload ) tick = 1f / 30;
-		float framesPerTick = tick * 30 * Renderer.PlaybackRate;
+		if ( enterReload ) ticksPerSecond = 30;
+		if ( ticksPerSecond <= 0 ) return;
+		float framesPerTick = 30 * Renderer.PlaybackRate / ticksPerSecond;
 		if ( framesPerTick <= 0 ) return;
 		// Native traversal excludes the end frame of each tick. A one-shot returns to idle one tick early.
 		float endTick = System.MathF.Ceiling( (clip.Frames - 0.0001f) / framesPerTick );
 		float lastTick = enterReload ? endTick : endTick - 1;
-		float elapsedTicks = enterReload ? elapsed * 30 : elapsed / tick;
+		float elapsedTicks = elapsed * ticksPerSecond;
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsedTicks ), lastTick );
 		float frame = sampleTick * framesPerTick;
 		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
@@ -1013,7 +1014,8 @@ public sealed class ShotgunViewModel : ShotgunModel
 		base.OnUpdate();
 		if ( !Weapon.IsValid() ) Weapon = GetComponentInParent<Shotgun>();
 		if ( !Weapon.IsValid() || AnimationData is null || !Renderer.Animation.IsValid ) return;
-		AdvanceAction( Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta );
+		AdvanceAction( Sandbox.ProjectSettings.Physics.UseFixedUpdate
+			? Sandbox.ProjectSettings.Physics.FixedUpdateFrequency : Time.Delta > 0 ? 1f / Time.Delta : 0 );
 
 		if ( Weapon.Holder is not PlayerController player ) return;
 		var p = Renderer.Animation.Parameters;
