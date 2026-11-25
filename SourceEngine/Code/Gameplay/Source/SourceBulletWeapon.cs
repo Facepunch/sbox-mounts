@@ -128,9 +128,10 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	protected override bool WantsPrimaryAttack() => _queuedPrimary || base.WantsPrimaryAttack();
 	protected override bool WantsReload()
 	{
-		if ( DryTapRefireDelay <= 0 ) return base.WantsReload();
+		if ( IncrementalReloading || !UsesPrimaryClip ) return base.WantsReload();
 		if ( NextPrimaryFire > 0 ) return false;
-		return Input.Down( "reload" ) || (AutoReload && Clip1 == 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" ));
+		if ( Input.Down( "reload" ) ) return !(WantsPrimaryAttack() && CanPrimaryAttack());
+		return AutoReload && Clip1 == 0 && NextSecondaryFire <= 0 && !Input.Down( "attack1" ) && !Input.Down( "attack2" );
 	}
 	protected override bool WantsSecondaryAttack() => _queuedSecondary || base.WantsSecondaryAttack();
 
