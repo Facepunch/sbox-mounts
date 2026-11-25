@@ -648,6 +648,6 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( !WeaponEffects.Impact( shot, MountContent.OfWeapon( this ) ) ) base.OnShootImpact( shot );
+		if ( !WeaponEffects.Impact( shot, GetShotDirection( shot ), MountContent.OfWeapon( this ) ) ) base.OnShootImpact( shot );
 	}
 }

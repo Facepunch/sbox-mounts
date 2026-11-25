@@ -119,11 +119,12 @@ public sealed class FlatQuad : Component
 	const float AlphaBias = 0.4f;
 	SpriteRenderer _sprite;
 	float _start;
+	bool _linear;
 	float _end;
 	float _life;
 	TimeSince _age;
 
-	public static void Create( string material, Vector3 position, Vector3 normal, float startWidth, float endWidth, float life, string mount )
+	public static void Create( string material, Vector3 position, Vector3 normal, float startWidth, float endWidth, float life, string mount, bool linear = false )
 	{
 		var go = new GameObject( false, "HL2 quad" );
 		go.NetworkMode = NetworkMode.Never;
@@ -140,6 +141,7 @@ public sealed class FlatQuad : Component
 		quad._sprite = sprite;
 		quad._start = startWidth;
 		quad._end = endWidth;
+		quad._linear = linear;
 		quad._life = life;
 		quad.Draw( 0 );
 		go.Enabled = true;
@@ -162,8 +164,8 @@ public sealed class FlatQuad : Component
 
 	void Draw( float t )
 	{
-		_sprite.Size = float.Lerp( _start, _end, Bias( t, ScaleBias ) );
-		_sprite.Color = Color.White.WithAlpha( 1 - Bias( t, AlphaBias ) );
+		_sprite.Size = float.Lerp( _start, _end, _linear ? t : Bias( t, ScaleBias ) );
+		_sprite.Color = Color.White.WithAlpha( 1 - (_linear ? t : Bias( t, AlphaBias )) );
 	}
 }
 

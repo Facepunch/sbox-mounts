@@ -109,7 +109,7 @@ public sealed class NpcRangedEffects : Component
 		var direction = (shot.HitPosition - origin).Normal;
 		var mount = MountContent.Of( GameObject );
 		var renderer = GetComponent<BaseNpc>()?.Renderer;
-		if ( shot.Hit && !WeaponEffects.Impact( shot, mount ) )
+		if ( shot.Hit && !WeaponEffects.Impact( shot, direction, mount ) )
 			BaseCombatWeapon.ImpactEffect( shot, direction );
 
 		StopCharge();

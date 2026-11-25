@@ -262,7 +262,7 @@ public abstract class Projectile : Component
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void Impact( BaseCombatWeapon.ShotEffect shot, Vector3 direction, string sound, bool impactEffect, string mountName )
 	{
-		if ( impactEffect && shot.Hit && !WeaponEffects.Impact( shot, mountName ) ) BaseCombatWeapon.ImpactEffect( shot, direction );
+		if ( impactEffect && shot.Hit && !WeaponEffects.Impact( shot, direction, mountName ) ) BaseCombatWeapon.ImpactEffect( shot, direction );
 		if ( Sounds.Sound( sound, mountName ) is { } soundEvent ) Sound.Play( soundEvent, shot.HitPosition );
 	}
 }
