@@ -60,12 +60,19 @@ public sealed class ProjectileWeapon : Weapon
 		&& Clip1 == 0 && TimeSinceShoot >= AutoReloadDelay && Ammo1 > 0);
 
 	public override bool CanSecondaryAttack() => Secondary == SecondaryFires.Zoom ||
-		(Secondary == SecondaryFires.Guide || (Kind == Projectile.Kinds.Bugbait && !_redrawPending)) && base.CanSecondaryAttack();
+		(Secondary == SecondaryFires.Guide || (Kind == Projectile.Kinds.Bugbait && !_primed && !_redrawPending)) && base.CanSecondaryAttack();
 
 	public override void SecondaryAttack()
 	{
 		if ( Kind == Projectile.Kinds.Bugbait )
 		{
+			if ( _releasePending )
+			{
+				// The squeeze replaces the throw sequence before its projectile event.
+				_releasePending = false;
+				_releaseAttacker = null;
+				SetNextPrimaryFire( _redrawAt );
+			}
 			SqueezeEffects();
 			return;
 		}
@@ -238,10 +245,15 @@ public sealed class ProjectileWeapon : Weapon
 		if ( model.Renderer.MaterialGroup != skin && model.Renderer.Model is { MaterialGroupCount: >= 2 } ) model.Renderer.MaterialGroup = skin;
 	}
 
+	protected override void OnControl()
+	{
+		base.OnControl();
+		if ( _primed && _releaseAt <= 0 && !Input.Down( "attack1" ) ) BeginThrow();
+	}
+
 	protected override void Think()
 	{
 		base.Think();
-		if ( _primed && _releaseAt <= 0 && !Input.Down( "attack1" ) ) BeginThrow();
 		if ( IsLauncher && _redrawPending && _redrawAt <= 0 && !AttackOrReloadHeld ) FinishRedraw();
 	}
 
