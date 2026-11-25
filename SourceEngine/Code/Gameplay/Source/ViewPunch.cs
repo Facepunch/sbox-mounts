@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Source1;
@@ -11,21 +12,42 @@ sealed class ViewPunch : CameraEffectSystem.BaseEffect
 	Vector3 _velocity;
 	float _elapsed;
 
-	public static void Apply( CameraComponent camera, Angles impulse, bool reset )
+	static ViewPunch ForCamera( CameraComponent camera )
 	{
-		if ( !camera.IsValid() ) return;
 		if ( !Active.TryGetValue( camera, out var effect ) || effect.IsDone )
 		{
 			effect = camera.Scene.GetSystem<CameraEffectSystem>().Add( new ViewPunch { Camera = camera, Duration = 0 } );
 			Active.Remove( camera );
 			Active.Add( camera, effect );
 		}
+		return effect;
+	}
+
+	public static void Apply( CameraComponent camera, Angles impulse, bool reset )
+	{
+		if ( !camera.IsValid() ) return;
+		var effect = ForCamera( camera );
 		if ( reset )
 		{
 			effect._angle = 0;
 			effect._velocity = 0;
 		}
 		effect._velocity += new Vector3( impulse.pitch, impulse.yaw, impulse.roll ) * 20;
+	}
+
+	public static void MachineGunKick( CameraComponent camera, float kick )
+	{
+		if ( !camera.IsValid() ) return;
+		var effect = ForCamera( camera );
+		if ( effect._angle.LengthSquared + effect._velocity.LengthSquared <= 100 )
+			effect._angle = effect._velocity = 0;
+
+		var pitch = -(0.2f + kick);
+		var yaw = pitch / 3 * (Random.Shared.Next( 3 ) == 0 ? 1 : -1);
+		var roll = (0.1f + kick / 8) * (Random.Shared.Next( 3 ) == 0 ? 1 : -1);
+		var limit = new Vector3( 24, 3, 1 );
+		var target = (effect._angle + new Vector3( pitch, yaw, roll )).Clamp( -limit, limit );
+		effect._velocity += (target - effect._angle) * 10;
 	}
 
 	public override void Update( float delta )

@@ -91,6 +91,9 @@ public sealed class BulletWeapon : Weapon
 		: base.CurrentSpread;
 	/// <summary>Keep automatic rounds on their scheduled interval when a frame crosses a shot deadline.</summary>
 	[Property, Feature( "Shooting" )] public bool ContinuousFireRate { get; set; }
+	/// <summary>Maximum primary-fire kick in degrees and seconds of held fire to reach it.</summary>
+	[Property, Group( "Recoil" )] public Vector2 MachineGunKick { get; set; }
+	float _fireDuration;
 	TimeUntil? _tapReady;
 
 	[Property] public SecondaryFires Secondary { get; set; }
@@ -157,6 +160,7 @@ public sealed class BulletWeapon : Weapon
 	protected override void Think()
 	{
 		base.Think();
+		_fireDuration = Input.Down( "attack1" ) && !IsReloading ? _fireDuration + Time.Delta : 0;
 		// A ready launcher takes priority over bullets and reload on the same frame.
 		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && (!IsReloading || CanLaunchDuringReload) )
 		{
@@ -197,6 +201,7 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnHolstered()
 	{
+		_fireDuration = 0;
 		_holdingEmptyTrigger = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
@@ -216,6 +221,7 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnReloadStarted()
 	{
+		_fireDuration = 0;
 		_holdingEmptyTrigger = false;
 		_accuracyPenalty = 0;
 		_tapReady = null;
@@ -318,7 +324,12 @@ public sealed class BulletWeapon : Weapon
 		if ( AccuracyPenaltyPerShot > 0 && HasOwner ) _accuracyPenalty += AccuracyPenaltyPerShot;
 		if ( Secondary == SecondaryFires.DoubleShot ) SetNextFire( PrimaryDelay );
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
-		DoRecoil();
+		if ( HasOwner && MachineGunKick.y > 0 )
+		{
+			if ( !Owner.ThirdPerson && !Owner.IsProxy )
+				ViewPunch.MachineGunKick( Scene.Camera, MachineGunKick.x * Math.Min( _fireDuration / MachineGunKick.y, 1 ) );
+		}
+		else DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
 		var burst = Css.Rules.Burst( WeaponSetup.WeaponType( this ) );
 		_burstRemaining = Css.Rules.BurstShots - 1;

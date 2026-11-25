@@ -302,7 +302,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "ar2", "Pulse Rifle", "models/weapons/w_irifle.mdl", null, """
 			{
 				".": {
-					"Source1.BulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "3,3", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "ContinuousFireRate": true, "EmptyClickInterval": 0.5, "SecondaryDelay": 1.0, "SecondaryAutomatic": true, "FiresUnderwater": false, "DisplayName": "HL2 Pulse Rifle", "HoldType": "rifle", "Npc": {"MinRange": 65, "MaxRange": 2048, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "ReloadTime": 1.5, "StartingAmmo": 90, "ViewModelPrefab": {"prefab": "entities/parts/ar2_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/ar2_wm.prefab"}}
+					"Source1.BulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "3,3", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "ContinuousFireRate": true, "EmptyClickInterval": 0.5, "SecondaryDelay": 1.0, "SecondaryAutomatic": true, "FiresUnderwater": false, "DisplayName": "HL2 Pulse Rifle", "MachineGunKick": "8,5", "HoldType": "rifle", "Npc": {"MinRange": 65, "MaxRange": 2048, "BurstMin": 2, "BurstMax": 5, "RestMin": 0.3, "RestMax": 0.6, "SpreadScale": 3, "CanBePickedUp": true}, "ReloadTime": 1.5, "StartingAmmo": 90, "ViewModelPrefab": {"prefab": "entities/parts/ar2_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/ar2_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_irifle.mdl"}
@@ -398,7 +398,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Weapon, "smg", "SMG", "models/weapons/w_smg1.mdl", null, """
 			{
 				".": {
-					"Source1.BulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "5,5", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "EmptyClickInterval": 0.5, "SecondaryAutomatic": true, "FiresUnderwater": false, "SecondaryDelay": 1.0, "CanLaunchDuringReload": true, "PrimaryDelayAfterLaunch": 0.5, "DisplayName": "HL2 SMG", "HoldType": "smg", "ContinuousFireRate": true, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "StartingAmmo": 135, "ViewModelPrefab": {"prefab": "entities/parts/smg_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/smg_wm.prefab"}}
+					"Source1.BulletWeapon": {"PreferredSlot": 2, "Ballistics": {"Damage": 8, "Pellets": 1, "Range": 56755.84, "Radius": 0, "Force": 667.973, "SpreadBase": "5,5", "SpreadGrowth": "0,0", "SpreadRecovery": 0.2}, "ClipMaxSize": 45, "EmptyClickInterval": 0.5, "SecondaryAutomatic": true, "FiresUnderwater": false, "SecondaryDelay": 1.0, "CanLaunchDuringReload": true, "PrimaryDelayAfterLaunch": 0.5, "DisplayName": "HL2 SMG", "MachineGunKick": "1,2", "HoldType": "smg", "ContinuousFireRate": true, "PrimaryDelay": 0.075, "ReloadTime": 1.5, "StartingAmmo": 135, "ViewModelPrefab": {"prefab": "entities/parts/smg_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/smg_wm.prefab"}}
 				},
 				"standalone_wm": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_smg1.mdl"}
