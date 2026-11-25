@@ -59,8 +59,6 @@ public class SourceMeleeWeapon : SourceWeapon
 		SwingEffects( new ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) );
 
 		ShootBullet( tr, Damage, SwingForce, hitboxTags: true );
-
-		KickView();
 	}
 
 	/// <summary>Lets melee weapons relay extra presentation data alongside the hit.</summary>
