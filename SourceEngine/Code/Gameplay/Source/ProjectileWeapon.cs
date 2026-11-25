@@ -277,7 +277,7 @@ public sealed class ProjectileWeapon : Weapon
 			Projectile.Kinds.Grenade => (ThrowOrigin( eye, forward, 8 ), Hl2.Grenade.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2.Bugbait.ThrowVelocity( forward, inherited )),
 			Projectile.Kinds.HeGrenade or Projectile.Kinds.Flashbang or Projectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), Css.Rules.ThrowVelocity( forward, inherited )),
-			Projectile.Kinds.Rocket => (eye, Hl2.Rocket.LaunchVelocity( forward )),
+			Projectile.Kinds.Rocket => (eye + Rotation.LookAt( forward ) * new Vector3( 12, -6, -3 ), Hl2.Rocket.LaunchVelocity( forward )),
 			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
 		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, ExplosionRadius, ProjectileModel );
