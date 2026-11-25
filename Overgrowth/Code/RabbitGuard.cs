@@ -33,6 +33,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	Model boundModel;
 	LevelItem equippedForAnimation;
 	string boundStanceOverride;
+	string boundPatrolGroup;
 
 	internal void SetSpecies( string species )
 	{
@@ -56,14 +57,16 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	bool BindAnimations()
 	{
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
-		if ( boundAnimations is null || boundModel != Renderer.Model || Renderer.Animation.Graph is null
+		var patrolGroup = Stance == PatrolIdle && IsPatrolGroup ? PatrolAnimation : boundPatrolGroup;
+		if ( patrolGroup != boundPatrolGroup || boundAnimations is null || boundModel != Renderer.Model || Renderer.Animation.Graph is null
 			|| boundStanceOverride != UnarmedStanceOverride || Species is not null && boundAnimations.Species != Species
 			|| equippedForAnimation != equipped && !IsThrowingItem )
 		{
-			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model, UnarmedStanceOverride, Species ) is not { } ready ) return false;
+			if ( CharacterLoader.FromModel( Renderer.Model ) is not { } loader || loader.GetGuardAnimations( equipped?.GetComponent<ModelRenderer>()?.Model, UnarmedStanceOverride, Species, patrolGroup ) is not { } ready ) return false;
 			if ( !Downed ) Renderer.ClearPhysicsBones();
 			equippedForAnimation = equipped;
 			boundStanceOverride = UnarmedStanceOverride;
+			boundPatrolGroup = patrolGroup;
 			if ( boundModel != Renderer.Model )
 			{
 				boundModel = Renderer.Model;
@@ -207,6 +210,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "stance", playing );
 			return;
 		}
+		if ( playing == PatrolIdle && pose == PatrolIdle && IsPatrolGroup && boundAnimations.PatrolRig is { } patrolRig )
+			ReadRetargetedPose( patrolRig, false );
 		if ( InThrow && playing == pose && Stance == pose ) ReadThrowPose();
 		if ( pose == Wall )
 		{
@@ -214,7 +219,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			UpdateWallPose();
 		}
 		UpdateIdleBalance( pose is Threat or Idle or Ready or Watch );
-		if ( pose is ArmedHold or ArmedHeld )
+		if ( pose is ArmedHold or ArmedHeld || pose == PatrolIdle && IsPatrolGroup )
 		{
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );

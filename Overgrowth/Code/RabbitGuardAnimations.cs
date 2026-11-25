@@ -5,6 +5,7 @@ namespace Overgrowth;
 internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOnlyDictionary<string, RabbitClip> Clips, RabbitMovement Movement, IReadOnlyDictionary<string, RabbitMovement> IdlePoses, RabbitRetarget MovementRig, IReadOnlyDictionary<string, RabbitAttack> Attacks, IReadOnlySet<string> AttackStates, IReadOnlySet<string> UnweightedBones, string[] TorsoBones, RabbitLimbBone[][] Legs, RabbitLimbBone[][] Arms, float HipHalfLength, float AbdomenHalfLength, string HeadBone, float NeckHalfLength, RabbitHead Head, RabbitEar[] Ears, float[] BoneMass, float CharacterScale, float MovementScale, CharacterMorph[] Morphs )
 {
 	internal System.Func<string, Graph> PatrolGraph { get; private init; }
+	internal RabbitRetarget PatrolRig { get; private init; }
 	internal RagdollFallPose FallPose { get; private init; }
 	internal IReadOnlySet<string> ReactionStates { get; private init; }
 	internal RabbitRetarget RollRig { get; private init; }
@@ -24,7 +25,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 	internal Dictionary<string, RabbitAttack.Pose[]> GrabStances { get; private init; }
 	internal string WeaponLabel { get; private init; }
 	internal string ThrowMaterialEvent { get; private init; }
-	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, string species, XmlAsset item = null, string stanceOverride = null )
+	public static RabbitGuardAnimations Create( GameMount mount, string path, XmlAsset character, CharacterAnimationLibrary library, Vector3 modelCenter, string species, XmlAsset item = null, string stanceOverride = null, string patrolGroup = null )
 	{
 		var clips = new Dictionary<string, RabbitClip>();
 		var fs = mount.FileSystem;
@@ -114,11 +115,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase", "leg_support", "hang_active" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
 		coordinates["speed_coord"] = speed;
-		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false )
+		GraphBuilder.Node AnimationGroup( string file, string time = null, bool inAir = false, bool mirrored = false, HashSet<RabbitRetarget> sources = null )
 		{
-			if ( file.EndsWith( ".anm" ) )
+			if ( file.EndsWith( ".anm", System.StringComparison.OrdinalIgnoreCase ) )
 			{
-				var name = System.IO.Path.GetFileNameWithoutExtension( file );
+				var name = file["Data/Animations/".Length..^4];
+				sources?.Add( library.SourceFor( name ) );
 				var key = name + (mirrored ? "_mirrored" : "");
 				if ( !clips.TryGetValue( key, out var clip ) )
 					clips[key] = clip = library.Clip( name, inAir ? RabbitClip.CenterMotion.None : RabbitClip.CenterMotion.Full, mirrored: mirrored );
@@ -128,9 +130,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
 			inAir |= group.Element( "InAir" )?.Value == "true";
 			var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) ).ToArray();
-			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored );
+			GraphBuilder.Node Input( XmlAsset x ) => AnimationGroup( x.Attribute( "path" ), x.Attribute( "time_coord_label" ) is { } label && coordinates.ContainsKey( label ) ? label : time, inAir, mirrored, sources );
 			if ( inputs.Length == 1 ) return Input( inputs[0] );
-			var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
+			var blend = graph.BlendSpace( coordinates.TryGetValue( group.Element( "CoordLabel" ).Value, out var coord ) ? coord : graph.Constant( 0f ), looping: false );
 			foreach ( var input in inputs ) blend.Add( input.Number( "coord" ).Value, Input( input ) );
 			return blend;
 		}
@@ -241,6 +243,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return library.Clip( name, data: RabbitClip.PoseData.Gait );
 		} );
 		var reactionStates = reactionNames.Concat( guards.Keys ).Concat( throwClips.Keys ).ToHashSet();
+		var patrolRigs = patrolGroup is null ? null : new HashSet<RabbitRetarget>();
 		var states = names.Select( name =>
 		{
 			if ( idlePoses.TryGetValue( name, out var idle ) )
@@ -249,7 +252,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				return machine.AddState( MovementStance( IdlePose( idle, false ), IdlePose( idle, true ) ) );
 			}
 			if ( name == RabbitGuard.PatrolIdle )
-				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( "Data/Animations/r_relaxidle.xml" ) ) );
+				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( patrolGroup ?? "Data/Animations/r_relaxidle.xml", sources: patrolRigs ) ) );
 			if ( name == RabbitGuard.Roll )
 			{
 				GraphBuilder.Node Roll( bool mirrored ) => roll.Build( graph, label => coordinates.GetValueOrDefault( label ), coordinates["roll_phase"], mirrored );
@@ -471,6 +474,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones, [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.Element( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
 			PatrolGraph = LoadPatrolGraph,
+			PatrolRig = patrolRigs?.Count == 1 ? patrolRigs.First() : null,
 			Torso = new( skeleton.BindPose[hip], skeleton.BindPose[parents[torso.BoneId]], chestBind, HalfLength( parents[torso.BoneId] ), HalfLength( torso.BoneId ) ),
 			TailBones = skeleton.IKBones.TryGetValue( "tail", out var tail ) ? RabbitLimbBone.Chain( skeleton, parents, "tail", scale, tail.ChainLength ) : [],
 			FallPose = new( parents, FallLayer( "r_flail" ), FallLayer( "r_fetal" ), FallLayer( "r_catchfallfront" ), FallLayer( "r_writhe" ) ),

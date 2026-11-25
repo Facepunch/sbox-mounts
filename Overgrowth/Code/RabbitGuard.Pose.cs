@@ -61,13 +61,18 @@ public sealed partial class RabbitGuard
 	void ReadMovementPose( RabbitMovement movement, RabbitRetarget rig, RabbitMovement.Controls controls, float phase, bool mirrored, List<RabbitMovement.PoseInput> stride = null )
 	{
 		if ( rig is null ) return;
+		gaitInputs.Clear();
+		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
+		ReadRetargetedPose( rig, mirrored, gaitInputs, stride );
+	}
+
+	void ReadRetargetedPose( RabbitRetarget rig, bool mirrored, List<RabbitMovement.PoseInput> inputs = null, List<RabbitMovement.PoseInput> stride = null )
+	{
 		var model = PrepareSampledPose();
 		// The graph exposes world-space bones from the last animation pass. Navigation can
 		// already have moved the component before the renderer receives its new transform.
 		var basis = Renderer.SceneModel.Transform;
-		gaitInputs.Clear();
-		movement.CollectPoseInputs( controls, phase, mirrored, gaitInputs );
-		int count = System.Math.Max( gaitInputs.Count, stride?.Count ?? 0 );
+		int count = System.Math.Max( inputs?.Count ?? 0, stride?.Count ?? 0 );
 		if ( gaitBlend.Length < count ) gaitBlend = new (Transform, Rotation)[count];
 		bool advance = stride is not null;
 		foreach ( var bone in model.Bones.AllBones )
@@ -78,10 +83,10 @@ public sealed partial class RabbitGuard
 			var parent = bone.Parent;
 			var local = parent is null ? pose : graphPose[parent.Index].ToLocal( pose );
 			// Advance the stride under the graph's layers so all procedural joints read the same frame.
-			if ( advance || gaitInputs.Count > 1 )
+			if ( advance || inputs?.Count > 1 )
 			{
 				int joint = rigIndices[bone.Index];
-				var from = SampleMovementBone( gaitInputs, joint, model.BoneCount );
+				var from = SampleMovementBone( inputs, joint, model.BoneCount );
 				var to = advance ? SampleMovementBone( stride, joint, model.BoneCount ) : from;
 				local.Rotation *= from.Unit.Rotation.Inverse * to.Raw.Normal;
 				if ( parent is null ) local.Position += to.Unit.Position - from.Unit.Position;

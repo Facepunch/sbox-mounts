@@ -19,6 +19,7 @@ public sealed partial class RabbitGuard
 	[Sync] RestPose PatrolRest { get; set; }
 	bool Sleeping => PatrolRest == RestPose.Sleeping;
 	string connectedPatrolAnimation;
+	bool IsPatrolGroup => PatrolAnimation?.EndsWith( ".xml", StringComparison.OrdinalIgnoreCase ) == true;
 
 	void UpdatePatrolPose()
 	{
@@ -39,7 +40,8 @@ public sealed partial class RabbitGuard
 		if ( connectedPatrolAnimation == PatrolAnimation ) return;
 		var slot = Renderer.Animation.ExternalGraphs;
 		if ( slot.IsConnected( PatrolIdle ) ) slot.Disconnect( PatrolIdle );
-		if ( boundAnimations.PatrolGraph( PatrolAnimation ) is { } graph ) slot.Connect( PatrolIdle, graph );
+		// The parent graph drives the blend coordinates of a patrol group. Single clips play in the external slot.
+		if ( !IsPatrolGroup && boundAnimations.PatrolGraph( PatrolAnimation ) is { } graph ) slot.Connect( PatrolIdle, graph );
 		connectedPatrolAnimation = PatrolAnimation;
 	}
 
@@ -102,8 +104,9 @@ public sealed partial class RabbitGuard
 				"Sit" => "Data/Animations/r_sit_cross_legged.anm",
 				"Sleep" => "Data/Animations/r_sleep.anm",
 				"Wounded" => "Data/Animations/r_sit_injuredneck.anm",
-				{ } path when path.StartsWith( "Data/Animations/", System.StringComparison.OrdinalIgnoreCase ) && path.EndsWith( ".anm", System.StringComparison.OrdinalIgnoreCase ) => path,
-				_ => null
+				null or "Stand" => null,
+				{ } path when IsWaypointAnimation( path ) => path,
+				_ => waypointAnimation
 			};
 			patrolWait = reached.Connections.Count == 0 ? float.PositiveInfinity : reached.Wait;
 
@@ -114,6 +117,15 @@ public sealed partial class RabbitGuard
 		}
 
 		return MoveOnPatrol( target, false );
+	}
+
+	static bool IsWaypointAnimation( string path )
+	{
+		if ( !path.StartsWith( "Data/Animations/", StringComparison.OrdinalIgnoreCase )
+			|| Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount || !mount.FileSystem.FileExists( path ) ) return false;
+		if ( path.EndsWith( ".anm", StringComparison.OrdinalIgnoreCase ) ) return true;
+		return path.EndsWith( ".xml", StringComparison.OrdinalIgnoreCase )
+			&& XmlAsset.Parse( mount.FileSystem.ReadAllText( path ) ).Element( "SyncedAnimationGroup" ) is not null;
 	}
 
 	bool MoveOnPatrol( Vector3? target, bool following )

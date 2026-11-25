@@ -26,7 +26,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		}
 	}
 
-	readonly Dictionary<(string Equipment, string Stance, string Species), RabbitGuardAnimations> animationGraphs = new();
+	readonly Dictionary<(string Equipment, string Stance, string Species, string PatrolGroup), RabbitGuardAnimations> animationGraphs = new();
 	CharacterAnimationLibrary animationLibrary;
 	Vector3? modelCenter;
 	SkeletonData animationRig;
@@ -415,14 +415,14 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		animationLibrary = null;
 	}
 
-	internal RabbitGuardAnimations GetGuardAnimations( Model heldModel = null, string stanceOverride = null, string species = null )
+	internal RabbitGuardAnimations GetGuardAnimations( Model heldModel = null, string stanceOverride = null, string species = null, string patrolGroup = null )
 	{
 		if ( !guard ) return null;
 		var equipment = heldModel?.ResourcePath;
 		var item = equipment is null ? null : (Host.GetByPath( equipment ) as ObjectLoader)?.ItemDefinition;
 		if ( string.IsNullOrWhiteSpace( stanceOverride ) || item?.Element( "anim_override" )?.Attribute( "idle" ) is not null || !Host.FileSystem.FileExists( stanceOverride ) ) stanceOverride = null;
 		species ??= Species;
-		var key = (equipment, stanceOverride, species);
+		var key = (equipment, stanceOverride, species, patrolGroup);
 		if ( animationGraphs.TryGetValue( key, out var existing ) ) return existing;
 		if ( animationLibrary is null )
 		{
@@ -440,7 +440,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		var graphPath = equipment is null ? Path : Path + "/equipped/" + equipment["mount://overgrowth/".Length..];
 		if ( stanceOverride is not null ) graphPath += "/stance/" + Host.Resolve( stanceOverride );
 		if ( species != Species ) graphPath += "/species/" + species;
-		return animationGraphs[key] = RabbitGuardAnimations.Create( Host, graphPath, Definition, animationLibrary, modelCenter.Value, species, item, stanceOverride );
+		if ( patrolGroup is not null ) graphPath += "/patrol/" + Host.Resolve( patrolGroup );
+		return animationGraphs[key] = RabbitGuardAnimations.Create( Host, graphPath, Definition, animationLibrary, modelCenter.Value, species, item, stanceOverride, patrolGroup );
 	}
 
 	ObjLoader.ObjData ReadMesh( XmlAsset appearance, ObjLoader.ObjData reference, string skeletonModelPath, out string modelObjPath )
