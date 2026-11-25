@@ -5,7 +5,8 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	const string DrawAcross = "r_knifeunsheathe", DrawSameSide = "r_knifeunsheathesameside";
-	internal static readonly string[] HandAnimations = [DrawAcross, DrawSameSide, ThrowLayer, FlipThrowLayer];
+	const string SwapHands = "r_heldweaponswap";
+	internal static string[] HandAnimations => [DrawAcross, DrawSameSide, SwapHands, ThrowLayer, FlipThrowLayer];
 	internal static string DrawLayer( string animation, bool left ) => left ? animation + "_left" : animation + "_right";
 	[Property, Sync] public LevelItem LeftHipWeapon { get; set; }
 	[Property, Sync] public LevelItem RightHipWeapon { get; set; }
@@ -18,6 +19,29 @@ public sealed partial class RabbitGuard
 	LevelItem drawing;
 	string appliedDrawLayer, appliedDrawAnimation;
 	bool appliedDrawLeft;
+
+	bool BeginHandSwap()
+	{
+		var secondary = LeftHanded ? RightHandItem : LeftHandItem;
+		if ( !secondary.IsValid() || Downed || Unconscious ) return false;
+		if ( PrimaryItem.IsValid() && (boundAnimations.WeaponLabel != "knife" || secondary.Definition?.Element( "label" )?.Value is not ("sword" or "rapier")) ) return false;
+		DrawAnimation = SwapHands;
+		DrawLeft = MirroredStance;
+		drawElapsed = 0f;
+		return true;
+	}
+
+	void SwapHeldWeapons( int eventBone )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		var left = LeftHandItem;
+		var right = RightHandItem;
+		LeftHandItem = RightHandItem = null;
+		if ( left.IsValid() ) LevelItem.Attach( mount, left.GameObject, left.GetComponent<ModelRenderer>().Model, this, 0, false );
+		if ( right.IsValid() ) LevelItem.Attach( mount, right.GameObject, right.GetComponent<ModelRenderer>().Model, this, 0, true );
+		var point = Renderer.TryGetBoneTransform( $"bone_{eventBone}", out var bone ) ? bone.Position : WorldPosition;
+		PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_drop_light_dirt.xml", point, 0.5f );
+	}
 
 	void BeginWeaponDraw()
 	{
@@ -55,10 +79,11 @@ public sealed partial class RabbitGuard
 	{
 		if ( Networking.IsHost )
 		{
-			if ( DrawAnimation is null && !BeginItemThrow() ) BeginWeaponDraw();
+			if ( DrawAnimation is null && !BeginHandSwap() && !BeginItemThrow() ) BeginWeaponDraw();
 			if ( DrawAnimation is not null )
 			{
 				var clip = boundAnimations.Clips[DrawAnimation];
+				var previous = drawElapsed;
 				drawElapsed += Time.Delta;
 				DrawPhase = Math.Min( 1f, drawElapsed / clip.Duration );
 				if ( fadingThrow ) DrawWeight = Math.Max( 0f, DrawWeight - 4f * Time.Delta );
@@ -66,6 +91,8 @@ public sealed partial class RabbitGuard
 				if ( (!fadingThrow || DrawWeight > 0f) && !Downed && itemThrowTarget is not null && clip.ForSide( DrawLeft ).WeaponRelease is { } release && drawElapsed >= release.Time )
 					ReleaseThrownItem( release.Left );
 				if ( !Downed && clip.DrawTime is { } grab && drawElapsed >= grab ) TakeDrawnWeapon();
+				if ( !Downed && clip.ForSide( DrawLeft ).HandSwap is { } swap && previous < swap.Time && drawElapsed >= swap.Time )
+					SwapHeldWeapons( swap.Bone );
 				if ( DrawWeight <= 0f || Downed )
 				{
 					DrawAnimation = null;

@@ -28,6 +28,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal float? GrabTime { get; init; }
 	internal (float Time, bool Left)? WeaponRelease { get; init; }
 	internal float? DrawTime { get; init; }
+	internal Impact HandSwap { get; init; }
 	internal float? LimpTime { get; init; }
 	internal float? CutTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
@@ -154,6 +155,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		var keys = new Key[count];
 		var channels = StatusChannels;
 		(float Time, bool Left)? weaponRelease = null;
+		Impact handSwap = null;
 		float? limpTime = null, grabTime = null, drawTime = null, cutTime = null;
 		Impact impact = null, blocked = null;
 		List<float> prepare = [];
@@ -215,6 +217,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				switch ( label )
 				{
 					case "leftweaponrelease": case "rightweaponrelease": weaponRelease = (time * 0.001f, label == "leftweaponrelease"); break;
+					case "heldweaponswap": handSwap = new( time * 0.001f, bone ); break;
 					case "grabitem": grabTime = time * 0.001f; break;
 					case "golimp": limpTime = time * 0.001f; break;
 					case "throatcut": cutTime = time * 0.001f; break;
@@ -441,7 +444,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			if ( morphs[i].Steps == 1 ) clip.AddMorphTrack( label, values );
 			else clip.AddFloatChannelTrack( "multistep", label, values );
 		}
-		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare.ToArray(), blocked, 0f, 0f, steps, feet ) { Hands = hands, WeaponRelease = weaponRelease, GrabTime = grabTime, DrawTime = drawTime, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
+		return new( clip.Create( $"{path}/{name}{(mirror is null ? "" : "_mirrored")}.anim" ), loop, duration * 0.001f, impact, prepare.ToArray(), blocked, 0f, 0f, steps, feet ) { Hands = hands, WeaponRelease = weaponRelease, GrabTime = grabTime, DrawTime = drawTime, HandSwap = handSwap, LimpTime = limpTime, CutTime = cutTime, RotationMagnitudes = magnitudes };
 
 		int Count()
 		{
