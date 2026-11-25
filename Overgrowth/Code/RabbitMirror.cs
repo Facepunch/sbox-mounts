@@ -12,18 +12,22 @@ internal sealed class RabbitMirror
 	readonly Transform[] bindChange;
 	readonly bool symmetricHierarchy;
 
-	internal RabbitMirror( SkeletonData source, float scale, int[] animationParents )
+	internal RabbitMirror( SkeletonData source, float scale, SkeletonData target )
 	{
-		bind = source.BindPose.Select( tx => tx.WithPosition( tx.Position * scale ) ).ToArray();
+		var animationParents = target.AnimationParents;
+		// Native mirrors all bones, applying reference bind transforms only where they exist.
+		bind = Enumerable.Range( 0, animationParents.Length ).Select( i => i < source.BindPose.Length
+			? source.BindPose[i].WithPosition( source.BindPose[i].Position * scale ) : Transform.Zero ).ToArray();
 		inverseBind = bind.Select( tx => tx.ToLocal( Transform.Zero ) ).ToArray();
 		int Depth( int i )
 		{
 			int depth = 0;
-			while ( (i = source.HierParents[i]) >= 0 ) depth++;
+			while ( (i = target.HierParents[i]) >= 0 ) depth++;
 			return depth;
 		}
 		order = Enumerable.Range( 0, bind.Length ).OrderBy( Depth ).ToArray();
-		symmetry = MatchBones( source );
+		var matched = MatchBones( source );
+		symmetry = Enumerable.Range( 0, bind.Length ).Select( i => i < matched.Length && matched[i] < bind.Length ? matched[i] : i ).ToArray();
 		bindChange = Enumerable.Range( 0, bind.Length ).Select( i => Reflect( inverseBind[i] ).ToWorld( bind[symmetry[i]] ) ).ToArray();
 		symmetricHierarchy = Enumerable.Range( 0, bind.Length ).All( i =>
 			animationParents[symmetry[i]] == (animationParents[i] < 0 ? -1 : symmetry[animationParents[i]]) );

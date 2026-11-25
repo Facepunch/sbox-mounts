@@ -76,10 +76,11 @@ public sealed partial class RabbitGuard
 			tail.Ends[i] = pose.Position + half;
 		}
 
-		const float tick = 4f / 120f;
+		int frames = SecondaryPoseFrames;
+		float tick = frames / 120f;
 		if ( !tail.Initialized || secondaryReset > 0f )
 		{
-			tail.Step( this, 4, 1f, true );
+			tail.Step( this, frames, 1f, true );
 			tail.Initialized = true;
 			tail.Remainder = 0f;
 		}
@@ -88,7 +89,7 @@ public sealed partial class RabbitGuard
 			float elapsed = tail.Remainder + Time.Delta;
 			int steps = (int)(elapsed / tick);
 			for ( int i = 1; i <= steps; i++ )
-				tail.Step( this, 4, (i * tick - tail.Remainder) / Time.Delta, false );
+				tail.Step( this, frames, Math.Clamp( (i * tick - tail.Remainder) / Time.Delta, 0f, 1f ), false );
 			tail.Remainder = elapsed - steps * tick;
 		}
 		Array.Copy( tail.Starts, tail.LastStarts, count );

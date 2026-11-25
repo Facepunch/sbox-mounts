@@ -4,6 +4,9 @@ namespace Overgrowth;
 internal sealed class RabbitRetarget
 {
 	readonly Transform[] sourceBind;
+	readonly int[] tail;
+	readonly bool[] isTail;
+	readonly bool sameRig;
 	readonly int[] eventBones;
 	readonly SkeletonData target;
 	readonly float scale;
@@ -14,9 +17,19 @@ internal sealed class RabbitRetarget
 	Vector3[] mirroredParentAnchor, mirroredChildHalf;
 	readonly List<int> flippedToes = [];
 
-	internal RabbitRetarget( BaseFileSystem fs, string rigPath, SkeletonData target, float scale, out SkeletonData source )
+	internal RabbitRetarget( BaseFileSystem fs, string rigPath, string targetRig, SkeletonData target, float scale, out SkeletonData source )
 	{
 		this.target = target;
+		sameRig = string.Equals( rigPath, targetRig, System.StringComparison.OrdinalIgnoreCase );
+		tail = target.IKBones.TryGetValue( "tail", out var chain ) ? new int[chain.ChainLength] : [];
+		isTail = new bool[target.Bones.Count];
+		int tailBone = chain.BoneId;
+		for ( int i = 0; i < tail.Length; i++ )
+		{
+			tail[i] = tailBone;
+			isTail[tailBone] = true;
+			tailBone = target.HierParents[tailBone];
+		}
 		this.scale = scale;
 		var rig = XmlAsset.Read( fs, rigPath, "rig" );
 		var mesh = ObjLoader.Load( fs, rig.Attribute( "model_path" ) );
@@ -92,9 +105,12 @@ internal sealed class RabbitRetarget
 		}
 	}
 
-	internal Vector3 GaitJointPosition( int bone, Rotation rotation, bool mirrored ) => mirrored
-		? mirroredParentAnchor[bone] + rotation * mirroredChildHalf[bone]
-		: JointPosition( bone, rotation );
+	internal Vector3 GaitJointPosition( int bone, Rotation rotation, bool mirrored )
+	{
+		// Joint positions are computed before the native tail-twist correction.
+		if ( isTail[bone] && mirrored != sameRig ) rotation = ReflectTailRotation( rotation );
+		return mirrored ? mirroredParentAnchor[bone] + rotation * mirroredChildHalf[bone] : JointPosition( bone, rotation );
+	}
 
 	internal int EventBone( int bone ) => (uint)bone < eventBones.Length ? eventBones[bone] : bone;
 
@@ -104,6 +120,15 @@ internal sealed class RabbitRetarget
 		mirror.Apply( frame, scratch, target.AnimationParents );
 		foreach ( int toe in flippedToes ) frame[toe].Rotation *= ToeFlip;
 	}
+
+	internal void CorrectTailTwist( System.Span<Transform> frame, bool mirrored )
+	{
+		if ( mirrored == sameRig ) return;
+		foreach ( int i in tail )
+			frame[i].Rotation = ReflectTailRotation( frame[i].Rotation );
+	}
+
+	static Rotation ReflectTailRotation( Rotation q ) => new( q.x, -q.y, q.z, -q.w );
 
 	internal Transform LimbTarget( int side, Transform pose, RabbitMirror mirror, int anchor, bool foot )
 	{
@@ -132,9 +157,15 @@ internal sealed class RabbitRetarget
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );
 				continue;
 			}
-			// Overgrowth retains authored rotations on shared bones and attaches additional joints in bind pose.
-			var rotation = i < pose.Length && parent < pose.Length ? pose[parent].Rotation.Inverse * pose[i].Rotation
-				: (parent < sourceBind.Length ? sourceBind[parent] : target.BindPose[parent]).Rotation.Inverse * target.BindPose[i].Rotation;
+			// Native Retarget only fills in bind rotations after the first added bone.
+			Rotation rotation;
+			if ( i < pose.Length && parent < pose.Length )
+				rotation = pose[parent].Rotation.Inverse * pose[i].Rotation;
+			else if ( i > sourceBind.Length )
+				rotation = (parent < sourceBind.Length ? sourceBind[parent] : target.BindPose[parent]).Rotation.Inverse * target.BindPose[i].Rotation;
+			else
+				rotation = Rotation.Identity;
+
 			result[i] = new Transform( Vector3.Zero, rotation );
 		}
 		// Retarget's flipped-toe check rotates about the source rig's Z (s&box forward).

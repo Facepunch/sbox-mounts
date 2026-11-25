@@ -12,7 +12,7 @@ internal sealed class CharacterAnimationLibrary
 	internal float Scale { get; }
 	internal (string Name, float Weight)[] PainMask { get; }
 	readonly BaseFileSystem fs;
-	readonly string path, referenceRig;
+	readonly string path, referenceRig, targetRig;
 	readonly ILookup<string, string> mapping;
 	readonly Dictionary<string, RabbitRetarget> sources = new();
 	readonly Dictionary<(string Name, RabbitClip.CenterMotion Motion, RabbitClip.PoseData Data, bool Mirrored), RabbitClip> clips = new();
@@ -21,6 +21,7 @@ internal sealed class CharacterAnimationLibrary
 	{
 		fs = mount.FileSystem;
 		this.path = path;
+		targetRig = character.Element( "appearance" ).Attribute( "skeleton" );
 		Skeleton = skeleton;
 		Scale = scale;
 		Morphs = morphs;
@@ -36,9 +37,8 @@ internal sealed class CharacterAnimationLibrary
 			.SelectMany( rig => rig.Elements( "anim" ).Select( anim => (anim.Value, Rig: rig.Attribute( "path" )) ) )
 			.ToLookup( entry => entry.Value, entry => entry.Rig, System.StringComparer.OrdinalIgnoreCase );
 		referenceRig = mapping["Data/Animations/r_ledge.anm"].Last();
-		sources[referenceRig] = new RabbitRetarget( fs, referenceRig, skeleton, scale, out var referenceSkeleton );
-		var mirror = Mirror = referenceSkeleton.HierParents.SequenceEqual( skeleton.HierParents )
-			? new RabbitMirror( referenceSkeleton, scale, skeleton.AnimationParents ) : new RabbitMirror( skeleton, 1f, skeleton.AnimationParents );
+		sources[referenceRig] = new RabbitRetarget( fs, referenceRig, targetRig, skeleton, scale, out var referenceSkeleton );
+		var mirror = Mirror = new RabbitMirror( referenceSkeleton, scale, skeleton );
 		if ( morphs.Any( m => m.Steps == 1 ) )
 			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
 		if ( morphs.Any( m => m.Steps > 1 ) )
@@ -95,7 +95,7 @@ internal sealed class CharacterAnimationLibrary
 	{
 		var sourcePath = mapping[$"Data/Animations/{name}.anm"].LastOrDefault() ?? referenceRig;
 		if ( !sources.TryGetValue( sourcePath, out var source ) )
-			sources[sourcePath] = source = new RabbitRetarget( fs, sourcePath, Skeleton, Scale, out _ );
+			sources[sourcePath] = source = new RabbitRetarget( fs, sourcePath, targetRig, Skeleton, Scale, out _ );
 		return source;
 	}
 

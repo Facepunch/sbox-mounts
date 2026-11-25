@@ -406,6 +406,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				var travel = Vector3.Lerp( b.Travel, c.Travel, t );
 				float yaw = b.Yaw + (c.Yaw - b.Yaw) * t;
 				if ( mirror is not null ) retarget.Mirror( mirror, frame, scratch );
+				retarget.CorrectTailTwist( frame, mirror is not null );
 				var root = new Transform( travel, Rotation.FromYaw( yaw.RadianToDegree() ) );
 				roots[i] = mirror is null ? root : RabbitMirror.Reflect( root );
 				if ( sampleLimbs )
