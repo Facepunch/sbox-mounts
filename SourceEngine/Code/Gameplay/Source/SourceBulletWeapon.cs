@@ -153,6 +153,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	protected override void Think()
 	{
 		base.Think();
+		// A ready launcher takes priority over bullets and reload on the same frame.
+		if ( Launches && WantsSecondaryAttack() ) FireSecondary();
 		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
 		{
