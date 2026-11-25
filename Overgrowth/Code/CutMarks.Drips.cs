@@ -17,10 +17,10 @@ public sealed partial class CutMarks
 			drips.Add( drip );
 	}
 
-	internal void AddHeadDrip( CharacterLoader character, Vector3 direction )
+	internal void AddHeadDrip( CharacterLoader character, int link, Vector3 direction )
 	{
 		WakeDrying();
-		if ( character.InitialChainCenter( "head", 1 ) is { } origin && character.Surface.DirectedDrip( origin, direction ) is { } drip )
+		if ( character.InitialChainCenter( "head", link ) is { } origin && character.Surface.DirectedDrip( origin, direction ) is { } drip )
 			drips.Add( drip );
 	}
 

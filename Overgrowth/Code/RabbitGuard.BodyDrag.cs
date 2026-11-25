@@ -62,7 +62,8 @@ public sealed partial class RabbitGuard
 		{
 			var pull = delta.Normal * ((delta.Length - 8f) * 5f * DragStrength);
 			if ( pull.LengthSquared > 0.2f * 40f * 40f ) { ReleaseBodyDrag(); return; }
-			MoveGroundDelta( pull * Time.Delta );
+			// HandleTethering adds this velocity once per two 120 Hz frames.
+			combatVelocity += pull * (Time.Delta * 60f);
 		}
 		float blend = 1f - MathF.Pow( 0.95f, Time.Delta * 120f );
 		if ( DragStrength > 0.3f )
@@ -84,7 +85,7 @@ public sealed partial class RabbitGuard
 
 		float previous = DragStrength;
 		DragStrength += (1f - DragStrength) * blend;
-		if ( previous < 0.7f && DragStrength >= 0.7f ) PlayCombatSound( "Data/Sounds/hit/grip.xml", WorldPosition );
+		if ( previous < 0.7f && DragStrength >= 0.7f ) PlayCombatSound( "Data/Sounds/hit/grip.xml", CharacterCenter( GameObject ) );
 		var carrier = draggedPhysics.GetComponentInParent<RabbitGuard>();
 		var target = carrier.IsValid() ? carrier.GameObject : draggedPhysics.GameObject;
 		var toward = (TargetPosition( target ) - WorldPosition).WithZ( 0f ).Normal;

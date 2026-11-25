@@ -60,7 +60,9 @@ public sealed partial class RabbitGuard
 		{
 			if ( KnockoutShield > 0 && hit.DamageInfo is not LandingDamage ) hit.AcceptedDamage = 0f;
 			// HandleRagdollImpact applies the damage a second time if the startled fighter is still awake.
-			if ( hit.DamageInfo is StrikeDamage && startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth )
+			bool repeat = hit.DamageInfo is StrikeDamage && startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth;
+			if ( hit.DamageInfo is StrikeDamage or FallImpactDamage ) TryImpactHeadDrips( hit.DamageInfo.Damage, repeat ? 6 : 3 );
+			if ( repeat )
 				hit.AcceptedDamage *= 2f;
 			hit.AcceptedDamage *= PermanentDamageFraction;
 		}

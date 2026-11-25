@@ -8,6 +8,24 @@ public sealed partial class RabbitGuard
 	TimeSince sinceRagdollImpact;
 	sealed class FallImpactDamage : BluntDamage;
 
+	void TryImpactHeadDrips( float damage, int attempts )
+	{
+		int count = 0;
+		for ( int i = 0; i < attempts; i++ )
+			if ( Random.Shared.Float( 0f, 110f ) < damage ) count++;
+		if ( count > 0 ) AddImpactHeadDrips( count, Random.Shared.Next() );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void AddImpactHeadDrips( int count, int seed )
+	{
+		if ( BloodLevel != 2 || !Renderer.IsValid() || CharacterLoader.FromModel( Renderer.Model ) is not { Surface: not null } character ) return;
+		var marks = Renderer.GameObject.GetOrAddComponent<CutMarks>();
+		var random = new Random( seed );
+		for ( int i = 0; i < count; i++ )
+			marks.AddHeadDrip( character, 0, new Vector3( 0f, random.Float( -1f, 1f ), random.Float( -0.2f, 0.2f ) ) );
+	}
+
 	internal void OnRagdollContact( Collision collision, bool head )
 	{
 		if ( !Networking.IsHost || !Downed || collision.Other.IsTrigger ) return;
