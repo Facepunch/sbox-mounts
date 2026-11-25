@@ -16,13 +16,18 @@ namespace Halo2;
 public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null,
 	TagEntry collision = null, TagEntry firstPersonWeapon = null, TagEntry collisionModel = null, string[] materialNames = null ) : ResourceLoader<Halo2Mount>
 {
-	WeakTarget[] ReadWeakTargets()
+	ModelTarget[] ReadTargets()
 	{
 		int id = mapFile.ReadInt32( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0x38 );
 		if ( mapFile.GetTag( id & 0xffff ) is not { PrimaryClass: "tmlh", DataSize: >= 0x70 } definition ) return [];
 		return Rows( mapFile.VaToOffset( (int)definition.DataVirtualAddress ) + 0x68, 28 )
-			.Where( row => (mapFile.ReadInt32( row + 20 ) & 8) != 0 )
-			.Select( row => new WeakTarget { Marker = Label( row ), Radius = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 4 ) ) * ScaleFactor } )
+			.Select( row => new ModelTarget
+			{
+				Marker = Label( row ),
+				Radius = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 4 ) ) * ScaleFactor,
+				ConeAngle = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 8 ) ),
+				IsWeak = (mapFile.ReadInt32( row + 20 ) & 8) != 0
+			} )
 			.ToArray();
 	}
 
@@ -99,8 +104,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			builder.WithData( new FirstPersonAnimation { Actions = actions, Sounds = sounds,
 				Movement = context.Overlays.TryGetValue( "moving", out var movement ) ? GetClipInfo( movement ) : null } );
 		}
-		if ( biped is not null && ReadWeakTargets() is { Length: > 0 } weakTargets )
-			builder.WithData( weakTargets );
+		if ( biped is not null && ReadTargets() is { Length: > 0 } targets )
+			builder.WithData( targets );
 
 		if ( model.Sections.Count == 0 || model.Regions.Count == 0 )
 			return builder.Create();

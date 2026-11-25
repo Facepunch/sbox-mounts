@@ -633,7 +633,7 @@ public sealed class Shotgun : Weapon
 			&& InFullAutoAimRange( ray, hit ) )
 		{
 			if ( disposition == Sandbox.Npcs.Disposition.Friendly ) return Color.FromBytes( 51, 255, 0 );
-			weakSpot = WeakTarget.Hit( npc.Renderer, ray, AutoAimRange * 0.5f );
+			weakSpot = ModelTarget.HitsWeakSpot( npc.Renderer, ray, AutoAimRange * 0.5f );
 			return Color.Red;
 		}
 
