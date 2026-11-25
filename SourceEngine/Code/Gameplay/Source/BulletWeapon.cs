@@ -203,7 +203,10 @@ public sealed class BulletWeapon : Weapon
 			_queuedSecondary |= !_queuedPrimary && Clip1 >= 2 && base.WantsSecondaryAttack();
 		}
 		if ( Secondary == SecondaryFires.DoubleShot && Clip1 == 0 && NextPrimaryFire <= 0 && AutoReload && CanReload() )
+		{
+			ConsumeEmptyShot();
 			Reload();
+		}
 		if ( ContinuousFireRate && PrimaryDelay > 0 && Input.Down( "attack1" ) && !Input.Pressed( "attack1" ) && !WantsReload() )
 		{
 			// Only catch up time spent holding the trigger during this frame.
@@ -314,13 +317,21 @@ public sealed class BulletWeapon : Weapon
 	{
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
-		_queuedPrimary = _queuedSecondary = false;
+		_queuedPrimary = false;
 		if ( !FiresUnderwater && BlockSubmergedShot( Secondary == SecondaryFires.DoubleShot ) ) return;
 		FirePrimaryRound();
 	}
 
+	void ConsumeEmptyShot()
+	{
+		if ( !ShotQueued ) return;
+		if ( WantsSecondaryAttack() ) _queuedSecondary = false;
+		else _queuedPrimary = false;
+	}
+
 	public override void DryFire()
 	{
+		ConsumeEmptyShot();
 		var clickOnly = WantsEmptyClick;
 		if ( !HasOwner || (!clickOnly && DryTapRefireDelay <= 0) )
 		{
@@ -523,7 +534,7 @@ public sealed class BulletWeapon : Weapon
 
 	void DoubleShot()
 	{
-		_queuedPrimary = _queuedSecondary = false;
+		_queuedSecondary = false;
 		if ( IsHeld && Clip1 == 1 )
 		{
 			FirePrimaryRound();
