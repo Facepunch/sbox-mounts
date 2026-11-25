@@ -177,11 +177,11 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 		base.OnDisabled();
 	}
 
-	protected override void OnDamaging( IDamageable.DamageEvent hit ) => AlienArmor.Absorb( hit, armor );
+	protected override void OnDamaging( IDamageable.DamageEvent hit ) => SupportDamage.Absorb( hit, this, armor );
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		if ( hit.AcceptedDamage > 0 ) (armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
+		(armor, flinchEnd) = SupportDamage.Apply( hit, this, armor, MaxHealth, flinchEnd );
 	}
 
 	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );

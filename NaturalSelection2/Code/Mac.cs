@@ -226,13 +226,13 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		base.OnDisabled();
 	}
 
-	protected override void OnDamaging( IDamageable.DamageEvent hit ) => AlienArmor.Absorb( hit, armor );
+	protected override void OnDamaging( IDamageable.DamageEvent hit ) => SupportDamage.Absorb( hit, this, armor );
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		if ( hit.AcceptedDamage <= 0 ) return;
-		inCombat = 3;
-		(armor, flinchEnd) = AlienWounds.ApplyFlinch( hit, armor, MaxHealth, flinchEnd );
+		var previousArmor = armor;
+		(armor, flinchEnd) = SupportDamage.Apply( hit, this, armor, MaxHealth, flinchEnd );
+		if ( hit.AcceptedDamage > 0 || armor < previousArmor ) inCombat = 3;
 	}
 
 	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );

@@ -139,10 +139,10 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		}
 	}
 
-	protected override void OnDamaging( IDamageable.DamageEvent e ) => AlienArmor.Absorb( e, armor );
+	protected override void OnDamaging( IDamageable.DamageEvent e ) => SupportDamage.Absorb( e, this, armor );
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) (armor, flinchEnd) = AlienWounds.ApplyFlinch( e, armor, MaxHealth, flinchEnd );
+		(armor, flinchEnd) = SupportDamage.Apply( e, this, armor, MaxHealth, flinchEnd );
 	}
 }
