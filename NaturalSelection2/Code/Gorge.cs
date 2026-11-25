@@ -19,7 +19,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback world, weapon;
-	Action<string> weaponTag;
+	Action<string> worldTag, weaponTag;
 	Rotation aim;
 	float energy = 100;
 	[Property] public bool BileBombUnlocked { get; set; } = true;
@@ -29,6 +29,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
+		AlienFootsteps.Register( context, "gorge" );
 		foreach ( var cue in new[] { "spit", "spit_hit", "bilebomb", "bilebomb_hit", "heal_spray", "slide_loop", "spawn", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/gorge/{cue}";
@@ -72,6 +73,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 			world = new( model.PropGraph, model );
 		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/gorge/gorge_view.model.vmdl" ) is ModelLoader arms )
 			weapon = new( arms.PropGraph, arms );
+		worldTag = tag => AlienFootsteps.OnTag( this, "gorge", tag );
 		weaponTag = OnWeaponTag;
 		animationTime = 0;
 		aim = WorldRotation;
@@ -155,7 +157,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 		world.Set( "ability", bombarding ? "bomb" : "spit" );
 		world.Set( "attack_speed", 1 );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output );
+		world.Update( animationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", move );

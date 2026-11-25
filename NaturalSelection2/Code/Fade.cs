@@ -19,7 +19,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback world, weapon;
-	Action<string> weaponTag;
+	Action<string> worldTag, weaponTag;
 	Rotation view;
 	bool attacking, stabSelected, stabbing, drawingWeapon;
 	TimeUntil weaponSwitch;
@@ -29,6 +29,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
+		AlienFootsteps.Register( context, "fade" );
 		foreach ( var cue in new[] { "spawn", "swipe", "stab", "swipe_hit_marine", "swipe_hit_marine_glance", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "death" } )
 		{
 			var id = $"alien/fade/{cue}";
@@ -88,6 +89,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
 		view = WorldRotation;
 		animationTime = 0;
+		worldTag = tag => AlienFootsteps.OnTag( this, "fade", tag );
 		weaponTag = OnWeaponTag;
 	}
 
@@ -162,7 +164,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 		world.Set( "move", Blinking ? "blink" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
 		world.Set( "ability", ability );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output );
+		world.Update( animationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", Blinking ? "blink" : "idle" );

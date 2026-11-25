@@ -19,7 +19,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback world, weapon;
-	Action<string> weaponTag;
+	Action<string> worldTag, weaponTag;
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation View { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation BodyRotation { get; set; }
 	bool attacking, wantsSpikes, spiking;
@@ -29,6 +29,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
+		AlienFootsteps.Register( context, "lerk" );
 		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "flying_3D", "death", "wound", "wound_serious" } )
 		{
 			var id = $"alien/lerk/{cue}";
@@ -85,6 +86,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 7 * Scale / gravity;
 		View = BodyRotation = WorldRotation;
 		animationTime = 0;
+		worldTag = tag => AlienFootsteps.OnTag( this, "lerk", tag );
 		weaponTag = OnWeaponTag;
 	}
 
@@ -159,7 +161,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		world.Set( "flapping", lastFlap <= 0.5f ? 1 : 0 );
 		world.Set( "ability", "bite" );
 		world.Set( "activity", activity );
-		world.Update( animationTime, output );
+		world.Update( animationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", move );
