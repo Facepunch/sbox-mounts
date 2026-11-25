@@ -625,11 +625,11 @@ public sealed class Shotgun : Weapon
 		bool firstStrike = BlamRandom.Next( ref randomState ) < 32768;
 		var clip = actions[MeleeAction( firstStrike )];
 		PlayMeleeAnimation( firstStrike );
-		float duration = clip.Frames / 30f;
+		float duration = CooldownSeconds( clip.Frames );
 		meleeEnds = duration;
 		SetNextPrimaryFire( duration );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
-		SetNextSecondaryFire( recovery / 30f );
+		SetNextSecondaryFire( CooldownSeconds( recovery ) );
 		pendingStrike = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact
 			? (Time.NowDouble + impact.Frame / 30.0, StrikeDamage(), Attacker) : null;
 	}
@@ -645,7 +645,7 @@ public sealed class Shotgun : Weapon
 		var action = MeleeAction( firstStrike );
 		// SecondaryAttack runs on the owner. Other peers need the same window before the chamber overlay can take over.
 		if ( IsProxy && StrikeAnimations()?.Actions.TryGetValue( action, out var clip ) == true )
-			meleeEnds = clip.Frames / 30f;
+			meleeEnds = CooldownSeconds( clip.Frames );
 		ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 		PlayHolderOverlay( action );
 	}

@@ -14,6 +14,14 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property] public float KickDistance { get; set; }
 	TimeUntil kickEnds;
 
+	internal static float CooldownSeconds( int ticks )
+	{
+		double seconds = ticks / 30.0;
+		// A float timer rounded up would still be active on its authored end tick.
+		float delay = (float)seconds;
+		return delay > seconds ? System.MathF.BitDecrement( delay ) : delay;
+	}
+
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
 	[Sync( SyncFlags.FromHost )] int looseReserve { get; set; } = -1;
 	int LooseReserve => looseReserve >= 0 ? looseReserve : Clip1 < 0 ? StartingAmmo : 0;

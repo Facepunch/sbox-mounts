@@ -434,9 +434,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.PrimaryAutomatic = Short( Block( Header + 0x2c8 ) + 6 ) == 0;
 			gun.BarrelRecoveryTime = Float( barrel + 0x20 );
 			// The barrel enters recovery one tick after firing and accepts the next shot one tick after recovery ends.
-			double interval = (MathF.Floor( gun.BarrelRecoveryTime * 30 ) + 2) / 30.0;
-			// The float cooldown must expire on the boundary even when the nearest float rounds up.
-			gun.PrimaryDelay = (float)interval > interval ? MathF.BitDecrement( (float)interval ) : (float)interval;
+			gun.PrimaryDelay = Weapon.CooldownSeconds( (int)MathF.Floor( gun.BarrelRecoveryTime * 30 ) + 2 );
 			var rig = (Halo2ModelLoader)Host.GetByPath( gun.ArmsPath );
 			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
 			var worldRig = (Halo2ModelLoader)Host.GetByPath( world );
