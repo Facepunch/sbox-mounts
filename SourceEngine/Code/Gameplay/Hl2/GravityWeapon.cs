@@ -31,7 +31,7 @@ public sealed class GravityWeapon : Weapon
 	[Sync] public bool Pulling { get; set; }
 	readonly PhysicsHold _hold = new();
 	Rotation _holdOffset;
-	// m_nAttack2Debounce: after a drop or launch, attack2 must be released before pulling again.
+	// Launching a held object consumes the current secondary press.
 	bool _attack2Debounce;
 	PhysCannonEffects _effects;
 	TimeUntil _tooHeavyCooldown;
@@ -61,8 +61,7 @@ public sealed class GravityWeapon : Weapon
 	public override void SecondaryAttack()
 	{
 		if ( !HeldObject.IsValid() ) return;
-		SetNextSecondaryFire( 0.3f );
-		_attack2Debounce = true;
+		SetNextFire( 0.5f );
 		Drop();
 	}
 
@@ -117,13 +116,22 @@ public sealed class GravityWeapon : Weapon
 	{
 		if ( !HeldObject.IsValid() ) return;
 		Release();
-		PlaySound( "melee_miss" );
+		CarryEffects( pickup: false );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlaySound( string role )
+	void CarryEffects( bool pickup )
 	{
-		if ( Sounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
+		if ( pickup ) SetNextSecondaryFire( 0.5f );
+		else SetNextFire( 0.5f );
+		(WeaponModel as ViewModel)?.PlayGravityGunAttack();
+		if ( Sounds.WeaponSound( this, pickup ? "special1" : "melee_miss" ) is { } sound ) GameObject.PlaySound( sound );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void DenyPickup()
+	{
+		if ( Sounds.WeaponSound( this, "special3" ) is { } sound ) GameObject.PlaySound( sound );
 	}
 
 	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
@@ -133,7 +141,7 @@ public sealed class GravityWeapon : Weapon
 	{
 		var launch = result != PuntResult.Miss;
 		if ( Sounds.WeaponSound( this, launch ? "single_shot" : "empty" ) is { } sound ) GameObject.PlaySound( sound );
-		(WeaponModel as ViewModel)?.OnPunt( launch );
+		(WeaponModel as ViewModel)?.PlayGravityGunAttack( launch );
 		if ( !launch ) return;
 
 		SetNextSecondaryFire( PrimaryDelay );
@@ -168,7 +176,7 @@ public sealed class GravityWeapon : Weapon
 		{
 			if ( _tooHeavyCooldown > 0 ) return;
 			_tooHeavyCooldown = 1;
-			PlaySound( "special3" );
+			DenyPickup();
 			return;
 		}
 		HeldObject = body.GameObject;
@@ -176,7 +184,7 @@ public sealed class GravityWeapon : Weapon
 		_hold.Hold( body, body.PhysicsBody.MassCenter );
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
-		PlaySound( "special1" );
+		CarryEffects( pickup: true );
 	}
 
 	void Hold()
@@ -208,6 +216,11 @@ public sealed class GravityWeapon : Weapon
 		var held = HeldObject;
 		HeldObject = null;
 		if ( !held.IsValid() ) return;
+		if ( held.GetComponent<Rigidbody>() is { } body && CanMove( body ) )
+		{
+			body.Velocity = body.Velocity.ClampLength( 500 );
+			body.AngularVelocity = body.AngularVelocity.ClampLength( 4 * MathF.PI );
+		}
 		foreach ( var npc in held.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 		{
 			npc.StopCarry( GameObject );
