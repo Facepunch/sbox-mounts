@@ -99,12 +99,10 @@ public abstract class AlienStructure : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
-		if ( Networking.IsHost )
-		{
-			age = 0;
-			maxArmor = Stats.Armor;
-			armor = maxArmor * 0.3f;
-		}
+		if ( !Networking.IsHost ) return;
+		age = 0;
+		maxArmor = Stats.Armor;
+		armor = maxArmor * 0.3f;
 		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			graph = new( model.PropGraph, model );
 	}

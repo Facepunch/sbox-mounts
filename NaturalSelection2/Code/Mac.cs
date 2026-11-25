@@ -9,7 +9,6 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 50;
-	[Sync( SyncFlags.FromHost )] TimeUntil weldEnds { get; set; }
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 50 ); }
 	float IDamageable.MaxArmour => 50;
 	Vector3 anchor;
@@ -17,6 +16,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	float targetRadius;
 	TimeUntil search, nextPositionCheck, nextWeld, inCombat;
 	TimeSince age;
+	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
 
@@ -56,8 +57,9 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( !Networking.IsHost ) return;
 		anchor = WorldPosition;
-		age = 0;
+		AnimationTime = 0;
 		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			graph = new( model.PropGraph, model );
 	}
@@ -90,7 +92,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 			if ( hp.Armour >= hp.MaxArmour || OtherMacIsWelding( target ) ) return;
 			hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + 5 );
 		}
-		nextWeld = weldEnds = 0.5f;
+		nextWeld = 0.5f;
 		WeldEffect();
 	}
 
@@ -133,7 +135,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	}
 
 	bool OtherMacIsWelding( Component candidate ) =>
-		Scene.GetAllComponents<Mac>().Any( mac => mac != this && mac.target == candidate && mac.weldEnds > 0 );
+		Scene.GetAllComponents<Mac>().Any( mac => mac != this && mac.target == candidate && mac.nextWeld > 0 );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WeldEffect()
@@ -181,11 +183,19 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 			}
 			else StopThrusters();
 		}
-		if ( graph is null || !Renderer.Animation.IsValid ) return;
+		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		if ( !Networking.IsHost )
+		{
+			pose.Write( output, age );
+			return;
+		}
+		if ( graph is null ) return;
+		graph.Set( "alive", Health > 0 ? 1 : 0 );
 		// Autonomous welding runs as a side task. Spark only requests "run" for explicit orders.
 		graph.Set( "move", "idle" );
-		graph.Set( "activity", weldEnds > 0 ? "build" : "none" );
-		graph.Update( age, Renderer.Animation.Parameters );
+		graph.Set( "activity", nextWeld > 0 ? "build" : "none" );
+		graph.Update( age, output );
+		pose = graph.GetBodyPose();
 	}
 
 	void StopThrusters()

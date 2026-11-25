@@ -12,12 +12,14 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 20;
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 20 ); }
 	float IDamageable.MaxArmour => 20;
-	[Sync( SyncFlags.FromHost )] bool hasOrder { get; set; }
+	bool hasOrder;
 	[Sync( SyncFlags.FromHost )] bool constructing { get; set; }
 	Harvester target;
 	Vector3 returnPosition;
 	TimeUntil search;
 	TimeSince age;
+	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	SparkAnimationGraph.Playback graph;
 	SoundHandle constructLoop;
 	Action<string> onTag;
@@ -48,7 +50,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
-		age = 0;
+		if ( !Networking.IsHost ) return;
+		AnimationTime = 0;
 		onTag = OnTag;
 		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
 			graph = new( model.PropGraph, model );
@@ -98,6 +101,13 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	void OnTag( string tag )
 	{
 		if ( constructing && tag == "attack_end" )
+			ShowConstruct();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
+	void ShowConstruct()
+	{
+		if ( !Application.IsHeadless )
 			CinematicLoader.Play( "cinematics/alien/drifter/construct.cinematic", WorldPosition, WorldRotation );
 	}
 
@@ -114,10 +124,18 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 			}
 			else StopLoop();
 		}
-		if ( graph is null || !Renderer.Animation.IsValid ) return;
+		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		if ( !Networking.IsHost )
+		{
+			pose.Write( output, age );
+			return;
+		}
+		if ( graph is null ) return;
+		graph.Set( "alive", Health > 0 ? 1 : 0 );
 		graph.Set( "move", hasOrder ? "run" : "idle" );
 		graph.Set( "activity", constructing ? "parasite" : "none" );
-		graph.Update( age, Renderer.Animation.Parameters, onTag );
+		graph.Update( age, output, onTag );
+		pose = graph.GetBodyPose();
 	}
 
 	void StopLoop()

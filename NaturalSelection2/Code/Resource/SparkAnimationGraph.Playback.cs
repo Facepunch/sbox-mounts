@@ -49,6 +49,20 @@ internal sealed partial class SparkAnimationGraph
 			}
 		}
 
+		internal readonly record struct BodyPose( LayerPose Base, LayerPose Action )
+		{
+			static readonly PoseParameters BaseLayer = new( 0 ), ActionLayer = new( 1 );
+
+			internal void Write( GraphParameters output, float time )
+			{
+				if ( output is null ) return;
+				Base.Write( BaseLayer, output, time );
+				Action.Write( ActionLayer, output, time );
+			}
+		}
+
+		internal BodyPose GetBodyPose() => new( GetPose( 0 ), GetPose( 1 ) );
+
 		internal LayerPose GetPose( int layer )
 		{
 			if ( (uint)layer >= tracks.Length ) return new( new( -1, 0, 0 ), new( -1, 0, 0 ), 0 );
