@@ -231,6 +231,8 @@ public sealed class Shotgun : Weapon
 	}
 
 	double? firstInsertAt;
+	double transferAt;
+	float shellInterval;
 
 	protected override void OnReloadStarted()
 	{
@@ -242,6 +244,8 @@ public sealed class Shotgun : Weapon
 			ReloadStartTime = (actions["reload_enter"].Frames + insertFrames) / 30f;
 		}
 		base.OnReloadStarted();
+		shellInterval = ReloadTime;
+		transferAt = Time.NowDouble + ReloadStartTime;
 		int enterFrames = (int)System.MathF.Round( System.MathF.Max( 0, ReloadStartTime - ReloadTime ) * 30 );
 		firstInsertAt = Time.NowDouble + enterFrames / 30.0;
 	}
@@ -249,12 +253,19 @@ public sealed class Shotgun : Weapon
 	protected override void OnReloadFinished()
 	{
 		firstInsertAt = null;
+		if ( Networking.IsHost && shellInterval > 0 ) ReloadTime = shellInterval;
 		base.OnReloadFinished();
 		HolderAnimator?.StopWeaponOverlay( "reload_1" );
 	}
 
 	protected override void OnReloadInserted()
 	{
+		if ( Networking.IsHost && shellInterval > 0 )
+		{
+			// Schedule from the authored transfer tick so frame rounding doesn't accumulate per shell.
+			transferAt += shellInterval;
+			ReloadTime = (float)System.Math.Max( 0, transferAt - Time.NowDouble );
+		}
 		base.OnReloadInserted();
 		if ( !IsHeld ) return;
 		if ( Clip1 < ClipMaxSize && Ammo1 > 0 )
