@@ -8,6 +8,7 @@ namespace Source1;
 public sealed class Hl2CrossbowBolt : SourceProjectile
 {
 	public const float AirVelocity = 3500;
+	const float WaterVelocity = 1500;
 	const float StuckLifetime = 30;
 	// BOLT_AIR_VELOCITY flies with SetGravity( 0.05 ) under sv_gravity 600.
 	protected override float Gravity => 30;
@@ -17,6 +18,9 @@ public sealed class Hl2CrossbowBolt : SourceProjectile
 	Transform _hitLocal;
 	SpriteRenderer _glow;
 	TimeSince _glowAge;
+
+	internal static Vector3 LaunchVelocity( Scene scene, Vector3 eye, Vector3 forward )
+		=> forward * (SourceWaterMap.IsUnderwater( scene, eye ) ? WaterVelocity : AirVelocity);
 
 	/// <summary>CCrossbowBolt's glow sprite stays off in flight; hits turn it on and fade it over 3 seconds.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]

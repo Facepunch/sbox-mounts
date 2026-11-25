@@ -278,7 +278,7 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 			SourceProjectile.Kinds.Bugbait => (ThrowOrigin( eye, forward, 12 ), Hl2Bugbait.ThrowVelocity( forward, inherited )),
 			SourceProjectile.Kinds.HeGrenade or SourceProjectile.Kinds.Flashbang or SourceProjectile.Kinds.SmokeGrenade => (ThrowOrigin( eye, forward, 0 ), CssRules.ThrowVelocity( forward, inherited )),
 			SourceProjectile.Kinds.Rocket => (eye, Hl2Rocket.LaunchVelocity( forward )),
-			_ => (eye, forward * Hl2CrossbowBolt.AirVelocity)
+			_ => (eye, Hl2CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
 		var projectile = SourceProjectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, ExplosionRadius, ProjectileModel );
 		if ( IsLauncher ) LiveRocket = projectile.GameObject;

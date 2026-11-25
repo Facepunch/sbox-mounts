@@ -16,6 +16,15 @@ public sealed class SourceWaterMap : Component
 	[Property] public List<Node> Nodes { get; set; } = [];
 	[Property] public int Root { get; set; } = -1;
 
+	internal static bool IsUnderwater( Scene scene, Vector3 position )
+	{
+		foreach ( var map in scene.GetAll<SourceWaterMap>() )
+		{
+			if ( map.Active && map.FindWater( position ) >= 0 ) return true;
+		}
+		return WaterBody.Find( scene, position ).IsValid();
+	}
+
 	public int FindWater( Vector3 position )
 	{
 		position = WorldTransform.PointToLocal( position );
