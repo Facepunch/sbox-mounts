@@ -47,7 +47,8 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 	Rotation aim;
 	readonly AlienTargeting targeting = new();
 	SparkAnimationGraph.Playback graph, weapon;
-	Action<string> weaponTag;
+	Action<string> worldTag, weaponTag;
+	bool leftFoot = true;
 	SoundHandle rifleLoop;
 	ModelRenderer heldModel;
 
@@ -85,6 +86,7 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader body )
 			graph = new( body.PropGraph, body );
+		if ( !Application.IsHeadless ) worldTag = OnWorldTag;
 		weaponTag = OnWeaponTag;
 		if ( Renderer.GetAttachmentObject( "RHand_Weapon" ) is { } hand )
 		{
@@ -251,9 +253,9 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, 5 );
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
-		var move = Animation.MoveVelocity.LengthSquared > 1 ? "run" : "idle";
+		var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
 		UpdateInputs( graph, move, activity );
-		graph?.Update( age, Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null );
+		graph?.Update( age, PlayerGait.UpdatePose( this, 5.75f ), worldTag );
 		if ( weapon is not null )
 		{
 			if ( trigger ) lastRequest = 0;
@@ -279,6 +281,19 @@ public sealed class Marine : BaseNpc, Component.IDamageable
 		playback.Set( "reload_speed", 1 );
 		playback.Set( "skip_draw", skipDraw ? 1 : 0 );
 		playback.Set( "idleName", "idle" );
+	}
+
+	void OnWorldTag( string tag )
+	{
+		if ( tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
+		leftFoot = !leftFoot;
+		bool forward = Vector3.Dot( Animation.MoveVelocity, WorldRotation.Forward ) > -0.1f * Scale;
+		var listener = Scene.Camera?.GetComponentInParent<PlayerController>();
+		bool enemy = forward && listener.IsValid() && GetDisposition( listener.GameObject ) == Disposition.Hostile;
+		var material = SurfaceLoader.FootstepMaterial( GroundSurface );
+		var cue = $"{(forward ? "footstep" : "backpedal")}_{(leftFoot ? "left" : "right")}{(enemy ? "_for_enemy" : "")}";
+		var path = SurfaceLoader.SoundPath( $"materials/{material}/{cue}" );
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{path}" ) is { } sound ) Sound.Play( sound, WorldPosition );
 	}
 
 	void OnWeaponTag( string tag )

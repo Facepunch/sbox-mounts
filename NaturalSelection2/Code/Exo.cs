@@ -168,10 +168,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
 		}
-		var velocity = Animation.MoveVelocity.WithZ( 0 );
-		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		output?.Set( "move_speed", velocity.Length / (5.95f * Scale) );
-		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f : MathF.Atan2( Vector3.Dot( velocity, WorldRotation.Forward ), Vector3.Dot( velocity, WorldRotation.Left ) ).RadianToDegree() );
+		var output = PlayerGait.UpdatePose( this, 5.95f );
 		var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
 		UpdateInputs( graph, move );
 		graph?.Update( age, output, worldTag );
@@ -211,7 +208,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	void OnWorldTag( string tag )
 	{
-		if ( tag == "step" && Animation.IsGrounded && Animation.MoveVelocity.LengthSquared > 0.75f * 0.75f * Scale * Scale )
+		if ( tag == "step" && PlayerGait.CanPlayStep( this ) )
 			PlayHeavySound( "step" );
 	}
 

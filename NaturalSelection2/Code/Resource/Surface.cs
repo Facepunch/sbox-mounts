@@ -12,6 +12,9 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 	internal static string PathFor( string name ) => $"mount://ns2/surfaces/ns2_{name}.surface";
 	internal static string Normalize( string name ) => Array.IndexOf( Names, name ) >= 0 ? name : "metal";
 
+	internal static string FootstepMaterial( Surface surface ) =>
+		surface?.ResourceName is { } name && name.StartsWith( "ns2_", StringComparison.Ordinal ) ? Footsteps( name[4..] ) : "metal";
+
 	static string Footsteps( string surface ) => surface switch
 	{
 		"organic" or "infestation" => "organic",
@@ -29,7 +32,7 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 		_ => "organic" // DamageEffects.lua's generic bullet impact.
 	};
 
-	static string SoundPath( string id ) => $"sounds/surfaces/{id}.sound";
+	internal static string SoundPath( string id ) => $"sounds/surfaces/{id}.sound";
 
 	internal static void Register( MountContext context )
 	{
@@ -39,7 +42,7 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 			context.Add( ResourceType.GameResource, $"surfaces/ns2_{name}.surface", new SurfaceLoader( name ) );
 			var steps = Footsteps( name );
 			var impact = Impact( name );
-			foreach ( var slot in new[] { "footstep_left", "footstep_right", "fall" } )
+			foreach ( var slot in new[] { "footstep_left", "footstep_right", "footstep_left_for_enemy", "footstep_right_for_enemy", "backpedal_left", "backpedal_right", "fall" } )
 				sounds.Add( $"materials/{steps}/{slot}" );
 			sounds.Add( $"materials/{impact}/ricochet" );
 			sounds.Add( $"materials/{(impact == "door" ? "organic" : impact)}/bash" );
