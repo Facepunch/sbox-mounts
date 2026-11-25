@@ -9,6 +9,7 @@ public sealed class NpcCorpse : Component
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil FlinchEnd { get; set; }
+	[Sync( SyncFlags.FromHost )] bool TraceOnly { get; set; }
 	SkinnedModelRenderer renderer;
 	SparkAnimationGraph.Playback graph;
 	Action<string> onTag;
@@ -27,26 +28,36 @@ public sealed class NpcCorpse : Component
 	internal static GameObject AnimateUntilRagdoll( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, TimeUntil flinchEnd ) =>
 		CreateAnimated( source, graph, animationTime, lifetime: 0, flinchEnd: flinchEnd );
 
-	static GameObject CreateAnimated( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, float lifetime, TimeUntil flinchEnd = default )
+	// Dead Exo players remain in damage traces until the original server replaces them with spectators.
+	internal static void KeepHitboxes( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime ) =>
+		CreateAnimated( source, graph, animationTime, lifetime: 2, traceOnly: true );
+
+	static GameObject CreateAnimated( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, float lifetime, TimeUntil flinchEnd = default, bool traceOnly = false )
 	{
 		if ( !source.IsValid() || source.Model is null ) return null;
-		var body = new GameObject( false, "Ragdoll" );
+		var body = new GameObject( false, traceOnly ? "Exo hitboxes" : "Ragdoll" );
 		body.WorldTransform = source.WorldTransform;
-		body.Tags.Add( "ragdoll" );
+		if ( !traceOnly ) body.Tags.Add( "ragdoll" );
 		var renderer = body.AddComponent<SkinnedModelRenderer>();
 		renderer.CopyFrom( source );
-		renderer.UseAnimGraph = true;
+		renderer.UseAnimGraph = graph is not null;
 		renderer.Animation.Graph = source.Animation.Graph;
 
+		if ( traceOnly )
+		{
+			renderer.RenderOptions.Game = false;
+			renderer.RenderType = ModelRenderer.ShadowRenderType.Off;
+		}
 		var corpse = body.AddComponent<NpcCorpse>();
+		corpse.TraceOnly = traceOnly;
 		corpse.Lifetime = lifetime;
 		corpse.FlinchEnd = flinchEnd;
 		corpse.Age = 0;
 		corpse.AnimationTime = animationTime;
 		corpse.graph = graph;
-		corpse.onTag = tag => corpse.deathEnded |= tag == "death_end";
-		corpse.pose = graph.GetBodyPose();
-		graph.Set( "alive", 0 );
+		if ( !traceOnly ) corpse.onTag = tag => corpse.deathEnded |= tag == "death_end";
+		corpse.pose = graph?.GetBodyPose() ?? default;
+		graph?.Set( "alive", 0 );
 		body.Enabled = true;
 		body.NetworkSpawn();
 		return body;
@@ -63,11 +74,21 @@ public sealed class NpcCorpse : Component
 		return ragdoll;
 	}
 
-	protected override void OnStart() => renderer = GetComponent<SkinnedModelRenderer>();
+	protected override void OnStart()
+	{
+		renderer = GetComponent<SkinnedModelRenderer>();
+		if ( !TraceOnly ) return;
+
+		// ModelHitboxes sizes its shapes from the current world-space bone transforms.
+		renderer.SceneModel.Update( 0 );
+		var hitboxes = GameObject.AddComponent<ModelHitboxes>();
+		hitboxes.Flags |= ComponentFlags.NotNetworked;
+		hitboxes.Renderer = renderer;
+	}
 
 	void UpdateDeathAnimation()
 	{
-		if ( deathEnded || Networking.IsHost && graph is null )
+		if ( !TraceOnly && (deathEnded || Networking.IsHost && graph is null) )
 		{
 			// After a host migration the new host can hand off the last replicated pose.
 			if ( Lifetime == 0 ) Lifetime = Age + 3;
@@ -84,12 +105,12 @@ public sealed class NpcCorpse : Component
 		var output = renderer.Animation.IsValid ? renderer.Animation.Parameters : null;
 		if ( Lifetime == 0 )
 			output?.TrySet( "intensity", AlienWounds.Intensity( FlinchEnd ) );
-		else
+		else if ( !TraceOnly )
 			output?.TrySet( "grow", 1f );
 		if ( Networking.IsHost && graph is not null && Age >= nextGraphUpdate )
 		{
 			// NS2 schedules corpse transitions at 4 Hz and samples tags over the current server frame.
-			nextGraphUpdate = Age + 0.25f;
+			nextGraphUpdate = Age + (TraceOnly ? 0 : 0.25f);
 			if ( Lifetime == 0 ) graph.Set( "flinch", FlinchEnd > 0 ? 1 : 0 );
 			graph.UpdateInterval( AnimationTime - Time.Delta, AnimationTime, output, onTag );
 			pose = graph.GetBodyPose();
@@ -106,7 +127,7 @@ public sealed class NpcCorpse : Component
 		}
 		if ( !renderer.IsValid() ) return;
 		if ( renderer.UseAnimGraph ) UpdateDeathAnimation();
-		if ( Application.IsDedicatedServer ) return;
+		if ( TraceOnly || Application.IsDedicatedServer ) return;
 		float remaining = Math.Clamp( 1 - Age / 2.25f, 0, 1 );
 		renderer.Attributes.Set( "Ns2Dissolve", 1 - remaining * remaining * remaining );
 	}

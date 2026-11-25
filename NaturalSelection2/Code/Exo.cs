@@ -9,6 +9,7 @@ namespace NS2;
 public sealed class Exo : BaseNpc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
+	const string DeathSound = "marine/structures/generic_death";
 	[Property] public bool Railguns { get; set; }
 	float ArmorCapacity => Railguns ? 260 : 320;
 	float IDamageable.MaxArmour => ArmorCapacity;
@@ -69,6 +70,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	internal static void RegisterSounds( MountContext context )
 	{
+		context.Add( ResourceType.GameResource, $"sounds/{DeathSound}.sound", new SparkSoundLoader( DeathSound, 0 ) );
 		foreach ( var cue in new[] { "spin", "spin_2", "railgun_fire", "step" } )
 		{
 			var path = $"marine/heavy/{cue}";
@@ -314,6 +316,23 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	{
 		arm.Loop?.Stop();
 		arm.Loop = null;
+	}
+
+	protected override GameObject CreateRagdoll() => null;
+
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		NpcCorpse.KeepHitboxes( Renderer, graph, age );
+		ShowDeath( WorldPosition, WorldRotation );
+		base.OnDeath( e );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void ShowDeath( Vector3 position, Rotation rotation )
+	{
+		CinematicLoader.Play( "cinematics/marine/exo/explosion.cinematic", position, rotation );
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{DeathSound}.sound" ) is { } sound )
+			Sound.Play( sound, position );
 	}
 
 	protected override void OnDisabled()
