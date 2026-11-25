@@ -136,8 +136,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( graph is not null && bones.Count > 0 )
 			Blam.AnimationGraph.AddSequences( mapFile, graph, model, builder, ScaleFactor );
 
-		// Add ragdoll physics if phmo tag exists
-		if ( phmoTag != null && bones.Count > 0 )
+		// Physics bodies can be bound to a bone or authored in model space.
+		if ( phmoTag != null )
 		{
 			try
 			{
@@ -580,24 +580,19 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		for ( int i = 0; i < phmo.RigidBodies.Count; i++ )
 		{
 			var rb = phmo.RigidBodies[i];
-			int boneIdx;
-
-			if ( directMapping )
+			string boneName = null;
+			var bonePose = Transform.Zero;
+			if ( rb.NodeIndex != -1 )
 			{
-				boneIdx = rb.NodeIndex;
+				int boneIdx = rb.NodeIndex;
+				if ( !directMapping && !phmoToRenderBone.TryGetValue( rb.NodeIndex, out boneIdx ) ) continue;
+				if ( (uint)boneIdx >= bones.Count ) continue;
+				var bone = bones[boneIdx];
+				boneName = bone.Name;
+				bonePose = new Transform( bone.Position, bone.Rotation );
 			}
-			else if ( !phmoToRenderBone.TryGetValue( rb.NodeIndex, out boneIdx ) )
-			{
-				continue;
-			}
 
-			if ( boneIdx < 0 || boneIdx >= bones.Count )
-				continue;
-
-			var bone = bones[boneIdx];
-			var bonePose = new Transform( bone.Position, bone.Rotation );
-
-			var body = builder.AddBody( mass: rb.Mass > 0 ? rb.Mass : 10f, boneName: bone.Name );
+			var body = builder.AddBody( mass: rb.Mass > 0 ? rb.Mass : 10f, boneName: boneName );
 			body.SetBindPose( bonePose );
 			body.SetDamping( rb.LinearDamping, rb.AngularDamping );
 			body.SetInertiaScale( rb.InertiaScale == 0 ? 1 : rb.InertiaScale );
@@ -667,6 +662,11 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					var top = new Vector3( pill.TopX, pill.TopY, pill.TopZ ) * ScaleFactor;
 					body.AddCapsule( new Capsule( bottom, top, pill.Radius * ScaleFactor ) );
 				}
+				break;
+
+			case 4: // Polyhedron
+				if ( (uint)index < phmo.Polyhedra.Count && phmo.Polyhedra[index].Length >= 4 )
+					body.AddHull( Array.ConvertAll( phmo.Polyhedra[index], ConvertPosition ) );
 				break;
 
 			case 2: // Box (as convex hull)

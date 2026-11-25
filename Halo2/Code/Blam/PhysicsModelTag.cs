@@ -13,6 +13,7 @@ public class PhysicsModelTag
 	public List<RigidBody> RigidBodies { get; } = new();
 	public List<PhysSphere> Spheres { get; } = new();
 	public List<PhysPill> Pills { get; } = new();
+	public List<Vector3[]> Polyhedra { get; } = new();
 	public List<PhysBox> Boxes { get; } = new();
 	public List<(short Type, short Index)[]> ShapeLists { get; } = new();
 	public List<RagdollConstraint> RagdollConstraints { get; } = new();
@@ -53,6 +54,7 @@ public class PhysicsModelTag
 			ReadPills( map, pillPtr, pillCount );
 		if ( boxCount > 0 && boxPtr != 0 )
 			ReadBoxes( map, boxPtr, boxCount );
+		ReadPolyhedra( map, reader );
 		ReadShapeLists( map, reader );
 		if ( edgeCount > 0 && edgePtr != 0 )
 			ReadNodeEdges( map, edgePtr, edgeCount );
@@ -71,6 +73,41 @@ public class PhysicsModelTag
 		reader.BaseStream.Seek( offset, SeekOrigin.Begin );
 		count = reader.ReadInt32();
 		ptr = reader.ReadInt32();
+	}
+
+	void ReadPolyhedra( MapFile map, BinaryReader header )
+	{
+		ReadTagBlock( header, 0x70, out int count, out int pointer );
+		if ( count == 0 ) return;
+		ReadTagBlock( header, 0x78, out int externalGroups, out int externalPointer );
+		int external = externalGroups > 0 ? map.VaToOffset( externalPointer ) : 0;
+		int row = map.VaToOffset( pointer );
+		for ( int i = 0; i < count; i++, row += 0x120 )
+		{
+			int groups = map.ReadInt32( row + 0x68 );
+			int vertices = map.ReadInt32( row + 0x100 );
+			if ( vertices < 0 || groups != ((long)vertices + 3) / 4 || (groups > 3 && groups > externalGroups) )
+				throw new InvalidDataException( "Invalid physics polyhedron vertex count." );
+
+			// Up to three groups live inline. Larger hulls consume the shared block in tag order.
+			int data = row + 0x70;
+			if ( groups > 3 )
+			{
+				data = external;
+				external += checked(groups * 48);
+				externalGroups -= groups;
+			}
+
+			var points = new Vector3[vertices];
+			for ( int j = 0; j < vertices; j++ )
+			{
+				int lane = data + (j / 4) * 48 + (j % 4) * 4;
+				points[j] = new Vector3( BitConverter.Int32BitsToSingle( map.ReadInt32( lane ) ),
+					BitConverter.Int32BitsToSingle( map.ReadInt32( lane + 16 ) ),
+					BitConverter.Int32BitsToSingle( map.ReadInt32( lane + 32 ) ) );
+			}
+			Polyhedra.Add( points );
+		}
 	}
 
 	void ReadShapeLists( MapFile map, BinaryReader header )
