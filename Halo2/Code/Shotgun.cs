@@ -422,19 +422,20 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		public float Travelled;
 	}
 
-	readonly record struct PelletContact( Vector3 Position, Vector3 Direction, Vector3 Normal, GameObject Target, string SurfacePath, string Bone );
+	readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
+		GameObject Target = null, string SurfacePath = null, string Bone = null );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void PlayPelletImpacts( Shotgun weapon, Vector3 muzzle, PelletContact[] impacts )
+	static void PlayPelletEffects( Shotgun weapon, Vector3 muzzle, PelletResult[] results )
 	{
 		if ( Application.IsDedicatedServer ) return;
 		var contacts = ShotgunContacts.For( weapon );
-		foreach ( var contact in impacts )
+		foreach ( var result in results )
 		{
-			// The incoming velocity orients the contact. The tracer and water crossing span the full shot.
-			var shot = new ShotEffect( contact.Position, true, contact.Normal, contact.Target, GameResource.Load<Surface>( contact.SurfacePath ), muzzle, NoEvents: true );
-			PelletImpact( contacts, shot, contact.Direction, contact.Bone );
-			if ( weapon.IsValid() ) weapon.OnShootEffects( shot with { Hit = false } );
+			var surface = result.SurfacePath is {} path ? GameResource.Load<Surface>( path ) : null;
+			var shot = new ShotEffect( result.Position, false, result.Normal, result.Target, surface, muzzle, NoEvents: true );
+			if ( result.Hit ) PelletImpact( contacts, shot with { Hit = true }, result.Direction, result.Bone );
+			if ( weapon.IsValid() ) weapon.OnShootEffects( shot );
 		}
 	}
 
@@ -463,7 +464,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		var shooter = Holder?.GameObject ?? GameObject;
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
 		var flight = TaskSource.Create( scene.EnabledToken );
-		System.Collections.Generic.List<PelletContact> impacts = null;
+		System.Collections.Generic.List<PelletResult> results = null;
 		// Halo advances a new projectile once during the firing tick, then at 30 Hz.
 		const float dt = 1f / 30;
 		double firedAt;
@@ -506,6 +507,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 					pellet.Travelled += distance;
 					if ( atRange )
 					{
+						(results ??= new()).Add( new( origin + pellet.Offset ) );
 						pellet.Velocity = Vector3.Zero;
 						flying--;
 					}
@@ -529,15 +531,15 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
 				hit.StartPosition = origin;
 				hit.Direction = pellet.Velocity.Normal;
-				(impacts ??= new()).Add( new PelletContact( hit.HitPosition, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
+				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				pellets[i].Velocity = Vector3.Zero;
 				flying--;
 			}
-			if ( impacts is { Count: > 0 } )
+			if ( results is { Count: > 0 } )
 			{
-				PlayPelletImpacts( IsValid ? this : null, origin, impacts.ToArray() );
-				impacts.Clear();
+				PlayPelletEffects( IsValid ? this : null, origin, results.ToArray() );
+				results.Clear();
 			}
 
 		}
