@@ -196,23 +196,17 @@ public sealed class Shotgun : Weapon
 		LaunchPellets( ray );
 	}
 
-	uint reloadSequence;
+	double? firstInsertAt;
 
 	protected override void OnReloadStarted()
 	{
 		base.OnReloadStarted();
-		_ = StartFirstInsert( ++reloadSequence );
-	}
-
-	async System.Threading.Tasks.Task StartFirstInsert( uint sequence )
-	{
-		await Task.DelaySeconds( System.Math.Max( 0, ReloadStartTime - ReloadTime ) );
-		if ( IsValid && IsHeld && IsReloading && sequence == reloadSequence ) PlayHolderOverlay( "reload_1" );
+		firstInsertAt = Time.NowDouble + System.Math.Max( 0, ReloadStartTime - ReloadTime );
 	}
 
 	protected override void OnReloadFinished()
 	{
-		++reloadSequence;
+		firstInsertAt = null;
 		base.OnReloadFinished();
 		HolderAnimator?.StopWeaponOverlay( "reload_1" );
 	}
@@ -227,31 +221,46 @@ public sealed class Shotgun : Weapon
 			ChamberWorldModel();
 	}
 
-	uint chamberSequence;
+	SkinnedModelRenderer chamberRenderer;
+	double chamberStarts, chamberEnds;
+	bool chamberPlaying;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void ChamberWorldModel()
 	{
-		if ( WorldModel.IsValid() && WorldModel.GetComponent<SkinnedModelRenderer>() is {} renderer )
-			_ = ChamberNextTick( renderer, ++chamberSequence );
+		chamberRenderer = WorldModel.IsValid() ? WorldModel.GetComponent<SkinnedModelRenderer>() : null;
+		chamberStarts = Time.NowDouble + 1.0 / 30;
+		chamberPlaying = false;
 	}
 
-	async System.Threading.Tasks.Task ChamberNextTick( SkinnedModelRenderer renderer, uint sequence )
+	void UpdateWorldAnimations()
 	{
-		await Task.DelaySeconds( 1f / 30 );
-		if ( sequence != chamberSequence || !renderer.IsValid() || !renderer.Animation.IsValid ) return;
-		var parameters = renderer.Animation.Parameters;
+		double now = Time.NowDouble;
+		if ( firstInsertAt is {} insert && now >= insert )
+		{
+			firstInsertAt = null;
+			if ( IsHeld && IsReloading ) PlayHolderOverlay( "reload_1" );
+		}
+
+		if ( !chamberRenderer.IsValid() || !chamberRenderer.Animation.IsValid ) return;
+		if ( now < (chamberPlaying ? chamberEnds : chamberStarts) ) return;
+		var parameters = chamberRenderer.Animation.Parameters;
+		if ( chamberPlaying )
+		{
+			parameters.Set( "action_once", false );
+			parameters.Set( "action", "idle" );
+			chamberRenderer = null;
+			return;
+		}
+
 		if ( meleeEnds <= 0 && !IsReloading ) PlayHolderOverlay( "chamber_1" );
 		parameters.Set( "action_once", true );
 		parameters.Set( "action", "chamber_1" );
 		parameters.Trigger( "action_restart" );
+		chamberPlaying = true;
 		// The original channel signals completion when its next tick would reach the end.
 		float tick = Sandbox.ProjectSettings.Physics.UseFixedUpdate ? Scene.FixedDelta : Time.Delta;
-		await Task.DelaySeconds( System.Math.Max( 0, ChamberDuration - tick ) );
-		if ( sequence != chamberSequence || !renderer.IsValid() || !renderer.Animation.IsValid ) return;
-		parameters = renderer.Animation.Parameters;
-		parameters.Set( "action_once", false );
-		parameters.Set( "action", "idle" );
+		chamberEnds = now + System.Math.Max( 0, ChamberDuration - tick );
 	}
 
 	void LaunchPellets( Ray ray )
@@ -546,6 +555,7 @@ public sealed class Shotgun : Weapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		UpdateWorldAnimations();
 		if ( pendingStrike is not {} strike || Time.NowDouble < strike.Time ) return;
 		pendingStrike = null;
 		var aim = AimRay;
@@ -630,6 +640,8 @@ public sealed class Shotgun : Weapon
 	protected override void OnDisabled()
 	{
 		pendingStrike = null;
+		firstInsertAt = null;
+		chamberRenderer = null;
 		base.OnDisabled();
 	}
 
