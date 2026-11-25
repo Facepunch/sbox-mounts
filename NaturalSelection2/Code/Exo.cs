@@ -55,7 +55,12 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, onTag;
+	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
+	// Keep the clock of existing Exos when hotloading the replicated property.
 	TimeSince age;
+	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	TimeUntil repath, fireUntil, nextJuke;
 	int strafeSide = 1;
 	GameObject firingTarget;
@@ -98,15 +103,16 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
-		age = 0;
+		if ( !Networking.IsHost ) return;
+		AnimationTime = 0;
 		aim = WorldRotation;
-		if ( !Application.IsHeadless ) worldTag = OnWorldTag;
+		worldTag = OnWorldTag;
 		left.Released = right.Released = 1;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		var path = Renderer.Model.ResourcePath;
 		if ( mount?.GetByPath( path ) is ModelLoader body )
 			graph = new( body.PropGraph, body );
-		if ( Networking.IsHost && mount?.GetByPath( path.Replace( ".model.vmdl", "_view.model.vmdl" ) ) is ModelLoader view )
+		if ( mount?.GetByPath( path.Replace( ".model.vmdl", "_view.model.vmdl" ) ) is ModelLoader view )
 		{
 			weapon = new( view.PropGraph, view );
 			onTag = OnWeaponTag;
@@ -161,19 +167,29 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Health <= 0 ) return;
+		var output = PlayerGait.UpdatePose( this, 5.95f );
 		if ( Networking.IsHost )
 		{
 			if ( Animation.LookObject.IsValid() )
 				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
+			var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
+			if ( graph is not null )
+			{
+				UpdateInputs( graph, move );
+				graph.Update( age, output, worldTag );
+				movePose = graph.GetPose( 0 );
+				attackPose = graph.GetPose( 1 );
+			}
+			UpdateInputs( weapon, move );
+			weapon?.Update( age, tag: onTag );
 		}
-		var output = PlayerGait.UpdatePose( this, 5.95f );
-		var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
-		UpdateInputs( graph, move );
-		graph?.Update( age, output, worldTag );
-		UpdateInputs( weapon, move );
-		weapon?.Update( age, tag: onTag );
+		else if ( output is not null )
+		{
+			movePose.Write( Locomotion, output, age );
+			attackPose.Write( ActionLayer, output, age );
+		}
 		if ( !leftPressed ) StopSound( left );
 		if ( !rightPressed ) StopSound( right );
 	}
@@ -209,7 +225,13 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	void OnWorldTag( string tag )
 	{
 		if ( tag == "step" && PlayerGait.CanPlayStep( this ) )
-			PlayHeavySound( "step" );
+			PlayFootstep();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
+	void PlayFootstep()
+	{
+		if ( !Application.IsHeadless ) PlayHeavySound( "step" );
 	}
 
 	void OnWeaponTag( string tag )
