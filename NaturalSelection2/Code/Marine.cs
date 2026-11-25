@@ -40,7 +40,11 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	bool previousPress, skipDraw = true;
 	TimeSince weaponAge;
 	bool deployed, reloaded;
-	TimeSince age, lastShot, lastHit, lastRequest;
+	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
+	[Sync( SyncFlags.FromHost )] TimeSince age { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
+	TimeSince lastShot, lastHit, lastRequest;
 	TimeUntil combatUntil, blindFireUntil;
 	Vector3 lastAimPoint;
 	GameObject firingTarget;
@@ -85,13 +89,16 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		if ( Scene.PhysicsWorld.Gravity.z < 0 )
 			body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 		ignoreTarget = IsIgnoredTarget;
-		age = 0;
 		lastRequest = lastShot = lastHit = 1;
 		aim = WorldRotation;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			graph = new( model.PropGraph, model );
-		if ( !Application.IsHeadless ) worldTag = OnWorldTag;
+		if ( Networking.IsHost )
+		{
+			age = 0;
+			var mount = Sandbox.Mounting.Directory.Get( "ns2" );
+			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+				graph = new( model.PropGraph, model );
+			worldTag = OnWorldTag;
+		}
 		weaponTag = OnWeaponTag;
 		if ( Renderer.GetAttachmentObject( "RHand_Weapon" ) is { } hand )
 		{
@@ -321,8 +328,19 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		var move = jumping ? "jump" : Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
-		UpdateInputs( graph, move, activity );
-		graph?.Update( age, PlayerGait.UpdatePose( this, 5.75f ), worldTag );
+		var output = PlayerGait.UpdatePose( this, 5.75f );
+		if ( graph is not null )
+		{
+			UpdateInputs( graph, move, activity );
+			graph.Update( age, output, worldTag );
+			movePose = graph.GetPose( 0 );
+			attackPose = graph.GetPose( 1 );
+		}
+		else if ( !Networking.IsHost && output is not null )
+		{
+			movePose.Write( Locomotion, output, age );
+			attackPose.Write( ActionLayer, output, age );
+		}
 		if ( weapon is not null )
 		{
 			if ( trigger ) lastRequest = 0;
@@ -355,10 +373,15 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		if ( tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
 		leftFoot = !leftFoot;
 		bool forward = Vector3.Dot( Animation.MoveVelocity, WorldRotation.Forward ) > -0.1f * Scale;
+		PlayFootstep( SurfaceLoader.FootstepMaterial( GroundSurface ), forward, leftFoot );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayFootstep( string material, bool forward, bool left )
+	{
 		var listener = Scene.Camera?.GetComponentInParent<PlayerController>();
 		bool enemy = forward && listener.IsValid() && GetDisposition( listener.GameObject ) == Disposition.Hostile;
-		var material = SurfaceLoader.FootstepMaterial( GroundSurface );
-		var cue = $"{(forward ? "footstep" : "backpedal")}_{(leftFoot ? "left" : "right")}{(enemy ? "_for_enemy" : "")}";
+		var cue = $"{(forward ? "footstep" : "backpedal")}_{(left ? "left" : "right")}{(enemy ? "_for_enemy" : "")}";
 		var path = SurfaceLoader.SoundPath( $"materials/{material}/{cue}" );
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{path}" ) is { } sound ) Sound.Play( sound, WorldPosition );
 	}

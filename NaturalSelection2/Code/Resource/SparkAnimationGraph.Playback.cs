@@ -51,6 +51,7 @@ internal sealed partial class SparkAnimationGraph
 
 		internal LayerPose GetPose( int layer )
 		{
+			if ( (uint)layer >= tracks.Length ) return new( new( -1, 0, 0 ), new( -1, 0, 0 ), 0 );
 			ref var track = ref tracks[layer];
 			return new( track.Current, track.Previous, track.Blend );
 		}
