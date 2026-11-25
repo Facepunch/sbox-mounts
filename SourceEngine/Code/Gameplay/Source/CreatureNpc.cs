@@ -64,8 +64,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>GUNSHIP_MIN_DAMAGE_THRESHOLD in npc_combinegunship.cpp: smaller blasts are not a hit.</summary>
 	const float BlastHitThreshold = 50;
 
-	/// <summary>How long a bugbait command keeps an antlion on the thrower's side.</summary>
-	const float BugbaitAllegiance = 30;
+	/// <summary>Discard a pending movement goal if the creature never reaches it.</summary>
+	const float CommandTimeout = 30;
 
 	const float MeleeRange = 90;
 	const string FlinchLayer = "flinch";
@@ -126,7 +126,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	Rigidbody _body;
 	Vector3 _home;
 	Vector3? _command;
-	GameObject _commander;
+
 	TimeSince _sinceCommand;
 	TimeSince _lastPath;
 	bool _wasHeld;
@@ -222,7 +222,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	}
 
 	/// <summary>
-	/// A bugbait pheropod burst: responsive creatures that hear it go to it and fight on the thrower's side for a while.
+	/// A bugbait pheropod burst: responsive creatures investigate where it landed.
 	/// Call on the host with where it burst and who threw it.
 	/// </summary>
 	public static void HearBugbait( Scene scene, Vector3 position, GameObject thrower )
@@ -238,22 +238,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 		_command = point;
 		_sinceCommand = 0;
-		if ( _commander.IsValid() && _commander != thrower )
-			ClearRelationship( _commander );
-
-		_commander = thrower;
-		if ( thrower.IsValid() )
-			SetRelationship( thrower, Disposition.Friendly );
-	}
-
-	void ExpireCommand()
-	{
-		if ( !_commander.IsValid() || _sinceCommand < BugbaitAllegiance )
-			return;
-
-		ClearRelationship( _commander );
-		_commander = null;
-		_command = null;
 	}
 
 	string PickMelee() => _meleeChoices.Length > 0 ? Game.Random.FromArray( _meleeChoices ) : _melee;
@@ -408,7 +392,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			return;
 		}
 
-		ExpireCommand();
+		if ( _command.HasValue && _sinceCommand >= CommandTimeout ) _command = null;
 		if ( Aquatic )
 		{
 			var submerged = IsUnderwater( WorldPosition );
