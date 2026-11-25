@@ -44,8 +44,8 @@ internal static class AlienMelee
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{soundPath}.sound" ) is { } sound ) Sound.Play( sound, position );
 		if ( !Graphics.IsAvailable ) return;
 		var player = victim?.GetComponentInParent<PlayerController>();
-		if ( !(player.IsValid() && !player.IsProxy) && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
-			mount.PlayCinematic( $"cinematics/materials/{surface}/{(gore ? "gore" : "bite")}.cinematic", position, Rotation.Identity );
+		if ( !player.IsValid() || player.IsProxy )
+			CinematicLoader.Play( $"cinematics/materials/{surface}/{(gore ? "gore" : "bite")}.cinematic", position, Rotation.Identity );
 
 		var ray = Game.ActiveScene.Trace.Ray( position, position + direction * (3.5f * MapLoader.Scale) ).WithoutTags( "trigger" );
 		if ( victim.IsValid() ) ray = ray.IgnoreGameObjectHierarchy( victim );

@@ -288,8 +288,7 @@ public sealed partial class Onos : BaseNpc
 
 	static void PlayCinematic( string name, Vector3 position, Rotation facing )
 	{
-		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
-			mount.PlayCinematic( $"cinematics/alien/onos/{name}.cinematic", position, facing );
+		CinematicLoader.Play( $"cinematics/alien/onos/{name}.cinematic", position, facing );
 	}
 
 	(SceneTraceResult Hit, IDamageable Victim) TraceGore()

@@ -92,8 +92,7 @@ public sealed partial class Skulk
 
 	static void PlayAbilityEffect( string name, Vector3 position, Rotation rotation )
 	{
-		if ( Graphics.IsAvailable && Sandbox.Mounting.Directory.Get( "ns2" ) is GameMount mount )
-			mount.PlayCinematic( $"cinematics/alien/skulk/{name}.cinematic", position, rotation );
+		CinematicLoader.Play( $"cinematics/alien/skulk/{name}.cinematic", position, rotation );
 	}
 
 	protected override GameObject CreateRagdoll()

@@ -35,31 +35,8 @@ public class GameMount : BaseGameMount
 	internal Dictionary<string, Material> SkyMaterials { get; } = new( StringComparer.OrdinalIgnoreCase );
 	internal ConcurrentDictionary<string, (string Key, string Path)[]> ShaderDefaults { get; } = new( StringComparer.OrdinalIgnoreCase );
 
-	readonly Dictionary<string, Action<Vector3, Rotation>[]> cinematics = new();
-
-	internal void PlayCinematic( string relative, Vector3 position, Rotation facing )
-	{
-		if ( !cinematics.TryGetValue( relative, out var players ) )
-		{
-			if ( !TryResolve( FileSystem, relative, out var path ) ) return;
-			using var stream = FileSystem.OpenRead( path );
-			var file = CinematicFile.Read( stream );
-			var nodes = new List<Action<Vector3, Rotation>>();
-			foreach ( var node in file.Nodes )
-			{
-				var visible = node.Get( "Visible" );
-				if ( !visible.IsVisibleAt( 0 ) && !visible.HasVisibilityKeys ) continue;
-				if ( node.Name is "Emitter" or "Physics Emitter" ) nodes.Add( new CinematicEmitter( node, file.Duration ).Play );
-				else if ( node.Name == "Point Light" ) nodes.Add( new CinematicLight( node, file.Duration ).Play );
-			}
-			cinematics.Add( relative, players = nodes.ToArray() );
-		}
-		foreach ( var play in players ) play( position, facing );
-	}
-
 	protected override void Shutdown()
 	{
-		cinematics.Clear();
 		ProjectedSpotLight.ClearCookies();
 		SkyMaterials.Clear();
 		SoundBanks.Clear();
@@ -114,6 +91,7 @@ public class GameMount : BaseGameMount
 
 	private static ResourceType GetFileType( string extension ) => extension.ToLowerInvariant() switch
 	{
+		".cinematic" => ResourceType.Binary,
 		".model" => ResourceType.Model,
 		".animation_graph" => ResourceType.AnimationGraph,
 		".dds" => ResourceType.Texture,
@@ -145,6 +123,10 @@ public class GameMount : BaseGameMount
 				var model = Path.ChangeExtension( path, ".model" );
 				if ( GetByPath( $"mount://{Ident}/{path}.ag" ) is null && FileSystem.FileExists( model ) )
 					context.Add( resourceType, path, new AnimationGraphLoader( model, path ) );
+			}
+			else if ( resourceType == ResourceType.Binary )
+			{
+				context.Add( resourceType, path, new CinematicLoader( path ) );
 			}
 			else if ( resourceType == ResourceType.Texture )
 			{
