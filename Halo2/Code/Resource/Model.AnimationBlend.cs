@@ -25,16 +25,14 @@ public partial class Halo2ModelLoader
 	internal Model GripWeaponModel( string weaponClass, string weaponType )
 	{
 		if ( biped is null || HasFirstPersonWeapon ) return null;
+		foreach ( var prefab in Host.GetAll( Sandbox.Mounting.ResourceType.PrefabFile ).OfType<WeaponLoader>() )
+			if ( prefab.Matches( weaponClass, weaponType ) && prefab.WorldModelPath is {} path ) return Model.Load( path );
 		foreach ( var weapon in mapFile.Tags )
 		{
 			if ( weapon.PrimaryClass != "paew" || weapon.DataSize < 0x290 ) continue;
 			int address = mapFile.VaToOffset( (int)weapon.DataVirtualAddress );
 			if ( Label( address + 0x288 ) != weaponClass || Label( address + 0x28c ) != weaponType ) continue;
-			var model = mapFile.GetTag( mapFile.ReadInt32( address + 0x38 ) & 0xffff );
-			if ( model?.PrimaryClass != "tmlh" || model.DataSize < 8 ) continue;
-			int definition = mapFile.VaToOffset( (int)model.DataVirtualAddress );
-			var render = mapFile.GetTag( mapFile.ReadInt32( definition + 4 ) & 0xffff );
-			if ( render is not null ) return Model.Load( Host.AssetPath( mapFile, render.TagPath, "vmdl" ) );
+			if ( WeaponLoader.ModelPath( Host, mapFile, weapon ) is {} path ) return Model.Load( path );
 		}
 		return null;
 	}

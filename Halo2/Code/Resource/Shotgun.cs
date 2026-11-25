@@ -9,7 +9,7 @@ internal sealed class ShotgunAmmoLoader( int capacity ) : ResourceLoader<Halo2Mo
 	protected override object Load() => new BaseAmmoResource { Title = "Shotgun shells", MaxReserve = capacity };
 }
 
-internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : ResourceLoader<Halo2Mount>
+internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : WeaponLoader( source, tag )
 {
 	internal const string PrefabPath = "weapons/shotgun.prefab";
 	internal const string AmmoPath = "ammo/shotgun_shells.ammo";
@@ -410,8 +410,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 
 	protected override object Load()
 	{
-		var modelTag = Reference( Address( Reference( Header + 0x34 ) ) );
-		var world = Host.AssetPath( map, modelTag.TagPath, "vmdl" );
+		var world = WorldModelPath;
 		var firstPerson = Reference( Block( Header + 0x2a8 ) );
 		int magazine = Block( Header + 0x2c0 );
 		int barrel = Block( Header + 0x2d0 );
