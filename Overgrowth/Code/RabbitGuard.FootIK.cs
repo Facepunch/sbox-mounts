@@ -72,7 +72,6 @@ public sealed partial class RabbitGuard
 				(!PrimaryItem.IsValid() || boundAnimations.WeaponLabel is not ("big_sword" or "spear" or "staff")) ) target = -1f;
 		}
 		ThreatAmount = SampleThreat( target, active, PrimaryItem.IsValid(), Time.Delta );
-		CrouchAmount = duckAmount;
 	}
 
 	float SampleThreat( float target, bool active, bool armed, float dt )

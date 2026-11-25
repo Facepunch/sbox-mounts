@@ -61,7 +61,8 @@ public sealed partial class RabbitGuard
 	float GroundCrouchTarget()
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0f ).Length / 40f;
-		float target = InspectingBody ? 1f - 0.7f * Math.Min( 1f, speed / 5f ) : 0f;
+		float target = InspectingBody ? 1f : 0f;
+		if ( stanceMove ) target *= 1f - 0.7f * Math.Min( 1f, speed / 5f );
 		if ( draggedBody.IsValid() && DragStrength < 0.7f ) target = 1f;
 		if ( currentKnifeLayer is { Active: true } && strikeTarget.IsValid() )
 			target = Math.Max( target, Math.Clamp( -GetAttackHeight( strikeTarget ), 0f, 1f ) );

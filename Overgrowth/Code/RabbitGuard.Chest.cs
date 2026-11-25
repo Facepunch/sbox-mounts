@@ -149,13 +149,15 @@ public sealed partial class RabbitGuard
 	bool GazeMovementState => Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle or RatHeldByRabbit or ArmedHeld
 		|| Stance == RearHeld && Held && CaptureReactionEnded;
 
+	bool stanceMove = true;
+
 	void UpdateTorsoControl( bool needsCombatPose )
 	{
 		float speed = Animation.MoveVelocity.WithZ( 0f ).Length;
 		bool fightStance = GazeMovementState && CombatFootStanceTarget( speed, needsCombatPose ).IsValid();
 		if ( fightStance ) stanceMoveFade = 1f;
 		bool throwing = HasThrowLayer;
-		bool stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||
+		stanceMove = fightStance || Holding || Held || draggedBody.IsValid() ||
 			speed < 24f && Movement.MoveTarget.HasValue || currentKnifeLayer is { Active: true } ||
 			throwing && speed < 48f || unassignedPatrol && speed * speed > 1.6f;
 

@@ -173,6 +173,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		chestMotion = null;
 		if ( Networking.IsHost )
 		{
+			CrouchAmount = duckAmount;
 			bool needsCombatPose = NeedsCombatPose();
 			UpdateCombatPosture( needsCombatPose );
 			UpdateTorsoControl( needsCombatPose );
