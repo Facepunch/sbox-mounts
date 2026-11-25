@@ -157,16 +157,16 @@ public sealed class Shotgun : Weapon
 
 	bool triggerConsumed;
 
-	protected override bool WantsPrimaryAttack()
+	protected override void OnControl()
 	{
-		if ( !Input.Down( "attack1" ) )
-		{
-			triggerConsumed = false;
-			return false;
-		}
-
-		return (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
+		if ( !Input.Down( "attack1" ) ) triggerConsumed = false;
+		// The unit admits melee before processing weapon fire and reload on this tick.
+		if ( WantsSecondaryAttack() && FireSecondary() ) return;
+		base.OnControl();
 	}
+
+	protected override bool WantsPrimaryAttack() =>
+		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 
 	public override bool CanPrimaryAttack() =>
 		meleeEnds <= 0 && NextPrimaryFire <= 0 && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
