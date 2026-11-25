@@ -230,7 +230,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		return map.ReadInt32( Block( functions + curve * 20 + 12 ) + (elite ? 16 : 4) );
 	}
 
-	internal (Color Loaded, Color Empty) ReserveColors( bool elite )
+	AmmoTextColors ReserveColors( bool elite )
 	{
 		int widgets = Address( Reference( Header + 0x2b0 ) ) + 16;
 		int rows = Block( widgets );
@@ -249,7 +249,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			if ( name == "bullets_single" ) loaded = color;
 			else empty = color;
 		}
-		return (loaded, empty);
+		return new( loaded, empty );
 	}
 
 	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null, bool elite = false )
@@ -428,11 +428,13 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			var collider = root.AddComponent<BoxCollider>();
 			collider.Center = renderer.Model.Bounds.Center;
 			collider.Scale = renderer.Model.Bounds.Size;
-			// Convert Halo 2 item gravity to inches/sÂ² relative to standard s&box gravity.
+			// Convert Halo 2 item gravity to inches/sÃ‚Â² relative to standard s&box gravity.
 			root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 			var gun = root.AddComponent<Shotgun>();
 			gun.DisplayName = "Shotgun";
 			(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+			gun.SpartanAmmoText = ReserveColors( false );
+			gun.EliteAmmoText = ReserveColors( true );
 			gun.BindHudTextures();
 			gun.Contacts = ReadContacts();
 			gun.HoldType = WeaponHolds.Shotgun;

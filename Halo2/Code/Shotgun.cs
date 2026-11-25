@@ -2,9 +2,13 @@ using System.Runtime.CompilerServices;
 
 namespace Halo2;
 
+public readonly record struct AmmoTextColors( Color Loaded, Color Empty );
+
 [Title( "Shotgun" ), Category( "Halo 2" )]
 public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 {
+	[Property] public AmmoTextColors SpartanAmmoText { get; set; }
+	[Property] public AmmoTextColors EliteAmmoText { get; set; }
 	[Property] public string ViewModelPath { get; set; }
 	[Property] public ShotgunContacts Contacts { get; set; }
 	[Property] public string ArmsPath { get; set; }
@@ -617,7 +621,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	Texture ammoBackground, emptyAmmoBackground;
 	Model hudHolderModel;
 	bool eliteHud;
-	(Color Loaded, Color Empty)? reserveColors;
 	readonly Texture[] reserveDigits = new Texture[10];
 	int displayedShells = -1;
 
@@ -637,7 +640,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			hudHolderModel = holderModel;
 			eliteHud = holderModel?.GetData<PlayerRepresentation>()?.Index is 1 or 3;
 			ammoBackground = emptyAmmoBackground = ammoMeter = null;
-			reserveColors = null;
 		}
 		bool empty = Clip1 == 0 && Ammo1 == 0;
 		ref var background = ref (empty ? ref emptyAmmoBackground : ref ammoBackground);
@@ -667,12 +669,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	{
 		int reserve = Ammo1;
 		if ( reserve < 0 || reserve == int.MaxValue ) return;
-		if ( reserveColors is null )
-		{
-			var mount = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent );
-			if ( mount?.GetByPath( $"mount://{mount.Ident}/{ShotgunLoader.PrefabPath}" ) is not ShotgunLoader loader ) return;
-			reserveColors = loader.ReserveColors( eliteHud );
-		}
 		System.Span<char> digits = stackalloc char[10];
 		if ( !reserve.TryFormat( digits, out int length ) ) return;
 
@@ -684,7 +680,8 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		// Text anchors truncate in logical pixels relative to the player's viewport.
 		anchor = painter.Bounds.Position + new Vector2(
 			System.MathF.Truncate( anchor.x - inkWidth / 2 ), System.MathF.Truncate( anchor.y ) ) * scale;
-		var tint = Clip1 == 0 && reserve == 0 ? reserveColors.Value.Empty : reserveColors.Value.Loaded;
+		var colors = eliteHud ? EliteAmmoText : SpartanAmmoText;
+		var tint = Clip1 == 0 && reserve == 0 ? colors.Empty : colors.Loaded;
 		for ( int i = 0; i < length; i++ )
 		{
 			char digit = digits[i];
