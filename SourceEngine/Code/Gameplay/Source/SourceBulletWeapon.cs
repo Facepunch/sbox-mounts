@@ -227,12 +227,6 @@ public sealed class SourceBulletWeapon : SourceWeapon
 		_burstAttacker = null;
 	}
 
-	protected override bool OnAdding( BaseInventoryComponent inventory )
-	{
-		SourceWeaponSetup.ConfigureAmmo( this );
-		return base.OnAdding( inventory );
-	}
-
 	protected override void OnAdded( BaseInventoryComponent inventory )
 	{
 		CancelBurst();

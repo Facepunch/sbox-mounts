@@ -75,6 +75,13 @@ static class SourceWeaponSetup
 		var state = Weapons.GetValue( weapon, _ => new() );
 		state.Data ??= ReadData( weapon );
 		ApplyAmmo( weapon, state.Data );
+
+		// A fresh pickup carries default_clip rounds in total. Preserve the rounds left in dropped weapons.
+		if ( state.Data is { ClipSize: > 0, DefaultClip: >= 0 } data && weapon.UsesPrimaryClip )
+		{
+			weapon.StartingAmmo = 0;
+			if ( weapon.Clip1 < 0 ) weapon.Clip1 = data.DefaultClip.Value;
+		}
 	}
 
 	/// <summary>

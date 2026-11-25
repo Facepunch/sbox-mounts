@@ -40,12 +40,6 @@ public sealed class SourceProjectileWeapon : SourceWeapon
 	public Vector3? TraceLaserTarget() => LaserOn ? Scene.Trace.Ray( AimRay, 16384 ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
 		.WithoutTags( "projectile", "trigger" ).Run().EndPosition : null;
 
-	protected override bool OnAdding( BaseInventoryComponent inventory )
-	{
-		SourceWeaponSetup.ConfigureAmmo( this );
-		return base.OnAdding( inventory );
-	}
-
 	protected override void OnStart()
 	{
 		base.OnStart();

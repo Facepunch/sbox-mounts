@@ -71,6 +71,22 @@ public abstract class SourceWeapon : BaseCombatWeapon
 	internal GameObject ResolveLaunchAttacker( GameObject attacker ) =>
 		Rpc.Caller == Connection.Local && attacker.IsValid() ? attacker : Attacker;
 
+	protected override bool OnAdding( BaseInventoryComponent inventory )
+	{
+		SourceWeaponSetup.ConfigureAmmo( this );
+		return base.OnAdding( inventory );
+	}
+
+	protected override void OnAdded( BaseInventoryComponent inventory )
+	{
+		if ( UsesPrimaryClip && Clip1 > PrimaryClipSize )
+		{
+			inventory.GiveAmmo( PrimaryAmmoType, Clip1 - PrimaryClipSize );
+			Clip1 = PrimaryClipSize;
+		}
+		base.OnAdded( inventory );
+	}
+
 	protected override void OnEnabled()
 	{
 		base.OnEnabled();
