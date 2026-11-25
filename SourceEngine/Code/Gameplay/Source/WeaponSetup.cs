@@ -214,13 +214,16 @@ static class WeaponSetup
 		}
 		var clips = WeaponClips.Resolve( model, names );
 		float Duration( string clip ) => WeaponClips.Duration( model, clip );
+		var draw = Duration( clips.Draw );
+		if ( weapon is ProjectileWeapon { Kind: Projectile.Kinds.Rocket } && draw > 0 && names.DrawPlaybackRate > 0 )
+			weapon.DeployTime = draw / names.DrawPlaybackRate;
 		if ( weapon is ProjectileWeapon projectile && clips.Throws )
 		{
 			projectile.WindupDuration = clips.WindupDuration;
 			projectile.ReleaseDelay = clips.ReleaseDelay;
 			projectile.AttackDuration = clips.ThrowDuration;
 			// Thrown weapons draw a new item rather than swapping a magazine.
-			weapon.ReloadTime = Duration( clips.Draw );
+			weapon.ReloadTime = draw;
 			projectile.RedrawDuration = weapon.ReloadTime;
 			weapon.AttackSound = null;
 		}
