@@ -57,12 +57,13 @@ public sealed partial class RabbitGuard
 	void ApplyBloodLoss( float amount, BloodDamage damage )
 	{
 		// BaseNpc clamps Health at zero when a cut exceeds the remaining permanent health.
-		float permanent = Health > 0f ? Health + amount : damage.HealthBeforeHit;
+		float permanent = Health > 0f ? PermanentHealth + amount : damage.HealthBeforeHit;
 		float temporary = permanent - recoverableDamage;
 		BloodLost += amount;
 		float blood = MaxHealth - BloodLost;
-		Health = permanent > blood ? permanent - 0.5f * amount : permanent;
-		recoverableDamage = Math.Max( 0f, Health - temporary );
+		if ( permanent > blood ) permanent -= 0.5f * amount;
+		SetLivingHealth( permanent );
+		recoverableDamage = Math.Max( 0f, permanent - temporary );
 		if ( damage is MeleeCut cut ) cut.Contact = (cut.Contact.Impulse * StrikeForceScale, cut.Contact.Line);
 		if ( blood <= 0f && !Unconscious ) Health = 0f;
 	}

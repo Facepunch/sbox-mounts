@@ -15,7 +15,17 @@ public sealed partial class RabbitGuard
 	[Sync] bool RecoveredInAir { get; set; }
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
-	float TemporaryHealth => Math.Max( 0f, Health - recoverableDamage );
+	// BaseNpc reserves Health below 1 for death. Overgrowth can keep an unconscious
+	// fighter alive with negative permanent health until the next blunt hit.
+	float healthBelowFloor;
+	float PermanentHealth => Health - healthBelowFloor;
+	float TemporaryHealth => PermanentHealth - recoverableDamage;
+
+	void SetLivingHealth( float permanent )
+	{
+		Health = Math.Max( 1f, permanent );
+		healthBelowFloor = Health - permanent;
+	}
 	float StrikeForceScale => MaxHealth > 0f ? 1f - Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) * 0.5f : 1f;
 	const float PermanentDamageFraction = 0.4f;
 	[Property] public float DamageResistance { get; set; } = 1f;
@@ -54,7 +64,7 @@ public sealed partial class RabbitGuard
 	protected override void OnDamaging( Component.IDamageable.DamageEvent hit )
 	{
 		base.OnDamaging( hit );
-		if ( hit.DamageInfo is BloodDamage blood ) blood.HealthBeforeHit = Health;
+		if ( hit.DamageInfo is BloodDamage blood ) blood.HealthBeforeHit = PermanentHealth;
 		if ( hit.DamageInfo is not ExecutionDamage ) hit.AcceptedDamage /= Math.Max( 0.00001f, DamageResistance );
 		if ( hit.DamageInfo is BluntDamage )
 		{
@@ -72,15 +82,23 @@ public sealed partial class RabbitGuard
 	{
 		bool wasAwake = !Unconscious;
 		base.OnDamaged( hit );
+		if ( hit.AcceptedDamage > 0f || hit.DamageInfo is BluntDamage or BloodDamage )
+			InvestigatePatrolDamage();
 		if ( hit.DamageInfo is BloodDamage blood && hit.AcceptedDamage > 0f )
 		{
 			if ( hit.DamageInfo is not ExtractionDamage ) FlinchFromCut();
 			ApplyBloodLoss( hit.AcceptedDamage, blood );
 		}
+		if ( hit.DamageInfo is BluntDamage )
+		{
+			if ( PermanentHealth <= 0f ) Health = 0f;
+			else if ( Health < 1f || healthBelowFloor > 0f ) SetLivingHealth( PermanentHealth );
+		}
 		bool sparringKnockout = Sparring && Health < 1f && hit.AcceptedDamage > 0;
 		if ( sparringKnockout )
 		{
 			Health = MaxHealth;
+			healthBelowFloor = 0f;
 			BloodLost = 0f;
 			recoverableDamage = 0f;
 			Unconscious = false;
@@ -91,7 +109,8 @@ public sealed partial class RabbitGuard
 		if ( hit.DamageInfo is StrikeDamage ) KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 		if ( hit.DamageInfo is BluntDamage && !sparringKnockout )
 		{
-			recoverableDamage = Math.Min( Health, recoverableDamage + hit.AcceptedDamage * ((1f - PermanentDamageFraction) / PermanentDamageFraction) );
+			recoverableDamage += hit.AcceptedDamage * ((1f - PermanentDamageFraction) / PermanentDamageFraction);
+			if ( hit.DamageInfo is StrikeDamage ) recoverableDamage = Math.Min( PermanentHealth, recoverableDamage );
 			if ( TemporaryHealth <= 0f )
 			{
 				if ( Sparring )
@@ -116,7 +135,6 @@ public sealed partial class RabbitGuard
 
 		if ( holdPartner.IsValid() && attacker.IsValid() && attacker != holdPartner.GameObject ) ReleaseHold();
 		NoticeAttacker( attacker );
-		if ( wasAwake ) InvestigatePatrolDamage();
 		bool hitVoice = hit.DamageInfo is StrikeDamage ? wasAwake : !Downed && hit.DamageInfo is not (BloodDamage or HoldDamage or ExecutionDamage or ItemImpact or WaterDamage or LandingDamage);
 		if ( hitVoice ) Speak( "hit" );
 
