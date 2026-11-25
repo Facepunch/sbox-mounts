@@ -274,9 +274,16 @@ public sealed class Shotgun : Weapon
 		// The shotgun saturates barrel error on the firing tick, before pellet dispatch.
 		float maximum = (Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x).DegreeToRadian();
 		float minimum = MinimumPelletAngle.DegreeToRadian();
+		var aim = ray.Forward;
+		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
+		// Project before spread, then apply the inherited speed along each pellet's direction.
+		float inherited = System.MathF.Max( 0, (aim.x * velocity.x + aim.z * velocity.z) + aim.y * velocity.y );
 		var pellets = new Pellet[Ballistics.Pellets];
 		for ( int i = 0; i < pellets.Length; i++ )
-			pellets[i].Velocity = PelletSpeed * Spread.Deviate( ray.Forward, minimum, maximum, ref randomState );
+		{
+			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
+			pellets[i].Velocity = forward * PelletSpeed + forward * inherited;
+		}
 		_ = FlyPellets( ray.Position, pellets, Attacker );
 	}
 
