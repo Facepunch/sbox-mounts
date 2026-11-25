@@ -852,10 +852,9 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 public sealed class ShotgunViewModel : ShotgunModel
 {
 	internal FirstPersonAnimation AnimationData { get; set; }
-	uint cueSeed = (uint)System.Random.Shared.Next();
+	readonly AnimationSounds sounds = new();
 	Halo2ClipInfo clip;
 	TimeSince elapsed;
-	int nextCue;
 	bool reload, entering, reloadCancelled;
 	Halo2ClipInfo movingClip;
 	float movementFrame;
@@ -1053,7 +1052,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		reloadCancelled = false;
 		clip = AnimationData.Actions[action];
 		elapsed = 0;
-		nextCue = 0;
+		sounds.Restart();
 	}
 
 	void AdvanceAction( float ticksPerSecond )
@@ -1077,19 +1076,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		float elapsedTicks = elapsed * ticksPerSecond;
 		float sampleTick = System.MathF.Min( System.MathF.Floor( elapsedTicks ), lastTick );
 		float frame = sampleTick * framesPerTick;
-		while ( nextCue < clip.Cues.Count && clip.Cues[nextCue].Frame < frame )
-		{
-			var cue = clip.Cues[nextCue++];
-			bool thirdPerson = Weapon.Owner is { ThirdPerson: true };
-			// The first-person sound reference's fourth bit restricts playback to that camera.
-			if ( cue.Kind == "sound" && (!thirdPerson || (cue.Flags & 8) == 0) && cue.TagPath is {} path
-				&& AnimationData.Sounds.TryGetValue( path, out var sound ) )
-			{
-				var emitter = thirdPerson ? Weapon.WorldModel : GameObject;
-				if ( !emitter.IsValid() ) emitter = Weapon.GameObject;
-				sound.Play( emitter.WorldPosition, ref cueSeed, emitter );
-			}
-		}
+		sounds.Advance( clip, frame, AnimationData, Weapon, GameObject );
 		if ( sampleTick >= lastTick )
 		{
 			if ( enterReload ) Insert();

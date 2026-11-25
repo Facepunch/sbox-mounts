@@ -119,14 +119,39 @@ public sealed class MagazineWeapon : Weapon
 public sealed class MagazineWeaponModel : BaseWeaponModel
 {
 	internal MagazineWeapon Weapon { get; set; }
+	readonly AnimationSounds sounds = new();
+	FirstPersonAnimation data;
+	Halo2ClipInfo clip;
+	string currentAction;
+	float frame;
 
 	internal void Play( string action )
 	{
 		if ( !Renderer.Animation.IsValid ) return;
+		data ??= Renderer.Model.GetData<FirstPersonAnimation>();
+		if ( data?.Actions.TryGetValue( action, out var selected ) != true ) return;
+		clip = selected;
+		currentAction = action;
+		frame = 0;
+		sounds.Restart();
 		var parameters = Renderer.Animation.Parameters;
 		if ( parameters.GetString( "action" ) == action ) parameters.Trigger( "action_restart" );
-		parameters.Set( "action_once", true );
+		parameters.Set( "action_once", action != "idle" );
 		parameters.Set( "action", action );
+	}
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+		if ( clip is null || !Weapon.IsValid() || currentAction == "idle" ) return;
+		frame += Time.Delta * 30 * Renderer.PlaybackRate;
+		sounds.Advance( clip, System.MathF.Min( frame, clip.Frames - 1 ), data, Weapon, GameObject );
+		if ( frame >= clip.Frames - 1 ) Play( "idle" );
+	}
+
+	public override void OnReloadCancel()
+	{
+		if ( currentAction is "reload_full" or "reload_empty" ) Play( "idle" );
 	}
 
 	public override void OnDeploy() => Play( "ready" );
