@@ -109,7 +109,7 @@ public sealed partial class RabbitGuard
 		float crouch = Math.Clamp( CrouchAmount, 0, 1 );
 		var controls = new RabbitMovement.Controls( 0f, 1f - crouch, threat, CloseAmount );
 		var current = tree.Evaluate( controls, stancePhase, mirrored );
-		float next = AdvanceReaderPhase( stancePhase, current.Frequency, ref stanceFrequency, entering );
+		float next = AdvanceReaderPhase( stancePhase, current.Frequency, ref stanceFrequency, entering, Time.Delta );
 		stancePhase = tree.Looping ? next % 1f : Math.Min( next, 1f );
 		var queued = tree.Evaluate( controls, stancePhase, mirrored );
 		var pose = entering || evaluatedStance.Events is null ? queued : evaluatedStance;

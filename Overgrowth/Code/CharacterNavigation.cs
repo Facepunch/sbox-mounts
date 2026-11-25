@@ -16,6 +16,8 @@ public sealed class CharacterNavigation : NavigationLayer
 	Vector3 routeStepStart;
 	double routeStepTime;
 	float routeStepDuration;
+	float skippedRouteTime;
+	internal float GroundAnimationDelta { get; private set; }
 	internal Vector3? RequestedHeading { get; set; }
 	Vector3 brakingVelocity;
 	internal Vector3 BrakingVelocity => brakingVelocity;
@@ -145,6 +147,9 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	internal void PlaceOnGround( RabbitGuard fighter )
 	{
+		// The scene can discard fixed steps during a slow frame. Keep the stride on the same clock as the crowd.
+		GroundAnimationDelta = Math.Max( 0f, Time.Delta - skippedRouteTime );
+		skippedRouteTime = 0f;
 		if ( routeStepDuration <= 0f || (!MoveTarget.HasValue && brakingVelocity.IsNearlyZero()) || LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
 		{
 			ReleaseGroundPlacement();
@@ -179,6 +184,8 @@ public sealed class CharacterNavigation : NavigationLayer
 		{
 			// The crowd advances after component fixed updates. Interpolate its last
 			// completed step so the renderer follows the same path at any frame rate.
+			if ( routeStepDuration > 0f )
+				skippedRouteTime += Math.Max( 0f, (float)(Time.NowDouble - routeStepTime) - Time.Delta );
 			routeStepStart = Agent.AgentPosition;
 			routeStepTime = Time.NowDouble;
 			routeStepDuration = Time.Delta;
