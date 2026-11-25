@@ -67,15 +67,17 @@ public sealed class GravityWeapon : Weapon
 		Drop();
 	}
 
-	Rigidbody FindBody( float range, out Vector3 hitPosition )
+	Rigidbody FindBody( float range, out Vector3 hitPosition, bool punt = false )
 	{
-		// FindObjectTrace: a line first, then a small hull for thin or near-miss aims.
-		var aim = AimRay;
-		var tr = Scene.Trace.Ray( aim, range ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" ).Run();
-		if ( tr.GameObject?.GetComponentInParent<Rigidbody>() is null )
-			tr = Scene.Trace.Ray( aim, range ).Size( 8 ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" ).Run();
-		hitPosition = tr.HitPosition;
+		var ray = Scene.Trace.Ray( AimRay, range ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" );
+		var tr = punt ? ray.Size( 16 ).Run() : ray.Run();
 		var body = tr.GameObject?.GetComponentInParent<Rigidbody>();
+		if ( !body.IsValid() || !body.MotionEnabled )
+		{
+			tr = punt ? ray.Run() : ray.Size( 8 ).Run();
+			body = tr.GameObject?.GetComponentInParent<Rigidbody>();
+		}
+		hitPosition = punt ? tr.EndPosition : tr.HitPosition;
 		return body.IsValid() && body.MotionEnabled ? body : null;
 	}
 
@@ -99,7 +101,7 @@ public sealed class GravityWeapon : Weapon
 			PuntEffects( PuntResult.LaunchHeld );
 			return;
 		}
-		var body = FindBody( TraceLength, out _ );
+		var body = FindBody( TraceLength, out var hit, punt: true );
 		if ( !CanMove( body ) )
 		{
 			PuntEffects( PuntResult.Miss );
@@ -107,8 +109,8 @@ public sealed class GravityWeapon : Weapon
 		}
 		// PuntVPhysics: a 15000 impulse at the centre plus 600 per kg (up to 250 kg) at the hit point, flattened up off the floor.
 		if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
-		var mass = MathF.Max( body.Mass, 1 );
-		body.Velocity += forward * ((15000 + MathF.Min( mass, MaxMass ) * 600) / mass * LaunchScale);
+		body.ApplyImpulse( forward * 15000 );
+		body.ApplyImpulseAt( hit, forward * (MathF.Min( body.Mass, MaxMass ) * 600) );
 		PuntEffects( PuntResult.Hit );
 	}
 
