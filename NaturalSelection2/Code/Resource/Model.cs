@@ -64,6 +64,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public int Parent;
 		public Transform Transform;      // model-space (parents applied)
 		public Transform LocalTransform; // parent-relative bind pose
+		public bool HasChildren;
 		public BBox Bounds;              // bone-local render bounds
 	}
 
@@ -450,7 +451,11 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 			var transform = PoseToTransform( pose );
 			var local = transform;
-			if ( parent >= 0 ) transform = bones[parent].Transform.ToWorld( transform );
+			if ( parent >= 0 )
+			{
+				transform = bones[parent].Transform.ToWorld( transform );
+				bones[parent].HasChildren = true;
+			}
 
 			bones[i] = new Bone { Name = name, Parent = parent, Transform = transform, LocalTransform = local };
 		}
@@ -786,14 +791,14 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose, int? sampleIntervals = null )
+	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose, int? sampleIntervals = null, bool bakeScale = false )
 	{
-		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose, sampleIntervals ?? (anim.NumFrames - 1) );
-		else AddUncompressedFrames( addFrame, anim, model, ref r, pose );
+		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose, sampleIntervals ?? (anim.NumFrames - 1), bakeScale );
+		else AddUncompressedFrames( addFrame, anim, model, ref r, pose, bakeScale );
 	}
 
 	private static void AddCompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
-		ParsedModel model, ref Reader r, Transform[] boneTransforms, int intervals )
+		ParsedModel model, ref Reader r, Transform[] boneTransforms, int intervals, bool bakeScale )
 	{
 		r.Seek( anim.CurvesOffset );
 
@@ -803,6 +808,8 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		var posCurves = new Curve<Vector3>[boneCount];
 		var rotCurves = new Curve<Quaternion>[boneCount];
 		var hasCurve = new bool[boneCount];
+		var scales = bakeScale ? new ScaleTrack[boneCount] : null;
+		bool hasScale = false;
 
 		for ( int j = 0; j < anim.NumCurves; j++ )
 		{
@@ -812,13 +819,22 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			// position
 			var pos = used ? ReadVector3Curve( ref r ) : default;
 			if ( !used ) SkipCurve( ref r, 12 );
-			// scale + uniform scale + (below) scale orientation are unused by s&box skeletal animation
-			SkipCurve( ref r, 12 );
-			SkipCurve( ref r, 4 );
+			bool readScale = used && bakeScale && model.Bones[boneIndex].HasChildren;
+			if ( readScale )
+			{
+				scales[boneIndex] = ReadScaleTrack( ref r );
+				hasScale |= scales[boneIndex] is not null;
+			}
+			else
+			{
+				SkipCurve( ref r, 12 );
+				SkipCurve( ref r, 4 );
+			}
 			// rotation
 			var rot = used ? ReadQuaternionCurve( ref r ) : default;
 			if ( !used ) SkipCurve( ref r, 16 );
-			SkipCurve( ref r, 16 );
+			if ( readScale && scales[boneIndex] is { } track ) track.SetOrientation( ReadQuaternionCurve( ref r ) );
+			else SkipCurve( ref r, 16 );
 
 			if ( used )
 			{
@@ -828,6 +844,8 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			}
 		}
 
+		var residuals = hasScale ? new Matrix4x4?[boneCount] : null;
+		var affected = hasScale ? ScaledBones( model.Bones, scales ) : null;
 		for ( int frame = 0; frame <= intervals; frame++ )
 		{
 			float t = intervals == 0 ? 0 : (float)frame / intervals * ((anim.NumFrames - 1) / anim.FrameRate);
@@ -846,17 +864,16 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				boneTransforms[b] = tx.IsValid ? tx : model.Bones[b].LocalTransform;
 			}
 
+			if ( hasScale )
+			{
+				foreach ( int b in affected )
+				{
+					var track = scales[b];
+					var stretch = track is null ? Matrix4x4.Identity : track.Sample( t );
+					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals );
+				}
+			}
 			addFrame( boneTransforms );
-		}
-
-		static Curve<Vector3> ReadVector3Curve( ref Reader r )
-		{
-			int keys = r.Int();
-			var times = r.Floats( keys );
-			r.Check( (long)keys * 12 );
-			var values = new Vector3[keys];
-			for ( int i = 0; i < keys; i++ ) values[i] = r.ReadVector3();
-			return new Curve<Vector3> { Times = times, Values = values };
 		}
 
 		static Curve<Quaternion> ReadQuaternionCurve( ref Reader r )
@@ -876,13 +893,24 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
+	static Curve<Vector3> ReadVector3Curve( ref Reader r )
+	{
+		int keys = r.Int();
+		var times = r.Floats( keys );
+		r.Check( (long)keys * 12 );
+		var values = new Vector3[keys];
+		for ( int i = 0; i < keys; i++ ) values[i] = r.ReadVector3();
+		return new Curve<Vector3> { Times = times, Values = values };
+	}
+
 	private static void AddUncompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
-		ParsedModel model, ref Reader r, Transform[] boneTransforms )
+		ParsedModel model, ref Reader r, Transform[] boneTransforms, bool bakeScale )
 	{
 		int boneCount = model.Bones.Length;
 
 		// Load each bone's pose blob (frames are stored contiguously per bone)
 		var poses = new FilePose[boneCount][];
+		var residuals = bakeScale ? new Matrix4x4?[boneCount] : null;
 		foreach ( var (boneIndex, offset) in anim.BoneCurves )
 		{
 			if ( boneIndex < 0 || boneIndex >= boneCount )
@@ -912,6 +940,19 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				boneTransforms[b] = tx.IsValid ? tx : model.Bones[b].LocalTransform;
 			}
 
+			if ( bakeScale )
+			{
+				for ( int b = 0; b < boneCount; b++ )
+				{
+					var stretch = Matrix4x4.Identity;
+					if ( poses[b] is { } frames )
+					{
+						var pose = frames[frame];
+						stretch = StretchMatrix( pose.Scale * pose.UniformScale, ToRotation( pose.ScaleOrientation ) );
+					}
+					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals );
+				}
+			}
 			addFrame( boneTransforms );
 		}
 	}

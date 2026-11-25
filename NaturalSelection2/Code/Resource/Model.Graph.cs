@@ -76,7 +76,7 @@ public partial class ModelLoader
 					{
 						for ( int i = 0; i < pose.Length; i++ ) pose[i] = pose[i].WithScale( anim.Additive ? 0 : 1 );
 						builder.AddFrame( pose );
-					}, anim, model, ref reader, frame, intervals );
+					}, anim, model, ref reader, frame, intervals, bakeScale: npcPlayback && !anim.Additive );
 					if ( builder.FrameCount == 1 ) builder.AddFrame( frame );
 					clips[node.AnimationIndex] = clip = builder.Create( $"{Path}/clip_{node.AnimationIndex}.anim" );
 				}
