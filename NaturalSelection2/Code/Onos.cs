@@ -263,7 +263,8 @@ public sealed partial class Onos : BaseNpc
 		if ( stomping )
 		{
 			if ( tag == "stomp_hit" && !stompHit ) StartWave();
-			if ( tag == "end" && sinceStomp >= stompDuration * 0.25f ) wantsStomp = stomping = false;
+			// The outgoing Gore clip can finish after Stomp has been requested.
+			if ( tag == "end" && stompHit ) wantsStomp = stomping = false;
 			return;
 		}
 		if ( tag != "hit" || Shielding ) return;
