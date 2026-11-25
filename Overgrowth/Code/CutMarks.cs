@@ -16,6 +16,11 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void DrawLines( Vector4[] lines, int seed )
 	{
+		PaintLines( lines, seed );
+	}
+
+	void PaintLines( IEnumerable<Vector4> lines, int seed )
+	{
 		var renderer = PrepareBitmap();
 		var size = new Vector2( bitmap.Width, bitmap.Height );
 		var random = new Random( seed );
@@ -92,8 +97,11 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 
 	internal void TransferTo( GameObject corpse )
 	{
-		if ( bitmap is null ) return;
+		if ( bitmap is null && drips.Count == 0 ) return;
 		var next = corpse.GetOrAddComponent<CutMarks>();
+		next.drips.AddRange( drips );
+		drips.Clear();
+		next.dripClock = dripClock;
 		next.bitmap = bitmap;
 		next.texture = texture;
 		next.Upload( corpse.GetComponent<ModelRenderer>() );

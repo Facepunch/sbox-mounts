@@ -1,7 +1,7 @@
 // Adapted from RiggedObject::GetTransformedVertex and CutPlane in Overgrowth.
 namespace Overgrowth;
 
-internal sealed class CharacterSurface
+internal sealed partial class CharacterSurface
 {
 	readonly record struct Corner( Vector3 Position, Vector4 Weights, Vector4 Bones );
 	readonly Corner[] vertices;
@@ -27,7 +27,7 @@ internal sealed class CharacterSurface
 
 	internal readonly record struct Cut( Vector3 Center, Vector2 Start, Vector2 End );
 
-	Vector3[] Pose( SkinnedModelRenderer renderer )
+	internal Vector3[] Pose( SkinnedModelRenderer renderer )
 	{
 		var palette = new Transform[inverseBind.Length];
 		for ( int i = 0; i < palette.Length; i++ )

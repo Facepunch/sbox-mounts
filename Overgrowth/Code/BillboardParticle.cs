@@ -7,7 +7,7 @@ public sealed class BillboardParticle : Component
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
 		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent, bool DestroyOnCollision,
-		bool VelocityAxis, bool SpeedStretch, bool MinSquash, float SpeedMultiplier );
+		bool CharacterCollide, bool CharacterAddBlood, bool VelocityAxis, bool SpeedStretch, bool MinSquash, float SpeedMultiplier );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -160,9 +160,24 @@ public sealed class BillboardParticle : Component
 
 	void CheckCollision( Vector3 last, float size )
 	{
-		var hit = Scene.Trace.Ray( last, position ).WithoutTags( "playercontroller", "trigger", CharacterCollisionRules.FighterHull ).Run();
+		var trace = Scene.Trace.Ray( last, position ).WithoutTags( "playercontroller", "trigger", CharacterCollisionRules.FighterHull );
+		var hit = (definition.CharacterCollide ? trace.UseHitboxes() : trace.WithoutTags( CharacterCollisionRules.RagdollPart )).Run();
 		if ( !hit.Hit || hit.StartedSolid ) return;
 		collided = true;
+		float gain = Math.Min( 1f, (velocity / 40f).LengthSquared * 0.2f * (size / 80f) );
+		var mount = Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount;
+		if ( definition.CharacterCollide )
+		{
+			var actor = hit.GameObject.GetComponentInParent<RabbitGuard>();
+			var character = actor?.Renderer ?? hit.GameObject.GetComponentInParent<CharacterRemains>()?.GetComponent<SkinnedModelRenderer>();
+			if ( character.IsValid() )
+			{
+				if ( definition.CharacterAddBlood && RabbitGuard.BloodLevel == 2 )
+					character.GameObject.GetOrAddComponent<CutMarks>().AddDrip( hit.EndPosition );
+				mount?.PlaySurfaceEvent( character.GameObject, "default", definition.MaterialEvent, hit.EndPosition, gain, null );
+				return;
+			}
+		}
 		float width = size * 0.5f * definition.DecalScale;
 		var go = new GameObject( false, "Overgrowth blood spatter" ) { NetworkMode = NetworkMode.Never,
 			WorldPosition = hit.EndPosition, WorldRotation = Rotation.LookAt( -hit.Normal ) };
@@ -187,10 +202,9 @@ public sealed class BillboardParticle : Component
 		decal.Transient = true;
 		go.AddComponent<TemporaryEffect>();
 		go.Enabled = true;
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+		if ( mount is not null )
 		{
 			var surface = TerrainLoader.ContactSurface( hit.Collider as ModelCollider, hit.EndPosition, hit.Surface )?.ResourceName;
-			float gain = Math.Min( 1f, (velocity / 40f).LengthSquared * 0.2f * (size / 80f) );
 			mount.PlaySurfaceEvent( go, surface, definition.MaterialEvent, hit.EndPosition, gain, null );
 		}
 	}
@@ -236,7 +250,8 @@ public partial class GameMount
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
 				behavior.Number( "gravity" ) ?? 0f, behavior.Number( "size_decay_rate" ) ?? 0f, behavior.Number( "opacity_decay_rate" ) ?? 0f,
 				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ),
-				collision?.Attribute( "destroy" ) == "true", stretch?.Attribute( "velocity_axis" ) == "true",
+				collision?.Attribute( "destroy" ) == "true", collision?.Attribute( "character_collide" ) == "true",
+				collision?.Attribute( "character_add_blood" ) == "true", stretch?.Attribute( "velocity_axis" ) == "true",
 				stretch?.Attribute( "speed_stretch" ) == "true", stretch?.Attribute( "min_squash" ) == "true", stretch?.Number( "speed_mult" ) ?? 1f );
 			billboards.Add( path, definition );
 		}
