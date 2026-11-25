@@ -26,13 +26,16 @@ public sealed partial class RabbitGuard
 		velocity = default;
 		var direction = (destination - WorldPosition).WithZ( 0f ).Normal;
 		if ( boundAnimations is null || direction.IsNearlyZero() || destination.z <= WorldPosition.z ) return false;
-		var normal = GroundObject.IsValid() ? ClimbTrace( Scene.Trace.Ray( WorldPosition + Vector3.Up * 12f, WorldPosition + Vector3.Down * 12f ) ).Run().Normal : Vector3.Up;
+		var normal = runGroundNormal.IsNearlyZero() ? FloorNormal() : runGroundNormal;
 		float launchSpeed = JumpInitialVelocity * 40f;
-		velocity = direction * GroundRunSpeed + Vector3.Up * launchSpeed;
-		if ( !normal.IsNearlyZero() && velocity.Normal.Dot( normal ) < 0.3f )
+		float limit = groundSpeedLimit > 0f ? groundSpeedLimit : GroundRunSpeed;
+		float forwardSpeed = GroundRunSpeed * Math.Min( 1f, BodyVelocity.Length / limit + 0.2f );
+		velocity = direction * forwardSpeed + Vector3.Up * launchSpeed;
+		if ( velocity.Normal.Dot( normal ) < 0.3f )
 		{
 			var right = normal.Cross( direction ).WithZ( 0f ).Normal;
-			velocity = right.Cross( normal ).Normal * GroundRunSpeed + normal * launchSpeed;
+			var front = right.Cross( normal ).Normal;
+			velocity = front * forwardSpeed + front.Cross( right ).Normal * launchSpeed;
 		}
 		velocity.z = Math.Min( velocity.z, launchSpeed );
 		return true;

@@ -91,20 +91,26 @@ public sealed class CharacterNavigation : NavigationLayer
 			{
 				var end = predictedClimb ?? crossing.Value.End;
 				if ( sinceAirborne <= 0.1f ) return;
-				if ( !preparedVelocity.HasValue )
+				bool preparing = !preparedVelocity.HasValue;
+				if ( !preparing && takeoff > 0f ) return;
+				if ( preparing || climb )
 				{
 					Vector3 velocity;
 					if ( !fighter.CanLaunchJump( climb ) || !(climb ? fighter.TryClimbLaunch( end, out velocity ) : TryJumpVelocity( WorldPosition, end, out velocity )) )
 					{
 						if ( crossing.HasValue ) AbortLinkTraversal();
 						predictedClimb = null;
+						preparedVelocity = null;
 						return;
 					}
 					preparedVelocity = velocity;
+				}
+				if ( preparing )
+				{
 					if ( !climb ) fighter.AnnounceTargetedJump();
 					takeoff = fighter.PrepareJump();
+					return;
 				}
-				if ( takeoff > 0f ) return;
 				fighter.StartJump( preparedVelocity.Value, climb );
 				predictedClimb = null;
 				followingJump = true;

@@ -5,6 +5,7 @@ namespace Overgrowth;
 public sealed partial class RabbitGuard
 {
 	Vector3 runGroundNormal;
+	float groundSpeedLimit;
 	[Sync] float PreFrictionSpeedScale { get; set; } = 1f;
 
 	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
@@ -52,6 +53,7 @@ public sealed partial class RabbitGuard
 		float limit = Math.Min( run * 1.5f, Math.Max( agent.Velocity.Length * 0.98f, slopeLimit ) );
 		bool wolf = boundAnimations?.Species == "wolf";
 		if ( wolf ) limit *= 1.5f;
+		groundSpeedLimit = limit;
 		float friction = acceleration / limit;
 		// The crowd steps before the displayed pose. Sample the spring at the motor's
 		// simulation time without advancing the pose a second time.
