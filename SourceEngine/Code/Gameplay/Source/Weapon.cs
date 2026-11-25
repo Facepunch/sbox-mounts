@@ -123,6 +123,15 @@ public abstract class Weapon : BaseCombatWeapon
 
 	[Sync( SyncFlags.FromHost )] public bool WasDropped { get; private set; }
 
+	protected bool BlockSubmergedShot( bool blockBothTriggers, bool playEmptySound = true )
+	{
+		if ( !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
+		if ( playEmptySound && Sounds.WeaponSound( this, "empty" ) is { } sound ) GameObject.PlaySound( sound );
+		SetNextPrimaryFire( 0.2f );
+		if ( blockBothTriggers ) SetNextSecondaryFire( 0.2f );
+		return true;
+	}
+
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		WeaponSetup.ConfigureAmmo( this );

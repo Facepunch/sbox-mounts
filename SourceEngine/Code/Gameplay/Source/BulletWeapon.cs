@@ -272,7 +272,7 @@ public sealed class BulletWeapon : Weapon
 		// The engine attack spends the round for an NPC holder too.
 		if ( NpcControlled && !Networking.IsHost ) return;
 		_queuedPrimary = _queuedSecondary = false;
-		if ( BlockSubmergedShot( Secondary == SecondaryFires.DoubleShot ) ) return;
+		if ( !FiresUnderwater && BlockSubmergedShot( Secondary == SecondaryFires.DoubleShot ) ) return;
 		FirePrimaryRound();
 	}
 
@@ -458,7 +458,7 @@ public sealed class BulletWeapon : Weapon
 			DoubleShot();
 			return;
 		}
-		if ( BlockSubmergedShot( blockBothTriggers: true ) ) return;
+		if ( !FiresUnderwater && BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( IsReloading && CanLaunchDuringReload ) CancelReload();
 		if ( AlternateProjectile == Projectile.Kinds.EnergyBall )
 		{
@@ -480,7 +480,7 @@ public sealed class BulletWeapon : Weapon
 			FirePrimaryRound();
 			return;
 		}
-		if ( BlockSubmergedShot( blockBothTriggers: true ) ) return;
+		if ( !FiresUnderwater && BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
 		var config = Ballistics;
 		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
@@ -489,15 +489,6 @@ public sealed class BulletWeapon : Weapon
 		SetNextFire( AlternateDuration );
 		AlternateEffects( volley );
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
-	}
-
-	bool BlockSubmergedShot( bool blockBothTriggers )
-	{
-		if ( FiresUnderwater || !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
-		if ( Sounds.WeaponSound( this, "empty" ) is { } sound ) GameObject.PlaySound( sound );
-		SetNextPrimaryFire( 0.2f );
-		if ( blockBothTriggers ) SetNextSecondaryFire( 0.2f );
-		return true;
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]

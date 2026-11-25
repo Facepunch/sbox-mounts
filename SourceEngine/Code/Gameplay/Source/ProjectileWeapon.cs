@@ -238,6 +238,8 @@ public sealed class ProjectileWeapon : Weapon
 
 	void PrimeThrow( bool low )
 	{
+		if ( Kind == Projectile.Kinds.Grenade && BlockSubmergedShot( blockBothTriggers: low, playEmptySound: !low ) ) return;
+
 		// Each frag trigger locks itself until release. The other can still change the pullback.
 		if ( HasLowThrow )
 		{
