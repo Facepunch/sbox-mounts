@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed partial class EnergySword : HandheldWeapon
+public sealed partial class EnergySword : MeleeWeapon
 {
 	[Property] public bool Powered { get; set; }
 
@@ -49,17 +49,6 @@ public sealed partial class EnergySword : HandheldWeapon
 		}
 	}
 
-	public EnergySword()
-	{
-		UsesAmmo = UsesClips = false;
-		PrimaryAutomatic = false;
-	}
-
-	public override bool CanPrimaryAttack() => NextPrimaryFire <= 0 && CanSecondaryAttack();
-	public override void PrimaryAttack() => BeginMelee( true );
-
 	[Property] public MeleeDamageProfile LungeDamage { get; set; }
 	protected override MeleeDamageProfile LungeProfile => LungeDamage;
-
-	public override bool CanReload() => false;
 }

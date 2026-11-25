@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed class BatteryWeapon : HandheldWeapon
+public class BatteryWeapon : HandheldWeapon
 {
 	[Property] public float HeatPerShot { get; set; }
 	[Property] public float SpentPerShot { get; set; }
@@ -9,7 +9,6 @@ public sealed class BatteryWeapon : HandheldWeapon
 	[Property] public float CooledThreshold { get; set; }
 	[Property] public float OverheatThreshold { get; set; }
 
-	[Property] public bool Instantaneous { get; set; }
 	[Property] public float MisfireThreshold { get; set; }
 	[Property] public float MisfireChance { get; set; }
 	[Property] public Vector2 FiringRate { get; set; }
@@ -67,21 +66,22 @@ public sealed class BatteryWeapon : HandheldWeapon
 		FireEnergy( forward, awaitingCue );
 	}
 
-	void FireEnergy( Vector3 forward, bool awaitingCue )
+	protected void FireEnergy( Vector3 forward, bool awaitingCue, EnergyDischarge discharge = null )
 	{
-		float heat = System.MathF.Min( 1, Heat + HeatPerShot );
+		float heat = System.MathF.Min( 1, Heat + (discharge?.Heat ?? HeatPerShot) );
 		bool misfire = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold
 			&& (Spent - MisfireThreshold) * MisfireChance / (1 - MisfireThreshold) > BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) / 65535.0;
 		if ( misfire ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "misfire_1" );
-		else if ( Instantaneous ) base.PrimaryAttack();
+		else if ( discharge is null && Instantaneous ) base.PrimaryAttack();
 		else
 		{
-			ShootEffects();
-			LaunchBolt( forward );
+			if ( discharge is null ) ShootEffects();
+			else PresentDischarge();
+			LaunchBolt( forward, discharge );
 			TimeSinceShoot = 0;
 		}
-		if ( IsProxy && (awaitingCue || misfire) ) PresentOwnerShot( misfire );
-		Spent = System.MathF.Min( 1, Spent + SpentPerShot );
+		if ( IsProxy && ((awaitingCue && discharge is null) || misfire) ) PresentOwnerShot( misfire );
+		Spent = System.MathF.Min( 1, Spent + (discharge?.Spent ?? SpentPerShot) );
 		ShotHeat = heat;
 		LastEnergyShot = Time.NowDouble;
 		Venting = heat >= OverheatThreshold;
@@ -110,11 +110,7 @@ public sealed class BatteryWeapon : HandheldWeapon
 		ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "overheating" );
 	}
 
-	void LaunchBolt( Vector3 forward )
-	{
-		var ray = Holder is PlayerController player ? PlayerFiringRay( player, forward ) : new Ray( AimRay.Position, forward );
-		LaunchProjectiles( ray, CurrentSpread.x );
-	}
+	protected virtual void PresentDischarge() => ShootEffects();
 
 	protected override void OnControl()
 	{

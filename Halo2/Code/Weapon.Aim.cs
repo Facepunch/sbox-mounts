@@ -5,15 +5,36 @@ public abstract partial class Weapon
 	protected readonly record struct AimCone( float Angle, float Range );
 	readonly HashSet<Sandbox.Npcs.BaseNpc> aimCandidates = new();
 
+	protected GameObject FindAttackTarget( PlayerController player, Ray ray, AimCone cone, out Vector3 point )
+	{
+		var contact = BulletTrace( ray, cone.Range, 0 ).Run();
+		if ( contact.Hit && IsEnemy( contact.GameObject, player ) )
+		{
+			point = contact.HitPosition;
+			return contact.GameObject;
+		}
+		FindAimTarget( player, cone, default, 1, out var target, out var offset, ray );
+		point = ray.Position + offset;
+		return target;
+	}
+
+	static bool IsEnemy( GameObject target, PlayerController player )
+	{
+		if ( !target.IsValid() ) return false;
+		if ( target.GetComponentInParent<Sandbox.Npcs.BaseNpc>() is {} npc )
+			return npc.Health > 0 && npc.GetDisposition( player.GameObject ) == Sandbox.Npcs.Disposition.Hostile;
+		return target.GetComponentInParent<PlayerController>().IsValid();
+	}
+
 	// Both angular and distance confidence are full up to half the authored limit.
 	static float Falloff( float value, float limit ) => limit > 0 ? ((limit - value) / (limit * 0.5f)).Clamp( 0, 1 ) : 0;
 
 	protected float FindAimTarget( PlayerController player, AimCone autoAimCone, AimCone magnetismCone, float inconsequentialScale,
-		out GameObject targetObject, out Vector3 targetOffset )
+		out GameObject targetObject, out Vector3 targetOffset, Ray? aim = null )
 	{
 		targetObject = null;
 		targetOffset = default;
-		var ray = player.EyeTransform.ForwardRay;
+		var ray = aim ?? player.EyeTransform.ForwardRay;
 		float bestAutoAim = 0, bestMagnetism = 0;
 		float bestDistance = float.PositiveInfinity, bestAngle = float.PositiveInfinity;
 		foreach ( var obj in Scene.FindInPhysics( new Sphere( ray.Position, System.MathF.Max( autoAimCone.Range, magnetismCone.Range ) ) ) )

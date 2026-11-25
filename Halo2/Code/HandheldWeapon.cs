@@ -6,6 +6,14 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }
 
+	[Property] public bool Instantaneous { get; set; } = true;
+
+	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )
+	{
+		var ray = Holder is PlayerController player ? PlayerFiringRay( player, forward ) : new Ray( AimRay.Position, forward );
+		LaunchProjectiles( ray, discharge?.Ballistics.SpreadBase.x ?? CurrentSpread.x, discharge );
+	}
+
 	protected virtual void ConfigureHeldRenderer( SkinnedModelRenderer renderer, bool firstPerson ) { }
 
 	internal virtual string RestAction => "idle";
@@ -103,14 +111,14 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 		sounds.Restart();
 		var parameters = Renderer.Animation.Parameters;
 		if ( parameters.GetString( "action" ) == action ) parameters.Trigger( "action_restart" );
-		parameters.Set( "action_once", action is not ("idle" or "overheated") );
+		parameters.Set( "action_once", action is not ("idle" or "overheated" or "overcharged") );
 		parameters.Set( "action", action );
 	}
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( clip is null || !Weapon.IsValid() || currentAction is "idle" or "overheated" ) return;
+		if ( clip is null || !Weapon.IsValid() || currentAction is "idle" or "overheated" or "overcharged" ) return;
 		frame += Time.Delta * 30 * Renderer.PlaybackRate;
 		sounds.Advance( clip, System.MathF.Min( frame, clip.Frames - 1 ), AnimationData, Weapon, GameObject );
 		if ( frame >= clip.Frames - 1 ) Play( Weapon.RestAction );

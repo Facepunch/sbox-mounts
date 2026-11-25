@@ -20,27 +20,12 @@ public sealed partial class EnergySword
 	{
 		if ( LungeDamage is null || Holder is not PlayerController player ) return null;
 		var ray = player.EyeTransform.ForwardRay;
-		var contact = BulletTrace( ray, TargetRange, 0 ).Run();
-		GameObject target = contact.GameObject;
-		Vector3 point = contact.HitPosition;
-		if ( !contact.Hit || !IsEnemy( target, player ) )
-		{
-			FindAimTarget( player, new( TargetAngle, TargetRange ), default, 1, out target, out var offset );
-			if ( !target.IsValid() ) return null;
-			point = ray.Position + offset;
-		}
+		var target = FindAttackTarget( player, ray, new( TargetAngle, TargetRange ), out var point );
+		if ( !target.IsValid() ) return null;
 		float distance = point.Distance( ray.Position );
 		if ( distance <= MeleeRange ) return LungeAction( player );
 		StartDash( target, target.WorldTransform.PointToLocal( point ), distance );
 		return player.IsOnGround ? "melee_dash" : "melee_dash_airborne";
-	}
-
-	static bool IsEnemy( GameObject target, PlayerController player )
-	{
-		if ( !target.IsValid() ) return false;
-		if ( target.GetComponentInParent<Sandbox.Npcs.BaseNpc>() is {} npc )
-			return npc.Health > 0 && npc.GetDisposition( player.GameObject ) == Sandbox.Npcs.Disposition.Hostile;
-		return target.GetComponentInParent<PlayerController>().IsValid();
 	}
 
 	static string LungeAction( PlayerController player ) => player.IsOnGround ? "melee_lunge" : "melee_lunge_airborne";

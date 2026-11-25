@@ -14,7 +14,14 @@ public sealed class MagazineWeapon : HandheldWeapon
 			remainingShots = BurstLength;
 			burstAttacker = Attacker;
 		}
-		base.PrimaryAttack();
+		if ( Instantaneous ) base.PrimaryAttack();
+		else if ( Networking.IsHost ) FireRound( AimRay.Forward );
+		else
+		{
+			OnShootEffects( default );
+			TimeSinceShoot = 0;
+			RequestRound( AimRay.Forward );
+		}
 		if ( remainingShots == 0 ) return;
 		if ( --remainingShots == 0 || (IsHeld && !HasPrimaryAmmo()) )
 		{
@@ -22,6 +29,22 @@ public sealed class MagazineWeapon : HandheldWeapon
 			burstAttacker = null;
 			SetNextPrimaryFire( RecoveryDelay );
 		}
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void RequestRound( Vector3 forward )
+	{
+		if ( !IsActive || !IsHeld || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		SetNextPrimaryFire( PrimaryDelay );
+		FireRound( forward );
+	}
+
+	void FireRound( Vector3 forward )
+	{
+		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		LaunchBolt( forward );
+		TimeSinceShoot = 0;
+		ShootEffects();
 	}
 
 	public override bool CanReload() => remainingShots == 0 && base.CanReload();

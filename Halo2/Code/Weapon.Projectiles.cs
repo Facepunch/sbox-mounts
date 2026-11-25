@@ -1,5 +1,9 @@
 namespace Halo2;
 
+public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistics, float Speed, float MinimumAngle, float DryGravity, float WetGravity,
+	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
+	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, float TurnRate, float TrackingAngle, float TrackingRange );
+
 public abstract partial class Weapon
 {
 	[Property] public float MinimumPelletAngle { get; set; } = 2;
@@ -37,27 +41,36 @@ public abstract partial class Weapon
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
 		GameObject Target = null, string SurfacePath = null, string Bone = null );
 
-	protected void LaunchProjectiles( Ray ray, float spreadDegrees )
+	protected void LaunchProjectiles( Ray ray, float spreadDegrees, EnergyDischarge discharge = null )
 	{
 		float maximum = spreadDegrees.DegreeToRadian();
-		float minimum = MinimumPelletAngle.DegreeToRadian();
+		float minimum = (discharge?.MinimumAngle ?? MinimumPelletAngle).DegreeToRadian();
+		float speed = discharge?.Speed ?? PelletSpeed;
+		var trail = discharge is null ? Trail : discharge.Trail;
 		var aim = ray.Forward;
 		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
 		// Project before spread, then apply the inherited speed along each pellet's direction.
 		float inherited = System.MathF.Max( 0, (aim.x * velocity.x + aim.z * velocity.z) + aim.y * velocity.y );
-		var pellets = new Pellet[Ballistics.Pellets];
+		var pellets = new Pellet[(discharge?.Ballistics ?? Ballistics).Pellets];
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
 		for ( int i = 0; i < pellets.Length; i++ )
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
-			pellets[i].Velocity = forward * PelletSpeed + forward * inherited;
-			if ( Trail is { Lifetime: > 0, PointRate: > 0 } )
-				pellets[i].Trail = ProjectileContrail.Create( Trail, ray.Position, pellets[i].Velocity );
+			pellets[i].Velocity = forward * speed + forward * inherited;
+			if ( trail is { Lifetime: > 0, PointRate: > 0 } )
+				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity );
 		}
-		_ = FlyPellets( ray.Position, pellets, Attacker );
+		GameObject target = null;
+		Vector3 localPoint = default;
+		if ( discharge is { TurnRate: > 0 } && Holder is PlayerController player )
+		{
+			target = FindAttackTarget( player, new Ray( player.EyeTransform.Position, aim ), new( discharge.TrackingAngle, discharge.TrackingRange ), out var point );
+			if ( target.IsValid() ) localPoint = target.WorldTransform.PointToLocal( point );
+		}
+		_ = FlyPellets( ray.Position, pellets, Attacker, discharge, target, localPoint );
 	}
 
-	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker )
+	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker, EnergyDischarge discharge, GameObject target, Vector3 localPoint )
 	{
 		var scene = Scene;
 		bool InWater( Vector3 point )
@@ -70,13 +83,14 @@ public abstract partial class Weapon
 			static bool IsLegacyWater( SceneTraceResult hit ) => hit.StartedSolid && !hit.GameObject.GetComponentInParent<WaterBody>().IsValid();
 			return IsLegacyWater( hit ) || trace.RunAll().Any( IsLegacyWater );
 		}
-		var ballistics = Ballistics;
-		float minDamage = MinimumDamage, dryRange = DamageFalloffRange, wetRange = UnderwaterDamageFalloffRange;
-		var bodyScales = PelletBodyScales;
-		bool explosive = PelletExplosive;
-		float airGravity = AirGravityScale, waterGravity = WaterGravityScale;
+		var ballistics = discharge?.Ballistics ?? Ballistics;
+		float minDamage = discharge?.MinimumDamage ?? MinimumDamage;
+		float dryRange = discharge?.DryFalloff ?? DamageFalloffRange, wetRange = discharge?.WetFalloff ?? UnderwaterDamageFalloffRange;
+		var bodyScales = discharge?.BodyScales ?? PelletBodyScales;
+		bool explosive = discharge?.Explosive ?? PelletExplosive;
+		float airGravity = discharge?.DryGravity ?? AirGravityScale, waterGravity = discharge?.WetGravity ?? WaterGravityScale;
 		var tags = AttackDamageTags;
-		if ( PelletSpeed <= 0 || ballistics.Range <= 0 ) return;
+		if ( (discharge?.Speed ?? PelletSpeed) <= 0 || ballistics.Range <= 0 ) return;
 		bool originWet = InWater( origin );
 		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
@@ -102,6 +116,14 @@ public abstract partial class Weapon
 				var pellet = pellets[i];
 				if ( pellet.Velocity == Vector3.Zero ) continue;
 				var start = origin + pellet.Offset;
+				if ( target.IsValid() )
+				{
+					var desired = (target.WorldTransform.PointToWorld( localPoint ) - start).Normal;
+					var direction = pellet.Velocity.Normal;
+					float angle = System.MathF.Acos( Vector3.Dot( direction, desired ).Clamp( -1, 1 ) );
+					if ( angle > 0 && desired.LengthSquared > 0 )
+						pellet.Velocity = Vector3.Slerp( direction, desired, System.MathF.Min( 1, discharge.TurnRate * dt / angle ) ).Normal * pellet.Velocity.Length;
+				}
 				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (ballistics.Range - pellet.Travelled) / (pellet.Velocity.Length * dt) );
