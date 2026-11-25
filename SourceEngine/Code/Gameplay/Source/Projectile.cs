@@ -30,6 +30,7 @@ public abstract class Projectile : Component
 	protected virtual float? Physical => null;
 	/// <summary>False for projectiles Source draws entirely in code, such as the combine ball.</summary>
 	protected virtual bool DrawModel => true;
+	protected virtual string InitialModelPath => ModelPath;
 	protected TimeSince Age;
 	protected GameObject Visual { get; private set; }
 	protected SkinnedModelRenderer Renderer { get; private set; }
@@ -140,7 +141,7 @@ public abstract class Projectile : Component
 			var loader = Visual.AddComponent<MountedModel>();
 			loader.Renderer = Renderer;
 			loader.MountName = MountName;
-			loader.ModelPath = ModelPath;
+			loader.ModelPath = InitialModelPath;
 		}
 		Visual.Enabled = true;
 		if ( Weapon.IsValid() ) _visualOffset = LaunchOrigin( Weapon ) - WorldPosition;

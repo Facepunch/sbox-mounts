@@ -123,12 +123,15 @@ public sealed class CrossbowBolt : Projectile
 [Alias( "Source1.Hl2Rocket", "Hl2Rocket" )]
 public sealed class Rocket : Projectile
 {
+	internal const string LaunchModel = "models/weapons/w_missile_launch.mdl";
+	protected override string InitialModelPath => Ignited ? ModelPath : LaunchModel;
 	const float IgniteDelay = 0.3f;
 	const float Speed = 1500;
 	const float DropSpeed = 300;
 	const float DropLift = 128;
 	const float HomingPerTick = 0.125f;
-	bool _ignited;
+	[Sync( SyncFlags.FromHost )] bool Ignited { get; set; }
+	bool _ignitionPresented;
 	Vector3 _aim;
 	SoundHandle _loop;
 	GameObject _smoke;
@@ -136,8 +139,8 @@ public sealed class Rocket : Projectile
 	/// <summary>CWeaponRPG::PrimaryAttack: the missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
 	public static Vector3 LaunchVelocity( Vector3 aim ) => aim * DropSpeed + Vector3.Up * DropLift;
 
-	protected override float Gravity => _ignited ? 0 : 600;
-	protected override Rotation Facing => _ignited ? base.Facing : Rotation.LookAt( _aim );
+	protected override float Gravity => Ignited ? 0 : 600;
+	protected override Rotation Facing => Ignited ? base.Facing : Rotation.LookAt( _aim );
 
 	protected override void OnStart()
 	{
@@ -151,10 +154,10 @@ public sealed class Rocket : Projectile
 
 	protected override void Steer()
 	{
-		if ( !_ignited )
+		if ( !Ignited )
 		{
 			if ( Age < IgniteDelay ) return;
-			_ignited = true;
+			Ignited = true;
 			Velocity = _aim * Speed;
 		}
 		if ( Weapon is not ProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.TraceLaserTarget() is not { } target ) return;
@@ -168,11 +171,17 @@ public sealed class Rocket : Projectile
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( Application.IsDedicatedServer || Age < IgniteDelay ) return;
-		if ( _loop is null && Sounds.Sound( "Missile.Accelerate", MountName ) is { } sound ) _loop = Sound.Play( sound, WorldPosition );
+		if ( Application.IsDedicatedServer || !Ignited ) return;
+		if ( !_ignitionPresented && Visual.IsValid() )
+		{
+			_ignitionPresented = true;
+			var model = Visual.GetComponent<MountedModel>();
+			if ( model.ModelPath != ModelPath ) model.ChangeModel( ModelPath );
+			if ( Sounds.Sound( "Missile.Ignite", MountName ) is { } sound ) _loop = Sound.Play( sound, WorldPosition );
+		}
 		if ( _loop is not null ) _loop.Position = WorldPosition;
 		// IgniteThink starts CMissile's code-driven RocketTrail at the tail attachment.
-		if ( _smoke is null && Renderer.IsValid() && Renderer.Model.IsValid() )
+		if ( _smoke is null && Renderer.IsValid() && Renderer.Enabled && Renderer.Model.IsValid() )
 			_smoke = RocketTrail.Create( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName ) ?? Visual;
 	}
 

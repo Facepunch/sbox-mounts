@@ -22,13 +22,18 @@ public sealed class MountedModel : Component
 	public string ResolvedModelPath => string.IsNullOrEmpty( FallbackModelPath )
 		|| Sandbox.Mounting.Directory.Get( MountName )?.GetByPath( $"mount://{MountName}/{ModelPath}.vmdl" ) is not null ? ModelPath : FallbackModelPath;
 
-	protected override async void OnStart()
+	protected override void OnStart() => ChangeModel( ModelPath );
+
+	internal async void ChangeModel( string requested )
 	{
-		if ( !Renderer.IsValid() || string.IsNullOrEmpty( ModelPath ) ) return;
+		ModelPath = requested;
+		if ( !Renderer.IsValid() || string.IsNullOrEmpty( requested ) ) return;
+		_unavailable = false;
 		Renderer.Enabled = false;
 		try
 		{
 			var mount = await Sandbox.Mounting.Directory.Mount( MountName );
+			if ( !IsValid || requested != ModelPath ) return;
 			if ( mount?.IsMounted != true )
 			{
 				_unavailable = true;
@@ -36,7 +41,7 @@ public sealed class MountedModel : Component
 			}
 			var path = $"mount://{MountName}/{ResolvedModelPath}.vmdl";
 			var model = await Model.LoadAsync( path );
-			if ( !IsValid || !Renderer.IsValid() ) return;
+			if ( !IsValid || !Renderer.IsValid() || requested != ModelPath ) return;
 			if ( !model.IsValid() || model.IsError )
 			{
 				_unavailable = true;
@@ -52,6 +57,7 @@ public sealed class MountedModel : Component
 		}
 		catch ( Exception e )
 		{
+			if ( !IsValid || requested != ModelPath ) return;
 			_unavailable = true;
 			Log.Warning( $"Couldn't load {MountName} model '{ModelPath}': {e.Message}" );
 		}

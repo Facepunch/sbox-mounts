@@ -278,6 +278,8 @@ static class WeaponSetup
 			.Where( s => s is not null ).SelectMany( s => s.Sounds ).Distinct().ToArray();
 		if ( !Application.IsDedicatedServer )
 			foreach ( var sound in sounds ) await sound.LoadAsync();
+		if ( !Application.IsDedicatedServer && weapon is ProjectileWeapon { Kind: Projectile.Kinds.Rocket } )
+			await Model.LoadAsync( $"mount://{mount}/{Hl2.Rocket.LaunchModel}.vmdl" );
 		var projectile = (weapon as ProjectileWeapon)?.ProjectileModel ?? Projectile.ModelFor( (weapon as BulletWeapon)?.AlternateProjectile );
 		if ( !string.IsNullOrWhiteSpace( projectile ) ) await Model.LoadAsync( $"mount://{mount}/{projectile}.vmdl" );
 	}
