@@ -51,7 +51,7 @@ public sealed partial class Onos : BaseNpc
 		capsule.End = Vector3.Up * (height - radius);
 		capsule.Radius = radius;
 		var body = root.AddComponent<Rigidbody>();
-		body.MassOverride = 453;
+		body.MassOverride = OnosMass;
 		body.EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;

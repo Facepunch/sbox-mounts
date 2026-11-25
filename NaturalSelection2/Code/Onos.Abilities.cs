@@ -195,12 +195,13 @@ public sealed partial class Onos
 		ApplyPropImpulse( body, point, direction, Vector3.Dot( velocity - body.Velocity, direction ) );
 	}
 
+	const float OnosMass = 453;
+	static float ReducedImpactMass( float mass ) => mass * OnosMass / (mass + OnosMass);
+
 	static void ApplyPropImpulse( Rigidbody body, Vector3 point, Vector3 direction, float closingSpeed )
 	{
 		if ( closingSpeed <= 0 ) return;
-		float mass = body.PhysicsBody.Mass;
-		const float onosMass = 453;
-		body.ApplyImpulseAt( point, direction * (closingSpeed * mass * onosMass / (mass + onosMass)) );
+		body.ApplyImpulseAt( point, direction * (closingSpeed * ReducedImpactMass( body.PhysicsBody.Mass )) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
