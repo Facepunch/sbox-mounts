@@ -33,8 +33,7 @@ internal static class AlienFootsteps
 	static void Play( BaseNpc npc, string cue, Vector3 position )
 	{
 		if ( !npc.IsValid() || Application.IsHeadless ) return;
-		var listener = npc.Scene.Camera?.GetComponentInParent<PlayerController>();
-		if ( listener.IsValid() && npc.GetDisposition( listener.GameObject ) == Disposition.Hostile ) cue += "_for_enemy";
+		if ( PlayerGait.IsEnemyListener( npc ) ) cue += "_for_enemy";
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{cue}.sound" ) is { } sound ) Sound.Play( sound, position );
 	}
 }

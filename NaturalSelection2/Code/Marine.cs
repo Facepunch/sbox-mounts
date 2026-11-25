@@ -376,11 +376,11 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		PlayFootstep( SurfaceLoader.FootstepMaterial( GroundSurface ), forward, leftFoot );
 	}
 
-	[Rpc.Broadcast( NetFlags.HostOnly )]
+	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
 	void PlayFootstep( string material, bool forward, bool left )
 	{
-		var listener = Scene.Camera?.GetComponentInParent<PlayerController>();
-		bool enemy = forward && listener.IsValid() && GetDisposition( listener.GameObject ) == Disposition.Hostile;
+		if ( Application.IsHeadless ) return;
+		bool enemy = forward && PlayerGait.IsEnemyListener( this );
 		var cue = $"{(forward ? "footstep" : "backpedal")}_{(left ? "left" : "right")}{(enemy ? "_for_enemy" : "")}";
 		var path = SurfaceLoader.SoundPath( $"materials/{material}/{cue}" );
 		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{path}" ) is { } sound ) Sound.Play( sound, WorldPosition );

@@ -6,6 +6,15 @@ namespace NS2;
 
 internal static class PlayerGait
 {
+	internal static bool IsEnemyListener( BaseNpc npc )
+	{
+		foreach ( var player in npc.Scene.GetAllComponents<PlayerController>() )
+			if ( player.Active && !player.IsProxy )
+				return npc.GetDisposition( player.GameObject ) == Disposition.Hostile;
+
+		return false;
+	}
+
 	internal static GraphParameters UpdatePose( BaseNpc npc, float maxSpeed )
 	{
 		var output = npc.Renderer.Animation.IsValid ? npc.Renderer.Animation.Parameters : null;

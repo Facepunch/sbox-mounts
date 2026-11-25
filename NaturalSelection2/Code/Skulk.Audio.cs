@@ -99,8 +99,7 @@ public sealed partial class Skulk
 	[Rpc.Broadcast( NetFlags.HostOnly | NetFlags.Unreliable )]
 	void PlayFootstep( string material, Vector3 position )
 	{
-		var listener = Scene.Camera?.GetComponentInParent<PlayerController>();
-		var cue = !listener.IsValid() || GetDisposition( listener.GameObject ) == Disposition.Hostile ? "skulk_step_for_enemy" : "skulk_step";
+		var cue = PlayerGait.IsEnemyListener( this ) ? "skulk_step_for_enemy" : "skulk_step";
 		PlayLocal( $"materials/{material}/{cue}", position );
 	}
 
