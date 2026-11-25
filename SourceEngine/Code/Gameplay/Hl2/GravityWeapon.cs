@@ -154,11 +154,34 @@ public sealed class GravityWeapon : Weapon
 			PuntEffects( PuntResult.Miss );
 			return;
 		}
-		// PuntVPhysics: a 15000 impulse at the centre plus 600 per kg (up to 250 kg) at the hit point, flattened up off the floor.
 		if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
-		body.ApplyImpulse( forward * 15000 );
-		body.ApplyImpulseAt( hit, forward * (MathF.Min( body.Mass, MaxMass ) * 600) );
+		PuntBodies( body, forward, hit );
 		PuntEffects( PuntResult.Hit );
+	}
+
+	static void PuntBodies( Rigidbody struck, Vector3 forward, Vector3 hit )
+	{
+		if ( struck.GetComponentInParent<ModelPhysics>() is not { Bodies.Count: > 1 } model )
+		{
+			Apply( struck, struck.Mass, 1 );
+			return;
+		}
+
+		var mass = model.Mass;
+		for ( int i = 0; i < model.Bodies.Count; ++i )
+		{
+			var part = model.Bodies[i].Component;
+			if ( !CanMove( part ) ) continue;
+			var share = part.Mass / mass;
+			// Source weights the root body even when the trace strikes a limb.
+			Apply( part, mass, i == 0 ? MathF.Min( 1, share + 0.5f ) : share * 0.5f );
+		}
+
+		void Apply( Rigidbody part, float totalMass, float share )
+		{
+			part.ApplyImpulse( forward * (15000 * share) );
+			part.ApplyImpulseAt( hit, forward * (MathF.Min( totalMass, MaxMass ) * 600 * share) );
+		}
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
