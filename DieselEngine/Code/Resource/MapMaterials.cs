@@ -103,6 +103,13 @@ sealed class MapMaterials( BundleDatabase database, string scenePath )
 		material.SetFeature( "F_EFFECT_BLEND", definition?.EffectBlend ?? 0 );
 		float emissionStrength = definition?.SelfIlluminated == true
 			? LightIntensities.Resolve( intensities, definition.EmissionMultiplier ) : 0;
+		// This LCD uses the shipped "sun" preset (1000). Directly treating that as
+		// s&box radiance burns out even its dark standby panel. Calibrate this
+		// particular display for our renderer; retain the source preset for lights
+		// and other materials, and leave explicit off/numeric states intact.
+		if ( emissionStrength > 0 && definition?.Emission == "units/world/props/bank/ticket_dispenser/ticket_dispenser_01_il"
+			&& definition.EmissionMultiplier == "sun" )
+			emissionStrength = 4;
 		var emission = emissionStrength > 0 ? LoadTexture( definition.Emission ) : null;
 		material.Set( "g_tDiffuse", diffuse ?? Texture.White );
 		material.Set( "g_tOpacity", opacity ?? Texture.White );
