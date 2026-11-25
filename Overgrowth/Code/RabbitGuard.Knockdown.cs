@@ -38,6 +38,7 @@ public sealed partial class RabbitGuard
 	(Vector3 Point, Vector3 Impulse, Vector3 LineDirection)? deathImpulse;
 	(float Age, bool Item, float Stun, RagdollInjury Previous)? corpseInjury;
 	bool extractionDeath;
+	bool cutThroat;
 
 	Vector3 DamageImpulse( DamageInfo damage ) => damage switch
 	{
@@ -223,6 +224,7 @@ public sealed partial class RabbitGuard
 	{
 		UpdateCombatGroup();
 		extractionDeath = death.DamageInfo is ExtractionDamage;
+		cutThroat = death.DamageInfo is ExecutionDamage;
 		if ( extractionDeath ) ReportBodySound( HeardSound.Voice, 10f );
 		if ( death.DamageInfo is FallImpactDamage or LandingDamage ) PlayCombatSound( "Data/Sounds/hit/hit_hard.xml", CharacterCenter( GameObject ) );
 		// The engine removes the NPC on death, so release both hands before it removes the children.
@@ -304,6 +306,7 @@ public sealed partial class RabbitGuard
 				if ( item.Holder == Renderer ) item.Holder = corpseRenderer;
 			}
 		if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
+		if ( cutThroat ) corpse.GetOrAddComponent<ArterialBleeding>();
 	}
 
 	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )

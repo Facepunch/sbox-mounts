@@ -7,7 +7,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	ModelPhysics physics;
 	WaterHotspot water;
 	float stillTime;
-	bool settled;
+	[Sync] internal bool Settled { get; private set; }
 	Transform[] placedPose;
 
 	internal void EnterWater( WaterHotspot volume )
@@ -35,7 +35,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		}
 		placedPose = null;
 		stillTime = 2f;
-		settled = true;
+		Settled = true;
 		foreach ( var part in physics.Bodies )
 			part.Component.Sleeping = true;
 	}
@@ -44,7 +44,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	{
 		placedPose = null;
 		stillTime = 0f;
-		settled = false;
+		Settled = false;
 		foreach ( var part in physics.Bodies )
 		{
 			if ( !part.Component.IsValid() ) continue;
@@ -57,7 +57,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	{
 		physics = model;
 		stillTime = 0f;
-		settled = false;
+		Settled = false;
 		var loader = CharacterLoader.FromModel( model.Model );
 		loader?.FilterRagdollContacts( model );
 		CharacterCollisionRules.Apply( Scene.PhysicsWorld );
@@ -87,22 +87,22 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	protected override void OnFixedUpdate()
 	{
 		if ( IsProxy || !physics.IsValid() || !physics.Active ) return;
-		if ( settled && !physics.Bodies.Any( part => part.Component.IsValid() && !part.Component.Sleeping ) ) return;
+		if ( Settled && !physics.Bodies.Any( part => part.Component.IsValid() && !part.Component.Sleeping ) ) return;
 		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
-		if ( settled ) stillTime = 0f;
+		if ( Settled ) stillTime = 0f;
 		stillTime = velocity.Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
-		settled = stillTime >= 2f;
+		Settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.
 		if ( !water.IsValid() || !water.Contains( this ) ) water = null;
 		float retention = (1f - stillTime * 0.5f) * (water is null ? 1f : 0.01f);
-		float rate = settled ? 0f : -MathF.Log( retention );
+		float rate = Settled ? 0f : -MathF.Log( retention );
 		foreach ( var part in physics.Bodies )
 		{
 			var body = part.Component;
 			if ( !body.IsValid() ) continue;
 			body.LinearDamping = body.AngularDamping = rate;
-			if ( settled ) body.Sleeping = true;
+			if ( Settled ) body.Sleeping = true;
 		}
 	}
 }

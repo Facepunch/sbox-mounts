@@ -6,7 +6,7 @@ public sealed class BillboardParticle : Component
 {
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
-		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent );
+		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent, bool DestroyOnCollision );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -15,8 +15,10 @@ public sealed class BillboardParticle : Component
 	Vector3 velocity, position;
 	Color tint;
 	bool collided;
+	internal BillboardParticle Connected { private get; set; }
+	Vector3? lastConnectedPosition;
 
-	internal static void Emit( Definition definition, Vector3 position, Vector3 velocity, Color tint )
+	internal static BillboardParticle Emit( Definition definition, Vector3 position, Vector3 velocity, Color tint )
 	{
 		var go = new GameObject( false, "Overgrowth particle" ) { NetworkMode = NetworkMode.Never, WorldPosition = position };
 		var cloud = go.AddComponent<BillboardParticle>();
@@ -41,6 +43,7 @@ public sealed class BillboardParticle : Component
 		cloud.particle = effect.Emit( position, 0f );
 		cloud.Draw( position, cloud.diameter, definition.OpacityRampTime > 0f ? 0f : cloud.opacity, cloud.angle );
 		effect.OnPreStep = cloud.Simulate;
+		return cloud;
 	}
 
 	void Simulate( float dt )
@@ -67,7 +70,13 @@ public sealed class BillboardParticle : Component
 			position += velocity * step;
 			velocity = velocity * definition.Inertia + (Vector3.Down * (392f * definition.Gravity) + Wind( position / 40f, Time.Now - age + simulated ) * (40f * definition.Wind)) * step;
 			angle += step * spin * 0.3f * diameter / SizeAt( simulated );
+			if ( Connected.IsValid() ) lastConnectedPosition = Connected.position;
 			if ( !collided && definition.Decal is not null ) CheckCollision( last, SizeAt( simulated ) );
+			if ( collided && definition.DestroyOnCollision )
+			{
+				GameObject.Destroy();
+				return;
+			}
 		}
 		float remainder = age - simulated;
 		Draw( position + velocity * remainder, size, alpha, angle + remainder * spin * 0.3f * diameter / SizeAt( simulated + step ) );
@@ -94,6 +103,23 @@ public sealed class BillboardParticle : Component
 		particle.Angles = new Angles( 0f, 0f, roll );
 		particle.Color = tint.WithAlpha( 1f );
 		particle.Alpha = alpha;
+		if ( Connected.IsValid() && camera.IsValid() )
+		{
+			var start = position + velocity * (age - simulated);
+			var end = Connected.position + Connected.velocity * (Connected.age - Connected.simulated);
+			var axis = end - start;
+			var midpoint = (start + end) * 0.5f;
+			var facing = axis.Cross( (camera.WorldPosition - midpoint).Cross( axis ) );
+			if ( !facing.IsNearlyZero() )
+			{
+				renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+				particle.Position = midpoint;
+				particle.Angles = Rotation.LookAt( facing.Normal, axis.Normal ).Angles();
+				particle.Size = new Vector3( SizeAt( age ), axis.Length * 2f, 1f );
+				return;
+			}
+		}
+		renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.LookAtCamera;
 	}
 
 	float SizeAt( float time ) => definition.Expansion > 0f
@@ -111,8 +137,18 @@ public sealed class BillboardParticle : Component
 		decal.Decals = [definition.Decal];
 		decal.Size = width;
 		decal.Depth = width;
+		if ( lastConnectedPosition is { } neighbor )
+		{
+			var along = neighbor - position;
+			float length = width + Math.Min( along.Length, width * 3f );
+			var tangent = along - hit.Normal * along.Dot( hit.Normal );
+			if ( !tangent.IsNearlyZero() ) go.WorldRotation = Rotation.LookAt( -hit.Normal, tangent.Normal );
+			go.WorldPosition = (position + neighbor) * 0.5f;
+			decal.Size = new Vector2( width, length );
+			decal.Depth = length;
+		}
 		if ( definition.WetSurface is { } wetSurface )
-			go.AddComponent<BloodSpatter>().Initialize( decal, wetSurface, RabbitGuard.BloodColor );
+			go.AddComponent<BloodSpatter>().Initialize( decal, wetSurface, RabbitGuard.BloodColor, lastConnectedPosition.HasValue ? 0f : null );
 		else
 			decal.ColorTint = tint;
 		decal.Transient = true;
@@ -141,7 +177,7 @@ public partial class GameMount
 
 	internal void EmitImpactDust( string path, Vector3 position ) => EmitBillboard( path, position, Vector3.Zero, Color.White );
 
-	internal void EmitBillboard( string path, Vector3 position, Vector3 velocity, Color tint )
+	internal BillboardParticle EmitBillboard( string path, Vector3 position, Vector3 velocity, Color tint )
 	{
 		if ( !billboards.TryGetValue( path, out var definition ) )
 		{
@@ -165,9 +201,10 @@ public partial class GameMount
 				behavior.Number( "inertia" ).Value, behavior.Number( "wind" ).Value,
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
 				behavior.Number( "gravity" ) ?? 0f, behavior.Number( "size_decay_rate" ) ?? 0f, behavior.Number( "opacity_decay_rate" ) ?? 0f,
-				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ) );
+				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ),
+				(string)collision?.Attribute( "destroy" ) == "true" );
 			billboards.Add( path, definition );
 		}
-		BillboardParticle.Emit( definition, position, velocity, tint );
+		return BillboardParticle.Emit( definition, position, velocity, tint );
 	}
 }

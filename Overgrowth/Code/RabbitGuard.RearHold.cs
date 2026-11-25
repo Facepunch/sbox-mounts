@@ -261,7 +261,7 @@ public sealed partial class RabbitGuard
 			for ( int i = 0; i < 3; i++ )
 				PrimaryItem.MarkCut( center, ownHead.Position, point + LevelItem.BloodScatter() * 12f );
 		}
-		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", point );
+		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", CharacterCenter( victim.GameObject ) );
 		var damage = new ExecutionDamage { Damage = victim.Health, Position = point, Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
 		chokeVictim = victim.GameObject;
 		damage.Tags.Add( "slash" );

@@ -18,12 +18,12 @@ internal sealed class BloodSpatter : Component
 		Height = 1f
 	};
 
-	internal void Initialize( Decal target, DecalDefinition wetSurface, Color color )
+	internal void Initialize( Decal target, DecalDefinition wetSurface, Color color, float? rotation = null )
 	{
 		decal = target;
 		bloodColor = color;
 		// Share the footprint and roll so roughness and albedo use the same texels.
-		target.Rotation = Random.Shared.Float( 0f, 360f );
+		target.Rotation = rotation ?? Random.Shared.Float( 0f, 360f );
 		var layer = GameObject.AddComponent<Decal>();
 		layer.Decals = [wetSurface];
 		layer.Size = target.Size;
