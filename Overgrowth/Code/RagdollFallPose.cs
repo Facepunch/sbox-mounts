@@ -84,7 +84,11 @@ public sealed partial class RabbitGuard
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
-		if ( Networking.IsHost ) UpdateAirborneVelocity();
+		if ( Networking.IsHost )
+		{
+			UpdateAirborneVelocity();
+			AdvanceAirborneAction();
+		}
 		UpdateCharacterContacts();
 		if ( Networking.IsHost && (dragWindow > 0f || draggedPhysics is not null) ) UpdateBodyDrag();
 		if ( Downed && Networking.IsHost && ActiveInjury is not { Active: true } ) DriveFallingPose();

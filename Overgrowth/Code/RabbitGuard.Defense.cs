@@ -19,6 +19,7 @@ public sealed partial class RabbitGuard
 	float duckAmount, duckVelocity, groundCrouchTarget;
 	double groundCrouchTime;
 	float reactionDuration;
+	ReactionMotion reactionMotion;
 	bool activeBlockReaction;
 	[Sync( SyncFlags.Interpolate )] float ReactionPhase { get; set; } = 1f;
 
@@ -97,17 +98,24 @@ public sealed partial class RabbitGuard
 			return false;
 		}
 		if ( Time.Delta <= 0f ) return true;
-		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction ).Animation;
-		var from = clip.GetRootMotion( ReactionPhase );
-		if ( ReactionPhase == 0f )
-		{
-			// A fresh animation reader starts at identity. Consume its first 120 Hz
-			// sample before applying the rest of the displacement in the new facing.
-			from = clip.GetRootMotion( Math.Min( 1f, Math.Min( Time.Delta, 1f / 120f ) / reactionDuration ) );
-			ApplyRootMotion( global::Transform.Zero, from );
-		}
+		var pose = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		var previousPhase = ReactionPhase;
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
-		ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
+		if ( reactionMotion?.Clip == pose )
+		{
+			reactionMotion.Advance( this, ReactionPhase * reactionDuration );
+		}
+		else
+		{
+			var clip = pose.Animation;
+			var from = clip.GetRootMotion( previousPhase );
+			if ( previousPhase == 0f )
+			{
+				from = clip.GetRootMotion( Math.Min( 1f, Math.Min( Time.Delta, 1f / 120f ) / reactionDuration ) );
+				ApplyRootMotion( global::Transform.Zero, from );
+			}
+			ApplyRootMotion( from, clip.GetRootMotion( ReactionPhase ) );
+		}
 		if ( IsGetUp( Stance ) && ReactionPhase >= 1f )
 		{
 			duckAmount = CrouchAmount = groundCrouchTarget = 1f;
@@ -285,7 +293,7 @@ public sealed partial class RabbitGuard
 		}
 		var clip = boundAnimations.Clips[animation];
 		MirroredAction = MirroredStance = reflected;
-		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip );
+		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip, fadeRate: 20f );
 		// A spear can force the authored hit reaction even when its damage gets through.
 		if ( !parried ) return false;
 		if ( sizeAdvantage ) ReceiveBlockImpact( attacker, move, 2f );
@@ -301,7 +309,7 @@ public sealed partial class RabbitGuard
 		ApplyBlockTilt( recoil * (move.Height == "low" ? -20f : 20f) );
 	}
 
-	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false )
+	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false, float fadeRate = 10f )
 	{
 		strike = null;
 		StopForCombat();
@@ -311,6 +319,7 @@ public sealed partial class RabbitGuard
 		Stance = animation;
 		activeBlockReaction = activeBlock;
 		reactionDuration = clip.Duration;
+		reactionMotion = new( clip.ForSide( MirroredAction ), activeBlock ? 20f : fadeRate, !activeBlock );
 		ReactionPhase = 0;
 	}
 }

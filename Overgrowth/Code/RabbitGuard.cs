@@ -114,9 +114,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( Networking.IsHost ) UpdatePairedGroundSupport();
 			base.OnUpdate();
-			if ( Networking.IsHost && NpcConVars.Enabled && IsAirborne && Health > 0f && Renderer.IsValid() &&
-				boundAnimations is not null && !Downed && !StaticCharacter && !Holding && !Held && LedgeAnimation is null )
-				AdvanceAirborneAction();
 		}
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Networking.IsHost )
@@ -261,6 +258,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	// Ground schedules pause in flight, but Overgrowth keeps the active animation and its events running.
 	void AdvanceAirborneAction()
 	{
+		if ( !NpcConVars.Enabled || !IsAirborne || Health <= 0f || !Renderer.IsValid() || boundAnimations is null ||
+			Downed || StaticCharacter || Holding || Held || LedgeAnimation is not null ) return;
 		AdvanceCombatMomentum( Time.Delta );
 		if ( InThrow || AdvanceItemThrow() ) return;
 		if ( ReactionPhase < 1f )

@@ -117,6 +117,46 @@ public sealed partial class RabbitGuard
 		WorldRotation *= from.Rotation.Inverse * to.Rotation;
 	}
 
+	// The native animation reader samples the first game tick of each four-tick
+	// character update. Unconsumed root motion carries through the entrance blend.
+	sealed class ReactionMotion( RabbitClip clip, float fadeRate, bool mobile )
+	{
+		Transform previous = global::Transform.Zero;
+		int sample;
+		float progress, yaw, pendingYaw;
+		Vector3 travel, pendingTravel;
+
+		internal RabbitClip Clip => clip;
+
+		internal void Advance( RabbitGuard actor, float elapsed )
+		{
+			const float step = 4f / 120f;
+			while ( progress < elapsed )
+			{
+				float end = (sample + 1) * step;
+				if ( progress == sample * step )
+				{
+					float time = sample * step + 1f / 120f;
+					var pose = clip.Animation.GetRootMotion( Math.Min( 1f, time / clip.Duration ) );
+					float opacity = Math.Min( 1f, time * fadeRate );
+					if ( mobile ) pendingTravel += actor.WorldRotation * ((pose.Position - previous.Position) * actor.WorldScale);
+					pendingYaw = MathF.IEEERemainder( pendingYaw + (previous.Rotation.Inverse * pose.Rotation).Yaw(), 360f );
+					travel = pendingTravel * opacity;
+					yaw = pendingYaw * opacity;
+					pendingTravel -= travel;
+					pendingYaw -= yaw;
+					previous = pose;
+				}
+				float next = Math.Min( elapsed, end );
+				float fraction = (next - progress) / step;
+				actor.MoveGroundDelta( travel * fraction );
+				actor.WorldRotation *= Rotation.FromYaw( yaw * fraction );
+				progress = next;
+				if ( progress == end ) sample++;
+			}
+		}
+	}
+
 	Vector3 MoveGroundDelta( Vector3 displacement ) => MoveGroundDelta( displacement, out _ );
 
 	Vector3 MoveGroundDelta( Vector3 displacement, out Vector3 slide, Vector3? origin = null )

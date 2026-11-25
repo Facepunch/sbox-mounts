@@ -88,7 +88,7 @@ public sealed partial class RabbitGuard
 		item.MarkThrowSafe();
 		MirroredAction = MirroredStance;
 		EndRoll();
-		body.Velocity = Animation.MoveVelocity;
+		body.Velocity = AirborneBody?.Velocity ?? Animation.MoveVelocity;
 		body.AngularVelocity = new Vector3( Random.Shared.Float( -20f, 20f ), Random.Shared.Float( -20f, 20f ), Random.Shared.Float( -20f, 20f ) );
 		var height = Random.Shared.Next( 3 ) switch { 0 => "low", 1 => "med", _ => "high" };
 		string guard = height + (Random.Shared.Next( 2 ) == 0 ? "leftblock" : "rightblock");
