@@ -618,7 +618,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "357_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire"}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire"}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_357.mdl", "FallbackModelPath": "models/weapons/v_357.mdl"}
@@ -628,7 +628,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "ar2_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Idle": "IR_idle", "Draw": "IR_draw", "Fire": "IR_fire", "Reload": "IR_reload"}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Idle": "IR_idle", "Draw": "IR_draw", "Fire": "IR_fire", "Reload": "IR_reload"}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_irifle.mdl", "FallbackModelPath": "models/weapons/v_irifle.mdl"}
@@ -658,7 +658,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "crowbar_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"Fire": "misscenter1", "Reload": null, "EjectBrass": null}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "Fire": "misscenter1", "Reload": null, "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_crowbar.mdl", "FallbackModelPath": "models/weapons/v_crowbar.mdl"}
@@ -688,7 +688,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "pistol_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire", "DryFire": "fireempty", "RecoilResetTime": 0.5}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Fire": "fire", "DryFire": "fireempty", "RecoilResetTime": 0.5}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_pistol.mdl", "FallbackModelPath": "models/weapons/v_pistol.mdl"}
@@ -708,7 +708,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "shotgun_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Reload": "reload1", "ReloadInsert": "reload2", "ReloadEnd": "reload3", "Pump": "pump"}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}, "Reload": "reload1", "ReloadInsert": "reload2", "ReloadEnd": "reload3", "Pump": "pump"}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_shotgun.mdl", "FallbackModelPath": "models/weapons/v_shotgun.mdl"}
@@ -718,7 +718,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "smg_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"RecoilStages": [1, 3], "ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "RecoilStages": [1, 3], "ResetRecoilOnRelease": true, "MuzzleEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_muzzleflash.prefab"}, "TracerEffect": {"_type": "gameobject", "prefab": "prefabs/effects/default_tracer.prefab"}}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_smg1.mdl", "FallbackModelPath": "models/weapons/v_smg1.mdl"}
@@ -728,7 +728,7 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.ViewModel, "stunstick_vm", null, null, null, """
 			{
 				".": {
-					"Source1.ViewModel": {"Fire": "misscenter1", "Reload": null, "EjectBrass": null}
+					"Source1.ViewModel": {"DrawPlaybackRate": 4, "Fire": "misscenter1", "Reload": null, "EjectBrass": null}
 				},
 				"Viewmodel": {
 					"Source1.MountedModel": {"ModelPath": "models/weapons/c_stunstick.mdl", "FallbackModelPath": "models/weapons/v_stunstick.mdl"}
