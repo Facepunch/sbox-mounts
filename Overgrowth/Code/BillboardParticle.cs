@@ -230,7 +230,10 @@ public partial class GameMount
 
 	internal void EmitImpactDust( string path, Vector3 position ) => EmitBillboard( path, position, Vector3.Zero, Color.White );
 
-	internal BillboardParticle EmitBillboard( string path, Vector3 position, Vector3 velocity, Color tint )
+	internal BillboardParticle EmitBillboard( string path, Vector3 position, Vector3 velocity, Color tint ) =>
+		BillboardParticle.Emit( GetBillboard( path ), position, velocity, tint );
+
+	internal BillboardParticle.Definition GetBillboard( string path )
 	{
 		if ( !billboards.TryGetValue( path, out var definition ) )
 		{
@@ -261,6 +264,6 @@ public partial class GameMount
 				stretch?.Attribute( "speed_stretch" ) == "true", stretch?.Attribute( "min_squash" ) == "true", stretch?.Number( "speed_mult" ) ?? 1f );
 			billboards.Add( path, definition );
 		}
-		return BillboardParticle.Emit( definition, position, velocity, tint );
+		return definition;
 	}
 }

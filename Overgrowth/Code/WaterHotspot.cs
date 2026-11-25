@@ -1,6 +1,6 @@
 namespace Overgrowth;
 
-public sealed class WaterHotspot : Component
+public sealed partial class WaterHotspot : Component
 {
 	[Property] public BoxCollider Volume { get; set; }
 	[Property] public bool Lethal { get; set; }
