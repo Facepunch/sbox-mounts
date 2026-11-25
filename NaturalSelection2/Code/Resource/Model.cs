@@ -884,7 +884,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				{
 					var track = scales[b];
 					var stretch = track is null ? Matrix4x4.Identity : track.Sample( t );
-					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals );
+					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals, anim.Additive );
 				}
 			}
 			addFrame( boneTransforms );
@@ -964,7 +964,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 						var pose = frames[frame];
 						stretch = StretchMatrix( pose.Scale * pose.UniformScale, ToRotation( pose.ScaleOrientation ) );
 					}
-					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals );
+					BakeBoneScale( ref boneTransforms[b], model.Bones[b], b, stretch, residuals, anim.Additive );
 				}
 			}
 			addFrame( boneTransforms );

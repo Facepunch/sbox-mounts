@@ -79,13 +79,15 @@ public partial class ModelLoader
 
 	// AG2 uses uniform bone scale. Carry Spark's stretch down the hierarchy so each
 	// child joint keeps its authored position even when its parent stretches along one axis.
-	static void BakeBoneScale( ref Transform pose, in Bone source, int bone, Matrix4x4 stretch, Matrix4x4?[] residuals )
+	static void BakeBoneScale( ref Transform pose, in Bone source, int bone, Matrix4x4 stretch, Matrix4x4?[] residuals, bool additive )
 	{
 		if ( source.Parent >= 0 && residuals[source.Parent] is { } inherited )
 		{
-			pose.Position = System.Numerics.Vector3.Transform( pose.Position, inherited );
+			// Additive clips store displacements from the bind pose. Stretch the full joint offset.
+			var origin = additive ? source.LocalTransform.Position : default;
+			pose.Position = System.Numerics.Vector3.Transform( origin + pose.Position, inherited ) - origin;
 			if ( !source.HasChildren ) return;
-			var rotation = Matrix4x4.CreateFromQuaternion( pose.Rotation );
+			var rotation = Matrix4x4.CreateFromQuaternion( additive ? source.LocalTransform.Rotation * pose.Rotation : pose.Rotation );
 			stretch *= rotation * inherited * Matrix4x4.Transpose( rotation );
 		}
 		residuals[bone] = stretch.IsIdentity ? null : stretch;
