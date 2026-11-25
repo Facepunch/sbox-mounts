@@ -19,57 +19,10 @@ public sealed class PaydayMissionSync : Component
 	[Sync( SyncFlags.FromHost )] public NetList<Guid> DisabledUnits { get; set; } = new();
 	[Sync( SyncFlags.FromHost )] public NetDictionary<Guid, string> Interactions { get; set; } = new();
 
-	/// <summary>Current objective text (resolved on the host), or empty.</summary>
-	[Sync( SyncFlags.FromHost )] public string Objective { get; set; }
-	/// <summary>Active waypoints by ElementWaypoint id: world position and label.</summary>
-	[Sync( SyncFlags.FromHost )] public NetDictionary<int, Vector3> WaypointPositions { get; set; } = new();
-	[Sync( SyncFlags.FromHost )] public NetDictionary<int, string> WaypointLabels { get; set; } = new();
-
-	[ConVar( "payday_hud", Help = "Draw PAYDAY mission objectives and waypoints." )]
-	public static bool ShowHud { get; set; } = true;
-
-	internal void SetWaypoint( int id, Vector3 position, string label )
-	{
-		if ( !Networking.IsHost ) return;
-		WaypointPositions[id] = position;
-		WaypointLabels[id] = label;
-	}
-
-	internal void RemoveWaypoint( int id )
-	{
-		if ( !Networking.IsHost ) return;
-		WaypointPositions.Remove( id );
-		WaypointLabels.Remove( id );
-	}
-
-	/// <summary>Objective line plus on-screen waypoint markers with distance. Runs on every machine with a camera.</summary>
-	void DrawHud()
-	{
-		if ( !ShowHud || Scene.Camera is not { } camera || !camera.IsValid() ) return;
-		var hud = camera.Hud;
-		var screen = Screen.Size;
-		float scale = screen.y / 1080f;
-		if ( !string.IsNullOrEmpty( Objective ) )
-		{
-			hud.DrawText( "OBJECTIVE", 15 * scale, Color.White.WithAlpha( 0.6f ), new Vector2( 48 * scale, screen.y * 0.14f ) );
-			hud.DrawText( Objective, 24 * scale, Color.White, new Vector2( 48 * scale, screen.y * 0.14f + 20 * scale ) );
-		}
-		foreach ( var (id, position) in WaypointPositions )
-		{
-			var point = camera.PointToScreenPixels( position, out bool behind );
-			if ( behind ) continue;
-			float meters = camera.WorldPosition.Distance( position ) * 0.0254f;
-			var accent = new Color( 1f, 0.82f, 0.25f );
-			hud.DrawCircle( point, new Vector2( 14 * scale ), accent.WithAlpha( 0.9f ) );
-			hud.DrawCircle( point, new Vector2( 7 * scale ), Color.Black.WithAlpha( 0.6f ) );
-			string label = WaypointLabels.TryGetValue( id, out var text ) ? text : "";
-			hud.DrawText( $"{label}  {meters:0} m", 16 * scale, Color.White, point + new Vector2( 0, 14 * scale ), TextFlag.CenterTop );
-		}
-	}
-
 	readonly Dictionary<Guid, string> appliedLocally = [];
 	readonly HashSet<Guid> disabledLocally = [];
 	TimeUntil nextInteractionScan;
+	bool primed;
 
 	/// <summary>The sync object for a scene, if a PAYDAY heist is loaded.</summary>
 	internal static PaydayMissionSync For( Scene scene ) => scene?.GetAllComponents<PaydayMissionSync>().FirstOrDefault();
@@ -93,20 +46,20 @@ public sealed class PaydayMissionSync : Component
 
 	protected override void OnUpdate()
 	{
-		DrawHud();
 		if ( Networking.IsHost )
 		{
 			if ( nextInteractionScan <= 0 ) { nextInteractionScan = 0.25f; PublishInteractions(); }
 			return;
 		}
-		// Clients: apply anything new from the host.
+		// Clients: apply anything new from the host. The first pass is the join snapshot: restore state silently.
 		foreach ( var (id, state) in UnitSequences )
 		{
 			if ( appliedLocally.TryGetValue( id, out var current ) && current == state ) continue;
 			if ( Scene.Directory.FindByGuid( id ) is not { } go || go.Components.Get<PaydayMissionUnit>( FindMode.EverythingInSelf ) is not { } marker ) continue;
 			appliedLocally[id] = state;
-			marker.ApplyState( state.Split( '|', StringSplitOptions.RemoveEmptyEntries ) );
+			marker.ApplyState( state.Split( '|', StringSplitOptions.RemoveEmptyEntries ), audible: primed );
 		}
+		primed = true;
 		foreach ( var id in DisabledUnits )
 			if ( disabledLocally.Add( id ) && Scene.Directory.FindByGuid( id ) is { } go ) go.Enabled = false;
 	}

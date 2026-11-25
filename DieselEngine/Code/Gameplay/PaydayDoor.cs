@@ -19,6 +19,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Property] public float InitialAmount { get; set; } = 1;
 	[Property] public List<PaydayDoor> LinkedDoors { get; set; } = [];
 	[Property] public string OpenSoundPath { get; set; }
+	[Property] public string CloseSoundPath { get; set; }
 	[Property, Range( 0, 180 )] public float OpenAngle { get; set; } = 95;
 	[Property] public float TravelTime { get; set; } = .45f;
 	[Sync( SyncFlags.FromHost )] public bool Open { get; private set; }
@@ -26,9 +27,9 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	[Sync( SyncFlags.FromHost )] public bool Blocked { get; private set; }
 	[Sync( SyncFlags.FromHost )] float Direction { get; set; } = 1;
 	TimeUntil scan;
-	SoundEvent openSound;
+	SoundEvent openSound, closeSound;
 	SoundHandle openingSound;
-	bool openingSoundPlayed;
+	bool openingSoundPlayed, closingSoundPlayed = true;
 	float previousAmount;
 	Model Model => Leaf.IsValid() ? Leaf.GetComponent<ModelRenderer>()?.Model : null;
 	Vector3 Center => WorldTransform.PointToWorld( Model?.Bounds.Center ?? Vector3.Up * 40 );
@@ -60,13 +61,21 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			previousAmount = Amount;
 		}
 		openingSoundPlayed = MathF.Abs( InitialOpenAngle ) > .01f;
-		if ( !string.IsNullOrEmpty( OpenSoundPath ) ) _ = LoadOpenSound();
+		closingSoundPlayed = !Open; // a door placed open can still play its closing sound
+		_ = LoadSounds();
 	}
 
-	async Task LoadOpenSound()
+	async Task LoadSounds()
 	{
-		try { openSound = await ResourceLibrary.LoadAsync<SoundEvent>( OpenSoundPath ); }
-		catch ( Exception e ) { Log.Warning( $"PAYDAY door sound {OpenSoundPath}: {e.Message}" ); }
+		openSound = await LoadSound( OpenSoundPath );
+		closeSound = await LoadSound( CloseSoundPath );
+	}
+
+	static async Task<SoundEvent> LoadSound( string path )
+	{
+		if ( string.IsNullOrEmpty( path ) ) return null;
+		try { return await ResourceLibrary.LoadAsync<SoundEvent>( path ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY door sound {path}: {e.Message}" ); return null; }
 	}
 
 	protected override void OnUpdate()
@@ -105,10 +114,20 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		if ( Open && Amount > previousAmount && !openingSoundPlayed )
 		{
 			openingSoundPlayed = true;
+			closingSoundPlayed = false;
 			if ( openSound is not null )
 			{
 				openingSound?.Stop();
 				openingSound = Leaf.PlaySound( openSound );
+			}
+		}
+		if ( !Open && Amount < previousAmount && !closingSoundPlayed )
+		{
+			closingSoundPlayed = true;
+			if ( closeSound is not null )
+			{
+				openingSound?.Stop();
+				openingSound = Leaf.PlaySound( closeSound );
 			}
 		}
 		previousAmount = Amount;

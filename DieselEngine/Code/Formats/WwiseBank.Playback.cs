@@ -23,42 +23,55 @@ sealed partial class WwiseBank
 	{
 		var mediaIds = Resolve( eventId, name );
 		var decoded = mediaIds.ToDictionary( id => id, id => Pcm.Read( Decode( id ) ) );
-		var entry = new BinaryData( objects[eventId].Data );
 		for ( int variant = 0; variant < Math.Min( 16, mediaIds.Length ); variant++ )
+			yield return Pcm.Mix( Layers( eventId, variant, decoded ) ).Wav();
+	}
+
+	/// <summary>
+	/// For looping playback: each simultaneous play action of the event as its own take (first variant, start delay
+	/// dropped), so every layer can loop seamlessly at its own length, as Wwise loops each sound independently.
+	/// </summary>
+	public List<byte[]> RenderLoopLayers( uint eventId, string name )
+	{
+		var decoded = Resolve( eventId, name ).ToDictionary( id => id, id => Pcm.Read( Decode( id ) ) );
+		return Layers( eventId, 0, decoded ).Where( l => l.Pcm.Samples.Length > 0 ).Select( l => l.Pcm.Wav() ).ToList();
+	}
+
+	List<(Pcm Pcm, float Delay)> Layers( uint eventId, int variant, Dictionary<uint, Pcm> decoded )
+	{
+		var entry = new BinaryData( objects[eventId].Data );
+		var active = new HashSet<uint>();
+		Pcm Node( uint id )
 		{
-			var active = new HashSet<uint>();
-			Pcm Node( uint id )
+			if ( !active.Add( id ) ) throw new InvalidDataException( "Cyclic Wwise playback." );
+			var node = objects[id];
+			Pcm pcm;
+			if ( node.Type == 2 ) pcm = decoded[new BinaryData( node.Data ).UInt( 8 )];
+			else
 			{
-				if ( !active.Add( id ) ) throw new InvalidDataException( "Cyclic Wwise playback." );
-				var node = objects[id];
-				Pcm pcm;
-				if ( node.Type == 2 ) pcm = decoded[new BinaryData( node.Data ).UInt( 8 )];
-				else
-				{
-					var (playlist, sequence, transition) = Playlist( id );
-					// Trigger-rate automatic containers are clocked by the gameplay shot callbacks.
-					pcm = sequence && transition == 4
-						? Pcm.Join( playlist.Select( Node ).ToArray() )
-						: Node( playlist[variant % playlist.Length] );
-				}
-				active.Remove( id );
-				return pcm;
+				var (playlist, sequence, transition) = Playlist( id );
+				// Trigger-rate automatic containers are clocked by the gameplay shot callbacks.
+				pcm = sequence && transition == 4
+					? Pcm.Join( playlist.Select( Node ).ToArray() )
+					: Node( playlist[variant % playlist.Length] );
 			}
-			var layers = new List<(Pcm Pcm, float Delay)>();
-			for ( int i = 0; i < entry.Int( 0 ); i++ )
-			{
-				var action = objects[entry.UInt( 4 + i * 4 )].Data;
-				if ( action[1] != 4 ) continue;
-				var a = new BinaryData( action );
-				float delay = 0;
-				int count = action[6];
-				a.Check( 7, count * 5 );
-				for ( int j = 0; j < count; j++ )
-					if ( action[7 + j] == 0x0d ) delay = a.Int( 7 + count + j * 4 ) / 1000f;
-				layers.Add( (Node( a.UInt( 2 ) ), delay) );
-			}
-			yield return Pcm.Mix( layers ).Wav();
+			active.Remove( id );
+			return pcm;
 		}
+		var layers = new List<(Pcm Pcm, float Delay)>();
+		for ( int i = 0; i < entry.Int( 0 ); i++ )
+		{
+			var action = objects[entry.UInt( 4 + i * 4 )].Data;
+			if ( action[1] != 4 ) continue;
+			var a = new BinaryData( action );
+			float delay = 0;
+			int count = action[6];
+			a.Check( 7, count * 5 );
+			for ( int j = 0; j < count; j++ )
+				if ( action[7 + j] == 0x0d ) delay = a.Int( 7 + count + j * 4 ) / 1000f;
+			layers.Add( (Node( a.UInt( 2 ) ), delay) );
+		}
+		return layers;
 	}
 
 	sealed record Pcm( float[] Samples )

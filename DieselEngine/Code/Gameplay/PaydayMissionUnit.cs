@@ -47,18 +47,41 @@ public sealed class PaydayMissionUnit : Component, Component.IPressable, Compone
 		applied.Add( sequence );
 		TrackBodies( sequence );
 		PaydayMissionSync.For( Scene )?.SetUnitState( GameObject, applied );
+		PlaySounds( sequence );
 		return Rebuild();
 	}
 
-	/// <summary>Client: adopt the host's full applied-sequence list for this unit and rebuild.</summary>
-	internal void ApplyState( IReadOnlyList<string> sequences )
+	/// <summary>
+	/// Client: adopt the host's full applied-sequence list for this unit and rebuild. With <paramref name="audible"/>, the
+	/// sequences appended since the last state play their sounds (not on the join snapshot, which only restores state).
+	/// </summary>
+	internal void ApplyState( IReadOnlyList<string> sequences, bool audible = false )
 	{
 		if ( GetComponent<PaydayDoor>().IsValid() ) return;
+		int known = applied.Count <= sequences.Count && applied.SequenceEqual( sequences.Take( applied.Count ) ) ? applied.Count : sequences.Count;
+		if ( audible ) foreach ( var sequence in sequences.Skip( known ) ) PlaySounds( sequence );
 		applied.Clear();
 		enabledBodies = null;
 		foreach ( var sequence in sequences ) { applied.Add( sequence ); TrackBodies( sequence ); }
 		Sequence = applied.LastOrDefault();
 		Rebuild();
+	}
+
+	/// <summary>Play the sound events a sequence's <c>sound</c> actions name, at the unit (before it's rebuilt or hidden).</summary>
+	void PlaySounds( string sequence )
+	{
+		if ( Mount?.SequenceSoundPaths( Unit, sequence ) is not { Length: > 0 } paths ) return;
+		var renderer = GetComponent<ModelRenderer>();
+		var position = renderer.IsValid() && renderer.Model is not null ? renderer.Bounds.Center : WorldPosition;
+		foreach ( var path in paths ) _ = PlayAt( path, position );
+	}
+
+	static async Task PlayAt( string path, Vector3 position )
+	{
+		SoundEvent sound = null;
+		try { sound = await ResourceLibrary.LoadAsync<SoundEvent>( path ); }
+		catch ( Exception e ) { Log.Warning( $"PAYDAY sequence sound {path}: {e.Message}" ); }
+		if ( sound is not null ) Sound.Play( sound, position );
 	}
 
 	void TrackBodies( string sequence )

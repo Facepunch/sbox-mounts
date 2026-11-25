@@ -84,7 +84,7 @@ static class SequenceDump
 		o.WriteLine( "  body children: " + string.Join( ", ", bodyChildKinds.OrderByDescending( k => k.Value ).Take( 40 ).Select( k => $"{k.Key}×{k.Value}" ) ) );
 	}
 
-	static void Tree( TextWriter o, ScriptTable table, string indent, HashSet<ScriptTable> seen )
+	internal static void Tree( TextWriter o, ScriptTable table, string indent, HashSet<ScriptTable> seen )
 	{
 		if ( !seen.Add( table ) || indent.Length > 40 ) return;
 		foreach ( var (key, value) in table.Where( p => p.Value is not ScriptTable ) )

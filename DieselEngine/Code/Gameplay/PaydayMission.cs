@@ -312,26 +312,13 @@ public sealed class PaydayMission : Component
 			case "ElementSpecialObjective":
 				Administer( element, instigator );
 				break;
-			case "ElementWaypoint":
-			{
-				string textId = element.Text( "text_id" );
-				string label = mount.Localize( textId ) ?? StringTable.Humanize( textId?.StartsWith( "wp_" ) == true ? textId[3..] : textId );
-				PaydayMissionSync.For( Scene )?.SetWaypoint( element.Id, Coordinates.Position( element.Position ), label );
-				break;
-			}
-			case "ElementObjective":
-				UpdateObjective( element );
-				break;
 			case "ElementOperator":
-				// Shipped uses: remove waypoints (173) and special objectives (54); scenario/alert/sound/police-force operators are
-				// for systems not imported, so they pass through.
+				// Only special-objective removal (54 shipped) has an effect here; waypoint, scenario, alert, sound and police-force
+				// operators target systems the mount doesn't import, so they pass through.
 				if ( element.Text( "operation" ) == "remove" )
 					foreach ( int target in element.Ids( "elements" ) )
-						if ( data.Elements.TryGetValue( target, out var removed ) )
-						{
-							if ( removed.Class == "ElementWaypoint" ) PaydayMissionSync.For( Scene )?.RemoveWaypoint( target );
-							else if ( removed.Class == "ElementSpecialObjective" ) CancelObjective( target );
-						}
+						if ( data.Elements.TryGetValue( target, out var removed ) && removed.Class == "ElementSpecialObjective" )
+							CancelObjective( target );
 				break;
 			case "ElementSpecialObjectiveTrigger": // fired by FireObjectiveEvent; executing it just passes on.
 			case "ElementEnemyDummyTrigger": // fired by FireNpcEvent; executing it just passes on.
@@ -342,6 +329,9 @@ public sealed class PaydayMission : Component
 			case "ElementPlayerState":
 			case "ElementDifficulty":
 			case "ElementDifficultyLevelCheck":
+			// Heist UI isn't part of the mount: objectives and waypoints pass through without effect.
+			case "ElementObjective":
+			case "ElementWaypoint":
 				break;
 			case "ElementSpawnEnemyDummy":
 				if ( SpawnEnemies ) Spawn( element, enemy: true );
@@ -528,31 +518,6 @@ public sealed class PaydayMission : Component
 		if ( orders.Any( o => o.Element == element.Id && !o.Completed ) || pendingObjectives.Any( p => p.Element.Id == element.Id ) ) return;
 		if ( PickNpc( element, instigator ) is { } npc ) Assign( element, npc );
 		else pendingObjectives.Add( (element, instigator, Time.Now + 30) );
-	}
-
-	string currentObjective;
-
-	/// <summary>
-	/// ElementObjective states across nine maps: complete 137, activate 127, remove 12, update 2. activate/update show the
-	/// objective; complete/remove clear it if it's the current one. Text: the id itself or <c>&lt;id&gt;_hl</c> from the strings
-	/// tables, else the humanized id. (Objective ids aren't string ids; the `objective` definition resource is still to be read.)
-	/// </summary>
-	void UpdateObjective( MissionData.Element element )
-	{
-		string id = element.Text( "objective" );
-		if ( string.IsNullOrEmpty( id ) || PaydayMissionSync.For( Scene ) is not { } sync ) return;
-		switch ( element.Text( "state" ) )
-		{
-			case "activate":
-			case "update":
-				currentObjective = id;
-				sync.Objective = mount.Localize( id ) ?? mount.Localize( id + "_hl" ) ?? StringTable.Humanize( id );
-				break;
-			case "complete":
-			case "remove":
-				if ( currentObjective == id ) { currentObjective = null; sync.Objective = ""; }
-				break;
-		}
 	}
 
 	/// <summary>An ElementOperator removed a special objective: drop its order or pending assignment.</summary>

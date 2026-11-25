@@ -142,6 +142,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 						door.AuthoredMotion = true; door.TargetPose = part.Target; door.ClosedPose = part.Closed; door.Pivot = part.Pivot;
 						door.StartsOpen = part.StartsOpen; door.InitialAmount = part.Initial;
 						door.OpenBothWays = false; door.TravelTime = 1.2f;
+						(door.OpenSoundPath, door.CloseSoundPath) = Host.DoorSoundPaths( name );
 						door.Leaf = new GameObject( true, "Door leaf" ) { Parent = holder };
 						door.Leaf.Tags.Add( PaydayDoor.NavigationTag );
 						door.Leaf.AddComponent<ModelRenderer>().Model = part.Model;
@@ -163,8 +164,9 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					door.InitialOpenAngle = model.DoorOpenAngle;
 					door.FixedOpenAngle = model.DoorSwingAngle;
 					door.OpenBothWays = model.DoorLeaf is null && model.DoorSwingAngle == 0;
+					(door.OpenSoundPath, door.CloseSoundPath) = Host.DoorSoundPaths( name );
 					if ( name == "units/world/architecture/hospital/hospital_door_1" )
-						door.OpenSoundPath = "mount://payday/sounds/doors/hos_icu_doors_open.sound";
+						door.OpenSoundPath ??= "mount://payday/sounds/doors/hos_icu_doors_open.sound";
 					if ( model.DoorLeaf is not null )
 					{
 						var frame = new GameObject( true, "Door frame" ) { Parent = go, IsStatic = true };
@@ -293,7 +295,8 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			if ( string.IsNullOrEmpty( eventName ) || eventName.Contains( "silen" ) ) return;
 			if ( Host.SoundPath( eventName ) is not { } soundPath ) { unresolved++; return; }
 			var ambient = new GameObject( true, eventName ) { Parent = parent }.AddComponent<PaydayAmbientSound>();
-			ambient.SoundPath = soundPath; ambient.Global = true; ambient.MinInterval = min; ambient.MaxInterval = max;
+			ambient.SoundPath = soundPath; ambient.EventName = eventName; ambient.Global = true;
+			ambient.Loop = max < 1; ambient.MinInterval = min; ambient.MaxInterval = max;
 			placed++;
 		}
 		Global( sounds.Text( "default_ambience" ), 0.05f, 0.05f );
@@ -304,7 +307,8 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			if ( Host.SoundPath( eventName ) is not { } soundPath ) { unresolved++; continue; }
 			var go = new GameObject( true, emitter.Text( "name" ) ?? eventName ) { Parent = parent };
 			ApplyTransform( go, emitter );
-			go.AddComponent<PaydayAmbientSound>().SoundPath = soundPath;
+			var emitterSound = go.AddComponent<PaydayAmbientSound>();
+			emitterSound.SoundPath = soundPath; emitterSound.EventName = eventName;
 			placed++;
 		}
 		Log.Info( $"PAYDAY {path}: {placed} ambience sounds placed, {unresolved} unresolved events." );

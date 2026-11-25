@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence" or "--dump-strings" or "--dump-sound")) || args.Length > 4 )
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence" or "--dump-strings" or "--dump-sound" or "--dump-door")) || args.Length > 4 )
 	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt] | --dump-sequence [units] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-door" )
+	{
+		string level = args.Length > 2 ? args[2] : "apartment";
+		string doorOutput = args.Length > 3 ? args[3] : $"door_{level}.txt";
+		using ( var doorWriter = new StreamWriter( doorOutput ) ) DoorDump.Run( db, level, doorWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( doorOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-sound" )
 	{
 		string level = args.Length > 2 ? args[2] : "bank";
@@ -534,6 +542,48 @@ foreach ( var level in soundLevels )
 			if ( emitter.Text( "emitter_event" ) is { } emitterEvent && eventBanks.ContainsKey( emitterEvent ) ) emittersResolved++;
 		}
 Console.WriteLine( $"PASS: {playableEvents} playable of {allEvents} sound events across {bankNames.Count} banks, {namedEvents} named; world_sounds emitters resolved {emittersResolved}/{emittersTotal}." );
+// Asset sounds: sequence `sound` actions on breakables and doors, resolved against the registered (named) bank events.
+ScriptTable ManagerOf( string unitPath )
+{
+	var unitXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", unitPath ) ) );
+	var objXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", unitXml.Element( "object" ).Attribute( "file" ) ) ) );
+	return objXml.Element( "sequence_manager" )?.Attribute( "file" ) is string managerPath && db.Find( "sequence_manager", managerPath ) is { } managerBytes
+		? ScriptData.Read( managerBytes ) : null;
+}
+var windowSounds = SequenceSounds.Read( ManagerOf( "units/world/architecture/bank/bank_window/bank_window_large" ), "destroy_02" );
+if ( !windowSounds.Contains( "window_large_shatter" ) || !eventBanks.ContainsKey( "window_large_shatter" ) )
+	throw new Exception( $"Bank window destroy_02 sound regressed: [{string.Join( ", ", windowSounds )}]." );
+int stageSequences = 0, stageWithSound = 0, stageResolved = 0, doorUnits = 0, doorOpen = 0, doorClose = 0;
+var unresolvedAssetSounds = new SortedSet<string>( StringComparer.OrdinalIgnoreCase );
+var doorSamples = new List<string>();
+foreach ( var placedUnit in enduranceByUnit.Keys.OrderBy( u => u ) )
+{
+	ScriptTable manager;
+	try { manager = ManagerOf( placedUnit ); } catch ( Exception ) { continue; }
+	if ( manager is null ) continue;
+	if ( enduranceByUnit[placedUnit] && EnduranceOf( placedUnit ) is { } rules )
+		foreach ( var sequence in rules.Bodies.Values.SelectMany( s => s ).SelectMany( s => s.Sequences ).Distinct() )
+		{
+			stageSequences++;
+			var sounds = SequenceSounds.Read( manager, sequence );
+			if ( sounds.Count > 0 ) stageWithSound++;
+			if ( sounds.Any( eventBanks.ContainsKey ) ) stageResolved++;
+			foreach ( var sound in sounds.Where( s => !eventBanks.ContainsKey( s ) ) ) unresolvedAssetSounds.Add( sound );
+		}
+	if ( placedUnit.Contains( "door", StringComparison.OrdinalIgnoreCase ) || placedUnit.Contains( "gate", StringComparison.OrdinalIgnoreCase ) )
+	{
+		var (open, close) = SequenceSounds.DoorSounds( manager );
+		if ( open is null && close is null && !SequenceSounds.SequenceNames( manager ).Any( n => n.Contains( "open" ) ) ) continue;
+		doorUnits++;
+		if ( open is not null && eventBanks.ContainsKey( open ) ) doorOpen++;
+		if ( close is not null && eventBanks.ContainsKey( close ) ) doorClose++;
+		if ( doorSamples.Count < 12 ) doorSamples.Add( $"{placedUnit[(placedUnit.LastIndexOf( '/' ) + 1)..]}: open={open ?? "-"} close={close ?? "-"}" );
+	}
+}
+foreach ( var sample in doorSamples ) Console.WriteLine( $"    door {sample}" );
+if ( unresolvedAssetSounds.Count > 0 ) Console.WriteLine( $"  unresolved asset sounds: {string.Join( ", ", unresolvedAssetSounds.Take( 30 ) )}" );
+Console.WriteLine( $"PASS: asset sounds: {stageWithSound}/{stageSequences} breakable stage sequences play a sound ({stageResolved} resolve); "
+	+ $"{doorUnits} openable door units, {doorOpen} with an open sound, {doorClose} with a close sound." );
 // Localization tables: waypoint text ids resolve through strings/system_text.
 var stringTables = StringTable.ReadAll( db );
 if ( stringTables.Count < 1000 || stringTables.GetValueOrDefault( IdString.Hash( "wp_bank_get_drill" ) ) is not { Length: > 0 } drillText )

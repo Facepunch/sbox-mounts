@@ -24,16 +24,6 @@ public sealed class PaydayMount : BaseGameMount
 	internal Dictionary<ulong, string> UnitNames { get; } = [];
 
 	readonly Dictionary<string, UnitEndurance> endurance = new( StringComparer.Ordinal );
-	Dictionary<ulong, string> strings;
-
-	/// <summary>Localized text for a Diesel string id (all <c>strings/*</c> tables), or null.</summary>
-	internal string Localize( string id )
-	{
-		if ( string.IsNullOrEmpty( id ) || Database is null ) return null;
-		try { strings ??= StringTable.ReadAll( Database ); }
-		catch ( Exception e ) { Log.Warning( $"PAYDAY strings: {e.Message}" ); strings = new Dictionary<ulong, string>(); }
-		return strings.GetValueOrDefault( IdString.Hash( id ) );
-	}
 	MapMaterials runtimeMaterials;
 
 	/// <summary>Materials for geometry rebuilt at runtime (breakables, mission sequences), shared across maps.</summary>
@@ -47,17 +37,52 @@ public sealed class PaydayMount : BaseGameMount
 		UnitEndurance result = null;
 		try
 		{
+			if ( GetSequenceManager( unit ) is { } manager ) result = UnitEndurance.Read( manager.Root, manager.Object );
+		}
+		catch ( Exception e ) { Log.Warning( $"PAYDAY endurance {unit}: {e.Message}" ); }
+		return endurance[unit] = result;
+	}
+
+	readonly Dictionary<string, (ScriptTable Root, XmlNode Object)?> sequenceManagers = new( StringComparer.Ordinal );
+	readonly Dictionary<(string Unit, string Sequence), string[]> sequenceSounds = [];
+
+	/// <summary>A unit's parsed sequence manager and object XML, or null. Cached per unit.</summary>
+	internal (ScriptTable Root, XmlNode Object)? GetSequenceManager( string unit )
+	{
+		if ( string.IsNullOrEmpty( unit ) || Database is null ) return null;
+		if ( sequenceManagers.TryGetValue( unit, out var cached ) ) return cached;
+		(ScriptTable, XmlNode)? result = null;
+		try
+		{
 			if ( Database.Find( "unit", unit ) is { } unitBytes
 				&& XmlNode.Parse( Encoding.UTF8.GetString( unitBytes ) ).Element( "object" )?.Attribute( "file" ) is { } objectPath
 				&& Database.Find( "object", objectPath ) is { } objectBytes )
 			{
 				var obj = XmlNode.Parse( Encoding.UTF8.GetString( objectBytes ) );
 				if ( obj.Element( "sequence_manager" )?.Attribute( "file" ) is { } managerPath && Database.Find( "sequence_manager", managerPath ) is { } managerBytes )
-					result = UnitEndurance.Read( ScriptData.Read( managerBytes ), obj );
+					result = (ScriptData.Read( managerBytes ), obj);
 			}
 		}
-		catch ( Exception e ) { Log.Warning( $"PAYDAY endurance {unit}: {e.Message}" ); }
-		return endurance[unit] = result;
+		catch ( Exception e ) { Log.Warning( $"PAYDAY sequence manager {unit}: {e.Message}" ); }
+		return sequenceManagers[unit] = result;
+	}
+
+	/// <summary>Mounted sound paths a unit's sequence plays (only events some bank has). Cached.</summary>
+	internal string[] SequenceSoundPaths( string unit, string sequence )
+	{
+		if ( string.IsNullOrEmpty( sequence ) ) return [];
+		if ( sequenceSounds.TryGetValue( (unit, sequence), out var cached ) ) return cached;
+		string[] paths = GetSequenceManager( unit ) is { } manager
+			? SequenceSounds.Read( manager.Root, sequence ).Select( SoundPath ).Where( p => p is not null ).ToArray() : [];
+		return sequenceSounds[(unit, sequence)] = paths;
+	}
+
+	/// <summary>Mounted open/close sound paths for a door unit, from its open/close sequences. Either may be null.</summary>
+	internal (string Open, string Close) DoorSoundPaths( string unit )
+	{
+		if ( GetSequenceManager( unit ) is not { } manager ) return (null, null);
+		var (open, close) = SequenceSounds.DoorSounds( manager.Root );
+		return (SoundPath( open ), SoundPath( close ));
 	}
 	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
@@ -170,6 +195,39 @@ public sealed class PaydayMount : BaseGameMount
 	/// <summary>Event name → short bank name, for every registered named event (map ambience looks sounds up here).</summary>
 	internal Dictionary<string, string> SoundEventBanks { get; } = new( StringComparer.OrdinalIgnoreCase );
 
+	readonly Dictionary<string, WwiseBank> soundBanks = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, List<SoundEvent>> loopLayers = new( StringComparer.OrdinalIgnoreCase );
+
+	/// <summary>
+	/// A named event as natively looping sounds, one per simultaneous layer (Wwise loops each sound on its own, so a
+	/// mixed take restarted on a timer gaps and drops shorter layers). Main thread only. Null if the event can't render.
+	/// </summary>
+	internal List<SoundEvent> GetLoopLayers( string eventName, float distance )
+	{
+		if ( string.IsNullOrEmpty( eventName ) ) return null;
+		string key = $"{eventName}@{distance}";
+		if ( loopLayers.TryGetValue( key, out var cached ) ) return cached;
+		List<SoundEvent> result = null;
+		if ( SoundEventBanks.TryGetValue( eventName, out var bankName ) && soundBanks.TryGetValue( bankName, out var bank ) )
+		{
+			try
+			{
+				string name = eventName.ToLowerInvariant();
+				var takes = bank.RenderLoopLayers( WwiseBank.Hash( name ), name );
+				result = takes.Select( ( wav, i ) => new SoundEvent
+				{
+					Sounds = [SoundFile.FromWav( $"{PaydaySoundEventLoader.EventPath( bankName, name )}/loop-{i}.vsnd", wav, new SoundFile.LoadOptions { Loop = true } )],
+					Volume = 1, Pitch = 1,
+					DistanceAttenuation = true, Distance = distance,
+					ReverbEnabled = true, AirAbsorption = false
+				} ).ToList();
+				if ( result.Count == 0 ) result = null;
+			}
+			catch ( Exception e ) { Log.Warning( $"PAYDAY loop {eventName}: {e.Message}" ); }
+		}
+		return loopLayers[key] = result;
+	}
+
 	/// <summary>Mounted path of a named soundbank event, or null if no bank has it.</summary>
 	internal string SoundPath( string eventName ) =>
 		!string.IsNullOrEmpty( eventName ) && SoundEventBanks.TryGetValue( eventName, out var bank )
@@ -190,6 +248,7 @@ public sealed class PaydayMount : BaseGameMount
 			WwiseBank bank;
 			try { bank = new WwiseBank( Database.Find( "bnk", bankPath ), id => Database.Find( "stream", $"soundbanks/streamed/{bankName}/{id}" ) ); }
 			catch ( Exception ) { unreadable++; continue; }
+			soundBanks[bankName] = bank;
 			foreach ( uint id in bank.EventIds.ToList() )
 			{
 				if ( !bank.IsPlayable( id ) ) continue;
@@ -207,13 +266,16 @@ public sealed class PaydayMount : BaseGameMount
 	protected override void Shutdown()
 	{
 		SoundEventBanks.Clear();
+		soundBanks.Clear();
+		loopLayers.Clear();
 		viewAssets.Clear();
 		WeaponAudio.Clear();
 		browserMaterials = null;
 		Characters.Clear();
 		UnitNames.Clear();
 		endurance.Clear();
-		strings = null;
+		sequenceManagers.Clear();
+		sequenceSounds.Clear();
 		runtimeMaterials = null;
 		Database = null;
 	}
