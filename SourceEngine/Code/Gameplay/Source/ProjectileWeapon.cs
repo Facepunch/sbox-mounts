@@ -210,10 +210,19 @@ public sealed class ProjectileWeapon : Weapon
 
 	protected override void OnDisabled()
 	{
+		StopBaitTrail();
 		ReleaseZoom();
 		_laser?.Dispose();
 		_laser = null;
 		base.OnDisabled();
+	}
+
+	Hl2.SporeCloud _baitTrail;
+
+	void StopBaitTrail()
+	{
+		if ( _baitTrail.IsValid() ) _baitTrail.StopEmitting();
+		_baitTrail = null;
 	}
 
 	public override void PrimaryAttack()
@@ -261,6 +270,13 @@ public sealed class ProjectileWeapon : Weapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Kind == Projectile.Kinds.Bugbait && !Application.IsDedicatedServer )
+		{
+			if ( WasDropped && !IsHeld )
+				_baitTrail ??= Hl2.SporeCloud.Create( WorldPosition, Vector3.Up, MountContent.OfWeapon( this ), GameObject );
+			else if ( _baitTrail.IsValid() )
+				StopBaitTrail();
+		}
 		if ( _boltChargeAt is { } charge && charge <= 0 )
 		{
 			_boltChargeAt = null;
