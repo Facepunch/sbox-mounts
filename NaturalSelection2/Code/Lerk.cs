@@ -30,6 +30,8 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	internal static void RegisterSounds( MountContext context )
 	{
 		AlienFootsteps.Register( context, "lerk" );
+		const string umbra = "alien/structures/crag/umbra";
+		context.Add( ResourceType.GameResource, $"sounds/{umbra}.sound", new SparkSoundLoader( umbra ) );
 		foreach ( var cue in new[] { "spawn", "bite", "spikes", "flap", "flying_3D", "death", "wound", "wound_serious" } )
 		{
 			var id = $"alien/lerk/{cue}";
@@ -92,6 +94,13 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	protected override void Think()
 	{
+		umbraTarget = ChooseUmbraTarget();
+		if ( umbraTarget.IsValid() )
+		{
+			Animation.SetLookTarget( umbraTarget.GameObject );
+			attacking = wantsSpikes = false;
+			return;
+		}
 		var enemy = targeting.FindEnemy( this, out var lastSeen );
 		bool visible = enemy.IsValid() && lastSeen is null;
 		Animation.SetLookTarget( visible ? enemy : null );
@@ -153,19 +162,22 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( View.Forward, aim.Normal ) > 0.98f;
 		if ( !spiking ) firingSpikes = false;
-		var activity = attacking && energy >= 5 ? "primary" : spiking ? "secondary" : "none";
+		bool usingUmbra = umbraTarget.IsValid();
+		var ability = usingUmbra ? "umbra" : "bite";
+		bool primary = usingUmbra ? energy >= UmbraCost : attacking && energy >= 5;
+		var activity = primary ? "primary" : spiking ? "secondary" : "none";
 		var move = !Animation.IsGrounded ? "fly" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "attack_speed", 1 );
 		world.Set( "alive", 1 );
 		world.Set( "move", move );
 		world.Set( "flapping", lastFlap <= 0.5f ? 1 : 0 );
-		world.Set( "ability", "bite" );
+		world.Set( "ability", ability );
 		world.Set( "activity", activity );
 		world.Update( animationTime, output, worldTag );
 		movePose = world.GetPose( 0 );
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", move );
-		weapon.Set( "ability", "bite" );
+		weapon.Set( "ability", ability );
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
 		weapon.Update( animationTime, tag: weaponTag );
@@ -180,6 +192,11 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 	{
 		if ( tag == "shoot" && spiking && energy > SpikeCost ) FireSpike();
 		if ( tag != "hit" ) return;
+		if ( umbraTarget.IsValid() )
+		{
+			FireUmbra();
+			return;
+		}
 		PlayCue( "bite" );
 		energy = Math.Max( 0, energy - 5 );
 		var (hit, victim) = AlienMelee.Trace( this, View, 1.5f * Scale, 0.9f, 1.2f );
@@ -192,7 +209,7 @@ public sealed partial class Lerk : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * AlienArmor.HealthPerArmor( e.DamageInfo ) );
+		AlienArmor.Absorb( e, Armor );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )

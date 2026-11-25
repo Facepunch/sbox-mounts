@@ -338,7 +338,7 @@ public sealed partial class Onos : BaseNpc, Component.IDamageable
 		if ( e.AcceptedDamage <= 0 ) return;
 		sinceDamage = 0;
 		BlockDamage( e );
-		e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * AlienArmor.HealthPerArmor( e.DamageInfo ) );
+		AlienArmor.Absorb( e, Armor );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )

@@ -177,7 +177,7 @@ public sealed partial class Gorge : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaging( IDamageable.DamageEvent e )
 	{
-		if ( e.AcceptedDamage > 0 ) e.AcceptedDamage -= Math.Min( e.AcceptedDamage * 0.7f, Armor * AlienArmor.HealthPerArmor( e.DamageInfo ) );
+		AlienArmor.Absorb( e, Armor );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent e )
