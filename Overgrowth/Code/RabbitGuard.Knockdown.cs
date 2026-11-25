@@ -350,7 +350,7 @@ public sealed partial class RabbitGuard
 		if ( inAir )
 		{
 			// The loose bodies can fit in places where the standing collider cannot.
-			var clearance = Scene.Trace.Capsule( capsule, feet, feet ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			var clearance = MovementTrace( Scene.Trace.Capsule( capsule, feet, feet ) ).WithoutTags( "trigger", CharacterCollisionRules.FighterHull ).Run();
 			if ( clearance.StartedSolid || clearance.Hit ) return false;
 		}
 		else
@@ -358,8 +358,8 @@ public sealed partial class RabbitGuard
 			var support = ground.Value;
 			var lift = capsule.Radius * (1f / support.Normal.z - 1f);
 			feet = support.Point + Vector3.Up * lift;
-			var floor = Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, support.Point + Vector3.Down )
-				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+			var floor = MovementTrace( Scene.Trace.Capsule( capsule, feet + Vector3.Up * 0.5f, support.Point + Vector3.Down ) )
+				.WithoutTags( "trigger", CharacterCollisionRules.FighterHull ).Run();
 			if ( !floor.Hit || floor.StartedSolid || floor.Normal.z <= 0.5f ) return false;
 			feet = floor.EndPosition;
 		}

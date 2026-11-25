@@ -10,7 +10,7 @@ public sealed partial class RabbitGuard
 	bool restoreAgentPosition;
 	internal bool PairedGroundSupport { get; private set; }
 
-	SceneTraceResult TracePairedFloor() => IgnoreFighters( Scene.Trace.Ray(
+	SceneTraceResult TracePairedFloor() => MovementTrace( Scene.Trace.Ray(
 		WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f ) ).WithCollisionRules( Tags ).Run();
 
 	void UpdatePairedGroundSupport()
@@ -103,9 +103,9 @@ public sealed partial class RabbitGuard
 	}
 
 	// Paired actors move through one another while their throw clips align.
-	SceneTrace IgnoreFighters( SceneTrace trace )
+	SceneTrace MovementTrace( SceneTrace trace )
 	{
-		trace = trace.IgnoreGameObjectHierarchy( GameObject );
+		trace = trace.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( CharacterCollisionRules.RagdollPart, CharacterCollisionRules.ThrownItem );
 		if ( holdPartner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( holdPartner.GameObject );
 		return InThrow && throwPartner.IsValid() ? trace.IgnoreGameObjectHierarchy( throwPartner.GameObject ) : trace;
 	}
@@ -168,7 +168,7 @@ public sealed partial class RabbitGuard
 		// The agent origin is on the floor, whereas the support point of a capsule moves uphill on a slope.
 		const float groundSkin = 0.095f;
 		var capsule = new Capsule( MovementCapsule.Start * scale, MovementCapsule.End * scale, MovementCapsule.Radius * scale.x );
-		var ground = IgnoreFighters( Scene.Trace.Ray( position + capsule.CenterA, position + Vector3.Down * groundSkin ) )
+		var ground = MovementTrace( Scene.Trace.Ray( position + capsule.CenterA, position + Vector3.Down * groundSkin ) )
 			.WithoutTags( "trigger" ).Run();
 		var lift = Vector3.Zero;
 		bool supported = ground.Hit && !ground.StartedSolid && ground.Normal.z > 0.5f;
@@ -178,7 +178,7 @@ public sealed partial class RabbitGuard
 			lift.z = System.Math.Max( 0f, contactHeight - (position.z + capsule.CenterA.z) );
 			displacement -= ground.Normal * displacement.Dot( ground.Normal );
 		}
-		var trace = IgnoreFighters( Scene.Trace.Capsule( capsule ) ).WithoutTags( "trigger" );
+		var trace = MovementTrace( Scene.Trace.Capsule( capsule ) ).WithoutTags( "trigger" );
 		var move = new CharacterControllerHelper( trace, position + lift, displacement );
 		move.TryMove( 1f );
 		slide = move.Velocity;
