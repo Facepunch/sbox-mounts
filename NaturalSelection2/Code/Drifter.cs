@@ -42,6 +42,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Height = 1.05f * Scale;
 		agent.Radius = capsule.Radius;
+		// Spark's path cursor advances at the requested speed from the first movement tick.
+		agent.Acceleration = float.MaxValue;
 		agent.Enabled = false;
 		root.AddComponent<NavigationLayer>().RunSpeed = 11 * Scale;
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;

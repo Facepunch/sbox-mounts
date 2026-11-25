@@ -44,6 +44,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		var body = root.AddComponent<Rigidbody>();
 		body.EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
+		agent.Acceleration = 7 * 3.5f * Scale;
 		agent.Radius = collider.Radius;
 		agent.Height = 1.2f * Scale;
 		agent.Enabled = false;
@@ -103,10 +104,11 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 
 	void UpdateWeldPosition()
 	{
+		float speed = (inCombat > 0 ? 5.5f : 7) * Scale;
 		if ( !target.IsValid() )
 		{
 			Animation.SetLookTarget( null );
-			if ( WorldPosition.Distance( anchor ) > Scale ) Movement.MoveTo( anchor, Scale );
+			if ( WorldPosition.Distance( anchor ) > Scale ) Movement.MoveTo( anchor, Scale, speed );
 			else Movement.Stop();
 			return;
 		}
@@ -115,7 +117,6 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		Animation.SetLookTarget( obj );
 		targetRadius = target.GetComponentInChildren<Collider>()?.LocalBounds.Size.WithZ( 0 ).Length * 0.5f ?? 0.1f * Scale;
 		float distance = WorldPosition.Distance( target.WorldPosition ) - targetRadius;
-		float speed = (inCombat > 0 ? 5.5f : 7) * Scale;
 		if ( distance < 2.5f * Scale && !obj.Tags.Has( "structure" ) )
 		{
 			var forward = target.GetComponent<PlayerController>()?.EyeTransform.Forward ?? target.WorldRotation.Forward;
