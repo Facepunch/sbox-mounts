@@ -29,6 +29,26 @@ public abstract class Weapon : BaseCombatWeapon
 		DelayPrimary
 	}
 
+	/// <summary>Minimum interval between empty primary clicks for weapons that can fire as soon as ammo arrives.</summary>
+	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
+	TimeUntil _nextEmptyClick;
+
+	protected bool WantsEmptyClick => HasOwner && EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();
+
+	public override void DryFire()
+	{
+		if ( WantsEmptyClick ) TryPlayEmptyClick( EmptyClickInterval );
+		else base.DryFire();
+	}
+
+	protected bool TryPlayEmptyClick( float interval )
+	{
+		if ( _nextEmptyClick > 0 ) return false;
+		if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
+		_nextEmptyClick = interval;
+		return true;
+	}
+
 	/// <summary>Random pitch added to the aim per attack (min, max degrees).</summary>
 	[Property, Group( "Recoil" )] public Vector2 RecoilPitch { get; set; } = new( -0.3f, -0.1f );
 

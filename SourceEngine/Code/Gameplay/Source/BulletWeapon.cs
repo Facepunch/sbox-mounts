@@ -70,9 +70,6 @@ public sealed class BulletWeapon : Weapon
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
 	[Property, Feature( "Shooting" )] public float DryTapRefireDelay { get; set; }
-	/// <summary>Minimum interval between empty primary clicks for weapons that can fire as soon as ammo arrives.</summary>
-	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
-	TimeUntil _nextEmptyClick;
 	internal float DryFireDuration { get; set; }
 	internal (float Delay, string Mount)? CylinderEjection { get; set; }
 	TimeUntil? _ejectCylinderAt;
@@ -159,7 +156,7 @@ public sealed class BulletWeapon : Weapon
 		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && (!IsReloading || CanLaunchDuringReload) )
 		{
 			if ( HasSecondaryAmmo() ) FireSecondary();
-			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( _nextEmptyClick );
+			else if ( TryPlayEmptyClick( 0.5f ) ) SetNextSecondaryFire( 0.5f );
 		}
 		if ( _holdingEmptyTrigger && !Input.Down( "attack1" ) ) _holdingEmptyTrigger = false;
 		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
@@ -281,7 +278,7 @@ public sealed class BulletWeapon : Weapon
 
 	public override void DryFire()
 	{
-		var clickOnly = EmptyClickInterval > 0 && Input.Down( "attack1" ) && !HasPrimaryAmmo();
+		var clickOnly = WantsEmptyClick;
 		if ( !HasOwner || (!clickOnly && DryTapRefireDelay <= 0) )
 		{
 			base.DryFire();
@@ -302,14 +299,6 @@ public sealed class BulletWeapon : Weapon
 		WeaponModel?.OnDryFire();
 		SetNextPrimaryFire( Math.Max( DryTapRefireDelay, DryFireDuration ) );
 		_tapReady = (TimeUntil)DryTapRefireDelay;
-	}
-
-	bool TryPlayEmptyClick( float interval )
-	{
-		if ( _nextEmptyClick > 0 ) return false;
-		if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
-		_nextEmptyClick = interval;
-		return true;
 	}
 
 	void FirePrimaryRound()
