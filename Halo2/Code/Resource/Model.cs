@@ -49,10 +49,23 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return model;
 	}
 
+	BodyMaterial ReadBodyMaterial()
+	{
+		if ( collisionModel is not { DataSize: >= 0x68 } ) return null;
+		int block = mapFile.VaToOffset( (int)collisionModel.DataVirtualAddress ) + 0x60;
+		if ( mapFile.ReadInt32( block ) == 0 ) return null;
+		int info = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+		int index = (short)mapFile.ReadInt32( info + 0xce );
+		if ( index < 0 ) return null;
+		var name = materialNames is { Length: > 0 } ? materialNames.ElementAtOrDefault( index ) : Label( info + 4 );
+		return string.IsNullOrEmpty( name ) ? null : new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface" };
+	}
+
 	protected override object Load()
 	{
 		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
+		if ( ReadBodyMaterial() is {} bodyMaterial ) builder.WithData( bodyMaterial );
 		if ( HasFirstPersonWeapon && GetAnimationContext( "any", "any", "any" ) is {} context )
 		{
 			var actions = context.Actions.ToDictionary( a => a.Key, a => GetClipInfo( a.Value ) );

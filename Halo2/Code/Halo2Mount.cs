@@ -155,8 +155,10 @@ public class Halo2Mount : BaseGameMount
 				if ( renderDatum == -1 ) continue;
 				reader.BaseStream.Position = 0x0c;
 				int collisionDatum = reader.ReadInt32();
-				if ( mapFile.GetTag( collisionDatum & 0xffff ) is { PrimaryClass: "lloc", DataSize: >= 0x34 } collision )
-					modeToCollision.TryAdd( renderDatum & 0xffff, (collision, tag) );
+				var collision = mapFile.GetTag( collisionDatum & 0xffff ) is { PrimaryClass: "lloc", DataSize: >= 0x34 } coll ? coll : null;
+				int renderIndex = renderDatum & 0xffff;
+				if ( !modeToCollision.TryGetValue( renderIndex, out var existing ) || (existing.Collision is null && collision is not null) )
+					modeToCollision[renderIndex] = (collision, tag);
 				reader.BaseStream.Position = 0x14;
 				int animationDatum = reader.ReadInt32();
 				if ( mapFile.GetTag( animationDatum & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } graph )

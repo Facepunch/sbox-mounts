@@ -607,7 +607,7 @@ public sealed class Shotgun : Weapon
 	}
 
 	static float BodyDamageScale( SceneTraceResult hit, Dictionary<string, float> scales ) =>
-		hit.Hitbox is not null && hit.Surface?.ResourcePath is {} path && scales?.TryGetValue( path, out var scale ) == true ? scale : 1;
+		BodyMaterial.ForHit( hit ) is {} path && scales?.TryGetValue( path, out var scale ) == true ? scale : 1;
 
 	void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
 	{
