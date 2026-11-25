@@ -195,9 +195,11 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	bool triggerConsumed;
 	bool IsHolstered => Inventory is {} inventory && inventory.ActiveItem != this;
+	bool CanUseHeldWeapon => !IsHolstered && !PuttingAway;
 
 	protected override void OnControl()
 	{
+		if ( PuttingAway ) return;
 		if ( !Input.Down( "attack1" ) ) triggerConsumed = false;
 		// The unit admits melee before processing weapon fire and reload on this tick.
 		if ( WantsSecondaryAttack() && FireSecondary() ) return;
@@ -209,7 +211,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		Input.Down( "attack1" ) && (!triggerConsumed || PrimaryAutomatic) && CanPrimaryAttack();
 
 	public override bool CanPrimaryAttack() =>
-		meleeEnds <= 0 && NextPrimaryFire <= 0 && !IsHolstered && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
+		meleeEnds <= 0 && NextPrimaryFire <= 0 && CanUseHeldWeapon && HasPrimaryAmmo() && (!IsReloading || CanCancelReload);
 
 	public override void PrimaryAttack()
 	{
@@ -360,7 +362,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 			return;
 		}
 
-		if ( meleeEnds <= 0 && !IsReloading ) PlayHolderOverlay( "chamber_1" );
+		if ( meleeEnds <= 0 && !IsReloading && !PuttingAway ) PlayHolderOverlay( "chamber_1" );
 		parameters.Set( "action_once", true );
 		parameters.Set( "action", "chamber_1" );
 		parameters.Trigger( "action_restart" );
@@ -736,14 +738,14 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	TimeUntil meleeEnds;
 	(double Time, float Damage, GameObject Attacker)? pendingStrike;
 
-	public override bool CanReload() => meleeEnds <= 0 && !IsHolstered && base.CanReload();
+	public override bool CanReload() => meleeEnds <= 0 && CanUseHeldWeapon && base.CanReload();
 
 	protected override bool WantsReload() =>
 		Input.Down( "reload" ) || base.WantsReload();
 
 	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
-	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && !IsHolstered;
+	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && CanUseHeldWeapon;
 
 	public override void SecondaryAttack()
 	{
@@ -888,8 +890,84 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		PlayHolderOverlay( "ready" );
 	}
 
+	BaseInventoryItem requestedItem;
+	int putAwayFrames, putAwayDelay;
+	internal bool PuttingAway => putAwayFrames > 0;
+	float putAwayFrame;
+	bool finishingSwitch;
+
+	protected override bool OnHolstering( BaseInventoryItem next )
+	{
+		if ( finishingSwitch ) return true;
+		if ( PuttingAway )
+		{
+			requestedItem = next;
+			return false;
+		}
+		if ( HolderAnimator?.GetOverlayClip( "put_away" ) is not { Frames: > 0 } clip )
+			return base.OnHolstering( next );
+		if ( Networking.IsHost )
+		{
+			requestedItem = next;
+			CancelReload();
+			pendingStrike = null;
+			BeginPutAway( clip.Frames );
+		}
+		return false;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void BeginPutAway( int frames )
+	{
+		if ( !IsHeld || IsHolstered ) return;
+		putAwayFrames = frames;
+		putAwayDelay = 2; // The unit's put-away channel starts with two delayed updates.
+		putAwayFrame = 0;
+		HolderAnimator?.SampleWeaponOverlay( "put_away", 0 );
+		ViewModel?.GetComponent<ShotgunViewModel>()?.PutAway();
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		base.OnFixedUpdate();
+		if ( !PuttingAway ) return;
+		if ( putAwayDelay > 0 )
+		{
+			putAwayDelay--;
+			return;
+		}
+		float step = Time.Delta * 30;
+		putAwayFrame += step;
+		HolderAnimator?.SampleWeaponOverlay( "put_away", (putAwayFrame / System.Math.Max( 1, putAwayFrames - 1 )).Clamp( 0, 1 ) );
+		// The unit releases its secondary channel when the next step would reach the clip end.
+		if ( !Networking.IsHost || putAwayFrame + step < putAwayFrames - 0.0001f ) return;
+		var next = requestedItem;
+		finishingSwitch = true;
+		try
+		{
+			if ( next is null || (next.IsValid() && next.Inventory == Inventory) )
+				Inventory?.Switch( next, next is null );
+		}
+		finally
+		{
+			finishingSwitch = false;
+			if ( PuttingAway ) EndPutAway();
+		}
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void EndPutAway() => ClearPutAway();
+
+	void ClearPutAway()
+	{
+		if ( PuttingAway ) HolderAnimator?.StopWeaponOverlay( "put_away" );
+		putAwayFrames = 0;
+		requestedItem = null;
+	}
+
 	protected override void OnDisabled()
 	{
+		ClearPutAway();
 		pendingStrike = null;
 		firstInsertAt = null;
 		chamberRenderer = null;
@@ -898,6 +976,7 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	protected override void OnHolstered()
 	{
+		ClearPutAway();
 		HolderAnimator?.StopWeaponOverlay( "ready" );
 		triggerConsumed = false;
 		SetNextPrimaryFire( BarrelRecoveryTime );
@@ -1077,6 +1156,12 @@ public sealed class ShotgunViewModel : ShotgunModel
 		Play( action );
 	}
 
+	internal void PutAway()
+	{
+		reload = entering = false;
+		Play( "put_away" );
+	}
+
 	void Play( string action )
 	{
 		if ( !SelectAction( action, true ) ) return;
@@ -1123,7 +1208,7 @@ public sealed class ShotgunViewModel : ShotgunModel
 		if ( sampleTick >= lastTick )
 		{
 			if ( enterReload ) Insert();
-			else if ( !reload )
+			else if ( !reload && !Weapon.PuttingAway )
 			{
 				clip = null;
 				SelectAction( "idle" );
