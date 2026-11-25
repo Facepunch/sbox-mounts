@@ -9,8 +9,19 @@ public abstract class Weapon : BaseCombatWeapon
 	TimeUntil kickEnds;
 
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
-	int? looseReserve;
-	int LooseReserve => looseReserve ?? (Clip1 < 0 ? StartingAmmo : 0);
+	[Sync( SyncFlags.FromHost )] int looseReserve { get; set; } = -1;
+	int LooseReserve => looseReserve >= 0 ? looseReserve : Clip1 < 0 ? StartingAmmo : 0;
+	int LoadedRounds => Clip1 < 0 ? ClipMaxSize : Clip1;
+
+	Weapon MatchingWeapon( BaseInventoryComponent inventory ) =>
+		inventory.Items.OfType<Weapon>().FirstOrDefault( w => w != this && w.GetType() == GetType() &&
+			w.GameObject.PrefabInstanceSource == GameObject.PrefabInstanceSource );
+
+	protected override bool OnCanPickup( BaseInventoryComponent inventory )
+	{
+		if ( !UsesClips || !UsesAmmo || MatchingWeapon( inventory ) is not {} held ) return base.OnCanPickup( inventory );
+		return held.UsesAmmo && held.Ammo1 < held.MaxReserveAmmo && (LoadedRounds > 0 || LooseReserve > 0);
+	}
 
 	int CarriedReserve( BaseInventoryComponent inventory )
 	{
@@ -21,12 +32,11 @@ public abstract class Weapon : BaseCombatWeapon
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		if ( !UsesClips || !UsesAmmo ) return base.OnAdding( inventory );
-		var held = inventory.Items.OfType<Weapon>().FirstOrDefault( w => w != this && w.GetType() == GetType() &&
-			w.GameObject.PrefabInstanceSource == GameObject.PrefabInstanceSource );
+		var held = MatchingWeapon( inventory );
 		if ( held is null ) return base.OnAdding( inventory );
 		if ( !held.UsesAmmo || held.Ammo1 >= held.MaxReserveAmmo ) return false;
 
-		int loaded = Clip1 < 0 ? ClipMaxSize : Clip1;
+		int loaded = LoadedRounds;
 		int reserve = LooseReserve;
 		// Pickup(prefab) parents the new item before Add assigns its inventory slot.
 		var source = Slot >= 0 ? Inventory : null;
