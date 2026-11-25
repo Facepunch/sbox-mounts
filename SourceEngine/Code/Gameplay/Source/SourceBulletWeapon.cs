@@ -74,6 +74,8 @@ public sealed class SourceBulletWeapon : SourceWeapon
 
 	/// <summary>Minimum interval between separate trigger pulls for weapons that fire more slowly when held.</summary>
 	[Property, Feature( "Shooting" )] public float TapRefireDelay { get; set; }
+	/// <summary>Keep automatic rounds on their scheduled interval when a frame crosses a shot deadline.</summary>
+	[Property, Feature( "Shooting" )] public bool ContinuousFireRate { get; set; }
 	TimeUntil? _tapReady;
 
 	[Property] public SecondaryFires Secondary { get; set; }
@@ -116,6 +118,16 @@ public sealed class SourceBulletWeapon : SourceWeapon
 	protected override void Think()
 	{
 		base.Think();
+		if ( ContinuousFireRate && PrimaryDelay > 0 && Input.Down( "attack1" ) && !Input.Pressed( "attack1" ) && !WantsReload() )
+		{
+			// Only catch up time spent holding the trigger during this frame.
+			var remaining = Math.Max( (float)NextPrimaryFire, -Time.Delta );
+			while ( remaining <= 0 && FirePrimary() )
+			{
+				remaining += PrimaryDelay;
+				SetNextPrimaryFire( remaining );
+			}
+		}
 		if ( _tapReady is not { } ready || ready > 0 || Input.Down( "attack1" ) ) return;
 		_tapReady = null;
 		SetNextPrimaryFire( 0 );
