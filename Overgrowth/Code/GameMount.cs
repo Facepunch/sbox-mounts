@@ -119,7 +119,10 @@ public partial class GameMount : BaseGameMount, IHotloadManaged
 				context.Add(ResourceType.Model,path,new ObjectLoader(path));
 				context.Add(ResourceType.Material,path,new MaterialLoader(path,"Object")); break;
 			case "DecalObject": context.Add(ResourceType.Material,path,new MaterialLoader(path,"DecalObject")); break;
-			case "item": context.Add(ResourceType.Model,path,new ObjectLoader(path,true)); break;
+			case "item":
+				context.Add( ResourceType.Model, path, new ObjectLoader( path, true ) );
+				context.Add( ResourceType.Material, path, new MaterialLoader( path, "item" ) );
+				break;
 			}
 			return;
 		}

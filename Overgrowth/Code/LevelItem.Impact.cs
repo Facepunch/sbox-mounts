@@ -64,7 +64,11 @@ public sealed partial class LevelItem
 		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader;
 		bool cut = line.Material == "metal" && loader?.Sharpness?.At( WorldTransform.PointToLocal( hit.EndPosition + velocity.Normal * 40f ) ) > 0.3f;
 		var axis = sample.Rotation * (line.End - line.Start).Normal;
-		if ( cut ) fighter.Stab( hit.EndPosition, axis, false );
+		if ( cut )
+		{
+			fighter.Stab( hit.EndPosition, axis, false );
+			MarkBlood( sample.PointToLocal( hit.EndPosition ), WorldRotation.Inverse * axis, 8f );
+		}
 		string label = Definition.Element( "label" )?.Value;
 		bool embedded = cut && (label == "spear" || MathF.Abs( axis.Dot( hit.Normal ) ) > 0.4f);
 		if ( embedded && hit.Hitbox?.Bone is { } bone && fighter.Renderer.TryGetBoneTransform( bone.Name, out var bonePose ) )

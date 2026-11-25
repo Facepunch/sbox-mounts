@@ -8,7 +8,28 @@ public sealed partial class CutMarks
 	internal void DrawStab( Vector4[] corners )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
-		var stamp = mount.StabDecal;
+		DrawProjection( corners, mount.StabDecal, false );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	internal void DrawItemSpatter( Vector3 point, Vector3 across, Vector3 up )
+	{
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
+			mount.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) is not ObjectLoader loader ) return;
+		var (positions, uvs, indices) = loader.GetItemSurface();
+		var corners = new Vector4[indices.Count];
+		for ( int i = 0; i < indices.Count; i++ )
+		{
+			int vertex = indices[i];
+			var uv = uvs[vertex];
+			var offset = positions[vertex] - point;
+			corners[i] = new( uv.x, uv.y, offset.Dot( across ) + 0.5f, 0.5f - offset.Dot( up ) );
+		}
+		DrawProjection( corners, mount.SpatterDecal, true );
+	}
+
+	void DrawProjection( Vector4[] corners, GameMount.DecalStamp stamp, bool wet )
+	{
 		var renderer = PrepareBitmap();
 		var size = new Vector2( bitmap.Width, bitmap.Height );
 		for ( int i = 0; i < corners.Length; i += 3 )
@@ -16,6 +37,7 @@ public sealed partial class CutMarks
 			var a = corners[i];
 			var b = corners[i + 1];
 			var c = corners[i + 2];
+			if ( OutsideStamp( a.z, b.z, c.z ) || OutsideStamp( a.w, b.w, c.w ) ) continue;
 			var p = new Vector2( a.x, a.y ) * size;
 			var q = new Vector2( b.x, b.y ) * size;
 			var r = new Vector2( c.x, c.y ) * size;
@@ -37,6 +59,7 @@ public sealed partial class CutMarks
 				float alpha = Math.Min( 1f, red * 10f );
 				var pixel = bitmap.GetPixel( x, y );
 				pixel.r = Math.Min( 1f, pixel.r + red * alpha );
+				if ( wet ) pixel.g = Math.Min( 1f, pixel.g + alpha );
 				pixel.a = Math.Min( 1f, pixel.a + alpha * alpha );
 				bitmap.SetPixel( x, y, pixel );
 			}
@@ -45,6 +68,7 @@ public sealed partial class CutMarks
 	}
 
 	static float Cross( Vector2 a, Vector2 b ) => a.x * b.y - a.y * b.x;
+	static bool OutsideStamp( float a, float b, float c ) => (a < 0f && b < 0f && c < 0f) || (a > 1f && b > 1f && c > 1f);
 }
 
 public partial class GameMount
@@ -63,6 +87,9 @@ public partial class GameMount
 				MathX.Lerp( Shade( left, bottom ), Shade( right, bottom ), x - left ), y - top );
 		}
 	}
+
+	DecalStamp spatterDecal;
+	internal DecalStamp SpatterDecal => spatterDecal ??= new( LoadTexture( "Data/Textures/spatterdecal.tga" ) );
 
 	DecalStamp stabDecal;
 	internal DecalStamp StabDecal => stabDecal ??= new( LoadTexture( "Data/Textures/stabdecal.tga" ) );

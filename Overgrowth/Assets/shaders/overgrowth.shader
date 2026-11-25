@@ -201,14 +201,24 @@ PS
 			float other = max( 0, 1 - palette.x - palette.y - palette.z - palette.w );
 			color.rgb *= palette.x * g_vPalette0 + palette.y * g_vPalette1 + palette.z * g_vPalette2 + palette.w * g_vPalette3 + other * g_vPalette4;
 		}
+		float itemBlood = 0;
 		if ( g_bHasCuts )
 		{
 			float2 mask = g_tCutMask.SampleLevel( g_sClamp, uv, 0 ).rg;
 			float amount = saturate( mask.r * 5.0 );
-			float wet = lerp( max( 0.0, mask.g * 1.4 - 0.4 ), 0.4, color.a );
-			float4 oldBlood = float4( g_vCutTint * (0.8 * wet + 0.2), wet );
-			float4 newBlood = float4( color.rgb * g_vCutTint, wet * 0.5 + 0.5 );
-			color = lerp( color, lerp( oldBlood, newBlood, (1.0 - wet) * 0.5 ), amount );
+			if ( g_flKind == 2 )
+			{
+				itemBlood = amount;
+				normal.a = lerp( normal.a, 1.0, amount * 0.5 );
+				color.rgb = lerp( color.rgb, g_vCutTint * 0.4, amount );
+			}
+			else
+			{
+				float wet = lerp( max( 0.0, mask.g * 1.4 - 0.4 ), 0.4, color.a );
+				float4 oldBlood = float4( g_vCutTint * (0.8 * wet + 0.2), wet );
+				float4 newBlood = float4( color.rgb * g_vCutTint, wet * 0.5 + 0.5 );
+				color = lerp( color, lerp( oldBlood, newBlood, (1.0 - wet) * 0.5 ), amount );
+			}
 		}
 		Material m = Material::Init();
 		m.Albedo = color.rgb;
@@ -219,9 +229,13 @@ PS
 		#endif
 		m.Roughness = lerp( 0.7, 1, pow( max( 0, dot( color.rgb, float3( 1, 1, 1 ) ) / 3 ), 0.01 ) );
 		if ( g_flKind == 1 ) m.Roughness = pow( 1 - pow( saturate( color.a ), 2.2 ), 20 );
-		if ( g_flKind == 2 ) m.Roughness = normal.a;
 		if ( g_flKeepSpec > 0.5 || g_flMetalness > 0.5 ) m.Roughness = 1 - normal.a;
 		m.Metalness = g_flMetalness > 0.5 ? color.a : 0;
+		if ( g_flKind == 2 )
+		{
+			m.Roughness = lerp( 0.00001, 0.9, normal.a * (1.0 - itemBlood * 0.2) );
+			m.Metalness = pow( pow( saturate( color.a ), 2.2 ) * (1.0 - itemBlood), 0.3 );
+		}
 		m.Transmission = g_flTranslucency > 0.5 ? SampleMap( g_tTranslucency, uv ).rgb : float3( 0, 0, 0 );
 		if ( g_flMagma == 1 )
 		{

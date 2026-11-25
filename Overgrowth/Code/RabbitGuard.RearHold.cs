@@ -254,6 +254,12 @@ public sealed partial class RabbitGuard
 	{
 		var head = victim.Renderer.Model.Bones.GetBone( victim.boundAnimations.HeadBone )?.Parent;
 		var point = head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
+		if ( PrimaryItem.IsValid() && CharacterLoader.AverageChainFrame( Renderer, "head" ) is { } ownHead )
+		{
+			var center = CharacterCenter( GameObject );
+			for ( int i = 0; i < 3; i++ )
+				PrimaryItem.MarkCut( center, ownHead.Position, point + LevelItem.BloodScatter() * 12f );
+		}
 		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", point );
 		var damage = new ExecutionDamage { Damage = victim.Health, Position = point, Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
 		chokeVictim = victim.GameObject;

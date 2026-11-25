@@ -10,13 +10,15 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 	protected override object Load()
 	{
 		var root = XmlAsset.Read( Host.FileSystem, filePath, element );
+		if ( element == "item" )
+			root = XmlAsset.Read( Host.FileSystem, Host.Resolve( root.Element( "appearance" ).Attribute( "obj_path" ) ), "Object" );
 		var shader = ExpandShader( root.Element( "ShaderName" )?.Value.Trim() ?? "" );
 		var flags = shader.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).ToHashSet( StringComparer.Ordinal );
 
 		bool detail = flags.Contains( "#DETAILMAP4" );
 		var material = CreateMaterial( Path, detail );
 		bool character = flags.Contains( "#CHARACTER" );
-		bool item = flags.Contains( "#ITEM" );
+		bool item = element == "item" || flags.Contains( "#ITEM" );
 		bool alpha = flags.Contains( "#ALPHA" );
 		bool plant = flags.Contains( "#PLANT" );
 		var properties = root.Element( "flags" );

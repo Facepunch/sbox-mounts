@@ -30,9 +30,9 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		Upload( renderer );
 	}
 
-	SkinnedModelRenderer PrepareBitmap()
+	ModelRenderer PrepareBitmap()
 	{
-		var renderer = GetComponent<SkinnedModelRenderer>();
+		var renderer = GetComponent<ModelRenderer>();
 		if ( bitmap is null )
 		{
 			var color = renderer.Model.Materials[0].GetTexture( "g_tColor" );
@@ -50,15 +50,16 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 
 	void INetworkSnapshot.ReadSnapshot( ref ByteStream reader )
 	{
+		if ( reader.ReadRemaining == 0 ) return;
 		bitmap?.Dispose();
 		bitmap = Bitmap.CreateFromBytes( reader.ReadArray<byte>() );
-		if ( Active && GetComponent<SkinnedModelRenderer>() is { } renderer ) Upload( renderer );
+		if ( Active && GetComponent<ModelRenderer>() is { } renderer ) Upload( renderer );
 		ConfigurePen();
 	}
 
 	protected override void OnEnabled()
 	{
-		if ( bitmap is not null && GetComponent<SkinnedModelRenderer>() is { } renderer ) Upload( renderer );
+		if ( bitmap is not null && GetComponent<ModelRenderer>() is { } renderer ) Upload( renderer );
 	}
 
 	void ConfigurePen()
@@ -67,7 +68,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		bitmap.SetPen( new Color( 1f, 253f / 255f, 0f ), 1f );
 	}
 
-	void Upload( SkinnedModelRenderer renderer )
+	void Upload( ModelRenderer renderer )
 	{
 		if ( Application.IsDedicatedServer || bitmap is null ) return;
 		if ( texture is null ) texture = bitmap.ToTexture( false );
@@ -80,10 +81,10 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	{
 		if ( Game.ActiveScene is not { } scene ) return;
 		foreach ( var marks in scene.GetAllComponents<CutMarks>() )
-			if ( marks.texture is not null ) UpdateAppearance( marks.GetComponent<SkinnedModelRenderer>() );
+			if ( marks.texture is not null ) UpdateAppearance( marks.GetComponent<ModelRenderer>() );
 	}
 
-	static void UpdateAppearance( SkinnedModelRenderer renderer )
+	static void UpdateAppearance( ModelRenderer renderer )
 	{
 		renderer.Attributes.Set( "CutTint", RabbitGuard.BloodColor );
 		renderer.Attributes.Set( "HasCuts", RabbitGuard.BloodLevel > 0 );
@@ -95,7 +96,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		var next = corpse.GetOrAddComponent<CutMarks>();
 		next.bitmap = bitmap;
 		next.texture = texture;
-		next.Upload( corpse.GetComponent<SkinnedModelRenderer>() );
+		next.Upload( corpse.GetComponent<ModelRenderer>() );
 		bitmap = null;
 		texture = null;
 		if ( corpse.Network.Active ) corpse.Network.Refresh();

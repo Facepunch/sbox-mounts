@@ -72,7 +72,11 @@ public sealed partial class RabbitGuard
 			if ( strike.LightStab is { } light && defender.IsValid() && PrimaryItem.IsValid() )
 			{
 				var axis = PrimaryItem.StabDirection();
-				if ( !axis.IsNearlyZero() ) defender.Stab( PrimaryItem.PhysicsPosition - axis * 200f, axis, light );
+				if ( !axis.IsNearlyZero() )
+				{
+					defender.Stab( PrimaryItem.PhysicsPosition - axis * 200f, axis, light );
+					PrimaryItem.MarkStab( CharacterCenter( GameObject ) );
+				}
 			}
 			var faces = CutSurface( defender, position );
 			if ( faces is { Count: > 0 } ) defender.Renderer.GetOrAddComponent<CutMarks>().Draw( faces );
@@ -166,7 +170,13 @@ public sealed partial class RabbitGuard
 		var right = new Vector3( forward.y, -forward.x, forward.z );
 		float angle = GetAttackHeight( victim.GameObject ) * 0.5f;
 		var tilt = Rotation.FromAxis( right, angle.RadianToDegree() );
-		return character.Surface.CutFaces( victim.Renderer, tilt * (forward * cut.x + right * cut.y + Vector3.Up * cut.z), point, tilt * forward );
+		var normal = tilt * (forward * cut.x + right * cut.y + Vector3.Up * cut.z);
+		if ( PrimaryItem.IsValid() && CharacterLoader.AverageChainFrame( victim.Renderer, "head" ) is { } head )
+		{
+			var along = normal.Cross( (tilt * Vector3.Up).Cross( normal ).Normal ).Normal;
+			PrimaryItem.MarkCut( CharacterCenter( victim.GameObject ), head.Position, along * 0.8f + normal * 0.2f );
+		}
+		return character.Surface.CutFaces( victim.Renderer, normal, point, tilt * forward );
 	}
 
 	void EmitCutParticles( List<CharacterSurface.Cut> faces, bool light )

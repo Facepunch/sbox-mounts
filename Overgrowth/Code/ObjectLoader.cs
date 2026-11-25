@@ -7,6 +7,7 @@ namespace Overgrowth;
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
 	XmlAsset itemDefinition;
+	(List<Vector3> Positions, List<Vector2> UVs, List<int> Indices) itemSurface;
 	(string Path, Vector3 CacheCenter)? collisionMesh;
 
 	internal Vector3[] ReadBalanceTriangles( List<int> marked )
@@ -25,6 +26,18 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 	internal List<Vector3> PlantCloud { get; private set; }
 	internal ItemSharpness Sharpness { get; private set; }
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
+	string AppearancePath => Host.Resolve( ItemDefinition.Element( "appearance" )?.Attribute( "obj_path" ) );
+
+	internal (List<Vector3> Positions, List<Vector2> UVs, List<int> Indices) GetItemSurface()
+	{
+		if ( itemSurface.Indices is null )
+		{
+			var appearance = XmlAsset.Read( Host.FileSystem, AppearancePath, "Object" );
+			var mesh = ObjLoader.Load( Host.FileSystem, Host.Resolve( appearance.Element( "Model" ).Value ) );
+			itemSurface = (mesh.Positions, mesh.UVs, mesh.Indices);
+		}
+		return itemSurface;
+	}
 
 	protected override object Load()
 	{
@@ -40,14 +53,14 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 			var objectPath = filePath;
 			if ( item )
 			{
-				objectPath = Host.Resolve( root.Element( "appearance" )?.Attribute( "obj_path" ) );
+				objectPath = AppearancePath;
 				root = XmlAsset.Read( Host.FileSystem, objectPath, "Object" );
 			}
 
 			modelPath = Host.Resolve( root.Element( "Model" )?.Value );
 			if ( item ) sharpnessMap = root.Element( "SharpnessMap" )?.Value;
 			surfacePath = Host.Resolve( root.Element( "MaterialPath" )?.Value ?? "Data/Materials/default.xml" );
-			material = Material.Load( Host.MountedPath( objectPath ) + ".vmat" );
+			material = Material.Load( Host.MountedPath( item ? filePath : objectPath ) + ".vmat" );
 			var flags = root.Element( "flags" );
 			var bushCollision = (string)flags?.Attribute( "bush_collision" ) == "true";
 			collision = !item && !bushCollision && (string)flags?.Attribute( "no_collision" ) != "true";
@@ -67,7 +80,10 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		builder.AddTraceMesh( data.Positions, data.Indices );
 
 		if ( item )
+		{
+			itemSurface = (data.Positions, data.UVs, data.Indices);
 			AddItemPhysics( builder, itemDefinition, modelPath, data, surface );
+		}
 		else if ( collision )
 		{
 			var collisionPath = System.IO.Path.ChangeExtension( modelPath, null ) + "_col.obj";
