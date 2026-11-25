@@ -20,7 +20,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	MapLights lights;
 	Material sky;
 	HashSet<int> missionUnits = [];
-	int placed, missing, taggedUnits;
+	int placed, missing, taggedUnits, breakableUnits;
 
 	protected override void OnSceneUnloaded()
 	{
@@ -32,7 +32,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 
 	protected override void BuildScene()
 	{
-		placed = missing = taggedUnits = 0;
+		placed = missing = taggedUnits = breakableUnits = 0;
 		var db = Host.Database;
 		string levelDirectory = path[..path.LastIndexOf( '/' )];
 		MissionData mission = null;
@@ -67,6 +67,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
+		Log.Info( $"PAYDAY {path}: {breakableUnits} breakable placements (unit endurance rules)." );
 		if ( mission is { Elements.Count: > 0 } )
 		{
 			root.AddComponent<PaydayMission>().Level = levelDirectory;
@@ -105,15 +106,21 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				var go = new GameObject( true, unit.Text( "name_id" ) ?? name ) { Parent = parent, IsStatic = true };
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
-				if ( unit.GetValueOrDefault( "unit_id" ) is float unitId && missionUnits.Contains( (int)unitId ) )
+				int placedId = unit.GetValueOrDefault( "unit_id" ) is float unitId ? (int)unitId : 0;
+				bool referenced = placedId != 0 && missionUnits.Contains( placedId );
+				// Breakable by its own sequence-manager endurance (glass, bulbs, stands…). Doors handle their own glass.
+				bool breakable = model.DoorParts is null && model.DoorLeaf is null && Host.GetEndurance( name ) is not null;
+				if ( referenced || breakable )
 				{
-					// The mission can disable this unit or switch it to another sequence state at runtime.
+					// The mission or damage can switch this unit to another sequence state at runtime.
 					go.IsStatic = false;
 					var marker = go.AddComponent<PaydayMissionUnit>();
-					marker.Id = (int)unitId;
+					marker.Id = placedId;
 					marker.Unit = name;
 					marker.MaterialVariation = variation;
-					taggedUnits++;
+					marker.Breakable = breakable;
+					if ( referenced ) taggedUnits++;
+					if ( breakable ) breakableUnits++;
 				}
 				if ( model.DoorParts is { } parts )
 				{

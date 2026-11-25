@@ -42,6 +42,7 @@ public sealed class PaydayGrenade : Component
 			float fraction = Math.Clamp( WorldPosition.Distance( position ) / radius, 0, 1 );
 			var info = new DamageInfo( Math.Max( 10, 400 * MathF.Pow( 1 - fraction, 5 ) ), Attacker, Weapon ) { Origin = WorldPosition, Position = position };
 			info.Tags.Add( "blast" );
+			info.Tags.Add( "explosion" ); // engine-standard tag (DamageInfo.IsExplosion), read by mission units' shot_with_m79
 			target.OnDamage( info );
 			obj.GetComponentInParent<Rigidbody>()?.ApplyImpulseAt( position, (position - WorldPosition).Normal * 1000 * (1 - fraction) );
 		}

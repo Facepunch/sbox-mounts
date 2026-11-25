@@ -1,0 +1,657 @@
+==================== bank_window_large -> units/world/architecture/bank/bank_window/bank_window_large ====================
+  graphics: g_bank_window_large, g_bank_window_large_dmg(off), g_bank_window_large__shattered(off), g_bank_window_large_boarder, g_fwb_logo_01, g_fwb_logo_02
+  bodies: window3, static_body
+  sequence_manager units/world/architecture/bank/bank_window/bank_window_large:
+    [1] unit
+      [1] sequence
+        name =  'destroy_01' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_bank_window_large' 
+        [2] object
+          enabled = True
+          name =  'g_bank_window_large_dmg' 
+        [object] object
+      [2] sequence
+        name =  'destroy_02' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_bank_window_large' 
+        [2] object
+          enabled = False
+          name =  'g_bank_window_large_dmg' 
+        [3] object
+          enabled = False
+          name =  'g_fwb_logo_01' 
+        [4] object
+          enabled = False
+          name =  'g_fwb_logo_02' 
+        [5] sound
+          action = 'play'
+          event = 'window_large_shatter'
+          object = 'e_bank_window_large'
+        [6] decal_mesh
+          enabled = False
+          name = 'g_bank_window_large'
+        [7] effect
+          name = 'effects/particles/window/bank_window_large'
+          parent = object( 'e_bank_window_large' )
+          position = v()
+        [8] object
+          enabled = True
+          instance_struct = world_tm
+          name =  'g_bank_window_large__shattered' 
+        [9] body
+          enabled = False
+          name =  'window3' 
+        [body] body
+        [decal_mesh] decal_mesh
+        [effect] effect
+        [object] object
+        [sound] sound
+      [3] body
+        name = 'window3'
+        [1] endurance
+          bullet = 1
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_01'
+          [run_sequence] run_sequence
+        [2] endurance
+          bullet = 2
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_02'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [body] body
+      [sequence] sequence
+    [unit] unit
+==================== diamondheist_rooftop_window -> units/world/architecture/diamondheist/windows/diamondheist_rooftop_window ====================
+  graphics: g_diamondheist_rooftop_window, g_diamondheist_rooftop_window_dmg_01(off), g_diamondheist_rooftop_window_dmg_02(off), g_diamondheist_rooftop_window_boarder
+  bodies: static_body, window_vault, dmg_01(off), dmg_02(off)
+  sequence_manager units/world/architecture/diamondheist/windows/diamondheist_rooftop_window:
+    [1] unit
+      [1] sequence
+        editable_state = True
+        name =  'destroy_01' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_diamondheist_rooftop_window' 
+        [2] object
+          enabled = True
+          name =  'g_diamondheist_rooftop_window_dmg_01' 
+        [3] object
+          enabled = True
+          name =  'g_diamondheist_rooftop_window_dmg_02' 
+        [4] body
+          enabled = True
+          name =  'dmg_01' 
+        [5] body
+          enabled = True
+          name =  'dmg_02' 
+        [6] body
+          enabled = False
+          name =  'window_vault' 
+        [body] body
+        [object] object
+      [2] sequence
+        editable_state = True
+        name =  'destroy_dmg_01' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_diamondheist_rooftop_window' 
+        [2] object
+          enabled = False
+          name =  'g_diamondheist_rooftop_window_dmg_01' 
+        [3] sound
+          action = 'play'
+          event = 'window_medium_shatter'
+          object = 'e_diamondheist_rooftop_window_01'
+        [4] decal_mesh
+          enabled = False
+          name = 'g_diamondheist_rooftop_window'
+        [5] decal_mesh
+          enabled = False
+          name = 'g_diamondheist_rooftop_window_dmg_01'
+        [6] effect
+          name = 'effects/particles/window/bank_window_vault'
+          parent = object( 'e_diamondheist_rooftop_window_01' )
+          position = v()
+        [7] body
+          enabled = False
+          name =  'dmg_01' 
+        [8] alert
+        [alert] alert
+        [body] body
+        [decal_mesh] decal_mesh
+        [effect] effect
+        [object] object
+        [sound] sound
+      [3] sequence
+        editable_state = True
+        name =  'destroy_dmg_02' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_diamondheist_rooftop_window' 
+        [2] object
+          enabled = False
+          name =  'g_diamondheist_rooftop_window_dmg_02' 
+        [3] sound
+          action = 'play'
+          event = 'window_medium_shatter'
+          object = 'e_diamondheist_rooftop_window_02'
+        [4] decal_mesh
+          enabled = False
+          name = 'g_diamondheist_rooftop_window'
+        [5] decal_mesh
+          enabled = False
+          name = 'g_diamondheist_rooftop_window_dmg_02'
+        [6] effect
+          name = 'effects/particles/window/bank_window_vault'
+          parent = object( 'e_diamondheist_rooftop_window_02' )
+          position = v()
+        [7] body
+          enabled = False
+          name =  'dmg_02' 
+        [8] alert
+        [alert] alert
+        [body] body
+        [decal_mesh] decal_mesh
+        [effect] effect
+        [object] object
+        [sound] sound
+      [4] sequence
+        editable_state = True
+        name =  'swat_breach' 
+        once = True
+        triggable = True
+        [1] run_sequence
+          name = 'destroy_dmg_01'
+        [2] run_sequence
+          name = 'destroy_dmg_02'
+        [3] body
+          enabled = False
+          name =  'window_vault' 
+        [body] body
+        [run_sequence] run_sequence
+      [5] body
+        name = 'window_vault'
+        [1] endurance
+          bullet = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_01'
+          [run_sequence] run_sequence
+        [2] endurance
+          explosion = 1
+          [1] run_sequence
+            name = 'swat_breach'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [6] body
+        name = 'dmg_01'
+        [1] endurance
+          bullet = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_dmg_01'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [7] body
+        name = 'dmg_02'
+        [1] endurance
+          bullet = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_dmg_02'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [body] body
+      [sequence] sequence
+    [unit] unit
+==================== slaughterhouse_glass_tall -> units/world/props/slaughterhouse/slaughterhouse_window_glass/slaughterhouse_glass_tall ====================
+  graphics: g_slaughterhouse_glass, g_slaughterhouse_glass_dmg(off)
+  bodies: window
+  sequence_manager units/world/props/slaughterhouse/slaughterhouse_window_glass/slaughterhouse_glass:
+    [1] unit
+      [1] body
+        name = 'window'
+        [1] endurance
+          bullet = 1
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'kill_window_01'
+          [run_sequence] run_sequence
+        [2] endurance
+          bullet = 2
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'kill_window_02'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [2] sequence
+        name = 'kill_window_01'
+        once = True
+        [1] object
+          enabled = False
+          name = 'g_slaughterhouse_glass'
+        [2] object
+          enabled = True
+          name = 'g_slaughterhouse_glass_dmg'
+        [object] object
+      [3] sequence
+        name = 'kill_window_02'
+        once = True
+        triggable = True
+        [1] decal_mesh
+          enabled = False
+          name = 'g_slaughterhouse_glass'
+        [2] object
+          enabled = False
+          name = 'g_slaughterhouse_glass'
+        [3] object
+          enabled = False
+          name = 'g_slaughterhouse_glass_dmg'
+        [4] effect
+          name = 'effects/particles/window/slaughterhouse_glass_tall'
+          parent = object( 'e_win_1' )
+          position = v()
+        [5] sound
+          action = 'play'
+          event = 'window_small_shatter'
+          object = 'e_win_1'
+        [6] body
+          enabled = False
+          name = 'window'
+        [body] body
+        [decal_mesh] decal_mesh
+        [effect] effect
+        [object] object
+        [sound] sound
+      [body] body
+      [sequence] sequence
+    [unit] unit
+==================== hanging_lightbulb -> units/world/props/apartment/hanging_lightbulb/hanging_lightbulb ====================
+  graphics: g_ceiling_contact, g_wire_socket_slow, g_whole_lamp_slow, g_broken_lamp_slow(off), g_wire_socket(off), g_whole_lamp(off), g_broken_lamp(off)
+  bodies: light_bulb
+  sequence_manager units/world/props/apartment/hanging_lightbulb/hanging_lightbulb:
+    [1] unit
+      [1] sequence
+        name = 'startup_times'
+        startup = True
+        [1] run_sequence
+          name = 'start_time_'..pick('1','2','3','4','5','6')
+        [run_sequence] run_sequence
+      [2] sequence
+        name = 'start_time_1'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 10/30
+        [animation_group] animation_group
+      [3] sequence
+        name = 'start_time_2'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 20/30
+        [animation_group] animation_group
+      [4] sequence
+        name = 'start_time_3'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 30/30
+        [animation_group] animation_group
+      [5] sequence
+        name = 'start_time_4'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 40/30
+        [animation_group] animation_group
+      [6] sequence
+        name = 'start_time_5'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 50/30
+        [animation_group] animation_group
+      [7] sequence
+        name = 'start_time_6'
+        [1] animation_group
+          enabled = True
+          loop = True
+          name = 'ag_turn_slow'
+          start_time = 60/30
+        [animation_group] animation_group
+      [8] sequence
+        editable_state = True
+        name = 'turn_on_slow'
+        triggable = True
+        [1] object
+          enabled = True
+          name = 'g_wire_socket_slow'
+        [2] object
+          enabled = True
+          name = 'g_whole_lamp_slow'
+        [3] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_wire_socket'
+        [5] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [6] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [7] light
+          enabled = True
+          name = 'lo_omni'
+        [light] light
+        [object] object
+      [9] sequence
+        editable_state = True
+        name = 'turn_on_pendulum'
+        triggable = True
+        [1] light
+          enabled = True
+          name = 'lo_omni'
+        [2] object
+          enabled = False
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = True
+          name = 'g_wire_socket'
+        [6] object
+          enabled = True
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [light] light
+        [object] object
+      [10] sequence
+        editable_state = True
+        name = 'turn_off_slow'
+        triggable = True
+        [1] light
+          enabled = False
+          name = 'lo_omni'
+        [2] object
+          enabled = True
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = True
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = False
+          name = 'g_wire_socket'
+        [6] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [light] light
+        [object] object
+      [11] sequence
+        editable_state = True
+        name = 'turn_off_pendulum'
+        triggable = True
+        [1] light
+          enabled = False
+          name = 'lo_omni'
+        [2] object
+          enabled = False
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = True
+          name = 'g_wire_socket'
+        [6] object
+          enabled = True
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [light] light
+        [object] object
+      [12] sequence
+        editable_state = True
+        name = 'broken_slow'
+        triggable = True
+        [1] light
+          enabled = False
+          name = 'lo_omni'
+        [2] object
+          enabled = True
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = True
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = False
+          name = 'g_wire_socket'
+        [6] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [8] body
+          enabled = False
+          name = 'light_bulb'
+        [body] body
+        [light] light
+        [object] object
+      [13] sequence
+        editable_state = True
+        name = 'broken_pendulum'
+        triggable = True
+        [1] light
+          enabled = False
+          name = 'lo_omni'
+        [2] object
+          enabled = False
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = True
+          name = 'g_wire_socket'
+        [6] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = True
+          name = 'g_broken_lamp'
+        [8] body
+          enabled = False
+          name = 'light_bulb'
+        [body] body
+        [light] light
+        [object] object
+      [14] sequence
+        name = 'kill_light_bulb'
+        triggable = True
+        [1] light
+          enabled = False
+          name = 'lo_omni'
+        [2] object
+          enabled = False
+          name = 'g_wire_socket_slow'
+        [3] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [4] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [5] object
+          enabled = True
+          name = 'g_wire_socket'
+        [6] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [7] object
+          enabled = True
+          name = 'g_broken_lamp'
+        [8] body
+          enabled = False
+          name = 'light_bulb'
+        [body] body
+        [light] light
+        [object] object
+      [15] sequence
+        name = 'hide'
+        triggable = True
+        [1] object
+          enabled = False
+          name = 'g_ceiling_contact'
+        [2] light
+          enabled = False
+          name = 'lo_omni'
+        [3] object
+          enabled = False
+          name = 'g_wire_socket_slow'
+        [4] object
+          enabled = False
+          name = 'g_whole_lamp_slow'
+        [5] object
+          enabled = False
+          name = 'g_broken_lamp_slow'
+        [6] object
+          enabled = False
+          name = 'g_wire_socket'
+        [7] object
+          enabled = False
+          name = 'g_whole_lamp'
+        [8] object
+          enabled = False
+          name = 'g_broken_lamp'
+        [light] light
+        [object] object
+      [16] body
+        name = 'light_bulb'
+        [1] endurance
+          bullet = 1
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'kill_light_bulb'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [body] body
+      [sequence] sequence
+    [unit] unit
+==================== diamond_stand -> units/world/props/diamond_stand/diamond_stand ====================
+  graphics: g_diamond_stand, g_light, s_diamond_stand, g_glass_01, g_glass_shattered_01(off)
+  bodies: body0, window_01
+  sequence_manager units/world/props/diamond_stand/diamond_stand:
+    [1] unit
+      [1] sequence
+        name =  'destroy_01' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_glass_01' 
+        [2] object
+          enabled = True
+          name =  'g_glass_shattered_01' 
+        [object] object
+      [2] sequence
+        name =  'destroy_02' 
+        once = True
+        triggable = True
+        [1] object
+          enabled = False
+          name =  'g_glass_01' 
+        [2] object
+          enabled = False
+          name =  'g_glass_shattered_01' 
+        [3] sound
+          action = 'play'
+          event = 'window_small_shatter'
+          object = 'e_spawner_01'
+        [4] effect
+          name = 'effects/particles/window/diamond_glass_stand_b'
+          parent = object( 'e_spawner_01' )
+          position = v()
+        [5] body
+          enabled = False
+          name =  'window_01' 
+        [6] alert
+        [alert] alert
+        [body] body
+        [effect] effect
+        [object] object
+        [sound] sound
+      [3] body
+        name = 'window_01'
+        [1] endurance
+          bullet = 1
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_01'
+          [run_sequence] run_sequence
+        [2] endurance
+          bullet = 2
+          explosion = 1
+          melee = 0.5
+          [1] run_sequence
+            name = 'destroy_02'
+          [run_sequence] run_sequence
+        [endurance] endurance
+      [body] body
+      [sequence] sequence
+    [unit] unit
+
+==================== survey: node kinds under sequence_manager/unit ====================
+  492 distinct sequence managers, 219 with body sections
+  unit children: sequence×3268, body×995, filter×38, variables×26, trigger×2
+  body children: endurance/run_sequence×4718, endurance×2310

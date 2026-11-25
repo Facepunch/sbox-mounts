@@ -98,6 +98,35 @@ static partial class UnitModel
 	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 		=> BuildCore( database, materials, unit, resourceName, null, null, true );
 
+	/// <summary>
+	/// Runtime geometry after every sequence the mission has run on a placed unit, in order (later toggles win).
+	/// Uses the lenient evaluator: literal object/body toggles apply and unreproducible actions are skipped.
+	/// Null when none of the sequences changes any visibility, in which case the unit should be left as it is.
+	/// </summary>
+	public static Result BuildSequenceState( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, IReadOnlyList<string> sequences )
+	{
+		var unitBytes = database.Find( "unit", unit );
+		string objectPath = unitBytes is null ? null : Xml( unitBytes ).Element( "object" )?.Attribute( "file" );
+		var objectBytes = string.IsNullOrEmpty( objectPath ) ? null : database.Find( "object", objectPath );
+		if ( objectBytes is null || Xml( objectBytes ).Element( "sequence_manager" )?.Attribute( "file" ) is not string sequencePath
+			|| database.Find( "sequence_manager", sequencePath ) is not { } bytes ) return null;
+		var root = ScriptData.Read( bytes );
+		var obj = Xml( objectBytes );
+		// UnitGeometry rejects the whole override set if any name is unknown; lenient sequences can name decals,
+		// effects or bodies this object doesn't have, so keep only real graphics objects and bodies.
+		var graphics = UnitGeometry.GraphicsObjects( obj ).Select( e => e.Attribute( "name" ) ).ToHashSet();
+		var bodies = (obj.Element( "bodies" )?.Elements( "body" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
+		var merged = new SequenceVisibility();
+		foreach ( var sequence in sequences )
+			if ( SequenceVisibility.Read( root, sequence, lenient: true ) is { } state )
+			{
+				foreach ( var (name, enabled) in state.Objects ) if ( graphics.Contains( name ) ) merged.Objects[name] = enabled;
+				foreach ( var (name, enabled) in state.Bodies ) if ( bodies.Contains( name ) ) merged.Bodies[name] = enabled;
+			}
+		if ( merged.Objects.Count + merged.Bodies.Count == 0 ) return null;
+		return BuildCore( database, materials, unit, resourceName, materialVariation, null, false, runtimeVisibility: merged );
+	}
+
 	static Result BuildApartmentDoor( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string variation )
 	{
 		string side = variation.EndsWith( "_in" ) ? "in" : "out";
@@ -120,7 +149,7 @@ static partial class UnitModel
 		return result with { DoorPivot = closed.Position, DoorSwingAngle = angle, DoorOpenAngle = variation.StartsWith( "open_" ) ? angle : 0 };
 	}
 
-	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false, bool? bankTrimFrame = null )
+	static Result BuildCore( BundleDatabase database, MapMaterials materials, string unit, string resourceName, string materialVariation, string meshVariation, bool browser, HashSet<ulong> parts = null, bool excludeParts = false, bool? bankTrimFrame = null, SequenceVisibility runtimeVisibility = null )
 	{
 		var unitBytes = database.Find( "unit", unit );
 		if ( unitBytes is null ) return null;
@@ -130,8 +159,9 @@ static partial class UnitModel
 		var objectBytes = database.Find( "object", objectPath );
 		if ( objectBytes is null ) return null;
 		var obj = Xml( objectBytes );
-		SequenceVisibility visibility = null;
-		if ( bankTrimFrame.HasValue )
+		SequenceVisibility visibility = runtimeVisibility;
+		if ( runtimeVisibility is not null ) { }
+		else if ( bankTrimFrame.HasValue )
 		{
 			visibility = new SequenceVisibility();
 			visibility.Objects["g_bank_door_toilet_wall"] = true;

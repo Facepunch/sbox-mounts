@@ -172,7 +172,14 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		var trace = Scene.Trace.Ray( player.EyePosition, center ).IgnoreGameObjectHierarchy( player.GameObject ).WithoutTags( "trigger" ).Run();
 		if ( trace.Hit && !PaydayInteraction.BelongsTo( trace.GameObject, GameObject ) ) return;
 		if ( Open ) SetOpen( false );
-		else OpenAway( player.GameObject );
+		else
+		{
+			OpenAway( player.GameObject );
+			// Missions listen for "open" (elevator/fence doors) and "open_out" (apartment doors); which way PDTH
+			// names a given swing isn't known, so all opening names are reported.
+			foreach ( var sequence in new[] { "open", "open_out", "open_in" } )
+				PaydayMission.SequenceRan( GameObject, sequence, player.GameObject );
+		}
 	}
 
 	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) =>

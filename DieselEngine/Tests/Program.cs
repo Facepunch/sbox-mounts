@@ -2,13 +2,21 @@ using Diesel;
 using System.Text;
 
 // Integration verification against a locally installed game; no game data is copied into this repository.
-if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission")) || args.Length > 4 )
-	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt]]" );
+if ( args.Length < 1 || (args.Length > 1 && args[1] is not ("--dump-sun" or "--dump-underlay" or "--dump-sky" or "--dump-brush" or "--dump-env" or "--dump-mission" or "--dump-sequence")) || args.Length > 4 )
+	throw new ArgumentException( "Usage: Diesel.Verify <PAYDAY The Heist install directory> [--dump-sun|--dump-underlay [output.txt] | --dump-sky|--dump-brush|--dump-env|--dump-mission [level] [output.txt] | --dump-sequence [units] [output.txt]]" );
 string root = args[0];
 var db = new BundleDatabase( p => File.OpenRead( Path.Combine( root, p ) ),
 	Directory.EnumerateFiles( Path.Combine( root, "assets" ), "*_h.bundle" ).Select( p => Path.GetRelativePath( root, p ).Replace( '\\', '/' ) ) );
 if ( args.Length > 1 )
 {
+	if ( args[1] == "--dump-sequence" )
+	{
+		string wantedUnits = args.Length > 2 ? args[2] : "bank_window_large,diamondheist_rooftop_window,slaughterhouse_glass_tall,hanging_lightbulb,diamond_stand";
+		string sequenceOutput = args.Length > 3 ? args[3] : "sequence_dump.txt";
+		using ( var sequenceWriter = new StreamWriter( sequenceOutput ) ) SequenceDump.Run( db, wantedUnits, sequenceWriter );
+		Console.WriteLine( $"Wrote {Path.GetFullPath( sequenceOutput )}" );
+		return;
+	}
 	if ( args[1] == "--dump-mission" )
 	{
 		string level = args.Length > 2 ? args[2] : "bank";
@@ -331,16 +339,43 @@ if ( skyGeometry.UVs[zenithIndex].y > -0.9f || skyGeometry.UVs.Max( uv => uv.y )
 	throw new Exception( "g_sky no longer maps V to dome height." );
 Console.WriteLine( "PASS: nine underlay sky gradients and g_sky height mapping." );
 // Mission scripts: every level parses, startup scripts exist, and mission-referenced unit ids resolve to placements.
+var sequenceListeners = new Dictionary<string, (int Count, Dictionary<string, int> Units)>();
+var sequenceVisible = new Dictionary<string, (int Visible, int Total)>();
+var lenientCache = new Dictionary<(string, string), bool>();
+bool LenientChanges( string unitPath, string sequence )
+{
+	if ( lenientCache.TryGetValue( (unitPath, sequence), out var cached ) ) return cached;
+	bool changes = false;
+	try
+	{
+		var unitXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", unitPath ) ) );
+		var objXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", unitXml.Element( "object" ).Attribute( "file" ) ) ) );
+		if ( objXml.Element( "sequence_manager" )?.Attribute( "file" ) is string smPath && db.Find( "sequence_manager", smPath ) is { } smBytes
+			&& SequenceVisibility.Read( ScriptData.Read( smBytes ), sequence, lenient: true ) is { } state )
+		{
+			var graphicsNames = UnitGeometry.GraphicsObjects( objXml ).Select( e => e.Attribute( "name" ) ).ToHashSet();
+			var bodyNames = (objXml.Element( "bodies" )?.Elements( "body" ) ?? []).Select( e => e.Attribute( "name" ) ).ToHashSet();
+			changes = state.Objects.Keys.Any( graphicsNames.Contains ) || state.Bodies.Keys.Any( bodyNames.Contains );
+		}
+	}
+	catch ( Exception ) { }
+	return lenientCache[(unitPath, sequence)] = changes;
+}
 foreach ( var missionMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
 {
 	var mission = MissionData.Read( db, $"levels/{missionMap}" );
 	if ( mission.Elements.Count == 0 ) throw new Exception( $"{missionMap}: no mission elements." );
 	var placedIds = new HashSet<int>();
+	var placedNames = new Dictionary<int, string>();
 	void CollectIds( ScriptTable layer )
 	{
 		foreach ( var category in new[] { "statics", "dynamics" } )
 			foreach ( var entry in layer.Table( category )?.Children ?? [] )
-				if ( entry.Table( "unit_data" )?.GetValueOrDefault( "unit_id" ) is float uid ) placedIds.Add( (int)uid );
+				if ( entry.Table( "unit_data" ) is { } unitData && unitData.GetValueOrDefault( "unit_id" ) is float uid )
+				{
+					placedIds.Add( (int)uid );
+					placedNames[(int)uid] = unitData.Text( "name" ) ?? "?";
+				}
 	}
 	var missionWorld = ScriptData.Read( db.Find( "world", $"levels/{missionMap}/world" ) );
 	CollectIds( missionWorld );
@@ -356,9 +391,75 @@ foreach ( var missionMap in new[] { "apartment", "bank", "bridge", "diamondheist
 		+ $"default={mission.Scripts.Any( s => s.Name == "default" )}, {mission.Elements.Count} elements, "
 		+ $"{startup.Sum( s => s.Elements.Count( e => e.ExecuteOnStartup ) )} startup elements, {dangling} dangling links, "
 		+ $"units {resolved}/{referenced.Count} resolved ({placedIds.Count} placements carry unit_id)" );
+	foreach ( var trigger in mission.Elements.Values.Where( e => e.Class == "ElementUnitSequenceTrigger" ) )
+		foreach ( var entry in trigger.Values.Table( "sequence_list" )?.Children ?? [] )
+			if ( entry.Text( "sequence" ) is { Length: > 0 } listened )
+			{
+				if ( !sequenceListeners.TryGetValue( listened, out var stats ) ) sequenceListeners[listened] = stats = (0, new Dictionary<string, int>());
+				string unitName = entry.GetValueOrDefault( "unit_id" ) is float lid && placedNames.TryGetValue( (int)lid, out var placedUnitName ) ? placedUnitName[(placedUnitName.LastIndexOf( '/' ) + 1)..] : "unresolved";
+				stats.Units[unitName] = stats.Units.GetValueOrDefault( unitName ) + 1;
+				sequenceListeners[listened] = (stats.Count + 1, stats.Units);
+				// Would the runtime's lenient evaluator change this unit's visible geometry for this sequence?
+				bool visible = false;
+				if ( entry.GetValueOrDefault( "unit_id" ) is float vid && placedNames.TryGetValue( (int)vid, out var fullUnit ) )
+					visible = LenientChanges( fullUnit, listened );
+				var tally = sequenceVisible.GetValueOrDefault( listened );
+				sequenceVisible[listened] = (tally.Visible + (visible ? 1 : 0), tally.Total + 1);
+			}
 	if ( startup.Count == 0 ) throw new Exception( $"{missionMap}: no mission script would start (no activate_on_parsed and no 'default')." );
 	if ( referenced.Count > 0 && resolved < referenced.Count * 0.9f ) throw new Exception( $"{missionMap}: only {resolved}/{referenced.Count} mission units resolve to placements." );
 }
+Console.WriteLine( "  sequences listened for by ElementUnitSequenceTrigger (count: top units):" );
+foreach ( var (listened, stats) in sequenceListeners.OrderByDescending( s => s.Value.Count ).Take( 40 ) )
+	Console.WriteLine( $"    {listened} ×{stats.Count} (visible change {sequenceVisible.GetValueOrDefault( listened ).Visible}/{sequenceVisible.GetValueOrDefault( listened ).Total}): {string.Join( ", ", stats.Units.OrderByDescending( u => u.Value ).Take( 6 ).Select( u => $"{u.Key}×{u.Value}" ) )}" );
+// Unit damage rules (sequence-manager body endurance), checked against the dumped Bank large window.
+UnitEndurance EnduranceOf( string unitPath )
+{
+	var unitXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", unitPath ) ) );
+	var objXml = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", unitXml.Element( "object" ).Attribute( "file" ) ) ) );
+	return objXml.Element( "sequence_manager" )?.Attribute( "file" ) is string managerPath && db.Find( "sequence_manager", managerPath ) is { } managerBytes
+		? UnitEndurance.Read( ScriptData.Read( managerBytes ), objXml ) : null;
+}
+var bankWindow = EnduranceOf( "units/world/architecture/bank/bank_window/bank_window_large" ) ?? throw new Exception( "Bank window endurance missing." );
+var windowStages = bankWindow.Bodies.GetValueOrDefault( "window3" );
+if ( windowStages is not { Count: 2 } || windowStages[0].Thresholds["bullet"] != 1 || windowStages[1].Thresholds["bullet"] != 2
+	|| windowStages[0].Sequences.Single() != "destroy_01" || windowStages[1].Sequences.Single() != "destroy_02"
+	|| !bankWindow.DefaultEnabledBodies.Contains( "window3" ) || bankWindow.BodyToggles( "destroy_02" ).GetValueOrDefault( "window3", true ) )
+	throw new Exception( "Bank window endurance stages/body toggles regressed." );
+var rooftop = EnduranceOf( "units/world/architecture/diamondheist/windows/diamondheist_rooftop_window" );
+if ( rooftop is null || rooftop.DefaultEnabledBodies.Contains( "dmg_01" ) || rooftop.BodyToggles( "destroy_01" ).GetValueOrDefault( "dmg_01" ) != true )
+	throw new Exception( "Rooftop window body hand-off (window_vault -> dmg_01/dmg_02) regressed." );
+int breakablePlacements = 0, enduranceUnits = 0;
+var enduranceByUnit = new Dictionary<string, bool>();
+foreach ( var breakMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
+{
+	int mapBreakables = 0;
+	void CountBreakables( ScriptTable layer )
+	{
+		foreach ( var category in new[] { "statics", "dynamics" } )
+			foreach ( var entry in layer.Table( category )?.Children ?? [] )
+				if ( entry.Table( "unit_data" )?.Text( "name" ) is { } placedUnit )
+				{
+					if ( !enduranceByUnit.TryGetValue( placedUnit, out bool has ) )
+					{
+						try { has = EnduranceOf( placedUnit ) is not null; } catch ( Exception ) { has = false; }
+						enduranceByUnit[placedUnit] = has;
+						if ( has ) enduranceUnits++;
+					}
+					if ( has ) mapBreakables++;
+				}
+	}
+	var breakWorld = ScriptData.Read( db.Find( "world", $"levels/{breakMap}/world" ) );
+	CountBreakables( breakWorld );
+	if ( breakWorld.Table( "world_data" )?.Text( "continents_file" ) is { } breakContinents && db.Find( "continents", $"levels/{breakMap}/{breakContinents}" ) is { } breakBytes )
+		foreach ( var (breakContinentName, breakValue) in ScriptData.Read( breakBytes ) )
+			if ( breakValue is ScriptTable breakContinent && !breakContinent.Flag( "editor_only" ) && breakContinent.Flag( "enabled", true )
+				&& db.Find( "continent", $"levels/{breakMap}/{breakContinentName}/{breakContinentName}" ) is { } breakLayerBytes )
+				CountBreakables( ScriptData.Read( breakLayerBytes ) );
+	breakablePlacements += mapBreakables;
+	Console.WriteLine( $"  {breakMap}: {mapBreakables} breakable placements" );
+}
+Console.WriteLine( $"PASS: unit endurance rules (Bank window stages, rooftop body hand-off); {enduranceUnits} placed unit types, {breakablePlacements} breakable placements." );
 var unmappedSpawns = new SortedSet<string>();
 foreach ( var spawnMap in new[] { "apartment", "bank", "bridge", "diamondheist", "l4d", "secret_stash", "slaughterhouse", "street", "suburbia" } )
 	foreach ( var spawn in MissionData.Read( db, $"levels/{spawnMap}" ).Elements.Values.Where( e => e.Class is "ElementSpawnCivilian" or "ElementSpawnEnemyDummy" ) )

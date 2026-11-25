@@ -22,6 +22,33 @@ public sealed class PaydayMount : BaseGameMount
 	internal Dictionary<string, PaydayCharacter> Characters { get; } = [];
 	/// <summary>Unit path for each unit IdString in the installed lookup.</summary>
 	internal Dictionary<ulong, string> UnitNames { get; } = [];
+
+	readonly Dictionary<string, UnitEndurance> endurance = new( StringComparer.Ordinal );
+	MapMaterials runtimeMaterials;
+
+	/// <summary>Materials for geometry rebuilt at runtime (breakables, mission sequences), shared across maps.</summary>
+	internal MapMaterials RuntimeMaterials => runtimeMaterials ??= new MapMaterials( Database, "runtime" );
+
+	/// <summary>A unit's damage rules (sequence-manager body endurance), or null if it has none. Cached per unit.</summary>
+	internal UnitEndurance GetEndurance( string unit )
+	{
+		if ( string.IsNullOrEmpty( unit ) || Database is null ) return null;
+		if ( endurance.TryGetValue( unit, out var cached ) ) return cached;
+		UnitEndurance result = null;
+		try
+		{
+			if ( Database.Find( "unit", unit ) is { } unitBytes
+				&& XmlNode.Parse( Encoding.UTF8.GetString( unitBytes ) ).Element( "object" )?.Attribute( "file" ) is { } objectPath
+				&& Database.Find( "object", objectPath ) is { } objectBytes )
+			{
+				var obj = XmlNode.Parse( Encoding.UTF8.GetString( objectBytes ) );
+				if ( obj.Element( "sequence_manager" )?.Attribute( "file" ) is { } managerPath && Database.Find( "sequence_manager", managerPath ) is { } managerBytes )
+					result = UnitEndurance.Read( ScriptData.Read( managerBytes ), obj );
+			}
+		}
+		catch ( Exception e ) { Log.Warning( $"PAYDAY endurance {unit}: {e.Message}" ); }
+		return endurance[unit] = result;
+	}
 	internal MapMaterials BrowserMaterials => browserMaterials ??= new MapMaterials( Database, "browser" );
 
 	protected override void Initialize( InitializeContext context )
@@ -131,6 +158,8 @@ public sealed class PaydayMount : BaseGameMount
 		browserMaterials = null;
 		Characters.Clear();
 		UnitNames.Clear();
+		endurance.Clear();
+		runtimeMaterials = null;
 		Database = null;
 	}
 }

@@ -34,7 +34,8 @@ public sealed class PaydayMission : Component
 	readonly Dictionary<int, List<PaydayMissionUnit>> units = [];
 	readonly Dictionary<MissionData.Element, (float Next, HashSet<GameObject> Inside)> areas = [];
 	readonly Dictionary<string, PrefabFile> prefabs = [];
-	MapMaterials materials;
+	/// <summary>ElementUnitSequenceTrigger ids listening for (unit_id, sequence).</summary>
+	readonly Dictionary<(int Unit, string Sequence), List<int>> sequenceTriggers = [];
 	PaydayMount mount;
 	bool loaded, started;
 	string loadProblem = "OnLoad has not run";
@@ -70,6 +71,20 @@ public sealed class PaydayMission : Component
 			+ $"{spawners.Count( e => activeScripts.Contains( e.Script ) && e.ExecuteOnStartup )} run at startup; prefabs loaded: "
 			+ string.Join( ", ", prefabs.Select( p => $"{p.Key}={(p.Value is null ? "FAILED" : "ok")}" ) ) );
 		Log.Info( $"  spawns: {(spawnLog.Count == 0 ? "none attempted" : string.Join( " | ", spawnLog.TakeLast( 10 ) ))}" );
+		var interactive = units.Keys.Select( u => (Unit: u, Sequence: InteractionFor( u )) ).Where( u => u.Sequence is not null ).ToList();
+		var endurance = Scene.GetAllComponents<PaydayMissionUnit>().Where( u => u.Breakable ).ToList();
+		Log.Info( $"  breakable by unit damage rules: {endurance.Count} placements ({string.Join( ", ", endurance.GroupBy( u => u.Unit[(u.Unit.LastIndexOf( '/' ) + 1)..] ).OrderByDescending( g => g.Count() ).Take( 8 ).Select( g => $"{g.Key}×{g.Count()}" ) )}); endurance stages run: {PaydayMissionUnit.BrokenStages}" );
+		var breakable = units.Keys.Where( u => u != 0 && (DamageSequenceFor( u, true ) is not null || DamageSequenceFor( u, false ) is not null) ).ToList();
+		Log.Info( $"  mission-only damage units: {breakable.Count} units ({string.Join( ", ", breakable.Select( u => units[u].FirstOrDefault()?.Unit ).Where( n => n is not null ).Select( n => n[(n.LastIndexOf( '/' ) + 1)..] ).GroupBy( n => n ).Select( g => $"{g.Key}×{g.Count()}" ).Take( 8 ) )}); damage sequences run: {damageRun.Count}" );
+		foreach ( int unit in breakable.Take( 6 ) )
+			if ( units[unit].FirstOrDefault() is { } marker && marker.IsValid() )
+				Log.Info( $"    breakable: {marker.Unit} at {marker.WorldPosition}" );
+		Log.Info( $"  recent unit sequences: {(sequenceLog.Count == 0 ? "none" : string.Join( ", ", sequenceLog ))}" );
+		Log.Info( $"  usable now (E): {interactive.Count} units ({string.Join( ", ", interactive.GroupBy( u => u.Sequence ).Select( g => $"{g.Key}×{g.Count()}" ) )}); "
+			+ $"devices running: {runningDevices.Count}; sequence triggers indexed: {sequenceTriggers.Count}" );
+		foreach ( var (unit, sequence) in interactive.Take( 8 ) )
+			if ( units.GetValueOrDefault( unit )?.FirstOrDefault() is { } marker && marker.IsValid() )
+				Log.Info( $"    {sequence}: {marker.Unit} at {marker.WorldPosition}" );
 		Log.Info( $"  last executed: {(recent.Count == 0 ? "none" : string.Join( " -> ", recent ))}" );
 	}
 
@@ -84,7 +99,17 @@ public sealed class PaydayMission : Component
 		catch ( Exception e ) { loadProblem = e.Message; Log.Warning( $"PAYDAY mission {Level}: {e.Message}" ); return; }
 		Log.Info( $"PAYDAY mission {Level}: loaded {data.Elements.Count} elements; starting on the next fixed update." );
 		foreach ( var element in data.Elements.Values )
+		{
 			states[element.Id] = new State { Enabled = element.Enabled, Remaining = element.TriggerTimes, Counter = (int)element.Number( "counter_target" ) };
+			if ( element.Class != "ElementUnitSequenceTrigger" ) continue;
+			foreach ( var entry in element.Values.Table( "sequence_list" )?.Children ?? [] )
+				if ( entry.GetValueOrDefault( "unit_id" ) is float unit && entry.Text( "sequence" ) is { Length: > 0 } sequence )
+				{
+					var key = ((int)unit, sequence);
+					if ( !sequenceTriggers.TryGetValue( key, out var list ) ) sequenceTriggers[key] = list = [];
+					list.Add( element.Id );
+				}
+		}
 		// Spawn prefabs load asynchronously; resolve every roster entry the mission can ask for up front.
 		foreach ( var element in data.Elements.Values.Where( e => e.Class is "ElementSpawnCivilian" or "ElementSpawnEnemyDummy" ) )
 			if ( NpcDefinition.ForUnit( element.Text( "enemy" ) ) is { } npc && !prefabs.ContainsKey( npc.Prefab ) )
@@ -133,6 +158,14 @@ public sealed class PaydayMission : Component
 			var (_, id, instigator) = queue[i];
 			queue.RemoveAt( i-- );
 			Run( id, instigator );
+		}
+		for ( int i = 0; i < pendingSequences.Count; i++ )
+		{
+			if ( pendingSequences[i].Time > now ) continue;
+			var (_, unit, sequence, by) = pendingSequences[i];
+			pendingSequences.RemoveAt( i-- );
+			runningDevices.Remove( unit );
+			RunSequence( unit, sequence, 0, by );
 		}
 		UpdateAreas( now );
 	}
@@ -219,6 +252,7 @@ public sealed class PaydayMission : Component
 			}
 			// Handled elsewhere or meaningless in the sandbox: area triggers fire from UpdateAreas, flee points are
 			// imported at build time, the sandbox owns player spawning/state, and difficulty is fixed.
+			case "ElementUnitSequenceTrigger": // fired by NotifySequence; executing it just passes on.
 			case "ElementAreaTrigger":
 			case "ElementFleePoint":
 			case "ElementPlayerSpawner":
@@ -251,28 +285,104 @@ public sealed class PaydayMission : Component
 			&& filter.Flag( $"player_{players}", true );
 	}
 
-	void RunSequence( int unitId, string sequence, float delay )
+	/// <summary>
+	/// A unit ran a sequence (mission-driven, door use, interaction): fire every ElementUnitSequenceTrigger
+	/// listening for that unit and sequence, if its script is active. Host only.
+	/// </summary>
+	public static void SequenceRan( GameObject unitObject, string sequence, GameObject instigator )
 	{
+		if ( !Networking.IsHost || !unitObject.IsValid() || string.IsNullOrEmpty( sequence ) ) return;
+		if ( unitObject.Components.Get<PaydayMissionUnit>( FindMode.EverythingInSelfAndAncestors ) is not { } marker ) return;
+		foreach ( var mission in unitObject.Scene.GetAllComponents<PaydayMission>() )
+			mission.NotifySequence( marker.Id, sequence, instigator );
+	}
+
+	[ConVar( "payday_mission_device_time", Help = "Seconds a mission saw/drill/hack runs after first_interact before timer_done (PDTH timers are minutes long)." )]
+	public static float DeviceTime { get; set; } = 15;
+
+	/// <summary>Sequences a player triggers by pressing E on the unit, in priority order.</summary>
+	static readonly string[] PressSequences = ["interact", "first_interact", "done_crowbar"];
+
+	readonly List<(float Time, int Unit, string Sequence, GameObject Instigator)> pendingSequences = [];
+	readonly HashSet<int> runningDevices = [];
+
+	/// <summary>True if an active, enabled trigger is waiting for this unit to run this sequence.</summary>
+	internal bool Awaits( int unitId, string sequence ) =>
+		started && sequenceTriggers.TryGetValue( (unitId, sequence), out var triggers )
+		&& triggers.Any( t => states[t].Enabled && activeScripts.Contains( data.Elements[t].Script ) );
+
+	/// <summary>The press interaction the mission currently offers on a unit, or null. Host only (clients have no mission state yet).</summary>
+	internal string InteractionFor( int unitId ) =>
+		runningDevices.Contains( unitId ) ? null : PressSequences.FirstOrDefault( s => Awaits( unitId, s ) );
+
+	/// <summary>
+	/// Damage-driven sequence names the mission listens for (verifier, nine maps): destroy_* (diamond stands, windows,
+	/// corridor glass, planks), kill_* (bulbs, tall glass), hit (melee boxes), dst/broken_* (bulbs), release_vent (vents),
+	/// and shot_with_m79 (explosive-only wall holes). Earlier entries win; one sequence runs per hit.
+	/// </summary>
+	static int DamagePriority( string sequence ) => sequence switch
+	{
+		_ when sequence.StartsWith( "kill_", StringComparison.Ordinal ) => 0,
+		_ when sequence.StartsWith( "destroy", StringComparison.Ordinal ) => 1,
+		"hit" => 2,
+		"dst" => 3,
+		_ when sequence.StartsWith( "broken", StringComparison.Ordinal ) => 4,
+		"release_vent" => 5,
+		"shot_with_m79" => 6,
+		_ => -1,
+	};
+
+	readonly HashSet<(int Unit, string Sequence)> damageRun = [];
+	readonly List<string> sequenceLog = [];
+
+	/// <summary>The damage sequence a hit should run on this unit now, or null.</summary>
+	internal string DamageSequenceFor( int unitId, bool explosion )
+	{
+		// Breaking is unconditional, as in the game: any damage sequence the mission listens for on this unit runs on
+		// a hit. Whether the mission reacts is decided per trigger (enabled, script active) in NotifySequence.
+		if ( !started ) return null;
+		var awaited = sequenceTriggers.Keys
+			.Where( k => k.Unit == unitId && DamagePriority( k.Sequence ) >= 0 && !damageRun.Contains( k ) )
+			.Select( k => k.Sequence ).ToList();
+		if ( explosion && awaited.Contains( "shot_with_m79" ) ) return "shot_with_m79";
+		return awaited.Where( s => s != "shot_with_m79" )
+			.OrderBy( DamagePriority ).ThenBy( s => s, StringComparer.Ordinal ).FirstOrDefault();
+	}
+
+	internal void Damage( int unitId, bool explosion, GameObject attacker )
+	{
+		if ( DamageSequenceFor( unitId, explosion ) is not { } sequence ) return;
+		damageRun.Add( (unitId, sequence) );
+		RunSequence( unitId, sequence, 0, attacker );
+	}
+
+	internal void Interact( int unitId, GameObject instigator )
+	{
+		if ( InteractionFor( unitId ) is not { } sequence ) return;
+		RunSequence( unitId, sequence, 0, instigator );
+		if ( sequence == "first_interact" && sequenceTriggers.Keys.Any( k => k.Unit == unitId && k.Sequence == "timer_done" ) )
+		{
+			runningDevices.Add( unitId );
+			pendingSequences.Add( (Time.Now + MathF.Max( 0, DeviceTime ), unitId, "timer_done", instigator) );
+		}
+	}
+
+	void NotifySequence( int unitId, string sequence, GameObject instigator )
+	{
+		if ( !started || !sequenceTriggers.TryGetValue( (unitId, sequence), out var triggers ) ) return;
+		foreach ( int trigger in triggers )
+			if ( activeScripts.Contains( data.Elements[trigger].Script ) ) Execute( trigger, instigator );
+	}
+
+	void RunSequence( int unitId, string sequence, float delay, GameObject instigator = null )
+	{
+		NotifySequence( unitId, sequence, instigator );
 		foreach ( var marker in units.GetValueOrDefault( unitId ) ?? [] )
 		{
 			if ( !marker.IsValid() ) continue;
-			marker.Sequence = sequence;
-			materials ??= new MapMaterials( mount.Database, $"{Level}/mission" );
-			UnitModel.Result result = null;
-			string variation = marker.MaterialVariation ?? "";
-			try
-			{
-				result = UnitModel.BuildPlaced( mount.Database, materials, marker.Unit,
-					$"mount://payday/{Level}/mission/{IdString.Hash( marker.Unit ):x16}_{IdString.Hash( variation ):x16}_{IdString.Hash( sequence ):x16}.vmdl", variation, sequence );
-			}
-			catch ( Exception e ) { Log.Warning( $"PAYDAY mission sequence {marker.Unit}/{sequence}: {e.Message}" ); }
-			if ( result is null ) continue;
-			var renderer = marker.GetComponent<ModelRenderer>();
-			var collider = marker.GetComponent<ModelCollider>();
-			if ( !result.HasGraphics && !result.HasCollision ) { marker.GameObject.Enabled = false; continue; }
-			marker.GameObject.Enabled = true;
-			if ( renderer.IsValid() ) { renderer.Model = result.Model; renderer.Enabled = result.HasGraphics; }
-			if ( collider.IsValid() ) { collider.Model = result.Model; collider.Enabled = result.HasCollision; }
+			bool visible = marker.ApplySequence( sequence );
+			sequenceLog.Add( $"{marker.Unit[(marker.Unit.LastIndexOf( '/' ) + 1)..]}:{sequence}{(visible ? "" : " (no visible change)")}" );
+			if ( sequenceLog.Count > 10 ) sequenceLog.RemoveAt( 0 );
 		}
 	}
 

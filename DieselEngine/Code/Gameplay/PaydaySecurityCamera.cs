@@ -58,6 +58,8 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 		Health = Math.Max( 0, Health - damage.Damage );
 		if ( Health > 0 ) return;
 		Disabled = true; Detecting = false; suspect = null;
+		// 108 mission triggers wait for cameras' "stop" sequence (camera taken out).
+		PaydayMission.SequenceRan( GameObject, "stop", damage.Attacker );
 	}
 
 	protected override void OnDisabled()
