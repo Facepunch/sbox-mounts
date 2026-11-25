@@ -26,11 +26,26 @@ public class Halo2MaterialLoader( MapFile map, TagEntry tag ) : ResourceLoader<H
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Material;
+		if ( name == "turned_on.vmat" && Shader.PoweredPlasmaAlpha is {} alpha )
+			return new PoweredPlasmaLoader( alpha );
 		if ( !name.EndsWith( ".vmat", StringComparison.OrdinalIgnoreCase ) ||
 			!int.TryParse( name.AsSpan( 0, name.Length - 5 ), out int index ) ||
 			map.GetTag( index ) is not { PrimaryClass: "dpib", DataSize: >= 0xb4 } biped )
 			return null;
 		return new ObjectMaterialLoader( biped );
+	}
+
+	sealed class PoweredPlasmaLoader( float alpha ) : ResourceLoader<Halo2Mount>
+	{
+		protected override object Load()
+		{
+			var source = (Halo2MaterialLoader)Parent;
+			var material = source.Create( Path );
+			var intensity = source.Shader.EffectConstants[4];
+			intensity.w = alpha;
+			material.Set( "g_vConstant4", intensity );
+			return material;
+		}
 	}
 
 	sealed class ObjectMaterialLoader( TagEntry biped ) : ResourceLoader<Halo2Mount>

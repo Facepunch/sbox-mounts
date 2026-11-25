@@ -6,6 +6,8 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }
 
+	protected virtual void ConfigureHeldRenderer( SkinnedModelRenderer renderer, bool firstPerson ) { }
+
 	internal virtual string RestAction => "idle";
 
 	protected override void CreateWorldModel()
@@ -25,6 +27,7 @@ public abstract class HandheldWeapon : Weapon
 		WorldModel.LocalTransform = global::Transform.Zero;
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = world;
+		ConfigureHeldRenderer( renderer, false );
 		renderer.CreateAttachments = true;
 		var model = WorldModel.AddComponent<BaseWeaponModel>();
 		model.Renderer = renderer;
@@ -63,6 +66,7 @@ public abstract class HandheldWeapon : Weapon
 		arms.RenderOptions.Overlay = true;
 		var gun = new GameObject( view, true, DisplayName ).AddComponent<SkinnedModelRenderer>();
 		gun.Model = Model.Load( elite ? EliteModel : SpartanModel );
+		ConfigureHeldRenderer( gun, true );
 		gun.CreateAttachments = true;
 		gun.BoneMergeTarget = arms;
 		gun.RenderOptions.Game = false;

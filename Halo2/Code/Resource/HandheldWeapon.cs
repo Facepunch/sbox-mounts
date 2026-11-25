@@ -39,7 +39,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		{
 			Game.ActiveScene.Enabled = false;
 			var root = new GameObject( true, title );
-			var item = HasBarrel ? CreateFirearm( root, world ) : ConfigurePickup<EnergySword>( root, world, title );
+			var item = HasBarrel ? CreateFirearm( root, world ) : CreateSword( root, world );
 			item.HoldType = hold;
 			item.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
 			int models = Block( Header + 0x2a8 );
@@ -50,6 +50,29 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			item.DeployTime = Float( Header + 0x13c );
 		}
 		return prefab = builder.Create();
+	}
+
+	EnergySword CreateSword( GameObject root, string world )
+	{
+		var sword = ConfigurePickup<EnergySword>( root, world, title );
+		sword.Powered = Reference( Header + 0x300 ) is { PrimaryClass: "paew" };
+		if ( Reference( Header + 0x140 ) is not { PrimaryClass: "effe" } ready ) return sword;
+
+		int effect = Address( ready );
+		if ( map.ReadInt32( effect + 0x14 ) == 0 ) return sword;
+		int firstEvent = Block( effect + 0x14 );
+		int part = FirstSoundPart( firstEvent );
+		if ( part < 0 ) return sword;
+		int location = Short( part + 4 );
+		if ( (uint)location >= map.ReadInt32( effect + 12 ) ) return sword;
+		string path = Host.AssetPath( map, Reference( part + 12 ).TagPath, "sound" );
+		if ( Host.GetByPath( path ) is Halo2SoundLoader loader )
+		{
+			sword.ReadySound = loader.Cue;
+			sword.ReadySoundDelay = Float( firstEvent + 8 );
+			sword.ReadySoundMarker = map.ResolveStringId( map.ReadInt32( Block( effect + 12 ) + location * 4 ) );
+		}
+		return sword;
 	}
 
 	HandheldWeapon CreateFirearm( GameObject root, string world )

@@ -29,6 +29,7 @@ public class ShaderTag
 	public int GlowBitmap { get; private set; } = -1;
 	public Vector3 GlowColor { get; private set; }
 	public Vector4[] EffectUV { get; private set; }
+	public float? PoweredPlasmaAlpha { get; private set; }
 	public Vector4 PlasmaScroll { get; private set; }
 	public bool AlphaTest { get; private set; }
 	public int DetailBitmapTagIndex { get; private set; } = -1;
@@ -111,7 +112,11 @@ public class ShaderTag
 				};
 				if ( Effect != EffectPass.None )
 				{
-					if ( Effect == EffectPass.Plasma ) PlasmaScroll = ReadPlasmaScroll( map, ppOff );
+					if ( Effect == EffectPass.Plasma )
+					{
+						PlasmaScroll = ReadPlasmaScroll( map, ppOff );
+						PoweredPlasmaAlpha = ReadPoweredPlasmaAlpha( map, ppOff );
+					}
 					EffectMaps = new int[bmpCount];
 					for ( int i = 0; i < bmpCount; i++ ) EffectMaps[i] = Bitmap( i );
 					int count = pp.ReadInt32();
@@ -222,6 +227,25 @@ public class ShaderTag
 	}
 
 	// The two noise layers use periodic sawtooth translations in the compiled overlay table.
+	static float? ReadPoweredPlasmaAlpha( MapFile map, int pp )
+	{
+		// The sixth animated plasma parameter controls the final intensity in constant 4.
+		if ( map.ReadInt32( pp + 0xc ) < 5 || map.ReadInt32( pp + 0x4c ) < 6 ) return null;
+		int parameters = map.VaToOffset( map.ReadInt32( pp + 0x50 ) );
+		using var parameter = map.OpenReader( parameters + 10, 2 );
+		int range = parameter.ReadUInt16();
+		int start = range & 0x1ff;
+		if ( range >> 9 != 1 || start >= map.ReadInt32( pp + 0x44 ) ) return null;
+		int references = map.VaToOffset( map.ReadInt32( pp + 0x48 ) );
+		int index = (ushort)map.ReadInt32( references + 4 * start );
+		if ( index >= map.ReadInt32( pp + 0x3c ) ) return null;
+		int overlay = map.VaToOffset( map.ReadInt32( pp + 0x40 ) ) + 20 * index;
+		if ( map.ResolveStringId( map.ReadInt32( overlay + 4 ) ) != "turned_on" || map.ReadInt32( overlay + 12 ) < 12 ) return null;
+		int curve = map.VaToOffset( map.ReadInt32( overlay + 16 ) );
+		if ( (map.ReadInt32( curve ) & 0xffff) != 0x101 ) return null;
+		return System.BitConverter.Int32BitsToSingle( map.ReadInt32( curve + 8 ) );
+	}
+
 	static Vector4 ReadPlasmaScroll( MapFile map, int pp )
 	{
 		int count = map.ReadInt32( pp + 0x3c );

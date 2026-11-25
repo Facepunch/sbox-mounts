@@ -37,17 +37,19 @@ internal abstract class WeaponLoader( MapFile source, TagEntry tag ) : ResourceL
 		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;
 		int events = Address( effect ) + 20;
 		if ( map.ReadInt32( events ) == 0 ) return null;
-		int parts = Block( events ) + 0x18;
-		int count = map.ReadInt32( parts );
-		if ( count == 0 ) return null;
-		int first = Block( parts );
-		for ( int i = 0; i < count; i++ )
+		int part = FirstSoundPart( Block( events ) );
+		return part < 0 ? null : GameResource.Load<SoundEvent>( Host.AssetPath( map, Reference( part + 12 ).TagPath, "sound" ) );
+	}
+
+	protected int FirstSoundPart( int effectEvent )
+	{
+		int parts = effectEvent + 24;
+		for ( int i = 0, part = Block( parts ); i < map.ReadInt32( parts ); i++, part += 56 )
 		{
-			var tag = Reference( first + i * 0x38 + 0xc );
-			if ( tag?.PrimaryClass == "!dns" && tag.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
-				return GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) );
+			if ( Reference( part + 12 ) is { PrimaryClass: "!dns" } sound && sound.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
+				return part;
 		}
-		return null;
+		return -1;
 	}
 
 	protected Dictionary<string, float> BodyDamageScales( int globals, int effect )
