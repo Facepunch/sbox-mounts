@@ -30,7 +30,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 	internal static void RegisterSounds( MountContext context )
 	{
 		AlienFootsteps.Register( context, "fade" );
-		foreach ( var cue in new[] { "spawn", "swipe", "stab", "swipe_hit_marine", "swipe_hit_marine_glance", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "death" } )
+		foreach ( var cue in new[] { "spawn", "swipe", "stab", "swipe_hit_marine", "swipe_hit_marine_glance", "blink", "blink_end", "blink_loop_3D", "metabolize", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/fade/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -153,7 +153,7 @@ public sealed partial class Fade : BaseNpc, Component.IDamageable
 			nextHeal = 2;
 			if ( underFire <= 0 ) Heal( Math.Clamp( MaxHealth * 0.02f, 1, 20 ) );
 		}
-		if ( wounds.Update() is not null ) PlayCue( "wound" );
+		if ( wounds.Update() is { } cue ) PlayCue( cue );
 		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
 		view = AlienAim.Turn( view, aim, 5 );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );

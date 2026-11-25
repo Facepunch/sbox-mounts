@@ -113,7 +113,8 @@ public class GameMount : BaseGameMount
 		Babbler.RegisterSounds( context );
 		context.Add( ResourceType.GameResource, $"sounds/{Hydra.AttackSound}.sound", new SparkSoundLoader( Hydra.AttackSound ) );
 		Mac.RegisterSounds( context );
-		foreach ( var cue in new[] { Marine.RifleSound, Marine.PistolSound, "marine/rifle/reload", "marine/pistol/reload" } )
+		foreach ( var cue in new[] { Marine.RifleSound, Marine.PistolSound, "marine/rifle/reload", "marine/pistol/reload",
+			"marine/common/wound", "marine/common/wound_serious", "marine/common/spore_wound" } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
 		Exo.RegisterSounds( context );

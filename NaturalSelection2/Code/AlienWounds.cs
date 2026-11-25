@@ -9,6 +9,7 @@ internal sealed class AlienWounds
 	TimeUntil nextFlinch = 0.3f;
 
 	const float Decay = 0.4f;
+	internal const string ExtraFlinch = "ns2_extra_flinch";
 	internal static float Intensity( TimeUntil end ) => Math.Clamp( end.Relative * Decay, 0, 1 );
 
 	internal static (float Armor, TimeUntil End) ApplyFlinch( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, TimeUntil end )
@@ -18,6 +19,9 @@ internal sealed class AlienWounds
 		float armorLost = ratio == 0 ? 0 : Math.Min( armor, healthLost * (0.7f / 0.3f) / ratio );
 		float damage = healthLost + armorLost * ratio;
 		float intensity = Math.Clamp( Intensity( end ) + damage / (maxHealth * 0.2f), 0.2f, 1 );
+		// Spark adds the live weapon's bonus on impact, then caps intensity on the next update.
+		if ( hit.DamageInfo.Tags.Has( ExtraFlinch ) )
+			intensity = Math.Min( intensity + 0.1f, 1 + Decay * Time.Delta );
 		return (armor - armorLost, intensity / Decay);
 	}
 

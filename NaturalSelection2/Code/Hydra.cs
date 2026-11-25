@@ -103,7 +103,11 @@ public sealed class Hydra : AlienStructure
 		var hit = Scene.Trace.Ray( origin, origin + direction * Range ).IgnoreGameObjectHierarchy( GameObject )
 			.WithoutTags( "ns2_hydra", "trigger" ).UseHitboxes().Run();
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is Component victim && GetDisposition( victim.GameObject ) == Disposition.Hostile )
-			((IDamageable)victim).OnDamage( new DamageInfo { Damage = 15, Origin = origin, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject } );
+		{
+			var damage = new DamageInfo { Damage = 15, Origin = origin, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
+			damage.Tags.Add( AlienWounds.ExtraFlinch );
+			((IDamageable)victim).OnDamage( damage );
+		}
 		if ( hit.Hit ) Lerk.ShowSpike( origin, hit.EndPosition );
 		AttackEffect( origin );
 	}

@@ -13,6 +13,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 30;
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 30 ); }
 	float IDamageable.MaxArmour => 30;
+	readonly AlienWounds wounds = new();
+	bool lastHitWasGas;
 	bool wantsFire;
 	Rigidbody body;
 	float fallSpeed;
@@ -231,7 +233,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			nextDodge = 2;
 			Launch( Animation.MoveVelocity.WithZ( MathF.Sqrt( 2 * 21.5f * 1.25f ) * Scale ) );
 			jumping = true;
-			PlayMovementSound( "marine/common/jump" );
+			PlayWorldSound( SurfaceLoader.SoundPath( "marine/common/jump" ) );
 			return;
 		}
 		if ( IsAirborne ) return;
@@ -298,14 +300,14 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 
 		jumping = false;
 		if ( fallSpeed > 5 * Scale )
-			PlayMovementSound( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" );
+			PlayWorldSound( SurfaceLoader.SoundPath( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" ) );
 		fallSpeed = 0;
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMovementSound( string cue )
+	void PlayWorldSound( string path )
 	{
-		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{SurfaceLoader.SoundPath( cue )}" ) is { } sound )
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/{path}" ) is { } sound )
 			Sound.Play( sound, WorldPosition );
 	}
 
@@ -317,6 +319,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		if ( equippedPistol != pistol ) EquipWeapon();
 		if ( Networking.IsHost )
 		{
+			if ( wounds.Update() is { } cue )
+				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
 			trigger = press && deployed && (!pistol || lastShot >= 0.1f);
@@ -433,6 +437,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			{
 				var info = new DamageInfo { Damage = pistol ? 20 : 10, Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
 				info.Tags.Add( "bullet" );
+				info.Tags.Add( AlienWounds.ExtraFlinch );
 				hp.OnDamage( info );
 				combatUntil = 3;
 				lastHit = 0;
@@ -469,8 +474,9 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		if ( hit.AcceptedDamage > 0 ) combatUntil = 3;
-		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
-		if ( ratio > 0 && hit.AcceptedDamage > 0 ) armor = Math.Max( 0, armor - hit.AcceptedDamage * (0.7f / 0.3f) / ratio );
+		if ( hit.AcceptedDamage <= 0 ) return;
+		combatUntil = 3;
+		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );
+		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30 );
 	}
 }
