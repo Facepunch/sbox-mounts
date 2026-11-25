@@ -170,7 +170,8 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost ) UpdateGazeTarget();
 		getUpPoseOffset = GetUpPoseOffset();
 		hasSampledPose = false;
-		if ( GettingUp && recoveryRate > 0f && recoveryStep < 0 ) ReadFirstGetUpPose();
+		if ( GettingUp && recoveryRate > 0f && (Stance == BlockFromGround || recoveryStep < 0) )
+			ReadGetUpPose( Stance == BlockFromGround ? ReactionPhase : 0f );
 		if ( Stance == Roll && playing == Roll ) ReadRollPose();
 		UpdateRollDisplay();
 		UpdatePatrolPose();

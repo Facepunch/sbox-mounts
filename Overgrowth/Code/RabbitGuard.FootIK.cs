@@ -218,6 +218,7 @@ public sealed partial class RabbitGuard
 		bool ledge = pose == LedgeAnimation;
 		string phaseChannel = ledge ? "ledge_phase" : IsGrabClip( pose ) ? "grab_phase" : boundAnimations.AttackStates.Contains( pose ) ? "attack_phase" : "reaction_phase";
 		parameters.TryGetFloat( phaseChannel, out var phase );
+		if ( hasSampledPose && IsGetUp( pose ) ) phase = sampledGetUpPhase;
 		RabbitAttack.Blend blend;
 		if ( IsGrabClip( pose ) ) blend = GrabPose( pose );
 		else if ( boundAnimations.Attacks.TryGetValue( pose, out var attack ) )
