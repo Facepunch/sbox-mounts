@@ -16,7 +16,23 @@ public sealed class AntlionMaker : Component
 	[Property] public bool Spawning { get; set; }
 	[Property] public bool RandomBurrow { get; set; }
 
+	[Property] public bool IgnoreBugbait { get; set; }
+
 	readonly List<CreatureNpc> _children = [];
+	GameObject _leader;
+	Vector3? _fightGoal;
+
+	internal static void OrderSquads( Scene scene, GameObject leader, Vector3? fightGoal )
+	{
+		foreach ( var maker in scene.GetAllComponents<AntlionMaker>() )
+		{
+			if ( maker.IgnoreBugbait ) continue;
+			if ( !fightGoal.HasValue ) maker._leader = leader;
+			maker._fightGoal = fightGoal;
+			foreach ( var child in maker._children )
+				if ( child.IsValid() && child.Health > 0 ) child.SetSquadGoal( maker._leader, fightGoal );
+		}
+	}
 	TimeUntil _nextSpawn;
 	int _skin;
 
@@ -60,6 +76,7 @@ public sealed class AntlionMaker : Component
 		}
 		_skin = (_skin + 1) % 4;
 		if ( npc.Renderer.IsValid() ) npc.Renderer.MaterialGroup = $"Skin {_skin}";
+		npc.SetSquadGoal( _leader, _fightGoal );
 		_children.Add( npc );
 		child.NetworkSpawn();
 		burrow.ReuseDelay = 2;

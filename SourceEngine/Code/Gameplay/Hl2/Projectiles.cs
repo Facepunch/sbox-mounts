@@ -374,6 +374,7 @@ public sealed class Bugbait : Projectile
 		}
 		if ( !BugbaitSensor.Activate( Scene, WorldPosition, Attacker, squeezed: false ) )
 			CreatureNpc.HearBugbait( Scene, WorldPosition, Attacker );
+		AntlionMaker.OrderSquads( Scene, null, WorldPosition );
 		GameObject.Destroy();
 	}
 

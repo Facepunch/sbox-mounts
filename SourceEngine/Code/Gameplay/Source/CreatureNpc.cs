@@ -126,6 +126,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	Rigidbody _body;
 	Vector3 _home;
 	Vector3? _command;
+	Vector3? _squadGoal;
 
 	TimeSince _sinceCommand;
 	TimeSince _lastPath;
@@ -229,6 +230,13 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	{
 		foreach ( var npc in scene.GetAllComponents<CreatureNpc>() )
 			npc.CommandTo( position, thrower );
+	}
+
+	internal void SetSquadGoal( GameObject leader, Vector3? fightGoal )
+	{
+		Leader = leader;
+		_squadGoal = fightGoal;
+		_command = null;
 	}
 
 	public void CommandTo( Vector3 point, GameObject thrower )
@@ -439,14 +447,14 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 				_strikeTarget = null;
 		}
 
-		var goal = target.IsValid() ? target.WorldPosition : _command ?? (Leader.IsValid() ? Leader.WorldPosition : _home);
+		var goal = target.IsValid() ? target.WorldPosition : _command ?? _squadGoal ?? (Leader.IsValid() ? Leader.WorldPosition : _home);
 		var distance = target.IsValid() ? WorldPosition.Distance( target.WorldPosition ) : WorldPosition.Distance( goal );
 		var ranged = HasRangedAttack;
 		var meleeRange = !ranged ? AttackRange : _melee is null ? 0 : Math.Min( AttackRange, MeleeRange );
 		// Approximation of Source's chase between attacks: hostile shooters with a melee attack (antlion workers)
 		// close in, other shooters keep half their range.
 		var engage = ranged && (Friendly || StandOff || _melee is null) ? AttackRange * 0.5f : meleeRange * 0.7f;
-		var stop = target.IsValid() ? engage : Leader.IsValid() && !_command.HasValue ? 110 : 20;
+		var stop = target.IsValid() ? engage : Leader.IsValid() && !_command.HasValue && !_squadGoal.HasValue ? 110 : 20;
 		if ( _command.HasValue && !target.IsValid() && WorldPosition.Distance( _command.Value ) < 80 )
 			_command = null;
 
@@ -460,7 +468,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			else if ( _lastPath > 0.4f )
 			{
 				if ( distance > stop )
-					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue ), target );
+					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue || _squadGoal.HasValue ), target );
 				else
 					Movement?.Stop();
 				_lastPath = 0;

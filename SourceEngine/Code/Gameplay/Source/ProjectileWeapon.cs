@@ -113,7 +113,8 @@ public sealed partial class ProjectileWeapon : Weapon
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
 	void SqueezeEffects()
 	{
-		if ( Networking.IsHost ) Hl2.BugbaitSensor.Activate( Scene, WorldPosition, Attacker, squeezed: true );
+		if ( Networking.IsHost && !Hl2.BugbaitSensor.Activate( Scene, WorldPosition, Attacker, squeezed: true ) )
+			Hl2.AntlionMaker.OrderSquads( Scene, Attacker, null );
 		(WeaponModel as ViewModel)?.OnSqueeze();
 		if ( Sounds.Sound( "Weapon_Bugbait.Splat", MountContent.OfWeapon( this ) ) is { } sound )
 			GameObject.PlaySound( sound );

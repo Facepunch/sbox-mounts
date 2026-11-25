@@ -102,6 +102,8 @@ partial class MapLoader
 			};
 			var maker = point.AddComponent<Hl2.AntlionMaker>();
 			var flags = entity.Integer( "spawnflags" );
+			var ignore = entity.Get( "ignorebugbait" );
+			maker.IgnoreBugbait = ignore == "1" || string.Equals( ignore, "yes", StringComparison.OrdinalIgnoreCase );
 			maker.Group = group;
 			maker.TemplateName = template;
 			var prefab = (child.Integer( "spawnflags" ) & (1 << 18)) != 0 ? "antlion_worker" : "antlion";
