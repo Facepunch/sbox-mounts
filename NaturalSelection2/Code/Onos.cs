@@ -17,6 +17,9 @@ public sealed partial class Onos : BaseNpc
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose AttackPose { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation ViewRotation { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float BodyYaw { get; set; }
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float Stoop { get; set; }
+	bool stooping;
+	TimeUntil nextStoopCheck = 0.3f;
 	float standingYaw, fallSpeed;
 	SparkAnimationGraph.Playback world, weapon;
 	Action<string> weaponTag, worldTag;
@@ -140,11 +143,12 @@ public sealed partial class Onos : BaseNpc
 			float offset = Angles.NormalizeAngle( standingYaw - yaw );
 			BodyYaw = velocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
 			standingYaw = yaw + BodyYaw;
+			UpdateStoop();
 		}
 		output?.Set( "body_yaw", BodyYaw % 90 );
 		output?.Set( "body_pitch", -ViewRotation.Angles().pitch );
 		output?.Set( "move_speed", Shielding ? Math.Clamp( 1 - speedRatio, 0.75f, 1 ) : speedRatio );
-		output?.Set( "stoop", Shielding ? 0.68f : 0f );
+		output?.Set( "stoop", Shielding ? 0.68f : Stoop );
 		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			MathF.Atan2( Vector3.Dot( velocity, ViewRotation.Forward ), Vector3.Dot( velocity, ViewRotation.Left ) ).RadianToDegree() );
 		if ( Networking.IsHost && world is not null )
@@ -174,6 +178,21 @@ public sealed partial class Onos : BaseNpc
 		if ( output is null ) return;
 		MovePose.Write( Locomotion, output, AnimationTime );
 		AttackPose.Write( ActionLayer, output, AnimationTime );
+	}
+
+	void UpdateStoop()
+	{
+		if ( nextStoopCheck <= 0 )
+		{
+			nextStoopCheck = 0.3f;
+			var ahead = ViewRotation.Forward.WithZ( 0 ).Normal * (4 * Scale);
+			bool Blocked( Vector3 start ) => Scene.Trace.Ray( start, start + ahead )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run().Hit;
+			bool overhead = Blocked( WorldPosition + Vector3.Up * (3.3f * Scale) );
+			if ( !stooping && overhead ) stooping = !Blocked( EyePosition );
+			else if ( Stoop >= 1 && !overhead ) stooping = false;
+		}
+		Stoop = Math.Clamp( Stoop + (stooping ? 2 : -2) * Time.Delta, 0, 1 );
 	}
 
 	SkinnedModelRenderer shieldRenderer;
