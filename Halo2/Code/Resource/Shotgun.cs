@@ -432,7 +432,11 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.ClipMaxSize = Short( magazine + 0xa );
 			gun.StartingAmmo = Math.Max( 0, Short( magazine + 6 ) - gun.ClipMaxSize );
 			gun.PrimaryAutomatic = Short( Block( Header + 0x2c8 ) + 6 ) == 0;
-			gun.PrimaryDelay = Float( barrel + 0x20 );
+			gun.BarrelRecoveryTime = Float( barrel + 0x20 );
+			// The barrel enters recovery one tick after firing and accepts the next shot one tick after recovery ends.
+			double interval = (MathF.Floor( gun.BarrelRecoveryTime * 30 ) + 2) / 30.0;
+			// The float cooldown must expire on the boundary even when the nearest float rounds up.
+			gun.PrimaryDelay = (float)interval > interval ? MathF.BitDecrement( (float)interval ) : (float)interval;
 			var rig = (Halo2ModelLoader)Host.GetByPath( gun.ArmsPath );
 			var actions = rig.GetAnimationContext( "any", "any", "any" ).Actions;
 			var worldRig = (Halo2ModelLoader)Host.GetByPath( world );
@@ -462,7 +466,7 @@ internal sealed partial class ShotgunLoader( MapFile map, TagEntry weapon ) : Re
 			gun.MinimumPelletAngle = Float( barrel + 0x70 ).RadianToDegree();
 			ballistics.SpreadBase = Vector2.One * Float( barrel + 0x74 ).RadianToDegree();
 			ballistics.SpreadGrowth = Vector2.One * (Float( barrel + 0x78 ) - Float( barrel + 0x74 )).RadianToDegree();
-			ballistics.SpreadRecovery = gun.PrimaryDelay;
+			ballistics.SpreadRecovery = gun.BarrelRecoveryTime;
 			ballistics.Force = Float( damage + 0x40 ) * 120;
 			ballistics.Radius = 0;
 			gun.Ballistics = ballistics;

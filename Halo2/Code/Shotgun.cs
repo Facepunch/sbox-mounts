@@ -11,6 +11,7 @@ public sealed class Shotgun : Weapon
 	[Property] public CurveRange WorldSmokeRadius { get; set; }
 	[Property] public CurveRange WorldSmokeAlpha { get; set; }
 	[Property] public float ChamberDuration { get; set; } = 0.5f;
+	[Property] public float BarrelRecoveryTime { get; set; } = 1;
 	[Property] public float TurnAcceleration { get; set; } = 27;
 	[Property] public float TurnSpeed { get; set; } = 6;
 	[Property] public float MovementAcceleration { get; set; } = 72;
@@ -757,7 +758,7 @@ public sealed class Shotgun : Weapon
 	protected override void OnHolstered()
 	{
 		triggerConsumed = false;
-		SetNextPrimaryFire( PrimaryDelay );
+		SetNextPrimaryFire( BarrelRecoveryTime );
 		pendingStrike = null;
 		meleeEnds = default;
 		base.OnHolstered();
