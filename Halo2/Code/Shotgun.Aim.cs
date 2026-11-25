@@ -7,6 +7,7 @@ public sealed partial class Shotgun
 	[Property] public float MagnetismRange { get; set; } = 720;
 	[Property] public float MagnetismFriction { get; set; } = 0.6f;
 	[Property] public float MagnetismAdhesion { get; set; } = 0.7f;
+	[Property] public float InconsequentialTargetScale { get; set; } = 0.5f;
 
 	void PlayerController.IEvents.OnEyeAngles( ref Angles angles )
 	{
@@ -66,6 +67,7 @@ public sealed partial class Shotgun
 				float angle = System.MathF.Acos( Vector3.Dot( ray.Forward, direction ).Clamp( -1, 1 ) );
 				float autoAim = Falloff( angle, AutoAimAngle ) * Falloff( distance, AutoAimRange );
 				float magnetism = Falloff( angle, MagnetismAngle ) * Falloff( distance, MagnetismRange );
+				magnetism *= target.MagnetismWeight * (target.Inconsequential ? InconsequentialTargetScale : 1);
 				if ( autoAim == 0 && magnetism == 0 ) continue;
 				if ( autoAim < bestAutoAim || (autoAim == bestAutoAim && magnetism < bestMagnetism) ) continue;
 				if ( autoAim == bestAutoAim && magnetism == bestMagnetism &&

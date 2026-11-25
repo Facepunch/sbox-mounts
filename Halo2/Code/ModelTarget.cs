@@ -8,6 +8,8 @@ public sealed class ModelTarget
 	public string Marker { get; set; }
 	public float Radius { get; set; }
 	public float ConeAngle { get; set; }
+	public float MagnetismWeight { get; set; } = 1;
+	public bool Inconsequential { get; set; }
 	public bool IsWeak { get; set; }
 
 	static readonly ConditionalWeakTable<Model, ModelTarget[]> Targets = new();

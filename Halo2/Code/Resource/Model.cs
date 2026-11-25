@@ -18,14 +18,19 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 {
 	ModelTarget[] ReadTargets()
 	{
-		int id = mapFile.ReadInt32( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0x38 );
+		int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
+		int id = mapFile.ReadInt32( unit + 0x38 );
 		if ( mapFile.GetTag( id & 0xffff ) is not { PrimaryClass: "tmlh", DataSize: >= 0x70 } definition ) return [];
+		int flags = biped.DataSize >= 0xc0 ? mapFile.ReadInt32( unit + 0xbc ) : 0;
+		if ( (flags & (1 << 21)) != 0 ) return []; // Ignored by autoaim.
 		return Rows( mapFile.VaToOffset( (int)definition.DataVirtualAddress ) + 0x68, 28 )
 			.Select( row => new ModelTarget
 			{
 				Marker = Label( row ),
 				Radius = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 4 ) ) * ScaleFactor,
 				ConeAngle = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 8 ) ),
+				MagnetismWeight = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 16 ) ),
+				Inconsequential = (flags & (1 << 19)) != 0,
 				IsWeak = (mapFile.ReadInt32( row + 20 ) & 8) != 0
 			} )
 			.ToArray();
