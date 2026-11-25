@@ -208,6 +208,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			var pistol = ConfigurePickup<PlasmaPistol>( root, world, title );
 			pistol.LatchTicks = (int)MathF.Round( Float( PrimaryTrigger + 16 ) * 30 );
 			pistol.ChargeTicks = (int)MathF.Round( Float( PrimaryTrigger + 28 ) * 30 );
+			pistol.ChargeSound = ReadChargeSound();
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
 			int bolt = Address( Reference( secondary + 0x8c ) );
 			int impact = Address( Reference( bolt + 0x148 ) );
@@ -234,6 +235,23 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.RateRise = Float( barrel + 0xd4 );
 		gun.RateFall = Float( barrel + 0xd8 );
 		return gun;
+	}
+
+	ChargeSoundTrack ReadChargeSound()
+	{
+		for ( int i = 0, row = Block( Header + 0x94 ); i < map.ReadInt32( Header + 0x94 ); i++, row += 24 )
+		{
+			if ( Reference( row ) is not { PrimaryClass: "dnsl", DataSize: > 0 } sound ||
+				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != "primary_charged" ) continue;
+			int tracks = Address( sound ) + 0x24;
+			if ( map.ReadInt32( tracks ) != 1 ) continue;
+			int track = Block( tracks );
+			SoundEvent Cue( int offset ) => Reference( track + offset ) is { PrimaryClass: "!dns" } tag
+				? GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) : null;
+			return new( map.ResolveStringId( map.ReadInt32( row + 8 ) ), Cue( 0x14 ), Cue( 0x1c ),
+				MathF.Pow( 10, Float( track + 8 ) / 20 ), Float( track + 16 ) );
+		}
+		return null;
 	}
 
 	ContrailAppearance ReadTrail( int projectile )

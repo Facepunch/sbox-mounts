@@ -88,8 +88,9 @@ public class BatteryWeapon : HandheldWeapon
 		showingVentExit = false;
 		if ( Venting )
 		{
-			if ( IsProxy ) BeginOwnerVent();
-			else BeginVent();
+			// The charged pistol shot supplies its own vent entry animation.
+			if ( IsProxy ) BeginOwnerVent( discharge is null );
+			else BeginVent( discharge is null );
 		}
 	}
 
@@ -101,13 +102,13 @@ public class BatteryWeapon : HandheldWeapon
 	}
 
 	[Rpc.Owner( NetFlags.HostOnly )]
-	void BeginOwnerVent() => BeginVent();
+	void BeginOwnerVent( bool playEntry ) => BeginVent( playEntry );
 
-	void BeginVent()
+	void BeginVent( bool playEntry )
 	{
 		showingVentExit = false;
 		SetZoom( 0 );
-		ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "overheating" );
+		if ( playEntry ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "overheating" );
 	}
 
 	protected virtual void PresentDischarge() => ShootEffects();
