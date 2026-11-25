@@ -9,6 +9,8 @@ public sealed class AntlionMaker : Component
 	[Property] public string TemplateName { get; set; }
 	[Property] public string ChildPrefab { get; set; }
 	[Property] public string SpawnTarget { get; set; }
+	[Property] public string FollowTarget { get; set; }
+	[Property] public string FightTarget { get; set; }
 	[Property] public float Radius { get; set; }
 	[Property] public float Interval { get; set; }
 	[Property] public int Remaining { get; set; }
@@ -20,17 +22,25 @@ public sealed class AntlionMaker : Component
 
 	readonly List<CreatureNpc> _children = [];
 	GameObject _leader;
+	GameObject _fightTarget;
 	Vector3? _fightGoal;
+	bool _following;
 
 	internal static void OrderSquads( Scene scene, GameObject leader, Vector3? fightGoal )
 	{
 		foreach ( var maker in scene.GetAllComponents<AntlionMaker>() )
 		{
 			if ( maker.IgnoreBugbait ) continue;
-			if ( !fightGoal.HasValue ) maker._leader = leader;
-			maker._fightGoal = fightGoal;
+			maker._following = !fightGoal.HasValue;
+			if ( maker._following )
+				maker._leader = leader;
+			else
+			{
+				maker._fightGoal = fightGoal;
+				maker._fightTarget = null;
+			}
 			foreach ( var child in maker._children )
-				if ( child.IsValid() && child.Health > 0 ) child.SetSquadGoal( maker._leader, fightGoal );
+				if ( child.IsValid() && child.Health > 0 ) maker.ApplyOrder( child );
 		}
 	}
 	TimeUntil _nextSpawn;
@@ -53,8 +63,7 @@ public sealed class AntlionMaker : Component
 		_children.RemoveAll( child => !child.IsValid() || child.Health <= 0 );
 		if ( !NpcConVars.Enabled || (MaxAlive >= 0 && _children.Count >= MaxAlive) ) return;
 
-		var target = SpawnTarget == "!player" ? Scene.GetAllComponents<PlayerController>().FirstOrDefault()?.GameObject
-			: Scene.Directory.FindByName( SpawnTarget ).FirstOrDefault();
+		var target = ResolveTarget( SpawnTarget );
 		var position = target.IsValid() ? target.WorldPosition : WorldPosition;
 		var burrow = ChooseBurrow( position );
 		if ( !burrow.IsValid() ) return;
@@ -76,12 +85,28 @@ public sealed class AntlionMaker : Component
 		}
 		_skin = (_skin + 1) % 4;
 		if ( npc.Renderer.IsValid() ) npc.Renderer.MaterialGroup = $"Skin {_skin}";
-		npc.SetSquadGoal( _leader, _fightGoal );
+		if ( !_leader.IsValid() ) _leader = ResolveTarget( FollowTarget );
+		if ( !_fightGoal.HasValue && !_fightTarget.IsValid() && ResolveTarget( FightTarget ) is { } initialTarget )
+		{
+			_fightTarget = initialTarget;
+			_following = false;
+		}
+		ApplyOrder( npc );
 		_children.Add( npc );
 		child.NetworkSpawn();
 		burrow.ReuseDelay = 2;
 		if ( Remaining > 0 ) Remaining--;
 	}
+
+	GameObject ResolveTarget( string name )
+	{
+		if ( string.IsNullOrEmpty( name ) ) return null;
+		if ( name == "!player" ) return Scene.GetAllComponents<PlayerController>().FirstOrDefault()?.GameObject;
+		return Scene.Directory.FindByName( name ).FirstOrDefault();
+	}
+
+	void ApplyOrder( CreatureNpc npc ) =>
+		npc.SetSquadGoal( _leader, _following ? null : _fightGoal, _following ? null : _fightTarget );
 
 	AntlionBurrow ChooseBurrow( Vector3 target )
 	{

@@ -127,6 +127,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	Vector3 _home;
 	Vector3? _command;
 	Vector3? _squadGoal;
+	GameObject _squadTarget;
 
 	TimeSince _sinceCommand;
 	TimeSince _lastPath;
@@ -232,10 +233,11 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			npc.CommandTo( position, thrower );
 	}
 
-	internal void SetSquadGoal( GameObject leader, Vector3? fightGoal )
+	internal void SetSquadGoal( GameObject leader, Vector3? fightGoal, GameObject fightTarget )
 	{
 		Leader = leader;
 		_squadGoal = fightGoal;
+		_squadTarget = fightTarget;
 		_command = null;
 	}
 
@@ -447,14 +449,15 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 				_strikeTarget = null;
 		}
 
-		var goal = target.IsValid() ? target.WorldPosition : _command ?? _squadGoal ?? (Leader.IsValid() ? Leader.WorldPosition : _home);
+		var squadGoal = _squadTarget.IsValid() ? _squadTarget.WorldPosition : _squadGoal;
+		var goal = target.IsValid() ? target.WorldPosition : _command ?? squadGoal ?? (Leader.IsValid() ? Leader.WorldPosition : _home);
 		var distance = target.IsValid() ? WorldPosition.Distance( target.WorldPosition ) : WorldPosition.Distance( goal );
 		var ranged = HasRangedAttack;
 		var meleeRange = !ranged ? AttackRange : _melee is null ? 0 : Math.Min( AttackRange, MeleeRange );
 		// Approximation of Source's chase between attacks: hostile shooters with a melee attack (antlion workers)
 		// close in, other shooters keep half their range.
 		var engage = ranged && (Friendly || StandOff || _melee is null) ? AttackRange * 0.5f : meleeRange * 0.7f;
-		var stop = target.IsValid() ? engage : Leader.IsValid() && !_command.HasValue && !_squadGoal.HasValue ? 110 : 20;
+		var stop = target.IsValid() ? engage : Leader.IsValid() && !_command.HasValue && !squadGoal.HasValue ? 110 : 20;
 		if ( _command.HasValue && !target.IsValid() && WorldPosition.Distance( _command.Value ) < 80 )
 			_command = null;
 
@@ -468,7 +471,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			else if ( _lastPath > 0.4f )
 			{
 				if ( distance > stop )
-					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue || _squadGoal.HasValue ), target );
+					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue || squadGoal.HasValue ), target );
 				else
 					Movement?.Stop();
 				_lastPath = 0;

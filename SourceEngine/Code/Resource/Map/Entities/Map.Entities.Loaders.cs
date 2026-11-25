@@ -26,6 +26,7 @@ partial class MapLoader
 			"func_door" => new DoorEntityLoader(),
 			"func_door_rotating" => new RotatingDoorEntityLoader(),
 			"func_button" => new ButtonEntityLoader(),
+			"info_target" => new NamedTargetLoader(),
 			"npc_antlion_template_maker" => new AntlionMakerLoader(),
 			"info_node_hint" => new NodeHintLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
@@ -77,6 +78,21 @@ partial class MapLoader
 		builder.Finish();
 	}
 
+	private sealed class NamedTargetLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			if ( entity.Get( "targetname" ) is not { Length: > 0 } name ) return;
+			_ = new GameObject( true, name )
+			{
+				Parent = builder.World,
+				LocalPosition = entity.Vector( "origin" ),
+				LocalRotation = Rotation.From( entity.Angles )
+			};
+		}
+	}
+
 	private sealed class AntlionMakerLoader : EntityLoader
 	{
 		public override bool SupportsSkybox => false;
@@ -108,6 +124,8 @@ partial class MapLoader
 			maker.TemplateName = template;
 			var prefab = (child.Integer( "spawnflags" ) & (1 << 18)) != 0 ? "antlion_worker" : "antlion";
 			maker.ChildPrefab = $"mount://{owner.Host.Ident}/entities/npcs/{prefab}.prefab";
+			maker.FollowTarget = entity.Get( "followtarget" );
+			maker.FightTarget = entity.Get( "fighttarget" );
 			maker.SpawnTarget = entity.Get( "spawntarget", "" );
 			maker.Radius = entity.Number( "spawnradius" );
 			maker.Interval = entity.Number( "SpawnFrequency" );
