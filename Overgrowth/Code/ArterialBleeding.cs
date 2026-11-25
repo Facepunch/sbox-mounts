@@ -51,7 +51,7 @@ internal sealed class ArterialBleeding : Component, Component.INetworkSnapshot
 			{
 				float force = 0.5f + 0.5f * MathF.Sin( (Time.Now - accumulator) * 7f );
 				var drop = mount.EmitBillboard( "Data/Particles/blooddrop.xml", point, velocity + head.Up * (remaining * force * 40f), RabbitGuard.BloodColor );
-				if ( lastDrop.IsValid() ) lastDrop.Connected = drop;
+				if ( lastDrop.IsValid() ) lastDrop.Connect( drop );
 				lastDrop = drop;
 			}
 			remaining = Math.Max( 0f, remaining - Step * 0.5f );

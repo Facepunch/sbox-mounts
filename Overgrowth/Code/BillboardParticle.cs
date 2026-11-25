@@ -6,7 +6,8 @@ public sealed class BillboardParticle : Component
 {
 	internal sealed record Definition( Sprite Sprite, float MinSize, float MaxSize, float MinAlpha, float MaxAlpha,
 		float Expansion, float? Persistence, float Inertia, float Wind, Color Color, float Gravity, float SizeDecay,
-		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent, bool DestroyOnCollision );
+		float OpacityDecay, float OpacityRampTime, DecalDefinition Decal, DecalDefinition WetSurface, float DecalScale, string MaterialEvent, bool DestroyOnCollision,
+		bool VelocityAxis, bool SpeedStretch, bool MinSquash, float SpeedMultiplier );
 
 	Definition definition;
 	ParticleSpriteRenderer renderer;
@@ -15,7 +16,12 @@ public sealed class BillboardParticle : Component
 	Vector3 velocity, position;
 	Color tint;
 	bool collided;
-	internal BillboardParticle Connected { private get; set; }
+	BillboardParticle previousDrop, nextDrop;
+	internal void Connect( BillboardParticle next )
+	{
+		nextDrop = next;
+		next.previousDrop = this;
+	}
 	Vector3? lastConnectedPosition;
 
 	internal static BillboardParticle Emit( Definition definition, Vector3 position, Vector3 velocity, Color tint )
@@ -70,7 +76,8 @@ public sealed class BillboardParticle : Component
 			position += velocity * step;
 			velocity = velocity * definition.Inertia + (Vector3.Down * (392f * definition.Gravity) + Wind( position / 40f, Time.Now - age + simulated ) * (40f * definition.Wind)) * step;
 			angle += step * spin * 0.3f * diameter / SizeAt( simulated );
-			if ( Connected.IsValid() ) lastConnectedPosition = Connected.position;
+			if ( nextDrop.IsValid() ) lastConnectedPosition = nextDrop.position;
+			else if ( previousDrop.IsValid() ) lastConnectedPosition = previousDrop.position;
 			if ( !collided && definition.Decal is not null ) CheckCollision( last, SizeAt( simulated ) );
 			if ( collided && definition.DestroyOnCollision )
 			{
@@ -88,7 +95,7 @@ public sealed class BillboardParticle : Component
 		var camera = Scene.Camera;
 		if ( camera.IsValid() )
 		{
-			var toward = camera.WorldPosition - center;
+			var toward = camera.View.Position - center;
 			float distance = toward.Length;
 			if ( distance > 0f )
 			{
@@ -103,13 +110,13 @@ public sealed class BillboardParticle : Component
 		particle.Angles = new Angles( 0f, 0f, roll );
 		particle.Color = tint.WithAlpha( 1f );
 		particle.Alpha = alpha;
-		if ( Connected.IsValid() && camera.IsValid() )
+		if ( nextDrop.IsValid() && camera.IsValid() )
 		{
 			var start = position + velocity * (age - simulated);
-			var end = Connected.position + Connected.velocity * (Connected.age - Connected.simulated);
+			var end = nextDrop.position + nextDrop.velocity * (nextDrop.age - nextDrop.simulated);
 			var axis = end - start;
 			var midpoint = (start + end) * 0.5f;
-			var facing = axis.Cross( (camera.WorldPosition - midpoint).Cross( axis ) );
+			var facing = axis.Cross( (camera.View.Position - midpoint).Cross( axis ) );
 			if ( !facing.IsNearlyZero() )
 			{
 				renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
@@ -118,6 +125,32 @@ public sealed class BillboardParticle : Component
 				particle.Size = new Vector3( SizeAt( age ), axis.Length * 2f, 1f );
 				return;
 			}
+		}
+		// The earlier drop draws the segment. Its other endpoint has no standalone sprite.
+		if ( nextDrop.IsValid() || previousDrop.IsValid() )
+		{
+			particle.Alpha = 0f;
+			return;
+		}
+		if ( definition.VelocityAxis && camera.IsValid() && !velocity.IsNearlyZero() )
+		{
+			var look = (camera.View.Position - center).Normal;
+			var up = velocity.Normal;
+			float length = definition.SpeedStretch ? 2f * MathF.Sqrt( velocity.Length / 40f ) * definition.SpeedMultiplier : 1f;
+			var side = up - look * up.Dot( look );
+			if ( side.IsNearlyZero() ) side = camera.View.Rotation.Up;
+			if ( definition.MinSquash && length > 0f )
+			{
+				float limit = definition.SpeedStretch ? Math.Clamp( 1f - 0.2f / (length * length), -1f, 1f ) : 0.8f;
+				if ( MathF.Abs( up.Dot( look ) ) > limit )
+					up = look * limit + side.Normal * MathF.Sqrt( 1f - limit * limit );
+			}
+			var normal = look - up * look.Dot( up );
+			if ( normal.IsNearlyZero() ) normal = side;
+			renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
+			particle.Angles = Rotation.LookAt( normal.Normal, up ).Angles();
+			particle.Size = new Vector3( size, size * length, 1f );
+			return;
 		}
 		renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.LookAtCamera;
 	}
@@ -186,6 +219,7 @@ public partial class GameMount
 			var color = xml.Element( "color" );
 			var behavior = xml.Element( "behavior" );
 			var collision = xml.Element( "collision" );
+			var stretch = xml.Element( "stretch" );
 			DecalDefinition decal = null;
 			DecalDefinition wetSurface = null;
 			if ( collision?.Attribute( "decal" ) is { } decalPath )
@@ -202,7 +236,8 @@ public partial class GameMount
 				new Color( color.Number( "red" ) ?? 1f, color.Number( "green" ) ?? 1f, color.Number( "blue" ) ?? 1f ),
 				behavior.Number( "gravity" ) ?? 0f, behavior.Number( "size_decay_rate" ) ?? 0f, behavior.Number( "opacity_decay_rate" ) ?? 0f,
 				behavior.Number( "opacity_ramp_time" ) ?? 0f, decal, wetSurface, collision?.Number( "decal_size_mult" ) ?? 1f, collision?.Attribute( "materialevent" ),
-				(string)collision?.Attribute( "destroy" ) == "true" );
+				collision?.Attribute( "destroy" ) == "true", stretch?.Attribute( "velocity_axis" ) == "true",
+				stretch?.Attribute( "speed_stretch" ) == "true", stretch?.Attribute( "min_squash" ) == "true", stretch?.Number( "speed_mult" ) ?? 1f );
 			billboards.Add( path, definition );
 		}
 		return BillboardParticle.Emit( definition, position, velocity, tint );
