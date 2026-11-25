@@ -265,8 +265,7 @@ public sealed partial class Onos : BaseNpc
 		smashSwing = null;
 		var (hit, victim) = TraceGore();
 		AlienMelee.PlayImpact( hit, gore: true );
-		if ( hit.Hit && hit.GameObject?.GetComponentInParent<Rigidbody>() is { } body && IsLooseProp( body ) )
-			PushProp( body, hit.HitPosition, ViewRotation.Forward * RunSpeed );
+		PushHitProp( hit, ViewRotation.Forward * RunSpeed );
 		if ( victim is null ) return;
 		bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
 		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );

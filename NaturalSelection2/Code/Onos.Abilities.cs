@@ -182,6 +182,12 @@ public sealed partial class Onos
 		}
 	}
 
+	internal void PushHitProp( SceneTraceResult hit, Vector3 velocity )
+	{
+		if ( hit.GameObject?.GetComponentInParent<Rigidbody>() is { } body && IsLooseProp( body ) )
+			PushProp( body, hit.HitPosition, velocity );
+	}
+
 	static bool IsLooseProp( Rigidbody body ) => body.IsValid() && body.MotionEnabled && body.PhysicsBody.IsValid() &&
 		!body.GameObject.Tags.Has( "structure" ) && !body.GetComponentInParent<BaseNpc>().IsValid() &&
 		!body.GetComponentInParent<PlayerController>().IsValid();

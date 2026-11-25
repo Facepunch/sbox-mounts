@@ -93,9 +93,12 @@ public sealed class OnosMovement : NavigationLayer
 
 		// Navigation handles the step below the capsule. Sweep the body above it for walls and doors.
 		var capsule = new Capsule( Vector3.Up * (Agent.Radius + 0.5f * MapLoader.Scale), Vector3.Up * (Agent.Height - Agent.Radius), Agent.Radius );
-		var trace = Scene.Trace.Capsule( capsule ).IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( GameObject.Tags );
+		var trace = Scene.Trace.Capsule( capsule ).IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( GameObject.Tags ).UseHitPosition();
 		var hit = trace.FromTo( start, end ).Run();
 		if ( !hit.Hit || hit.StartedSolid ) return;
+
+		if ( Npc is Onos onos )
+			onos.PushHitProp( hit, Agent.Velocity );
 
 		var slide = Vector3.VectorPlaneProject( end - hit.EndPosition, hit.Normal );
 		var mover = new CharacterControllerHelper( trace, hit.EndPosition + hit.Normal * 0.1f, slide );
