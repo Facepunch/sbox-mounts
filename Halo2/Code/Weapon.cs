@@ -290,13 +290,20 @@ public abstract partial class Weapon : BaseCombatWeapon
 				AttackSound = GameObject.GetPrefab( prefab )?.GetComponent<Weapon>( true )?.AttackSound;
 		}
 		var model = WeaponModel;
-		var sound = SoundEmitter( AttackSoundMarker )?.PlaySound( AttackSound );
-		if ( sound.IsValid() && Holder is PlayerController player && player.Network.IsOwner ) sound.SpacialBlend = 0;
+		PlayFiringSound();
 		model?.OnAttack( shot.Hit || shot.HitPosition != default ? shot.HitPosition : null, shot.Origin );
 		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
-	protected GameObject SoundEmitter( string marker )
+	protected virtual void PlayFiringSound() => PlayFiringSound( AttackSound, AttackSoundMarker );
+
+	protected void PlayFiringSound( SoundEvent cue, string marker )
+	{
+		var sound = EffectMarker( marker )?.PlaySound( cue );
+		if ( sound.IsValid() && Holder is PlayerController player && player.Network.IsOwner ) sound.SpacialBlend = 0;
+	}
+
+	protected GameObject EffectMarker( string marker )
 	{
 		var model = WeaponModel;
 		if ( string.IsNullOrEmpty( marker ) ) return model?.MuzzleGameObject ?? GameObject;

@@ -235,7 +235,49 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.FiringRate = new Vector2( Float( barrel + 4 ), Float( barrel + 8 ) );
 		gun.RateRise = Float( barrel + 0xd4 );
 		gun.RateFall = Float( barrel + 0xd8 );
+		int count = map.ReadInt32( barrel + 0xe4 );
+		if ( count > 1 && (map.ReadInt32( barrel ) & 2) == 0 )
+		{
+			var cues = new FiringCue[count];
+			for ( int i = 0; i < count; i++ )
+			{
+				int row = Block( barrel + 0xe4 ) + i * 52;
+				int repeats = Short( row );
+				if ( repeats <= 0 || repeats != Short( row + 2 ) ) return gun;
+				var sound = FiringSound( barrel, out var marker, i );
+				cues[i] = new( sound, marker, repeats, ReadMuzzleFlash( Reference( row + 4 ) ) );
+			}
+			gun.FiringCues = cues;
+		}
 		return gun;
+	}
+
+	MuzzleFlashDefinition ReadMuzzleFlash( TagEntry effect )
+	{
+		if ( effect is not { DataSize: > 0 } ) return null;
+		int header = Address( effect );
+		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
+		int systems = Block( header + 20 ) + 48;
+		for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
+		{
+			if ( Reference( row ) is not { TagPath: @"effects\generic\energy\flash_c_generic" } particle || map.ReadInt32( row + 48 ) != 1 ) continue;
+			int definition = Address( particle );
+			var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
+			if ( bitmap is null ) return null;
+			int emitter = Block( row + 48 ), color = Block( emitter + 96 );
+			Color Tint( int offset )
+			{
+				int rgb = map.ReadInt32( color + offset );
+				return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
+			}
+			var frame = ReadAnimatedFrames( definition )[0];
+			var pivot = frame.Pivot * frame.InverseSize;
+			string marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
+			return new( marker, Host.AssetPath( map, bitmap.TagPath, "vtex" ) + "/sheet.vtex", Short( definition + 8 ),
+				new Vector2( 1 - pivot.x, pivot.y ), frame.Aspect, Float( Block( emitter + 32 ) + 4 ),
+				ReadRange( emitter + 72, 120 ), ReadRange( emitter + 56, 1 ), ReadRange( definition + 92, 1 ), Tint( 4 ), Tint( 16 ) );
+		}
+		return null;
 	}
 
 	ChargeSoundTrack ReadChargeSound()

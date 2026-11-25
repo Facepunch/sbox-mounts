@@ -32,10 +32,10 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.KickJitter = new Vector2( Float( trigger + 0x84 ), Float( trigger + 0x88 ) ) * 120;
 	}
 
-	protected SoundEvent FiringSound( int barrel, out string marker )
+	protected SoundEvent FiringSound( int barrel, out string marker, int index = 0 )
 	{
 		marker = null;
-		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;
+		if ( index >= map.ReadInt32( barrel + 0xe4 ) || Reference( Block( barrel + 0xe4 ) + index * 52 + 4 ) is not { PrimaryClass: "effe", DataSize: > 0 } effect ) return null;
 		int events = Address( effect ) + 20;
 		if ( map.ReadInt32( events ) == 0 ) return null;
 		int part = FirstSoundPart( Block( events ) );

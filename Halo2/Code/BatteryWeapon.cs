@@ -1,5 +1,7 @@
 namespace Halo2;
 
+public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition Flash );
+
 public class BatteryWeapon : HandheldWeapon
 {
 	[Property] public float HeatPerShot { get; set; }
@@ -15,6 +17,9 @@ public class BatteryWeapon : HandheldWeapon
 	[Property] public float RateRise { get; set; }
 	[Property] public float RateFall { get; set; }
 	float rateFraction;
+	[Property] public FiringCue[] FiringCues { get; set; }
+	int cueIndex;
+	int cueRemaining;
 
 	[Sync( SyncFlags.FromHost )] public float Spent { get; private set; }
 	[Sync( SyncFlags.FromHost )] float ShotHeat { get; set; }
@@ -71,6 +76,16 @@ public class BatteryWeapon : HandheldWeapon
 		float heat = System.MathF.Min( 1, Heat + (discharge?.Heat ?? HeatPerShot) );
 		bool misfire = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold
 			&& (Spent - MisfireThreshold) * MisfireChance / (1 - MisfireThreshold) > BlamRandom.Next( ref BlamRandom.GameplayState( Scene ) ) / 65535.0;
+		if ( discharge is null && FiringCues is { Length: > 0 } cues )
+		{
+			if ( cueRemaining == 0 )
+			{
+				cueIndex = (cueIndex + 1) % cues.Length;
+				cueRemaining = cues[cueIndex].Repeats;
+			}
+			cueRemaining--;
+			if ( !misfire ) PlayBarrelCue( cueIndex );
+		}
 		if ( misfire ) ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "misfire_1" );
 		else if ( discharge is null && Instantaneous ) base.PrimaryAttack();
 		else
@@ -92,6 +107,21 @@ public class BatteryWeapon : HandheldWeapon
 			if ( IsProxy ) BeginOwnerVent( discharge is null );
 			else BeginVent( discharge is null );
 		}
+	}
+
+	protected override void PlayFiringSound()
+	{
+		if ( FiringCues is not { Length: > 0 } ) base.PlayFiringSound();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayBarrelCue( int index )
+	{
+		if ( Application.IsDedicatedServer || FiringCues is null || (uint)index >= FiringCues.Length ) return;
+		var cue = FiringCues[index];
+		PlayFiringSound( cue.Sound, cue.Marker );
+		if ( cue.Flash is {} flash && EffectMarker( flash.Marker ) is {} muzzle )
+			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel );
 	}
 
 	[Rpc.Owner( NetFlags.HostOnly )]

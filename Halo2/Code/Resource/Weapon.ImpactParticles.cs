@@ -191,7 +191,7 @@ internal abstract partial class WeaponLoader
 		return emitters.Any( e => e is not null ) ? emitters : null;
 	}
 
-	AnimatedFrame[] ReadAnimatedFrames( int definition )
+	protected AnimatedFrame[] ReadAnimatedFrames( int definition )
 	{
 		int shader = Block( definition + 140 );
 		var bitmap = map.GetTag( map.ReadInt32( Block( shader + 4 ) ) & 0xffff );

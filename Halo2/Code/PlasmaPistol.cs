@@ -53,7 +53,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	void PlayChargedShot()
 	{
 		if ( Application.IsDedicatedServer ) return;
-		SoundEmitter( ChargedShot.SoundMarker )?.PlaySound( ChargedShot.Sound );
+		EffectMarker( ChargedShot.SoundMarker )?.PlaySound( ChargedShot.Sound );
 		ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "fire_2" );
 		PlayHolderOverlay( "fire_2" );
 		PostWeaponEvent( WeaponEvents.Attack );
@@ -76,7 +76,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 			return;
 		}
 		if ( ChargeSound is not {} track || chargeVoice.IsValid() ) return;
-		var emitter = SoundEmitter( track.Marker );
+		var emitter = EffectMarker( track.Marker );
 		if ( !emitter.IsValid() ) return;
 		chargeVoice = emitter.PlaySound( chargeStarted ? track.Loop : track.Start ?? track.Loop );
 		if ( chargeVoice.IsValid() ) chargeVoice.Volume *= track.Gain;
