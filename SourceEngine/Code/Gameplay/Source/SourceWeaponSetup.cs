@@ -186,6 +186,7 @@ static class SourceWeaponSetup
 			ApplyAmmo( weapon, data );
 			if ( SourceSounds.WeaponSound( data, SourceSounds.FireSoundRole( weapon ) ) is { } fire ) weapon.AttackSound = fire;
 			if ( SourceSounds.WeaponSound( data, "empty" ) is { } empty ) weapon.DryFireSound = empty;
+			if ( weapon is SourceMeleeWeapon melee && SourceSounds.WeaponSound( data, "melee_hit" ) is { } hit ) melee.HitSound = hit;
 			// weapon_shotgun fires sk_plr_num_shotgun_pellets in code rather than from its script.
 			if ( data.Bullets is null && data.ClassName == "weapon_shotgun" && weapon is SourceBulletWeapon shotgun )
 				shotgun.Ballistics = shotgun.Ballistics with { Pellets = (int)skill.Get( "sk_plr_num_shotgun_pellets", ShotgunPellets ) };

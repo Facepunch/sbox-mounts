@@ -98,6 +98,7 @@ public class SourceMeleeWeapon : SourceWeapon
 
 		// A missed swing has no impact point. The trace endpoint would select a hit animation.
 		base.OnShootEffects( shot.Hit ? shot : shot with { HitPosition = default } );
+		if ( shot.Hit && HitSound is not null ) GameObject.PlaySound( HitSound );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
@@ -105,10 +106,9 @@ public class SourceMeleeWeapon : SourceWeapon
 		if ( !shot.Hit || !shot.HitObject.IsValid() )
 			return;
 
-		// A melee thunk instead of the surface's bullet ricochet, so the impact prefab is spawned soundless.
-		shot.HitObject.PlaySound(
-			shot.Surface.SoundCollection.ImpactHard ?? shot.Surface.GetBaseSurface()?.SoundCollection.ImpactHard ?? HitSound,
-			shot.HitObject.WorldTransform.PointToLocal( shot.HitPosition ) );
+		var impact = shot.Surface?.SoundCollection.ImpactHard ?? shot.Surface?.GetBaseSurface()?.SoundCollection.ImpactHard;
+		if ( impact is not null )
+			shot.HitObject.PlaySound( impact, shot.HitObject.WorldTransform.PointToLocal( shot.HitPosition ) );
 
 		ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
 	}
