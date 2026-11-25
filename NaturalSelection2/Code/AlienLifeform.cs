@@ -38,7 +38,6 @@ public abstract class AlienLifeform : AlienNpc
 	protected override GameObject CreateRagdoll()
 	{
 		if ( world is null ) return railgunDeath ? null : NpcCorpse.Attach( base.CreateRagdoll(), 3f );
-		var body = NpcCorpse.AnimateLifeform( Renderer, world, AnimationTime, railgunDeath );
-		return railgunDeath ? null : body;
+		return NpcCorpse.AnimatePlayer( Renderer, world, AnimationTime, railgunDeath );
 	}
 }

@@ -15,6 +15,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	float IDamageable.MaxArmour => 30;
 	readonly AlienWounds wounds = new();
 	bool lastHitWasGas;
+	bool railgunDeath;
 	bool wantsFire;
 	Rigidbody body;
 	float fallSpeed;
@@ -480,5 +481,16 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30 );
 	}
 
-	protected override GameObject CreateRagdoll() => NpcCorpse.Attach( base.CreateRagdoll(), 3f );
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		railgunDeath = e.DamageInfo.Tags.Has( "railgun" );
+		PlayWorldSound( "sounds/marine/common/death.sound" );
+		base.OnDeath( e );
+	}
+
+	protected override GameObject CreateRagdoll()
+	{
+		if ( graph is null ) return railgunDeath ? null : NpcCorpse.Attach( base.CreateRagdoll(), 3f );
+		return NpcCorpse.AnimatePlayer( Renderer, graph, age, railgunDeath );
+	}
 }

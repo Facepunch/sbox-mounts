@@ -117,7 +117,7 @@ public class GameMount : BaseGameMount
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue, 0 ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Mac.PainSound}_impact.sound", new SparkSoundLoader( Mac.PainSound, 1 ) );
 		foreach ( var cue in new[] { Marine.RifleSound, Marine.PistolSound, "marine/rifle/reload", "marine/pistol/reload",
-			"marine/common/wound", "marine/common/wound_serious", "marine/common/spore_wound" } )
+			"marine/common/wound", "marine/common/wound_serious", "marine/common/spore_wound", "marine/common/death" } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
 		Exo.RegisterSounds( context );

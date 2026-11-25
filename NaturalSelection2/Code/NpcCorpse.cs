@@ -9,7 +9,7 @@ public sealed class NpcCorpse : Component
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil FlinchEnd { get; set; }
-	enum BodyKind { Structure, Lifeform, RailgunVictim, Exo }
+	enum BodyKind { Structure, Player, RailgunVictim, Exo }
 	[Sync( SyncFlags.FromHost )] BodyKind Kind { get; set; }
 	SkinnedModelRenderer renderer;
 	SparkAnimationGraph.Playback graph;
@@ -29,8 +29,11 @@ public sealed class NpcCorpse : Component
 	internal static GameObject AnimateUntilRagdoll( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, TimeUntil flinchEnd ) =>
 		CreateAnimated( source, graph, animationTime, lifetime: 0, flinchEnd: flinchEnd );
 
-	internal static GameObject AnimateLifeform( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, bool railgunDeath ) =>
-		CreateAnimated( source, graph, animationTime, lifetime: 2, kind: railgunDeath ? BodyKind.RailgunVictim : BodyKind.Lifeform );
+	internal static GameObject AnimatePlayer( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime, bool railgunDeath )
+	{
+		var body = CreateAnimated( source, graph, animationTime, lifetime: 2, kind: railgunDeath ? BodyKind.RailgunVictim : BodyKind.Player );
+		return railgunDeath ? null : body;
+	}
 
 	// Dead Exo players remain in damage traces until the original server replaces them with spectators.
 	internal static void KeepHitboxes( SkinnedModelRenderer source, SparkAnimationGraph.Playback graph, TimeSince animationTime ) =>
@@ -41,7 +44,7 @@ public sealed class NpcCorpse : Component
 		if ( !source.IsValid() || source.Model is null ) return null;
 		var body = new GameObject( false, kind == BodyKind.Exo ? "Exo hitboxes" : "Ragdoll" );
 		body.WorldTransform = source.WorldTransform;
-		if ( kind is BodyKind.Lifeform or BodyKind.Structure ) body.Tags.Add( "ragdoll" );
+		if ( kind is BodyKind.Player or BodyKind.Structure ) body.Tags.Add( "ragdoll" );
 		var renderer = body.AddComponent<SkinnedModelRenderer>();
 		renderer.CopyFrom( source );
 		renderer.UseAnimGraph = graph is not null;
@@ -101,7 +104,7 @@ public sealed class NpcCorpse : Component
 			}
 
 			// After a host migration the new host can hand off the last replicated pose.
-			if ( Lifetime == 0 || Kind == BodyKind.Lifeform ) Lifetime = Age + 3;
+			if ( Lifetime == 0 || Kind == BodyKind.Player ) Lifetime = Age + 3;
 			var physics = GameObject.AddComponent<ModelPhysics>( false );
 			physics.Model = renderer.Model;
 			physics.Renderer = renderer;
