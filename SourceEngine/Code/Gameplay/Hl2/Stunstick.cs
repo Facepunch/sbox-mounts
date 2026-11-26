@@ -19,7 +19,7 @@ public sealed class Stunstick : MeleeWeapon
 	const int ArcSegments = 16;
 	readonly float[] _arcNoise = new float[ArcSegments + 1];
 	TimeUntil _arcExpires;
-	TimeSince _swing = 1;
+	TimeSince _sinceSwing = 1;
 	bool _sparkOnActivation;
 	SpriteRenderer _halo;
 	SpriteRenderer _core;
@@ -34,12 +34,6 @@ public sealed class Stunstick : MeleeWeapon
 	{
 		if ( Networking.IsHost && HasOwner ) SetStunState( false );
 		base.OnHolstered();
-	}
-
-	protected override void OnShootEffects( ShotEffect shot )
-	{
-		if ( !shot.NoEvents ) _swing = 0;
-		base.OnShootEffects( shot );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
@@ -106,23 +100,24 @@ public sealed class Stunstick : MeleeWeapon
 			WeaponEffects.ElectricSpark( tip, 1, Vector3.Zero, MountContent.OfWeapon( this ), view?.GameObject );
 		}
 
-		bool swinging = _swing < SwingDelay;
+		bool swinging = view is null || view.IsSwinging;
 		if ( view is null )
 		{
-			var center = tip - _tip.WorldRotation.Forward;
-			Glow( _halo, center, Game.Random.Float( 8, 12 ), Game.Random.Float( 0.1f, 0.2f ) );
-			Glow( _core, center, Game.Random.Float( 4, 6 ), Game.Random.Float( 0.9f, 1 ) );
+			var center = tip;
+			Glow( _halo, center, 22, 0.4f );
+			Glow( _core, center, Game.Random.Float( 4, 6 ), Game.Random.Float( 0.6f, 0.8f ) );
 		}
 		else
 		{
-			var fade = 1 - 0.9f * (((float)_swing - SwingDelay) / 0.25f).Clamp( 0, 1 );
+			if ( swinging ) _sinceSwing = 0;
+			var fade = 1 - 0.9f * ((float)_sinceSwing / 0.25f).Clamp( 0, 1 );
 			Glow( _halo, tip, swinging ? 22 : 20, 0.4f * fade );
 			foreach ( var (point, glow) in _electrodes )
 				Glow( glow, Position( point ), Game.Random.Float( 4, 5 ) * fade, Game.Random.Float( 0.05f, 0.5f ) * fade );
 		}
 
 		if ( !_arc.IsValid() ) return;
-		if ( (view is null || swinging) && Game.Random.Int( 0, view is null ? 5 : 3 ) == 0 )
+		if ( swinging && Game.Random.Int( 0, view is null ? 5 : 3 ) == 0 )
 		{
 			_arcStart = _electrodes.Length > 0 ? _electrodes[Game.Random.Int( 0, _electrodes.Length - 1 )].Point : _tip;
 			_arcEnd = Position( _arcStart ) + (view is null ? Particles.InCube( 10 ) + Vector3.One * 2 : Particles.InCube( 8 ));
@@ -155,9 +150,9 @@ public sealed class Stunstick : MeleeWeapon
 		var points = renderer.Model.Attachments.All;
 		var center = firstPerson ? renderer.GetAttachmentObject( "Sparkrear" ) : null;
 		_tip = center ?? (points.FirstOrDefault() is { } first ? renderer.GetAttachmentObject( first.Name ) : null);
-		var material = firstPerson ? "sprites/light_glow02" : "effects/stunstick";
+		const string material = "sprites/light_glow02";
 		_halo = MountedEffects.AddSprite( _effects, material, mount );
-		_core = firstPerson ? null : MountedEffects.AddSprite( _effects, material, mount );
+		_core = firstPerson ? null : MountedEffects.AddSprite( _effects, "effects/blueflare1", mount );
 		_electrodes = firstPerson ? points.Select( a => renderer.GetAttachmentObject( a.Name ) )
 			.Where( p => p.IsValid() && p != _tip ).Select( p => (p, MountedEffects.AddSprite( _effects, material, mount )) ).ToArray() : [];
 		_arcStart = null;
@@ -174,7 +169,7 @@ public sealed class Stunstick : MeleeWeapon
 	{
 		if ( !sprite.IsValid() ) return;
 		sprite.WorldPosition = position;
-		sprite.Size = size;
-		sprite.Color = (Color.White * brightness).WithAlpha( 1 );
+		sprite.Size = 2 * size;
+		sprite.Color = (Color.White * System.MathF.Pow( brightness, 2.2f )).WithAlpha( 1 );
 	}
 }

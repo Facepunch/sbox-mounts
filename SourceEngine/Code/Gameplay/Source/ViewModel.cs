@@ -93,6 +93,9 @@ public sealed class ViewModel : BaseWeaponModel
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
 	bool _scopeHidden;
+	string _swingClip;
+	internal bool IsSwinging => _swingClip is not null && _animation?.Current == _swingClip;
+
 	SourceModelSequenceData[] _hitSwings = [], _missSwings = [];
 	string _flashType;
 	string _mount;
@@ -493,7 +496,8 @@ public sealed class ViewModel : BaseWeaponModel
 		var swings = hitPoint.HasValue ? _hitSwings : _missSwings;
 		if ( swings.Length > 0 )
 		{
-			Play( PickSwing( swings ) );
+			_swingClip = PickSwing( swings );
+			Play( _swingClip );
 			return;
 		}
 		var clip = AttackClip();
