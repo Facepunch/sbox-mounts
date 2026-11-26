@@ -99,8 +99,10 @@ public sealed class RocketLauncher : MagazineWeapon
 		point = default;
 		GameObject best = null;
 		Vector3 bestPosition = default;
-		float bestDot = System.MathF.Cos( LockAngle );
+		// The trigger requires full autoaim strength. Both falloffs are full over their inner half.
+		float bestDot = System.MathF.Cos( LockAngle * 0.5f );
 		var eye = player.EyeTransform.Position;
+		var ray = new Ray( eye, forward );
 		foreach ( var vehicle in Scene.GetAllComponents<FourWheelVehicle>() )
 		{
 			if ( vehicle.GetComponent<ModelRenderer>() is not {} renderer ) continue;
@@ -108,21 +110,22 @@ public sealed class RocketLauncher : MagazineWeapon
 			if ( vehicle.Seat?.IsOccupied != true && !vehicle.GetComponentsInChildren<BaseChair>().Any( seat => seat.IsOccupied ) ) continue;
 			if ( renderer.Model is not {} model ) continue;
 			var targets = ModelTarget.For( model );
-			if ( targets.Length == 0 ) Consider( renderer.Bounds.Center );
+			if ( targets.Length == 0 ) Consider( renderer.Bounds.Center, renderer.Bounds.Center );
 			foreach ( var target in targets )
 			{
 				if ( !target.Lockable ) continue;
 				var marker = renderer is SkinnedModelRenderer skin ? skin.GetAttachment( target.Marker )
 					: model.GetAttachment( target.Marker ) is {} local ? renderer.WorldTransform.ToWorld( local ) : (Transform?)null;
-				if ( marker is {} transform ) Consider( transform.Position );
+				if ( marker is {} transform && target.TryAimPoint( transform, ray, out var aimPoint, out _ ) )
+					Consider( transform.Position, aimPoint );
 			}
 
-			void Consider( Vector3 position )
+			void Consider( Vector3 position, Vector3 aimPoint )
 			{
-				var delta = position - eye;
+				var delta = aimPoint - eye;
 				float distance = delta.Length;
 				float dot = Vector3.Dot( forward, delta.Normal );
-				if ( distance > LockRange || dot < bestDot ) return;
+				if ( distance > LockRange * 0.5f || dot < bestDot ) return;
 				var hit = BulletTrace( new Ray( eye, delta.Normal ), distance, 0 ).IgnoreGameObjectHierarchy( vehicle.GameObject ).Run();
 				if ( hit.StartedSolid || hit.Hit ) return;
 				bestDot = dot;

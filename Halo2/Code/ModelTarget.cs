@@ -17,10 +17,13 @@ public sealed class ModelTarget
 	internal static ModelTarget[] For( Model model ) => Targets.GetValue( model, static m => m.GetData<ModelTarget[]>() ?? [] );
 
 	internal bool TryAimPoint( SkinnedModelRenderer renderer, Ray ray, out Vector3 point, out bool direct )
+		=> TryAimPoint( renderer.GetAttachment( Marker ), ray, out point, out direct );
+
+	internal bool TryAimPoint( Transform? attachment, Ray ray, out Vector3 point, out bool direct )
 	{
 		point = default;
 		direct = false;
-		if ( renderer.GetAttachment( Marker ) is not {} marker ) return false;
+		if ( attachment is not {} marker ) return false;
 		float depth = Vector3.Dot( marker.Position - ray.Position, ray.Forward );
 		if ( depth <= 0 ) return false;
 		var nearest = ray.Position + ray.Forward * depth;
