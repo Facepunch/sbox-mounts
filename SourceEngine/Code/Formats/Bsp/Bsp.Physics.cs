@@ -15,7 +15,7 @@ internal sealed class BspPhysicsMesh
 }
 
 internal sealed record BspPhysicsHull( List<Vector3> Vertices, string SurfaceName, bool MixedSurfaces, BspCollisionKind Kind );
-internal sealed record BspPhysicsFluid( Vector4 Plane, Vector3 Velocity, string SurfaceName )
+internal sealed record BspPhysicsFluid( Vector4 Plane, Vector3 Velocity, string SurfaceName, bool IsSlime )
 {
 	public readonly List<BspPhysicsHull> Hulls = [];
 }
@@ -23,6 +23,7 @@ internal partial class BspFile
 {
 	// MASK_SHOT includes solid, moveable, monster, debris and hitbox in addition to window.
 	const int MaskShot = 0x46004003;
+	const int ContentsSlime = 0x10;
 	internal const int ContentsWindow = 0x2;
 	internal static bool IsWindowOnly( int contents ) => (contents & MaskShot) == ContentsWindow;
 
@@ -75,7 +76,6 @@ internal partial class BspFile
 			return (hulls, meshes, virtualTerrain);
 		const float IVP_TO_HL = 1.0f / 0.0254f;
 		const int CONTENTS_WATER = 0x20;
-		const int CONTENTS_SLIME = 0x10;
 		int pos = 0;
 		while ( pos < PhysCollideData.Length )
 		{
@@ -97,7 +97,7 @@ internal partial class BspFile
 			if ( modelIndex == requestedModel )
 			{
 				var fluidSolids = fluids is null ? null : new Dictionary<int, BspPhysicsFluid>();
-				var (skipSolids, passAudioSolids, usesVirtualTerrain, solidSurfaces, materialTable) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | CONTENTS_SLIME, fluidSolids );
+				var (skipSolids, passAudioSolids, usesVirtualTerrain, solidSurfaces, materialTable) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | ContentsSlime, fluidSolids );
 				virtualTerrain |= usesVirtualTerrain;
 				for ( int s = 0; s < solidCount; s++ )
 				{
@@ -169,6 +169,16 @@ internal partial class BspFile
 			ValidateRange( index, 1, solidCount, "Physics keydata solid index" );
 			if ( block.Values.TryGetValue( "surfaceprop", out var surface ) )
 				solidSurfaces[index] = surface;
+			int contents = 0;
+			if ( block.Values.TryGetValue( "contents", out var contentsValue ) )
+			{
+				if ( !int.TryParse( contentsValue, out contents ) )
+					throw new InvalidDataException( "BSP physics solid has invalid contents." );
+				if ( (contents & contentsMask) != 0 )
+					skip.Add( index );
+				if ( (contents & ContentsClip) != 0 && (contents & ContentsBlockAudio) == 0 )
+					passAudio.Add( index );
+			}
 			if ( block.Name.Equals( "fluid", StringComparison.OrdinalIgnoreCase ) )
 			{
 				skip.Add( index );
@@ -183,18 +193,9 @@ internal partial class BspFile
 					if ( lengthNormal < 0.0001f )
 						throw new InvalidDataException( "BSP fluid has an invalid normal." );
 					if ( !fluids.TryAdd( index, new BspPhysicsFluid( new Vector4( normal / lengthNormal, plane[3] / lengthNormal ),
-						parameters.Vector( "currentvelocity", Vector3.Zero ), parameters.String( "surfaceprop", "water" ) ) ) )
+						parameters.Vector( "currentvelocity", Vector3.Zero ), parameters.String( "surfaceprop", "water" ), (contents & ContentsSlime) != 0 ) ) )
 						throw new InvalidDataException( "BSP fluid has a duplicate solid index." );
 				}
-			}
-			if ( block.Values.TryGetValue( "contents", out var contentsValue ) )
-			{
-				if ( !int.TryParse( contentsValue, out int contents ) )
-					throw new InvalidDataException( "BSP physics solid has invalid contents." );
-				if ( (contents & contentsMask) != 0 )
-					skip.Add( index );
-				if ( (contents & ContentsClip) != 0 && (contents & ContentsBlockAudio) == 0 )
-					passAudio.Add( index );
 			}
 		}
 

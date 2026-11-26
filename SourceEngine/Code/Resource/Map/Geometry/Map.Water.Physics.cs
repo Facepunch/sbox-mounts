@@ -7,7 +7,7 @@ partial class MapLoader
 	void BuildWaterPhysics( List<BspPhysicsFluid> fluids, GameObject world, int modelIndex )
 	{
 		int index = 0;
-		foreach ( var group in fluids.GroupBy( x => (x.Plane, x.SurfaceName) ) )
+		foreach ( var group in fluids.GroupBy( x => (x.Plane, x.SurfaceName, x.IsSlime) ) )
 		{
 			var settings = group.Key;
 			var normal = new Vector3( settings.Plane.x, settings.Plane.y, settings.Plane.z );
@@ -32,6 +32,7 @@ partial class MapLoader
 			_worldPhysics.Add( physics );
 			var child = new GameObject( false, "water physics" ) { Parent = world, IsStatic = true, LocalPosition = origin };
 			child.Tags.Add( "water" );
+			if ( settings.IsSlime ) child.Tags.Add( "slime" );
 			var collider = child.AddComponent<PhysicsCollider>();
 			collider.Physics = physics;
 			collider.IsTrigger = true;

@@ -110,7 +110,7 @@ public class MeleeWeapon : Weapon
 		if ( shot.Hit && HitSound is not null ) GameObject.PlaySound( HitSound );
 	}
 
-		bool WaterImpact( in ShotEffect shot )
+	bool WaterImpact( in ShotEffect shot )
 	{
 		if ( shot.Origin is not { } start ) return false;
 		foreach ( var map in Scene.GetAll<SourceWaterMap>() )
@@ -118,7 +118,7 @@ public class MeleeWeapon : Weapon
 			if ( !map.Active || map.FindWater( shot.HitPosition ) < 0 || map.FindWater( start ) >= 0 ) continue;
 			var entry = Scene.Trace.Ray( start, shot.HitPosition ).WithTag( "water" ).HitTriggersOnly().Run();
 			if ( !entry.Hit ) continue;
-			WeaponEffects.WaterSplash( entry.HitPosition, MountContent.OfWeapon( this ) );
+			WeaponEffects.WaterSplash( entry.HitPosition, MountContent.OfWeapon( this ), entry.GameObject.Tags.Has( "slime" ) );
 			return true;
 		}
 		return false;

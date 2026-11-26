@@ -382,9 +382,14 @@ static class WeaponEffects
 		return sparks;
 	}
 
-	internal static void WaterSplash( Vector3 position, string mount )
+	internal static void WaterSplash( Vector3 position, string mount, bool slime )
 	{
 		if ( Sounds.Sound( "Physics.WaterSplash", mount ) is { } sound ) Sound.Play( sound, position );
+		if ( slime )
+		{
+			MountedEffects.Spawn( "slime_splash_03", new Transform( position, Rotation.LookAt( Vector3.Up ) ), mount );
+			return;
+		}
 		var surface = Game.ActiveScene.Trace.Ray( position + Vector3.Up * 8, position + Vector3.Down * 64 )
 			.WithTag( "water" ).HitTriggersOnly().Run();
 		if ( surface.Hit && !surface.StartedSolid )
