@@ -22,6 +22,7 @@ internal sealed class RagdollInjury : Component
 	TimeUntil? deathVoice;
 
 	internal void AdvanceInjuryAge( float seconds ) => injuryAge += seconds;
+	internal void Speak( string cue ) => CharacterVoice.Select( GetComponent<SkinnedModelRenderer>(), cue, PlayVoice );
 	internal void QueueDeathVoice() => deathVoice = 0.4f;
 
 	protected override void OnStart()
@@ -44,9 +45,10 @@ internal sealed class RagdollInjury : Component
 			renderer.Morphs.Set( "ah", 0f, 0f );
 			renderer.Morphs.Set( "oh", 0f, 0f );
 			renderer.Morphs.Set( "w", 0f, 0f );
+			voiced = voice.Playing;
 		}
 		renderer.Morphs.Set( "mouth_open", MouthOpening, 0f );
-		voice.ApplyMouth( renderer, Time.Delta );
+		if ( voiced ) voice.ApplyMouth( renderer, Time.Delta );
 		displayedMouth = MouthOpening;
 	}
 
@@ -74,7 +76,7 @@ internal sealed class RagdollInjury : Component
 		if ( deathVoice is { } delay && delay <= 0f )
 		{
 			deathVoice = null;
-			CharacterVoice.Select( GetComponent<SkinnedModelRenderer>(), "death", PlayVoice );
+			Speak( "death" );
 		}
 		if ( injuryPose is null || !physics.IsValid() ) return;
 		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
@@ -82,7 +84,7 @@ internal sealed class RagdollInjury : Component
 		injuryAge += Time.Delta;
 		while ( nextVoice < ItemVoiceTimes.Length && writheTime >= ItemVoiceTimes[nextVoice] && injuryAge < 12f )
 		{
-			CharacterVoice.Select( physics.Renderer, "death", PlayVoice );
+			Speak( "death" );
 			nextVoice++;
 		}
 		float speed = velocity.Length / 40f;

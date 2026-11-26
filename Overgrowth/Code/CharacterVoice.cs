@@ -8,6 +8,7 @@ internal sealed class CharacterVoice
 	int frame;
 	float time;
 	SoundHandle handle;
+	internal bool Playing => handle?.IsPlaying == true;
 
 	internal static void Select( SkinnedModelRenderer renderer, string cue, Action<string, float, float, float> play )
 	{
@@ -21,6 +22,7 @@ internal sealed class CharacterVoice
 
 	internal void Play( SkinnedModelRenderer renderer, Vector3 head, string path, float volume, float pitch, float distance )
 	{
+		track = null;
 		handle = renderer.SpeakSound( SoundFile.Load( path ), Math.Min( 1f, volume ), pitch );
 		if ( !handle.IsValid() ) return;
 		handle.Position = head;

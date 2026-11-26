@@ -57,6 +57,7 @@ public sealed partial class RabbitGuard
 
 	(Vector3 Point, Vector3 Impulse, Vector3 LineDirection)? deathImpulse;
 	(float Age, bool Item, float Stun, RagdollInjury Previous)? corpseInjury;
+	GameObject deathRagdoll;
 	bool extractionDeath;
 	bool cutThroat;
 
@@ -133,7 +134,7 @@ public sealed partial class RabbitGuard
 					Unconscious = true;
 					UpdateCombatGroup();
 					sinceUnconscious = 0f;
-					if ( !holdPartner.IsValid() )
+					if ( !IsTethered )
 					{
 						knockoutVoiceDelay = 0.4f;
 						ReportBodySound( HeardSound.Voice, 10f );
@@ -289,15 +290,18 @@ public sealed partial class RabbitGuard
 			_ when sharp > 0f && previous is { Active: true } => (previous.Age + sharp * 10f, false, stun, previous),
 			_ => null
 		};
+		if ( death.DamageInfo is BluntDamage && !Unconscious && !IsTethered ) ReportBodySound( HeardSound.Voice, 10f );
 		base.OnDeath( death );
+		if ( deathRagdoll.IsValid() && awakeAtImpact && (death.DamageInfo is StrikeDamage or MeleeCut { AppliesImpact: true }) && !bluntFinisher )
+			deathRagdoll.GetOrAddComponent<RagdollInjury>().Speak( "hit" );
 	}
 
 	protected override GameObject CreateRagdoll()
 	{
-		var corpse = base.CreateRagdoll();
-		if ( corpse.IsValid() && corpse.GetComponent<ModelPhysics>() is { } physics )
-			ConfigureCorpse( corpse, physics );
-		return corpse;
+		deathRagdoll = base.CreateRagdoll();
+		if ( deathRagdoll.IsValid() && deathRagdoll.GetComponent<ModelPhysics>() is { } physics )
+			ConfigureCorpse( deathRagdoll, physics );
+		return deathRagdoll;
 	}
 
 	void ConfigureCorpse( GameObject corpse, ModelPhysics physics )

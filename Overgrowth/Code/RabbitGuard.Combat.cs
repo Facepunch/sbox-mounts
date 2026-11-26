@@ -482,7 +482,7 @@ public sealed partial class RabbitGuard
 		PlayBluntImpact( group, position );
 		if ( armored && Random.Shared.Next( 3 ) != 0 )
 			PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_staff_hit_metal_strong.xml", position );
-		if ( strikeTarget.IsValid() ) ReportSound( strikeTarget, position, HeardSound.Combat, 10f );
+		ReportSound( rabbit?.deathRagdoll ?? strikeTarget, position, HeardSound.Combat, 10f );
 	}
 
 	(Vector3 Impulse, Vector3 Line) StrikeContact( Vector3 direction )

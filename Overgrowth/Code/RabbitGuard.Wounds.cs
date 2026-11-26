@@ -155,9 +155,8 @@ public sealed partial class RabbitGuard
 				}
 				else defender.KnockoutShield = Math.Max( 0, defender.KnockoutShield - 1 );
 			}
-			if ( !defender.IsValid() ) return;
-			if ( label is "sword" or "rapier" or "big_sword" ) defender.KnockoutShield = Math.Max( 0, defender.KnockoutShield - 1 );
-			if ( species == "wolf" && defender.KnockoutShield == 0 ) defender.BloodLost = defender.MaxHealth;
+			if ( defender.IsValid() && label is "sword" or "rapier" or "big_sword" ) defender.KnockoutShield = Math.Max( 0, defender.KnockoutShield - 1 );
+			if ( defender.IsValid() && species == "wolf" && defender.KnockoutShield == 0 ) defender.BloodLost = defender.MaxHealth;
 		}
 		if ( parried && defender.IsValid() && (defender.PrimaryItem.IsValid() || defender.MetalArmor) )
 		{
@@ -181,7 +180,7 @@ public sealed partial class RabbitGuard
 				if ( defender.IsValid() ) defender.KnockoutShield = Math.Min( defender.KnockoutShield, Math.Max( 0, (int)(shield * (1f - defender.BloodLost / defender.MaxHealth)) ) );
 			}
 		}
-		if ( target.IsValid() ) ReportSound( target, position, HeardSound.Combat, 2f );
+		ReportSound( defender?.deathRagdoll ?? target, position, HeardSound.Combat, 2f );
 		if ( defender.IsValid() ) defender.TryDisarm( strike.WorldImpact( direction, flippedAttack ), PrimaryItem );
 	}
 
