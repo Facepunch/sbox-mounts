@@ -426,22 +426,27 @@ public sealed partial class ProjectileWeapon : Weapon
 			_ => (eye, Hl2.CrossbowBolt.LaunchVelocity( Scene, eye, forward ))
 		};
 		var radius = IsLauncher ? damage * 2 : ExplosionRadius;
-		var projectile = Projectile.Launch( this, ResolveLaunchAttacker( attacker ), Kind, origin, velocity, damage, radius, ProjectileModel );
-		if ( projectile is Hl2.Grenade grenade && style != ThrowStyle.Overhand )
+		attacker = ResolveLaunchAttacker( attacker );
+		if ( Kind == Projectile.Kinds.Grenade && style != ThrowStyle.Overhand )
 		{
 			var roll = style == ThrowStyle.Roll;
-			grenade.WorldRotation = roll ? Rotation.From( 0, Rotation.LookAt( forward ).Yaw(), -90 ) : Rotation.Identity;
-			grenade.GetComponent<Rigidbody>().AngularVelocity = grenade.WorldRotation * (roll ? new Vector3( 0, 0, 720 )
-				: new Vector3( 200, Game.Random.Int( -600, 600 ), 0 )) * (MathF.PI / 180);
+			var rotation = roll ? Rotation.From( 0, Rotation.LookAt( forward ).Yaw(), -90 ) : Rotation.Identity;
+			var spin = roll ? new Vector3( 0, 0, 720 ) : new Vector3( 200, Game.Random.Int( -600, 600 ), 0 );
+			Projectile.Spawn<Hl2.Grenade>( attacker, MountContent.OfWeapon( this ), origin, velocity, damage, radius, ProjectileModel,
+				trail: null, weapon: this, rotation: rotation, spin: rotation * spin * (MathF.PI / 180) );
 			ThrowSound( roll ? "special1" : "double_shot" );
 		}
-		if ( projectile is Hl2.Rocket rocket )
+		else
 		{
-			rocket.ClearLaunch = HasClearLaunch( eye, forward );
-			LiveRocket = rocket.GameObject;
+			var projectile = Projectile.Launch( this, attacker, Kind, origin, velocity, damage, radius, ProjectileModel );
+			if ( projectile is Hl2.Rocket rocket )
+			{
+				rocket.ClearLaunch = HasClearLaunch( eye, forward );
+				LiveRocket = rocket.GameObject;
+			}
+			else if ( projectile is Hl2.Bugbait bait )
+				bait.ClearLaunch = HasClearLaunch( eye, forward );
 		}
-		else if ( projectile is Hl2.Bugbait bait )
-			bait.ClearLaunch = HasClearLaunch( eye, forward );
 
 		if ( IsSpentFrag )
 		{

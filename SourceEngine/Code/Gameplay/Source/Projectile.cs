@@ -79,6 +79,10 @@ public abstract class Projectile : Component
 	/// <summary>Spawns and networks a projectile on the host. Its velocity supplies the default orientation.</summary>
 	public static T Spawn<T>( GameObject attacker, string mount, Vector3 origin, Vector3 velocity, float damage, float radius, string model,
 		string trail = null, BaseCombatWeapon weapon = null, Rotation? rotation = null ) where T : Projectile, new()
+		=> Spawn<T>( attacker, mount, origin, velocity, damage, radius, model, trail, weapon, rotation, null );
+
+	internal static T Spawn<T>( GameObject attacker, string mount, Vector3 origin, Vector3 velocity, float damage, float radius, string model,
+		string trail, BaseCombatWeapon weapon, Rotation? rotation, Vector3? spin ) where T : Projectile, new()
 	{
 		var go = new GameObject( false, typeof( T ).Name );
 		go.Tags.Add( "projectile" );
@@ -101,7 +105,7 @@ public abstract class Projectile : Component
 			projectile.CreateCollider( extent );
 			var body = go.AddComponent<Rigidbody>();
 			body.Velocity = velocity;
-			body.AngularVelocity = projectile.Spin;
+			body.AngularVelocity = spin ?? projectile.Spin;
 			if ( weapon.IsValid() ) go.AddComponent<PhysicsFilter>().Body = weapon.GameObject;
 		}
 		go.Enabled = true;

@@ -429,7 +429,7 @@ public sealed class Grenade : Projectile
 	}
 
 	// AngularImpulse( 600, random -1200 to 1200, 0 ) in degrees per second.
-	protected override Vector3 Spin => new Vector3( 600, Game.Random.Float( -1200, 1200 ), 0 ) * (MathF.PI / 180);
+	protected override Vector3 Spin => new Vector3( 600, Game.Random.Int( -1200, 1200 ), 0 ) * (MathF.PI / 180);
 	protected override void Expire()
 	{
 		Shake( WorldPosition );
