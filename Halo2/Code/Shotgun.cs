@@ -3,7 +3,7 @@ namespace Halo2;
 public readonly record struct AmmoTextColors( Color Loaded, Color Empty );
 
 [Title( "Shotgun" ), Category( "Halo 2" )]
-public sealed partial class Shotgun : Weapon, PlayerController.IEvents
+public sealed partial class Shotgun : Weapon
 {
 	[Property] public AmmoTextColors SpartanAmmoText { get; set; }
 	[Property] public AmmoTextColors EliteAmmoText { get; set; }
@@ -21,7 +21,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	[Property] public float MovementAcceleration { get; set; } = 72;
 	[Property] public float MovementSpeed { get; set; } = 15;
 	[Property] public float VerticalAimOffset { get; set; } = 0.165f;
-	[Property] public float AutoAimRange { get; set; } = 720;
 
 	Texture reticle;
 	Texture weakReticle, splitReticle, splitWeakReticle;

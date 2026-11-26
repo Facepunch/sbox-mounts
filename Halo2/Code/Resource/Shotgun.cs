@@ -295,10 +295,6 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.WaterGravityScale = Float( projectile + 0x170 );
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 			gun.SpeedProfile = ReadSpeedProfile( projectile );
-			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
-			gun.AutoAimAngle = Float( Header + 0x208 );
-			gun.MagnetismAngle = Float( Header + 0x210 );
-			gun.MagnetismRange = Float( Header + 0x214 ) * 120;
 			int projectileFlags = map.ReadInt32( projectile + 0xbc );
 			gun.Orientation = ReadOrientation( projectileFlags );
 			bool damageFallsOff = (projectileFlags & 16) != 0;
@@ -319,12 +315,9 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.DryFireMarker = dryMarker;
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 			int playerControl = Block( Address( globals ) + 0xf0 );
-			gun.MagnetismFriction = Float( playerControl );
-			gun.MagnetismAdhesion = Float( playerControl + 4 );
-			gun.InconsequentialTargetScale = Float( playerControl + 8 );
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
-			gun.VerticalAimOffset = Float( Block( Address( globals ) + 0xf0 ) + 0x1c );
+			gun.VerticalAimOffset = Float( playerControl + 0x1c );
 		}
 		return prefab = builder.Create();
 	}

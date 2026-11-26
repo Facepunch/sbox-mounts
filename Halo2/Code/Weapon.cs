@@ -268,7 +268,11 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{
-		if ( !shot.NoEvents ) PlayHolderOverlay( "fire_1" );
+		if ( !shot.NoEvents )
+		{
+			if ( UsesBinoculars ) SetZoom( 0 );
+			PlayHolderOverlay( "fire_1" );
+		}
 		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 )
 		{
 			float radius = KickJitter.x + (KickJitter.y - KickJitter.x) * (BlamRandom.Next( ref kickSeed ) / 65535f);

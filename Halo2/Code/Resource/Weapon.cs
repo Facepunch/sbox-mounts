@@ -250,14 +250,32 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.DisplayName = title;
 		gun.NpcOnly = (map.ReadInt32( Header + 0x12c ) & (1 << 29)) != 0;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
+		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 		gun.ZoomLevels = Short( Header + 0x1fe );
+		gun.AutoAimAngle = Float( Header + 0x208 );
+		gun.AutoAimRange = Float( Header + 0x20c ) * 120;
+		gun.MagnetismAngle = Float( Header + 0x210 );
+		gun.MagnetismRange = Float( Header + 0x214 ) * 120;
+		if ( map.ReadInt32( Address( globals ) + 0xf0 ) > 0 )
+		{
+			int control = Block( Address( globals ) + 0xf0 );
+			gun.MagnetismFriction = Float( control );
+			gun.MagnetismAdhesion = Float( control + 4 );
+			gun.InconsequentialTargetScale = Float( control + 8 );
+		}
 		if ( gun.ZoomLevels > 0 )
 		{
 			gun.ZoomRange = new Vector2( Float( Header + 0x200 ), Float( Header + 0x204 ) );
 			gun.ZoomInSound = ZoomSound( Header + 0x26c );
 			gun.ZoomOutSound = ZoomSound( Header + 0x274 );
 		}
-		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+		else if ( (map.ReadInt32( Header + 0x12c ) & (1 << 16)) == 0 && map.ReadInt32( Address( globals ) + 0x130 ) > 0 )
+		{
+			int info = Block( Address( globals ) + 0x130 );
+			gun.ZoomLevels = map.ReadInt32( info + 0xb8 );
+			gun.ZoomRange = new Vector2( Float( info + 0xbc ), Float( info + 0xc0 ) );
+			gun.UsesBinoculars = gun.ZoomLevels > 0;
+		}
 		int players = Address( globals ) + 0x138;
 		if ( map.ReadInt32( players ) > 0 && Reference( Block( players ) + 0xb0 ) is { PrimaryClass: "dpib", DataSize: > 0 } body
 			&& ModelPath( Host, map, body ) is {} path && Host.GetByPath( path ) is Halo2ModelLoader model

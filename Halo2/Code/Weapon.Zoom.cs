@@ -6,10 +6,19 @@ public abstract partial class Weapon : Component.IDamageable.IEvents
 {
 	[Property] public int ZoomLevels { get; set; }
 	[Property] public Vector2 ZoomRange { get; set; }
+	[Property] public bool UsesBinoculars { get; set; }
 	[Property] public SoundEvent ZoomInSound { get; set; }
 	[Property] public SoundEvent ZoomOutSound { get; set; }
 	public int ZoomLevel { get; private set; }
-	public float Magnification => ZoomLevel == 0 ? 1 : ZoomLevel == 1 ? ZoomRange.x : ZoomRange.y;
+	public float Magnification
+	{
+		get
+		{
+			if ( ZoomLevel == 0 ) return 1;
+			if ( !UsesBinoculars ) return ZoomLevel == 1 ? ZoomRange.x : ZoomRange.y;
+			return ZoomLevels == 1 ? ZoomRange.y : MathX.Lerp( ZoomRange.x, ZoomRange.y, (ZoomLevel - 1f) / (ZoomLevels - 1) );
+		}
+	}
 
 	[ConVar( "halo2.zoom_key", ConVarFlags.Saved )]
 	public static string ZoomKey { get; set; } = "mouse5";
