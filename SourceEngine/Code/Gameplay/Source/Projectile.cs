@@ -68,7 +68,7 @@ public abstract class Projectile : Component
 		{
 			Kinds.Bolt => Spawn<Hl2.CrossbowBolt>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.Rocket => Spawn<Hl2.Rocket>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.Grenade => Spawn<Hl2.Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.Grenade => Spawn<Hl2.Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
 			Kinds.ContactGrenade => Spawn<Hl2.ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.EnergyBall => Spawn<Hl2.EnergyBall>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.Bugbait => Spawn<Hl2.Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
@@ -76,15 +76,15 @@ public abstract class Projectile : Component
 		};
 	}
 
-	/// <summary>Spawns and networks a projectile on the host, facing its velocity.</summary>
+	/// <summary>Spawns and networks a projectile on the host. Its velocity supplies the default orientation.</summary>
 	public static T Spawn<T>( GameObject attacker, string mount, Vector3 origin, Vector3 velocity, float damage, float radius, string model,
-		string trail = null, BaseCombatWeapon weapon = null ) where T : Projectile, new()
+		string trail = null, BaseCombatWeapon weapon = null, Rotation? rotation = null ) where T : Projectile, new()
 	{
 		var go = new GameObject( false, typeof( T ).Name );
 		go.Tags.Add( "projectile" );
 		go.Tags.Add( "removable" );
 		go.WorldPosition = origin;
-		go.WorldRotation = Rotation.LookAt( velocity );
+		go.WorldRotation = rotation ?? Rotation.LookAt( velocity );
 		var projectile = go.AddComponent<T>();
 		projectile.MountName = mount;
 		projectile.ModelPath = model;
