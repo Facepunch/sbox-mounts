@@ -231,7 +231,9 @@ public sealed class GravityWeapon : Weapon
 
 	static void PuntBodies( Rigidbody struck, Vector3 forward, Vector3 hit )
 	{
-		if ( struck.GetComponentInParent<ModelPhysics>() is not { Bodies.Count: > 1 } model )
+		var entity = CarryEntity( struck.GameObject );
+		var massLimit = entity.GetComponent<Sandbox.Movement.ISitTarget>() is null ? MaxMass : MaxMass * 2.5f;
+		if ( entity.GetComponent<ModelPhysics>() is not { Bodies.Count: > 1 } model )
 		{
 			Apply( struck, struck.Mass, 1 );
 			return;
@@ -250,7 +252,7 @@ public sealed class GravityWeapon : Weapon
 		void Apply( Rigidbody part, float totalMass, float share )
 		{
 			part.ApplyImpulse( forward * (15000 * share) );
-			part.ApplyImpulseAt( hit, forward * (MathF.Min( totalMass, MaxMass ) * 600 * share) );
+			part.ApplyImpulseAt( hit, forward * (MathF.Min( totalMass, massLimit ) * 600 * share) );
 			part.Velocity = part.Velocity.ClampLength( 4000 );
 		}
 	}
