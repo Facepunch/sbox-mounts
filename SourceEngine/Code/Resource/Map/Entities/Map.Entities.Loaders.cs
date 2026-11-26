@@ -191,8 +191,7 @@ partial class MapLoader
 			};
 			var sensor = point.AddComponent<Hl2.BugbaitSensor>();
 			var flags = entity.Integer( "spawnflags" );
-			var radius = entity.Number( "radius" );
-			sensor.Radius = radius == 0 ? 512 : radius;
+			sensor.Radius = entity.Number( "radius" );
 			sensor.Listening = entity.Integer( "Enabled" ) != 0;
 			sensor.SuppressCall = (flags & 1) != 0;
 			sensor.DetectThrows = (flags & 2) == 0;

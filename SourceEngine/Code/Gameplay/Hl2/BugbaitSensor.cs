@@ -3,7 +3,10 @@ namespace Source1.Hl2;
 public sealed class BugbaitSensor : Component
 {
 	[Property] public bool Listening { get; set; }
-	[Property] public float Radius { get; set; } = 512;
+	[ConVar( "bugbait_radius", ConVarFlags.Server, Help = "Detection radius for bugbait sensors without a map override." )]
+	public static float DefaultRadius { get; set; } = 512;
+
+	[Property] public float Radius { get; set; }
 	[Property] public bool DetectThrows { get; set; } = true;
 	[Property] public bool DetectSqueezes { get; set; } = true;
 	[Property] public bool SuppressCall { get; set; }
@@ -20,7 +23,7 @@ public sealed class BugbaitSensor : Component
 		{
 			if ( !sensor.Listening || !(squeezed ? sensor.DetectSqueezes : sensor.DetectThrows) )
 				continue;
-			if ( sensor.WorldPosition.Distance( position ) >= sensor.Radius )
+			if ( sensor.WorldPosition.Distance( position ) >= (sensor.Radius == 0 ? DefaultRadius : sensor.Radius) )
 				continue;
 
 			sensor.RunDoo( sensor.OnBaited, context => context.SetArgument( "user", thrower ) );
