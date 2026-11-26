@@ -288,7 +288,7 @@ public sealed class GravityWeapon : Weapon
 		}
 		if ( result == PuntResult.LaunchHeld ) _attack2Debounce = true;
 		SetNextSecondaryFire( PrimaryDelay );
-		_effects?.Launch( result == PuntResult.LaunchHeld, impact );
+		_effects?.Launch( this, result == PuntResult.LaunchHeld, impact );
 	}
 
 	protected override void OnFixedUpdate()
@@ -529,12 +529,17 @@ sealed class PhysCannonEffects : IDisposable
 	TimeSince _motorChanged;
 	float _releaseVolume;
 
-	public void Launch( bool fromHold, Vector3 impact )
+	public void Launch( GravityWeapon weapon, bool fromHold, Vector3 impact )
 	{
 		_impact = impact;
 		_launch = 0;
 		_changeAt = fromHold ? 0.1f : 0.5f;
 		_closePending = true;
+		if ( !_coreAnchor.IsValid() ) return;
+		var muzzle = Place( _coreAnchor );
+		var direction = (impact - muzzle).Normal;
+		var local = weapon.Owner is { IsProxy: false };
+		WeaponEffects.GaussImpact( local ? impact : muzzle, local ? -direction : direction, MountContent.Of( _renderer.Model ) );
 	}
 
 	public void Update( GravityWeapon weapon, GameObject held, bool ready )

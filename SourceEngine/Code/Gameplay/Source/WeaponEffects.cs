@@ -362,6 +362,35 @@ static class WeaponEffects
 		burst.FadeTo( flare, radius, Color.Black );
 	}
 
+	public static void GaussImpact( Vector3 position, Vector3 direction, string mount )
+	{
+		if ( Application.IsDedicatedServer ) return;
+		var count = Game.Random.Int( 16, 32 );
+		var sparks = Particles.Emitter( Game.ActiveScene, "effects/spark", mount, true, false, count );
+		if ( !sparks.IsValid() ) return;
+
+		sparks.GameObject.WorldPosition = position;
+		sparks.Lifetime = new ParticleFloat( 0.25f, 1 );
+		sparks.InitialScale = new ParticleFloat( 1, 4 );
+		sparks.Force = true;
+		sparks.ForceSpace = ParticleEffect.SimulationSpace.World;
+		sparks.ForceDirection = Vector3.Down * 800;
+		sparks.Collision = true;
+		sparks.Bounce = 0.3f;
+		var renderer = sparks.GetComponent<ParticleSpriteRenderer>();
+		renderer.VelocityStretch = true;
+		renderer.StretchTime = new ParticleFloat( 0.01f, 0.1f );
+		var trailDirection = direction;
+		for ( var i = 0; i < count; i++ )
+		{
+			trailDirection = (direction + Particles.InCube( 0.6f )).Normal;
+			if ( sparks.Emit( position, 0 ) is { } particle )
+				particle.Velocity = trailDirection * Game.Random.Float( 128, 512 );
+		}
+		sparks.Invoke( 1, sparks.DestroyGameObject );
+		ElectricSpark( position, 1, trailDirection, mount );
+	}
+
 	/// <summary>FX_ElectricSpark with a trail length of 1, as g_pEffects->Sparks draws it: big and little streaks and a yellow flare.</summary>
 	public static void ElectricSpark( Vector3 position, int magnitude, Vector3 direction, string mount )
 	{
