@@ -533,6 +533,16 @@ foreach ( var bankPath in bankNames )
 	}
 	catch ( Exception e ) { Console.WriteLine( $"    {shortBank}: unreadable ({e.Message})" ); }
 }
+// Resolving an event does not prove its media decodes: the aquarium includes 6 kHz ADPCM.
+var aquariumBank = new WwiseBank( db.Find( "bnk", bankNames.Single( p => SoundNames.BankShortName( p ) == "emitters_office" ) ),
+	id => db.Find( "stream", $"soundbanks/streamed/emitters_office/{id}" ) );
+var aquariumMedia = aquariumBank.Resolve( "emitter_aquarium_wall" ).Select( aquariumBank.Decode ).ToArray();
+if ( !aquariumMedia.Any( wav => BitConverter.ToInt32( wav, 24 ) == 6000 && wav.Length > 44 ) )
+	throw new Exception( "Aquarium 6 kHz media did not decode." );
+var aquariumLayers = aquariumBank.RenderLoopLayers( WwiseBank.Hash( "emitter_aquarium_wall" ), "emitter_aquarium_wall" );
+if ( aquariumLayers.Count == 0 || aquariumLayers.Any( wav => wav.Length <= 44 || BitConverter.ToInt32( wav, 24 ) != 44100 ) )
+	throw new Exception( "Aquarium loop resampling failed." );
+Console.WriteLine( $"PASS: aquarium 6 kHz media decoded and rendered into {aquariumLayers.Count} playback layers." );
 int emittersTotal = 0, emittersResolved = 0;
 foreach ( var level in soundLevels )
 	if ( db.Find( "world_sounds", $"{level}/world_sounds" ) is { } worldSoundBytes )

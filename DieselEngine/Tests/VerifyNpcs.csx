@@ -1,6 +1,6 @@
 // Runtime NPC resources and interactions in a disposable scene.
 var mount = await Sandbox.Mounting.Directory.Mount( "payday" );
-await mount.RefreshInternal();
+if ( Application.IsEditor ) await mount.RefreshInternal();
 var results = new System.Collections.Generic.List<string>();
 var definitions = ((System.Collections.IEnumerable)mount.GetType().Assembly.GetType( "Diesel.NpcDefinition" ).GetProperty( "All" ).GetValue( null )).Cast<object>().ToArray();
 if ( definitions.Select( d => (string)d.GetType().GetProperty( "Id" ).GetValue( d ) ).Distinct().Count() != definitions.Length )

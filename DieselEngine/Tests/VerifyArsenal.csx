@@ -1,6 +1,6 @@
 // Full arsenal integration in an isolated scene. Does not modify the user's map.
 var mount = await Sandbox.Mounting.Directory.Mount( "payday" );
-await mount.RefreshInternal();
+if ( Application.IsEditor ) await mount.RefreshInternal();
 var ids = new[] { "gl40", "amcar4", "b9s", "crosskill", "bronco44", "stryk", "reinbeck", "locomotive", "compact5", "mark11", "m308", "brenner21", "ak" };
 var results = new System.Collections.Generic.List<string>();
 foreach ( var id in ids )

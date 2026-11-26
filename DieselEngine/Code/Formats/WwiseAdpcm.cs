@@ -20,7 +20,7 @@ static class WwiseAdpcm
 		}
 		int channels = d.UShort( fmt + 2 ), rate = d.Int( fmt + 4 ), block = d.UShort( fmt + 12 );
 		if ( fmt != 0 && data != 0 && d.UShort( fmt ) is 1 or 0xfffe && channels is 1 or 2
-			&& block == channels * 2 && d.UShort( fmt + 14 ) == 16 && size % block == 0 && rate is >= 8000 and <= 96000 )
+			&& block == channels * 2 && d.UShort( fmt + 14 ) == 16 && size % block == 0 && rate is >= 6000 and <= 96000 )
 		{
 			// Wwise's short WAVEFORMATEXTENSIBLE PCM header is not a standard Windows GUID header.
 			var wave = new byte[44 + size];
@@ -31,8 +31,9 @@ static class WwiseAdpcm
 			return wave;
 		}
 		if ( fmt == 0 || data == 0 || d.UShort( fmt ) != 2 || channels is < 1 or > 2
-			|| block != 36 * channels || d.UShort( fmt + 14 ) != 4 || size % block != 0 || rate is < 8000 or > 96000 )
-			throw new InvalidDataException( "Unsupported Wwise ADPCM format." );
+			// The aquarium emitter includes authored 6 kHz media.
+			|| block != 36 * channels || d.UShort( fmt + 14 ) != 4 || size % block != 0 || rate is < 6000 or > 96000 )
+			throw new InvalidDataException( $"Unsupported Wwise ADPCM format: codec {d.UShort( fmt ):x4}, channels {channels}, rate {rate}, block {block}, bits {d.UShort( fmt + 14 )}, data {size} bytes." );
 		int frames = size / block, samples = checked(frames * 64 * channels);
 		var pcm = new short[samples];
 		for ( int frame = 0; frame < frames; frame++ )
