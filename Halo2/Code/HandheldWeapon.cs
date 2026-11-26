@@ -69,13 +69,15 @@ internal sealed class TrackVoice
 	}
 }
 
-public sealed record ReticleLayout( Vector2 Size, Vector2 Offset, int HiddenUnitStates = 0 );
+public sealed record ReticleLayout( Vector2 Size, Vector2 Offset, int HiddenUnitStates = 0, bool HiddenOnWeakSpot = false );
 
 public abstract partial class HandheldWeapon : Weapon
 {
 	[Property] public ReticleLayout[] Reticles { get; set; }
+	[Property] public ReticleLayout[] WeakReticles { get; set; }
 	static readonly string[] reticlePages = ["crosshair", "split_crosshair", "quarter_crosshair"];
 	readonly Texture[] reticleTextures = new Texture[3];
+	readonly Texture[] weakReticleTextures = new Texture[3];
 
 	public override void DrawCrosshair( Painter painter, Vector2 center )
 	{
@@ -91,14 +93,27 @@ public abstract partial class HandheldWeapon : Weapon
 
 	void DrawWeaponReticle( Painter painter, Vector2 center, int mode, float scale )
 	{
-		if ( Reticles?.ElementAtOrDefault( mode ) is not {} layout ) return;
+		// Existing inventory instances can retain layouts from before the weak-spot pages were mounted.
+		if ( Reticles is not null && WeakReticles is null && GameObject.PrefabInstanceSource is {} path &&
+			PrefabFile.Load( path )?.GetScene()?.GetComponent<HandheldWeapon>() is { WeakReticles: not null } source )
+		{
+			Reticles = source.Reticles;
+			WeakReticles = source.WeakReticles;
+		}
+		if ( Reticles?.ElementAtOrDefault( mode ) is not {} primary ) return;
 		int zoomState = ZoomLevel switch { 0 => 0x40, 1 => 0x80, 2 => 0x100, _ => 0 };
 		if ( UsesBinoculars && ZoomLevel > 0 ) zoomState |= 0x400;
-		if ( (layout.HiddenUnitStates & zoomState) != 0 ) return;
-		ref var texture = ref reticleTextures[mode];
-		if ( !texture.IsValid() ) texture = Texture.Load( $"{RigDirectory}.prefab/{reticlePages[mode]}.vtex" );
-		if ( !texture.IsValid() || texture.IsError ) return;
-		painter.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), ReticleTint( out _ ) );
+		var tint = ReticleTint( out bool weakSpot );
+		void Draw( Painter canvas, ReticleLayout layout, ref Texture texture, string suffix )
+		{
+			if ( (layout.HiddenUnitStates & zoomState) != 0 || (weakSpot && layout.HiddenOnWeakSpot) ) return;
+			if ( !texture.IsValid() ) texture = Texture.Load( $"{RigDirectory}.prefab/{reticlePages[mode]}{suffix}.vtex" );
+			if ( texture.IsValid() && !texture.IsError )
+				canvas.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), tint );
+		}
+		Draw( painter, primary, ref reticleTextures[mode], "" );
+		if ( weakSpot && WeakReticles?.ElementAtOrDefault( mode ) is {} weak )
+			Draw( painter, weak, ref weakReticleTextures[mode], "_weakspot" );
 	}
 
 	[Property] public string RigDirectory { get; set; }

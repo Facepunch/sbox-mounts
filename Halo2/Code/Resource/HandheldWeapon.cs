@@ -21,17 +21,33 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		new(25,15), new(39,26), new(21,14)
 	];
 
-	ReticleLayout ReadReticle( int layout )
+	static readonly Vector2[] weakReticleSizes = [
+		new(3,3), new(3,3), new(55,55), new(27,27), new(54,46), new(27,23), new(45,45), new(23,23),
+		new(56,17), new(28,9), new(25,25), new(13,13), new(55,55), new(28,28), new(35,35), new(17,17),
+		new(13,5), new(9,9), new(35,19), new(17,9), new(39,26), new(21,14), new(49,54), new(25,27),
+		new(45,36), new(21,17)
+	];
+
+	ReticleLayout ReadReticle( string widget, int layout )
 	{
-		if ( HudPage( "crosshair", layout ) is not {} page || page.Bitmap.TagPath != @"ui\hud\bitmaps\new_hud\crosshairs\hud_reticles" ||
-			(uint)page.Index >= reticleSizes.Length ) return null;
+		if ( HudPage( widget, layout ) is not {} page ) return null;
+		var sizes = page.Bitmap.TagPath switch
+		{
+			@"ui\hud\bitmaps\new_hud\crosshairs\hud_reticles" => reticleSizes,
+			@"ui\hud\bitmaps\new_hud\crosshairs\hud_weak_spot_reticles" => weakReticleSizes,
+			_ => null
+		};
+		if ( sizes is null || (uint)page.Index >= sizes.Length ) return null;
 		int row = page.Row;
 		int offset = row + 0x34 + layout * 4;
 		int registration = row + 0x40 + layout * 8;
-		var size = reticleSizes[page.Index];
+		var size = sizes[page.Index];
 		return new( size, new Vector2( Short( offset ), Short( offset + 2 ) ) -
-			new Vector2( MathF.Floor( size.x * Float( registration ) ), MathF.Floor( size.y * Float( registration + 4 ) ) ), Short( row + 0x10 ) );
+			new Vector2( MathF.Floor( size.x * Float( registration ) ), MathF.Floor( size.y * Float( registration + 4 ) ) ),
+			Short( row + 0x10 ), (Short( row + 0x12 ) & 8) != 0 );
 	}
+
+	ReticleLayout[] ReadReticles( string widget ) => [ReadReticle( widget, 0 ), ReadReticle( widget, 1 ), ReadReticle( widget, 2 )];
 
 	internal void FindReticleSource( MapFile candidate, TagEntry definition )
 	{
@@ -231,7 +247,10 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			item.HoldType = hold;
 			item.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
 			if ( reticleSource is not null )
-				item.Reticles = [reticleSource.ReadReticle( 0 ), reticleSource.ReadReticle( 1 ), reticleSource.ReadReticle( 2 )];
+			{
+				item.Reticles = reticleSource.ReadReticles( "crosshair" );
+				item.WeakReticles = reticleSource.ReadReticles( "crosshair_weakspot" );
+			}
 			item.SpartanModel = (Host.GetByPath( $"{item.RigDirectory}/first_person.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.EliteModel = (Host.GetByPath( $"{item.RigDirectory}/first_person_elite.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
