@@ -65,6 +65,8 @@ public class MagazineWeapon : HandheldWeapon
 		{
 			// An incomplete burst enters recovery when its next round would have fired.
 			burstRoundAt += RecoveryDelay + (remainingShots > 0 ? PrimaryDelay : 0);
+			// The magazine sees the idle barrel on the tick after burst recovery ends.
+			barrelIdleAt = burstRoundAt + 1 / 30.0;
 			remainingShots = 0;
 			burstAttacker = null;
 		}
@@ -143,14 +145,21 @@ public class MagazineWeapon : HandheldWeapon
 			{
 				// Auto-reload is requested after the current tick's magazine update.
 				int startTick = automatic ? 1 : 0;
+				double startedAt = Time.NowDouble;
 				ReloadTime = (clip.Frames + startTick) / 30f;
+				if ( automatic && BurstLength > 1 )
+				{
+					// A queued burst can fire on the tick after the magazine finishes.
+					startedAt = System.Math.Floor( startedAt * 30 ) / 30;
+					ReloadTime = (float)(startedAt + (clip.Frames + startTick + 1) / 30.0 - Time.NowDouble);
+				}
 				if ( clip.Frames > 0 )
 				{
 					var cue = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" );
 					int ticks = cue?.Frame is int key && key >= 0 && key <= clip.Frames ? key : clip.Frames;
-					transferAt = Time.NowDouble + (System.Math.Max( 0, ticks - 1 ) + startTick) / 30.0;
+					transferAt = startedAt + (System.Math.Max( 0, ticks - 1 ) + startTick) / 30.0;
 					// Holstering transfers the rounds once fewer than half the transfer ticks remain.
-					holsterTransferAt = Time.NowDouble + (ticks / 2 + 1 + startTick) / 30.0;
+					holsterTransferAt = startedAt + (ticks / 2 + 1 + startTick) / 30.0;
 				}
 			}
 		}
@@ -219,7 +228,7 @@ public class MagazineWeapon : HandheldWeapon
 			FirePrimary( burstAttacker );
 		if ( IsReloading ) emptyRoundAt = null;
 		if ( IsProxy || !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
-		if ( emptyRoundAt.HasValue ? Time.NowDouble >= barrelIdleAt : HasIdleMagazineBarrel || NextPrimaryFire <= 0 )
+		if ( HasIdleMagazineBarrel || (emptyRoundAt.HasValue || BurstLength > 1 ? Time.NowDouble >= barrelIdleAt : NextPrimaryFire <= 0) )
 			ReloadEmptyBarrel();
 	}
 
