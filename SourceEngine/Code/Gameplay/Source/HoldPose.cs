@@ -15,10 +15,14 @@ public sealed class HoldPose
 	public const string RightHandBone = "ValveBiped.Bip01_R_Hand";
 	public const string LeftHandBone = "ValveBiped.Bip01_L_Hand";
 
+	const string GModPlayer = "models/player/group03/male_07.mdl";
+
 	/// <summary>The humans whose sequences show how a mount's weapons are held, by preference, with the mount each comes from.</summary>
+	[SkipHotload]
 	static readonly Dictionary<string, (string Mount, string Path)[]> Humans = new()
 	{
-		["hl2"] = [("gmod", "models/player/group03/male_07.mdl"), ("hl2", "models/humans/group03/male_07.mdl")],
+		["gmod"] = [("gmod", GModPlayer)],
+		["hl2"] = [("gmod", GModPlayer), ("hl2", "models/humans/group03/male_07.mdl")],
 		["css"] = [("css", "models/player/ct_urban.mdl")]
 	};
 

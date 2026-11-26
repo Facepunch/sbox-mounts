@@ -57,6 +57,7 @@ public static class ActTable
 	};
 
 	/// <summary>HL2MP's player acttables, by the hold type in their ACT_HL2MP_* activities. Garry's Mod's player models have them.</summary>
+	[SkipHotload]
 	static readonly Dictionary<string, string> PlayerHoldTypes = new( StringComparer.OrdinalIgnoreCase )
 	{
 		["weapon_357"] = "PISTOL",
@@ -71,6 +72,7 @@ public static class ActTable
 		["weapon_stunstick_player"] = "MELEE",
 		["weapon_frag"] = "GRENADE",
 		["weapon_physcannon"] = "PHYSGUN",
+		["weapon_physgun"] = "PHYSGUN",
 		["weapon_slam"] = "SLAM",
 	};
 
