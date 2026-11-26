@@ -13,3 +13,8 @@ public class MeleeWeapon : HandheldWeapon
 
 	public override bool CanReload() => false;
 }
+
+public sealed class ObjectiveWeapon : MeleeWeapon
+{
+	public override void PrimaryAttack() => Inventory?.Drop( this );
+}

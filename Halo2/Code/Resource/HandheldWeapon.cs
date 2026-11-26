@@ -187,6 +187,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			var item = HasBarrel ? CreateFirearm( root, world ) : Name switch
 			{
 				"energy_blade" or "energy_blade_useless" => CreateSword( root, world ),
+				"flag" or "ball" or "assault_bomb" => ConfigurePickup<ObjectiveWeapon>( root, world, title ),
 				_ => ConfigurePickup<MeleeWeapon>( root, world, title )
 			};
 			item.HoldType = hold;
