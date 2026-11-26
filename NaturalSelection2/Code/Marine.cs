@@ -177,6 +177,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		var targeting = AlienTargeting.ForTeam( this );
 		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
+		if ( ActiveSchedule is not null && (enemy.IsValid() || !CanFollowLeader) )
+			EndCurrentSchedule();
 		var goal = memory ?? enemy?.WorldPosition;
 		if ( enemy.IsValid() && TrackReachability( enemy, goal.Value ) && sinceProgress > 5 )
 		{
@@ -191,7 +193,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 		bool visible = enemy.IsValid() && !memory.HasValue;
-		Animation.SetLookTarget( visible ? enemy : null );
+		if ( ActiveSchedule is null ) Animation.SetLookTarget( visible ? enemy : null );
 		var target = enemy.IsValid() ? enemy.GetComponentInParent<IDamageable>() : null;
 		bool structureOrBabbler = enemy.IsValid() && enemy.Tags.HasAny( "ns2_harvester", "ns2_hive", "ns2_crag", "ns2_babbler" );
 		if ( !structureOrBabbler && TryMaintainWeapons( goal ) )
@@ -254,6 +256,12 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 
+		if ( !enemy.IsValid() && CanFollowLeader )
+		{
+			sprintRequested = false;
+			base.Think();
+			return;
+		}
 		if ( !enemy.IsValid() && VisitArmory() ) return;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
