@@ -145,14 +145,11 @@ public class MagazineWeapon : Firearm
 			{
 				// Auto-reload is requested after the current tick's magazine update.
 				int startTick = automatic ? 1 : 0;
-				double startedAt = Time.NowDouble;
-				ReloadTime = (clip.Frames + startTick) / 30f;
-				if ( automatic && BurstLength > 1 )
-				{
-					// A queued burst can fire on the tick after the magazine finishes.
-					startedAt = System.Math.Floor( startedAt * 30 ) / 30;
-					ReloadTime = (float)(startedAt + (clip.Frames + startTick + 1) / 30.0 - Time.NowDouble);
-				}
+				double now = Time.NowDouble;
+				double startedAt = System.Math.Floor( now * 30 ) / 30;
+				// The barrel becomes ready on the tick after the magazine finishes its animation.
+				int finishTicks = clip.Frames + startTick + 1;
+				ReloadTime = (float)System.Math.Max( 0, startedAt + finishTicks / 30.0 - now );
 				if ( clip.Frames > 0 )
 				{
 					var cue = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" );
