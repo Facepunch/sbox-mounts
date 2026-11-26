@@ -51,7 +51,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	internal void RegisterEffects( MountContext context, HashSet<string> registered )
 	{
 		Register( context, DetonationEffect );
-		if ( Name == "plasma_pistol" ) RegisterLightVolumes( context, registered );
+		if ( HasProjectileVolume ) RegisterLightVolumes( context, registered );
 		if ( Name == "needler" ) Register( context, Reference( Address( Reference( PrimaryBarrel + 0x8c ) ) + 0x110 ) );
 
 		void Register( MountContext mount, TagEntry tag )
@@ -61,6 +61,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
+	bool HasProjectileVolume => Name is "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
 	string Name => TagName( weapon );
 	static string TagName( TagEntry entry ) => System.IO.Path.GetFileName( entry.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
@@ -224,6 +225,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			if ( gun.Shard is {} shard ) gun.Shard = shard with { DetonationEffect = path };
 			else gun.DetonationEffectPath = path;
 		}
+		if ( HasProjectileVolume ) gun.ProjectileVolume = VolumePath( projectile );
 		gun.Trail = ReadTrail( projectile );
 		int flags = map.ReadInt32( projectile + 0xbc );
 		gun.Orientation = ReadOrientation( flags );
@@ -297,7 +299,6 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		{
 			var pistol = ConfigurePickup<PlasmaPistol>( root, world, title );
 			pistol.LatchTicks = (int)MathF.Round( Float( PrimaryTrigger + 16 ) * 30 );
-			pistol.ProjectileVolume = VolumePath( Address( Reference( barrel + 0x8c ) ) );
 			pistol.ChargeTicks = (int)MathF.Round( Float( PrimaryTrigger + 28 ) * 30 );
 			pistol.ChargeSound = ReadSoundTrack( "primary_charged" );
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;

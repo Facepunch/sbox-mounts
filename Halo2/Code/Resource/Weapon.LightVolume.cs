@@ -93,7 +93,27 @@ internal sealed partial class HandheldWeaponLoader
 			int aspect = Block( row + 0x38 );
 			var width = ReadCurveRange( Block( aspect ), 1 );
 			var height = ReadCurveRange( Block( aspect + 8 ), 1 );
-			var sprites = new VolumeSprite[map.ReadInt32( row + 12 )];
+			var curves = new VolumeCurves( offset, radius, width, height, alpha, tint, Tint( 4 ), Tint( 16 ) );
+			int count = map.ReadInt32( row + 12 );
+			var layer = new VolumeLayer( Host.AssetPath( map, bitmap.TagPath, "vtex" ), [], Float( aspect + 0x10 ), Float( aspect + 0x14 ), Float( aspect + 0x18 ) );
+			int flags = map.ReadInt32( row + 0x5c );
+			if ( (flags & 3) == 0 )
+			{
+				var phases = new Vector2[count];
+				int first = Block( row + 0x60 );
+				for ( int j = 0; j < count; j++ )
+					phases[j] = new( Float( first + j * 8 ), Float( first + j * 8 + 4 ) );
+				volume.Layers[i] = layer with { Phases = phases, Curves = curves };
+				continue;
+			}
+			var sprites = new VolumeSprite[count];
+			if ( (flags & 2) != 0 )
+			{
+				for ( int j = 0; j < sprites.Length; j++ )
+					sprites[j] = curves.Sample( (float)j / (sprites.Length - 1), 0 );
+				volume.Layers[i] = layer with { Sprites = sprites };
+				continue;
+			}
 			// These volumes distribute sprites by a geometric progression of their authored radii.
 			float start = radius.Evaluate( 0, 0 ), end = radius.Evaluate( 1, 0 );
 			start = MathF.Max( start, end / 256 );
@@ -102,11 +122,9 @@ internal sealed partial class HandheldWeaponLoader
 			for ( int j = 0; j < sprites.Length; j++, current *= growth )
 			{
 				float phase = ((current - start) / (end - start)).Clamp( 0, 1 );
-				sprites[j] = new( offset.Evaluate( phase, 0 ), radius.Evaluate( phase, 0 ) * 120,
-					new( width.Evaluate( phase, 0 ), height.Evaluate( phase, 0 ) ), alpha.Evaluate( phase, 0 ),
-					MuzzleFlash.InterpolateTint( Tint( 4 ), Tint( 16 ), tint.Evaluate( phase, 0 ) ) );
+				sprites[j] = curves.Sample( phase, 0 );
 			}
-			volume.Layers[i] = new( Host.AssetPath( map, bitmap.TagPath, "vtex" ), sprites, Float( aspect + 0x10 ), Float( aspect + 0x14 ), Float( aspect + 0x18 ) );
+			volume.Layers[i] = layer with { Sprites = sprites };
 		}
 	}
 }
