@@ -54,7 +54,15 @@ public abstract partial class Weapon
 	public override bool CanReload() => !MeleeActive && CanUseHeldWeapon && base.CanReload();
 	public override bool CanPrimaryAttack() => !MeleeActive && CanUseHeldWeapon && base.CanPrimaryAttack();
 
-	protected override bool WantsSecondaryAttack() => !Offhand.IsValid() && !IsOffhand && NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
+	[ConVar( "halo2.melee_key", ConVarFlags.Saved )]
+	public static string MeleeKey { get; set; } = "v";
+
+	protected override bool WantsSecondaryAttack()
+	{
+		if ( IsOffhand || NextSecondaryFire > 0 ) return false;
+		return (!Offhand.IsValid() && base.WantsSecondaryAttack()) || (Input.Down( "Melee", false ) && Input.Pressed( "Melee" ))
+			|| (!string.IsNullOrWhiteSpace( MeleeKey ) && Input.Keyboard.Pressed( MeleeKey ));
+	}
 
 	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && Recovery.NextStrike <= 0 && CanUseHeldWeapon;
 
@@ -79,6 +87,7 @@ public abstract partial class Weapon
 
 	void StartMelee( bool primary )
 	{
+		if ( Offhand.IsValid() ) Inventory.Drop( Offhand );
 		var actions = FirstPersonAnimations()?.Actions;
 		if ( actions is null ) return;
 		var action = primary ? PrimaryMeleeAction() : null;

@@ -17,6 +17,12 @@ public abstract partial class Weapon
 	protected override bool OnHolstering( BaseInventoryItem next )
 	{
 		if ( finishingSwitch ) return true;
+		if ( Offhand.IsValid() )
+		{
+			bool switchingToOffhand = next == Offhand;
+			if ( Networking.IsHost ) Inventory.Drop( Offhand );
+			if ( switchingToOffhand ) return false;
+		}
 		if ( PuttingAway )
 		{
 			requestedItem = next;
