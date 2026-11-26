@@ -10,7 +10,7 @@ public sealed partial class Fade
 
 	void TryMetabolize()
 	{
-		if ( stabbing || !MetabolizeUnlocked || nextMetabolizeDecision > 0 || energy > 85 && Health >= MaxHealth && Armor >= 80 ) return;
+		if ( stabbing || !MetabolizeUnlocked || nextMetabolizeDecision > 0 || energy > 85 && Health >= MaxHealth && Armor >= MaxArmor ) return;
 
 		// The bot retries every four seconds. The weapon starts its own cooldown on the animation tag.
 		nextMetabolizeDecision = 4;

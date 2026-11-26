@@ -5,6 +5,7 @@ namespace NS2;
 
 public sealed partial class Fade
 {
+	const float BlinkCost = 12;
 	[Sync( SyncFlags.FromHost )] bool Blinking { get; set; }
 	TimeSince blinkAge, lastBlink = 10;
 	TimeUntil releaseBlink;
@@ -47,7 +48,7 @@ public sealed partial class Fade
 			return;
 		}
 
-		if ( hopsRemaining > 0 || energy <= (retreatHive.IsValid() ? 24 : 50) )
+		if ( hopsRemaining > 0 || energy <= (retreatHive.IsValid() ? 2 * BlinkCost : 50) )
 		{
 			if ( !IsOnGround || hopsRemaining == 0 && Time.Now <= lastJump + 0.15f ) return;
 			var jump = Animation.MoveVelocity.WithZ( 0 );
@@ -63,13 +64,14 @@ public sealed partial class Fade
 
 	void StartBlink( Vector3 goal, bool inVent )
 	{
+		if ( energy <= BlinkCost ) return;
 		ventBlink = inVent;
 		var body = GetComponent<Rigidbody>();
 		var velocity = IsOnGround ? Animation.MoveVelocity : body.Velocity;
 		airGoal = goal;
 		Launch( BlinkLaunchVelocity( velocity, view.Forward, IsOnGround ) );
 		body.Gravity = false;
-		energy -= 12;
+		energy -= BlinkCost;
 		blinkAge = 0;
 		if ( !inVent ) releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
 		Blinking = true;
@@ -94,7 +96,7 @@ public sealed partial class Fade
 				held = aim.HasValue;
 				if ( held ) view = Rotation.LookAt( aim.Value - WorldPosition );
 			}
-			if ( !stop && !dropping && held && energy > 12 )
+			if ( !stop && !dropping && held && energy > BlinkCost )
 			{
 				if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
 				var velocity = body.Velocity;
