@@ -7,6 +7,7 @@ public abstract class SparkGroundMovement : NavigationLayer
 {
 	protected abstract float GroundAcceleration { get; }
 	protected abstract float GroundFriction { get; }
+	protected virtual float GetGroundSpeed( Vector3 direction, float speed ) => speed;
 	bool braking;
 
 	public override void Stop()
@@ -52,6 +53,7 @@ public abstract class SparkGroundMovement : NavigationLayer
 
 	void SetAcceleration( Vector3 direction, float speed )
 	{
+		speed = GetGroundSpeed( direction, speed );
 		var velocity = Agent.Velocity.WithZ( 0 );
 		float friction = Math.Min( 1, GroundFriction * Scene.FixedDelta );
 		if ( direction == Vector3.Zero || friction <= 0 )
