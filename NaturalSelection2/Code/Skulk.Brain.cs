@@ -10,40 +10,16 @@ public sealed partial class Skulk
 	GameObject sighted;
 	TimeUntil nextJuke, repath;
 	float jukeSide = 1;
-	float aimScale = 1;
 	TimeUntil dealtDamage;
-	TimeUntil sampleAim, aimPenalty;
 	TimeSince sinceFought = 10;
 	bool sneaky, sneaking;
 	Stimulus? lastHeard;
-	Vector3 samplePosition;
 	MapLocations locations;
-	float AimTurnRate { get; set; } = 5;
+	float AimTurnRate => acquisition.TurnRate;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 
-	bool TrackAim( GameObject target, Vector3 aimPoint )
-	{
-		float tier = Math.Clamp( AimSkillTier, 1, 7 ) / 7f;
-		if ( !acquisition.Track( target, aimPoint - EyePosition, ViewRotation, AimSkillTier, out bool restarted ) ) return false;
-		if ( restarted ) sampleAim = 0;
-		if ( sampleAim <= 0 )
-		{
-			samplePosition = target.WorldPosition;
-			sampleAim = 0.25f;
-		}
-		else
-		{
-			bool high = ViewRotation.Forward.z > 0.4f;
-			bool passed = Vector3.Dot( (samplePosition - EyePosition).Normal, (target.WorldPosition - EyePosition).Normal ) < -0.5f;
-			if ( high || passed )
-			{
-				aimScale = high ? 0.5f : 0.7f;
-				aimPenalty = 0.4f - 0.3f * tier;
-				sampleAim = 0;
-			}
-		}
-		return acquisition.IsReady;
-	}
+	bool TrackAim( GameObject target, Vector3 aimPoint ) =>
+		acquisition.TrackView( target, EyePosition, aimPoint, ViewRotation, underFire > 0 || dealtDamage > 0 ? 1.1f : 1, AimSkillTier );
 
 	GameObject FindEnemy( out Vector3? lastKnownPosition )
 	{

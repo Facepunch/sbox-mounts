@@ -16,6 +16,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly AlienAim.Acquisition acquisition = new( 90 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
@@ -197,13 +198,14 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 				else if ( retreatHive.IsValid() ) direction = retreatHive.EngagementPoint - EyePosition;
 				else if ( airGoal is { } destination ) direction = TravelLook( destination );
 			}
-			view = AlienAim.Turn( view, direction, 5 );
+			view = AlienAim.Turn( view, direction, acquisition.TurnRate );
 			return;
 		}
 
-		var aim = CalculateAimPoint( enemy ) - EyePosition;
-		view = AlienAim.Turn( view, aim, 5 );
-		if ( !acquisition.Ready( enemy, aim, view ) ) return;
+		var point = CalculateAimPoint( enemy );
+		bool ready = acquisition.TrackView( enemy, EyePosition, point, view, InCombat ? 1.8f : 1, AimSkillTier );
+		view = AlienAim.Turn( view, point - EyePosition, acquisition.TurnRate );
+		if ( !ready ) return;
 
 		attacking = InAttackRange( WorldPosition.Distance( enemy.WorldPosition ), Random.Shared.NextSingle() );
 		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )

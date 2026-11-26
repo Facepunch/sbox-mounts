@@ -113,9 +113,7 @@ public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 		FiringParasite = false;
 		var target = FindEnemy( out var lastKnownPosition );
 		var aimPoint = target.IsValid() ? CalculateAimPoint( target ) : default;
-		if ( aimPenalty <= 0 ) aimScale = 1;
 		bool aimReady = target.IsValid() && TrackAim( target, aimPoint );
-		AimTurnRate = aimScale * (underFire > 0 || dealtDamage > 0 ? 5.5f : 5);
 		Animation.SetLookTarget( target );
 		if ( !target.IsValid() )
 		{

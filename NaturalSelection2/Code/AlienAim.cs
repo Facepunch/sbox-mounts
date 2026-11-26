@@ -13,14 +13,44 @@ internal static class AlienAim
 		TimeUntil acquired;
 		List<(GameObject Target, float Time)> recentTargets;
 
-		internal bool IsReady => acquired <= 0;
+		Vector3 samplePosition;
+		TimeUntil sample, penalty;
+		float turnModifier = 1, penaltyScale = 1;
+
+		internal float TurnRate => 5 * turnModifier * (penalty >= 0 ? penaltyScale : 1);
+
+		internal bool TrackView( GameObject enemy, Vector3 eye, Vector3 point, Rotation view, float modifier, int skillTier )
+		{
+			if ( !Track( enemy, point - eye, view, skillTier ) ) return false;
+			turnModifier = modifier;
+			if ( sample < 0 )
+			{
+				samplePosition = enemy.WorldPosition;
+				sample = 0.25f;
+			}
+			else
+			{
+				bool high = view.Forward.z > 0.4f;
+				// BotAim takes acos of the unnormalized offsets in metres.
+				float dot = Vector3.Dot( samplePosition - eye, enemy.WorldPosition - eye ) / (MapLoader.Scale * MapLoader.Scale);
+				if ( high || dot is >= -1 and < -0.5f )
+				{
+					penaltyScale = high ? 0.5f : 0.7f;
+					penalty = 0.4f - 0.3f * Math.Clamp( skillTier, 1, 7 ) / 7f;
+					samplePosition = enemy.WorldPosition;
+					sample = 0.25f;
+				}
+			}
+			return IsReady;
+		}
+
+		bool IsReady => acquired <= 0;
 
 		internal bool Ready( GameObject enemy, Vector3 offset, Rotation view ) =>
-			Track( enemy, offset, view, 1, out _ ) && IsReady;
+			Track( enemy, offset, view, 1 ) && IsReady;
 
-		internal bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier, out bool restarted )
+		bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier )
 		{
-			restarted = false;
 			const float panicDistance = 2 * MapLoader.Scale;
 			if ( offset.LengthSquared > panicDistance * panicDistance && Vector3.Dot( offset.Normal, view.Forward ) <= cone )
 				return false;
@@ -45,7 +75,6 @@ internal static class AlienAim
 				float tier = Math.Clamp( skillTier, 1, 7 ) / 7f;
 				acquired = (0.325f - 0.14f * tier) * (reacquiring ? 0.3f : 1);
 				target = enemy;
-				restarted = true;
 			}
 			lastTracked = 0;
 			return true;

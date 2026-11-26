@@ -18,6 +18,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	const float BodyRadius = 0.4f * Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly AlienAim.Acquisition acquisition = new( 100 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
@@ -177,10 +178,11 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 			var target = attacking || wantsSpikes ? assignedEnemy : Animation.LookObject;
 			if ( target.IsValid() )
 			{
-				aim = CalculateAimPoint( target ) - EyePosition;
-				if ( attacking || wantsSpikes ) ready = acquisition.Ready( target, aim, View );
+				var point = CalculateAimPoint( target );
+				aim = point - EyePosition;
+				if ( attacking || wantsSpikes ) ready = acquisition.TrackView( target, EyePosition, point, View, InCombat ? 1.5f : 1, AimSkillTier );
 			}
-			View = AlienAim.Turn( View, aim, 5 );
+			View = AlienAim.Turn( View, aim, acquisition.TurnRate );
 			BodyRotation = FlightBodyRotation( BodyRotation.Angles(), View.Angles(), Animation.IsGrounded, Time.Delta );
 		}
 		UpdateBodyTransform();
