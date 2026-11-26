@@ -210,7 +210,7 @@ public sealed class Rocket : Projectile
 		if ( _loop is not null ) _loop.Position = WorldPosition;
 		// IgniteThink starts CMissile's code-driven RocketTrail at the tail attachment.
 		if ( _smoke is null && Renderer.IsValid() && Renderer.Enabled && Renderer.Model.IsValid() )
-			_smoke = RocketTrail.Create( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName ) ?? Visual;
+			_smoke = SmokeTrail.Rocket( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName ) ?? Visual;
 	}
 
 	protected override void OnDestroy()
@@ -363,6 +363,12 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 		return _angles.ToRotation();
 	}
 	protected override float Gravity => 400;
+	protected override void OnStart()
+	{
+		base.OnStart();
+		if ( Visual.IsValid() ) SmokeTrail.Grenade( Visual, MountName );
+	}
+
 	protected override void OnEnabled()
 	{
 		Hull.Scale = Vector3.One * 6;
@@ -493,26 +499,68 @@ public sealed class Bugbait : Projectile
 	}
 }
 
-/// <summary>
-/// CMissile's code-driven RocketTrail as one particle emitter: 100 particle_smokegrenade puffs a second
-/// from the tail, opacity 0.2, colour 0.65 grey to black, radius 8 to 32, spawn radius 4, speed 2 to 16,
-/// half-second life. Puffs stay in the world after the rocket is gone.
-/// </summary>
-static class RocketTrail
+static class SmokeTrail
 {
-	public static GameObject Create( GameObject parent, Vector3 offset, string mount )
+	const string Smoke = "particle/particle_smokegrenade";
+	const string Dust = "particle/particle_noisesphere";
+
+	static readonly ParticleFloat Opacity = new()
 	{
-		var texture = MountedEffects.SpriteTexture( "particle/particle_smokegrenade", mount );
-		if ( texture is null || !parent.IsValid() ) return null;
-		var go = new GameObject( parent, false, "HL2 rocket trail" );
+		Type = ParticleFloat.ValueType.CurveRange,
+		Evaluation = ParticleFloat.EvaluationType.Life,
+		CurveA = SourceParticleMath.Sample( t => 0.15f * MathF.Sin( MathF.PI * t ) ),
+		CurveB = SourceParticleMath.Sample( t => 0.25f * MathF.Sin( MathF.PI * t ) )
+	};
+
+	public static GameObject Rocket( GameObject parent, Vector3 offset, string mount )
+	{
+		var effect = Create( parent, offset, MountedEffects.SpriteTexture( Smoke, mount ), "HL2 rocket trail", 0.5f, 16, 0.65f );
+		if ( effect is null ) return null;
+
+		var emitter = effect.GameObject.AddComponent<ParticleSphereEmitter>();
+		emitter.Radius = 4;
+		emitter.Velocity = 9;
+		emitter.Rate = 100;
+		emitter.Burst = 0;
+		effect.GameObject.Enabled = true;
+		return effect.GameObject;
+	}
+
+	public static void Grenade( GameObject parent, string mount )
+	{
+		var smoke = MountedEffects.SpriteTexture( Smoke, mount );
+		var dust = MountedEffects.SpriteTexture( Dust, mount );
+		// Stagger the two materials by one puff so the trail emits at 48 Hz in total.
+		AddPuffs( smoke, dust is null ? 48 : 24, 0 );
+		AddPuffs( dust, smoke is null ? 48 : 24, 1f / 48 );
+
+		void AddPuffs( Texture texture, int rate, float delay )
+		{
+			var effect = Create( parent, Vector3.Zero, texture, "SMG grenade smoke", 1, 24, 0.1f );
+			if ( effect is null ) return;
+			effect.OnParticleCreated = puff => puff.Velocity = Game.Random.VectorInCube( 1 ) * Game.Random.Float( 4, 24 );
+			effect.ApplyRotation = true;
+			effect.InitialRoll = new ParticleFloat( 0, 360 );
+			var emitter = effect.GameObject.AddComponent<ParticleBoxEmitter>();
+			emitter.Size = 8;
+			emitter.Delay = delay;
+			emitter.Rate = rate;
+			emitter.Burst = 0;
+			effect.GameObject.Enabled = true;
+		}
+	}
+
+	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey )
+	{
+		if ( texture is null ) return null;
+		var go = new GameObject( parent, false, name );
 		go.NetworkMode = NetworkMode.Never;
 		go.LocalPosition = offset;
 		var effect = go.AddComponent<ParticleEffect>();
-		effect.Lifetime = 0.5f;
+		effect.Lifetime = lifetime;
 		effect.MaxParticles = 100;
-		// Source particle sizes are radii.
 		effect.ApplyShape = true;
-		effect.InitialScale = 16;
+		effect.InitialScale = diameter;
 		effect.Scale = new ParticleFloat
 		{
 			Type = ParticleFloat.ValueType.Curve,
@@ -525,27 +573,14 @@ static class RocketTrail
 		{
 			Type = ParticleGradient.ValueType.Gradient,
 			Evaluation = ParticleGradient.EvaluationType.Life,
-			GradientA = new Gradient( new Gradient.ColorFrame( 0, new Color( 0.65f, 0.65f, 0.65f ) ), new Gradient.ColorFrame( 1, Color.Black ) )
+			GradientA = new Gradient( new Gradient.ColorFrame( 0, new Color( grey, grey, grey ) ), new Gradient.ColorFrame( 1, Color.Black ) )
 		};
-		effect.Alpha = new ParticleFloat
-		{
-			Type = ParticleFloat.ValueType.Curve,
-			Evaluation = ParticleFloat.EvaluationType.Life,
-			CurveA = new Curve( new Curve.Frame( 0, 0.2f ), new Curve.Frame( 1, 0 ) )
-		};
-		var emitter = go.AddComponent<ParticleSphereEmitter>();
-		emitter.Radius = 4;
-		// Approximation: Source draws each puff's speed from 2 to 16; the sphere emitter uses one.
-		emitter.Velocity = 9;
-		emitter.Rate = 100;
-		emitter.Burst = 0;
-		emitter.Loop = true;
+		effect.Alpha = Opacity;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
 		var linger = go.AddComponent<TemporaryEffect>();
 		linger.BecomeOrphan = true;
 		linger.DestroyAfterSeconds = 0;
-		go.Enabled = true;
-		return go;
+		return effect;
 	}
 }
