@@ -41,7 +41,8 @@ public sealed class PaydaySoundscape : Component
 	readonly List<(SoundHandle Handle, float Target)> beds = [];
 	string currentAmbience, currentOccasional;
 	TimeUntil nextScan, nextOccasional;
-	List<PaydaySoundEnvironment> environments;
+	readonly List<SoundHandle> occasionals = [];
+	int playbackGeneration;
 
 	static PaydayMount Mount => Sandbox.Mounting.Directory.Get( "payday" ) as PaydayMount;
 	static bool Silent( string name ) => string.IsNullOrEmpty( name ) || name.Contains( "silen", StringComparison.OrdinalIgnoreCase );
@@ -49,6 +50,7 @@ public sealed class PaydaySoundscape : Component
 	protected override void OnUpdate()
 	{
 		if ( !PaydayAmbientSound.Enabled ) { StopAll(); return; }
+		occasionals.RemoveAll( h => h is null || !h.IsValid() || !h.IsPlaying );
 		if ( nextScan <= 0 )
 		{
 			nextScan = 0.25f;
@@ -72,12 +74,13 @@ public sealed class PaydaySoundscape : Component
 	void Select()
 	{
 		var listener = Scene.Camera?.WorldPosition ?? Vector3.Zero;
-		environments ??= GameObject.GetComponentsInChildren<PaydaySoundEnvironment>( true ).ToList();
-		var area = environments.Where( e => e.IsValid() && e.Contains( listener ) ).OrderBy( e => e.Volume ).FirstOrDefault();
+		var area = GameObject.GetComponentsInChildren<PaydaySoundEnvironment>( true )
+			.Where( e => e.IsValid() && e.Active && e.Contains( listener ) ).OrderBy( e => e.Volume ).FirstOrDefault();
 		string ambience = area is { UseAmbience: true } ? area.AmbienceEvent : DefaultAmbience;
 		string occasional = area is { UseOccasional: true } ? area.OccasionalEvent : DefaultOccasional;
 		if ( !string.Equals( occasional, currentOccasional, StringComparison.OrdinalIgnoreCase ) )
 		{
+			StopOccasionals();
 			currentOccasional = occasional;
 			nextOccasional = Game.Random.Float( 3, 12 );
 		}
@@ -99,19 +102,30 @@ public sealed class PaydaySoundscape : Component
 
 	async Task PlayOccasional( string eventName )
 	{
+		int generation = playbackGeneration;
 		if ( Mount?.SoundPath( eventName ) is not { } path ) return;
 		SoundEvent sound;
 		try { sound = await ResourceLibrary.LoadAsync<SoundEvent>( path ); }
 		catch ( Exception e ) { Log.Warning( $"PAYDAY occasional {eventName}: {e.Message}" ); return; }
-		if ( sound is null || !this.IsValid() ) return;
+		if ( sound is null || !this.IsValid() || !Active || !PaydayAmbientSound.Enabled
+			|| generation != playbackGeneration ) return;
 		var handle = GameObject.PlaySound( sound );
 		if ( handle is null ) return;
 		handle.ListenLocal = true;
 		handle.DistanceAttenuation = false;
+		occasionals.Add( handle );
+	}
+
+	void StopOccasionals()
+	{
+		playbackGeneration++;
+		foreach ( var handle in occasionals ) handle?.Stop();
+		occasionals.Clear();
 	}
 
 	void StopAll()
 	{
+		StopOccasionals();
 		foreach ( var (handle, _) in beds ) handle?.Stop();
 		beds.Clear();
 		currentAmbience = null;
@@ -123,4 +137,6 @@ public sealed class PaydaySoundscape : Component
 		StopAll();
 		base.OnDisabled();
 	}
+
+	protected override void OnDestroy() => StopAll();
 }
