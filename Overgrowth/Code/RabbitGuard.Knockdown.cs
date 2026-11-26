@@ -292,6 +292,9 @@ public sealed partial class RabbitGuard
 		remains.Teams = Teams;
 		remains.StaticCharacter = StaticCharacter;
 		remains.Physics = physics;
+		var hitboxes = corpse.GetOrAddComponent<ModelHitboxes>();
+		hitboxes.Renderer = corpse.GetComponent<SkinnedModelRenderer>();
+		hitboxes.Target = corpse;
 		remains.Burning = Burning;
 		remains.FireParticles = fireParticles;
 		fireParticles = default;
@@ -340,7 +343,7 @@ public sealed partial class RabbitGuard
 		if ( cutThroat ) corpse.GetOrAddComponent<ArterialBleeding>();
 	}
 
-	static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )
+	internal static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )
 	{
 		float Weight( Rigidbody rb )
 		{

@@ -62,8 +62,18 @@ public sealed partial class LevelItem
 			mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
 	}
 
-	void HitFighter( RabbitGuard fighter, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 start, Vector3 end, ItemLine line )
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayCutImpact( float mass, bool embedded, string label, Vector3 point )
 	{
+		var sound = mass < 1f ? (embedded ? "weapon_foley/impact/weapon_knife_hit" : "weapon_foley/impact/weapon_knife_hit_neck") : mass < 3f ? "hit/hit_medium" : "hit/hit_hard";
+		if ( embedded && label == "spear" ) sound = "hit/spear_hit_flesh";
+		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
+			mount.PlayGroup( $"Data/Sounds/{sound}.xml", point );
+	}
+
+	void HitCharacter( RabbitGuard fighter, CharacterRemains remains, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 start, Vector3 end, ItemLine line )
+	{
+		var renderer = remains.IsValid() ? remains.GetComponent<SkinnedModelRenderer>() : fighter.Renderer;
 		var velocity = body.Velocity;
 		float mass = body.Mass;
 		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader;
@@ -71,21 +81,27 @@ public sealed partial class LevelItem
 		var axis = (end - start).Normal;
 		if ( cut )
 		{
-			fighter.Stab( hit.EndPosition, axis, false );
+			renderer.GetOrAddComponent<CutMarks>().Stab( hit.EndPosition, axis, false );
 			MarkBlood( Vector3.Lerp( line.Start, line.End, hit.Fraction ), WorldRotation.Inverse * axis, 8f );
 		}
 		string label = Definition.Element( "label" )?.Value;
 		bool embedded = cut && (label == "spear" || MathF.Abs( axis.Dot( hit.Normal ) ) > 0.4f);
-		if ( embedded && hit.Hitbox?.Bone is { } bone && fighter.Renderer.TryGetBoneTransform( bone.Name, out var bonePose ) )
+		if ( embedded && hit.Hitbox?.Bone is { } bone && renderer.TryGetBoneTransform( bone.Name, out var bonePose ) )
 		{
 			body.Enabled = false;
 			GetComponent<ModelCollider>().Enabled = false;
-			GameObject.SetParent( fighter.GameObject, true );
+			GameObject.SetParent( hit.GameObject, true );
 			WorldTransform = sample.WithPosition( sample.Position + hit.EndPosition - end + axis * 16f );
 			Bone = bone.Name;
 			Offset = bonePose.ToLocal( WorldTransform );
-			StuckIn = fighter.Renderer;
+			StuckIn = renderer;
 		}
-		fighter.HitByItem( this, attacker, hit.EndPosition, velocity, mass, label, cut, embedded );
+		if ( cut ) PlayCutImpact( mass, embedded, label, hit.EndPosition );
+		if ( remains.IsValid() )
+		{
+			var relative = velocity - (CharacterLoader.RagdollVelocity( remains.Physics ) ?? Vector3.Zero);
+			RabbitGuard.ApplyHitImpulse( remains.Physics, hit.EndPosition, relative * (mass * 200f / 120f) );
+		}
+		else fighter.HitByItem( this, attacker, hit.EndPosition, velocity, mass, label, cut, embedded );
 	}
 }

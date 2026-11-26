@@ -36,10 +36,13 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					var start = Vector3.Lerp( oldStart, newStart, fraction );
 					var end = Vector3.Lerp( oldEnd, newEnd, fraction );
 					var hit = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes().Run();
-					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter || fighter.GameObject == owner ) continue;
+					if ( !hit.Hit || hit.GameObject == owner ) continue;
+					var fighter = hit.GameObject.GetComponent<RabbitGuard>();
+					var remains = fighter.IsValid() ? null : hit.GameObject.GetComponent<CharacterRemains>();
+					if ( !fighter.IsValid() && !remains.IsValid() ) continue;
 					float mass = body.Mass;
-					if ( IsThrown && !fighter.DefendThrownItem( this, body ) )
-						HitFighter( fighter, body, thrower, hit, global::Transform.Lerp( previousFlightPose, pose, fraction, true ), start, end, line );
+					if ( IsThrown && (remains.IsValid() || !fighter.DefendThrownItem( this, body )) )
+						HitCharacter( fighter, remains, body, thrower, hit, global::Transform.Lerp( previousFlightPose, pose, fraction, true ), start, end, line );
 					MarkThrowSafe();
 					nextCharacterImpact = 0.4f;
 					previousFlightPose = pose;

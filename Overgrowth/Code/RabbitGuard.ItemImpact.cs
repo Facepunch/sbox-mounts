@@ -69,12 +69,6 @@ public sealed partial class RabbitGuard
 		bool wasAwake = !Unconscious;
 		if ( airborneBody is not null ) airborneBody.Velocity += force * 0.1f;
 		else if ( !Downed ) combatVelocity += force * 0.1f;
-		if ( cut )
-		{
-			var sound = mass < 1f ? (embedded ? "weapon_foley/impact/weapon_knife_hit" : "weapon_foley/impact/weapon_knife_hit_neck") : mass < 3f ? "hit/hit_medium" : "hit/hit_hard";
-			if ( embedded && label == "spear" ) sound = "hit/spear_hit_flesh";
-			PlayCombatSound( $"Data/Sounds/{sound}.xml", point );
-		}
 		if ( wasAwake && species is ("dog" or "wolf") )
 		{
 			Speak( "hit" );
