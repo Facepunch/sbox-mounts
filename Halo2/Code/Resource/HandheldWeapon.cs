@@ -493,14 +493,16 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
 				bool beam = effect.TagPath == @"effects\scenarios\objects\covenant\military\scarab\main_gun_beam";
 				bool exhaustSmoke = (beam || effect.TagPath.EndsWith( @"\rocket_exhaust", StringComparison.Ordinal ) || effect.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) || effect.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") && Short( row + 12 ) == 0;
-				bool smoke = exhaustSmoke || additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
+				bool smoke = exhaustSmoke || additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke"
+					or @"effects\objects\vehicles\warthog\chaingun\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
-					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
+					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par" or @"effects\objects\vehicles\warthog\chaingun\chaingun_casing_par";
 				bool blade = particle?.TagPath is @"effects\objects\weapons\melee\energy_blade\glow_blade" or @"effects\objects\weapons\melee\energy_blade\blade_charge";
 				bool ignition = particle?.TagPath is @"effects\generic\energy\energy_blade_activate" or @"effects\generic\energy\plasma_wispy";
 				bool exhaustFlame = particle?.TagPath is @"effects\objects\weapons\support_high\rocket_launcher\rocket_flame" or @"effects\objects\weapons\support_high\rocket_launcher\rocket_flame_core";
 				bool ember = particle?.TagPath == @"effects\generic\energy\ember";
 				bool flare = ember || exhaustFlame || blade || ignition || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
+					or @"effects\objects\vehicles\warthog\chaingun\muzzle_flash" or @"effects\objects\vehicles\warthog\chaingun\muzzle_flash_long"
 					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft" or @"effects\generic\flares\flash_shield"
 					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long" or @"effects\generic\energy\c_muzzle_flash_red_large"
 					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
@@ -582,6 +584,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 						RandomCone = ember && Short( emitter + 140 ) == 15 ? ReadRange( emitter + 140, 1 ) : null,
 						SingleParticle = (Short( row + 22 ) & 4) != 0,
 						LineEmitter = Short( emitter + 120 ) == 9,
+						Environment = (ParticleEnvironment)Short( row + 14 ),
 						RandomRadiusScale = exhaustFlame ? ReadRange( definition + 60, 1 ) : null,
 						ParticleTint = Short( emitter + 88 ) == 3 && map.ReadSpan( color, 1 )[0] == 3 &&
 							Short( color + 2 ) is >= 8 and <= 10 && map.ReadSpan( color + 1, 1 )[0] == 0x20

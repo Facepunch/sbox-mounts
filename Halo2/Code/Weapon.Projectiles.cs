@@ -161,19 +161,20 @@ public abstract partial class Weapon
 		_ = FlyPellets( ray.Position, pellets, Attacker, discharge, target, localPoint, profile, initialSpeed, scale );
 	}
 
+	internal static bool InWater( Scene scene, Vector3 point )
+	{
+		if ( WaterBody.Find( scene, point ).IsValid() ) return true;
+		var trace = scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers();
+		var hit = trace.Run();
+		if ( !hit.StartedSolid ) return false;
+		// A wave's trigger covers its entire height envelope. Only independent water volumes count here.
+		static bool IsLegacyWater( SceneTraceResult hit ) => hit.StartedSolid && !hit.GameObject.GetComponentInParent<WaterBody>().IsValid();
+		return IsLegacyWater( hit ) || trace.RunAll().Any( IsLegacyWater );
+	}
+
 	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker, EnergyDischarge discharge, GameObject target, Vector3 localPoint, ProjectileSpeedProfile profile, float initialSpeed, float scale )
 	{
 		var scene = Scene;
-		bool InWater( Vector3 point )
-		{
-			if ( WaterBody.Find( scene, point ).IsValid() ) return true;
-			var trace = scene.Trace.Ray( point, point ).WithTag( "water" ).HitTriggers();
-			var hit = trace.Run();
-			if ( !hit.StartedSolid ) return false;
-			// A wave's trigger covers its entire height envelope. Only independent water volumes count here.
-			static bool IsLegacyWater( SceneTraceResult hit ) => hit.StartedSolid && !hit.GameObject.GetComponentInParent<WaterBody>().IsValid();
-			return IsLegacyWater( hit ) || trace.RunAll().Any( IsLegacyWater );
-		}
 		var ballistics = discharge?.Ballistics ?? Ballistics;
 		var orientation = discharge?.Orientation ?? Orientation;
 		float leading = discharge?.TargetLeading ?? TargetLeading;
@@ -190,7 +191,7 @@ public abstract partial class Weapon
 		var bounce = Bounce;
 		float maxRange = ballistics.Range > 0 ? ballistics.Range : float.PositiveInfinity;
 		var detonation = DetonationEffectPath;
-		bool originWet = InWater( origin );
+		bool originWet = InWater( scene, origin );
 		bool traceWater = Shard is not null && scene.GetAllComponents<WaterBody>().Any();
 		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
@@ -271,7 +272,7 @@ public abstract partial class Weapon
 						}
 					}
 				}
-				bool wet = tick == 0 ? originWet : InWater( start );
+				bool wet = tick == 0 ? originWet : InWater( scene, start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var velocityChange = Vector3.Down * fall;
@@ -375,7 +376,7 @@ public abstract partial class Weapon
 						: direction < 0 ? System.MathF.BitIncrement( value ) : value;
 					var p = hit.HitPosition;
 					var d = hit.Direction;
-					if ( InWater( new Vector3( Before( p.x, d.x ), Before( p.y, d.y ), Before( p.z, d.z ) ) ) )
+					if ( InWater( scene, new Vector3( Before( p.x, d.x ), Before( p.y, d.y ), Before( p.z, d.z ) ) ) )
 						range = wetRange;
 				}
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;

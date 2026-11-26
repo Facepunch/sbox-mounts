@@ -11,6 +11,8 @@ public sealed record ExhaustSmoke( CurveRange? BirthRate, CurveRange? Speed, Cur
 
 public sealed record MuzzleEmission( float Start, Vector2 Duration );
 
+public enum ParticleEnvironment { Any, Air, Water, Space }
+
 public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
@@ -20,6 +22,7 @@ public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 As
 	public CurveRange? RandomCone { get; init; }
 	public bool SingleParticle { get; init; }
 	public bool LineEmitter { get; init; }
+	public ParticleEnvironment Environment { get; init; }
 	public CurveRange? RandomRadiusScale { get; init; }
 	public CurveRange? ParticleTint { get; init; }
 }
@@ -40,11 +43,17 @@ public sealed class MuzzleFlash : Component
 			_ = PelletImpactEffect.PlayLight( GameObject, WorldTransform, light );
 		if ( !layersByEffect.TryGetValue( data, out var layers ) ) layersByEffect[data] = layers = new ParticleEffect[data.Layers.Length];
 		float systemRandom = 0;
+		ParticleEnvironment? environment = null;
 		for ( int i = 0; i < layers.Length; i++ )
 		{
 			var spec = data.Layers[i];
 			if ( spec.StartsSystem ) systemRandom = BlamRandom.Next( ref systemSeed ) / 65535f;
 			if ( spec.CameraMode == (firstPerson ? 2 : 1) ) continue;
+			if ( spec.Environment != ParticleEnvironment.Any )
+			{
+				environment ??= Weapon.InWater( Scene, emitPosition ?? WorldPosition ) ? ParticleEnvironment.Water : ParticleEnvironment.Air;
+				if ( spec.Environment != environment ) continue;
+			}
 			float rate = spec.ExhaustSmoke?.BirthRate is {} births
 				? BoundedValue( births, effectScale, spec.BirthCount )
 				: spec.BirthInput == 5 ? MathX.Lerp( spec.BirthCount.x, spec.BirthCount.y, systemRandom ) : Sample( spec.BirthCount );
