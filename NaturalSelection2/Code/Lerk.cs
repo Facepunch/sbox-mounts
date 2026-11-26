@@ -249,18 +249,20 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		}
 		PlayCue( "bite" );
 		energy = Math.Max( 0, energy - 5 );
-		var (hit, victim) = AlienMelee.Trace( this, View, 1.5f * Scale, 0.9f, 1.2f );
-		if ( hit.Hit )
+		foreach ( var (hit, victim) in AlienMelee.Swing( this, View, 1.5f * Scale, 0.9f, 1.2f, AlienMelee.Attack.Bite ) )
 		{
-			var contact = hit.GameObject?.GetComponentInParent<IDamageable>();
-			if ( contact is { Health: > 0 } || hit.GameObject?.Tags.Has( "world" ) == true )
-				acquisition.Record( victim is not null );
+			if ( hit.Hit )
+			{
+				var contact = hit.GameObject?.GetComponentInParent<IDamageable>();
+				if ( contact is { Health: > 0 } || hit.GameObject?.Tags.Has( "world" ) == true )
+					acquisition.Record( victim is not null );
+			}
+			if ( victim is not Component target ) continue;
+			victim.OnDamage( new DamageInfo { Damage = 60, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject } );
+			if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
+				(target.GameObject.Tags.Has( "ns2_marine" ) || target.GetComponentInParent<PlayerController>().IsValid()) )
+				target.GameObject.GetOrAddComponent<LerkPoison>().Apply( victim );
 		}
-		if ( victim is not Component target ) return;
-		victim.OnDamage( new DamageInfo { Damage = 60, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject } );
-		if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
-			(target.GameObject.Tags.Has( "ns2_marine" ) || target.GetComponentInParent<PlayerController>().IsValid()) )
-			target.GameObject.GetOrAddComponent<LerkPoison>().Apply( victim );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

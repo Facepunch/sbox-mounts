@@ -185,7 +185,7 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 			var ability = Shielding ? "boneshield" : "gore";
 			var move = Shielding ? "shield" : !Animation.IsGrounded ? "jump" : velocity.Length > 0.1f * Scale ? "run" : "idle";
 			bool canSwing = attacking && energy >= 10 && !Shielding && !stomping;
-			if ( canSwing ) smashSwing ??= TraceGore().Victim is Component c && c.GameObject.Tags.Has( "structure" );
+			if ( canSwing ) smashSwing ??= TraceGore().First().Victim is Component c && c.GameObject.Tags.Has( "structure" );
 			else smashSwing = null;
 			var activity = stomping ? (sinceStomp < stompDuration * 0.95f ? "secondary" : "none")
 				: Shielding ? "primary" : canSwing ? (smashSwing == true ? "smash" : "primary") : "none";
@@ -286,15 +286,25 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 		energy = Math.Max( 0, energy - 10 );
 		bool smash = smashSwing == true;
 		smashSwing = null;
-		var (hit, victim) = TraceGore();
-		AlienMelee.PlayImpact( hit, AlienMelee.Attack.Gore );
-		PushHitProp( hit, ViewRotation.Forward * RunSpeed );
+		SceneTraceResult lastHit = default;
+		bool lastTargetStructural = false, hitEntity = false;
+		foreach ( var (hit, victim) in TraceGore() )
+		{
+			AlienMelee.PlayImpact( hit, AlienMelee.Attack.Gore );
+			PushHitProp( hit, ViewRotation.Forward * RunSpeed );
 
-		bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
-		if ( smash && hit.Hit && (structural || hit.HasTag( "world" ) && victim is null) )
-			ShowSmashImpact( hit.EndPosition, ViewRotation );
-		if ( victim is null ) return;
-		DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );
+			bool structural = victim is Component c && c.GameObject.Tags.Has( "structure" );
+			lastHit = hit;
+			if ( hit.Hit && !hit.HasTag( "world" ) )
+			{
+				hitEntity = true;
+				lastTargetStructural = structural;
+			}
+			if ( victim is null ) continue;
+			DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );
+		}
+		if ( smash && lastHit.Hit && (!hitEntity || lastTargetStructural) )
+			ShowSmashImpact( lastHit.EndPosition, ViewRotation );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -305,11 +315,11 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 		CinematicLoader.Play( $"cinematics/alien/onos/{name}.cinematic", position, facing );
 	}
 
-	(SceneTraceResult Hit, IDamageable Victim) TraceGore()
+	IEnumerable<(SceneTraceResult Hit, IDamageable Victim)> TraceGore()
 	{
 		var view = ViewRotation;
 		float range = (1.7f + Math.Max( 0, -view.Forward.z ) * 0.9f) * Scale;
-		return AlienMelee.Trace( this, view, range, 1, 1.4f );
+		return AlienMelee.Swing( this, view, range, 1, 1.4f, AlienMelee.Attack.Gore );
 	}
 
 	void DealDamage( IDamageable victim, float amount, Vector3 position, string tag )

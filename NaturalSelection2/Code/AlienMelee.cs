@@ -72,8 +72,25 @@ internal static class AlienMelee
 		SparkDecal.Spawn( "Melee impact", material, wall.HitPosition, Rotation.LookAt( -wall.Normal, direction ), 0, size, 12 );
 	}
 
+	internal static IEnumerable<(SceneTraceResult Hit, IDamageable Victim)> Swing( BaseNpc npc, Rotation view, float reach, float width, float height, Attack attack )
+	{
+		var ray = npc.Scene.Trace.Ray( npc.EyePosition, npc.EyePosition + view.Forward * reach )
+			.IgnoreGameObjectHierarchy( npc.GameObject ).UseHitboxes();
+		if ( attack != Attack.Gore ) ray = ray.WithoutTags( "ns2_babbler" );
+
+		for ( int i = 0; i < 20; i++ )
+		{
+			var contact = Trace( ray, npc, view, reach, width, height );
+			var root = ((contact.Victim ?? contact.Hit.GameObject?.GetComponentInParent<IDamageable>()) as Component)?.GameObject ?? contact.Hit.GameObject;
+			bool pass = root.IsValid() && root.Tags.HasAny( "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" );
+			if ( pass ) ray = ray.IgnoreGameObjectHierarchy( root );
+			yield return contact;
+			if ( !pass ) yield break;
+		}
+	}
+
 	// Spark samples the center, four sides and four corners of the weapon's melee box.
-	internal static (SceneTraceResult Hit, IDamageable Victim) Trace( BaseNpc npc, Rotation view, float reach, float width, float height )
+	static (SceneTraceResult Hit, IDamageable Victim) Trace( SceneTrace ray, BaseNpc npc, Rotation view, float reach, float width, float height )
 	{
 		width *= MapLoader.Scale / 3;
 		height *= MapLoader.Scale / 3;
@@ -85,12 +102,11 @@ internal static class AlienMelee
 		foreach ( var cell in order )
 		{
 			var start = npc.EyePosition + view.Left * ((cell % 3 - 1) * width) + view.Up * ((cell / 3 - 1) * height);
-			var trace = npc.Scene.Trace.Ray( start, start + view.Forward * reach ).Size( size )
-				.IgnoreGameObjectHierarchy( npc.GameObject ).UseHitboxes().Run();
+			var trace = ray.FromTo( start, start + view.Forward * reach ).Size( size ).Run();
 			if ( cell == 4 ) center = trace;
-			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { } target || npc.GetDisposition( (target as Component)?.GameObject ?? trace.GameObject ) != Disposition.Hostile ) continue;
+			if ( trace.GameObject?.GetComponentInParent<IDamageable>() is not { Health: > 0 } target || npc.GetDisposition( (target as Component)?.GameObject ?? trace.GameObject ) != Disposition.Hostile ) continue;
 			if ( Vector3.Dot( trace.EndPosition - npc.EyePosition, forward ) <= 0.1f * MapLoader.Scale ) continue;
-			bool player = trace.GameObject.GetComponentInParent<PlayerController>() is not null;
+			bool player = target is AlienLifeform or Exo or Marine || trace.GameObject.GetComponentInParent<PlayerController>().IsValid();
 			if ( victim is null || player ) (hit, victim) = (trace, target);
 			if ( player ) break;
 		}

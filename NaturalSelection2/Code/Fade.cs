@@ -293,20 +293,23 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		stabbing = false;
 		if ( !stab ) PlayCue( "swipe" );
 		energy = Math.Max( 0, energy - (stab ? 25 : 7) );
-		var (hit, victim) = AlienMelee.Trace( this, view, (stab ? 1.9f : 1.6f) * Scale, 0.7f, 1.2f );
-		AlienMelee.PlayImpact( hit, stab ? AlienMelee.Attack.Stab : AlienMelee.Attack.Swipe );
-		if ( victim is not Component target ) return;
-
-		bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
-		float amount = player && target is not (AlienLifeform or Marine or Exo) ? 75 : 37.5f;
-		if ( stab )
+		var attack = stab ? AlienMelee.Attack.Stab : AlienMelee.Attack.Swipe;
+		foreach ( var (hit, victim) in AlienMelee.Swing( this, view, (stab ? 1.9f : 1.6f) * Scale, 0.7f, 1.2f, attack ) )
 		{
-			amount = OpenToStab( target.GameObject ) ? 270 : 120;
-			if ( target is not AlienStructure && target.GameObject.Tags.Has( "structure" ) ) amount *= 2;
+			AlienMelee.PlayImpact( hit, attack );
+			if ( victim is not Component target ) continue;
+
+			bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
+			float amount = player && target is not (AlienLifeform or Marine or Exo) ? 75 : 37.5f;
+			if ( stab )
+			{
+				amount = OpenToStab( target.GameObject ) ? 270 : 120;
+				if ( target is not AlienStructure && target.GameObject.Tags.Has( "structure" ) ) amount *= 2;
+			}
+			var damage = new DamageInfo { Damage = amount, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
+			damage.Tags.Add( stab ? "structural" : "puncture" );
+			victim.OnDamage( damage );
 		}
-		var damage = new DamageInfo { Damage = amount, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
-		damage.Tags.Add( stab ? "structural" : "puncture" );
-		victim.OnDamage( damage );
 	}
 
 	bool OpenToStab( GameObject target )

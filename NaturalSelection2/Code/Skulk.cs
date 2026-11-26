@@ -174,12 +174,16 @@ public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 		if ( tag != "hit" || parasiteAttacking ) return;
 		energy = Math.Max( 0, energy - BiteEnergy );
 		PlayVoice( "bite" );
-		var (hit, victim) = AlienMelee.Trace( this, ViewRotation, Reach, 1.2f, 1.2f );
-		AlienMelee.PlayImpact( hit, AlienMelee.Attack.Bite );
-		if ( victim is null ) return;
-		var npc = victim as BaseNpc;
-		bool alive = npc.IsValid() && npc.Health > 0;
-		DealDamage( victim, 75, hit.EndPosition, "bite" );
-		if ( alive && (!npc.IsValid() || npc.Health <= 0) ) PlayVoice( "bite_kill" );
+		bool killed = false;
+		foreach ( var (hit, victim) in AlienMelee.Swing( this, ViewRotation, Reach, 1.2f, 1.2f, AlienMelee.Attack.Bite ) )
+		{
+			AlienMelee.PlayImpact( hit, AlienMelee.Attack.Bite );
+			if ( victim is null ) continue;
+			var npc = victim as BaseNpc;
+			bool alive = npc.IsValid() && npc.Health > 0;
+			DealDamage( victim, 75, hit.EndPosition, "bite" );
+			killed = alive && (!npc.IsValid() || npc.Health <= 0);
+		}
+		if ( killed ) PlayVoice( "bite_kill" );
 	}
 }
