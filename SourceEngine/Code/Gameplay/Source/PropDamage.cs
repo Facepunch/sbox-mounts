@@ -29,7 +29,16 @@ public sealed class PropDamage : Component
 		if ( !(bullet || blast) || _prop.Model?.GetData<PropDamageModifiers>() is not { } modifiers ) return;
 
 		var scale = bullet ? modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1) : 1;
-		if ( blast ) scale *= modifiers.Explosive;
+		if ( blast )
+		{
+			scale *= modifiers.Explosive;
+			// The blast trace already found the exposed surface of this prop.
+			if ( GameObject == GameObject.Root && hit.Weapon.IsValid() && hit.Weapon.GetComponent<Projectile>() is { Radius: > 0 } projectile && projectile is not Css.Grenade )
+			{
+				var fraction = hit.Origin.Distance( hit.Position ) / projectile.Radius;
+				hit.Damage = projectile.Damage * (1 - fraction.Clamp( 0, 1 ));
+			}
+		}
 		hit.Damage = System.MathF.Truncate( hit.Damage * scale );
 	}
 }
