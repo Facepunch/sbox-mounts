@@ -49,10 +49,29 @@ internal sealed class SourceEntityPrefabLoader( SourceEntity entity ) : Resource
 			// Through text, so numbers read back as whatever type the engine asks for.
 			root.Deserialize( JsonNode.Parse( build.Root().ToJsonString() ).AsObject() );
 			build.ResolveNested( root.Scene );
+			if ( entity.Kind == SourceEntityKind.Weapon && root.GetComponent<BaseCombatWeapon>( true ) is { } weapon )
+				BindWeaponAmmo( weapon );
 		}
 
 		prefab = builder.Create() ?? throw new InvalidOperationException( $"{Path}: could not create the prefab." );
 		return prefab;
+	}
+
+	// Holstered weapons need their ammo references on every peer, before their first equip.
+	void BindWeaponAmmo( BaseCombatWeapon weapon )
+	{
+		var world = entity.PreviewModel;
+		SourceModelWeaponData Lookup( string path ) => string.IsNullOrEmpty( path ) ? null : WeaponSetup.SelectWeaponData( Host.GetWeaponData( path ), world );
+		var data = Lookup( world );
+		if ( data is null && weapon.ViewModelPrefab is { } prefab && SourceEntities.Find( entity.Game, prefab.Name ) is { } view )
+		{
+			foreach ( var (model, fallback) in SourceEntities.ModelsOf( SourceEntities.Definition( view ) ) )
+			{
+				data = Lookup( model ) ?? Lookup( fallback );
+				if ( data is not null ) break;
+			}
+		}
+		WeaponSetup.BindAmmoTypes( weapon, data );
 	}
 
 	protected override void Shutdown()

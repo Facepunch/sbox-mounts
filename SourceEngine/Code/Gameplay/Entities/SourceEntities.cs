@@ -142,7 +142,7 @@ public static partial class SourceEntities
 		}
 	}
 
-	static IEnumerable<(string Model, string Fallback)> ModelsOf( JsonObject definition )
+	internal static IEnumerable<(string Model, string Fallback)> ModelsOf( JsonObject definition )
 	{
 		foreach ( var (_, node) in definition )
 			foreach ( var (_, props) in node.AsObject() )

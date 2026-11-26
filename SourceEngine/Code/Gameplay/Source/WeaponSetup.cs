@@ -115,11 +115,17 @@ static class WeaponSetup
 			if ( string.IsNullOrEmpty( path ) ) return null;
 			var resource = $"mount://{definition.MountName}/{path}.vmdl";
 			if ( mount.GetByPath( resource ) is null ) return null;
-			return SelectWeaponData( Model.Load( resource ), world );
+			return SelectWeaponData( Model.Load( resource )?.GetData<SourceModelWeaponData[]>(), world );
 		}
 
 		// Replacement hands and world models can both differ from the ones named by the script.
 		return Read( definition.ModelPath ) ?? Read( world ) ?? Read( definition.FallbackModelPath );
+	}
+
+	internal static void BindAmmoTypes( BaseCombatWeapon weapon, SourceModelWeaponData data )
+	{
+		if ( data?.PrimaryAmmoResource is { } primary ) weapon.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( primary );
+		if ( data?.SecondaryAmmoResource is { } secondary ) weapon.SecondaryAmmoType = GameResource.Load<BaseAmmoResource>( secondary );
 	}
 
 	static void ApplyAmmo( BaseCombatWeapon weapon, SourceModelWeaponData data )
@@ -129,13 +135,12 @@ static class WeaponSetup
 		if ( data.BucketPosition is { } position ) weapon.SlotOrder = position;
 		if ( data.Weight is { } weight ) weapon.Value = weight;
 		if ( data.ClipSize > 0 && weapon.UsesAmmo ) weapon.ClipMaxSize = data.ClipSize;
-		if ( data.PrimaryAmmoResource is { } primary ) weapon.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( primary );
+		BindAmmoTypes( weapon, data );
 		if ( data is { ClipSize: -1, DefaultClip: >= 0 } && weapon.UsesAmmo && weapon.PrimaryAmmoType is not null )
 		{
 			weapon.UsesClips = false;
 			weapon.StartingAmmo = data.DefaultClip.Value;
 		}
-		if ( data.SecondaryAmmoResource is { } secondary ) weapon.SecondaryAmmoType = GameResource.Load<BaseAmmoResource>( secondary );
 		if ( weapon.DisplayIcon is null && data.Icon is { } icon && Sandbox.Mounting.Directory.Get( MountContent.Of( icon ) )?.GetByPath( icon ) is not null )
 			weapon.DisplayIcon = Texture.Load( icon );
 		// Counter-Strike scripts carry fire rate and ballistics; HL2 keeps them in code, so its catalog supplies them.
@@ -309,9 +314,8 @@ static class WeaponSetup
 		return null;
 	}
 
-	static SourceModelWeaponData SelectWeaponData( Model model, string worldModel )
+	internal static SourceModelWeaponData SelectWeaponData( SourceModelWeaponData[] definitions, string worldModel )
 	{
-		var definitions = model?.GetData<SourceModelWeaponData[]>();
 		if ( definitions is null ) return null;
 		// NPC-only weapons can share a player's viewmodel (Annabelle is one).
 		// Preserve every script in the mount and resolve by the actual world model.
