@@ -206,6 +206,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
 			Component target = (Component)body ?? hit.GameObject?.GetComponentInParent<Projectile>();
+			if ( target is null && hit.Collider is ModelCollider model && model.GameObject.NetworkMode == NetworkMode.Object
+				&& model.GameObject.Tags.Has( "source1_entity", includeAncestors: false ) )
+				target = model;
 			if ( !target.IsValid() || target.Tags.Has( DisabledTag ) || (Limited && target.Tags.Has( LimitedTag )) ) return;
 			if ( !CanGrab( target, Network.Owner ) || (body.IsValid() && !body.PhysicsBody.IsValid()) ) return;
 
@@ -225,7 +228,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 				transform = body.PhysicsBody.Transform;
 			}
 
-			GrabPoint = transform.PointToLocal( hit.HitPosition );
+			GrabPoint = transform.Rotation.Inverse * (hit.HitPosition - transform.Position);
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_holdAngles = target is TumblingProjectile tumbling ? tumbling.FlightAngles : transform.Rotation.Angles();
 			_holdAngles.yaw -= yaw;
@@ -246,11 +249,11 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var rotation = angles.ToRotation();
 		var position = ray.Position + ray.Forward * _distance - (physics?.Rotation ?? rotation) * GrabPoint;
 		if ( GridSize > 0 && float.IsFinite( GridSize ) ) position = position.SnapToGrid( System.MathF.Min( GridSize, 4096 ) );
-		if ( HeldTarget is Projectile projectile )
+		if ( HeldBody is null )
 		{
-			if ( projectile is TumblingProjectile tumbling ) tumbling.FlightAngles = angles;
-			projectile.WorldRotation = rotation;
-			projectile.WorldPosition = CarryPosition( projectile, position );
+			if ( HeldTarget is TumblingProjectile tumbling ) tumbling.FlightAngles = angles;
+			HeldTarget.WorldRotation = rotation;
+			HeldTarget.WorldPosition = CarryPosition( HeldTarget, position );
 			return;
 		}
 		var offset = position - physics.Position;
@@ -290,11 +293,17 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		_arrivalTime = ragdoll ? RagdollTimeToArrive : TimeToArrive;
 	}
 
-	Vector3 CarryPosition( Projectile projectile, Vector3 end )
+	Vector3 CarryPosition( Component target, Vector3 end )
 	{
-		var start = projectile.WorldPosition;
-		SceneTraceResult Sweep( Vector3 from, Vector3 to ) =>
-			projectile.FlightHull( Scene.Trace.Ray( from, to ).WithTag( "world" ).WithoutTags( "trigger" ) ).Run();
+		var start = target.WorldPosition;
+		SceneTraceResult Sweep( Vector3 from, Vector3 to )
+		{
+			var trace = Scene.Trace.Ray( from, to );
+			trace = target is ModelCollider collider
+				? trace.Size( collider.LocalBounds.Mins * collider.WorldScale, collider.LocalBounds.Maxs * collider.WorldScale )
+				: ((Projectile)target).FlightHull( trace );
+			return trace.WithTag( "world" ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( target.GameObject ).Run();
+		}
 
 		var trace = Sweep( start, end );
 		if ( trace.StartedSolid && !Sweep( end, end ).StartedSolid ) return end;
