@@ -124,16 +124,16 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
-		body = GetComponent<Rigidbody>();
-		agent = GetComponent<NavMeshAgent>( true );
 		sinceSprint = sinceAttackEnd = 1;
-		if ( Scene.PhysicsWorld.Gravity.z < 0 )
-			body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 		ignoreTarget = IsIgnoredTarget;
 		lastRequest = lastShot = lastHit = 1;
 		aim = WorldRotation;
 		if ( Networking.IsHost )
 		{
+			body = GetComponent<Rigidbody>();
+			agent = GetComponent<NavMeshAgent>( true );
+			if ( Scene.PhysicsWorld.Gravity.z < 0 )
+				body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 			rifleVariant = Random.Shared.Next( 3 );
 			age = 0;
 			var mount = Sandbox.Mounting.Directory.Get( "ns2" );

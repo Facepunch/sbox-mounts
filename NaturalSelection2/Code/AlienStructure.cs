@@ -121,9 +121,9 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		base.OnStart();
 		pain = GetComponent<SupportPain>();
 		pain?.StartListening( flinchEnd );
+		if ( !Networking.IsHost ) return;
 		var model = MountedModel;
 		modelOrigin = model?.BoundsCenter;
-		if ( !Networking.IsHost ) return;
 		age = 0;
 		maxArmor = Stats.Armor;
 		armor = maxArmor * 0.3f;
