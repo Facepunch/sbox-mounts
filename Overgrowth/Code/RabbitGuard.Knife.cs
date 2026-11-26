@@ -101,10 +101,7 @@ public sealed partial class RabbitGuard
 				TryHit( clip, hit.Bone );
 			}
 			if ( !layer.Active || impactPassed && knifeCooldown <= 0f )
-			{
 				strike = null;
-				EndGroupAttack();
-			}
 		}
 	}
 }

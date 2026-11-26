@@ -87,6 +87,17 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
+	void UpdateGroundPunishDecision()
+	{
+		if ( !enemy.IsValid() ) return;
+		if ( enemy.GetComponent<RabbitGuard>() is { Downed: true } )
+		{
+			sinceTargetDown = 0;
+			punishGroundedTarget ??= Random.Shared.Float() < GroundAggression * GameDifficulty;
+		}
+		else if ( sinceTargetDown > 0.8f ) punishGroundedTarget = null;
+	}
+
 	void UpdateTactic( float distance )
 	{
 		if ( Random.Shared.Float() < Time.Delta * 120f / 150f )
@@ -115,14 +126,7 @@ public sealed partial class RabbitGuard
 				}
 			}
 
-			// PickAttackSubGoal commits to one ground-punish decision until the next attack
-			// or until the target has been out of ragdoll for more than 0.8 seconds.
-			if ( enemy.GetComponent<RabbitGuard>() is { Downed: true } )
-			{
-				sinceTargetDown = 0;
-				punishGroundedTarget ??= Random.Shared.Float() < GroundAggression * GameDifficulty;
-			}
-			else if ( sinceTargetDown > 0.8f ) punishGroundedTarget = null;
+			UpdateGroundPunishDecision();
 			if ( distance > 4f * 40f || (next == CombatTactic.Rush && punishGroundedTarget == false)
 				|| ((groupLeader.IsValid() || dontAttackBefore > 0f) && next is CombatTactic.Rush or CombatTactic.Wait) )
 				next = CombatTactic.Provoke;

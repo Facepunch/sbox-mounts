@@ -53,7 +53,10 @@ public sealed partial class RabbitGuard
 		if ( groupLeader == leader ) return;
 		if ( groupLeader.IsValid() ) groupLeader.followerCount--;
 		groupLeader = leader;
-		if ( leader.IsValid() ) leader.followerCount++;
+		if ( !leader.IsValid() ) return;
+		// AddFollower evaluates PickAttackSubGoal on the first join but discards the tactic.
+		if ( leader.followerCount == 0 ) leader.UpdateGroundPunishDecision();
+		leader.followerCount++;
 	}
 
 	bool CanLead( RabbitGuard ally ) => ally != this && ally.Active && !ally.Downed && !ally.Unconscious

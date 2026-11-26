@@ -73,6 +73,7 @@ public sealed partial class RabbitGuard
 		{
 			itemThrowTarget = null;
 			Stance = Ready;
+			EndGroupAttack();
 		}
 		return true;
 	}
