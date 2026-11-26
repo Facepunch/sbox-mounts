@@ -36,7 +36,6 @@ public sealed partial class Shotgun : Weapon
 	protected override async System.Threading.Tasks.Task OnLoad()
 	{
 		await base.OnLoad();
-		await Sandbox.Mounting.Directory.Mount( Halo2Mount.MountIdent );
 		if ( !IsValid ) return;
 		if ( !PrimaryAmmoType.IsValid() ) PrimaryAmmoType = ShotgunLoader.LoadShells();
 		BindHudTextures();

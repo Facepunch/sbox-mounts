@@ -103,11 +103,16 @@ public sealed class RocketLauncher : MagazineWeapon
 		float bestDot = System.MathF.Cos( LockAngle * 0.5f );
 		var eye = player.EyeTransform.Position;
 		var ray = new Ray( eye, forward );
-		foreach ( var vehicle in Scene.GetAllComponents<FourWheelVehicle>() )
+		// The Sandbox game supplies this controller when it is loaded alongside the mount.
+		var controller = TypeLibrary.GetType( "FourWheelVehicle", typeof( Component ) );
+		if ( controller is null ) return null;
+		var driverSeat = controller.GetProperty( "Seat" );
+		foreach ( var vehicle in Scene.GetAllComponents( controller.TargetType ) )
 		{
 			if ( vehicle.GetComponent<ModelRenderer>() is not {} renderer ) continue;
-			if ( player.GetComponentInParent<FourWheelVehicle>() == vehicle || vehicle.Seat?.GetOccupant() == player ) continue;
-			if ( vehicle.Seat?.IsOccupied != true && !vehicle.GetComponentsInChildren<BaseChair>().Any( seat => seat.IsOccupied ) ) continue;
+			var driver = driverSeat?.GetValue( vehicle ) as BaseChair;
+			if ( player.GameObject.IsAncestor( vehicle.GameObject ) || driver?.GetOccupant() == player ) continue;
+			if ( driver?.IsOccupied != true && !vehicle.GetComponentsInChildren<BaseChair>().Any( seat => seat.IsOccupied ) ) continue;
 			if ( renderer.Model is not {} model ) continue;
 			var targets = ModelTarget.For( model );
 			if ( targets.Length == 0 ) Consider( renderer.Bounds.Center, renderer.Bounds.Center );

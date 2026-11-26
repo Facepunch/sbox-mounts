@@ -17,6 +17,12 @@ public sealed class PlayerRepresentation
 
 public abstract partial class Weapon : BaseCombatWeapon
 {
+	protected override async System.Threading.Tasks.Task OnLoad()
+	{
+		await base.OnLoad();
+		await Sandbox.Mounting.Directory.Mount( Halo2Mount.MountIdent );
+	}
+
 	[Property] public bool NpcOnly { get; set; }
 	[Property] public bool DualWieldable { get; set; }
 	[Property] public string AnimationClass { get; set; }
