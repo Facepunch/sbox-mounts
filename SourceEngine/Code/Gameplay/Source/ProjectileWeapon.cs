@@ -292,7 +292,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		}
 		_throwStyle = low ? ThrowStyle.Lob : ThrowStyle.Overhand;
 		_releaseAttacker = Attacker;
-		if ( Kind == Projectile.Kinds.Grenade ) ThrowEffects( low ? ThrowClips.LowWindup : ThrowClips.ThrowWindup );
+		if ( Kind is Projectile.Kinds.Grenade or Projectile.Kinds.Bugbait ) ThrowEffects( low ? ThrowClips.LowWindup : ThrowClips.ThrowWindup );
 		else ShootEffects();
 		if ( (low ? ThrowClips.LowWindupDuration : ThrowClips.WindupDuration) is { } windup )
 		{
@@ -375,7 +375,7 @@ public sealed partial class ProjectileWeapon : Weapon
 	void ThrowEffects( string clip, bool released = false )
 	{
 		(WeaponModel as ViewModel)?.OnThrow( clip );
-		if ( released && Kind == Projectile.Kinds.Grenade ) PostWeaponEvent( WeaponEvents.Attack );
+		if ( released && Kind is (Projectile.Kinds.Grenade or Projectile.Kinds.Bugbait) ) PostWeaponEvent( WeaponEvents.Attack );
 	}
 
 	protected override void OnFixedUpdate()
