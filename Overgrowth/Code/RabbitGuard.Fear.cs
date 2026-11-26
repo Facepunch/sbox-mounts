@@ -37,8 +37,7 @@ public sealed partial class RabbitGuard
 
 	Vector3? RetreatDestination( Vector3 away )
 	{
-		var nav = Scene.NavMesh;
-		if ( nav.GetClosestPoint( WorldPosition ) is not { } start ) return null;
+		if ( NavPoint( CharacterCenter( GameObject ) ) is not { } start ) return null;
 		return SlideOnNavMesh( start, start + away * 40000f );
 	}
 }

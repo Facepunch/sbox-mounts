@@ -172,6 +172,10 @@ public sealed partial class RabbitGuard
 		return path.Points[^1].Position;
 	}
 
+	// GetNavPoint looks for a polygon within two metres horizontally and four vertically.
+	Vector3? NavPoint( Vector3 position ) => Scene.NavMesh.GetClosestPoint(
+		BBox.FromPositionAndSize( position, new Vector3( 4f, 4f, 8f ) * 40f ) );
+
 	Vector3 SlideOnNavMesh( Vector3 start, Vector3 end )
 	{
 		var nav = Scene.NavMesh;

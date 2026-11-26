@@ -64,9 +64,7 @@ public sealed partial class RabbitGuard
 		if ( observedTarget != enemy || observationCount == 0 ) return fallback;
 		const float reaction = 0.1f;
 		var observation = RecallTarget( Time.Now - reaction );
-		var start = Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( observation.Position, new Vector3( 4f, 4f, 8f ) * 40f ) );
-		start ??= Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( observation.Position, new Vector3( 8f, 8f, 32f ) * 40f ) );
-		if ( start is not { } origin ) return fallback;
+		if ( NavPoint( observation.Position ) is not { } origin ) return observation.Position;
 		if ( observation.Velocity.WithZ( 0 ).IsNearlyZero() ) return origin;
 
 		var center = CharacterCenter( GameObject );
