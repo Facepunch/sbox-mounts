@@ -6,6 +6,9 @@ public sealed class MarkerGroups
 	public Dictionary<string, List<string>> Additional { get; set; }
 }
 
+public sealed record BulletImpact( string[] Effects, string[] Sounds );
+public sealed record BulletContact( BulletImpact Primary, float AlternateChance, BulletImpact Alternate );
+
 public sealed record WeaponSound( SoundEvent Sound, string Marker );
 
 public sealed record WeaponSoundTrack( string Marker, SoundEvent Start, SoundEvent Loop, SoundEvent End, float Gain, float FadeOut );
@@ -127,21 +130,40 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public Dictionary<string, string> ProjectileContactEffects { get; set; }
 	[Property] public Dictionary<string, string[]> ProjectileContactSounds { get; set; }
 
+	[Property] public Dictionary<string, BulletContact> BulletContacts { get; set; }
+
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
+		if ( BulletContacts is not null )
+		{
+			if ( !shot.Hit || ContactMaterial.Lookup( BulletContacts, shot.Surface, true ) is not {} contact ) return;
+			var impact = contact.AlternateChance > 0 && Game.Random.Float() < contact.AlternateChance ? contact.Alternate : contact.Primary;
+			if ( impact?.Effects is {} effects )
+				foreach ( var path in effects ) PlaceProjectileEffect( path, shot );
+			PlayContactSounds( impact?.Sounds, shot.HitPosition );
+			return;
+		}
 		if ( ProjectileContactEffects is null )
 		{
 			base.OnShootImpact( shot );
 			return;
 		}
 		if ( !shot.Hit ) return;
-		if ( ProjectileContactSounds is not null && ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ) is {} cues )
-			foreach ( var cue in cues )
-				if ( GameResource.Load<SoundEvent>( cue ) is {} sound ) Sound.Play( sound, shot.HitPosition );
-		var path = ContactMaterial.Lookup( ProjectileContactEffects, shot.Surface, true );
-		if ( path is not null )
-			PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
-				shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+		if ( ProjectileContactSounds is not null )
+			PlayContactSounds( ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ), shot.HitPosition );
+		if ( ContactMaterial.Lookup( ProjectileContactEffects, shot.Surface, true ) is {} effect )
+			PlaceProjectileEffect( effect, shot );
+	}
+
+	void PlaceProjectileEffect( string path, in ShotEffect shot ) =>
+		PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
+			shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+
+	static void PlayContactSounds( string[] cues, Vector3 position )
+	{
+		if ( cues is null ) return;
+		foreach ( var cue in cues )
+			if ( GameResource.Load<SoundEvent>( cue ) is {} sound ) Sound.Play( sound, position );
 	}
 
 	protected override void OnShootEffects( ShotEffect shot )

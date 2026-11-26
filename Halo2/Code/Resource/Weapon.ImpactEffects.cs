@@ -10,22 +10,25 @@ internal abstract partial class WeaponLoader
 	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null ) =>
 		ReadMaterialRows( materials, source, referenceOffset, action, bankOffset, materialParents ).ToDictionary( e => e.Key, e => Reference( e.Value ), StringComparer.OrdinalIgnoreCase );
 
-	protected Dictionary<string, string[]> ReadProjectileSounds( int materials, TagEntry projectile, int action, Dictionary<string, string> parents = null )
+	protected Dictionary<string, string[]> ReadProjectileSounds( int materials, TagEntry projectile, int action, Dictionary<string, string> parents = null ) =>
+		ReadProjectileBank( materials, projectile, action, false, parents ).ToDictionary( e => e.Key, e => e.Value.Select( tag => Host.AssetPath( map, tag.TagPath, "sound" ) ).ToArray() );
+
+	protected Dictionary<string, TagEntry[]> ReadProjectileBank( int materials, TagEntry projectile, int action, bool visual, Dictionary<string, string> parents )
 	{
-		var entries = ReadMaterialRows( materials, projectile, 0x54, action, 8, parents );
-		var surfaceSounds = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+		var entries = ReadMaterialRows( materials, projectile, 0x54, action, visual ? 16 : 8, parents );
+		var surfaceTags = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
 		for ( int i = 0, row = Block( materials ); i < map.ReadInt32( materials ); i++, row += 0xb4 )
 			if ( map.ResolveStringId( map.ReadInt32( row ) ) is { Length: > 0 } name )
-				surfaceSounds[name] = Reference( row + 0x38 );
+				surfaceTags[name] = Reference( row + (visual ? 0x70 : 0x38) );
 
-		var sounds = new Dictionary<string, string[]>( StringComparer.OrdinalIgnoreCase );
+		var result = new Dictionary<string, TagEntry[]>( StringComparer.OrdinalIgnoreCase );
 		foreach ( var (name, entry) in entries )
 		{
-			var surface = map.ReadSpan( entry + 22, 1 )[0] == 1 ? surfaceSounds.GetValueOrDefault( name ) : null;
-			sounds[name] = new[] { Reference( entry ), surface, Reference( entry + 8 ) }
-				.Where( tag => tag?.PrimaryClass == "!dns" ).Select( tag => Host.AssetPath( map, tag.TagPath, "sound" ) ).ToArray();
+			var surface = map.ReadSpan( entry + 22, 1 )[0] == 1 ? surfaceTags.GetValueOrDefault( name ) : null;
+			result[name] = new[] { Reference( entry ), surface, Reference( entry + 8 ) }
+				.Where( tag => tag?.PrimaryClass == (visual ? "effe" : "!dns") ).ToArray();
 		}
-		return sounds;
+		return result;
 	}
 
 	Dictionary<string, int> ReadMaterialRows( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null )
@@ -33,8 +36,13 @@ internal abstract partial class WeaponLoader
 		var result = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
 		if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
 		int actions = Address( foot );
-		if ( map.ReadInt32( actions ) <= action ) return result;
-		int bank = Block( actions ) + action * 24 + bankOffset;
+		int countActions = map.ReadInt32( actions ), first = Block( actions ) + bankOffset;
+		while ( action >= countActions || map.ReadInt32( first + action * 24 ) == 0 )
+		{
+			action = action switch { 16 or 17 => 15, 19 => 16, 20 => 19, _ => -1 };
+			if ( action < 0 ) return result;
+		}
+		int bank = first + action * 24;
 		int entries = map.ReadInt32( bank );
 		if ( entries == 0 ) return result;
 		int count = map.ReadInt32( materials ), rows = Block( materials );

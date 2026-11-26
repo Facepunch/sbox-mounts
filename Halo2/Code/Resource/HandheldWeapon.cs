@@ -51,6 +51,52 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	Dictionary<string, TagEntry> contactEffects;
 	Dictionary<string, string[]> contactSounds;
 
+	Dictionary<string, BulletContact> bulletContacts;
+
+	HashSet<TagEntry> LoadBulletContacts( Dictionary<string, string> parents )
+	{
+		var projectile = Reference( PrimaryBarrel + 0x8c );
+		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
+		int responses = Address( projectile ) + 0x19c;
+		var rows = new Dictionary<string, int>();
+		for ( int i = 0, row = Block( responses ); i < map.ReadInt32( responses ); i++, row += 0x58 )
+			if ( map.ResolveStringId( map.ReadInt32( row + 12 ) ) is { Length: > 0 } name )
+				rows.TryAdd( name, row );
+
+		var tagsToRegister = new HashSet<TagEntry>();
+		var banks = new Dictionary<int, Dictionary<string, BulletImpact>>();
+		BulletImpact Impact( int response, string material )
+		{
+			int action = response < 5 ? 15 + response : 20;
+			if ( !banks.TryGetValue( action, out var bank ) )
+			{
+				var effects = ReadProjectileBank( materials, projectile, action, true, parents );
+				var sounds = ReadProjectileSounds( materials, projectile, action, parents );
+				tagsToRegister.UnionWith( effects.Values.SelectMany( tags => tags ) );
+				banks[action] = bank = effects.Keys.Union( sounds.Keys ).ToDictionary( n => n, n => new BulletImpact(
+					effects.GetValueOrDefault( n )?.Select( tag => Host.AssetPath( map, tag.TagPath, "prefab" ) ).ToArray(), sounds.GetValueOrDefault( n ) ) );
+			}
+			return bank.GetValueOrDefault( material );
+		}
+
+		bulletContacts = new();
+		foreach ( var material in parents.Keys )
+		{
+			var name = material;
+			for ( int depth = 0; name is { Length: > 0 } && depth < parents.Count; depth++ )
+			{
+				if ( rows.TryGetValue( name, out int row ) )
+				{
+					float chance = Float( row + 0x18 );
+					bulletContacts[material] = new( Impact( Short( row + 2 ), material ), chance, chance > 0 ? Impact( Short( row + 0x14 ), material ) : null );
+					break;
+				}
+				if ( !parents.TryGetValue( name, out name ) ) break;
+			}
+		}
+		return tagsToRegister;
+	}
+
 	void LoadContactBanks( Dictionary<string, string> materialParents )
 	{
 		if ( !HasImpactBlast ) return;
@@ -67,6 +113,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 
 	internal void RegisterEffects( MountContext context, HashSet<string> registered, Dictionary<string, string> materialParents )
 	{
+		if ( Name is "battle_rifle" or "smg" or "magnum" or "covenant_carbine" or "sniper_rifle" )
+			foreach ( var tag in LoadBulletContacts( materialParents ) ) Register( context, tag );
 		LoadContactBanks( materialParents );
 		if ( contactEffects is not null )
 			foreach ( var effect in contactEffects.Values.Distinct() ) Register( context, effect );
@@ -254,6 +302,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			gun.ProjectileContactEffects = contactEffects.ToDictionary( e => e.Key, e => e.Value is {} tag ? Host.AssetPath( map, tag.TagPath, "prefab" ) : null );
 			gun.ProjectileContactSounds = contactSounds;
 		}
+		gun.BulletContacts = bulletContacts;
 		gun.Trail = ReadTrail( projectile );
 		int flags = map.ReadInt32( projectile + 0xbc );
 		gun.Orientation = ReadOrientation( flags );
