@@ -70,6 +70,7 @@ public static class ActTable
 		["weapon_crowbar"] = "MELEE",
 		["weapon_stunstick"] = "MELEE",
 		["weapon_stunstick_player"] = "MELEE",
+		["weapon_bugbait"] = "GRENADE",
 		["weapon_frag"] = "GRENADE",
 		["weapon_physcannon"] = "PHYSGUN",
 		["weapon_physgun"] = "PHYSGUN",
