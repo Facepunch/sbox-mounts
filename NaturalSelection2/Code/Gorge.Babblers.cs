@@ -13,6 +13,7 @@ public sealed partial class Gorge
 	TimeUntil nextHatch;
 	float babblerShield;
 
+	internal BabblerPheromone ActivePheromone { get; private set; }
 	TimeUntil nextThrow;
 	bool throwing;
 
@@ -40,6 +41,7 @@ public sealed partial class Gorge
 
 	void ThrowBabblers()
 	{
+		ActivePheromone = null;
 		PlayCue( "babbler_ball_spit", WorldPosition );
 		nextThrow = 3;
 		throwing = false;
@@ -55,20 +57,27 @@ public sealed partial class Gorge
 			hit = Scene.Trace.Ray( EyePosition, hit.Hit ? hit.EndPosition : end ).Size( size )
 				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
 		}
-		var enemy = (hit.GameObject?.GetComponentInParent<IDamageable>() as Component)?.GameObject;
-		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
+		var victim = hit.GameObject?.GetComponentInParent<IDamageable>();
+		var enemy = (victim as Component)?.GameObject;
+		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || victim.Health <= 0 && victim.MaxHealth > 0 || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
 		{
 			var start = Scene.Trace.Ray( EyePosition, EyePosition + aim.Forward * Scale ).IgnoreGameObjectHierarchy( GameObject )
 				.WithoutTags( "trigger" ).Run().EndPosition;
 			enemy = FindPheromoneTarget( start );
+			ActivePheromone = BabblerPheromone.Launch( this, start, aim );
 		}
+		else BabblerPheromone.Puff( hit.HitPosition );
 
-		var destination = WorldPosition + aim.Forward.WithZ( 0 ).Normal * (5 * Scale);
+		DispatchBrood( enemy, WorldPosition + aim.Forward.WithZ( 0 ).Normal * (5 * Scale) );
+	}
+
+	internal void DispatchBrood( GameObject enemy, Vector3 destination )
+	{
 		foreach ( var babbler in brood )
 			if ( babbler.WorldPosition.DistanceSquared( WorldPosition ) <= 1000f * 1000 * Scale * Scale ) babbler.Dispatch( enemy, destination );
 	}
 
-	GameObject FindPheromoneTarget( Vector3 point )
+	internal GameObject FindPheromoneTarget( Vector3 point )
 	{
 		var origin = WorldPosition;
 		var direction = (point - origin).Normal;

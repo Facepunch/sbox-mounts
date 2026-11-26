@@ -55,6 +55,13 @@ public sealed partial class Babbler : BaseNpc
 
 	internal void Dispatch( GameObject enemy, Vector3 destination )
 	{
+		if ( OwnerGorge.IsValid() && enemy == OwnerGorge.GameObject )
+		{
+			target = null;
+			orderedPosition = null;
+			freeRoam = 0;
+			return;
+		}
 		if ( ClingSlot != 0 )
 		{
 			OwnerGorge.ReleaseSlot( ClingSlot );
