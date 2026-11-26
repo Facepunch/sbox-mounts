@@ -114,6 +114,25 @@ static class WeaponEffects
 			burst.Add( Pick( FlashSprites ), mount, i * spacing * scale, Game.Random.Float( 6, 8 ) * (8 - i) / 6 * scale, color, lifetime );
 	}
 
+	internal static void PistolSmoke( Vector3 muzzle, Vector3 forward, string mount )
+	{
+		var smoke = Particles.Emitter( Game.ActiveScene, "particle/particle_smokegrenade", mount, false, false, 1 );
+		if ( !smoke.IsValid() ) return;
+		var lifetime = Game.Random.Float( 0.25f, 0.5f );
+		smoke.WorldPosition = muzzle + forward * 8;
+		smoke.Lifetime = lifetime;
+		smoke.ApplyShape = true;
+		smoke.InitialScale = 2 * Game.Random.Int( 2, 4 );
+		smoke.Scale = SmokeGrowth;
+		smoke.ApplyAlpha = true;
+		smoke.Alpha = SmokeFade;
+		smoke.InitialRoll = new ParticleFloat( 0, 360 );
+		smoke.Invoke( lifetime, smoke.DestroyGameObject );
+		if ( smoke.Emit( smoke.WorldPosition, 0 ) is not { } puff ) return;
+		puff.Color = (Color.White * Game.Random.Float( 200 / 255f, 1 )).WithAlpha( Game.Random.Float( 64 / 255f, 128 / 255f ) );
+		puff.Velocity = forward * Game.Random.Float( 48, 64 ) + Vector3.Up * Game.Random.Float( 4, 16 );
+	}
+
 	static float WorldScale( string type ) => type switch
 	{
 		"PISTOL" => 0.5f,

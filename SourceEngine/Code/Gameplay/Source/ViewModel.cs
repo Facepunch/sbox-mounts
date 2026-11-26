@@ -92,7 +92,7 @@ public sealed class ViewModel : BaseWeaponModel
 	TimeSince _lastPrimaryShot = 10;
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
-	readonly Dictionary<GameObject, GameObject> _effectAnchors = new();
+	readonly Dictionary<(GameObject Attachment, bool Behind), GameObject> _effectAnchors = new();
 	bool _scopeHidden;
 	string _swingClip;
 	internal bool IsSwinging => _swingClip is not null && _animation?.Current == _swingClip;
@@ -219,8 +219,8 @@ public sealed class ViewModel : BaseWeaponModel
 		var stretch = tangent / lens;
 		WorldScale = new Vector3( 1, stretch, stretch );
 		UpdateWorldMuzzle();
-		foreach ( var (attachment, anchor) in _effectAnchors )
-			PlaceEffectAnchor( attachment, anchor );
+		foreach ( var ((attachment, behind), anchor) in _effectAnchors )
+			PlaceEffectAnchor( attachment, anchor, behind );
 	}
 
 	// Past the far end of any viewmodel.
@@ -233,6 +233,13 @@ public sealed class ViewModel : BaseWeaponModel
 	/// ray behind the whole gun, scaled to keep its size on screen.
 	/// </summary>
 	internal Vector3 BehindPosition( Vector3 drawn ) => _renderEye + (drawn - _renderEye) * EffectDepthScale;
+
+	internal Vector3 PosedPosition( GameObject attachment )
+	{
+		if ( Renderer.GetAttachment( attachment.Name ) is not { } pose ) return attachment.WorldPosition;
+		var modelPosition = Renderer.SceneModel.Transform.PointToLocal( pose.Position );
+		return Renderer.WorldTransform.PointToWorld( modelPosition );
+	}
 
 	internal const float EffectDepthScale = 8;
 	Vector3 _renderEye;
@@ -260,21 +267,22 @@ public sealed class ViewModel : BaseWeaponModel
 		MuzzleGameObject = _worldMuzzle;
 	}
 
-	internal GameObject EffectAnchor( GameObject attachment )
+	internal GameObject EffectAnchor( GameObject attachment, bool behind = false )
 	{
-		if ( _effectAnchors.TryGetValue( attachment, out var anchor ) ) return anchor;
+		if ( _effectAnchors.TryGetValue( (attachment, behind), out var anchor ) ) return anchor;
 
 		anchor = new GameObject( GameObject, true, "Viewmodel effect attachment" );
 		anchor.NetworkMode = NetworkMode.Never;
-		_effectAnchors.Add( attachment, anchor );
-		PlaceEffectAnchor( attachment, anchor );
+		_effectAnchors.Add( (attachment, behind), anchor );
+		PlaceEffectAnchor( attachment, anchor, behind );
 		return anchor;
 	}
 
-	void PlaceEffectAnchor( GameObject attachment, GameObject anchor )
+	void PlaceEffectAnchor( GameObject attachment, GameObject anchor, bool behind )
 	{
 		if ( !attachment.IsValid() ) return;
-		anchor.WorldPosition = DrawnPosition( attachment );
+		if ( behind ) PlaceBehind( anchor, PosedPosition( attachment ) );
+		else anchor.WorldPosition = DrawnPosition( attachment );
 		if ( !Mirrored ) anchor.WorldRotation = attachment.WorldRotation;
 	}
 
@@ -284,8 +292,12 @@ public sealed class ViewModel : BaseWeaponModel
 		// Counter-Strike hides the viewmodel and its flash while scoped.
 		if ( !weapon.IsValid() || weapon.Silenced || GameObject.Tags.Has( "sniper_scoped" ) ) return;
 		attachment ??= _muzzle;
-		if ( attachment.IsValid() ) attachment = EffectAnchor( attachment );
-		WeaponEffects.MuzzleFlash( type ?? _flashType ?? WeaponSetup.FlashType( weapon ), attachment, true, _mount, WeaponSetup.FlashScale( weapon ) );
+		type ??= _flashType ?? WeaponSetup.FlashType( weapon );
+		if ( !attachment.IsValid() ) return;
+		if ( type == "PISTOL" && Game.Random.Int( 0, 3 ) != 0 )
+			WeaponEffects.PistolSmoke( PosedPosition( attachment ), DrawnDirection( attachment.WorldRotation.Forward ), _mount );
+		attachment = EffectAnchor( attachment, behind: !Css.Rules.IsFlash( type ) );
+		WeaponEffects.MuzzleFlash( type, attachment, true, _mount, WeaponSetup.FlashScale( weapon ) );
 	}
 
 	/// <summary>

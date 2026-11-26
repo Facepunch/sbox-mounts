@@ -786,12 +786,7 @@ sealed class PhysCannonEffects : IDisposable
 		return float.Lerp( _elementFrom, _open ? 1 : 0, spline );
 	}
 
-	Vector3 Place( GameObject anchor )
-	{
-		if ( !_view.IsValid() || _renderer.GetAttachment( anchor.Name ) is not { } pose ) return anchor.WorldPosition;
-		var modelPosition = _renderer.SceneModel.Transform.PointToLocal( pose.Position );
-		return _renderer.WorldTransform.PointToWorld( modelPosition );
-	}
+	Vector3 Place( GameObject anchor ) => _view.IsValid() ? _view.PosedPosition( anchor ) : anchor.WorldPosition;
 
 	SpriteRenderer AddSprite( GameObject anchor, string name, string mount )
 	{
