@@ -8,6 +8,7 @@ internal sealed class SourceAnimations
 	public const string SkeletonName = "skeleton.skel";
 	public const string IkRelease = "ik_release";
 	public static string ReleaseChannel( string bone ) => $"release:{bone}";
+	public static string HoldRestClip( string name ) => $"__hold/{name}";
 
 	public (string Name, string Parent, Transform Local)[] Bones { get; }
 	public IReadOnlyList<(string Name, float[] Weights)> Masks { get; }

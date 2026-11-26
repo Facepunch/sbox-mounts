@@ -181,6 +181,9 @@ public sealed class HoldPose
 		var lowerClip = Find( lower );
 		var reloadSequence = sequences.Get( reload );
 		var reloadClip = reloadSequence is { Delta: false } ? Find( reload ) : null;
+		// A reload blends over the authored arms before the grip is solved on the combined pose.
+		if ( playerGesture && reloadClip is not null && aimSequence.IkTargets is { Length: > 0 } )
+			aimClip = Find( SourceAnimations.HoldRestClip( aim ) ) ?? aimClip;
 		var shotClips = shots.Where( x => Find( x ) is not null ).Select( x => (Find( x ), sequences.Get( x )?.Delta == true) ).ToArray();
 		// A whole-body clip has its delta layers baked in. A masked one leaves its aim matrix, and what the other layers do
 		// outside the mask, to clips of their own; the matrix's own clip is its centre.
@@ -223,6 +226,14 @@ public sealed class HoldPose
 		{
 			_indices.TryAdd( _bones[i].Name, i );
 			var local = aimClip.GetLocalTransform( 0, i );
+			// The rest frame already includes these layers at cycle zero. Remove that sample
+			// before applying their current cycles during playback.
+			for ( int j = realTimeLayers.Length - 1; j >= 0; j-- )
+			{
+				var baked = realTimeLayers[j].GetLocalTransform( 0, i );
+				local.Position -= baked.Position;
+				local.Rotation = (local.Rotation * baked.Rotation.Inverse).Normal;
+			}
 			var delta = global::Transform.Zero;
 			foreach ( var layer in layers )
 				delta = Add( delta, layer.GetLocalTransform( 0, i ) );

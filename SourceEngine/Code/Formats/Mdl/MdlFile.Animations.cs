@@ -501,6 +501,12 @@ internal sealed partial class MdlFile
 				}
 				if ( !delta )
 					metadata.IkTargets = IkTargets( source, index );
+				if ( !masked && metadata.IkTargets is { Length: > 0 } )
+				{
+					var rest = SourceAnimations.HoldRestClip( name );
+					names.Add( rest );
+					result.Add( new( rest, rate, false, 1, () => Bake( source, index, 1, null, NoParameters, solveIk: false ), null ) );
+				}
 				names.Add( name );
 				result.Add( new( name, rate, looping, frameCount, () => Bake( source, index, frameCount, null, NoParameters, masked ), metadata, Delta: delta ) );
 			}
@@ -836,7 +842,7 @@ internal sealed partial class MdlFile
 		// them in as well would apply them twice, and a layer ramping in would drag the bind pose along.
 		// So the first non-delta sequence to weight a bone poses it fully, whatever its weight at that moment;
 		// later ones blend over it by their weights.
-		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false )
+		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false, bool solveIk = true )
 		{
 			decoded.Clear();
 			var delta = (source.Sequences[index].Flags & SequenceDelta) != 0;
@@ -856,7 +862,7 @@ internal sealed partial class MdlFile
 				}
 				// A masked sequence leaves the rest of the body to whatever it is layered over, so where its
 				// chains end up is only known at runtime; a whole-body sequence is solved here.
-				if ( !masked )
+				if ( !masked && solveIk )
 					SolveIk( pose, ik );
 				for ( var bone = 0; bone < pose.Length; bone++ )
 				{
