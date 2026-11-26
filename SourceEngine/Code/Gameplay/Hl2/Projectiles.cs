@@ -94,6 +94,13 @@ public sealed class CrossbowBolt : Projectile
 			else GameObject.Destroy();
 			return;
 		}
+		if ( !indestructible && tr.Body is { BodyType: not PhysicsBodyType.Static } )
+		{
+			PlayImpact( tr, sound: null );
+			GameObject.Destroy();
+			return;
+		}
+
 		var hitDot = tr.Normal.Dot( -direction );
 		var ricochet = hitDot < 0.5f && Velocity.Length > 100;
 		PlayImpact( tr, "Weapon_Crossbow.BoltHitWorld", impactEffect: !ricochet );
