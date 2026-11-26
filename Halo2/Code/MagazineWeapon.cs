@@ -47,16 +47,16 @@ public sealed class MagazineWeapon : HandheldWeapon
 		if ( remainingShots == 0 ) return;
 		if ( --remainingShots == 0 || (IsHeld && !HasPrimaryAmmo()) )
 		{
+			// An incomplete burst enters recovery when its next round would have fired.
+			burstRoundAt += RecoveryDelay + (remainingShots > 0 ? PrimaryDelay : 0);
 			remainingShots = 0;
 			burstAttacker = null;
-			SetNextPrimaryFire( RecoveryDelay );
 		}
 		else
 		{
-			// Keep each round on the burst's timeline when a frame lands late.
 			burstRoundAt += PrimaryDelay;
-			SetNextPrimaryFire( (float)System.Math.Max( 0, burstRoundAt - Time.NowDouble ) );
 		}
+		SetNextPrimaryFire( (float)System.Math.Max( 0, burstRoundAt - Time.NowDouble ) );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -144,12 +144,8 @@ public sealed class MagazineWeapon : HandheldWeapon
 			FirePrimary( burstAttacker );
 		if ( IsReloading ) emptyRoundAt = null;
 		if ( IsProxy || !IsActive || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
-		if ( emptyRoundAt.HasValue )
-		{
-			if ( Time.NowDouble >= barrelIdleAt ) ReloadEmptyBarrel();
-		}
-		else if ( HasIdleMagazineBarrel || NextPrimaryFire <= 0 )
-			Reload();
+		if ( emptyRoundAt.HasValue ? Time.NowDouble >= barrelIdleAt : HasIdleMagazineBarrel || NextPrimaryFire <= 0 )
+			ReloadEmptyBarrel();
 	}
 
 	protected override void OnDisabled()
