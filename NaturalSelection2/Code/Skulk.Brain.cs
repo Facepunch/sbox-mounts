@@ -6,14 +6,13 @@ namespace NS2;
 public sealed partial class Skulk
 {
 	readonly AlienTargeting targeting = new();
-	GameObject sighted, tracked;
-	TimeSince sinceTracked;
-	List<(GameObject Target, float LastTracked)> recentTargets;
+	readonly AlienAim.Acquisition acquisition = new( 105 );
+	GameObject sighted;
 	TimeUntil nextJuke, repath;
 	float jukeSide = 1;
 	float aimScale = 1;
 	TimeUntil dealtDamage;
-	TimeUntil acquired, sampleAim, aimPenalty;
+	TimeUntil sampleAim, aimPenalty;
 	TimeSince sinceFought = 10;
 	bool sneaky, sneaking;
 	Stimulus? lastHeard;
@@ -25,32 +24,8 @@ public sealed partial class Skulk
 	bool TrackAim( GameObject target, Vector3 aimPoint )
 	{
 		float tier = Math.Clamp( AimSkillTier, 1, 7 ) / 7f;
-		var offset = aimPoint - EyePosition;
-		// BotAim passes the Skulk's configured FOV (105) directly to IsPointInCone's cosine.
-		if ( offset.LengthSquared > 4 * MapLoader.Scale * MapLoader.Scale &&
-			Vector3.Dot( ViewRotation.Forward, offset.Normal ) <= MathF.Cos( 105 ) ) return false;
-
-		if ( tracked != target || sinceTracked > 0.5f )
-		{
-			if ( tracked.IsValid() && sinceTracked < 1.5f )
-				(recentTargets ??= []).Add( (tracked, Time.Now - sinceTracked) );
-
-			bool reacquiring = false;
-			for ( int i = (recentTargets?.Count ?? 0) - 1; i >= 0; i-- )
-			{
-				var entry = recentTargets[i];
-				if ( Time.Now - entry.LastTracked < 1.5f && entry.Target.IsValid() )
-				{
-					if ( entry.Target != target ) continue;
-					reacquiring = true;
-				}
-				recentTargets.RemoveAt( i );
-			}
-			acquired = (0.325f - 0.14f * tier) * (reacquiring ? 0.3f : 1);
-			tracked = target;
-			sampleAim = 0;
-		}
-		sinceTracked = 0;
+		if ( !acquisition.Track( target, aimPoint - EyePosition, ViewRotation, AimSkillTier, out bool restarted ) ) return false;
+		if ( restarted ) sampleAim = 0;
 		if ( sampleAim <= 0 )
 		{
 			samplePosition = target.WorldPosition;
@@ -67,7 +42,7 @@ public sealed partial class Skulk
 				sampleAim = 0;
 			}
 		}
-		return acquired <= 0;
+		return acquisition.IsReady;
 	}
 
 	GameObject FindEnemy( out Vector3? lastKnownPosition )

@@ -16,6 +16,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
+	readonly AlienAim.Acquisition acquisition = new( 90 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -108,8 +109,29 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 			if ( Movement.MoveTarget is { } destination ) TravelTo( destination );
 			return;
 		}
-		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? goal.Value : goal.Value;
-		attacking = visible && EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
+		if ( !attacking ) TravelTo( goal.Value );
+		if ( repath <= 0 )
+		{
+			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
+			repath = 0.2f;
+		}
+	}
+
+	void UpdateAttack( GameObject enemy )
+	{
+		attacking = false;
+		if ( !NpcConVars.Enabled || PhysicsCarrier.IsValid() || !enemy.IsValid() || !Senses.VisibleHostiles.Contains( enemy ) )
+		{
+			view = AlienAim.Turn( view, WorldRotation.Forward, 5 );
+			return;
+		}
+
+		var aim = CalculateAimPoint( enemy ) - EyePosition;
+		view = AlienAim.Turn( view, aim, 5 );
+		if ( !acquisition.Ready( enemy, aim, view ) ) return;
+
+		var touch = enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition;
+		attacking = EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
 		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )
 		{
 			bool wantsStab = StabUnlocked && energy >= 25 && OpenToStab( enemy );
@@ -119,12 +141,6 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 				drawingWeapon = true;
 				weaponSwitch = 1;
 			}
-		}
-		if ( !attacking ) TravelTo( goal.Value );
-		if ( repath <= 0 )
-		{
-			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
-			repath = 0.2f;
 		}
 	}
 
@@ -163,8 +179,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( world is null || weapon is null || Health <= 0 ) return;
 		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
-		var aim = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
-		view = AlienAim.Turn( view, aim, 5 );
+		UpdateAttack( assignedEnemy );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		bool metabolizing = metabolizeAnimation > 0;
 		var ability = metabolizing ? "vortex" : stabSelected ? "stab" : "swipe";

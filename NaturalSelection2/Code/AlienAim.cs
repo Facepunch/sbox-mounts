@@ -11,21 +11,44 @@ internal static class AlienAim
 		GameObject target;
 		TimeSince lastTracked;
 		TimeUntil acquired;
+		List<(GameObject Target, float Time)> recentTargets;
 
-		internal bool Ready( GameObject enemy, Vector3 offset, Rotation view )
+		internal bool IsReady => acquired <= 0;
+
+		internal bool Ready( GameObject enemy, Vector3 offset, Rotation view ) =>
+			Track( enemy, offset, view, 1, out _ ) && IsReady;
+
+		internal bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier, out bool restarted )
 		{
+			restarted = false;
 			const float panicDistance = 2 * MapLoader.Scale;
 			if ( offset.LengthSquared > panicDistance * panicDistance && Vector3.Dot( offset.Normal, view.Forward ) <= cone )
 				return false;
 
 			if ( target != enemy || lastTracked > 0.5f )
 			{
-				// Tier one acquisition time for a standalone encounter.
-				acquired = target == enemy && lastTracked < 1.5f ? 0.305f * 0.3f : 0.305f;
+				if ( target.IsValid() && lastTracked < 1.5f )
+					(recentTargets ??= []).Add( (target, Time.Now - lastTracked) );
+
+				bool reacquiring = false;
+				for ( int i = (recentTargets?.Count ?? 0) - 1; i >= 0; i-- )
+				{
+					var entry = recentTargets[i];
+					if ( Time.Now - entry.Time < 1.5f && entry.Target.IsValid() )
+					{
+						if ( entry.Target != enemy ) continue;
+						reacquiring = true;
+					}
+					recentTargets.RemoveAt( i );
+				}
+
+				float tier = Math.Clamp( skillTier, 1, 7 ) / 7f;
+				acquired = (0.325f - 0.14f * tier) * (reacquiring ? 0.3f : 1);
 				target = enemy;
+				restarted = true;
 			}
 			lastTracked = 0;
-			return acquired <= 0;
+			return true;
 		}
 	}
 
