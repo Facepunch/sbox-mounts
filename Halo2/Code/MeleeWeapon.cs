@@ -18,3 +18,9 @@ public sealed class ObjectiveWeapon : MeleeWeapon
 {
 	public override void PrimaryAttack() => Inventory?.Drop( this );
 }
+
+public sealed class JuggernautPowerup : MeleeWeapon
+{
+	public override bool CanPrimaryAttack() => false;
+	public override void PrimaryAttack() { }
+}

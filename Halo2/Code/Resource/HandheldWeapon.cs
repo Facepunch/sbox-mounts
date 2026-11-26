@@ -13,6 +13,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		"head" => new( map, weapon, "Oddball", WeaponHolds.Melee ),
 		"head_sp" => new( map, weapon, "Campaign Skull", WeaponHolds.Melee ),
 		"ball" => new( map, weapon, "Oddball", WeaponHolds.Melee ),
+		"juggernaut_powerup" => new( map, weapon, "Juggernaut Power-up", WeaponHolds.Melee ),
 		"flag" => new( map, weapon, "Flag", WeaponHolds.Melee ),
 		"assault_bomb" => new( map, weapon, "Assault Bomb", WeaponHolds.Melee ),
 		"energy_blade" => new( map, weapon, "Energy Sword", WeaponHolds.Melee ),
@@ -187,7 +188,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			var item = HasBarrel ? CreateFirearm( root, world ) : Name switch
 			{
 				"energy_blade" or "energy_blade_useless" => CreateSword( root, world ),
-				"flag" or "ball" or "assault_bomb" => ConfigurePickup<ObjectiveWeapon>( root, world, title ),
+				"flag" or "ball" or "assault_bomb" or "head_sp" => ConfigurePickup<ObjectiveWeapon>( root, world, title ),
+				"juggernaut_powerup" => ConfigurePickup<JuggernautPowerup>( root, world, title ),
 				_ => ConfigurePickup<MeleeWeapon>( root, world, title )
 			};
 			item.HoldType = hold;
