@@ -1,5 +1,3 @@
-// Adapted from Overgrowth's 3d_color.frag FIRE variant.
-// Copyright 2022 Wolfire Games LLC. Apache-2.0; see Editor/Mounts/Overgrowth/LICENSE.
 HEADER
 {
 	Description = "Overgrowth character flame ribbon";

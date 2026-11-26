@@ -1,5 +1,3 @@
-// Adapted from Overgrowth's CDrawTailImpl in movementobject.cpp.
-// Copyright 2022 Wolfire Games LLC. Apache-2.0; see LICENSE.
 using System;
 
 namespace Overgrowth;

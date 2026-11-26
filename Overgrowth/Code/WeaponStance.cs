@@ -2,7 +2,6 @@ using Sandbox.Animation;
 
 namespace Overgrowth;
 
-// Overgrowth samples the item's pose and its physics weights at the same blend coordinates.
 internal sealed class WeaponStance( string path, string coordinate, (float At, WeaponStance Stance)[] inputs )
 {
 	internal string Path => path;

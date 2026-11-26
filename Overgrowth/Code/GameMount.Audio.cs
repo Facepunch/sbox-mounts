@@ -91,7 +91,6 @@ public partial class GameMount
 		}
 		if ( group.Variants.Length == 0 ) return (null, group.Volume, group.Distance);
 		int variant = Random.Shared.Next( group.Variants.Length );
-		// MovementObject selects voices through SoundGroup::GetSoundPath and reuses that take for lip sync.
 		if ( voice && group.Variants.Length > 1 )
 		{
 			if ( !voiceHistory.TryGetValue( path, out var recent ) ) voiceHistory[path] = recent = new();
@@ -130,7 +129,6 @@ public partial class GameMount
 
 	internal static void ConfigureGroup( SoundHandle handle, float level, float distance )
 	{
-		// Overgrowth's positional sound groups use unoccluded inverse-distance attenuation.
 		handle.OcclusionEnabled = false;
 		handle.MinDistance = 40f * Math.Max( 1f, level );
 		handle.Distance = distance;

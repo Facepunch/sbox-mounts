@@ -112,7 +112,6 @@ public sealed partial class RabbitGuard
 
 	bool WantsToSeekWeapon( int polls )
 	{
-		// CheckForNearbyWeapons subtracts one physics step per four-step NPC brain update.
 		for ( int i = 0; i < polls; i++ )
 		{
 			if ( seekDelay < 0f ) return true;
@@ -163,8 +162,6 @@ public sealed partial class RabbitGuard
 	bool GrabWeaponAtHand( bool rolling = false )
 	{
 		if ( WeaponAtHand( PickupLeft ) is not { } item ) return false;
-		// HandlePickUp extracts an embedded weapon during a flip. Only a loose item
-		// can enter the hand on that update. The grabitem animation event does both.
 		if ( rolling && item.StuckIn.IsValid() )
 		{
 			if ( item.StuckIn != Renderer ) ExtractWeapon( item, lift: true );

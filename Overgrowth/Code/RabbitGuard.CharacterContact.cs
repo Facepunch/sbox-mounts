@@ -36,7 +36,6 @@ public sealed partial class RabbitGuard
 			}
 			if ( !uprightContact || !other.IsValid() || !other.CanTouchCharacters || other == holdPartner || Id.CompareTo( other.Id ) >= 0 ||
 				StaticCharacter && other.StaticCharacter || !contactCandidates.Add( other ) ) continue;
-			// Overgrowth dispatches body contact only when the two character query spheres touch.
 			var between = other.CharacterCenter( other.GameObject ) - center;
 			if ( between.LengthSquared > 4f * CharacterQueryRadius * CharacterQueryRadius ) continue;
 			massCenter ??= ContactCenter();

@@ -19,7 +19,6 @@ public class SoundLoader( string filePath ) : ResourceLoader<GameMount>
 		return SoundFile.FromWav( System.IO.Path.ChangeExtension( Path, "distant.vsnd" ), wave );
 	}
 
-	// SimpleFIRFilter centers the authored kernel on each frame, padding both ends with silence.
 	static bool ApplyDistanceFilter( byte[] wave, byte[] filter )
 	{
 		var samples = Pcm16( wave, out int channels );

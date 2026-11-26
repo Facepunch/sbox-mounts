@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// CDrawBodyImpl joins the hip and chest keys at the stomach and ribs.
 internal sealed class RabbitTorso( Transform hipBind, Transform abdomenBind, Transform chestBind, float abdomenHalf, float chestHalf )
 {
 	readonly Vector3 stomachOnHip = hipBind.PointToLocal( abdomenBind.Position - abdomenBind.Rotation.Forward * abdomenHalf );
@@ -169,12 +168,10 @@ public sealed partial class RabbitGuard
 
 		layerAttackFade = knifeCooldown > 0f ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
 		float control = Math.Min( HeadLookWeight, Math.Max( 0.35f, stanceLook ) ) * (1f - layerAttackFade) * (1f - duckAmount * 0.5f);
-		// UpdateHeadLook seeds the throw blend from the knife attack fade on each update.
 		float throwFade = throwing ? 1f + (layerAttackFade - 1f) * retain : layerAttackFade * release;
 		TorsoControl = GazeMovementState && Animation.IsGrounded && !OnLedge ? control + (0.5f - control) * throwFade : 0f;
 	}
 
-	// UpdateHeadLook and CDoChestIK distribute the gaze rotation over the two ends of the abdomen.
 	void UpdateChestLook( Vector3? target )
 	{
 		var bones = Renderer.Model.Bones;
@@ -185,7 +182,6 @@ public sealed partial class RabbitGuard
 			|| !TryGetAnimatedBone( bones.GetBone( boundAnimations.HeadBone ), out var headWorld ) ) return;
 		var animatedChest = chestWorld;
 		var basis = chestWorld.Rotation * Renderer.Model.GetBoneTransform( chest.Index ).Rotation.Inverse;
-		// Overgrowth keeps the springs running when a throw, flip or hit disables gaze.
 		float weight = target.HasValue ? TorsoControl : 0f;
 		var headDirection = target is { } point ? (point - TargetPosition( GameObject, eyes: true )).Normal : Vector3.Zero;
 		var look = basis.Inverse * headDirection;

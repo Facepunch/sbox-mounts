@@ -54,7 +54,6 @@ public sealed partial class RabbitGuard
 		pose.Position += Renderer.WorldRotation * footBalanceOffset * (0.5f * WorldScale.z);
 		if ( actionHandTargets[side] is { Weight: > 0f } hand )
 		{
-			// FinalAnimationMatrixUpdate balances the feet before hand IK and translates both keys with the hips afterward.
 			var bone = Renderer.Model.Bones.GetBone( boundAnimations.Arms[side][0].Bone );
 			var bind = Renderer.Model.GetBoneTransform( bone.Index );
 			var inverseBind = bind.ToLocal( global::Transform.Zero );
@@ -144,7 +143,6 @@ public sealed partial class RabbitGuard
 			}
 			else if ( armsActive && remainder > 0f && dt > 0f )
 			{
-				// Simulate expects targets at the end of a full tick, including the part after this frame.
 				float ahead = (tick - remainder) / dt;
 				var next = Simulate( shoulder + (shoulder - arm.LastShoulder) * ahead,
 					elbow + (elbow - arm.LastElbow) * ahead, wrist + (wrist - arm.LastWrist) * ahead );

@@ -9,7 +9,6 @@ public sealed partial class RabbitGuard
 
 	void UpdateWaterSpray( WaterHotspot water, Vector3 center, Vector3 head, float height, Vector3 velocity, float dt )
 	{
-		// WaterIntersect emits on the water hotspot's 120 Hz clock.
 		const float step = 1f / 120f;
 		waterSprayClock += dt;
 		if ( waterSprayClock < step ) return;

@@ -124,7 +124,6 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 
 		BoxCollider HotspotVolume( GameObject obj )
 		{
-			// Hotspot::UpdateCollisionShape uses a four-metre box scaled by the level object.
 			var volume = obj.AddComponent<BoxCollider>( false );
 			volume.Scale = 4f * 40f;
 			volume.Static = volume.IsTrigger = true;
@@ -179,7 +178,6 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 				return;
 			case "ActorObject" when Host.GetActorPrefab( file ) is { } prefabName:
 				var prefab = PrefabFile.Load( Host.MountedPath( prefabName ) );
-				// MovementObject stores the leg-sphere center and projects editor facing onto the ground plane.
 				var facing = (transform.Rotation.Forward * transform.Scale.x).WithZ( 0f ).Normal;
 				var placement = new Transform( transform.Position + Vector3.Down * RabbitGuard.LegRadius,
 					Rotation.LookAt( facing.IsNearlyZero() ? Vector3.Left : facing ) );

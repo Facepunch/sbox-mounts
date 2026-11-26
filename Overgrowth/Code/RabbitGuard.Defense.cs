@@ -26,7 +26,6 @@ public sealed partial class RabbitGuard
 	void UpdateBlockFlinch()
 	{
 		float dt = Time.Delta;
-		// ActiveBlocking lasts .2 seconds; the spring stays raised for .3 from activation.
 		bool raised = blockFlinchRaised > 0f;
 		float target = raised ? 1f : plantDepth * Math.Min( 1f, Animation.MoveVelocity.Length / 40f );
 		const float tick = 4f / 120f;
@@ -75,7 +74,6 @@ public sealed partial class RabbitGuard
 	{
 		if ( advanceCrouch && strike is not { AsLayer: false } && (ReactionPhase >= 1f || IsGetUp( Stance )) )
 		{
-			// UpdateDuckAmount integrates the target from the preceding movement update.
 			AdvanceCrouchSpring( groundCrouchTarget, Time.Delta );
 			groundCrouchTime = Time.NowDouble;
 			if ( !IsGetUp( Stance ) ) groundCrouchTarget = GroundCrouchTarget();
@@ -139,8 +137,6 @@ public sealed partial class RabbitGuard
 		return ReactionPhase < 1f;
 	}
 
-	// UpdateDuckAmount updates velocity before position once per four game ticks.
-	// Taking a fractional power of that update preserves both the pose and momentum between ticks.
 	const float CrouchStep = 4f / 120f;
 	const float CrouchDamping = 0.89f * 0.89f * 0.89f * 0.89f;
 	const float CrouchImpulse = 120f * CrouchStep * CrouchDamping;
@@ -195,7 +191,6 @@ public sealed partial class RabbitGuard
 
 	float? DefenseDelay( RabbitGuard opponent, RabbitAttack move )
 	{
-		// AnimationReader finds the next prepare event across every pose in the synced group.
 		float next = float.PositiveInfinity;
 		foreach ( var pose in move.Poses )
 		{

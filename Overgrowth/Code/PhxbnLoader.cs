@@ -153,8 +153,6 @@ static class PhxbnLoader
 					throw new InvalidDataException( "Overgrowth skeleton has an invalid or cyclic bone hierarchy." );
 			}
 		}
-		// Skeleton::Read attaches animated joints to their nearest weighted ancestor.
-		// Keep the file hierarchy for physical joints and reference-rig measurements.
 		var weighted = data.AnimationWeightedBones = data.GetWeightedBones();
 		data.AnimationParents = data.HierParents.ToArray();
 		for ( int i = 0; i < numBones; i++ )

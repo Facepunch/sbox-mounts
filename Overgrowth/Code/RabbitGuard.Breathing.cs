@@ -32,7 +32,6 @@ public sealed partial class RabbitGuard
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void IncreaseBreathing( float amount ) => breathSpeed += amount;
 
-	// DisplayMatrixUpdate offsets individual bones after the complete IK hierarchy has been posed.
 	void ApplyDisplayBreath()
 	{
 		if ( solvedPose is null ) return;

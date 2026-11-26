@@ -171,7 +171,6 @@ internal sealed class RabbitBodyContact : Component, Component.ICollisionListene
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
-		// ModelPhysics routes contacts for every bone through the model object.
 		if ( GetComponent<ModelPhysics>() is not { Active: true } physics ) return;
 		foreach ( var part in physics.Bodies )
 		{

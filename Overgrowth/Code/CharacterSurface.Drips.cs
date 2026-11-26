@@ -81,7 +81,6 @@ internal sealed partial class CharacterSurface
 		for ( int pass = 0; pass < 10 && traveled < 1f; pass++ )
 		{
 			int face = drip.Face;
-			// Keep the native metre units and avoid cancellation far from the map origin.
 			Vector3 Point( int i ) => (posed[indices[face + i]] - posed[0]) / 40f;
 			var a = Point( 0 );
 			var bPoint = Point( 1 );

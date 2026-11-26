@@ -22,7 +22,6 @@ internal sealed record RabbitAttack( RabbitAttack.Pose[] Poses, string ReactionP
 		return direction * ImpactDirection.x + lateral * (flipped ? -ImpactDirection.y : ImpactDirection.y) + Vector3.Up * ImpactDirection.z;
 	}
 
-	// The source blends rates and root motion continuously and takes events from the closest pose.
 	internal readonly record struct Blend( RabbitClip Lower, RabbitClip Upper, float Weight )
 	{
 		internal float Frequency => (1f - Weight) / Lower.Duration + Weight / Upper.Duration;

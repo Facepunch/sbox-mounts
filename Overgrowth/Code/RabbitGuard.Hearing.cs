@@ -9,7 +9,6 @@ public sealed partial class RabbitGuard
 	GameObject escortTarget;
 	float suspicion;
 
-	// HandleAnimationMaterialEvent layers mud over the ground sound in very shallow water.
 	bool HandleFootstep( string step, Vector3 position )
 	{
 		float depth = WaterDepth( WorldPosition );
@@ -87,8 +86,6 @@ public sealed partial class RabbitGuard
 	void Hear( GameObject source, Vector3 position, HeardSound sound, bool awake )
 	{
 		if ( !Active || GameObject == source || Health < 1 || Unconscious || StaticCharacter || awakeTime < NoticeThreshold ) return;
-		// NotifySound only updates an attack, patrol or investigation. WasGrabbed has
-		// already given the captive its struggle or hold-still goal when the voice arrives.
 		if ( Fleeing || escortTarget.IsValid() || soughtItem.IsValid() || Held && holdPartner is { pendingGrabImpact: false } ) return;
 		if ( enemy.IsValid() )
 		{

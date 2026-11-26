@@ -185,7 +185,6 @@ public sealed partial class RabbitGuard
 		if ( !FindLedgeDirection( center, default, out wall, out contact ) ) return false;
 		if ( !GetLedgeHeight( center, wall, out height, out surface ) )
 		{
-			// CheckLedges retries away from the first surface at inside corners.
 			var previous = wall;
 			if ( !FindLedgeDirection( center, previous, out wall, out contact ) ||
 				!GetLedgeHeight( center - previous * 8f, wall, out height, out surface ) ) return false;
@@ -249,8 +248,6 @@ public sealed partial class RabbitGuard
 		// An AI always asks to pull up on its next ledge update.
 		if ( LedgeAnimation != ClimbUp && Time.Now - LedgeGrabTime >= ClimbStep )
 		{
-			// UpdateLedge applies its height spring and forward input once before ghost movement.
-			// The reach animation suppresses the forward input while the height spring stays active.
 			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
 			float springOffset = LedgeHeight - 42f - LedgeGrabOrigin.z;
 			ClimbEntryVelocity = (gravity * ClimbStep + springOffset * (0.8f * 4f)) * MathF.Pow( 0.92f, 4f );
@@ -282,7 +279,6 @@ public sealed partial class RabbitGuard
 			float ghost = time - entry;
 			float gravity = Scene.PhysicsWorld.Gravity.z * FallGravityScale( Scene.PhysicsWorld );
 			float rise = entry * ClimbEntryVelocity + ghost * GhostClimbSpeed + time * gravity * ClimbStep;
-			// The native step moves by 4 * 0.02 of the offset, then retains 0.98^4.
 			float retain = MathF.Pow( 0.98f, ghost * 120f );
 			float correction = climbInitialHeightOffset * (1f - retain) * (0.08f / (1f - MathF.Pow( 0.98f, 4f )));
 			LedgeHeightOffset = climbInitialHeightOffset * retain;

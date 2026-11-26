@@ -74,7 +74,6 @@ public sealed partial class RabbitGuard
 			agent.SetAgentPosition( agent.IsNavigating ? agent.AgentPosition + delta : WorldPosition );
 	}
 
-	// MovementObject integrates the damped velocity alongside the clip's root motion.
 	void AdvanceCombatMomentum( float dt )
 	{
 		const float damping = 0.95f * 0.95f * 0.95f * 0.95f;
@@ -82,8 +81,6 @@ public sealed partial class RabbitGuard
 		float vertical = combatVelocity.z;
 		if ( IsOnGround ) combatVelocity.z = 0f;
 		AdvanceMomentum( ref combatVelocity, dt, damping );
-		// Ground collision puts the character back on its support before each native movement step.
-		// Only that step's vertical travel is visible, while horizontal travel accumulates.
 		if ( IsOnGround && MathF.Abs( vertical ) > 0.001f )
 			combatVelocity.z = vertical * MathF.Pow( damping, dt / tick );
 		GroundRecoilHeight = IsOnGround ? combatVelocity.z * tick : 0f;
@@ -117,15 +114,12 @@ public sealed partial class RabbitGuard
 		return InThrow && throwPartner.IsValid() ? trace.IgnoreGameObjectHierarchy( throwPartner.GameObject ) : trace;
 	}
 
-	// MovementObject consumes the change in center offset in the current facing direction on each update.
 	void ApplyRootMotion( Transform from, Transform to )
 	{
 		MoveGroundDelta( WorldRotation * ((to.Position - from.Position) * WorldScale) );
 		WorldRotation *= from.Rotation.Inverse * to.Rotation;
 	}
 
-	// The native animation reader samples the first game tick of each four-tick
-	// character update. Unconsumed root motion carries through the entrance blend.
 	sealed class ReactionMotion( RabbitClip clip, float fadeRate, bool mobile )
 	{
 		Transform previous = global::Transform.Zero;

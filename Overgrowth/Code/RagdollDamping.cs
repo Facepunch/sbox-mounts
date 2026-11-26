@@ -79,7 +79,6 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 			part.Component.MassOverride = parts[i].Mass * scale * scale * scale;
 			if ( loader is not null )
 				part.Component.PhysicsBody.SetInertiaTensor( loader.RagdollInertiaPerMass( part.Bone ) * (part.Component.Mass * scale * scale), Rotation.Identity );
-			// The source keeps mass and joints on FZX bones that have no collision geometry.
 			if ( loader?.NonCollidingBones.Contains( part.Bone ) == true )
 			{
 				foreach ( var collider in part.Component.GetComponents<Collider>() ) collider.ColliderFlags |= ColliderFlags.IgnoreTraces;
@@ -101,8 +100,6 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		else stillSince = null;
 		float stillTime = stillSince?.Relative ?? 0f;
 		Settled = stillTime >= 2f;
-		// Bullet's damping argument is the fraction of velocity lost over one second.
-		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.
 		bool submerged = InWater && hotspotDepth > RabbitGuard.LegRadius / 40f + 0.8f;
 		float retention = (1f - stillTime * 0.5f) * (submerged ? 0.01f : 1f);
 		float rate = Settled ? 0f : -MathF.Log( retention );

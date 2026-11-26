@@ -1,4 +1,3 @@
-// Adapted from RiggedObject::GetTransformedVertex and CutPlane in Overgrowth.
 namespace Overgrowth;
 
 internal sealed partial class CharacterSurface
@@ -96,8 +95,6 @@ internal sealed partial class CharacterSurface
 		return hits;
 	}
 
-	// Every candidate face has a corner near the infinite weapon line. The original
-	// widens its threshold until it finds five faces, including on the far side.
 	internal List<int> StabFaces( SkinnedModelRenderer renderer, Vector3 point, Vector3 direction, out Vector3[] posed, out float size )
 	{
 		posed = Pose( renderer );

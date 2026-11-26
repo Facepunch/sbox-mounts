@@ -15,8 +15,6 @@ public sealed partial class RabbitGuard
 	[Sync] bool RecoveredInAir { get; set; }
 	[Sync] bool Unconscious { get; set; }
 	float recoverableDamage;
-	// BaseNpc reserves Health below 1 for death. Overgrowth can keep an unconscious
-	// fighter alive with negative permanent health until the next blunt hit.
 	float healthBelowFloor;
 	float PermanentHealth => Health - healthBelowFloor;
 	float TemporaryHealth
@@ -80,7 +78,6 @@ public sealed partial class RabbitGuard
 		if ( hit.DamageInfo is BluntDamage )
 		{
 			if ( KnockoutShield > 0 && hit.DamageInfo is not LandingDamage ) hit.AcceptedDamage = 0f;
-			// HandleRagdollImpact applies the damage a second time if the startled fighter is still awake.
 			bool repeat = hit.DamageInfo is StrikeDamage && startled > 0 && !Unconscious && hit.AcceptedDamage < TemporaryHealth;
 			if ( hit.DamageInfo is StrikeDamage or FallImpactDamage ) TryImpactHeadDrips( hit.DamageInfo.Damage, repeat ? 6 : 3 );
 			if ( repeat )
@@ -246,7 +243,6 @@ public sealed partial class RabbitGuard
 	void OnDownedChanged( bool wasDown, bool isDown )
 	{
 		if ( !wasDown || isDown ) return;
-		// SetState reseeds secondary animation once when leaving ragdoll.
 		armsActive = earsActive = plantedLegs = false;
 		foreach ( var ear in earStates )
 		{
@@ -376,7 +372,6 @@ public sealed partial class RabbitGuard
 		{
 			var rb = body.Component;
 			if ( !rb.IsValid() ) continue;
-			// BulletObject passes the bone midpoint in body-local coordinates as Bullet's torque arm.
 			var lever = character.RagdollForceLever( body.Bone ) * rb.WorldScale;
 			rb.ApplyImpulseAt( rb.PhysicsBody.MassCenter + lever, impulse * (Weight( rb ) / total) );
 		}
@@ -421,7 +416,6 @@ public sealed partial class RabbitGuard
 			// A compound world collider may expose the second wall of a corner only after the first correction.
 			for ( int pass = 0; floor.StartedSolid && pass < 4; pass++ )
 			{
-				// ApplyScaledSphereSlide resolves the deepest contact plane first.
 				var axis = new Line( start + capsule.CenterA, start + capsule.CenterB );
 				var shift = Vector3.Zero;
 				var contacts = probe.Capsule( capsule, start, start ).UseHitPosition().RunAll();
@@ -492,8 +486,6 @@ public sealed partial class RabbitGuard
 		var below = trace.Ray( center, center + Vector3.Down * radius ).Run();
 		if ( below.Hit && !below.StartedSolid && below.Normal.z > 0.5f ) return (below.EndPosition, below.Normal, TerrainLoader.ContactSurface( below, below.EndPosition ));
 
-		// CanRoll checks every static contact within a one-metre sphere. A ledge can
-		// support the body even when there is no floor directly below its centre.
 		(Vector3 Point, Vector3 Normal, Surface Surface)? support = null;
 		float closest = radius * radius;
 		foreach ( var hit in trace.Sphere( radius, center, center ).UseHitPosition().RunAll() )
@@ -516,7 +508,6 @@ public sealed partial class RabbitGuard
 		duckAmount = 1f;
 		groundCrouchTarget = 0f;
 		duckVelocity = 0f;
-		// SetAnimation keeps the reader and its phase when the requested clip is already playing.
 		if ( interrupt && Stance == stance ) return;
 		Stance = stance;
 		BeginRecovery( 1f );
@@ -524,7 +515,6 @@ public sealed partial class RabbitGuard
 		Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
 		playing = Stance;
 		reactionDuration = boundAnimations.Clips[Stance].Duration;
-		// The outgoing stand reader calls EndGetUp when its fade completes.
 		getUpEndTime = interrupt ? 1f / 200f : reactionDuration;
 		ReactionPhase = 0;
 	}

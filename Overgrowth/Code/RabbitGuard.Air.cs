@@ -16,14 +16,12 @@ public sealed partial class RabbitGuard
 
 	internal static SphereCollider CreateAirHull( CapsuleCollider standing )
 	{
-		// GetCollisionSphere uses the leg sphere plus the airborne offset, scaled vertically.
 		var hull = new GameObject( standing.GameObject, true, "air collider" );
 		hull.LocalPosition = Vector3.Up * (LegRadius + 8f);
 		hull.LocalScale = new Vector3( 1f, 1f, 1.25f );
 		hull.Tags.Add( "playercontroller", CharacterCollisionRules.FighterHull );
 		var sphere = hull.AddComponent<SphereCollider>( false );
 		sphere.Radius = LegRadius;
-		// HandleAirCollisions slides along walls with no tangential friction.
 		sphere.Friction = 0f;
 		return sphere;
 	}
@@ -56,7 +54,6 @@ public sealed partial class RabbitGuard
 
 	internal void StartJump( Vector3 velocity, bool climb, Vector3 releaseDrive )
 	{
-		// StartJump reads normalized movement input for a climb and horizontal m/s for a path jump.
 		keepJumpFacing = (climb ? ClimbJumpInput : velocity.WithZ( 0f ).Length / 40f) <= 0.4f;
 		JumpLaunch = 1f;
 		firstJumpPose = true;
@@ -92,7 +89,6 @@ public sealed partial class RabbitGuard
 	float pendingTuck;
 	AirCycle jumpCycle, wallCycle;
 
-	// Overgrowth keeps the outgoing reader advancing at its last blend coordinates during a fade.
 	struct AirCycle
 	{
 		public float Phase;
@@ -134,7 +130,6 @@ public sealed partial class RabbitGuard
 	void AdvanceAttackRecoveryFlip()
 	{
 		if ( AirFlipAxis.IsNearlyZero() ) return;
-		// FlipInfo.UpdateFlip advances once per four native physics frames.
 		const float step = 4f / 120f;
 		airFlipRemainder += Time.Delta;
 		while ( airFlipRemainder >= step )
@@ -154,10 +149,8 @@ public sealed partial class RabbitGuard
 	[Sync] bool ThrowGrounded { get; set; }
 	bool HasGroundSupport => InThrow ? ThrowGrounded : Animation.IsGrounded;
 
-	// Physics::gravity is 9.8 m/sï¿½. Retain the scene's gravity direction and zero-gravity behavior.
 	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
 
-	// CheckTerminalVelocity attenuates the whole velocity vector once per character update.
 	float terminalRemainder;
 
 	void UpdateAirborneVelocity()
@@ -176,7 +169,6 @@ public sealed partial class RabbitGuard
 		if ( approachingLedge ) velocity = AdvanceClimbVelocity( velocity, Time.Delta );
 		if ( ReactionPhase < 1f && !InThrow && !IsThrowingItem && !Held && !Holding && !IsGetUp( Stance ) )
 		{
-			// UpdateHitReaction damps all three axes. Gravity resumes with movement controls.
 			velocity *= MathF.Pow( 0.95f, Time.Delta * 120f );
 			if ( body.Gravity ) body.ApplyForce( -Scene.PhysicsWorld.Gravity * (body.Mass * body.GravityScale) );
 		}
@@ -305,7 +297,6 @@ public sealed partial class RabbitGuard
 
 	internal static Rotation InterpolateFacing( Vector3 from, Vector3 direction, float blend )
 	{
-		// InterpDirections takes a perpendicular path when the two facings are nearly opposite.
 		if ( direction.Dot( from ) < -0.8f )
 		{
 			var perpendicular = Vector3.Up.Cross( from );
@@ -316,7 +307,6 @@ public sealed partial class RabbitGuard
 
 	void FaceInAir( Rotation facing )
 	{
-		// Rotating the interpolated GameObject would put its rendered position back into the physics body.
 		if ( GetComponent<Rigidbody>()?.PhysicsBody is { MotionEnabled: true } body ) body.Rotation = facing;
 		else WorldRotation = facing;
 	}

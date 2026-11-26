@@ -69,10 +69,8 @@ public sealed partial class RabbitGuard
 		IncreaseBreathing( 2f );
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
-		// WasGrabbed untethers both actors before the victim enters the new hit reaction.
 		victim.ReleaseTether( this, enteringThrow: true );
 		victim.StartThrowAction( "thrown", this, MirroredAction );
-		// WasGrabbed copies the attacker's horizontal velocity independently of clip motion.
 		victim.combatVelocity = combatVelocity.WithZ( victim.combatVelocity.z );
 		victim.QueueThrowDamage( this );
 		victim.MirroredStance = MirroredAction;
@@ -86,8 +84,6 @@ public sealed partial class RabbitGuard
 
 	void AlignGrabbedAnimation( RabbitGuard attacker, Transform entry )
 	{
-		// WasGrabbed adds the world-space separation to the reader. RiggedObject
-		// scales that offset on consumption. The imported clip already includes model scale.
 		var separation = (attacker.WorldPosition - WorldPosition).WithZ( 0f );
 		alignmentOffset = attacker.WorldRotation * (entry.Position * WorldScale)
 			+ separation * (boundAnimations.MovementScale * WorldScale.z);
@@ -123,8 +119,6 @@ public sealed partial class RabbitGuard
 
 	void ApplyPairedRootMotion( Transform from, Transform to, float weight, bool skipTranslation = false )
 	{
-		// AnimationClient retains the unconsumed world-space motion as the incoming clip fades in.
-		// Seeking the new reader on a swap suppresses its first translation sample.
 		if ( !skipTranslation ) alignmentOffset += WorldRotation * ((to.Position - from.Position) * WorldScale);
 		alignmentYaw = MathF.IEEERemainder( alignmentYaw + (from.Rotation.Inverse * to.Rotation).Yaw(), 360f );
 		to.Position = from.Position + WorldRotation.Inverse * (alignmentOffset * weight) / WorldScale;
@@ -181,7 +175,6 @@ public sealed partial class RabbitGuard
 			var counter = boundAnimations.Clips[Stance].ForSide( MirroredAction );
 			reactionDuration = counter.Duration;
 			ReactionPhase = Math.Min( 1f, ReactionPhase * clip.Duration / reactionDuration );
-			// SwapAnimation retains the outgoing reader's last sampled rotation.
 			var counterRoot = counter.Animation.GetRootMotion( ReactionPhase );
 			alignmentYaw += (previousRotation.Inverse * counterRoot.Rotation).Yaw();
 			PlayAttachedSound( "Data/Sounds/weapon_foley/swoosh/weapon_whoos_big.xml", CharacterCenter( GameObject ) );

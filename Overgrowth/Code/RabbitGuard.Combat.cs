@@ -77,7 +77,6 @@ public sealed partial class RabbitGuard
 		}
 		if ( Renderer.IsValid() && Renderer.Model is not null ) BindAnimations();
 		if ( MovementCapsule.IsValid() ) MovementCapsule.Tags.Add( CharacterCollisionRules.FighterHull );
-		// Upright landings and ragdoll contacts have separate Overgrowth damage rules.
 		FatalImpactSpeed = 0f;
 		initialKnockoutShield = KnockoutShield;
 		if ( Networking.IsHost ) MirroredStance = LeftHanded;
@@ -91,8 +90,6 @@ public sealed partial class RabbitGuard
 
 	bool CanEndAttack( bool canCancel )
 	{
-		// UpdateAttackControls reads the last evaluated status at the character tick.
-		// Its 10 ms delay requires two open samples at the native four-frame cadence.
 		const float step = 4f / 120f;
 		cancelClock += Time.Delta;
 		if ( cancelClock < step ) return false;
@@ -138,7 +135,6 @@ public sealed partial class RabbitGuard
 					blockingOpponent = defender;
 					Stance = strike.Blocked;
 					clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
-					// SwapAnimation preserves elapsed time. A synced group uses its first clip as the clock.
 					AttackPhase = Math.Min( 1f, AttackPhase * strike.Poses[0].Clip.Duration / clip.Duration );
 					if ( strike.SwapStance != strike.SwapBlocked ) MirroredStance = !MirroredStance;
 					blocked = true;
@@ -170,8 +166,6 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		// UpdateGroundAttackControls only runs on the ground. The rabbit's airborne
-		// leg-cannon controls are player-only; an AI finishes its crossing first.
 		if ( !Animation.IsGrounded )
 		{
 			Stance = Locomotion;
@@ -268,8 +262,6 @@ public sealed partial class RabbitGuard
 		: FadingGrab ? ReleasedGrabTarget
 		: strikeTarget;
 
-	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.
-	// The chosen target remains bound to this strike while the AI continues tracking its chase target.
 	GameObject FindStrikeTarget( out float distance )
 	{
 		var center = CharacterCenter( GameObject );
@@ -323,7 +315,6 @@ public sealed partial class RabbitGuard
 
 		var target = FindStrikeTarget( out float distance );
 		if ( !target.IsValid() ) return false;
-		// GetAttackDirection falls back to the unit facing vector when the opponent dodges.
 		if ( target.GetComponent<RabbitGuard>() is { IsDodging: true } ) distance = 40f;
 		bool close = distance < CloseAttackRange;
 		int attackClass = airResponse switch
@@ -345,7 +336,6 @@ public sealed partial class RabbitGuard
 		};
 		strike = boundAnimations.Attacks[choice];
 		punishGroundedTarget = null;
-		// The original adds exertion on attack selection and again on entering the full-body attack state.
 		IncreaseBreathing( strike.AsLayer ? 2f : 4f );
 		if ( strike.AsLayer )
 		{
@@ -371,7 +361,6 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	// GetNavMeshMovement slows only the component along the line to the target.
 	Vector3 CombatApproach( Vector3 target, out Vector3 point ) =>
 		MovementToPoint( target, Math.Max( 8f, 40f - preferredRange ), preferredRange, strafeOffset, out point );
 
@@ -408,7 +397,6 @@ public sealed partial class RabbitGuard
 
 	float GetAttackHeight( GameObject target )
 	{
-		// Overgrowth targets the mean position of the rig's physics bones.
 		var model = target.GetComponent<BaseNpc>()?.Renderer;
 		var center = CharacterLoader.AverageBodyPosition( model );
 		if ( center is { } average ) return (average.z - WorldPosition.z) / 40f - 0.9f;

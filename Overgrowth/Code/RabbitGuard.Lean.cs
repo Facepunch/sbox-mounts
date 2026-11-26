@@ -61,7 +61,6 @@ public sealed partial class RabbitGuard
 			rotation = Rotation.FromAxis( parent.Inverse * Vector3.Up.Cross( RollDirection ), (rollAngle * 6.2832f).RadianToDegree() ) * rotation;
 		if ( rotation != Rotation.Identity )
 		{
-			// FinalAnimationMatrixUpdate rotates all animated bones about their mass-weighted center.
 			var masses = boundAnimations.BoneMass;
 			leanBones ??= Enumerable.Range( 0, masses.Length ).Select( i => Renderer.Model.Bones.GetBone( $"bone_{i}" ) ).ToArray();
 			var center = Vector3.Zero;

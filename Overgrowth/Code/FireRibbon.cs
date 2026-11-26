@@ -2,8 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// Each burning physics bone trails five points. Simulate in the source coordinate system
-// because the wind field varies along each of Overgrowth's world axes.
 internal sealed class FireRibbon
 {
 	internal struct Point

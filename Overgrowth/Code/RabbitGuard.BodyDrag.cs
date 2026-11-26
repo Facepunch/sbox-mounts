@@ -13,7 +13,6 @@ public sealed partial class RabbitGuard
 	RabbitGuard bodyDragger;
 	ModelPhysics draggedPhysics;
 	Rigidbody draggedBody;
-	// SetAnimUpdateFreqs evaluates both actors in a tether every two native frames.
 	int SecondaryPoseFrames => IsTethered || DragStrength > 0f ? 2 : 4;
 	bool IsTethered => Holding || Held || draggedBody.IsValid() || bodyDragger.IsValid();
 	Vector3 localDragPoint, dragTarget;
@@ -65,7 +64,6 @@ public sealed partial class RabbitGuard
 		{
 			var pull = delta.Normal * ((delta.Length - 8f) * 5f * DragStrength);
 			if ( pull.LengthSquared > 0.2f * 40f * 40f ) { ReleaseBodyDrag(); return; }
-			// HandleTethering adds this velocity once per two 120 Hz frames.
 			combatVelocity += pull * (Time.Delta * 60f);
 		}
 		float blend = 1f - MathF.Pow( 0.95f, Time.Delta * 120f );
@@ -77,7 +75,6 @@ public sealed partial class RabbitGuard
 				dragAnchor = new PhysicsBody( body.World ) { BodyType = PhysicsBodyType.Keyframed, AutoSleep = false };
 				dragAnchor.Position = DragPoint;
 				dragJoint = PhysicsJoint.CreateControl( new PhysicsPoint( dragAnchor ), new PhysicsPoint( body, localDragPoint ) );
-				// Bullet's point constraint corrects 20% of position error each 120 Hz step, with a 3 kg m/s impulse limit.
 				dragJoint.MaxVelocityForce = 3f * 40f * 120f;
 				dragJoint.MaxVelocityTorque = 0f;
 			}
@@ -150,8 +147,6 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	// Overgrowth keeps the same ragdoll when a casualty dies. Keep the grip on
-	// the corresponding body when Sandbox transfers it to a corpse object.
 	void TransferBodyDrag( CharacterRemains remains, Rigidbody live, Rigidbody replacement )
 	{
 		if ( !bodyDragger.IsValid() || bodyDragger.draggedBody != live ) return;

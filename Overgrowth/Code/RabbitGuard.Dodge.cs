@@ -23,7 +23,6 @@ public sealed partial class RabbitGuard
 		while ( dodgeRemainder >= tick )
 		{
 			dodgeRemainder -= tick;
-			// UpdateActiveDodgeMechanics polls WantsToDodge separately for input and recharge.
 			if ( WantsToDodge() && dodgeRecharge <= 0f && InMovementState && IsOnGround && !IsTethered && enemy.IsValid() )
 			{
 				dodgeDirection = (CharacterCenter( GameObject ) - CharacterCenter( enemy )).Normal;

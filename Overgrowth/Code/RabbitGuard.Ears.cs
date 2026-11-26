@@ -20,7 +20,6 @@ public sealed partial class RabbitGuard
 	(Transform Animated, Transform Solved)? headMotion;
 
 
-	// CDrawEarImpl twists the two bones, then constrains the moving tip to the authored segment lengths.
 	void UpdateEars() => SolveEars( Time.Delta, Animation.MoveVelocity );
 
 	void SolveEars( float dt, Vector3 moveVelocity )
@@ -131,7 +130,6 @@ public sealed partial class RabbitGuard
 			}
 			if ( reset )
 			{
-				// The source stores the first sample and renders the twisted animation directly.
 				low.Position = root + twist * (low.Position - root);
 				high.Position = root + twist * twist * (high.Position - root);
 				SetPoseBone( lower, Renderer.WorldTransform.ToLocal( low ) );

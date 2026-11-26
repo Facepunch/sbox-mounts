@@ -135,7 +135,6 @@ public sealed partial class RabbitGuard
 			tactic = next;
 		}
 
-		// CheckRangeChange rolls once per AI update with the number of 120 Hz steps elapsed.
 		if ( rangeChanged || Random.Shared.Float() < Time.Delta * 120f / 150f )
 		{
 			rangeChanged = false;

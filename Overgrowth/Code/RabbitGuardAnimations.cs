@@ -215,7 +215,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			{
 				AssetPath = assetPath,
 				CutPlane = cut is null ? null : new Vector3( cut.Number( "z" ) ?? 0f, cut.Number( "x" ) ?? 0f, cut.Number( "y" ) ?? 0f ).Normal,
-				// attacks.cpp tests strcmp's nonzero result, so the "light" token selects _heavy.
 				HeavyCut = cut?.Attribute( "type" ) is null or "light",
 				LightStab = attack.Element( "stab_dir" ) is { } stab ? stab.Attribute( "type" ) is not (null or "light") : null,
 				SharpMin = attack.Element( "sharp_damage" )?.Number( "min" ) ?? 0f,
@@ -339,14 +338,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				var grip = clips[name] = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true, RabbitClip.PoseData.ActionIK );
 				if ( name is RabbitGuard.RearHoldRat or RabbitGuard.RatHeldByRabbit )
 				{
-					// FadeCollection blends the returning stance with the reaction before applying the outgoing entry pose.
 					var action = clips[name == RabbitGuard.RearHoldRat ? RabbitGuard.RearHold : RabbitGuard.RearHeld];
 					var returning = graph.Blend( CombatPose( action, capturePhase ), CombatPose( grip, grabPhase ), captureReturnWeight );
 					return machine.AddState( graph.Blend( CombatPose( grip, captureStancePhase ), returning, captureWeight ) );
 				}
 				if ( name is RabbitGuard.ArmedGrab or RabbitGuard.ArmedGrabbed )
 				{
-					// FadeCollection mixes the newest reader first, then applies the outgoing idle.
 					var entry = ArmedStance( RabbitGuard.CaptureMovementStance( name ), captureStancePhase );
 					return machine.AddState( graph.Blend( entry, CombatPose( grip, capturePhase ), captureWeight ) );
 				}
@@ -369,8 +366,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		{
 			string target = names[i];
 			var condition = graph.IdCompare( stance, target );
-			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
-			// Get-up already blends from the captured ragdoll pose after the full body is posed.
 			float duration = target is RabbitGuard.DragStance or RabbitGuard.OneHandDragStance ? 1f / 3f : target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
@@ -383,12 +378,10 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings
 				{
 					Duration = waking ? 0.05f : landing ? 0.1f : duration,
-					// UnTether blends back to the idle reader even while that pose is still fading out.
 					CanBeForced = RabbitGuard.IsGrabClip( names[j] ) && idlePoses.ContainsKey( target )
 				} );
 			}
 		}
-		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.
 		var weighted = skeleton.AnimationWeightedBones ?? skeleton.GetWeightedBones();
 		var unweighted = Enumerable.Range( 0, weighted.Length ).Where( i => !weighted[i] ).Select( i => $"bone_{i}" ).ToHashSet();
 		var parents = skeleton.AnimationParents;
@@ -411,7 +404,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var neckBind = skeleton.BindPose[parents[head]];
 		var chestBind = skeleton.BindPose[torso.BoneId];
 		var neckRoot = chestBind.PointToLocal( neckBind.Position - neckBind.Rotation.Forward * HalfLength( parents[head] ) );
-		// DrawHead uses the torso chain's starting offset as its breathing reference bone.
 		int torsoStart = new[] { "leftarm", "rightarm", "left_leg", "right_leg", "head", "leftear", "rightear" }.Sum( label => skeleton.IKBones[label].ChainLength );
 		var breathDirection = chestBind.Rotation.Inverse * skeleton.BindPose[torsoStart].Rotation * new Vector3( 1f, 0f, -0.3f ).Normal;
 		var headRig = new RabbitHead( neckRoot, HalfLength( head ), breathDirection, skeleton.IKBones["head"].ChainLength,
@@ -471,7 +463,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		}
 		if ( usesKnife )
 		{
-			// AnimationClient applies the newest layer first. Adjacent swings overlap during their fades.
 			var layers = graph.Layers( output );
 			void AddSwing( string name, GraphBuilder.Node weight ) => layers.AddLayer( swingNodes[name].Pose,
 				new() { BoneMask = swingNodes[name].Mask, Weight = weight, IgnoreEvents = true } );

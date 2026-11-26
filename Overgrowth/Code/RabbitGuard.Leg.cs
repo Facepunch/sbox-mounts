@@ -28,7 +28,6 @@ public sealed partial class RabbitGuard
 	Rotation balanceRotation = Rotation.Identity;
 	bool plantedLegs;
 
-	// CDoHipIK keeps the distance from each hip to its foot from the authored pose.
 	void SolveStance()
 	{
 		var bones = Renderer.Model.Bones;
@@ -81,7 +80,6 @@ public sealed partial class RabbitGuard
 		hipKey.Position += hipOffset + footBalanceOffset * 0.7f;
 		hipKey.Rotation = rotation * balanceRotation * hipKey.Rotation;
 		SetPoseBone( rootBone, hipKey.ToWorld( pelvisBind ) );
-		// Overgrowth translates the torso keys with the hip, then rolls the chest about its own origin.
 		for ( int i = 0; i < 2; i++ )
 		{
 			var name = boundAnimations.TorsoBones[i];
@@ -102,7 +100,6 @@ public sealed partial class RabbitGuard
 			SolveLeg( i, stanceFoot[i], hipKey.PointToWorld( hipSockets[i] ) );
 	}
 
-	// movementobject.cpp CDrawLegImpl. Both the thigh and the shin have two skinned segments.
 	void SolveLeg( int side, Transform foot, Vector3 hip )
 	{
 		var chain = boundAnimations.Legs[side];
@@ -136,7 +133,6 @@ public sealed partial class RabbitGuard
 		{
 			SetPoseBone( bones.GetBone( chain[index].Bone ), new Transform( (from + to) * 0.5f, turn * legPose[index].Rotation ) );
 		}
-		// RotateBonesToMatchVec turns both segments together, preserving their authored relative rotation.
 		void PlacePair( int index, Vector3 from, Vector3 to, float length )
 		{
 			var middle = Vector3.Lerp( from, to, chain[index].Length / length );

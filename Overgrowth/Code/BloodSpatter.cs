@@ -48,7 +48,6 @@ internal sealed class BloodSpatter : Component
 
 	void SetWetness( float wetness )
 	{
-		// decals.glsl scales the albedo while preserving the texture's coverage.
 		if ( wetLayer.IsValid() ) wetLayer.ColorTint = Color.White.WithAlpha( bloodColor.a * (0.5f + 0.5f * wetness) );
 		decal.ColorTint = (bloodColor * (0.15f + 0.25f * wetness)).WithAlpha( bloodColor.a );
 	}

@@ -4,8 +4,6 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	// Recovery is the last full-body pose operation in FinalAnimationMatrixUpdate.
-	// Blend the solved animation (including IK and roll), in the skeleton's weighted parent space.
 	Transform[] lastPhysicsPose, recoveryPose;
 	Vector3 recoveryOrigin;
 	float recoveryRate;
@@ -15,8 +13,6 @@ public sealed partial class RabbitGuard
 	Transform[] previousRecoveryTarget;
 	float previousRecoveryFrame;
 
-	// RiggedObject adds the pending center offset to the pose before aschar transforms
-	// the bones into world space. MovementObject then consumes it for the actor root.
 	Vector3 GetUpPoseOffset()
 	{
 		if ( !GettingUp ) return default;
@@ -27,8 +23,6 @@ public sealed partial class RabbitGuard
 		return WorldRotation * consumed - consumed;
 	}
 
-	// The native reader advances one 120 Hz tick before the first recovery solve.
-	// The ground block's 200/s crossfade finishes within that tick.
 	void ReadGetUpPose( float elapsedPhase )
 	{
 		var model = PrepareSampledPose();
@@ -108,18 +102,13 @@ public sealed partial class RabbitGuard
 		while ( recoveryStep < step )
 		{
 			++recoveryStep;
-			// A display frame can straddle a native animation tick. Commit its target at that tick.
 			float fractionToTick = previousRecoveryFrame >= 0f && frame > previousRecoveryFrame
 				? Math.Clamp( (recoveryStep - previousRecoveryFrame) / (frame - previousRecoveryFrame), 0f, 1f ) : 1f;
 			Sample( Weight( recoveryStep ), velocity / rate, fractionToTick );
-			// The native script writes world matrices to ragdoll_pose and reads them back
-			// next tick. Its close-angle quaternion blend can yield a non-unit rotation.
 			foreach ( var bone in bones )
 			{
 				var pose = solvedPose[bone.Index];
 				var q = pose.Rotation;
-				// For matrix trace > 0, QuaternionFromMat4 extracts (w * xyz, 1 - dot(xyz, xyz)).
-				// The other three branches recover the original quaternion up to a common factor.
 				float xyz = q.x * q.x + q.y * q.y + q.z * q.z;
 				var rotation = xyz < 0.75f ? new Rotation( q.x * q.w, q.y * q.w, q.z * q.w, 1f - xyz ) : q;
 				recoveryPose[bone.Index] = pose.WithRotation( rotation.Normal );
@@ -151,7 +140,6 @@ public sealed partial class RabbitGuard
 			{
 				int i = bone.Index, parent = recoveryParents[i];
 				var previous = recoveryPose[i];
-				// FinalAnimationMatrixUpdate carries the old world pose by the fighter's velocity.
 				if ( parent < 0 ) previous.Position += displacement;
 				var target = animationPose[i];
 				if ( fractionToTick < 1f ) target = global::Transform.Lerp( previousRecoveryTarget[i], target, fractionToTick, false );
@@ -170,7 +158,6 @@ public sealed partial class RabbitGuard
 		float Weight( int tick ) => Math.Min( 1f, (tick / rate + 1f / 120f) * recoveryRate );
 	}
 
-	// BoneTransform uses the conjugate for orientation and a unit rotation for points.
 	static Transform RelativeBonePose( Transform parent, Transform child )
 	{
 		var inverse = parent.Rotation.Conjugate;
@@ -184,7 +171,6 @@ public sealed partial class RabbitGuard
 		recoveryRate = 0f;
 	}
 
-	// ModelPhysics drives only bones with bodies. Every other bone must inherit its parent again.
 	void ReleaseProceduralPose()
 	{
 		if ( Renderer.IsValid() ) Renderer.ClearPhysicsBones();

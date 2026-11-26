@@ -58,8 +58,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	BodyPoint[] bodyPoints = [];
 	readonly Dictionary<string, BodyPoint[]> chainCenters = new();
 
-	// BulletObject::GetPosition returns the bone midpoint, including on fixed bones.
-	// GetTransform exposes the underlying Bullet origin used by the vision hull instead.
 	static Transform? BodyTransform( BodyPoint point, SkinnedModelRenderer renderer, ModelPhysics physics, RabbitGuard fighter )
 	{
 		if ( physics is { Active: true } )
@@ -144,8 +142,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		public Vector3 Direction( Vector3 local ) => Forward * local.x + Left * local.y + Up * local.z;
 	}
 
-	// GetAvgIKChainTransform averages the matrix columns directly. The result can
-	// shorten or skew a direction when the constituent bones point different ways.
 	internal static ChainFrame? AverageChainFrame( SkinnedModelRenderer renderer, string chain )
 	{
 		if ( FromRenderer( renderer ) is not { } character || !character.chainCenters.TryGetValue( chain, out var points ) ) return null;
@@ -173,7 +169,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal Vector3 RagdollForceLever( int bone ) => forceLevers[bone];
 
-	// RiggedObject::GetAvgVelocity weights the linked physics bodies by mass.
 	internal static Vector3? RagdollVelocity( ModelPhysics physics )
 	{
 		Vector3 momentum = default;
@@ -208,7 +203,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		foreach ( var part in physics.Bodies )
 			if ( part.Component.IsValid() ) worldPose[part.Bone] = part.Component.WorldTransform;
 
-		// Overgrowth's fixed physics bones follow their simulated ancestor at their bind offset.
 		foreach ( var point in bodyPoints )
 			if ( point.Bone.Index != point.Body )
 				worldPose[point.Bone.Index] = worldPose[point.Body].ToWorld( point.BodyOffset );
@@ -338,15 +332,11 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 		overlappingBodies ??= FindOverlaps();
 		foreach ( var (a, b) in overlappingBodies )
 		{
-			// Bind the filter while both ragdoll bodies exist. Recovery can remove them
-			// before a PhysicsFilter component gets its first update.
 			Sandbox.Physics.PhysicsJoint.CreateFilter( physics.Bodies[a].Component.PhysicsBody, physics.Bodies[b].Component.PhysicsBody );
 		}
 
 		(int, int)[] FindOverlaps()
 		{
-			// Skeleton::AddNullConstraints checks unconnected collision shapes in the bind pose.
-			// CheckOverlap can place B relative to A without moving either simulated body.
 			var description = physics.Model.Physics;
 			var connected = description.Joints.Select( joint => (Math.Min( joint.Body1, joint.Body2 ), Math.Max( joint.Body1, joint.Body2 )) ).ToHashSet();
 			var result = new List<(int, int)>();
@@ -506,8 +496,6 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 			objData.Positions[i] *= scale;
 		objData.Bounds = BBox.FromPoints( objData.Positions );
 
-		// Permanent morphs are always at full weight. Bake them into the rest mesh while
-		// keeping the original positions as the reference for expression and fist deltas.
 		var restMesh = objData;
 		if ( appearance.Attribute( "morph" ) is { } permanent && Host.FileSystem.FileExists( permanent ) )
 		{

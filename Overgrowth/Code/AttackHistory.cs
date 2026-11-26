@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// MovementObject::CheckAttackHistory and AddToAttackHistory.
 internal sealed class AttackHistory
 {
 	readonly Dictionary<(string From, string To), float> transitions = new();

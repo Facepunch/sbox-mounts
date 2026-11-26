@@ -22,7 +22,6 @@ public sealed partial class RabbitGuard
 	readonly List<RabbitMovement.PoseInput> gaitInputs = [], nextStrideInputs = [];
 	(Transform Unit, Rotation Raw)[] gaitBlend = [];
 
-	// AG2 blends unit quaternions. Overgrowth retains the authored magnitudes until retargeting.
 	(Transform Unit, Rotation Raw) SampleMovementBone( List<RabbitMovement.PoseInput> inputs, int bone, int bones )
 	{
 		int count = 0;
@@ -42,8 +41,6 @@ public sealed partial class RabbitGuard
 		return gaitBlend[0];
 	}
 
-	// SyncedAnimationGroup blends clips authored for the same rig before Retarget enforces each
-	// joint length. AG2 blends translations as well as rotations, so restore the joints here.
 	void ReadGaitPose( RabbitMovement.Controls controls, float nextPhase )
 	{
 		var parameters = Renderer.Animation.Parameters;
@@ -200,7 +197,6 @@ public sealed partial class RabbitGuard
 				while ( parent is not null && boundAnimations.UnweightedBones.Contains( parent.Name ) )
 					parent = parent.Parent;
 				recoveryParents[modelBone.Index] = parent?.Index ?? -1;
-				// DrawArms and DrawHead also carry their unweighted child joints.
 				bool followsEnd = parent is not null && (parent.Name == boundAnimations.HeadBone || boundAnimations.Arms.Any( arm => arm[0].Bone == parent.Name ));
 				poseParents[modelBone.Index] = followsEnd || !boundAnimations.UnweightedBones.Contains( modelBone.Name )
 					? parent?.Index ?? -1 : -1;
@@ -264,8 +260,6 @@ public sealed partial class RabbitGuard
 			Renderer.SetBoneTransform( bone, solvedPose[bone.Index] );
 	}
 
-	// RiggedObject gives the physics bodies the velocity between its last two solved
-	// animation frames. Display-only breathing and changes of renderer graph are excluded.
 	void InheritPoseMotion( ModelPhysics target )
 	{
 		foreach ( var part in target.Bodies )
@@ -280,7 +274,6 @@ public sealed partial class RabbitGuard
 			}
 			var from = previousMotionRoot.ToWorld( previousMotionPose[part.Bone] );
 			var to = currentMotionRoot.ToWorld( currentMotionPose[part.Bone] );
-			// BulletObject.SetPositionAndVel samples the bone midpoint, including on offset shapes.
 			body.Velocity = (to.Position - from.Position) / motionStep;
 			var turn = to.Rotation * from.Rotation.Inverse;
 			var axis = new Vector3( turn.x, turn.y, turn.z ).Normal;

@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-/// <summary>Overgrowth's GetFOVMesh samples six angular subdivisions in each direction.</summary>
 internal sealed class VisionHull
 {
 	readonly List<(Triangle Triangle, Vector3 Normal)> faces = new( 96 );

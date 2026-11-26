@@ -1,5 +1,3 @@
-// Material calculations adapted from Overgrowth's GLSL; modified for s&box.
-// Copyright 2022 Wolfire Games LLC. Apache-2.0; see Editor/Mounts/Overgrowth/LICENSE.
 HEADER
 {
 	Description = "Overgrowth material inputs";
@@ -55,7 +53,6 @@ VS
 				float3 axis = g_bodyBoneShape[2 * bone + 1].xyz;
 				float3x4 skin = GetTransformMatrix( v.nInstanceTransformID, bone ) * weight;
 				basePose += skin;
-				// Native display scaling widens the plane perpendicular to the bone.
 				[unroll] for ( uint row = 0; row < 3; ++row )
 				{
 					float3 radial = (skin[row].xyz - dot( skin[row].xyz, axis ) * axis) * center.w;
@@ -63,8 +60,6 @@ VS
 				}
 			}
 
-			// The vertex cache already includes facial and hand morphs. Recover their
-			// object-space displacement from the difference with the unmodified vertex.
 			float3 rest = v.vPositionOs;
 			float3x3 linear = (float3x3)basePose;
 			float3 c0 = cross( linear[1], linear[2] );
@@ -76,8 +71,6 @@ VS
 			}
 			p.vPositionWs += mul( correction, float4( rest, 1 ) );
 			p.vPositionPs = Position3WsToPs( p.vPositionWs );
-			// envobject.vert interpolates the first two native bone axes. Native X/Y
-			// correspond to mounted Y/Z. Reuse the object-space normal map varyings.
 			float3x3 display = linear + (float3x3)correction;
 			p.vNormalOs = mul( display, float3( 0, 1, 0 ) );
 			p.vTangentOs = float4( mul( display, float3( 0, 0, 1 ) ), 2 );
@@ -194,7 +187,6 @@ PS
 		float3 worldNormal = TangentToWorld( baseNormal, i );
 		if ( i.vTangentOs.w > 1.5 )
 		{
-			// envobject.frag reconstructs the third axis after interpolation.
 			float3 nativeX = i.vNormalOs, nativeY = i.vTangentOs.xyz;
 			float3 n = nativeX * (2 * normal.r - 1) + nativeY * (2 * normal.b - 1)
 				+ cross( nativeX, nativeY ) * (1 - 2 * normal.g);
@@ -271,7 +263,6 @@ PS
 			}
 			else
 			{
-				// Dry each texel before filtering so fresh cuts cannot rewet adjacent old ones.
 				uint width, height;
 				g_tCutMask.GetDimensions( width, height );
 				float2 blend = frac( uv * float2( width, height ) - 0.5 );

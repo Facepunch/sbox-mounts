@@ -79,7 +79,6 @@ public sealed partial class RabbitGuard
 				return;
 			}
 			var blend = move.Sample( AttackHeight, layer.Left );
-			// The native reader emits events before the next 120 Hz update can retire the layer.
 			const double step = 1.0 / 120.0;
 			layer.Remainder += Time.Delta;
 			while ( layer.Active && layer.Remainder >= step )

@@ -1,5 +1,3 @@
-// Adapted from AnimationClient::GetMatrices and ASChar::SetActiveRagdollFallPose.
-// Copyright 2022 Wolfire Games LLC. Apache-2.0; see LICENSE.
 using System;
 
 namespace Overgrowth;
@@ -68,7 +66,6 @@ public sealed partial class RabbitGuard
 		return SphereSlideOffset();
 	}
 
-	// BulletWorld::ApplySphereSlide resolves the deepest contact plane first.
 	Vector3 SphereSlideOffset()
 	{
 		slideContacts.Sort( static (a, b) => b.Depth.CompareTo( a.Depth ) );

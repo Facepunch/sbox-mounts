@@ -11,7 +11,6 @@ public sealed partial class CutMarks
 		var faces = surface.StabFaces( renderer, origin, direction, out var posed, out float size );
 		if ( faces.Count == 0 ) return;
 
-		// BloodSurface projects the original decal along the strike, with a random rotation around it.
 		Vector3 jitter = new( Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ), Random.Shared.Float( -1f, 1f ) );
 		var x = direction.Cross( jitter ).Normal;
 		var y = x.Cross( direction ).Normal;

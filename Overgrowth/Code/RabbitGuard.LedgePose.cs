@@ -60,7 +60,6 @@ public sealed partial class RabbitGuard
 		return pose;
 	}
 
-	// ShimmyAnim updates its lagged velocity on entry. Ghost movement then stops updating the grippers.
 	float PullUpBodyLag( float pullTime )
 	{
 		float lag = ClimbEntryVelocity * (1f - MathF.Pow( 0.95f, 4f ));

@@ -46,7 +46,6 @@ internal sealed class RagdollMotorPose
 				var second = rotations[ids[joint.Body2.Bone]] * joint.LocalFrame2.Rotation;
 				target = first.Inverse * second;
 			}
-			// Map Overgrowth's per-step angular error correction onto the joint's position drive.
 			float frequency = 0.2f * 120f * weight / MathF.Tau;
 			if ( joint.Component is BallJoint ball )
 			{

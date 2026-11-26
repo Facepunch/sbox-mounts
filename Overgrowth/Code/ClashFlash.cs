@@ -21,7 +21,6 @@ public sealed class ClashFlash : Component
 
 	protected override void OnUpdate()
 	{
-		// aschar subtracts one physics frame of brightness per character update.
 		float brightness = 0.5f - (int)(age / characterStep) * (15f / 120f);
 		if ( brightness <= 0f ) GameObject.Destroy();
 		else light.LightColor = Color.White * brightness;

@@ -9,8 +9,6 @@ internal static class PlantHull
 
 	internal static float ContactDepth( Scene scene, Vector3 center, float radius )
 	{
-		// Bullet reports separated closest points too. Its narrow phase accepts the sphere margin
-		// again as separation, plus 2% of its bounding-sphere radius. The broad phase uses its AABB.
 		var trace = scene.Trace.Sphere( radius * 0.8f * contactRange, center, center ).WithTag( Tag ).HitTriggers();
 		var first = trace.Run().Collider;
 		if ( !first.IsValid() ) return 0f;
@@ -76,8 +74,6 @@ internal static class PlantHull
 			}
 		}
 
-		// CreatePointCloud works in square metres. ImageSampler returns RGB as a vec4
-		// with alpha 1, so even transparent texels participate in the source hull.
 		var mesh = displayMesh ?? ObjLoader.Load( mount.FileSystem, model );
 		var areas = new float[mesh.Indices.Count / 3];
 		for ( int i = 0; i < areas.Length; i++ )
@@ -104,7 +100,6 @@ internal static class PlantHull
 			}
 		}
 
-		// btShapeHull uses the 12 vertices and 30 edge midpoints of an icosahedron.
 		var corners = new List<Vector3> { Vector3.Forward, Vector3.Backward };
 		for ( int i = 0; i < 5; i++ )
 		{

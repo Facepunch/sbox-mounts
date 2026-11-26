@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// Animation::Retarget mirrors skin transforms in the reference rabbit rig's bind space.
 internal sealed class RabbitMirror
 {
 	readonly Transform[] bind;
@@ -15,7 +14,6 @@ internal sealed class RabbitMirror
 	internal RabbitMirror( SkeletonData source, float scale, SkeletonData target )
 	{
 		var animationParents = target.AnimationParents;
-		// Native mirrors all bones, applying reference bind transforms only where they exist.
 		bind = Enumerable.Range( 0, animationParents.Length ).Select( i => i < source.BindPose.Length
 			? source.BindPose[i].WithPosition( source.BindPose[i].Position * scale ) : Transform.Zero ).ToArray();
 		inverseBind = bind.Select( tx => tx.ToLocal( Transform.Zero ) ).ToArray();
@@ -42,7 +40,6 @@ internal sealed class RabbitMirror
 			for ( int j = i; j < symmetry.Length; j++ )
 			{
 				var (c, d) = source.Bones[j];
-				// SkeletonAsset compares endpoints in the original file axes, in metres.
 				if ( source.Points[a].DistanceSquared( source.Points[c] * new Vector3( -1f, 1f, 1f ) ) >= 0.0001f ||
 					source.Points[b].DistanceSquared( source.Points[d] * new Vector3( -1f, 1f, 1f ) ) >= 0.0001f ) continue;
 				symmetry[i] = j;

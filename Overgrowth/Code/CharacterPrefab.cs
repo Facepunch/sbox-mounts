@@ -33,7 +33,6 @@ internal sealed class CharacterPrefab( string title, string modelName ) : Resour
 		const float radius = 0.45f * 40f;
 
 		var visuals = new GameObject( go, true, "model" );
-		// aschar.as places animated frames at the bottom of the leg sphere (the NPC root).
 		var renderer = visuals.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = model;
 		renderer.UseAnimGraph = true;

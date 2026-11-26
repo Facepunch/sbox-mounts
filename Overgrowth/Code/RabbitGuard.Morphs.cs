@@ -92,13 +92,11 @@ public sealed partial class RabbitGuard
 			shape.Apply( Renderer, gripping ? 1f : weight );
 		}
 
-		// UpdateBlink modulates the sine blink with a slower, independently changing resting eyelid.
 		if ( !boundAnimations.Morphs.Any( m => m.Name == "wink_l" ) ) return;
 		if ( Unconscious )
 		{
 			Renderer.Morphs.Set( "wink_l", blinkAmount, 0f );
 			Renderer.Morphs.Set( "wink_r", blinkAmount, 0f );
-			// UpdateBlink closes unconscious eyes by 10% per character script update (30 Hz).
 			blinkAmount = 0.9f + (blinkAmount - 0.9f) * MathF.Pow( 0.9f, Time.Delta * 30f );
 			return;
 		}

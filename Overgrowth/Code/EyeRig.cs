@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// MovementObject::CUpdateEyeLook projects a head-local target into two authored morph planes.
 internal sealed class EyeRig
 {
 	readonly record struct Axis( Vector3 Origin, Vector3 Normal, Vector3 Tangent, float Positive, float Negative )

@@ -50,10 +50,8 @@ public sealed class BillboardParticle : Component
 		cloud.renderer.Sprite = definition.Sprite;
 		cloud.renderer.Lighting = !definition.Glow;
 		if ( definition.Glow ) cloud.tint *= 5f;
-		// envobject fades across 0.2 to 2.2 metres at the camera.
 		cloud.renderer.CameraFadeNear = 8f;
 		cloud.renderer.CameraFadeFar = 88f;
-		// Simulate ends the effect when its authored size or opacity reaches zero.
 		effect.Lifetime = float.MaxValue;
 		go.Enabled = true;
 		cloud.particle = effect.Emit( position, 0f );
@@ -109,7 +107,6 @@ public sealed class BillboardParticle : Component
 			float distance = toward.Length;
 			if ( distance > 0f )
 			{
-				// Particle::Draw offsets toward the eye by half the radius, preserving projected size.
 				float fraction = Math.Min( 1f, size * 0.25f / distance );
 				center += toward * fraction;
 				size *= 1f - fraction;

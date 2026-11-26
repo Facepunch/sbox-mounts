@@ -107,7 +107,6 @@ internal sealed class RagdollInjury : Component
 		Enabled = false;
 	}
 
-	// SetActiveRagdollInjuredPose blends once per character update, independently of the physics rate.
 	void UpdateInjuredMouth( float time, float delta, float strength )
 	{
 		const float step = 4f / 120f;

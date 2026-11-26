@@ -73,8 +73,6 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	// The spring runs before UpdateRollDuckAmount. Only the original NPC ticks
-	// reset its velocity, including when several ticks fall inside one host frame.
 	void AdvanceRollCrouch( float delta, float groundTarget )
 	{
 		while ( delta > 0f )
@@ -102,8 +100,6 @@ public sealed partial class RabbitGuard
 		RollProgress = Math.Min( 1f, RollProgress + Time.Delta * RollSpeed );
 		if ( RollProgress < 0.95f )
 		{
-			// UpdateRollVelocity accelerates, then ApplyPhysics damps the grounded body.
-			// Integrate the original four-tick NPC step at the host frame rate.
 			float damping = MathF.Pow( 0.95f, 4f );
 			float retention = damping * damping;
 			var terminal = GroundDirection( RollDirection, FloorNormal() ) * (480f * damping / (1f + damping));
@@ -123,8 +119,6 @@ public sealed partial class RabbitGuard
 		return false;
 	}
 
-	// UpdateRollAngle filters the advancing phase once per character update.
-	// Integrate the moving target as well as the retained angle between those updates.
 	static float SampleRollAngle( float angle, float from, float to, float delta )
 	{
 		if ( delta <= 0f ) return angle;

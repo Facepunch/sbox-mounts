@@ -24,7 +24,6 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	{
 		var renderer = PrepareBitmap();
 		var size = new Vector2( bitmap.Width, bitmap.Height );
-		// Store when each wet texel will dry, in units of six native physics frames.
 		int expiry = DryTick + 253;
 		bitmap.SetPen( new Color32( 255, (byte)(expiry & 255), (byte)(expiry >> 8), 255 ), 1f );
 		var random = new Random( seed );

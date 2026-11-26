@@ -34,7 +34,6 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	// UpdateAnimation reads velocity between UpdateMovementControls and ApplyPhysics.
 	float GaitSpeed
 	{
 		get
@@ -69,7 +68,6 @@ public sealed partial class RabbitGuard
 	{
 		var controls = GaitControls;
 		var motion = boundAnimations.Movement;
-		// Overgrowth attaches a fresh animation reader when it switches back to movement.
 		bool continuing = playing == Locomotion;
 		float start = continuing ? stridePhase : 0f;
 		float next = start;
@@ -102,7 +100,6 @@ public sealed partial class RabbitGuard
 	void PlayCycleSteps( RabbitClip clip, float start, float end )
 	{
 		if ( !Networking.IsHost || clip.Steps.Count == 0 ) return;
-		// AnimationReader activates the nearest authored clip's events in [start, end), including wraps.
 		for ( int cycle = 0; cycle < end && (cycle == 0 || clip.Looping); cycle++ )
 		{
 			foreach ( var step in clip.Steps )
@@ -115,7 +112,6 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	// SceneGraph::GetClosestObject looks within 0.4 m and excludes movement objects.
 	SceneTraceResult FootMaterialContact( Vector3 position )
 	{
 		SceneTraceResult closest = default;

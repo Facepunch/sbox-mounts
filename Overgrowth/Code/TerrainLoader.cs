@@ -2,7 +2,6 @@ using System;
 
 namespace Overgrowth;
 
-// Model::ReadFromFile, as embedded after the six-byte terrain cache header.
 internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount>
 {
 	TerrainMaterials materials;
@@ -39,7 +38,6 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 	{
 		terrainHit = default;
 		if ( LoaderFor( collider )?.materials is not { } terrain ) return fallback;
-		// Terrain::GetUVAtPoint casts vertically when the contact supplies no triangle.
 		var span = Vector3.Up * 40000f;
 		foreach ( var hit in collider.Scene.Trace.Ray( point + span, point - span ).IgnoreDynamic().RunAll() )
 			if ( hit.Collider == collider )

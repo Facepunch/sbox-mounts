@@ -3,7 +3,6 @@ using System.IO;
 
 namespace Overgrowth;
 
-// Overgrowth uses the same CPU sampler for weapon sharpness, terrain weights and other auxiliary maps.
 internal sealed class ImageSampler
 {
 	readonly int width, height;
@@ -39,7 +38,6 @@ internal sealed class ImageSampler
 		float x = Math.Clamp( uv.x, 0.01f, 0.99f ) * width + 0.5f;
 		float y = Math.Clamp( 1f - uv.y, 0.01f, 0.99f ) * height + 1f;
 		int i = (int)x, j = (int)y;
-		// The source indexes by column and truncates each interpolation before the next axis.
 		Color32 Pixel( int col, int row ) => pixel( Math.Clamp( col, 0, width - 1 ) * height + Math.Clamp( row, 0, height - 1 ) );
 		static Color32 Mix( Color32 a, Color32 b, float w ) => new(
 			(byte)(a.r * (1f - w) + b.r * w), (byte)(a.g * (1f - w) + b.g * w), (byte)(a.b * (1f - w) + b.b * w) );

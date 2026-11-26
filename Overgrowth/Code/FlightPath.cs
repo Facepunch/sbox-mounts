@@ -4,7 +4,6 @@ namespace Overgrowth;
 
 internal static class FlightPath
 {
-	// GetVelocityForTarget is shared by the character and item launch code in aschar.as.
 	internal static Vector3 Velocity( Vector3 delta, float gravity, float horizontalSpeed, float verticalSpeed, float arc, out float time )
 	{
 		time = 0f;

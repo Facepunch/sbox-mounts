@@ -7,7 +7,6 @@ internal sealed class ItemSharpness
 	internal ItemSharpness( GameMount mount, string path, ObjLoader.ObjData mesh )
 	{
 		var image = new ImageSampler( mount, path );
-		// LoadAuxFromImage samples each distinct render vertex, then averages UV seams by position.
 		vertices = Enumerable.Range( 0, mesh.Positions.Count )
 			.Select( i => (Position: mesh.Positions[i], Normal: mesh.Normals[i], UV: mesh.UVs[i]) ).Distinct()
 			.GroupBy( v => v.Position ).Select( g => (g.Key, g.Average( v => image.Sample( v.UV ).r / 255f )) ).ToArray();

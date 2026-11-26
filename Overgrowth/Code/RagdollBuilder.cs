@@ -1,5 +1,3 @@
-// Adapted from Overgrowth's skeleton.cpp; modified for s&box.
-// Copyright 2022 Wolfire Games LLC. Apache-2.0; see LICENSE.
 using System;
 using System.IO;
 
@@ -183,7 +181,6 @@ static class RagdollBuilder
 			}
 			else if ( source.Type == 1 )
 			{
-				// AddAngleConstraints uses the display transform of the surviving body.
 				var x = (skeleton.BindPose[a].Position - source.Anchor).Normal;
 				var right = Vector3.Cross( x, new Vector3( 0.000003f, 0.0001f, 1.0001f ) ).Normal;
 				var up = Vector3.Cross( x, right ).Normal;
@@ -200,7 +197,6 @@ static class RagdollBuilder
 					builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB );
 					break;
 				case 0:
-					// Bullet measures A relative to B; the engine hinge measures B relative to A.
 					builder.AddHingeJoint( bodyIds[a], bodyIds[b], frameA, frameB )
 						.WithTwistLimit( -Math.Max( source.Limits[0], source.Limits[1] ) * Degrees, -Math.Min( source.Limits[0], source.Limits[1] ) * Degrees );
 					break;
@@ -209,7 +205,6 @@ static class RagdollBuilder
 					float swing = Math.Max( Math.Max( Math.Abs( limits[2] ), Math.Abs( limits[3] ) ),
 						Math.Max( Math.Abs( limits[4] ), Math.Abs( limits[5] ) ) ) * Degrees;
 					var joint = builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB ).WithSwingLimit( swing );
-					// Bullet's first Euler angle and the engine's twist have opposite signs.
 					if ( limits[0] <= limits[1] ) joint.WithTwistLimit( -limits[1] * Degrees, -limits[0] * Degrees );
 					break;
 				case 2:
@@ -302,7 +297,6 @@ static class RagdollBuilder
 		};
 	}
 
-	// Bullet computes a diagonal box inertia from the compound's bounds in the bone frame.
 	static Vector3 InertiaPerMass( List<Shape> shapes, Transform pose, Vector3 center, float scale, float boneLength )
 	{
 		var half = new Vector3( boneLength * 0.5f, 0f, 0f ) + Vector3.One * (0.05f * Units);
@@ -313,7 +307,6 @@ static class RagdollBuilder
 			{
 				var size = shape.Size( scale );
 				if ( shape.Kind == "capsule" ) size = Vector3.One * size.y + Vector3.Up * size.z;
-				// btMultiSphereShape adds its collision margin when queried as a compound child.
 				if ( shape.Kind != "box" ) size += Vector3.One * (0.04f * Units);
 				var bounds = new BBox( -size, size ).Transform( shape.LocalPose( pose, center, scale ) );
 				compound = compound?.AddBBox( bounds ) ?? bounds;

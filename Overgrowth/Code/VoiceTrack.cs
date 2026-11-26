@@ -7,7 +7,6 @@ internal sealed record VoiceTrack( string[] Shapes, VoiceTrack.Frame[] Frames )
 {
 	internal readonly record struct Frame( float Time, float[] Weights );
 
-	// LipSyncSystem groups phonemes at three resolutions. Character voices use the outer groups.
 	internal static Dictionary<string, int> ReadGroups( string text )
 	{
 		var ids = new Dictionary<string, int>();

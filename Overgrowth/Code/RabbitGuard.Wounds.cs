@@ -52,11 +52,8 @@ public sealed partial class RabbitGuard
 		while ( painStarts.Count > 0 && Time.Now - painStarts[0] >= duration + 1f / fadeSpeed ) painStarts.RemoveAt( 0 );
 	}
 
-	// BaseNpc has already subtracted the accepted hit. Apply TakeBloodDamage's
-	// separate blood, permanent and temporary health changes after damage listeners.
 	void ApplyBloodLoss( float amount, BloodDamage damage )
 	{
-		// BaseNpc clamps Health at zero when a cut exceeds the remaining permanent health.
 		float permanent = Health > 0f ? PermanentHealth + amount : damage.HealthBeforeHit;
 		float temporary = permanent - recoverableDamage;
 		BloodLost += amount;

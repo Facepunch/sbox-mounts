@@ -65,8 +65,6 @@ public sealed class CharacterNavigation : NavigationLayer
 	{
 		if ( !Networking.IsHost ) return;
 		requestedGroundSpeed = 0f;
-		// UpdateGroundState leaves all travel and facing to the mobile get-up clip.
-		// Moving the agent with that clip can register a velocity even on a stopped route.
 		if ( Npc is RabbitGuard { GettingUp: true } )
 		{
 			if ( Agent is { Active: true } ) Agent.MaxSpeed = 0f;
@@ -214,8 +212,6 @@ public sealed class CharacterNavigation : NavigationLayer
 		else routeStepDuration = 0f;
 	}
 
-	// UpdateAnimation turns toward actual travel at ten radians per second. When the desired
-	// route is behind the character it leads the turn, even while the body is still coasting.
 	internal static Rotation RunFacing( Vector3 facing, Vector3 travel, Vector3 intent, float delta )
 	{
 		var look = intent + travel * 0.1f;
@@ -290,8 +286,6 @@ public sealed class CharacterNavigation : NavigationLayer
 		base.OnDisabled();
 	}
 
-	// GetVelocityForTarget bounds the flight time by running speed and maximum launch height.
-	// JumpToTarget tries the lowest arc first and accepts the first collision near the destination.
 	internal bool TryJumpVelocity( Vector3 start, Vector3 end, out Vector3 velocity )
 	{
 		velocity = default;

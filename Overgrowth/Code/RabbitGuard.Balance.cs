@@ -24,7 +24,6 @@ public sealed partial class RabbitGuard
 			float scale = 40f * boundAnimations.CharacterScale;
 			balanceTarget = new( Random.Shared.Float( -0.05f, 0.05f ), Random.Shared.Float( -0.01f, 0.01f ) * scale, Random.Shared.Float( -0.005f, 0.005f ) * scale );
 		}
-		// aschar.as damps the center-of-mass shift once per animation update.
 		const float tick = 4f / 120f;
 		Vector3 NextVelocity() => balanceVelocity * 0.97f + (balanceTarget - balancePosition) * (5f * tick);
 		balanceRemainder += dt;

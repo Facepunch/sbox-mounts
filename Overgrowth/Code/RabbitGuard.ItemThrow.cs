@@ -83,7 +83,6 @@ public sealed partial class RabbitGuard
 
 	GameObject SelectThrowTarget( string label )
 	{
-		// GetCharactersInSphere tests the character sphere against the throw radius.
 		float range = (label == "spear" ? 800f : 400f) + CharacterQueryRadius;
 		var camera = Scene.Camera;
 		var origin = camera.IsValid() ? camera.WorldPosition : EyePosition;

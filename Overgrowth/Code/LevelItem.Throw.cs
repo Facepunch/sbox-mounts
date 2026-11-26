@@ -35,7 +35,6 @@ public sealed partial class LevelItem : Component.ICollisionListener
 				float fraction = i / 8f;
 				foreach ( var line in segments )
 				{
-					// Overgrowth blends the two physics matrices element by element.
 					var (oldStart, oldEnd) = line.ToWorld( previous );
 					var (newStart, newEnd) = line.ToWorld( pose );
 					var start = Vector3.Lerp( oldStart, newStart, fraction );
@@ -62,8 +61,6 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	ItemLine[] GetFlightLines()
 	{
-		// CheckThrownCollisionLine transforms the raw item XML points by the physics body's pose.
-		// The script API used for held-weapon clashes subtracts the asset-to-mass-center offset.
 		var origin = GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero;
 		var offset = LocalMassCenter - origin;
 		return GetLines().Select( line => line with { Start = line.Start + offset, End = line.End + offset } ).ToArray();
@@ -98,7 +95,6 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	{
 		var axis = rotation * localAxis;
 		float halfAngle = 0.5f * MathF.Acos( Math.Clamp( axis.Dot( direction ), -1f, 1f ) );
-		// ItemObject uses the unnormalized cross product. Bullet extracts the rigid rotation on its next step.
 		var turn = new Rotation( axis.Cross( direction ) * MathF.Sin( halfAngle ), MathF.Cos( halfAngle ) );
 		var basis = Matrix.CreateRotation( rotation ) * Matrix.CreateRotation( turn );
 		return System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );

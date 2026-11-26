@@ -4,7 +4,6 @@ using System.Net;
 
 namespace Overgrowth;
 
-// Overgrowth level and asset files contain a sequence of XML elements with no document root.
 internal sealed class XmlAsset
 {
 	public string Name { get; }

@@ -1,7 +1,5 @@
 namespace Overgrowth;
 
-// RiggedObject resolves the animation's reference against the final physics bone,
-// then applies the item's grip correction and converts from ANM to item axes.
 internal sealed class WeaponAttachment
 {
 	readonly record struct Hand( string Bone, string Set, string[] Channels, Vector3 Center );
@@ -56,7 +54,6 @@ internal sealed class WeaponAttachment
 			}
 			var rotation = new Rotation( Read( 4 ) / weight, Read( 5 ) / weight, Read( 6 ) / weight, Read( 7 ) / weight );
 			var position = new Vector3( Read( 1 ), Read( 2 ), Read( 3 ) ) / weight;
-			// The sampled quaternion can be non-unit. RiggedObject applies the grip axes before extracting the item's rotation.
 			var basis = Matrix.CreateRotation( correction.Rotation ) * Matrix.CreateRotation( rotation );
 			Rotation itemRotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 			var reference = bone.WithPosition( bone.PointToWorld( hand.Center ) ).WithScale( 1f );

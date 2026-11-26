@@ -94,8 +94,6 @@ public sealed class BalanceSurface : Component
 		}
 	}
 
-	// SweptSlideCallback in Overgrowth returns every triangle contact on a mesh.
-	// Specialize Bullet's conservative advancement for a sphere translating past a static triangle.
 	static Vector3? Sweep( Triangle triangle, Vector3 start, Vector3 end, float radius )
 	{
 		var delta = end - start;
@@ -110,7 +108,7 @@ public sealed class BalanceSurface : Component
 			float speed = -delta.Dot( distance > 0f ? offset / distance : triangle.Normal );
 			if ( speed <= 0f ) return null;
 			float gap = distance - radius;
-			if ( gap <= 0.04f ) return closest; // Bullet terminates at 0.001 metres.
+			if ( gap <= 0.04f ) return closest;
 			float next = fraction + gap / speed;
 			if ( next <= fraction || next >= 1f ) return null;
 			fraction = next;

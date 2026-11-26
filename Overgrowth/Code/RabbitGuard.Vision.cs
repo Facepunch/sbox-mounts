@@ -23,8 +23,6 @@ public sealed partial class RabbitGuard
 		knownCharacters[actor] = new( CharacterCenter( actor ), awake, GetDisposition( actor ) == Disposition.Hostile, Time.Now );
 	}
 
-	// A native character retains its identity after death. Keep the last observation
-	// intact while s&box replaces the living NPC with a separate corpse object.
 	void FollowCorpse( GameObject actor, GameObject corpse )
 	{
 		if ( knownCharacters.Remove( actor, out var memory ) ) knownCharacters[corpse] = memory;
@@ -72,7 +70,6 @@ public sealed partial class RabbitGuard
 	{
 		if ( CharacterLoader.AverageChainFrame( Renderer, "head" ) is not { } head )
 			return (EyePosition, WorldRotation.Forward, WorldRotation.Left, WorldRotation.Up);
-		// aschar passes -70 directly to mat4::SetRotationX, which takes radians.
 		var offset = Rotation.FromAxis( Vector3.Left, (-70f).RadianToDegree() );
 		return (head.Position, head.Direction( offset.Forward ), head.Direction( offset.Left ), head.Direction( offset.Up ));
 	}
@@ -81,7 +78,6 @@ public sealed partial class RabbitGuard
 			.Concat( Scene.GetAllComponents<PlayerController>().Select( controller => controller.GameObject ) )
 			.Concat( Scene.GetAllComponents<CharacterRemains>().Select( remains => remains.GameObject ) );
 
-	// MovementObject.visible belongs to the character. Walls affect the observer's sight trace.
 	bool TargetIsVisible( GameObject target ) => Omniscient || target.GetComponent<BaseNpc>()?.Renderer is not { Active: false };
 
 	void TrackEnemy()

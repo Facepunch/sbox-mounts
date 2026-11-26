@@ -26,7 +26,6 @@ public sealed partial class RabbitGuard
 
 	float MovementSpeedRatio( Vector3 velocity ) => velocity.Length / (GroundSpeedLimit > 0f ? GroundSpeedLimit : GroundRunSpeed);
 
-	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
 	static Vector3 GroundDirection( Vector3 direction, Vector3 normal )
 	{
 		var left = normal.Cross( Vector3.Forward ).Normal;
@@ -51,8 +50,6 @@ public sealed partial class RabbitGuard
 			? position.WithZ( ground.EndPosition.z - LegRadius ) : null;
 	}
 
-	// UpdateGroundMovementControls adds acceleration before ApplyPhysics damps the body.
-	// Give the crowd the speed reachable in its next step so it can still steer around actors and walls.
 	internal void UpdateGroundSpeed( NavMeshAgent agent, float requested, float step, Vector3? requestedHeading )
 	{
 		if ( step <= 0f ) return;
@@ -172,7 +169,6 @@ public sealed partial class RabbitGuard
 		return path.Points[^1].Position;
 	}
 
-	// GetNavPoint looks for a polygon within two metres horizontally and four vertically.
 	Vector3? NavPoint( Vector3 position ) => Scene.NavMesh.GetClosestPoint(
 		BBox.FromPositionAndSize( position, new Vector3( 4f, 4f, 8f ) * 40f ) );
 
@@ -186,8 +182,6 @@ public sealed partial class RabbitGuard
 			if ( remaining.IsNearlyZero() || depth == 4 ) return hit;
 			var approach = (hit - start).WithZ( 0f );
 			if ( approach.IsNearlyZero() ) return hit;
-			// Recover the boundary normal just inside the polygon before projecting the
-			// remainder of the ray, as NavMesh::RayCastSlide does at each wall.
 			var inside = hit - approach.Normal * Math.Min( approach.Length, 1f );
 			if ( nav.GetClosestEdge( inside, 4f ) is not { } edge ) return hit;
 			var normal = (inside - edge).WithZ( 0f ).Normal;

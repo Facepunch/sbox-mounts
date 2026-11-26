@@ -25,7 +25,6 @@ internal sealed record CharacterMorph( string Name, int Steps )
 			{
 				string name = morph.Targets[step];
 				var path = $"{modelPath[..^4]}_{name}.obj";
-				// LoadObjMorph pairs expanded face corners; OBJ vertex numbering can differ.
 				var target = ObjLoader.LoadMorphPositions( fs, path, model.Center, model.FaceVertexCount );
 				var deltas = new List<MorphDelta>();
 				for ( int i = 0; i < model.Positions.Count; i++ )

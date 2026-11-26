@@ -54,7 +54,6 @@ public sealed partial class RabbitGuard
 		if ( groupLeader.IsValid() ) groupLeader.followerCount--;
 		groupLeader = leader;
 		if ( !leader.IsValid() ) return;
-		// AddFollower evaluates PickAttackSubGoal on the first join but discards the tactic.
 		if ( leader.followerCount == 0 ) leader.UpdateGroundPunishDecision();
 		leader.followerCount++;
 	}
@@ -72,7 +71,6 @@ public sealed partial class RabbitGuard
 
 	void UpdateCombatGroup()
 	{
-		// Spawn-menu fighters have no team. Authored teammates take turns engaging, as in AllyInfo.
 		if ( Teams.Length == 0 && !groupLeader.IsValid() && followerCount == 0 ) return;
 		if ( Unconscious || Health <= 0f || !HasAttackGoal )
 		{

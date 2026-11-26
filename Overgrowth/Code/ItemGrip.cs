@@ -4,8 +4,6 @@ namespace Overgrowth;
 
 internal static class ItemGrip
 {
-	// LoadAttachPose samples the first animation key in model space. Centering
-	// and yaw are common to both matrices and cancel in the hand-relative pose.
 	internal static Transform Read( BaseFileSystem fs, string path, int bone, bool mirrored, bool blade, bool hip, float scale )
 	{
 		using var reader = new BinaryReader( fs.OpenRead( path ) );

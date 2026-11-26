@@ -1,4 +1,3 @@
-// Adapted from Skeleton::AlternateHull. Copyright 2022 Wolfire Games LLC, Apache-2.0.
 namespace Overgrowth;
 
 internal static class CharacterHulls

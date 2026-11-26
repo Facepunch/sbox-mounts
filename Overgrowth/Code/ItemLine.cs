@@ -17,8 +17,6 @@ internal sealed record ItemLine( Vector3 Start, Vector3 End, string Material )
 
 	internal (Vector3 Start, Vector3 End) ToWorld( Transform pose ) => (pose.PointToWorld( Start ), pose.PointToWorld( End ));
 
-	// ascollisions.cpp returns the two infinite-line parameters. The combat script
-	// clamps each independently and uses the starts for parallel lines.
 	internal static (Vector3, Vector3) Closest( (Vector3 Start, Vector3 End) a, (Vector3 Start, Vector3 End) b )
 	{
 		var u = (a.End - a.Start) / 40f;

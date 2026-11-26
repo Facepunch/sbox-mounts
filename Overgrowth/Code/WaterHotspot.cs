@@ -29,7 +29,6 @@ public sealed partial class WaterHotspot : Component
 		}
 	}
 
-	// WaterIntersect measures signed distance along the hotspot's local vertical.
 	internal float HeightAboveSurface( Vector3 point ) =>
 		(WorldTransform.PointToLocal( point ).z - Volume.Center.z - Volume.Scale.z * 0.5f) * WorldScale.z / 40f;
 }

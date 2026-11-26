@@ -242,8 +242,6 @@ public sealed partial class LevelItem : Component
 	static void SetItemInertia( Rigidbody body, Model model )
 	{
 		if ( body.PhysicsBody is not { IsValid: true } physics || model?.Physics?.Parts.FirstOrDefault()?.Hulls.FirstOrDefault() is not { } hull ) return;
-		// CreateConvexModel computes box inertia at 1 kg. SetMass retains that tensor.
-		// Bullet caches the hull bounds with its initial 4 cm margin on either side.
 		var size = hull.Bounds.Size * body.WorldScale.Abs() + Vector3.One * (0.08f * 40f);
 		var squared = size * size;
 		physics.SetInertiaTensor( new Vector3( squared.y + squared.z, squared.x + squared.z, squared.x + squared.y ) / 12f, Rotation.Identity );

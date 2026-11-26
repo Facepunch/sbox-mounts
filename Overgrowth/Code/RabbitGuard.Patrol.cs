@@ -140,7 +140,6 @@ public sealed partial class RabbitGuard
 			if ( !following && intent.LengthSquared > 0.2f ) intent = intent.Normal * 0.2f;
 		}
 
-		// Stock applies repulsion a second time after limiting patrol speed.
 		intent = (intent + separation).ClampLength( 1f );
 		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent.WithZ( 0f ) * 40f;
 		if ( !target.HasValue && intent.IsNearlyZero() ) return false;

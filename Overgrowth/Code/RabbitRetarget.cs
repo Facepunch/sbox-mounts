@@ -1,6 +1,5 @@
 namespace Overgrowth;
 
-// The unmirrored, shared-hierarchy path of Animation::Retarget for the rabbit clips.
 internal sealed class RabbitRetarget
 {
 	readonly Transform[] sourceBind;
@@ -107,7 +106,6 @@ internal sealed class RabbitRetarget
 
 	internal Vector3 GaitJointPosition( int bone, Rotation rotation, bool mirrored )
 	{
-		// Joint positions are computed before the native tail-twist correction.
 		if ( isTail[bone] && mirrored != sameRig ) rotation = ReflectTailRotation( rotation );
 		return mirrored ? mirroredParentAnchor[bone] + rotation * mirroredChildHalf[bone] : JointPosition( bone, rotation );
 	}
@@ -138,7 +136,6 @@ internal sealed class RabbitRetarget
 			pose = mirror.LimbTarget( anchor, pose );
 			if ( foot ) pose.Rotation *= ToeFlip;
 		}
-		// Retarget applies each flipped-toe correction to the left IK target.
 		if ( foot && side == 0 )
 			foreach ( int _ in flippedToes ) pose.Rotation *= ToeFlip;
 		return pose;
@@ -157,7 +154,6 @@ internal sealed class RabbitRetarget
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );
 				continue;
 			}
-			// Retarget overwrites these rotations even when the clip contains more bones than its source rig.
 			Rotation rotation;
 			if ( i > sourceBind.Length )
 				rotation = (parent < sourceBind.Length ? sourceBind[parent] : target.BindPose[parent]).Rotation.Inverse * target.BindPose[i].Rotation;
@@ -168,7 +164,6 @@ internal sealed class RabbitRetarget
 
 			result[i] = new Transform( Vector3.Zero, rotation );
 		}
-		// Retarget's flipped-toe check rotates about the source rig's Z (s&box forward).
 		foreach ( int toe in flippedToes )
 			result[toe] = result[toe].WithRotation( result[toe].Rotation * ToeFlip );
 		return result;

@@ -41,7 +41,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( species is not ("rabbit" or "cat" or "rat" or "dog" or "wolf") ) return;
 		Species = species;
 		var agent = GetComponent<NavMeshAgent>( true );
-		// BrainSpeciesUpdate gives rabbits access to off-mesh routes.
 		agent.AllowAllLinkTypes = species == "rabbit";
 		if ( !agent.AllowAllLinkTypes ) agent.AllowedLinkTypes.Clear();
 		CausesFearOnSight = species == "wolf";
@@ -113,7 +112,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			RegenerateHealth( Time.Delta );
 		}
 		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
-		// UpdateBrain samples the surroundings while a conscious fighter is busy with an action.
 		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && Renderer.IsValid() &&
 			boundAnimations is not null && !StaticCharacter && !Unconscious )
 		{
@@ -280,7 +278,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		Renderer.Animation.Parameters.Set( "stance", GraphStance( playing ) );
 	}
 
-	// Ground schedules pause in flight, but Overgrowth keeps the active animation and its events running.
 	void AdvanceAirborneAction()
 	{
 		if ( !NpcConVars.Enabled || !IsAirborne || Health <= 0f || !Renderer.IsValid() || boundAnimations is null ||
@@ -367,8 +364,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		&& !other.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( other ) && other.GetComponent<BaseNpc>() is not ({ Health: < 1 } or RabbitGuard { StaticCharacter: true })
 		&& GetDisposition( other ) == Disposition.Hostile;
 
-	// MovementObject follows the mean physics-bone position while ragdolled. Here the
-	// navigation root stays parked until recovery, so observers read the bodies directly.
 	Vector3 TargetPosition( GameObject target, bool eyes = false )
 	{
 		var fighter = target.GetComponent<RabbitGuard>();
@@ -388,8 +383,6 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		return GetVelocity( target );
 	}
 
-	// Standing navigation roots are at the feet. MovementObject.position is at
-	// the leg sphere center until the ragdoll takes over.
 	internal Vector3 CharacterCenter( GameObject target ) => target.GetComponent<RabbitGuard>() is { Downed: true } || target.GetComponent<CharacterRemains>().IsValid()
 		? TargetPosition( target ) : target.WorldPosition + Vector3.Up * (0.45f * 40f);
 

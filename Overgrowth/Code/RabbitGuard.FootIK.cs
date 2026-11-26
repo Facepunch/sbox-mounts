@@ -51,7 +51,6 @@ public sealed partial class RabbitGuard
 		balanceNormal = FootSurfaceNormal( lastPosition );
 	}
 
-	// CDoFootIK probes the ground again just below the swept sphere, resolving all contact planes.
 	Vector3 FootSurfaceNormal( Vector3 spherePosition ) => SlideSphere( spherePosition + Vector3.Down * 0.4f, 2f ).Normal;
 
 	bool hasStanceAnchors;
@@ -137,15 +136,13 @@ public sealed partial class RabbitGuard
 		{
 			hasStanceAnchors = true;
 			plantedRoot[0] = plantedRoot[1] = root;
-			steppingFoot = 1; // StartFootStance plants the left foot first.
+			steppingFoot = 1;
 			stepProgress = 0;
 		}
 
-		// aschar.as HandleFootStance leads the swinging foot by half a step while the other stays planted.
 		var velocity = movement + ContactVelocity;
 		float speed = velocity.Length / 40f;
 		float stepSpeed = Math.Max( 2f, speed * 1.5f + 1f );
-		// GetIKTargetAnimPosition reads the unmodified animation matrices before character facing and lean.
 		var model = Renderer.WorldTransform;
 		var leftAnchor = hasLeftTarget ? model.PointToLocal( left.Position ) : Vector3.Zero;
 		var rightAnchor = hasRightTarget ? model.PointToLocal( right.Position ) : Vector3.Zero;
@@ -180,7 +177,6 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	// CDoFootIK carries the unsupported foot by the correction applied to its planted partner.
 	void SolveGroundedLegs()
 	{
 		if ( balanceContact.HasValue ) footBalanceOffset = (groundCorrection[0].GetValueOrDefault() + groundCorrection[1].GetValueOrDefault()) * 0.5f;
@@ -258,7 +254,6 @@ public sealed partial class RabbitGuard
 			return blend.Weight > 0f ? LimbPose.Blend( first, LimbPose.Sample( upper, phase ), blend.Weight ) : first;
 		}
 
-		// The original applies the same pending character motion to the bone and its IK target.
 		Transform PlaceTarget( BoneCollection.Bone bone, Transform animated, Transform target )
 		{
 			Transform Local( BoneCollection.Bone joint )
@@ -301,7 +296,6 @@ public sealed partial class RabbitGuard
 		if ( weight == 1f ) result = target;
 		else if ( weight > 0f )
 		{
-			// CDoFootIK blends the transforms that deform the bind pose, then places the toe bone.
 			var toe = Renderer.Model.Bones.GetBone( boundAnimations.Legs[side][0].Bone );
 			var bind = Renderer.Model.GetBoneTransform( toe.Index );
 			var inverseBind = bind.ToLocal( global::Transform.Zero );
@@ -311,7 +305,6 @@ public sealed partial class RabbitGuard
 		bool contact = false;
 		if ( weight > 0f )
 		{
-			// CDoFootIKImpl sweeps a 0.05 m sphere from 0.2 m above to 0.6 m below the animated foot.
 			var check = target.Position + footOffset[side];
 			var trace = balanceContact.HasValue ? default : Scene.Trace.Sphere( 2f, check + Vector3.Up * 8f, check + Vector3.Down * 24f )
 				.IgnoreGameObjectHierarchy( GameObject ).IgnoreDynamic().IgnoreKeyframed().WithoutTags( "trigger" ).Run();

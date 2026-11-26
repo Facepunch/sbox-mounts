@@ -14,7 +14,6 @@ public sealed partial class RabbitGuard
 	Vector3 lastHeadFacing;
 	float lastHeadYaw, inheritedHeadYaw;
 
-	// CDoHeadIKImpl, with the combat spring settings from FinalAnimationMatrixUpdate.
 	void UpdateHeadLook( Vector3 headDirection, Transform animatedChest, Transform chest, Transform animatedHead, Vector3 balancePivot, Rotation balance, Transform balancedChest )
 	{
 		var bones = Renderer.Model.Bones;
@@ -97,7 +96,6 @@ public sealed partial class RabbitGuard
 		float Advance( float angle, float speed, float goal, float correction )
 		{
 			angle = Math.Clamp( angle + speed * dt, -1.5f, 1.5f );
-			// CDoHeadIK gates both inherited offsets against the horizontal target angle.
 			if ( (angle > wanted.x && correction < 0f) || (angle < wanted.x && correction > 0f) )
 				angle += Math.Clamp( goal - angle, -MathF.Abs( correction ), MathF.Abs( correction ) );
 			return angle;

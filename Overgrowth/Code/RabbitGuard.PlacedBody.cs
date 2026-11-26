@@ -41,7 +41,6 @@ public sealed partial class RabbitGuard
 			var go = bones[bone];
 			int id = int.Parse( bone.Name.AsSpan( 5 ), CultureInfo.InvariantCulture );
 			if ( !PlacedBodyPose.TryGetValue( id, out var local ) || !character.AttachmentCenters.TryGetValue( id, out var center ) ) continue;
-			// ModelPhysics adopts pre-posed physics bones when it builds the body and network transforms.
 			var world = WorldTransform.ToWorld( local );
 			go.Flags |= GameObjectFlags.Absolute | GameObjectFlags.PhysicsBone;
 			go.WorldTransform = world.WithPosition( world.Position - world.Rotation * (center * world.Scale) );

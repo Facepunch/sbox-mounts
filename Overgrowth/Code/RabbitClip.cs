@@ -34,8 +34,6 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 	internal float? LimpTime { get; init; }
 	internal float? CutTime { get; init; }
 	internal RabbitClip Mirrored { get; init; }
-	// AG2 stores unit rotations. SyncedAnimationGroup mixes the original magnitudes
-	// before retargeting, including the drift introduced by cubic interpolation.
 	float[] RotationMagnitudes { get; init; }
 	internal Rotation RawRotation( Rotation unit, float phase, int bone, int bones )
 	{
@@ -56,8 +54,6 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 	internal enum CenterMotion { Full, Vertical, None, Extract }
 
-	// Overgrowth's Slerp switches to an unnormalized linear mix for close quaternions.
-	// The subsequent two stages of its cubic blend consume that magnitude as well.
 	static Transform Mix( Transform a, Transform b, float t )
 	{
 		return new( Vector3.Lerp( a.Position, b.Position, t, false ), MixRotation( a.Rotation, b.Rotation, t ) );
@@ -288,7 +284,6 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				previousCenter = savedCenter;
 				savedCenter = accumulatedCenter;
 			}
-			// AnimationReader restores full body sway for movement and vertical offset for mobile clips.
 			var offset = centerMotion switch
 			{
 				CenterMotion.None or CenterMotion.Extract => Vector3.Zero,
@@ -383,7 +378,6 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 					if ( mirror is not null )
 					{
 						weapon = RabbitMirror.Reflect( weapon );
-						// MirrorBT flips the two item axes in matrix space after the cubic blend.
 						var basis = Matrix.CreateScale( new Vector3( 1f, -1f, -1f ) ) * Matrix.CreateRotation( weapon.Rotation );
 						weapon.Rotation = System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 					}
@@ -421,7 +415,6 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				roots[i] = mirror is null ? root : RabbitMirror.Reflect( root );
 				if ( sampleLimbs )
 				{
-					// GetMatrices weights IK presence cubically, but interpolates its model-space target linearly.
 					for ( int limb = 0; limb < (hands is null ? 2 : 4); limb++ )
 					{
 						LimbChain? chain = null;

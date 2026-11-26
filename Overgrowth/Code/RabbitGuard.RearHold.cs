@@ -19,7 +19,6 @@ public sealed partial class RabbitGuard
 	float grabPhase;
 	string grabReader;
 	string fadingCapture;
-	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
 	const int FirstCaptureTick = (int)(CaptureLead / HoldStep) + 1;
@@ -49,7 +48,6 @@ public sealed partial class RabbitGuard
 	float changeStruggleDirection, changeStruggleCrouch;
 	bool struggleCrouch;
 	[Sync] TimeSince SinceGrab { get; set; }
-	// The original compares its 120 Hz game clock strictly past the 12th frame.
 	bool CaptureReactionEnded => SinceGrab >= 13f / 120f;
 	TimeUntil nextHoldSound;
 	sealed class HoldDamage : BluntDamage;
@@ -108,9 +106,6 @@ public sealed partial class RabbitGuard
 		}
 		if ( pose is ArmedGrab or RearHold || Time.Delta >= CaptureLead )
 		{
-			// The captor selects its movement stance on entry. The captive's movement
-			// update selects it one native frame before WasGrabbed changes the reader.
-			// At lower frame rates this is the last opportunity to submit both readers.
 			playing = grabReader = pose is RearHold or RearHeld ? UnarmedHoldStance : CaptureMovementStance( pose );
 			grabPhase = 0f;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
@@ -143,7 +138,6 @@ public sealed partial class RabbitGuard
 		else if ( !FadingGrab ) grabReader = null;
 		if ( grabReader is null ) return;
 
-		// FadeCollection continues to advance the outgoing reader after UnTether.
 		var grab = GrabPose( grabReader );
 		if ( grabReader is ArmedGrab or ArmedGrabbed )
 			grabPhase = capturePhase;
@@ -154,7 +148,6 @@ public sealed partial class RabbitGuard
 		else if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
 		else if ( grabReader == UnarmedHoldStance && Stance == grabReader && grabReader is RearHold or RearHeld && SinceGrab >= CaptureLead )
 		{
-			// WasGrabbed restarts both readers. Returning to the same stance clip keeps that reader running.
 			grabPhase = CaptureActionTime * grab.Frequency * (grabReader == RearHold ? AttackSpeed : 1f);
 		}
 		else grabPhase = grabReader == pose && playing != pose ? 0f : grabPhase + Time.Delta * grab.Frequency;
@@ -198,8 +191,6 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		// The movement stance and WasGrabbed start successive readers. FadeCollection
-		// multiplies their incoming weights. Only the active reader retains overflow.
 		const float frame = 1f / 120f, step = 2f * frame, fadeRate = 5f;
 		var clip = CaptureClip;
 		while ( nextCaptureTick <= tick )
@@ -226,7 +217,6 @@ public sealed partial class RabbitGuard
 				nextCaptureTick = 0;
 				break;
 			}
-			// SetAnimUpdateFreqs returns to four native frames per update on release.
 			nextCaptureTick += SecondaryPoseFrames / 2;
 		}
 	}
@@ -242,7 +232,6 @@ public sealed partial class RabbitGuard
 		if ( Held || Stance != CutFromHold ) recentChoke = 0.5f;
 		if ( Stance == CutInHold )
 		{
-			// Execute queues the defender's reader on its next native frame.
 			float elapsed = (float)SinceGrab - cutStartTick * HoldStep;
 			ReactionPhase = Math.Clamp( elapsed / CaptureClip.Duration, 0f, 1f );
 			return;
@@ -254,13 +243,10 @@ public sealed partial class RabbitGuard
 		bool blade = armed && boundAnimations.WeaponLabel != "staff";
 		bool struggle = !blade && !executing;
 		float distance = armed ? 14f : victim.boundAnimations.Species == "rat" ? 18f : 22f;
-		// UpdateAttack delivers WasGrabbed and the attack voice before HandleTethering
-		// can release either fighter on the next four-frame character update.
 		if ( pendingGrabImpact && SinceGrab >= CaptureLead )
 		{
 			if ( !AdvanceHoldPair( victim, distance, struggle, FirstCaptureTick - 1 ) ) return;
 			pendingGrabImpact = false;
-			// WasGrabbed takes both velocity and separation at the notification.
 			victim.struggleVelocity = struggleVelocity;
 			victim.AlignGrabbedAnimation( this, victim.CaptureClip.Animation.GetRootMotion( 0f ) );
 			victim.Fleeing = false;
@@ -295,7 +281,6 @@ public sealed partial class RabbitGuard
 					MarkCutWeapon( victim );
 					cutMarked = true;
 				}
-				// The captive processes FINISHING_THROAT_CUT on its next native frame.
 				if ( elapsed >= cut + HoldStep * 0.5f ) FinishCut( victim );
 			}
 		}
@@ -326,7 +311,6 @@ public sealed partial class RabbitGuard
 
 	bool AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle, int elapsed )
 	{
-		// SetAnimUpdateFreqs advances both tethered actors once every two physics frames.
 		while ( holdTick < elapsed )
 		{
 			holdTick++;
@@ -342,8 +326,6 @@ public sealed partial class RabbitGuard
 			victim.DropHandItem();
 			if ( !struggle )
 			{
-				// Ground controls start the cut one update after EndAttack. The defender
-				// consumes the outgoing capture motion before switching its reader.
 				if ( holdTick >= 8 && Stance != CutFromHold ) BeginCut( victim );
 				continue;
 			}
@@ -388,7 +370,6 @@ public sealed partial class RabbitGuard
 
 	void MoveHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
-		// WasGrabbed enters hit reaction one tether update after the attack starts.
 		UpdateHoldVelocity( false, holdTick >= HolderMovementTick );
 		victim.UpdateHoldVelocity( struggle, holdTick >= CaptiveMovementTick );
 		var separation = victim.WorldPosition - WorldPosition;
@@ -396,7 +377,6 @@ public sealed partial class RabbitGuard
 		if ( !flat.IsNearlyZero() )
 		{
 			holdDirection = Vector3.Lerp( flat.Normal, holdDirection, 0.1f * 0.1f );
-			// HandleTethering limits the full midpoint correction before restoring both heights.
 			var correction = ((separation - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f ).WithZ( 0f );
 			ApplyHoldCorrection( correction );
 			victim.ApplyHoldCorrection( -correction );
@@ -412,7 +392,6 @@ public sealed partial class RabbitGuard
 		var previous = WorldPosition;
 		MoveGroundDelta( correction );
 		struggleVelocity += (WorldPosition - previous) / HoldStep;
-		// HandleTethering normalizes velocities over two metres per second to one.
 		if ( struggleVelocity.LengthSquared > 80f * 80f ) struggleVelocity = struggleVelocity.Normal * 40f;
 	}
 
@@ -436,7 +415,6 @@ public sealed partial class RabbitGuard
 		if ( wolf ) maximum *= 1.5f;
 		const float acceleration = 35f * 40f;
 		if ( struggling && startled <= 0f ) struggleVelocity += struggleDirection * (0.5f * acceleration * (wolf ? 0.8f : 1f) * (1f - 0.5f * crouch) * HoldStep);
-		// UpdateAnimation plants the feet before ApplyPhysics applies ground friction.
 		if ( movementState ) UpdateGrabFootStance( HoldStep, struggleVelocity );
 		struggleVelocity *= startled > 0f ? MathF.Pow( 0.95f, HoldStep * 120f ) : MathF.Exp( -acceleration * HoldStep / maximum );
 	}
@@ -475,8 +453,6 @@ public sealed partial class RabbitGuard
 		pendingGrabImpact = false;
 		if ( partner.IsValid() && Holding && !CaptureReactionEnded && !enteringThrow && !Downed )
 		{
-			// UnTether calls ApplyIdle(5). Its outgoing reader still owns EndAttack
-			// until the fade completes, including the original throw target.
 			ReleasedGrabTarget = partner.GameObject;
 			grabFadeEnds = 1f / 5f;
 		}
@@ -487,7 +463,6 @@ public sealed partial class RabbitGuard
 		holdPartner = null;
 		if ( finishCapture )
 		{
-			// An early release leaves the defender in the original capture hit reaction.
 			reactionDuration = boundAnimations.Clips[Stance].Duration;
 			ReactionPhase = Math.Clamp( CaptureActionTime / reactionDuration, 0f, 1f );
 		}

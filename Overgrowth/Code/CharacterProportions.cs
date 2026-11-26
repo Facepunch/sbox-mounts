@@ -79,7 +79,6 @@ public sealed class CharacterProportions : Component
 		copy.EarSize = EarSize;
 	}
 
-	// Skeleton::Read removes unweighted parents before ApplyBoneInflation walks the IK chains.
 	internal float[] GetBoneInflation( SkeletonData skeleton )
 	{
 		var scales = new float[skeleton.Bones.Count];
