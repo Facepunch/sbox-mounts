@@ -87,10 +87,15 @@ public sealed class CharacterNavigation : NavigationLayer
 		{
 			if ( !crossing.HasValue && !followingJump ) CheckPartialRoute( fighter );
 			if ( runOffDirection.HasValue ) return;
-			bool climb = predictedClimb.HasValue || crossing?.Type == NavMeshLinkType.Climb;
-			if ( climb || crossing?.Type == NavMeshLinkType.Jump )
+			var destination = predictedClimb;
+			bool climb = destination.HasValue;
+			if ( !climb && crossing is { Type: { } type } link )
 			{
-				var end = predictedClimb ?? crossing.Value.End;
+				climb = type == NavMeshLinkType.Climb;
+				if ( climb || type == NavMeshLinkType.Jump ) destination = link.End;
+			}
+			if ( destination is { } end )
+			{
 				if ( sinceAirborne <= 0.1f ) return;
 				bool preparing = !preparedVelocity.HasValue;
 				Vector3 releaseDrive = default;

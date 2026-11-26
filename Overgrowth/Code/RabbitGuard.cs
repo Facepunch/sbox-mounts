@@ -213,10 +213,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			pose = CombatPosture || AlertStage == 2 ? Ready : AlertStage == 1 ? Watch : Idle;
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
+		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
+		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
+		Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeAnimation is not null ? LedgeMirrored :
+			pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( playing is null && poseModel is null )
 		{
 			// Let the graph produce its first pose before any IK overrides read the bones.
 			playing = displayPose;
+			if ( pose == Locomotion ) SetGaitParameters( GaitControls, StrideCycles % 1f );
 			Renderer.Animation.Parameters.Set( "stance", playing );
 			return;
 		}
@@ -235,14 +240,10 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			Renderer.Animation.Parameters.Set( "tall_coord", 1f - Math.Clamp( CrouchAmount, 0f, 1f ) );
 			Renderer.Animation.Parameters.Set( "threat_coord", ThreatAmount );
 		}
-		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		if ( pose != Threat && !InHoldMovementState ) ReleaseStanceFeet( Time.Delta );
 		UpdateBalanceSupport();
 		if ( pose == Locomotion ) UpdateGait();
 		else UpdateBodyLean( 0f );
-		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
-		Renderer.Animation.Parameters.Set( "mirrored_pose", pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
-		if ( LedgeAnimation is not null ) Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeMirrored );
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
 		if ( playing == pose && (pose is ClimbUp or LedgeReach || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );

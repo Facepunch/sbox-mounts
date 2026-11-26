@@ -8,6 +8,8 @@ public sealed partial class RabbitGuard
 	const float WalkThreshold = 0.6f * 40f;
 	string ReadyMovementStance => GaitSpeed > WalkThreshold ? Locomotion : Ready;
 	float stridePhase, strideFrequency;
+	// Interpolate across the end of a stride without running the reader backwards.
+	[Sync( SyncFlags.Interpolate )] float StrideCycles { get; set; }
 	bool walkingSinceLanding;
 	readonly Vector3[] lastSkidPosition = new Vector3[2];
 
@@ -52,25 +54,40 @@ public sealed partial class RabbitGuard
 		return next + lastTick * frequency;
 	}
 
+	RabbitMovement.Controls GaitControls => new( GaitSpeed / (40f * CharacterScale), Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
+
+	void SetGaitParameters( RabbitMovement.Controls controls, float phase )
+	{
+		var parameters = Renderer.Animation.Parameters;
+		parameters.Set( "ground_speed", controls.Speed );
+		parameters.Set( "tall_coord", controls.Height );
+		parameters.Set( "threat_coord", controls.Threat );
+		parameters.Set( "stride_phase", phase );
+	}
+
 	void UpdateGait()
 	{
-		float speed = GaitSpeed / 40f;
-		var controls = new RabbitMovement.Controls( speed / CharacterScale, Math.Clamp( 1f - CrouchAmount, 0f, 1f ), ThreatAmount, CloseAmount );
+		var controls = GaitControls;
 		var motion = boundAnimations.Movement;
 		// Overgrowth attaches a fresh animation reader when it switches back to movement.
 		bool continuing = playing == Locomotion;
 		float start = continuing ? stridePhase : 0f;
-		float frequency = motion.Evaluate( controls, start, MirroredStance ).Frequency;
-		float dt = Networking.IsHost && Movement is CharacterNavigation { Active: true } navigation ? navigation.GroundAnimationDelta : Time.Delta;
-		float next = AdvanceReaderPhase( start, frequency, ref strideFrequency, !continuing, dt );
-		var queued = motion.Evaluate( controls, next % 1f, MirroredStance );
-		if ( continuing ) ReadGaitPose( controls, next % 1f );
+		float next = start;
+		if ( Networking.IsHost )
+		{
+			float frequency = motion.Evaluate( controls, start, MirroredStance ).Frequency;
+			float dt = Movement is CharacterNavigation { Active: true } navigation ? navigation.GroundAnimationDelta : Time.Delta;
+			next = AdvanceReaderPhase( start, frequency, ref strideFrequency, !continuing, dt );
+			float cycles = MathF.Round( StrideCycles - stridePhase );
+			if ( !continuing && stridePhase > 0f ) cycles++;
+			StrideCycles = cycles + next;
+			stridePhase = next % 1f;
+		}
+		else stridePhase = StrideCycles % 1f;
+		var queued = motion.Evaluate( controls, stridePhase, MirroredStance );
+		if ( continuing ) ReadGaitPose( controls, stridePhase );
 		UpdateBodyLean( queued.Lift );
-		Renderer.Animation.Parameters.Set( "ground_speed", controls.Speed );
-		Renderer.Animation.Parameters.Set( "tall_coord", controls.Height );
-		Renderer.Animation.Parameters.Set( "threat_coord", controls.Threat );
-		stridePhase = next % 1f;
-		Renderer.Animation.Parameters.Set( "stride_phase", stridePhase );
+		SetGaitParameters( controls, stridePhase );
 		if ( IsOnGround ) PlayCycleSteps( queued.Events, start, next );
 		for ( int side = 0; side < 2; side++ )
 		{

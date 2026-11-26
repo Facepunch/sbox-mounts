@@ -213,7 +213,7 @@ public sealed partial class RabbitGuard
 			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir )
 			{
-				bool jumping = playing != Wall && Animation.Traversal == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
+				bool jumping = playing != Wall && Animation.Traversal is { } link && link == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
 				jumpLaunch = jumping ? 1f : 0f;
 				if ( playing != Wall ) keepJumpFacing = jumping && velocity.WithZ( 0f ).Length <= 0.4f;
 				jumpCycle.Phase = 0f;
