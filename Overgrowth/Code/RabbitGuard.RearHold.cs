@@ -15,6 +15,7 @@ public sealed partial class RabbitGuard
 	bool FinishingCaptureReaction => Stance is RearHeld or ArmedGrabbed && ReactionPhase < 1f;
 	internal static bool IsGrabClip( string pose ) => pose is RearHold or RearHoldRat or RearHeld or RatHeldByRabbit or ArmedGrab or ArmedGrabbed or ArmedHold or ArmedHeld;
 	bool InHoldMovementState => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
+	[Sync] string UnarmedHoldStance { get; set; }
 	float grabPhase;
 	string grabReader;
 	string fadingCapture;
@@ -55,6 +56,9 @@ public sealed partial class RabbitGuard
 		if ( victim.Holding || victim.Held ) return false;
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
+		bool rat = victim.boundAnimations.Species == "rat";
+		UnarmedHoldStance = rat ? RearHoldRat : RearHold;
+		victim.UnarmedHoldStance = rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		alignmentOffset = Vector3.Zero;
 		alignmentYaw = 0f;
@@ -97,15 +101,15 @@ public sealed partial class RabbitGuard
 			Renderer.Animation.Parameters.Set( "capture_weight", 0f );
 			Renderer.Animation.Parameters.Set( "capture_stance_phase", 0f );
 		}
-		if ( pose == ArmedGrab || pose == ArmedGrabbed && Time.Delta >= CaptureLead )
+		if ( pose is ArmedGrab or RearHold || Time.Delta >= CaptureLead )
 		{
 			// The captor selects its movement stance on entry. The captive's movement
 			// update selects it one native frame before WasGrabbed changes the reader.
 			// At lower frame rates this is the last opportunity to submit both readers.
-			playing = grabReader = CaptureMovementStance( pose );
+			playing = grabReader = pose is RearHold or RearHeld ? UnarmedHoldStance : CaptureMovementStance( pose );
 			grabPhase = 0f;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
-			Renderer.Animation.Parameters.Set( "stance", pose );
+			Renderer.Animation.Parameters.Set( "stance", GraphStance( playing ) );
 		}
 	}
 
@@ -115,8 +119,8 @@ public sealed partial class RabbitGuard
 	string CaptureEntryPose( string pose )
 	{
 		float nextFrame = (float)SinceGrab + Math.Max( Time.Delta, 1f / 120f );
-		if ( pose == ArmedGrabbed && MathF.Round( nextFrame * 120f ) < 4f ) return playing ?? Idle;
-		return CaptureMovementStance( pose );
+		if ( pose is ArmedGrabbed or RearHeld && MathF.Round( nextFrame * 120f ) < 4f ) return playing ?? Idle;
+		return pose is RearHold or RearHeld ? UnarmedHoldStance ?? pose : CaptureMovementStance( pose );
 	}
 
 	void UpdateGrabReader( string pose )
@@ -242,8 +246,9 @@ public sealed partial class RabbitGuard
 		if ( !AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing ) ) return;
 		if ( CaptureReactionEnded && !blade && Stance != CutFromHold )
 		{
-			Stance = armed ? ArmedHold : rat ? RearHoldRat : RearHold;
-			victim.Stance = armed ? ArmedHeld : rat && boundAnimations.Species == "rabbit" ? RatHeldByRabbit : RearHeld;
+			// The two movement updates resume after their attack and hit reaction respectively.
+			if ( armed || holdTick >= 8 ) Stance = armed ? ArmedHold : UnarmedHoldStance;
+			if ( armed || holdTick >= 9 ) victim.Stance = armed ? ArmedHeld : victim.UnarmedHoldStance;
 		}
 		if ( Stance == CutFromHold )
 		{

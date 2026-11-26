@@ -205,7 +205,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
-		if ( pose is ArmedGrab or ArmedGrabbed && SinceGrab < CaptureLead )
+		if ( SinceGrab < CaptureLead && (pose is ArmedGrab or ArmedGrabbed || pose is RearHold or RearHeld && !FinishingCaptureReaction) )
 			pose = CaptureEntryPose( pose );
 		if ( pose != FreeAir ) jumpCycle.Fade( this, "air_phase" );
 		if ( pose != Wall ) wallCycle.Fade( this, "wall_phase" );

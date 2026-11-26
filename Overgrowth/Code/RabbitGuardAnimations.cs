@@ -372,9 +372,11 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
 				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings
 				{
-					Duration = waking ? 0.05f : landing ? 0.1f : duration,
-					// UnTether blends back to the idle reader even while that pose is still fading out.
+					Duration = waking || names[j] == RabbitGuard.RearHoldRat && target == RabbitGuard.RearHold ? 0.05f : landing ? 0.1f : duration,
+					// Capture can return to a struggle or idle reader while its previous instance is still fading out.
 					CanBeForced = RabbitGuard.IsGrabClip( names[j] ) && idlePoses.ContainsKey( target )
+						|| names[j] == RabbitGuard.RearHold && target == RabbitGuard.RearHoldRat
+						|| names[j] == RabbitGuard.RearHeld && target == RabbitGuard.RatHeldByRabbit
 				} );
 			}
 		}
