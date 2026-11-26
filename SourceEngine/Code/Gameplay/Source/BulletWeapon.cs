@@ -211,11 +211,11 @@ public sealed class BulletWeapon : Weapon
 				Reload();
 			}
 		}
-		if ( Secondary == SecondaryFires.DoubleShot && (IsReloading || _lastShellInserting) )
+		if ( Secondary == SecondaryFires.DoubleShot && (IsReloading || _lastShellInserting) && !ShotQueued )
 		{
 			// Finish the current shell insert before firing the trigger that interrupted it.
-			_queuedPrimary |= Clip1 >= 1 && base.WantsPrimaryAttack();
-			_queuedSecondary |= !_queuedPrimary && Clip1 >= 2 && base.WantsSecondaryAttack();
+			_queuedPrimary = Clip1 >= 1 && base.WantsPrimaryAttack();
+			_queuedSecondary = !_queuedPrimary && Clip1 >= 2 && base.WantsSecondaryAttack();
 		}
 		if ( _lastShellInserting && NextPrimaryFire <= 0 )
 		{
