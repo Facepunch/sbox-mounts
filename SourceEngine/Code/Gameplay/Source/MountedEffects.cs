@@ -57,12 +57,12 @@ static class MountedEffects
 	/// </summary>
 	public static SpriteRenderer AddSprite( GameObject parent, string name, string mountName, bool useViewModelLayer = true )
 	{
-		var texture = SpriteTexture( name, mountName );
+		var texture = SpriteTexture( name, mountName, out var material, forSprite: true );
 		if ( texture is null || !parent.IsValid() ) return null;
 		var go = new GameObject( parent, false, name );
 		go.NetworkMode = NetworkMode.Never;
 		var sprite = go.AddComponent<SpriteRenderer>();
-		sprite.Sprite = Sprite.FromTexture( texture );
+		sprite.Sprite = material?.GetSprite( texture ) ?? Sprite.FromTexture( texture );
 		sprite.Additive = true;
 		// The sprite shader discards texels below the cutoff even when blending, which cut
 		// visible discs out of soft-alpha Source sprites such as muzzleflash2.

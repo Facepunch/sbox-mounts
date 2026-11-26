@@ -29,8 +29,7 @@ public sealed class CombineBallEffect : Component
 		_flicker = MountedEffects.AddSprite( GameObject, "effects/combinemuzzle1", MountName );
 		for ( var i = 0; i < 8; i++ )
 			if ( MountedEffects.AddSprite( GameObject, "effects/ar2_altfire1b", MountName ) is { } blur ) _blur.Add( blur );
-		// effects/ar2_altfire1 animates effects/comball/comball.
-		_body = MountedEffects.AddSprite( GameObject, "effects/comball/comball", MountName );
+		_body = MountedEffects.AddSprite( GameObject, "effects/ar2_altfire1", MountName );
 		_trailRoot = new GameObject( false, "HL2 combine ball trail" );
 		_trailRoot.NetworkMode = NetworkMode.Never;
 		_trailRoot.Enabled = true;

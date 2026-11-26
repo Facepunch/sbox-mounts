@@ -7,14 +7,17 @@ internal sealed class SourceMaterial : IDisposable
 	public VmtFile Source { get; }
 	internal object Scope { get; }
 	internal string ContentRoot { get; }
+	private readonly SourceGameMount mount;
 	private readonly Lazy<SourceMaterialBuilder> builder;
 	private readonly object buildLock = new();
 	private VmtParameters? effectParameters;
 	private Material beamMaterial;
+	private Sprite sprite;
 	private bool disposed;
 
 	private SourceMaterial( SourceGameMount mount, string path, VmtFile source, object scope )
 	{
+		this.mount = mount;
 		Source = source;
 		Scope = scope;
 		ContentRoot = SourceGameMount.GetContentRoot( path, "materials" );
@@ -50,6 +53,29 @@ internal sealed class SourceMaterial : IDisposable
 	private VmtParameters EffectParameters => effectParameters ??= new VmtParameters( VmtFile.SelectParameters( Source ), ContentRoot );
 	internal bool SamplesLinear => EffectParameters.Boolean( "$nosrgb", Source.ShaderName.Equals( "Sprite", StringComparison.OrdinalIgnoreCase ) );
 	internal string BaseTexturePath => EffectParameters.String( "$basetexture" );
+
+	internal Sprite GetSprite( Texture firstFrame )
+	{
+		lock ( buildLock )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			if ( sprite is not null ) return sprite;
+			var proxy = Source.Root.GetBlock( "proxies" )?.GetBlock( "AnimatedOffsetTexture" );
+			if ( proxy is not null )
+			{
+				var inputs = new VmtParameters( proxy.Values, ContentRoot );
+				var rate = inputs.Float( "animatedtextureframerate", 15 );
+				if ( rate > 0 && !inputs.Boolean( "animationnowrap" ) && string.Equals( inputs.String( "animatedtexturevar" ), "$basetexture", StringComparison.OrdinalIgnoreCase )
+					&& string.Equals( inputs.String( "animatedtextureframenumvar" ), "$frame", StringComparison.OrdinalIgnoreCase ) )
+				{
+					var texture = mount.GetSourceTexture( BaseTexturePath, ContentRoot );
+					if ( texture.FrameCount > 1 )
+						return sprite = Sprite.FromTextures( Enumerable.Range( 0, texture.FrameCount ).Select( texture.GetFrame ), rate );
+				}
+			}
+			return sprite = Sprite.FromTexture( firstFrame );
+		}
+	}
 
 	internal Material GetBeamMaterial( Texture texture )
 	{
