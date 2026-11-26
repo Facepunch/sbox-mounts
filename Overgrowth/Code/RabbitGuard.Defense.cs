@@ -272,7 +272,7 @@ public sealed partial class RabbitGuard
 			if ( species != "wolf" ) KnockoutShield = Math.Max( 0, KnockoutShield - 2 );
 			else if ( KnockoutShield == 1 )
 			{
-				recoverableDamage = Health;
+				TemporaryHealth = 0f;
 				KnockoutShield = 0;
 			}
 		}

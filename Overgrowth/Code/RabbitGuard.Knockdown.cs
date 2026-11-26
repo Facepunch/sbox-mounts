@@ -19,7 +19,17 @@ public sealed partial class RabbitGuard
 	// fighter alive with negative permanent health until the next blunt hit.
 	float healthBelowFloor;
 	float PermanentHealth => Health - healthBelowFloor;
-	float TemporaryHealth => PermanentHealth - recoverableDamage;
+	float TemporaryHealth
+	{
+		get => PermanentHealth - recoverableDamage;
+		set => recoverableDamage = PermanentHealth - value;
+	}
+
+	void RegenerateHealth( float delta )
+	{
+		blockHealth = Math.Min( TemporaryHealth / MaxHealth, blockHealth + delta * 0.3f );
+		recoverableDamage = Math.Max( 0f, recoverableDamage - MaxHealth * 0.05f * delta );
+	}
 
 	void SetLivingHealth( float permanent )
 	{

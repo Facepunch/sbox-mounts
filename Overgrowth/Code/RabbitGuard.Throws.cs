@@ -142,7 +142,7 @@ public sealed partial class RabbitGuard
 		if ( Stance == "thrown" && clip.LimpTime is { } limp && ReactionPhase * clip.Duration >= limp )
 		{
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
-			if ( KnockoutShield == 0 && TrainingThrows ) recoverableDamage = Math.Max( 0f, Health - 0.1f );
+			if ( KnockoutShield == 0 && TrainingThrows ) TemporaryHealth = MaxHealth * 0.001f;
 			var partner = throwPartner;
 			foreach ( var stuck in GetComponentsInChildren<LevelItem>().Where( item => item.StuckIn == Renderer ).ToArray() )
 			{

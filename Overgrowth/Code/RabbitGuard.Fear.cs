@@ -20,7 +20,7 @@ public sealed partial class RabbitGuard
 	bool Flee()
 	{
 		if ( !IsKnownThreat( enemy ) ) { fleeFrom = null; return false; }
-		if ( !Fleeing && Health <= MaxHealth * AfraidAtHealthLevel ) fleeFrom = enemy;
+		if ( !Fleeing && PermanentHealth <= MaxHealth * AfraidAtHealthLevel ) fleeFrom = enemy;
 		if ( !Fleeing ) return false;
 		if ( startled > 0f )
 		{

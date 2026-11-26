@@ -110,8 +110,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 				knockoutVoiceDelay -= Time.Delta;
 				if ( knockoutVoiceDelay <= 0f && Unconscious ) Speak( "death" );
 			}
-			blockHealth = Math.Clamp( blockHealth + Time.Delta * 0.3f, 0f, Math.Clamp( TemporaryHealth / MaxHealth, 0f, 1f ) );
-			recoverableDamage = Math.Max( 0f, recoverableDamage - MaxHealth * 0.05f * Time.Delta );
+			RegenerateHealth( Time.Delta );
 		}
 		if ( Networking.IsHost && Health > 0 && boundAnimations is not null ) UpdateActiveBlock( Time.Delta );
 		// UpdateBrain samples the surroundings while a conscious fighter is busy with an action.
