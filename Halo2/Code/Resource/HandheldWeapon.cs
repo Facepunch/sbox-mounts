@@ -332,6 +332,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
 		var markers = new Dictionary<string, List<MuzzleFlashLayer>>();
 		var lights = new Dictionary<string, List<PelletImpactEffect.ImpactLight>>();
+		float initialAdvance = (map.ReadInt32( header ) & 2) != 0 ? 1 : 0;
 		float start = 0;
 		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
 		{
@@ -428,7 +429,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						Bounds( emitter + 8 ), Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
 						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
 						flare || soft || additiveSmoke || (!smoke && !casing && duration.y > 1.001f / 30) ? ReadRange( emitter + 104, 1 ) : null,
-						duration.y > 1.001f / 30 || ((soft || additiveSmoke || energySmoke) && start > 0) ? new( start, duration ) : null ) );
+						duration.y > 1.001f / 30 || start > 0 ? new( start - initialAdvance, duration ) : null ) );
 				}
 			}
 		}

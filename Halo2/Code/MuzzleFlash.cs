@@ -55,11 +55,12 @@ public sealed class MuzzleFlash : Component
 
 	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, float delay, float duration, float rate )
 	{
-		double start = Time.NowDouble + delay;
+		double start = Time.NowDouble;
 		int emitted = 0;
 		while ( layer.IsValid() )
 		{
-			double elapsed = System.Math.Clamp( Time.NowDouble - start, 0, duration );
+			double tick = System.Math.Floor( (Time.NowDouble - start) * 30 );
+			double elapsed = System.Math.Clamp( tick / 30 - delay, 0, duration );
 			int due = (int)(elapsed * rate + 0.0001);
 			while ( emitted < due )
 			{
