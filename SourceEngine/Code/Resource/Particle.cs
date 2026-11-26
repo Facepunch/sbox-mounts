@@ -374,6 +374,12 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 					effect.ForceSpace = ParticleEffect.SimulationSpace.World;
 					effect.Damping = SourceParticleMath.DragToDamping( op.Number( "drag" ) );
 					break;
+				case "cull when crossing plane":
+					if ( !ControlPointZero( op, "Control Point for point on plane" ) ) break;
+					var plane = root.AddComponent<SourceParticlePlaneCull>();
+					plane.Normal = Vector( op, "Plane Normal", Vector3.Up );
+					plane.Offset = op.Number( "Cull plane offset" );
+					break;
 				case "lifespan decay":
 					break;
 				case "alpha fade in random":
