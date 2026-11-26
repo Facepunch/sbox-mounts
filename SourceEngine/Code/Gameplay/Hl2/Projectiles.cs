@@ -143,7 +143,7 @@ public sealed class CrossbowBolt : Projectile
 [Title( "HL2 Rocket" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Rocket", "Hl2Rocket" )]
-public sealed class Rocket : Projectile, Component.IDamageable
+public sealed class Rocket : BlastProjectile, Component.IDamageable
 {
 	internal const string LaunchModel = "models/weapons/w_missile_launch.mdl";
 	protected override string InitialModelPath => Ignited ? ModelPath : LaunchModel;
@@ -317,13 +317,13 @@ public sealed class Rocket : Projectile, Component.IDamageable
 [Title( "HL2 Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Grenade", "Hl2Grenade" )]
-public sealed partial class Grenade : Projectile
+public sealed class Grenade : BlastProjectile
 {
 	// GRENADE_TIMER and GRENADE_RADIUS.
 	public const float Fuse = 2.5f;
-	const float HalfSize = 4;
+	internal const float HalfSize = 4;
 	public const float ThrowSpeed = 1200;
-	const float MaxPhysicsSpeed = 4000;
+	internal const float MaxPhysicsSpeed = 4000;
 	internal const float RethrowDelay = 0.5f;
 
 	/// <summary>Forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>

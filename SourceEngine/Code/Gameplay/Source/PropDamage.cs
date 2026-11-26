@@ -31,11 +31,11 @@ public sealed class PropDamage : Component
 
 		var projectile = blast && hit.Weapon.IsValid() ? hit.Weapon.GetComponent<Projectile>() : null;
 		var scale = bullet ? modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1) : 1;
-		if ( blast )
+		if ( blast && projectile is not BlastProjectile )
 		{
-			if ( projectile is not Hl2.Grenade ) scale *= modifiers.Explosive;
+			scale *= modifiers.Explosive;
 
-			if ( projectile is { Radius: > 0 } and not (Css.Grenade or Hl2.Grenade) )
+			if ( projectile is { Radius: > 0 } and not Css.Grenade )
 			{
 				var bounds = _prop.Model.PhysicsBounds.Transform( WorldTransform );
 				var testZ = projectile.UnderwaterBlast ? bounds.Mins.z : bounds.Maxs.z;

@@ -1,8 +1,8 @@
 using System;
 
-namespace Source1.Hl2;
+namespace Source1;
 
-public sealed partial class Grenade
+public abstract class BlastProjectile : Projectile
 {
 	internal void ApplyBlast()
 	{
@@ -23,7 +23,7 @@ public sealed partial class Grenade
 			var prop = target.GetComponent<Prop>();
 			var bounds = prop.IsValid() && prop.Model.IsValid() ? prop.Model.PhysicsBounds.Transform( target.WorldTransform ) : target.GetBounds();
 			if ( SourceWaterMap.IsUnderwater( Scene, bounds.Center.WithZ( UnderwaterBlast ? bounds.Mins.z : bounds.Maxs.z ) ) != UnderwaterBlast ) continue;
-			var grenade = target.GetComponent<Grenade>();
+			var grenade = target.GetComponent<Hl2.Grenade>();
 			var center = grenade.IsValid() ? target.WorldPosition : bounds.Center;
 			var direction = (center - origin).Normal;
 			var trace = Scene.Trace.Ray( origin, center ).WithoutTags( "trigger", "debris" ).IgnoreGameObjectHierarchy( GameObject );
@@ -42,7 +42,7 @@ public sealed partial class Grenade
 			{
 				// Grenades take blast damage on their four-unit box, while their model hull handles bouncing.
 				var axis = direction.Abs();
-				var surface = HalfSize / MathF.Max( axis.x, MathF.Max( axis.y, axis.z ) );
+				var surface = Hl2.Grenade.HalfSize / MathF.Max( axis.x, MathF.Max( axis.y, axis.z ) );
 				position = center - direction * MathF.Min( origin.Distance( center ), surface );
 			}
 
@@ -72,9 +72,9 @@ public sealed partial class Grenade
 		var body = target.GetComponent<Rigidbody>();
 		if ( body.IsValid() && !body.IsProxy && body.MotionEnabled )
 		{
-			var grenade = target.GetComponent<Grenade>();
+			var grenade = target.GetComponent<Hl2.Grenade>();
 			body.ApplyImpulseAt( origin, grenade.IsValid() ? impulse * 2 : impulse );
-			if ( grenade.IsValid() ) body.Velocity = body.Velocity.ClampLength( MaxPhysicsSpeed );
+			if ( grenade.IsValid() ) body.Velocity = body.Velocity.ClampLength( Hl2.Grenade.MaxPhysicsSpeed );
 		}
 
 		if ( target.GetComponent<Prop>() is { IsProxy: false } prop ) PropDamage.Attach( prop );
