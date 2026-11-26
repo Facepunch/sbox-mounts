@@ -400,7 +400,16 @@ public sealed class GravityWeapon : Weapon
 		var other = contact.GameObject?.GetComponentInParent<Rigidbody>();
 		bool obstructed = contact.Hit && (other is not { MotionEnabled: true } || other.Mass > _loadWeight);
 		if ( obstructed )
-			velocity -= contact.Normal * (MathF.Min( velocity.Dot( contact.Normal ), 0 ) * (1 - contact.Fraction));
+		{
+			var normal = contact.Normal;
+			if ( contact.StartedSolid && contact.Body.IsValid() )
+			{
+				// An overlapping sweep can report the reverse sweep direction, even when separating.
+				var center = body.PhysicsBody.MassCenter;
+				normal = (center - contact.Body.FindClosestPoint( center )).Normal;
+			}
+			velocity -= normal * (MathF.Min( velocity.Dot( normal ), 0 ) * (1 - contact.Fraction));
+		}
 		body.Velocity = velocity;
 
 		_carryTurnRate = _carryTurnRate.Approach( obstructed ? 0.1f : 1, 2 * Time.Delta );
