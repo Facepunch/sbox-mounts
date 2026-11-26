@@ -208,6 +208,16 @@ public abstract partial class Weapon
 
 	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
 	{
+		if ( hitboxTags && hit.Hitbox?.Tags is {} section && section.Has( "headshot_section" ) && section.Has( "head" ) )
+		{
+			// The material named "head" also triggers Sandbox's damage multiplier. Halo has already resolved this section.
+			var resolved = new TagSet();
+			if ( tags is not null ) resolved.Add( tags );
+			resolved.Add( section );
+			resolved.Remove( "head" );
+			tags = resolved;
+			hitboxTags = false;
+		}
 		if ( Networking.IsHost && force > 0 && hit.GameObject.IsValid()
 			&& hit.GameObject.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } item
 			&& ApplyLooseItemImpulse( item, hit.Direction, force ) ) force = 0;

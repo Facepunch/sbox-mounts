@@ -392,6 +392,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		gun.MinimumDamage = Float( damage + 0x1c );
 		gun.PelletBodyScales = BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), damage );
 		gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
+		gun.CanHeadshot = (map.ReadInt32( damage + 0x14 ) & 2) != 0;
 	}
 
 	BaseCombatWeapon.BallisticConfig ReadBallistics( BaseCombatWeapon.BallisticConfig ballistics, int barrel, int projectile, int damage )
@@ -464,7 +465,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
 				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 )
 			{
-				SpeedProfile = ReadSpeedProfile( bolt ), Orientation = ReadOrientation( flags ), TargetLeading = Float( bolt + 0x198 ), Volume = ProjectileEffectPath( Reference( secondary + 0x8c ) )
+				SpeedProfile = ReadSpeedProfile( bolt ), Orientation = ReadOrientation( flags ), TargetLeading = Float( bolt + 0x198 ), Volume = ProjectileEffectPath( Reference( secondary + 0x8c ) ),
+				CanHeadshot = (map.ReadInt32( impact + 0x14 ) & 2) != 0
 			};
 			gun = pistol;
 		}

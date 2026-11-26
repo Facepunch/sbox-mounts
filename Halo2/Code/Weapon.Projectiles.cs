@@ -28,6 +28,7 @@ public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistic
 	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange )
 {
 	public string Volume { get; init; }
+	public bool CanHeadshot { get; init; }
 	public ProjectileSpeedProfile SpeedProfile { get; init; }
 	public ProjectileOrientation Orientation { get; init; }
 	public float TargetLeading { get; init; }
@@ -49,6 +50,15 @@ public abstract partial class Weapon
 	[Property] public float MinimumDamage { get; set; }
 	[Property] public Dictionary<string, float> PelletBodyScales { get; set; }
 	[Property] public bool PelletExplosive { get; set; }
+	[Property] public bool CanHeadshot { get; set; }
+
+	protected static float PrecisionDamage( SceneTraceResult hit, float damage, bool canHeadshot )
+	{
+		if ( damage > 0 && canHeadshot && hit.Hitbox?.Tags.Has( "headshot_section" ) == true
+			&& hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>() is { } npc && damage > ((Component.IDamageable)npc).Armour )
+			return damage + npc.Health;
+		return damage;
+	}
 	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float UnderwaterDamageFalloffRange { get; set; } = 120;
 
@@ -408,6 +418,7 @@ public abstract partial class Weapon
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
+				damage = PrecisionDamage( hit, damage, discharge?.CanHeadshot ?? CanHeadshot );
 				hit.Direction = pellet.Velocity.Normal;
 				bool? alternate = null;
 				ShardResponse? shardResponse = null;

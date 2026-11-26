@@ -316,6 +316,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
+			gun.CanHeadshot = (map.ReadInt32( damage + 0x14 ) & 2) != 0;
 		}
 		return prefab = builder.Create();
 	}

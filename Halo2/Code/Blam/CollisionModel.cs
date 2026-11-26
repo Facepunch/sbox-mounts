@@ -10,8 +10,13 @@ internal static class CollisionModel
 	{
 		int header = map.VaToOffset( (int)tag.DataVirtualAddress );
 		var materials = Rows( header + 0x14, 4 ).Select( Name ).ToArray();
-		var surfaces = definition is { DataSize: >= 0x60 }
-			? Rows( map.VaToOffset( (int)definition.DataVirtualAddress ) + 0x58, 20 ).Select( SurfaceName ).ToArray() : [];
+		int modelHeader = definition is null ? 0 : map.VaToOffset( (int)definition.DataVirtualAddress );
+		var entries = definition is { DataSize: >= 0x60 } ? Rows( modelHeader + 0x58, 20 ).ToArray() : [];
+		var surfaces = entries.Select( SurfaceName ).ToArray();
+		var sections = definition is { DataSize: >= 0x68 } && map.ReadInt32( modelHeader + 0x60 ) > 0
+			? Rows( Table( modelHeader + 0x60 ) + 0xbc, 0x38 ).ToArray() : [];
+		var headshotMaterials = entries.Select( row => Short( row + 6 ) ).Select( section =>
+			(uint)section < sections.Length && (map.ReadInt32( sections[section] + 4 ) & 0x80) != 0 ).ToArray();
 		var nodes = Rows( header + 0x2c, 12 ).Select( Name ).ToArray();
 		var bones = model.Nodes.Select( n => map.ResolveStringId( n.StringId ) ).ToHashSet();
 		HitboxSetBuilder set = null;
@@ -91,6 +96,7 @@ internal static class CollisionModel
 					{
 						var hitbox = set.AddHull( $"{name}_{piece++}", nodes[node], points );
 						if ( (uint)material < surfaces.Length && surfaces[material] is {} surface ) hitbox.WithSurface( surface );
+						if ( (uint)material < headshotMaterials.Length && headshotMaterials[material] ) hitbox.AddTag( "headshot_section" );
 						if ( (uint)material < materials.Length && !string.IsNullOrWhiteSpace( materials[material] ) )
 							hitbox.AddTag( materials[material] );
 					}
