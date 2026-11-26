@@ -11,7 +11,8 @@ public sealed class Crag : AlienStructure
 	internal const string PainSound = "alien/structures/crag/wound";
 	protected override GrowthStats Stats => new( 25, 0.5f, 300, 150, 120, 550, 275 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
-	[Sync( SyncFlags.FromHost )] TimeUntil nextHeal { get; set; }
+	[Sync( SyncFlags.FromHost )] bool healingActive { get; set; }
+	TimeUntil nextHeal;
 	TimeUntil nextEffect;
 
 	sealed class Pulse { public TimeUntil Next; }
@@ -47,7 +48,19 @@ public sealed class Crag : AlienStructure
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		output?.Set( "grow", Growth );
 		output?.Set( "intensity", FlinchIntensity );
-		if ( Graphics.IsAvailable && nextHeal > 0 && nextEffect <= 0 )
+		if ( Networking.IsHost && IsBuilt )
+		{
+			var electrified = GameObject.Tags.Has( "electrified" );
+			if ( nextHeal < 0 && !electrified && !GameObject.Tags.Has( "burning" ) )
+			{
+				bool healed = false;
+				foreach ( var obj in Scene.FindInPhysics( new Sphere( WorldPosition, HealRadius ) ) )
+					if ( obj.GetComponentInParent<BaseNpc>() is { } target ) healed |= TryHeal( target );
+				if ( healed ) nextHeal = 2;
+			}
+			healingActive = !electrified && nextHeal > 0;
+		}
+		if ( Graphics.IsAvailable && healingActive && nextEffect < 0 )
 		{
 			nextEffect = 1;
 			CinematicLoader.Play( "cinematics/alien/crag/heal.cinematic", WorldPosition, WorldRotation );
@@ -57,18 +70,11 @@ public sealed class Crag : AlienStructure
 			pose.Write( output, age );
 			return;
 		}
-		if ( IsBuilt && nextHeal <= 0 && !GameObject.Tags.HasAny( "burning", "electrified" ) )
-		{
-			bool healed = false;
-			foreach ( var obj in Scene.FindInPhysics( new Sphere( WorldPosition, HealRadius ) ) )
-				if ( obj.GetComponentInParent<BaseNpc>() is { } target ) healed |= TryHeal( target );
-			if ( healed ) nextHeal = 2;
-		}
 		if ( graph is null ) return;
 		graph.Set( "built", IsBuilt ? 1 : 0 );
 		graph.Set( "alive", 1 );
 		graph.Set( "flinch", FlinchIntensity > 0 ? 1 : 0 );
-		graph.Set( "heal", nextHeal > 0 ? 1 : 0 );
+		graph.Set( "heal", healingActive ? 1 : 0 );
 		graph.Set( "moving", 0 );
 		graph.Set( "onfire", GameObject.Tags.Has( "burning" ) ? 1 : 0 );
 		graph.Update( age, output );
