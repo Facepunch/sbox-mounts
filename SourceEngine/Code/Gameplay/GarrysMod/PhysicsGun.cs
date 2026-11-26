@@ -4,6 +4,7 @@ namespace Source1.GarrysMod;
 public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 {
 	const float MinRange = 40;
+	const string GridConVar = "gm_snapgrid";
 	const float CarryMass = 45678;
 	const string KeepMassTag = "physgun_keep_mass";
 	const string DisabledTag = "physgun_disabled";
@@ -62,6 +63,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	[ConVar( "phys_spinspeed", ConVarFlags.Server, Help = "Degrees per second to turn a held body with the movement keys." )]
 	public static float SpinSpeed { get; set => field = float.IsFinite( value ) ? value : 200; } = 200;
 
+	[ConVar( GridConVar, ConVarFlags.Saved, Min = 0, Max = 4096, Help = "World grid spacing for held props. Zero disables snapping." )]
+	public static float SnapGrid { get; set; }
+
 	[ConVar( "gm_snapangles", ConVarFlags.Saved, Min = -360, Max = 360, Help = "Angle increment for Physics Gun rotation while holding Use and Run." )]
 	public static float SnapAngles { get; set; } = 45;
 
@@ -72,6 +76,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	System.IDisposable _movementHook;
 	[Sync] Trigger InputState { get; set; }
 	bool Adjusting => InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull;
+	[Sync] float GridSize { get; set; }
 	[Sync] float SnapStep { get; set; } = -1;
 	float? _previousSnapStep;
 	// Accumulate on the owner so a network update can carry several frames of mouse input.
@@ -111,6 +116,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		}
 
 		InputState = Input.Down( "attack1" ) && !Input.Down( "attack2" ) ? Trigger.Grab : Trigger.Released;
+		if ( InputState == Trigger.Grab ) GridSize = ConsoleSystem.GetValue( GridConVar ).ToFloat();
 		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldBody.IsValid() && TraceTarget( AimRay ).Hit )
 			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
 		if ( InputState != Trigger.Grab || !HeldBody.IsValid() ) return;
@@ -235,6 +241,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * GrabPoint;
+		if ( GridSize > 0 && float.IsFinite( GridSize ) ) position = position.SnapToGrid( System.MathF.Min( GridSize, 4096 ) );
 		var rotation = HoldRotation( yaw );
 		var offset = position - physics.Position;
 		if ( TeleportDistance > 0 && offset.LengthSquared > TeleportDistance * TeleportDistance )
