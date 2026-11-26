@@ -298,7 +298,8 @@ public sealed class GravityWeapon : Weapon
 			return;
 		}
 		if ( _carriedBodies.Count > 0 ) Release();
-		if ( Pulling && Active && NextSecondaryFire <= 0 ) Pull();
+		// A 0.1f retry rounds just past the fifth 50 Hz physics tick.
+		if ( Pulling && Active && NextSecondaryFire <= 0.000001f ) Pull();
 	}
 
 	void Pull()
