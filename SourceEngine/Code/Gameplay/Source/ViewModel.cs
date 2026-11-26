@@ -325,7 +325,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	string LauncherIdleTransition()
 	{
-		if ( _clips.LoweredIdle is null || _weapon is not ProjectileWeapon { Kind: Projectile.Kinds.Rocket } launcher ) return null;
+		if ( _clips.LoweredIdle is null || _weapon is not ProjectileWeapon { Kind: Projectile.Kinds.Rocket, ShouldPlayIdle: true } launcher ) return null;
 		var current = _animation.Current;
 		if ( current is null ) return null;
 		if ( !launcher.HasPrimaryAmmo() && !launcher.LiveRocket.IsValid() )

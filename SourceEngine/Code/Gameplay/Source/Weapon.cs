@@ -43,7 +43,7 @@ public abstract class Weapon : BaseCombatWeapon
 		var primary = NextPrimaryFire;
 		var secondary = NextSecondaryFire;
 		base.OnEquipped();
-		if ( !IsValid || !IsActive || this is not (BulletWeapon or MeleeWeapon) || MountContent.OfWeapon( this ) != "hl2" ) return;
+		if ( !IsValid || !IsActive || this is not (BulletWeapon or MeleeWeapon or ProjectileWeapon { Kind: Projectile.Kinds.Rocket }) || MountContent.OfWeapon( this ) != "hl2" ) return;
 
 		// Drawing sets the earliest attack time, including any shot or swing still on cooldown.
 		if ( primary > (float)NextPrimaryFire ) NextPrimaryFire = primary;
