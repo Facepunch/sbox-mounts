@@ -165,7 +165,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	protected override void Think()
 	{
 		viewTarget = null;
-		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
+		var targeting = AlienTargeting.ForTeam( this );
+		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
 		var goal = memory ?? enemy?.WorldPosition;
 		if ( enemy.IsValid() && TrackReachability( enemy, goal.Value ) && sinceProgress > 5 )
@@ -206,12 +207,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( visible ) viewTarget = aimPoint;
 		// NS2 uses the structure attack routine for Drifters even though they can move.
 		bool useEntityAttack = visible && target is not (AlienStructure or Drifter);
-		float distance = visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
-		if ( useEntityAttack )
-		{
-			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
-			distance = Math.Max( 0, distance - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f );
-		}
+		float distance = useEntityAttack ? targeting.DistanceToTouch( this, enemy ) : visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
 		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, BotWeaponAim.Weapon.Bullets, out viewTarget ));

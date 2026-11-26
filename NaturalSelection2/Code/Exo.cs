@@ -177,15 +177,6 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 	}
 
 	// Spark uses gameplay extents for touch range. Some differ from the movement collider.
-	static float HorizontalExtent( GameObject target ) => target.GetComponent<BaseNpc>() switch
-	{
-		Onos => Onos.HorizontalExtents,
-		Hive => 2 * MathF.Sqrt( 2 ) * Scale,
-		Harvester => MathF.Sqrt( 2 ) * Scale,
-		Hydra or Crag or Babbler => 0.5f * MathF.Sqrt( 2 ) * Scale,
-		_ => ((target.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero) * target.WorldScale).WithZ( 0 ).Length * 0.5f
-	};
-
 	protected override void Think()
 	{
 		var targeting = AlienTargeting.ForTeam( this );
@@ -194,7 +185,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var goal = memory ?? enemy?.WorldPosition;
-		float distance = enemy.IsValid() ? Math.Max( 0, targeting.WalkDistanceFromEye( this, enemy.WorldPosition ) - HorizontalExtent( enemy ) ) / Scale : float.MaxValue;
+		float distance = enemy.IsValid() ? targeting.DistanceToTouch( this, enemy ) / Scale : float.MaxValue;
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
@@ -207,7 +198,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		if ( updatePath ) combatRetreat = player ? CombatRetreatArmory() : null;
 		bool retreating = player && combatRetreat.IsValid();
 		// Spark measures touch distance to the Armory's half-metre horizontal extents.
-		bool approachingArmory = retreating && targeting.WalkDistanceFromEye( this, combatRetreat.WorldPosition ) > (2 + 0.5f * MathF.Sqrt( 2 )) * Scale;
+		bool approachingArmory = retreating && targeting.DistanceToTouch( this, combatRetreat.GameObject ) > 2 * Scale;
 		if ( retreating )
 		{
 			if ( approachingArmory && !aimed && goal is { } threat && (threat - EyePosition).WithZ( 0 ).Length < 15 * Scale )

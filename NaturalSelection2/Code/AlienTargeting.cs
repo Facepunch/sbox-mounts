@@ -150,9 +150,21 @@ internal sealed class AlienTargeting
 		return false;
 	}
 
-	internal float WalkDistanceFromEye( BaseNpc observer, Vector3 to ) =>
+	float WalkDistanceFromEye( BaseNpc observer, Vector3 to ) =>
 		locations.IsValid() ? locations.WalkDistanceFromRoom( locations.LocationAt( observer.WorldPosition ), observer.EyePosition, to )
 			: observer.EyePosition.Distance( to );
+
+	internal float DistanceToTouch( BaseNpc observer, GameObject target ) =>
+		Math.Max( 0, WalkDistanceFromEye( observer, target.WorldPosition ) - HorizontalExtent( target ) );
+
+	static float HorizontalExtent( GameObject target ) => target.GetComponent<BaseNpc>() switch
+	{
+		Onos => Onos.HorizontalExtents,
+		Hive => 2 * MathF.Sqrt( 2 ) * MapLoader.Scale,
+		Harvester => MathF.Sqrt( 2 ) * MapLoader.Scale,
+		Hydra or Crag or Babbler or Armory => 0.5f * MathF.Sqrt( 2 ) * MapLoader.Scale,
+		_ => ((target.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero) * target.WorldScale).WithZ( 0 ).Length * 0.5f
+	};
 
 	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition, Func<GameObject, Vector3, bool> ignore = null )
 	{
