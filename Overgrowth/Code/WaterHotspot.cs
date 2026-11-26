@@ -8,6 +8,8 @@ public sealed partial class WaterHotspot : Component
 	readonly HashSet<RabbitGuard> occupants = [];
 	readonly HashSet<RagdollDamping> ragdolls = [];
 
+	internal bool Contains( RabbitGuard fighter ) => Active && Volume.IsValid() && Volume.Active && occupants.Contains( fighter );
+
 	internal bool Contains( RagdollDamping ragdoll ) => Active && Volume.IsValid() && Volume.Active && ragdolls.Contains( ragdoll );
 
 	protected override void OnFixedUpdate()

@@ -66,7 +66,7 @@ public sealed partial class RabbitGuard
 		IncreaseBreathing( 2f );
 		LeftFootJump = nextJumpUsesLeft;
 		nextJumpUsesLeft = !nextJumpUsesLeft;
-		if ( WaterDepthAt( WorldPosition ) < 0.25f )
+		if ( WaterDepth( WorldPosition ) < 0.25f )
 			PlayMaterialEvent( "jump", WorldPosition, GroundMaterialName, boundAnimations.CharacterSpecies == "cat" ? 0.5f : 1f );
 		ReportBodySound( HeardSound.Footstep, 2f );
 		Launch( velocity + releaseDrive );
@@ -319,7 +319,7 @@ public sealed partial class RabbitGuard
 			duckVelocity = 3f;
 		}
 		bool quiet = boundAnimations.CharacterSpecies == "cat";
-		if ( !hard || WaterDepthAt( WorldPosition ) < 0.25f )
+		if ( !hard || WaterDepth( WorldPosition ) < 0.25f )
 		{
 			if ( !quiet || hard )
 				ReportBodySound( hard && !quiet ? HeardSound.LoudFoley : HeardSound.Footstep, hard && !quiet ? 5f : 2f );

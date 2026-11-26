@@ -59,7 +59,7 @@ public sealed partial class RabbitGuard
 		BeginRecovery( 2f );
 		Renderer.Animation.Parameters.Set( "stance", Roll );
 		playing = Roll;
-		float depth = WaterDepthAt( WorldPosition );
+		float depth = WaterDepth( WorldPosition );
 		if ( depth < 0.1f )
 		{
 			bool quiet = boundAnimations.CharacterSpecies == "cat";

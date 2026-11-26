@@ -62,8 +62,8 @@ internal sealed class CharacterRemains : Component
 	{
 		if ( !Networking.IsHost || Dragger.IsValid() || collision.Other.IsTrigger || !collision.Other.GameObject.IsValid() ) return;
 		float impulse = RabbitGuard.BodyImpactImpulse( collision ) / 40f;
-		if ( impulse <= 1f || CharacterLoader.RagdollCenter( Physics ) is not { } center ||
-			RabbitGuard.WaterDepthAt( Scene, center - Vector3.Up * 18f ) >= 0.2f ) return;
+		if ( impulse <= 1f || CharacterLoader.RagdollCenter( Physics ) is not { } center ) return;
+		if ( GetComponent<RagdollDamping>()?.WaterDepth( center ) >= 0.2f ) return;
 
 		var point = collision.Contact.Point;
 		var surface = TerrainLoader.ContactSurface( collision.Other.Collider as ModelCollider, point, collision.Other.Surface, out var terrainHit );

@@ -4,6 +4,21 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	WaterHotspot currentWater;
+	float hotspotDepth;
+	float WaterDepth( Vector3 feet ) => currentWater.IsValid() && currentWater.Contains( this ) ? hotspotDepth : WaterDepthAt( Scene, feet );
+
+	// Sandbox water volumes expose their surface through traces. The deepest threshold here is 0.4 metres.
+	internal static float WaterDepthAt( Scene scene, Vector3 feet )
+	{
+		var top = feet + Vector3.Up * 16f;
+		var water = scene.Trace.WithTag( "water" ).HitTriggersOnly();
+		var inside = water.Ray( feet, top ).Run();
+		if ( !inside.StartedSolid || inside.GameObject?.GetComponent<WaterHotspot>() is not null ) return 0f;
+		var surface = water.Ray( top, feet ).Run();
+		return surface.StartedSolid ? 0.4f : (surface.EndPosition.z - feet.z) / 40f;
+	}
+
 	float underwaterBreath = 10f;
 	TimeUntil nextWadingSound, nextSplashSound;
 	bool zoneKilled;
@@ -11,13 +26,15 @@ public sealed partial class RabbitGuard
 
 	internal void WaterIntersect( WaterHotspot water, float dt )
 	{
+		var center = CharacterCenter( GameObject );
+		float height = water.HeightAboveSurface( center );
+		currentWater = water;
+		hotspotDepth = LegRadius / 40f - height;
 		if ( Health <= 0f || boundAnimations is null || !Renderer.TryGetBoneTransform( boundAnimations.HeadBone, out var head ) ) return;
 		var headPoint = head.Position - head.Rotation.Forward * (boundAnimations.Head.HeadHalfLength * WorldScale.z);
 		float headHeight = water.HeightAboveSurface( headPoint );
 		if ( headHeight < 0.7f ) SetOnFire( false );
 		underwaterBreath = headHeight < 0f ? underwaterBreath - dt : 10f;
-		var center = CharacterCenter( GameObject );
-		float height = water.HeightAboveSurface( center );
 		var velocity = BodyVelocity;
 		var wadingVelocity = velocity;
 		if ( height < 0.1f )
@@ -33,7 +50,7 @@ public sealed partial class RabbitGuard
 			}
 			jumpFuel = Math.Min( jumpFuel, JumpSustain * (1f - depth) );
 		}
-		UpdateWaterSounds( center, LegRadius / 40f - height, headHeight, velocity / 40f, wadingVelocity.Length / 40f );
+		UpdateWaterSounds( center, hotspotDepth, headHeight, velocity / 40f, wadingVelocity.Length / 40f );
 		UpdateWaterSpray( water, center, headPoint, height, velocity, dt );
 		if ( underwaterBreath < 0f || height < -3f || (water.Lethal && height < -1f) )
 		{

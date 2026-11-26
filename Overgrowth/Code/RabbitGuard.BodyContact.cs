@@ -55,7 +55,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( zoneKilled || bodyDragger.IsValid() || (impulse <= 1f && queuedThrowDamage <= 0f) ) return;
 		var center = CharacterCenter( GameObject );
-		if ( WaterDepthAt( center - Vector3.Up * LegRadius ) >= 0.2f ) return;
+		if ( WaterDepth( center - Vector3.Up * LegRadius ) >= 0.2f ) return;
 		if ( queuedThrowDamage > 0f )
 		{
 			ApplyThrowImpact( point );

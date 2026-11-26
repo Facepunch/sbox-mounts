@@ -6,6 +6,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 {
 	ModelPhysics physics;
 	WaterHotspot water;
+	float hotspotDepth;
 	float stillTime;
 	[Sync] internal bool Settled { get; private set; }
 	Transform[] placedPose;
@@ -13,10 +14,15 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	internal void EnterWater( WaterHotspot volume )
 	{
 		GetComponent<CharacterRemains>()?.EnterWater( volume );
-		if ( physics.IsValid() && CharacterLoader.RagdollCenter( physics ) is { } center && volume.HeightAboveSurface( center ) < -0.8f )
-			water = volume;
-		else if ( water == volume ) water = null;
+		if ( CharacterLoader.RagdollCenter( physics ) is not { } center ) return;
+		water = volume;
+		hotspotDepth = RabbitGuard.LegRadius / 40f - volume.HeightAboveSurface( center );
 	}
+
+	bool InWater => water.IsValid() && water.Contains( this );
+
+	internal float WaterDepth( Vector3 center ) => InWater ? hotspotDepth
+		: RabbitGuard.WaterDepthAt( Scene, center - Vector3.Up * RabbitGuard.LegRadius );
 
 	internal void SetPlacedPose()
 	{
@@ -95,8 +101,8 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		Settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.
-		if ( !water.IsValid() || !water.Contains( this ) ) water = null;
-		float retention = (1f - stillTime * 0.5f) * (water is null ? 1f : 0.01f);
+		bool submerged = InWater && hotspotDepth > RabbitGuard.LegRadius / 40f + 0.8f;
+		float retention = (1f - stillTime * 0.5f) * (submerged ? 0.01f : 1f);
 		float rate = Settled ? 0f : -MathF.Log( retention );
 		foreach ( var part in physics.Bodies )
 		{
