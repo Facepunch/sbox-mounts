@@ -95,7 +95,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		agent.Radius = capsule.Radius;
 		agent.Height = 2.4f * Scale;
 		agent.Enabled = false;
-		root.AddComponent<NavigationLayer>();
+		root.AddComponent<ExoMovement>();
 		root.AddComponent<SensesLayer>().SightRange = 45 * Scale;
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Exo>();

@@ -1,11 +1,9 @@
-using System;
-using Sandbox.Npcs.Layers;
-
 namespace NS2;
 
-public sealed class OnosMovement : NavigationLayer
+public sealed class OnosMovement : SparkGroundMovement
 {
-	bool braking;
+	protected override float GroundAcceleration => 6.5f;
+	protected override float GroundFriction => 6;
 	Vector3? previousPosition;
 
 	public override Vector3? ProjectPoint( Vector3 point )
@@ -15,32 +13,14 @@ public sealed class OnosMovement : NavigationLayer
 		return Scene.NavMesh.GetClosestPoint( new BBox( point - extents, point + extents ) );
 	}
 
-	public override void Stop()
-	{
-		if ( braking ) return;
-		if ( MoveTarget.HasValue && Agent.IsValid() && !IsTraversingLink && !Npc.IsAirborne && Agent.Velocity.LengthSquared > 1 )
-		{
-			braking = true;
-			MoveTarget = null;
-			Brake();
-		}
-		else base.Stop();
-	}
-
 	public override void MoveTo( Vector3 target, float stopDistance = 10, float? speed = null, GameObject faceTarget = null )
 	{
-		var previousTarget = MoveTarget;
-		braking = false;
-		target = ProjectPoint( target ) ?? target;
-		base.MoveTo( target, stopDistance, speed, faceTarget );
-		if ( MoveTarget != previousTarget && Agent.IsValid() && Agent.Enabled )
-			SetAcceleration( (target - Agent.AgentPosition).WithZ( 0 ).Normal, speed ?? RunSpeed );
+		base.MoveTo( ProjectPoint( target ) ?? target, stopDistance, speed, faceTarget );
 	}
 
 	protected override void OnDisabled()
 	{
 		previousPosition = null;
-		braking = false;
 		base.OnDisabled();
 	}
 
@@ -54,34 +34,7 @@ public sealed class OnosMovement : NavigationLayer
 				previousPosition = null;
 		}
 
-		if ( braking && Networking.IsHost )
-		{
-			Brake();
-			return;
-		}
-
 		base.OnUpdate();
-		if ( !Networking.IsHost || !Agent.IsValid() || Npc.IsAirborne || IsTraversingLink ) return;
-
-		SetAcceleration( Agent.WishVelocity.WithZ( 0 ).Normal, Agent.MaxSpeed );
-	}
-
-	void SetAcceleration( Vector3 direction, float speed )
-	{
-		var velocity = Agent.Velocity.WithZ( 0 );
-		const float groundFriction = 6, groundAcceleration = 6.5f;
-		float friction = Math.Min( 1, groundFriction * Scene.FixedDelta );
-		if ( direction == Vector3.Zero || friction <= 0 )
-		{
-			Agent.Acceleration = groundAcceleration * speed;
-			return;
-		}
-		// NS2 damps the whole velocity and accelerates along the input. Express both as a
-		// velocity for the crowd to approach, limiting the forward gain on the final step.
-		float along = Vector3.Dot( velocity, direction );
-		float wishSpeed = Math.Min( speed * (groundAcceleration / groundFriction), along + (speed - along) / friction );
-		Agent.MaxSpeed = Math.Max( speed, wishSpeed );
-		Agent.Acceleration = groundFriction * (direction * Agent.MaxSpeed - velocity).Length;
 	}
 
 	void ConstrainToWorld()
@@ -106,21 +59,5 @@ public sealed class OnosMovement : NavigationLayer
 		previousPosition = mover.Position;
 		Agent.SetAgentPosition( mover.Position );
 		Agent.Velocity = Vector3.VectorPlaneProject( Agent.Velocity, hit.Normal );
-	}
-
-	void Brake()
-	{
-		// Keep the existing route so the crowd still constrains every step while slowing down.
-		if ( !Agent.IsValid() || Npc.IsAirborne || IsTraversingLink || !Agent.TargetPosition.HasValue || Agent.Velocity.LengthSquared <= 1 )
-		{
-			braking = false;
-			base.Stop();
-			return;
-		}
-
-		// Zero switches the agent to externally driven movement.
-		Agent.MaxSpeed = 0.01f;
-		Agent.Acceleration = Math.Max( 6 * Agent.Velocity.WithZ( 0 ).Length, 6 * MapLoader.Scale );
-		Npc.Animation.SetMove( Agent.Velocity );
 	}
 }
