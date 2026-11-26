@@ -4,6 +4,8 @@ namespace Halo2;
 public sealed class WeaponAttachment
 {
 	public string PrimaryHand { get; set; }
+	public string SecondaryHand { get; set; }
+	public string PreferredGrip { get; set; }
 }
 
 [Sandbox.ModelEditor.GameData( "player_representation" )]
@@ -16,6 +18,7 @@ public sealed class PlayerRepresentation
 public abstract partial class Weapon : BaseCombatWeapon
 {
 	[Property] public bool NpcOnly { get; set; }
+	[Property] public bool DualWieldable { get; set; }
 	[Property] public string AnimationClass { get; set; }
 	[Property] public string AnimationType { get; set; }
 	[Property] public string AttackSoundMarker { get; set; }
@@ -73,6 +76,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		if ( NpcOnly && inventory.GetComponentInParent<PlayerController>().IsValid() ) return false;
+		if ( offhandPickup == inventory ) return true;
 		if ( !UsesClips || !UsesAmmo ) return base.OnAdding( inventory );
 		var held = MatchingWeapon( inventory );
 		if ( held is null ) return base.OnAdding( inventory );
@@ -114,6 +118,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 	protected override void OnRemoved( BaseInventoryComponent inventory )
 	{
 		base.OnRemoved( inventory );
+		if ( inventory.ActiveItem is Weapon primary && primary.Offhand == this ) primary.SetOffhand( null );
+		SetOffhand( null );
 		// Drop and transfer have already reparented the weapon. Removal for destruction has not.
 		if ( Inventory != inventory && UsesClips && UsesAmmo )
 			looseReserve = LooseReserve + inventory.TakeAmmo( PrimaryAmmoType, CarriedReserve( inventory ) );
@@ -307,9 +313,12 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnControl()
 	{
-		if ( !Input.Down( "attack1" ) || Input.Pressed( "attack1" ) ) dryTriggerHeld = false;
+		if ( !Input.Down( TriggerButton ) || Input.Pressed( TriggerButton ) ) dryTriggerHeld = false;
 		base.OnControl();
+		if ( IsOffhand ) return;
+		if ( Offhand.IsValid() && !PuttingAway ) Offhand.OnControl();
 		UpdateZoomInput();
+		UpdateOffhandPickup();
 	}
 
 	public override void DryFire()

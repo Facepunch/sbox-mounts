@@ -99,7 +99,7 @@ public abstract class HandheldWeapon : Weapon
 	protected override void OnControl()
 	{
 		double now = Time.NowDouble;
-		bool held = Input.Down( "attack1" );
+		bool held = Input.Down( TriggerButton );
 		bool canCycle = CanCycleBarrel;
 		if ( !canCycle ) roundQueued = false;
 		else if ( held && lastAutomaticRound is double last && now >= last + 1 / 30.0 )
@@ -262,6 +262,38 @@ public abstract class HandheldWeapon : Weapon
 
 	protected virtual void ConfigureHeldRenderer( SkinnedModelRenderer renderer, bool firstPerson ) { }
 
+	HandheldWeapon renderedOffhand;
+	GameObject offhandModel;
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+		var next = Offhand as HandheldWeapon;
+		if ( next == renderedOffhand && next.IsValid() == offhandModel.IsValid() ) return;
+		ClearOffhandModel();
+		if ( !next.IsValid() || !WorldModel.IsValid() || HolderRenderer is not {} body ||
+			body.Model?.GetData<WeaponAttachment>() is not { SecondaryHand: { Length: > 0 } marker } attachment ) return;
+		body.CreateAttachments = true;
+		var hand = body.GetAttachmentObject( marker );
+		var world = next.GetComponent<SkinnedModelRenderer>( true )?.Model;
+		if ( !hand.IsValid() || world is not { IsError: false } ) return;
+		var grip = string.IsNullOrEmpty( attachment.PreferredGrip ) ? null : world.Attachments.GetTransform( attachment.PreferredGrip );
+		if ( grip is null && !string.IsNullOrEmpty( next.GripMarker ) ) grip = world.Attachments.GetTransform( next.GripMarker );
+		renderedOffhand = next;
+		offhandModel = next.BuildHeldModel( hand, world, grip?.ToLocal( global::Transform.Zero ) ?? global::Transform.Zero ).GameObject;
+	}
+
+	void ClearOffhandModel()
+	{
+		if ( offhandModel.IsValid() )
+		{
+			if ( renderedOffhand.IsValid() && renderedOffhand.WorldModel == offhandModel ) renderedOffhand.WorldModel = null;
+			offhandModel.Destroy();
+		}
+		offhandModel = null;
+		renderedOffhand = null;
+	}
+
 	internal virtual string RestAction => "idle";
 
 	protected override void CreateWorldModel()
@@ -276,9 +308,16 @@ public abstract class HandheldWeapon : Weapon
 			body.CreateAttachments = true;
 			hand = body.GetAttachmentObject( attachment.PrimaryHand );
 		}
-		WorldModel = new GameObject( hand ?? GameObject, true, DisplayName );
+		var renderer = BuildHeldModel( hand ?? GameObject, world, global::Transform.Zero );
+		if ( BindHolderAnimator() is {} animator ) animator.Weapon = renderer;
+		loose.Enabled = false;
+	}
+
+	SkinnedModelRenderer BuildHeldModel( GameObject hand, Model world, Transform local )
+	{
+		WorldModel = new GameObject( hand, true, DisplayName );
 		WorldModel.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-		WorldModel.LocalTransform = global::Transform.Zero;
+		WorldModel.LocalTransform = local;
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = world;
 		ConfigureHeldRenderer( renderer, false );
@@ -288,12 +327,12 @@ public abstract class HandheldWeapon : Weapon
 		model.MuzzleGameObject = renderer.GetAttachmentObject( "primary_trigger" );
 		model.ShellEjectGameObject = renderer.GetAttachmentObject( "primary_ejection" );
 		model.TracerEffect = model.EjectBrass = model.MuzzleEffect = null;
-		if ( BindHolderAnimator() is {} animator ) animator.Weapon = renderer;
-		loose.Enabled = false;
+		return renderer;
 	}
 
 	protected override void DestroyWorldModel()
 	{
+		ClearOffhandModel();
 		if ( HolderAnimator is {} animator && animator.Weapon.IsValid() && animator.Weapon.GameObject == WorldModel )
 			animator.Weapon = null;
 		base.DestroyWorldModel();
@@ -347,12 +386,23 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	float frame;
 	int reloadStartRounds;
 	int reloadKeyframe;
+	bool dualGraph;
+	bool WantsDualGraph => Weapon.Offhand.IsValid() && AnimationData?.DualActions is not null;
+
+	void SelectGraph( bool dual )
+	{
+		if ( dualGraph == dual ) return;
+		var category = dual ? "dual" : "any";
+		Renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{Renderer.Model.Name}/any/{category}/any.ag" );
+		dualGraph = dual;
+	}
 
 	internal void Play( string action )
 	{
-		if ( !Renderer.Animation.IsValid ) return;
 		AnimationData ??= Renderer.Model.GetData<FirstPersonAnimation>();
-		if ( AnimationData?.Actions.TryGetValue( action, out var selected ) != true ) return;
+		SelectGraph( WantsDualGraph );
+		var actions = dualGraph ? AnimationData.DualActions : AnimationData?.Actions;
+		if ( !Renderer.Animation.IsValid || actions?.TryGetValue( action, out var selected ) != true ) return;
 		clip = selected;
 		currentAction = action;
 		frame = 0;
@@ -366,6 +416,8 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Weapon.IsValid() && dualGraph != WantsDualGraph )
+			Play( Weapon.RestAction );
 		if ( Weapon.IsValid() && AnimationData is { AmmunitionFrames: > 1 } data && Renderer.Animation.IsValid )
 		{
 			int loaded = Weapon.Clip1;

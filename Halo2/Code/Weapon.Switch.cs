@@ -50,7 +50,8 @@ public abstract partial class Weapon
 
 	protected override void OnUpdate()
 	{
-		base.OnUpdate();
+		if ( !IsOffhand ) base.OnUpdate();
+		UpdateWeaponState();
 		if ( !PuttingAway ) return;
 		double ticks = (Time.NowDouble - putAwayAt) * 30;
 		// The unit channel holds its first sample for two native updates.
@@ -83,6 +84,9 @@ public abstract partial class Weapon
 
 	protected override void OnHolstered()
 	{
+		pickupStarted = null;
+		pickupRequested = false;
+		if ( Networking.IsHost ) SetOffhand( null );
 		ClearPutAway();
 		base.OnHolstered();
 	}

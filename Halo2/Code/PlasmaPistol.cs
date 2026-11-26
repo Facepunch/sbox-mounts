@@ -24,8 +24,8 @@ public sealed class PlasmaPistol : BatteryWeapon
 	protected override void Think()
 	{
 		base.Think();
-		if ( Input.Pressed( "attack1" ) ) SetTrigger( true );
-		if ( Input.Released( "attack1" ) ) SetTrigger( false );
+		if ( Input.Pressed( TriggerButton ) ) SetTrigger( true );
+		if ( Input.Released( TriggerButton ) ) SetTrigger( false );
 	}
 
 	public void SetTrigger( bool pressed ) => UpdateTrigger( pressed, AimRay.Forward );
@@ -33,7 +33,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void UpdateTrigger( bool pressed, Vector3 forward )
 	{
-		if ( !IsActive || PendingRelease.HasValue || pressed == HoldingTrigger ) return;
+		if ( !IsInHand || PendingRelease.HasValue || pressed == HoldingTrigger ) return;
 		if ( pressed )
 		{
 			if ( !CanPrimaryAttack() ) return;
@@ -73,9 +73,9 @@ public sealed class PlasmaPistol : BatteryWeapon
 		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
-	protected override void OnUpdate()
+	protected override void UpdateWeaponState()
 	{
-		base.OnUpdate();
+		base.UpdateWeaponState();
 		if ( Networking.IsHost && PendingRelease is Vector3 forward && Time.NowDouble >= ChargedAt + 1 / 30.0 )
 		{
 			PendingRelease = null;
@@ -89,7 +89,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	void UpdateChargeSound()
 	{
-		UpdateTrack( chargeVoice, ChargeSound, HoldingTrigger && IsActive && Time.NowDouble >= PressedAt + LatchTicks / 30.0 );
+		UpdateTrack( chargeVoice, ChargeSound, HoldingTrigger && IsInHand && Time.NowDouble >= PressedAt + LatchTicks / 30.0 );
 	}
 
 	protected override void OnDisabled()

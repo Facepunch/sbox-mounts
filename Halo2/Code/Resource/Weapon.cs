@@ -248,7 +248,10 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 		var gun = root.AddComponent<T>();
 		gun.DisplayName = title;
-		gun.NpcOnly = (map.ReadInt32( Header + 0x12c ) & (1 << 29)) != 0;
+		int flags = map.ReadInt32( Header + 0x12c );
+		gun.DualWieldable = (flags & (1 << 22)) != 0;
+		gun.GripMarker = map.ResolveStringId( map.ReadInt32( Header + 0x284 ) );
+		gun.NpcOnly = (flags & (1 << 29)) != 0;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
 		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 		gun.ZoomLevels = Short( Header + 0x1fe );
@@ -259,6 +262,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		if ( map.ReadInt32( Address( globals ) + 0xf0 ) > 0 )
 		{
 			int control = Block( Address( globals ) + 0xf0 );
+			gun.PickupHoldSeconds = Float( control + 0x7c );
 			gun.MagnetismFriction = Float( control );
 			gun.MagnetismAdhesion = Float( control + 4 );
 			gun.InconsequentialTargetScale = Float( control + 8 );

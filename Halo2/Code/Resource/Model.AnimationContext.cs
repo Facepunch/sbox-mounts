@@ -42,6 +42,7 @@ public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, floa
 public sealed class FirstPersonAnimation
 {
 	public Dictionary<string, Halo2ClipInfo> Actions { get; set; }
+	public Dictionary<string, Halo2ClipInfo> DualActions { get; set; }
 	public Halo2ClipInfo Movement { get; set; }
 	public int AmmunitionFrames { get; set; }
 	public Dictionary<string, CuePlayback> Sounds { get; set; }

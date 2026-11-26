@@ -29,7 +29,7 @@ public class MagazineWeapon : HandheldWeapon
 		{
 			emptyRoundAt = roundAt;
 			// A held trigger attempts one dry shot before the barrel enters recovery.
-			double heldDelay = Holder is PlayerController && Input.Down( "attack1" ) ? PrimaryDelay : 0;
+			double heldDelay = Holder is PlayerController && Input.Down( TriggerButton ) ? PrimaryDelay : 0;
 			barrelIdleAt = roundAt + heldDelay + 1 / 30.0 + RecoveryDelay;
 		}
 		if ( BurstLength > 1 && remainingShots == 0 )
@@ -68,7 +68,7 @@ public class MagazineWeapon : HandheldWeapon
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void RequestRound( Vector3 forward )
 	{
-		if ( !IsActive || !IsHeld || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		if ( !IsInHand || !IsHeld || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
 		SetNextPrimaryFire( PrimaryDelay );
 		FireRound( forward );
 	}
@@ -85,9 +85,9 @@ public class MagazineWeapon : HandheldWeapon
 
 	protected override void OnControl()
 	{
-		bool held = Input.Down( "attack1" );
+		bool held = Input.Down( TriggerButton );
 		if ( !held ) triggerPressedDuringReload = false;
-		else if ( !PrimaryAutomatic && IsReloading && Input.Pressed( "attack1" ) ) triggerPressedDuringReload = true;
+		else if ( !PrimaryAutomatic && IsReloading && Input.Pressed( TriggerButton ) ) triggerPressedDuringReload = true;
 		if ( emptyRoundAt is double shot && !held )
 		{
 			double elapsedTicks = System.Math.Max( 1, System.Math.Floor( (Time.NowDouble - shot) * 30 ) );
@@ -108,7 +108,7 @@ public class MagazineWeapon : HandheldWeapon
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void ReloadEmptyBarrel()
 	{
-		if ( IsHeld && IsActive && AutoReload && Clip1 == 0 ) BeginReload( automatic: true );
+		if ( IsHeld && IsInHand && AutoReload && Clip1 == 0 ) BeginReload( automatic: true );
 	}
 
 	void BeginReload( bool automatic )
@@ -118,7 +118,9 @@ public class MagazineWeapon : HandheldWeapon
 			emptyRoundAt = null;
 			transferAt = null;
 			transferred = false;
-			if ( FirstPersonAnimations()?.Actions.TryGetValue( Clip1 == 0 ? "reload_empty" : "reload_full", out var clip ) == true )
+			var animation = FirstPersonAnimations();
+			var actions = IsDualWielding ? animation?.DualActions ?? animation?.Actions : animation?.Actions;
+			if ( actions?.TryGetValue( Clip1 == 0 ? "reload_empty" : "reload_full", out var clip ) == true )
 			{
 				// Auto-reload is requested after the current tick's magazine update.
 				int startTick = automatic ? 1 : 0;
@@ -188,16 +190,16 @@ public class MagazineWeapon : HandheldWeapon
 		transferAt = null;
 	}
 
-	protected override void OnUpdate()
+	protected override void UpdateWeaponState()
 	{
-		base.OnUpdate();
+		base.UpdateWeaponState();
 		if ( Networking.IsHost && !IsHeld ) UpdateLooseMagazine();
 		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
 			TransferMagazine();
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
 			FirePrimary( burstAttacker );
 		if ( IsReloading ) emptyRoundAt = null;
-		if ( IsProxy || !IsActive || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
+		if ( IsProxy || !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
 		if ( emptyRoundAt.HasValue ? Time.NowDouble >= barrelIdleAt : HasIdleMagazineBarrel || NextPrimaryFire <= 0 )
 			ReloadEmptyBarrel();
 	}

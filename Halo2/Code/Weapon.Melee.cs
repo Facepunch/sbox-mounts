@@ -48,13 +48,13 @@ public abstract partial class Weapon
 		foreach ( var index in indices )
 			ContactSounds.Cues[index].Play( position, ref contactSeed, null );
 	}
-	protected bool IsHolstered => Inventory is {} inventory && inventory.ActiveItem != this;
+	protected bool IsHolstered => Inventory is not null && !IsInHand;
 	protected bool CanUseHeldWeapon => !PuttingAway && !IsHolstered;
 
 	public override bool CanReload() => !MeleeActive && CanUseHeldWeapon && base.CanReload();
 	public override bool CanPrimaryAttack() => !MeleeActive && CanUseHeldWeapon && base.CanPrimaryAttack();
 
-	protected override bool WantsSecondaryAttack() => NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
+	protected override bool WantsSecondaryAttack() => !Offhand.IsValid() && !IsOffhand && NextSecondaryFire <= 0 && base.WantsSecondaryAttack();
 
 	public override bool CanSecondaryAttack() => NextSecondaryFire <= 0 && Recovery.NextStrike <= 0 && CanUseHeldWeapon;
 

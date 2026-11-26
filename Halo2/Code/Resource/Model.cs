@@ -111,22 +111,33 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				index++;
 			}
 		}
-		if ( biped is { DataSize: >= 0x15c } && Label( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0x158 ) is { Length: > 0 } hand )
-			builder.WithData( new WeaponAttachment { PrimaryHand = hand } );
+		if ( biped is { DataSize: >= 0x15c } )
+		{
+			int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
+			if ( Label( unit + 0x158 ) is { Length: > 0 } hand )
+				builder.WithData( new WeaponAttachment
+				{
+					PrimaryHand = hand,
+					SecondaryHand = biped.DataSize >= 0x160 ? Label( unit + 0x15c ) : null,
+					PreferredGrip = biped.DataSize >= 0x164 ? Label( unit + 0x160 ) : null
+				} );
+		}
 		if ( ReadBodyMaterial() is {} bodyMaterial ) builder.WithData( bodyMaterial );
 		if ( biped is null && !HasFirstPersonWeapon && GetChamberBinding() is {} chamber )
 			builder.WithData( chamber );
 		if ( HasFirstPersonWeapon && GetAnimationContext( "any", "any", "any" ) is {} context )
 		{
 			var actions = context.Actions.ToDictionary( a => a.Key, a => GetClipInfo( a.Value ) );
+			var dual = GetAnimationContext( "any", "dual", "any" )?.Actions.ToDictionary( a => a.Key, a => GetClipInfo( a.Value ) );
 			var sounds = new Dictionary<string, CuePlayback>();
-			foreach ( var cue in actions.Values.SelectMany( a => a.Cues ) )
+			var clips = dual is null ? actions.Values.AsEnumerable() : actions.Values.Concat( dual.Values );
+			foreach ( var cue in clips.SelectMany( a => a.Cues ) )
 			{
 				if ( cue.Kind == "sound" && cue.TagPath is {} path && !sounds.ContainsKey( path )
 					&& Host.GetByPath( Host.AssetPath( mapFile, path, "sound" ) ) is Halo2SoundLoader sound )
 					sounds[path] = sound.Cue;
 			}
-			builder.WithData( new FirstPersonAnimation { Actions = actions, Sounds = sounds,
+			builder.WithData( new FirstPersonAnimation { Actions = actions, DualActions = dual, Sounds = sounds,
 				AmmunitionFrames = context.Overlays.TryGetValue( "ammunition", out var ammunition ) ? GetClipInfo( ammunition ).Frames : 0,
 				Movement = context.Overlays.TryGetValue( "moving", out var movement ) ? GetClipInfo( movement ) : null } );
 		}

@@ -87,7 +87,7 @@ public class BatteryWeapon : HandheldWeapon
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void RequestEnergyShot( Vector3 forward, bool awaitingCue )
 	{
-		if ( !IsHeld || !IsActive || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		if ( !IsHeld || !IsInHand || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
 		float delay = FiringRate.y > 0 ? CooldownSeconds( (int)System.MathF.Ceiling( 30 / FiringRate.y ) ) : PrimaryDelay;
 		SetNextPrimaryFire( delay );
 		FireEnergy( forward, awaitingCue );
@@ -172,7 +172,7 @@ public class BatteryWeapon : HandheldWeapon
 	{
 		if ( FiringRate.y > FiringRate.x && FiringRate.x > 0 )
 		{
-			bool held = CanCycleBarrel && Input.Down( "attack1" );
+			bool held = CanCycleBarrel && Input.Down( TriggerButton );
 			double now = Time.NowDouble;
 			int ticks = (int)System.Math.Floor( (now - rateUpdatedAt) * 30 );
 			if ( ticks > 0 )
@@ -202,17 +202,17 @@ public class BatteryWeapon : HandheldWeapon
 		base.OnDisabled();
 	}
 
-	protected override void OnUpdate()
+	protected override void UpdateWeaponState()
 	{
-		base.OnUpdate();
+		base.UpdateWeaponState();
 		if ( !Application.IsDedicatedServer )
 		{
-			bool held = IsHeld && IsActive;
+			bool held = IsHeld && IsInHand;
 			bool firing = lastPresentedShot is double shot && System.Math.Floor( Time.NowDouble * 30 ) - System.Math.Floor( shot * 30 ) <= 1;
 			UpdateTrack( firingVoice, FiringTrack, held && firing );
 			UpdateTrack( overheatVoice, OverheatTrack, held && Overheated );
 		}
-		if ( !Application.IsDedicatedServer && IsHeld && IsActive && Overheated && VentParticles is { Length: > 0 } )
+		if ( !Application.IsDedicatedServer && IsHeld && IsInHand && Overheated && VentParticles is { Length: > 0 } )
 		{
 			double now = Time.NowDouble;
 			if ( nextVentTick == 0 ) nextVentTick = now + 1 / 30.0;
