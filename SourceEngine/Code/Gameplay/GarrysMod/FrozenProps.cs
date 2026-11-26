@@ -23,12 +23,7 @@ sealed class FrozenProps : Component
 		var hit = Scene.Trace.Ray( aim, 32768 ).IgnoreGameObjectHierarchy( GameObject.Root )
 			.WithoutTags( "trigger", "projectile" ).Run();
 		var bodyHit = hit.GameObject?.GetComponentInParent<Rigidbody>();
-		if ( bodyHit.IsValid() )
-		{
-			var connected = new HashSet<Rigidbody>();
-			PhysicsHold.GetConnectedBodies( bodyHit.GameObject, connected );
-			return Wake( connected );
-		}
+		if ( bodyHit.IsValid() ) return WakeConnected( bodyHit );
 		// A prop without a rigidbody still counts as an aimed reload.
 		var target = hit.GameObject;
 		if ( !hit.Hit || !target.IsValid() || (!target.Tags.Has( "source1_entity" ) && ToolMode.IsWorldObject( target )) )
@@ -36,7 +31,35 @@ sealed class FrozenProps : Component
 		return 0;
 	}
 
-	int Wake( HashSet<Rigidbody> bodies )
+	int WakeConnected( Rigidbody hit )
+	{
+		var visited = new HashSet<Component>();
+		var bodies = new List<Rigidbody>();
+		void Add( Rigidbody body )
+		{
+			if ( body.IsValid() && visited.Add( body ) ) bodies.Add( body );
+		}
+
+		Add( hit );
+		for ( var i = 0; i < bodies.Count; i++ )
+		{
+			var body = bodies[i];
+			// All physics bones belong to the same entity, even after a joint breaks.
+			var model = body.GetComponentInParent<ModelPhysics>();
+			if ( model.IsValid() && visited.Add( model ) )
+			{
+				foreach ( var part in model.Bodies ) Add( part.Component );
+			}
+			foreach ( var joint in body.Joints )
+			{
+				Add( joint.Body1?.Component as Rigidbody );
+				Add( joint.Body2?.Component as Rigidbody );
+			}
+		}
+		return Wake( bodies );
+	}
+
+	int Wake( IEnumerable<Rigidbody> bodies )
 	{
 		int count = 0;
 		foreach ( var body in bodies )
