@@ -59,6 +59,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		collider.End = Vector3.Up * (height - radius);
 		var body = root.AddComponent<Rigidbody>();
 		body.MassOverride = 158;
+		body.Locking = new PhysicsLock { Pitch = true, Roll = true };
 		body.EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
@@ -130,6 +131,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	void UpdateAttack( GameObject enemy )
 	{
 		attacking = false;
+		if ( ventBlink ) return;
 		if ( !NpcConVars.Enabled || PhysicsCarrier.IsValid() || !enemy.IsValid() || !Senses.VisibleHostiles.Contains( enemy ) )
 		{
 			view = AlienAim.Turn( view, WorldRotation.Forward, 5 );

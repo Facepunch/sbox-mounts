@@ -37,6 +37,7 @@ public sealed partial class MapLocations : Component
 	bool readingGrid, requestedGrid;
 	AlienVentGrid vents;
 	bool readVents;
+	internal bool HasVents => AlienGridPath is not null || vents is not null;
 
 	internal bool IsVent( Vector3 position )
 	{

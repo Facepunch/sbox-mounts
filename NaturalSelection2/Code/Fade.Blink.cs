@@ -11,7 +11,7 @@ public sealed partial class Fade
 	int hopsRemaining;
 	float lastJump;
 	Vector3? airGoal;
-	bool ductBlink;
+	bool ventBlink;
 	MapLocations locations;
 	SoundHandle blinkLoop;
 	SkinnedModelRenderer blinkOverlay;
@@ -32,10 +32,13 @@ public sealed partial class Fade
 	void Travel( Vector3 goal )
 	{
 		if ( PhysicsCarrier.IsValid() || Blinking ) return;
-		if ( NearVent( goal ) )
+		bool nearVent = NearVent( goal );
+		CheckEntrance( goal );
+		bool climbing = EntranceAim( out var entranceAim );
+		if ( climbing || nearVent )
 		{
 			hopsRemaining = 0;
-			if ( DuctBlinkAim( ductPoints ) is { } aim && lastBlink >= 0.4f )
+			if ( (climbing ? entranceAim : DuctBlinkAim( ductPoints )) is { } aim && lastBlink >= 0.4f )
 			{
 				view = Rotation.LookAt( aim - WorldPosition );
 				StartBlink( goal, true );
@@ -57,9 +60,9 @@ public sealed partial class Fade
 		if ( lastBlink >= 0.4f ) StartBlink( goal, false );
 	}
 
-	void StartBlink( Vector3 goal, bool inDuct )
+	void StartBlink( Vector3 goal, bool inVent )
 	{
-		ductBlink = inDuct;
+		ventBlink = inVent;
 		var body = GetComponent<Rigidbody>();
 		var velocity = IsOnGround ? Animation.MoveVelocity : body.Velocity;
 		airGoal = goal;
@@ -67,7 +70,7 @@ public sealed partial class Fade
 		body.Gravity = false;
 		energy -= 12;
 		blinkAge = 0;
-		if ( !inDuct ) releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
+		if ( !inVent ) releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
 		Blinking = true;
 		ShowBlinkEffect( true );
 	}
@@ -84,9 +87,9 @@ public sealed partial class Fade
 		if ( Blinking )
 		{
 			bool held = releaseBlink > 0;
-			if ( ductBlink )
+			if ( ventBlink )
 			{
-				var aim = DuctBlinkAim( ductPoints );
+				if ( !EntranceAim( out var aim ) ) aim = DuctBlinkAim( ductPoints );
 				held = aim.HasValue;
 				if ( held ) view = Rotation.LookAt( aim.Value - WorldPosition );
 			}
@@ -102,8 +105,8 @@ public sealed partial class Fade
 
 			Blinking = false;
 			lastBlink = 0;
-			hopsRemaining = dropping || ductBlink ? 0 : 2;
-			ductBlink = false;
+			hopsRemaining = dropping || ventBlink ? 0 : 2;
+			ventBlink = false;
 			ShowBlinkEffect( false );
 		}
 

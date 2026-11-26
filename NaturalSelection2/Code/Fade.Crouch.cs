@@ -28,7 +28,7 @@ public sealed partial class Fade
 			{
 				NavMeshPath path = default;
 				if ( agent is { IsNavigating: true } ) path = agent.GetPath();
-				else if ( ductBlink && Scene.NavMesh.IsEnabled ) path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal } );
+				else if ( ventBlink && Scene.NavMesh.IsEnabled ) path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal } );
 				ventDrop.Find( WorldPosition, path.Points );
 				SampleDuctPath( path.Points );
 				checkVentPath = 0.1f;
@@ -100,6 +100,7 @@ public sealed partial class Fade
 		if ( Networking.IsHost )
 		{
 			bool desired = NearVent( Movement.MoveTarget ?? airGoal );
+			desired |= ventBlink && entrance.IsValid() && !InCombat;
 			if ( !crouching || desired || CanStand() ) crouching = desired;
 		}
 
