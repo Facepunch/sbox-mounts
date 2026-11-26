@@ -427,7 +427,12 @@ public sealed class BulletWeapon : Weapon
 
 	void FirePrimaryRound()
 	{
-		base.PrimaryAttack();
+		if ( Secondary == SecondaryFires.DoubleShot && HasOwner && !NpcControlled )
+		{
+			if ( !TakePrimaryAmmo() ) return;
+			ShootEffects( FireBuckshot( Ballistics.Pellets ) );
+		}
+		else base.PrimaryAttack();
 		if ( Secondary == SecondaryFires.DoubleShot && WeaponSetup.PumpDelay( this ) is { } delay ) _pumpStarts = delay;
 		if ( AccuracyPenaltyPerShot > 0 && HasOwner ) _accuracyPenalty += AccuracyPenaltyPerShot;
 		if ( Secondary == SecondaryFires.DoubleShot || BlocksUnusedSecondaryUnderwater ) SetNextFire( PrimaryDelay );
@@ -620,14 +625,57 @@ public sealed class BulletWeapon : Weapon
 		}
 		if ( !FiresUnderwater && BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
-		var config = Ballistics;
-		var hits = ShootBullets( DoubleShotPellets, CurrentSpread, config.Range, config.Radius, config.Damage, config.Force );
-		var volley = hits.Select( tr => new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) ).ToArray();
-		TimeSinceShoot = 0;
+		var volley = FireBuckshot( DoubleShotPellets );
 		_pumpStarts = AlternatePumpDelay;
 		SetNextFire( AlternatePumpDelay + PumpDuration );
 		AlternateEffects( volley );
 		DoRecoil( new Angles( Random.Shared.Float( -5, 5 ), 0, 0 ) );
+	}
+
+	// The engine batches hit claims and calls BulletTrace once per pellet, in firing order.
+	(int Count, int Index, Vector3 Right, Vector3 Up) _buckshot;
+
+	ShotEffect[] FireBuckshot( int count )
+	{
+		var config = Ballistics;
+		var spread = CurrentSpread;
+		var previous = _buckshot;
+		try
+		{
+			if ( HasOwner && !NpcControlled )
+			{
+				var aim = Rotation.LookAt( AimRay.Forward );
+				_buckshot = (count, 0, aim.Right * MathF.Sin( (spread.x * 0.5f).DegreeToRadian() ),
+					aim.Up * MathF.Sin( (spread.y * 0.5f).DegreeToRadian() ));
+				spread = Vector2.Zero;
+			}
+			var hits = ShootBullets( count, spread, config.Range, config.Radius, config.Damage, config.Force );
+			TimeSinceShoot = 0;
+			var effects = new ShotEffect[hits.Length];
+			for ( int i = 0; i < hits.Length; i++ )
+			{
+				var tr = hits[i];
+				effects[i] = new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface, NoEvents: i > 0 );
+			}
+			return effects;
+		}
+		finally { _buckshot = previous; }
+	}
+
+	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius )
+	{
+		if ( _buckshot.Count == 0 ) return base.BulletTrace( ray, distance, radius );
+
+		Vector2 offset;
+		do
+		{
+			offset = new Vector2( Random.Shared.Float( -0.5f, 0.5f ) + Random.Shared.Float( -0.5f, 0.5f ),
+				Random.Shared.Float( -0.5f, 0.5f ) + Random.Shared.Float( -0.5f, 0.5f ) );
+		} while ( offset.LengthSquared > 1 );
+
+		ray.Forward = (ray.Forward + _buckshot.Right * offset.x + _buckshot.Up * offset.y).Normal;
+		var trace = base.BulletTrace( ray, distance, 0 );
+		return (_buckshot.Index++ & 1) == 0 ? trace : trace.Size( Vector3.One * 6 );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
