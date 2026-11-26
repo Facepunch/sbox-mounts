@@ -8,6 +8,8 @@ public sealed class MarkerGroups
 
 public sealed record WeaponSound( SoundEvent Sound, string Marker );
 
+public sealed record WeaponSoundTrack( string Marker, SoundEvent Start, SoundEvent Loop, SoundEvent End, float Gain, float FadeOut );
+
 public abstract class HandheldWeapon : Weapon
 {
 	[Property] public string RigDirectory { get; set; }
@@ -20,6 +22,44 @@ public abstract class HandheldWeapon : Weapon
 	double? lastAutomaticRound;
 	double? automaticRoundAt;
 	bool roundQueued;
+
+	protected sealed class TrackVoice
+	{
+		public SoundHandle Handle;
+		public bool Started;
+		public void Stop( WeaponSoundTrack track )
+		{
+			Handle?.Stop( track?.FadeOut ?? 0 );
+			Handle = null;
+			Started = false;
+		}
+	}
+
+	protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active, GameObject source = null )
+	{
+		if ( track is null || (!active && !voice.Started) ) return;
+		if ( active && voice.Handle.IsValid() )
+		{
+			if ( source.IsValid() && voice.Handle.Parent != source )
+			{
+				voice.Handle.Parent = source;
+				voice.Handle.FollowParent = true;
+			}
+			return;
+		}
+		var cue = active ? (voice.Started ? track.Loop : track.Start ?? track.Loop) : track.End;
+		if ( !active ) voice.Stop( track );
+		var emitter = source ?? (string.IsNullOrEmpty( track.Marker ) ? WeaponModel?.GameObject ?? GameObject : EffectMarker( track.Marker ));
+		if ( !emitter.IsValid() || !cue.IsValid() ) return;
+		var handle = emitter.PlaySound( cue );
+		if ( !handle.IsValid() ) return;
+		handle.Volume *= track.Gain;
+		if ( active )
+		{
+			voice.Handle = handle;
+			voice.Started = true;
+		}
+	}
 
 	protected virtual bool CanCycleBarrel => PrimaryAutomatic &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();

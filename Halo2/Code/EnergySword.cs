@@ -57,6 +57,33 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 
 	SkinnedModelRenderer worldBlade, viewBlade;
 
+	[Property] public WeaponSoundTrack BladeSound { get; set; }
+	readonly TrackVoice bladeVoice = new();
+
+	protected override void OnUpdate()
+	{
+		base.OnUpdate();
+		if ( Application.IsDedicatedServer || BladeSound is null ) return;
+		GameObject marker = null;
+		if ( Powered && (!IsHeld || IsActive) )
+		{
+			var renderer = IsHeld ? (ViewModel.IsValid() && Owner is { ThirdPerson: false } ? viewBlade : worldBlade)
+				: GetComponent<SkinnedModelRenderer>();
+			if ( renderer.IsValid() )
+			{
+				if ( !renderer.CreateAttachments ) renderer.CreateAttachments = true;
+				marker = renderer.GetAttachmentObject( BladeSound.Marker );
+			}
+		}
+		UpdateTrack( bladeVoice, BladeSound, marker.IsValid(), marker );
+	}
+
+	protected override void OnDisabled()
+	{
+		bladeVoice.Stop( BladeSound );
+		base.OnDisabled();
+	}
+
 	[Property] public CuePlayback ReadySound { get; set; }
 	[Property] public string ReadySoundMarker { get; set; }
 	[Property] public float ReadySoundDelay { get; set; }

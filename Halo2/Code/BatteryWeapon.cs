@@ -2,8 +2,6 @@ namespace Halo2;
 
 public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition[] Flash );
 
-public sealed record WeaponSoundTrack( string Marker, SoundEvent Start, SoundEvent Loop, SoundEvent End, float Gain, float FadeOut );
-
 public class BatteryWeapon : HandheldWeapon
 {
 	[Property] public MuzzleFlashDefinition[] VentParticles { get; set; }
@@ -13,35 +11,6 @@ public class BatteryWeapon : HandheldWeapon
 	[Property] public WeaponSoundTrack OverheatTrack { get; set; }
 	readonly TrackVoice firingVoice = new(), overheatVoice = new();
 	double? lastPresentedShot;
-
-	protected sealed class TrackVoice
-	{
-		public SoundHandle Handle;
-		public bool Started;
-		public void Stop( WeaponSoundTrack track )
-		{
-			Handle?.Stop( track?.FadeOut ?? 0 );
-			Handle = null;
-			Started = false;
-		}
-	}
-
-	protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active )
-	{
-		if ( track is null || (!active && !voice.Started) || (active && voice.Handle.IsValid()) ) return;
-		var cue = active ? (voice.Started ? track.Loop : track.Start ?? track.Loop) : track.End;
-		if ( !active ) voice.Stop( track );
-		var emitter = string.IsNullOrEmpty( track.Marker ) ? WeaponModel?.GameObject ?? GameObject : EffectMarker( track.Marker );
-		if ( !emitter.IsValid() || !cue.IsValid() ) return;
-		var handle = emitter.PlaySound( cue );
-		if ( !handle.IsValid() ) return;
-		handle.Volume *= track.Gain;
-		if ( active )
-		{
-			voice.Handle = handle;
-			voice.Started = true;
-		}
-	}
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{

@@ -115,6 +115,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	EnergySword CreateSword( GameObject root, string world )
 	{
 		var sword = ConfigurePickup<EnergySword>( root, world, title );
+		sword.BladeSound = ReadSoundTrack( "blade_activate" );
 		sword.TargetAngle = Float( Header + 0x208 );
 		sword.TargetRange = Float( Header + 0x20c ) * 120;
 		sword.AgesWithKills = (map.ReadInt32( Header + 0x12c ) & (1 << 26)) != 0;
