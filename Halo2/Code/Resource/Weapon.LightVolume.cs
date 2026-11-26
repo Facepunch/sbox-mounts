@@ -71,18 +71,21 @@ internal sealed partial class HandheldWeaponLoader
 			return markers[name] = emitter;
 		}
 
-		if ( ReadSoundTrack( header, "" ) is {} track )
-			AtMarker( track.Marker ).AddComponent<ProjectileSound>().Track = track;
 		int attachments = header + 0x94;
 		for ( int i = 0, row = Block( attachments ); i < map.ReadInt32( attachments ); i++, row += 24 )
 		{
 			var tag = Reference( row );
+			string function = map.ResolveStringId( map.ReadInt32( row + 16 ) );
+			if ( tag is { PrimaryClass: "dnsl" } && string.IsNullOrEmpty( function ) && ReadSoundTrack( row ) is {} track )
+				AtMarker( track.Marker ).AddComponent<ProjectileSound>().Track = track;
 			if ( tag is { PrimaryClass: "effe" } && root.GetComponent<ProjectileLightVolume>() is {} volume &&
-				string.IsNullOrEmpty( map.ResolveStringId( map.ReadInt32( row + 16 ) ) ) )
+				string.IsNullOrEmpty( function ) )
 				volume.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
-			if ( tag is { PrimaryClass: "effe" } && map.ResolveStringId( map.ReadInt32( row + 16 ) ) == "acceleration_range" &&
+			if ( tag is { PrimaryClass: "effe" } && (function == "acceleration_range" || tag.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") &&
 				ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
 				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ).AddComponent<ProjectileExhaust>().Effects = exhaust;
+			if ( tag is { PrimaryClass: "effe" } && tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) )
+				ReadTimedEffects( tag, AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ) );
 			if ( tag is not { PrimaryClass: "hgil" } ) continue;
 			int light = Address( tag );
 			if ( Short( light + 4 ) != 0 || Float( light + 0xb0 ) != 0 ) continue;
@@ -92,6 +95,30 @@ internal sealed partial class HandheldWeaponLoader
 			point.Intensity = Float( light + 0x74 ) * 2;
 			point.Shadows = false;
 		}
+	}
+
+	void ReadTimedEffects( TagEntry effect, GameObject parent )
+	{
+		int events = Address( effect ) + 20;
+		float time = 0;
+		var stages = new List<ProjectileParticleStage>();
+		for ( int i = 0, ev = Block( events ); i < map.ReadInt32( events ); i++, ev += 56 )
+		{
+			time += Float( ev + 8 );
+			float start = time;
+			time += Float( ev + 16 );
+			if ( ReadMuzzleFlash( effect, i, attachmentMarker: "" ) is { Length: > 0 } particles )
+				stages.Add( new( start, time, particles ) );
+			for ( int j = 0, part = Block( ev + 24 ); j < map.ReadInt32( ev + 24 ); j++, part += 56 )
+			{
+				if ( Reference( part + 12 ) is not { PrimaryClass: "2SGM" } tag ) continue;
+				var volume = parent.AddComponent<ProjectileLightVolume>();
+				volume.StartTick = (int)MathF.Ceiling( start * 30 );
+				volume.EndTick = (int)MathF.Ceiling( time * 30 );
+				ReadVolume( tag, volume );
+			}
+		}
+		if ( stages.Count > 0 ) parent.AddComponent<ProjectileExhaust>().Stages = stages.ToArray();
 	}
 
 	void ReadVolume( TagEntry tag, ProjectileLightVolume volume )

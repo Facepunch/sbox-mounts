@@ -26,6 +26,10 @@ public sealed class ProjectileLightVolume : Component
 	[Property] public MuzzleFlashDefinition[] Glow { get; set; }
 	[Property] public float Cutoff { get; set; }
 
+	[Property] public int StartTick { get; set; }
+	[Property] public int EndTick { get; set; }
+	[Property] public double FiredAt { get; set; }
+
 	protected override void OnStart()
 	{
 		if ( Application.IsDedicatedServer || Layers is null ) return;
@@ -37,11 +41,35 @@ public sealed class ProjectileLightVolume : Component
 			foreach ( var effect in Glow )
 				glow.Emit( effect, false, GameObject, seed, BlamRandom.Next( ref seed ) / 65535f, false );
 		}
+		if ( EndTick > 0 )
+		{
+			_ = PlayStage();
+			return;
+		}
+		CreateSprites( GameObject );
+	}
+
+	async System.Threading.Tasks.Task PlayStage()
+	{
+		double clock = FiredAt > 0 ? FiredAt : Time.NowDouble;
+		double start = clock + StartTick / 30.0, end = clock + EndTick / 30.0;
+		while ( Time.NowDouble < start ) await Task.Frame();
+		if ( Time.NowDouble >= end ) return;
+		var stage = new GameObject( GameObject, true, "Projectile light volume" );
+		stage.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		CreateSprites( stage );
+		while ( Time.NowDouble < end ) await Task.Frame();
+		stage.Enabled = false;
+		stage.Destroy();
+	}
+
+	void CreateSprites( GameObject parent )
+	{
 		foreach ( var layer in Layers )
 		{
 			var texture = Texture.Load( layer.Texture );
 			if ( !texture.IsValid() || texture.IsError ) continue;
-			var go = new GameObject( GameObject, false, "Bolt sprites" );
+			var go = new GameObject( parent, false, "Bolt sprites" );
 			go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 			var effect = go.AddComponent<ParticleEffect>();
 			effect.MaxParticles = layer.Count;

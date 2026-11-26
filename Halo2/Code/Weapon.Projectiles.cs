@@ -123,6 +123,10 @@ public abstract partial class Weapon
 				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward, Perpendicular( forward ) ) );
 				if ( model is { IsError: false } ) body.AddComponent<ModelRenderer>().Model = model;
 				pellets[i].Exhaust = body.GetComponentInChildren<ProjectileExhaust>( true );
+				if ( pellets[i].Exhaust.IsValid() ) pellets[i].Exhaust.FiredAt = Time.NowDouble;
+				if ( volume.IsValid() )
+					foreach ( var light in body.GetComponentsInChildren<ProjectileLightVolume>( true ) )
+						if ( light.EndTick > 0 ) light.FiredAt = Time.NowDouble;
 				body.NetworkSpawn( true, null );
 				pellets[i].Body = body;
 			}

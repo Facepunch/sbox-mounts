@@ -61,7 +61,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	bool HasProjectileEffects => Name is "rocket_launcher" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
+	bool HasProjectileEffects => Name is "flak_cannon" or "brute_shot" or "rocket_launcher" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
 	string Name => TagName( weapon );
 	static string TagName( TagEntry entry ) => System.IO.Path.GetFileName( entry.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
@@ -393,14 +393,15 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
 				bool energySmoke = particle?.TagPath is @"effects\generic\energy\smoke_c_generic" or @"effects\generic\energy\plasma_overheat";
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
-				bool exhaustSmoke = effect.TagPath.EndsWith( @"\rocket_exhaust", StringComparison.Ordinal ) && Short( row + 12 ) == 0;
+				bool exhaustSmoke = (effect.TagPath.EndsWith( @"\rocket_exhaust", StringComparison.Ordinal ) || effect.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) || effect.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") && Short( row + 12 ) == 0;
 				bool smoke = exhaustSmoke || additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
 				bool blade = particle?.TagPath is @"effects\objects\weapons\melee\energy_blade\glow_blade" or @"effects\objects\weapons\melee\energy_blade\blade_charge";
 				bool ignition = particle?.TagPath is @"effects\generic\energy\energy_blade_activate" or @"effects\generic\energy\plasma_wispy";
 				bool exhaustFlame = particle?.TagPath is @"effects\objects\weapons\support_high\rocket_launcher\rocket_flame" or @"effects\objects\weapons\support_high\rocket_launcher\rocket_flame_core";
-				bool flare = exhaustFlame || blade || ignition || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
+				bool ember = particle?.TagPath == @"effects\generic\energy\ember";
+				bool flare = ember || exhaustFlame || blade || ignition || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
 					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft" or @"effects\generic\flares\flash_shield"
 					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long" or @"effects\generic\energy\c_muzzle_flash_red_large"
 					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
@@ -408,20 +409,25 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
 					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;
 				int definition = Address( particle );
-				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
+				int binding = Block( Block( definition + 140 ) + 4 );
+				var bitmap = map.GetTag( map.ReadInt32( binding ) & 0xffff );
 				if ( bitmap is null ) continue;
 				var texture = Host.AssetPath( map, bitmap.TagPath, "vtex" );
 				var pivot = new Vector2( 0.5f, 0.5f );
 				var aspect = Vector2.One;
-				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 )
+				int imageIndex = map.ReadInt32( binding + 4 );
+				if ( Short( Address( bitmap ) ) == 3 && (uint)Short( definition + 8 ) < map.ReadInt32( Address( bitmap ) + 60 ) &&
+					ReadAnimatedFrames( definition ) is [var frame, ..] )
 				{
-					var frame = ReadAnimatedFrames( definition )[0];
 					texture += $"/sequence_{Short( definition + 8 )}.vtex";
 					pivot = frame.Pivot * frame.InverseSize;
 					aspect = frame.Aspect;
 				}
-				else if ( BitmapTag.Read( map, bitmap, 0 ) is {} image )
+				else if ( BitmapTag.Read( map, bitmap, imageIndex ) is {} image )
+				{
+					if ( imageIndex > 0 ) texture += $"/{imageIndex}.vtex";
 					aspect.x = (float)image.Width / image.Height;
+				}
 				var marker = attachmentMarker ?? map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
 				if ( marker is null ) continue;
 				if ( !markers.TryGetValue( marker, out var layers ) ) markers[marker] = layers = new();
@@ -473,7 +479,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 					{
 						ExhaustSmoke = exhaustSmoke ? new( Short( emitter + 8 ) == 9 ? ReadRange( emitter + 8, 1 ) : null,
 							Short( emitter + 40 ) == 9 ? ReadRange( emitter + 40, 120 ) : null, ReadRange( emitter + 140, 1 ),
-							ReadRange( emitter + 104, 1 ) ) : null,
+							ReadRange( emitter + 104, 1 ), Short( emitter + 104 ) == 2, (Short( row + 22 ) & 0x80) != 0 ) : null,
+						RandomCone = ember && Short( emitter + 140 ) == 15 ? ReadRange( emitter + 140, 1 ) : null,
 						SingleParticle = (Short( row + 22 ) & 4) != 0,
 						RandomRadiusScale = exhaustFlame ? ReadRange( definition + 60, 1 ) : null,
 						ParticleTint = Short( emitter + 88 ) == 3 && map.ReadSpan( color, 1 )[0] == 3 &&
@@ -485,23 +492,23 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	WeaponSoundTrack ReadSoundTrack( string function ) => ReadSoundTrack( Header, function );
-
-	WeaponSoundTrack ReadSoundTrack( int owner, string function )
+	WeaponSoundTrack ReadSoundTrack( string function )
 	{
-		for ( int i = 0, row = Block( owner + 0x94 ); i < map.ReadInt32( owner + 0x94 ); i++, row += 24 )
-		{
-			if ( Reference( row ) is not { PrimaryClass: "dnsl", DataSize: > 0 } sound ||
-				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != function ) continue;
-			int tracks = Address( sound ) + 0x24;
-			if ( map.ReadInt32( tracks ) != 1 ) continue;
-			int track = Block( tracks );
-			SoundEvent Cue( int offset ) => Reference( track + offset ) is { PrimaryClass: "!dns" } tag
-				? GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) : null;
-			return new( map.ResolveStringId( map.ReadInt32( row + 8 ) ), Cue( 0x14 ), Cue( 0x1c ), Cue( 0x24 ),
-				MathF.Pow( 10, Float( track + 8 ) / 20 ), Float( track + 16 ) );
-		}
+		for ( int i = 0, row = Block( Header + 0x94 ); i < map.ReadInt32( Header + 0x94 ); i++, row += 24 )
+			if ( map.ResolveStringId( map.ReadInt32( row + 16 ) ) == function && ReadSoundTrack( row ) is {} track ) return track;
 		return null;
+	}
+
+	WeaponSoundTrack ReadSoundTrack( int attachment )
+	{
+		if ( Reference( attachment ) is not { PrimaryClass: "dnsl", DataSize: > 0 } sound ) return null;
+		int tracks = Address( sound ) + 0x24;
+		if ( map.ReadInt32( tracks ) != 1 ) return null;
+		int track = Block( tracks );
+		SoundEvent Cue( int offset ) => Reference( track + offset ) is { PrimaryClass: "!dns" } tag
+			? GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) : null;
+		return new( map.ResolveStringId( map.ReadInt32( attachment + 8 ) ), Cue( 0x14 ), Cue( 0x1c ), Cue( 0x24 ),
+			MathF.Pow( 10, Float( track + 8 ) / 20 ), Float( track + 16 ) );
 	}
 
 	ContrailAppearance ReadTrail( int projectile )

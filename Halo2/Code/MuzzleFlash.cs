@@ -7,7 +7,7 @@ public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] La
 
 public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity, bool Additive, float Gravity, float Drag );
 
-public sealed record ExhaustSmoke( CurveRange? BirthRate, CurveRange? Speed, CurveRange Cone, CurveRange Opacity );
+public sealed record ExhaustSmoke( CurveRange? BirthRate, CurveRange? Speed, CurveRange Cone, CurveRange Opacity, bool RandomOpacity, bool InterpolatePosition );
 
 public sealed record MuzzleEmission( float Start, Vector2 Duration );
 
@@ -17,6 +17,7 @@ public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 As
 	Vector2 BirthCount, int BirthInput, bool StartsSystem, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission )
 {
 	public ExhaustSmoke ExhaustSmoke { get; init; }
+	public CurveRange? RandomCone { get; init; }
 	public bool SingleParticle { get; init; }
 	public CurveRange? RandomRadiusScale { get; init; }
 	public CurveRange? ParticleTint { get; init; }
@@ -31,7 +32,7 @@ public sealed class MuzzleFlash : Component
 
 	float Sample( Vector2 bounds ) => bounds.x == bounds.y ? bounds.x : MathX.Lerp( bounds.x, bounds.y, BlamRandom.Next( ref seed ) / 65535f );
 
-	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, uint systemSeed, float eventRandom, bool continuous, float effectScale = 0, Vector3? previousPosition = null, Vector3? emitPosition = null )
+	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, uint systemSeed, float eventRandom, bool continuous, float effectScale = 0, Vector3? previousPosition = null, Vector3? emitPosition = null, float tickFraction = 1 )
 	{
 		emissionScale = effectScale;
 		foreach ( var light in data.Lights )
@@ -58,14 +59,14 @@ public sealed class MuzzleFlash : Component
 			}
 			if ( continuous )
 			{
-				rate += birthRemainder.GetValueOrDefault( layer );
+				rate = rate * tickFraction + birthRemainder.GetValueOrDefault( layer );
 				birthRemainder[layer] = rate - (int)(rate + 0.0001f);
 			}
 			int count = (int)(rate + 0.0001f);
 			if ( spec.SingleParticle ) count = System.Math.Min( count, 1 );
 			for ( int j = 0; j < count; j++ )
 			{
-				var position = spec.ExhaustSmoke is not null && previousPosition is Vector3 start
+				var position = spec.ExhaustSmoke is { InterpolatePosition: true } && previousPosition is Vector3 start
 					? Vector3.Lerp( start, emitPosition ?? layer.WorldPosition, j / rate ) : layer.WorldPosition;
 				layer.Emit( position, 0 );
 			}
@@ -101,7 +102,7 @@ public sealed class MuzzleFlash : Component
 		var go = detached ? Scene.CreateObject( false ) : new GameObject( GameObject, false, "Muzzle flash" );
 		if ( detached )
 		{
-			go.Name = data.Casing is not null ? "Ejected casings" : "Rocket exhaust smoke";
+			go.Name = data.Casing is not null ? "Ejected casings" : "Projectile smoke";
 			go.AddComponent<TemporaryEffect>().DestroyAfterSeconds = 0;
 		}
 		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
@@ -130,7 +131,7 @@ public sealed class MuzzleFlash : Component
 				p.Size *= smoke.Radius.Evaluate( t, p.Rand( 4, 0 ) );
 				p.Alpha = smoke.Alpha.Evaluate( t, 0 ).Clamp( 0, 1 ) * MathX.Lerp( smoke.Opacity.x, smoke.Opacity.y, p.Rand( 5, 0 ) );
 			}
-			if ( data.ExhaustSmoke is {} exhaust ) p.Alpha *= exhaust.Opacity.Evaluate( t, p.Rand( 5, 0 ) ).Clamp( 0, 1 );
+			if ( data.ExhaustSmoke is {} exhaust ) p.Alpha *= exhaust.Opacity.Evaluate( exhaust.RandomOpacity ? p.Rand( 1, 0 ) : t, p.Rand( 5, 0 ) ).Clamp( 0, 1 );
 			else if ( data.FlareAlpha is {} alpha ) p.Alpha = alpha.Evaluate( t, p.Rand( 5, 0 ) ).Clamp( 0, 1 );
 			if ( data.ParticleTint is null ) p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
 			p.Sequence = 0;
@@ -149,7 +150,7 @@ public sealed class MuzzleFlash : Component
 			if ( data.ParticleTint is {} tint )
 				p.Color = InterpolateTint( data.StartColor, data.EndColor, tint.Evaluate( p.Rand( 4, 0 ), 0 ) );
 			p.StartAngles.roll = p.Rand( 3, 0 ) * 360;
-			float cone = data.ExhaustSmoke?.Cone.Evaluate( emissionScale, 0 ) ?? data.ConeDegrees;
+			float cone = data.RandomCone?.Evaluate( p.Rand( 7, 0 ), 0 ) ?? data.ExhaustSmoke?.Cone.Evaluate( emissionScale, 0 ) ?? data.ConeDegrees;
 			if ( cone > 0 || data.Casing is not null )
 			{
 				float azimuth = p.Rand( 6, 0 ) * System.MathF.Tau;
@@ -157,7 +158,7 @@ public sealed class MuzzleFlash : Component
 				var radial = new Vector3( 0, System.MathF.Sin( azimuth ), System.MathF.Cos( azimuth ) );
 				var direction = Vector3.Forward * System.MathF.Cos( angle ) + radial * System.MathF.Sin( angle );
 				float speed = data.ExhaustSmoke?.Speed is {} speedCurve ? BoundedValue( speedCurve, emissionScale, data.Speed )
-					: p.LifeTimeRemaining.Remap( data.Lifetime.x, data.Lifetime.y, data.Speed.x, data.Speed.y );
+					: data.RandomCone.HasValue ? Sample( data.Speed ) : p.LifeTimeRemaining.Remap( data.Lifetime.x, data.Lifetime.y, data.Speed.x, data.Speed.y );
 				p.Velocity = go.WorldRotation * direction * speed;
 			}
 			else p.Velocity = go.WorldRotation.Forward * (data.ExhaustSmoke?.Speed is {} speedCurve ? BoundedValue( speedCurve, emissionScale, data.Speed ) : Sample( data.Speed ));
