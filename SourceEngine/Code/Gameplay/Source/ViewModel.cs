@@ -220,6 +220,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	// Past the far end of any viewmodel.
 	const float BehindViewModelDistance = 128;
+	internal static float BehindScale( float distance ) => distance > 0.01f ? MathF.Max( 1, BehindViewModelDistance / distance ) : 1;
 
 	/// <summary>
 	/// Source draws sprites attached to a viewmodel in the world pass and the viewmodel over them. Here they share depth
@@ -229,8 +230,7 @@ public sealed class ViewModel : BaseWeaponModel
 	internal void PlaceBehind( GameObject effect, Vector3 drawn )
 	{
 		var eye = Scene.Camera.IsValid() ? Scene.Camera.WorldPosition : WorldPosition;
-		var distance = drawn.Distance( eye );
-		var push = distance > 0.01f ? MathF.Max( 1, BehindViewModelDistance / distance ) : 1;
+		var push = BehindScale( eye.Distance( drawn ) );
 		effect.WorldPosition = eye + (drawn - eye) * push;
 		effect.WorldScale = push;
 	}
