@@ -100,7 +100,7 @@ public sealed class CombineBallEffect : Component
 		FlatQuad.Create( "effects/combinemuzzle2", origin, normal, radius * 2, radius * 4, 0.5f, mount );
 	}
 
-	/// <summary>CPropCombineBall::DoExplosion's two lgtning shock rings, radius to 1024 units (cball_explode's sparks are not rebuilt).</summary>
+	/// <summary>Two lightning shock rings, radius to 1024 units (cball_explode's sparks are not rebuilt).</summary>
 	public static void Explode( Vector3 position, float radius, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;

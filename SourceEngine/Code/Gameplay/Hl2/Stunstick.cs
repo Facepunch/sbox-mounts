@@ -3,10 +3,10 @@ using System;
 namespace Source1.Hl2;
 
 /// <summary>
-/// weapon_stunstick: CWeaponStunStick::ImpactEffect adds StunstickImpact to the melee impact. A metrocop switches it on and off
-/// (SetStunState): Weapon_StunStick.Activate with sparks at the tip, or Deactivate. While on, C_WeaponStunStick::DrawModel flickers
+/// A hit adds StunstickImpact to the melee impact. A metrocop switches the stick on and off
+/// with activation sparks at the tip and matching sounds. While on, it flickers
 /// two effects/stunstick halos an inch behind the tip, a dim one 8 to 12 units across and a bright one 4 to 6.
-/// Approximation: the tesla beams its ClientThink adds now and then are not drawn.
+/// Approximation: intermittent tesla beams are omitted.
 /// </summary>
 [Title( "HL2 Stunstick" )]
 [Category( "Half-Life 2" )]

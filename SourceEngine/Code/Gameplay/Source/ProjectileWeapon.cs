@@ -158,7 +158,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		Sounds.PlayWeaponSound( this, on ? "special1" : "special2" );
 	}
 
-	/// <summary>Host only: CWeaponRPG::NotifyRocketDied reloads the launcher.</summary>
+	/// <summary>The host reloads the launcher when the rocket is destroyed.</summary>
 	internal void NotifyRocketDied()
 	{
 		LiveRocket = null;

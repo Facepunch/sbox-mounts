@@ -18,7 +18,7 @@ sealed class Explosion
 	public float ForceScale { get; init; }
 	public PrefabFile Prefab { get; init; }
 
-	/// <summary>C_BaseExplosionEffect::GetForceDirection: away from whatever the six axis probes hit.</summary>
+	/// <summary>Away from whatever the six axis probes hit.</summary>
 	internal static Vector3 ForceDirection( Scene scene, Vector3 origin, float magnitude )
 	{
 		var direction = Vector3.Zero;

@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Source1;
 
-// IK as Source's bone setup runs it while posing a sequence. A rule holds the end bone of a chain relative
+// A sequence's IK rule holds the end bone of a chain relative
 // to another bone, which is how hands stay on a weapon that is animated on a bone of its own; a release rule
 // lets the chain go. A lock keeps an end bone where it was while a layer is added on top.
 // Ground and attachment rules need the world around the model and are not solved.
@@ -18,7 +18,7 @@ internal sealed partial class MdlFile
 	private const int IkAttachment = 5;
 	private const int IkUnlatch = 6;
 
-	// Source gives up on a chain stretched to within about a degree of straight.
+	// Avoid solving a chain stretched to within about a degree of straight.
 	private const float StraightChain = 0.9998f;
 
 	/// <summary>Three bones from the root joint to the end bone, in the owning MDL's bone indices. End is -1 for an unusable chain.</summary>
@@ -103,7 +103,7 @@ internal sealed partial class MdlFile
 			BinaryPrimitives.ReadSingleLittleEndian( entry[88..] ) );
 	}
 
-	// Studio_IKRuleWeight: how strongly a rule applies at a cycle, ramping in to its peak and out from its tail.
+	// How strongly a rule applies at a cycle, ramping in to its peak and out from its tail.
 	private static float IkRuleWeight( float start, float peak, float tail, float end, float cycle )
 	{
 		if ( end > 1 && cycle < start )
@@ -122,7 +122,7 @@ internal sealed partial class MdlFile
 		return value * value * (3 - 2 * value);
 	}
 
-	// Studio_IKAnimationError: where a rule wants the end bone, in the space of the rule's bone.
+	// Where a rule wants the end bone, in the space of the rule's bone.
 	private static bool ReadIkError( IkRuleData rule, int frameCount, float cycle, out Vector3 position, out Rotation rotation )
 	{
 		position = default;
@@ -215,7 +215,7 @@ internal sealed partial class MdlFile
 		}
 	}
 
-	// Studio_AlignIKMatrix: points the bone's X axis along a direction, keeping its Z axis as near as it can.
+	// Points the bone's X axis along a direction, keeping its Z axis as near as it can.
 	private static Rotation AlignBone( Rotation rotation, Vector3 direction )
 	{
 		var x = direction.Normal;
@@ -223,7 +223,7 @@ internal sealed partial class MdlFile
 		return FromAxes( x, y, Vector3.Cross( x, y ) ).Normal;
 	}
 
-	// Studio_SolveIK: bends a three-bone chain so its end bone reaches the target, keeping the middle joint
+	// Bends a three-bone chain so its end bone reaches the target, keeping the middle joint
 	// on the side it is on, or on the side the chain's knee direction names. Only the three world transforms change.
 	private static bool SolveIkChain( IkChain chain, Vector3 target, Transform[] world, Vector3? kneePosition = null, Vector3? kneeDirection = null )
 	{
@@ -313,7 +313,7 @@ internal sealed partial class MdlFile
 			return Array.FindIndex( chains, x => x.End >= 0 && x.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) );
 		}
 
-		// The animations a sequence blends at the pose parameters, with their weights: Studio_SeqAnims.
+		// The animations a sequence blends at the pose parameters, with their weights.
 		private List<(int Animation, float Weight)> BlendedAnimations( AnimationSource source, int index, (int X, int Y)? cell, Dictionary<string, float> parameters )
 		{
 			var x = cell is { } pinned ? (Index: pinned.X, Weight: 0f) : LocalPoseParameter( source, index, 0, parameters );
@@ -328,7 +328,7 @@ internal sealed partial class MdlFile
 			return result;
 		}
 
-		// CIKContext::AddDependencies: gathers the sequence's IK rules at a cycle. A rule at full weight
+		// Gathers the sequence's IK rules at a cycle. A rule at full weight
 		// replaces what the chain had; a full release just clears it.
 		private void AddIkRules( List<IkRule>[] context, AnimationSource source, int index, float cycle, float weight, (int X, int Y)? cell, Dictionary<string, float> parameters )
 		{
@@ -366,7 +366,7 @@ internal sealed partial class MdlFile
 			}
 		}
 
-		// Studio_IKSequenceError: one rule blended over the sequence's animations.
+		// One rule blended over the sequence's animations.
 		private bool SequenceIkRule( AnimationSource source, List<(int Animation, float Weight)> animations, int index, float cycle, out IkRule result )
 		{
 			result = default;
@@ -471,14 +471,14 @@ internal sealed partial class MdlFile
 			return world;
 		}
 
-		// SolveBone: a bone's parent-space transform from the world transforms.
+		// A bone's parent-space transform from the world transforms.
 		private void WriteBone( Transform[] pose, Transform[] world, int bone )
 		{
 			var parent = master.Bones[bone].Parent;
 			pose[bone] = (uint)parent < pose.Length ? Relative( world[parent], world[bone] ) : world[bone];
 		}
 
-		// CIKContext::SolveDependencies: once every layer is in, moves each chain with rules to its target.
+		// Once every layer is in, moves each chain with rules to its target.
 		private void SolveIk( Transform[] pose, List<IkRule>[] context )
 		{
 			if ( context is null || context.All( rules => !rules.Exists( rule => rule.Type == IkSelf ) ) )
@@ -527,7 +527,7 @@ internal sealed partial class MdlFile
 
 		private readonly record struct IkLock( int Chain, float PositionWeight, float RotationWeight, Transform End, Vector3 KneePosition, Vector3 KneeDirection );
 
-		// CIKContext::AddSequenceLocks: remembers where the locked chains' end bones are before a layer is added.
+		// Remembers where the locked chains' end bones are before a layer is added.
 		private IkLock[] RecordIkLocks( AnimationSource source, int index, Transform[] pose )
 		{
 			var sequence = source.Sequences[index];
@@ -549,7 +549,7 @@ internal sealed partial class MdlFile
 			return locks.Count > 0 ? locks.ToArray() : null;
 		}
 
-		// CIKContext::SolveSequenceLocks: after the layer, pulls each locked end bone back to where it was.
+		// After the layer, pulls each locked end bone back to where it was.
 		private void SolveIkLocks( Transform[] pose, IkLock[] locks )
 		{
 			foreach ( var ikLock in locks )
@@ -581,7 +581,7 @@ internal sealed partial class MdlFile
 		private string IkBoneName( (int Chain, int Bone) target ) => $"ik_target:{chains[target.Chain].Name}:{master._boneNames[target.Bone]}";
 
 		// What the sequence holds with IK, for a consumer that layers sequences at runtime and has to solve
-		// them on the final pose as Source does. Each target is a bone added to the skeleton as a child of the
+		// them on the final pose. Each target is a bone added to the skeleton as a child of the
 		// bone the rule is relative to; the clips animate it to where the chain's end bone belongs.
 		private SourceModelSequenceData.IkTarget[] IkTargets( AnimationSource source, int index )
 		{

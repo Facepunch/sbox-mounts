@@ -47,7 +47,7 @@ internal sealed partial class MdlFile
 		}
 	}
 
-	// virtualmodel_t::AppendModels stops at 64 includes per model.
+	// Limit the include graph to 64 includes per model.
 	private const int MaxAnimationSources = 65;
 	// A graph addresses a bone mask by an 8-bit index. HL2 models have fewer than ten distinct weight lists.
 	private const int MaxBoneMasks = 64;
@@ -71,8 +71,8 @@ internal sealed partial class MdlFile
 	private const int LayerPose = 0x4000;
 
 	/// <summary>
-	/// Lists the sequences of this model and of the models it includes as clips, posed as Source's
-	/// bone setup poses them: blend grids, bone weights, ramped auto layers and autoplay layers.
+	/// Lists clips from this model and its includes, applying
+	/// blend grids, bone weights, ramped auto layers and autoplay layers.
 	/// The clip named after a sequence has every pose parameter at zero; blend grid cells are separate clips.
 	/// Only the sequence tables are read here; each clip decodes its frames when asked for them.
 	/// Root motion is not applied.
@@ -127,7 +127,7 @@ internal sealed partial class MdlFile
 			var terminator = options.IndexOf( (byte)0 );
 			events.Add( new()
 			{
-				// Source does not validate the cycle; an event outside the sequence fires at its nearest end.
+				// An event outside the sequence fires at its nearest end.
 				Cycle = float.IsFinite( cycle ) ? Math.Clamp( cycle, 0, 1 ) : 0,
 				Id = BinaryPrimitives.ReadInt32LittleEndian( entry[4..] ),
 				Type = BinaryPrimitives.ReadInt32LittleEndian( entry[8..] ),
@@ -151,7 +151,7 @@ internal sealed partial class MdlFile
 	}
 
 	// The ground motion studiomdl extracted from one animation, over its whole length:
-	// Studio_AnimMovement from cycle 0 to 1 over the mstudiomovement_t pieces.
+	// Accumulate movement over one complete cycle.
 	private Vector3 ReadAnimationMovement( byte[] data, int index, StudioAnimDesc animation )
 	{
 		if ( animation.NumMovements is < 1 or > 1024 )
@@ -385,7 +385,7 @@ internal sealed partial class MdlFile
 				}
 				catch ( Exception e ) when ( IsDataError( e ) )
 				{
-					// Source skips an include it cannot load and keeps the rest of the model.
+					// Keep the rest of the model when an include fails to load.
 					Log.Trace( $"{file.Path}: included animation model '{include}' was not imported: {e.Message}" );
 				}
 			}
@@ -694,7 +694,7 @@ internal sealed partial class MdlFile
 			return layers;
 		}
 
-		// bone_setup's iRelativeSeq: a layer names a sequence of its own model, where a $declaresequence placeholder stands for the
+		// A layer names a sequence of its own model, where a $declaresequence placeholder stands for the
 		// sequence of that name the including model defines. A placeholder nothing defines (monk's layer_Aim_all) has no animation.
 		private (AnimationSource Source, int Index)? Defined( AnimationSource source, int index )
 		{
@@ -809,8 +809,8 @@ internal sealed partial class MdlFile
 			return (animation.NumFrames, animation.Fps);
 		}
 
-		// The ground motion of one cycle and the speed it is authored for, as Studio_SeqMovement and
-		// Studio_Duration compute them: weighted over the grid cells blended at the pose parameters.
+		// The ground motion of one cycle and the speed it is authored for, averaged across the grid cells
+		// using their weights at the current pose parameters.
 		private (Vector3 Movement, float Speed) GroundMotion( AnimationSource source, int index, (int X, int Y)? cell )
 		{
 			var movement = Vector3.Zero;
@@ -835,7 +835,7 @@ internal sealed partial class MdlFile
 		// A masked sequence is meant to be layered through its bone mask, which applies the weights; baking
 		// them in as well would apply them twice, and a layer ramping in would drag the bind pose along.
 		// So the first non-delta sequence to weight a bone poses it fully, whatever its weight at that moment;
-		// later ones blend over it by their weights as in Source.
+		// later ones blend over it by their weights.
 		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false )
 		{
 			decoded.Clear();
@@ -850,12 +850,12 @@ internal sealed partial class MdlFile
 				Accumulate( pose, source, index, cycle, 1, 0, cell, parameters, masked ? new bool[pose.Length] : null, ik );
 				if ( !delta )
 				{
-					// Source runs autoplay sequences on their own clock; here they follow the clip's cycle.
+					// Bake autoplay layers at the clip's cycle.
 					foreach ( var layer in autoplay )
 						Accumulate( pose, layer.Source, layer.Index, cycle, 1, 0, null, parameters );
 				}
 				// A masked sequence leaves the rest of the body to whatever it is layered over, so where its
-				// chains end up is only known at runtime; a whole-body sequence is solved here as Source solves it.
+				// chains end up is only known at runtime; a whole-body sequence is solved here.
 				if ( !masked )
 					SolveIk( pose, ik );
 				for ( var bone = 0; bone < pose.Length; bone++ )
@@ -874,7 +874,7 @@ internal sealed partial class MdlFile
 			return new( frames, releases );
 		}
 
-		// bone_setup's AccumulatePose: blends one sequence, then its auto layers, onto the pose, and gathers
+		// Blends one sequence, then its auto layers, onto the pose, and gathers
 		// its IK rules. Without a pose it only gathers the rules.
 		private void Accumulate( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, (int X, int Y)? cell,
 			Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false )
@@ -933,7 +933,6 @@ internal sealed partial class MdlFile
 			return blend.HasValue && !source.BoneMap.Any( bone => bone >= 0 && source.Weight( index, bone ) > 0 ) ? blend : null;
 		}
 
-		// bone_setup's AddSequenceLayers and AddLocalLayers.
 		private void AddLayers( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, bool local, Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false )
 		{
 			var sequence = source.Sequences[index];
@@ -977,7 +976,7 @@ internal sealed partial class MdlFile
 			}
 		}
 
-		// bone_setup's SlerpBones, by the sequence's bone weights.
+		// Blend bones using the sequence's weights.
 		// <paramref name="covered"/> is set while baking a masked sequence: the bones a non-delta sequence has posed so far.
 		private void SlerpBones( Transform[] pose, AnimationSource source, int index, Transform[] local, float weight, bool[] covered )
 		{
@@ -1023,7 +1022,7 @@ internal sealed partial class MdlFile
 			}
 		}
 
-		// bone_setup's WorldSpaceSlerp: a weighted bone turns towards the sequence's model-space rotation, so it keeps
+		// A weighted bone turns towards the sequence's model-space rotation, so it keeps
 		// that orientation whatever the bones above it do. Positions still blend in parent space, and the root's stays.
 		private void WorldSpaceSlerp( Transform[] pose, AnimationSource source, int index, Transform[] local, float weight )
 		{
@@ -1055,7 +1054,7 @@ internal sealed partial class MdlFile
 			}
 		}
 
-		// bone_setup's CalcPoseSingle: the sequence's blend grid at the current pose parameters, in master bone order.
+		// The sequence's blend grid at the current pose parameters, in master bone order.
 		private Transform[] CalcPose( AnimationSource source, int index, float cycle, (int X, int Y)? cell, Dictionary<string, float> parameters )
 		{
 			var sequence = source.Sequences[index];
@@ -1129,7 +1128,7 @@ internal sealed partial class MdlFile
 			return pose;
 		}
 
-		// A pose parameter's value in authored units, wrapped and clamped to its range as Studio_SetPoseParameter does.
+		// A pose parameter's value in authored units, wrapped and clamped to its range.
 		// Parameters nobody set are zero, as on a freshly spawned entity.
 		private float ParameterValue( string name, Dictionary<string, float> parameters )
 		{
@@ -1148,7 +1147,7 @@ internal sealed partial class MdlFile
 		private float ParameterValue( AnimationSource source, int parameter, Dictionary<string, float> parameters )
 			=> (uint)parameter < source.PoseParameters.Length ? ParameterValue( source.PoseParameters[parameter].Name, parameters ) : 0;
 
-		// bone_setup's Studio_LocalPoseParameter: the lower cell along one grid axis and the blend towards the next.
+		// The lower cell along one grid axis and the blend towards the next.
 		private (int Index, float Weight) LocalPoseParameter( AnimationSource source, int index, int axis, Dictionary<string, float> parameters )
 		{
 			var sequence = source.Sequences[index];

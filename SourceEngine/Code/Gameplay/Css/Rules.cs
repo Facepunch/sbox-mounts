@@ -62,7 +62,7 @@ static class Rules
 		_ => null
 	};
 
-	/// <summary>CWeaponCSBase::PlayEmptySound: the scripts name no empty sound, the code clicks by weapon family.</summary>
+	/// <summary>The scripts name no empty sound, the code clicks by weapon family.</summary>
 	public static string EmptySound( string weaponType ) => weaponType == "Pistol" ? "Default.ClipEmpty_Pistol" : "Default.ClipEmpty_Rifle";
 
 	/// <summary>The weapon family a world model's name carries: w_rif_ak47 is a Rifle.</summary>

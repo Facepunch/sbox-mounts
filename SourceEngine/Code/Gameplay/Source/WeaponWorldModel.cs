@@ -55,7 +55,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 	}
 
 	/// <summary>
-	/// Counter-Strike's dual Elites flash muzzle_flash_l and muzzle_flash_r in turn (CWeaponElite::GetMuzzleAttachment);
+	/// Counter-Strike's dual Elites flash muzzle_flash_l and muzzle_flash_r in turn,
 	/// other guns always use their muzzle.
 	/// </summary>
 	GameObject NextMuzzle()
@@ -67,7 +67,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 
 	/// <summary>
 	/// A held gun's brass in third person, from the attachment its viewmodel ejects from when the world model has
-	/// it (HL2's w_ models do). Counter-Strike's don't: C_CSPlayer::ProcessMuzzleFlashEvent throws it from the
+	/// it (HL2's w_ models do). Counter-Strike models eject from the
 	/// muzzle toward the shooter's right and a little up at 120. NPC volleys don't litter shells, as in sandbox.
 	/// </summary>
 	void EjectShell()

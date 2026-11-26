@@ -164,7 +164,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	SoundHandle _loop;
 	GameObject _smoke;
 
-	/// <summary>CWeaponRPG::PrimaryAttack: the missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
+	/// <summary>The missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
 	public static Vector3 LaunchVelocity( Vector3 aim ) => aim * DropSpeed + Vector3.Up * DropLift;
 
 	ManualHitbox _shotTarget;
@@ -193,7 +193,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	void UpdateShotTarget()
 	{
 		if ( !_shotTarget.IsValid() ) return;
-		// Source uses an eight-unit box at launch and a point once the motor ignites.
+		// Use an eight-unit box at launch and a point once the motor ignites.
 		_shotTarget.Enabled = false;
 		_shotTarget.Shape = Ignited ? ManualHitbox.HitboxShape.Sphere : ManualHitbox.HitboxShape.Box;
 		_shotTarget.CenterB = Vector3.One * 8;
@@ -259,7 +259,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 			return;
 		}
 		if ( Weapon is not ProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.MissileTarget( WorldPosition ) is not { } target ) return;
-		// CMissile::SeekThink blends 1/8 toward the dot every 15 ms tick.
+		// Steering blends 1/8 toward the dot every 15 ms tick.
 		var blend = 1 - MathF.Pow( 1 - HomingPerTick, Time.Delta / 0.015f );
 		var speed = Velocity.Length;
 		var direction = Vector3.Lerp( Velocity.Normal, (target - WorldPosition).Normal, blend ).Normal;
@@ -326,7 +326,7 @@ public sealed class Grenade : Projectile
 	const float MaxPhysicsSpeed = 4000;
 	internal const float RethrowDelay = 0.5f;
 
-	/// <summary>CWeaponFrag::ThrowGrenade: forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>
+	/// <summary>Forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + (forward + Vector3.Up * 0.1f) * ThrowSpeed;
 
 	// Source rounds its 0.1-second grenade think to seven 15 ms simulation ticks.
@@ -598,7 +598,7 @@ public sealed class Bugbait : TumblingProjectile
 
 	protected override Angles AngularVelocity { get; } = new( 600, Game.Random.Int( -1200, 1200 ), 0 );
 
-	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
+	/// <summary>Forward at 1000 on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;
 
 	[Sync( SyncFlags.FromHost )] internal TimeUntil SolidAt { get; set; }

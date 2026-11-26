@@ -210,7 +210,7 @@ static class WeaponSetup
 		if ( counterStrike && Sounds.WeaponSound( state.Data, "empty" ) is null && Sounds.Sound( Css.Rules.EmptySound( state.WeaponType ), definition.MountName ) is { } click )
 			weapon.DryFireSound = click;
 		state.FlashType = WeaponEffects.FlashType( model.GetData<SourceModelSequenceData[]>() ?? [] );
-		// CCSWeaponInfo::Parse defaults a script without the keys to the plain flash at scale 1.
+		// Scripts without flash settings use the plain flash at scale 1.
 		if ( state.FlashType is null && counterStrike && state.Data is { } script )
 			(state.FlashType, state.FlashScale) = (script.MuzzleFlashStyle ?? Css.Rules.Flash, script.MuzzleFlashScale ?? 1);
 		else if ( state.FlashType is null && counterStrike && Css.Rules.FlashFor( state.WeaponType, weapon.PrimaryAutomatic ) is { } flash )

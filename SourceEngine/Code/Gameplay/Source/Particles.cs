@@ -2,7 +2,7 @@ namespace Source1;
 
 /// <summary>
 /// Code-driven Source particles: one emitter per material, whose particles the owning effect places itself
-/// each frame, as Source's CSimpleEmitter and C_ParticleSmokeGrenade do.
+/// each frame.
 /// </summary>
 static class Particles
 {
@@ -24,6 +24,6 @@ static class Particles
 		return effect;
 	}
 
-	/// <summary>A uniformly random vector in a cube, Source's Vector::Random.</summary>
+	/// <summary>A uniformly random vector in a cube.</summary>
 	public static Vector3 InCube( float extent ) => new( Game.Random.Float( -extent, extent ), Game.Random.Float( -extent, extent ), Game.Random.Float( -extent, extent ) );
 }

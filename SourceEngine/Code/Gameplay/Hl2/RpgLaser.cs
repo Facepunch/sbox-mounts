@@ -41,7 +41,7 @@ sealed class RpgLaser : IDisposable
 		if ( target is not { } position ) return;
 		var eye = weapon.AimRay.Position;
 		var distance = eye.Distance( position );
-		// CLaserDot::LaserThink grows the dot with distance so its screen size stays readable.
+		// The dot grows with distance so its screen size stays readable.
 		var scale = Math.Clamp( MathX.Remap( distance, 32, 1024, 0.01f, 0.5f, false ), 0.1f, 32 );
 		MountedEffects.SetSprite( _dotSprite, scale, 255 );
 		_dot.WorldPosition = position + (eye - position).Normal * MathF.Min( 8, distance * 0.5f );

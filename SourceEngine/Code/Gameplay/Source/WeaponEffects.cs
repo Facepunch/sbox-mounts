@@ -3,10 +3,8 @@ using System;
 namespace Source1;
 
 /// <summary>
-/// HL2's code-driven firearm presentation rebuilt from mounted sprites and models: muzzle flashes
-/// from c_te_legacytempents' MuzzleFlash_*_Player and fx.cpp's FX_MuzzleEffectAttached, chosen by
-/// the type the anim event carries, Counter-Strike's from fx_cs_muzzleflash.cpp, chosen by the
-/// script's MuzzleFlashStyle, and the shell models CTempEnts::EjectBrass throws.
+/// Builds muzzle flashes and ejected shells from mounted sprites and models. HL2 animation events
+/// select the flash type. Counter-Strike weapon scripts specify the muzzle flash style.
 /// </summary>
 static class WeaponEffects
 {
@@ -40,9 +38,8 @@ static class WeaponEffects
 	}
 
 	/// <summary>
-	/// Viewmodel flashes are parented to the viewmodel attachment, as Source draws them with the
-	/// viewmodel; world flashes use FX_MuzzleEffectAttached at the NPC scale for the type, or at
-	/// three quarters of a Counter-Strike script's scale (C_CSPlayer::ProcessMuzzleFlashEvent).
+	/// Viewmodel flashes follow their attachment. World flashes use the NPC scale for the type
+	/// or three quarters of the Counter-Strike weapon script's scale.
 	/// </summary>
 	public static void MuzzleFlash( string type, GameObject attachment, bool firstPerson, string mount, float scale = 1 )
 	{
@@ -240,9 +237,9 @@ static class WeaponEffects
 
 	/// <summary>
 	/// A spent shell thrown from an ejection port whose axes are given. With an authored speed this is
-	/// Counter-Strike's CTempEnts::CSEjectBrass: the port's forward at 1.2-2.8 times the event's speed,
+	/// Counter-Strike shells follow the port's forward at 1.2-2.8 times the event's speed,
 	/// a little up and right scatter, plus the shooter's velocity, slowly tumbling for ten seconds.
-	/// Without one it is HL2's CTempEnts::EjectBrass: 150-200 along forward with world scatter, spinning
+	/// Without a port, eject at 150-200 along forward with world scatter, spinning
 	/// fast for one to two seconds. Both face the shooter's view, fall at full gravity, bounce at half
 	/// speed and fade out over two seconds.
 	/// </summary>
@@ -683,7 +680,7 @@ public sealed class Shell : Component, Component.ICollisionListener
 	}
 }
 
-/// <summary>Short-lived additive sprites placed along the parent's forward axis, like Source's simple particles.</summary>
+/// <summary>Short-lived additive sprites placed along the parent's forward axis.</summary>
 [Title( "Source Sprite Burst" )]
 [Category( "Source 1" )]
 [Alias( "Source1.SourceSpriteBurst", "SourceSpriteBurst" )]

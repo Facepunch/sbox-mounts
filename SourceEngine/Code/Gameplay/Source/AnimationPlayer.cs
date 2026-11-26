@@ -227,7 +227,7 @@ public sealed class AnimationPlayer : IDisposable
 				: builder.Clip( animation, new() { Looping = loop, SampleRootMotion = false } );
 		}
 
-		// Bilinear over the grid like bone_setup's CalcPoseSingle: blend along the first axis per row, then across rows.
+		// Blend along the first axis per row, then across rows.
 		GraphBuilder.Node Grid( SourceModelSequenceData sequence )
 		{
 			var x = sequence.BlendAxes[0];

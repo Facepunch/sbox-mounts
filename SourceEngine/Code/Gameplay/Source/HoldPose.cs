@@ -321,7 +321,7 @@ public sealed class HoldPose
 		reloadCycle = Math.Clamp( reloadCycle, 0, 1 );
 		EvaluatePose( shotClip, delta, shotCycle, reloadCycle, reloadWeight * (_reloadBlend?.Weight( reloadCycle ) ?? 1), _realTimeLayers );
 
-		// Source solves IK after breathing and gestures. A reload can move the hand off its grip.
+		// Solve IK after breathing and gestures. A reload can move the hand off its grip.
 		foreach ( var (bone, target, releaseChannel) in _locks )
 		{
 			if ( !_tracked.Contains( bone ) ) continue;
@@ -394,7 +394,7 @@ public sealed class HoldPose
 		return true;
 	}
 
-	/// <summary>bone_setup's delta accumulation: positions add, rotations apply in the bone's own space.</summary>
+	/// <summary>Positions add, rotations apply in the bone's own space.</summary>
 	static Transform Add( Transform pose, Transform delta ) => new( pose.Position + delta.Position, pose.Rotation * delta.Rotation );
 
 	static Transform Blend( Transform from, Transform to, float weight ) => new( Vector3.Lerp( from.Position, to.Position, weight ), Rotation.Slerp( from.Rotation, to.Rotation, weight ) );
