@@ -70,9 +70,10 @@ public sealed partial class Fade
 
 		var body = GetComponent<Rigidbody>();
 		bool stop = PhysicsCarrier.IsValid() || Health <= 0 || !NpcConVars.Enabled;
+		bool dropping = !InCombat && ventDrop.Active( WorldPosition );
 		if ( Blinking )
 		{
-			if ( !stop && releaseBlink > 0 && energy > 12 )
+			if ( !stop && !dropping && releaseBlink > 0 && energy > 12 )
 			{
 				if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
 				var velocity = body.Velocity;
@@ -84,7 +85,7 @@ public sealed partial class Fade
 
 			Blinking = false;
 			lastBlink = 0;
-			hopsRemaining = 2;
+			hopsRemaining = dropping ? 0 : 2;
 			ShowBlinkEffect( false );
 		}
 
@@ -95,6 +96,9 @@ public sealed partial class Fade
 			return;
 		}
 
+		var landingOffset = (ventDrop.Landing - WorldPosition).WithZ( 0 );
+		if ( dropping && landingOffset.LengthSquared > 0.09f * Scale * Scale )
+			goal = ventDrop.Landing;
 		var direction = (goal - body.PhysicsBody.Position).WithZ( 0 ).Normal;
 		body.Gravity = false;
 		float gravity = Scene.PhysicsWorld.Gravity.z * body.GravityScale / Scale;

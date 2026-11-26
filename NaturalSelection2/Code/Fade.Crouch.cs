@@ -8,6 +8,8 @@ public sealed partial class Fade
 	const float CrouchedHeight = StandingHeight * 0.5f;
 	[Sync( SyncFlags.FromHost )] bool crouching { get; set; }
 	CapsuleCollider movementCapsule;
+	VentDrop ventDrop;
+	TimeUntil checkVentPath;
 	bool wasCrouching;
 	float crouchStart;
 	TimeSince sinceCrouchChanged;
@@ -16,11 +18,21 @@ public sealed partial class Fade
 	{
 		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
 		if ( !locations.IsValid() ) return false;
-		if ( locations.IsVent( WorldPosition ) ) return true;
+		var agent = GetComponent<NavMeshAgent>();
+		if ( InCombat ) ventDrop = default;
+		if ( locations.IsVent( WorldPosition ) )
+		{
+			if ( !InCombat && checkVentPath <= 0 && agent is { IsNavigating: true } )
+			{
+				ventDrop.Find( WorldPosition, agent.GetPath().Points );
+				checkVentPath = 0.1f;
+			}
+			return true;
+		}
+		if ( ventDrop.Active( WorldPosition ) ) return true;
 		if ( destination is not { } next ) return false;
 
 		const float lookAhead = 5 * Scale;
-		var agent = GetComponent<NavMeshAgent>();
 		if ( agent is { IsNavigating: true } ) next = agent.GetLookAhead( lookAhead );
 		var offset = next - WorldPosition;
 		return offset.z <= Scale && offset.LengthSquared <= lookAhead * lookAhead && locations.IsVent( next );

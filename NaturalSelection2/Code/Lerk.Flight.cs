@@ -10,8 +10,7 @@ public sealed partial class Lerk
 	TimeSince cruiseChanged, lastAcceleration;
 	bool forwardBlocked;
 	float? ventEntered;
-	Vector3 ventLanding;
-	TimeUntil ventDrop;
+	VentDrop ventDrop;
 	MapLocations flightLocations;
 	Vector3 flightDirection;
 	NavMeshPath flightPath;
@@ -25,7 +24,7 @@ public sealed partial class Lerk
 			checkPath = 0.25f;
 			pathIndex = 1;
 			flightPath = default;
-			if ( Scene.NavMesh.IsEnabled && (ventEntered.HasValue || Scene.Trace.Ray( EyePosition, goal + Vector3.Up * EyeHeight ).WithTag( "world" ).Run().Hit) )
+			if ( Scene.NavMesh.IsEnabled && (ventEntered.HasValue || Scene.Trace.Ray( EyePosition, goal + Vector3.Up * EyeHeight ).WithTag( "world" ).Run().Hit ) )
 				flightPath = Scene.NavMesh.CalculatePath( new() { Start = ground, Target = goal } );
 		}
 		var path = flightPath.Points;
@@ -36,31 +35,6 @@ public sealed partial class Lerk
 			pathIndex++;
 		}
 		return goal;
-	}
-
-	bool DescendingVent( IReadOnlyList<NavMeshPathPoint> points, int start, bool inCombat )
-	{
-		if ( ventEntered.HasValue && !inCombat )
-		{
-			float high = float.NegativeInfinity;
-			Vector3? landing = null;
-			for ( int i = start; i < points.Count; i++ )
-			{
-				var point = points[i].Position;
-				if ( (point - WorldPosition).WithZ( 0 ).LengthSquared > 9 * Scale * Scale ) break;
-				high = Math.Max( high, point.z );
-				if ( high - point.z >= 1.5f * Scale && (landing is null || point.z < landing.Value.z) )
-					landing = point;
-			}
-			if ( landing is { } floor )
-			{
-				ventLanding = floor;
-				ventDrop = 2.5f;
-			}
-		}
-		if ( ventDrop > 0 && WorldPosition.z - ventLanding.z > 0.6f * Scale ) return true;
-		ventDrop = 0;
-		return false;
 	}
 
 	bool WalksVent( Vector3 next, bool grounded )
@@ -174,11 +148,12 @@ public sealed partial class Lerk
 		var floor = trace.Ray( EyePosition, EyePosition - Vector3.Up * (10 * Scale) ).Run();
 		var ground = floor.Hit ? floor.EndPosition : WorldPosition;
 		var waypoint = FlightWaypoint( goal, ground );
-		bool dropping = DescendingVent( flightPath.Points, Math.Max( 0, pathIndex - 1 ), InCombat );
+		if ( ventEntered.HasValue && !InCombat ) ventDrop.Find( WorldPosition, flightPath.Points, Math.Max( 0, pathIndex - 1 ) );
+		bool dropping = ventDrop.Active( WorldPosition );
 		if ( dropping || WalksVent( waypoint, grounded ) )
 		{
 			ReleaseFlight( body );
-			var toward = (ventLanding - WorldPosition).WithZ( 0 );
+			var toward = (ventDrop.Landing - WorldPosition).WithZ( 0 );
 			if ( dropping && !grounded && body.MotionEnabled && toward.LengthSquared > 0.09f * Scale * Scale )
 				body.Velocity = AirStrafe( velocity, toward, Time.Delta ) * Scale;
 			return;
