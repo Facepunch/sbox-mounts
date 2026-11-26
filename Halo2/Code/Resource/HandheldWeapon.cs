@@ -294,6 +294,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 		else gun = ConfigurePickup<BatteryWeapon>( root, world, title );
 		gun.UsesAmmo = gun.UsesClips = false;
+		gun.VentParticles = ReadMuzzleFlash( Reference( Header + 0x16c ) );
 		gun.HeatPerShot = Float( barrel + 0xa4 );
 		gun.SpentPerShot = Float( barrel + 0xa8 );
 		gun.CooledThreshold = Float( Header + 0x150 );
@@ -360,7 +361,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				var particle = Reference( row );
 				bool additiveSmoke = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery" or @"effects\generic\smoke\smoke_wispy_small_additive";
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
-				bool energySmoke = particle?.TagPath == @"effects\generic\energy\smoke_c_generic";
+				bool energySmoke = particle?.TagPath is @"effects\generic\energy\smoke_c_generic" or @"effects\generic\energy\plasma_overheat";
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
 				bool smoke = additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"

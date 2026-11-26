@@ -4,6 +4,9 @@ public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, Mu
 
 public class BatteryWeapon : HandheldWeapon
 {
+	[Property] public MuzzleFlashDefinition[] VentParticles { get; set; }
+	double nextVentTick;
+
 	[Property] public float HeatPerShot { get; set; }
 	[Property] public float SpentPerShot { get; set; }
 	[Property] public float HeatLoss { get; set; }
@@ -159,6 +162,7 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
+		nextVentTick = 0;
 		rateFraction = 0;
 		base.OnDisabled();
 	}
@@ -166,6 +170,17 @@ public class BatteryWeapon : HandheldWeapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( !Application.IsDedicatedServer && IsHeld && IsActive && Overheated && VentParticles is { Length: > 0 } )
+		{
+			double now = Time.NowDouble;
+			if ( nextVentTick == 0 ) nextVentTick = now + 1 / 30.0;
+			while ( now >= nextVentTick )
+			{
+				EmitMuzzleFlash( VentParticles, continuous: true );
+				nextVentTick += 1 / 30.0;
+			}
+		}
+		else nextVentTick = 0;
 		if ( !Venting || IsProxy ) return;
 		float heat = Heat;
 		if ( heat < CooledThreshold ) return;

@@ -16,16 +16,17 @@ public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 As
 
 public sealed class MuzzleFlash : Component
 {
-	ParticleEffect[] layers;
+	readonly Dictionary<MuzzleFlashDefinition, ParticleEffect[]> layersByEffect = new();
+	readonly Dictionary<ParticleEffect, float> birthRemainder = new();
 	uint seed = (uint)System.Random.Shared.Next();
 
 	float Sample( Vector2 bounds ) => bounds.x == bounds.y ? bounds.x : MathX.Lerp( bounds.x, bounds.y, BlamRandom.Next( ref seed ) / 65535f );
 
-	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, float systemRandom )
+	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, float systemRandom, bool continuous )
 	{
 		foreach ( var light in data.Lights )
 			_ = PelletImpactEffect.PlayLight( GameObject, WorldTransform, light );
-		layers ??= new ParticleEffect[data.Layers.Length];
+		if ( !layersByEffect.TryGetValue( data, out var layers ) ) layersByEffect[data] = layers = new ParticleEffect[data.Layers.Length];
 		for ( int i = 0; i < layers.Length; i++ )
 		{
 			var spec = data.Layers[i];
@@ -35,12 +36,17 @@ public sealed class MuzzleFlash : Component
 			if ( !layer.IsValid() ) continue;
 			if ( spec.Casing is not null ) layer.WorldTransform = WorldTransform.ToWorld( new Transform( spec.Offset, spec.Direction ) );
 			float rate = spec.BirthInput == 5 ? MathX.Lerp( spec.BirthCount.x, spec.BirthCount.y, systemRandom ) : Sample( spec.BirthCount );
-			if ( spec.Emission is {} emission )
+			if ( !continuous && spec.Emission is {} emission )
 			{
 				_ = EmitOverTime( layer, emission, rate * 30 );
 				continue;
 			}
-			int count = (int)(rate + 0.0001f);
+			if ( continuous )
+			{
+				rate += birthRemainder.GetValueOrDefault( layer );
+				birthRemainder[layer] = rate - (int)rate;
+			}
+			int count = continuous ? (int)rate : (int)(rate + 0.0001f);
 			for ( int j = 0; j < count; j++ ) layer.Emit( layer.WorldPosition, 0 );
 		}
 	}
