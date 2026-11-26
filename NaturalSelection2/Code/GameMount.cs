@@ -113,7 +113,7 @@ public class GameMount : BaseGameMount
 		Babbler.RegisterSounds( context );
 		Hydra.RegisterSounds( context );
 		Mac.RegisterSounds( context );
-		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound, Crag.PainSound } )
+		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound, Crag.PainSound, Hive.PainSound } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue, 0 ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Mac.PainSound}_impact.sound", new SparkSoundLoader( Mac.PainSound, 1 ) );
 		foreach ( var cue in new[] { Marine.RifleSound, Marine.PistolSound, "marine/rifle/reload", "marine/pistol/reload",
@@ -130,6 +130,7 @@ public class GameMount : BaseGameMount
 			NpcPrefab.Register( context, "Lerk", Lerk.Configure ),
 			NpcPrefab.Register( context, "Drifter", Drifter.Configure, "ns2_drifter", painSound: Drifter.PainSound ),
 			NpcPrefab.Register( context, "Harvester", Harvester.Configure, "ns2_harvester", painSound: Harvester.PainSound ),
+			NpcPrefab.Register( context, "Hive", Hive.Configure, "ns2_hive", painSound: Hive.PainSound ),
 			NpcPrefab.Register( context, "Crag", Crag.Configure, "ns2_crag", painSound: Crag.PainSound ),
 			NpcPrefab.Register( context, "Marine", Marine.Configure, "ns2_marine", "marine", "male/male" ),
 			NpcPrefab.Register( context, "Minigun Exo", ( root, renderer ) => Exo.Configure( root, renderer, false ), "ns2_exo", "marine", "exosuit/exosuit_mm" ),

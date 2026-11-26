@@ -122,7 +122,9 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		attacking = distance < 1.5f;
 		wantsSpikes = !attacking && distance < 35 && IsPlayerTarget( enemy );
 		if ( goal is null )
-			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+		{
+			if ( !RetreatToHive() ) GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+		}
 		else if ( distance < 1.75f && !IsPlayerTarget( enemy ) )
 			Movement.Stop();
 		else if ( repath <= 0 )
