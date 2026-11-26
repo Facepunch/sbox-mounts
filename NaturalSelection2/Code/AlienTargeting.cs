@@ -195,7 +195,7 @@ internal sealed class AlienTargeting
 			float urgency;
 			var action = alien is Marine && health is Babbler ? MarineAction.AttackBabbler : MarineAction.AttackLifeform;
 			if ( alien is Gorge )
-				urgency = -alien.WorldPosition.DistanceSquared( memory.Position );
+				urgency = -alien.WorldPosition.DistanceSquared( target.WorldPosition );
 			else if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
 			{
 				urgency = fade.AttackUrgency( fadeTarget );

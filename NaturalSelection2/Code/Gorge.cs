@@ -15,7 +15,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
-	readonly AlienTargeting targeting = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 50;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -84,10 +83,11 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 
 	protected override void Think()
 	{
+		var targeting = AlienTargeting.ForTeam( this );
 		var enemy = targeting.FindEnemy( this, out var lastSeen, static ( obj, _ ) =>
 			obj.Tags.HasAny( "structure", "ns2_mac" ) );
-		var threatPosition = lastSeen ?? enemy?.WorldPosition;
-		float combatWeight = AttackWeight( enemy, lastSeen );
+		var threatPosition = enemy?.WorldPosition;
+		float combatWeight = AttackWeight( enemy );
 		bool fleeThrow = combatWeight < 20 && CanFleeThrow( enemy, enemy.IsValid() && lastSeen is null );
 		if ( fleeThrow ) combatWeight = 20;
 		bool structureThrow = false;
@@ -99,7 +99,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			if ( target.IsValid() )
 			{
 				float bileWeight = BileBombUnlocked ? BombardWeight( target ) : 0;
-				float throwWeight = StructureThrowWeight( target, lastSeenBile ?? target.WorldPosition, lastSeen ?? enemy?.WorldPosition );
+				float throwWeight = StructureThrowWeight( target, target.WorldPosition, threatPosition );
 				float weight = Math.Max( bileWeight, throwWeight );
 				if ( weight > combatWeight )
 				{
@@ -153,8 +153,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			return;
 		}
 		assignedTarget = enemy;
-		bombarding = bombard && WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) <= 12 * Scale;
-		var goal = lastSeen ?? enemy?.WorldPosition;
+		bombarding = bombard && visible && WorldPosition.Distance( enemy.WorldPosition ) <= 12 * Scale;
+		var goal = bombard || structureThrow ? enemy.WorldPosition : lastSeen ?? enemy?.WorldPosition;
 		throwing = fleeThrow || structureThrow && visible && WorldPosition.DistanceSquared( goal.Value ) <= 14 * 14 * Scale * Scale;
 		firing = structureThrow ? throwing : visible && (bombard ? bombarding : EyePosition.Distance( goal.Value ) <= 20 * Scale);
 		if ( goal is null )

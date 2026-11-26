@@ -95,11 +95,11 @@ public sealed partial class Gorge
 		return target.GameObject.Tags.Has( "burning" ) ? weight + 0.25f : weight;
 	}
 
-	float AttackWeight( GameObject enemy, Vector3? lastSeen )
+	float AttackWeight( GameObject enemy )
 	{
 		if ( !enemy.IsValid() ) return 0;
 		if ( bombarding ) return 3;
-		float distance = WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) / Scale;
+		float distance = WorldPosition.Distance( enemy.WorldPosition ) / Scale;
 		if ( distance <= 0 ) return float.PositiveInfinity;
 		float urgency = 1 + 1 / Math.Max( 1, distance );
 		if ( distance > 20 )
