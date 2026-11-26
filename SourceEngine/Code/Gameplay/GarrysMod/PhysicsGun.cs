@@ -1,7 +1,7 @@
 namespace Source1.GarrysMod;
 
 /// <summary>The Physics Gun carries the point under the crosshair, including individual ragdoll bodies.</summary>
-public sealed class PhysicsGun : Weapon
+public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 {
 	const float MinRange = 40;
 
@@ -17,12 +17,18 @@ public sealed class PhysicsGun : Weapon
 	[ConVar( "gm_snapangles", ConVarFlags.Saved, Min = -360, Max = 360, Help = "Angle increment for Physics Gun rotation while holding Use and Run." )]
 	public static float SnapAngles { get; set; } = 45;
 
+	[ConVar( "physgun_rotation_sensitivity", ConVarFlags.Saved, Min = 0.01f, Max = 10000, Help = "Sensitivity of mouse rotation while holding Use with the Physics Gun." )]
+	public static float RotationSensitivity { get; set; } = 0.05f;
+
 	enum Trigger { Released, Grab, Adjust, Push, Pull, Freeze }
 	System.IDisposable _movementHook;
 	[Sync] Trigger InputState { get; set; }
 	bool Adjusting => InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull;
 	[Sync] float SnapStep { get; set; } = -1;
 	float? _previousSnapStep;
+	// Accumulate on the owner so a network update can carry several frames of mouse input.
+	[Sync] Rotation MouseRotation { get; set; } = Rotation.Identity;
+	Rotation _lastMouseRotation;
 	[Sync] int SpinDirection { get; set; }
 	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
 	Vector3 _localPoint;
@@ -68,6 +74,19 @@ public sealed class PhysicsGun : Weapon
 		Input.ReleaseAction( "SlotPrev" );
 	}
 
+	void PlayerController.IEvents.OnEyeAngles( ref Angles look )
+	{
+		if ( IsProxy || !Active || !HeldBody.IsValid() || !Input.Down( "attack1" ) || !Input.Down( "use" ) ) return;
+
+		// Source's default mouse pitch and yaw convert one command count into 0.022 degrees of camera motion.
+		const float degreesPerCount = 0.022f;
+		float sensitivity = float.IsFinite( RotationSensitivity ) ? RotationSensitivity.Clamp( 0.01f, 1000 ) : 0.05f;
+		var turn = new Angles( -look.pitch, -look.yaw, 0 ) * (sensitivity / degreesPerCount);
+		if ( turn.pitch != 0 || turn.yaw != 0 )
+			MouseRotation = (turn.ToRotation() * MouseRotation).Normal;
+		look = default;
+	}
+
 	// The controller builds its wish velocity in fixed update, after frame input handling.
 	void RedirectMovement()
 	{
@@ -110,6 +129,7 @@ public sealed class PhysicsGun : Weapon
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_yawOffset = yaw.Inverse * transform.Rotation;
 			_previousSnapStep = null;
+			_lastMouseRotation = MouseRotation;
 			_arrivalTime = body.GetComponentInParent<ModelPhysics>().IsValid() ? 0.1f : 0.05f;
 		}
 
@@ -133,6 +153,13 @@ public sealed class PhysicsGun : Weapon
 	{
 		if ( Adjusting && SpinDirection != 0 )
 			_yawOffset = Rotation.FromYaw( SpinDirection * SpinSpeed * Time.Delta ) * _yawOffset;
+
+		if ( !_lastMouseRotation.Equals( MouseRotation ) )
+		{
+			var delta = Rotation.Difference( _lastMouseRotation, MouseRotation );
+			_yawOffset = (delta * _yawOffset).Normal;
+			_lastMouseRotation = MouseRotation;
+		}
 
 		var target = yaw * _yawOffset;
 		bool snapping = Adjusting && SnapStep >= 0;
