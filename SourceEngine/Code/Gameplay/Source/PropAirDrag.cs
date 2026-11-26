@@ -50,12 +50,20 @@ public sealed class PropAirDrag : Component, IScenePhysicsEvents
 	}
 }
 
-public sealed class PropSpawnSystem( Scene scene ) : GameObjectSystem<PropSpawnSystem>( scene ), Global.ISpawnEvents
+/// <summary>Applies Source physics to props created by any game that spawns mounted models.</summary>
+public sealed class PropSpawnSystem( Scene scene ) : GameObjectSystem<PropSpawnSystem>( scene ), IScenePhysicsEvents
 {
-	void Global.ISpawnEvents.OnPostSpawn( Global.ISpawnEvents.PostSpawnData spawn )
+	readonly List<Prop> props = [];
+
+	void IScenePhysicsEvents.PrePhysicsStep()
 	{
-		if ( spawn.Spawner is not MountSpawner mount ) return;
-		foreach ( var target in spawn.Objects )
-			PropAirDrag.Attach( target, mount.Model );
+		if ( Scene.IsEditor || !Networking.IsHost ) return;
+		Scene.GetAll( props );
+		foreach ( var prop in props )
+		{
+			if ( prop.IsStatic || prop.IsProxy || prop.Model?.ResourcePath?.StartsWith( "mount://", System.StringComparison.Ordinal ) != true || prop.GetComponent<PropAirDrag>().IsValid() ) continue;
+			PropAirDrag.Attach( prop.GameObject, prop.Model );
+		}
+		props.Clear();
 	}
 }
