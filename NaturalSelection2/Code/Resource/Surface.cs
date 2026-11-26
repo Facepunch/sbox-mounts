@@ -63,6 +63,8 @@ internal sealed class SurfaceLoader( string name ) : ResourceLoader<GameMount>
 			"thin_metal" or "light_metal" => "metal.sheet", _ => "metal"
 		};
 		var basis = GameResource.Load<Surface>( $"surfaces/{baseName}.surface" );
+		// During game bootstrap the core surfaces may not be mounted yet. Let the resource load retry then.
+		if ( basis is null ) return null;
 		var sounds = basis.SoundCollection;
 		SoundEvent Sound( string id ) => GameResource.Load<SoundEvent>( $"mount://ns2/{SoundPath( id )}" );
 		sounds.FootLeft = Sound( $"materials/{steps}/footstep_left" );

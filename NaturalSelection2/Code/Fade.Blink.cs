@@ -11,6 +11,7 @@ public sealed partial class Fade
 	TimeUntil releaseBlink;
 	int hopsRemaining;
 	float lastJump;
+	bool jumping;
 	Vector3? airGoal;
 	bool ventBlink;
 	MapLocations locations;
@@ -57,6 +58,7 @@ public sealed partial class Fade
 			jump.z = MathF.Sqrt( 2 * 21.5f * 1.4f ) * Scale;
 			airGoal = goal;
 			Launch( jump );
+			jumping = true;
 			lastJump = Time.Now;
 			if ( hopsRemaining > 0 ) hopsRemaining--;
 			return;

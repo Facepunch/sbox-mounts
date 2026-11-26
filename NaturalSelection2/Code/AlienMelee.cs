@@ -22,12 +22,13 @@ internal static class AlienMelee
 			_ => "metal"
 		};
 		var victim = hit.GameObject?.GetComponentInParent<IDamageable>() as Component;
-		ShowImpact( hit.EndPosition, (hit.EndPosition - hit.StartPosition).Normal, surface, attack, victim?.GameObject );
+		ShowImpact( hit.EndPosition, (hit.EndPosition - hit.StartPosition).Normal, surface, (byte)attack, victim?.GameObject );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ShowImpact( Vector3 position, Vector3 direction, string surface, Attack attack, GameObject victim )
+	static void ShowImpact( Vector3 position, Vector3 direction, string surface, byte attackId, GameObject victim )
 	{
+		var attack = (Attack)attackId;
 		bool gore = attack == Attack.Gore;
 		bool claw = attack is Attack.Swipe or Attack.Stab;
 		var soundPath = claw ? surface switch

@@ -63,8 +63,8 @@ public partial class MaterialLoader( string filePath ) : ResourceLoader<GameMoun
 
 		var path = $"shaders/ns2/{shader[..^".surface_shader".Length].ToLowerInvariant()}.vmat";
 
-		return FileSystem.Mounted.FileExists( path ) || FileSystem.Mounted.FileExists( $"{path}_c" )
-			? Material.Load( path ) : ModelMaterial;
+		var material = Material.Load( path );
+		return material is { IsError: false } ? material : ModelMaterial;
 	}
 
 	private void ApplyTexture( Material material, Property property )

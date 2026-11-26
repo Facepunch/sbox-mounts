@@ -23,7 +23,8 @@ public sealed partial class Fade : AlienLifeform
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback weapon;
 	Action<string> worldTag, weaponTag;
-	Rotation view;
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation view { get; set; }
+	float standingYaw;
 	bool attacking, stabSelected, stabbing, drawingWeapon;
 	TimeUntil weaponSwitch;
 	[Property] public bool StabUnlocked { get; set; } = true;
@@ -83,6 +84,7 @@ public sealed partial class Fade : AlienLifeform
 	protected override void OnStart()
 	{
 		base.OnStart();
+		standingYaw = WorldRotation.Angles().yaw;
 		if ( !Networking.IsHost ) return;
 		world = CreatePlayback( Renderer.Model.ResourcePath );
 		weapon = CreatePlayback( "mount://ns2/ns2/models/alien/fade/fade_view.model.vmdl" );
@@ -241,7 +243,18 @@ public sealed partial class Fade : AlienLifeform
 		UpdateCrouch();
 		UpdateBlinkPresentation();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
-		output?.Set( "move_speed", Animation.MoveVelocity.Length / (6.2f * Scale) );
+		if ( Networking.IsHost && Health > 0 ) UpdateAttack( assignedEnemy );
+		var velocity = Animation.MoveVelocity.WithZ( 0 );
+		float yaw = view.Angles().yaw;
+		float offset = Angles.NormalizeAngle( standingYaw - yaw );
+		offset = Animation.MoveVelocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
+		standingYaw = yaw + offset;
+		Renderer.WorldRotation = Rotation.FromYaw( yaw );
+		output?.Set( "body_yaw", offset % 90 );
+		output?.Set( "body_pitch", -view.Angles().pitch );
+		output?.Set( "move_speed", velocity.Length / (6.2f * Scale) );
+		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
+			MathF.Atan2( Vector3.Dot( velocity, view.Forward ), Vector3.Dot( velocity, view.Left ) ).RadianToDegree() );
 		if ( !Networking.IsHost )
 		{
 			if ( output is null ) return;
@@ -253,14 +266,20 @@ public sealed partial class Fade : AlienLifeform
 		if ( world is null || weapon is null || Health <= 0 ) return;
 		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
-		UpdateAttack( assignedEnemy );
 		energy = Math.Min( 100, energy + GetEnergyRechargeRate( 15 ) * Time.Delta );
 		bool metabolizing = metabolizeAnimation > 0;
 		var ability = metabolizing ? "vortex" : stabSelected ? "stab" : "swipe";
 		var activity = metabolizing || attacking && !drawingWeapon && !Blinking && energy >= (stabSelected ? 25 : 7) ? "primary" : "none";
-		world.Set( "attack_speed", 1 );
+		float attackSpeed = (GameObject.Tags.Has( "enzymed" ) ? 1.25f : 1f) * (GameObject.Tags.Has( "electrified" ) ? 0.7f : 1f);
+		world.Set( "attack_speed", attackSpeed );
+		world.Set( "onfire", GameObject.Tags.Has( "burning" ) ? 1 : 0 );
 		world.Set( "alive", 1 );
-		world.Set( "move", Blinking ? "blink" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle" );
+		if ( IsOnGround ) jumping = false;
+		if ( !metabolizing )
+		{
+			bool moving = Movement.IsMoving || Animation.MoveVelocity.Length > 0.1f * Scale;
+			world.Set( "move", Blinking ? "blink" : jumping ? "jump" : moving ? "run" : "idle" );
+		}
 		world.Set( "ability", ability );
 		world.Set( "activity", activity );
 		world.Update( AnimationTime, output, worldTag );
@@ -268,7 +287,7 @@ public sealed partial class Fade : AlienLifeform
 		attackPose = world.GetPose( 1 );
 		weapon.Set( "move", Blinking ? "blink" : "idle" );
 		weapon.Set( "ability", ability );
-		weapon.Set( "attack_speed", 1 );
+		weapon.Set( "attack_speed", attackSpeed );
 		weapon.Set( "activity", activity );
 		weapon.Update( AnimationTime, tag: weaponTag );
 		drawingWeapon = false;
