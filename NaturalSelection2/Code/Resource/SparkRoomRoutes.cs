@@ -15,6 +15,8 @@ internal sealed class SparkRoomRoutes
 	readonly record struct Floor( int Region, float Z, int Portals );
 	readonly List<Region> regions = [];
 	readonly Dictionary<(int, int), List<Floor>> borders = [];
+	(Vector3 Position, int Room, int Group)[] cells = [];
+	int[] queue = [];
 	readonly int[] anchors;
 	readonly float[] nearest;
 
@@ -24,11 +26,14 @@ internal sealed class SparkRoomRoutes
 		var graph = new SparkRoomRoutes( destinations.Length );
 		var ids = destinations.Select( (d, i) => (d.Name, i) ).ToDictionary( d => d.Name, d => d.i );
 		var bounds = new BBox( -Vector3.One, Vector3.One );
-		var rooms = volumes.Select( v => (v.Bounds, Box: bounds.Transform( v.Bounds ), Room: ids[v.Name]) ).ToArray();
+		var rooms = volumes.Select( v => (Volume: v, Box: bounds.Transform( v.Bounds ), Room: ids[v.Name]) ).ToArray();
+		var candidates = new List<(MapLocations.Volume Volume, BBox Box, int Room)>( rooms.Length );
 		SparkNavGrid.Read( data, ( layer, heights, areas, connections ) =>
 		{
-			var candidates = rooms.Where( r => r.Box.Mins.x <= layer.Max.x && r.Box.Maxs.x >= layer.Min.x &&
-				r.Box.Mins.y <= layer.Max.y && r.Box.Maxs.y >= layer.Min.y ).ToArray();
+			candidates.Clear();
+			foreach ( var room in rooms )
+				if ( room.Box.Mins.x <= layer.Max.x && room.Box.Maxs.x >= layer.Min.x && room.Box.Mins.y <= layer.Max.y && room.Box.Maxs.y >= layer.Min.y )
+					candidates.Add( room );
 			graph.AddLayer( layer, heights, areas, connections, cellHeight, climb, candidates, destinations );
 		} );
 		return graph.DirectPaths( destinations );
@@ -43,29 +48,27 @@ internal sealed class SparkRoomRoutes
 	}
 
 	void AddLayer( SparkNavGrid.Layer layer, ReadOnlySpan<byte> heights, ReadOnlySpan<byte> areas, ReadOnlySpan<byte> connections,
-		float cellHeight, float climb, (Transform Bounds, BBox Box, int Room)[] volumes, MapLocations.Destination[] destinations )
+		float cellHeight, float climb, List<(MapLocations.Volume Volume, BBox Box, int Room)> volumes, MapLocations.Destination[] destinations )
 	{
 		int count = areas.Length, stride = layer.Height;
-		var positions = new Vector3[count];
-		var labels = new int[count];
-		var groups = new int[count];
-		Array.Fill( groups, -1 );
+		if ( cells.Length < count )
+		{
+			cells = new (Vector3, int, int)[count];
+			queue = new int[count];
+		}
 		float dx = (layer.Max.x - layer.Min.x) / layer.Width, dy = (layer.Max.y - layer.Min.y) / stride;
 		// Flood each connected part of a room in this layer into a single routing node.
-		var queue = new int[count];
 		for ( int i = 0; i < count; i++ )
 		{
+			cells[i] = (default, 0, -1);
 			if ( areas[i] == 0 ) continue;
 			var p = layer.Min + new Vector3( (i / stride + 0.5f) * dx, (i % stride + 0.5f) * dy, heights[i] * cellHeight );
-			positions[i] = p;
-			labels[i] = -1;
+			cells[i] = (p, -1, -1);
 			foreach ( var volume in volumes )
 			{
-				if ( !volume.Box.Contains( p ) ) continue;
-				var local = volume.Bounds.PointToLocal( p );
-				if ( local.x is >= -1 and < 1 && local.y is >= -1 and < 1 && local.z is >= -1 and < 1 )
+				if ( volume.Box.Contains( p ) && volume.Volume.Contains( p ) )
 				{
-					labels[i] = volume.Room;
+					cells[i].Room = volume.Room;
 					break;
 				}
 			}
@@ -73,17 +76,17 @@ internal sealed class SparkRoomRoutes
 
 		for ( int i = 0; i < count; i++ )
 		{
-			if ( areas[i] == 0 || groups[i] >= 0 ) continue;
-			int id = regions.Count, room = labels[i];
+			if ( areas[i] == 0 || cells[i].Group >= 0 ) continue;
+			int id = regions.Count, room = cells[i].Room;
 			var region = new Region( room );
 			regions.Add( region );
-			groups[i] = id;
+			cells[i].Group = id;
 			queue[0] = i;
 			int length = 1;
 			for ( int k = 0; k < length; k++ )
 			{
 				int cell = queue[k], x = cell / stride, y = cell % stride;
-				var p = positions[cell];
+				var p = cells[cell].Position;
 				region.Center += p;
 				if ( room >= 0 )
 				{
@@ -98,13 +101,13 @@ internal sealed class SparkRoomRoutes
 					int nx = x + stepX, ny = y + stepY;
 					if ( (uint)nx >= layer.Width || (uint)ny >= stride ) continue;
 					int n = nx * stride + ny;
-					if ( groups[n] >= 0 )
+					if ( cells[n].Group >= 0 )
 					{
-						if ( groups[n] != id ) Link( id, groups[n] );
+						if ( cells[n].Group != id ) Link( id, cells[n].Group );
 					}
-					else if ( labels[n] == room )
+					else if ( cells[n].Room == room )
 					{
-						groups[n] = id;
+						cells[n].Group = id;
 						queue[length++] = n;
 					}
 				}

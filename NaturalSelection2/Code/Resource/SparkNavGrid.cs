@@ -12,8 +12,7 @@ internal static class SparkNavGrid
 
 	internal static void Read( byte[] data, Visit visit )
 	{
-		using var reader = new BinaryReader( new MemoryStream( data ) );
-		reader.BaseStream.Position = 16;
+		var reader = new LevelReader( data ) { Position = 16 };
 		int slots = checked(reader.ReadInt32() * reader.ReadInt32() * reader.ReadInt32());
 		if ( slots < 0 || slots > (data.Length - 28) / 4 ) throw new InvalidDataException( "Invalid tile count" );
 		byte[] buffer = [];
@@ -21,10 +20,8 @@ internal static class SparkNavGrid
 		{
 			int size = reader.ReadInt32();
 			if ( size == 0 ) continue;
-			int offset = (int)reader.BaseStream.Position;
-			if ( size < 56 || size > data.Length - offset ) throw new InvalidDataException( "Invalid tile size" );
-			var bytes = data.AsSpan( offset, size );
-			reader.BaseStream.Position += size;
+			if ( size < 56 ) throw new InvalidDataException( "Invalid tile size" );
+			var bytes = reader.ReadSpan( size );
 			if ( !bytes[..4].SequenceEqual( "RLTD"u8 ) || BinaryPrimitives.ReadInt32LittleEndian( bytes[4..] ) != 1 )
 				throw new InvalidDataException( "Unsupported tile layer" );
 

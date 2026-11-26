@@ -21,7 +21,7 @@ internal sealed class LevelFile
 	/// honoured at runtime, so this is informational only.</summary>
 	public Dictionary<int, LevelGroup> Layers { get; } = new();
 
-	public readonly record struct LevelChunk( int Type, long Offset, int Length );
+	public readonly record struct LevelChunk( long Offset, int Length );
 
 	public static LevelFile Read( byte[] bytes )
 	{
@@ -53,7 +53,7 @@ internal sealed class LevelFile
 			}
 			else if ( type == 2 )
 			{
-				level.WorldMesh = new LevelChunk( type, dataStart, (int)length );
+				level.WorldMesh = new LevelChunk( dataStart, (int)length );
 			}
 			else if ( type == 5 || (type == 3 && level.Version != 3) )
 			{
@@ -80,19 +80,14 @@ internal sealed class LevelFile
 			int chars = r.ReadCount( 2 );
 
 			string name = chars > 0 ? Encoding.Unicode.GetString( r.ReadBytes( chars * 2 ).Span ) : string.Empty;
-			int visible = r.ReadInt32();
-			r.ReadInt32(); // rgba
+			r.Skip( 8 ); // Editor visibility and color
 			int id = r.ReadInt32();
 
-			into[id] = new LevelGroup( id, name, visible != 0 );
+			into[id] = new LevelGroup( id, name );
 		}
 	}
 
-	private static string ReadUtf8( LevelReader r )
-	{
-		int n = r.ReadCount( 1 );
-		return Encoding.UTF8.GetString( r.ReadBytes( n ).Span );
-	}
+	private static string ReadUtf8( LevelReader r ) => Encoding.UTF8.GetString( r.ReadSpan( r.ReadCount( 1 ) ) );
 
 	private static LevelEntity ReadEntity( LevelReader r, int version, long end )
 	{
@@ -108,15 +103,8 @@ internal sealed class LevelFile
 			if ( layerCount != 0 )
 			{
 				uint tag = r.ReadUInt32();
-				if ( tag == 0x100 )
-				{
-					ReadUtf8( r );
-				}
-				else if ( tag == 2 )
-				{
-					int n = r.ReadCount( 4 );
-					r.Skip( n * 4L );
-				}
+				if ( tag == 0x100 ) r.Skip( r.ReadCount( 1 ) );
+				else if ( tag == 2 ) r.Skip( r.ReadCount( 4 ) * 4L );
 				else
 					throw new InvalidDataException( $"Unsupported NS2 entity layer encoding {tag}." );
 			}
@@ -124,8 +112,8 @@ internal sealed class LevelFile
 		}
 
 		var entity = new LevelEntity { Name = ReadUtf8( r ), GroupId = groupId };
-
 		int propCount = version > 9 ? r.ReadCount( 8 ) : -1;
+		if ( propCount > 0 ) entity.Properties.EnsureCapacity( propCount );
 
 		int i = 0;
 		while ( r.Position < end && (propCount < 0 || i < propCount) )
@@ -164,7 +152,7 @@ internal sealed class LevelFile
 	}
 }
 
-internal readonly record struct LevelGroup( int Id, string Name, bool EditorVisible );
+internal readonly record struct LevelGroup( int Id, string Name );
 
 /// <summary>
 /// Spark treats a handful of group names specially. The lists below come from NS2's shipped Lua
@@ -505,8 +493,8 @@ internal sealed class LevelMesh
 
 internal sealed class LevelEntity
 {
-	public string Name { get; set; } = string.Empty;
-	public int GroupId { get; set; } = -1;
+	public string Name { get; init; }
+	public int GroupId { get; init; }
 	public Dictionary<string, LevelValue> Properties { get; } = new( StringComparer.OrdinalIgnoreCase );
 
 	public bool Has( string key ) => Properties.ContainsKey( key );

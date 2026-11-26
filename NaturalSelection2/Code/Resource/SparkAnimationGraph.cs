@@ -7,7 +7,7 @@ namespace NS2;
 /// <summary>Authored states, inputs and layers in a Spark .animation_graph.</summary>
 internal sealed partial class SparkAnimationGraph
 {
-	record Condition( int Input, int Comparison, double Value )
+	readonly record struct Condition( int Input, int Comparison, double Value )
 	{
 		public bool Matches( double[] inputs ) => (uint)Input < inputs.Length && Comparison switch
 		{
@@ -49,6 +49,7 @@ internal sealed partial class SparkAnimationGraph
 	// Resolve transitions at import time. Only props that actually change clips need a component.
 	public (string[] Clips, int Loop) Resolve( string animation )
 	{
+		if ( layers.Length == 0 ) return ([], -1);
 		var input = new double[inputs.Length];
 		for ( int i = 0; i < inputs.Length; i++ )
 		{
@@ -59,7 +60,6 @@ internal sealed partial class SparkAnimationGraph
 
 		var sequence = new List<string>();
 		var visited = new Dictionary<int, int>();
-		if ( layers.Length == 0 ) return ([], -1);
 		var nodes = layers[0].Nodes;
 		int index = layers[0].Start;
 		while ( (uint)index < nodes.Length )
