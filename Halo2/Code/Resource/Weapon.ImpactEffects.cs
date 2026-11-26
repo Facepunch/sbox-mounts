@@ -10,16 +10,19 @@ internal abstract partial class WeaponLoader
 	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null ) =>
 		ReadMaterialRows( materials, source, referenceOffset, action, bankOffset, materialParents ).ToDictionary( e => e.Key, e => Reference( e.Value ), StringComparer.OrdinalIgnoreCase );
 
-	protected Dictionary<string, string[]> ReadBounceSounds( int materials, TagEntry projectile )
+	protected Dictionary<string, string[]> ReadProjectileSounds( int materials, TagEntry projectile, int action, Dictionary<string, string> parents = null )
 	{
-		var sounds = new Dictionary<string, string[]>( StringComparer.OrdinalIgnoreCase );
-		var entries = ReadMaterialRows( materials, projectile, 0x54, 19, 8 );
+		var entries = ReadMaterialRows( materials, projectile, 0x54, action, 8, parents );
+		var surfaceSounds = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
 		for ( int i = 0, row = Block( materials ); i < map.ReadInt32( materials ); i++, row += 0xb4 )
+			if ( map.ResolveStringId( map.ReadInt32( row ) ) is { Length: > 0 } name )
+				surfaceSounds[name] = Reference( row + 0x38 );
+
+		var sounds = new Dictionary<string, string[]>( StringComparer.OrdinalIgnoreCase );
+		foreach ( var (name, entry) in entries )
 		{
-			var name = map.ResolveStringId( map.ReadInt32( row ) );
-			if ( string.IsNullOrEmpty( name ) || !entries.TryGetValue( name, out int entry ) ) continue;
-			var surfaceSound = map.ReadSpan( entry + 22, 1 )[0] == 1 ? Reference( row + 0x38 ) : null;
-			sounds[name] = new[] { Reference( entry ), surfaceSound, Reference( entry + 8 ) }
+			var surface = map.ReadSpan( entry + 22, 1 )[0] == 1 ? surfaceSounds.GetValueOrDefault( name ) : null;
+			sounds[name] = new[] { Reference( entry ), surface, Reference( entry + 8 ) }
 				.Where( tag => tag?.PrimaryClass == "!dns" ).Select( tag => Host.AssetPath( map, tag.TagPath, "sound" ) ).ToArray();
 		}
 		return sounds;

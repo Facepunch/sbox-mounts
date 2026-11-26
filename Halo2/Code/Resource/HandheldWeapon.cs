@@ -48,7 +48,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	Dictionary<string, TagEntry> contactEffects, contactSounds;
+	Dictionary<string, TagEntry> contactEffects;
+	Dictionary<string, string[]> contactSounds;
 
 	void LoadContactBanks( Dictionary<string, string> materialParents )
 	{
@@ -61,7 +62,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		if ( Short( response + 2 ) != 0 || Short( response + 0x14 ) is not (0 or 4) ) return;
 		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
 		contactEffects = ReadMaterialBank( materials, projectile, 0x54, 15, 16, materialParents );
-		contactSounds = ReadMaterialBank( materials, projectile, 0x54, 15, 8, materialParents );
+		contactSounds = ReadProjectileSounds( materials, projectile, 15, materialParents );
 	}
 
 	internal void RegisterEffects( MountContext context, HashSet<string> registered, Dictionary<string, string> materialParents )
@@ -235,7 +236,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 					gun.Bounce = new( Float( response + 0x1c ), Float( response + 0x20 ), Float( response + 0x50 ), Float( response + 0x54 ),
 						(int)MathF.Round( Float( projectile + 0xd4 ) * 30 ) )
 					{
-						Sounds = ReadBounceSounds( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150, Reference( barrel + 0x8c ) )
+						Sounds = ReadProjectileSounds( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150, Reference( barrel + 0x8c ), 19 )
 					};
 			}
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
@@ -251,7 +252,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		if ( contactEffects is not null )
 		{
 			gun.ProjectileContactEffects = contactEffects.ToDictionary( e => e.Key, e => e.Value is {} tag ? Host.AssetPath( map, tag.TagPath, "prefab" ) : null );
-			gun.ProjectileContactSounds = contactSounds.ToDictionary( e => e.Key, e => e.Value is {} tag ? Host.AssetPath( map, tag.TagPath, "sound" ) : null );
+			gun.ProjectileContactSounds = contactSounds;
 		}
 		gun.Trail = ReadTrail( projectile );
 		int flags = map.ReadInt32( projectile + 0xbc );

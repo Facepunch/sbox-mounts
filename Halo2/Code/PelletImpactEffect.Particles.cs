@@ -23,6 +23,8 @@ public sealed partial class PelletImpactEffect
 		public CurveRange? SpawnRadiusCurve { get; set; }
 		public int SpawnRadiusRange { get; set; }
 		public int AlphaRange { get; set; }
+		public CurveRange? CountCurve { get; set; }
+		public int CountRange { get; set; }
 		public int CountInput { get; set; }
 		public int LifeInput { get; set; }
 		public int SpeedInput { get; set; }
@@ -84,33 +86,44 @@ public sealed partial class PelletImpactEffect
 	float ParticleFraction() => BlamRandom.Next( ref impactParticleSeed ) * (1f / 65535f);
 	static float Sample( Vector2 bounds, float t ) => bounds.x + (bounds.y - bounds.x) * t;
 
-	Vector2[] InitializeImpactSystems( int count )
+	sealed class ImpactSystem( Vector2 random )
 	{
-		// World effects initialize every system and location before allocating the first particle.
-		var systemRandom = new Vector2[count];
-		for ( int i = 0; i < count; i++ )
-		{
-			systemRandom[i] = new Vector2( ParticleFraction(), ParticleFraction() );
-			BlamRandom.Next( ref impactParticleSeed ); // Location random byte
-		}
-		return systemRandom;
+		public readonly Vector2 Random = random;
+		public float Progress;
+		public float Remainder;
+		public ParticleEffect Layer;
 	}
 
-	void EmitImpactParticles( ImpactEmitter[] emitters, Vector2[] systemRandom, ParticleEffect[] layers, float previous, float active, GameObject parent, Transform contact, Vector3 incoming )
+	ImpactSystem[] InitializeImpactSystems( int count )
+	{
+		// World effects initialize every system and location before allocating the first particle.
+		var systems = new ImpactSystem[count];
+		for ( int i = 0; i < count; i++ )
+		{
+			systems[i] = new( new Vector2( ParticleFraction(), ParticleFraction() ) );
+			BlamRandom.Next( ref impactParticleSeed ); // Location random byte
+		}
+		return systems;
+	}
+
+	void EmitImpactParticles( ImpactEmitter[] emitters, ImpactSystem[] systems, float interval, float progress, GameObject parent, Transform contact, Vector3 incoming )
 	{
 		for ( int i = 0; i < emitters.Length; i++ )
 		{
 			if ( emitters[i] is not {} emitter ) continue;
-			var random = systemRandom[i];
-			// Particle random inputs are zero until a particle has been allocated.
-			float input = emitter.CountInput switch { 4 => 1, 5 => random.x, 6 => random.y, _ => 0 };
-			float rate = Sample( emitter.Count, input ) * 30;
-			int births = (int)(rate * active + 0.0001f) - (int)(rate * previous + 0.0001f);
-			EmitImpactLayer( emitter, ref layers[i], births, parent, contact, incoming, random );
+			var system = systems[i];
+			system.Progress = progress;
+			float Input( int id ) => id switch { 4 => progress, 5 => system.Random.x, 6 => system.Random.y, _ => 0 };
+			float input = Input( emitter.CountInput );
+			float rate = emitter.CountCurve?.Evaluate( input, Input( emitter.CountRange ) ) ?? Sample( emitter.Count, input );
+			system.Remainder += rate * 30 * interval;
+			int births = (int)(system.Remainder + 0.00001f);
+			system.Remainder -= births;
+			EmitImpactLayer( emitter, births, parent, contact, incoming, system );
 		}
 	}
 
-	void EmitImpactLayer( ImpactEmitter data, ref ParticleEffect layer, int births, GameObject parent, Transform contact, Vector3 incoming, Vector2 random )
+	void EmitImpactLayer( ImpactEmitter data, int births, GameObject parent, Transform contact, Vector3 incoming, ImpactSystem system )
 	{
 		if ( births == 0 ) return;
 		var transform = ImpactTransform( data, contact, incoming );
@@ -120,7 +133,7 @@ public sealed partial class PelletImpactEffect
 			if ( data.Layer == ImpactLayer.ShieldDepletion )
 			{
 				var sprite = Sprite.FromTexture( Texture.Load( data.Sprite.TexturePath ) );
-				var effect = CreateImpactLayer( data, sprite, parent, transform, random );
+				var effect = CreateImpactLayer( data, sprite, parent, transform, system );
 				for ( int i = 0; i < births; i++ ) effect.Emit( transform.Position, 0 );
 				return;
 			}
@@ -128,14 +141,15 @@ public sealed partial class PelletImpactEffect
 			for ( int i = 0; i < births; i++ )
 			{
 				var sprite = Sprite.FromTexture( Texture.Load( data.Sprite.TexturePath ) );
-				CreateImpactLayer( data, sprite, parent, transform, random ).Emit( transform.Position, 0 );
+				CreateImpactLayer( data, sprite, parent, transform, system ).Emit( transform.Position, 0 );
 			}
 			return;
 		}
 		if ( data.DebrisFrames is not {} frames )
 		{
+			ref var layer = ref system.Layer;
 			if ( !layer.IsValid() || layer.ParticleCount + births > layer.MaxParticles )
-				layer = CreateImpactLayer( data, data.Sprite?.Get(), parent, transform, random );
+				layer = CreateImpactLayer( data, data.Sprite?.Get(), parent, transform, system );
 			else
 				layer.WorldTransform = transform;
 			for ( int i = 0; i < births; i++ ) layer.Emit( transform.Position, 0 );
@@ -159,7 +173,7 @@ public sealed partial class PelletImpactEffect
 				frame = (int)((1 + BlamRandom.Next( ref seed ) * (1f / 65535f)) * count) % count;
 			}
 			int variant = frame * mirrors + (mirrors == 4 ? (int)(second & 1) * 2 : 0) + horizontal;
-			var effect = effects[variant] ??= CreateImpactLayer( data, frames[variant].Sprite.Get(), parent, transform, random, variant );
+			var effect = effects[variant] ??= CreateImpactLayer( data, frames[variant].Sprite.Get(), parent, transform, system, variant );
 			effect.Emit( transform.Position, 0 );
 		}
 	}
@@ -177,8 +191,9 @@ public sealed partial class PelletImpactEffect
 		return new Transform( contact.Position + rotation * data.Offset, rotation * data.Direction );
 	}
 
-	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform transform, Vector2 random, int variant = 0 )
+	ParticleEffect CreateImpactLayer( ImpactEmitter data, Sprite sprite, GameObject parent, Transform transform, ImpactSystem system, int variant = 0 )
 	{
+		var random = system.Random;
 		bool sparks = data.Layer == ImpactLayer.Sparks;
 		bool animatedRadius = HasAnimatedRadius( data.Layer );
 		var go = new GameObject( parent, false, $"Pellet impact {data.Layer}" );
@@ -275,14 +290,18 @@ public sealed partial class PelletImpactEffect
 				p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( 0, 1 );
 				p.Angles.roll = data.SpriteAngle.Evaluate( t, life ).Clamp( data.AngleBounds.x, data.AngleBounds.y ) * 360 + p.Get<float>( "mirror_angle" );
 			}
-			else p.Alpha = data.AlphaCurve.Evaluate( t, p.Get<float>( "alpha_range" ) ).Clamp( data.Alpha.x, data.Alpha.y );
+			else
+			{
+				float alphaInput = data.AlphaInput switch { 0 => t, 4 => system.Progress, _ => p.Get<float>( "alpha_input" ) };
+				p.Alpha = data.AlphaCurve.Evaluate( alphaInput, p.Get<float>( "alpha_range" ) ).Clamp( data.Alpha.x, data.Alpha.y );
+			}
 			if ( data.AlphaScale is {} alphaScale ) p.Alpha *= alphaScale.Evaluate( t, life ).Clamp( 0, 1 );
 			if ( data.Layer == ImpactLayer.AdditiveSprite && data.FrameCurve is {} frameCurve ) p.SequenceTime = new Vector3( frameCurve.Evaluate( t, life ), 0, 0 );
 			if ( animatedRadius )
 			{
-				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
+				float input = data.SizeInput switch { 0 => t, 4 => system.Progress, _ => p.Get<float>( "size" ) };
 				p.Size = data.RadiusCurve.Evaluate( input, p.Get<float>( "radius_range" ) ).Clamp( data.Size.x, data.Size.y );
-				if ( data.ParticleRadius is {} radiusScale ) p.Size = data.SpriteAspect * (p.Size.x * radiusScale.Evaluate( t, life ));
+				if ( data.ParticleRadius is {} radiusScale ) p.Size *= radiusScale.Evaluate( t, life );
 				if ( data.Layer is ImpactLayer.Burst or ImpactLayer.AdditiveFlare )
 				{
 					var aspect = data.SpriteAspect;
@@ -291,6 +310,7 @@ public sealed partial class PelletImpactEffect
 					p.Size = aspect * p.Size.x;
 					ShotgunModel.AlignToVelocity( p, go.Scene.Camera, go.WorldRotation.Up, data.Layer == ImpactLayer.Burst || data.VerticalSprite );
 				}
+				else if ( data.ParticleRadius.HasValue ) p.Size = data.SpriteAspect * p.Size.x;
 				if ( data.Layer is ImpactLayer.Shield or ImpactLayer.Spray or ImpactLayer.Ripple ) p.Size = new Vector2( p.Size.x, p.Size.x * p.Get<float>( "mirror" ) );
 				if ( data.DebrisFrames is not null ) p.Size = p.Get<Vector2>( "debris_aspect" ) * p.Size.x;
 				return;
@@ -315,8 +335,9 @@ public sealed partial class PelletImpactEffect
 			uint r0 = BlamRandom.Next( ref impactParticleSeed ), r1 = BlamRandom.Next( ref impactParticleSeed );
 			float life = r0 * (1f / 65535f), fraction = r1 * (1f / 65535f), size = ParticleFraction();
 			float fourth = ParticleFraction();
-			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, 4 => 1, 5 => random.x, 6 => random.y, _ => 0 };
+			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, 4 => system.Progress, 5 => random.x, 6 => random.y, _ => 0 };
 			p.Set( "life_fraction", life );
+			p.Set( "alpha_input", RandomInput( data.AlphaInput ) );
 			p.Set( "alpha_range", RandomInput( data.AlphaRange ) );
 			if ( data.AgeTint.HasValue ) p.Set( "tint_range", RandomInput( data.ColorRange ) );
 			float lifetime = Sample( data.Lifetime, RandomInput( data.LifeInput ) );

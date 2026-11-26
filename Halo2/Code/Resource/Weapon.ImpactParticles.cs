@@ -19,7 +19,7 @@ internal abstract partial class WeaponLoader
 			0 => 0,
 			1 => 4,
 			2 when Short( data + 2 ) == 0 => 8, // Linear transition.
-			3 when Short( data + 2 ) is >= 8 and <= 10 && !ranged => 16, // Periodic noise.
+			3 when map.ReadSpan( data + 2, 1 )[0] is >= 8 and <= 10 && (!ranged || map.ReadSpan( data + 3, 1 )[0] is >= 8 and <= 10) => 16, // Periodic noise.
 			4 => 24,
 			5 => 80,
 			7 or 10 => 48,
@@ -42,7 +42,7 @@ internal abstract partial class WeaponLoader
 				{
 					float x = phase + t * frequency;
 					int index = (int)x;
-					var table = Host.GetPeriodicNoise( Short( data + 2 ) );
+					var table = Host.GetPeriodicNoise( map.ReadSpan( data + (upper ? 3 : 2), 1 )[0] );
 					float noise = (table[index & 1023] + (x - index) * (table[(index + 1) & 1023] - table[index & 1023])) / 255f;
 					return Key( t, (low + (high - low) * noise).Clamp( 0, 1 ) );
 				}
@@ -203,6 +203,7 @@ internal abstract partial class WeaponLoader
 				Direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 ),
 				SpeedCurve = Short( emitter + 40 ) == 4 ? ReadRange( emitter + 40, 120 ) : null, SpeedRange = Short( emitter + 42 ),
 				SpawnRadiusCurve = Short( emitter + 124 ) == 4 ? ReadRange( emitter + 124, 120 ) : null, SpawnRadiusRange = Short( emitter + 126 ),
+				CountCurve = Short( emitter + 8 ) == 4 ? ReadRange( emitter + 8, 1 ) : null, CountRange = Short( emitter + 10 ),
 				AlphaRange = Short( emitter + 106 ), CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
@@ -211,7 +212,7 @@ internal abstract partial class WeaponLoader
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = motion.Water,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				ParticleRadius = smokeSprite ? ReadRange( definition + 60, 1 ) : null,
+				ParticleRadius = smokeSprite || layer == ImpactLayer.AdditiveFlare ? ReadRange( definition + 60, 1 ) : null,
 				AlphaScale = smokeSprite || layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
 				AgeTint = Short( emitter + 88 ) == 0 && (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2 && map.ReadSpan( color, 1 )[0] == 5
 					? ReadRange( emitter + 88, 1, fraction: true ) : null,

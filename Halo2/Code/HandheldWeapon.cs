@@ -125,7 +125,7 @@ public abstract class HandheldWeapon : Weapon
 	}
 
 	[Property] public Dictionary<string, string> ProjectileContactEffects { get; set; }
-	[Property] public Dictionary<string, string> ProjectileContactSounds { get; set; }
+	[Property] public Dictionary<string, string[]> ProjectileContactSounds { get; set; }
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
@@ -135,9 +135,9 @@ public abstract class HandheldWeapon : Weapon
 			return;
 		}
 		if ( !shot.Hit ) return;
-		if ( ProjectileContactSounds is not null && ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ) is {} cue &&
-			GameResource.Load<SoundEvent>( cue ) is {} sound )
-			Sound.Play( sound, shot.HitPosition );
+		if ( ProjectileContactSounds is not null && ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ) is {} cues )
+			foreach ( var cue in cues )
+				if ( GameResource.Load<SoundEvent>( cue ) is {} sound ) Sound.Play( sound, shot.HitPosition );
 		var path = ContactMaterial.Lookup( ProjectileContactEffects, shot.Surface, true );
 		if ( path is not null )
 			PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,

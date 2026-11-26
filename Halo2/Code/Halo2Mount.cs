@@ -110,10 +110,10 @@ public class Halo2Mount : BaseGameMount
 		foreach ( var (name, item) in handhelds )
 		{
 			item.Tags.Add( "weapon" );
-			item.RegisterEffects( context, registeredEffects, materialParents );
 			if ( item.UsesMagazine )
 				context.Add( ResourceType.GameResource, item.AmmoPath, new WeaponAmmoLoader( $"{item.Title} rounds", item.MaxReserve ) );
 			context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", item );
+			item.RegisterEffects( context, registeredEffects, materialParents );
 		}
 		IsMounted = true;
 		return Task.CompletedTask;
