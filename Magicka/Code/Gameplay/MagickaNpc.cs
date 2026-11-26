@@ -14,9 +14,7 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 	[Property] public string CharacterName { get; set; } = "Magicka NPC";
 	[Property] public float StartingHealth { get; set; } = 100f;
 	[Property] public float MoveSpeed { get; set; } = 110f;
-	[Property] public float AttackRange { get; set; } = 72f;
 	[Property] public float AttackDamage { get; set; } = 15f;
-	[Property] public float AttackInterval { get; set; } = 1.4f;
 	[Property] public float AttackDelay { get; set; } = 0.35f;
 	[Property] public float AttackHeight { get; set; } = 32f;
 	[Property] public float CorpseSeconds { get; set; } = 10f;
@@ -44,7 +42,6 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 	[Property] public string[] HealClips { get; set; } = [];
 	[Property] public string MissileModel { get; set; }
 	[Property] public Color MissileColor { get; set; } = Color.White;
-	[Property] public bool RangedAttack { get; set; }
 
 	[Property] public string[] AlertSounds { get; set; } = [];
 	[Property] public string[] AttackSounds { get; set; } = [];

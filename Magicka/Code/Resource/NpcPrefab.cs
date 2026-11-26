@@ -149,8 +149,6 @@ internal sealed class NpcPrefabLoader(
 			npc.CharacterName = title;
 			npc.StartingHealth = ScaleHealth( template.Stats.MaxHitpoints );
 			npc.MoveSpeed = moveSpeed;
-			npc.AttackRange = combat.HasRanged ? combat.RangedMaxRange : combat.MeleeRange;
-			npc.AttackInterval = combat.HasRanged ? combat.RangedInterval : combat.MeleeInterval;
 			npc.HasMelee = combat.HasMelee;
 			npc.MeleeRange = combat.MeleeRange;
 			npc.MeleeInterval = combat.MeleeInterval;
@@ -174,7 +172,6 @@ internal sealed class NpcPrefabLoader(
 			npc.HealClips = healClips;
 			npc.MissileModel = combat.Missile is null ? null : Host.Url( combat.Missile, "vmdl" );
 			npc.MissileColor = combat.MissileColor;
-			npc.RangedAttack = combat.HasRanged;
 			npc.EyeHeight = height * 0.8f;
 			npc.AlertSounds = ResolveSound( template.Sounds.AlertCue, "angry", "alert", "idle" );
 			npc.AttackSounds = ResolveSound( template.Sounds.AttackCue, "attack", "swing", "angry" );

@@ -2,20 +2,14 @@ using System;
 
 namespace Magicka;
 
-/// <summary>Staff of Fire: explosive Fireball (LMB) and rapid Fire Spray (RMB).</summary>
+/// <summary>Staff of Fire: explosive Fireball (LMB) and continuous Fire Spray (RMB).</summary>
 [Title( "Staff of Fire" )]
 [Category( "Magicka" )]
 public sealed class MagickaFireStaff : MagickaWeapon
 {
-	private const string FireballModel = "mount://magicka/models/missiles/fire2.vmdl";
-	private const string FlameModel = "mount://magicka/models/missiles/fire0.vmdl";
-
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.75f;
 		SecondaryDelay = 0.14f;
 		SecondaryAutomatic = true;
@@ -31,14 +25,10 @@ public sealed class MagickaFireStaff : MagickaWeapon
 		ViewController?.Play( "cast_force_projectile", loop: false, playbackRate: 1.1f );
 		PlayCue( "spell_fire_force", GetCastRay().Position, 1f, Game.Random.Float( 0.92f, 1.04f ) );
 		FireProjectile(
-			FireballModel,
+			"mount://magicka/models/missiles/fire2.vmdl",
 			new Color( 1.0f, 0.42f, 0.1f ),
-			damage: 55f,
-			speed: 920f,
-			hitCue: "spell_fire_blast",
-			splashRadius: 150f,
-			knockback: 260f,
-			status: MagickaElementStatus.Burn,
+			55f, 920f, "spell_fire_blast",
+			splashRadius: 150f, knockback: 260f, status: MagickaElementStatus.Burn,
 			trailEffect: "Spells/Projectile/ProjectileTrail_Fire.xml",
 			hitEffect: "Spells/Projectile/ProjectileHit_Big_Fire.xml" );
 	}
@@ -52,13 +42,10 @@ public sealed class MagickaFireStaff : MagickaWeapon
 		MaintainChannelCue( "spell_fire_spray", ray.Position, 0.75f, 0.24f );
 		BroadcastEffect( "Spells/Spray/Spray_Fire1.xml", GetCastOrigin( ray ), ray.Forward.EulerAngles.ToRotation(), 0.8f );
 		var proj = FireProjectile(
-			FlameModel,
+			"mount://magicka/models/missiles/fire0.vmdl",
 			new Color( 1.0f, 0.55f, 0.15f ),
-			damage: 11f,
-			speed: 680f,
-			hitCue: "spell_fire_hit",
-			spread: 0.08f,
-			status: MagickaElementStatus.Burn,
+			11f, 680f, "spell_fire_hit",
+			spread: 0.08f, status: MagickaElementStatus.Burn,
 			hitEffect: "Spells/Projectile/ProjectileHit_Fire.xml" );
 		if ( proj.IsValid() )
 			proj.Life = 0.55f;
@@ -70,14 +57,9 @@ public sealed class MagickaFireStaff : MagickaWeapon
 [Category( "Magicka" )]
 public sealed class MagickaIceStaff : MagickaWeapon
 {
-	private const string IceShardModel = "mount://magicka/models/missiles/ice2_0.vmdl";
-
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.55f;
 		SecondaryDelay = 1.05f;
 		PreferredSlot = 1;
@@ -93,13 +75,10 @@ public sealed class MagickaIceStaff : MagickaWeapon
 		for ( var i = 0; i < 3; i++ )
 		{
 			FireProjectile(
-				IceShardModel,
+				"mount://magicka/models/missiles/ice2_0.vmdl",
 				new Color( 0.55f, 0.85f, 1.0f ),
-				damage: 16f,
-				speed: 1450f,
-				hitCue: "spell_ice_hit",
-				spread: 0.045f,
-				status: MagickaElementStatus.Chill,
+				16f, 1450f, "spell_ice_hit",
+				spread: 0.045f, status: MagickaElementStatus.Chill,
 				trailEffect: "Spells/Projectile/ProjectileTrail_Ice.xml",
 				hitEffect: "Spells/Projectile/ProjectileHit_Ice.xml" );
 		}
@@ -109,15 +88,7 @@ public sealed class MagickaIceStaff : MagickaWeapon
 	{
 		SetNextSecondaryFire( SecondaryDelay );
 		SetNextPrimaryFire( 0.45f );
-		CastAreaPulse(
-			radius: 210f,
-			damage: 34f,
-			color: new Color( 0.45f, 0.82f, 1.0f ),
-			cueName: "spell_cold_area",
-			animSequence: "cast_area_blast",
-			knockback: 220f,
-			status: MagickaElementStatus.Chill,
-			areaEffect: "Spells/Area/Area_cold1_b.xml" );
+		CastAreaPulse( 210f, 34f, new Color( 0.45f, 0.82f, 1.0f ), "spell_cold_area", "cast_area_blast", 220f, MagickaElementStatus.Chill, "Spells/Area/Area_cold1_b.xml" );
 	}
 }
 
@@ -131,9 +102,6 @@ public sealed class MagickaTeslaStaff : MagickaWeapon
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.38f;
 		SecondaryDelay = 1.1f;
 		PreferredSlot = 3;
@@ -159,63 +127,52 @@ public sealed class MagickaTeslaStaff : MagickaWeapon
 		BroadcastBeam( origin, hitPos, LightningColor, 6f, 0.22f, true, MagickaSpellEffects.EnergyBeamTexture );
 		BroadcastImpact( hitPos, LightningColor, 110f, 0.22f, "spell_lightning_hit", "Spells/Lightning_Hit.xml" );
 
-		if ( !Networking.IsHost )
+		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
 			return;
 
 		var ownerRoot = Owner?.GameObject?.Root ?? GameObject.Root;
-		var hitTargets = new HashSet<GameObject>();
+		var primaryRoot = trace.GameObject.Root;
+		if ( primaryRoot == ownerRoot )
+			return;
 
-		if ( trace.Hit && trace.GameObject.IsValid() && trace.GameObject.Root != ownerRoot )
+		var hitTargets = new HashSet<GameObject> { primaryRoot };
+		DealShock( primaryRoot, hitPos, origin, 28f );
+
+		// Chain to up to 2 nearby damageable targets within 220 units.
+		var chainFrom = hitPos;
+		for ( var jump = 0; jump < 2; jump++ )
 		{
-			var primaryRoot = trace.GameObject.Root;
-			hitTargets.Add( primaryRoot );
-			DealLightningDamage( primaryRoot, hitPos, origin, 28f );
-
-			// Chain to up to 2 nearby damageable targets within 220 units.
-			var chainFrom = hitPos;
-			for ( var jump = 0; jump < 2; jump++ )
+			GameObject next = null;
+			var bestDist = 220f * 220f;
+			foreach ( var obj in Scene.FindInPhysics( new Sandbox.Sphere( chainFrom, 220f ) ) )
 			{
-				GameObject nextTarget = null;
-				var bestDist = 220f * 220f;
-				foreach ( var obj in Scene.FindInPhysics( new Sandbox.Sphere( chainFrom, 220f ) ) )
+				var root = obj.Root;
+				if ( !root.IsValid() || root == ownerRoot || hitTargets.Contains( root ) || root.GetComponentInChildren<Component.IDamageable>() is null )
+					continue;
+
+				var d2 = (root.WorldPosition - chainFrom).LengthSquared;
+				if ( d2 < bestDist )
 				{
-					var root = obj.Root;
-					if ( !root.IsValid() || root == ownerRoot || hitTargets.Contains( root ) )
-						continue;
-					if ( root.GetComponentInChildren<Component.IDamageable>() is null )
-						continue;
-
-					var d2 = (root.WorldPosition - chainFrom).LengthSquared;
-					if ( d2 < bestDist )
-					{
-						bestDist = d2;
-						nextTarget = root;
-					}
+					bestDist = d2;
+					next = root;
 				}
-
-				if ( !nextTarget.IsValid() )
-					break;
-
-				hitTargets.Add( nextTarget );
-				var targetPos = nextTarget.WorldPosition + Vector3.Up * 32f;
-				BroadcastBeam( chainFrom, targetPos, LightningColor, 4.5f, 0.2f, true, MagickaSpellEffects.EnergyBeamTexture );
-				BroadcastImpact( targetPos, LightningColor, 80f, 0.2f, null, "Spells/Lightning_Hit.xml" );
-				DealLightningDamage( nextTarget, targetPos, chainFrom, 18f );
-				chainFrom = targetPos;
 			}
+
+			if ( !next.IsValid() )
+				break;
+
+			hitTargets.Add( next );
+			var targetPos = next.WorldPosition + Vector3.Up * 32f;
+			BroadcastBeam( chainFrom, targetPos, LightningColor, 4.5f, 0.2f, true, MagickaSpellEffects.EnergyBeamTexture );
+			BroadcastImpact( targetPos, LightningColor, 80f, 0.2f, null, "Spells/Lightning_Hit.xml" );
+			DealShock( next, targetPos, chainFrom, 18f );
+			chainFrom = targetPos;
 		}
 	}
 
-	private void DealLightningDamage( GameObject target, Vector3 pos, Vector3 origin, float amount )
+	private void DealShock( GameObject target, Vector3 pos, Vector3 origin, float amount )
 	{
-		var dmg = new DamageInfo
-		{
-			Damage = amount,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = pos,
-			Origin = origin,
-		};
+		var dmg = new DamageInfo { Damage = amount, Attacker = Owner?.GameObject ?? GameObject, Weapon = GameObject, Position = pos, Origin = origin };
 		dmg.Tags.Add( "shock" );
 		target.GetComponentInChildren<Component.IDamageable>()?.OnDamage( dmg );
 	}
@@ -224,14 +181,7 @@ public sealed class MagickaTeslaStaff : MagickaWeapon
 	{
 		SetNextSecondaryFire( SecondaryDelay );
 		SetNextPrimaryFire( 0.45f );
-		CastAreaPulse(
-			radius: 230f,
-			damage: 42f,
-			color: LightningColor,
-			cueName: "spell_lightning_area",
-			animSequence: "cast_area_lightning",
-			knockback: 260f,
-			areaEffect: "Spells/Area/area_lightning1_b.xml" );
+		CastAreaPulse( 230f, 42f, LightningColor, "spell_lightning_area", "cast_area_lightning", 260f, areaEffect: "Spells/Area/area_lightning1_b.xml" );
 	}
 }
 
@@ -245,9 +195,6 @@ public sealed class MagickaArcaneStaff : MagickaWeapon
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.65f;
 		SecondaryDelay = 0.7f;
 		PreferredSlot = 3;
@@ -284,14 +231,7 @@ public sealed class MagickaArcaneStaff : MagickaWeapon
 			if ( !root.IsValid() || root == ownerRoot || !seen.Add( root ) )
 				continue;
 
-			var dmg = new DamageInfo
-			{
-				Damage = 52f,
-				Attacker = Owner?.GameObject ?? GameObject,
-				Weapon = GameObject,
-				Position = hitPos,
-				Origin = origin,
-			};
+			var dmg = new DamageInfo { Damage = 52f, Attacker = Owner?.GameObject ?? GameObject, Weapon = GameObject, Position = hitPos, Origin = origin };
 			dmg.Tags.Add( "magic" );
 			root.GetComponentInChildren<Component.IDamageable>()?.OnDamage( dmg );
 			MagickaSpellEffects.ApplyKnockback( root, (root.WorldPosition - hitPos).Normal * 260f + Vector3.Up * 120f );
@@ -301,14 +241,7 @@ public sealed class MagickaArcaneStaff : MagickaWeapon
 	public override void SecondaryAttack()
 	{
 		SetNextSecondaryFire( SecondaryDelay );
-		CastAreaPulse(
-			radius: 260f,
-			damage: 12f,
-			color: new Color( 0.85f, 0.85f, 1.0f ),
-			cueName: "spell_push_force",
-			animSequence: "cast_force_push",
-			knockback: 520f,
-			areaEffect: "Spells/Push_Force.xml" );
+		CastAreaPulse( 260f, 12f, new Color( 0.85f, 0.85f, 1.0f ), "spell_push_force", "cast_force_push", 520f, areaEffect: "Spells/Push_Force.xml" );
 	}
 }
 
@@ -317,15 +250,11 @@ public sealed class MagickaArcaneStaff : MagickaWeapon
 [Category( "Magicka" )]
 public sealed class MagickaLifeStaff : MagickaWeapon
 {
-	private const string LifeMissileModel = "mount://magicka/models/missiles/holy0.vmdl";
 	private static readonly Color LifeColor = new( 0.25f, 1.0f, 0.38f );
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.45f;
 		SecondaryDelay = 1.0f;
 		PreferredSlot = 4;
@@ -339,12 +268,8 @@ public sealed class MagickaLifeStaff : MagickaWeapon
 		ViewController?.Play( "cast_force_projectile", loop: false, playbackRate: 1.25f );
 		PlayCue( "spell_life_projectile", GetCastRay().Position, 0.9f, Game.Random.Float( 0.95f, 1.06f ) );
 		FireProjectile(
-			LifeMissileModel,
-			LifeColor,
-			damage: 0f,
-			speed: 1200f,
-			hitCue: "spell_life_hit",
-			healAmount: 35f,
+			"mount://magicka/models/missiles/holy0.vmdl",
+			LifeColor, 0f, 1200f, "spell_life_hit", healAmount: 35f,
 			trailEffect: "Spells/Projectile/ProjectileTrail_Life.xml",
 			hitEffect: "Spells/Projectile/ProjectileHit_Life.xml" );
 	}
@@ -355,8 +280,7 @@ public sealed class MagickaLifeStaff : MagickaWeapon
 		PostWeaponEvent( WeaponEvents.Attack );
 		ViewController?.Play( "cast_self", loop: false, playbackRate: 1.2f );
 
-		var ray = GetCastRay();
-		var pos = GetCastOrigin( ray );
+		var pos = GetCastOrigin( GetCastRay() );
 		PlayCue( "spell_life_self", pos, 1f, 1f );
 		BroadcastEffect( "Spells/Self/Self_Life.xml", pos, Rotation.Identity, 1f );
 		BroadcastShockwave( Owner.IsValid() ? Owner.WorldPosition + Vector3.Up * 24f : pos, LifeColor, 95f, 0.38f );
@@ -371,15 +295,11 @@ public sealed class MagickaLifeStaff : MagickaWeapon
 [Category( "Magicka" )]
 public sealed class MagickaEarthStaff : MagickaWeapon
 {
-	private const string BoulderModel = "mount://magicka/models/missiles/earth2.vmdl";
 	private static readonly Color EarthColor = new( 0.72f, 0.52f, 0.3f );
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.85f;
 		SecondaryDelay = 1.15f;
 		PreferredSlot = 2;
@@ -393,14 +313,9 @@ public sealed class MagickaEarthStaff : MagickaWeapon
 		ViewController?.Play( "cast_force_projectile", loop: false, playbackRate: 1.0f );
 		PlayCue( "spell_earth_projectile", GetCastRay().Position, 1f, Game.Random.Float( 0.9f, 1.02f ) );
 		FireProjectile(
-			BoulderModel,
-			EarthColor,
-			damage: 65f,
-			speed: 820f,
-			hitCue: "spell_earth_hit",
-			gravity: 540f,
-			splashRadius: 135f,
-			knockback: 420f,
+			"mount://magicka/models/missiles/earth2.vmdl",
+			EarthColor, 65f, 820f, "spell_earth_hit",
+			gravity: 540f, splashRadius: 135f, knockback: 420f,
 			trailEffect: "Spells/Projectile/ProjectileTrail_Earth.xml",
 			hitEffect: "Spells/Projectile/ProjectileHit_Big_Earth.xml" );
 	}
@@ -409,14 +324,7 @@ public sealed class MagickaEarthStaff : MagickaWeapon
 	{
 		SetNextSecondaryFire( SecondaryDelay );
 		SetNextPrimaryFire( 0.55f );
-		CastAreaPulse(
-			radius: 250f,
-			damage: 45f,
-			color: EarthColor,
-			cueName: "spell_earth_area",
-			animSequence: "cast_area_ground",
-			knockback: 440f,
-			areaEffect: "Spells/Area/Area_Earth4.xml" );
+		CastAreaPulse( 250f, 45f, EarthColor, "spell_earth_area", "cast_area_ground", 440f, areaEffect: "Spells/Area/Area_Earth4.xml" );
 	}
 }
 
@@ -425,15 +333,9 @@ public sealed class MagickaEarthStaff : MagickaWeapon
 [Category( "Magicka" )]
 public sealed class MagickaDeadStaff : MagickaWeapon
 {
-	private const string PoisonMissileModel = "mount://magicka/models/missiles/poison.vmdl";
-	private static readonly Color PoisonColor = new( 0.4f, 0.95f, 0.2f );
-
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.5f;
 		SecondaryDelay = 1.1f;
 		PreferredSlot = 4;
@@ -447,11 +349,8 @@ public sealed class MagickaDeadStaff : MagickaWeapon
 		ViewController?.Play( "cast_force_projectile", loop: false, playbackRate: 1.25f );
 		PlayCue( "spell_poison_projectile", GetCastRay().Position, 0.9f, Game.Random.Float( 0.92f, 1.06f ) );
 		FireProjectile(
-			PoisonMissileModel,
-			PoisonColor,
-			damage: 24f,
-			speed: 1100f,
-			hitCue: "spell_poison_hit",
+			"mount://magicka/models/missiles/poison.vmdl",
+			new Color( 0.4f, 0.95f, 0.2f ), 24f, 1100f, "spell_poison_hit",
 			status: MagickaElementStatus.Poison,
 			trailEffect: "Spells/Projectile/ProjectileTrail_Poison.xml",
 			hitEffect: "Spells/Projectile/ProjectileHit_Poison.xml" );
@@ -461,15 +360,7 @@ public sealed class MagickaDeadStaff : MagickaWeapon
 	{
 		SetNextSecondaryFire( SecondaryDelay );
 		SetNextPrimaryFire( 0.45f );
-		CastAreaPulse(
-			radius: 220f,
-			damage: 44f,
-			color: new Color( 0.85f, 0.12f, 0.25f ),
-			cueName: "spell_arcane_area",
-			animSequence: "cast_area_blast",
-			knockback: 280f,
-			status: MagickaElementStatus.Poison,
-			areaEffect: "Spells/Area/Area_arcane1_b.xml" );
+		CastAreaPulse( 220f, 44f, new Color( 0.85f, 0.12f, 0.25f ), "spell_arcane_area", "cast_area_blast", 280f, MagickaElementStatus.Poison, "Spells/Area/Area_arcane1_b.xml" );
 	}
 }
 
@@ -478,7 +369,6 @@ public sealed class MagickaDeadStaff : MagickaWeapon
 [Category( "Magicka" )]
 public sealed class MagickaExcalibur : MagickaWeapon
 {
-	private const string WaveMissileModel = "mount://magicka/models/missiles/holy0.vmdl";
 	private int _swingIndex;
 
 	internal override void Configure()
@@ -489,7 +379,6 @@ public sealed class MagickaExcalibur : MagickaWeapon
 		DeploySequence = "slash_idle_agg";
 		PrimaryDelay = 0.42f;
 		SecondaryDelay = 0.75f;
-		HoldType = WeaponHolds.Melee;
 		PreferredSlot = 0;
 		SlotOrder = 10;
 	}
@@ -498,8 +387,7 @@ public sealed class MagickaExcalibur : MagickaWeapon
 	{
 		SetNextPrimaryFire( PrimaryDelay );
 		PostWeaponEvent( WeaponEvents.Attack );
-		var anim = (_swingIndex++ & 1) == 0 ? "slash_medium_attack0" : "slash_medium_attack1";
-		ViewController?.Play( anim, loop: false, playbackRate: 1.3f );
+		ViewController?.Play( (_swingIndex++ & 1) == 0 ? "slash_medium_attack0" : "slash_medium_attack1", loop: false, playbackRate: 1.3f );
 
 		var ray = GetCastRay();
 		PlayCue( "wep_sword_swing", ray.Position, 0.95f, Game.Random.Float( 0.94f, 1.08f ) );
@@ -514,25 +402,12 @@ public sealed class MagickaExcalibur : MagickaWeapon
 			return;
 
 		var hitFlesh = trace.GameObject.IsValid() && trace.GameObject.GetComponentInParent<Component.IDamageable>() is not null;
-		MagickaSpellEffects.SpawnImpact(
-			trace.EndPosition,
-			hitFlesh ? new Color( 1.0f, 0.85f, 0.4f ) : Color.White,
-			radius: 70f,
-			duration: 0.16f,
-			cueName: hitFlesh ? "wep_sword_hit_flesh" : "wep_sword_hit_wood",
-			effectPath: "Spells/Arcane_Hit.xml" );
+		BroadcastImpact( trace.EndPosition, hitFlesh ? new Color( 1.0f, 0.85f, 0.4f ) : Color.White, 70f, 0.16f, hitFlesh ? "wep_sword_hit_flesh" : "wep_sword_hit_wood", "Spells/Arcane_Hit.xml" );
 
 		if ( !Networking.IsHost || !trace.GameObject.IsValid() )
 			return;
 
-		var dmg = new DamageInfo
-		{
-			Damage = 42f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = trace.EndPosition,
-			Origin = ray.Position,
-		};
+		var dmg = new DamageInfo { Damage = 42f, Attacker = Owner?.GameObject ?? GameObject, Weapon = GameObject, Position = trace.EndPosition, Origin = ray.Position };
 		dmg.Tags.Add( "slash" );
 		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
 		MagickaSpellEffects.ApplyKnockback( trace.GameObject, ray.Forward * 240f + Vector3.Up * 80f );
@@ -546,11 +421,8 @@ public sealed class MagickaExcalibur : MagickaWeapon
 		ViewController?.Play( "cast_sword_projectile", loop: false, playbackRate: 1.25f );
 		PlayCue( "wep_sword_magic_swing", GetCastRay().Position, 1f, Game.Random.Float( 0.95f, 1.05f ) );
 		FireProjectile(
-			WaveMissileModel,
-			new Color( 1.0f, 0.85f, 0.35f ),
-			damage: 38f,
-			speed: 1350f,
-			hitCue: "spell_arcane_hit",
+			"mount://magicka/models/missiles/holy0.vmdl",
+			new Color( 1.0f, 0.85f, 0.35f ), 38f, 1350f, "spell_arcane_hit",
 			knockback: 220f,
 			trailEffect: "Spells/Projectile/ProjectileTrail_Arcane.xml",
 			hitEffect: "Spells/Projectile/ProjectileHit_Arcane.xml" );
@@ -592,44 +464,28 @@ public sealed class MagickaM60 : MagickaWeapon
 			.Run();
 
 		BroadcastBeam( origin, trace.EndPosition, new Color( 1.0f, 0.85f, 0.45f ), 2.2f, 0.07f, false, MagickaSpellEffects.TracerTexture );
-
 		if ( trace.Hit )
 			BroadcastImpact( trace.EndPosition, new Color( 1.0f, 0.8f, 0.4f ), 60f, 0.1f, null, "Spells/Projectile/ProjectileHit_Fire.xml" );
 
 		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
 			return;
 
-		var dmg = new DamageInfo
-		{
-			Damage = 18f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = trace.EndPosition,
-			Origin = ray.Position,
-		};
+		var dmg = new DamageInfo { Damage = 18f, Attacker = Owner?.GameObject ?? GameObject, Weapon = GameObject, Position = trace.EndPosition, Origin = ray.Position };
 		dmg.Tags.Add( "bullet" );
 		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
 	}
 }
 
-/// <summary>
-/// Legendary QFQFASA build (Steam + Lightning + Arcane): hold LMB to channel a high-DPS
-/// continuous Steam-Lightning-Arcane beam; RMB triggers an explosive Arcane-Lightning nova.
-/// </summary>
+/// <summary>Legendary QFQFASA build: continuous Steam-Lightning-Arcane beam (LMB) and Arcane nova (RMB).</summary>
 [Title( "Staff of QFASA" )]
 [Category( "Magicka" )]
 public sealed class MagickaQfasaStaff : MagickaWeapon
 {
 	private static readonly Color ArcaneColor = new( 1.0f, 0.14f, 0.22f );
-	private static readonly Color LightningColor = new( 0.65f, 0.55f, 1.0f );
-	private TimeSince _lastFx = 10f;
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.08f;
 		PrimaryAutomatic = true;
 		SecondaryDelay = 1.1f;
@@ -637,83 +493,30 @@ public sealed class MagickaQfasaStaff : MagickaWeapon
 		SlotOrder = 30;
 	}
 
-	public override void PrimaryAttack()
-	{
-		SetNextPrimaryFire( PrimaryDelay );
-		PostWeaponEvent( WeaponEvents.Attack );
-		ViewController?.PlayChannel( "cast_force_railgun_long", holdFor: 0.18f, playbackRate: 1.35f );
-
-		var ray = GetCastRay();
-		var origin = GetCastOrigin( ray );
-		MaintainChannelCue( "spell_arcane_ray_stage2", origin, 0.8f, 0.18f );
-
-		var trace = Scene.Trace.Ray( ray.Position, ray.Position + ray.Forward * 1800f )
-			.IgnoreGameObjectHierarchy( Owner?.GameObject ?? GameObject )
-			.WithoutTags( "trigger" )
-			.Run();
-
-		var hitPos = trace.EndPosition;
-		// Layered continuous beam: thick crimson Arcane core + crackling jagged Lightning arc.
-		BroadcastBeam( origin, hitPos, ArcaneColor, 10f, 0.11f, false, MagickaSpellEffects.ArcaneBeamTexture );
-		BroadcastBeam( origin, hitPos, LightningColor, 5f, 0.11f, true, MagickaSpellEffects.EnergyBeamTexture );
-
-		if ( _lastFx > 0.14f )
-		{
-			_lastFx = 0f;
-			BroadcastEffect( "Spells/Beam/Beam_Arcane_Source.xml", origin, Rotation.Identity, 0.55f );
-			BroadcastImpact( hitPos, ArcaneColor, 130f, 0.18f, null, "Spells/Beam/Beam_Arcrane_Hit.xml" );
-			BroadcastEffect( "Spells/Beam/Beam_Steam_Hit.xml", hitPos, Rotation.Identity, 1f );
-		}
-
-		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
-			return;
-
-		var dmg = new DamageInfo
-		{
-			Damage = 18f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = hitPos,
-			Origin = origin,
-		};
-		dmg.Tags.Add( "magic" );
-		dmg.Tags.Add( "shock" );
-		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
-	}
+	public override void PrimaryAttack() => ChannelBeam(
+		"cast_force_railgun_long", "spell_arcane_ray_stage2", ArcaneColor, 10f, 1800f, 18f, "magic",
+		"Spells/Beam/Beam_Arcane_Source.xml", "Spells/Beam/Beam_Arcrane_Hit.xml",
+		secondaryColor: new Color( 0.65f, 0.55f, 1.0f ),
+		extraHitEffect: "Spells/Beam/Beam_Steam_Hit.xml" );
 
 	public override void SecondaryAttack()
 	{
 		SetNextSecondaryFire( SecondaryDelay );
 		SetNextPrimaryFire( 0.45f );
-		CastAreaPulse(
-			radius: 250f,
-			damage: 58f,
-			color: ArcaneColor,
-			cueName: "spell_arcane_blast",
-			animSequence: "cast_area_blast",
-			knockback: 380f,
-			areaEffect: "Spells/Beam/Beam_Arcane_Explosion.xml" );
+		CastAreaPulse( 250f, 58f, ArcaneColor, "spell_arcane_blast", "cast_area_blast", 380f, areaEffect: "Spells/Beam/Beam_Arcane_Explosion.xml" );
 	}
 }
 
-/// <summary>
-/// Anti-Boss Freeze &amp; Shatter build (SRRRR + DQRQRQRQR): hold LMB to channel a freezing
-/// Cold-Arcane beam that chills targets; RMB fires a 5-shard Ice-Earth shatter shotgun volley.
-/// </summary>
+/// <summary>Anti-Boss Freeze &amp; Shatter build: Cold beam (LMB) and 5-shard Ice-Earth shotgun (RMB).</summary>
 [Title( "Frostbeam Staff" )]
 [Category( "Magicka" )]
 public sealed class MagickaFrostbeamStaff : MagickaWeapon
 {
-	private const string IceEarthModel = "mount://magicka/models/missiles/iceearth2.vmdl";
 	private static readonly Color ColdColor = new( 0.42f, 0.85f, 1.0f );
-	private TimeSince _lastFx = 10f;
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.085f;
 		PrimaryAutomatic = true;
 		SecondaryDelay = 0.85f;
@@ -721,46 +524,10 @@ public sealed class MagickaFrostbeamStaff : MagickaWeapon
 		SlotOrder = 10;
 	}
 
-	public override void PrimaryAttack()
-	{
-		SetNextPrimaryFire( PrimaryDelay );
-		PostWeaponEvent( WeaponEvents.Attack );
-		ViewController?.PlayChannel( "cast_force_railgun_long", holdFor: 0.18f, playbackRate: 1.35f );
-
-		var ray = GetCastRay();
-		var origin = GetCastOrigin( ray );
-		MaintainChannelCue( "spell_cold_beam", origin, 0.8f, 0.18f );
-
-		var trace = Scene.Trace.Ray( ray.Position, ray.Position + ray.Forward * 1500f )
-			.IgnoreGameObjectHierarchy( Owner?.GameObject ?? GameObject )
-			.WithoutTags( "trigger" )
-			.Run();
-
-		var hitPos = trace.EndPosition;
-		BroadcastBeam( origin, hitPos, ColdColor, 8f, 0.11f, false, MagickaSpellEffects.ArcaneBeamTexture );
-
-		if ( _lastFx > 0.16f )
-		{
-			_lastFx = 0f;
-			BroadcastEffect( "Spells/Beam/Beam_Cold_Source.xml", origin, Rotation.Identity, 0.5f );
-			BroadcastImpact( hitPos, ColdColor, 110f, 0.18f, null, "Spells/Beam/Beam_Cold_Hit.xml" );
-		}
-
-		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
-			return;
-
-		var dmg = new DamageInfo
-		{
-			Damage = 13f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = hitPos,
-			Origin = origin,
-		};
-		dmg.Tags.Add( "cold" );
-		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
-		MagickaSpellEffects.ApplyStatus( trace.GameObject, Owner?.GameObject ?? GameObject, MagickaElementStatus.Chill, 4.5f );
-	}
+	public override void PrimaryAttack() => ChannelBeam(
+		"cast_force_railgun_long", "spell_cold_beam", ColdColor, 8f, 1500f, 13f, "cold",
+		"Spells/Beam/Beam_Cold_Source.xml", "Spells/Beam/Beam_Cold_Hit.xml",
+		status: MagickaElementStatus.Chill );
 
 	public override void SecondaryAttack()
 	{
@@ -770,42 +537,28 @@ public sealed class MagickaFrostbeamStaff : MagickaWeapon
 		ViewController?.Play( "cast_force_projectile", loop: false, playbackRate: 1.15f );
 		PlayCue( "spell_ice_blast", GetCastRay().Position, 1f, Game.Random.Float( 0.92f, 1.06f ) );
 
-		// Classic DQRQRQRQR 5-shard ice shotgun burst.
 		for ( var i = 0; i < 5; i++ )
 		{
 			FireProjectile(
-				IceEarthModel,
-				ColdColor,
-				damage: 26f,
-				speed: 1550f,
-				hitCue: "spell_ice_hit",
-				spread: 0.055f,
-				knockback: 180f,
-				status: MagickaElementStatus.Chill,
+				"mount://magicka/models/missiles/iceearth2.vmdl",
+				ColdColor, 26f, 1550f, "spell_ice_hit",
+				spread: 0.055f, knockback: 180f, status: MagickaElementStatus.Chill,
 				trailEffect: "Spells/Projectile/ProjectileTrail_Ice.xml",
 				hitEffect: "Spells/Projectile/ProjectileHit_Big_Ice.xml" );
 		}
 	}
 }
 
-/// <summary>
-/// Hellstaff (Fire-Arcane Beam + Meteor Magick): hold LMB to channel a scorching Fire beam;
-/// RMB calls down a massive Meteor from the sky onto your crosshair.
-/// </summary>
+/// <summary>Hellstaff: continuous Fire beam (LMB) and Meteor strike from the sky (RMB).</summary>
 [Title( "Hellstaff" )]
 [Category( "Magicka" )]
 public sealed class MagickaHellstaff : MagickaWeapon
 {
-	private const string MeteorModel = "mount://magicka/models/missiles/fire2.vmdl";
 	private static readonly Color FireColor = new( 1.0f, 0.38f, 0.08f );
-	private TimeSince _lastFx = 10f;
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.085f;
 		PrimaryAutomatic = true;
 		SecondaryDelay = 1.4f;
@@ -813,46 +566,10 @@ public sealed class MagickaHellstaff : MagickaWeapon
 		SlotOrder = 20;
 	}
 
-	public override void PrimaryAttack()
-	{
-		SetNextPrimaryFire( PrimaryDelay );
-		PostWeaponEvent( WeaponEvents.Attack );
-		ViewController?.PlayChannel( "cast_force_railgun_long", holdFor: 0.18f, playbackRate: 1.35f );
-
-		var ray = GetCastRay();
-		var origin = GetCastOrigin( ray );
-		MaintainChannelCue( "spell_fire_beam", origin, 0.8f, 0.18f );
-
-		var trace = Scene.Trace.Ray( ray.Position, ray.Position + ray.Forward * 1500f )
-			.IgnoreGameObjectHierarchy( Owner?.GameObject ?? GameObject )
-			.WithoutTags( "trigger" )
-			.Run();
-
-		var hitPos = trace.EndPosition;
-		BroadcastBeam( origin, hitPos, FireColor, 9f, 0.11f, false, MagickaSpellEffects.ArcaneBeamTexture );
-
-		if ( _lastFx > 0.15f )
-		{
-			_lastFx = 0f;
-			BroadcastEffect( "Spells/Beam/Beam_Fire_Source.xml", origin, Rotation.Identity, 0.5f );
-			BroadcastImpact( hitPos, FireColor, 120f, 0.18f, null, "Spells/Beam/Beam_Fire_Hit.xml" );
-		}
-
-		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
-			return;
-
-		var dmg = new DamageInfo
-		{
-			Damage = 15f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = hitPos,
-			Origin = origin,
-		};
-		dmg.Tags.Add( "fire" );
-		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
-		MagickaSpellEffects.ApplyStatus( trace.GameObject, Owner?.GameObject ?? GameObject, MagickaElementStatus.Burn, 4f );
-	}
+	public override void PrimaryAttack() => ChannelBeam(
+		"cast_force_railgun_long", "spell_fire_beam", FireColor, 9f, 1500f, 15f, "fire",
+		"Spells/Beam/Beam_Fire_Source.xml", "Spells/Beam/Beam_Fire_Hit.xml",
+		status: MagickaElementStatus.Burn );
 
 	public override void SecondaryAttack()
 	{
@@ -863,7 +580,6 @@ public sealed class MagickaHellstaff : MagickaWeapon
 
 		var ray = GetCastRay();
 		PlayCue( "spell_fire_force", ray.Position, 1f, 0.85f );
-
 		if ( !Networking.IsHost )
 			return;
 
@@ -874,9 +590,7 @@ public sealed class MagickaHellstaff : MagickaWeapon
 
 		var targetPos = trace.EndPosition;
 		var skyOrigin = targetPos + Vector3.Up * 560f - ray.Forward.WithZ( 0 ).Normal * 160f;
-		var dir = (targetPos - skyOrigin).Normal;
-		var model = Model.Load( MeteorModel );
-		var meteor = MagickaProjectile.Spawn( Owner?.GameObject ?? GameObject, model, skyOrigin, dir, 95f, FireColor );
+		var meteor = MagickaProjectile.Spawn( Owner?.GameObject ?? GameObject, Model.Load( "mount://magicka/models/missiles/fire2.vmdl" ), skyOrigin, (targetPos - skyOrigin).Normal, 95f, FireColor );
 		if ( meteor.IsValid() )
 		{
 			meteor.GameObject.WorldScale = Vector3.One * 2.2f;
@@ -891,23 +605,16 @@ public sealed class MagickaHellstaff : MagickaWeapon
 	}
 }
 
-/// <summary>
-/// Staff of Thunderbolts (Lightning Beam + Thunderbolt Magick): hold LMB to channel a
-/// crackling Lightning beam; RMB strikes your crosshair from the sky with a massive Thunderbolt.
-/// </summary>
+/// <summary>Thunderbolt Staff: Lightning beam (LMB) and sky-to-ground Thunderbolt strike (RMB).</summary>
 [Title( "Thunderbolt Staff" )]
 [Category( "Magicka" )]
 public sealed class MagickaThunderboltStaff : MagickaWeapon
 {
 	private static readonly Color BoltColor = new( 0.72f, 0.62f, 1.0f );
-	private TimeSince _lastFx = 10f;
 
 	internal override void Configure()
 	{
 		base.Configure();
-		AttachBone = "LeftAttach";
-		IdleSequence = "idle";
-		DeploySequence = "pickup_staff";
 		PrimaryDelay = 0.085f;
 		PrimaryAutomatic = true;
 		SecondaryDelay = 1.25f;
@@ -915,45 +622,10 @@ public sealed class MagickaThunderboltStaff : MagickaWeapon
 		SlotOrder = 30;
 	}
 
-	public override void PrimaryAttack()
-	{
-		SetNextPrimaryFire( PrimaryDelay );
-		PostWeaponEvent( WeaponEvents.Attack );
-		ViewController?.PlayChannel( "cast_force_lightning", holdFor: 0.18f, playbackRate: 1.35f );
-
-		var ray = GetCastRay();
-		var origin = GetCastOrigin( ray );
-		MaintainChannelCue( "spell_lightning_beam", origin, 0.8f, 0.18f );
-
-		var trace = Scene.Trace.Ray( ray.Position, ray.Position + ray.Forward * 1500f )
-			.IgnoreGameObjectHierarchy( Owner?.GameObject ?? GameObject )
-			.WithoutTags( "trigger" )
-			.Run();
-
-		var hitPos = trace.EndPosition;
-		BroadcastBeam( origin, hitPos, BoltColor, 7f, 0.11f, true, MagickaSpellEffects.EnergyBeamTexture );
-
-		if ( _lastFx > 0.15f )
-		{
-			_lastFx = 0f;
-			BroadcastEffect( "Spells/Beam/Beam_Lightning_Source.xml", origin, Rotation.Identity, 0.5f );
-			BroadcastImpact( hitPos, BoltColor, 115f, 0.18f, null, "Spells/Beam/Beam_Lightning_Hit.xml" );
-		}
-
-		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
-			return;
-
-		var dmg = new DamageInfo
-		{
-			Damage = 15f,
-			Attacker = Owner?.GameObject ?? GameObject,
-			Weapon = GameObject,
-			Position = hitPos,
-			Origin = origin,
-		};
-		dmg.Tags.Add( "shock" );
-		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
-	}
+	public override void PrimaryAttack() => ChannelBeam(
+		"cast_force_lightning", "spell_lightning_beam", BoltColor, 7f, 1500f, 15f, "shock",
+		"Spells/Beam/Beam_Lightning_Source.xml", "Spells/Beam/Beam_Lightning_Hit.xml",
+		texturePath: MagickaSpellEffects.EnergyBeamTexture, jagged: true );
 
 	public override void SecondaryAttack()
 	{
@@ -986,14 +658,7 @@ public sealed class MagickaThunderboltStaff : MagickaWeapon
 			if ( !root.IsValid() || root == ownerRoot || !seen.Add( root ) )
 				continue;
 
-			var dmg = new DamageInfo
-			{
-				Damage = 90f,
-				Attacker = Owner?.GameObject ?? GameObject,
-				Weapon = GameObject,
-				Position = hitPos,
-				Origin = skyPos,
-			};
+			var dmg = new DamageInfo { Damage = 90f, Attacker = Owner?.GameObject ?? GameObject, Weapon = GameObject, Position = hitPos, Origin = skyPos };
 			dmg.Tags.Add( "shock" );
 			root.GetComponentInChildren<Component.IDamageable>()?.OnDamage( dmg );
 			MagickaSpellEffects.ApplyKnockback( root, (root.WorldPosition - hitPos).Normal * 380f + Vector3.Up * 220f );

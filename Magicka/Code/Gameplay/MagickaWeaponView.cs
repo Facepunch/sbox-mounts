@@ -39,18 +39,6 @@ public sealed class MagickaWeaponView : BaseWeaponModel
 	/// <summary>Offset of the wizard viewmodel in camera-local space.</summary>
 	public Vector3 ViewOffset { get; set; } = new( 7f, 2f, -36f );
 
-	/// <summary>Additional rotation of the wizard viewmodel in camera-local space.</summary>
-	public Angles ViewAngles { get; set; } = Angles.Zero;
-
-	/// <summary>Local offset applied to the held weapon on the attachment bone.</summary>
-	public Vector3 HeldLocalOffset { get; set; } = Vector3.Zero;
-
-	/// <summary>Local rotation applied to the held weapon on the attachment bone.</summary>
-	public Angles HeldLocalAngles { get; set; } = Angles.Zero;
-
-	/// <summary>Scale applied to the held weapon model.</summary>
-	public float HeldScale { get; set; } = 1f;
-
 	internal void Initialize( string weaponModelPath, string attachBone, string idleSequence, string deploySequence = null )
 	{
 		_idleSequence = string.IsNullOrEmpty( idleSequence ) ? "idle" : idleSequence;
@@ -247,10 +235,7 @@ public sealed class MagickaWeaponView : BaseWeaponModel
 		// Position the held weapon in local space of the viewmodel so it moves with the camera
 		// with zero frame lag.
 		if ( _heldObject.IsValid() && hasAttach )
-		{
-			var offset = new Transform( HeldLocalOffset, HeldLocalAngles.ToRotation(), HeldScale );
-			_heldObject.LocalTransform = attachLocal.ToWorld( offset );
-		}
+			_heldObject.LocalTransform = attachLocal;
 	}
 
 	protected override void OnDestroy()

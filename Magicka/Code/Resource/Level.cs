@@ -123,16 +123,7 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 		var container = new GameObject( true, "Transitions" );
 		foreach ( var (area, destUrl) in placements )
 		{
-			var rot = MagickaSpace.ToWorld( area.Orientation );
-			var scale = new Vector3(
-				MathF.Max( MathF.Abs( area.SideLengths.z ), 1f ),
-				MathF.Max( MathF.Abs( area.SideLengths.x ), 1f ),
-				MathF.Max( MathF.Abs( area.SideLengths.y ), 2.5f ) ) * MagickaSpace.UnitScale;
-
-			var cornerWorld = MagickaSpace.Position( new Nv3( area.Corner.x, area.Corner.y, area.Corner.z ) );
-			var halfWorld = rot * (new Vector3( -area.SideLengths.z, -area.SideLengths.x, area.SideLengths.y ) * (0.5f * MagickaSpace.UnitScale));
-			var center = cornerWorld + halfWorld;
-
+			var (center, rot, scale) = TriggerAreaPose( area );
 			var go = new GameObject( container, true, $"transition_{area.Name}" );
 			go.WorldPosition = center;
 			go.WorldRotation = rot;
@@ -145,6 +136,19 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 			var change = go.AddComponent<MagickaChangeLevel>();
 			change.Destination = destUrl;
 		}
+	}
+
+	private static (Vector3 Center, Rotation Rotation, Vector3 Scale) TriggerAreaPose( TriggerArea area )
+	{
+		var rot = MagickaSpace.ToWorld( area.Orientation );
+		var scale = new Vector3(
+			MathF.Max( MathF.Abs( area.SideLengths.z ), 1f ),
+			MathF.Max( MathF.Abs( area.SideLengths.x ), 1f ),
+			MathF.Max( MathF.Abs( area.SideLengths.y ), 2.5f ) ) * MagickaSpace.UnitScale;
+
+		var cornerWorld = MagickaSpace.Position( new Nv3( area.Corner.x, area.Corner.y, area.Corner.z ) );
+		var halfWorld = rot * (new Vector3( -area.SideLengths.z, -area.SideLengths.x, area.SideLengths.y ) * (0.5f * MagickaSpace.UnitScale));
+		return (cornerWorld + halfWorld, rot, scale);
 	}
 
 	private string ResolveNextChapterUrl()
@@ -219,10 +223,8 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 				if ( string.IsNullOrWhiteSpace( area.Name ) )
 					continue;
 
-				var rot = MagickaSpace.ToWorld( area.Orientation );
-				var cornerWorld = MagickaSpace.Position( new Nv3( area.Corner.x, area.Corner.y, area.Corner.z ) );
-				var halfWorld = rot * (new Vector3( -area.SideLengths.z, -area.SideLengths.x, area.SideLengths.y ) * (0.5f * MagickaSpace.UnitScale));
-				spots.TryAdd( area.Name, (cornerWorld + halfWorld, rot) );
+				var (center, rot, _) = TriggerAreaPose( area );
+				spots.TryAdd( area.Name, (center, rot) );
 			}
 		}
 
@@ -250,8 +252,7 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 				if ( !usedAreas.Add( areaName ) || !spots.TryGetValue( areaName, out var spot ) )
 					continue;
 
-				var rawType = typeMatch.Groups[1].Value.Trim();
-				var id = SanitizeNpcId( rawType );
+				var id = MagickaMount.SanitizeId( typeMatch.Groups[1].Value.Trim() );
 				if ( string.IsNullOrEmpty( id ) )
 					continue;
 
@@ -286,19 +287,6 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 			spawner.PrefabUrl = url;
 			spawner.ForcePassive = isPassive;
 		}
-	}
-
-	private static string SanitizeNpcId( string raw )
-	{
-		var chars = new char[raw.Length];
-		var length = 0;
-		foreach ( var c in raw )
-		{
-			if ( char.IsLetterOrDigit( c ) || c == '_' || c == '-' )
-				chars[length++] = char.ToLowerInvariant( c );
-		}
-
-		return new string( chars, 0, length );
 	}
 
 	private void BuildAmbience()

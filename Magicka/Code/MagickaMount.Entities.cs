@@ -131,7 +131,7 @@ public sealed partial class MagickaMount
 		return (null, null);
 	}
 
-	private static string SanitizeId( string raw )
+	internal static string SanitizeId( string raw )
 	{
 		var chars = new char[raw.Length];
 		var length = 0;

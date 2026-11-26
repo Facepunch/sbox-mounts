@@ -17,18 +17,13 @@ public abstract class MagickaWeapon : BaseCombatWeapon
 	[Property] public string IdleSequence { get; set; } = "idle";
 	[Property] public string DeploySequence { get; set; } = "pickup_staff";
 	[Property] public Vector3 ViewOffset { get; set; } = new( 7f, 2f, -36f );
-	[Property] public Angles ViewAngles { get; set; } = Angles.Zero;
-	[Property] public Vector3 HeldLocalOffset { get; set; } = Vector3.Zero;
-	[Property] public Angles HeldLocalAngles { get; set; } = Angles.Zero;
-	[Property] public float HeldScale { get; set; } = 1f;
-	[Property] public Vector3 WorldModelOffset { get; set; } = Vector3.Zero;
-	[Property] public Angles WorldModelAngles { get; set; } = Angles.Zero;
 
 	private static readonly Dictionary<string, Texture> IconCache = new( StringComparer.OrdinalIgnoreCase );
 
 	private SoundHandle _channelSound;
 	private string _channelCue;
 	private TimeUntil _channelSoundHold;
+	private TimeSince _lastChannelFx = 10f;
 
 	protected MagickaWeaponView ViewController => ViewModel.IsValid() ? ViewModel.GetComponent<MagickaWeaponView>() : null;
 
@@ -157,8 +152,7 @@ public abstract class MagickaWeapon : BaseCombatWeapon
 			return;
 
 		var camTransform = new Transform( view.Position, view.Rotation );
-		var local = new Transform( ViewOffset, ViewAngles.ToRotation(), 1f );
-		ViewModel.WorldTransform = camTransform.ToWorld( local );
+		ViewModel.WorldTransform = camTransform.ToWorld( new Transform( ViewOffset ) );
 		ViewController?.ApplyBoneMask();
 	}
 
@@ -186,10 +180,6 @@ public abstract class MagickaWeapon : BaseCombatWeapon
 		view.Renderer = renderer;
 		view.TracerEffect = null;
 		view.ViewOffset = ViewOffset;
-		view.ViewAngles = ViewAngles;
-		view.HeldLocalOffset = HeldLocalOffset;
-		view.HeldLocalAngles = HeldLocalAngles;
-		view.HeldScale = HeldScale;
 
 		go.Enabled = true;
 		view.Initialize( WeaponModelPath, AttachBone, IdleSequence, DeploySequence );
@@ -209,9 +199,6 @@ public abstract class MagickaWeapon : BaseCombatWeapon
 		var parent = HolderRenderer.GetBoneObject( HoldBone ) ?? GameObject;
 		var go = new GameObject( parent, false, $"{DisplayName}_worldmodel" );
 		go.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
-		go.LocalPosition = WorldModelOffset;
-		go.LocalRotation = WorldModelAngles.ToRotation();
-		go.LocalScale = Vector3.One * HeldScale;
 
 		var renderer = go.AddComponent<ModelRenderer>();
 		renderer.Model = model;
@@ -402,6 +389,68 @@ public abstract class MagickaWeapon : BaseCombatWeapon
 				MagickaSpellEffects.ApplyKnockback( root, dir * (knockback * falloff) + Vector3.Up * (knockback * 0.45f) );
 			}
 		}
+	}
+
+	protected void ChannelBeam(
+		string animSequence,
+		string soundCue,
+		Color color,
+		float width,
+		float range,
+		float damage,
+		string damageTag,
+		string sourceEffect,
+		string hitEffect,
+		string texturePath = MagickaSpellEffects.ArcaneBeamTexture,
+		bool jagged = false,
+		MagickaElementStatus status = MagickaElementStatus.None,
+		Color? secondaryColor = null,
+		string extraHitEffect = null )
+	{
+		SetNextPrimaryFire( PrimaryDelay );
+		PostWeaponEvent( WeaponEvents.Attack );
+		ViewController?.PlayChannel( animSequence, holdFor: 0.18f, playbackRate: 1.35f );
+
+		var ray = GetCastRay();
+		var origin = GetCastOrigin( ray );
+		MaintainChannelCue( soundCue, origin, 0.8f, 0.18f );
+
+		var trace = Scene.Trace.Ray( ray.Position, ray.Position + ray.Forward * range )
+			.IgnoreGameObjectHierarchy( Owner?.GameObject ?? GameObject )
+			.WithoutTags( "trigger" )
+			.Run();
+
+		var hitPos = trace.EndPosition;
+		BroadcastBeam( origin, hitPos, color, width, 0.11f, jagged, texturePath );
+		if ( secondaryColor.HasValue )
+			BroadcastBeam( origin, hitPos, secondaryColor.Value, width * 0.5f, 0.11f, true, MagickaSpellEffects.EnergyBeamTexture );
+
+		if ( _lastChannelFx > 0.15f )
+		{
+			_lastChannelFx = 0f;
+			if ( !string.IsNullOrEmpty( sourceEffect ) )
+				BroadcastEffect( sourceEffect, origin, Rotation.Identity, 0.5f );
+			BroadcastImpact( hitPos, color, 120f, 0.18f, null, hitEffect );
+			if ( !string.IsNullOrEmpty( extraHitEffect ) )
+				BroadcastEffect( extraHitEffect, hitPos, Rotation.Identity, 1f );
+		}
+
+		if ( !Networking.IsHost || !trace.Hit || !trace.GameObject.IsValid() )
+			return;
+
+		var dmg = new DamageInfo
+		{
+			Damage = damage,
+			Attacker = Owner?.GameObject ?? GameObject,
+			Weapon = GameObject,
+			Position = hitPos,
+			Origin = origin,
+		};
+		dmg.Tags.Add( damageTag );
+		trace.GameObject.GetComponentInParent<Component.IDamageable>()?.OnDamage( dmg );
+
+		if ( status != MagickaElementStatus.None )
+			MagickaSpellEffects.ApplyStatus( trace.GameObject, Owner?.GameObject ?? GameObject, status, 4f );
 	}
 }
 
