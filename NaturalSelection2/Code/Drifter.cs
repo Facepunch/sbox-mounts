@@ -153,10 +153,7 @@ public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 			if ( CragHive && nextRegeneration <= 0 )
 			{
 				nextRegeneration = 2;
-				float amount = 0.03f * MaxHealth;
-				float health = Math.Clamp( MaxHealth - Health, 0, amount );
-				Health += health;
-				armor = Math.Min( 20, armor + amount - health );
+				AlienHealing.Restore( this, 0.03f * MaxHealth, 1, rateLimited: false );
 			}
 		}
 		if ( graph is null ) return;
