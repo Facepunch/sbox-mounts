@@ -232,6 +232,14 @@ public abstract class Weapon : BaseCombatWeapon
 		}
 	}
 
+	protected override void OnShootEffects( ShotEffect shot )
+	{
+		// A mounted sound event can be replaced while this weapon is equipped.
+		if ( !shot.NoEvents && AttackSound is { IsValid: false, ResourcePath: { Length: > 0 } path } )
+			AttackSound = GameResource.Load<SoundEvent>( path );
+		base.OnShootEffects( shot );
+	}
+
 	void ShowStandalone()
 	{
 		var show = !IsHeld;

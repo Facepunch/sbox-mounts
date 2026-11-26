@@ -771,9 +771,6 @@ public sealed class BulletWeapon : Weapon
 
 	void PlayPelletEffects( ShotEffect shot, int pelletCount, bool first )
 	{
-		// A mounted sound event can be replaced while this weapon is equipped.
-		if ( !shot.NoEvents && AttackSound is { IsValid: false, ResourcePath: { Length: > 0 } path } )
-			AttackSound = GameResource.Load<SoundEvent>( path );
 		base.OnShootEffects( shot );
 
 		DrawPelletTracer( shot, pelletCount, first );
