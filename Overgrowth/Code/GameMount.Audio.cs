@@ -8,7 +8,7 @@ public partial class GameMount
 	internal Dictionary<string, int> Phonemes => phonemes ??= VoiceTrack.ReadGroups( FileSystem.ReadAllText( Resolve( "Data/Sounds/voice/phonemes.txt" ) ) );
 	readonly Dictionary<string, XmlAsset> materials = new();
 	readonly Dictionary<string, Queue<int>> voiceHistory = new();
-	readonly Dictionary<string, (int Variants, float Volume, float Distance)> soundGroups = new();
+	readonly Dictionary<string, (string[] Variants, float Volume, float Distance)> soundGroups = new();
 
 	XmlAsset ReadMaterial( string path )
 	{
@@ -81,18 +81,25 @@ public partial class GameMount
 		if ( !soundGroups.TryGetValue( path, out var group ) )
 		{
 			var xml = XmlAsset.Read( FileSystem, path, "soundgroup" );
-			soundGroups[path] = group = ((int)(xml.Number( "variants" ) ?? 1), xml.Number( "volume" ) ?? 1, (xml.Number( "max_distance" ) ?? 30f) * 40f);
+			// Some shipped groups declare more takes than the game installs.
+			var variants = Enumerable.Range( 1, (int)(xml.Number( "variants" ) ?? 1) )
+				.Select( i => $"{path[..^4]}_{i}.wav" )
+				.Where( file => FileSystem.FileExists( file ) )
+				.Select( file => MountedPath( file ) + ".vsnd" )
+				.ToArray();
+			soundGroups[path] = group = (variants, xml.Number( "volume" ) ?? 1, (xml.Number( "max_distance" ) ?? 30f) * 40f);
 		}
-		int variant = Random.Shared.Next( 1, group.Variants + 1 );
+		if ( group.Variants.Length == 0 ) return (null, group.Volume, group.Distance);
+		int variant = Random.Shared.Next( group.Variants.Length );
 		// MovementObject selects voices through SoundGroup::GetSoundPath and reuses that take for lip sync.
-		if ( voice && group.Variants > 1 )
+		if ( voice && group.Variants.Length > 1 )
 		{
 			if ( !voiceHistory.TryGetValue( path, out var recent ) ) voiceHistory[path] = recent = new();
-			while ( recent.Contains( variant ) ) variant = Random.Shared.Next( 1, group.Variants + 1 );
+			while ( recent.Contains( variant ) ) variant = Random.Shared.Next( group.Variants.Length );
 			recent.Enqueue( variant );
-			if ( recent.Count > group.Variants / 2 ) recent.Dequeue();
+			if ( recent.Count > group.Variants.Length / 2 ) recent.Dequeue();
 		}
-		string resource = MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd";
+		string resource = group.Variants[variant];
 		var file = distant && GetByPath( resource ) is SoundLoader loader ? loader.DistantSound : null;
 		file ??= SoundFile.Load( resource );
 		return (file, group.Volume, group.Distance);
