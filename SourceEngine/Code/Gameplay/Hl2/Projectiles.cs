@@ -237,6 +237,7 @@ public sealed class Grenade : Projectile
 	public const float Fuse = 2.5f;
 	const float HalfSize = 4;
 	public const float ThrowSpeed = 1200;
+	const float MaxPhysicsSpeed = 4000;
 	internal const float RethrowDelay = 0.5f;
 
 	/// <summary>CWeaponFrag::ThrowGrenade: forward with 0.1 added to its z, at 1200, on top of the thrower's velocity.</summary>
@@ -268,6 +269,9 @@ public sealed class Grenade : Projectile
 	{
 		if ( _body.IsValid() )
 		{
+			var velocity = _body.Velocity;
+			if ( velocity.LengthSquared > MaxPhysicsSpeed * MaxPhysicsSpeed )
+				_body.Velocity = velocity.ClampLength( MaxPhysicsSpeed );
 			var local = WorldRotation.Inverse;
 			_body.LinearDamping = (local * _body.Velocity).Abs().Dot( _dragFactors.Linear );
 			_body.AngularDamping = (local * _body.AngularVelocity).Abs().Dot( _dragFactors.Angular );
