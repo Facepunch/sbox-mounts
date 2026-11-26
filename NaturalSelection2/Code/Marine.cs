@@ -236,6 +236,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			else lastAimPoint = null;
 		}
 		wantsFire = aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0;
+		if ( enemy.IsValid() && RetreatUnderFire( enemy, visible, visible ? aimPoint : goal.Value + Vector3.Up * (0.1f * Scale), !aimed && wantsFire ) )
+			return;
 		if ( useEntityAttack && clearShot )
 		{
 			if ( babbler ) Movement.Stop();

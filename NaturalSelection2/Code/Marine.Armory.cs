@@ -7,9 +7,9 @@ public sealed partial class Marine
 	enum ArmoryGoal { None, Heal, Retreat }
 
 	ArmoryGoal armoryGoal;
-	Armory supplyStation, lastNearestArmory, lastUseStation;
+	Armory supplyStation, lastNearestArmory, lastUseStation, combatStation;
 	Vector3 useSide;
-	TimeUntil nextArmorySearch;
+	TimeUntil nextArmorySearch, nextCombatArmorySearch;
 
 	static ArmoryGoal ChooseArmoryGoal( float health, float ammo, float distance )
 	{
@@ -30,8 +30,7 @@ public sealed partial class Marine
 			supplyStation = null;
 			if ( health >= 1 && ammo > 0.6f || nextArmorySearch > 0 ) return false;
 			nextArmorySearch = 0.2f;
-			if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-			var station = Armory.FindNearest( this, locations, ref lastNearestArmory, out float distance );
+			var station = NearestArmory( out float distance );
 			if ( !station.IsValid() ) return false;
 			armoryGoal = ChooseArmoryGoal( health, ammo, distance / Scale );
 			if ( armoryGoal == ArmoryGoal.None ) return false;
@@ -40,8 +39,7 @@ public sealed partial class Marine
 
 		var point = supplyStation.EngagementPoint;
 		var origin = supplyStation.WorldPosition;
-		float walk = locations.IsValid() ? locations.WalkDistanceFromRoom( locations.LocationAt( WorldPosition ), EyePosition, origin ) : EyePosition.Distance( origin );
-		float touch = walk / Scale - MathF.Sqrt( 0.5f );
+		float touch = ArmoryTouchDistance( origin );
 		if ( armoryGoal == ArmoryGoal.Heal )
 		{
 			if ( touch < 1.55f )
@@ -65,6 +63,42 @@ public sealed partial class Marine
 			}
 			var side = origin + supplyStation.WorldRotation * useSide * (1.05f * Scale);
 			ApproachSupplyPoint( side );
+		}
+		return true;
+	}
+
+	Armory NearestArmory( out float distance )
+	{
+		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		return Armory.FindNearest( this, locations, ref lastNearestArmory, out distance );
+	}
+
+	float ArmoryTouchDistance( Vector3 origin )
+	{
+		float walk = locations.IsValid() ? locations.WalkDistanceFromRoom( locations.LocationAt( WorldPosition ), EyePosition, origin ) : EyePosition.Distance( origin );
+		return walk / Scale - MathF.Sqrt( 0.5f );
+	}
+
+	bool RetreatUnderFire( GameObject enemy, bool visible, Vector3 threat, bool blindFiring )
+	{
+		if ( Health / MaxHealth >= 0.3f || !(enemy.Tags.Has( "ns2_babbler" ) || Lerk.IsPlayerTarget( enemy )) ) return false;
+		if ( nextCombatArmorySearch <= 0 )
+		{
+			nextCombatArmorySearch = 0.2f;
+			var station = NearestArmory( out float distance );
+			combatStation = distance < 40 * Scale ? station : null;
+		}
+		if ( !combatStation.IsValid() ) return false;
+
+		viewTarget = blindFiring ? lastAimPoint ?? threat : threat;
+		if ( ArmoryTouchDistance( combatStation.WorldPosition ) <= 1.35f )
+		{
+			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+		}
+		else if ( repath <= 0 )
+		{
+			repath = 0.2f;
+			Movement.MoveTo( combatStation.EngagementPoint, Scale, faceTarget: visible ? enemy : null );
 		}
 		return true;
 	}
