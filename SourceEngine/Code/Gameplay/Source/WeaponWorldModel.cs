@@ -33,11 +33,12 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		_heldShot++;
 		_shotTime = 0;
 		if ( _hold?.HasReloadGesture == true ) _reloadTime = float.MaxValue;
-		if ( _weapon is not BulletWeapon weapon || (alternate && weapon.AlternateProjectile == Projectile.Kinds.ContactGrenade) ) return;
+		if ( _weapon is not BulletWeapon weapon ) return;
 		// World models rarely author their own flash; the viewmodel's AE_MUZZLEFLASH names the weapon's.
 		var type = _ownFlashType ?? WeaponSetup.FlashType( weapon ) ?? "SMG1";
 		var mount = MountContent.Of( Renderer.Model );
 		if ( !weapon.Silenced ) WeaponEffects.MuzzleFlash( type, NextMuzzle(), false, mount, WeaponSetup.FlashScale( weapon ) );
+		if ( alternate && weapon.AlternateProjectile == Projectile.Kinds.ContactGrenade ) return;
 		// weapon_shotgun's Pump plays its sound for everyone; the owner's viewmodel plays it with the pump clip.
 		if ( WeaponSetup.PumpDelay( weapon ) is { } delay )
 		{

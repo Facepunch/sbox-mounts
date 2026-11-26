@@ -725,6 +725,13 @@ static class SmokeTrail
 		return effects;
 	}
 
+	static readonly ParticleFloat GrenadeSmokeBrightness = new()
+	{
+		Type = ParticleFloat.ValueType.Curve,
+		Evaluation = ParticleFloat.EvaluationType.Seed,
+		CurveA = new Curve( new Curve.Frame( 0, 0 ), new Curve.Frame( 0.25f, 0 ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, 3 ) )
+	};
+
 	public static void Grenade( GameObject parent, string mount )
 	{
 		var smoke = MountedEffects.SpriteTexture( Smoke, mount );
@@ -737,9 +744,22 @@ static class SmokeTrail
 		{
 			var effect = Create( parent, Vector3.Zero, texture, "SMG grenade smoke", 1, 24, 0.1f );
 			if ( effect is null ) return;
+			var renderer = effect.GetComponent<ParticleSpriteRenderer>( true );
+			renderer.CameraFadeNear = 64;
+			renderer.CameraFadeFar = 128;
+			effect.Brightness = GrenadeSmokeBrightness;
 			effect.OnParticleCreated = puff => puff.Velocity = Game.Random.VectorInCube( 1 ) * Game.Random.Float( 4, 24 );
 			effect.ApplyRotation = true;
 			effect.InitialRoll = new ParticleFloat( 0, 360 );
+			effect.OnPreStep = dt =>
+			{
+				foreach ( var puff in effect.Particles )
+				{
+					var spin = 2 * puff.Rand() - 1;
+					var speed = MathF.Max( 0.5f, MathF.Abs( spin ) * MathF.Exp( -8 * puff.Age ) );
+					puff.StartAngles = puff.StartAngles.WithRoll( puff.StartAngles.roll + (MathF.CopySign( speed, spin ) * dt).RadianToDegree() );
+				}
+			};
 			var emitter = effect.GameObject.AddComponent<ParticleBoxEmitter>();
 			emitter.Size = 8;
 			emitter.Delay = delay;
