@@ -18,8 +18,8 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, maxArmor ); }
 	float IDamageable.MaxArmour => maxArmor;
 	private protected SparkAnimationGraph.Playback graph;
-	Vector3 modelOrigin;
-	protected Vector3 ModelOrigin => Renderer.WorldTransform.PointToWorld( modelOrigin );
+	Vector3? modelOrigin;
+	protected Vector3 ModelOrigin => Renderer.WorldTransform.PointToWorld( modelOrigin.GetValueOrDefault() );
 	[Sync( SyncFlags.FromHost )] private protected TimeUntil flinchEnd { get; private set; }
 	protected float FlinchIntensity => AlienWounds.Intensity( flinchEnd );
 	SupportPain pain;
@@ -30,7 +30,16 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float EnzymeGrowth => enzymeActive ? enzymeAge * 0.75f / Stats.BuildSeconds : 0;
 	internal bool HasEnzyme => enzymeActive;
 
-	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? modelOrigin );
+	ModelLoader MountedModel => Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) as ModelLoader;
+
+	protected override Vector3 GetEngagementPoint()
+	{
+		// Before the first pose update Spark uses the scaled bind skeleton.
+		if ( modelOrigin is null && MountedModel is { } model )
+			return Renderer.WorldTransform.PointToWorld( model.GetBindAttachmentPosition( "target" ) ?? model.BoundsCenter );
+
+		return Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? modelOrigin.GetValueOrDefault() );
+	}
 
 	internal void RefreshEnzyme()
 	{
@@ -112,15 +121,13 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		base.OnStart();
 		pain = GetComponent<SupportPain>();
 		pain?.StartListening( flinchEnd );
+		var model = MountedModel;
+		modelOrigin = model?.BoundsCenter;
 		if ( !Networking.IsHost ) return;
 		age = 0;
 		maxArmor = Stats.Armor;
 		armor = maxArmor * 0.3f;
-		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-		{
-			modelOrigin = model.BoundsCenter;
-			graph = new( model.PropGraph, model );
-		}
+		if ( model is not null ) graph = new( model.PropGraph, model );
 	}
 
 	protected override void OnUpdate()

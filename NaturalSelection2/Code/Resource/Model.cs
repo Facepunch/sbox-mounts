@@ -294,6 +294,19 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	private readonly object sourceLock = new();
 	internal Vector3 BoundsCenter => Source.BoundsCenter;
 
+	internal Vector3? GetBindAttachmentPosition( string name )
+	{
+		var model = Source;
+		foreach ( var point in model.AttachPoints )
+		{
+			if ( point.Name != name ) continue;
+			return (uint)point.BoneIndex < (uint)model.Bones.Length
+				? model.Bones[point.BoneIndex].Transform.PointToWorld( point.Transform.Position )
+				: point.Transform.Position;
+		}
+		return null;
+	}
+
 	private ParsedModel Source
 	{
 		get
