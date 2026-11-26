@@ -35,7 +35,8 @@ public sealed partial class Fade
 		}
 
 		// Hive tech data defines two-metre extents on both horizontal axes.
-		float distance = locations.IsValid() ? locations.WalkDistance( EyePosition, retreatHive.WorldPosition ) : EyePosition.Distance( retreatHive.WorldPosition );
+		float distance = locations.IsValid() ? locations.WalkDistanceFromRoom( locations.LocationAt( WorldPosition ), EyePosition, retreatHive.WorldPosition )
+			: EyePosition.Distance( retreatHive.WorldPosition );
 		if ( !InCombat && distance <= (3.25f + MathF.Sqrt( 8 )) * Scale )
 		{
 			Animation.SetLookTarget( retreatHive.EngagementPoint );
