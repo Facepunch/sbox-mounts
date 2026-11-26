@@ -734,7 +734,10 @@ sealed class PhysCannonEffects : IDisposable
 	SpriteRenderer AddSprite( GameObject anchor, string name, string mount )
 	{
 		var sprite = MountedEffects.AddSprite( _root, name, mount );
-		if ( sprite.IsValid() ) _anchors[sprite] = anchor;
+		if ( !sprite.IsValid() ) return null;
+		sprite.RenderOptions.Game = !_view.IsValid();
+		sprite.RenderOptions.Overlay = _view.IsValid();
+		_anchors[sprite] = anchor;
 		return sprite;
 	}
 
