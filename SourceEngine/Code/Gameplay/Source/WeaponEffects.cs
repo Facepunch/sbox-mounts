@@ -362,24 +362,31 @@ static class WeaponEffects
 		burst.FadeTo( flare, radius, Color.Black );
 	}
 
+	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide )
+	{
+		var sparks = Particles.Emitter( Game.ActiveScene, "effects/spark", mount, true, false, count );
+		if ( !sparks.IsValid() ) return null;
+		sparks.GameObject.WorldPosition = position;
+		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );
+		sparks.InitialScale = width;
+		sparks.Force = true;
+		sparks.ForceSpace = ParticleEffect.SimulationSpace.World;
+		sparks.ForceDirection = Vector3.Down * gravity;
+		sparks.Collision = collide;
+		sparks.Bounce = 0.3f;
+		var renderer = sparks.GetComponent<ParticleSpriteRenderer>();
+		renderer.VelocityStretch = true;
+		renderer.StretchTime = trail;
+		sparks.Invoke( lifetime.y, sparks.DestroyGameObject );
+		return sparks;
+	}
+
 	public static void GaussImpact( Vector3 position, Vector3 direction, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;
 		var count = Game.Random.Int( 16, 32 );
-		var sparks = Particles.Emitter( Game.ActiveScene, "effects/spark", mount, true, false, count );
+		var sparks = SparkTrails( position, mount, count, new( 0.25f, 1 ), new( 1, 4 ), new( 0.01f, 0.1f ), 800, true );
 		if ( !sparks.IsValid() ) return;
-
-		sparks.GameObject.WorldPosition = position;
-		sparks.Lifetime = new ParticleFloat( 0.25f, 1 );
-		sparks.InitialScale = new ParticleFloat( 1, 4 );
-		sparks.Force = true;
-		sparks.ForceSpace = ParticleEffect.SimulationSpace.World;
-		sparks.ForceDirection = Vector3.Down * 800;
-		sparks.Collision = true;
-		sparks.Bounce = 0.3f;
-		var renderer = sparks.GetComponent<ParticleSpriteRenderer>();
-		renderer.VelocityStretch = true;
-		renderer.StretchTime = new ParticleFloat( 0.01f, 0.1f );
 		var trailDirection = direction;
 		for ( var i = 0; i < count; i++ )
 		{
@@ -387,7 +394,6 @@ static class WeaponEffects
 			if ( sparks.Emit( position, 0 ) is { } particle )
 				particle.Velocity = trailDirection * Game.Random.Float( 128, 512 );
 		}
-		sparks.Invoke( 1, sparks.DestroyGameObject );
 		ElectricSpark( position, 1, trailDirection, mount );
 	}
 
@@ -397,17 +403,27 @@ static class WeaponEffects
 		if ( Application.IsDedicatedServer )
 			return;
 		var big = (int)(magnitude * magnitude * Game.Random.Float( 2, 4 ));
-		for ( var i = 0; i < big; i++ )
+		var bigTrails = SparkTrails( position, mount, big, new( magnitude, magnitude * 2 ), new( 2, 5 ), new( 0.02f, 0.05f ), 800, true );
+		if ( bigTrails.IsValid() )
 		{
-			var dir = new Vector3( Game.Random.Float( -1, 1 ), Game.Random.Float( -1, 1 ), Game.Random.Float( 0.5f, 1 ) ) + 2 * direction;
-			Streak( position, dir.Normal, Game.Random.Float( 64, 300 ), Game.Random.Float( 0.02f, 0.05f ), Game.Random.Float( 2, 5 ), mount, magnitude * Game.Random.Float( 1, 2 ) );
+			for ( var i = 0; i < big; i++ )
+			{
+				var dir = Particles.InCube( 1 ).WithZ( Game.Random.Float( 0.5f, 1 ) ) + 2 * direction;
+				if ( bigTrails.Emit( position, 0 ) is { } particle )
+					particle.Velocity = dir.Normal * Game.Random.Float( 64, 300 );
+			}
 		}
 
 		var little = magnitude * Game.Random.Int( 16, 32 );
-		for ( var i = 0; i < little; i++ )
+		var littleTrails = SparkTrails( position, mount, little, new( magnitude * 0.1f, magnitude * 0.2f ), new( 2, 4 ), new( 0.02f, 0.03f ), 400, false );
+		if ( littleTrails.IsValid() )
 		{
-			var dir = new Vector3( Game.Random.Float( -1, 1 ), Game.Random.Float( -1, 1 ), Game.Random.Float( -1, 1 ) ) + direction;
-			Streak( position, dir.Normal, Game.Random.Float( 128, 256 ), Game.Random.Float( 0.02f, 0.03f ), Game.Random.Float( 2, 4 ), mount, magnitude * Game.Random.Float( 0.1f, 0.2f ) );
+			for ( var i = 0; i < little; i++ )
+			{
+				var dir = Particles.InCube( 1 ) + direction;
+				if ( littleTrails.Emit( position, 0 ) is { } particle )
+					particle.Velocity = dir.Normal * Game.Random.Float( 128, 256 );
+			}
 		}
 
 		var go = new GameObject( true, "Spark" );
