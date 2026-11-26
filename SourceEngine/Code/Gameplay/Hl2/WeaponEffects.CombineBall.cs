@@ -35,6 +35,11 @@ public sealed class CombineBallEffect : Component
 		_trailRoot.NetworkMode = NetworkMode.Never;
 		_trailRoot.Enabled = true;
 		_trail = MountedEffects.AddBeam( _trailRoot, "sprites/combineball_trail_black_1", MountName );
+		if ( _trail.IsValid() )
+		{
+			_trail.Width = new Curve( new Curve.Frame( 0, Radius ), new Curve.Frame( 1, 0 ) );
+			_trail.Color = Color.White;
+		}
 		_lastPosition = WorldPosition;
 		_roll = Game.Random.Float( 0, 360 );
 	}
@@ -79,9 +84,6 @@ public sealed class CombineBallEffect : Component
 		_trail.VectorPoints.Clear();
 		for ( var i = _history.Count - 1; i >= 0; i-- )
 			_trail.VectorPoints.Add( _history[i].Position );
-		// CSpriteTrail narrows from the ball's radius to nothing over its life.
-		_trail.Width = new Curve( new Curve.Frame( 0, Radius ), new Curve.Frame( 1, 0 ) );
-		_trail.Color = Color.White;
 		_trail.Enabled = _history.Count > 1;
 	}
 
@@ -90,7 +92,7 @@ public sealed class CombineBallEffect : Component
 		_trailRoot?.Destroy();
 	}
 
-	/// <summary>cball_bounce: two combinemuzzle quads flat on the surface (without its FX_ElectricSpark).</summary>
+	/// <summary>Two flashes on the struck surface and sparks along its normal.</summary>
 	public static void Bounce( Vector3 position, Vector3 normal, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;
@@ -98,12 +100,14 @@ public sealed class CombineBallEffect : Component
 		var origin = position + normal;
 		FlatQuad.Create( "effects/combinemuzzle1", origin, normal, radius * 10, 0, 0.25f, mount );
 		FlatQuad.Create( "effects/combinemuzzle2", origin, normal, radius * 2, radius * 4, 0.5f, mount );
+		WeaponEffects.ElectricSpark( origin, 2, normal, mount );
 	}
 
-	/// <summary>Two lightning shock rings, radius to 1024 units (cball_explode's sparks are not rebuilt).</summary>
+	/// <summary>Two expanding shock rings and an upward burst of sparks.</summary>
 	public static void Explode( Vector3 position, float radius, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;
+		WeaponEffects.ElectricSpark( position, 4, Vector3.Up, mount );
 		BeamRing.Create( position, radius, 1024, 64, 0.2f, 32, mount );
 		BeamRing.Create( position, radius, 1024, 64, 0.5f, 64, mount );
 	}
