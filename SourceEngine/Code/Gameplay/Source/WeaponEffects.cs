@@ -156,10 +156,76 @@ static class WeaponEffects
 		// MuzzleFlash_Combine_NPC is a starburst; this keeps its sprites on the shared FX_MuzzleEffect layout.
 		var sprites = type is "COMBINE" or "AR2" ? CombineSprites : FlashSprites;
 		var size = Math.Clamp( Game.Random.Float( scale - 0.25f, scale + 0.25f ), 0.5f, 8 );
-		var lifetime = type is "PISTOL" or "357" or "SMG1" ? 0.0001f : 0.1f;
+		var singleFrame = type is "PISTOL" or "357" or "SMG1";
+		var lifetime = singleFrame ? 0.0001f : 0.1f;
 		for ( var i = 1; i < 9; i++ )
-			burst.Add( Pick( sprites ), mount, i * 2 * scale, (int)(Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size), Color.White, lifetime );
+		{
+			var radius = (int)(Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size);
+			var sprite = burst.Add( Pick( sprites ), mount, i * 2 * scale, radius, Color.White, lifetime );
+			if ( !singleFrame ) burst.FadeTo( sprite, radius, Color.White, 128 / 255f );
+		}
+		if ( type == "SHOTGUN" ) ShotgunSparks( burst.WorldPosition, burst.WorldRotation.Forward, mount );
 	}
+
+	static void ShotgunSparks( Vector3 origin, Vector3 forward, string mount )
+	{
+		const string material = "effects/muzzleflash1";
+		var count = Game.Random.Int( 4, 8 );
+		var trails = SparkTrails( origin, mount, count, new( 0.1f, 0.2f ), new( 0.25f, 0.5f ), ShotgunTrailLength, 0, false, material: material );
+		if ( trails.IsValid() )
+		{
+			trails.ApplyColor = true;
+			trails.Gradient = ShotgunTrailColor;
+			trails.ApplyAlpha = true;
+			trails.Alpha = SmokeFade;
+			for ( var i = 0; i < count; i++ )
+			{
+				if ( trails.Emit( origin, 0 ) is not { } p ) continue;
+				var direction = (forward + Particles.InCube( 0.05f )).Normal;
+				var falloff = (1 - MathF.Abs( forward.Dot( direction ) )) / 0.05f;
+				p.Velocity = direction * (Game.Random.Float( 256, 1024 ) * (1 - falloff));
+			}
+		}
+
+		var emberCount = Game.Random.Int( 0, 2 ) == 0 ? Game.Random.Int( 0, 4 ) : 0;
+		if ( emberCount == 0 ) return;
+		var embers = Particles.Emitter( Game.ActiveScene, material, mount, true, false, emberCount );
+		if ( !embers.IsValid() ) return;
+		embers.WorldPosition = origin;
+		embers.Lifetime = new ParticleFloat( 0.2f, 0.4f );
+		embers.ApplyShape = true;
+		embers.InitialScale = 2;
+		embers.Scale = SmokeFade;
+		embers.ApplyColor = true;
+		embers.Gradient = ShotgunEmberColor;
+		embers.ApplyAlpha = true;
+		embers.Alpha = SmokeFade;
+		for ( var i = 0; i < emberCount; i++ )
+			if ( embers.Emit( origin, 0 ) is { } p )
+				p.Velocity = (forward + Particles.InCube( 0.05f )).Normal * Game.Random.Float( 64, 256 );
+		embers.OnPreStep = dt =>
+		{
+			foreach ( var p in embers.Particles )
+			{
+				var direction = (p.Velocity.Normal + Particles.InCube( 0.125f )).Normal;
+				p.Velocity = direction * (p.Velocity.Length - 12 * dt);
+			}
+		};
+		embers.Invoke( 0.4f, embers.DestroyGameObject );
+	}
+
+	static readonly ParticleFloat ShotgunTrailLength = new()
+	{
+		Type = ParticleFloat.ValueType.Curve, Evaluation = ParticleFloat.EvaluationType.Life, CurveA = DropLength( 0.05f )
+	};
+	static readonly ParticleGradient ShotgunTrailColor = FadeColor( new Color32( 255, 242, 191 ) );
+	static readonly ParticleGradient ShotgunEmberColor = FadeColor( new Color32( 255, 128, 64 ) );
+
+	static ParticleGradient FadeColor( Color color ) => new()
+	{
+		Type = ParticleGradient.ValueType.Gradient, Evaluation = ParticleGradient.EvaluationType.Life,
+		GradientA = Gradient.FromColors( color, Color.Black )
+	};
 
 	/// <summary>A multiplayer weapon tracer travels from the rendered muzzle to the pellet endpoint.</summary>
 	public static void DrawTracer( Scene scene, string type, Vector3 start, Vector3 end, string mount )
@@ -394,9 +460,9 @@ static class WeaponEffects
 		burst.FadeTo( flare, radius, Color.Black );
 	}
 
-	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null )
+	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null, string material = "effects/spark" )
 	{
-		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, "effects/spark", mount, true, false, count );
+		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, material, mount, true, false, count );
 		if ( !sparks.IsValid() ) return null;
 		sparks.GameObject.WorldPosition = position;
 		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );
@@ -774,9 +840,9 @@ public sealed class SpriteBurst : Component
 	}
 
 	/// <summary>Blends a sprite to this radius and color over the burst's lifetime, like a particle's end size and alpha.</summary>
-	public void FadeTo( SpriteRenderer sprite, float size, Color color )
+	public void FadeTo( SpriteRenderer sprite, float size, Color color, float alpha = 1 )
 	{
-		if ( sprite.IsValid() ) _fades.Add( (sprite, sprite.Size, sprite.Color, new Vector2( size * 2 ), color.WithAlpha( 1 )) );
+		if ( sprite.IsValid() ) _fades.Add( (sprite, sprite.Size, sprite.Color, new Vector2( size * 2 ), color.WithAlpha( alpha )) );
 	}
 
 	protected override void OnEnabled() => _age = 0;
