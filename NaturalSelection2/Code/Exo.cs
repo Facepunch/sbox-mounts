@@ -12,11 +12,14 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	const string DeathSound = "marine/structures/generic_death";
 	[Property] public bool Railguns { get; set; }
 	float ArmorCapacity => Railguns ? 260 : 320;
+	// BaseNpc dies below one health. Reserve that interval so even fractional armor keeps the suit alive.
+	float HealthFromArmor( float armor ) => armor <= 0 ? 0 : 1 + Math.Min( armor, ArmorCapacity );
+	float RemainingArmor => Math.Max( 0, Health - 1 );
 	float IDamageable.MaxArmour => ArmorCapacity;
 	float IDamageable.Armour
 	{
-		get => Health / MaxHealth * ArmorCapacity;
-		set => Health = Math.Clamp( value / ArmorCapacity, 0, 1 ) * MaxHealth;
+		get => RemainingArmor;
+		set => Health = HealthFromArmor( value );
 	}
 
 	sealed class Arm
@@ -97,7 +100,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		npc.Railguns = railguns;
 		npc.DisplayName = railguns ? "Railgun Exo" : "Minigun Exo";
 		npc.EyeHeight = (railguns ? 2.185f : 2.3f) * Scale;
-		npc.MaxHealth = npc.Health = 100;
+		npc.MaxHealth = npc.Health = npc.ArmorCapacity + 1;
 		npc.Faction = Factions.Ally;
 		npc.Renderer = renderer;
 	}
@@ -106,6 +109,13 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
+		if ( MaxHealth == 100 )
+		{
+			// Older mounted prefabs stored armor as a percentage of 100 health.
+			float armor = Health / MaxHealth * ArmorCapacity;
+			MaxHealth = ArmorCapacity + 1;
+			Health = HealthFromArmor( armor );
+		}
 		AnimationTime = 0;
 		aim = WorldRotation;
 		worldTag = OnWorldTag;
@@ -344,8 +354,28 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaging( IDamageable.DamageEvent hit )
 	{
-		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
-		hit.AcceptedDamage = ratio > 0 && !hit.DamageInfo.Tags.Has( "biological" ) ? hit.AcceptedDamage * MaxHealth / (ratio * ArmorCapacity) : 0;
-		if ( hit.AcceptedDamage <= 0 ) hit.Cancelled = true;
+		var tags = hit.DamageInfo.Tags;
+		if ( hit.AcceptedDamage <= 0 || tags.HasAny( "gas", "nervegas", "biological", "structuresonly", "splash" ) )
+		{
+			hit.Cancelled = true;
+			return;
+		}
+
+		// Falling bypasses armor, and NS2 discards health damage on an Exo.
+		if ( tags.Has( "falling" ) )
+		{
+			hit.AcceptedDamage = 0;
+			return;
+		}
+
+		float damage = hit.AcceptedDamage;
+		if ( tags.Has( "puncture" ) ) damage *= 2;
+		else if ( tags.Has( "machinegun" ) ) damage *= 1.5f;
+		else if ( tags.Has( "corrode" ) ) damage *= 0.4f;
+		else if ( tags.HasAny( "clusterflame", "clusterflamefragment" ) ) damage *= 0.2f;
+
+		float ratio = tags.HasAny( "door", "structuralheavy" ) ? 1 : AlienArmor.HealthPerArmor( hit.DamageInfo );
+		float armorLost = damage / ratio;
+		hit.AcceptedDamage = armorLost >= RemainingArmor ? Health : armorLost;
 	}
 }

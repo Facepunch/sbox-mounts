@@ -193,11 +193,11 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( victim is not Component target ) return;
 
 		bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
-		float amount = player ? 75 : 37.5f;
+		float amount = player && target is not Exo ? 75 : 37.5f;
 		if ( stab )
 		{
 			amount = OpenToStab( target.GameObject ) ? 270 : 120;
-			if ( target.GameObject.Tags.Has( "structure" ) ) amount *= 2;
+			if ( target is not AlienStructure && target.GameObject.Tags.Has( "structure" ) ) amount *= 2;
 		}
 		var damage = new DamageInfo { Damage = amount, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
 		damage.Tags.Add( stab ? "structural" : "puncture" );
