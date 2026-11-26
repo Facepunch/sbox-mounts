@@ -9,6 +9,12 @@ using System.Runtime.InteropServices;
 
 namespace Halo2;
 
+[Sandbox.ModelEditor.GameData( "halo2_unit" )]
+public sealed class UnitDefinition
+{
+	public int DefaultTeam { get; set; }
+}
+
 /// <summary>
 /// Loads a Halo 2 render_model (mode) tag and converts it to a Model.
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
@@ -80,6 +86,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 	{
 		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
+		if ( biped is { DataSize: >= 0xc4 } && firstPersonWeapon is null )
+			builder.WithData( new UnitDefinition { DefaultTeam = (short)mapFile.ReadInt32( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0xc0 ) } );
 		if ( biped is not null && firstPersonWeapon is null && mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 ) is {} globals )
 		{
 			int index = 0;

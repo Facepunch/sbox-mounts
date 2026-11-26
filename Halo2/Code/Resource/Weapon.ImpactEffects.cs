@@ -26,7 +26,7 @@ internal abstract partial class WeaponLoader
 		}
 	}
 
-	ContactVisuals ReadContactVisuals( TagEntry contact, bool includeSounds )
+	protected ContactVisuals ReadContactVisuals( TagEntry contact, bool includeSounds )
 	{
 		int events = Address( contact ) + 20;
 		int eventCount = map.ReadInt32( events );

@@ -60,7 +60,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 	}
 
-	string Name => System.IO.Path.GetFileName( weapon.TagPath.Replace( '\\', '/' ) );
+	string Name => TagName( weapon );
+	static string TagName( TagEntry entry ) => System.IO.Path.GetFileName( entry.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
 	int PrimaryBarrel => Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 8 ) * 0xec;
 	bool HasBarrel => map.ReadInt32( Header + 0x2d0 ) > 0;
@@ -99,7 +100,14 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		var sword = ConfigurePickup<EnergySword>( root, world, title );
 		sword.TargetAngle = Float( Header + 0x208 );
 		sword.TargetRange = Float( Header + 0x20c ) * 120;
-		sword.Powered = Reference( Header + 0x300 ) is { PrimaryClass: "paew" };
+		sword.AgesWithKills = (map.ReadInt32( Header + 0x12c ) & (1 << 26)) != 0;
+		if ( Reference( Header + 0x300 ) is { PrimaryClass: "paew" } aged )
+			sword.AgedWeaponPrefab = $"mount://{Host.Ident}/weapons/{TagName( aged )}.prefab";
+		if ( Reference( Header + 0x2f8 ) is { PrimaryClass: "effe" } aging && map.ReadInt32( Address( aging ) + 12 ) == 1 )
+		{
+			sword.AgeEffectMarker = map.ResolveStringId( map.ReadInt32( Block( Address( aging ) + 12 ) ) );
+			root.AddComponent<PelletImpactEffect>().Visuals = ReadContactVisuals( aging, includeSounds: true );
+		}
 		if ( Reference( Header + 0x140 ) is not { PrimaryClass: "effe" } ready ) return sword;
 
 		int effect = Address( ready );

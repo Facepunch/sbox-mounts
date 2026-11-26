@@ -40,6 +40,12 @@ public sealed partial class PelletImpactEffect : Component
 	static uint eventSeed = (uint)System.Random.Shared.Next();
 	static uint decalSeed = (uint)System.Random.Shared.Next();
 
+	internal void PlayAtMarker( GameObject marker )
+	{
+		if ( Visuals is not null && marker.IsValid() )
+			_ = PlayContactEvents( Visuals, null, marker, marker, global::Transform.Zero, Vector3.Forward );
+	}
+
 	internal bool Place( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction, string hitBone = null )
 	{
 		if ( Visuals is null || !target.IsValid() ) return false;
