@@ -98,16 +98,21 @@ static class MountedEffects
 		beam.Opaque = false;
 		beam.CastShadows = false;
 		beam.Face = SceneLineObject.FaceMode.Camera;
+		beam.Texturing = LineTexture( texture );
+		UseViewModelLayer( beam );
+		go.Enabled = true;
+		return beam;
+	}
+
+	internal static TrailTextureConfig LineTexture( Texture texture )
+	{
 #pragma warning disable CS0618
 		var texturing = TrailTextureConfig.Default;
 		texturing.Texture = texture;
 		texturing.WorldSpace = false;
 		texturing.Scale = 1;
-		beam.Texturing = texturing;
 #pragma warning restore CS0618
-		UseViewModelLayer( beam );
-		go.Enabled = true;
-		return beam;
+		return texturing;
 	}
 
 	/// <summary>Places a beam. <paramref name="fadeOut"/> is the share of its length, at the end, over which it fades to nothing.</summary>

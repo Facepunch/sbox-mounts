@@ -265,6 +265,28 @@ public sealed class Grenade : Projectile
 		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
 	}
 
+	protected override void AttachTrail( Vector3 tail )
+	{
+		var fuse = new GameObject( Visual, false, "Fuse" );
+		fuse.LocalPosition = Renderer.Model.Attachments.GetTransform( "fuse" )?.Position ?? Vector3.Zero;
+		var glow = MountedEffects.AddSprite( fuse, "sprites/redglow1", MountName );
+		MountedEffects.SetSprite( glow, 0.2f, 200 );
+
+		if ( MountedEffects.SpriteTexture( "sprites/bluelaser1", MountName ) is { } texture )
+		{
+			var trail = fuse.AddComponent<TrailRenderer>();
+			trail.Texturing = MountedEffects.LineTexture( texture );
+			trail.Face = SceneLineObject.FaceMode.Camera;
+			trail.Opaque = false;
+			trail.Attributes.SetCombo( "D_BLEND", 1 );
+			trail.Color = Color.Red;
+			trail.Width = new Curve( new Curve.Frame( 0, 8 ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, 1 ) );
+			trail.LifeTime = 0.5f;
+		}
+
+		fuse.Enabled = true;
+	}
+
 	protected override bool Simulate()
 	{
 		if ( _body.IsValid() )
