@@ -152,14 +152,11 @@ public sealed partial class RabbitGuard
 				{
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
 					blockingOpponent.InterruptWeaponLayers();
-					if ( !blockingOpponent.Downed )
-					{
-						stunnedBy = blockingOpponent;
-						blockStun = 0.5f;
-						var species = blockingOpponent.boundAnimations.Species;
-						bool smaller = boundAnimations.Species == "dog" && species is not ("dog" or "wolf") || species == "rat" && boundAnimations.Species != "rat";
-						blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
-					}
+					stunnedBy = blockingOpponent;
+					blockStun = 0.5f;
+					var species = blockingOpponent.boundAnimations.Species;
+					bool smaller = boundAnimations.Species == "dog" && species is not ("dog" or "wolf") || species == "rat" && boundAnimations.Species != "rat";
+					blockingOpponent.ReceiveBlockImpact( this, strike, smaller ? 4f : 1f );
 					if ( !strike.FleshUnblockable ) PlayBluntImpact( "hit_block", pos );
 					else blockingOpponent.ClashWith( PrimaryItem );
 					blockingOpponent = null;
@@ -460,7 +457,7 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
-		if ( rabbit is not null && rabbit.holdPartner.IsValid() && rabbit.holdPartner != this ) rabbit.ReleaseHold();
+		rabbit?.ReleaseTetherExcept( this );
 		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
 		if ( rabbit.IsValid() && boundAnimations.Species == "wolf" ) rabbit.Stab( position, offset.Normal, true );
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware, sharp );

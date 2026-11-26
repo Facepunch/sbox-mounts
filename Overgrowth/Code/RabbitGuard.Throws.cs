@@ -70,9 +70,7 @@ public sealed partial class RabbitGuard
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		// WasGrabbed untethers both actors before the victim enters the new hit reaction.
-		if ( victim.holdPartner.IsValid() && victim.holdPartner != this )
-			victim.ReleaseHold( enteringThrow: true );
-		if ( victim.draggedBody.IsValid() ) victim.ReleaseBodyDrag();
+		victim.ReleaseTetherExcept( this, enteringThrow: true );
 		victim.StartThrowAction( "thrown", this, MirroredAction );
 		// WasGrabbed copies the attacker's horizontal velocity independently of clip motion.
 		victim.combatVelocity = combatVelocity.WithZ( victim.combatVelocity.z );

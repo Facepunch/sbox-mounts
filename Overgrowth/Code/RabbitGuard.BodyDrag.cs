@@ -169,6 +169,14 @@ public sealed partial class RabbitGuard
 		dragAnchor = null;
 	}
 
+	void ReleaseTetherExcept( RabbitGuard partner, bool enteringThrow = false )
+	{
+		if ( holdPartner.IsValid() && holdPartner != partner ) ReleaseHold( enteringThrow );
+		if ( bodyDragger.IsValid() && bodyDragger != partner ) bodyDragger.ReleaseBodyDrag();
+		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponentInParent<RabbitGuard>() != partner )
+			ReleaseBodyDrag();
+	}
+
 	void ReleaseBodyDrag()
 	{
 		RemoveDragJoint();
