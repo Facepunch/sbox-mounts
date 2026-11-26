@@ -270,7 +270,7 @@ public abstract class Projectile : Component
 		{
 			// Beyond the 512-unit surface trace, Source places the splash at the blast itself.
 			var surface = depth <= 512 ? position + Vector3.Up * depth : position;
-			if ( !Application.IsDedicatedServer ) Hl2.FlatQuad.ExplosionRipple( surface, mountName );
+			if ( !Application.IsDedicatedServer ) WeaponEffects.ExplosionSplash( surface, mountName );
 			if ( Sounds.Sound( "Physics.WaterSplash", mountName ) is { } splash ) Sound.Play( splash, surface );
 			if ( depth > 128 ) name = "WaterExplosionEffect.Sound";
 		}

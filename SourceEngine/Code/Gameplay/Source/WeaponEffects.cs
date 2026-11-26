@@ -395,30 +395,55 @@ static class WeaponEffects
 		if ( surface.Hit && !surface.StartedSolid )
 			Hl2.FlatQuad.WaterRipple( surface.HitPosition, surface.Normal, mount );
 
-		var drops = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, 16 );
+		SplashDrops( position, mount, explosion: false );
+		SplashPlume( position, mount );
+	}
+
+	internal static void ExplosionSplash( Vector3 surface, string mount )
+	{
+		Hl2.FlatQuad.ExplosionRipple( surface, mount );
+		SplashDrops( surface, mount, explosion: true );
+	}
+
+	static void SplashDrops( Vector3 position, string mount, bool explosion )
+	{
+		var count = explosion ? 36 : 16;
+		var drops = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, count );
 		if ( !drops.IsValid() ) return;
 		drops.WorldPosition = position;
-		drops.Lifetime = new ParticleFloat( 0.25f, 0.5f );
+		var lifetime = explosion ? 1f : 0.5f;
+		drops.Lifetime = new ParticleFloat( lifetime * 0.5f, lifetime );
 		drops.ApplyShape = true;
 		drops.InitialScale = new ParticleFloat( 1, 3 );
 		drops.Force = true;
 		drops.ForceDirection = Vector3.Down * 800;
 		var renderer = drops.GetComponent<ParticleSpriteRenderer>();
 		renderer.VelocityStretch = true;
-		renderer.StretchTime = new ParticleFloat( 0.025f, 0.05f );
-		for ( var i = 0; i < 16; i++ )
+		renderer.StretchTime = new ParticleFloat( 0.025f, explosion ? 0.1f : 0.05f );
+		for ( var i = 0; i < count; i++ )
 		{
-			var origin = position + Particles.InCube( 8 ).WithZ( 0 );
-			if ( drops.Emit( origin, 0 ) is { } p )
+			var origin = position + Particles.InCube( explosion ? 32 : 8 ).WithZ( 0 );
+			if ( drops.Emit( origin, 0 ) is not { } p ) continue;
+			if ( explosion )
+			{
+				// Four faster drops rise in a narrower cone.
+				var jet = i >= 32;
+				var speed = jet ? 300 : 200;
+				p.Velocity = (Vector3.Up + Particles.InCube( jet ? 0.2f : 1 )) * Game.Random.Float( speed, speed * 2 ) + Vector3.Up * Game.Random.Float( 64, 256 );
+				p.StartScale = jet ? 4 : Math.Min( 4, p.StartScale * 2 );
+				p.Size = p.StartScale;
+			}
+			else
+			{
 				p.Velocity = (Vector3.Up + Particles.InCube( 0.8f )) * Game.Random.Float( 150, 300 ) + Vector3.Up * Game.Random.Float( 32, 64 );
+			}
 		}
 		drops.OnPostStep = dt =>
 		{
 			var attenuation = Math.Max( 0, 1 - 2 * dt );
 			foreach ( var drop in drops.Particles ) drop.Velocity *= attenuation;
 		};
-		drops.Invoke( 0.5f, drops.DestroyGameObject );
-		SplashPlume( position, mount );
+		drops.Invoke( lifetime, drops.DestroyGameObject );
 	}
 
 	static void SplashPlume( Vector3 position, string mount )
