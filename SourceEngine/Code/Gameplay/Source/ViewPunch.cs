@@ -19,10 +19,13 @@ sealed class ViewPunch : CameraEffectSystem.BaseEffect
 		return (Rotation.LookAt( forward ).Angles() + new Angles( punch.x, punch.y, punch.z )).Forward;
 	}
 
-	static ViewPunch ForCamera( CameraComponent camera )
+	static ViewPunch ForOwner( PlayerController owner )
 	{
+		var camera = owner.Scene.Camera;
+		if ( !camera.IsValid() ) return null;
 		if ( !Active.TryGetValue( camera, out var effect ) || effect.IsDone )
 		{
+			if ( owner.Mode is Sandbox.Movement.SitMoveMode ) return null;
 			effect = camera.Scene.GetSystem<CameraEffectSystem>().Add( new ViewPunch { Camera = camera, Duration = 0 } );
 			Active.Remove( camera );
 			Active.Add( camera, effect );
@@ -30,24 +33,26 @@ sealed class ViewPunch : CameraEffectSystem.BaseEffect
 		return effect;
 	}
 
-	public static void Apply( CameraComponent camera, Angles impulse, bool reset )
+	public static void Apply( PlayerController owner, Angles impulse, bool reset )
 	{
-		if ( !camera.IsValid() ) return;
-		var effect = ForCamera( camera );
+		var effect = ForOwner( owner );
+		if ( effect is null ) return;
 		if ( reset )
 		{
 			effect._angle = 0;
 			effect._velocity = 0;
 		}
-		effect._velocity += new Vector3( impulse.pitch, impulse.yaw, impulse.roll ) * 20;
+		if ( owner.Mode is not Sandbox.Movement.SitMoveMode )
+			effect._velocity += new Vector3( impulse.pitch, impulse.yaw, impulse.roll ) * 20;
 	}
 
-	public static void MachineGunKick( CameraComponent camera, float kick )
+	public static void MachineGunKick( PlayerController owner, float kick )
 	{
-		if ( !camera.IsValid() ) return;
-		var effect = ForCamera( camera );
+		var effect = ForOwner( owner );
+		if ( effect is null ) return;
 		if ( effect._angle.LengthSquared + effect._velocity.LengthSquared <= 100 )
 			effect._angle = effect._velocity = 0;
+		if ( owner.Mode is Sandbox.Movement.SitMoveMode ) return;
 
 		var pitch = -(0.2f + kick);
 		var yaw = pitch / 3 * (Random.Shared.Next( 3 ) == 0 ? 1 : -1);

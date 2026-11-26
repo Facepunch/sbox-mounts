@@ -276,7 +276,7 @@ public sealed class GravityWeapon : Weapon
 			var punch = new Angles( -6, Game.Random.Next( -2, 3 ), 0 );
 			if ( result == PuntResult.Hit )
 				punch += new Angles( Game.Random.Float( 1, 2 ), Game.Random.Float( -1, 1 ), 0 );
-			ViewPunch.Apply( Scene.Camera, punch, reset: false );
+			ViewPunch.Apply( Owner, punch, reset: false );
 		}
 		if ( result == PuntResult.LaunchHeld ) _attack2Debounce = true;
 		SetNextSecondaryFire( PrimaryDelay );

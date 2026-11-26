@@ -367,7 +367,7 @@ public sealed class BulletWeapon : Weapon
 		if ( HasOwner && MachineGunKick.y > 0 )
 		{
 			if ( !Owner.ThirdPerson && !Owner.IsProxy )
-				ViewPunch.MachineGunKick( Scene.Camera, MachineGunKick.x * Math.Min( _fireDuration / MachineGunKick.y, 1 ) );
+				ViewPunch.MachineGunKick( Owner, MachineGunKick.x * Math.Min( _fireDuration / MachineGunKick.y, 1 ) );
 		}
 		else DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
@@ -584,7 +584,7 @@ public sealed class BulletWeapon : Weapon
 		if ( AlternateProjectile == Projectile.Kinds.EnergyBall && HasOwner && !Owner.IsProxy )
 		{
 			if ( !Owner.ThirdPerson )
-				ViewPunch.Apply( Scene.Camera, new Angles( -8, Random.Shared.Next( 1, 3 ), 0 ), false );
+				ViewPunch.Apply( Owner, new Angles( -8, Random.Shared.Next( 1, 3 ), 0 ), false );
 			ScreenFade.Show( Scene.Camera, Color.White.WithAlpha( 64 / 255f ), 0, 0.1f );
 		}
 	}

@@ -225,7 +225,7 @@ public abstract class Weapon : BaseCombatWeapon
 
 		var punch = punchOverride ?? new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
 		if ( PunchResponse == PunchResponses.Oscillate ) Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
-		else ViewPunch.Apply( Scene.Camera, punch, PunchResponse == PunchResponses.ResetImpulse );
+		else ViewPunch.Apply( Owner, punch, PunchResponse == PunchResponses.ResetImpulse );
 
 		if ( ShakeAmplitude > 0f )
 			Scene.Camera?.AddShake( ShakeAmplitude, ShakeFrequency, ShakeDuration );
