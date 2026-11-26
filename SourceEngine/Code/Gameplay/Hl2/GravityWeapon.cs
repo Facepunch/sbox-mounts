@@ -511,6 +511,8 @@ sealed class PhysCannonEffects : IDisposable
 	float _elementFrom;
 	TimeSince _elementMoved = 10;
 	SoundHandle _holdSound;
+	Vector2 _coreFrom, _coreTarget;
+	TimeSince _coreChanged;
 	bool _motorHolding;
 	TimeSince _motorChanged;
 	float _releaseVolume;
@@ -537,9 +539,7 @@ sealed class PhysCannonEffects : IDisposable
 		var holding = held.IsValid();
 		UpdateElements( weapon, holding, ready );
 		UpdateMotor( weapon, holding, mount );
-		if ( holding ) MountedEffects.SetSprite( _core, 0.2f, 255 );
-		else if ( ready ) MountedEffects.SetSprite( _core, 0.15f, 128 );
-		else MountedEffects.SetSprite( _core, 0, 0 );
+		UpdateCore( holding, weapon.IsHeld && weapon.Active );
 		// DoEffectLaunch: the blast grows to scale 2 while fading out over 0.1s.
 		var blast = _launch / 0.1f;
 		MountedEffects.SetSprite( _blast, blast < 1 ? float.Lerp( 0.1f, 2, blast ) : 0, 255 * (1 - blast) );
@@ -614,6 +614,25 @@ sealed class PhysCannonEffects : IDisposable
 		_view?.SetPoseParameter( "active", current );
 	}
 
+	void UpdateCore( bool holding, bool equipped )
+	{
+		if ( !_core.IsValid() ) return;
+		var firstPerson = _view.IsValid();
+		var target = holding ? new Vector2( firstPerson ? 13 : 14, 255 )
+			: equipped ? new Vector2( firstPerson ? 10 : 8, firstPerson ? 128 : 0 ) : Vector2.Zero;
+		if ( target != _coreTarget )
+		{
+			_coreFrom = _core.Size.x > 0 ? new Vector2( _core.Size.x, _core.Color.r * 255 ) : Vector2.Zero;
+			_coreTarget = target;
+			_coreChanged = 0;
+		}
+		var width = float.Lerp( _coreFrom.x, target.x, Math.Min( 1, _coreChanged * 5 ) );
+		var brightness = float.Lerp( _coreFrom.y, target.y, Math.Min( 1, _coreChanged / (holding ? 0.1f : 0.2f) ) );
+		_core.Size = width;
+		_core.Color = (Color.White * (brightness / 255f)).WithAlpha( 1 );
+		_core.Enabled = brightness > 0;
+	}
+
 	void UpdateMotor( GravityWeapon weapon, bool holding, string mount )
 	{
 		if ( holding != _motorHolding )
@@ -677,6 +696,7 @@ sealed class PhysCannonEffects : IDisposable
 		_holdSound?.Stop( 0.2f );
 		_holdSound = null;
 		_motorHolding = false;
+		_coreFrom = _coreTarget = Vector2.Zero;
 		_root?.Destroy();
 		_root = null;
 		_view = null;
