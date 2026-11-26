@@ -70,8 +70,16 @@ public abstract partial class Weapon
 			float fraction = ((blast.OuterRadius - contact.Distance) / (blast.OuterRadius - blast.InnerRadius)).Clamp( 0, 1 );
 			var hit = new SceneTraceResult { Hit = true, StartPosition = origin, HitPosition = contact.Point,
 				GameObject = contact.Collider.GameObject, Collider = contact.Collider, Surface = contact.Collider.Surface, Direction = direction };
-			float damage = MathX.Lerp( blast.Minimum, blast.Maximum, fraction ) * BodyMaterial.DamageScale( hit, blast.BodyScales, true );
-			ApplyDelayedHit( hit, damage, blast.Acceleration, attacker, new TagSet { "explosion" }, false );
+			ApplyBlastHit( hit, blast, MathX.Lerp( blast.Minimum, blast.Maximum, fraction ), attacker );
 		}
+	}
+
+	void ApplyBlastHit( SceneTraceResult hit, BlastDamage blast, float damage, GameObject attacker )
+	{
+		var receiver = hit.GameObject.GetComponentInParent<Component.IDamageable>() as Component;
+		var vitality = ProjectileDamageSystem.CharacterVitality( receiver?.GameObject, out var renderer );
+		float shield = ProjectileDamageSystem.AbsorbShield( vitality, renderer, PlayerShieldMaterial, blast.BodyScales, ref damage );
+		damage *= BodyMaterial.DamageScale( hit, blast.BodyScales, true );
+		ApplyDelayedHit( hit, shield + damage, blast.Acceleration, attacker, new TagSet { "explosion" }, false );
 	}
 }

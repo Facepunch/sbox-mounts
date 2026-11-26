@@ -13,11 +13,7 @@ public sealed class ProjectileDamageSystem( Scene scene ) : GameObjectSystem( sc
 		bool precision = tags.Has( Headshot );
 		bool charged = tags.Has( Charged );
 		if ( !precision && !charged && !tags.Has( Direct ) ) return;
-		var npc = hit.Victim.GetComponent<Sandbox.Npcs.BaseNpc>();
-		var player = hit.Victim.GetComponent<PlayerController>();
-		Component.IDamageable vitality = npc;
-		if ( vitality is null && player.IsValid() )
-			vitality = hit.Victim.GetComponents<Component.IDamageable>().FirstOrDefault( x => x.Health > 0 );
+		var vitality = CharacterVitality( hit.Victim, out var renderer );
 		if ( hit.DamageInfo.Weapon?.GetComponent<Weapon>( true ) is not {} weapon )
 		{
 			// A projectile can outlive its weapon. Its hit already carries body-scaled damage in that case.
@@ -26,15 +22,7 @@ public sealed class ProjectileDamageSystem( Scene scene ) : GameObjectSystem( sc
 		}
 		var scales = charged && weapon is PlasmaPistol pistol ? pistol.ChargedShot?.BodyScales : weapon.PelletBodyScales;
 		float bodyDamage = hit.AcceptedDamage;
-		float shieldDamage = 0;
-		if ( vitality?.Armour > 0 )
-		{
-			var unit = (npc?.Renderer ?? player?.Renderer)?.Model?.GetData<UnitDefinition>();
-			float multiplier = BodyMaterial.Scale( unit is null ? weapon.PlayerShieldMaterial : unit.ShieldMaterial, scales );
-			float scaled = bodyDamage * multiplier;
-			shieldDamage = System.MathF.Min( vitality.Armour, scaled );
-			bodyDamage = scaled > shieldDamage && multiplier > 0.0001f ? (scaled - shieldDamage) / multiplier : 0;
-		}
+		float shieldDamage = AbsorbShield( vitality, renderer, weapon.PlayerShieldMaterial, scales, ref bodyDamage );
 		if ( tags.Has( ProtectedBody ) ) bodyDamage = 0;
 		else if ( bodyDamage > 0 && scales is { Count: > 0 } )
 		{
@@ -47,5 +35,30 @@ public sealed class ProjectileDamageSystem( Scene scene ) : GameObjectSystem( sc
 		}
 		if ( bodyDamage > 0 && vitality is not null && precision ) bodyDamage += vitality.Health;
 		hit.AcceptedDamage = shieldDamage + bodyDamage;
+	}
+
+	internal static Component.IDamageable CharacterVitality( GameObject target, out ModelRenderer renderer )
+	{
+		var npc = target?.GetComponent<Sandbox.Npcs.BaseNpc>();
+		if ( npc.IsValid() )
+		{
+			renderer = npc.Renderer;
+			return npc;
+		}
+		var player = target?.GetComponent<PlayerController>();
+		renderer = player?.Renderer;
+		return player?.GetComponents<Component.IDamageable>().FirstOrDefault( x => x.Health > 0 );
+	}
+
+	internal static float AbsorbShield( Component.IDamageable vitality, ModelRenderer renderer, string defaultMaterial,
+		Dictionary<string, float> scales, ref float damage )
+	{
+		if ( vitality?.Armour is not > 0 ) return 0;
+		var unit = renderer?.Model?.GetData<UnitDefinition>();
+		float multiplier = BodyMaterial.Scale( unit is null ? defaultMaterial : unit.ShieldMaterial, scales );
+		float scaled = damage * multiplier;
+		float absorbed = System.MathF.Min( vitality.Armour, scaled );
+		damage = scaled > absorbed && multiplier > 0.0001f ? (scaled - absorbed) / multiplier : 0;
+		return absorbed;
 	}
 }

@@ -620,8 +620,7 @@ public abstract partial class Weapon
 					if ( path is not null ) PresentDetonation( path, target, hit.HitPosition, hit.Normal, hit.Direction );
 					void DamageAttachedTarget( BlastDamage effect )
 					{
-						float damage = effect.Maximum * BodyMaterial.DamageScale( hit, effect.BodyScales, true );
-						ApplyDelayedHit( hit, damage, effect.Acceleration, attacker, new TagSet { "explosion" }, false );
+						ApplyBlastHit( hit, effect, effect.Maximum, attacker );
 					}
 					DamageAttachedTarget( combined ? shard.CombinedDamage : shard.AttachedDamage );
 					var blast = combined ? shard.CombinedBlast : shard.DetonationDamage;
