@@ -14,7 +14,10 @@ public sealed class Stunstick : MeleeWeapon
 	(GameObject Point, SpriteRenderer Glow)[] _electrodes = [];
 	LineRenderer _arc;
 	GameObject _arcStart;
-	Vector3 _arcOffset;
+	Vector3 _arcEnd;
+	float _arcAmplitude;
+	const int ArcSegments = 16;
+	readonly float[] _arcNoise = new float[ArcSegments + 1];
 	TimeUntil _arcExpires;
 	TimeSince _swing = 1;
 	bool _sparkOnActivation;
@@ -122,15 +125,24 @@ public sealed class Stunstick : MeleeWeapon
 		if ( (view is null || swinging) && Game.Random.Int( 0, view is null ? 5 : 3 ) == 0 )
 		{
 			_arcStart = _electrodes.Length > 0 ? _electrodes[Game.Random.Int( 0, _electrodes.Length - 1 )].Point : _tip;
-			_arcOffset = Vector3.Random * Game.Random.Float( 4, 10 );
+			_arcEnd = Position( _arcStart ) + (view is null ? Particles.InCube( 10 ) + Vector3.One * 2 : Particles.InCube( 8 ));
+			_arcAmplitude = view is null ? Game.Random.Float( 1, 2 ) : Game.Random.Float( 16, 32 );
+			var width = Game.Random.Float( 1, view is null ? 3 : 2 );
+			_arc.Width = new Curve( new Curve.Frame( 0, width ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, 0 ) );
 			_arcExpires = view is null ? 0.01f : 0.05f;
 		}
 		_arc.Enabled = _arcStart.IsValid() && _arcExpires > 0;
 		if ( !_arc.Enabled ) return;
 		var start = Position( _arcStart );
-		_arc.VectorPoints[0] = start;
-		_arc.VectorPoints[1] = start + _arcOffset * 0.5f + Vector3.Random * 2;
-		_arc.VectorPoints[2] = start + _arcOffset;
+		var delta = _arcEnd - start;
+		var side = delta.Cross( Scene.Camera.WorldPosition - start ).Normal * (delta.Length * 0.01f * _arcAmplitude);
+		for ( int step = ArcSegments; step > 1; step /= 2 )
+		{
+			for ( int i = 0; i < ArcSegments; i += step )
+				_arcNoise[i + step / 2] = (_arcNoise[i] + _arcNoise[i + step]) * 0.5f + Game.Random.Float( -1, 1 ) * step / ArcSegments;
+		}
+		for ( int i = 0; i <= ArcSegments; i++ )
+			_arc.VectorPoints[i] = start + delta * (i / (float)ArcSegments) + side * _arcNoise[i];
 	}
 
 	void CreateEffects( SkinnedModelRenderer renderer, ViewModel view )
@@ -152,8 +164,9 @@ public sealed class Stunstick : MeleeWeapon
 		_arc = MountedEffects.AddBeam( _effects, "sprites/lgtning", mount );
 		if ( _arc.IsValid() )
 		{
-			_arc.VectorPoints = [Vector3.Zero, Vector3.Zero, Vector3.Zero];
+			_arc.VectorPoints = new( new Vector3[ArcSegments + 1] );
 			_arc.Width = 1;
+			_arc.Color = Color.White;
 		}
 	}
 
