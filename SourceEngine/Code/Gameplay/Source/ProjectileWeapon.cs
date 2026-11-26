@@ -444,8 +444,8 @@ public sealed partial class ProjectileWeapon : Weapon
 				rocket.ClearLaunch = HasClearLaunch( eye, forward );
 				LiveRocket = rocket.GameObject;
 			}
-			else if ( projectile is Hl2.Bugbait bait )
-				bait.ClearLaunch = HasClearLaunch( eye, forward );
+			else if ( projectile is Hl2.Bugbait bait && HasClearLaunch( eye, forward ) )
+				bait.SolidAt = 0.1f;
 		}
 
 		if ( IsSpentFrag )

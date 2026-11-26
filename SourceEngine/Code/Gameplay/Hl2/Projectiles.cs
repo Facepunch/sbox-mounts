@@ -614,8 +614,24 @@ public sealed class Bugbait : Projectile
 	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;
 
-	internal bool ClearLaunch { get; set; }
-	protected override bool CanCollide => !ClearLaunch || Age >= 0.1f;
+	[Sync( SyncFlags.FromHost )] internal TimeUntil SolidAt { get; set; }
+	[RequireComponent] ModelCollider Hull { get; set; }
+	protected override bool CanCollide => SolidAt <= 0;
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		Hull.Enabled = CanCollide;
+		if ( !string.IsNullOrEmpty( ModelPath ) ) Hull.Model = Model.Load( $"mount://{MountName}/{ModelPath}.vmdl" );
+		if ( Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
+	}
+
+	protected override void OnFixedUpdate()
+	{
+		Hull.Enabled = CanCollide;
+		base.OnFixedUpdate();
+	}
+
 	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Vector3.One * 4 ).Run();
 
 	protected override float Gravity => 600;
