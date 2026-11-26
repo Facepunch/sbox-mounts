@@ -54,7 +54,7 @@ internal sealed class NpcPrefabLoader(
 			? Math.Clamp( template.Stats.Speed * MagickaSpace.UnitScale, 40f, 360f )
 			: 110f;
 
-		var (weapon, weaponBone, weaponScale) = ResolveWeapon();
+		var (weapon, weaponBone, weaponScale, weaponAngles) = ResolveWeapon();
 		var (meleeClips, rangedClips, healClips) = ResolveAbilityClips( clips );
 		var attacks = meleeClips.Concat( rangedClips ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray();
 		var combat = DeriveCombatProfile( radius, weapon );
@@ -136,8 +136,7 @@ internal sealed class NpcPrefabLoader(
 				held.ModelPath = Host.Url( weapon, "vmdl" );
 				held.Bone = weaponBone;
 				held.Scale = weaponScale;
-				if ( weapon.Contains( "book", StringComparison.OrdinalIgnoreCase ) )
-					held.LocalAngles = new Angles( 0f, 180f, 0f );
+				held.LocalAngles = weaponAngles;
 				held.FallbackOffset = new Vector3( 6f, -10f, height * 0.55f );
 			}
 
@@ -163,6 +162,8 @@ internal sealed class NpcPrefabLoader(
 			npc.AttackHeight = height * 0.5f;
 			npc.Friendly = friendly;
 			npc.Passive = passive;
+			npc.Stationary = template.Id?.Contains( "sitting", StringComparison.OrdinalIgnoreCase ) == true
+				|| template.Id?.Contains( "reading", StringComparison.OrdinalIgnoreCase ) == true;
 			npc.IdleClip = idle;
 			npc.WalkClip = walk;
 			npc.RunClip = run;
@@ -446,11 +447,12 @@ internal sealed class NpcPrefabLoader(
 	}
 
 	/// <summary>The first equipped item whose model the mount registered: right hand first.</summary>
-	private (string Model, string Bone, float Scale) ResolveWeapon()
+	private (string Model, string Bone, float Scale, Angles LocalAngles) ResolveWeapon()
 	{
 		string fallback = null;
 		string fallbackBone = "rightattach";
 		float fallbackScale = 1f;
+		var fallbackAngles = Angles.Zero;
 
 		foreach ( var slot in template.Equipment.OrderBy( e => e.Slot ) )
 		{
@@ -461,6 +463,7 @@ internal sealed class NpcPrefabLoader(
 			var item = Host.ResolveItem( templateFile, slot.Item );
 			var itemScale = item?.Scale is > 0.05f and < 10f ? item.Scale : 1f;
 			var bone = string.IsNullOrEmpty( slot.Bone ) ? "rightattach" : slot.Bone;
+			var angles = EquipmentAngles( slot.Rotation, bone );
 
 			// Prefer the right hand or a plain attachment over a shield or a body-mounted item.
 			if ( bone.Contains( "right", StringComparison.OrdinalIgnoreCase )
@@ -469,18 +472,33 @@ internal sealed class NpcPrefabLoader(
 				if ( model.Contains( "shield", StringComparison.OrdinalIgnoreCase ) )
 				{
 					if ( fallback is null )
-						(fallback, fallbackBone, fallbackScale) = (model, bone, itemScale);
+						(fallback, fallbackBone, fallbackScale, fallbackAngles) = (model, bone, itemScale, angles);
 					continue;
 				}
 
-				return (model, bone, itemScale);
+				return (model, bone, itemScale, angles);
 			}
 
 			if ( fallback is null )
-				(fallback, fallbackBone, fallbackScale) = (model, bone, itemScale);
+				(fallback, fallbackBone, fallbackScale, fallbackAngles) = (model, bone, itemScale, angles);
 		}
 
-		return (fallback, fallbackBone, fallbackScale);
+		return (fallback, fallbackBone, fallbackScale, fallbackAngles);
+	}
+
+	private static Angles EquipmentAngles( System.Numerics.Vector3 xnaRot, string bone )
+	{
+		var rot = Rotation.Identity;
+		if ( bone.Contains( "attach", StringComparison.OrdinalIgnoreCase ) )
+			rot = Rotation.FromYaw( 180f );
+
+		if ( xnaRot.LengthSquared() > 0.0001f )
+		{
+			var q = System.Numerics.Quaternion.CreateFromYawPitchRoll( xnaRot.Y, xnaRot.X, xnaRot.Z );
+			rot *= MagickaSpace.ToWorld( q );
+		}
+
+		return rot.Angles();
 	}
 
 	private string[] ResolveSound( string explicitCue, params string[] suffixes )

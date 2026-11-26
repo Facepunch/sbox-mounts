@@ -37,7 +37,9 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 		BuildSpawnPoints( level, levelBounds );
 	}
 
+	private static readonly Regex XmlCommentRegex = new( @"<!--[\s\S]*?-->", RegexOptions.Compiled );
 	private static readonly Regex PlaySoundTagRegex = new( @"<playSound\b([^>]*)/?>", RegexOptions.IgnoreCase );
+	private static readonly Regex PlayMusicTagRegex = new( @"<playMusic\b([^>]*)/?>", RegexOptions.IgnoreCase );
 	private static readonly Regex CueAttrRegex = new( @"\bcue\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase );
 	private static readonly Regex SpawnTagRegex = new( @"<spawn\b([^>]*)/?>", RegexOptions.IgnoreCase );
 	private static readonly Regex TypeAttrRegex = new( @"\btype\s*=\s*""([^""]+)""", RegexOptions.IgnoreCase );
@@ -301,11 +303,12 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 		var seen = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		try
 		{
-			var text = Encoding.UTF8.GetString( Host.ReadAllBytes( xmlFile ) );
+			var text = XmlCommentRegex.Replace( Encoding.UTF8.GetString( Host.ReadAllBytes( xmlFile ) ), "" );
+
 			foreach ( Match tag in PlaySoundTagRegex.Matches( text ) )
 			{
 				var attrs = tag.Groups[1].Value;
-				// Global ambient loops have no localized area attribute.
+				// Global ambient loops have no localized area attribute and come from the Ambience bank.
 				if ( attrs.Contains( "area=", StringComparison.OrdinalIgnoreCase ) )
 					continue;
 
@@ -316,9 +319,29 @@ internal sealed class LevelSceneLoader( string file ) : SceneLoader<MagickaMount
 				var cue = cueMatch.Groups[1].Value;
 				var slash = cue.LastIndexOf( '/' );
 				var cueName = slash >= 0 ? cue[(slash + 1)..] : cue;
+				if ( !cue.StartsWith( "Ambience/", StringComparison.OrdinalIgnoreCase )
+					&& !cueName.StartsWith( "amb_", StringComparison.OrdinalIgnoreCase ) )
+					continue;
+
 				var waves = Host.ResolveCueWaves( cueName );
 				if ( waves is { Length: > 0 } && seen.Add( waves[0] ) )
 					tracks.Add( waves[0] );
+			}
+
+			// Also play the level's opening music track (e.g. Castle Aldrheim party music).
+			var musicTag = PlayMusicTagRegex.Match( text );
+			if ( musicTag.Success )
+			{
+				var cueMatch = CueAttrRegex.Match( musicTag.Groups[1].Value );
+				if ( cueMatch.Success )
+				{
+					var cue = cueMatch.Groups[1].Value;
+					var slash = cue.LastIndexOf( '/' );
+					var cueName = slash >= 0 ? cue[(slash + 1)..] : cue;
+					var waves = Host.ResolveCueWaves( cueName );
+					if ( waves is { Length: > 0 } && seen.Add( waves[0] ) )
+						tracks.Add( waves[0] );
+				}
 			}
 		}
 		catch
@@ -827,10 +850,10 @@ public sealed class MagickaLevelNpcSpawner : Component
 			return;
 
 		var go = prefab.Clone( WorldTransform );
-		if ( ForcePassive && go.GetComponent<MagickaNpc>() is { } npc )
+		if ( ForcePassive && go.GetComponent<MagickaNpc>() is { } npc && (npc.Friendly || npc.Passive) )
 		{
 			npc.Passive = true;
-			npc.Friendly = true;
+			npc.Stationary = true;
 		}
 
 		go.NetworkSpawn( true, null );

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Sandbox.Npcs;
 
 namespace Magicka;
@@ -20,6 +20,7 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 	[Property] public float CorpseSeconds { get; set; } = 10f;
 	[Property] public bool Friendly { get; set; }
 	[Property] public bool Passive { get; set; }
+	[Property] public bool Stationary { get; set; }
 
 	[Property] public bool HasMelee { get; set; } = true;
 	[Property] public float MeleeRange { get; set; } = 84f;
@@ -372,6 +373,10 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 			}
 			return;
 		}
+
+		// Stationed story / sitting NPCs stay put unless asked to follow.
+		if ( Stationary )
+			return;
 
 		// 2. Investigate nearby sounds/disturbances (gunshots, deaths).
 		if ( !Passive && Senses?.Disturbance is { } disturbance && disturbance.Position.Distance( WorldPosition ) < 900f )

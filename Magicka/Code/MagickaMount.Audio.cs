@@ -15,6 +15,8 @@ public sealed partial class MagickaMount
 		"UI",
 		"Ambience",
 		"Additional",
+		"Music",
+		"Additionalmusic",
 	];
 
 	private readonly Dictionary<string, string[]> _cueWaves = new( StringComparer.OrdinalIgnoreCase );
