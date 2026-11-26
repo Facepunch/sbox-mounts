@@ -69,7 +69,7 @@ public abstract class Projectile : Component
 			Kinds.Bolt => Spawn<Hl2.CrossbowBolt>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.Rocket => Spawn<Hl2.Rocket>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.Grenade => Spawn<Hl2.Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
-			Kinds.ContactGrenade => Spawn<Hl2.ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.ContactGrenade => Spawn<Hl2.ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
 			Kinds.EnergyBall => Spawn<Hl2.EnergyBall>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			Kinds.Bugbait => Spawn<Hl2.Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
 			_ => Css.Rules.Launch( kind, attacker, mount, origin, velocity, damage, radius, model, weapon )
@@ -193,7 +193,7 @@ public abstract class Projectile : Component
 		Velocity += Vector3.Down * Gravity * Time.Delta;
 		Steer();
 		var end = WorldPosition + Velocity * Time.Delta;
-		if ( Velocity.Length > 1 ) WorldRotation = Facing;
+		WorldRotation = NextRotation();
 		if ( !CanCollide )
 		{
 			WorldPosition = end;
@@ -209,7 +209,7 @@ public abstract class Projectile : Component
 
 	/// <summary>False once the projectile has stopped flying (a stuck bolt).</summary>
 	protected virtual bool Simulate() => true;
-	protected virtual Rotation Facing => Rotation.LookAt( Velocity );
+	protected virtual Rotation NextRotation() => Velocity.LengthSquared > 1 ? Rotation.LookAt( Velocity ) : WorldRotation;
 	protected virtual void Steer() { }
 	protected virtual SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Run();
 	protected virtual void Hit( SceneTraceResult tr ) { }

@@ -167,7 +167,7 @@ public sealed class Rocket : Projectile
 	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
 
 	protected override float Gravity => Ignited ? 0 : 600;
-	protected override Rotation Facing => Ignited ? base.Facing : Rotation.LookAt( _aim );
+	protected override Rotation NextRotation() => Ignited ? base.NextRotation() : Rotation.LookAt( _aim );
 
 	protected override void OnStart()
 	{
@@ -353,6 +353,13 @@ public sealed class Grenade : Projectile
 [Alias( "Source1.Hl2ContactGrenade", "Hl2ContactGrenade" )]
 public sealed class ContactGrenade : Projectile
 {
+	readonly Angles _angularVelocity = new( Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ) );
+	Angles _angles;
+	protected override Rotation NextRotation()
+	{
+		_angles += _angularVelocity * Time.Delta;
+		return _angles.ToRotation();
+	}
 	protected override float Gravity => 400;
 	protected override void Hit( SceneTraceResult tr ) => Explode();
 	protected override void Expire() => Explode();
