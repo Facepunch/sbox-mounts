@@ -86,16 +86,17 @@ public abstract class HandheldWeapon : Weapon
 	protected void EmitMuzzleFlash( MuzzleFlashDefinition[] groups, bool continuous = false )
 	{
 		if ( groups is null ) return;
+		float eventRandom = System.Random.Shared.NextSingle();
 		foreach ( var flash in groups )
 		{
 			if ( EffectMarker( flash.Marker ) is not {} muzzle ) continue;
 			bool firstPerson = WeaponModel?.GameObject == ViewModel;
-			float systemRandom = System.Random.Shared.NextSingle();
-			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemRandom, continuous );
+			uint systemSeed = (uint)System.Random.Shared.Next();
+			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemSeed, eventRandom, continuous );
 			var rig = muzzle.GetComponentInParent<SkinnedModelRenderer>();
 			if ( rig?.Model?.GetData<MarkerGroups>()?.Additional?.TryGetValue( flash.Marker, out var extra ) != true ) continue;
 			foreach ( var name in extra )
-				rig.GetAttachmentObject( name )?.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemRandom, continuous );
+				rig.GetAttachmentObject( name )?.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemSeed, eventRandom, continuous );
 		}
 	}
 

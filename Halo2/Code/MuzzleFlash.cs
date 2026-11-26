@@ -7,12 +7,12 @@ public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] La
 
 public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity, bool Additive, float Gravity, float Drag );
 
-public sealed record MuzzleEmission( float Start, float Duration );
+public sealed record MuzzleEmission( float Start, Vector2 Duration );
 
 public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
-	Vector2 BirthCount, int BirthInput, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission );
+	Vector2 BirthCount, int BirthInput, bool StartsSystem, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission );
 
 public sealed class MuzzleFlash : Component
 {
@@ -22,14 +22,16 @@ public sealed class MuzzleFlash : Component
 
 	float Sample( Vector2 bounds ) => bounds.x == bounds.y ? bounds.x : MathX.Lerp( bounds.x, bounds.y, BlamRandom.Next( ref seed ) / 65535f );
 
-	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, float systemRandom, bool continuous )
+	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, uint systemSeed, float eventRandom, bool continuous )
 	{
 		foreach ( var light in data.Lights )
 			_ = PelletImpactEffect.PlayLight( GameObject, WorldTransform, light );
 		if ( !layersByEffect.TryGetValue( data, out var layers ) ) layersByEffect[data] = layers = new ParticleEffect[data.Layers.Length];
+		float systemRandom = 0;
 		for ( int i = 0; i < layers.Length; i++ )
 		{
 			var spec = data.Layers[i];
+			if ( spec.StartsSystem ) systemRandom = BlamRandom.Next( ref systemSeed ) / 65535f;
 			if ( spec.CameraMode == (firstPerson ? 2 : 1) ) continue;
 			if ( !layers[i].IsValid() ) layers[i] = CreateLayer( spec, firstPerson, holder );
 			var layer = layers[i];
@@ -38,7 +40,7 @@ public sealed class MuzzleFlash : Component
 			float rate = spec.BirthInput == 5 ? MathX.Lerp( spec.BirthCount.x, spec.BirthCount.y, systemRandom ) : Sample( spec.BirthCount );
 			if ( !continuous && spec.Emission is {} emission )
 			{
-				_ = EmitOverTime( layer, emission, rate * 30 );
+				_ = EmitOverTime( layer, emission.Start, MathX.Lerp( emission.Duration.x, emission.Duration.y, eventRandom ), rate * 30 );
 				continue;
 			}
 			if ( continuous )
@@ -51,20 +53,20 @@ public sealed class MuzzleFlash : Component
 		}
 	}
 
-	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, MuzzleEmission emission, float rate )
+	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, float delay, float duration, float rate )
 	{
-		double start = Time.NowDouble + emission.Start;
+		double start = Time.NowDouble + delay;
 		int emitted = 0;
 		while ( layer.IsValid() )
 		{
-			double elapsed = System.Math.Clamp( Time.NowDouble - start, 0, emission.Duration );
+			double elapsed = System.Math.Clamp( Time.NowDouble - start, 0, duration );
 			int due = (int)(elapsed * rate + 0.0001);
 			while ( emitted < due )
 			{
 				layer.Emit( layer.WorldPosition, 0 );
 				emitted++;
 			}
-			if ( elapsed >= emission.Duration ) return;
+			if ( elapsed >= duration ) return;
 			await Task.Frame();
 		}
 	}

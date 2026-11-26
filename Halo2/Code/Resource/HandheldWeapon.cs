@@ -337,7 +337,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		{
 			start += Float( ev + 8 );
 			float duration = Float( ev + 16 );
-			ReadSystems( ev + 48, start, duration );
+			ReadSystems( ev + 48, start, new Vector2( duration, Float( ev + 20 ) ) );
 			if ( start == 0 )
 			{
 				for ( int j = 0, part = Block( ev + 24 ); j < map.ReadInt32( ev + 24 ); j++, part += 56 )
@@ -356,12 +356,13 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		return markers.Keys.Union( lights.Keys ).Select( marker => new MuzzleFlashDefinition( marker,
 			markers.GetValueOrDefault( marker )?.ToArray() ?? [] ) { Lights = lights.GetValueOrDefault( marker ) ?? new() } ).ToArray();
 
-		void ReadSystems( int systems, float start, float duration )
+		void ReadSystems( int systems, float start, Vector2 duration )
 		{
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				bool additiveSmoke = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery" or @"effects\generic\smoke\smoke_wispy_small_additive";
+				bool additiveSmoke = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery" or @"effects\generic\smoke\smoke_wispy_small_additive"
+					or @"effects\generic\energy\smoke_c_plasma_red_large" or @"effects\generic\energy\smoke_white_c_generic";
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
 				bool energySmoke = particle?.TagPath is @"effects\generic\energy\smoke_c_generic" or @"effects\generic\energy\plasma_overheat";
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
@@ -370,7 +371,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
 				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
 					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft" or @"effects\generic\flares\flash_shield"
-					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long"
+					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long" or @"effects\generic\energy\c_muzzle_flash_red_large"
 					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
 				if ( !smoke && !shieldFlash && !casing && !flare && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst" or @"effects\generic\energy\tracer_c_generic"
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
@@ -424,10 +425,10 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						map.ReadInt32( definition + 100 ) > 0 ? ReadRange( definition + 92, 1 ) : default,
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
-						Bounds( emitter + 8 ), Short( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
+						Bounds( emitter + 8 ), Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
 						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
-						flare || soft || additiveSmoke ? ReadRange( emitter + 104, 1 ) : null,
-						(soft || additiveSmoke || energySmoke) && (start > 0 || duration > 1.001f / 30) ? new( start, duration ) : null ) );
+						flare || soft || additiveSmoke || (!smoke && !casing && duration.y > 1.001f / 30) ? ReadRange( emitter + 104, 1 ) : null,
+						duration.y > 1.001f / 30 || ((soft || additiveSmoke || energySmoke) && start > 0) ? new( start, duration ) : null ) );
 				}
 			}
 		}
