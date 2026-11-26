@@ -33,7 +33,7 @@ public abstract class Weapon : BaseCombatWeapon
 	[Property, Feature( "Shooting" )] public float EmptyClickInterval { get; set; }
 	TimeUntil _nextEmptyClick;
 	TimeUntil _deployUntil;
-	protected bool IsDeploying => _deployUntil > 0;
+	protected internal bool IsDeploying => _deployUntil > 0;
 
 	protected override void OnEquipped()
 	{

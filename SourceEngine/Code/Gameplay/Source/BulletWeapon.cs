@@ -113,6 +113,7 @@ public sealed class BulletWeapon : Weapon
 	bool? _tunedForNpc;
 	bool _alternatePending;
 	bool _queuedPrimary, _queuedSecondary;
+	BaseInventoryComponent _queuedShotInventory;
 	internal bool ShotQueued => _queuedPrimary || _queuedSecondary;
 	TimeUntil? _pumpStarts;
 	bool _reloadOnPump;
@@ -255,7 +256,12 @@ public sealed class BulletWeapon : Weapon
 		if ( (IsReloading || _lastShellInserting) && !ShotQueued && MountContent.OfWeapon( this ) == "hl2" ) SetNextFire( 0 );
 		_holdingEmptyTrigger = false;
 		_lastShellInserting = false;
-		_queuedPrimary = _queuedSecondary = false;
+		if ( ShotQueued && Inventory is { } inventory && inventory.ActiveItem is Weapon && Slot >= 0 )
+		{
+			_queuedShotInventory = inventory;
+			inventory.ActiveItemChanged += OnQueuedShotSwitch;
+		}
+		else _queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
 		_pumpOnDeploy |= _pumpStarts.HasValue;
 		_pumpStarts = null;
@@ -266,6 +272,35 @@ public sealed class BulletWeapon : Weapon
 		CancelBurst();
 		SetZoom( 0 );
 		base.OnHolstered();
+	}
+
+	// The holstered shotgun clears its delayed shot once the active weapon finishes drawing.
+	void OnQueuedShotSwitch( BaseInventoryItem previous, BaseInventoryItem next )
+	{
+		if ( next is not Weapon || (previous != this && previous is not Weapon { IsDeploying: true }) )
+			_queuedPrimary = _queuedSecondary = false;
+
+		if ( !ShotQueued || next == this ) StopWatchingSwitches();
+	}
+
+	void StopWatchingSwitches()
+	{
+		if ( _queuedShotInventory is null ) return;
+		_queuedShotInventory.ActiveItemChanged -= OnQueuedShotSwitch;
+		_queuedShotInventory = null;
+	}
+
+	protected override void OnParentChanged( GameObject oldParent, GameObject newParent )
+	{
+		base.OnParentChanged( oldParent, newParent );
+		_queuedPrimary = _queuedSecondary = false;
+		StopWatchingSwitches();
+	}
+
+	protected override void OnDestroy()
+	{
+		StopWatchingSwitches();
+		base.OnDestroy();
 	}
 
 	protected override void OnDisabled()
