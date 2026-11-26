@@ -10,14 +10,15 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	protected override int BaseHealth => 180;
 	protected override int HealthPerBiomass => 2;
 
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 30 ); }
-	float IDamageable.MaxArmour => 30;
+	const float MaxArmor = 30;
+	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
+	float IDamageable.MaxArmour => MaxArmor;
 
 	const float Scale = MapLoader.Scale;
 	const float BodyRadius = 0.4f * Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
-	readonly AlienTargeting targeting = new();
-	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 30;
+	internal GameObject assignedEnemy;
+	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback weapon;
@@ -102,27 +103,47 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		sporeTarget = umbraTarget.IsValid() ? null : ChooseSporeTarget();
 		if ( umbraTarget.IsValid() || sporeTarget.IsValid() )
 		{
+			assignedEnemy = null;
 			Animation.SetLookTarget( umbraTarget.IsValid() ? umbraTarget.GameObject : sporeTarget );
 			attacking = wantsSpikes = false;
 			return;
 		}
-		var enemy = targeting.FindEnemy( this, out var lastSeen );
+		Vector3? lastSeen = null;
+		var enemy = energy > 35 && Health + 2 * Armor > (MaxHealth + 2 * MaxArmor) * 0.6f
+			? AlienTargeting.ForTeam( this ).FindEnemy( this, out lastSeen ) : null;
+		if ( enemy.IsValid() && WorldPosition.DistanceSquared( enemy.WorldPosition ) > 50 * 50 * Scale * Scale ) enemy = null;
+		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		Animation.SetLookTarget( visible ? enemy : null );
-		var goal = lastSeen ?? enemy?.WorldPosition;
+		var goal = enemy?.WorldPosition;
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition : default;
 		float distance = visible ? EyePosition.Distance( touch ) / Scale : float.PositiveInfinity;
 		attacking = distance < 1.5f;
 		wantsSpikes = !attacking && distance < 35 && IsPlayerTarget( enemy );
 		if ( goal is null )
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
-		else if ( attacking && enemy.Tags.Has( "structure" ) )
+		else if ( distance < 1.75f && !IsPlayerTarget( enemy ) )
 			Movement.Stop();
 		else if ( repath <= 0 )
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
 			repath = 0.2f;
 		}
+	}
+
+	internal float AttackUrgency( BaseNpc target )
+	{
+		float distance = WorldPosition.Distance( target.WorldPosition ) / Scale;
+		if ( distance < 10 && target is Marine or Exo ) return 1 + 1 / Math.Max( 1, distance );
+		bool covered = AlienTargeting.HasResponders( this, target, 2 );
+		float weight = target switch
+		{
+			Marine => covered ? 0.6f : 1,
+			Exo => covered ? 0.8f : 1.2f,
+			Mac => covered ? 0.2f : 0.4f,
+			_ => 0
+		};
+		return weight * 40 / (40 + distance);
 	}
 
 	// Spark rotates the model about the center of the movement sphere.

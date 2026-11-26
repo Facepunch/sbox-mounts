@@ -42,6 +42,7 @@ internal sealed class AlienTargeting
 	static GameObject AssignedEnemy( BaseNpc npc ) => npc switch
 	{
 		Fade fade => fade.assignedEnemy,
+		Lerk lerk => lerk.assignedEnemy,
 		Gorge gorge => gorge.assignedTarget,
 		Marine marine => marine.assignedEnemy,
 		Exo exo => exo.assignedEnemy,
@@ -155,9 +156,9 @@ internal sealed class AlienTargeting
 			if ( hostiles[i].IsValid() ) Remember( hostiles[i], hostiles[i].WorldPosition );
 		if ( memories.Count == 0 ) return null;
 
-		if ( alien is Marine or Exo && !locations.IsValid() )
+		if ( alien is Marine or Exo or Lerk && !locations.IsValid() )
 			locations = alien.Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		bool useRooms = alien is Marine or Exo && locations.IsValid() && locations.Volumes.Length > 0;
+		bool useRooms = alien is Marine or Exo or Lerk && locations.IsValid() && locations.Volumes.Length > 0;
 		var room = useRooms ? locations.LocationAt( alien.WorldPosition ) : null;
 
 		GameObject best = null;
@@ -196,6 +197,8 @@ internal sealed class AlienTargeting
 			var action = alien is Marine && health is Babbler ? MarineAction.AttackBabbler : MarineAction.AttackLifeform;
 			if ( alien is Gorge )
 				urgency = -alien.WorldPosition.DistanceSquared( target.WorldPosition );
+			else if ( alien is Lerk lerk && health is BaseNpc lerkTarget && lerkTarget is Marine or Exo or Mac )
+				urgency = lerk.AttackUrgency( lerkTarget );
 			else if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
 			{
 				urgency = fade.AttackUrgency( fadeTarget );
