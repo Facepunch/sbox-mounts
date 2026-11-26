@@ -138,6 +138,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void Think()
 	{
+		viewOffset = Vector3.Zero;
 		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
 		var goal = memory ?? enemy?.WorldPosition;
@@ -186,7 +187,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || acquisition.TrackView( enemy, EyePosition, aimPoint, aim, 1, AimSkillTier ));
+		bool aimed = clearShot && (babbler || TrackBulletAim( enemy, aimPoint ));
+		if ( useEntityAttack && !aimed && (blindFireUntil > 0 || distance < 15 * Scale) )
+			viewOffset = Vector3.Zero;
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
@@ -341,7 +344,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
 			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, acquisition.TurnRate );
+				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) + viewOffset - EyePosition, acquisition.TurnRate );
 			else if ( wantsFire )
 				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, acquisition.TurnRate );
 		}
@@ -436,6 +439,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		var ray = Scene.Trace.Ray( eye, eye + d * BulletRange ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes();
 		bool box = lastShot >= 0.2f || lastHit < 0.5f;
 		lastShot = 0;
+		bool hitEntity = false;
 		for ( int i = 0; i < 20; i++ )
 		{
 			var hit = ray.Run();
@@ -448,6 +452,12 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();
 			var obj = (hp as Component)?.GameObject ?? corpse?.GameObject ?? hit.GameObject;
 			bool pass = corpse.IsValid() || obj.IsValid() && (hp is { MaxHealth: > 0, Health: <= 0 } || obj.Tags.HasAny( "ragdoll", "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ));
+			if ( obj.IsValid() && !obj.Tags.Has( "world" ) )
+			{
+				hitEntity = true;
+				bulletSamples++;
+				if ( hp is not null ) bulletHits++;
+			}
 			if ( hp is { Health: > 0 } && GetDisposition( obj ) == Disposition.Hostile )
 			{
 				var info = new DamageInfo { Damage = pistol ? 20 : 10, Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
@@ -460,6 +470,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			if ( !pass ) break;
 			ray = ray.IgnoreGameObjectHierarchy( obj );
 		}
+		if ( !hitEntity ) bulletSamples++;
 		if ( pistol && Networking.IsHost ) NpcTeamMemory.Get( Scene ).ReportPistolShot( this );
 		ShowMuzzle( pistol );
 	}

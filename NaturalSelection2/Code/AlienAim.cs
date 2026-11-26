@@ -8,7 +8,8 @@ internal static class AlienAim
 	{
 		// BotAim passes its class FOV directly to the cone cosine.
 		readonly float cone = MathF.Cos( fieldOfView );
-		GameObject target;
+		internal GameObject Target { get; private set; }
+		internal bool HasSample { get; private set; }
 		TimeSince lastTracked;
 		TimeUntil acquired;
 		List<(GameObject Target, float Time)> recentTargets;
@@ -46,14 +47,15 @@ internal static class AlienAim
 
 		bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier )
 		{
+			HasSample = false;
 			const float panicDistance = 2 * MapLoader.Scale;
 			if ( offset.LengthSquared > panicDistance * panicDistance && Vector3.Dot( offset.Normal, view.Forward ) <= cone )
 				return false;
 
-			if ( target != enemy || lastTracked > 0.5f )
+			if ( Target != enemy || lastTracked > 0.5f )
 			{
-				if ( target.IsValid() && lastTracked < 1.5f )
-					(recentTargets ??= []).Add( (target, Time.Now - lastTracked) );
+				if ( Target.IsValid() && lastTracked < 1.5f )
+					(recentTargets ??= []).Add( (Target, Time.Now - lastTracked) );
 
 				bool reacquiring = false;
 				for ( int i = (recentTargets?.Count ?? 0) - 1; i >= 0; i-- )
@@ -69,8 +71,9 @@ internal static class AlienAim
 
 				float tier = Math.Clamp( skillTier, 1, 7 ) / 7f;
 				acquired = (0.325f - 0.14f * tier) * (reacquiring ? 0.3f : 1);
-				target = enemy;
+				Target = enemy;
 			}
+			else HasSample = lastTracked > 0;
 			lastTracked = 0;
 			return true;
 		}
