@@ -1,7 +1,7 @@
 namespace Source1.GarrysMod;
 
 /// <summary>The Physics Gun carries the point under the crosshair, including individual ragdoll bodies.</summary>
-public sealed class PhysicsGun : Weapon, PlayerController.IEvents
+public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 {
 	const float MinRange = 40;
 
@@ -31,7 +31,8 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 	Rotation _lastMouseRotation;
 	[Sync] int SpinDirection { get; set; }
 	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
-	Vector3 _localPoint;
+	[Sync( SyncFlags.FromHost )] Vector3 GrabPoint { get; set; }
+	[Sync( SyncFlags.FromHost )] bool BeamOn { get; set; }
 	Rotation _yawOffset;
 	float _distance;
 	float _arrivalTime;
@@ -129,6 +130,7 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 				HeldBody.MotionEnabled = false;
 				Owner.GetOrAddComponent<FrozenProps>().Track( HeldBody );
 			}
+			BeamOn = false;
 			HeldBody = null;
 			return;
 		}
@@ -138,13 +140,15 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( !HeldBody.IsValid() )
 		{
 			var hit = TraceTarget( ray );
+			if ( !hit.Hit ) return;
+			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
 			if ( !body.IsValid() || body.IsProxy || !body.PhysicsBody.IsValid() || body.GetComponentInParent<PlayerController>().IsValid() ) return;
 
 			HeldBody = body;
 			body.MotionEnabled = true;
 			var transform = body.PhysicsBody.Transform;
-			_localPoint = transform.PointToLocal( hit.HitPosition );
+			GrabPoint = transform.PointToLocal( hit.HitPosition );
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_yawOffset = yaw.Inverse * transform.Rotation;
 			_previousSnapStep = null;
@@ -161,7 +165,7 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( InputState is Trigger.Push or Trigger.Pull )
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
-		var position = ray.Position + ray.Forward * _distance - physics.Rotation * _localPoint;
+		var position = ray.Position + ray.Forward * _distance - physics.Rotation * GrabPoint;
 		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
 		physics.Velocity = velocity.ClampLength( 4000 );
 		var angularError = ShadowController.AngularError( physics.Rotation, HoldRotation( yaw ) );
@@ -204,6 +208,7 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 
 	protected override void OnDisabled()
 	{
+		ClearBeam();
 		StopRedirectingMovement();
 		base.OnDisabled();
 	}
@@ -212,7 +217,12 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 	{
 		StopRedirectingMovement();
 		if ( !IsProxy ) InputState = Trigger.Released;
-		if ( Networking.IsHost ) HeldBody = null;
+		if ( Networking.IsHost )
+		{
+			HeldBody = null;
+			BeamOn = false;
+		}
+		ClearBeam();
 		base.OnHolstered();
 	}
 }
