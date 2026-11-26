@@ -89,7 +89,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	Rotation _yawOffset;
 	float _distance;
 	float _arrivalTime;
-	float? _previousMassOverride;
+	(float Setting, float NativeOverride)? _previousMass;
 	internal override bool ShouldPlayIdle => false;
 
 	public PhysicsGun()
@@ -211,7 +211,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			if ( !CanMove( body, Network.Owner ) || !body.PhysicsBody.IsValid() ) return;
 
 			HeldBody = body;
-			_previousMassOverride = null;
+			_previousMass = null;
 			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
 			if ( !body.IsValid() || HeldBody != body || !body.PhysicsBody.IsValid() ) return;
 			body.MotionEnabled = true;
@@ -219,7 +219,15 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			// With two holders, the gun that raised the mass restores it on release.
 			if ( !ragdoll && !body.Tags.Has( KeepMassTag ) && body.Mass < CarryMass )
 			{
-				_previousMassOverride = body.MassOverride;
+				var mass = body.Mass;
+				var nativeOverride = 0f;
+				if ( body.MassOverride <= 0 )
+				{
+					// ModelCollider can author the native mass while Rigidbody still uses automatic mass.
+					body.PhysicsBody.Mass = 0;
+					if ( body.Mass != mass ) nativeOverride = mass;
+				}
+				_previousMass = (body.MassOverride, nativeOverride);
 				body.MassOverride = CarryMass;
 			}
 			var transform = body.PhysicsBody.Transform;
@@ -273,12 +281,16 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	void Release()
 	{
 		var body = HeldBody;
-		var previousMass = _previousMassOverride;
-		_previousMassOverride = null;
+		var previousMass = _previousMass;
+		_previousMass = null;
 		HeldBody = null;
 		BeamOn = false;
 		if ( body.IsValid() ) body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
-		if ( previousMass.HasValue && body.IsValid() ) body.MassOverride = previousMass.Value;
+		if ( previousMass is { } mass && body.IsValid() )
+		{
+			body.MassOverride = mass.Setting;
+			if ( mass.NativeOverride > 0 && body.PhysicsBody.IsValid() ) body.PhysicsBody.Mass = mass.NativeOverride;
+		}
 	}
 
 	Rotation HoldRotation( Rotation yaw )
