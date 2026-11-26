@@ -348,7 +348,7 @@ public sealed class Grenade : Projectile
 			if ( gravity > 0 ) _body.GravityScale = 600f / gravity;
 		}
 
-		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
+		if ( Networking.IsHost ) Blip();
 	}
 
 	protected override void AttachTrail( Vector3 tail )
@@ -389,16 +389,16 @@ public sealed class Grenade : Projectile
 		nextThink += ThinkInterval;
 		if ( now <= Fuse && now > nextBlip )
 		{
-			Blip( WorldPosition, MountName );
+			Blip();
 			nextBlip = now + 0.3f;
 		}
 		return true;
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void Blip( Vector3 position, string mount )
+	void Blip()
 	{
-		if ( Sounds.Sound( "Grenade.Blip", mount ) is { } sound ) Sound.Play( sound, position );
+		if ( !Application.IsDedicatedServer && Sounds.Sound( "Grenade.Blip", MountName ) is { } sound ) GameObject.PlaySound( sound );
 	}
 
 	protected override float Lifetime => Fuse;
