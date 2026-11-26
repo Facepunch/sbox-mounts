@@ -251,9 +251,12 @@ internal partial class BspFile
 		}
 	}
 
-	internal int FindLeaf( Vector3 position )
+	internal int FindLeaf( Vector3 position ) => FindLeaf( position, Models[0].HeadNode );
+
+	internal int ModelCenterContents( BspModel model ) => leaves[FindLeaf( (model.Mins + model.Maxs) * 0.5f, model.HeadNode )].Contents;
+
+	int FindLeaf( Vector3 position, int index )
 	{
-		int index = Models[0].HeadNode;
 		while ( index >= 0 )
 		{
 			var node = nodes[index];

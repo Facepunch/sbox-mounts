@@ -37,17 +37,18 @@ partial class MapLoader
 			var target = world;
 			if ( kind != BspCollisionKind.Solid )
 			{
-				target = new GameObject( false, kind == BspCollisionKind.Sky ? "sky collision" : "audio transparent collision" )
+				target = new GameObject( false, kind switch { BspCollisionKind.Sky => "sky collision", BspCollisionKind.Window => "window collision", _ => "audio transparent collision" } )
 				{
 					Parent = world,
 					IsStatic = staticCollider
 				};
 				target.Tags.Add( "world" );
-				target.Tags.Add( "passaudio" );
+				if ( kind == BspCollisionKind.Window ) target.Tags.Add( "source1_window" );
+				else target.Tags.Add( "passaudio" );
 				if ( kind == BspCollisionKind.Sky ) target.Tags.Add( "source1_sky" );
 			}
 
-			var suffix = kind switch { BspCollisionKind.Clip => "_passaudio", BspCollisionKind.Sky => "_sky", _ => "" };
+			var suffix = kind switch { BspCollisionKind.Clip => "_passaudio", BspCollisionKind.Sky => "_sky", BspCollisionKind.Window => "_window", _ => "" };
 			var physics = PhysicsGroupDescription.Create( $"source1/{Host.Ident}/{FullPath}/{(skybox ? "skybox_" : "")}model_{modelIndex}{suffix}.vphys", parts, surfaces );
 			_worldPhysics.Add( physics );
 			var collider = target.AddComponent<PhysicsCollider>( false );
@@ -90,7 +91,6 @@ partial class MapLoader
 	bool AddDisplacementPhysics( BspFile bsp, Func<string, PhysicsBodyBuilder> getBody, Func<Surface, byte> getMaterial, bool skybox = false )
 	{
 		const int CONTENTS_SOLID = 0x1;
-		const int CONTENTS_WINDOW = 0x2;
 		const int CONTENTS_GRATE = 0x8;
 		const int SURF_NOPHYSICS_COLL = 0x2;
 		bool added = false;
@@ -103,7 +103,7 @@ partial class MapLoader
 			if ( face.DispInfo < 0 || skybox && !bsp.IsActiveSkyboxFace( i ) )
 				continue;
 			ref var disp = ref bsp.DispInfos[face.DispInfo];
-			if ( (disp.Flags & SURF_NOPHYSICS_COLL) != 0 || (disp.Contents & (CONTENTS_SOLID | CONTENTS_WINDOW | CONTENTS_GRATE)) == 0 )
+			if ( (disp.Flags & SURF_NOPHYSICS_COLL) != 0 || (disp.Contents & (CONTENTS_SOLID | BspFile.ContentsWindow | CONTENTS_GRATE)) == 0 )
 				continue;
 			int size = (1 << disp.Power) + 1;
 			var indices = new List<int>( (size - 1) * (size - 1) * 6 );

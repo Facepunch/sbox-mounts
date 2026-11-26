@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Source1;
 
-internal enum BspCollisionKind { Solid, Clip, Sky }
+internal enum BspCollisionKind { Solid, Clip, Sky, Window }
 
 internal sealed class BspPhysicsMesh
 {
@@ -21,6 +21,11 @@ internal sealed record BspPhysicsFluid( Vector4 Plane, Vector3 Velocity, string 
 }
 internal partial class BspFile
 {
+	// MASK_SHOT includes solid, moveable, monster, debris and hitbox in addition to window.
+	const int MaskShot = 0x46004003;
+	internal const int ContentsWindow = 0x2;
+	internal static bool IsWindowOnly( int contents ) => (contents & MaskShot) == ContentsWindow;
+
 	internal const int ContentsClip = 0x30000;
 	internal const int ContentsBlockAudio = 0x4003;
 	internal const int SurfaceSky = 6;
@@ -395,7 +400,8 @@ internal partial class BspFile
 		ValidateRange( brushIndex, 1, collisionBrushes.Length, "IVP collision brush index" );
 		var brush = collisionBrushes[brushIndex];
 		passAudio |= (brush.Contents & ContentsClip) != 0 && (brush.Contents & ContentsBlockAudio) == 0;
-		var otherKind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid;
+		var otherKind = IsWindowOnly( brush.Contents ) ? BspCollisionKind.Window
+			: passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid;
 		bool hasSky = false;
 		for ( int index = brush.FirstSide; index < brush.FirstSide + brush.SideCount && !hasSky; index++ )
 		{

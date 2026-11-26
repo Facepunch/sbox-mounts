@@ -74,6 +74,7 @@ partial class MapLoader
 				return false;
 
 			var surface = new GameObject( false, "Glass pane" ) { Parent = instance, NetworkMode = NetworkMode.Object };
+			if ( BspFile.IsWindowOnly( bsp.ModelCenterContents( model ) ) ) surface.Tags.Add( "source1_window" );
 			surface.LocalPosition = lower + across * 0.5f - entity.Vector( "origin" );
 			surface.LocalRotation = Rotation.LookAt( Vector3.Cross( across, up ).Normal, up.Normal );
 			var pane = surface.AddComponent<SourceGlassPane>( false );
