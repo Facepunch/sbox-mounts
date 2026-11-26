@@ -558,8 +558,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( equippedPistol != pistol ) EquipWeapon();
 		if ( Networking.IsHost )
 		{
-			UpdateGuardCrouch();
-			UpdateSprint( sprintRequested && Movement.MoveTarget.HasValue, IsOnGround, Animation.MoveVelocity, agent.WishVelocity );
+			UpdateGuardInput();
+			bool pressSprint = (sprintRequested && Movement.MoveTarget.HasValue) || (guardSprint && guardInputExpires >= 0);
+			UpdateSprint( pressSprint, IsOnGround, Animation.MoveVelocity, agent.WishVelocity );
 			if ( wounds.Update() is { } cue )
 				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
 			bool press = wantsFire && AllowsAttack( assignedEnemy ) && (!pistol || !previousPress);

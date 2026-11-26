@@ -21,17 +21,27 @@ public sealed partial class Marine : Component.IPressable
 		}
 	}
 
-	TimeUntil guardCrouch;
+	TimeUntil guardInputExpires = -1;
+	bool guardSprint;
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnCrouchingChanged ) )] bool crouching { get; set; }
 	float crouchProgress;
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float crouchAmount { get; set; }
 
-	void UpdateGuardCrouch()
+	void UpdateGuardInput()
 	{
-		if ( NpcConVars.Enabled && ActiveSchedule is FollowSchedule && CanFollowLeader && Leader.GetComponent<PlayerController>() is { IsDucking: true } )
-			guardCrouch = 1;
+		if ( NpcConVars.Enabled && ActiveSchedule is FollowSchedule && CanFollowLeader &&
+			Leader.GetComponent<PlayerController>() is { } player )
+		{
+			// WishVelocity is the movement input replicated by the player's controller.
+			bool running = player.IsOnGround && player.WishVelocity.WithZ( 0 ).LengthSquared > player.WalkSpeed * player.WalkSpeed;
+			if ( player.IsDucking || running )
+			{
+				guardSprint = !player.IsDucking;
+				guardInputExpires = 1;
+			}
+		}
 
-		bool desired = guardCrouch > 0;
+		bool desired = !guardSprint && guardInputExpires >= 0;
 		crouchProgress = Math.Clamp( crouchProgress + (crouching ? 4 : -4) * Time.Delta, 0, 1 );
 		crouchAmount = crouchProgress is 0 or 1 ? crouchProgress : MathF.Sin( MathF.PI * 0.5f * crouchProgress );
 		if ( desired == crouching ) return;
