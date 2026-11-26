@@ -61,7 +61,7 @@ internal sealed class CharacterRemains : Component
 	internal void OnBodyContact( Collision collision )
 	{
 		if ( !Networking.IsHost || Dragger.IsValid() || collision.Other.IsTrigger || !collision.Other.GameObject.IsValid() ) return;
-		float impulse = RabbitGuard.BodyImpactImpulse( collision ) / 40f;
+		float impulse = RabbitGuard.RagdollImpactImpulse( collision ) / 40f;
 		if ( impulse <= 1f || CharacterLoader.RagdollCenter( Physics ) is not { } center ) return;
 		if ( GetComponent<RagdollDamping>()?.WaterDepth( center ) >= 0.2f ) return;
 

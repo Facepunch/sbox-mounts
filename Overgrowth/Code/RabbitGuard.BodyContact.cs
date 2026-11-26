@@ -37,7 +37,7 @@ public sealed partial class RabbitGuard
 	internal void OnRagdollContact( Collision collision, int bone )
 	{
 		if ( !Networking.IsHost || !Downed || collision.Other.IsTrigger || !collision.Other.GameObject.IsValid() ) return;
-		float impulse = BodyImpactImpulse( collision ) / 40f;
+		float impulse = RagdollImpactImpulse( collision ) / 40f;
 		var point = collision.Contact.Point;
 		if ( !IsValid || Health <= 0f ) return;
 		if ( impulse <= 0.1f ) return;
@@ -69,15 +69,36 @@ public sealed partial class RabbitGuard
 
 	// Box3D's begin-touch notification can contain just the last solver substep's impulse.
 	// Recover the normal impulse required to arrest the initial approach at this contact.
-	internal static float BodyImpactImpulse( Collision collision )
+	internal static float BodyImpactImpulse( Collision collision ) => EstimateImpactImpulse( collision, false );
+	internal static float RagdollImpactImpulse( Collision collision ) => EstimateImpactImpulse( collision, true );
+
+	static float EstimateImpactImpulse( Collision collision, bool articulated )
 	{
 		var contact = collision.Contact;
-		float inverseMass = InverseContactMass( collision.Self.Body ) + InverseContactMass( collision.Other.Body );
-		return inverseMass > 0f ? Math.Max( contact.Impulse, contact.NormalSpeed / inverseMass ) : contact.Impulse;
+		if ( contact.NormalSpeed <= 0f ) return contact.Impulse;
+		var other = collision.Other.Body;
+		bool otherLimb = articulated && other.IsValid() && other.Component.IsValid() && other.Component.GetComponentInParent<ModelPhysics>().IsValid();
+		var self = collision.Self.Body;
+		float inverseMass = InverseContactMass( self, articulated ) + InverseContactMass( other, otherLimb );
+		if ( inverseMass <= 0f ) return contact.Impulse;
+		float speedChange = contact.NormalSpeed;
+		if ( articulated && self.IsValid() )
+		{
+			// Both listeners receive the same normal. Orient it toward this limb to measure rebound.
+			var normal = contact.Normal;
+			if ( normal.Dot( self.MassCenter - contact.Point ) < 0f ) normal = -normal;
+			var relative = self.GetVelocityAtPoint( contact.Point );
+			if ( other.IsValid() ) relative -= other.GetVelocityAtPoint( contact.Point );
+			speedChange += Math.Max( 0f, relative.Dot( normal ) );
+		}
+		return Math.Max( contact.Impulse, speedChange / inverseMass );
 
-		float InverseContactMass( PhysicsBody body )
+		float InverseContactMass( PhysicsBody body, bool limb )
 		{
 			if ( !body.IsValid() || !body.MotionEnabled || body.Mass <= 0f ) return 0f;
+			// The joints constrain rotation at a limb contact. The free-body angular term
+			// underestimates the momentum transferred through the skeleton.
+			if ( limb ) return 1f / body.Mass;
 			var arm = Vector3.Cross( contact.Point - body.MassCenter, contact.Normal );
 			var axis = (body.Rotation * body.InertiaRotation).Inverse * arm;
 			var inertia = body.Inertia;
