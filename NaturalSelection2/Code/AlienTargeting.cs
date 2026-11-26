@@ -12,6 +12,7 @@ internal sealed class AlienTargeting
 	}
 
 	readonly Dictionary<GameObject, Memory> memories = [];
+	MapLocations locations;
 
 	internal static bool HasResponders( BaseNpc self, BaseNpc target, int required )
 	{
@@ -57,10 +58,17 @@ internal sealed class AlienTargeting
 		var hostiles = alien.Senses.VisibleHostiles;
 		for ( int i = 0; i < hostiles.Count; i++ )
 			if ( hostiles[i].IsValid() ) Remember( hostiles[i], hostiles[i].WorldPosition );
+		if ( memories.Count == 0 ) return null;
+
+		if ( alien is Marine or Exo && !locations.IsValid() )
+			locations = alien.Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		bool useRooms = locations.IsValid() && locations.Volumes.Length > 0;
+		var room = useRooms ? locations.LocationAt( alien.WorldPosition ) : null;
 
 		GameObject best = null;
 		int bestPriority = int.MinValue;
 		float bestUrgency = float.MinValue;
+		int bestRoom = int.MaxValue;
 		foreach ( var (target, memory) in memories )
 		{
 			if ( !target.IsValid() || Time.Now - memory.Time > 5 || IsIgnoredPlayer( target ) )
@@ -71,6 +79,8 @@ internal sealed class AlienTargeting
 			if ( ignore?.Invoke( target, memory.Position ) == true ) continue;
 			var relationship = alien.GetRelationship( target );
 			if ( relationship.Disposition != Disposition.Hostile || relationship.Priority < bestPriority ) continue;
+			int roomOrder = useRooms ? locations.NearbyRoomOrder( room, memory.Position ) : 0;
+			if ( roomOrder < 0 ) continue;
 			var health = target.GetComponentInChildren<Component.IDamageable>();
 			if ( health is not Component { Active: true } ) continue;
 			if ( health.MaxHealth <= 0 )
@@ -104,10 +114,11 @@ internal sealed class AlienTargeting
 				urgency = wounded;
 				if ( distance < 20 ) urgency += alien is Skulk ? 2 - distance * 0.1f : 10 / Math.Max( 1, distance );
 			}
-			if ( relationship.Priority == bestPriority && urgency <= bestUrgency ) continue;
+			if ( relationship.Priority == bestPriority && (urgency < bestUrgency || urgency == bestUrgency && roomOrder >= bestRoom) ) continue;
 			best = target;
 			bestPriority = relationship.Priority;
 			bestUrgency = urgency;
+			bestRoom = roomOrder;
 		}
 		if ( best is not null && !hostiles.Contains( best ) ) lastKnownPosition = memories[best].Position;
 		return best;

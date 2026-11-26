@@ -84,6 +84,18 @@ public sealed partial class MapLocations : Component
 		return null;
 	}
 
+	internal int NearbyRoomOrder( string room, Vector3 lastSeen )
+	{
+		if ( string.IsNullOrEmpty( room ) ) return -1;
+		var other = LocationAt( lastSeen );
+		if ( string.IsNullOrEmpty( other ) ) return -1;
+		if ( other == room ) return 0;
+		var neighbors = Neighbors( room );
+		for ( int i = 0; i < neighbors.Length; i++ )
+			if ( neighbors[i].Name == other ) return i + 1;
+		return -1;
+	}
+
 	Dictionary<string, Vector3[]> roomLights;
 
 	internal Vector3[] LightsNear( Vector3 origin )
@@ -151,7 +163,8 @@ public sealed partial class MapLocations : Component
 				if ( directPaths.Contains( (room, d.Name) ) && Project( d ) is { } p ) goals.Add( d with { Position = p } );
 			return connections[room] = goals.ToArray();
 		}
-		var source = Destinations.First( x => x.Name == room );
+		var source = Destinations.FirstOrDefault( x => x.Name == room );
+		if ( source.Name is null ) return [];
 		var start = Project( source );
 		if ( start is null ) return [];
 		List<Destination> reachable = [];
