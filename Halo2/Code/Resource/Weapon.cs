@@ -304,7 +304,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		}
 	}
 
-	internal static Halo2ModelLoader CreateRig( MapFile map, TagEntry weapon, TagEntry globals, int index )
+	internal static Halo2ModelLoader CreateRig( MapFile map, TagEntry weapon, TagEntry globals, int index, bool offhand = false )
 	{
 		if ( weapon.DataSize < 0x2b0 || globals is not { DataSize: >= 0x140 } ) return null;
 		int players = map.VaToOffset( (int)globals.DataVirtualAddress ) + 0x138;
@@ -318,7 +318,9 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 			|| Reference( player + 0xb0 ) is not { PrimaryClass: "dpib", DataSize: > 0 } biped
 			|| Reference( model ) is not { PrimaryClass: "edom", DataSize: > 0 } gun
 			|| Reference( model + 8 ) is not { PrimaryClass: "damj", DataSize: > 0 } graph ) return null;
-		return new Halo2ModelLoader( map, arms, biped: biped, graph: graph, firstPersonWeapon: gun );
+		int flags = map.ReadInt32( map.VaToOffset( (int)weapon.DataVirtualAddress ) + 0x12c );
+		return new Halo2ModelLoader( map, arms, biped: biped, graph: graph, firstPersonWeapon: gun, offhandRig: offhand,
+			dualWieldable: (flags & (1 << 22)) != 0 );
 	}
 
 	internal static string ModelPath( Halo2Mount mount, MapFile map, TagEntry weapon )

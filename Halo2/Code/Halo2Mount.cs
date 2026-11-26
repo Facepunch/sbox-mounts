@@ -231,6 +231,8 @@ public class Halo2Mount : BaseGameMount
 					var path = $"weapons/{name}/{(i == 0 ? "first_person" : "first_person_elite")}.vmdl";
 					if ( weaponRigs.Contains( path ) || WeaponLoader.CreateRig( mapFile, tag, globals, i ) is not {} rig ) continue;
 					context.Add( ResourceType.Model, path, rig );
+					if ( rig.DualWieldable )
+						context.Add( ResourceType.Model, path.Replace( ".vmdl", "_left.vmdl" ), WeaponLoader.CreateRig( mapFile, tag, globals, i, offhand: true ) );
 					weaponRigs.Add( path );
 					if ( (i == 0 || !handhelds.ContainsKey( name )) && HandheldWeaponLoader.ForTag( mapFile, tag, name ) is {} item )
 						handhelds[name] = item;

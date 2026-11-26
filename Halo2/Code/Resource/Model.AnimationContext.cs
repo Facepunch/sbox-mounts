@@ -41,12 +41,14 @@ public sealed record Halo2ClipInfo( string Name, int Frames, int LoopFrame, floa
 [Sandbox.ModelEditor.GameData( "first_person_animation" )]
 public sealed class FirstPersonAnimation
 {
+	internal const string OffhandGroupSuffix = "_offhand";
 	public Dictionary<string, Halo2ClipInfo> Actions { get; set; }
 	public Dictionary<string, Halo2ClipInfo> DualActions { get; set; }
 	public Halo2ClipInfo Movement { get; set; }
 	public int AmmunitionFrames { get; set; }
 	public Dictionary<string, CuePlayback> Sounds { get; set; }
 }
+
 
 public partial class Halo2ModelLoader
 {

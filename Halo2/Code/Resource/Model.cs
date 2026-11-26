@@ -20,8 +20,10 @@ public sealed class UnitDefinition
 /// References: Gravemind2401/Reclaimer - Halo2/Halo2Common.cs (ReadPcRenderModelMeshData)
 /// </summary>
 public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null,
-	TagEntry collision = null, TagEntry firstPersonWeapon = null, TagEntry collisionModel = null, string[] materialNames = null ) : ResourceLoader<Halo2Mount>
+	TagEntry collision = null, TagEntry firstPersonWeapon = null, TagEntry collisionModel = null, string[] materialNames = null, bool offhandRig = false, bool dualWieldable = false ) : ResourceLoader<Halo2Mount>
 {
+	internal bool DualWieldable => dualWieldable;
+	int offhandRoot = -1;
 	internal string FirstPersonWeaponPath => firstPersonWeapon is null ? null : Host.AssetPath( mapFile, firstPersonWeapon.TagPath, "vmdl" );
 
 	ModelTarget[] ReadTargets()
@@ -51,7 +53,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 		// Keep the arm mesh's vertex bone indices intact. The animation graph parents
 		// the separate weapon skeleton under the right hand and also contains the camera.
-		var weaponBones = new RenderModelTag( mapFile, firstPersonWeapon ).Nodes.ToDictionary( n => n.StringId );
+		var nodes = new RenderModelTag( mapFile, firstPersonWeapon ).Nodes;
+		var weaponBones = nodes.ToDictionary( n => n.StringId );
 		var indices = model.Nodes.Select( (n, i) => (n.StringId, i) ).ToDictionary( x => x.StringId, x => x.i );
 		var rows = Rows( GraphHeader + 12, 32 ).ToArray();
 		foreach ( int row in rows )
@@ -60,6 +63,16 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			if ( indices.ContainsKey( id ) ) continue;
 			var bone = weaponBones.GetValueOrDefault( id ) ?? new Node { StringId = id, RotationW = 1 };
 			int parent = (short)mapFile.ReadInt32( row + 8 );
+			if ( offhandRig && parent >= 0 && id == nodes[0].StringId )
+			{
+				int oppositeFlag = (mapFile.ReadInt32( rows[parent] + 10 ) & 8) != 0 ? 0x10 : 8;
+				int opposite = Array.FindIndex( rows, other => (mapFile.ReadInt32( other + 10 ) & oppositeFlag) != 0 );
+				if ( opposite >= 0 )
+				{
+					parent = opposite;
+					offhandRoot = model.Nodes.Count;
+				}
+			}
 			bone.ParentIndex = parent < 0 ? (short)-1 : (short)indices[mapFile.ReadInt32( rows[parent] )];
 			indices.Add( id, model.Nodes.Count );
 			model.Nodes.Add( bone );
@@ -150,7 +163,9 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		// Build skeleton
 		var materials = new Dictionary<int, Material>( model.Shaders.Count );
 		var bones = BuildSkeleton( model, mapFile );
-
+		var leftNodes = dualWieldable ? Rows( GraphHeader + 12, 32 ).Where( row => (mapFile.ReadInt32( row + 10 ) & 0x20) != 0 )
+			.Select( row => mapFile.ReadInt32( row ) ).ToHashSet() : null;
+		var leftBones = leftNodes is null ? null : model.Nodes.Select( n => leftNodes.Contains( n.StringId ) ).ToArray();
 		foreach ( var region in model.Regions )
 		{
 			string regionName = mapFile.ResolveStringId( region.StringId ) ?? $"region_{region.StringId}";
@@ -189,7 +204,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					try
 					{
 						var bounds = model.BoundingBoxes.Count > 0 ? model.BoundingBoxes[0] : null;
-						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, bones, needsTraceMesh ) )
+						if ( BuildSectionMeshes( Host.FileSystem, mapFile, model, section, sectionIndex, builder, bounds, lod, regionName, permIdx, materials, bones, needsTraceMesh, leftBones ) )
 							needsTraceMesh = false;
 					}
 					catch ( Exception ex )
@@ -228,7 +243,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return builder.Create();
 	}
 
-	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, List<ModelBuilder.Bone> bones, bool addTraceMesh )
+	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, List<ModelBuilder.Bone> bones, bool addTraceMesh, bool[] leftBones )
 	{
 		// Read geometry blob via DataPointer
 		var blobData = ReadSectionBlob( fileSystem, map, section );
@@ -333,28 +348,57 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			if ( !materials.TryGetValue( shaderId, out var material ) )
 				materials[shaderId] = material = LoadMaterial( map, model, index );
 
-			var mesh = new Mesh( $"section{sectionIndex}", material );
+
 			var partVertices = section.GeometryClassification == 3 && submesh.Influences != submeshes[0].Influences
 				? alternate ??= Vertices( submesh.Influences ) : verts;
-			mesh.CreateVertexBuffer( partVertices.Length, partVertices );
-			mesh.CreateIndexBuffer( triIndices.Count, triIndices );
-			var meshBounds = BBox.FromPositionAndSize( partVertices[triIndices[0]].position );
-			part++;
-			foreach ( int vertexIndex in triIndices )
+			if ( leftBones is null ) AddMesh( triIndices, regionName );
+			else
 			{
-				if ( visited[vertexIndex] == part ) continue;
-				visited[vertexIndex] = part;
-				ref readonly var vertex = ref partVertices[vertexIndex];
-				meshBounds = meshBounds.AddPoint( vertex.position );
-				var weights = vertex.blendWeights;
-				var ids = vertex.blendIndices;
-				Include( ids.r, weights.r, vertex.position );
-				Include( ids.g, weights.g, vertex.position );
-				Include( ids.b, weights.b, vertex.position );
-				Include( ids.a, weights.a, vertex.position );
+				var left = new List<int>();
+				var right = new List<int>();
+				for ( int t = 0; t < triIndices.Count; t += 3 )
+				{
+					var target = IsLeft( triIndices[t] ) && IsLeft( triIndices[t + 1] ) && IsLeft( triIndices[t + 2] ) ? left : right;
+					target.Add( triIndices[t] );
+					target.Add( triIndices[t + 1] );
+					target.Add( triIndices[t + 2] );
+				}
+				if ( right.Count > 0 ) AddMesh( right, regionName );
+				if ( left.Count > 0 ) AddMesh( left, regionName + FirstPersonAnimation.OffhandGroupSuffix );
 			}
-			mesh.Bounds = meshBounds;
-			builder.AddMesh( mesh, lod, regionName, permIndex );
+
+			bool IsLeft( int index )
+			{
+				ref readonly var v = ref partVertices[index];
+				var w = v.blendWeights;
+				var b = v.blendIndices;
+				return (w.r == 0 || leftBones[b.r]) && (w.g == 0 || leftBones[b.g]) &&
+					(w.b == 0 || leftBones[b.b]) && (w.a == 0 || leftBones[b.a]) && (w.r | w.g | w.b | w.a) != 0;
+			}
+
+			void AddMesh( List<int> triangles, string group )
+			{
+				var mesh = new Mesh( $"section{sectionIndex}", material );
+				mesh.CreateVertexBuffer( partVertices.Length, partVertices );
+				mesh.CreateIndexBuffer( triangles.Count, triangles );
+				var meshBounds = BBox.FromPositionAndSize( partVertices[triangles[0]].position );
+				part++;
+				foreach ( int vertexIndex in triangles )
+				{
+					if ( visited[vertexIndex] == part ) continue;
+					visited[vertexIndex] = part;
+					ref readonly var vertex = ref partVertices[vertexIndex];
+					meshBounds = meshBounds.AddPoint( vertex.position );
+					var weights = vertex.blendWeights;
+					var ids = vertex.blendIndices;
+					Include( ids.r, weights.r, vertex.position );
+					Include( ids.g, weights.g, vertex.position );
+					Include( ids.b, weights.b, vertex.position );
+					Include( ids.a, weights.a, vertex.position );
+				}
+				mesh.Bounds = meshBounds;
+				builder.AddMesh( mesh, lod, group, permIndex );
+			}
 			traceIndices?.AddRange( triIndices );
 		}
 

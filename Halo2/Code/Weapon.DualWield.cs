@@ -11,8 +11,8 @@ public abstract partial class Weapon
 	double? pickupStarted;
 	bool pickupRequested;
 
-	bool IsOffhand => Inventory?.ActiveItem is Weapon primary && primary.Offhand == this;
-	protected bool IsDualWielding => Offhand.IsValid() || IsOffhand;
+	internal bool IsOffhand => Inventory?.ActiveItem is Weapon primary && primary.Offhand == this;
+	internal bool IsDualWielding => Offhand.IsValid() || IsOffhand;
 	protected bool IsInHand => IsActive || IsOffhand;
 	protected string TriggerButton => IsOffhand ? "attack2" : "attack1";
 	protected override bool WantsPrimaryAttack() => PrimaryAutomatic ? Input.Down( TriggerButton ) : Input.Pressed( TriggerButton );
@@ -29,6 +29,7 @@ public abstract partial class Weapon
 		}
 		if ( item.IsValid() )
 		{
+			if ( ZoomLevels > 0 ) ExitOwnerZoom();
 			if ( item.GetComponent<SkinnedModelRenderer>( true ) is {} loose ) loose.Enabled = false;
 			item.GameObject.Enabled = true;
 		}

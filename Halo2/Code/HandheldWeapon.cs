@@ -133,6 +133,7 @@ public abstract class HandheldWeapon : Weapon
 
 	protected override void OnDisabled()
 	{
+		if ( ViewModel.IsValid() && ViewModel.Parent != GameObject ) DestroyViewModel();
 		lastAutomaticRound = null;
 		automaticRoundAt = null;
 		roundQueued = false;
@@ -268,6 +269,8 @@ public abstract class HandheldWeapon : Weapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( IsOffhand && !ViewModel.IsValid() && !IsProxy ) CreateViewModel();
+		else if ( !IsOffhand && ViewModel.IsValid() && ViewModel.Parent != GameObject ) DestroyViewModel();
 		var next = Offhand as HandheldWeapon;
 		if ( next == renderedOffhand && next.IsValid() == offhandModel.IsValid() ) return;
 		ClearOffhandModel();
@@ -347,9 +350,12 @@ public abstract class HandheldWeapon : Weapon
 	{
 		if ( ViewModel.IsValid() || IsProxy || Holder is not PlayerController ) return;
 		bool elite = UseEliteRig;
-		var rig = FirstPersonRig;
-		var view = new GameObject( GameObject, false, $"{DisplayName} view model" );
+		var primary = IsOffhand ? Inventory.ActiveItem as Weapon : null;
+		if ( primary is not null && !primary.ViewModel.IsValid() ) return;
+		var rig = primary is null ? FirstPersonRig : FirstPersonRig.Replace( ".vmdl", "_left.vmdl" );
+		var view = new GameObject( primary is null ? GameObject : null, false, $"{DisplayName} view model" );
 		view.Flags |= GameObjectFlags.Absolute | GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+		if ( primary is not null ) view.WorldTransform = primary.ViewModel.WorldTransform;
 		view.Tags.Add( "firstperson", "viewmodel" );
 		var arms = view.AddComponent<SkinnedModelRenderer>();
 		arms.Model = Model.Load( rig );
@@ -387,13 +393,21 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	int reloadStartRounds;
 	int reloadKeyframe;
 	bool dualGraph;
-	bool WantsDualGraph => Weapon.Offhand.IsValid() && AnimationData?.DualActions is not null;
+	bool WantsDualGraph => Weapon.IsDualWielding && AnimationData?.DualActions is not null;
 
 	void SelectGraph( bool dual )
 	{
 		if ( dualGraph == dual ) return;
 		var category = dual ? "dual" : "any";
 		Renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"{Renderer.Model.Name}/any/{category}/any.ag" );
+		var groups = Renderer.Model.Parts.DefaultMask;
+		if ( dual )
+		{
+			foreach ( var part in Renderer.Model.Parts.All )
+				if ( part.Name.EndsWith( FirstPersonAnimation.OffhandGroupSuffix, System.StringComparison.Ordinal ) != Weapon.IsOffhand )
+					groups &= ~part.Mask;
+		}
+		Renderer.BodyGroups = groups;
 		dualGraph = dual;
 	}
 

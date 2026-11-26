@@ -446,6 +446,15 @@ public partial class Halo2ModelLoader
 				poses[i].Position *= source.TranslationScale;
 			}
 		}
+		if ( offhandRoot >= 0 )
+			for ( int i = offhandRoot; i < poses.Length; i += bones )
+			{
+				ref var pose = ref poses[i];
+				pose.Position = pose.Position.WithY( -pose.Position.y );
+				var q = pose.Rotation;
+				pose.Rotation = new Rotation( -q.x, q.y, -q.z, q.w );
+				pose.Scale = Vector3.One;
+			}
 		if ( additive )
 			for ( int i = 0; i < poses.Length; i++ ) poses[i].Scale -= Vector3.One;
 
