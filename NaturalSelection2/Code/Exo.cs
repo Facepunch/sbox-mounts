@@ -15,7 +15,9 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	[Property] public bool Railguns { get; set; }
 	bool HoldingRailCharge => Railguns && (leftPressed && left.Charge >= 1 || rightPressed && right.Charge >= 1);
 	float GroundSpeed => (Railguns ? 4.879f : 4.522f) * Scale * (HoldingRailCharge ? 0.8f : 1f);
-	float ArmorCapacity => Railguns ? 260 : 320;
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost ), Change( nameof( OnArmorLevelChanged ) )]
+	public int ArmorLevel { get; set; }
+	float ArmorCapacity => (Railguns ? 260 : 320) + 40 * Math.Clamp( ArmorLevel, 0, 3 );
 	// BaseNpc dies below one health. Reserve that interval so even fractional armor keeps the suit alive.
 	float HealthFromArmor( float armor ) => armor <= 0 ? 0 : 1 + Math.Min( armor, ArmorCapacity );
 	float RemainingArmor => Math.Max( 0, Health - 1 );
@@ -24,6 +26,20 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	{
 		get => RemainingArmor;
 		set => Health = HealthFromArmor( value );
+	}
+
+	void OnArmorLevelChanged( int before, int after )
+	{
+		if ( Networking.IsHost && MaxHealth > 0 ) UpdateArmorCapacity();
+	}
+
+	void UpdateArmorCapacity()
+	{
+		if ( MaxHealth == ArmorCapacity + 1 ) return;
+		// Older prefabs stored armor as a percentage of 100 health.
+		float fraction = MaxHealth == 100 ? Health / 100 : RemainingArmor / Math.Max( 1, MaxHealth - 1 );
+		MaxHealth = ArmorCapacity + 1;
+		if ( Health > 0 ) Health = HealthFromArmor( fraction * ArmorCapacity );
 	}
 
 	sealed class Arm
@@ -116,13 +132,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
-		if ( MaxHealth == 100 )
-		{
-			// Older mounted prefabs stored armor as a percentage of 100 health.
-			float armor = Health / MaxHealth * ArmorCapacity;
-			MaxHealth = ArmorCapacity + 1;
-			Health = HealthFromArmor( armor );
-		}
+		UpdateArmorCapacity();
 		AnimationTime = 0;
 		aim = WorldRotation;
 		worldTag = OnWorldTag;

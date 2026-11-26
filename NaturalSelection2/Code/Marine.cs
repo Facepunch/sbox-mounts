@@ -10,9 +10,16 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	internal const string PistolSound = "marine/pistol/fire";
 	internal const string RifleSound = "marine/rifle/fire_loop_1_upgrade_0";
-	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 30;
-	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 30 ); }
-	float IDamageable.MaxArmour => 30;
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int ArmorLevel { get; set; }
+	[Sync( SyncFlags.FromHost )] float armorFraction { get; set; } = 1;
+	float ArmorCapacity => 30 + 20 * Math.Clamp( ArmorLevel, 0, 3 );
+	float Armor
+	{
+		get => armorFraction * ArmorCapacity;
+		set => armorFraction = Math.Clamp( value / ArmorCapacity, 0, 1 );
+	}
+	float IDamageable.Armour { get => Armor; set => Armor = value; }
+	float IDamageable.MaxArmour => ArmorCapacity;
 	readonly AlienWounds wounds = new();
 	bool lastHitWasGas;
 	bool railgunDeath;
@@ -544,9 +551,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	protected override void OnDamaging( IDamageable.DamageEvent hit )
 	{
 		hit.AcceptedDamage *= AlienArmor.UmbraScale( hit );
-		AlienArmor.ApplyPlayerRules( hit, this, armor );
+		AlienArmor.ApplyPlayerRules( hit, this, Armor );
 		if ( hit.Cancelled ) return;
-		AlienArmor.Absorb( hit, armor );
+		AlienArmor.Absorb( hit, Armor );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
@@ -560,7 +567,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			attackerExpires = 3;
 		}
 		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );
-		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30, armorOnlyDamage );
+		Armor -= wounds.ApplyDamage( hit, Armor, MaxHealth, ArmorCapacity, armorOnlyDamage );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
