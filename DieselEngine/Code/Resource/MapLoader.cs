@@ -115,6 +115,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 					marker.Unit = name;
 					marker.MaterialVariation = variation;
 					marker.Breakable = breakable;
+					marker.DamageBodies = model.DamageBodies;
 					breakableUnits++;
 				}
 				if ( model.DoorParts is { } parts )

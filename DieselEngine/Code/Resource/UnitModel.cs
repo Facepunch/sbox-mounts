@@ -8,6 +8,7 @@ static partial class UnitModel
 	{
 		public static Result Empty { get; } = new( null, false, false );
 		public Transform? CameraLens { get; init; }
+		public Dictionary<string, BBox> DamageBodies { get; init; } = [];
 		public Model DoorLeaf { get; init; }
 		public Model DoorGlass { get; init; }
 		public Vector3 DoorPivot { get; init; }
@@ -262,6 +263,14 @@ static partial class UnitModel
 		var collisionIndices = new List<int>();
 		var collisionHulls = new List<Vector3[]>();
 		var massShapes = new Dictionary<ulong, Vector3[]>();
+		var damageBodies = new Dictionary<string, BBox>( StringComparer.Ordinal );
+		void AddDamageBounds( ulong name, Vector3[] points )
+		{
+			if ( points.Length == 0 || !geometry.CollisionBodies.TryGetValue( name, out var body ) || string.IsNullOrEmpty( body ) ) return;
+			var bounds = BBox.FromPoints( points );
+			damageBodies[body] = damageBodies.TryGetValue( body, out var previous )
+				? BBox.FromPoints( new[] { previous.Mins, previous.Maxs, bounds.Mins, bounds.Maxs } ) : bounds;
+		}
 		Vector3? cameraLamp = null;
 		foreach ( var part in file.ReadGeometry( selected, orientation is null ? 0 : IdString.Hash( orientation ) ) )
 		{
@@ -269,6 +278,7 @@ static partial class UnitModel
 				cameraLamp = BBox.FromPoints( part.Positions ).Center;
 			if ( collision.Contains( part.Name ) )
 			{
+				AddDamageBounds( part.Name, part.Positions );
 				if ( movablePreview ) massShapes[part.Name] = part.Positions;
 				// Triangle meshes are static-only in the target physics engine. Browser props
 				// and articulated door parts get one hull per authored collision mesh;
@@ -323,6 +333,7 @@ static partial class UnitModel
 		var primitives = file.ReadCollisionPrimitives( geometry.CollisionTypes
 			.Where( p => collision.Contains( p.Key ) ).ToDictionary( p => p.Key, p => p.Value ),
 			orientation is null ? 0 : IdString.Hash( orientation ) ).ToArray();
+		foreach ( var primitive in primitives ) AddDamageBounds( primitive.Name, primitive.Points );
 		if ( batches.Count == 0 && collisionIndices.Count == 0 && primitives.Length == 0 && collisionHulls.Count == 0 ) return Result.Empty;
 		var builder = Model.Builder.WithName( resourceName );
 		if ( movablePreview )
@@ -354,7 +365,8 @@ static partial class UnitModel
 			// authored head, not the wall-mount axis; hospital assets also offset their root.
 			lens = new Transform( (cameraLamp ?? lamp.Position) - head.Rotation.Forward, Rotation.LookAt( -head.Rotation.Forward, head.Rotation.Up ) );
 		}
-		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 ) { CameraLens = lens };
+		return new( builder.Create(), batches.Count > 0, collisionIndices.Count > 0 || primitives.Length > 0 || collisionHulls.Count > 0 )
+			{ CameraLens = lens, DamageBodies = damageBodies };
 	}
 
 	static string TriangleKey( Vector3[] positions, int[] indices, int start ) =>

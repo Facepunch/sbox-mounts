@@ -1,5 +1,6 @@
-// Build a fresh map in a disposable scene, preserving the user's active editor scene and mount cache.
+// Refresh source resources and build a disposable map, preserving the user's active editor scene.
 var mount = await Sandbox.Mounting.Directory.Mount( "payday" );
+if ( Application.IsEditor ) await mount.RefreshInternal();
 var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
 var assembly = mount.GetType().Assembly;
 if ( assembly.GetType( "Diesel.PaydayMission" ) is not null )
@@ -24,13 +25,25 @@ try
 	var copy = replica.GetComponent<Diesel.PaydayUnitState>();
 	var renderer = source.GetComponent<ModelRenderer>();
 	var original = renderer.Model;
+	var rules = mount.GetType().GetMethod( "GetEndurance", flags ).Invoke( mount, new object[] { source.Unit } );
+	var ruleBodies = (System.Collections.IDictionary)rules.GetType().GetProperty( "Bodies" ).GetValue( rules );
+	Vector3 Impact()
+	{
+		var box = source.DamageBodies.Where( b => ruleBodies.Contains( b.Key ) ).Select( b => b.Value ).FirstOrDefault();
+		var point = box.Center;
+		var size = box.Maxs - box.Mins;
+		if ( size.x <= size.y && size.x <= size.z ) point.x = box.Maxs.x;
+		else if ( size.y <= size.z ) point.y = box.Maxs.y;
+		else point.z = box.Maxs.z;
+		return source.WorldTransform.PointToWorld( point );
+	}
 	foreach ( var invalid in new[] { float.NaN, float.PositiveInfinity, -1f, 0f } )
 		((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = invalid } );
 	if ( relay.UnitSequences.Count != 0 ) throw new Exception( "Invalid damage changed replicated unit state." );
-	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 10 } );
+	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 10, Position = Impact() } );
 	if ( source.Sequence != "destroy_01" || renderer.Model == original )
-		throw new Exception( "First endurance stage did not replace window geometry." );
-	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 10 } );
+		throw new Exception( $"First endurance stage did not replace window geometry: sequence={source.Sequence}, impact={Impact()}, bounds={Json.Serialize(source.DamageBodies)}" );
+	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 10, Position = Impact() } );
 	if ( source.Sequence != "destroy_02" || !relay.UnitSequences.TryGetValue( source.GameObject.Id, out var state )
 		|| state != "destroy_01|destroy_02" )
 		throw new Exception( "Second endurance stage did not publish the complete state." );
@@ -40,7 +53,7 @@ try
 	if ( copy.Sequence != source.Sequence || copy.GameObject.Enabled != source.GameObject.Enabled
 		|| copyRenderer.Enabled != renderer.Enabled || copyRenderer.Model.ResourcePath != renderer.Model.ResourcePath )
 		throw new Exception( "Replica did not reconstruct the host geometry/state." );
-	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 100 } );
+	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 100, Position = Impact() } );
 	if ( relay.UnitSequences[source.GameObject.Id] != state ) throw new Exception( "Destroyed body ran its stages again." );
 	relay.UnitSequences[replica.Id] = state;
 	var apply = typeof( Diesel.PaydayMapState ).GetMethod( "ApplyReplicatedState", flags );

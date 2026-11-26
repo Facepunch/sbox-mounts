@@ -17,6 +17,8 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 	[Property] public string MaterialVariation { get; set; }
 	/// <summary>Has its own endurance damage rules.</summary>
 	[Property] public bool Breakable { get; set; }
+	/// <summary>Authored collision-body bounds in unit space; used for approximate impact attribution.</summary>
+	[Property] public Dictionary<string, BBox> DamageBodies { get; set; } = [];
 	/// <summary>Last sequence run on this unit, if any.</summary>
 	[Property] public string Sequence { get; set; }
 
@@ -103,6 +105,7 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 		}
 		catch ( Exception e ) { Log.Warning( $"PAYDAY sequence {Unit}/{applied[^1]}: {e.Message}" ); }
 		if ( result is null ) return false;
+		DamageBodies = result.DamageBodies;
 		var renderer = GetComponent<ModelRenderer>();
 		var collider = GetComponent<ModelCollider>();
 		if ( !result.HasGraphics && !result.HasCollision ) { GameObject.Enabled = false; return true; }
@@ -118,20 +121,23 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 		bool explosion = damage.Tags?.Has( "explosion" ) == true || damage.Tags?.Has( "blast" ) == true;
 		if ( Breakable && Mount?.GetEndurance( Unit ) is { } rules )
 		{
-			EnduranceDamage( rules, explosion ? "explosion" : damage.Tags?.Has( "melee" ) == true ? "melee" : "bullet", damage.Damage * DamageScale );
+			enabledBodies ??= new HashSet<string>( rules.DefaultEnabledBodies, StringComparer.Ordinal );
+			string body = explosion ? null : FindDamageBody( damage.Position, enabledBodies );
+			if ( !explosion && body is null ) return;
+			EnduranceDamage( rules, explosion ? "explosion" : damage.Tags?.Has( "melee" ) == true ? "melee" : "bullet", damage.Damage * DamageScale, body );
 		}
 	}
 
 	/// <summary>
-	/// Hits reach every currently enabled body with endurance (one merged collider, so the struck body isn't known).
+	/// Direct impacts select one authored collision body's bounds; explosions affect all enabled bodies.
 	/// Each body accumulates damage per type; stages run in order, once each, when a type reaches its threshold.
 	/// </summary>
-	void EnduranceDamage( UnitEndurance rules, string type, float amount )
+	void EnduranceDamage( UnitEndurance rules, string type, float amount, string hitBody )
 	{
 		enabledBodies ??= new HashSet<string>( rules.DefaultEnabledBodies, StringComparer.Ordinal );
 		foreach ( var (body, stages) in rules.Bodies.ToList() )
 		{
-			if ( !enabledBodies.Contains( body ) ) continue;
+			if ( !enabledBodies.Contains( body ) || (hitBody is not null && hitBody != body) ) continue;
 			float total = damageTaken[(body, type)] = damageTaken.GetValueOrDefault( (body, type) ) + amount;
 			for ( int i = 0; i < stages.Count; i++ )
 			{
@@ -143,6 +149,26 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 				if ( !enabledBodies.Contains( body ) ) break; // the stage disabled this body (e.g. shattered)
 			}
 		}
+	}
+
+	internal string FindDamageBody( Vector3 worldPosition, IEnumerable<string> candidates )
+	{
+		var names = candidates.Where( b => enabledBodies?.Contains( b ) != false ).OrderBy( b => b, StringComparer.Ordinal ).ToArray();
+		var point = WorldTransform.PointToLocal( worldPosition );
+		if ( !float.IsFinite( point.x ) || !float.IsFinite( point.y ) || !float.IsFinite( point.z ) ) return null;
+		if ( names.Length == 1 ) return names[0];
+		// The map collider merges source shapes. Nearest AABB is an explicit approximation;
+		// centre distance breaks overlapping-bound ties without damaging unrelated bodies.
+		return names.Where( b => DamageBodies?.ContainsKey( b ) == true )
+			.OrderBy( b => Distance( DamageBodies[b], point ) )
+			.ThenBy( b => DamageBodies[b].Center.DistanceSquared( point ) ).FirstOrDefault();
+	}
+
+	static float Distance( BBox box, Vector3 point )
+	{
+		var nearest = new Vector3( Math.Clamp( point.x, box.Mins.x, box.Maxs.x ),
+			Math.Clamp( point.y, box.Mins.y, box.Maxs.y ), Math.Clamp( point.z, box.Mins.z, box.Maxs.z ) );
+		return nearest.DistanceSquared( point );
 	}
 
 }

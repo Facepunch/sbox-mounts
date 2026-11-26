@@ -6,6 +6,7 @@ sealed class UnitGeometry
 	public HashSet<ulong> Graphics { get; } = [];
 	public HashSet<ulong> Collision { get; } = [];
 	public Dictionary<ulong, string> CollisionTypes { get; } = [];
+	public Dictionary<ulong, string> CollisionBodies { get; } = [];
 	public Dictionary<ulong, float> CollisionMasses { get; } = [];
 	public Dictionary<ulong, string> CollisionMaterials { get; } = [];
 	public Dictionary<ulong, float> CollisionShells { get; } = [];
@@ -68,6 +69,7 @@ sealed class UnitGeometry
 					ulong hash = IdString.Hash( name );
 					result.Collision.Add( hash );
 					result.CollisionTypes[hash] = element.Attribute( "collision_type" );
+					result.CollisionBodies[hash] = body.Attribute( "name" );
 					// Mass is authored per collision object, in kilograms. Do not confuse
 					// unit-level <mass><spawn .../> (massunit streaming) with physics mass.
 					result.CollisionMasses.Remove( hash );
