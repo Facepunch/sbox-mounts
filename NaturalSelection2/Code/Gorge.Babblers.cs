@@ -99,7 +99,10 @@ public sealed partial class Gorge
 		}
 		else BabblerPheromone.Puff( hit.HitPosition );
 
-		DispatchBrood( enemy, WorldPosition + aim.Forward.WithZ( 0 ).Normal * (5 * Scale) );
+		var heading = aim.Forward.WithZ( 0 );
+		float length = heading.Length;
+		var offset = length >= 1e-7f ? heading * (5 * Scale / length) : Vector3.Zero;
+		DispatchBrood( enemy, WorldPosition + offset );
 	}
 
 	internal void DispatchBrood( GameObject enemy, Vector3 destination )
