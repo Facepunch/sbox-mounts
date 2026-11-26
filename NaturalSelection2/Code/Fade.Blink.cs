@@ -67,38 +67,43 @@ public sealed partial class Fade
 	{
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost ) return;
-		if ( !Blinking )
-		{
-			if ( !IsAirborne || PhysicsCarrier.IsValid() || Health <= 0 || !NpcConVars.Enabled )
-				airGoal = null;
-			else if ( airGoal is { } goal )
-			{
-				var direction = (goal - WorldPosition).WithZ( 0 ).Normal;
-				var rigidbody = GetComponent<Rigidbody>();
-				rigidbody.Velocity = AirVelocity( rigidbody.Velocity / Scale, view, direction, Time.Delta ) * Scale;
-			}
-			return;
-		}
+		if ( airGoal is not { } goal ) return;
+
 		var body = GetComponent<Rigidbody>();
-		if ( releaseBlink <= 0 || energy <= 12 || Health <= 0 || PhysicsCarrier.IsValid() )
+		bool stop = PhysicsCarrier.IsValid() || Health <= 0 || !NpcConVars.Enabled;
+		if ( Blinking )
 		{
-			body.Gravity = true;
+			if ( !stop && releaseBlink > 0 && energy > 12 )
+			{
+				if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
+				var velocity = body.Velocity;
+				float cap = Math.Clamp( velocity.Length, 14 * Scale, 25 * Scale );
+				var increment = view.Forward * (Scale * Time.Delta);
+				body.Velocity = (velocity + increment * 40).ClampLength( cap ) + increment;
+				return;
+			}
+
 			Blinking = false;
 			lastBlink = 0;
 			hopsRemaining = 2;
 			ShowBlinkEffect( false );
+		}
+
+		if ( stop || !IsAirborne )
+		{
+			airGoal = null;
+			body.Gravity = true;
 			return;
 		}
 
-		if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
-		var velocity = body.Velocity;
-		float cap = Math.Clamp( velocity.Length, 14 * Scale, 25 * Scale );
-		var increment = view.Forward * (Scale * Time.Delta);
-		body.Velocity = (velocity + increment * 40).ClampLength( cap ) + increment;
+		var direction = (goal - body.PhysicsBody.Position).WithZ( 0 ).Normal;
+		body.Gravity = false;
+		float gravity = Scene.PhysicsWorld.Gravity.z * body.GravityScale / Scale;
+		body.Velocity = AirVelocity( body.Velocity / Scale, view, direction, gravity, Time.Delta ) * Scale;
 	}
 
 	// GroundMoveMixin steers the existing horizontal momentum before applying normal air acceleration.
-	static Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float dt )
+	static Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float gravity, float dt )
 	{
 		const float maxSpeed = 6.2f;
 		var forward = view.Forward.WithZ( 0 ).Normal;
@@ -111,6 +116,8 @@ public sealed partial class Fade
 		float friction = speed > 19 ? 0.4f : 0.17f;
 		if ( speed > 0 ) planar *= Math.Max( 0, 1 - friction * dt * planar.Length / speed );
 
+		// Spark applies gravity once before steering and sweeps with the resulting velocity.
+		velocity.z += gravity * dt;
 		float startSpeed = planar.Length;
 		var wish = direction;
 		if ( ahead != 0 && ahead * forward.Dot( planar.Normal ) >= -0.8f )
@@ -177,9 +184,10 @@ public sealed partial class Fade
 	{
 		blinkLoop?.Stop();
 		blinkLoop = null;
-		if ( Networking.IsHost && Blinking )
+		if ( Networking.IsHost && airGoal.HasValue )
 		{
 			Blinking = false;
+			airGoal = null;
 			if ( GetComponent<Rigidbody>() is { } body ) body.Gravity = true;
 		}
 		if ( blinkOverlay.IsValid() ) blinkOverlay.GameObject.Destroy();
