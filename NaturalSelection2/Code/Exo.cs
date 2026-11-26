@@ -11,6 +11,8 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	const string DeathSound = "marine/structures/generic_death";
 	[Property] public bool Railguns { get; set; }
+	bool HoldingRailCharge => Railguns && (leftPressed && left.Charge >= 1 || rightPressed && right.Charge >= 1);
+	float GroundSpeed => (Railguns ? 4.879f : 4.522f) * Scale * (HoldingRailCharge ? 0.8f : 1f);
 	float ArmorCapacity => Railguns ? 260 : 320;
 	// BaseNpc dies below one health. Reserve that interval so even fractional armor keeps the suit alive.
 	float HealthFromArmor( float armor ) => armor <= 0 ? 0 : 1 + Math.Min( armor, ArmorCapacity );
@@ -93,7 +95,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		agent.Radius = capsule.Radius;
 		agent.Height = 2.4f * Scale;
 		agent.Enabled = false;
-		root.AddComponent<NavigationLayer>().RunSpeed = (railguns ? 4.879f : 4.522f) * Scale;
+		root.AddComponent<NavigationLayer>();
 		root.AddComponent<SensesLayer>().SightRange = 45 * Scale;
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Exo>();
@@ -182,6 +184,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		var output = PlayerGait.UpdatePose( this, 5.95f );
 		if ( Networking.IsHost )
 		{
+			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;
 			if ( Animation.LookObject.IsValid() )
 				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
 			leftPressed = UpdateArm( left, leftPressed );
