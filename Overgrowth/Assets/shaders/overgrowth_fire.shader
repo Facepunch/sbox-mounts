@@ -21,21 +21,20 @@ struct VertexInput
 struct PixelInput
 {
 	#include "common/pixelinput.hlsl"
-	float4 flame : TEXCOORD14;
 };
 VS
 {
+	#define S_UV2 1
 	#include "common/vertex.hlsl"
 	PixelInput MainVs( VertexInput v )
 	{
-		PixelInput o = ProcessVertex( v );
-		o.flame = float4( v.vTexCoord, v.vTexCoord2 );
-		return FinalizeVertex( o );
+		return FinalizeVertex( ProcessVertex( v ) );
 	}
 }
 PS
 {
 	#include "common/pixel.hlsl"
+	#include "procedural.hlsl"
 	BoolAttribute( translucent, true );
 	RenderState( CullMode, NONE );
 	RenderState( BlendEnable, true );
@@ -45,12 +44,12 @@ PS
 
 	float FlameHash( float2 p )
 	{
-		return -1.0 + 2.0 * frac( sin( dot( p, float2(127.1,311.7) ) ) * 43758.5453123 );
+		return 2.0 * FuzzyNoise( p, float2( 127.1, 311.7 ) ) - 1.0;
 	}
 	float FlameNoise( float2 p )
 	{
 		float2 i = floor( p ), f = frac( p );
-		float2 u = f*f*(3-2*f);
+		float2 u = smoothstep( 0, 1, f );
 		return lerp( lerp( FlameHash(i), FlameHash(i+float2(1,0)), u.x ),
 			lerp( FlameHash(i+float2(0,1)), FlameHash(i+1), u.x ), u.y );
 	}
@@ -69,9 +68,9 @@ PS
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
 		float3 world = i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz;
-		float3 ray = normalize( world - g_vCameraPositionWs );
-		float heat = max( 0, i.flame.x ), u = i.flame.y - 0.5;
-		float born = i.flame.z, now = i.flame.w;
+		float3 ray = CalculateCameraToPositionDirWs( world );
+		float heat = max( 0, i.vTextureCoords.x ), u = i.vTextureCoords.y - 0.5;
+		float born = i.vTextureCoords.z, now = i.vTextureCoords.w;
 		float2 p = float2( u + ray.y*0.2, (born + ray.x*0.02)*10 );
 		float noise = Fractal(p);
 		p.y += now*3;
@@ -79,7 +78,7 @@ PS
 		u += noise*0.3 + noise2*0.3 + 0.15;
 		float width = min( pow(heat,0.6), 1 ) * 0.25;
 		float alpha = abs(u) > width
-			? pow( saturate(1-abs(u)+width), 60 ) * saturate((i.flame.x+0.02)*10)
+			? pow( saturate(1-abs(u)+width), 60 ) * saturate((i.vTextureCoords.x+0.02)*10)
 			: max( pow(abs(u)/max(width,0.00001),2), saturate((0.1-heat)*10) ) + pow( abs(0.5-abs(noise2)), 2 )*8;
 		float depth = dot( world-g_vCameraPositionWs, g_vCameraDirWs ) / 40;
 		float3 behind = Depth::GetWorldPosition( i.vPositionSs.xy );

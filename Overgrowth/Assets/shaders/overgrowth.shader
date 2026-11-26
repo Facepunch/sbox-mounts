@@ -29,11 +29,10 @@ struct PixelInput
 	#include "common/pixelinput.hlsl"
 	float3 vNormalOs : TEXCOORD14;
 	float4 vTangentOs : TEXCOORD15;
-	float4 vTint : COLOR1;
-	float2 vDetailUv : TEXCOORD16;
 };
 VS
 {
+	#define S_UV2 1
 	#include "common/vertex.hlsl"
 	#if D_CS_VERTEX_ANIMATION
 		bool g_bBodyProportions < Attribute( "BodyProportions" ); Default( 0 ); >;
@@ -83,8 +82,6 @@ VS
 		#if D_CS_VERTEX_ANIMATION
 			if ( g_bBodyProportions ) ApplyBodyProportions( v, i );
 		#endif
-		i.vDetailUv = v.vTexCoord2;
-		i.vTint = GetExtraPerInstanceShaderData( v.nInstanceTransformID ).vTint;
 		return FinalizeVertex( i );
 	}
 }
@@ -170,11 +167,7 @@ PS
 		float3 n = normalize( i.vNormalOs );
 		float3 t = normalize( i.vTangentOs.xyz );
 		float3 b = cross( n, t ) * i.vTangentOs.w;
-		return float3( dot( normal, t ), dot( normal, b ), dot( normal, n ) );
-	}
-	float3 TangentToWorld( float3 normal, PixelInput i )
-	{
-		return normalize( normal.x * i.vTangentUWs + normal.y * i.vTangentVWs + normal.z * i.vNormalWs );
+		return Vec3WsToTs( normal, n, t, b );
 	}
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
@@ -183,8 +176,8 @@ PS
 		float4 color = SampleMap( g_tColor, uv );
 		float4 normal = SampleMap( g_tNormal, uv );
 		float3 baseNormal = g_flTangentSpace > 0.5 ? UnpackTangent( normal )
-			: ObjectToTangent( normalize( float3( 1 - 2 * normal.g, 2 * normal.r - 1, 2 * normal.b - 1 ) ), i );
-		float3 worldNormal = TangentToWorld( baseNormal, i );
+			: ObjectToTangent( DecodeNormal( normal.grb ) * float3( -1, 1, 1 ), i );
+		float3 worldNormal = Vec3TsToWsNormalized( baseNormal, i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
 		if ( i.vTangentOs.w > 1.5 )
 		{
 			float3 nativeX = i.vNormalOs, nativeY = i.vTangentOs.xyz;
@@ -192,7 +185,7 @@ PS
 				+ cross( nativeX, nativeY ) * (1 - 2 * normal.g);
 			if ( dot( n, n ) > 1e-12 ) worldNormal = normalize( n );
 		}
-		float3 tint = g_vColorTint * i.vTint.rgb;
+		float3 tint = g_vColorTint * i.vVertexColor.rgb;
 
 		#if S_DETAIL
 			float4 weights = SampleMap( g_tWeight, uv );
@@ -204,7 +197,7 @@ PS
 			float2 uv3 = uv * g_vDetailScale.w;
 			if ( g_flTerrain > 0.5 )
 			{
-				uv0 = uv1 = uv2 = uv3 = g_flTerrain > 1.5 ? uv * 204.8 : i.vDetailUv;
+				uv0 = uv1 = uv2 = uv3 = g_flTerrain > 1.5 ? uv * 204.8 : i.vTextureCoords.zw;
 				baseNormal = float3( 0, 0, 1 );
 			}
 			if ( g_flHeightBlend > 0.5 )
@@ -238,7 +231,7 @@ PS
 			float3 detail = lerp( UnpackTangent( detailNormal ), float3( 0, 0, 1 ), fade );
 			float3 b = normalize( cross( baseNormal, float3( 1, 0, 0 ) ) );
 			float3 t = normalize( cross( b, baseNormal ) );
-			worldNormal = TangentToWorld( detail.x * t + detail.y * b + detail.z * baseNormal, i );
+			worldNormal = Vec3TsToWsNormalized( Vec3TsToWs( detail, baseNormal, t, b ), i.vNormalWs, i.vTangentUWs, i.vTangentVWs );
 			color.rgb *= lerp( float3( 1, 1, 1 ), tint, normal.a );
 			color.a = saturate( color.a );
 		#else
@@ -263,9 +256,7 @@ PS
 			}
 			else
 			{
-				uint width, height;
-				g_tCutMask.GetDimensions( width, height );
-				float2 blend = frac( uv * float2( width, height ) - 0.5 );
+				float2 blend = frac( uv * TextureDimensions2DS( g_tCutMask, 0 ) - 0.5 );
 				float4 expiry = round( g_tCutMask.GatherGreen( g_sClamp, uv ) * 255.0 )
 					+ round( g_tCutMask.GatherBlue( g_sClamp, uv ) * 255.0 ) * 256.0;
 				float4 moisture = saturate( (expiry - g_flCutDryTick) / 255.0 );
@@ -279,7 +270,7 @@ PS
 		Material m = Material::Init();
 		m.Albedo = color.rgb;
 		m.Normal = worldNormal;
-		m.Opacity = i.vTint.a;
+		m.Opacity = i.vVertexColor.a;
 		#if S_ALPHA_TEST || S_TRANSLUCENT
 			m.Opacity *= color.a;
 		#endif
@@ -300,7 +291,6 @@ PS
 			m.Albedo = 0;
 			m.Emission = emission;
 		}
-		m.AmbientOcclusion = 1;
 		m.WorldTangentU = i.vTangentUWs;
 		m.WorldTangentV = i.vTangentVWs;
 		m.TextureCoords = uv;
