@@ -5,7 +5,7 @@ namespace NS2;
 
 public sealed partial class Marine
 {
-	GameObject assignedEnemy;
+	internal GameObject assignedEnemy;
 	GameObject lastAttacker;
 	TimeUntil attackerExpires;
 
@@ -23,16 +23,8 @@ public sealed partial class Marine
 			Drifter => (2, 0.98f),
 			_ => (1, 0f)
 		};
-		if ( distance < 30 && (passive || distance >= 15 && combatUntil <= 0) )
-		{
-			foreach ( var other in Scene.GetAllComponents<Marine>() )
-			{
-				if ( other == this || other.Health <= 0 || other.Faction != Faction || other.assignedEnemy != target.GameObject ) continue;
-				if ( --responders > 0 ) continue;
-				weight = passive ? 0.2f : 0.1f;
-				break;
-			}
-		}
+		if ( distance < 30 && (passive || distance >= 15 && combatUntil <= 0) && AlienTargeting.HasResponders( this, target, responders ) )
+			weight = passive ? 0.2f : 0.1f;
 		float close = distance >= 20 ? 0 : passive ? 0.3f : 10 / Math.Max( 1, distance );
 		if ( !passive && target.GameObject == lastAttacker && attackerExpires >= 0 ) close += 3;
 		return weight + close + wounded;

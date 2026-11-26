@@ -65,9 +65,7 @@ public sealed partial class Marine : Component.IDamageable.IEvents
 		if ( ground is not { } point ) return false;
 		if ( position.z - point.z > 2 * Scale )
 			return player.IsValid() ? player.IsOnGround : enemy.GetComponent<BaseNpc>()?.IsOnGround == true;
-		var lift = Vector3.Up * (0.3f * Scale);
-		return point.z - position.z >= Scale && Scene.Trace.Ray( position + lift, point + lift )
-			.WithTag( "world" ).Run().Hit;
+		return AlienTargeting.IsBehindFloor( Scene, position, point );
 	}
 
 	void ApproachUnreachable( Vector3 position )

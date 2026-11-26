@@ -13,6 +13,23 @@ internal sealed class AlienTargeting
 
 	readonly Dictionary<GameObject, Memory> memories = [];
 
+	internal static bool HasResponders( BaseNpc self, BaseNpc target, int required )
+	{
+		foreach ( var other in self.Scene.GetAllComponents<BaseNpc>() )
+		{
+			if ( other == self || other.Faction != self.Faction || other.Health <= 0 ) continue;
+			var assigned = other switch { Marine m => m.assignedEnemy, Exo e => e.assignedEnemy, _ => null };
+			if ( assigned == target.GameObject && --required == 0 ) return true;
+		}
+		return false;
+	}
+
+	internal static bool IsBehindFloor( Scene scene, Vector3 position, Vector3 ground )
+	{
+		var lift = Vector3.Up * (0.3f * MapLoader.Scale);
+		return ground.z - position.z >= MapLoader.Scale && scene.Trace.Ray( position + lift, ground + lift ).WithTag( "world" ).Run().Hit;
+	}
+
 	internal static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget && target.GetComponentInParent<PlayerController>().IsValid();
 
 	internal void Remember( GameObject enemy, Vector3 position )
@@ -74,6 +91,11 @@ internal sealed class AlienTargeting
 					else if ( drifter.CloakFraction > 0.8f || Time.Now - memory.LastUncloaked < 3 ) continue;
 				}
 				urgency = marine.AttackUrgency( victim, marine.WalkDistance( memory.Position ) / MapLoader.Scale, wounded );
+			}
+			else if ( alien is Exo exo && health is BaseNpc unit && unit is AlienLifeform or Hydra or Drifter or Harvester or Babbler )
+			{
+				urgency = exo.AttackUrgency( unit, memory.Position, hostiles.Contains( target ) );
+				if ( urgency <= 0 ) continue;
 			}
 			else
 			{

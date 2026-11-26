@@ -56,6 +56,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	static readonly ConditionalWeakTable<GameObject, Resonance> marks = new();
 	readonly Arm left = new(), right = new();
 	readonly AlienTargeting targeting = new();
+	internal GameObject assignedEnemy;
 	readonly AlienAim.Acquisition acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
@@ -133,9 +134,35 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		}
 	}
 
+	internal float AttackUrgency( BaseNpc target, Vector3 position, bool visible )
+	{
+		var (responders, weight) = target switch
+		{
+			Onos => (4, 7f),
+			Fade => (3, 6f),
+			Lerk => (2, 5f),
+			Skulk => (2, 4f),
+			Gorge => (2, 3f),
+			Hydra => (2, 2f),
+			Drifter => (1, 1f),
+			Harvester => (2, 0.8f),
+			_ => (0, 0f)
+		};
+		if ( responders == 0 ) return 0;
+		bool passive = target is Harvester;
+		if ( !passive && !visible && Scene.NavMesh.IsEnabled && Scene.NavMesh.GetClosestPoint( position ) is { } ground &&
+			AlienTargeting.IsBehindFloor( Scene, position, ground ) ) return 0;
+
+		float distance = WorldPosition.Distance( position ) / Scale;
+		if ( (passive || distance >= 15) && AlienTargeting.HasResponders( this, target, responders ) )
+			weight = passive ? 0.4f : 0.1f;
+		return distance < 15 ? weight + (passive ? 3 : 10) / Math.Max( 1, distance ) : weight;
+	}
+
 	protected override void Think()
 	{
 		var enemy = targeting.FindEnemy( this, out var memory );
+		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		float distance = float.MaxValue;
@@ -376,6 +403,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	protected override void OnDisabled()
 	{
+		assignedEnemy = null;
 		StopSound( left );
 		StopSound( right );
 		base.OnDisabled();
