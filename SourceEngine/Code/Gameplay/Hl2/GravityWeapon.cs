@@ -642,7 +642,7 @@ sealed class PhysCannonEffects : IDisposable
 			_elementFrom = current;
 			_elementMoved = 0;
 			_open = open;
-			_view?.OnClawsChanged();
+			_view?.OnClawsChanged( holding );
 			if ( !weapon.IsProxy && weapon.IsHeld ) weapon.PlayClawSound( open );
 			current = Element();
 		}

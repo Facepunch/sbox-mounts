@@ -537,7 +537,13 @@ public sealed class ViewModel : BaseWeaponModel
 		Play( _clips?.Pump );
 	}
 
-	internal void OnClawsChanged() => Play( _clips?.Idle );
+	internal void OnClawsChanged( bool holding )
+	{
+		if ( _clips is null ) return;
+		// A remote pickup can start playing before the held object replicates.
+		if ( holding && _animation.Current == _clips.Fire ) return;
+		Play( holding ? IdleClip : _clips.Idle );
+	}
 
 	internal void PlayPhyscannonAttack( bool launch = false ) => Play( launch ? _clips?.SecondaryFire : _clips?.Fire );
 
