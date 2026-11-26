@@ -4,9 +4,13 @@ namespace Source1;
 
 internal sealed partial class SourceModelBuilder
 {
-	private void AddMetadata( ModelBuilder builder, MdlFile metadata, string[] boneNames )
+	private void AddMetadata( ModelBuilder builder, MdlFile metadata, string[] boneNames, BBox viewBounds )
 	{
-		builder.WithHullBounds( GetHullBounds( metadata ) );
+		var hull = GetHullBounds( metadata );
+		builder.WithHullBounds( hull );
+		// Model.Bounds exposes the mesh bounds. Preserve a distinct gameplay hull for entity sweeps.
+		if ( metadata.TotalVertices == 0 || hull != viewBounds )
+			builder.WithData( new EntityHull { Bounds = hull } );
 		builder.WithEyePosition( metadata.EyePosition );
 		var attachmentIndex = 0;
 		foreach ( var attachment in metadata.Attachments )

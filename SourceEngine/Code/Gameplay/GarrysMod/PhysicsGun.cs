@@ -91,6 +91,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	Angles _holdAngles;
 	float _distance;
 	float _arrivalTime;
+	BBox _modelHull;
 	(float Setting, float NativeOverride)? _previousMass;
 	internal override bool ShouldPlayIdle => false;
 
@@ -227,6 +228,10 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 				PrepareBody( body );
 				transform = body.PhysicsBody.Transform;
 			}
+			else if ( target is ModelCollider collider )
+			{
+				_modelHull = collider.Model?.GetData<EntityHull>()?.Bounds ?? collider.Model?.Bounds ?? collider.LocalBounds;
+			}
 
 			GrabPoint = transform.Rotation.Inverse * (hit.HitPosition - transform.Position);
 			_distance = ray.Position.Distance( hit.HitPosition );
@@ -299,8 +304,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		SceneTraceResult Sweep( Vector3 from, Vector3 to )
 		{
 			var trace = Scene.Trace.Ray( from, to );
-			trace = target is ModelCollider collider
-				? trace.Size( collider.LocalBounds.Mins * collider.WorldScale, collider.LocalBounds.Maxs * collider.WorldScale )
+			trace = target is ModelCollider
+				? trace.Size( _modelHull.Mins * target.WorldScale, _modelHull.Maxs * target.WorldScale )
 				: ((Projectile)target).FlightHull( trace );
 			return trace.WithTag( "world" ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( target.GameObject ).Run();
 		}

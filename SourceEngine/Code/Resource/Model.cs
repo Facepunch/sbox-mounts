@@ -73,7 +73,7 @@ internal sealed partial class SourceModelBuilder( SourceGameMount mount, string 
 				AddPhysics( builder, physics, physicsPlan );
 		}
 
-		AddMetadata( builder, mdl, boneNames );
+		AddMetadata( builder, mdl, boneNames, viewBounds );
 		AddHitboxes( builder, mdl, boneNames );
 		AddGameData( builder, mdl, physics );
 

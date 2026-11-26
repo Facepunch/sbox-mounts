@@ -4,6 +4,12 @@ namespace Source1;
 
 // Stored on imported models through ModelBuilder.WithData; game code reads them into its own types with the same GameData names.
 
+[Sandbox.ModelEditor.GameData( "source_entity_hull" ), Hide]
+public sealed class EntityHull
+{
+	public BBox Bounds { get; set; }
+}
+
 [Sandbox.ModelEditor.GameData( "source_air_drag" ), Hide]
 public sealed class AirDrag
 {
