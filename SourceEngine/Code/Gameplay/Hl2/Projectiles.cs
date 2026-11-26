@@ -373,6 +373,8 @@ public sealed class Grenade : Projectile
 public sealed class ContactGrenade : Projectile, Component.IDamageable
 {
 	[RequireComponent] BoxCollider Hull { get; set; }
+	[Sync( SyncFlags.FromHost ), Change( nameof( OnSmokeEnded ) )] bool SmokeEnded { get; set; }
+	protected override float Lifetime => float.PositiveInfinity;
 	bool _detonated;
 	readonly Angles _angularVelocity = new( Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ) );
 	Angles _angles;
@@ -385,7 +387,21 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
-		if ( Visual.IsValid() ) SmokeTrail.Grenade( Visual, MountName );
+		if ( !SmokeEnded && Visual.IsValid() ) SmokeTrail.Grenade( Visual, MountName );
+	}
+
+	void OnSmokeEnded( bool previous, bool ended )
+	{
+		if ( ended ) ITemporaryEffect.DisableLoopingEffects( Visual );
+	}
+
+	protected override bool Simulate()
+	{
+		if ( !SmokeEnded && Age >= 10 ) SmokeEnded = true;
+		// A grenade falling below the playable Source coordinate range cannot return.
+		if ( WorldPosition.z >= -16384 || Velocity.z >= 0 ) return true;
+		GameObject.Destroy();
+		return false;
 	}
 
 	protected override void OnEnabled()
@@ -400,7 +416,6 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 	}
 
 	protected override void Hit( SceneTraceResult tr ) => Detonate();
-	protected override void Expire() => Detonate();
 
 	void Detonate()
 	{

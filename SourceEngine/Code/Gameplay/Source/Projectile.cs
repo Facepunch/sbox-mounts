@@ -191,9 +191,12 @@ public abstract class Projectile : Component
 		}
 		if ( Physical is not null ) return;
 		Steer();
+		// Source limits ballistic velocity per axis, before movement and again after gravity.
+		const float maxVelocity = 3500;
+		Velocity = Velocity.Clamp( -maxVelocity, maxVelocity );
 		var gravityStep = Vector3.Down * (Gravity * Time.Delta);
 		var end = WorldPosition + (Velocity + gravityStep * 0.5f) * Time.Delta;
-		Velocity += gravityStep;
+		Velocity = (Velocity + gravityStep).Clamp( -maxVelocity, maxVelocity );
 		WorldRotation = NextRotation();
 		if ( !CanCollide )
 		{
