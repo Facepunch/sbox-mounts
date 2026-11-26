@@ -9,7 +9,13 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	internal const string PistolSound = "marine/pistol/fire";
-	internal const string RifleSound = "marine/rifle/fire_loop_1_upgrade_0";
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int WeaponsLevel { get; set; }
+
+	internal static float UpgradedWeaponDamage( float damage, int level, GameObject target )
+	{
+		float bonus = target.Tags.HasAny( "structure", "ns2_mac" ) ? 0.15f : 0.1f;
+		return damage * (1 + Math.Clamp( level, 0, 3 ) * bonus);
+	}
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int ArmorLevel { get; set; }
 	[Sync( SyncFlags.FromHost )] float armorFraction { get; set; } = 1;
 	float ArmorCapacity => 30 + 20 * Math.Clamp( ArmorLevel, 0, 3 );
@@ -72,7 +78,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, weaponTag;
 	bool leftFoot = true;
-	SoundHandle rifleLoop, reloadSound;
+	SoundHandle reloadSound;
 	ModelRenderer heldModel;
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
@@ -109,6 +115,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		aim = WorldRotation;
 		if ( Networking.IsHost )
 		{
+			rifleVariant = Random.Shared.Next( 3 );
 			age = 0;
 			var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
@@ -397,12 +404,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			UpdateInputs( weapon, move, activity, idle );
 			weapon.Update( weaponAge, tag: weaponTag );
 		}
-		if ( !pistol && trigger && !reloading && !Application.IsDedicatedServer )
-		{
-			if ( rifleLoop is null && GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{RifleSound}.sound" ) is { } sound )
-				rifleLoop = GameObject.PlaySound( sound );
-		}
-		else StopRifleSound();
+		if ( !Application.IsDedicatedServer ) UpdateRifleSound();
 	}
 
 	bool IsMovementIdle => Animation.MoveVelocity.LengthSquared < (0.1f * Scale) * (0.1f * Scale)
@@ -510,7 +512,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			}
 			if ( hp is { Health: > 0 } && GetDisposition( obj ) == Disposition.Hostile )
 			{
-				var info = new DamageInfo { Damage = pistol ? 20 : 10, Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
+				var info = new DamageInfo { Damage = UpgradedWeaponDamage( pistol ? 20 : 10, WeaponsLevel, obj ), Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
 				info.Tags.Add( "bullet" );
 				info.Tags.Add( AlienWounds.ExtraFlinch );
 				hp.OnDamage( info );
@@ -532,12 +534,6 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			GameObject.PlaySound( sound );
 		if ( heldModel?.GetAttachmentObject( isPistol ? "fxnode_pistolmuzzle" : "fxnode_riflemuzzle" ) is { } muzzle )
 			CinematicLoader.Play( isPistol ? "cinematics/marine/pistol/muzzle_flash.cinematic" : "cinematics/marine/rifle/muzzle_flash.cinematic", muzzle.WorldPosition, muzzle.WorldRotation );
-	}
-
-	void StopRifleSound()
-	{
-		rifleLoop?.Stop();
-		rifleLoop = null;
 	}
 
 	protected override void OnDisabled()

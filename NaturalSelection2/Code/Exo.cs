@@ -12,6 +12,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 
 	const float Scale = MapLoader.Scale;
 	const string DeathSound = "marine/structures/generic_death";
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int WeaponsLevel { get; set; }
 	[Property] public bool Railguns { get; set; }
 	bool HoldingRailCharge => Railguns && (leftPressed && left.Charge >= 1 || rightPressed && right.Charge >= 1);
 	float GroundSpeed => (Railguns ? 4.879f : 4.522f) * Scale * (HoldingRailCharge ? 0.8f : 1f);
@@ -364,7 +365,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			bool blocked = Railguns && onos is not null && onos.BlocksShotAt( hit.HitPosition );
 			if ( hp.Health > 0 && GetDisposition( victim.GameObject ) == Disposition.Hostile )
 			{
-				float amount = damage;
+				float amount = Marine.UpgradedWeaponDamage( damage, WeaponsLevel, victim.GameObject );
 				if ( fullCharge && victim.GameObject.Tags.Has( "ns2_lifeform" ) && !(onos?.Shielding ?? false) )
 				{
 					var mark = marks.GetValue( victim.GameObject, _ => new() );
