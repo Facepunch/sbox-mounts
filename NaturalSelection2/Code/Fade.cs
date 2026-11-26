@@ -98,6 +98,11 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	protected override void Think()
 	{
 		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var lastSeen );
+		if ( enemy.IsValid() && !CanEngage( lastSeen ?? enemy.WorldPosition ) )
+		{
+			enemy = null;
+			lastSeen = null;
+		}
 		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		Animation.SetLookTarget( visible ? enemy : null );
@@ -142,6 +147,18 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 				weaponSwitch = 1;
 			}
 		}
+	}
+
+	bool CanEngage( Vector3 lastSeen )
+	{
+		float health = (Health + 2 * Armor) / (MaxHealth + 2 * ((IDamageable)this).MaxArmour);
+		if ( health < 0.55f || InCombat && energy < 30 ) return false;
+
+		float range = (health > 0.95f ? 50 : 15) * Scale;
+		if ( WorldPosition.DistanceSquared( lastSeen ) > range * range ) return false;
+
+		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		return !locations.IsValid() || locations.AlienPlayerBalance( WorldPosition ) > -2;
 	}
 
 	internal float AttackUrgency( BaseNpc target )

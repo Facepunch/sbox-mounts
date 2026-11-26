@@ -1,4 +1,5 @@
 using Sandbox.Navigation;
+using Sandbox.Npcs;
 
 namespace NS2;
 
@@ -51,6 +52,27 @@ public sealed partial class MapLocations : Component
 	readonly Dictionary<string, Destination[]> connections = new();
 	readonly Dictionary<string, Dictionary<string, int>> depths = new();
 	readonly Dictionary<string, float> lastAlienVisit = new();
+
+	readonly Dictionary<string, int> playerBalance = new();
+	float lastPlayerCount = -1;
+
+	internal int AlienPlayerBalance( Vector3 position )
+	{
+		var room = LocationAt( position );
+		if ( room is null ) return 0;
+		if ( lastPlayerCount != Time.Now )
+		{
+			lastPlayerCount = Time.Now;
+			playerBalance.Clear();
+			foreach ( var npc in Scene.GetAllComponents<BaseNpc>() )
+			{
+				int count = npc switch { AlienLifeform => 1, Marine or Exo => -1, _ => 0 };
+				if ( count == 0 || npc.Health <= 0 || LocationAt( npc.WorldPosition ) is not { } name ) continue;
+				playerBalance[name] = playerBalance.GetValueOrDefault( name ) + count;
+			}
+		}
+		return playerBalance.GetValueOrDefault( room );
+	}
 
 	internal void MarkVisited( string room ) => lastAlienVisit[room] = Time.Now;
 
