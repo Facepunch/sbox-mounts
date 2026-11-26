@@ -28,6 +28,7 @@ public sealed partial class RabbitGuard
 
 	bool IsHeadBone( int index )
 	{
+		if ( !Renderer.IsValid() || !Renderer.Model.IsValid() || boundAnimations?.Head is null ) return false;
 		var head = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
 		for ( int i = 0; head is not null && i < boundAnimations.Head.ChainLength; i++, head = head.Parent )
 			if ( head.Index == index ) return true;

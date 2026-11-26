@@ -118,7 +118,7 @@ public sealed partial class RabbitGuard
 			{
 				next = Random.Shared.Float() > 0.5f ? CombatTactic.Wait : CombatTactic.Rush;
 				var opponent = enemy.GetComponent<RabbitGuard>();
-				if ( !UsesPolearm && opponent.IsValid() && opponent.PrimaryItem.IsValid()
+				if ( !UsesPolearm && opponent.IsValid() && opponent.boundAnimations is not null && opponent.PrimaryItem.IsValid()
 					&& (!opponent.InAttackState || opponent.CurrentAttackTarget == GameObject) )
 				{
 					if ( opponent.boundAnimations.WeaponLabel == "knife" || (!PrimaryItem.IsValid() && (throwRecharge > 0f || sinceDodgeAttempt < 3f)) )

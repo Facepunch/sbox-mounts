@@ -56,7 +56,7 @@ public sealed partial class RabbitGuard
 	bool BeginRearHold( RabbitGuard victim, Vector3 facing )
 	{
 		bool armed = PrimaryItem.IsValid();
-		if ( victim.Holding || victim.Held ) return false;
+		if ( boundAnimations is null || !victim.IsValid() || victim.boundAnimations is null || victim.Holding || victim.Held ) return false;
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		bool rat = victim.boundAnimations.Species == "rat";
@@ -223,7 +223,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateRearHold()
 	{
-		if ( !holdPartner.IsValid() || !holdPartner.Active || holdPartner.holdPartner != this || Downed || holdPartner.Downed ||
+		if ( !holdPartner.IsValid() || !holdPartner.Active || holdPartner.boundAnimations is null || boundAnimations is null || holdPartner.holdPartner != this || Downed || holdPartner.Downed ||
 			Health < 1f || holdPartner.Health < 1f || !Holding && !Held )
 		{
 			ReleaseHold();
@@ -421,6 +421,7 @@ public sealed partial class RabbitGuard
 
 	static Vector3 CutPoint( RabbitGuard victim )
 	{
+		if ( !victim.Renderer.IsValid() || !victim.Renderer.Model.IsValid() || victim.boundAnimations is null ) return victim.WorldPosition;
 		var head = victim.Renderer.Model.Bones.GetBone( victim.boundAnimations.HeadBone )?.Parent;
 		return head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
 	}

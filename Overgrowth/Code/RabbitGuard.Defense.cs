@@ -250,8 +250,9 @@ public sealed partial class RabbitGuard
 
 	bool TryPassiveBlock( RabbitGuard attacker, RabbitAttack move, bool wasUnaware, float sharp )
 	{
+		if ( boundAnimations is null || attacker.boundAnimations is null ) return false;
 		float damageMultiplier = 1f / Math.Max( 0.00001f, DamageResistance );
-		var species = boundAnimations?.Species;
+		var species = boundAnimations.Species;
 		var other = attacker.boundAnimations.Species;
 		bool wolfAdvantage = species == "wolf" && other != "wolf";
 		float blockDamage = Random.Shared.Float( move.BlockMin, move.BlockMax ) * Math.Max( 1f, damageMultiplier ) * Math.Max( 1f, attacker.AttackDamage );

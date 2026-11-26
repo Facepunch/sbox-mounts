@@ -144,7 +144,7 @@ public sealed partial class RabbitGuard
 			{
 				impactPassed = true;
 				if ( !blocked ) TryHit( clip, impact.Bone );
-				else if ( blockingOpponent.IsValid() )
+				else if ( blockingOpponent.IsValid() && blockingOpponent.boundAnimations is not null )
 				{
 					var pos = Renderer.TryGetBoneTransform( $"bone_{impact.Bone}", out var bone ) ? bone.Position : EyePosition;
 					blockingOpponent.InterruptWeaponLayers();

@@ -51,7 +51,7 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 	protected override object Load()
 	{
 		var terrain=XmlAsset.Read(Host.FileSystem,levelPath,"Terrain");
-		var heightmap=Host.Resolve(terrain.Element("Heightmap").Value);
+		var heightmap=Host.Resolve(terrain.RequireElement( "Heightmap" ).Value);
 		var layers = terrain.Element( "DetailMaps" )?.Elements( "DetailMap" ).Count() ?? 0;
 		var detailed = layers == 4 && terrain.Element( "WeightMap" ) is { Value.Length: > 0 };
 		var mat = detailed

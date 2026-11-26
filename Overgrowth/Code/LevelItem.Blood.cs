@@ -53,6 +53,7 @@ public sealed partial class LevelItem
 	{
 		if ( RabbitGuard.BloodLevel == 0 || axis.IsNearlyZero() ) return;
 		var across = axis.Cross( BloodScatter() ).Normal;
+		if ( !BloodMarks.IsValid() ) BloodMarks = GetOrAddComponent<CutMarks>();
 		BloodMarks.DrawItemSpatter( point, across / size, across.Cross( axis ).Normal / size );
 	}
 }
