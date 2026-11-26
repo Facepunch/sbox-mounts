@@ -58,6 +58,13 @@ public abstract class Weapon : BaseCombatWeapon
 		if ( secondary > (float)NextSecondaryFire ) NextSecondaryFire = secondary;
 	}
 
+	protected override void OnDestroy()
+	{
+		DestroyWorldModel();
+		DestroyViewModel();
+		base.OnDestroy();
+	}
+
 	// A remount replaces prefab scenes while weapons already in an inventory keep the old references.
 	static GameObject RefreshPrefab( GameObject prefab )
 	{
