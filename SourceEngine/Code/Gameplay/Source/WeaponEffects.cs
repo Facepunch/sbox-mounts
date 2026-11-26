@@ -385,6 +385,11 @@ static class WeaponEffects
 	internal static void WaterSplash( Vector3 position, string mount )
 	{
 		if ( Sounds.Sound( "Physics.WaterSplash", mount ) is { } sound ) Sound.Play( sound, position );
+		var surface = Game.ActiveScene.Trace.Ray( position + Vector3.Up * 8, position + Vector3.Down * 64 )
+			.WithTag( "water" ).HitTriggersOnly().Run();
+		if ( surface.Hit && !surface.StartedSolid )
+			Hl2.FlatQuad.WaterRipple( surface.HitPosition, surface.Normal, mount );
+
 		var drops = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, 16 );
 		if ( !drops.IsValid() ) return;
 		drops.WorldPosition = position;
