@@ -11,6 +11,7 @@ public sealed partial class RabbitGuard
 	float seekDelay = 0.4f, seekTime, searchRemainder;
 	bool reaching;
 	int reachAttempts;
+	const float ReachFadeSpeed = 4f;
 	[Sync] bool ReachLeft { get; set; }
 	[Sync] float ReachWeight { get; set; }
 	[Sync] float ReachPhase { get; set; }
@@ -101,6 +102,7 @@ public sealed partial class RabbitGuard
 		if ( RollProgress >= 1f && !reaching && WeaponAtHand( PickupLeft ) is not null )
 		{
 			ReachLeft = PickupLeft;
+			ReachWeight = Math.Max( ReachWeight, ReachFadeSpeed / 120f );
 			reaching = true;
 			reachAttempts = 0;
 			ReachPhase = 0f;
@@ -132,12 +134,12 @@ public sealed partial class RabbitGuard
 		if ( Networking.IsHost )
 		{
 			if ( Downed || Unconscious || Health < 1 ) StopSeekingWeapon();
-			ReachWeight = Math.Clamp( ReachWeight + (reaching ? 4f : -4f) * Time.Delta, 0f, 1f );
+			ReachWeight = Math.Clamp( ReachWeight + (reaching ? ReachFadeSpeed : -ReachFadeSpeed) * Time.Delta, 0f, 1f );
 			if ( reaching || ReachWeight > 0f )
 			{
 				var clip = boundAnimations.Clips["pickup"];
 				float next = ReachPhase + Time.Delta / clip.Duration;
-				if ( reaching && clip.GrabTime is { } time )
+				if ( clip.GrabTime is { } time )
 				{
 					float eventPhase = time / clip.Duration;
 					float crossing = eventPhase > ReachPhase ? eventPhase : 1f + eventPhase;
