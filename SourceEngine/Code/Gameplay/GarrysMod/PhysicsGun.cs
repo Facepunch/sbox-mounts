@@ -192,11 +192,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( !Networking.IsHost ) return;
 		if ( !Active || !HasOwner || InputState is Trigger.Released or Trigger.Freeze )
 		{
-			if ( Active && HasOwner && InputState == Trigger.Freeze && HeldBody.IsValid() && !HeldBody.Tags.Has( UnfreezableTag ) )
-			{
-				HeldBody.MotionEnabled = false;
-				Owner.GetOrAddComponent<FrozenProps>().Track( HeldBody );
-			}
+			if ( Active && HasOwner && InputState == Trigger.Freeze && HeldTarget.IsValid() ) Freeze();
 			Release();
 			return;
 		}
@@ -327,6 +323,21 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var grab = new IPhysgunEvent.GrabEvent { Grabber = grabber };
 		EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
 		return !grab.Cancelled && body.IsValid();
+	}
+
+	void Freeze()
+	{
+		var held = HeldTarget;
+		var body = HeldBody;
+		var target = EntityRoot( held );
+		var player = Network.Owner;
+		bool allowed = true;
+		target.RunEvent<IPhysgunFreeze>( x => allowed &= x.CanFreeze( this, body, player ) );
+		if ( !allowed || !body.IsValid() || HeldTarget != held || !HasOwner || !body.MotionEnabled || body.Tags.Has( UnfreezableTag ) ) return;
+
+		body.MotionEnabled = false;
+		Owner.GetOrAddComponent<FrozenProps>().Track( body );
+		target.RunEvent<IPhysgunFreeze>( x => x.OnFrozen( player, body ) );
 	}
 
 	void Release()
