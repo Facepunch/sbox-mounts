@@ -93,6 +93,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	float _arrivalTime;
 	BBox _modelHull;
 	(float Setting, float NativeOverride)? _previousMass;
+	bool _restoreImpactDamage;
 	PhysicsOwnership _borrowed;
 	internal override bool ShouldPlayIdle => false;
 
@@ -282,6 +283,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	void PrepareBody( Rigidbody body )
 	{
+		// Carry mass is for the controller. It must not turn a held prop into an impact weapon.
+		_restoreImpactDamage = body.EnableImpactDamage;
+		body.EnableImpactDamage = false;
 		if ( !body.MotionEnabled )
 		{
 			body.MotionEnabled = true;
@@ -366,8 +370,10 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var target = HeldTarget;
 		var body = HeldBody;
 		var previousMass = _previousMass;
+		var restoreImpactDamage = _restoreImpactDamage;
 		var borrowed = _borrowed;
 		_previousMass = null;
+		_restoreImpactDamage = false;
 		_borrowed = null;
 		HeldTarget = null;
 		BeamOn = false;
@@ -376,6 +382,12 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		{
 			body.MassOverride = mass.Setting;
 			if ( mass.NativeOverride > 0 && body.PhysicsBody.IsValid() ) body.PhysicsBody.Mass = mass.NativeOverride;
+		}
+		if ( restoreImpactDamage && body.IsValid() )
+		{
+			var holder = Scene.GetAllComponents<PhysicsGun>().FirstOrDefault( gun => gun.HeldBody == body );
+			if ( holder is null ) body.EnableImpactDamage = true;
+			else holder._restoreImpactDamage = true;
 		}
 		if ( body.IsValid() && !body.MotionEnabled ) body.Network.Refresh( body );
 		borrowed?.Release();
