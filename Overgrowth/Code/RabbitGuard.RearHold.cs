@@ -88,9 +88,11 @@ public sealed partial class RabbitGuard
 		struggleVelocity = inheritedVelocity ?? combatVelocity.WithZ( 0f );
 		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
-		if ( pose is ArmedGrab or ArmedGrabbed )
+		if ( pose == ArmedGrab || pose == ArmedGrabbed && Time.Delta >= CaptureLead )
 		{
-			// Submit the movement stance for both partners, including one that already updated.
+			// The captor selects its movement stance on entry. The captive's movement
+			// update selects it one native frame before WasGrabbed changes the reader.
+			// At lower frame rates this is the last opportunity to submit both readers.
 			playing = grabReader = CaptureMovementStance( pose );
 			grabPhase = 0f;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
@@ -99,6 +101,13 @@ public sealed partial class RabbitGuard
 	}
 
 	static string CaptureMovementStance( string pose ) => pose == ArmedGrab ? ArmedHold : ArmedHeld;
+
+	string CaptureEntryPose( string pose )
+	{
+		float nextFrame = (float)SinceGrab + Math.Max( Time.Delta, 1f / 120f );
+		if ( pose == ArmedGrabbed && MathF.Round( nextFrame * 120f ) < 4f ) return playing ?? Idle;
+		return CaptureMovementStance( pose );
+	}
 
 	void UpdateGrabReader( string pose )
 	{
@@ -112,6 +121,10 @@ public sealed partial class RabbitGuard
 		{
 			float age = Math.Max( 0f, (float)SinceGrab - CaptureLead + 1f / 120f );
 			grabPhase = age * grab.Frequency * (grabReader == ArmedGrab ? AttackSpeed : 1f);
+		}
+		else if ( grabReader == ArmedHeld && Stance == ArmedGrabbed )
+		{
+			grabPhase = grab.Frequency / 120f;
 		}
 		else if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
 		else grabPhase = grabReader == pose && playing != pose ? 0f : grabPhase + Time.Delta * grab.Frequency;
