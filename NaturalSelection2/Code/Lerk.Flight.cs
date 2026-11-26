@@ -93,6 +93,17 @@ public sealed partial class Lerk
 		return v;
 	}
 
+	static (bool Jump, bool Dive) FlightCommands( bool inCombat, bool grounded, bool held, float distance, float speed,
+		float height, float headroom, float sinceFlap )
+	{
+		if ( grounded ) return (!held, false);
+		float cap = inCombat ? 2.1f : 4.5f;
+		bool jump = !held && (height is > 0 and < 0.6f || distance > 4 && speed < 0.8f && sinceFlap > 0.45f);
+		bool aboveCap = height > cap || headroom < 0.7f;
+		bool glide = height < cap - 0.3f && speed > 0.8f;
+		return (glide || jump && !aboveCap, height > cap + 0.4f || headroom < 0.35f);
+	}
+
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
@@ -119,17 +130,13 @@ public sealed partial class Lerk
 		if ( offset.WithZ( 0 ).Length < Scale ) { ReleaseFlight( body ); return; }
 		bool grounded = IsOnGround;
 		var velocity = (grounded ? Animation.MoveVelocity : body.Velocity) / Scale;
-		float cap = Animation.LookObject.IsValid() ? 2.1f : 4.5f;
 		var trace = Scene.Trace.WithTag( "world" );
 		var floor = trace.Ray( EyePosition, EyePosition - Vector3.Up * (10 * Scale) ).Run();
 		var ceiling = trace.Ray( EyePosition, EyePosition + Vector3.Up * (6 * Scale) ).Run();
 		float height = floor.Hit ? (WorldPosition.z - floor.EndPosition.z) / Scale : 1;
 		float headroom = (ceiling.EndPosition.z - EyePosition.z) / Scale;
 		float speed = velocity.Length / (grounded ? 2.8f : 13);
-		bool jump = !flapPressed && (grounded || height is > 0 and < 0.6f || offset.Length > 4 * Scale && speed < 0.8f && lastFlap > 0.45f);
-		if ( !grounded && height < cap - 0.3f && speed > 0.8f ) jump = true;
-		if ( !grounded && (height > cap || headroom < 0.7f) ) jump = false;
-		bool dive = !grounded && (height > cap + 0.4f || headroom < 0.35f);
+		var (jump, dive) = FlightCommands( InCombat, grounded, flapPressed, offset.Length / Scale, speed, height, headroom, lastFlap );
 		bool flap = jump && !flapPressed && !gliding && energy > 3;
 		flapPressed = jump;
 		if ( grounded && !flap ) { ReleaseFlight( body ); return; }
