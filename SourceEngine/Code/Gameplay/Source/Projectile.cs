@@ -292,3 +292,16 @@ public abstract class Projectile : Component
 		if ( Sounds.Sound( sound, mountName ) is { } soundEvent ) Sound.Play( soundEvent, shot.HitPosition );
 	}
 }
+
+/// <summary>Ballistic projectiles with Source's Euler angular velocity in degrees per second.</summary>
+public abstract class TumblingProjectile : Projectile
+{
+	internal Angles FlightAngles { get; set; }
+	protected abstract Angles AngularVelocity { get; }
+
+	protected override Rotation NextRotation()
+	{
+		FlightAngles += AngularVelocity * Time.Delta;
+		return FlightAngles.ToRotation();
+	}
+}

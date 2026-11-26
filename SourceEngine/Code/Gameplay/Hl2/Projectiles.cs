@@ -456,20 +456,14 @@ public sealed class Grenade : Projectile
 [Title( "HL2 Contact Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2ContactGrenade", "Hl2ContactGrenade" )]
-public sealed class ContactGrenade : Projectile, Component.IDamageable
+public sealed class ContactGrenade : TumblingProjectile, Component.IDamageable
 {
 	const float FlightHullSize = 6;
 	[RequireComponent] BoxCollider ShotCollider { get; set; }
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnSmokeEnded ) )] bool SmokeEnded { get; set; }
 	protected override float Lifetime => float.PositiveInfinity;
 	bool _detonated;
-	readonly Angles _angularVelocity = new( Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ) );
-	Angles _angles;
-	protected override Rotation NextRotation()
-	{
-		_angles += _angularVelocity * Time.Delta;
-		return _angles.ToRotation();
-	}
+	protected override Angles AngularVelocity { get; } = new( Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ) );
 	protected override float Gravity => 400;
 	protected override void OnStart()
 	{
@@ -595,21 +589,14 @@ public sealed class EnergyBall : Projectile
 [Title( "HL2 Bugbait" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Bugbait", "Hl2Bugbait" )]
-public sealed class Bugbait : Projectile
+public sealed class Bugbait : TumblingProjectile
 {
 	[ConVar( "bugbait_grenade_radius", ConVarFlags.Server, Help = "How far a thrown bugbait can distract Combine soldiers." )]
 	public static float DistractionRadius { get; set; } = 150;
 
 	public const float ThrowSpeed = 1000;
 
-	readonly Angles _angularVelocity = new( 600, Game.Random.Int( -1200, 1200 ), 0 );
-	Angles _angles;
-
-	protected override Rotation NextRotation()
-	{
-		_angles += _angularVelocity * Time.Delta;
-		return _angles.ToRotation();
-	}
+	protected override Angles AngularVelocity { get; } = new( 600, Game.Random.Int( -1200, 1200 ), 0 );
 
 	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;

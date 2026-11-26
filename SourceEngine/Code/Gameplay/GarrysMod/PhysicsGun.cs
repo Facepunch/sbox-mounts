@@ -88,7 +88,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	public Rigidbody HeldBody => HeldTarget as Rigidbody;
 	[Sync( SyncFlags.FromHost )] Vector3 GrabPoint { get; set; }
 	[Sync( SyncFlags.FromHost )] bool BeamOn { get; set; }
-	Rotation _yawOffset;
+	Angles _holdAngles;
 	float _distance;
 	float _arrivalTime;
 	(float Setting, float NativeOverride)? _previousMass;
@@ -202,7 +202,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		}
 
 		var ray = AimRay;
-		var yaw = Rotation.FromYaw( Owner.EyeAngles.yaw );
+		var yaw = Owner.EyeAngles.yaw;
 		if ( !HeldTarget.IsValid() )
 		{
 			var hit = TraceTarget( ray, MaxRange * 2 );
@@ -231,7 +231,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 			GrabPoint = transform.PointToLocal( hit.HitPosition );
 			_distance = ray.Position.Distance( hit.HitPosition );
-			_yawOffset = yaw.Inverse * transform.Rotation;
+			_holdAngles = target is TumblingProjectile tumbling ? tumbling.FlightAngles : transform.Rotation.Angles();
+			_holdAngles.yaw -= yaw;
 			_previousSnapStep = null;
 			_lastMouseRotation = MouseRotation;
 		}
@@ -245,11 +246,13 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			Release();
 			return;
 		}
-		var rotation = HoldRotation( yaw );
+		var angles = HoldAngles( yaw );
+		var rotation = angles.ToRotation();
 		var position = ray.Position + ray.Forward * _distance - (physics?.Rotation ?? rotation) * GrabPoint;
 		if ( GridSize > 0 && float.IsFinite( GridSize ) ) position = position.SnapToGrid( System.MathF.Min( GridSize, 4096 ) );
 		if ( HeldTarget is Projectile projectile )
 		{
+			if ( projectile is TumblingProjectile tumbling ) tumbling.FlightAngles = angles;
 			projectile.WorldRotation = rotation;
 			projectile.WorldPosition = CarryPosition( projectile, position );
 			return;
@@ -339,28 +342,28 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		}
 	}
 
-	Rotation HoldRotation( Rotation yaw )
+	Angles HoldAngles( float yaw )
 	{
 		if ( Adjusting && SpinDirection != 0 )
-			_yawOffset = Rotation.FromYaw( SpinDirection * SpinSpeed * Time.Delta ) * _yawOffset;
+			_holdAngles.yaw += SpinDirection * SpinSpeed * Time.Delta;
 
 		if ( !_lastMouseRotation.Equals( MouseRotation ) )
 		{
 			var delta = Rotation.Difference( _lastMouseRotation, MouseRotation );
-			_yawOffset = (delta * _yawOffset).Normal;
+			_holdAngles = (delta * _holdAngles.ToRotation()).Angles();
 			_lastMouseRotation = MouseRotation;
 		}
 
-		var target = yaw * _yawOffset;
+		var target = _holdAngles.WithYaw( yaw + _holdAngles.yaw );
 		bool snapping = Adjusting && SnapStep >= 0;
 		if ( !snapping && !_previousSnapStep.HasValue ) return target;
 
 		float step = snapping ? SnapStep : _previousSnapStep.Value;
-		target = step == 0 ? Rotation.Identity : target.Angles().SnapToGrid( step ).ToRotation();
+		target = step == 0 ? Angles.Zero : target.SnapToGrid( step );
 		_previousSnapStep = snapping ? step : null;
 
 		// Resume free rotation from the last grid angle.
-		if ( !snapping ) _yawOffset = yaw.Inverse * target;
+		if ( !snapping ) _holdAngles = target.WithYaw( target.yaw - yaw );
 		return target;
 	}
 
