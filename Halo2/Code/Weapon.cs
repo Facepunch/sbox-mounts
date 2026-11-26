@@ -381,6 +381,27 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	[Property] public float DamageAccelerationScale { get; set; } = 1;
 
+	protected static bool ApplyLooseItemImpulse( BaseInventoryItem item, Vector3 direction, float force )
+	{
+		var body = item.GetComponent<Rigidbody>();
+		if ( !body.IsValid() || !body.MotionEnabled ) return false;
+
+		// Loose items receive two normalized upward adjustments before the damage impulse.
+		direction = ((direction + Vector3.Up * 0.15f).Normal + Vector3.Up * 0.3f).Normal;
+		float velocity = force * (item is Weapon weapon ? weapon.DamageAccelerationScale : 1);
+		if ( !float.IsFinite( velocity ) || velocity <= 0 ) return true;
+		body.ApplyImpulse( direction * (velocity * body.Mass) );
+
+		float speed = velocity / 120;
+		ref uint state = ref BlamRandom.GameplayState( body.Scene );
+		const float fraction = 1f / 65535;
+		if ( speed < 0.0001f ) speed = BlamRandom.Next( ref state ) * fraction;
+		var axis = Vector3.Cross( Vector3.Up, direction ).Normal;
+		if ( axis == Vector3.Zero ) axis = Spread.RandomDirection( ref state );
+		body.AngularVelocity += axis * (BlamRandom.Next( ref state ) * fraction * speed * System.MathF.PI / 2);
+		return true;
+	}
+
 	protected override float GetHitForce( GameObject target, float force )
 	{
 		var body = target.GetComponentInParent<Rigidbody>();

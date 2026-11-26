@@ -186,6 +186,9 @@ public abstract partial class Weapon
 
 	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
 	{
+		if ( Networking.IsHost && force > 0 && hit.GameObject.IsValid()
+			&& hit.GameObject.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } item
+			&& ApplyLooseItemImpulse( item, hit.Direction, force ) ) force = 0;
 		if ( IsValid && (!Networking.IsHost || attacker == Attacker) )
 		{
 			ShootBullet( hit, damage, force, tags, hitboxTags );

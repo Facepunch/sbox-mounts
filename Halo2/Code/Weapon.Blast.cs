@@ -68,11 +68,6 @@ public abstract partial class Weapon
 			else if ( contact.Distance > 0 && !Visible( exposed, contact.Point ) ) continue;
 
 			float fraction = ((blast.OuterRadius - contact.Distance) / (blast.OuterRadius - blast.InnerRadius)).Clamp( 0, 1 );
-			if ( target.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } )
-			{
-				// Loose items receive the original damage routine's two normalized upward adjustments.
-				direction = ((direction + Vector3.Up * 0.15f).Normal + Vector3.Up * 0.3f).Normal;
-			}
 			var hit = new SceneTraceResult { Hit = true, StartPosition = origin, HitPosition = contact.Point,
 				GameObject = contact.Collider.GameObject, Collider = contact.Collider, Direction = direction };
 			float damage = MathX.Lerp( blast.Minimum, blast.Maximum, fraction ) * BodyMaterial.DamageScale( hit, blast.BodyScales, true );

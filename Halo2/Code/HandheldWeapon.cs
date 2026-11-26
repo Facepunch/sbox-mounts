@@ -302,12 +302,27 @@ public abstract partial class HandheldWeapon : Weapon
 			if ( hit.Hit )
 			{
 				float scale = BodyMaterial.ResolveHit( hit, PelletBodyScales, PelletExplosive, out surface );
-				ShootBullet( hit, config.Damage * scale, config.Force, AttackDamageTags );
+				float force = config.Force;
+				if ( !Networking.IsHost && !IsProxy && force > 0
+					&& hit.GameObject.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } item )
+				{
+					PushLooseItem( item, hit.Direction );
+					force = 0;
+				}
+				ApplyDelayedHit( hit, config.Damage * scale, force, Attacker, AttackDamageTags );
 			}
 			volley[i] = new( hit.EndPosition, hit.Hit, hit.Normal, hit.GameObject, surface, ray.Position, NoEvents: i > 0 );
 		}
 		TimeSinceShoot = 0;
 		ShootEffects( volley );
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void PushLooseItem( BaseInventoryItem item, Vector3 direction )
+	{
+		if ( !IsHeld || !IsInHand || !Instantaneous || !item.IsValid() || item.Inventory is not null
+			|| !direction.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		ApplyLooseItemImpulse( item, direction.Normal, Ballistics.Force );
 	}
 
 	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )
