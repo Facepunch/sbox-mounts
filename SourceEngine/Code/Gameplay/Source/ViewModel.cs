@@ -93,6 +93,7 @@ public sealed class ViewModel : BaseWeaponModel
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
 	readonly Dictionary<GameObject, GameObject> _effectAnchors = new();
+	readonly List<(GameObject Anchor, string Type, float Scale)> _muzzleFlashes = new();
 	bool _scopeHidden;
 	string _swingClip;
 	internal bool IsSwinging => _swingClip is not null && _animation?.Current == _swingClip;
@@ -107,6 +108,7 @@ public sealed class ViewModel : BaseWeaponModel
 		if ( _configuredModel == model ) return;
 		foreach ( var anchor in _effectAnchors.Values ) anchor.Destroy();
 		_effectAnchors.Clear();
+		_muzzleFlashes.Clear();
 		_configuredModel = model;
 		_weapon = GetComponentInParent<BaseCombatWeapon>();
 		_attachmentsResolved = false;
@@ -221,6 +223,9 @@ public sealed class ViewModel : BaseWeaponModel
 		UpdateWorldMuzzle();
 		foreach ( var (attachment, anchor) in _effectAnchors )
 			PlaceEffectAnchor( attachment, anchor );
+		foreach ( var flash in _muzzleFlashes )
+			WeaponEffects.MuzzleFlash( flash.Type, flash.Anchor, true, _mount, flash.Scale );
+		_muzzleFlashes.Clear();
 	}
 
 	/// <summary>
@@ -268,7 +273,7 @@ public sealed class ViewModel : BaseWeaponModel
 		type ??= _flashType ?? WeaponSetup.FlashType( weapon );
 		if ( !attachment.IsValid() ) return;
 		attachment = EffectAnchor( attachment );
-		WeaponEffects.MuzzleFlash( type, attachment, true, _mount, WeaponSetup.FlashScale( weapon ) );
+		_muzzleFlashes.Add( (attachment, type, WeaponSetup.FlashScale( weapon )) );
 	}
 
 	/// <summary>

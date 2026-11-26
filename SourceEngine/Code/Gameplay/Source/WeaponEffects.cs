@@ -38,15 +38,16 @@ static class WeaponEffects
 	}
 
 	/// <summary>
-	/// Viewmodel flashes follow their attachment. World flashes use the NPC scale for the type
+	/// Handgun and shotgun particles are emitted in world space. World flashes use the NPC scale for the type
 	/// or three quarters of the Counter-Strike weapon script's scale.
 	/// </summary>
 	public static void MuzzleFlash( string type, GameObject attachment, bool firstPerson, string mount, float scale = 1 )
 	{
 		if ( Application.IsDedicatedServer || !attachment.IsValid() || type == Css.Rules.FlashNone ) return;
-		var root = new GameObject( attachment, false, "HL2 muzzle flash" );
+		var worldSpace = firstPerson && type is ("PISTOL" or "357" or "SHOTGUN");
+		var root = new GameObject( worldSpace ? null : attachment, false, "HL2 muzzle flash" );
 		root.NetworkMode = NetworkMode.Never;
-		root.LocalTransform = global::Transform.Zero;
+		root.WorldTransform = attachment.WorldTransform;
 		var burst = root.AddComponent<SpriteBurst>();
 		burst.CameraFade = new Vector2( 16, 64 );
 		if ( firstPerson && Css.Rules.IsFlash( type ) ) CounterStrikePlayerFlash( type, burst, mount, scale );
@@ -103,7 +104,8 @@ static class WeaponEffects
 			return;
 		}
 		var pistol = type == "PISTOL";
-		if ( pistol && Game.Random.Int( 0, 3 ) != 0 ) PistolSmoke( burst.WorldPosition, burst.WorldRotation.Forward, mount );
+		if ( type == "357" || (pistol && Game.Random.Int( 0, 3 ) != 0) )
+			HandgunSmoke( burst.WorldPosition, burst.WorldRotation.Forward, mount, magnum: !pistol );
 		var scale = pistol ? Game.Random.Float( 1, 1.25f ) : Game.Random.Float( 1.25f, 1.5f );
 		var spacing = pistol ? 4 : 8;
 		var lifetime = type switch
@@ -116,11 +118,11 @@ static class WeaponEffects
 			burst.Add( Pick( FlashSprites ) + "_noz", mount, i * spacing * scale, (int)(Game.Random.Float( 6, 8 ) * (8 - i) / 6 * scale), color, lifetime );
 	}
 
-	static void PistolSmoke( Vector3 muzzle, Vector3 forward, string mount )
+	static void HandgunSmoke( Vector3 muzzle, Vector3 forward, string mount, bool magnum )
 	{
 		var smoke = Particles.Emitter( Game.ActiveScene, "particle/particle_smokegrenade", mount, false, false, 1 );
 		if ( !smoke.IsValid() ) return;
-		var lifetime = Game.Random.Float( 0.25f, 0.5f );
+		var lifetime = magnum ? Game.Random.Float( 0.5f, 1 ) : Game.Random.Float( 0.25f, 0.5f );
 		smoke.WorldPosition = muzzle + forward * 8;
 		smoke.Lifetime = lifetime;
 		var renderer = smoke.GetComponent<ParticleSpriteRenderer>();
@@ -128,19 +130,22 @@ static class WeaponEffects
 		renderer.CameraFadeFar = 64;
 		smoke.ApplyShape = true;
 		smoke.InitialScale = 2 * Game.Random.Int( 2, 4 );
-		smoke.Scale = SmokeGrowth;
+		smoke.Scale = magnum ? MagnumSmokeGrowth : SmokeGrowth;
 		smoke.ApplyAlpha = true;
 		smoke.Alpha = SmokeFade;
+		smoke.ApplyRotation = true;
 		smoke.InitialRoll = new ParticleFloat( 0, 360 );
+		var spin = magnum ? 0.5f : 0.1f;
+		smoke.AngularVelocity = new Vector3( 0, 0, Game.Random.Float( -spin, spin ).RadianToDegree() );
 		smoke.Invoke( lifetime, smoke.DestroyGameObject );
 		if ( smoke.Emit( smoke.WorldPosition, 0 ) is not { } puff ) return;
 		puff.Color = (Color.White * Game.Random.Float( 200 / 255f, 1 )).WithAlpha( Game.Random.Float( 64 / 255f, 128 / 255f ) );
-		puff.Velocity = forward * Game.Random.Float( 48, 64 ) + Vector3.Up * Game.Random.Float( 4, 16 );
+		puff.Velocity = forward * Game.Random.Float( magnum ? 8 : 48, 64 ) + Vector3.Up * Game.Random.Float( 4, 16 );
 	}
 
 	static float WorldScale( string type ) => type switch
 	{
-		"PISTOL" => 0.5f,
+		"PISTOL" or "357" => 0.5f,
 		"SHOTGUN" => 0.75f,
 		"RPG" => 1.5f,
 		_ => 1f
@@ -648,6 +653,7 @@ static class WeaponEffects
 
 	static readonly ParticleFloat PlumeGrowth = LinearOverLife( 1, 2 );
 	static readonly ParticleFloat SmokeGrowth = LinearOverLife( 1, 4 );
+	static readonly ParticleFloat MagnumSmokeGrowth = LinearOverLife( 1, 8 );
 	static readonly ParticleFloat SmokeFade = LinearOverLife( 1, 0 );
 
 	static ParticleFloat LinearOverLife( float start, float end ) => new()
