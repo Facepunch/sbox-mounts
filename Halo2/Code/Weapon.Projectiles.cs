@@ -344,10 +344,10 @@ public abstract partial class Weapon
 				pellet.Trail?.Finish( hit.HitPosition, firedAt + tick / 30.0 + step * (hit.Distance / distance) );
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
-				damage *= BodyMaterial.DamageScale( hit, bodyScales, explosive );
+				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
 				hit.StartPosition = origin;
 				hit.Direction = pellet.Velocity.Normal;
-				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, hit.Surface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
+				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				if ( Shard is {} shard && hit.GameObject.IsValid() && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );

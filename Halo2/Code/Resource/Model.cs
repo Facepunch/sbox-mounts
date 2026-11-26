@@ -77,7 +77,15 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		{
 			var name = materialNames is { Length: > 0 } ? materialNames.ElementAtOrDefault( index ) : Label( info + 4 );
 			if ( !string.IsNullOrEmpty( name ) )
-				return new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface", ExplosivesOnly = explosivesOnly };
+			{
+				var sections = Rows( info + 0xbc, 0x38 ).ToArray();
+				bool Absorbs( int section ) => (uint)section < sections.Length && (mapFile.ReadInt32( sections[section] + 4 ) & 0x100) != 0;
+				bool absorbs = Absorbs( (short)mapFile.ReadInt32( info + 8 ) );
+				bool uniform = Rows( block - 8, 0x14 ).All( row => (short)mapFile.ReadInt32( row + 16 ) == index &&
+					Absorbs( (short)mapFile.ReadInt32( row + 6 ) ) == absorbs );
+				return new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface", ExplosivesOnly = explosivesOnly,
+					UseForImpacts = uniform && Float( info + 0x28 ) > 0 && Float( info + 0x8c ) <= 0 };
+			}
 		}
 		return explosivesOnly ? new BodyMaterial { ExplosivesOnly = true } : null;
 	}

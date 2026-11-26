@@ -190,6 +190,31 @@ public abstract class HandheldWeapon : Weapon
 		}
 	}
 
+	public override void PrimaryAttack()
+	{
+		if ( IsHeld && !TakePrimaryAmmo() ) return;
+		var ray = AimRay;
+		if ( Holder is PlayerController player ) ray = PlayerFiringRay( player, ray.Forward );
+		var config = Ballistics;
+		var volley = new ShotEffect[config.Pellets];
+		ref uint seed = ref BlamRandom.GameplayState( Scene );
+		float minimum = MinimumPelletAngle.DegreeToRadian(), maximum = CurrentSpread.x.DegreeToRadian();
+		for ( int i = 0; i < volley.Length; i++ )
+		{
+			var direction = Spread.Deviate( ray.Forward, minimum, maximum, ref seed );
+			var hit = BulletTrace( new Ray( ray.Position, direction ), config.Range, config.Radius ).Run();
+			var surface = hit.Surface;
+			if ( hit.Hit )
+			{
+				float scale = BodyMaterial.ResolveHit( hit, PelletBodyScales, PelletExplosive, out surface );
+				ShootBullet( hit, config.Damage * scale, config.Force, AttackDamageTags );
+			}
+			volley[i] = new( hit.EndPosition, hit.Hit, hit.Normal, hit.GameObject, surface, ray.Position, NoEvents: i > 0 );
+		}
+		TimeSinceShoot = 0;
+		ShootEffects( volley );
+	}
+
 	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )
 	{
 		var ray = Holder is PlayerController player ? PlayerFiringRay( player, forward ) : new Ray( AimRay.Position, forward );
