@@ -1125,7 +1125,7 @@ static partial class SourceEntities
 				".": {
 					"Sandbox.NavMeshAgent": {"Height": 55, "Radius": 25},
 					"Source1.NpcDefaults": {"HealthSetting": "sk_antlion_health", "DamageSetting": "sk_antlion_swipe_damage"},
-					"Source1.CreatureNpc": {"DisplayName": "Antlion", "Idle": "Idle", "Move": "run_all", "Attack": "attack1", "MoveSpeed": 180, "AttackDamage": 20, "RespondsToBugbait": true, "AttackHeight": 35, "Voice": "NPC_Antlion", "EyeHeight": 35},
+					"Source1.CreatureNpc": {"DisplayName": "Antlion", "Idle": "Idle", "Move": "run_all", "Attack": "attack1", "MoveSpeed": 180, "AttackDamage": 20, "RespondsToBugbait": true, "AttackHeight": 35, "Voice": "NPC_Antlion", "EyeHeight": 24},
 					"Source1.Hl2.Unburrow": {},
 					"Source1.Hl2.AntlionJump": {}
 				},
@@ -1160,7 +1160,7 @@ static partial class SourceEntities
 				".": {
 					"Sandbox.NavMeshAgent": {"Height": 45, "Radius": 25},
 					"Source1.NpcDefaults": {"HealthSetting": "sk_antlion_worker_health", "AdditionalConfig": "skill_episodic.cfg"},
-					"Source1.CreatureNpc": {"DisplayName": "Antlion Worker", "Health": 60, "Idle": "Idle", "Move": "run_all", "Attack": "spit", "MoveSpeed": 140, "AttackRange": 900, "AttackDamage": 5, "AttackInterval": 2, "Voice": "NPC_Antlion", "EyeHeight": 36},
+					"Source1.CreatureNpc": {"DisplayName": "Antlion Worker", "Health": 60, "Idle": "Idle", "Move": "run_all", "Attack": "spit", "MoveSpeed": 140, "AttackRange": 900, "AttackDamage": 5, "AttackInterval": 2, "RespondsToBugbait": true, "Voice": "NPC_Antlion", "EyeHeight": 24},
 					"Source1.Hl2.NpcProjectileAttack": {"FireSound": "NPC_Antlion.PoisonShoot"},
 					"Source1.Hl2.Unburrow": {}
 				},
