@@ -32,11 +32,23 @@ public sealed class PropDamage : Component
 		if ( blast )
 		{
 			scale *= modifiers.Explosive;
-			// The blast trace already found the exposed surface of this prop.
-			if ( GameObject == GameObject.Root && hit.Weapon.IsValid() && hit.Weapon.GetComponent<Projectile>() is { Radius: > 0 } projectile && projectile is not Css.Grenade )
+
+			if ( hit.Weapon.IsValid() && hit.Weapon.GetComponent<Projectile>() is { Radius: > 0 } projectile && projectile is not Css.Grenade )
 			{
-				var fraction = hit.Origin.Distance( hit.Position ) / projectile.Radius;
-				hit.Damage = projectile.Damage * (1 - fraction.Clamp( 0, 1 ));
+				var bounds = _prop.Model.PhysicsBounds.Transform( WorldTransform );
+				var testZ = projectile.UnderwaterBlast ? bounds.Mins.z : bounds.Maxs.z;
+				if ( SourceWaterMap.IsUnderwater( Scene, bounds.Center.WithZ( testZ ) ) != projectile.UnderwaterBlast )
+				{
+					hit.Damage = 0;
+					return;
+				}
+
+				// The blast trace already found the exposed surface of this prop.
+				if ( GameObject == GameObject.Root )
+				{
+					var fraction = hit.Origin.Distance( hit.Position ) / projectile.Radius;
+					hit.Damage = projectile.Damage * (1 - fraction.Clamp( 0, 1 ));
+				}
 			}
 		}
 		hit.Damage = System.MathF.Truncate( hit.Damage * scale );

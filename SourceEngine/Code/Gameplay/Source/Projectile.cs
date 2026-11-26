@@ -22,6 +22,7 @@ public abstract class Projectile : Component
 	[Property] public BaseCombatWeapon Weapon { get; set; }
 	[Property] public GameObject Attacker { get; set; }
 	[Property] internal GameObject LaunchIgnoreRoot { get; set; }
+	internal bool UnderwaterBlast { get; private set; }
 	public Vector3 Velocity { get; set; }
 	protected virtual float Gravity => 0;
 	protected virtual float Lifetime => 10;
@@ -246,6 +247,7 @@ public abstract class Projectile : Component
 		// A game can ship the projectile without the newer PCF explosion. Use
 		// the engine's ordinary blast in that case, rather than an invisible impact.
 		if ( depth < 0 && !string.IsNullOrWhiteSpace( effect?.Particle ) && !MountedEffects.Exists( effect.Particle, MountName ) ) prefab = null;
+		UnderwaterBlast = SourceWaterMap.IsUnderwater( Scene, WorldPosition ) && SourceWaterMap.IsUnderwater( Scene, WorldPosition + Vector3.Up * 24 );
 		var blast = new Explosion
 		{
 			Source = GameObject,
