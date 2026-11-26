@@ -41,8 +41,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( species is not ("rabbit" or "cat" or "rat" or "dog" or "wolf") ) return;
 		Species = species;
 		var agent = GetComponent<NavMeshAgent>( true );
-		agent.AllowAllLinkTypes = species == "rabbit";
-		if ( !agent.AllowAllLinkTypes ) agent.AllowedLinkTypes.Clear();
+		if ( agent.IsValid() )
+		{
+			agent.AllowAllLinkTypes = species == "rabbit";
+			if ( !agent.AllowAllLinkTypes ) agent.AllowedLinkTypes.Clear();
+		}
 		CausesFearOnSight = species == "wolf";
 		NeverAfraidOnSight = species is "wolf" or "dog";
 	}

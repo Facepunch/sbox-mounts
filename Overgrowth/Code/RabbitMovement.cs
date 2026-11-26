@@ -33,12 +33,13 @@ internal sealed class RabbitMovement
 
 	internal static RabbitMovement Load( BaseFileSystem fs, string path, Func<string, RabbitClip> load )
 	{
+		if ( string.IsNullOrWhiteSpace( path ) ) throw new InvalidDataException( "Missing movement animation path." );
 		if ( path.EndsWith( ".anm" ) ) return new( load( Path.GetFileNameWithoutExtension( path ) ) );
 		var group = XmlAsset.Read( fs, path, "SyncedAnimationGroup" );
-		var children = group.Element( "Animations" ).Elements( "Animation" ).Select( x => new Child(
+		var children = group.RequireElement( "Animations" ).Elements( "Animation" ).Select( x => new Child(
 			x.Number( "coord" ).Value, x.Number( "ground_speed" ), x.Number( "run_bounce" ) ?? 0f, x.Attribute( "time_coord_label" ),
 			Load( fs, x.Attribute( "path" ), load ) ) ).ToArray();
-		return new( group.Element( "CoordLabel" ).Value, children );
+		return new( group.RequireElement( "CoordLabel" ).Value, children );
 	}
 
 	internal GraphBuilder.Node Build( GraphBuilder graph, Func<string, GraphBuilder.Node> parameter, GraphBuilder.Node phase, bool mirrored )

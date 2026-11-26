@@ -58,7 +58,7 @@ public sealed partial class CutMarks
 	internal void DrawItemSpatter( Vector3 point, Vector3 across, Vector3 up )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
-			mount.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) is not ObjectLoader loader ) return;
+			ObjectLoader.FromItemModel( GetComponent<ModelRenderer>()?.Model ) is not { } loader ) return;
 		var (positions, uvs, indices) = loader.GetItemSurface();
 		var corners = new Vector4[indices.Count];
 		for ( int i = 0; i < indices.Count; i++ )

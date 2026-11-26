@@ -17,7 +17,7 @@ internal sealed class WeaponAttachment
 	internal static WeaponAttachment Create( LevelItem item )
 	{
 		var mount = Sandbox.Mounting.Directory.Get( "overgrowth" ) as GameMount;
-		if ( mount?.GetByPath( item.Holder.Model.ResourcePath ) is not CharacterLoader character ||
+		if ( item.Holder?.Model?.ResourcePath is not { } holderPath || mount?.GetByPath( holderPath ) is not CharacterLoader character ||
 			item.Definition?.Element( "grip" ) is not { } grip ) return null;
 		string chain = grip.Attribute( "ik_attach" );
 		if ( string.IsNullOrEmpty( chain ) ) return null;
@@ -32,7 +32,7 @@ internal sealed class WeaponAttachment
 			Transform Read( string path ) => ItemGrip.Read( mount.FileSystem, mount.Resolve( path ), bone, mirrored, true, false, 1f );
 			correction = correction.ToWorld( Read( basePath ).ToLocal( Read( grip.Attribute( "anim" ) ) ) );
 		}
-		var modelOffset = -(item.GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
+		var modelOffset = -(item.ItemModel.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
 		var hands = new[] { right, left }.Where( i => i >= 0 ).Distinct().Select( i => new Hand(
 			$"bone_{i}", $"item_bone_{i}", WeaponPoseTrack.Names( i ), character.AttachmentCenters.GetValueOrDefault( i ) ) ).ToArray();
 		return new( hands, correction, modelOffset );

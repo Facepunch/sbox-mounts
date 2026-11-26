@@ -21,7 +21,7 @@ internal sealed class CharacterAnimationLibrary
 	{
 		fs = mount.FileSystem;
 		this.path = path;
-		targetRig = character.Element( "appearance" ).Attribute( "skeleton" );
+		targetRig = character.RequireElement( "appearance" ).Attribute( "skeleton" );
 		Skeleton = skeleton;
 		Scale = scale;
 		Morphs = morphs;
@@ -65,7 +65,7 @@ internal sealed class CharacterAnimationLibrary
 				bones.AddBoneMask( stance.MaskName( mirrored ), mask, defaultFloatChannelWeight: 0f );
 			}
 		}
-		foreach ( var flinch in mount.WeaponFlinches.Append( character.Element( "animations" ).Attribute( "blockflinch" ) ).Where( file => file is not null ).Distinct() )
+		foreach ( var flinch in mount.WeaponFlinches.Append( character.RequireElement( "animations" ).Attribute( "blockflinch" ) ).Where( file => file is not null ).Distinct() )
 		{
 			var mask = RabbitClip.ReadLayerMask( fs, flinch, skeleton.Bones.Count );
 			foreach ( var shape in morphs.Where( m => m.Name is "fist_l" or "fist_r" ) ) mask[shape.Name] = 1f;
@@ -126,8 +126,8 @@ public partial class GameMount
 	internal CharacterAnimationLibrary GetAnimationLibrary( string path, XmlAsset character, SkeletonData rig, float scale )
 	{
 		var morphs = CharacterMorph.Read( character );
-		var key = (Resolve( character.Element( "appearance" ).Attribute( "skeleton" ) ), scale,
-			character.Element( "animations" ).Attribute( "blockflinch" ), string.Join( ';', morphs.Select( m => $"{m.Name}:{m.Steps}" ) ));
+		var key = (Resolve( character.RequireElement( "appearance" ).Attribute( "skeleton" ) ), scale,
+			character.RequireElement( "animations" ).Attribute( "blockflinch" ), string.Join( ';', morphs.Select( m => $"{m.Name}:{m.Steps}" ) ));
 		if ( !animationLibraries.TryGetValue( key, out var library ) )
 			animationLibraries[key] = library = new( this, path, character, rig, scale, morphs );
 		return library;

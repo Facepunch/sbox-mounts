@@ -51,7 +51,7 @@ public sealed partial class LevelItem : Component
 				pendingEmbed = null;
 				body.Velocity = body.AngularVelocity = Vector3.Zero;
 				body.Enabled = false;
-				GetComponent<ModelCollider>().Enabled = false;
+				if ( GetComponent<ModelCollider>() is { } collider ) collider.Enabled = false;
 				WorldTransform = stuck;
 				MarkThrowSafe();
 				return;
@@ -76,34 +76,43 @@ public sealed partial class LevelItem : Component
 		lastHeldPose = pose;
 	}
 
-	internal void Drop()
+	internal Rigidbody Drop()
 	{
 		UpdateAttachment();
 		Holder = null;
 		StuckIn = null;
 		GameObject.SetParent( null, true );
-		var body = AddPhysics( GameObject, GetComponent<ModelRenderer>().Model );
+		lastHeldPose = null;
+		var body = AddPhysics( GameObject, ItemModel );
+		if ( !body.IsValid() ) return null;
 		body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		body.Velocity = incomingVelocity = carryVelocity;
 		body.AngularVelocity = carryAngularVelocity;
-		lastHeldPose = null;
 		carryVelocity = carryAngularVelocity = Vector3.Zero;
+		return body;
 	}
 
-	Vector3 LocalMassCenter => GetComponent<ModelRenderer>()?.Model?.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
+	internal Model ItemModel => GetComponent<ModelRenderer>()?.Model;
+	Vector3 LocalMassCenter => ItemModel?.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 	internal Vector3 PhysicsPosition => WorldTransform.PointToWorld( LocalMassCenter );
 	internal string Label => Definition?.Element( "label" )?.Value;
 	internal int Hands => Definition?.Element( "grip" )?.Number( "hands" ) is { } hands ? (int)hands : 1;
-	XmlAsset itemDefinition;
-	internal XmlAsset Definition => itemDefinition ??= (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader)?.ItemDefinition;
+	internal XmlAsset Definition => ObjectLoader.FromItemModel( ItemModel )?.ItemDefinition;
 
+	Model lineModel;
 	ItemLine[] lines;
 	ItemLine[] GetLines()
 	{
+		var model = ItemModel;
+		if ( model != lineModel )
+		{
+			lineModel = model;
+			lines = null;
+			flightLines = null;
+		}
 		if ( lines is not null ) return lines;
-		var model = GetComponent<ModelRenderer>().Model;
-		var mount = Sandbox.Mounting.Directory.Get( "overgrowth" );
-		return lines = mount?.GetByPath( model.ResourcePath ) is ObjectLoader loader ? ItemLine.Read( loader.ItemDefinition, model ) : [];
+		if ( ObjectLoader.FromItemModel( model ) is not { } loader ) return [];
+		return lines = ItemLine.Read( loader.ItemDefinition, model );
 	}
 
 	internal Vector3 StabDirection()
@@ -149,8 +158,9 @@ public sealed partial class LevelItem : Component
 
 	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, int type, bool mirrored, string attachmentPath = null )
 	{
-		if ( CharacterLoader.FromModel( actor.Renderer.Model ) is not { } character ||
-			mount.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return;
+		if ( !item.IsValid() || !actor.IsValid() || !actor.Renderer.IsValid() || !model.IsValid() ||
+			CharacterLoader.FromModel( actor.Renderer.Model ) is not { } character ||
+			mount?.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return;
 		string anim, chain;
 		int depth = 0;
 		if ( type == 2 )
@@ -211,10 +221,11 @@ public sealed partial class LevelItem : Component
 
 	internal static Rigidbody AddPhysics( GameObject item, Model model )
 	{
+		if ( !item.IsValid() || !model.IsValid() || model.Physics?.Parts.FirstOrDefault() is not { } part ) return null;
 		var collider = item.GetComponent<ModelCollider>( true ) ?? item.AddComponent<ModelCollider>();
 		collider.Model = model;
 		var body = item.GetComponent<Rigidbody>( true ) ?? item.AddComponent<Rigidbody>();
-		body.MassOverride = model.Physics.Parts[0].Mass;
+		body.MassOverride = part.Mass;
 		body.OverrideMassCenter = true;
 		body.MassCenterOverride = model.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 		body.EnhancedCcd = true;

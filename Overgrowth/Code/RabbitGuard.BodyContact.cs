@@ -171,7 +171,7 @@ internal sealed class RabbitBodyContact : Component, Component.ICollisionListene
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
-		if ( GetComponent<ModelPhysics>() is not { Active: true } physics ) return;
+		if ( !collision.Self.Body.IsValid() || GetComponent<ModelPhysics>() is not { Active: true } physics ) return;
 		foreach ( var part in physics.Bodies )
 		{
 			if ( part.Component != collision.Self.Body.Component ) continue;

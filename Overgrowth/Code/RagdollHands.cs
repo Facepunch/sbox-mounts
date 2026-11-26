@@ -14,7 +14,7 @@ internal sealed class RagdollHands : Component
 	{
 		renderer = GetComponent<SkinnedModelRenderer>();
 		fighter = GetComponentInParent<RabbitGuard>();
-		shapes = CharacterLoader.FromModel( renderer.Model )?.HandShapes;
+		shapes = CharacterLoader.FromModel( renderer?.Model )?.HandShapes;
 	}
 
 	internal void Begin( SkinnedModelRenderer source, Vector2? inherited = null )
@@ -22,7 +22,7 @@ internal sealed class RagdollHands : Component
 		displayed = null;
 		remainder = 0f;
 		Closure = inherited ?? default;
-		if ( inherited.HasValue ) return;
+		if ( inherited.HasValue || !source.IsValid() ) return;
 		var hands = CharacterLoader.FromModel( source.Model )?.HandShapes;
 		if ( hands is null ) return;
 		foreach ( var hand in hands )
@@ -56,7 +56,7 @@ internal sealed class RagdollHands : Component
 
 	protected override void OnUpdate()
 	{
-		if ( shapes is null ) return;
+		if ( shapes is null || !renderer.IsValid() ) return;
 		if ( fighter.IsValid() && !fighter.Downed )
 		{
 			displayed = null;

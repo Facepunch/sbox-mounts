@@ -20,7 +20,7 @@ public sealed partial class RabbitGuard
 
 	bool CanPickUp( LevelItem item )
 	{
-		if ( !item.IsValid() || !item.Active || item.Definition?.Element( "type" )?.Value == "misc" || item.Hands > FreeHands ) return false;
+		if ( !item.IsValid() || !item.Active || item.Definition is not { } definition || definition.Element( "type" )?.Value == "misc" || item.Hands > FreeHands ) return false;
 		if ( !item.Holder.IsValid() ) return true;
 		return item.Holder.GetComponentInParent<RabbitGuard>() is { Unconscious: true } ||
 			item.Holder.GetComponentInParent<CharacterRemains>().IsValid();
@@ -178,7 +178,7 @@ public sealed partial class RabbitGuard
 		var position = item.PhysicsPosition;
 		if ( item.StuckIn.IsValid() && item.StuckIn != Renderer ) ExtractWeapon( item, lift: true );
 		bool left = PrimaryItem.IsValid() ? !LeftHanded : LeftHanded;
-		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, left );
+		LevelItem.Attach( mount, item.GameObject, item.ItemModel, this, 0, left );
 		if ( item.Holder != Renderer ) return false;
 		PlayGrabSound( item, position, 0.5f );
 		return true;

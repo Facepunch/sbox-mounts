@@ -9,12 +9,13 @@ internal sealed class WeaponStance( string path, string coordinate, (float At, W
 
 	internal static WeaponStance Load( BaseFileSystem fs, string path, Dictionary<string, WeaponStance> loaded )
 	{
+		if ( string.IsNullOrWhiteSpace( path ) ) throw new InvalidDataException( "Missing weapon stance path." );
 		if ( loaded.TryGetValue( path, out var stance ) ) return stance;
 		if ( path.EndsWith( ".anm" ) ) return loaded[path] = new( path, null, [] );
 		var group = XmlAsset.Read( fs, path, "SyncedAnimationGroup" );
-		var inputs = group.Element( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
+		var inputs = group.RequireElement( "Animations" ).Elements( "Animation" ).OrderBy( x => x.Number( "coord" ) )
 			.Select( x => (x.Number( "coord" ).Value, Load( fs, x.Attribute( "path" ), loaded )) ).ToArray();
-		return loaded[path] = new( path, group.Element( "CoordLabel" ).Value, inputs );
+		return loaded[path] = new( path, group.RequireElement( "CoordLabel" ).Value, inputs );
 	}
 
 	internal string MaskName( bool mirrored ) => mirrored ? path + "_left" : path;

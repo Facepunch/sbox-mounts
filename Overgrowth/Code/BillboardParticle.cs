@@ -252,7 +252,7 @@ public partial class GameMount
 			if ( collision?.Attribute( "decal" ) is { } decalPath )
 			{
 				var asset = XmlAsset.Read( FileSystem, decalPath, "DecalObject" );
-				decal = new() { ColorTexture = LoadTexture( asset.Element( "ColorMap" ).Value ), NormalTexture = LoadTexture( asset.Element( "NormalMap" ).Value ), Width = 1f, Height = 1f };
+				decal = new() { ColorTexture = LoadTexture( asset.RequireElement( "ColorMap" ).Value ), NormalTexture = LoadTexture( asset.RequireElement( "NormalMap" ).Value ), Width = 1f, Height = 1f };
 				if ( asset.Element( "SpecialType" )?.Value == "2" )
 					wetSurface = BloodSpatter.WetSurface( decal.ColorTexture );
 			}

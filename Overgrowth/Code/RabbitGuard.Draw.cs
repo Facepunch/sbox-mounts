@@ -36,8 +36,8 @@ public sealed partial class RabbitGuard
 		var left = LeftHandItem;
 		var right = RightHandItem;
 		LeftHandItem = RightHandItem = null;
-		if ( left.IsValid() ) LevelItem.Attach( mount, left.GameObject, left.GetComponent<ModelRenderer>().Model, this, 0, false );
-		if ( right.IsValid() ) LevelItem.Attach( mount, right.GameObject, right.GetComponent<ModelRenderer>().Model, this, 0, true );
+		if ( left.IsValid() ) LevelItem.Attach( mount, left.GameObject, left.ItemModel, this, 0, false );
+		if ( right.IsValid() ) LevelItem.Attach( mount, right.GameObject, right.ItemModel, this, 0, true );
 		var point = Renderer.TryGetBoneTransform( $"bone_{eventBone}", out var bone ) ? bone.Position : WorldPosition;
 		PlayCombatSound( "Data/Sounds/weapon_foley/impact/weapon_drop_light_dirt.xml", point, 0.5f );
 	}
@@ -64,7 +64,7 @@ public sealed partial class RabbitGuard
 		if ( !item.IsValid() || (leftHand ? LeftHandItem : RightHandItem).IsValid() || item.Holder != Renderer ||
 			Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		var position = item.PhysicsPosition;
-		LevelItem.Attach( mount, item.GameObject, item.GetComponent<ModelRenderer>().Model, this, 0, leftHand );
+		LevelItem.Attach( mount, item.GameObject, item.ItemModel, this, 0, leftHand );
 		if ( (leftHand ? LeftHandItem : RightHandItem) != item ) return;
 		PlayCombatSound( "Data/Sounds/weapon_foley/grab/weapon_grap_metal_leather_glove.xml", position, 0.5f );
 	}

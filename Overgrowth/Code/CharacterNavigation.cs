@@ -63,7 +63,7 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	protected override void OnUpdate()
 	{
-		if ( !Networking.IsHost ) return;
+		if ( !Networking.IsHost || !Npc.IsValid() ) return;
 		requestedGroundSpeed = 0f;
 		if ( Npc is RabbitGuard { GettingUp: true } )
 		{

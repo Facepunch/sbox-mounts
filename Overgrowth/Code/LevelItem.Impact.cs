@@ -18,7 +18,7 @@ public sealed partial class LevelItem
 		var point = collision.Contact.Point;
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
 		if ( mount.AllowsPenetration( surface ) && !incomingVelocity.IsNearlyZero() )
-			TryEmbed( mount, body, collision.Contact );
+			TryEmbed( body, collision.Contact );
 		float impulse = pendingEmbed.HasValue ? body.Mass : RabbitGuard.BodyImpactImpulse( collision ) / 40f;
 		if ( !pendingEmbed.HasValue )
 		{
@@ -39,10 +39,9 @@ public sealed partial class LevelItem
 			mount.PlayItemImpact( GameObject, surface, step, point, gain, modifier );
 	}
 
-	void TryEmbed( GameMount mount, PhysicsBody body, PhysicsContact contact )
+	void TryEmbed( PhysicsBody body, PhysicsContact contact )
 	{
-		var model = GetComponent<ModelRenderer>().Model;
-		if ( mount.GetByPath( model.ResourcePath ) is not ObjectLoader { Sharpness: { } sharpness } ) return;
+		if ( ObjectLoader.FromItemModel( ItemModel ) is not { Sharpness: { } sharpness } ) return;
 		var pose = new Transform( body.Position, body.Rotation, WorldScale );
 
 		var vertex = sharpness.ClosestVertex( pose.PointToLocal( contact.Point ) );
@@ -73,23 +72,24 @@ public sealed partial class LevelItem
 
 	void HitCharacter( RabbitGuard fighter, CharacterRemains remains, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 start, Vector3 end, ItemLine line )
 	{
+		if ( !body.IsValid() || (!remains.IsValid() && !fighter.IsValid()) ) return;
 		var renderer = remains.IsValid() ? remains.GetComponent<SkinnedModelRenderer>() : fighter.Renderer;
 		var velocity = body.Velocity;
 		float mass = body.Mass;
-		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader;
+		var loader = ObjectLoader.FromItemModel( ItemModel );
 		bool cut = line.Material == "metal" && loader?.Sharpness?.At( WorldTransform.PointToLocal( hit.EndPosition + velocity.Normal * 40f ) ) > 0.3f;
 		var axis = (end - start).Normal;
-		if ( cut )
+		if ( cut && renderer.IsValid() )
 		{
 			renderer.GetOrAddComponent<CutMarks>().Stab( hit.EndPosition, axis, false );
 			MarkBlood( Vector3.Lerp( line.Start, line.End, hit.Fraction ), WorldRotation.Inverse * axis, 8f );
 		}
-		string label = Definition.Element( "label" )?.Value;
+		string label = Label;
 		bool embedded = cut && (label == "spear" || MathF.Abs( axis.Dot( hit.Normal ) ) > 0.4f);
-		if ( embedded && hit.Hitbox?.Bone is { } bone && renderer.TryGetBoneTransform( bone.Name, out var bonePose ) )
+		if ( embedded && renderer.IsValid() && hit.Hitbox?.Bone is { } bone && renderer.TryGetBoneTransform( bone.Name, out var bonePose ) )
 		{
 			body.Enabled = false;
-			GetComponent<ModelCollider>().Enabled = false;
+			if ( GetComponent<ModelCollider>() is { } collider ) collider.Enabled = false;
 			GameObject.SetParent( hit.GameObject, true );
 			WorldTransform = sample.WithPosition( sample.Position + hit.EndPosition - end + axis * 16f );
 			Bone = bone.Name;

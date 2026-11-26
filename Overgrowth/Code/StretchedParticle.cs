@@ -33,6 +33,7 @@ public sealed class StretchedParticle : Component
 
 	protected override void OnUpdate()
 	{
+		if ( particle is null || !sprite.IsValid() ) { Destroy(); return; }
 		age += Time.Delta;
 		float size = diameter - 80f * age * particle.SizeDecay;
 		float alpha = particle.Tint.a - age * particle.OpacityDecay;
@@ -86,7 +87,7 @@ public partial class GameMount
 	{
 		if ( !clashFlashRadius.HasValue )
 		{
-			var light = XmlAsset.Read( FileSystem, "Data/Objects/default_light.xml", "ActorObjects" ).Element( "DynamicLightObject" );
+			var light = XmlAsset.Read( FileSystem, "Data/Objects/default_light.xml", "ActorObjects" ).RequireElement( "DynamicLightObject" );
 			clashFlashRadius = 40f * MathF.Min( light.Number( "s0" ).Value, MathF.Min( light.Number( "s1" ).Value, light.Number( "s2" ).Value ) );
 		}
 		ClashFlash.Emit( point, clashFlashRadius.Value, characterFrames );
@@ -108,10 +109,10 @@ public partial class GameMount
 		if ( !stretchedParticles.TryGetValue( name, out var particle ) )
 		{
 			var root = XmlAsset.Read( FileSystem, $"Data/Particles/{name}.xml", "particle" );
-			var texture = root.Element( "textures" );
-			var size = root.Element( "size" );
-			var color = root.Element( "color" );
-			var behavior = root.Element( "behavior" );
+			var texture = root.RequireElement( "textures" );
+			var size = root.RequireElement( "size" );
+			var color = root.RequireElement( "color" );
+			var behavior = root.RequireElement( "behavior" );
 			var tint = new Color( color.Number( "red" ).Value, color.Number( "green" ).Value, color.Number( "blue" ).Value, color.Number( "alpha" ).Value );
 			particle = new( Sprite.FromTexture( LoadTexture( texture.Attribute( "color_map" ) ) ), tint, texture.Attribute( "shader" ) == "glowsprite",
 				size.Number( "min" ).Value, size.Number( "max" ).Value, behavior.Number( "inertia" ).Value, behavior.Number( "gravity" ).Value,

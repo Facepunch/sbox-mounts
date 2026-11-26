@@ -92,7 +92,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal static CharacterLoader FromModel( Model model )
 	{
-		if ( model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
+		if ( !model.IsValid() || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
 		if ( loader.animationRig is null || loader.Surface is null || loader.inertias is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
 		return loader;
 	}

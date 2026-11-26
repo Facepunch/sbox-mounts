@@ -74,9 +74,9 @@ internal sealed class TerrainLoader(string levelPath) : ResourceLoader<GameMount
 			builder.AddMesh( mesh );
 			if ( detailed )
 			{
-				var surfaces = terrain.Element( "DetailMaps" ).Elements( "DetailMap" ).Select( layer =>
+				var surfaces = terrain.RequireElement( "DetailMaps" ).Elements( "DetailMap" ).Select( layer =>
 					GameResource.Load<Surface>( Host.MountedPath( System.IO.Path.ChangeExtension( layer.Attribute( "materialpath" ) ?? "Data/Materials/default.xml", ".surface" ) ) ) ).ToArray();
-				materials = new( new ImageSampler( Host, terrain.Element( "WeightMap" ).Value ), surfaces, positions, uvs, indices );
+				materials = new( new ImageSampler( Host, terrain.RequireElement( "WeightMap" ).Value ), surfaces, positions, uvs, indices );
 				materials.AddCollision( builder );
 			}
 			else builder.AddCollisionMesh( positions, indices );

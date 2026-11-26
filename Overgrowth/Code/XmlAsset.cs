@@ -14,12 +14,15 @@ internal sealed class XmlAsset
 	public string Attribute( string key ) => attributes.GetValueOrDefault( key );
 	public float? Number( string key ) => float.TryParse( Attribute(key), NumberStyles.Float, CultureInfo.InvariantCulture, out var value ) ? value : null;
 	public XmlAsset Element( string name ) => Children.FirstOrDefault( n => n.Name == name );
+	public XmlAsset RequireElement( string name ) => Element( name )
+		?? throw new InvalidDataException( $"Missing <{name}> in <{Name}>." );
 	public IEnumerable<XmlAsset> Elements( string name ) => Children.Where( n => n.Name == name );
 	public static XmlAsset Read( BaseFileSystem fs, string path, string name ) => Parse(fs.ReadAllText(path)).Element(name)
 		?? throw new InvalidDataException($"No {name} element in {path}");
 
 	public static XmlAsset Parse( string text )
 	{
+		if ( text is null ) throw new InvalidDataException( "Missing Overgrowth XML data." );
 		var root = new XmlAsset("");
 		var nodes = new Stack<XmlAsset>();
 		nodes.Push(root);
@@ -65,7 +68,9 @@ internal sealed class XmlAsset
 				if(text.AsSpan(i).StartsWith("/>")) {i+=2;break;}
 				var key=Name();Space();
 				if(i>=text.Length || text[i++]!='=') throw new InvalidDataException($"Missing = after {key}");
-				Space();if(i<text.Length && text[i] is not ('\'' or '"')) { int start=i; while(i<text.Length && !char.IsWhiteSpace(text[i]) && text[i] is not ('/' or '>'))i++; node.attributes[key]=text[start..i]; continue; }
+				Space();
+				if ( i == text.Length ) throw new InvalidDataException( $"Missing value for {key}." );
+				if(text[i] is not ('\'' or '"')) { int start=i; while(i<text.Length && !char.IsWhiteSpace(text[i]) && text[i] is not ('/' or '>'))i++; node.attributes[key]=text[start..i]; continue; }
 				var quote=text[i++];int end=text.IndexOf(quote,i);
 				if(end<0)throw new InvalidDataException($"Unterminated {key}");
 				node.attributes[key]=WebUtility.HtmlDecode(text[i..end]);i=end+1;

@@ -11,7 +11,7 @@ public class MaterialLoader( string filePath, string element ) : ResourceLoader<
 	{
 		var root = XmlAsset.Read( Host.FileSystem, filePath, element );
 		if ( element == "item" )
-			root = XmlAsset.Read( Host.FileSystem, Host.Resolve( root.Element( "appearance" ).Attribute( "obj_path" ) ), "Object" );
+			root = XmlAsset.Read( Host.FileSystem, Host.Resolve( root.RequireElement( "appearance" ).Attribute( "obj_path" ) ), "Object" );
 		var shader = ExpandShader( root.Element( "ShaderName" )?.Value.Trim() ?? "" );
 		var flags = shader.Split( ' ', StringSplitOptions.RemoveEmptyEntries ).ToHashSet( StringComparer.Ordinal );
 

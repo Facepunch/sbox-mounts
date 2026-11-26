@@ -29,7 +29,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		else if ( nextCharacterImpact <= 0f && body.Velocity.LengthSquared > 40f * 40f )
 		{
 			var owner = thrower.IsValid() ? thrower : guard.IsValid() ? guard.GameObject : null;
-			var segments = flightLines ??= GetFlightLines();
+			var segments = GetFlightLines();
 			for ( int i = 0; i <= 8 && nextCharacterImpact <= 0f; i++ )
 			{
 				float fraction = i / 8f;
@@ -40,7 +40,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					var start = Vector3.Lerp( oldStart, newStart, fraction );
 					var end = Vector3.Lerp( oldEnd, newEnd, fraction );
 					var hit = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes().Run();
-					if ( !hit.Hit || hit.GameObject == owner ) continue;
+					if ( !hit.Hit || !hit.GameObject.IsValid() || hit.GameObject == owner ) continue;
 					var fighter = hit.GameObject.GetComponent<RabbitGuard>();
 					var remains = fighter.IsValid() ? null : hit.GameObject.GetComponent<CharacterRemains>();
 					if ( !fighter.IsValid() && !remains.IsValid() ) continue;
@@ -61,9 +61,12 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	ItemLine[] GetFlightLines()
 	{
-		var origin = GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero;
+		var segments = GetLines();
+		if ( segments.Length == 0 ) return [];
+		if ( flightLines is not null ) return flightLines;
+		var origin = ItemModel.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero;
 		var offset = LocalMassCenter - origin;
-		return GetLines().Select( line => line with { Start = line.Start + offset, End = line.End + offset } ).ToArray();
+		return flightLines = segments.Select( line => line with { Start = line.Start + offset, End = line.End + offset } ).ToArray();
 	}
 
 	void AlignWithFlight( Rigidbody body )
@@ -104,11 +107,11 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	{
 		thrower = owner.GameObject;
 		var throwerVelocity = owner.BodyVelocity;
-		Drop();
-		var body = GetComponent<Rigidbody>();
+		var body = Drop();
+		if ( !body.IsValid() ) { MarkThrowSafe(); return; }
 		var delta = target - PhysicsPosition;
 		float mass = body.MassOverride;
-		var label = Definition.Element( "label" )?.Value;
+		var label = Label;
 		bool heavyThrow = fullBody && label is ("big_sword" or "spear" or "staff");
 		float effectiveMass = MathF.Max( 1f, heavyThrow ? mass * 0.25f : mass );
 		var horizontal = delta.WithZ( 0f ).Normal;

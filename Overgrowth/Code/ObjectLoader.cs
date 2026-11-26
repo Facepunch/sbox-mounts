@@ -6,6 +6,14 @@ namespace Overgrowth;
 
 public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader<GameMount>
 {
+	internal static ObjectLoader FromItemModel( Model model )
+	{
+		if ( !model.IsValid() || model.ResourcePath is not { Length: > 0 } path ) return null;
+		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( path ) as ObjectLoader;
+		return loader is { IsItem: true } ? loader : null;
+	}
+
+	bool IsItem => item;
 	XmlAsset itemDefinition;
 	(List<Vector3> Positions, List<Vector2> UVs, List<int> Indices) itemSurface;
 	(string Path, Vector3 CacheCenter)? collisionMesh;
@@ -15,7 +23,7 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		// Cached engine models can be available before Load runs on this loader instance.
 		if ( collisionMesh is null )
 		{
-			var model = Host.Resolve( XmlAsset.Read( Host.FileSystem, filePath, "Object" ).Element( "Model" ).Value );
+			var model = Host.Resolve( XmlAsset.Read( Host.FileSystem, filePath, "Object" ).RequireElement( "Model" ).Value );
 			var collision = System.IO.Path.ChangeExtension( model, null ) + "_col.obj";
 			collisionMesh = Host.FileSystem.FileExists( collision ) ? (collision, ObjLoader.Load( Host.FileSystem, model ).Center) : (model, Vector3.Zero);
 		}
@@ -59,14 +67,14 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 	{
 		if ( item )
 		{
-			var data = mesh ?? ObjLoader.Load( Host.FileSystem, Host.Resolve( appearance.Element( "Model" ).Value ) );
+			var data = mesh ?? ObjLoader.Load( Host.FileSystem, Host.Resolve( appearance.RequireElement( "Model" ).Value ) );
 			var map = appearance.Element( "SharpnessMap" )?.Value;
 			if ( !string.IsNullOrWhiteSpace( map ) ) sharpness = new( Host, map, data );
 			itemSurface = (data.Positions, data.UVs, data.Indices);
 		}
 		else if ( appearance.Element( "flags" )?.Attribute( "bush_collision" ) == "true" && appearance.Element( "ColorMap" )?.Value is { } colorMap )
 		{
-			var model = Host.Resolve( appearance.Element( "Model" ).Value );
+			var model = Host.Resolve( appearance.RequireElement( "Model" ).Value );
 			(plantPoints, plantCloud) = PlantHull.Load( Host, model, colorMap, mesh );
 		}
 	}

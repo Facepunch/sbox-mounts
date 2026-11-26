@@ -27,7 +27,7 @@ public partial class GameMount : BaseGameMount, IHotloadManaged
 
 	protected override Task Mount( MountContext context )
 	{
-		if ( !FileSystem.DirectoryExists( "Data" ) )
+		if ( FileSystem?.DirectoryExists( "Data" ) != true )
 			return Task.CompletedTask;
 
 		foreach ( var relative in FileSystem.FindFile( "Data", "*", true ) )
@@ -72,7 +72,7 @@ public partial class GameMount : BaseGameMount, IHotloadManaged
 	void MountActor( MountContext context, string path )
 	{
 		var actor = XmlAsset.Read( FileSystem, path, "Actor" );
-		var character = Resolve( actor.Element( "Character" ).Value );
+		var character = Resolve( actor.RequireElement( "Character" ).Value );
 		const string characterRoot = "Data/Characters/";
 		var relativePath = character.StartsWith( characterRoot, StringComparison.OrdinalIgnoreCase ) ? character[characterRoot.Length..] : character;
 		var relative = Path.ChangeExtension( relativePath, null ).ToLowerInvariant();
@@ -113,7 +113,10 @@ public partial class GameMount : BaseGameMount, IHotloadManaged
 			case "material" when path.StartsWith( "Data/Materials/", StringComparison.OrdinalIgnoreCase ):
 				context.Add( ResourceType.GameResource, Path.ChangeExtension( path, ".surface" ), new SurfaceLoader( path ) );
 				break;
-			case "Actor": MountActor( context, path ); break;
+			case "Actor":
+				try { MountActor( context, path ); }
+				catch ( InvalidDataException ex ) { Log.Warning( $"Skipping Overgrowth actor {path}: {ex.Message}" ); }
+				break;
 			case "character": context.Add(ResourceType.Model,path,new CharacterLoader(path)); break;
 			case "Object":
 				context.Add(ResourceType.Model,path,new ObjectLoader(path));
