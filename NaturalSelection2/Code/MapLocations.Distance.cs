@@ -74,18 +74,22 @@ public sealed partial class MapLocations
 	Vector3? FindGateway( string a, Vector3 from, string b, Vector3 to )
 	{
 		var path = Scene.NavMesh.CalculatePath( new() { Start = from, Target = to } );
-		if ( path.Status != NavMeshPathStatus.Complete ) return null;
-		Vector3? last = null, first = null;
+		if ( path.Status != NavMeshPathStatus.Complete || path.Points.Count < 2 ) return null;
+		var left = path.Points[0].Position;
+		if ( LocationAt( left ) != a || LocationAt( path.Points[^1].Position ) != b ) return null;
+		Vector3? first = null;
 		foreach ( var point in path.Points )
 		{
 			var room = LocationAt( point.Position );
-			if ( room == a ) last = point.Position;
+			if ( room == a ) left = point.Position;
 			else if ( room == b ) first ??= point.Position;
+			else if ( room is not null ) return null;
 		}
-		if ( last is not { } left || first is not { } right ) return null;
+		var right = first.Value;
 
-		// Spark bisects the two path points until the boundary is within half a metre.
-		for ( int i = 0; i < 14 && left.Distance( right ) > 0.5f * MapLoader.Scale; i++ )
+		// Spark uses the original span to decide whether to take the 14 refinement steps.
+		int steps = left.DistanceSquared( right ) > 0.25f * MapLoader.Scale * MapLoader.Scale ? 14 : 0;
+		for ( int i = 0; i < steps; i++ )
 		{
 			var mid = (left + right) * 0.5f;
 			var room = LocationAt( mid );
