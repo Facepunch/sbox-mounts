@@ -358,6 +358,12 @@ public sealed class BulletWeapon : Weapon
 			Reload();
 			return;
 		}
+		if ( _holdingEmptyTrigger && clickOnly )
+		{
+			_holdingEmptyTrigger = false;
+			_fireDuration = 0;
+			return;
+		}
 		_holdingEmptyTrigger = true;
 		if ( clickOnly )
 		{
