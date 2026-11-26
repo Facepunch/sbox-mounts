@@ -1,6 +1,5 @@
 using Sandbox.Npcs;
 using System;
-using System.Runtime.CompilerServices;
 
 namespace NS2;
 
@@ -12,15 +11,7 @@ internal sealed class AlienTargeting
 		public float Time;
 	}
 
-	static readonly ConditionalWeakTable<Scene, Dictionary<string, AlienTargeting>> teams = new();
-
-	internal static AlienTargeting ForTeam( BaseNpc npc )
-	{
-		var sceneTeams = teams.GetOrCreateValue( npc.Scene );
-		var faction = npc.Faction ?? string.Empty;
-		if ( !sceneTeams.TryGetValue( faction, out var team ) ) sceneTeams[faction] = team = new();
-		return team;
-	}
+	internal static AlienTargeting ForTeam( BaseNpc npc ) => NpcTeamMemory.Get( npc.Scene ).ForFaction( npc.Faction );
 
 	readonly Dictionary<GameObject, Memory> memories = [];
 	MapLocations locations;

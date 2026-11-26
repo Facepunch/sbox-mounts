@@ -25,6 +25,7 @@ internal sealed class AlienWounds
 	{
 		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
 		float armorLost = ratio == 0 ? 0 : Math.Min( armor, (armorOnlyDamage + hit.AcceptedDamage * (0.7f / 0.3f)) / ratio );
+		NpcTeamMemory.RecordArmorLoss( hit, armorLost );
 		flinchEnd = Flinch( hit, hit.AcceptedDamage + armorLost * ratio, maxHealth, flinchEnd );
 		damageFraction += (hit.AcceptedDamage + armorLost * 2) / (maxHealth + maxArmor * 2);
 		return armorLost;

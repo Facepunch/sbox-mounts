@@ -39,6 +39,7 @@ internal static class SupportDamage
 		float lost = fraction == 1
 			? Math.Min( armor, (hit.DamageInfo.Damage > 0 ? hit.DamageInfo.Damage : 0) / ratio )
 			: Math.Min( armor, hit.AcceptedDamage * fraction / ((1 - fraction) * ratio) );
+		NpcTeamMemory.RecordArmorLoss( hit, lost );
 		float damage = hit.AcceptedDamage + lost * ratio;
 		return (armor - lost, damage > 0 ? AlienWounds.Flinch( hit, damage, maxHealth, end ) : end);
 	}
