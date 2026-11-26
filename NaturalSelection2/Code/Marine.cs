@@ -213,7 +213,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			}
 			else lastAimPoint = null;
 		}
-		wantsFire = !reloading && Ammo.Clip > 0 && (aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0);
+		wantsFire = aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0;
 		if ( useEntityAttack && clearShot )
 		{
 			if ( babbler ) Movement.Stop();
@@ -356,8 +356,11 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
-			trigger = press && deployed && (!pistol || lastShot >= 0.1f);
-			if ( trigger && !pistol && !reloading && Ammo.Clip > 0 )
+			bool attack = press && deployed && !reloading && (!pistol || lastShot >= 0.1f);
+			trigger = attack && Ammo.Clip > 0;
+			if ( attack && Ammo.Clip == 0 )
+				BeginReload();
+			if ( trigger && !pistol )
 				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
 			if ( (viewTarget ?? (wantsFire ? lastAimPoint : null)) is { } point )
@@ -402,6 +405,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		playback.Set( "catalyst_speed", 1 );
 		playback.Set( "reload_speed", 1 );
 		playback.Set( "skip_draw", skipDraw ? 1 : 0 );
+		playback.Set( "empty", Ammo.Clip == 0 && Ammo.Reserve == 0 ? 1 : 0 );
 		playback.Set( "idleName", "idle" );
 	}
 
