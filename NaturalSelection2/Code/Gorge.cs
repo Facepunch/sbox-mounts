@@ -88,29 +88,33 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		var enemy = targeting.FindEnemy( this, out var lastSeen, static ( obj, _ ) =>
 			obj.Tags.HasAny( "structure", "ns2_mac" ) );
 		float combatWeight = AttackWeight( enemy, lastSeen );
-		throwing = combatWeight < 20 && CanFleeThrow( enemy, enemy.IsValid() && lastSeen is null );
-		if ( throwing ) combatWeight = 20;
+		bool fleeThrow = combatWeight < 20 && CanFleeThrow( enemy, enemy.IsValid() && lastSeen is null );
+		if ( fleeThrow ) combatWeight = 20;
+		bool structureThrow = false;
 		bool bombard = false;
-		if ( BileBombUnlocked )
+		if ( BileBombUnlocked || CanThrowBabblers( 4 ) )
 		{
 			var target = targeting.FindEnemy( this, out var lastSeenBile, static ( obj, _ ) =>
 				!obj.Tags.HasAny( "ns2_mac", "ns2_exo", "structure" ) || obj.GetComponent<AlienStructure>() is { IsBuilt: false } );
 			if ( target.IsValid() )
 			{
-				float weight = BombardWeight( target );
+				float bileWeight = BileBombUnlocked ? BombardWeight( target ) : 0;
+				float throwWeight = StructureThrowWeight( target, lastSeenBile ?? target.WorldPosition, lastSeen ?? enemy?.WorldPosition );
+				float weight = Math.Max( bileWeight, throwWeight );
 				if ( weight > combatWeight )
 				{
 					enemy = target;
 					lastSeen = lastSeenBile;
 					combatWeight = weight;
-					bombard = true;
+					structureThrow = throwWeight > bileWeight;
+					bombard = !structureThrow;
 				}
 			}
 		}
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
 		assignedTarget = null;
-		if ( SupportAlly( combatWeight, visible ) || !throwing && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		if ( SupportAlly( combatWeight, visible ) || !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			throwing = false;
 			escort = null;
@@ -119,7 +123,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		assignedTarget = enemy;
 		bombarding = bombard && WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) <= 12 * Scale;
 		var goal = lastSeen ?? enemy?.WorldPosition;
-		firing = visible && (bombard ? bombarding : EyePosition.Distance( goal.Value ) <= 20 * Scale);
+		throwing = fleeThrow || structureThrow && visible && WorldPosition.DistanceSquared( goal.Value ) <= 14 * 14 * Scale * Scale;
+		firing = structureThrow ? throwing : visible && (bombard ? bombarding : EyePosition.Distance( goal.Value ) <= 20 * Scale);
 		if ( goal is null )
 		{
 			if ( !FollowLifeform() )
@@ -130,11 +135,16 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			return;
 		}
 		escort = null;
-		Animation.SetLookTarget( visible ? enemy : null );
+		Animation.SetLookTarget( visible && (!structureThrow || throwing) ? enemy : null );
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		float distance = EyePosition.Distance( goal.Value ) / Scale;
-		if ( throwing )
+		if ( structureThrow )
+		{
+			if ( throwing ) Movement.Stop();
+			else Movement.MoveTo( goal.Value, Scale );
+		}
+		else if ( fleeThrow )
 			Movement.MoveTo( WorldPosition + (WorldPosition - goal.Value).WithZ( 0 ).Normal * (3 * Scale), 0, faceTarget: enemy );
 		else if ( bombarding && distance < 8 && Random.Shared.NextSingle() < 0.9f )
 			Movement.MoveTo( WorldPosition - WorldRotation.Forward * (0.75f * Scale), 0, faceTarget: enemy );
@@ -147,10 +157,11 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	float BombardWeight( GameObject target )
 	{
 		float health = HealthFraction( this );
-		float urgency = target.Tags.Has( "ns2_exo" ) ? 2.5f : target.Tags.Has( "ns2_mac" ) ? 0.4f : 0;
-		float weight = 2.5f + urgency + personality.Aggression - (1 - health);
+		float weight = 2.5f + StructureUrgency( target ) + personality.Aggression - (1 - health);
 		return underFire > 0 ? weight * 0.25f * health : weight;
 	}
+
+	static float StructureUrgency( GameObject target ) => target.Tags.Has( "ns2_exo" ) ? 2.5f : target.Tags.Has( "ns2_mac" ) ? 0.4f : 0;
 
 	BaseNpc escort;
 	TimeUntil checkEscort;
@@ -212,7 +223,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			direction.z += 0.5f * 9.81f * Scale * time * time;
 		}
 		aim = AlienAim.Turn( aim, direction, 5 );
-		primaryHeld = firing && (bombarding ? energy > ShotCost : energy >= ShotCost) && Vector3.Dot( aim.Forward, direction.Normal ) > (throwing ? 0.9f : 0.98f);
+		float aimThreshold = throwing && IsFleeTarget( Animation.LookObject ) ? 0.9f : 0.98f;
+		primaryHeld = firing && (bombarding ? energy > ShotCost : energy >= ShotCost) && Vector3.Dot( aim.Forward, direction.Normal ) > aimThreshold;
 		UpdateSprayInput( direction );
 		var activity = secondaryAttacking && energy >= 10 || sprayAnimation > 0 ? "secondary" : primaryHeld ? "primary" : "none";
 		var move = sliding ? "belly" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";

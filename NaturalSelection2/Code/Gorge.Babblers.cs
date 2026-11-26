@@ -16,11 +16,25 @@ public sealed partial class Gorge
 	TimeUntil nextThrow;
 	bool throwing;
 
+	bool CanThrowBabblers( int count ) => freeSlots.Count <= 6 - count && energy >= 7 && nextThrow <= 0 &&
+		!GameObject.Tags.Has( "ns2_hallucination" );
+
+	float StructureThrowWeight( GameObject target, Vector3 destination, Vector3? threat )
+	{
+		if ( !CanThrowBabblers( 4 ) || underFire > 0 || IsFleeTarget( target ) ||
+			WorldPosition.DistanceSquared( destination ) > 21 * 21 * Scale * Scale ||
+			threat is { } position && WorldPosition.DistanceSquared( position ) < 14 * 14 * Scale * Scale ) return 0;
+		return 4 + StructureUrgency( target );
+	}
+
+	static bool IsFleeTarget( GameObject target ) => target.IsValid() &&
+		(target.Tags.HasAny( "ns2_marine", "ns2_exo" ) || target.GetComponent<PlayerController>().IsValid());
+
 	bool CanFleeThrow( GameObject threat, bool visible )
 	{
-		if ( !visible || freeSlots.Count > 4 || energy < 7 || nextThrow > 0 || GameObject.Tags.Has( "ns2_hallucination" ) ) return false;
+		if ( !visible || !CanThrowBabblers( 2 ) ) return false;
 		if ( underFire <= 0 && (!InCombat || HealthFraction( this ) >= 0.75f) ) return false;
-		return (threat.Tags.HasAny( "ns2_marine", "ns2_exo" ) || threat.GetComponent<PlayerController>().IsValid()) &&
+		return IsFleeTarget( threat ) &&
 			WorldPosition.DistanceSquared( threat.WorldPosition ) <= 14 * 14 * Scale * Scale;
 	}
 
@@ -51,7 +65,7 @@ public sealed partial class Gorge
 			float best = float.MaxValue;
 			foreach ( var obj in Senses.VisibleHostiles )
 			{
-				if ( !obj.IsValid() || AlienTargeting.IsIgnoredPlayer( obj ) || !(obj.Tags.HasAny( "ns2_marine", "ns2_exo" ) || obj.GetComponent<PlayerController>().IsValid()) ) continue;
+				if ( !IsFleeTarget( obj ) || AlienTargeting.IsIgnoredPlayer( obj ) ) continue;
 				var delta = obj.WorldPosition - origin;
 				if ( obj.WorldPosition.Distance( (origin + start) * 0.5f ) > 15 * Scale + origin.Distance( start ) * 0.5f ) continue;
 				float along = Vector3.Dot( delta, dir );
