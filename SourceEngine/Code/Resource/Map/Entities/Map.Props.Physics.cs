@@ -96,6 +96,7 @@ partial class MapLoader
 			body.StartAsleep = prop.StartAsleep;
 			body.MotionEnabled = prop.MotionEnabled;
 			body.Enabled = true;
+			PropAirDrag.Attach( renderer.GameObject, renderer.Model );
 		}
 
 		private void AddRagdoll( MapProp prop, SkinnedModelRenderer renderer, string path )

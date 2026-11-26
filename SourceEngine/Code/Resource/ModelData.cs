@@ -10,28 +10,40 @@ public sealed class AirDrag
 	public Vector3 AreaFractions { get; set; }
 	public Vector3 UnitMassInertia { get; set; }
 
+	private const float MetresPerInch = 0.0254f;
+
+	private static Vector3 SizeInMetres( Model model )
+	{
+		if ( model.Physics is not { Parts.Count: 1 } physics || physics.Parts[0].Hulls is not { Count: > 0 } hulls )
+			return default;
+		var bounds = hulls[0].Bounds;
+		for ( var i = 1; i < hulls.Count; i++ ) bounds = bounds.AddBBox( hulls[i].Bounds );
+		return bounds.Size * MetresPerInch;
+	}
+
+	// The stored fractions use IVP axis order (X, Z, Y).
+	private Vector3 Fractions => new( AreaFractions.x, AreaFractions.z, AreaFractions.y );
+
+	private Vector3 LinearBasis( Vector3 size ) =>
+		new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * Fractions * MetresPerInch;
+
+	internal Vector3 LinearBasis( Model model, Vector3 scale ) => LinearBasis( SizeInMetres( model ) * scale.Abs() );
+
 	/// <summary>Applies the authored inertia and returns the drag factors for this rigid body.</summary>
 	internal static (Vector3 Linear, Vector3 Angular) ConfigureBody( Model model, Rigidbody body )
 	{
-		const float metresPerInch = 0.0254f;
 		var physics = body.PhysicsBody;
-		if ( !physics.IsValid() || model?.GetData<AirDrag>() is not { } drag || model.Physics.Parts[0].Hulls is not { Count: > 0 } hulls )
-			return default;
-
-		var bounds = hulls[0].Bounds;
-		for ( var i = 1; i < hulls.Count; i++ ) bounds = bounds.AddBBox( hulls[i].Bounds );
-		var size = bounds.Size * metresPerInch;
-		// The stored area fractions multiply the IVP axes (X, Z, Y).
-		var areas = drag.AreaFractions;
-		var fractions = new Vector3( areas.x, areas.z, areas.y );
-		// Half the default VPhysics air density (2 kg/m³) is one.
+		if ( !physics.IsValid() || model?.GetData<AirDrag>() is not { } drag ) return default;
+		var size = SizeInMetres( model );
+		if ( size == Vector3.Zero ) return default;
 		var mass = physics.Mass;
-		var linear = new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * fractions * (metresPerInch / mass);
+		var linear = drag.LinearBasis( size ) / mass;
+		var fractions = drag.Fractions;
 
 		var half = size * 0.5f;
 		var inertia = drag.UnitMassInertia * mass;
 		if ( inertia.x > 0 && inertia.y > 0 && inertia.z > 0 )
-			physics.SetInertiaTensor( inertia / (metresPerInch * metresPerInch), Rotation.Identity );
+			physics.SetInertiaTensor( inertia / (MetresPerInch * MetresPerInch), Rotation.Identity );
 		var angular = new Vector3(
 			AngularFactor( half.x, half.y, half.z, fractions.y, fractions.z, inertia.x ),
 			AngularFactor( half.y, half.z, half.x, fractions.z, fractions.x, inertia.y ),

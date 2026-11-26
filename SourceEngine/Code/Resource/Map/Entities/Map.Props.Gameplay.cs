@@ -32,6 +32,7 @@ partial class MapLoader
 			gameplay.Tint = prop.Tint;
 			gameplay.MaterialGroup = materialGroup;
 			gameplay.Enabled = true;
+			if ( !gameplay.IsStatic ) PropAirDrag.Attach( instance, model );
 		}
 	}
 }
