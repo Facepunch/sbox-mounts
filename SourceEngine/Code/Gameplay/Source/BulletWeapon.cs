@@ -577,7 +577,10 @@ public sealed class BulletWeapon : Weapon
 		SetNextPrimaryFire( PrimaryDelayAfterLaunch );
 		SetNextSecondaryFire( SecondaryDelay );
 		AlternateEffects( [new ShotEffect()] );
-		LaunchAlternate( AimRay.Position, AimRay.Forward, attacker );
+		var aim = AimRay;
+		var direction = AlternateProjectile == Projectile.Kinds.ContactGrenade && HasOwner && !Owner.IsProxy && !Owner.ThirdPerson
+			? ViewPunch.AimDirection( Scene.Camera, aim.Forward ) : aim.Forward;
+		LaunchAlternate( aim.Position, direction, attacker );
 		if ( AlternateProjectile == Projectile.Kinds.EnergyBall && HasOwner && !Owner.IsProxy )
 		{
 			if ( !Owner.ThirdPerson )

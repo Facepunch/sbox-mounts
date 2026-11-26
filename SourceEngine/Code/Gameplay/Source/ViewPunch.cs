@@ -12,6 +12,13 @@ sealed class ViewPunch : CameraEffectSystem.BaseEffect
 	Vector3 _velocity;
 	float _elapsed;
 
+	internal static Vector3 AimDirection( CameraComponent camera, Vector3 forward )
+	{
+		if ( !camera.IsValid() || !Active.TryGetValue( camera, out var effect ) || effect.IsDone ) return forward;
+		var punch = effect._angle;
+		return (Rotation.LookAt( forward ).Angles() + new Angles( punch.x, punch.y, punch.z )).Forward;
+	}
+
 	static ViewPunch ForCamera( CameraComponent camera )
 	{
 		if ( !Active.TryGetValue( camera, out var effect ) || effect.IsDone )
