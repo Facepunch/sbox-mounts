@@ -571,7 +571,8 @@ public sealed class BulletWeapon : Weapon
 
 	void ReleaseAlternate( GameObject attacker )
 	{
-		if ( IsHeld && !TakeSecondaryAmmo( 1 ) ) return;
+		// SecondaryAttack checked ammo at trigger time. A charged shot still releases if its reserve was drained.
+		if ( IsHeld ) TakeSecondaryAmmo( 1 );
 		TimeSinceShoot = 0;
 		SetNextPrimaryFire( PrimaryDelayAfterLaunch );
 		SetNextSecondaryFire( SecondaryDelay );
