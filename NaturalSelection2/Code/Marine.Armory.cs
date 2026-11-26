@@ -47,7 +47,7 @@ public sealed partial class Marine
 				viewTarget = point;
 				if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			}
-			else ApproachSupplyPoint( point );
+			else ApproachPoint( point );
 		}
 		else if ( touch <= 1.35f )
 		{
@@ -62,7 +62,7 @@ public sealed partial class Marine
 				useSide = Game.Random.Int( 0, 3 ) switch { 0 => Vector3.Left, 1 => Vector3.Backward, 2 => Vector3.Forward, _ => Vector3.Right };
 			}
 			var side = origin + supplyStation.WorldRotation * useSide * (1.05f * Scale);
-			ApproachSupplyPoint( side );
+			ApproachPoint( side );
 		}
 		return true;
 	}
@@ -101,15 +101,5 @@ public sealed partial class Marine
 			Movement.MoveTo( combatStation.EngagementPoint, Scale, faceTarget: visible ? enemy : null );
 		}
 		return true;
-	}
-
-	void ApproachSupplyPoint( Vector3 point )
-	{
-		// While moving the ground bot looks along its path at eye height.
-		var velocity = Animation.MoveVelocity.WithZ( 0 );
-		viewTarget = velocity.LengthSquared > 1 ? EyePosition + velocity : point.WithZ( EyePosition.z );
-		if ( repath > 0 ) return;
-		repath = 0.2f;
-		Movement.MoveTo( point, Scale );
 	}
 }

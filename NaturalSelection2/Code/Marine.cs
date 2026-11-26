@@ -183,7 +183,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
-		var target = visible ? enemy.GetComponentInParent<IDamageable>() : null;
+		var target = enemy.IsValid() ? enemy.GetComponentInParent<IDamageable>() : null;
 		bool structureOrBabbler = enemy.IsValid() && enemy.Tags.HasAny( "ns2_harvester", "ns2_hive", "ns2_crag", "ns2_babbler" );
 		if ( !structureOrBabbler && TryMaintainWeapons( goal ) )
 		{
@@ -192,7 +192,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			Movement.Stop();
 			return;
 		}
-		if ( target is not null )
+		if ( visible && target is not null )
 		{
 			bool usePistol = !structureOrBabbler && rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
 				&& (rifleAmmo.Reserve == 0 || target.Health <= target.MaxHealth * 0.7f);
@@ -203,21 +203,25 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			SelectWeapon( false );
 		}
 		if ( Ammo.Clip == 0 ) BeginReload();
+		if ( target is AlienStructure or Drifter )
+		{
+			AttackStructure( enemy, memory );
+			return;
+		}
+
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : default;
 		if ( visible ) viewTarget = aimPoint;
-		// NS2 uses the structure attack routine for Drifters even though they can move.
-		bool useEntityAttack = visible && target is not (AlienStructure or Drifter);
-		float distance = useEntityAttack ? targeting.DistanceToTouch( this, enemy ) : visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
-		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
+		float distance = visible ? targeting.DistanceToTouch( this, enemy ) : 0;
+		bool clearShot = visible && distance < 32.5f * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
 		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, BotWeaponAim.Weapon.Bullets, out viewTarget ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
 			firingTarget = enemy;
-			blindFireUntil = useEntityAttack ? 0.5f : 0;
+			blindFireUntil = 0.5f;
 		}
-		else if ( useEntityAttack )
+		else if ( visible )
 		{
 			if ( blindFireUntil > 0 ) viewTarget = lastAimPoint;
 			else if ( distance < 15 * Scale )
@@ -234,7 +238,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		wantsFire = aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0;
 		if ( enemy.IsValid() && RetreatUnderFire( enemy, visible, visible ? aimPoint : goal.Value + Vector3.Up * (0.1f * Scale), !aimed && wantsFire ) )
 			return;
-		if ( useEntityAttack && clearShot )
+		if ( clearShot )
 		{
 			if ( babbler ) Movement.Stop();
 			else Strafe( enemy, aimPoint, distance );
@@ -252,6 +256,33 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( goal is { } p && !clearShot )
 			Movement.MoveTo( p, Scale, faceTarget: visible ? enemy : null );
 		else Movement.Stop();
+	}
+
+	void ApproachPoint( Vector3 point )
+	{
+		// While moving the ground bot looks along its path at eye height.
+		var velocity = Animation.MoveVelocity.WithZ( 0 );
+		viewTarget = velocity.LengthSquared > 1 ? EyePosition + velocity : point.WithZ( EyePosition.z );
+		if ( repath > 0 ) return;
+		repath = 0.2f;
+		Movement.MoveTo( point, Scale );
+	}
+
+	void AttackStructure( GameObject enemy, Vector3? lastSeen )
+	{
+		blindFireUntil = 0;
+		var point = lastSeen.HasValue ? lastSeen.Value + Vector3.Up * (0.1f * Scale) : CalculateAimPoint( enemy );
+		// The rifle and pistol share a 22 m engagement range, measured to the structure origin.
+		if ( lastSeen.HasValue || EyePosition.DistanceSquared( enemy.WorldPosition ) >= 22 * 22 * Scale * Scale )
+		{
+			wantsFire = false;
+			ApproachPoint( point );
+			return;
+		}
+
+		if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+		wantsFire = acquisition.Track( this, enemy, point, aim, AimSkillTier, BotWeaponAim.Weapon.Bullets, out viewTarget );
+		if ( wantsFire ) lastAimPoint = point;
 	}
 
 	void Strafe( GameObject enemy, Vector3 aimPoint, float distance )
