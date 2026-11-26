@@ -31,7 +31,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	bool railgunDeath;
 	bool wantsFire;
 	Rigidbody body;
-	float fallSpeed, slowAmount;
+	Vector3 airVelocity, airPosition;
+	float slowAmount;
 	internal float SlowSpeedModifier => 1 - 0.7f * slowAmount;
 	NavMeshAgent agent;
 	bool sprintRequested, sprintHeld, sprintLocked, requireSprintPress;
@@ -174,7 +175,6 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void Think()
 	{
-		dodgeDirection = Vector3.Zero;
 		viewTarget = null;
 		var targeting = AlienTargeting.ForTeam( this );
 		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
@@ -355,19 +355,20 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			strafeSide = -strafeSide;
 			nextJuke = Random.Shared.Float( 0.35f, 1 );
 		}
-		dodgeDirection = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
+		var side = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
 		if ( repath > 0 ) return;
 		repath = 0.1f;
 		if ( distance < 6 * Scale && nextDodge <= 0 && IsOnGround )
 		{
 			nextDodge = 2;
+			dodgeDirection = side;
 			Launch( Animation.MoveVelocity.WithZ( 8.22f * Scale ) );
 			jumping = true;
 			PlayWorldSound( SurfaceLoader.SoundPath( "marine/common/jump" ) );
 			return;
 		}
 		if ( IsAirborne ) return;
-		var destination = WorldPosition + dodgeDirection * Scale;
+		var destination = WorldPosition + side * Scale;
 		if ( Movement.ProjectPoint( destination ) is { } point )
 			Movement.MoveTo( point, 4, Movement.RunSpeed, enemy );
 		else Movement.Stop();
@@ -432,26 +433,48 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	{
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost || Health <= 0 ) return;
-		if ( !IsOnGround )
+		if ( !IsOnGround ) airVelocity = body.Velocity;
+		if ( jumping && !PhysicsCarrier.IsValid() && NpcConVars.Enabled )
 		{
-			if ( jumping && !PhysicsCarrier.IsValid() && NpcConVars.Enabled )
+			// The ground probe returns control to navigation before the last air step.
+			var velocity = airVelocity / Scale;
+			velocity.z += Scene.PhysicsWorld.Gravity.z * body.GravityScale * Time.Delta / Scale;
+			airVelocity = DodgeVelocity( velocity, aim, dodgeDirection, Time.Delta ) * Scale;
+			if ( !IsOnGround )
 			{
-				var velocity = body.Velocity / Scale;
-				// Spark applies gravity before sweeping the capsule for this tick.
 				body.Gravity = false;
-				velocity.z += Scene.PhysicsWorld.Gravity.z * body.GravityScale * Time.Delta / Scale;
-				var next = DodgeVelocity( velocity, aim, dodgeDirection, Time.Delta );
-				body.Velocity = next * Scale;
+				body.Velocity = airVelocity;
+				return;
 			}
-			else EndDodge();
-			fallSpeed = -body.Velocity.z;
+
+			if ( agent.Enabled ) FinishDodgeStep();
+		}
+		else if ( !IsOnGround )
+		{
+			EndDodge();
 			return;
 		}
 
 		EndDodge();
+		float fallSpeed = -airVelocity.z;
 		if ( fallSpeed > 4 * Scale ) Land( fallSpeed );
-		fallSpeed = 0;
+		airVelocity = Vector3.Zero;
 		slowAmount = Math.Max( 0, slowAmount - Scene.FixedDelta );
+	}
+
+	void FinishDodgeStep()
+	{
+		var planar = airVelocity.WithZ( 0 );
+		var end = airPosition + planar * Scene.FixedDelta;
+		if ( planar.LengthSquared > 0 )
+		{
+			var trace = Scene.Trace.Body( body.PhysicsBody, new Transform( airPosition, WorldRotation ), end )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).WithCollisionRules( GameObject.Tags ).Run();
+			end = airPosition.LerpTo( end, trace.Fraction );
+			if ( trace.Hit ) planar -= trace.Normal * Math.Min( 0, planar.Dot( trace.Normal ) );
+		}
+		agent.SetAgentPosition( end.WithZ( agent.AgentPosition.z ) );
+		agent.Velocity = planar.WithZ( 0 );
 	}
 
 	void EndDodge()
@@ -486,6 +509,12 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	protected override void OnUpdate()
 	{
 		if ( GameObject.IsDestroyed ) return;
+		if ( Networking.IsHost && jumping && IsAirborne && body.IsValid() )
+		{
+			// Categorizing the ground disables the body and starts navigation at the displayed transform.
+			airPosition = body.PhysicsBody.Position;
+			airVelocity = body.Velocity;
+		}
 		base.OnUpdate();
 		if ( Health <= 0 ) return;
 		if ( equippedPistol != pistol ) EquipWeapon();
