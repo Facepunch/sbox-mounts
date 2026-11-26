@@ -427,10 +427,10 @@ public sealed class BulletWeapon : Weapon
 
 	void FirePrimaryRound()
 	{
-		if ( Secondary == SecondaryFires.DoubleShot && HasOwner && !NpcControlled )
+		if ( (Secondary == SecondaryFires.DoubleShot || AccuracyPenaltyPerShot > 0) && HasOwner && !NpcControlled )
 		{
 			if ( !TakePrimaryAmmo() ) return;
-			ShootEffects( FireBuckshot( Ballistics.Pellets ) );
+			ShootEffects( FireVolley( Ballistics.Pellets ) );
 		}
 		else base.PrimaryAttack();
 		if ( Secondary == SecondaryFires.DoubleShot && WeaponSetup.PumpDelay( this ) is { } delay ) _pumpStarts = delay;
@@ -625,7 +625,7 @@ public sealed class BulletWeapon : Weapon
 		}
 		if ( !FiresUnderwater && BlockSubmergedShot( blockBothTriggers: true ) ) return;
 		if ( IsHeld && !TakePrimaryAmmo( 2 ) ) return;
-		var volley = FireBuckshot( DoubleShotPellets );
+		var volley = FireVolley( DoubleShotPellets );
 		_pumpStarts = AlternatePumpDelay;
 		SetNextFire( AlternatePumpDelay + PumpDuration );
 		AlternateEffects( volley );
@@ -633,19 +633,19 @@ public sealed class BulletWeapon : Weapon
 	}
 
 	// The engine batches hit claims and calls BulletTrace once per pellet, in firing order.
-	(int Count, int Index, Vector3 Right, Vector3 Up) _buckshot;
+	(int Count, int Index, Vector3 Right, Vector3 Up) _volley;
 
-	ShotEffect[] FireBuckshot( int count )
+	ShotEffect[] FireVolley( int count )
 	{
 		var config = Ballistics;
 		var spread = CurrentSpread;
-		var previous = _buckshot;
+		var previous = _volley;
 		try
 		{
 			if ( HasOwner && !NpcControlled )
 			{
 				var aim = Rotation.LookAt( AimRay.Forward );
-				_buckshot = (count, 0, aim.Right * MathF.Sin( (spread.x * 0.5f).DegreeToRadian() ),
+				_volley = (count, 0, aim.Right * MathF.Sin( (spread.x * 0.5f).DegreeToRadian() ),
 					aim.Up * MathF.Sin( (spread.y * 0.5f).DegreeToRadian() ));
 				spread = Vector2.Zero;
 			}
@@ -659,12 +659,12 @@ public sealed class BulletWeapon : Weapon
 			}
 			return effects;
 		}
-		finally { _buckshot = previous; }
+		finally { _volley = previous; }
 	}
 
 	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius )
 	{
-		if ( _buckshot.Count == 0 ) return base.BulletTrace( ray, distance, radius );
+		if ( _volley.Count == 0 ) return base.BulletTrace( ray, distance, radius );
 
 		Vector2 offset;
 		do
@@ -673,9 +673,10 @@ public sealed class BulletWeapon : Weapon
 				Random.Shared.Float( -0.5f, 0.5f ) + Random.Shared.Float( -0.5f, 0.5f ) );
 		} while ( offset.LengthSquared > 1 );
 
-		ray.Forward = (ray.Forward + _buckshot.Right * offset.x + _buckshot.Up * offset.y).Normal;
+		ray.Forward = (ray.Forward + _volley.Right * offset.x + _volley.Up * offset.y).Normal;
+		if ( Secondary != SecondaryFires.DoubleShot ) return base.BulletTrace( ray, distance, radius );
 		var trace = base.BulletTrace( ray, distance, 0 );
-		return (_buckshot.Index++ & 1) == 0 ? trace : trace.Size( Vector3.One * 6 );
+		return (_volley.Index++ & 1) == 0 ? trace : trace.Size( Vector3.One * 6 );
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
