@@ -92,6 +92,7 @@ public sealed class ViewModel : BaseWeaponModel
 	TimeSince _lastPrimaryShot = 10;
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
+	readonly Dictionary<GameObject, GameObject> _effectAnchors = new();
 	bool _scopeHidden;
 	string _swingClip;
 	internal bool IsSwinging => _swingClip is not null && _animation?.Current == _swingClip;
@@ -104,6 +105,8 @@ public sealed class ViewModel : BaseWeaponModel
 	{
 		var model = Renderer.Model;
 		if ( _configuredModel == model ) return;
+		foreach ( var anchor in _effectAnchors.Values ) anchor.Destroy();
+		_effectAnchors.Clear();
 		_configuredModel = model;
 		_weapon = GetComponentInParent<BaseCombatWeapon>();
 		_attachmentsResolved = false;
@@ -216,6 +219,8 @@ public sealed class ViewModel : BaseWeaponModel
 		var stretch = tangent / lens;
 		WorldScale = new Vector3( 1, stretch, stretch );
 		UpdateWorldMuzzle();
+		foreach ( var (attachment, anchor) in _effectAnchors )
+			PlaceEffectAnchor( attachment, anchor );
 	}
 
 	// Past the far end of any viewmodel.
@@ -252,22 +257,31 @@ public sealed class ViewModel : BaseWeaponModel
 		MuzzleGameObject = _worldMuzzle;
 	}
 
+	internal GameObject EffectAnchor( GameObject attachment )
+	{
+		if ( _effectAnchors.TryGetValue( attachment, out var anchor ) ) return anchor;
+
+		anchor = new GameObject( GameObject, true, "Viewmodel effect attachment" );
+		anchor.NetworkMode = NetworkMode.Never;
+		_effectAnchors.Add( attachment, anchor );
+		PlaceEffectAnchor( attachment, anchor );
+		return anchor;
+	}
+
+	void PlaceEffectAnchor( GameObject attachment, GameObject anchor )
+	{
+		if ( !attachment.IsValid() ) return;
+		anchor.WorldPosition = DrawnPosition( attachment );
+		if ( !Mirrored ) anchor.WorldRotation = attachment.WorldRotation;
+	}
+
 	void MuzzleFlash( GameObject attachment, string type )
 	{
 		var weapon = GetComponentInParent<BulletWeapon>();
 		// Counter-Strike hides the viewmodel and its flash while scoped.
 		if ( !weapon.IsValid() || weapon.Silenced || GameObject.Tags.Has( "sniper_scoped" ) ) return;
 		attachment ??= _muzzle;
-		if ( attachment.IsValid() )
-		{
-			// Parented outside the model, where the flash is drawn, and stretched with the viewmodel; it outlives its few frames by little.
-			var drawn = new GameObject( GameObject, true, "Viewmodel muzzle flash" );
-			drawn.NetworkMode = NetworkMode.Never;
-			drawn.WorldPosition = DrawnPosition( attachment );
-			if ( !Mirrored ) drawn.WorldRotation = attachment.WorldRotation;
-			drawn.AddComponent<TemporaryEffect>().DestroyAfterSeconds = 1;
-			attachment = drawn;
-		}
+		if ( attachment.IsValid() ) attachment = EffectAnchor( attachment );
 		WeaponEffects.MuzzleFlash( type ?? _flashType ?? WeaponSetup.FlashType( weapon ), attachment, true, _mount, WeaponSetup.FlashScale( weapon ) );
 	}
 

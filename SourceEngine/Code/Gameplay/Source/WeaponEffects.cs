@@ -79,9 +79,9 @@ static class WeaponEffects
 	/// <summary>Counter-Strike's muzzle dlight: 255 192 64 at exponent 5, radius 70, for 0.05 seconds.</summary>
 	static void MuzzleLight( GameObject attachment )
 	{
-		var go = new GameObject( true, "Muzzle flash light" );
+		var go = new GameObject( attachment, true, "Muzzle flash light" );
 		go.NetworkMode = NetworkMode.Never;
-		go.WorldPosition = attachment.WorldPosition;
+		go.LocalPosition = Vector3.Zero;
 		var light = go.AddComponent<PointLight>();
 		light.Radius = 70;
 		light.LightColor = new Color( 1, 192 / 255f, 64 / 255f ) * 4;
@@ -317,7 +317,8 @@ static class WeaponEffects
 		if ( !renderer.IsValid() || !renderer.Model.IsValid() || renderer.Model.Attachments.All.Count == 0 ) return;
 		var attachment = renderer.GetAttachmentObject( renderer.Model.Attachments.All[0] );
 		if ( !attachment.IsValid() ) return;
-		ElectricSpark( model is ViewModel view ? view.DrawnPosition( attachment ) : attachment.WorldPosition, 1, Vector3.Zero, mount );
+		if ( model is ViewModel view ) attachment = view.EffectAnchor( attachment );
+		ElectricSpark( attachment.WorldPosition, 1, Vector3.Zero, mount );
 		const string material = "sprites/blueflare1";
 		if ( MountedEffects.SpriteTexture( material, mount ) is not { } texture ) return;
 		var root = new GameObject( attachment, true, "Crossbow load flare" );
