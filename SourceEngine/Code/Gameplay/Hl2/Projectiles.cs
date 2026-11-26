@@ -152,7 +152,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	const float DropSpeed = 300;
 	const float DropLift = 128;
 	const float HomingPerTick = 0.125f;
-	[Sync( SyncFlags.FromHost )] bool Ignited { get; set; }
+	[Sync( SyncFlags.FromHost ), Change( nameof( OnFlightStateChanged ) )] bool Ignited { get; set; }
 	bool _ignitionPresented;
 	float _damageUntilShotDown = 20;
 	TimeUntil? _augerEnds;
@@ -164,7 +164,8 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	/// <summary>CWeaponRPG::PrimaryAttack: the missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
 	public static Vector3 LaunchVelocity( Vector3 aim ) => aim * DropSpeed + Vector3.Up * DropLift;
 
-	internal bool ClearLaunch { get; set; }
+	ManualHitbox _shotTarget;
+	[Sync( SyncFlags.FromHost ), Change( nameof( OnFlightStateChanged ) )] internal bool ClearLaunch { get; set; }
 	protected override bool CanCollide => Ignited || !ClearLaunch;
 	protected override float TraceRadius => 0;
 	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
@@ -179,7 +180,22 @@ public sealed class Rocket : Projectile, Component.IDamageable
 			_aim = (Velocity - Vector3.Up * DropLift).Normal;
 			WorldRotation = Rotation.LookAt( _aim );
 		}
+		_shotTarget = GetOrAddComponent<ManualHitbox>( false );
+		UpdateShotTarget();
 		base.OnStart();
+	}
+
+	void OnFlightStateChanged( bool previous, bool current ) => UpdateShotTarget();
+
+	void UpdateShotTarget()
+	{
+		if ( !_shotTarget.IsValid() ) return;
+		// Source uses an eight-unit box at launch and a point once the motor ignites.
+		_shotTarget.Enabled = false;
+		_shotTarget.Shape = Ignited ? ManualHitbox.HitboxShape.Sphere : ManualHitbox.HitboxShape.Box;
+		_shotTarget.CenterB = Vector3.One * 8;
+		_shotTarget.Radius = 0;
+		_shotTarget.Enabled = CanCollide;
 	}
 
 	public void OnDamage( in DamageInfo damage )
