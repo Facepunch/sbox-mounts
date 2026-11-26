@@ -182,8 +182,9 @@ public sealed class Rocket : Projectile
 			if ( Age < IgniteDelay ) return;
 			Ignited = true;
 			Velocity = _aim * Speed;
+			return;
 		}
-		if ( Weapon is not ProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.TraceLaserTarget() is not { } target ) return;
+		if ( Weapon is not ProjectileWeapon launcher || launcher.LiveRocket != GameObject || launcher.MissileTarget( WorldPosition ) is not { } target ) return;
 		// CMissile::SeekThink blends 1/8 toward the dot every 15 ms tick.
 		var blend = 1 - MathF.Pow( 1 - HomingPerTick, Time.Delta / 0.015f );
 		var speed = Velocity.Length;

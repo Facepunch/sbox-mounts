@@ -47,8 +47,26 @@ public sealed partial class ProjectileWeapon : Weapon
 	bool LaserOn => IsLauncher && Guiding && Active && !IsReloading;
 
 	/// <summary>Where the laser dot sits; the live rocket steers toward it.</summary>
-	public Vector3? TraceLaserTarget() => LaserOn ? Scene.Trace.Ray( AimRay, MaxTraceLength ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
-		.WithoutTags( "projectile", "trigger" ).Run().EndPosition : null;
+	public Vector3? TraceLaserTarget() => TraceLaser()?.EndPosition;
+
+	SceneTraceResult? TraceLaser() => LaserOn ? Scene.Trace.Ray( AimRay, MaxTraceLength ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
+		.WithoutTags( "projectile", "trigger" ).Run() : null;
+
+	internal Vector3? MissileTarget( Vector3 missile )
+	{
+		if ( TraceLaser() is not { } trace || missile.DistanceSquared( trace.EndPosition ) >= MaxTraceLength * MaxTraceLength ) return null;
+		var target = trace.Hit ? trace.EndPosition - trace.Normal * 10 : trace.EndPosition;
+		if ( trace.GameObject.IsValid() && trace.GameObject.GetComponentInParent<IDamageable>() is not null ) return target;
+
+		var start = Npcs.CapturePoint( AimIgnoreRoot );
+		var beam = target - start;
+		var offset = missile - start;
+		if ( offset.LengthSquared >= beam.LengthSquared && missile.DistanceSquared( target ) > 512 * 512 ) return target;
+
+		// Aim 256 units along the beam from the missile's projection onto its line.
+		var direction = beam.Normal;
+		return start + direction * (offset.Dot( direction ) + 256);
+	}
 
 	protected override void OnStart()
 	{
