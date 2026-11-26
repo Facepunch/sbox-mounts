@@ -511,6 +511,9 @@ sealed class PhysCannonEffects : IDisposable
 	float _elementFrom;
 	TimeSince _elementMoved = 10;
 	SoundHandle _holdSound;
+	bool _motorHolding;
+	TimeSince _motorChanged;
+	float _releaseVolume;
 
 	public void Launch( bool fromHold )
 	{
@@ -533,12 +536,7 @@ sealed class PhysCannonEffects : IDisposable
 		if ( !_root.IsValid() ) Build( renderer, model as ViewModel, mount );
 		var holding = held.IsValid();
 		UpdateElements( weapon, holding, ready );
-		if ( holding && _holdSound is null && Sounds.Sound( "Weapon_PhysCannon.HoldSound", mount ) is { } hold ) _holdSound = weapon.GameObject.PlaySound( hold );
-		if ( !holding && _holdSound is not null )
-		{
-			_holdSound.Stop( 0.2f );
-			_holdSound = null;
-		}
+		UpdateMotor( weapon, holding, mount );
 		if ( holding ) MountedEffects.SetSprite( _core, 0.2f, 255 );
 		else if ( ready ) MountedEffects.SetSprite( _core, 0.15f, 128 );
 		else MountedEffects.SetSprite( _core, 0, 0 );
@@ -616,6 +614,27 @@ sealed class PhysCannonEffects : IDisposable
 		_view?.SetPoseParameter( "active", current );
 	}
 
+	void UpdateMotor( GravityWeapon weapon, bool holding, string mount )
+	{
+		if ( holding != _motorHolding )
+		{
+			_motorHolding = holding;
+			_motorChanged = 0;
+			if ( holding && _holdSound is null && Sounds.Sound( "Weapon_PhysCannon.HoldSound", mount ) is { } sound )
+				_holdSound = weapon.GameObject.PlaySound( sound );
+			else if ( !holding ) _releaseVolume = _holdSound?.Volume ?? 0;
+		}
+		if ( _holdSound is null ) return;
+		var volume = holding ? 0.8f * Math.Min( 1, _motorChanged * 2 ) : _releaseVolume * Math.Max( 0, 1 - _motorChanged );
+		_holdSound.Volume = volume;
+		_holdSound.Pitch = float.Lerp( 0.5f, 1, volume / 0.8f );
+		if ( !holding && volume == 0 )
+		{
+			_holdSound.Stop();
+			_holdSound = null;
+		}
+	}
+
 	float Element()
 	{
 		var t = Math.Clamp( _elementMoved / (_open ? 0.2f : 0.5f), 0, 1 );
@@ -657,6 +676,7 @@ sealed class PhysCannonEffects : IDisposable
 	{
 		_holdSound?.Stop( 0.2f );
 		_holdSound = null;
+		_motorHolding = false;
 		_root?.Destroy();
 		_root = null;
 		_view = null;
