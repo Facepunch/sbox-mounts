@@ -54,30 +54,33 @@ internal sealed class AlienTargeting
 			if ( ignore?.Invoke( target, memory.Position ) == true ) continue;
 			var relationship = alien.GetRelationship( target );
 			if ( relationship.Disposition != Disposition.Hostile || relationship.Priority < bestPriority ) continue;
-			float distance = alien.WorldPosition.Distance( target.WorldPosition ) / MapLoader.Scale;
-			if ( alien is Skulk && distance > 50 ) continue;
-
 			var health = target.GetComponentInChildren<Component.IDamageable>();
 			if ( health is not Component { Active: true } ) continue;
-			float urgency = 0;
-			if ( distance < 20 ) urgency = alien is Skulk ? 2 - distance * 0.1f : 10 / Math.Max( 1, distance );
 			if ( health.MaxHealth <= 0 )
 				health = target.GetComponentsInChildren<Component.IDamageable>().FirstOrDefault( x => x.MaxHealth > 0 );
+			float wounded = 0;
 			if ( health is { MaxHealth: > 0 } )
 			{
 				if ( health.Health <= 0 ) continue;
 				float fraction = (health.Health + 2 * health.Armour) / (health.MaxHealth + 2 * health.MaxArmour);
-				float wounded = Math.Max( 0, 0.3f - fraction ) * 3;
-				if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
+				wounded = Math.Max( 0, 0.3f - fraction ) * 3;
+			}
+			float urgency;
+			if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
+			{
+				if ( victim is Drifter drifter )
 				{
-					if ( victim is Drifter drifter )
-					{
-						if ( drifter.CloakFraction <= 0.5f ) memory.LastUncloaked = Time.Now;
-						else if ( drifter.CloakFraction > 0.8f || Time.Now - memory.LastUncloaked < 3 ) continue;
-					}
-					urgency = marine.AttackUrgency( victim, distance, wounded );
+					if ( drifter.CloakFraction <= 0.5f ) memory.LastUncloaked = Time.Now;
+					else if ( drifter.CloakFraction > 0.8f || Time.Now - memory.LastUncloaked < 3 ) continue;
 				}
-				else urgency += wounded;
+				urgency = marine.AttackUrgency( victim, marine.WalkDistance( memory.Position ) / MapLoader.Scale, wounded );
+			}
+			else
+			{
+				float distance = alien.WorldPosition.Distance( target.WorldPosition ) / MapLoader.Scale;
+				if ( alien is Skulk && distance > 50 ) continue;
+				urgency = wounded;
+				if ( distance < 20 ) urgency += alien is Skulk ? 2 - distance * 0.1f : 10 / Math.Max( 1, distance );
 			}
 			if ( relationship.Priority == bestPriority && urgency <= bestUrgency ) continue;
 			best = target;

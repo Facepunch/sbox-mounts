@@ -287,8 +287,13 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	{
 		const float range = 35 * Scale;
 		if ( WorldPosition.DistanceSquared( position ) > range * range ) return false;
+		return WalkDistance( position ) <= range;
+	}
+
+	internal float WalkDistance( Vector3 position )
+	{
 		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		return !locations.IsValid() || locations.WalkDistance( WorldPosition, position ) <= range;
+		return locations.IsValid() ? locations.WalkDistance( WorldPosition, position ) : WorldPosition.Distance( position );
 	}
 
 	bool TryMaintainWeapons( Vector3? threat )
