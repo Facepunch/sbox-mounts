@@ -590,7 +590,7 @@ public sealed class BulletWeapon : Weapon
 	void ChargeEffects()
 	{
 		(WeaponModel as ViewModel)?.OnSecondaryWindup();
-		if ( Sounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
+		Sounds.PlayWeaponSound( this, "special1" );
 	}
 
 	void ReleaseAlternate( GameObject attacker )
@@ -624,7 +624,7 @@ public sealed class BulletWeapon : Weapon
 		PostWeaponEvent( WeaponEvents.Attack );
 		AlternateNoise();
 		if ( Application.IsDedicatedServer ) return;
-		if ( Sounds.WeaponSound( this, "double_shot" ) is { } sound ) GameObject.PlaySound( sound );
+		Sounds.PlayWeaponSound( this, "double_shot" );
 		if ( WeaponModel is ViewModel view ) view.OnAlternateAttack();
 		else if ( WeaponModel is WeaponWorldModel world ) world.OnDoubleShot( volley[0].Hit ? volley[0].HitPosition : null );
 		else WeaponModel?.OnAttack( volley[0].Hit ? volley[0].HitPosition : null );

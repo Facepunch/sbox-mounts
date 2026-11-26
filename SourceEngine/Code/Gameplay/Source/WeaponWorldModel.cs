@@ -52,7 +52,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 	internal void PlayPump()
 	{
 		_pumpPending = false;
-		if ( Sounds.WeaponSound( _weapon, "special1" ) is { } pump ) GameObject.PlaySound( pump );
+		Sounds.PlayWeaponSound( _weapon, "special1" );
 		EjectShell();
 	}
 

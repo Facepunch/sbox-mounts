@@ -296,7 +296,7 @@ public sealed class ViewModel : BaseWeaponModel
 			rate = duration > 0 ? clip.Duration / duration : 1;
 		}
 		_animation.Play( name, rate, restart: true );
-		if ( name == _clips.Pump && Sounds.WeaponSound( weapon, "special1" ) is { } pumpSound ) GameObject.PlaySound( pumpSound );
+		if ( name == _clips.Pump ) Sounds.PlayWeaponSound( weapon, "special1" );
 		_pending = null;
 	}
 
