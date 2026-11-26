@@ -134,13 +134,14 @@ public sealed partial class WeaponWorldModel
 		leftTarget = Blend( _leftStart, leftTarget, deployed );
 
 		// The model keeps its size on shorter arms, so the whole hold moves in until both hands reach it.
-		var pull = _holdsLeft ? Reach( _leftShoulder, leftTarget.Position ) : Vector3.Zero;
+		var useLeftHand = _holdsLeft || (_hold.HasReloadGesture && _reloadWeight > 0);
+		var pull = useLeftHand ? Reach( _leftShoulder, leftTarget.Position ) : Vector3.Zero;
 		pull += Reach( _rightShoulder, rightTarget.Position + pull );
 		rightTarget.Position += pull;
 		leftTarget.Position += pull;
 
 		// The graph asserts on a target that is not finite or not a rotation.
-		if ( !IsFinite( rightTarget ) || _holdsLeft && !IsFinite( leftTarget ) )
+		if ( !IsFinite( rightTarget ) || useLeftHand && !IsFinite( leftTarget ) )
 			return _holding;
 
 		var parameters = holder.Animation.Parameters;
@@ -158,13 +159,13 @@ public sealed partial class WeaponWorldModel
 		}
 
 		parameters.TrySet( $"{RightHandIk}.enabled", _arm is null );
-		if ( _holdsLeft )
+		if ( useLeftHand )
 			parameters.TrySet( LeftHandIk, leftTarget );
 
-		if ( _holdsLeft || _leftHeld )
-			parameters.TrySet( $"{LeftHandIk}.enabled", _holdsLeft );
+		if ( useLeftHand || _leftHeld )
+			parameters.TrySet( $"{LeftHandIk}.enabled", useLeftHand );
 
-		_leftHeld = _holdsLeft;
+		_leftHeld = useLeftHand;
 		if ( !_holding )
 			StartHold();
 
