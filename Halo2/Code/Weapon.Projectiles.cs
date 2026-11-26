@@ -51,9 +51,26 @@ public abstract partial class Weapon
 	[Property] public Dictionary<string, float> PelletBodyScales { get; set; }
 	[Property] public bool PelletExplosive { get; set; }
 	[Property] public bool CanHeadshot { get; set; }
+	[Property] public string PlayerShieldMaterial { get; set; }
 
 	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float UnderwaterDamageFalloffRange { get; set; } = 120;
+
+	internal void ApplyProjectileHit( SceneTraceResult hit, float damage, BodyMaterial.Impact impact, float force, GameObject attacker, TagSet tags, EnergyDischarge discharge = null )
+	{
+		if ( IsValid && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
+		{
+			// Hit claims carry section tags. Send the material with the unscaled amount so the host can resolve shield overflow.
+			var shot = new TagSet();
+			if ( tags is not null ) shot.Add( tags );
+			shot.Add( discharge is null ? ProjectileDamageSystem.Direct : ProjectileDamageSystem.Charged );
+			if ( impact.Protected ) shot.Add( ProjectileDamageSystem.ProtectedBody );
+			else if ( impact.Scale != 1 && impact.Material is {} material ) shot.Add( material );
+			tags = shot;
+		}
+		else damage *= impact.Scale;
+		ApplyDelayedHit( hit, damage, force, attacker, tags, canHeadshot: discharge?.CanHeadshot ?? CanHeadshot );
+	}
 
 	protected Ray PlayerFiringRay( PlayerController player, Vector3 aim )
 	{
@@ -410,7 +427,7 @@ public abstract partial class Weapon
 				}
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
-				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
+				var impact = BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
 				hit.Direction = pellet.Velocity.Normal;
 				bool? alternate = null;
 				ShardResponse? shardResponse = null;
@@ -445,7 +462,7 @@ public abstract partial class Weapon
 				pellet.Trail?.Finish( hit.HitPosition, segmentTime + step * (hit.Distance / distance) );
 				hit.StartPosition = origin;
 				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null, alternate ) );
-				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags, canHeadshot: discharge?.CanHeadshot ?? CanHeadshot );
+				ApplyProjectileHit( hit, damage, impact, ballistics.Force, attacker, tags, discharge );
 				if ( Shard is {} shard && shardResponse == ShardResponse.Attach && hit.GameObject.IsValid() )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );
 				else if ( pellet.Body.IsValid() ) pellet.Body.Destroy();

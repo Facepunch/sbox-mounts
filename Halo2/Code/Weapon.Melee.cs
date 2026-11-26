@@ -215,7 +215,7 @@ public abstract partial class Weapon
 			if ( tags is not null ) resolved.Add( tags );
 			resolved.Add( section );
 			resolved.Remove( "head" );
-			if ( canHeadshot ) resolved.Add( PrecisionDamageSystem.Headshot );
+			if ( canHeadshot ) resolved.Add( ProjectileDamageSystem.Headshot );
 			tags = resolved;
 			hitboxTags = false;
 		}

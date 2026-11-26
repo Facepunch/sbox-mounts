@@ -14,6 +14,7 @@ public sealed class UnitDefinition
 {
 	public int DefaultTeam { get; set; }
 	public bool ImmuneToAssassination { get; set; }
+	public string ShieldMaterial { get; set; }
 }
 
 /// <summary>
@@ -87,12 +88,28 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return model;
 	}
 
+	int DamageInfoAddress()
+	{
+		if ( collisionModel is not { DataSize: >= 0x68 } ) return 0;
+		int block = mapFile.VaToOffset( (int)collisionModel.DataVirtualAddress ) + 0x60;
+		return mapFile.ReadInt32( block ) > 0 ? mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) ) : 0;
+	}
+
+	internal string ShieldMaterial
+	{
+		get
+		{
+			int info = DamageInfoAddress();
+			if ( info == 0 ) return null;
+			int index = (short)mapFile.ReadInt32( info + 0xcc );
+			return materialNames?.ElementAtOrDefault( index ) is { Length: > 0 } name ? $"mount://{Host.Ident}/surfaces/{name}.surface" : null;
+		}
+	}
+
 	BodyMaterial ReadBodyMaterial()
 	{
-		if ( collisionModel is not { DataSize: >= 0x68 } ) return null;
-		int block = mapFile.VaToOffset( (int)collisionModel.DataVirtualAddress ) + 0x60;
-		if ( mapFile.ReadInt32( block ) == 0 ) return null;
-		int info = mapFile.VaToOffset( mapFile.ReadInt32( block + 4 ) );
+		int info = DamageInfoAddress();
+		if ( info == 0 ) return null;
 		bool explosivesOnly = (mapFile.ReadInt32( info ) & 0x20) != 0;
 		int index = (short)mapFile.ReadInt32( info + 0xce );
 		if ( index >= 0 )
@@ -103,7 +120,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				var sections = Rows( info + 0xbc, 0x38 ).ToArray();
 				bool Absorbs( int section ) => (uint)section < sections.Length && (mapFile.ReadInt32( sections[section] + 4 ) & 0x100) != 0;
 				bool absorbs = Absorbs( (short)mapFile.ReadInt32( info + 8 ) );
-				bool uniform = Rows( block - 8, 0x14 ).All( row => (short)mapFile.ReadInt32( row + 16 ) == index &&
+				bool uniform = Rows( mapFile.VaToOffset( (int)collisionModel.DataVirtualAddress ) + 0x58, 0x14 ).All( row => (short)mapFile.ReadInt32( row + 16 ) == index &&
 					Absorbs( (short)mapFile.ReadInt32( row + 6 ) ) == absorbs );
 				return new BodyMaterial { SurfacePath = $"mount://{Host.Ident}/surfaces/{name}.surface", ExplosivesOnly = explosivesOnly,
 					UseForImpacts = uniform && Float( info + 0x28 ) > 0 && Float( info + 0x8c ) <= 0 };
@@ -122,7 +139,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			builder.WithData( new UnitDefinition
 			{
 				DefaultTeam = (short)mapFile.ReadInt32( unit + 0xc0 ),
-				ImmuneToAssassination = (mapFile.ReadInt32( unit + 0xbc ) & (1 << 16)) != 0
+				ImmuneToAssassination = (mapFile.ReadInt32( unit + 0xbc ) & (1 << 16)) != 0,
+				ShieldMaterial = ShieldMaterial
 			} );
 		}
 		if ( biped is not null && firstPersonWeapon is null && mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 ) is {} globals )

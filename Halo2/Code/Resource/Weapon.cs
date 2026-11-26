@@ -299,12 +299,15 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		}
 		int players = Address( globals ) + 0x138;
 		if ( map.ReadInt32( players ) > 0 && Reference( Block( players ) + 0xb0 ) is { PrimaryClass: "dpib", DataSize: > 0 } body
-			&& ModelPath( Host, map, body ) is {} path && Host.GetByPath( path ) is Halo2ModelLoader model
-			&& model.GetAnimationContext( "combat", gun.AnimationClass, gun.AnimationType )?.Overlays.TryGetValue( "put_away", out int index ) == true
-			&& model.GetClipInfo( index ) is {} clip )
+			&& ModelPath( Host, map, body ) is {} path && Host.GetByPath( path ) is Halo2ModelLoader model )
 		{
-			gun.DefaultPutAwayFrames = clip.Frames;
-			gun.DefaultPutAwayRelease = Weapon.ReleaseFrame( clip );
+			gun.PlayerShieldMaterial = model.ShieldMaterial;
+			if ( model.GetAnimationContext( "combat", gun.AnimationClass, gun.AnimationType )?.Overlays.TryGetValue( "put_away", out int index ) == true
+				&& model.GetClipInfo( index ) is {} clip )
+			{
+				gun.DefaultPutAwayFrames = clip.Frames;
+				gun.DefaultPutAwayRelease = Weapon.ReleaseFrame( clip );
+			}
 		}
 		ConfigureMelee( gun, globals );
 		return gun;

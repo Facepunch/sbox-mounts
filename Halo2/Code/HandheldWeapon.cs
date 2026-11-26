@@ -320,7 +320,7 @@ public abstract partial class HandheldWeapon : Weapon
 			var surface = hit.Surface;
 			if ( hit.Hit )
 			{
-				float scale = BodyMaterial.ResolveHit( hit, PelletBodyScales, PelletExplosive, out surface );
+				var impact = BodyMaterial.ResolveHit( hit, PelletBodyScales, PelletExplosive, out surface );
 				float force = config.Force;
 				if ( !Networking.IsHost && !IsProxy && force > 0
 					&& hit.GameObject.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } item )
@@ -328,7 +328,7 @@ public abstract partial class HandheldWeapon : Weapon
 					PushLooseItem( item, hit.Direction );
 					force = 0;
 				}
-				ApplyDelayedHit( hit, config.Damage * scale, force, Attacker, AttackDamageTags, canHeadshot: CanHeadshot );
+				ApplyProjectileHit( hit, config.Damage, impact, force, Attacker, AttackDamageTags );
 			}
 			volley[i] = new( hit.EndPosition, hit.Hit, hit.Normal, hit.GameObject, surface, ray.Position, NoEvents: i > 0 );
 		}
