@@ -58,25 +58,42 @@ public sealed partial class Gorge
 		var enemy = (hit.GameObject?.GetComponentInParent<IDamageable>() as Component)?.GameObject;
 		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
 		{
-			enemy = null;
-			var origin = WorldPosition;
-			var start = EyePosition + aim.Forward * Scale;
-			var dir = (start - origin).Normal;
-			float best = float.MaxValue;
-			foreach ( var obj in Senses.VisibleHostiles )
-			{
-				if ( !IsFleeTarget( obj ) || AlienTargeting.IsIgnoredPlayer( obj ) ) continue;
-				var delta = obj.WorldPosition - origin;
-				if ( obj.WorldPosition.Distance( (origin + start) * 0.5f ) > 15 * Scale + origin.Distance( start ) * 0.5f ) continue;
-				float along = Vector3.Dot( delta, dir );
-				float score = along + (delta - dir * along).Length * 2;
-				if ( along <= 0 || score >= best || WallBetween( origin + Vector3.Up * (0.5f * Scale), obj.WorldPosition + Vector3.Up * (0.5f * Scale) ) ) continue;
-				enemy = obj;
-				best = score;
-			}
+			var start = Scene.Trace.Ray( EyePosition, EyePosition + aim.Forward * Scale ).IgnoreGameObjectHierarchy( GameObject )
+				.WithoutTags( "trigger" ).Run().EndPosition;
+			enemy = FindPheromoneTarget( start );
 		}
+
+		var destination = WorldPosition + aim.Forward.WithZ( 0 ).Normal * (5 * Scale);
 		foreach ( var babbler in brood )
-			if ( babbler.WorldPosition.DistanceSquared( WorldPosition ) <= 1000f * 1000 * Scale * Scale ) babbler.Dispatch( enemy );
+			if ( babbler.WorldPosition.DistanceSquared( WorldPosition ) <= 1000f * 1000 * Scale * Scale ) babbler.Dispatch( enemy, destination );
+	}
+
+	GameObject FindPheromoneTarget( Vector3 point )
+	{
+		var origin = WorldPosition;
+		var direction = (point - origin).Normal;
+		var center = (origin + point) * 0.5f;
+		float radius = 15 * Scale + origin.Distance( center );
+		float best = float.MaxValue;
+		GameObject enemy = null;
+		foreach ( var npc in Scene.GetAllComponents<Sandbox.Npcs.BaseNpc>() )
+			if ( npc is Marine or Exo && npc.Health > 0 ) Consider( npc.GameObject );
+		foreach ( var player in Scene.GetAllComponents<PlayerController>() )
+			if ( Sandbox.Npcs.BaseNpc.IsLiveTarget( player.GameObject ) && !AlienTargeting.IsIgnoredPlayer( player.GameObject ) ) Consider( player.GameObject );
+		return enemy;
+
+		void Consider( GameObject candidate )
+		{
+			var position = candidate.WorldPosition;
+			if ( position.DistanceSquared( center ) > radius * radius || GetDisposition( candidate ) != Sandbox.Npcs.Disposition.Hostile ) return;
+			var delta = position - origin;
+			float along = Vector3.Dot( delta, direction );
+			float score = along + (delta - direction * along).Length * 2;
+			var lift = Vector3.Up * (0.5f * Scale);
+			if ( along <= 0 || score >= best || WallBetween( origin + lift, position + lift ) ) return;
+			enemy = candidate;
+			best = score;
+		}
 	}
 
 	void UpdateBrood()

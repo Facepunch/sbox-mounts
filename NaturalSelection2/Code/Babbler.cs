@@ -50,9 +50,10 @@ public sealed partial class Babbler : BaseNpc
 	internal Gorge OwnerGorge { get; set; }
 	TimeUntil nextClingLeap, freeRoam;
 	TimeUntil? ownerLossTimeout;
-	bool ReturningToOwner => OwnerGorge.IsValid() && !target.IsValid() && freeRoam <= 0;
+	Vector3? orderedPosition;
+	bool ReturningToOwner => OwnerGorge.IsValid() && orderedPosition is null && !target.IsValid() && freeRoam <= 0;
 
-	internal void Dispatch( GameObject enemy )
+	internal void Dispatch( GameObject enemy, Vector3 destination )
 	{
 		if ( ClingSlot != 0 )
 		{
@@ -60,10 +61,11 @@ public sealed partial class Babbler : BaseNpc
 			DetachFromSocket();
 		}
 		target = enemy;
+		orderedPosition = enemy.IsValid() ? null : destination + new Vector3(
+			Random.Shared.Float( -0.25f, 0.25f ), Random.Shared.Float( -0.25f, 0.25f ), Random.Shared.Float( 0, 0.5f ) ) * Scale;
 		reachedTarget = false;
 		freeRoam = 6;
 	}
-
 
 	internal void ClingTo( GameObject point, int slot )
 	{
@@ -160,6 +162,18 @@ public sealed partial class Babbler : BaseNpc
 	protected override void Think()
 	{
 		if ( ClingSlot != 0 || ReturningToOwner ) return;
+		if ( orderedPosition is { } destination )
+		{
+			if ( !IsOnGround ) return;
+			bool finished = Movement.MoveTarget == destination && Movement.Status is MovementLayer.MovementStatus.Arrived or MovementLayer.MovementStatus.Failed;
+			if ( !finished && (WorldPosition - destination).WithZ( 0 ).LengthSquared >= 0.25f * Scale * Scale )
+			{
+				Movement.MoveTo( destination, Radius, 8.2f * Scale );
+				return;
+			}
+			orderedPosition = null;
+			Movement.Stop();
+		}
 		var previous = target;
 		if ( !CanHunt( target ) ) target = null;
 		if ( target is null )
