@@ -396,13 +396,14 @@ static class WeaponEffects
 			Hl2.FlatQuad.WaterRipple( surface.HitPosition, surface.Normal, mount );
 
 		SplashDrops( position, mount, explosion: false );
-		SplashPlume( position, mount );
+		SplashPlume( position, mount, 1 );
 	}
 
 	internal static void ExplosionSplash( Vector3 surface, string mount )
 	{
 		Hl2.FlatQuad.ExplosionRipple( surface, mount );
 		SplashDrops( surface, mount, explosion: true );
+		SplashPlume( surface, mount, 2 );
 	}
 
 	static void SplashDrops( Vector3 position, string mount, bool explosion )
@@ -446,9 +447,10 @@ static class WeaponEffects
 		drops.Invoke( lifetime, drops.DestroyGameObject );
 	}
 
-	static void SplashPlume( Vector3 position, string mount )
+	static void SplashPlume( Vector3 position, string mount, int scale )
 	{
-		var plume = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, 8 );
+		var count = 8 * scale;
+		var plume = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, count );
 		if ( !plume.IsValid() ) return;
 		plume.WorldPosition = position;
 		plume.Lifetime = 2;
@@ -456,16 +458,17 @@ static class WeaponEffects
 		plume.ForceDirection = Vector3.Down * 800;
 		plume.ApplyShape = true;
 		plume.Scale = PlumeGrowth;
-		for ( var i = 0; i < 8; i++ )
+		for ( var i = 0; i < count; i++ )
 		{
 			if ( plume.Emit( position, 0 ) is not { } p ) continue;
-			var fraction = i / 7f;
-			p.StartScale = 2 * (int)float.Lerp( 12, 24, fraction );
+			var fraction = Math.Min( i / 7f, 1 );
+			p.StartScale = 2 * (int)(scale * float.Lerp( 12, 24, fraction ));
 			p.Size = p.StartScale;
 			p.Angles = new Angles( 0, 0, Game.Random.Int( 0, 360 ) );
 			p.Color = Color.White.WithAlpha( (int)float.Lerp( 32, 255, fraction ) / 255f );
 			var direction = Particles.InCube( 0.2f ) + Vector3.Up * Game.Random.Float( 4, 6 );
-			p.Velocity = direction.Normal * (50 * (8 - i));
+			// The extra explosion particles start at rest or travel down through the waterline.
+			p.Velocity = direction.Normal * (50 * scale * (8 - i));
 		}
 
 		plume.OnPreStep = dt =>
