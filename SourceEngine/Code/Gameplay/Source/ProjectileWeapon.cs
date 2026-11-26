@@ -49,7 +49,7 @@ public sealed partial class ProjectileWeapon : Weapon
 	/// <summary>Where the laser dot sits; the live rocket steers toward it.</summary>
 	public Vector3? TraceLaserTarget() => TraceLaser()?.EndPosition;
 
-	SceneTraceResult? TraceLaser() => LaserOn ? Scene.Trace.Ray( AimRay, MaxTraceLength ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
+	internal SceneTraceResult? TraceLaser() => LaserOn ? Scene.Trace.Ray( AimRay, MaxTraceLength ).IgnoreGameObjectHierarchy( AimIgnoreRoot )
 		.WithoutTags( "projectile", "trigger", "source1_window" ).Run() : null;
 
 	internal Vector3? MissileTarget( Vector3 missile )

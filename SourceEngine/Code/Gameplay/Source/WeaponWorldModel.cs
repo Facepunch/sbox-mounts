@@ -13,6 +13,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 	string _ownFlashType;
 	string _muzzleName;
 	string[] _alternateMuzzles = [];
+	(string Type, string Attachment)[] _projectileFlashes = [];
 	int _shots;
 	bool _pumpPending;
 	bool _silencerShown;
@@ -33,7 +34,12 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		_heldShot++;
 		_shotTime = 0;
 		if ( _hold?.HasReloadGesture == true ) _reloadTime = float.MaxValue;
-		if ( _weapon is not BulletWeapon weapon ) return;
+		if ( _weapon is not BulletWeapon weapon )
+		{
+			foreach ( var (flashType, attachment) in _projectileFlashes )
+				WeaponEffects.MuzzleFlash( flashType, Renderer.GetAttachmentObject( attachment ), false, MountContent.Of( Renderer.Model ) );
+			return;
+		}
 		// World models rarely author their own flash; the viewmodel's AE_MUZZLEFLASH names the weapon's.
 		var type = _ownFlashType ?? WeaponSetup.FlashType( weapon ) ?? "SMG1";
 		var mount = MountContent.Of( Renderer.Model );
@@ -189,7 +195,13 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		MuzzleEffect = null;
 		TracerEffect = null;
 		_weapon = FindWeapon();
-		var flash = (model.GetData<SourceModelSequenceData[]>() ?? []).SelectMany( s => s.Events )
+		var sequences = model.GetData<SourceModelSequenceData[]>() ?? [];
+		_projectileFlashes = _weapon is ProjectileWeapon && sequences.FirstOrDefault( s => s.Activity == "ACT_VM_PRIMARYATTACK" ) is { } attack
+			? attack.Events.Where( e => e.Name is "AE_NPC_MUZZLEFLASH" or "AE_MUZZLEFLASH" )
+				.Select( e => e.Options?.Split( ' ', StringSplitOptions.RemoveEmptyEntries ) )
+				.Where( parts => parts is { Length: >= 2 } ).Select( parts => (parts[0], parts[1]) ).ToArray()
+			: [];
+		var flash = sequences.SelectMany( s => s.Events )
 			.FirstOrDefault( e => e.Name is "AE_NPC_MUZZLEFLASH" or "AE_MUZZLEFLASH" )?.Options?.Split( ' ', StringSplitOptions.RemoveEmptyEntries );
 		_ownFlashType = _weapon.IsValid() ? WeaponEffects.FlashType( flash?.FirstOrDefault() ) : null;
 		// Options are "<weapon type> <attachment>"; otherwise Source's default muzzle is attachment 1.

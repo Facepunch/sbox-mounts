@@ -69,7 +69,7 @@ public sealed class Manhack : Component, INpcPart
 
 		// CNPC_Manhack::OnTakeDamage_Alive's smoke trail below half health.
 		if ( !_smoke.IsValid() && Npc is { Health: > 0 } npc && npc.Health <= npc.MaxHealth * 0.5f )
-			_smoke = SmokeTrail.Rocket( GameObject, Vector3.Zero, Mount );
+			_smoke = SmokeTrail.DamageSmoke( GameObject, Vector3.Zero, Mount );
 
 		if ( IsProxy )
 			return;

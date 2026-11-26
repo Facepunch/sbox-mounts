@@ -202,7 +202,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	TimeUntil _nextTurn;
 	Vector3 _aim;
 	SoundHandle _loop;
-	GameObject _smoke;
+	SmokeTrail.RocketExhaust _exhaust;
 
 	/// <summary>The missile leaves at 300 along the aim plus 128 up, then ignites.</summary>
 	public static Vector3 LaunchVelocity( Vector3 aim ) => aim * DropSpeed + Vector3.Up * DropLift;
@@ -319,17 +319,19 @@ public sealed class Rocket : Projectile, Component.IDamageable
 		}
 		if ( _loop is not null ) _loop.Position = WorldPosition;
 		// IgniteThink starts CMissile's code-driven RocketTrail at the tail attachment.
-		if ( _smoke is null && Renderer.IsValid() && Renderer.Enabled && Renderer.Model.IsValid() )
-			_smoke = SmokeTrail.Rocket( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName ) ?? Visual;
+		if ( _exhaust is null && Renderer.IsValid() && Renderer.Enabled && Renderer.Model.IsValid() )
+			_exhaust = new( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName );
+		if ( _exhaust is null || Time.Delta <= 0 ) return;
+		_exhaust.Update();
 
-		if ( ShotDown && _smoke.IsValid() && Time.Delta > 0 )
+		if ( ShotDown )
 		{
-			_embers ??= SmokeTrail.CreateEmbers( _smoke, MountName );
+			_embers ??= SmokeTrail.CreateEmbers( _exhaust.Tail, MountName );
 			var effect = _embers[Game.Random.Int( 0, _embers.Length - 1 )];
 			if ( effect.IsValid() )
 			{
 				for ( int i = 0; i < 8 && !effect.IsFull; i++ )
-					effect.Emit( _smoke.WorldPosition + Game.Random.VectorInCube( 8 ), 0 );
+					effect.Emit( _exhaust.Tail.WorldPosition + Game.Random.VectorInCube( 8 ), 0 );
 			}
 		}
 	}
@@ -728,7 +730,7 @@ static class SmokeTrail
 		CurveB = SourceParticleMath.Sample( t => 0.25f * MathF.Sin( MathF.PI * t ) )
 	};
 
-	public static GameObject Rocket( GameObject parent, Vector3 offset, string mount )
+	public static GameObject DamageSmoke( GameObject parent, Vector3 offset, string mount )
 	{
 		var effect = Create( parent, offset, MountedEffects.SpriteTexture( Smoke, mount ), "HL2 rocket trail", 0.5f, 16, 0.65f, depthFeather: 8 );
 		if ( effect is null ) return null;
@@ -742,6 +744,76 @@ static class SmokeTrail
 		return effect.GameObject;
 	}
 
+	internal sealed class RocketExhaust
+	{
+		public GameObject Tail { get; }
+		readonly ParticleEffect[] _smoke;
+		readonly ParticleEffect[] _flames = new ParticleEffect[4];
+		Vector3 _previous;
+
+		public RocketExhaust( GameObject parent, Vector3 offset, string mount )
+		{
+			Tail = new GameObject( parent, true, "Rocket exhaust" );
+			Tail.NetworkMode = NetworkMode.Never;
+			Tail.LocalPosition = offset;
+			_previous = Tail.WorldPosition;
+			_smoke = [Puffs( Smoke ), Puffs( Dust )];
+			for ( var i = 0; i < _flames.Length; i++ )
+			{
+				var flame = Particles.Emitter( Tail, $"effects/muzzleflash{i + 1}", mount, true, false, 32 );
+				if ( !flame.IsValid() ) continue;
+				flame.Lifetime = 0.01f;
+				flame.ApplyAlpha = true;
+				flame.Alpha = WeaponEffects.LinearOverLife( 1, 0.5f );
+				flame.ApplyRotation = true;
+				flame.InitialRoll = new ParticleFloat( 0, 360 );
+				var renderer = flame.GetComponent<ParticleSpriteRenderer>();
+				renderer.CameraFadeNear = 16;
+				renderer.CameraFadeFar = 64;
+				_flames[i] = flame;
+			}
+
+			ParticleEffect Puffs( string material )
+			{
+				var effect = Create( Tail, Vector3.Zero, MountedEffects.SpriteTexture( material, mount ), "HL2 rocket trail", 1, 16, 0.65f, depthFeather: 8 );
+				if ( effect is null ) return null;
+				effect.MaxParticles = 400;
+				effect.Lifetime = new ParticleFloat( 0.95f, 1.05f );
+				effect.InitialScale = new ParticleFloat( 12, 20 );
+				effect.ApplyColor = false;
+				SpinPuffs( effect, 8 );
+				var renderer = effect.GetComponent<ParticleSpriteRenderer>( true );
+				renderer.CameraFadeNear = 64;
+				renderer.CameraFadeFar = 128;
+				effect.GameObject.Enabled = true;
+				return effect;
+			}
+		}
+
+		public void Update()
+		{
+			var position = Tail.WorldPosition;
+			var travel = position - _previous;
+			var count = Math.Min( 50, (int)(travel.Length / 4) );
+			for ( var i = 1; i <= count; i++ )
+			{
+				var effect = _smoke[Game.Random.Int( 0, 1 )];
+				if ( !effect.IsValid() || effect.IsFull ) continue;
+				var puff = effect.Emit( _previous + travel * ((float)i / count), 0 );
+				puff.Color = Color.White * Game.Random.Float( 0.4875f, 0.8125f );
+				puff.Velocity = Game.Random.VectorInCube( 1 ) * Game.Random.Float( 2, 16 );
+			}
+			_previous = position;
+			var scale = Game.Random.Float( 1, 2 );
+			for ( var i = 1; i <= 8; i++ )
+			{
+				var flame = _flames[Game.Random.Int( 0, _flames.Length - 1 )];
+				if ( !flame.IsValid() || flame.IsFull ) continue;
+				var spark = flame.Emit( position - Tail.WorldRotation.Forward * (i * 3), 0 );
+				spark.Size = 2 * (int)(Game.Random.Float( 5, 6 ) * (12 - i) / 9 * scale);
+			}
+		}
+	}
 	public static ParticleEffect[] CreateEmbers( GameObject parent, string mount )
 	{
 		var effects = new ParticleEffect[4];
@@ -792,17 +864,7 @@ static class SmokeTrail
 			renderer.CameraFadeFar = 128;
 			effect.Brightness = GrenadeSmokeBrightness;
 			effect.OnParticleCreated = puff => puff.Velocity = Game.Random.VectorInCube( 1 ) * Game.Random.Float( 4, 24 );
-			effect.ApplyRotation = true;
-			effect.InitialRoll = new ParticleFloat( 0, 360 );
-			effect.OnPreStep = dt =>
-			{
-				foreach ( var puff in effect.Particles )
-				{
-					var spin = 2 * puff.Rand() - 1;
-					var speed = MathF.Max( 0.5f, MathF.Abs( spin ) * MathF.Exp( -8 * puff.Age ) );
-					puff.StartAngles = puff.StartAngles.WithRoll( puff.StartAngles.roll + (MathF.CopySign( speed, spin ) * dt).RadianToDegree() );
-				}
-			};
+			SpinPuffs( effect, 1 );
 			var emitter = effect.GameObject.AddComponent<ParticleBoxEmitter>();
 			emitter.Size = 8;
 			emitter.Delay = delay;
@@ -812,6 +874,20 @@ static class SmokeTrail
 		}
 	}
 
+	static void SpinPuffs( ParticleEffect effect, float maxSpin )
+	{
+		effect.ApplyRotation = true;
+		effect.InitialRoll = new ParticleFloat( 0, 360 );
+		effect.OnPreStep = dt =>
+		{
+			foreach ( var puff in effect.Particles )
+			{
+				var spin = (2 * puff.Rand() - 1) * maxSpin;
+				var speed = MathF.Max( 0.5f, MathF.Abs( spin ) * MathF.Exp( -8 * puff.Age ) );
+				puff.StartAngles = puff.StartAngles.WithRoll( puff.StartAngles.roll + (MathF.CopySign( speed, spin ) * dt).RadianToDegree() );
+			}
+		};
+	}
 	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey, float depthFeather = 0, bool linger = true )
 	{
 		if ( texture is null ) return null;

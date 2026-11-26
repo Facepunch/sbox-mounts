@@ -41,15 +41,11 @@ sealed class RpgLaser : IDisposable
 			_dot.NetworkMode = NetworkMode.Never;
 			_dotSprite = MountedEffects.AddSprite( _dot, GlowSprite, mount );
 		}
-		var target = on ? weapon.TraceLaserTarget() : null;
+		var target = on ? weapon.TraceLaser() : null;
 		_dot.Enabled = target is not null;
-		if ( target is not { } position ) return;
-		var eye = weapon.AimRay.Position;
-		var distance = eye.Distance( position );
-		// The dot grows with distance so its screen size stays readable.
-		var scale = Math.Clamp( MathX.Remap( distance, 32, 1024, 0.01f, 0.5f, false ), 0.1f, 32 );
-		MountedEffects.SetSprite( _dotSprite, scale, 255 );
-		_dot.WorldPosition = position + (eye - position).Normal * MathF.Min( 8, distance * 0.5f );
+		if ( target is not { } hit || !_dotSprite.IsValid() ) return;
+		_dot.WorldPosition = hit.EndPosition + hit.Normal * 4;
+		_dotSprite.Size = Random.Shared.Float( 12, 20 );
 	}
 
 	public void Dispose()
