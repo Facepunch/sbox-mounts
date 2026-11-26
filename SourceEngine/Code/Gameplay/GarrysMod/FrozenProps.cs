@@ -21,7 +21,7 @@ sealed class FrozenProps : Component
 		}
 
 		var hit = Scene.Trace.Ray( aim, 32768 ).IgnoreGameObjectHierarchy( GameObject.Root )
-			.WithoutTags( "trigger", "projectile" ).Run();
+			.WithoutTags( "trigger" ).Run();
 		var bodyHit = hit.GameObject?.GetComponentInParent<Rigidbody>();
 		if ( bodyHit.IsValid() ) return WakeConnected( bodyHit );
 		// A prop without a rigidbody still counts as an aimed reload.

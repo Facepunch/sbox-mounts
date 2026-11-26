@@ -118,7 +118,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 		InputState = Input.Down( "attack1" ) && !Input.Down( "attack2" ) ? Trigger.Grab : Trigger.Released;
 		if ( InputState == Trigger.Grab ) GridSize = ConsoleSystem.GetValue( GridConVar ).ToFloat();
-		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldBody.IsValid() && TraceTarget( AimRay ).Hit )
+		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldBody.IsValid() && TraceTarget( AimRay, MaxRange * 2 ).Hit )
 			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
 		if ( InputState != Trigger.Grab || !HeldBody.IsValid() ) return;
 
@@ -204,7 +204,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var yaw = Rotation.FromYaw( Owner.EyeAngles.yaw );
 		if ( !HeldBody.IsValid() )
 		{
-			var hit = TraceTarget( ray );
+			var hit = TraceTarget( ray, MaxRange * 2 );
 			if ( !hit.Hit ) return;
 			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
@@ -268,8 +268,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, MaxAngularSpeed.DegreeToRadian(), MaxAngularDamping.DegreeToRadian(), _arrivalTime, DampingFactor );
 	}
 
-	SceneTraceResult TraceTarget( Ray ray ) => Scene.Trace.Ray( ray, MaxRange * 2 )
-		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run();
+	SceneTraceResult TraceTarget( Ray ray, float distance ) => Scene.Trace.Ray( ray, distance )
+		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger" ).Run();
 
 	// Map props share a scene root. Dispatch to the mounted entity that owns this physics body.
 	internal static GameObject EntityRoot( Rigidbody body )

@@ -62,7 +62,7 @@ public sealed partial class PhysicsGun
 		}
 		var ray = AimRay;
 		var end = holding ? HeldBody.WorldPosition + HeldBody.WorldRotation * GrabPoint
-			: Scene.Trace.Ray( ray, MaxRange * 0.5f ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run().EndPosition;
+			: TraceTarget( ray, MaxRange * 0.5f ).EndPosition;
 		float length = start.Distance( end );
 		var control = holding ? ray.Position + ray.Forward * (length * 0.6f) : end;
 		DrawGlows( activeGlows, end, default, muzzle: false );
