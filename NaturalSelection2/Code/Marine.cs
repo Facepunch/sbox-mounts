@@ -49,6 +49,14 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	}
 
 	readonly Magazine rifleAmmo = new( 50 ), pistolAmmo = new( 10 );
+	internal bool ResupplyAmmo()
+	{
+		var magazine = rifleAmmo.Reserve < rifleAmmo.MaxReserve ? rifleAmmo : pistolAmmo;
+		if ( magazine.Reserve >= magazine.MaxReserve ) return false;
+		magazine.Reserve = Math.Min( magazine.MaxReserve, magazine.Reserve + magazine.Capacity );
+		return true;
+	}
+
 	[Sync( SyncFlags.FromHost )] bool pistol { get; set; }
 	Magazine Ammo => pistol ? pistolAmmo : rifleAmmo;
 	float BulletRange => (pistol ? 45 : 41) * Scale;
