@@ -344,7 +344,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	public override string Faction => Factions.Citizen;
 
-	[Property] public string[] Teams { get; set; } = [];
+	[Property] public string[] Teams { get; set => field = value ?? []; } = [];
 	[Property] public bool AlliedToPlayer { get; set; }
 
 	protected override void SetupRelationships() => SetRelationship( Factions.Player, AlliedToPlayer ? Disposition.Friendly : Disposition.Hostile );

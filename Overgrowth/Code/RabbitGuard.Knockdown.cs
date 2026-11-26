@@ -148,9 +148,9 @@ public sealed partial class RabbitGuard
 
 		// Ordinary damage costs health. Authored strikes also carry a knockdown impulse.
 		if ( hit.DamageInfo is not StrikeDamage && !sparringKnockout ) return;
-		if ( !Downed )
-			GoLimp();
-		else ragdoll.GetComponent<RagdollDamping>()?.Refresh();
+		if ( Downed && ragdoll.IsValid() )
+			ragdoll.GetComponent<RagdollDamping>()?.Refresh();
+		else if ( !GoLimp() ) return;
 
 		RestartRecovery();
 		if ( hit.DamageInfo is StrikeDamage )
@@ -172,8 +172,7 @@ public sealed partial class RabbitGuard
 
 	void EnterInjuredRagdoll()
 	{
-		if ( Downed ) return;
-		GoLimp();
+		if ( Downed || !GoLimp() ) return;
 		if ( boundAnimations?.FallPose is { Writhe: not null } pose )
 			ragdoll.GetOrAddComponent<RagdollInjury>().StartInjury( ragdoll, pose, 0f, false );
 	}
@@ -186,10 +185,13 @@ public sealed partial class RabbitGuard
 
 	bool passiveRagdoll;
 
-	void GoLimp() => EnterRagdoll( passive: false );
+	bool GoLimp() => EnterRagdoll( passive: false );
 
-	void EnterRagdoll( bool passive )
+	bool EnterRagdoll( bool passive )
 	{
+		if ( !Renderer.IsValid() || !Renderer.Model.IsValid() || Renderer.Model.Physics is null || !Movement.IsValid() ) return false;
+		if ( !MovementCapsule.IsValid() ) MovementCapsule = GetComponentInChildren<CapsuleCollider>();
+		if ( !MovementCapsule.IsValid() ) return false;
 		RestartRecovery();
 		if ( Downed && ragdoll is { Active: true } )
 			ragdoll.GetComponent<RagdollDamping>()?.Refresh();
@@ -197,6 +199,7 @@ public sealed partial class RabbitGuard
 			BeginRagdoll( passive );
 
 		ReleaseTether();
+		return true;
 	}
 
 	void BeginRagdoll( bool passive )
@@ -210,8 +213,6 @@ public sealed partial class RabbitGuard
 		rollAfterRagdollDelay = Random.Shared.Float( 0.1f, 2f - GameDifficulty );
 		RollProgress = 1f;
 		EndRecovery();
-		// Older saved instances predate the explicit prefab reference.
-		MovementCapsule ??= GetComponentInChildren<CapsuleCollider>();
 		Movement.Stop();
 		combatVelocity = default;
 		Movement.Enabled = false;
@@ -294,6 +295,7 @@ public sealed partial class RabbitGuard
 
 	protected override GameObject CreateRagdoll()
 	{
+		if ( !Renderer.IsValid() || !Renderer.Model.IsValid() ) return null;
 		deathRagdoll = base.CreateRagdoll();
 		if ( deathRagdoll.IsValid() && deathRagdoll.GetComponent<ModelPhysics>() is { } physics )
 			ConfigureCorpse( deathRagdoll, physics );
@@ -360,6 +362,7 @@ public sealed partial class RabbitGuard
 
 	internal static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )
 	{
+		if ( !ragdoll.IsValid() ) return;
 		float Weight( Rigidbody rb )
 		{
 			var offset = rb.WorldPosition - point;

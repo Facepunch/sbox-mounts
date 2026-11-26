@@ -113,7 +113,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( !IsValid || Health < 1f ) return;
 		if ( wasAwake ) ReportBodySound( HeardSound.Voice, 10f );
-		if ( !Downed ) GoLimp();
+		if ( !Downed && !GoLimp() || !ragdoll.IsValid() ) return;
 		blockHealth = 0f;
 		limpStun = 0.9f;
 		ApplyHitImpulse( ragdoll, point, impulse );
