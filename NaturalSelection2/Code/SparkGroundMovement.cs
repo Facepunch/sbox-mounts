@@ -62,6 +62,14 @@ public abstract class SparkGroundMovement : NavigationLayer
 		// NS2 damps the whole velocity and accelerates along the input. Express both as a
 		// velocity for the crowd to approach, limiting the forward gain on the final step.
 		float along = Vector3.Dot( velocity, direction );
+		if ( (velocity - direction * along).IsNearlyZero() )
+		{
+			// On a straight run the crowd can cap the speed itself. Keep the available
+			// acceleration at cruising speed so its arrival planner doesn't start braking early.
+			Agent.MaxSpeed = speed;
+			Agent.Acceleration = along > speed ? GroundFriction * along : GroundAcceleration * speed - GroundFriction * along;
+			return;
+		}
 		float wishSpeed = Math.Min( speed * (GroundAcceleration / GroundFriction), along + (speed - along) / friction );
 		Agent.MaxSpeed = Math.Max( speed, wishSpeed );
 		Agent.Acceleration = GroundFriction * (direction * Agent.MaxSpeed - velocity).Length;
