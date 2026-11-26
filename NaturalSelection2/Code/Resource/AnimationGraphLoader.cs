@@ -6,6 +6,6 @@ internal sealed class AnimationGraphLoader( string modelFile, string graphFile, 
 	protected override object Load()
 	{
 		var model = Host.GetByPath( $"mount://{Host.Ident}/{modelFile}.vmdl" ) as ModelLoader;
-		return model?.BuildGraph( SparkAnimationGraph.Read( Host.ReadAllBytes( graphFile ) ), Path, npcPlayback );
+		return model?.BuildGraph( model.ReadGraph( graphFile ), Path, npcPlayback );
 	}
 }

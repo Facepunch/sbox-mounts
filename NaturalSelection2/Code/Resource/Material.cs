@@ -8,24 +8,27 @@ namespace NS2;
 
 public partial class MaterialLoader( string filePath ) : ResourceLoader<GameMount>
 {
-	/// <summary>
-	/// Path relative to the game's install root
-	/// </summary>
-	private string FilePath { get; init; } = filePath;
+	readonly object propertiesLock = new();
+	Property[] Properties
+	{
+		get
+		{
+			lock ( propertiesLock )
+				return field ??= Parse( Host.ReadAllBytes( filePath ) );
+		}
+	}
 
 	private static Material ModelMaterial => field ??= Material.Load( "shaders/ns2/shaders/model.vmat" );
 
-	string surfaceName;
-	internal string SurfaceName => surfaceName ??= SurfaceLoader.Normalize( Find( Parse( Host.ReadAllBytes( FilePath ) ), "surface" ).String );
+	internal string SurfaceName => field ??= SurfaceLoader.Normalize( Find( Properties, "surface" ).String );
 
 	protected override object Load()
 	{
-		var properties = Parse( Host.ReadAllBytes( FilePath ) );
+		var properties = Properties;
 		var shader = Find( properties, "shader" ).String;
 		var material = SelectShader( shader ).CreateCopy( Path );
 
-		surfaceName = SurfaceLoader.Normalize( Find( properties, "surface" ).String );
-		material.Attributes.Set( "PhysicsSurfaceProperties", SurfaceLoader.PathFor( surfaceName ) );
+		material.Attributes.Set( "PhysicsSurfaceProperties", SurfaceLoader.PathFor( SurfaceName ) );
 		ApplyShaderDefaults( material, shader, properties );
 
 		foreach ( var property in properties )
@@ -127,8 +130,12 @@ public partial class MaterialLoader( string filePath ) : ResourceLoader<GameMoun
 
 	private static string Pascal( string key ) => char.ToUpperInvariant( key[0] ) + key[1..];
 
-	private static Property Find( Property[] properties, string key ) =>
-		properties.FirstOrDefault( x => x.Key == key );
+	private static Property Find( Property[] properties, string key )
+	{
+		foreach ( var property in properties )
+			if ( property.Key == key ) return property;
+		return default;
+	}
 
 	private enum ValueType
 	{

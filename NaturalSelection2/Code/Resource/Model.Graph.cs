@@ -41,7 +41,7 @@ public partial class ModelLoader
 			var name = animations.BlendParameters[node.ParameterIndex];
 			if ( !parameters.ContainsKey( name ) ) parameters.Add( name, graph.FloatParameter( npcPlayback ? name : definition.PoseInputName( name ), node.ParamMin, node.ParamMax ) );
 		}
-		var reader = new Reader( source );
+		using var reader = new Reader( source );
 		var frame = new Transform[model.Bones.Length];
 		return npcPlayback ? definition.CompilePlayback( graph, SequencePose, graphPath )
 			: definition.Compile( graph, (name, incoming) => SequencePose( name, incoming, null ), graphPath );
@@ -83,7 +83,7 @@ public partial class ModelLoader
 							pose[i] = pose[i].WithScale( anim.Additive ? 0 : 1 );
 						}
 						builder.AddFrame( pose );
-					}, anim, model, ref reader, frame, intervals, bakeScale: npcPlayback );
+					}, anim, model, reader, frame, intervals, bakeScale: npcPlayback );
 					if ( builder.FrameCount == 1 ) builder.AddFrame( frame );
 					clips[node.AnimationIndex] = clip = builder.Create( $"{Path}/clip_{node.AnimationIndex}.anim" );
 				}

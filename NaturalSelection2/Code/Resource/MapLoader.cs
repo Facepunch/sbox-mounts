@@ -133,7 +133,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			return;
 
 		var data = LevelMesh.Read( bytes, level.Version, level.WorldMesh.Offset, level.WorldMesh.Length, level.Groups, level.Layers );
-		if ( data.Triangles.Length == 0 || data.Positions.Length == 0 )
+		if ( data.Triangles.Count == 0 || data.Positions.Count == 0 )
 			return;
 
 		int faceCount = data.FaceMaterial.Length;
@@ -147,7 +147,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		{
 			if ( (uint)tri.Face >= (uint)faceCount || faceHasNormal[tri.Face] )
 				continue;
-			if ( !InRange( tri, data.Positions.Length ) )
+			if ( !InRange( tri, data.Positions.Count ) )
 				continue;
 
 			var p0 = data.Positions[tri.V0];
@@ -173,7 +173,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 
 		var byMaterial = new Dictionary<(int Material, bool ShadowOnly, Vector3Int Cell), List<WorldVertex>>();
 		var allVertices = new List<Vector3>();
-		var collisionVertex = new int[data.Positions.Length];
+		var collisionVertex = new int[data.Positions.Count];
 		Array.Fill( collisionVertex, -1 );
 		var allIndices = new List<uint>();
 		var triangleSurfaces = new List<byte>();
@@ -182,7 +182,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var materials = new Dictionary<int, Material>();
 		foreach ( var tri in data.Triangles )
 		{
-			if ( (uint)tri.Face >= (uint)faceCount || !faceHasNormal[tri.Face] || !InRange( tri, data.Positions.Length ) )
+			if ( (uint)tri.Face >= (uint)faceCount || !faceHasNormal[tri.Face] || !InRange( tri, data.Positions.Count ) )
 				continue;
 
 			bool hidden = tri.Face < data.FaceHidden.Length && data.FaceHidden[tri.Face];

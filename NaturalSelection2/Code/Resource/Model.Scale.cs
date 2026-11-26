@@ -37,7 +37,7 @@ public partial class ModelLoader
 
 	// The common case is a unit scale track. Scan its values in the reader's buffer
 	// before allocating any key arrays, and only decode tracks that affect a pose.
-	static ScaleTrack ReadScaleTrack( ref Reader r )
+	static ScaleTrack ReadScaleTrack( Reader r )
 	{
 		long start = r.Offset;
 		int vectors = r.Int();
@@ -52,7 +52,7 @@ public partial class ModelLoader
 		if ( !scaled ) return null;
 
 		r.Seek( start );
-		var stretch = ReadVector3Curve( ref r );
+		var stretch = ReadVector3Curve( r );
 		int keys = r.Int();
 		return new( stretch, new() { Times = r.Floats( keys ), Values = r.Floats( keys ) } );
 	}

@@ -21,7 +21,7 @@ public partial class MaterialLoader
 		protected override object Load()
 		{
 			var material = (MaterialLoader)Parent;
-			var properties = Parse( Host.ReadAllBytes( material.FilePath ) );
+			var properties = material.Properties;
 			var shader = System.IO.Path.GetFileNameWithoutExtension( Find( properties, "shader" ).String )?.ToLowerInvariant();
 			var wet = shader is "wetmap" or "wetmapdecal";
 			var lettering = shader == "name_decals";

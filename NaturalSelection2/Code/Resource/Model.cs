@@ -1,9 +1,10 @@
 using System;
-using System.Buffers.Binary;
+using System.Buffers;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using static System.Buffers.Binary.BinaryPrimitives;
 
 namespace NS2;
 
@@ -163,7 +164,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	// Buffered little-endian reader over a seekable stream. Large skips seek past the data
 	// instead of reading it, so unused sections (e.g. redundant pose blobs) never load.
-	struct Reader
+	sealed class Reader : IDisposable
 	{
 		const int BufferSize = 128 * 1024; // must fit the largest single read (strings â‰¤ 64KB)
 
@@ -174,15 +175,17 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		private int count;
 
 		public readonly long Length;
-		public readonly long Offset => bufferStart + pos;
+		public long Offset => bufferStart + pos;
 
-		public Reader( Stream stream, long offset = 0 )
+		public Reader( Stream stream )
 		{
 			this.stream = stream;
-			buffer = new byte[BufferSize];
 			Length = stream.Length;
-			Seek( offset );
+			stream.Position = 0;
+			buffer = ArrayPool<byte>.Shared.Rent( (int)Math.Min( Length, BufferSize ) );
 		}
+
+		public void Dispose() => ArrayPool<byte>.Shared.Return( buffer );
 
 		public void Seek( long offset )
 		{
@@ -199,7 +202,6 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		private ReadOnlySpan<byte> Take( int bytes )
 		{
-			Check( bytes );
 			if ( count - pos < bytes ) Fill( bytes );
 			var span = buffer.AsSpan( pos, bytes );
 			pos += bytes;
@@ -208,6 +210,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 		private void Fill( int bytes )
 		{
+			Check( bytes );
 			var remaining = count - pos;
 			Array.Copy( buffer, pos, buffer, 0, remaining );
 			bufferStart += pos;
@@ -224,14 +227,22 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public byte Byte() => Take( 1 )[0];
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		public int Int() => BinaryPrimitives.ReadInt32LittleEndian( Take( 4 ) );
+		public int Int() => ReadInt32LittleEndian( Take( 4 ) );
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		public float Float() => BinaryPrimitives.ReadSingleLittleEndian( Take( 4 ) );
+		public float Float() => ReadSingleLittleEndian( Take( 4 ) );
 
-		public Vector3 ReadVector3() => new( Float(), Float(), Float() );
+		public Vector3 ReadVector3()
+		{
+			var bytes = Take( 12 );
+			return new( ReadSingleLittleEndian( bytes ), ReadSingleLittleEndian( bytes[4..] ), ReadSingleLittleEndian( bytes[8..] ) );
+		}
 
-		public Quaternion ReadQuaternion() => new( Float(), Float(), Float(), Float() );
+		public Quaternion ReadQuaternion()
+		{
+			var bytes = Take( 16 );
+			return new( ReadSingleLittleEndian( bytes ), ReadSingleLittleEndian( bytes[4..] ), ReadSingleLittleEndian( bytes[8..] ), ReadSingleLittleEndian( bytes[12..] ) );
+		}
 
 		public FileCoords ReadCoords() => new()
 		{
@@ -251,7 +262,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		};
 
 		[MethodImpl( MethodImplOptions.AggressiveInlining )]
-		public readonly void Check( long bytes )
+		public void Check( long bytes )
 		{
 			if ( bytes < 0 || Length - Offset < bytes ) throw new InvalidDataException( "NS2 model: unexpected end of file" );
 		}
@@ -324,7 +335,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	private ParsedModel Parse( Stream stream )
 	{
-		var r = new Reader( stream );
+		using var r = new Reader( stream );
 		r.Check( 4 );
 		if ( r.Byte() != 'M' || r.Byte() != 'D' || r.Byte() != 'L' )
 			throw new InvalidDataException( "NS2 model: bad magic" );
@@ -346,22 +357,22 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 			switch ( chunkId )
 			{
-				case ChunkType.Vertices: ReadVertices( ref r, model ); break;
+				case ChunkType.Vertices: ReadVertices( r, model ); break;
 				case ChunkType.Indices: model.Indices = r.Ints( r.Int() ); break;
-				case ChunkType.FaceSets: ReadFaceSets( ref r, model ); break;
-				case ChunkType.Materials: ReadMaterials( ref r, model ); break;
-				case ChunkType.Solids: ReadSolids( ref r, model ); break;
-				case ChunkType.Bones: ReadBones( ref r, model ); break;
-				case ChunkType.Animations: ReadAnimations( ref r, model, version ); break;
-				case ChunkType.AnimationNodes: ReadAnimationNodes( ref r, model ); break;
-				case ChunkType.Sequences: ReadSequences( ref r, model ); break;
-				case ChunkType.BlendParameters: ReadBlendParameters( ref r, model ); break;
-				case ChunkType.Cameras: ReadCameras( ref r ); break;
-				case ChunkType.HitProxies: ReadHitProxies( ref r ); break;
-				case ChunkType.AttachPoints: ReadAttachPoints( ref r, model ); break;
-				case ChunkType.Joints: ReadJoints( ref r, model ); break;
+				case ChunkType.FaceSets: ReadFaceSets( r, model ); break;
+				case ChunkType.Materials: ReadMaterials( r, model ); break;
+				case ChunkType.Solids: ReadSolids( r, model ); break;
+				case ChunkType.Bones: ReadBones( r, model ); break;
+				case ChunkType.Animations: ReadAnimations( r, model, version ); break;
+				case ChunkType.AnimationNodes: ReadAnimationNodes( r, model ); break;
+				case ChunkType.Sequences: ReadSequences( r, model ); break;
+				case ChunkType.BlendParameters: ReadBlendParameters( r, model ); break;
+				case ChunkType.Cameras: ReadCameras( r ); break;
+				case ChunkType.HitProxies: ReadHitProxies( r ); break;
+				case ChunkType.AttachPoints: ReadAttachPoints( r, model ); break;
+				case ChunkType.Joints: ReadJoints( r, model ); break;
 				case ChunkType.CollisionPairs: r.Skip( (long)r.Int() * 8 ); break;
-				case ChunkType.CollisionReps: ReadCollisionReps( ref r, model ); break;
+				case ChunkType.CollisionReps: ReadCollisionReps( r, model ); break;
 				case ChunkType.BoundingBox:
 					model.BoundsCenter = ConvertPosition( r.ReadVector3() );
 					r.Skip( 3 * sizeof( float ) );
@@ -385,7 +396,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return model;
 	}
 
-	private static void ReadVertices( ref Reader r, ParsedModel model )
+	private static void ReadVertices( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		r.Check( (long)count * 92 ); // 92 bytes per vertex, vâ‰¥6 layout
@@ -418,7 +429,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Vertices = dst;
 	}
 
-	private static void ReadFaceSets( ref Reader r, ParsedModel model )
+	private static void ReadFaceSets( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var sets = new FaceSet[count];
@@ -432,7 +443,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.FaceSets = sets;
 	}
 
-	private static void ReadMaterials( ref Reader r, ParsedModel model )
+	private static void ReadMaterials( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var names = new string[count];
@@ -440,7 +451,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Materials = names;
 	}
 
-	private void ReadSolids( ref Reader r, ParsedModel model )
+	private void ReadSolids( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var solids = new Solid[count];
@@ -466,7 +477,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Solids = solids;
 	}
 
-	private static void ReadBones( ref Reader r, ParsedModel model )
+	private static void ReadBones( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var bones = new Bone[count];
@@ -489,7 +500,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Bones = bones;
 	}
 
-	private static void ReadAnimations( ref Reader r, ParsedModel model, int version )
+	private static void ReadAnimations( Reader r, ParsedModel model, int version )
 	{
 		int count = r.Int();
 		if ( (uint)count > 5000 ) throw new InvalidDataException( "NS2 model: too many animations" );
@@ -514,11 +525,11 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				anim.NumCurves = r.Int();
 				for ( int j = 0; j < anim.NumCurves; j++ )
 				{
-					SkipCurve( ref r, 12 ); // position (Vector3)
-					SkipCurve( ref r, 12 ); // scale (Vector3)
-					SkipCurve( ref r, 4 );  // uniform scale (float)
-					SkipCurve( ref r, 16 ); // rotation (Quaternion)
-					SkipCurve( ref r, 16 ); // scale orientation (Quaternion)
+					SkipCurve( r, 12 ); // position (Vector3)
+					SkipCurve( r, 12 ); // scale (Vector3)
+					SkipCurve( r, 4 );  // uniform scale (float)
+					SkipCurve( r, 16 ); // rotation (Quaternion)
+					SkipCurve( r, 16 ); // scale orientation (Quaternion)
 				}
 			}
 
@@ -546,15 +557,9 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 
 		model.Animations = anims;
-
-		static void SkipCurve( ref Reader r, int valueSize )
-		{
-			int keys = r.Int();
-			r.Skip( (long)keys * (4 + valueSize) );
-		}
 	}
 
-	private static void ReadAnimationNodes( ref Reader r, ParsedModel model )
+	private static void ReadAnimationNodes( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var nodes = new AnimationNode[count];
@@ -584,7 +589,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.AnimationNodes = nodes;
 	}
 
-	private static void ReadSequences( ref Reader r, ParsedModel model )
+	private static void ReadSequences( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var seqs = new Sequence[count];
@@ -597,7 +602,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Sequences = seqs;
 	}
 
-	private static void ReadBlendParameters( ref Reader r, ParsedModel model )
+	private static void ReadBlendParameters( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var names = new string[count];
@@ -605,7 +610,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.BlendParameters = names;
 	}
 
-	private static void ReadCameras( ref Reader r )
+	private static void ReadCameras( Reader r )
 	{
 		int count = r.Int();
 		for ( int i = 0; i < count; i++ )
@@ -616,7 +621,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void ReadHitProxies( ref Reader r )
+	private static void ReadHitProxies( Reader r )
 	{
 		int count = r.Int();
 		for ( int i = 0; i < count; i++ )
@@ -630,7 +635,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 	}
 
-	private static void ReadAttachPoints( ref Reader r, ParsedModel model )
+	private static void ReadAttachPoints( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var points = new AttachPoint[count];
@@ -643,7 +648,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.AttachPoints = points;
 	}
 
-	private static void ReadJoints( ref Reader r, ParsedModel model )
+	private static void ReadJoints( Reader r, ParsedModel model )
 	{
 		int count = r.Int();
 		var joints = new List<Joint>( count );
@@ -674,7 +679,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		model.Joints = joints.ToArray();
 	}
 
-	private static void ReadCollisionReps( ref Reader r, ParsedModel model )
+	private static void ReadCollisionReps( Reader r, ParsedModel model )
 	{
 		var ranges = new (int Start, int Count)[r.Int()];
 		for ( int i = 0; i < ranges.Length; i++ )
@@ -752,7 +757,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		{
 			try
 			{
-				return SparkAnimationGraph.Read( Host.ReadAllBytes( path ) );
+				return ReadGraph( path );
 			}
 			catch ( InvalidDataException e )
 			{
@@ -762,16 +767,26 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return new();
 	}
 
-	internal int SequenceIndex( string name ) => Array.FindIndex( AnimationSource().Source.Sequences,
-		s => string.Equals( s.Name, name, StringComparison.OrdinalIgnoreCase ) );
+	SparkAnimationGraph graphDefinition;
+
+	internal SparkAnimationGraph ReadGraph( string path )
+	{
+		lock ( sourceLock )
+			return graphDefinition ??= SparkAnimationGraph.Read( Host.ReadAllBytes( path ) );
+	}
+
+	internal int SequenceIndex( string name )
+	{
+		var sequences = AnimationSource().Source.Sequences;
+		for ( int i = 0; i < sequences.Length; i++ )
+			if ( string.Equals( sequences[i].Name, name, StringComparison.OrdinalIgnoreCase ) ) return i;
+		return -1;
+	}
 
 	internal float SequenceDuration( int index ) => index >= 0 ? AnimationSource().Source.Sequences[index].Duration : 0;
 
 	private void BuildAnimations( ModelBuilder builder, ParsedModel model, ParsedModel animations, Stream animSource )
 	{
-		if ( animations.Animations.Length == 0 || model.Bones.Length == 0 )
-			return;
-
 		// Name animations after sequences where possible:
 		// sequence â†’ node â†’ first type-1 descendant â†’ animation
 		var names = new string[animations.Animations.Length];
@@ -809,7 +824,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		}
 
 		var boneTransforms = new Transform[model.Bones.Length];
-		var r = new Reader( animSource );
+		using var r = new Reader( animSource );
 
 		for ( int i = 0; i < animations.Animations.Length; i++ )
 		{
@@ -819,18 +834,18 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 			var animBuilder = builder.AddAnimation( names[i] ?? $"animation_{i}", anim.FrameRate );
 
-			DecodeFrames( frame => animBuilder.AddFrame( frame.AsSpan() ), anim, model, ref r, boneTransforms );
+			DecodeFrames( frame => animBuilder.AddFrame( frame.AsSpan() ), anim, model, r, boneTransforms );
 		}
 	}
 
-	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, ref Reader r, Transform[] pose, int? sampleIntervals = null, bool bakeScale = false )
+	private static void DecodeFrames( Action<Transform[]> addFrame, ParsedAnimation anim, ParsedModel model, Reader r, Transform[] pose, int? sampleIntervals = null, bool bakeScale = false )
 	{
-		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, ref r, pose, sampleIntervals ?? (anim.NumFrames - 1), bakeScale );
-		else AddUncompressedFrames( addFrame, anim, model, ref r, pose, bakeScale );
+		if ( anim.Compressed ) AddCompressedFrames( addFrame, anim, model, r, pose, sampleIntervals ?? (anim.NumFrames - 1), bakeScale );
+		else AddUncompressedFrames( addFrame, anim, model, r, pose, bakeScale );
 	}
 
 	private static void AddCompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
-		ParsedModel model, ref Reader r, Transform[] boneTransforms, int intervals, bool bakeScale )
+		ParsedModel model, Reader r, Transform[] boneTransforms, int intervals, bool bakeScale )
 	{
 		r.Seek( anim.CurvesOffset );
 
@@ -849,24 +864,24 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			bool used = (uint)boneIndex < (uint)boneCount;
 
 			// position
-			var pos = used ? ReadVector3Curve( ref r ) : default;
-			if ( !used ) SkipCurve( ref r, 12 );
+			var pos = used ? ReadVector3Curve( r ) : default;
+			if ( !used ) SkipCurve( r, 12 );
 			bool readScale = used && bakeScale && model.Bones[boneIndex].HasChildren;
 			if ( readScale )
 			{
-				scales[boneIndex] = ReadScaleTrack( ref r );
+				scales[boneIndex] = ReadScaleTrack( r );
 				hasScale |= scales[boneIndex] is not null;
 			}
 			else
 			{
-				SkipCurve( ref r, 12 );
-				SkipCurve( ref r, 4 );
+				SkipCurve( r, 12 );
+				SkipCurve( r, 4 );
 			}
 			// rotation
-			var rot = used ? ReadQuaternionCurve( ref r ) : default;
-			if ( !used ) SkipCurve( ref r, 16 );
-			if ( readScale && scales[boneIndex] is { } track ) track.SetOrientation( ReadQuaternionCurve( ref r ) );
-			else SkipCurve( ref r, 16 );
+			var rot = used ? ReadQuaternionCurve( r ) : default;
+			if ( !used ) SkipCurve( r, 16 );
+			if ( readScale && scales[boneIndex] is { } track ) track.SetOrientation( ReadQuaternionCurve( r ) );
+			else SkipCurve( r, 16 );
 
 			if ( used )
 			{
@@ -908,7 +923,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			addFrame( boneTransforms );
 		}
 
-		static Curve<Quaternion> ReadQuaternionCurve( ref Reader r )
+		static Curve<Quaternion> ReadQuaternionCurve( Reader r )
 		{
 			int keys = r.Int();
 			var times = r.Floats( keys );
@@ -917,15 +932,15 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			for ( int i = 0; i < keys; i++ ) values[i] = r.ReadQuaternion();
 			return new Curve<Quaternion> { Times = times, Values = values };
 		}
-
-		static void SkipCurve( ref Reader r, int valueSize )
-		{
-			int keys = r.Int();
-			r.Skip( (long)keys * (4 + valueSize) );
-		}
 	}
 
-	static Curve<Vector3> ReadVector3Curve( ref Reader r )
+	static void SkipCurve( Reader r, int valueSize )
+	{
+		int keys = r.Int();
+		r.Skip( (long)keys * (4 + valueSize) );
+	}
+
+	static Curve<Vector3> ReadVector3Curve( Reader r )
 	{
 		int keys = r.Int();
 		var times = r.Floats( keys );
@@ -936,7 +951,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	}
 
 	private static void AddUncompressedFrames( Action<Transform[]> addFrame, ParsedAnimation anim,
-		ParsedModel model, ref Reader r, Transform[] boneTransforms, bool bakeScale )
+		ParsedModel model, Reader r, Transform[] boneTransforms, bool bakeScale )
 	{
 		int boneCount = model.Bones.Length;
 
@@ -1003,12 +1018,16 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		return -1;
 	}
 
+	private ModelLoader externalAnimationSource;
+
 	private ModelLoader AnimationSource()
 	{
-		if ( Source.Animations.Length > 0 || string.IsNullOrEmpty( Source.ExternalModel ) ) return this;
-		var path = ResolveExternalPath( Source.ExternalModel );
-		if ( path is not null && Host.GetByPath( $"mount://{Host.Ident}/{path}.vmdl" ) is ModelLoader source ) return source;
-		Log.Warning( $"NS2 model: could not resolve external model '{Source.ExternalModel}'" );
+		if ( externalAnimationSource is not null ) return externalAnimationSource;
+		var model = Source;
+		if ( model.Animations.Length > 0 || string.IsNullOrEmpty( model.ExternalModel ) ) return this;
+		var path = ResolveExternalPath( model.ExternalModel );
+		if ( path is not null && Host.GetByPath( $"mount://{Host.Ident}/{path}.vmdl" ) is ModelLoader source ) return externalAnimationSource = source;
+		Log.Warning( $"NS2 model: could not resolve external model '{model.ExternalModel}'" );
 		return this;
 	}
 
@@ -1169,28 +1188,30 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		foreach ( var set in model.FaceSets )
 		{
 			if ( set.NumFaces == 0 ) continue;
-			var vertices = new List<SkinnedVertex>();
+			int vertexCount = 0;
 			var indices = new int[set.NumFaces * 3];
 			var bounds = new BBox { Mins = float.MaxValue, Maxs = float.MinValue };
 			int first = set.FirstFace * 3;
 			for ( int i = 0; i < indices.Length; i++ )
 			{
 				int index = model.Indices[first + i];
-				if ( remap[index] < 0 )
-				{
-					var v = model.Vertices[index];
-					remap[index] = vertices.Count;
-					vertices.Add( v );
-					bounds = bounds.AddPoint( v.position );
-				}
+				if ( remap[index] < 0 ) remap[index] = vertexCount++;
 				indices[i] = remap[index];
 			}
 
+			var vertices = new SkinnedVertex[vertexCount];
 			for ( int i = 0; i < indices.Length; i++ )
-				remap[model.Indices[first + i]] = -1;
+			{
+				int index = model.Indices[first + i];
+				int local = remap[index];
+				if ( local < 0 ) continue;
+				vertices[local] = model.Vertices[index];
+				bounds = bounds.AddPoint( vertices[local].position );
+				remap[index] = -1;
+			}
 
 			var name = (uint)set.MaterialIndex < (uint)model.Materials.Length ? model.Materials[set.MaterialIndex] : null;
-			yield return (set, ResolveMaterial( name ), vertices.ToArray(), indices, bounds);
+			yield return (set, ResolveMaterial( name ), vertices, indices, bounds);
 		}
 	}
 

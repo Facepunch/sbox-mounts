@@ -9,7 +9,7 @@ public partial class MaterialLoader
 		protected override object Load()
 		{
 			var material = (MaterialLoader)Parent;
-			var properties = Parse( Host.ReadAllBytes( material.FilePath ) );
+			var properties = material.Properties;
 			var source = Find( properties, "emissiveMap" ).String ?? Find( properties, "albedoMap" ).String;
 			if ( !GameMount.TryResolve( Host.FileSystem, source, out var path ) ) return null;
 

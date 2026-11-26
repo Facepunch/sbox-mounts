@@ -1,5 +1,5 @@
 using System;
-using System.Buffers.Binary;
+using static System.Buffers.Binary.BinaryPrimitives;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -222,7 +222,7 @@ internal static class LevelGroups
 
 internal sealed class LevelMesh
 {
-	public Vector3[] Positions { get; private set; } = Array.Empty<Vector3>();
+	public List<Vector3> Positions { get; } = [];
 	public Vector3[] Normals { get; private set; } = Array.Empty<Vector3>();
 	public string[] Materials { get; private set; } = Array.Empty<string>();
 	public int[] FaceMaterial { get; private set; } = Array.Empty<int>();
@@ -233,7 +233,7 @@ internal sealed class LevelMesh
 	public float[] FaceScaleV { get; private set; } = Array.Empty<float>();
 	public int[] FaceMappingGroup { get; private set; } = Array.Empty<int>();
 	public Dictionary<int, TextureMapping> TextureMappings { get; } = new();
-	public Tri[] Triangles { get; private set; } = Array.Empty<Tri>();
+	public List<Tri> Triangles { get; } = [];
 
 	/// <summary>Faces that Spark never renders (see <see cref="LevelGroups"/>).</summary>
 	public bool[] FaceHidden { get; private set; } = Array.Empty<bool>();
@@ -266,17 +266,16 @@ internal sealed class LevelMesh
 		}
 
 		var mesh = new LevelMesh();
-		var positions = new List<Vector3>();
 
 		if ( subs.TryGetValue( 1, out var s1 ) )
 		{
 			r.SeekChunk( s1.Off, s1.Len );
 			int extra = version > 7 ? 1 : 0;
 			int count = r.ReadCount( 12 + extra );
-			positions.Capacity = count;
+			mesh.Positions.Capacity = count;
 			for ( int i = 0; i < count; i++ )
 			{
-				positions.Add( ReadVec3( r ) );
+				mesh.Positions.Add( ReadVec3( r ) );
 				r.Skip( extra );
 			}
 		}
@@ -299,7 +298,8 @@ internal sealed class LevelMesh
 			if ( version > 6 )
 			{
 				int cA = r.ReadCount( 12 );
-				for ( int i = 0; i < cA; i++ ) positions.Add( ReadVec3( r ) );
+				mesh.Positions.EnsureCapacity( mesh.Positions.Count + cA );
+				for ( int i = 0; i < cA; i++ ) mesh.Positions.Add( ReadVec3( r ) );
 			}
 			if ( version > 8 )
 			{
@@ -309,24 +309,21 @@ internal sealed class LevelMesh
 			}
 
 			int numFaces = r.ReadCount( 4 );
-			r.ReadInt32();
+			int triangleCount = r.ReadInt32();
+			int stride = version > 8 ? 24 : 12;
+			if ( triangleCount > 0 && triangleCount <= (r.End - r.Position) / stride )
+				mesh.Triangles.Capacity = triangleCount;
 
-			var tris = new List<Tri>();
 			for ( int f = 0; f < numFaces; f++ )
 			{
-				int inner = r.ReadCount( version > 8 ? 24 : 12 );
+				int inner = r.ReadCount( stride );
 				for ( int t = 0; t < inner; t++ )
 				{
-					int v0 = r.ReadInt32();
-					int v1 = r.ReadInt32();
-					int v2 = r.ReadInt32();
-					int n0 = version > 8 ? r.ReadInt32() : -1;
-					int n1 = version > 8 ? r.ReadInt32() : -1;
-					int n2 = version > 8 ? r.ReadInt32() : -1;
-					tris.Add( new Tri( f, v0, v1, v2, n0, n1, n2 ) );
+					var (v0, v1, v2) = ReadIndices( r );
+					var (n0, n1, n2) = version > 8 ? ReadIndices( r ) : (-1, -1, -1);
+					mesh.Triangles.Add( new Tri( f, v0, v1, v2, n0, n1, n2 ) );
 				}
 			}
-			mesh.Triangles = tris.ToArray();
 		}
 
 		if ( subs.TryGetValue( 3, out var s3 ) )
@@ -358,8 +355,6 @@ internal sealed class LevelMesh
 				}
 			}
 		}
-
-		mesh.Positions = positions.ToArray();
 
 		if ( subs.TryGetValue( 7, out var s7 ) )
 		{
@@ -452,6 +447,12 @@ internal sealed class LevelMesh
 		if ( count > mesh.FaceMaterial.Length || encoding != 2 )
 			throw new InvalidDataException( "Unsupported NS2 face layer data." );
 
+		var flags = layers.Values.Where( layer => (uint)layer.Id < 256 ).Select( layer => (
+			Word: layer.Id / 32, Mask: 1u << (layer.Id % 32),
+			ShadowOnly: layer.Name is "Light Block" or "BlockLight" or "Light Block Geo",
+			Hidden: LevelGroups.IsHidden( layer.Name ), NonSolid: LevelGroups.IsNonSolid( layer.Name )
+		) ).ToArray();
+
 		Span<uint> words = stackalloc uint[8];
 		for ( int face = 0; face < count; face++ )
 		{
@@ -462,22 +463,21 @@ internal sealed class LevelMesh
 			if ( wordCount > words.Length )
 				throw new InvalidDataException( "NS2 face layer mask exceeds 256 layers." );
 
-			words.Clear();
 			for ( int word = 0; word < wordCount; word++ )
 				words[word] = r.ReadUInt32();
 
-			foreach ( var layer in layers.Values )
+			foreach ( var layer in flags )
 			{
-				if ( (uint)layer.Id >= 256 || (words[layer.Id / 32] & (1u << (layer.Id % 32))) == 0 )
+				if ( layer.Word >= wordCount || (words[layer.Word] & layer.Mask) == 0 )
 					continue;
 
-				mesh.FaceShadowOnly[face] |= layer.Name is "Light Block" or "BlockLight" or "Light Block Geo";
+				mesh.FaceShadowOnly[face] |= layer.ShadowOnly;
 
 				if ( groupedFaces[face] )
 					continue;
 
-				mesh.FaceHidden[face] = LevelGroups.IsHidden( layer.Name );
-				mesh.FaceNonSolid[face] = LevelGroups.IsNonSolid( layer.Name );
+				mesh.FaceHidden[face] = layer.Hidden;
+				mesh.FaceNonSolid[face] = layer.NonSolid;
 			}
 		}
 
@@ -485,11 +485,18 @@ internal sealed class LevelMesh
 			throw new InvalidDataException( "Unexpected NS2 face layer data." );
 	}
 
+	private static (int, int, int) ReadIndices( LevelReader r )
+	{
+		var bytes = r.ReadSpan( 12 );
+		return (ReadInt32LittleEndian( bytes ), ReadInt32LittleEndian( bytes[4..] ), ReadInt32LittleEndian( bytes[8..] ));
+	}
+
 	private static Vector3 ReadVec3( LevelReader r )
 	{
-		float x = r.ReadSingle();
-		float y = r.ReadSingle();
-		float z = r.ReadSingle();
+		var bytes = r.ReadSpan( 12 );
+		float x = ReadSingleLittleEndian( bytes );
+		float y = ReadSingleLittleEndian( bytes[4..] );
+		float z = ReadSingleLittleEndian( bytes[8..] );
 		return new Vector3( Sanitize( x ), Sanitize( y ), Sanitize( z ) );
 	}
 
@@ -520,11 +527,11 @@ internal readonly struct LevelValue
 	private float Float( int index )
 	{
 		int offset = index * 4;
-		return offset + 4 <= data.Length ? BinaryPrimitives.ReadSingleLittleEndian( data.Span[offset..] ) : 0f;
+		return offset + 4 <= data.Length ? ReadSingleLittleEndian( data.Span[offset..] ) : 0f;
 	}
 
 	public float AsFloat() => Float( 0 );
-	public int AsInt() => data.Length >= 4 ? BinaryPrimitives.ReadInt32LittleEndian( data.Span ) : 0;
+	public int AsInt() => data.Length >= 4 ? ReadInt32LittleEndian( data.Span ) : 0;
 	public bool AsBool() => AsInt() != 0;
 
 	public Vector3 AsVector3() => new( Float( 0 ), Float( 1 ), Float( 2 ) );
@@ -532,7 +539,7 @@ internal readonly struct LevelValue
 	public string AsString()
 	{
 		if ( data.Length < 4 ) return string.Empty;
-		int chars = BinaryPrimitives.ReadInt32LittleEndian( data.Span );
+		int chars = ReadInt32LittleEndian( data.Span );
 		if ( chars < 0 || chars > (data.Length - 4) / 2 )
 			throw new InvalidDataException( "Invalid NS2 string value length." );
 		return Encoding.Unicode.GetString( data.Span.Slice( 4, chars * 2 ) );
@@ -573,16 +580,20 @@ internal sealed class LevelReader( byte[] bytes )
 		return count;
 	}
 
-	public int ReadInt32() => BinaryPrimitives.ReadInt32LittleEndian( ReadBytes( 4 ).Span );
-	public uint ReadUInt32() => BinaryPrimitives.ReadUInt32LittleEndian( ReadBytes( 4 ).Span );
-	public float ReadSingle() => BinaryPrimitives.ReadSingleLittleEndian( ReadBytes( 4 ).Span );
-	public byte ReadByte() => ReadBytes( 1 ).Span[0];
+	public int ReadInt32() => ReadInt32LittleEndian( ReadSpan( 4 ) );
+	public uint ReadUInt32() => ReadUInt32LittleEndian( ReadSpan( 4 ) );
+	public float ReadSingle() => ReadSingleLittleEndian( ReadSpan( 4 ) );
+	public byte ReadByte() => ReadSpan( 1 )[0];
 
-	public ReadOnlyMemory<byte> ReadBytes( int count )
+	public ReadOnlyMemory<byte> ReadBytes( int count ) => bytes.AsMemory( Advance( count ), count );
+
+	public ReadOnlySpan<byte> ReadSpan( int count ) => bytes.AsSpan( Advance( count ), count );
+
+	private int Advance( int count )
 	{
 		Require( count );
-		var data = bytes.AsMemory( (int)Position, count );
+		int offset = (int)Position;
 		Position += count;
-		return data;
+		return offset;
 	}
 }
