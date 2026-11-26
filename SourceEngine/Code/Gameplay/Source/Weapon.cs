@@ -255,13 +255,24 @@ public abstract class Weapon : BaseCombatWeapon
 	/// </summary>
 	protected virtual void OnViewModelPlaced( ViewModel model ) { }
 
+	GameObject _bulletAttacker;
+	string[] _bulletIgnoreTags;
+
+	internal static string OwnedProjectileTag( GameObject owner ) => owner.Id.ToString( "N" );
+
 	/// <summary>Bullets go through hitboxes and skip the player controller's own collider.</summary>
 	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius )
 	{
+		var attacker = Attacker;
+		if ( _bulletAttacker != attacker || _bulletIgnoreTags is null )
+		{
+			_bulletAttacker = attacker;
+			_bulletIgnoreTags = ["playercontroller", OwnedProjectileTag( attacker )];
+		}
 		return Scene.Trace.Ray( ray, distance )
 			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
 			.WithCollisionRules( "bullet" )
-			.WithoutTags( "playercontroller" )
+			.WithoutTags( _bulletIgnoreTags )
 			.Radius( radius )
 			.UseHitboxes();
 	}

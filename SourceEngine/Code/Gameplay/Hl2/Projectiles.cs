@@ -351,8 +351,10 @@ public sealed class Grenade : Projectile
 [Title( "HL2 Contact Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2ContactGrenade", "Hl2ContactGrenade" )]
-public sealed class ContactGrenade : Projectile
+public sealed class ContactGrenade : Projectile, Component.IDamageable
 {
+	[RequireComponent] BoxCollider Hull { get; set; }
+	bool _detonated;
 	readonly Angles _angularVelocity = new( Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ), Game.Random.Float( -400, 400 ) );
 	Angles _angles;
 	protected override Rotation NextRotation()
@@ -361,8 +363,27 @@ public sealed class ContactGrenade : Projectile
 		return _angles.ToRotation();
 	}
 	protected override float Gravity => 400;
-	protected override void Hit( SceneTraceResult tr ) => Explode();
-	protected override void Expire() => Explode();
+	protected override void OnEnabled()
+	{
+		Hull.Scale = Vector3.One * 6;
+		if ( Networking.IsHost && Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
+	}
+
+	public void OnDamage( in DamageInfo damage )
+	{
+		if ( Networking.IsHost && damage.Damage > 0 ) Detonate();
+	}
+
+	protected override void Hit( SceneTraceResult tr ) => Detonate();
+	protected override void Expire() => Detonate();
+
+	void Detonate()
+	{
+		if ( _detonated ) return;
+		_detonated = true;
+		Hull.Enabled = false;
+		Explode();
+	}
 }
 
 /// <summary>AR2 alt-fire combine ball: bounces for its skill-defined duration, then bursts.</summary>
