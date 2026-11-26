@@ -154,19 +154,30 @@ static partial class WeaponEffects
 
 	static void MetalSparks( Vector3 origin, Vector3 incoming, Vector3 normal, string mount )
 	{
+		const float maxSpeed = 512;
+		const float maxLifetime = 0.1f;
 		var reflected = incoming - normal * (2 * incoming.Dot( normal )) + Particles.InCube( 0.2f );
 		var count = 2 * Game.Random.Int( 4, 8 );
-		var effect = SparkTrails( origin, mount, count, new( 0.05f, 0.1f ), new( 1, 4 ), ImpactTrailStretch, 400, true );
-		if ( effect.IsValid() )
+		var material = Material.Load( $"mount://{mount}/materials/effects/spark.vmt.vmat" );
+		if ( material.IsValid() && !material.IsError )
 		{
+			var go = new GameObject( true, "effects/spark" ) { NetworkMode = NetworkMode.Never, WorldPosition = origin };
+			var effect = go.AddComponent<ParticleEffect>();
+			effect.MaxParticles = count;
+			effect.Lifetime = new ParticleFloat( 0.05f, maxLifetime );
+			effect.ApplyShape = true;
+			effect.InitialScale = new ParticleFloat( 1, 4 );
+			effect.Force = true;
+			effect.ForceDirection = Vector3.Down * 400;
 			effect.Damping = 8;
-			effect.Bounce = 0.25f;
+			go.AddComponent<ImpactStreaks>().Initialize( effect, material, ImpactTrailStretch, 4 + 2 * maxSpeed * (maxLifetime + 0.1f) );
+			effect.Invoke( maxLifetime, effect.DestroyGameObject );
 			for ( var i = 0; i < count; i++ )
 			{
 				var spread = Game.Random.Float( 0, 2 );
 				var dir = (reflected + Particles.InCube( 0.5f * spread )).Normal;
 				var spark = effect.Emit( origin, 0 );
-				if ( spark is not null ) spark.Velocity = dir * Game.Random.Float( 128, 512 ) * (2 - spread);
+				if ( spark is not null ) spark.Velocity = dir * Game.Random.Float( 128, maxSpeed ) * (2 - spread);
 			}
 		}
 		Hl2.FlatQuad.Create( "effects/yellowflare", origin, normal, Game.Random.Int( 24, 28 ), 0, 0.1f, mount, linear: true );
