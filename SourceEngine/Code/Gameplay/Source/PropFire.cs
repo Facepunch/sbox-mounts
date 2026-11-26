@@ -5,12 +5,13 @@ namespace Source1;
 public sealed class PropFire : Component
 {
 	Prop _target;
-	TimeUntil _expires;
+	[Sync] TimeUntil Expires { get; set; }
 	TimeUntil _nextDamage;
 
 	internal static PropFire Ignite( Prop target )
 	{
 		if ( !Networking.IsHost ) return null;
+		if ( target.GetComponentsInChildren<PropFire>().FirstOrDefault( x => x.GameObject.Parent == target.GameObject ) is { } existing ) return existing;
 		var prefab = ResourceLibrary.Get<PrefabFile>( "/prefabs/engine/ignite.prefab" );
 		if ( prefab is null ) return null;
 
@@ -19,24 +20,28 @@ public sealed class PropFire : Component
 		fire.GetComponent<FireDamage>( true )?.Destroy();
 		foreach ( var emitter in fire.GetComponentsInChildren<ParticleModelEmitter>( true ) ) emitter.Target = target.GameObject;
 		var burn = fire.AddComponent<PropFire>();
-		burn._target = target;
-		burn._expires = Game.Random.Float( 10, 15 );
-		burn._nextDamage = 0.1f;
+		burn.Expires = Game.Random.Float( 10, 15 );
 		fire.Enabled = true;
 		fire.NetworkSpawn( true, null );
 		return burn;
 	}
 
+	protected override void OnStart()
+	{
+		_target = GetComponentInParent<Prop>();
+		_nextDamage = 0.1f;
+	}
+
 	protected override void OnFixedUpdate()
 	{
-		if ( !Networking.IsHost ) return;
-		if ( !_target.IsValid() || _expires <= 0 )
+		if ( !_target.IsValid() || Expires <= 0 )
 		{
-			GameObject.Destroy();
+			if ( !IsProxy ) GameObject.Destroy();
 			return;
 		}
 		if ( _nextDamage > 0 ) return;
 		_nextDamage += 0.2f;
+		if ( _target.IsProxy ) return;
 		_target.OnDamage( new DamageInfo { Damage = 1, Position = WorldPosition, Origin = WorldPosition, Attacker = GameObject, Weapon = GameObject, Tags = { "fire", "burn" } } );
 	}
 }

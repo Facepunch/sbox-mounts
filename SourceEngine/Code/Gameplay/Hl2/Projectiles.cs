@@ -317,7 +317,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 [Title( "HL2 Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Grenade", "Hl2Grenade" )]
-public sealed class Grenade : Projectile
+public sealed partial class Grenade : Projectile
 {
 	// GRENADE_TIMER and GRENADE_RADIUS.
 	public const float Fuse = 2.5f;

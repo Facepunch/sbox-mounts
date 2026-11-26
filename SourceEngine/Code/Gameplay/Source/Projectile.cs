@@ -257,7 +257,8 @@ public abstract class Projectile : Component
 			Damage = Damage,
 			ForceScale = 1.5f,
 			Prefab = prefab
-		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0 );
+		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0, applyDamage: this is not Hl2.Grenade );
+		if ( this is Hl2.Grenade frag ) frag.ApplyBlast();
 
 		if ( prefab is not null && blast.IsValid() ) ExplosionEffects( WorldPosition, MountName, depth, Damage );
 		GameObject.Destroy();

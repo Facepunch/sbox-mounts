@@ -31,7 +31,7 @@ sealed class Explosion
 	}
 
 	/// <summary>Returns null when the blast couldn't be spawned.</summary>
-	public GameObject Spawn( bool playPrefabSound = true, bool playPrefabParticle = true )
+	public GameObject Spawn( bool playPrefabSound = true, bool playPrefabParticle = true, bool applyDamage = true )
 	{
 		var scene = Source.IsValid() ? Source.Scene : Game.ActiveScene;
 		if ( !scene.IsValid() ) return null;
@@ -54,6 +54,7 @@ sealed class Explosion
 
 		go.RunEvent<RadiusDamage>( x =>
 		{
+			if ( !applyDamage ) x.DamageOnEnabled = false;
 			x.Radius = Radius;
 			x.PhysicsForceScale = ForceScale;
 			x.DamageAmount = Damage;
