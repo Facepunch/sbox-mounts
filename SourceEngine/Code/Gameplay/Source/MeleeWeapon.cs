@@ -40,6 +40,12 @@ public class MeleeWeapon : Weapon
 
 	public bool CanAttack() => NextPrimaryFire <= 0;
 
+	protected override void OnEquipped()
+	{
+		base.OnEquipped();
+		_ = WeaponSetup.ConfigureWeapon( this );
+	}
+
 	public override bool CanSecondaryAttack() => false;
 
 	/// <summary>
