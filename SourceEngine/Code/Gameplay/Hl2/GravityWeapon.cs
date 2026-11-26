@@ -34,6 +34,8 @@ public sealed class GravityWeapon : Weapon
 	[Sync] public bool Pulling { get; set; }
 	const float MaxCarrySpeed = 2500;
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
+	readonly List<(Rigidbody Body, float MassOverride)> _carriedBodies = [];
+	float _loadWeight;
 	Vector3 _carryTarget;
 	Rotation _holdOffset;
 	float? _launchSpin;
@@ -231,6 +233,7 @@ public sealed class GravityWeapon : Weapon
 		{
 			part.ApplyImpulse( forward * (15000 * share) );
 			part.ApplyImpulseAt( hit, forward * (MathF.Min( totalMass, MaxMass ) * 600 * share) );
+			part.Velocity = part.Velocity.ClampLength( 4000 );
 		}
 	}
 
@@ -289,6 +292,7 @@ public sealed class GravityWeapon : Weapon
 			Hold();
 			return;
 		}
+		if ( _carriedBodies.Count > 0 ) Release();
 		if ( Pulling && Active && NextSecondaryFire <= 0 ) Pull();
 	}
 
@@ -316,6 +320,7 @@ public sealed class GravityWeapon : Weapon
 		}
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
+		SetCarryMass( body );
 		var interactions = body.GetComponent<ModelRenderer>()?.Model?.GetData<PhysGunInteractions>();
 		_holdOffset = interactions?.PreferredCarryAngles is { } angles ? Rotation.From( angles ) : Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
 		_launchSpin = interactions?.LaunchSpin;
@@ -326,6 +331,24 @@ public sealed class GravityWeapon : Weapon
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
 		CarryEffects( CarryResult.Pickup );
+	}
+
+	void SetCarryMass( Rigidbody grabbed )
+	{
+		if ( grabbed.GetComponentInParent<ModelPhysics>() is { Bodies.Count: > 1 } model )
+		{
+			var mass = MathF.Min( 1, 7.5f / model.Bodies.Count );
+			foreach ( var part in model.Bodies )
+				SetMass( part.Component, part.Component == grabbed ? 1 : mass );
+		}
+		else SetMass( grabbed, 1 );
+
+		void SetMass( Rigidbody body, float mass )
+		{
+			_loadWeight += body.Mass;
+			_carriedBodies.Add( (body, body.MassOverride) );
+			body.MassOverride = mass;
+		}
 	}
 
 	bool CanContinueCarry( Rigidbody body )
@@ -373,7 +396,7 @@ public sealed class GravityWeapon : Weapon
 		var contact = Scene.Trace.Body( body, body.PhysicsBody.Position + velocity * Time.Delta )
 			.IgnoreGameObjectHierarchy( HeldObject ).WithoutTags( "trigger" ).Run();
 		var other = contact.GameObject?.GetComponentInParent<Rigidbody>();
-		bool obstructed = contact.Hit && (other is not { MotionEnabled: true } || other.Mass > body.Mass);
+		bool obstructed = contact.Hit && (other is not { MotionEnabled: true } || other.Mass > _loadWeight);
 		if ( obstructed )
 			velocity -= contact.Normal * (MathF.Min( velocity.Dot( contact.Normal ), 0 ) * (1 - contact.Fraction));
 		body.Velocity = velocity;
@@ -393,6 +416,10 @@ public sealed class GravityWeapon : Weapon
 	{
 		var held = HeldObject;
 		HeldObject = null;
+		foreach ( var (part, massOverride) in _carriedBodies )
+			if ( part.IsValid() ) part.MassOverride = massOverride;
+		_carriedBodies.Clear();
+		_loadWeight = 0;
 		if ( !held.IsValid() ) return;
 		if ( held.GetComponent<Rigidbody>() is { } body && CanMove( body ) )
 		{
