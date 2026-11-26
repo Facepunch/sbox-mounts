@@ -4,7 +4,7 @@ using System;
 
 namespace Halo2;
 
-internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
+internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
 {
 	internal string Title => title;
 
@@ -48,9 +48,10 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 	}
 
-	internal void RegisterDetonation( MountContext context, HashSet<string> registered )
+	internal void RegisterEffects( MountContext context, HashSet<string> registered )
 	{
 		Register( context, DetonationEffect );
+		if ( Name == "plasma_pistol" ) RegisterLightVolumes( context, registered );
 		if ( Name == "needler" ) Register( context, Reference( Address( Reference( PrimaryBarrel + 0x8c ) ) + 0x110 ) );
 
 		void Register( MountContext mount, TagEntry tag )
@@ -226,6 +227,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.Trail = ReadTrail( projectile );
 		int flags = map.ReadInt32( projectile + 0xbc );
 		gun.Orientation = ReadOrientation( flags );
+		gun.TargetLeading = Float( projectile + 0x198 );
 		gun.Instantaneous = (flags & 32) != 0;
 		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 		gun.SpeedProfile = ReadSpeedProfile( projectile );
@@ -295,6 +297,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		{
 			var pistol = ConfigurePickup<PlasmaPistol>( root, world, title );
 			pistol.LatchTicks = (int)MathF.Round( Float( PrimaryTrigger + 16 ) * 30 );
+			pistol.ProjectileVolume = VolumePath( Address( Reference( barrel + 0x8c ) ) );
 			pistol.ChargeTicks = (int)MathF.Round( Float( PrimaryTrigger + 28 ) * 30 );
 			pistol.ChargeSound = ReadSoundTrack( "primary_charged" );
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
@@ -307,7 +310,10 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				fades ? Float( bolt + 0x16c ) * 120 : 0, fades ? Float( bolt + 0x178 ) * 120 : 0,
 				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
 				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
-				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 ) { SpeedProfile = ReadSpeedProfile( bolt ), Orientation = ReadOrientation( flags ) };
+				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 )
+			{
+				SpeedProfile = ReadSpeedProfile( bolt ), Orientation = ReadOrientation( flags ), TargetLeading = Float( bolt + 0x198 ), Volume = VolumePath( bolt )
+			};
 			gun = pistol;
 		}
 		else gun = ConfigurePickup<BatteryWeapon>( root, world, title );

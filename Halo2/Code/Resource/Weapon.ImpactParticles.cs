@@ -7,9 +7,10 @@ namespace Halo2;
 
 internal abstract partial class WeaponLoader
 {
-	protected CurveRange ReadRange( int property, float units, bool fraction = false )
+	protected CurveRange ReadRange( int property, float units, bool fraction = false ) => ReadCurveRange( Block( property + 8 ), units, fraction );
+
+	protected CurveRange ReadCurveRange( int data, float units, bool fraction = false )
 	{
-		int data = Block( property + 8 );
 		float min = fraction ? 0 : Float( data + 4 ) * units, span = fraction ? 1 : Float( data + 8 ) * units - min;
 		int kind = map.ReadSpan( data, 1 )[0];
 		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;

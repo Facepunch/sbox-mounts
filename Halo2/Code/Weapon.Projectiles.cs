@@ -23,8 +23,10 @@ public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistic
 	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
 	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange )
 {
+	public string Volume { get; init; }
 	public ProjectileSpeedProfile SpeedProfile { get; init; }
 	public ProjectileOrientation Orientation { get; init; }
+	public float TargetLeading { get; init; }
 }
 
 public abstract partial class Weapon
@@ -32,8 +34,10 @@ public abstract partial class Weapon
 	[Property] public float MinimumPelletAngle { get; set; } = 2;
 	[Property] public BounceDefinition Bounce { get; set; }
 	[Property] public ShardDefinition Shard { get; set; }
+	[Property] public string ProjectileVolume { get; set; }
 	[Property] public string ProjectileModel { get; set; }
 	[Property] public ProjectileOrientation Orientation { get; set; }
+	[Property] public float TargetLeading { get; set; }
 	[Property] public ProjectileSpeedProfile SpeedProfile { get; set; }
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AirGravityScale { get; set; }
@@ -71,7 +75,7 @@ public abstract partial class Weapon
 		public float TurnRate;
 		public float FuseSeconds;
 		public ProjectileContrail Trail;
-		public GameObject Model;
+		public GameObject Body;
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
@@ -93,6 +97,8 @@ public abstract partial class Weapon
 		var ballistics = discharge?.Ballistics ?? Ballistics;
 		if ( speed <= 0 || ballistics.Range < 0 ) return;
 		var model = ProjectileModel is { Length: > 0 } path ? Model.Load( path ) : null;
+		var volumePath = discharge is null ? ProjectileVolume : discharge.Volume;
+		var volume = volumePath is null ? null : GameObject.GetPrefab( volumePath );
 		var pellets = new Pellet[ballistics.Pellets];
 		var guidance = ProjectileLock;
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
@@ -107,14 +113,14 @@ public abstract partial class Weapon
 				pellets[i].TurnRate = (float)SampleRange( shard.TurnRate, ref randomState );
 				pellets[i].FuseSeconds = (float)(System.Math.Ceiling( SampleRange( shard.FuseSeconds, ref randomState ) * 30 ) / 30);
 			}
-			if ( model is { IsError: false } )
+			if ( volume.IsValid() || model is { IsError: false } )
 			{
-				var body = new GameObject( false, model.Name );
+				var body = volume.IsValid() ? volume.Clone( new CloneConfig { StartEnabled = false } ) : new GameObject( false, model.Name );
 				body.NetworkMode = NetworkMode.Object;
 				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward, Perpendicular( forward ) ) );
-				body.AddComponent<ModelRenderer>().Model = model;
+				if ( model is { IsError: false } ) body.AddComponent<ModelRenderer>().Model = model;
 				body.NetworkSpawn( true, null );
-				pellets[i].Model = body;
+				pellets[i].Body = body;
 			}
 			if ( trail is { Lifetime: > 0, PointRate: > 0 } )
 				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity );
@@ -144,6 +150,9 @@ public abstract partial class Weapon
 		}
 		var ballistics = discharge?.Ballistics ?? Ballistics;
 		var orientation = discharge?.Orientation ?? Orientation;
+		float leading = discharge?.TargetLeading ?? TargetLeading;
+		var targetBody = target.IsValid() ? target.GetComponentInParent<Sandbox.Npcs.BaseNpc>()?.GameObject
+			?? target.GetComponentInParent<PlayerController>()?.GameObject ?? target : null;
 		bool alongVelocity = (orientation & ProjectileOrientation.AlongVelocity) != 0;
 		float minDamage = discharge?.MinimumDamage ?? MinimumDamage;
 		float dryRange = discharge?.DryFalloff ?? DamageFalloffRange, wetRange = discharge?.WetFalloff ?? UnderwaterDamageFalloffRange;
@@ -190,7 +199,7 @@ public abstract partial class Weapon
 			{
 				var pellet = pellets[i];
 				var start = origin + pellet.Offset;
-				if ( pellet.Model is not null && !pellet.Model.IsValid() )
+				if ( pellet.Body is not null && !pellet.Body.IsValid() )
 				{
 					// A world cleanup can remove a live projectile before it reaches a contact.
 					if ( pellet.Trail.IsValid() ) pellet.Trail.Finish( start, firedAt + tick / 30.0 );
@@ -200,7 +209,7 @@ public abstract partial class Weapon
 				}
 				if ( pellet.DetonateAtTick > 0 && tick >= pellet.DetonateAtTick )
 				{
-					if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
+					if ( pellet.Body.IsValid() ) pellet.Body.Destroy();
 					pellet.Trail?.Finish( start, firedAt + tick / 30.0 );
 					if ( blast is not null ) Detonate( scene, blast, start, Vector3.Zero, attacker );
 					if ( detonation is not null ) PresentDetonation( detonation, scene, start, Vector3.Up, pellet.Velocity.Normal );
@@ -212,7 +221,15 @@ public abstract partial class Weapon
 				var startingVelocity = pellet.Velocity;
 				if ( target.IsValid() && pellet.TurnRate > 0 )
 				{
-					var desired = (target.WorldTransform.PointToWorld( localPoint ) - start).Normal;
+					var delta = target.WorldTransform.PointToWorld( localPoint ) - start;
+					if ( leading > 0 )
+					{
+						var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( targetBody );
+						float seconds = System.MathF.Min( 2, delta.Length / pellet.Velocity.Length );
+						// Halo caps the prediction at two seconds and two world units.
+						delta += (velocity * (leading * seconds)).ClampLength( 240 );
+					}
+					var desired = delta.Normal;
 					var direction = pellet.Velocity.Normal;
 					var axis = Vector3.Cross( direction, desired );
 					if ( axis.LengthSquared > 0 && ((orientation & ProjectileOrientation.CanTrackBehind) != 0 || direction.Dot( desired ) > 0) )
@@ -222,8 +239,8 @@ public abstract partial class Weapon
 						if ( (orientation & ProjectileOrientation.SteeringAdjustsOrientation) != 0 )
 						{
 							pellet.Forward = desired;
-							if ( pellet.Model.IsValid() )
-								pellet.Model.WorldRotation = ProjectileRotation( desired, pellet.Model.WorldRotation.Up );
+							if ( pellet.Body.IsValid() )
+								pellet.Body.WorldRotation = ProjectileRotation( desired, pellet.Body.WorldRotation.Up );
 						}
 					}
 				}
@@ -262,10 +279,10 @@ public abstract partial class Weapon
 				{
 					pellet.Offset += displacement;
 					pellet.Travelled += distance;
-					if ( pellet.Model.IsValid() )
+					if ( pellet.Body.IsValid() )
 					{
-						if ( atRange ) pellet.Model.Destroy();
-						else MoveProjectileModel( pellet, origin + pellet.Offset );
+						if ( atRange ) pellet.Body.Destroy();
+						else MoveProjectileBody( pellet, origin + pellet.Offset );
 					}
 					if ( atRange )
 					{
@@ -292,7 +309,7 @@ public abstract partial class Weapon
 						pellet.Travelled += hit.Distance;
 						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
 						if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
-						if ( pellet.Model.IsValid() ) MoveProjectileModel( pellet, hit.HitPosition );
+						if ( pellet.Body.IsValid() ) MoveProjectileBody( pellet, hit.HitPosition );
 						pellets[i] = pellet;
 						continue;
 					}
@@ -319,7 +336,7 @@ public abstract partial class Weapon
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				if ( Shard is {} shard && hit.GameObject.IsValid() && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );
-				else if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
+				else if ( pellet.Body.IsValid() ) pellet.Body.Destroy();
 				if ( blast is not null ) Detonate( scene, blast, hit.HitPosition, hit.Normal, attacker );
 				if ( detonation is not null ) PresentDetonation( detonation, hit.GameObject, hit.HitPosition, hit.Normal, hit.Direction );
 				pellets[i] = default;
@@ -334,10 +351,10 @@ public abstract partial class Weapon
 		}
 	}
 
-	static void MoveProjectileModel( Pellet pellet, Vector3 position )
+	static void MoveProjectileBody( Pellet pellet, Vector3 position )
 	{
-		var rotation = ProjectileRotation( pellet.Forward, pellet.Model.WorldRotation.Up );
-		pellet.Model.WorldTransform = new Transform( position, rotation );
+		var rotation = ProjectileRotation( pellet.Forward, pellet.Body.WorldRotation.Up );
+		pellet.Body.WorldTransform = new Transform( position, rotation );
 	}
 
 	static Rotation ProjectileRotation( Vector3 forward, Vector3 up ) =>
@@ -386,16 +403,16 @@ public abstract partial class Weapon
 	async System.Threading.Tasks.Task AttachShard( Scene scene, ShardDefinition shard, Pellet pellet, SceneTraceResult hit, GameObject attacker )
 	{
 		var target = hit.GameObject;
-		if ( !target.IsValid() ) { if ( pellet.Model.IsValid() ) pellet.Model.Destroy(); return; }
+		if ( !target.IsValid() ) { if ( pellet.Body.IsValid() ) pellet.Body.Destroy(); return; }
 		var body = hit.Hitbox?.Body;
 		var contact = new Transform( hit.HitPosition, Rotation.LookAt( hit.Direction ) );
 		var targetLocal = target.WorldTransform.ToLocal( contact );
 		var boneLocal = body.IsValid() ? body.Transform.ToLocal( contact ) : default;
 		var localNormal = contact.Rotation.Inverse * hit.Normal;
-		if ( pellet.Model.IsValid() )
+		if ( pellet.Body.IsValid() )
 		{
-			pellet.Model.WorldTransform = contact;
-			pellet.Model.SetParent( target, true );
+			pellet.Body.WorldTransform = contact;
+			pellet.Body.SetParent( target, true );
 		}
 		var clock = TaskSource.Create( scene.EnabledToken );
 		var owner = target.GetComponentInParent<PlayerController>()?.GameObject ?? target.GetComponentInParent<Sandbox.Npcs.BaseNpc>()?.GameObject ?? target;
@@ -418,7 +435,7 @@ public abstract partial class Weapon
 				{
 					contact = body.Transform.ToWorld( boneLocal );
 					targetLocal = target.WorldTransform.ToLocal( contact );
-					if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = contact;
+					if ( pellet.Body.IsValid() ) pellet.Body.WorldTransform = contact;
 				}
 				else contact = target.WorldTransform.ToWorld( targetLocal );
 				needle.Position = contact.Position;
@@ -441,7 +458,7 @@ public abstract partial class Weapon
 			await clock.Frame();
 		}
 		siblings.Remove( needle );
-		if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
+		if ( pellet.Body.IsValid() ) pellet.Body.Destroy();
 	}
 
 	protected virtual void ProjectileImpacts( Vector3 origin, PelletResult[] results ) =>

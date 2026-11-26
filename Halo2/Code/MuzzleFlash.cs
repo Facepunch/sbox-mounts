@@ -155,7 +155,7 @@ public sealed class MuzzleFlash : Component
 		return effect;
 	}
 
-	static Color InterpolateTint( Color32 start, Color32 end, float fraction )
+	internal static Color InterpolateTint( Color32 start, Color32 end, float fraction )
 	{
 		// Halo interpolates packed channels with a 14-bit fixed-point weight.
 		int weight = (int)System.MathF.Round( fraction.Clamp( 0, 1 ) * 16384 );
