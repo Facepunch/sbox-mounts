@@ -65,6 +65,12 @@ public sealed partial class RabbitGuard
 	void UpdateKnifeLayers()
 	{
 		if ( !forehand.Active && !backhand.Active ) return;
+		if ( boundAnimations.KnifeSwings.Count == 0 )
+		{
+			forehand.Active = backhand.Active = false;
+			currentKnifeLayer = null;
+			return;
+		}
 		Renderer.Animation.Parameters.Set( "knife_backhand_newest", currentKnifeLayer == backhand );
 		Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );
 		Advance( forehand );

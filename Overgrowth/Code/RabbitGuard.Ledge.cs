@@ -202,7 +202,11 @@ public sealed partial class RabbitGuard
 	internal bool AdvanceLedge()
 	{
 		if ( !approachingLedge && !leavingLedge && LedgeAnimation is null ) return false;
-		if ( Downed || PhysicsCarrier.IsValid() || Health < 1f ) { EndLedge(); return false; }
+		if ( Downed || PhysicsCarrier.IsValid() || Health < 1f || boundAnimations is null || !Movement.IsValid() || !MovementCapsule.IsValid() )
+		{
+			EndLedge();
+			return false;
+		}
 		var body = GetComponent<Rigidbody>();
 		var physics = body?.PhysicsBody;
 		if ( !physics.IsValid() ) { EndLedge(); return false; }

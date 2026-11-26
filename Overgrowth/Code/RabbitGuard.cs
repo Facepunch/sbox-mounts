@@ -93,6 +93,17 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	protected override void OnUpdate()
 	{
+		if ( !Animation.IsValid() )
+		{
+			Animation = GetComponent<AnimationLayer>();
+			if ( !Animation.IsValid() ) return;
+		}
+		if ( !Movement.IsValid() )
+		{
+			if ( GetComponent<MovementLayer>() is { } replacement ) SetMovement( replacement );
+			if ( !Movement.IsValid() ) return;
+		}
+
 		if ( Networking.IsHost && NpcConVars.Enabled && Health > 0f && !Unconscious )
 		{
 			awakeTime += Time.Delta;
@@ -299,7 +310,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	protected override void Think()
 	{
 		unassignedPatrol = false;
-		if ( !Renderer.IsValid() || boundAnimations is null ) return;
+		if ( !Renderer.IsValid() || boundAnimations is null || !Movement.IsValid() || !Animation.IsValid() ) return;
 		if ( StaticCharacter )
 		{
 			if ( Movement.MoveTarget.HasValue ) Movement.Stop();
