@@ -91,6 +91,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 	TimeUntil repath, fireUntil, nextJuke;
 	int strafeSide = 1;
 	Rotation aim;
+	Armory combatRetreat;
 	internal Vector3 AimDirection => aim.Forward;
 	bool attack, closePlayer, inRailRange;
 
@@ -202,11 +203,28 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		var weapon = Railguns ? BotWeaponAim.Weapon.Railgun : BotWeaponAim.Weapon.Minigun;
 		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, weapon, out viewTarget );
 		if ( aimed ) fireUntil = 0.5f;
-		if ( !aimed && fireUntil <= 0 && distance < 15 ) viewTarget = aimPoint;
+		bool updatePath = repath <= 0;
+		if ( updatePath ) combatRetreat = player ? CombatRetreatArmory() : null;
+		bool retreating = player && combatRetreat.IsValid();
+		// Spark measures touch distance to the Armory's half-metre horizontal extents.
+		bool approachingArmory = retreating && targeting.WalkDistanceFromEye( this, combatRetreat.WorldPosition ) > (2 + 0.5f * MathF.Sqrt( 2 )) * Scale;
+		if ( retreating )
+		{
+			if ( approachingArmory && !aimed && goal is { } threat && (threat - EyePosition).WithZ( 0 ).Length < 15 * Scale )
+				viewTarget = threat;
+		}
+		else if ( !aimed && fireUntil <= 0 && distance < 15 ) viewTarget = aimPoint;
 		attack = enemy.IsValid() && fireUntil > 0;
-		if ( repath > 0 ) return;
+		if ( !updatePath ) return;
 		repath = 0.2f;
 		if ( !enemy.IsValid() && RetreatToArmory() ) return;
+		if ( retreating )
+		{
+			if ( approachingArmory )
+				Movement.MoveTo( combatRetreat.EngagementPoint, Scale, faceTarget: visible ? enemy : null );
+			else Movement.Stop();
+			return;
+		}
 		if ( goal is { } destination && (!visible || distance > 10) )
 			Movement.MoveTo( destination, Scale, faceTarget: visible ? enemy : null );
 		else if ( visible && player )

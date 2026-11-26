@@ -18,6 +18,9 @@ public sealed class Armory : Ns2Npc, Component.IDamageable
 	protected override void OnDamaged( IDamageable.DamageEvent hit ) =>
 		(armor, _) = SupportDamage.Apply( hit, this, armor, MaxHealth, default );
 
+	protected override Vector3 GetEngagementPoint() =>
+		Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? Vector3.Zero );
+
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		root.Tags.Add( "structure" );
