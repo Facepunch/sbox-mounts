@@ -541,7 +541,7 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 		_currentClip = clip;
 		Renderer.Sequence.Name = clip;
 		Renderer.Sequence.Looping = loop;
-		if ( restart )
+		if ( restart && Renderer.SceneModel.IsValid() )
 			Renderer.Sequence.Time = 0;
 	}
 
@@ -644,7 +644,8 @@ public sealed class MagickaNpc : BaseNpc, Component.IPressable
 		{
 			renderer.Sequence.Name = DeathClip;
 			renderer.Sequence.Looping = false;
-			renderer.Sequence.Time = 0;
+			if ( renderer.SceneModel.IsValid() )
+				renderer.Sequence.Time = 0;
 		}
 		corpse.NetworkSpawn( true, null );
 		return corpse;
@@ -669,7 +670,7 @@ public sealed class MagickaCorpse : Component
 
 	protected override void OnUpdate()
 	{
-		if ( RagdollAfterClip && !_ragdolled && Renderer.IsValid() && Renderer.Model.IsValid() )
+		if ( RagdollAfterClip && !_ragdolled && Renderer.IsValid() && Renderer.Model.IsValid() && Renderer.SceneModel.IsValid() )
 		{
 			var duration = Renderer.Sequence.Duration;
 			var finished = Renderer.Sequence.IsFinished || (duration > 0.05f && Born >= duration) || Born >= 2.5f;
