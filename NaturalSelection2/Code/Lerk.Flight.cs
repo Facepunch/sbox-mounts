@@ -10,6 +10,8 @@ public sealed partial class Lerk
 	TimeSince cruiseChanged, lastAcceleration;
 	bool forwardBlocked;
 	float? ventEntered;
+	Vector3 ventLanding;
+	TimeUntil ventDrop;
 	MapLocations flightLocations;
 	Vector3 flightDirection;
 	NavMeshPath flightPath;
@@ -23,7 +25,7 @@ public sealed partial class Lerk
 			checkPath = 0.25f;
 			pathIndex = 1;
 			flightPath = default;
-			if ( Scene.NavMesh.IsEnabled && Scene.Trace.Ray( EyePosition, goal + Vector3.Up * EyeHeight ).WithTag( "world" ).Run().Hit )
+			if ( Scene.NavMesh.IsEnabled && (ventEntered.HasValue || Scene.Trace.Ray( EyePosition, goal + Vector3.Up * EyeHeight ).WithTag( "world" ).Run().Hit) )
 				flightPath = Scene.NavMesh.CalculatePath( new() { Start = ground, Target = goal } );
 		}
 		var path = flightPath.Points;
@@ -34,6 +36,31 @@ public sealed partial class Lerk
 			pathIndex++;
 		}
 		return goal;
+	}
+
+	bool DescendingVent( IReadOnlyList<NavMeshPathPoint> points, int start, bool inCombat )
+	{
+		if ( ventEntered.HasValue && !inCombat )
+		{
+			float high = float.NegativeInfinity;
+			Vector3? landing = null;
+			for ( int i = start; i < points.Count; i++ )
+			{
+				var point = points[i].Position;
+				if ( (point - WorldPosition).WithZ( 0 ).LengthSquared > 9 * Scale * Scale ) break;
+				high = Math.Max( high, point.z );
+				if ( high - point.z >= 1.5f * Scale && (landing is null || point.z < landing.Value.z) )
+					landing = point;
+			}
+			if ( landing is { } floor )
+			{
+				ventLanding = floor;
+				ventDrop = 2.5f;
+			}
+		}
+		if ( ventDrop > 0 && WorldPosition.z - ventLanding.z > 0.6f * Scale ) return true;
+		ventDrop = 0;
+		return false;
 	}
 
 	bool WalksVent( Vector3 next, bool grounded )
@@ -54,6 +81,14 @@ public sealed partial class Lerk
 		return Rotation.From( AlienAim.ApproachAngle( body.pitch, pitch, 3 * dt ),
 			AlienAim.ApproachAngle( body.yaw, head.yaw, 6 * dt ), AlienAim.ApproachAngle( body.roll, bank, 3 * dt ) );
 	}
+	static Vector3 AirStrafe( Vector3 velocity, Vector3 direction, float dt )
+	{
+		var planar = velocity.WithZ( 0 );
+		float cap = Math.Max( 5.5f, planar.Length );
+		planar += direction.WithZ( 0 ).Normal * (18 * dt);
+		return planar.ClampLength( cap ).WithZ( velocity.z );
+	}
+
 	// Spark applies flap, air strafe, glide and crouch dive in that order. Velocities here are in metres per second.
 	static Vector3 FlightVelocity( Vector3 v, Rotation facing, Vector3 move, bool grounded, bool flap, bool glide,
 		bool wasGliding, bool sneak, bool dive, float dt )
@@ -77,13 +112,7 @@ public sealed partial class Lerk
 			}
 			grounded = false;
 		}
-		if ( !grounded && !wasGliding )
-		{
-			var planar = v.WithZ( 0 );
-			float cap = Math.Max( 5.5f, planar.Length );
-			planar += (facing * move).WithZ( 0 ).Normal * (18 * dt);
-			v = planar.ClampLength( cap ).WithZ( v.z );
-		}
+		if ( !grounded && !wasGliding ) v = AirStrafe( v, facing * move, dt );
 		if ( glide )
 		{
 			var direction = (facing * move.WithY( move.y * 0.5f )).Normal;
@@ -145,9 +174,13 @@ public sealed partial class Lerk
 		var floor = trace.Ray( EyePosition, EyePosition - Vector3.Up * (10 * Scale) ).Run();
 		var ground = floor.Hit ? floor.EndPosition : WorldPosition;
 		var waypoint = FlightWaypoint( goal, ground );
-		if ( WalksVent( waypoint, grounded ) )
+		bool dropping = DescendingVent( flightPath.Points, Math.Max( 0, pathIndex - 1 ), InCombat );
+		if ( dropping || WalksVent( waypoint, grounded ) )
 		{
 			ReleaseFlight( body );
+			var toward = (ventLanding - WorldPosition).WithZ( 0 );
+			if ( dropping && !grounded && body.MotionEnabled && toward.LengthSquared > 0.09f * Scale * Scale )
+				body.Velocity = AirStrafe( velocity, toward, Time.Delta ) * Scale;
 			return;
 		}
 		var ceiling = trace.Ray( EyePosition, EyePosition + Vector3.Up * (6 * Scale) ).Run();
