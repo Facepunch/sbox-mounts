@@ -186,8 +186,12 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		var targeting = AlienTargeting.ForTeam( this );
 		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
-		if ( ActiveSchedule is not null && (enemy.IsValid() || !CanFollowLeader) )
-			EndCurrentSchedule();
+		if ( guarding && (enemy.IsValid() || !CanFollowLeader) )
+		{
+			guarding = false;
+			leaderCrouchedAt = null;
+			Movement.Stop();
+		}
 		var goal = memory ?? enemy?.WorldPosition;
 		if ( enemy.IsValid() && TrackReachability( enemy, goal.Value ) && sinceProgress > 5 )
 		{
@@ -202,7 +206,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 		bool visible = enemy.IsValid() && !memory.HasValue;
-		if ( ActiveSchedule is null ) Animation.SetLookTarget( visible ? enemy : null );
+		if ( !guarding ) Animation.SetLookTarget( visible ? enemy : null );
 		var target = enemy.IsValid() ? enemy.GetComponentInParent<IDamageable>() : null;
 		bool structureOrBabbler = enemy.IsValid() && enemy.Tags.HasAny( "ns2_harvester", "ns2_hive", "ns2_crag", "ns2_babbler" );
 		if ( !structureOrBabbler && TryMaintainWeapons( goal ) )
@@ -265,11 +269,10 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 
-		if ( !enemy.IsValid() && CanFollowLeader )
+		if ( !enemy.IsValid() && CanFollowLeader && Leader.GetComponent<PlayerController>() is { } player )
 		{
 			sprintRequested = false;
-			base.Think();
-			UpdateGuardView();
+			GuardPlayer( player );
 			return;
 		}
 		if ( !enemy.IsValid() && VisitArmory() ) return;
