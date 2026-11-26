@@ -36,7 +36,6 @@ public sealed class HoldPose
 	readonly (Clip Clip, bool Delta)[] _shots;
 	readonly Clip _reload;
 	readonly Clip[] _realTimeLayers;
-	readonly Transform[] _layerBase;
 	readonly Transform[] _rest;
 	readonly Transform[] _pose;
 	readonly SortedSet<int> _tracked = new();
@@ -208,7 +207,6 @@ public sealed class HoldPose
 		_bones = skeleton.Bones;
 		_shots = shots;
 		_realTimeLayers = realTimeLayers;
-		if ( realTimeLayers.Length > 0 ) _layerBase = new Transform[_bones.Count];
 		_reload = reload;
 		ReloadLoops = reloadLoops;
 		_rest = new Transform[_bones.Count];
@@ -238,7 +236,7 @@ public sealed class HoldPose
 		if ( RightHand < 0 || LeftHand < 0 || rightShoulder < 0 || leftShoulder < 0 || elbow < 0 )
 			return;
 
-		EvaluateBase( null, false, 0, 0, 0 );
+		EvaluatePose( null, false, 0, 0, 0, [] );
 		Shoulders = (_pose[rightShoulder].Position + _pose[leftShoulder].Position) * 0.5f;
 		ArmLength = _bones[rightShoulder].Transform.Position.Distance( _bones[elbow].Transform.Position )
 			+ _bones[elbow].Transform.Position.Distance( _bones[RightHand].Transform.Position );
@@ -253,7 +251,7 @@ public sealed class HoldPose
 		LeftPalm = Palm( _bones[LeftHand].Transform, left[..Knuckles] );
 
 		var knuckles = Enumerable.Range( 1, Knuckles ).Select( finger => Track( $"ValveBiped.Bip01_R_Finger{finger}" ) ).ToArray();
-		EvaluateBase( null, false, 0, 0, 0 );
+		EvaluatePose( null, false, 0, 0, 0, [] );
 		var fist = knuckles.Aggregate( Vector3.Zero, ( sum, bone ) => sum + _pose[bone].Position ) / Knuckles;
 		Grip = _pose[RightHand].ToLocal( new Transform( fist ) );
 
@@ -312,10 +310,7 @@ public sealed class HoldPose
 	{
 		var (shotClip, delta) = _shots.Length > 0 && shotTime < ShotDuration( shot ) ? _shots[shot % _shots.Length] : default;
 		var shotCycle = shotClip is null ? 0 : shotTime / shotClip.Duration;
-		// An additive firing gesture overlays the already animated idle.
-		var overlay = delta && _layerBase is not null ? shotClip : null;
-		EvaluateBase( overlay is null ? shotClip : null, delta, shotCycle, reloadCycle, reloadWeight );
-		if ( _layerBase is not null ) ApplyLayers( overlay, shotCycle );
+		EvaluatePose( shotClip, delta, shotCycle, Math.Clamp( reloadCycle, 0, 1 ), reloadWeight, _realTimeLayers );
 
 		// Source solves IK after breathing and gestures. A reload can move the hand off its grip.
 		foreach ( var (bone, target) in _locks )
@@ -331,37 +326,21 @@ public sealed class HoldPose
 		}
 	}
 
-	void ApplyLayers( Clip overlay, float shotCycle )
-	{
-		// Transfer the animated source pose to the holder's existing hand IK targets.
-		// The clock continues across deploys and shots.
-		Span<float> cycles = stackalloc float[_realTimeLayers.Length];
-		for ( var j = 0; j < cycles.Length; j++ )
-		{
-			var duration = _realTimeLayers[j].Duration;
-			cycles[j] = (float)(Time.NowDouble % duration / duration);
-		}
-		foreach ( var i in _order )
-		{
-			var local = _layerBase[i];
-			for ( var j = 0; j < cycles.Length; j++ )
-				local = Add( local, _realTimeLayers[j].GetLocalTransform( cycles[j], i ) );
-			if ( overlay is not null ) local = Add( local, overlay.GetLocalTransform( shotCycle, i ) );
-			var parent = _bones[i].ParentIndex;
-			_pose[i] = parent < 0 ? local : _pose[parent].ToWorld( local );
-		}
-	}
-
-	void EvaluateBase( Clip shotClip, bool delta, float shotCycle, float reloadCycle, float reloadWeight )
+	void EvaluatePose( Clip shotClip, bool delta, float shotCycle, float reloadCycle, float reloadWeight, ReadOnlySpan<Clip> layers )
 	{
 		var shooting = shotClip is not null;
 		var reloading = _reload is not null && reloadWeight > 0;
-		if ( !shooting && !reloading && _resting )
-			return;
+		var resting = !shooting && !reloading && layers.IsEmpty;
+		if ( resting && _resting ) return;
+		_resting = resting;
 
-		_resting = !shooting && !reloading;
-		var shotWeight = shooting ? MathF.Min( 1, (1 - shotCycle) * shotClip.Duration / BlendTime ) : 0;
-		reloadCycle = Math.Clamp( reloadCycle, 0, 1 );
+		var shotWeight = shooting && !delta ? MathF.Min( 1, (1 - shotCycle) * shotClip.Duration / BlendTime ) : 0;
+		Span<float> cycles = stackalloc float[layers.Length];
+		for ( var j = 0; j < layers.Length; j++ )
+		{
+			var duration = layers[j].Duration;
+			cycles[j] = (float)(Time.NowDouble % duration / duration);
+		}
 
 		foreach ( var i in _order )
 		{
@@ -369,18 +348,21 @@ public sealed class HoldPose
 			if ( shooting && !delta )
 				local = Blend( local, shotClip.GetLocalTransform( shotCycle, i ), shotWeight );
 
+			// The base sequence's breathing layer runs underneath the player's gesture.
+			for ( var j = 0; j < layers.Length; j++ )
+				local = Add( local, layers[j].GetLocalTransform( cycles[j], i ) );
+
 			if ( reloading )
 			{
 				var pose = _reload.GetLocalTransform( reloadCycle, i );
 				if ( !Same( pose, _bones[i].LocalTransform ) )
 					local = Blend( local, pose, reloadWeight );
 			}
-
 			if ( shooting && delta )
 				local = Add( local, shotClip.GetLocalTransform( shotCycle, i ) );
 
-			if ( _layerBase is not null ) _layerBase[i] = local;
-			_pose[i] = _bones[i].ParentIndex < 0 ? local : _pose[_bones[i].ParentIndex].ToWorld( local );
+			var parent = _bones[i].ParentIndex;
+			_pose[i] = parent < 0 ? local : _pose[parent].ToWorld( local );
 		}
 	}
 
