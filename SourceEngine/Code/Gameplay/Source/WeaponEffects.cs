@@ -402,7 +402,54 @@ static class WeaponEffects
 			if ( drops.Emit( origin, 0 ) is { } p )
 				p.Velocity = (Vector3.Up + Particles.InCube( 0.8f )) * Game.Random.Float( 150, 300 ) + Vector3.Up * Game.Random.Float( 32, 64 );
 		}
+		drops.OnPostStep = dt =>
+		{
+			var attenuation = Math.Max( 0, 1 - 2 * dt );
+			foreach ( var drop in drops.Particles ) drop.Velocity *= attenuation;
+		};
 		drops.Invoke( 0.5f, drops.DestroyGameObject );
+		SplashPlume( position, mount );
+	}
+
+	static void SplashPlume( Vector3 position, string mount )
+	{
+		var plume = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, 8 );
+		if ( !plume.IsValid() ) return;
+		plume.WorldPosition = position;
+		plume.Lifetime = 2;
+		plume.Force = true;
+		plume.ForceDirection = Vector3.Down * 800;
+		plume.ApplyShape = true;
+		plume.Scale = PlumeGrowth;
+		for ( var i = 0; i < 8; i++ )
+		{
+			if ( plume.Emit( position, 0 ) is not { } p ) continue;
+			var fraction = i / 7f;
+			p.StartScale = 2 * (int)float.Lerp( 12, 24, fraction );
+			p.Size = p.StartScale;
+			p.Angles = new Angles( 0, 0, Game.Random.Int( 0, 360 ) );
+			p.Color = Color.White.WithAlpha( (int)float.Lerp( 32, 255, fraction ) / 255f );
+			var direction = Particles.InCube( 0.2f ) + Vector3.Up * Game.Random.Float( 4, 6 );
+			p.Velocity = direction.Normal * (50 * (8 - i));
+		}
+
+		plume.OnPreStep = dt =>
+		{
+			var decay = MathF.Pow( 0.0001f, dt / 3 );
+			foreach ( var p in plume.Particles )
+			{
+				p.Velocity *= decay;
+				var spin = 8 * p.Rand() - 4;
+				var speed = MathF.Max( 0.5f, MathF.Abs( spin ) * MathF.Exp( -4 * p.Age ) );
+				p.Angles = p.Angles.WithRoll( p.Angles.roll + (MathF.CopySign( speed, spin ) * dt).RadianToDegree() );
+			}
+		};
+		plume.OnPostStep = _ =>
+		{
+			foreach ( var p in plume.Particles )
+				p.Alpha = Math.Clamp( 1 + (p.Position.z - position.z) * 4 / p.Size.x, 0, 1 );
+		};
+		plume.Invoke( 2, plume.DestroyGameObject );
 	}
 
 	public static void GaussImpact( Vector3 position, Vector3 direction, string mount )
@@ -463,6 +510,7 @@ static class WeaponEffects
 		SparkSmoke( go, mount );
 	}
 
+	static readonly ParticleFloat PlumeGrowth = LinearOverLife( 1, 2 );
 	static readonly ParticleFloat SmokeGrowth = LinearOverLife( 1, 4 );
 	static readonly ParticleFloat SmokeFade = LinearOverLife( 1, 0 );
 
