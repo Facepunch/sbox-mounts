@@ -151,21 +151,22 @@ internal sealed partial class MdlFile
 
 		// mstudiocompressedikerror_t: six scales, then six offsets to RLE runs of position and Euler angles
 		var compressed = rule.Offset + rule.CompressedIndex;
-		Span<float> pair = stackalloc float[2];
+		var interpolate = fraction > 0.0001f;
+		Span<float> samples = stackalloc float[interpolate ? 2 : 1];
 		Span<float> first = stackalloc float[6];
 		Span<float> second = stackalloc float[6];
 		for ( var channel = 0; channel < 6; channel++ )
 		{
-			pair.Clear();
+			samples.Clear();
 			int run = BinaryPrimitives.ReadInt16LittleEndian( region[(compressed + 24 + channel * 2)..] );
 			if ( run > 0 )
-				DecodeRun( region, compressed + run, frame - rule.FirstFrame, pair, BinaryPrimitives.ReadSingleLittleEndian( region[(compressed + channel * 4)..] ) );
-			first[channel] = pair[0];
-			second[channel] = pair[1];
+				DecodeRun( region, compressed + run, frame - rule.FirstFrame, samples, BinaryPrimitives.ReadSingleLittleEndian( region[(compressed + channel * 4)..] ) );
+			first[channel] = samples[0];
+			if ( interpolate ) second[channel] = samples[1];
 		}
 		position = new Vector3( first[0], first[1], first[2] );
 		rotation = AngleQuaternion( first[3], first[4], first[5] );
-		if ( fraction > 0.0001f )
+		if ( interpolate )
 		{
 			position = Vector3.Lerp( position, new Vector3( second[0], second[1], second[2] ), fraction );
 			rotation = QuaternionBlend( rotation, AngleQuaternion( second[3], second[4], second[5] ), fraction );
