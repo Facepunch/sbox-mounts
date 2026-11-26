@@ -1,3 +1,4 @@
+using System;
 using Halo2.Blam;
 using Sandbox.Mounting;
 using static Halo2.PelletImpactEffect;
@@ -6,6 +7,50 @@ namespace Halo2;
 
 internal abstract partial class WeaponLoader
 {
+	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset )
+	{
+		var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+		if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
+		int actions = Address( foot );
+		if ( map.ReadInt32( actions ) <= action ) return result;
+		int bank = Block( actions ) + action * 24 + bankOffset;
+		int entries = map.ReadInt32( bank );
+		if ( entries == 0 ) return result;
+		int count = map.ReadInt32( materials ), rows = Block( materials );
+		var contacts = new Dictionary<int, TagEntry>();
+		int entry = Block( bank );
+		for ( int i = 0; i < entries; i++, entry += 24 ) contacts[Short( entry + 20 )] = Reference( entry );
+		for ( int i = 0; i < count; i++ )
+		{
+			if ( map.ResolveStringId( map.ReadInt32( rows + i * 0xb4 ) ) is not {} name ) continue;
+			int index = i;
+			for ( int depth = 0; (uint)index < count && depth < count; depth++ )
+			{
+				if ( contacts.TryGetValue( index, out var sound ) )
+				{
+					result[name] = sound;
+					break;
+				}
+				index = Short( rows + index * 0xb4 + 8 );
+			}
+		}
+		return result;
+	}
+
+	protected Dictionary<string, int> ReadSoundBank( Dictionary<string, TagEntry> materials, List<CuePlayback> cues, Dictionary<TagEntry, int> indices )
+	{
+		int CueIndex( TagEntry tag )
+		{
+			if ( tag?.PrimaryClass != "!dns" ) return 0;
+			if ( indices.TryGetValue( tag, out int index ) ) return index;
+			if ( Host.GetByPath( Host.AssetPath( map, tag.TagPath, "sound" ) ) is not Halo2SoundLoader sound ) return 0;
+			cues.Add( sound.Cue );
+			return indices[tag] = cues.Count;
+		}
+
+		return materials?.ToDictionary( entry => entry.Key, entry => CueIndex( entry.Value ), StringComparer.OrdinalIgnoreCase ) ?? new();
+	}
+
 	protected string ImpactPath( TagEntry tag ) => $"{map.Header.MapName}/{tag.TagPath.Replace( '\\', '/' )}.prefab";
 
 	protected sealed class ImpactLoader( WeaponLoader source, TagEntry tag, bool includeSounds = false ) : ResourceLoader<Halo2Mount>

@@ -338,7 +338,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			{
 				var particle = Reference( row );
 				bool smoke = particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
-				if ( !smoke && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
+				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings";
+				if ( !smoke && !casing && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
 					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;
 				int definition = Address( particle );
@@ -349,6 +350,14 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				var marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
 				if ( marker is null ) continue;
 				if ( !markers.TryGetValue( marker, out var layers ) ) markers[marker] = layers = new();
+				CasingSounds contacts = null;
+				if ( casing )
+				{
+					var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+					var sounds = ReadMaterialBank( Address( globals ) + 0x150, particle, 0x6c, 10, 8 );
+					var cues = new List<CuePlayback>();
+					contacts = new CasingSounds { Casings = ReadSoundBank( sounds, cues, new() ), Cues = cues.ToArray() };
+				}
 				for ( int j = 0, emitter = Block( row + 48 ); j < map.ReadInt32( row + 48 ); j++, emitter += 0xb8 )
 				{
 					int color = Block( emitter + 96 );
@@ -367,7 +376,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
 						Bounds( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
-						smoke ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), Bounds( emitter + 104 ) ) : null ) );
+						smoke ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), Bounds( emitter + 104 ) ) : null, contacts, casing ? Bounds( emitter + 140 ).x : 0 ) );
 				}
 			}
 		}

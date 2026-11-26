@@ -7,7 +7,7 @@ public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 O
 public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
-	Vector2 BirthCount, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke );
+	Vector2 BirthCount, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees );
 
 public sealed class MuzzleFlash : Component
 {
@@ -16,25 +16,34 @@ public sealed class MuzzleFlash : Component
 
 	float Sample( Vector2 bounds ) => bounds.x == bounds.y ? bounds.x : MathX.Lerp( bounds.x, bounds.y, BlamRandom.Next( ref seed ) / 65535f );
 
-	internal void Emit( MuzzleFlashDefinition data, bool firstPerson )
+	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder )
 	{
-		layers ??= data.Layers.Select( layer => layer.CameraMode == (firstPerson ? 2 : 1) ? null : CreateLayer( layer, firstPerson ) ).ToArray();
+		layers ??= new ParticleEffect[data.Layers.Length];
 		for ( int i = 0; i < layers.Length; i++ )
 		{
+			var spec = data.Layers[i];
+			if ( spec.CameraMode == (firstPerson ? 2 : 1) ) continue;
+			if ( !layers[i].IsValid() ) layers[i] = CreateLayer( spec, firstPerson, holder );
 			var layer = layers[i];
 			if ( !layer.IsValid() ) continue;
-			int count = (int)(Sample( data.Layers[i].BirthCount ) + 0.0001f);
+			if ( spec.Casing is not null ) layer.WorldTransform = WorldTransform.ToWorld( new Transform( spec.Offset, spec.Direction ) );
+			int count = (int)(Sample( spec.BirthCount ) + 0.0001f);
 			for ( int j = 0; j < count; j++ ) layer.Emit( layer.WorldPosition, 0 );
 		}
 	}
 
-	ParticleEffect CreateLayer( MuzzleFlashLayer data, bool firstPerson )
+	ParticleEffect CreateLayer( MuzzleFlashLayer data, bool firstPerson, GameObject holder )
 	{
 		var texture = Texture.Load( data.Texture );
 		if ( !texture.IsValid() || texture.IsError ) return null;
 		var sprite = Sprite.FromTexture( texture );
 		sprite.Animations[0].Origin = data.Pivot;
-		var go = new GameObject( GameObject, false, "Muzzle flash" );
+		var go = data.Casing is not null ? Scene.CreateObject( false ) : new GameObject( GameObject, false, "Muzzle flash" );
+		if ( data.Casing is not null )
+		{
+			go.Name = "Ejected casings";
+			go.AddComponent<TemporaryEffect>().DestroyAfterSeconds = 0;
+		}
 		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.LocalPosition = data.Offset;
 		go.LocalRotation = data.Direction;
@@ -44,11 +53,12 @@ public sealed class MuzzleFlash : Component
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = 2;
-		renderer.Additive = data.Smoke is null;
+		renderer.Additive = data.Smoke is null && data.Casing is null;
+		renderer.Lighting = data.Casing is not null;
 		if ( data.Parallel ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		renderer.FogStrength = 0;
-		renderer.RenderOptions.Game = !firstPerson;
-		renderer.RenderOptions.Overlay = firstPerson;
+		renderer.RenderOptions.Game = data.Casing is not null || !firstPerson;
+		renderer.RenderOptions.Overlay = data.Casing is null && firstPerson;
 		void Appearance( Particle p )
 		{
 			float t = p.LifeDelta;
@@ -73,13 +83,22 @@ public sealed class MuzzleFlash : Component
 		effect.OnParticleCreated += p =>
 		{
 			p.StartAngles.roll = p.Rand( 3, 0 ) * 360;
-			p.Velocity = go.WorldRotation.Forward * Sample( data.Speed );
+			if ( data.Casing is not null )
+			{
+				float azimuth = p.Rand( 6, 0 ) * System.MathF.Tau;
+				float angle = p.Rand( 7, 0 ) * data.ConeDegrees.DegreeToRadian();
+				var radial = new Vector3( 0, System.MathF.Sin( azimuth ), System.MathF.Cos( azimuth ) );
+				var direction = Vector3.Forward * System.MathF.Cos( angle ) + radial * System.MathF.Sin( angle );
+				p.Velocity = go.WorldRotation * direction * p.LifeTimeRemaining.Remap( data.Lifetime.x, data.Lifetime.y, data.Speed.x, data.Speed.y );
+			}
+			else p.Velocity = go.WorldRotation.Forward * Sample( data.Speed );
 			if ( data.SpawnRadius.y > 0 ) p.Position += go.WorldRotation * Spread.RandomDirection( ref seed ) * Sample( data.SpawnRadius );
 			Appearance( p );
 		};
-		effect.OnPostStep += _ =>
+		effect.OnPostStep += dt =>
 		{
 			foreach ( var p in effect.Particles ) Appearance( p );
+			if ( data.Casing is not null ) CasingParticles.Advance( effect, holder, data.Casing, dt );
 		};
 		go.Enabled = true;
 		return effect;

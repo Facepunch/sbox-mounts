@@ -83,7 +83,7 @@ public abstract class HandheldWeapon : Weapon
 		foreach ( var flash in groups )
 		{
 			if ( EffectMarker( flash.Marker ) is {} muzzle )
-				muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel );
+				muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel, Holder?.GameObject );
 		}
 	}
 

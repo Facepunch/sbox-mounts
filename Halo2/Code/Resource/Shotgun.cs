@@ -215,41 +215,11 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
 		if ( globals is null ) return;
 		int materials = Address( globals ) + 0x150;
-		int count = map.ReadInt32( materials ), rows = Block( materials );
 		var casing = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\objects\weapons\rifle\shotgun\shotgun_casing" );
 		var projectile = Reference( Block( Header + 0x2d0 ) + 0x8c );
-		casingMaterials = ReadBank( casing, 0x6c, 10, 8 );
-		pelletMaterials = ReadBank( projectile, 0x54, 15, 8 );
-		pelletEffects = ReadBank( projectile, 0x54, 15, 16 );
-
-		Dictionary<string, TagEntry> ReadBank( TagEntry source, int referenceOffset, int action, int bankOffset )
-		{
-			var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
-			if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
-			int actions = Address( foot );
-			if ( map.ReadInt32( actions ) <= action ) return result;
-			int bank = Block( actions ) + action * 24 + bankOffset;
-			int entries = map.ReadInt32( bank );
-			if ( entries == 0 ) return result;
-			var contacts = new Dictionary<int, TagEntry>();
-			int entry = Block( bank );
-			for ( int i = 0; i < entries; i++, entry += 24 ) contacts[Short( entry + 20 )] = Reference( entry );
-			for ( int i = 0; i < count; i++ )
-			{
-				if ( map.ResolveStringId( map.ReadInt32( rows + i * 0xb4 ) ) is not {} name ) continue;
-				int index = i;
-				for ( int depth = 0; (uint)index < count && depth < count; depth++ )
-				{
-					if ( contacts.TryGetValue( index, out var sound ) )
-					{
-						result[name] = sound;
-						break;
-					}
-					index = Short( rows + index * 0xb4 + 8 );
-				}
-			}
-			return result;
-		}
+		casingMaterials = ReadMaterialBank( materials, casing, 0x6c, 10, 8 );
+		pelletMaterials = ReadMaterialBank( materials, projectile, 0x54, 15, 8 );
+		pelletEffects = ReadMaterialBank( materials, projectile, 0x54, 15, 16 );
 	}
 
 	ShotgunContacts ReadContacts()
@@ -257,23 +227,12 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 		LoadMaterialEffects();
 		var cues = new List<CuePlayback>();
 		var indices = new Dictionary<TagEntry, int>();
-		int CueIndex( TagEntry tag )
-		{
-			if ( tag?.PrimaryClass != "!dns" ) return 0;
-			if ( indices.TryGetValue( tag, out int index ) ) return index;
-			if ( Host.GetByPath( Host.AssetPath( map, tag.TagPath, "sound" ) ) is not Halo2SoundLoader sound ) return 0;
-			cues.Add( sound.Cue );
-			return indices[tag] = cues.Count;
-		}
-
-		Dictionary<string, int> Bank( Dictionary<string, TagEntry> materials ) =>
-			materials?.ToDictionary( entry => entry.Key, entry => CueIndex( entry.Value ), StringComparer.OrdinalIgnoreCase ) ?? new();
 
 		return new ShotgunContacts
 		{
-			Pellets = Bank( pelletMaterials ),
+			Pellets = ReadSoundBank( pelletMaterials, cues, indices ),
 			Effects = pelletEffects?.ToDictionary( e => e.Key, e => e.Value is null ? null : $"mount://{Host.Ident}/{ImpactPath( e.Value )}" ),
-			Casings = Bank( casingMaterials ),
+			Casings = ReadSoundBank( casingMaterials, cues, indices ),
 			Cues = cues.ToArray()
 		};
 	}
