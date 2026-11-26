@@ -62,7 +62,7 @@ public sealed class MuzzleFlash : Component
 			var layer = layers[i];
 			if ( !layer.IsValid() || (spec.SingleParticle && layer.ParticleCount > 0) ) continue;
 			if ( spec.Casing is not null || spec.ExhaustSmoke is not null ) layer.WorldTransform = WorldTransform.ToWorld( new Transform( spec.Offset, spec.Direction ) );
-			bool atMarker = firstPerson && spec.Casing is null && spec.ExhaustSmoke is null;
+			bool atMarker = firstPerson && spec.ExhaustSmoke is null;
 			if ( !continuous && spec.Emission is {} emission )
 			{
 				_ = EmitOverTime( layer, emission.Start, MathX.Lerp( emission.Duration.x, emission.Duration.y, eventRandom ), rate * 30, atMarker );
@@ -123,6 +123,12 @@ public sealed class MuzzleFlash : Component
 		go.LocalPosition = data.Offset;
 		go.LocalRotation = data.Direction;
 		var effect = go.AddComponent<ParticleEffect>();
+		if ( firstPerson && data.Casing is not null )
+		{
+			var emitter = go.AddComponent<MarkerEmission>();
+			emitter.Attachment = GameObject;
+			emitter.Offset = new Transform( data.Offset, data.Direction );
+		}
 		if ( data.SingleParticle ) effect.MaxParticles = 1;
 		effect.Lifetime = new ParticleFloat( data.Lifetime.x, data.Lifetime.y );
 		effect.LocalSpace = data.LocalSpace ? 1 : 0;
