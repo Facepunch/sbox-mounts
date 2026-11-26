@@ -11,9 +11,14 @@ public sealed class PhysicsGun : Weapon
 	[ConVar( "physgun_wheelspeed", Help = "Physics Gun carry distance per scroll notch." )]
 	public static float WheelSpeed { get; set; } = 10;
 
+	[ConVar( "phys_spinspeed", ConVarFlags.Server, Help = "Degrees per second to turn a held body with the movement keys." )]
+	public static float SpinSpeed { get; set => field = float.IsFinite( value ) ? value : 200; } = 200;
+
 	enum Trigger { Released, Grab, Adjust, Push, Pull, Freeze }
 	System.IDisposable _movementHook;
 	[Sync] Trigger InputState { get; set; }
+	bool Adjusting => InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull;
+	[Sync] int SpinDirection { get; set; }
 	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
 	Vector3 _localPoint;
 	Rotation _yawOffset;
@@ -42,6 +47,7 @@ public sealed class PhysicsGun : Weapon
 		if ( Input.Down( "use" ) )
 		{
 			var forward = Input.AnalogMove.x;
+			SpinDirection = -System.Math.Sign( Input.AnalogMove.y );
 			InputState = forward switch { > 0 => Trigger.Push, < 0 => Trigger.Pull, _ => Trigger.Adjust };
 			_movementHook ??= Scene.AddHook( GameObjectSystem.Stage.PhysicsStep, -1, RedirectMovement,
 				nameof( PhysicsGun ), "Redirect player movement while adjusting a held body" );
@@ -59,7 +65,7 @@ public sealed class PhysicsGun : Weapon
 	// The controller builds its wish velocity in fixed update, after frame input handling.
 	void RedirectMovement()
 	{
-		if ( !IsProxy && Active && HasOwner && HeldBody.IsValid() && InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull )
+		if ( !IsProxy && Active && HasOwner && HeldBody.IsValid() && Adjusting )
 			Owner.WishVelocity = Vector3.Zero;
 	}
 
@@ -108,6 +114,9 @@ public sealed class PhysicsGun : Weapon
 		}
 		if ( InputState is Trigger.Push or Trigger.Pull )
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
+
+		if ( Adjusting && SpinDirection != 0 )
+			_yawOffset = Rotation.FromYaw( SpinDirection * SpinSpeed * Time.Delta ) * _yawOffset;
 
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * _localPoint;
 		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
