@@ -239,9 +239,9 @@ public sealed partial class Gorge
 				((IDamageable)c).OnDamage( damage );
 			}
 		}
-		var velocity = GetComponent<Rigidbody>().Velocity;
+		var velocity = Animation.MoveVelocity;
 		var start = eye + velocity.WithZ( velocity.z / 2.5f ) / 5.5f;
-		var effect = Scene.Trace.Ray( start, start + forward * (3.15f * Scale) ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run();
+		var effect = Scene.Trace.Ray( start, start + forward * (3.15f * Scale) ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseDamageHitboxes().Run();
 		PlayCue( "heal_spray", WorldPosition );
 		ShowSpray( effect.EndPosition, aim );
 
