@@ -220,6 +220,7 @@ public sealed partial class LevelItem : Component
 		body.EnhancedCcd = true;
 		body.CollisionEventsEnabled = true;
 		body.Enabled = collider.Enabled = true;
+		SetItemInertia( body, model );
 		var component = item.GetOrAddComponent<LevelItem>();
 		component.previousFlightPose = item.WorldTransform;
 		item.Tags.Add( CharacterCollisionRules.ThrownItem );
@@ -231,6 +232,20 @@ public sealed partial class LevelItem : Component
 		// Loose items hit characters through their animated hulls.
 		CharacterCollisionRules.Apply( Scene.PhysicsWorld );
 		previousFlightPose = WorldTransform;
-		if ( GetComponent<Rigidbody>() is { } body ) body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
+		if ( GetComponent<Rigidbody>() is { } body )
+		{
+			body.GravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
+			SetItemInertia( body, GetComponent<ModelRenderer>()?.Model );
+		}
+	}
+
+	static void SetItemInertia( Rigidbody body, Model model )
+	{
+		if ( body.PhysicsBody is not { IsValid: true } physics || model?.Physics?.Parts.FirstOrDefault()?.Hulls.FirstOrDefault() is not { } hull ) return;
+		// CreateConvexModel computes box inertia at 1 kg. SetMass retains that tensor.
+		// Bullet caches the hull bounds with its initial 4 cm margin on either side.
+		var size = hull.Bounds.Size * body.WorldScale.Abs() + Vector3.One * (0.08f * 40f);
+		var squared = size * size;
+		physics.SetInertiaTensor( new Vector3( squared.y + squared.z, squared.x + squared.z, squared.x + squared.y ) / 12f, Rotation.Identity );
 	}
 }

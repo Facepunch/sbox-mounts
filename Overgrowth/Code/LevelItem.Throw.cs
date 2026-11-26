@@ -122,7 +122,12 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		float time = 0f;
 		Vector3 launch = default;
 		for ( int i = 0; i < 3; i++ )
+		{
 			launch = FlightPath.Velocity( delta + velocity * time, gravity, speed, up, 0f, out time );
+			// A falling target can move into reach before the weapon arrives.
+			if ( i == 0 && launch == Vector3.Zero && speed > 0f )
+				time = delta.WithZ( 0f ).Length / speed;
+		}
 		if ( launch == Vector3.Zero ) launch = horizontal * speed + Vector3.Up * up;
 		body.Velocity = incomingVelocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
 		flight = heavyThrow && label != "big_sword" ? FlightState.Straight : FlightState.Thrown;
