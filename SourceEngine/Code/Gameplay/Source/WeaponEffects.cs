@@ -156,8 +156,9 @@ static class WeaponEffects
 		// MuzzleFlash_Combine_NPC is a starburst; this keeps its sprites on the shared FX_MuzzleEffect layout.
 		var sprites = type is "COMBINE" or "AR2" ? CombineSprites : FlashSprites;
 		var size = Math.Clamp( Game.Random.Float( scale - 0.25f, scale + 0.25f ), 0.5f, 8 );
+		var lifetime = type is "PISTOL" or "357" or "SMG1" ? 0.0001f : 0.1f;
 		for ( var i = 1; i < 9; i++ )
-			burst.Add( Pick( sprites ), mount, i * 2 * scale, Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size, Color.White, 0.1f );
+			burst.Add( Pick( sprites ), mount, i * 2 * scale, (int)(Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size), Color.White, lifetime );
 	}
 
 	/// <summary>A multiplayer weapon tracer travels from the rendered muzzle to the pellet endpoint.</summary>
@@ -755,7 +756,6 @@ public sealed class SpriteBurst : Component
 	internal Vector2 CameraFade { get; set; }
 	readonly List<(SpriteRenderer Sprite, Vector2 Size, Color Color, Vector2 EndSize, Color EndColor)> _fades = new();
 	float _lifetime;
-	int _frames;
 	TimeSince _age;
 
 	/// <summary>Source particle sizes are radii, so the drawn sprite is twice as wide. Roll is in degrees, random when unset.</summary>
@@ -779,12 +779,11 @@ public sealed class SpriteBurst : Component
 		if ( sprite.IsValid() ) _fades.Add( (sprite, sprite.Size, sprite.Color, new Vector2( size * 2 ), color.WithAlpha( 1 )) );
 	}
 
-	protected override void OnStart() => _age = 0;
+	protected override void OnEnabled() => _age = 0;
 
 	protected override void OnUpdate()
 	{
-		// Source flashes can live for a single frame; always show at least one.
-		if ( ++_frames > 1 && _age > _lifetime )
+		if ( _age > _lifetime )
 		{
 			GameObject.Destroy();
 			return;
