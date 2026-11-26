@@ -48,7 +48,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
 	[Sync( SyncFlags.FromHost )] int looseReserve { get; set; } = -1;
-	int LooseReserve => looseReserve >= 0 ? looseReserve : Clip1 < 0 ? StartingAmmo : 0;
+	protected int LooseReserve => looseReserve >= 0 ? looseReserve : Clip1 < 0 ? StartingAmmo : 0;
 	int LoadedRounds => Clip1 < 0 ? ClipMaxSize : Clip1;
 
 	Weapon MatchingWeapon( BaseInventoryComponent inventory ) =>

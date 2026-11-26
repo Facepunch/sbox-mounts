@@ -150,12 +150,48 @@ public class MagazineWeapon : HandheldWeapon
 	{
 		if ( Networking.IsHost && IsReloading && transferAt.HasValue && Time.NowDouble >= holsterTransferAt )
 			TransferMagazine();
+		transferAt = null;
 		return base.OnHolstering( next );
+	}
+
+	protected override void OnHolstered()
+	{
+		// A forced drop cancels the holder's animation, but the loose magazine keeps ticking.
+		if ( !IsReloading ) transferAt = null;
+		base.OnHolstered();
+	}
+
+	protected override void OnEquipped()
+	{
+		transferAt = null;
+		base.OnEquipped();
+	}
+
+	void UpdateLooseMagazine()
+	{
+		if ( transferAt is not double due || Time.NowDouble < due ) return;
+		Clip1 += System.Math.Min( LooseReserve, ReloadFillTarget - Clip1 );
+		transferAt = null;
+	}
+
+	protected override bool OnAdding( BaseInventoryComponent inventory )
+	{
+		if ( !IsHeld ) UpdateLooseMagazine();
+		return base.OnAdding( inventory );
+	}
+
+	protected override void OnAdded( BaseInventoryComponent inventory )
+	{
+		base.OnAdded( inventory );
+		if ( transferAt.HasValue && Time.NowDouble >= holsterTransferAt )
+			TransferMagazine();
+		transferAt = null;
 	}
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( Networking.IsHost && !IsHeld ) UpdateLooseMagazine();
 		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
 			TransferMagazine();
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
