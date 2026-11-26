@@ -4,6 +4,26 @@ namespace Source1.GarrysMod;
 public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 {
 	const float MinRange = 40;
+	const string DisabledTag = "physgun_disabled";
+	const string LimitedTag = "physgun_limited";
+
+	[ConVar( "physgun_limited", ConVarFlags.Server | ConVarFlags.Replicated, Help = "Restrict Physics Gun pickup of map entities." )]
+	public static bool Limited { get; set; }
+
+	internal static void TagMapEntity( GameObject target, MapEntity entity )
+	{
+		if ( entity.Get( "gmod_allowphysgun" ) == "0" )
+		{
+			target.Tags.Add( DisabledTag );
+			return;
+		}
+
+		var name = entity.Get( "classname" ).ToLowerInvariant();
+		bool limited = name == "func_physbox" ? (entity.Integer( "spawnflags" ) & 0x8000) != 0
+			: name.StartsWith( "func_" ) || name.StartsWith( "prop_dynamic" ) || name.StartsWith( "prop_door" )
+			|| (name.StartsWith( "prop_" ) && (entity.Integer( "spawnflags" ) & (8 | 512)) != 0);
+		if ( limited ) target.Tags.Add( LimitedTag );
+	}
 
 	[ConVar( "physgun_maxrange", ConVarFlags.Server | ConVarFlags.Replicated, Min = 128, Max = 32768, Help = "Maximum carry distance. The Physics Gun can pick up objects twice this far away." )]
 	public static float MaxRange { get; set => field = float.IsFinite( value ) ? value : 4096; } = 4096;
@@ -152,6 +172,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			if ( !hit.Hit ) return;
 			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
+			if ( body.IsValid() && (body.Tags.Has( DisabledTag ) || (Limited && body.Tags.Has( LimitedTag ))) ) return;
 			if ( !CanMove( body, Network.Owner ) || !body.PhysicsBody.IsValid() ) return;
 
 			HeldBody = body;

@@ -136,6 +136,7 @@ partial class MapLoader
 			};
 			instance.Tags.Add( "world" );
 			instance.Tags.Add( "source1_entity" );
+			GarrysMod.PhysicsGun.TagMapEntity( instance, entity );
 			var prop = ReadProp( entity );
 			var visible = prop.Visible && (entity.Integer( "effects" ) & 32) == 0 && loader.IsEnabled( entity );
 			if ( model is not null )

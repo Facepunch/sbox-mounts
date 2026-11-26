@@ -4,7 +4,7 @@ partial class MapLoader
 {
 	private class PropEntityLoader : EntityLoader
 	{
-		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildProp( Read( entity ) );
+		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildProp( Read( entity ), entity );
 		protected virtual MapProp Read( MapEntity entity ) => ReadProp( entity );
 	}
 
