@@ -7,14 +7,30 @@ public sealed partial class EnergySword
 	[Property] public float TargetAngle { get; set; }
 	[Property] public float TargetRange { get; set; }
 
-	GameObject dashTarget;
-	Vector3 targetPoint, entryVelocity;
-	float peakSpeed;
-	TimeSince dashStarted;
-	float dashDuration;
-	bool dashing;
+	sealed record Dash( PlayerController Player, Vector3 EntryVelocity );
+	Dash activeDash;
 
-	public override bool CanSecondaryAttack() => !dashing && base.CanSecondaryAttack();
+	public override bool CanSecondaryAttack() => activeDash is null && base.CanSecondaryAttack();
+
+	bool CanInterruptLunge => (activeDash is not null || MeleeActive)
+		&& MeleeAction is "melee_dash" or "melee_dash_airborne" or "melee_lunge" or "melee_lunge_airborne";
+
+	public override bool CanReload() => IsActive && CanInterruptLunge;
+
+	public override void Reload()
+	{
+		if ( Networking.IsHost )
+		{
+			if ( CanReload() ) InterruptLunge();
+		}
+		else RequestInterrupt();
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
+	void RequestInterrupt() => Reload();
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void InterruptLunge() => InterruptMelee();
 
 	protected override string PrimaryMeleeAction()
 	{
@@ -34,63 +50,65 @@ public sealed partial class EnergySword
 	void StartDash( GameObject target, Vector3 localPoint, float distance )
 	{
 		if ( Holder is not PlayerController player || (!Networking.IsHost && player.IsProxy) ) return;
-		dashTarget = target;
-		targetPoint = localPoint;
-		entryVelocity = player.Body.Velocity;
-		// Halo caps sword speed at 12 world units/s and builds up to it in three 30 Hz ticks.
-		float step = MathF.Min( 12f * 120 / 30, distance * 0.375f );
-		peakSpeed = step * 30;
-		dashDuration = CooldownSeconds( 13 + (int)MathF.Round( MathF.Max( distance - 3 * step, 0 ) / step ) );
-		dashStarted = 0;
-		dashing = true;
+		var dash = new Dash( player, player.Body.Velocity );
+		activeDash = dash;
+		_ = RunDash( dash, target, localPoint, distance );
 	}
 
-	protected override void OnFixedUpdate()
+	async System.Threading.Tasks.Task RunDash( Dash dash, GameObject target, Vector3 localPoint, float distance )
 	{
-		base.OnFixedUpdate();
-		if ( !dashing || Holder is not PlayerController player ) return;
-		var eye = player.EyeTransform;
-		var delta = dashTarget.IsValid() ? dashTarget.WorldTransform.PointToWorld( targetPoint ) - eye.Position : Vector3.Zero;
-		float distance = delta.Length;
-		if ( !IsActive || distance <= MeleeRange || dashStarted >= dashDuration )
+		var player = dash.Player;
+		var clock = TaskSource.Create( player.GameObject.EnabledToken );
+		// Halo caps sword speed at 12 world units/s and builds up to it in three 30 Hz ticks.
+		float step = MathF.Min( 12f * 120 / 30, distance * 0.375f );
+		float duration = CooldownSeconds( 13 + (int)MathF.Round( MathF.Max( distance - 3 * step, 0 ) / step ) );
+		TimeSince started = 0;
+		try
 		{
-			StopMovement( player );
-			if ( Networking.IsHost && IsActive )
+			// Movement belongs to the player and continues after the weapon is put away.
+			while ( true )
 			{
-				if ( player.IsProxy ) EndOwnerDash();
-				PerformMeleeAction( LungeAction( player ), FirstPersonAnimations()?.Actions );
+				await clock.FixedUpdate();
+				if ( !ReferenceEquals( activeDash, dash ) ) return;
+				var eye = player.EyeTransform;
+				var delta = target.IsValid() ? target.WorldTransform.PointToWorld( localPoint ) - eye.Position : Vector3.Zero;
+				if ( delta.Length <= MeleeRange || started >= duration ) break;
+				if ( player.IsProxy ) continue;
+				var direction = delta.Normal;
+				if ( Vector3.Dot( eye.Forward, direction ) < 0.8660254f ) direction = eye.Forward;
+				float ticks = MathF.Floor( started * 30 ) + 1;
+				player.Body.Velocity = direction * (step * 30 * MathF.Min( 1, ticks / 3 ));
 			}
-			return;
 		}
-		if ( player.IsProxy ) return;
-		var direction = delta / distance;
-		if ( Vector3.Dot( eye.Forward, direction ) < 0.8660254f ) direction = eye.Forward;
-		float elapsedTicks = MathF.Floor( dashStarted * 30 ) + 1;
-		float speed = peakSpeed * MathF.Min( 1, elapsedTicks / 3 );
-		player.Body.Velocity = direction * speed;
+		finally
+		{
+			if ( ReferenceEquals( activeDash, dash ) ) StopMovement();
+		}
+		if ( !IsValid || !Networking.IsHost || Holder != player ) return;
+		if ( player.IsProxy ) EndOwnerDash();
+		if ( IsActive && MeleeAction is ("melee_dash" or "melee_dash_airborne") )
+			PerformMeleeAction( LungeAction( player ), FirstPersonAnimations()?.Actions );
 	}
 
 	[Rpc.Owner( NetFlags.HostOnly )]
-	void EndOwnerDash()
-	{
-		if ( dashing && Holder is PlayerController player ) StopMovement( player );
-	}
+	void EndOwnerDash() => StopMovement();
 
-	void StopMovement( PlayerController player )
+	void StopMovement()
 	{
-		dashing = false;
-		dashTarget = null;
+		if ( activeDash is not {} dash ) return;
+		activeDash = null;
+		var player = dash.Player;
 		if ( player.IsValid() && !player.IsProxy && player.Body.IsValid() )
 		{
 			// Exit velocity is bounded against the velocity on entry to melee physics.
-			var velocity = player.Body.Velocity.ClampLength( entryVelocity.Length + 0.8f * 120 );
-			player.Body.Velocity = velocity.WithZ( MathF.Min( velocity.z, entryVelocity.z + 0.3f * 120 ) );
+			var velocity = player.Body.Velocity.ClampLength( dash.EntryVelocity.Length + 0.8f * 120 );
+			player.Body.Velocity = velocity.WithZ( MathF.Min( velocity.z, dash.EntryVelocity.z + 0.3f * 120 ) );
 		}
 	}
 
 	protected override void OnHolstered()
 	{
-		if ( dashing ) StopMovement( Holder as PlayerController );
+		if ( CanInterruptLunge ) InterruptMelee();
 		base.OnHolstered();
 	}
 }

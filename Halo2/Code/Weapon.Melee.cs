@@ -22,12 +22,15 @@ public abstract partial class Weapon
 	{
 		public TimeUntil End;
 		public TimeUntil NextStrike;
+		public string Action;
+		public uint Interruptions;
 	}
 
 	// Halo advances the melee action on the unit, including while its inventory changes.
 	static readonly ConditionalWeakTable<GameObject, MeleeRecovery> meleeRecovery = new();
 	GameObject MeleeOwner => Inventory?.GameObject ?? GameObject;
 	protected bool MeleeActive => Recovery.End > 0;
+	protected string MeleeAction => Recovery.Action;
 	MeleeRecovery Recovery => meleeRecovery.GetValue( MeleeOwner, static _ => new MeleeRecovery() );
 
 	protected abstract string FirstPersonRig { get; }
@@ -109,6 +112,7 @@ public abstract partial class Weapon
 	{
 		if ( !wielder.IsValid() ) return;
 		var state = meleeRecovery.GetValue( wielder, static _ => new MeleeRecovery() );
+		state.Action = action;
 		state.End = duration;
 		state.NextStrike = recovery;
 		if ( wielder != MeleeOwner ) return;
@@ -116,6 +120,17 @@ public abstract partial class Weapon
 		SetZoom( 0 );
 		PlayMeleeView( action );
 		PlayHolderOverlay( action );
+	}
+
+	protected void InterruptMelee()
+	{
+		var state = Recovery;
+		if ( state.Action is not {} action ) return;
+		state.Action = null;
+		state.End = state.NextStrike = 0;
+		state.Interruptions++;
+		HolderAnimator?.StopWeaponOverlay( action );
+		PlayMeleeView( "idle" );
 	}
 
 	float StrikeFraction()
@@ -133,7 +148,10 @@ public abstract partial class Weapon
 	{
 		// The unit owns the swing. Its equipped weapon supplies the contact geometry on the impact tick.
 		var clock = TaskSource.Create( (inventory?.GameObject ?? GameObject).EnabledToken );
+		var state = Recovery;
+		uint interruptions = state.Interruptions;
 		while ( Time.NowDouble < impactAt ) await clock.Frame();
+		if ( state.Interruptions != interruptions ) return;
 		var weapon = inventory.IsValid() ? inventory.ActiveItem as Weapon : null;
 		if ( inventory is null && IsValid && !IsHeld ) weapon = this;
 		if ( weapon.IsValid() ) weapon.MeleeContact( attacker, fraction, lunge ? weapon.LungeProfile : null );
