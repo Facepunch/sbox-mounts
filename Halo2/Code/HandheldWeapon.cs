@@ -103,6 +103,7 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public bool Instantaneous { get; set; } = true;
 	double? lastAutomaticRound;
 	double? automaticRoundAt;
+	double? lastBarrelTick;
 	bool roundQueued;
 
 	private protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active, GameObject source = null )
@@ -117,15 +118,33 @@ public abstract class HandheldWeapon : Weapon
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
 	protected virtual double EarliestRateTick => 0;
 
-	protected override bool WantsPrimaryAttack() => roundQueued || base.WantsPrimaryAttack();
+	double OtherBarrelReadyAt
+	{
+		get
+		{
+			var other = (IsOffhand ? Inventory.ActiveItem : Offhand) as HandheldWeapon;
+			if ( other?.lastBarrelTick is not double tick ) return 0;
+			// The left barrel updates first and sees the right barrel's previous tick.
+			return (tick + (IsOffhand ? 2 : 1)) / 30;
+		}
+	}
+
+	protected override bool WantsPrimaryAttack()
+	{
+		if ( !roundQueued && !base.WantsPrimaryAttack() ) return false;
+		if ( Time.NowDouble >= OtherBarrelReadyAt ) return true;
+		// A ready barrel retains its trigger request while the other hand finishes its shot.
+		if ( !PrimaryAutomatic && CanPrimaryAttack() ) roundQueued = true;
+		return false;
+	}
 
 	protected override void OnControl()
 	{
 		double now = Time.NowDouble;
 		bool held = Input.Down( TriggerButton );
 		bool canCycle = CanCycleBarrel;
-		if ( !canCycle ) roundQueued = false;
-		else if ( held && lastAutomaticRound is double last && now >= last + 1 / 30.0 )
+		if ( roundQueued && !canCycle && (PrimaryAutomatic || !CanPrimaryAttack()) ) roundQueued = false;
+		if ( canCycle && held && lastAutomaticRound is double last && now >= last + 1 / 30.0 )
 			roundQueued = true;
 
 		if ( canCycle && (held || roundQueued) && PrimaryDelay > 0 )
@@ -135,6 +154,7 @@ public abstract class HandheldWeapon : Weapon
 			{
 				// The barrel checks elapsed ticks against its current firing rate.
 				double due = System.Math.Max( EarliestRateTick, previous + System.Math.Round( PrimaryDelay * 30 ) / 30.0 );
+				due = System.Math.Max( due, OtherBarrelReadyAt );
 				SetNextPrimaryFire( (float)(due - now) );
 				if ( now - due < PrimaryDelay ) automaticRoundAt = due;
 			}
@@ -146,6 +166,7 @@ public abstract class HandheldWeapon : Weapon
 
 	protected double RecordRound()
 	{
+		lastBarrelTick = System.Math.Floor( Time.NowDouble * 30 );
 		roundQueued = false;
 		if ( automaticRoundAt is not double time ) return Time.NowDouble;
 		lastAutomaticRound = time;
@@ -158,6 +179,7 @@ public abstract class HandheldWeapon : Weapon
 	{
 		if ( ViewModel.IsValid() && ViewModel.Parent != GameObject ) DestroyViewModel();
 		lastAutomaticRound = null;
+		lastBarrelTick = null;
 		automaticRoundAt = null;
 		roundQueued = false;
 		base.OnDisabled();

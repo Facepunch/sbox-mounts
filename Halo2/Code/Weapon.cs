@@ -335,9 +335,9 @@ public abstract partial class Weapon : BaseCombatWeapon
 	protected override void OnControl()
 	{
 		if ( !Input.Down( TriggerButton ) || Input.Pressed( TriggerButton ) ) dryTriggerHeld = false;
+		if ( Offhand.IsValid() && !PuttingAway ) Offhand.OnControl();
 		base.OnControl();
 		if ( IsOffhand ) return;
-		if ( Offhand.IsValid() && !PuttingAway ) Offhand.OnControl();
 		UpdateZoomInput();
 		UpdateOffhandPickup();
 	}
