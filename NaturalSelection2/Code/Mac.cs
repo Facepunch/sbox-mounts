@@ -121,7 +121,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		Animation.SetLookTarget( obj );
 		targetRadius = target.GetComponentInChildren<Collider>()?.LocalBounds.Size.WithZ( 0 ).Length * 0.5f ?? 0.1f * Scale;
 		float distance = WorldPosition.Distance( target.WorldPosition ) - targetRadius;
-		if ( distance < 2.5f * Scale && !obj.Tags.Has( "structure" ) )
+		if ( distance < 2.5f * Scale && IsPlayerTarget( target ) )
 		{
 			if ( nextPositionCheck < 0 )
 			{
@@ -149,6 +149,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		return origin.DistanceSquared( back - side ) < origin.DistanceSquared( back + side ) ? back - side : back + side;
 	}
 
+	static bool IsPlayerTarget( Component candidate ) => candidate.GameObject.Tags.HasAny( "ns2_marine", "ns2_exo" ) || candidate.GetComponent<PlayerController>().IsValid();
+
 	bool OtherMacIsWelding( Component candidate )
 	{
 		foreach ( var mac in Scene.GetAllComponents<Mac>() )
@@ -174,16 +176,17 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		{
 			if ( hp is not Component c || c is Mac || hp.Health <= 0 || hp.MaxHealth <= 0 ) continue;
 			bool structure = c.GameObject.Tags.Has( "structure" );
-			if ( structure ? foundPlayer || hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour : hp.Armour >= hp.MaxArmour ) continue;
-			if ( !structure && !c.GameObject.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_exosuit" ) && !c.GetComponent<PlayerController>().IsValid() ) continue;
+			if ( structure ? hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour : hp.Armour >= hp.MaxArmour ) continue;
+			bool player = IsPlayerTarget( c );
+			if ( !player && (foundPlayer || !structure && !c.GameObject.Tags.Has( "ns2_exosuit" )) ) continue;
 			if ( GetDisposition( c.GameObject ) != Disposition.Friendly && !(c is BaseNpc npc && npc.Faction == Faction) ) continue;
 			if ( (anchor - c.WorldPosition).WithZ( 0 ).LengthSquared > 144 * Scale * Scale ) continue;
 			float distance = WorldPosition.DistanceSquared( c.WorldPosition );
-			if ( best.IsValid() && (foundPlayer || structure) && distance >= closest ) continue;
-			if ( !structure && OtherMacIsWelding( c ) ) continue;
+			if ( best.IsValid() && foundPlayer == player && distance >= closest ) continue;
+			if ( player && OtherMacIsWelding( c ) ) continue;
 			best = c;
 			closest = distance;
-			foundPlayer = !structure;
+			foundPlayer = player;
 		}
 		return best;
 	}
