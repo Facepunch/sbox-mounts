@@ -79,18 +79,14 @@ public sealed class GravityWeapon : Weapon
 	SceneTrace TargetTrace( Ray ray, float range ) => Scene.Trace.Ray( ray, range )
 		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" );
 
-	Rigidbody FindBody( float range, out Vector3 hitPosition )
+	static bool HitEntity( SceneTraceResult hit ) => hit.Hit && hit.GameObject.IsValid()
+		&& (!hit.HasTag( "world" ) || hit.GameObject.Tags.Has( "source1_entity" ));
+
+	SceneTraceResult FindTarget( float range )
 	{
 		var ray = TargetTrace( AimRay, range ).WithoutTags( "player" );
-		var tr = ray.Run();
-		var body = tr.GameObject?.GetComponentInParent<Rigidbody>();
-		if ( !body.IsValid() )
-		{
-			tr = ray.Size( 8 ).Run();
-			body = tr.GameObject?.GetComponentInParent<Rigidbody>();
-		}
-		hitPosition = tr.HitPosition;
-		return body;
+		var hit = ray.Run();
+		return HitEntity( hit ) ? hit : ray.Size( 8 ).Run();
 	}
 
 	Rigidbody FindBodyInCone( Ray aim )
@@ -309,9 +305,10 @@ public sealed class GravityWeapon : Weapon
 	{
 		SetNextSecondaryFire( 0.1f );
 		var aim = AimRay;
-		var body = FindBody( PullLength, out var hit );
-		bool pull = body.IsValid() && aim.Position.Distance( hit ) > TraceLength;
-		body ??= FindBodyInCone( aim );
+		var hit = FindTarget( PullLength );
+		var direct = HitEntity( hit );
+		var body = direct ? hit.GameObject.GetComponentInParent<Rigidbody>() : FindBodyInCone( aim );
+
 		if ( !CanPickUp( body ) || body.IsProxy )
 		{
 			if ( _playedDenySound ) return;
@@ -319,7 +316,8 @@ public sealed class GravityWeapon : Weapon
 			DenyPickup();
 			return;
 		}
-		if ( pull )
+		var target = direct ? hit.HitPosition : body.GameObject.GetBounds().Center;
+		if ( aim.Position.Distance( target ) > TraceLength )
 		{
 			if ( !body.MotionEnabled ) return;
 			var direction = (aim.Position - body.GameObject.GetBounds().Center).Normal;
@@ -463,7 +461,7 @@ public sealed class GravityWeapon : Weapon
 		if ( Application.IsDedicatedServer ) return;
 		_effects ??= new PhysCannonEffects();
 		// Only the owner traces; other peers show the idle claws.
-		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && CanPickUp( FindBody( TraceLength, out _ ) );
+		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && CanPickUp( FindTarget( TraceLength ).GameObject?.GetComponentInParent<Rigidbody>() );
 		_effects.Update( this, HeldObject, ready );
 	}
 
