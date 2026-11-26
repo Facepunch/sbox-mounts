@@ -18,6 +18,7 @@ public class MapFile
 	public string MapsDirectory { get; }
 
 	readonly byte[] decompressedData;
+	readonly string sourcePath;
 
 	/// <summary>VA translation magic: subtract from virtual address to get file offset.</summary>
 	public int Magic { get; }
@@ -25,6 +26,7 @@ public class MapFile
 	public MapFile( BaseFileSystem fs, string path )
 	{
 		MapsDirectory = Path.GetDirectoryName( path )?.Replace( '\\', '/' ) ?? "";
+		sourcePath = path.Replace( '\\', '/' );
 
 		decompressedData = MapDecompressor.Read( fs, path );
 
@@ -97,7 +99,7 @@ public class MapFile
 			_ => null
 		};
 
-		if ( targetPath != null )
+		if ( targetPath != null && !targetPath.Equals( sourcePath, StringComparison.OrdinalIgnoreCase ) )
 		{
 			// Read from external map file (shared resources)
 			using var fs = fileSystem.OpenRead( targetPath );

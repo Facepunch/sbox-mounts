@@ -12,6 +12,9 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	{
 		"head" => new( map, weapon, "Oddball", WeaponHolds.Melee ),
 		"head_sp" => new( map, weapon, "Campaign Skull", WeaponHolds.Melee ),
+		"ball" => new( map, weapon, "Oddball", WeaponHolds.Melee ),
+		"flag" => new( map, weapon, "Flag", WeaponHolds.Melee ),
+		"assault_bomb" => new( map, weapon, "Assault Bomb", WeaponHolds.Melee ),
 		"energy_blade" => new( map, weapon, "Energy Sword", WeaponHolds.Melee ),
 		"energy_blade_useless" => new( map, weapon, "Depleted Energy Sword", WeaponHolds.Melee ),
 		"plasma_pistol" => new( map, weapon, "Plasma Pistol", WeaponHolds.Pistol ),
@@ -24,6 +27,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		"big_needler_handheld" => new( map, weapon, "Big Needler", WeaponHolds.Rifle ),
 		"needler" => new( map, weapon, "Needler", WeaponHolds.Pistol ),
 		"smg" => new( map, weapon, "SMG", WeaponHolds.Smg ),
+		"smg_silenced" => new( map, weapon, "Silenced SMG", WeaponHolds.Smg ),
+		"gpmg" => new( map, weapon, "General-Purpose Machine Gun", WeaponHolds.Rifle ),
 		"battle_rifle" => new( map, weapon, "Battle Rifle", WeaponHolds.Rifle ),
 		"sniper_rifle" => new( map, weapon, "Sniper Rifle", WeaponHolds.Rifle ),
 		"covenant_carbine" => new( map, weapon, "Carbine", WeaponHolds.Rifle ),
@@ -119,7 +124,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	{
 		var projectile = HasBarrel ? Reference( PrimaryBarrel + 0x8c ) : null;
 		if ( projectile is not null && ((map.ReadInt32( Address( projectile ) + 0xbc ) & 32) != 0
-			|| Name is "smg" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle" or "needler") )
+			|| Name is "smg" or "smg_silenced" or "gpmg" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle" or "needler") )
 		{
 			var tags = new HashSet<TagEntry>();
 			bulletContacts = LoadBulletContacts( projectile, materialParents, tags );

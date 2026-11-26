@@ -62,15 +62,15 @@ public class Halo2Mount : BaseGameMount
 		if ( appFs is null || !appFs.DirectoryExists( MapsDir ) )
 			return Task.CompletedTask;
 
-		// Resource/shared maps to skip
 		var skipMaps = new HashSet<string>( StringComparer.OrdinalIgnoreCase )
 		{
-			"shared.map",
 			"single_player_shared.map",
 			"mainmenu.map"
 		};
 
-		var paths = appFs.FindFile( MapsDir, "*.map" ).Where( name => !skipMaps.Contains( name ) ).ToArray();
+		// Multiplayer weapon definitions live in shared.map. Prefer existing campaign rigs when both exist.
+		var paths = appFs.FindFile( MapsDir, "*.map" ).Where( name => !skipMaps.Contains( name ) )
+			.OrderBy( name => name.Equals( "shared.map", StringComparison.OrdinalIgnoreCase ) ).ToArray();
 		var maps = new MapFile[paths.Length];
 		// Decode a bounded number at once. Publish on the mount thread in file order.
 		int workers = Math.Min( 4, paths.Length );
