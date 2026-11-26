@@ -165,14 +165,21 @@ public sealed class BulletWeapon : Weapon
 		if ( WeaponModel is ViewModel model ) model.DelayRecoilReset( TapRefireDelay );
 	}
 
-	protected override void Think()
+	void UpdateFireDuration()
 	{
-		base.Think();
-		if ( !Input.Down( "attack1" ) || (IsReloading && (!CanLaunchDuringReload || _reloadInputDelay > 0)) )
+		// A holstered or drawing weapon receives no attack commands, so its previous hold is preserved.
+		if ( IsDeploying || (IsReloading && (!CanLaunchDuringReload || _reloadInputDelay > 0)) ) return;
+		if ( !Input.Down( "attack1" ) )
 			_fireDuration = 0;
 		else
 			// The first attack command contributes one movement tick, regardless of the render frame before it.
 			_fireDuration = _fireDuration == 0 ? ViewPunch.Tick : _fireDuration + Time.Delta;
+	}
+
+	protected override void Think()
+	{
+		base.Think();
+		UpdateFireDuration();
 		// A ready launcher takes priority over bullets and reload on the same frame.
 		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && (!IsReloading || CanLaunchDuringReload) )
 		{
@@ -238,7 +245,6 @@ public sealed class BulletWeapon : Weapon
 	protected override void OnHolstered()
 	{
 		if ( IsReloading && MountContent.OfWeapon( this ) == "hl2" ) SetNextFire( 0 );
-		_fireDuration = 0;
 		_holdingEmptyTrigger = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
