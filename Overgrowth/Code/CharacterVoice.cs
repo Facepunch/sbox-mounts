@@ -12,7 +12,7 @@ internal sealed class CharacterVoice
 
 	internal static void Select( SkinnedModelRenderer renderer, string cue, Action<string, float, float, float> play )
 	{
-		if ( !renderer.IsValid() || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
+		if ( !renderer.IsValid() || !renderer.Model.IsValid() || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ||
 			mount.GetByPath( renderer.Model.ResourcePath ) is not CharacterLoader character ) return;
 		var (group, pitch) = character.GetVoice( cue );
 		if ( group is null ) return;
@@ -28,7 +28,7 @@ internal sealed class CharacterVoice
 		handle.Position = head;
 		handle.LocalTransform = new Transform( renderer.WorldTransform.PointToLocal( head ) );
 		GameMount.ConfigureGroup( handle, volume, distance );
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
+		if ( renderer.Model.IsValid() && Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( path ) is SoundLoader sound && mount.GetByPath( renderer.Model.ResourcePath ) is CharacterLoader character &&
 			character.GetVoiceTrack( sound ) is { } recording )
 		{

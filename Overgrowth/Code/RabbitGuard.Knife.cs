@@ -48,7 +48,6 @@ public sealed partial class RabbitGuard
 		layer.Remainder = 0;
 		layer.Weight = 7f / 120f;
 		currentKnifeLayer = layer;
-		Renderer.Animation.Parameters.Set( "knife_backhand_newest", reverse );
 	}
 
 	void InterruptWeaponLayers()
@@ -66,6 +65,7 @@ public sealed partial class RabbitGuard
 	void UpdateKnifeLayers()
 	{
 		if ( !forehand.Active && !backhand.Active ) return;
+		Renderer.Animation.Parameters.Set( "knife_backhand_newest", currentKnifeLayer == backhand );
 		Renderer.Animation.Parameters.Set( "attack_height_coord", AttackHeight );
 		Advance( forehand );
 		Advance( backhand );

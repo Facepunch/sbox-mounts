@@ -370,7 +370,7 @@ public sealed partial class RabbitGuard
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void EmitMaterialEvent( string step, Vector3 point, string surface, float gain )
 	{
-		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
+		if ( Renderer.IsValid() && Renderer.Model.IsValid() && Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount &&
 			mount.GetByPath( Renderer.Model.ResourcePath ) is CharacterLoader character )
 			mount.PlayMaterialEvent( character, GameObject, surface, step, point, gain );
 	}
