@@ -314,7 +314,7 @@ public sealed partial class RabbitGuard
 	internal void OnAirContact( Collision collision )
 	{
 		if ( !Networking.IsHost || Downed || Health < 1f || airVelocity is not { } before || collision.Other.IsTrigger ) return;
-		if ( collision.Other.GameObject.Tags.Has( "npc" ) || !collision.Self.Body.IsValid() ) return;
+		if ( !collision.Self.Body.IsValid() || collision.Other.GameObject.IsValid() && collision.Other.GameObject.Tags.Has( "npc" ) ) return;
 		float impact = before.Distance( collision.Self.Body.Velocity ) / 40f;
 		flinchSpring = Math.Max( flinchSpring, Math.Min( 1f, impact * 2f - 1f ) );
 		pendingTuck = Math.Max( pendingTuck, Math.Min( 0.4f, impact * 0.1f ) );

@@ -171,6 +171,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal static Vector3? RagdollVelocity( ModelPhysics physics )
 	{
+		if ( !physics.IsValid() ) return null;
 		Vector3 momentum = default;
 		float mass = 0f;
 		foreach ( var part in physics.Bodies )
