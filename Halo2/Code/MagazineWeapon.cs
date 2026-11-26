@@ -7,6 +7,7 @@ public class MagazineWeapon : Firearm
 	[Property] public int RecoveryBufferTicks { get; set; }
 	[Property] public bool HasIdleMagazineBarrel { get; set; }
 	int remainingShots;
+	double burstStartTick;
 	double burstRoundAt;
 	GameObject burstAttacker;
 	double? transferAt;
@@ -22,7 +23,7 @@ public class MagazineWeapon : Firearm
 	protected override bool CanCycleBarrel => BurstLength <= 1 && base.CanCycleBarrel;
 	protected override bool HasPendingRound => remainingShots > 0 || base.HasPendingRound;
 	protected virtual bool PredictProjectileEffects => true;
-	protected override bool WantsPrimaryAttack() => !IsReloading && (triggerPressedDuringRecovery || triggerPressedDuringReload || base.WantsPrimaryAttack());
+	protected override bool WantsPrimaryAttack() => remainingShots == 0 && !IsReloading && (triggerPressedDuringRecovery || triggerPressedDuringReload || base.WantsPrimaryAttack());
 
 	public override void PrimaryAttack()
 	{
@@ -38,7 +39,8 @@ public class MagazineWeapon : Firearm
 		if ( BurstLength > 1 && remainingShots == 0 )
 		{
 			remainingShots = BurstLength;
-			burstRoundAt = System.Math.Floor( roundAt * 30 ) / 30;
+			burstStartTick = System.Math.Floor( roundAt * 30 );
+			burstRoundAt = burstStartTick / 30;
 			burstAttacker = Attacker;
 		}
 		if ( Instantaneous ) base.PrimaryAttack();
@@ -95,10 +97,14 @@ public class MagazineWeapon : Firearm
 		ShootEffects();
 	}
 
-	public override bool CanReload() => remainingShots == 0 && !(dryFiring && emptyRoundAt.HasValue) && base.CanReload();
+	public override bool CanReload() => !(dryFiring && emptyRoundAt.HasValue) && base.CanReload();
 
 	protected override void OnControl()
 	{
+		// Resolve earlier weapon ticks before input. A melee on this tick takes
+		// priority over a continuation round due on the same tick.
+		double tick = System.Math.Floor( Time.NowDouble * 30 );
+		if ( remainingShots > 0 ) AdvanceBurst( tick - 1 );
 		bool held = Input.Down( TriggerButton );
 		if ( RecoveryBufferTicks > 0 )
 		{
@@ -115,6 +121,15 @@ public class MagazineWeapon : Firearm
 			barrelIdleAt = System.Math.Min( barrelIdleAt, shot + elapsedTicks / 30 + RecoveryDelay );
 		}
 		base.OnControl();
+		if ( remainingShots > 0 ) AdvanceBurst( tick );
+	}
+
+	void AdvanceBurst( double throughTick )
+	{
+		while ( remainingShots > 0 && System.Math.Round( burstRoundAt * 30 ) <= throughTick && NextPrimaryFire <= 0 )
+		{
+			if ( !FirePrimary( burstAttacker ) ) break;
+		}
 	}
 
 	public override void DryFire()
@@ -134,7 +149,9 @@ public class MagazineWeapon : Firearm
 
 	void BeginReload( bool automatic )
 	{
-		if ( Networking.IsHost && CanReload() )
+		if ( !CanReload() ) return;
+		CancelBurst();
+		if ( Networking.IsHost )
 		{
 			emptyRoundAt = null;
 			transferAt = null;
@@ -221,11 +238,8 @@ public class MagazineWeapon : Firearm
 		if ( Networking.IsHost && !IsHeld ) UpdateLooseMagazine();
 		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
 			TransferMagazine();
-		// A slow frame can cross more than one scheduled round of the same burst.
-		while ( remainingShots > 0 && NextPrimaryFire <= 0 )
-		{
-			if ( !FirePrimary( burstAttacker ) ) break;
-		}
+		if ( remainingShots > 0 && Holder is not PlayerController )
+			AdvanceBurst( System.Math.Floor( Time.NowDouble * 30 ) );
 		if ( IsReloading ) emptyRoundAt = null;
 		if ( IsProxy && !(Networking.IsHost && emptyRoundAt.HasValue) ) return;
 		if ( !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
@@ -238,11 +252,23 @@ public class MagazineWeapon : Firearm
 		triggerPressedDuringRecovery = false;
 		recoveryEndsAt = 0;
 		triggerPressedDuringReload = false;
-		remainingShots = 0;
+		CancelBurst();
 		emptyRoundAt = null;
-		burstAttacker = null;
 		base.OnDisabled();
 	}
 
-	public override bool CanSecondaryAttack() => remainingShots == 0 && base.CanSecondaryAttack();
+	public override bool CanSecondaryAttack() =>
+		(remainingShots == 0 || System.Math.Floor( Time.NowDouble * 30 ) > burstStartTick) && base.CanSecondaryAttack();
+
+	protected override void PlayMeleeView( string action )
+	{
+		CancelBurst();
+		base.PlayMeleeView( action );
+	}
+
+	void CancelBurst()
+	{
+		remainingShots = 0;
+		burstAttacker = null;
+	}
 }
