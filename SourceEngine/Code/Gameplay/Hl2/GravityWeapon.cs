@@ -35,6 +35,7 @@ public sealed class GravityWeapon : Weapon
 	const float MaxCarrySpeed = 2500;
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
 	readonly List<(Rigidbody Body, float MassOverride, float AngularDamping)> _carriedBodies = [];
+	Connection _carryOwner;
 	float _loadWeight;
 	Vector3 _carryTarget;
 	Vector3 _carryCenterOffset;
@@ -110,6 +111,17 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
+	bool BeginCarry( Rigidbody body )
+	{
+		if ( !body.IsProxy ) return true;
+		// Only transfer an independent physics entity, never its networked parent.
+		if ( body.Network.RootGameObject != CarryEntity( body.GameObject ) || body.GetComponentInParent<PlayerController>() is not null ) return false;
+		var owner = body.Network.Owner;
+		body.Network.DropOwnership();
+		if ( !body.IsProxy ) _carryOwner = owner;
+		return !body.IsProxy;
+	}
+
 	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && body.Mass <= MaxMass
 		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body )
 		&& !IsFlesh( body ) && !AlreadyHeld( body.GameObject );
@@ -157,7 +169,7 @@ public sealed class GravityWeapon : Weapon
 				return;
 			}
 			var held = HeldObject.GetComponent<Rigidbody>();
-			Release();
+			Release( launching: true );
 			if ( !held.IsValid() ) return;
 			var model = held.GetComponentInParent<ModelPhysics>();
 			var mass = model is { Bodies.Count: > 0 } ? model.Bodies[0].Component.Mass : held.Mass;
@@ -173,6 +185,7 @@ public sealed class GravityWeapon : Weapon
 					if ( CanMove( part.Component ) ) Launch( part.Component );
 			}
 			else Launch( held );
+			RestoreOwner( held );
 
 			void Launch( Rigidbody body )
 			{
@@ -202,14 +215,15 @@ public sealed class GravityWeapon : Weapon
 
 		if ( obj.GetComponentInParent<Rigidbody>() is { } body )
 		{
-			if ( body.IsProxy || !body.PhysicsBody.IsValid() || IsFlesh( body ) ) return PuntResult.Miss;
-			if ( !body.MotionEnabled )
-			{
-				if ( !body.Tags.Has( EnableMotionTag ) ) return PuntResult.Hit;
-				body.MotionEnabled = true;
-			}
+			if ( !body.PhysicsBody.IsValid() || IsFlesh( body ) ) return PuntResult.Miss;
+			if ( !body.MotionEnabled && !body.Tags.Has( EnableMotionTag ) ) return PuntResult.Hit;
 			if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
-			PuntBodies( body, forward, trace.EndPosition );
+			if ( body.IsProxy )
+			{
+				using var recipients = Rpc.FilterInclude( body.Network.Owner );
+				PuntRemoteBody( body, forward, trace.EndPosition );
+			}
+			else PuntBodies( body, forward, trace.EndPosition );
 			return PuntResult.Hit;
 		}
 
@@ -229,8 +243,15 @@ public sealed class GravityWeapon : Weapon
 		return PuntResult.HitDamageable;
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PuntRemoteBody( Rigidbody body, Vector3 forward, Vector3 hit )
+	{
+		if ( body.IsValid() && !body.IsProxy ) PuntBodies( body, forward, hit );
+	}
+
 	static void PuntBodies( Rigidbody struck, Vector3 forward, Vector3 hit )
 	{
+		if ( !struck.MotionEnabled ) struck.MotionEnabled = true;
 		var entity = CarryEntity( struck.GameObject );
 		var massLimit = entity.GetComponent<Sandbox.Movement.ISitTarget>() is null ? MaxMass : MaxMass * 2.5f;
 		if ( entity.GetComponent<ModelPhysics>() is not { Bodies.Count: > 1 } model )
@@ -327,7 +348,7 @@ public sealed class GravityWeapon : Weapon
 		var direct = HitEntity( hit );
 		var body = direct ? hit.GameObject.GetComponentInParent<Rigidbody>() : FindBodyInCone( aim );
 
-		if ( !CanPickUp( body ) || body.IsProxy )
+		if ( !CanPickUp( body ) )
 		{
 			if ( _playedDenySound ) return;
 			_playedDenySound = true;
@@ -340,9 +361,16 @@ public sealed class GravityWeapon : Weapon
 			if ( !body.MotionEnabled ) return;
 			var direction = (aim.Position - body.GameObject.GetBounds().Center).Normal;
 			var scale = body.Mass < 50 ? (body.Mass + 0.5f) / 50 : 1;
-			body.ApplyImpulse( direction * (PullForce * scale) );
+			var impulse = direction * (PullForce * scale);
+			if ( body.IsProxy )
+			{
+				using var recipients = Rpc.FilterInclude( body.Network.Owner );
+				PullRemoteBody( body, impulse );
+			}
+			else body.ApplyImpulse( impulse );
 			return;
 		}
+		if ( !BeginCarry( body ) ) return;
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
 		ApplyCarryPhysics( body );
@@ -361,6 +389,12 @@ public sealed class GravityWeapon : Weapon
 		foreach ( var npc in HeldObject.Root.GetComponentsInChildren<Sandbox.Npcs.BaseNpc>() )
 			npc.StartCarry( GameObject );
 		CarryEffects( CarryResult.Pickup );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PullRemoteBody( Rigidbody body, Vector3 impulse )
+	{
+		if ( body.IsValid() && !body.IsProxy ) body.ApplyImpulse( impulse );
 	}
 
 	void ApplyCarryPhysics( Rigidbody grabbed )
@@ -449,7 +483,14 @@ public sealed class GravityWeapon : Weapon
 		body.AngularVelocity = ShadowController.Velocity( body.AngularVelocity, angularError, spinLimit, MaxCarrySpin * 2 );
 	}
 
-	void Release()
+	void RestoreOwner( Rigidbody body )
+	{
+		if ( _carryOwner is { IsActive: true } && body.IsValid() && !body.IsProxy )
+			body.Network.AssignOwnership( _carryOwner );
+		_carryOwner = null;
+	}
+
+	void Release( bool launching = false )
 	{
 		var held = HeldObject;
 		HeldObject = null;
@@ -461,7 +502,11 @@ public sealed class GravityWeapon : Weapon
 		}
 		_carriedBodies.Clear();
 		_loadWeight = 0;
-		if ( !held.IsValid() ) return;
+		if ( !held.IsValid() )
+		{
+			_carryOwner = null;
+			return;
+		}
 		if ( held.GetComponent<Rigidbody>() is { } body && CanMove( body ) )
 		{
 			body.Velocity = body.Velocity.ClampLength( 500 );
@@ -471,6 +516,7 @@ public sealed class GravityWeapon : Weapon
 		{
 			npc.StopCarry( GameObject );
 		}
+		if ( !launching ) RestoreOwner( held.GetComponent<Rigidbody>() );
 	}
 
 	protected override void OnUpdate()
