@@ -156,6 +156,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
 		gun.AttackSound = FiringSound( barrel, out var marker );
 		gun.AttackSoundMarker = marker;
+		if ( map.ReadInt32( barrel + 0xe4 ) == 1 )
+			gun.PrimaryFlash = ReadMuzzleFlash( Reference( Block( barrel + 0xe4 ) + 4 ) );
 		ConfigureKick( gun, barrel );
 		gun.Ballistics = ReadBallistics( gun.Ballistics, barrel, projectile, damage );
 		ConfigureProjectile( gun, barrel, projectile, damage );
@@ -315,7 +317,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 
 	MuzzleFlashDefinition ReadMuzzleFlash( TagEntry effect )
 	{
-		if ( effect is not { DataSize: > 0 } ) return null;
+		if ( effect is not { PrimaryClass: "effe", DataSize: > 0 } ) return null;
 		int header = Address( effect );
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
 		string marker = null;
@@ -329,7 +331,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				if ( particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst") ) continue;
+				if ( particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
+					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long") ) continue;
 				int definition = Address( particle );
 				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
 				if ( bitmap is null ) continue;

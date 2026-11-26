@@ -6,6 +6,7 @@ public abstract class HandheldWeapon : Weapon
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }
 
+	[Property] public MuzzleFlashDefinition PrimaryFlash { get; set; }
 	[Property] public bool Instantaneous { get; set; } = true;
 	double? lastAutomaticRound;
 	double? automaticRoundAt;
@@ -57,6 +58,18 @@ public abstract class HandheldWeapon : Weapon
 		automaticRoundAt = null;
 		roundQueued = false;
 		base.OnDisabled();
+	}
+
+	protected override void OnShootEffects( ShotEffect shot )
+	{
+		base.OnShootEffects( shot );
+		if ( !shot.NoEvents && !Application.IsDedicatedServer ) EmitMuzzleFlash( PrimaryFlash );
+	}
+
+	protected void EmitMuzzleFlash( MuzzleFlashDefinition flash )
+	{
+		if ( flash is not null && EffectMarker( flash.Marker ) is {} muzzle )
+			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel );
 	}
 
 	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )

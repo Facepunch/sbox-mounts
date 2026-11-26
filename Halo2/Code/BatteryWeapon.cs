@@ -121,8 +121,7 @@ public class BatteryWeapon : HandheldWeapon
 		if ( Application.IsDedicatedServer || FiringCues is null || (uint)index >= FiringCues.Length ) return;
 		var cue = FiringCues[index];
 		PlayFiringSound( cue.Sound, cue.Marker );
-		if ( cue.Flash is {} flash && EffectMarker( flash.Marker ) is {} muzzle )
-			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel );
+		EmitMuzzleFlash( cue.Flash );
 	}
 
 	[Rpc.Owner( NetFlags.HostOnly )]
