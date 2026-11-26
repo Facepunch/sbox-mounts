@@ -28,10 +28,15 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 	ModelTarget[] ReadTargets()
 	{
-		int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
-		int id = mapFile.ReadInt32( unit + 0x38 );
-		if ( mapFile.GetTag( id & 0xffff ) is not { PrimaryClass: "tmlh", DataSize: >= 0x70 } definition ) return [];
-		int flags = biped.DataSize >= 0xc0 ? mapFile.ReadInt32( unit + 0xbc ) : 0;
+		var definition = collisionModel;
+		int flags = 0;
+		if ( biped is not null )
+		{
+			int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
+			definition = mapFile.GetTag( mapFile.ReadInt32( unit + 0x38 ) & 0xffff );
+			if ( biped.DataSize >= 0xc0 ) flags = mapFile.ReadInt32( unit + 0xbc );
+		}
+		if ( definition is not { PrimaryClass: "tmlh", DataSize: >= 0x70 } ) return [];
 		if ( (flags & (1 << 21)) != 0 ) return []; // Ignored by autoaim.
 		return Rows( mapFile.VaToOffset( (int)definition.DataVirtualAddress ) + 0x68, 28 )
 			.Select( row => new ModelTarget
@@ -41,6 +46,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				ConeAngle = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 8 ) ),
 				MagnetismWeight = BitConverter.Int32BitsToSingle( mapFile.ReadInt32( row + 16 ) ),
 				Inconsequential = (flags & (1 << 19)) != 0,
+				Lockable = (mapFile.ReadInt32( row + 20 ) & 1) != 0,
 				IsWeak = (mapFile.ReadInt32( row + 20 ) & 8) != 0
 			} )
 			.ToArray();
@@ -154,7 +160,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				AmmunitionFrames = context.Overlays.TryGetValue( "ammunition", out var ammunition ) ? GetClipInfo( ammunition ).Frames : 0,
 				Movement = context.Overlays.TryGetValue( "moving", out var movement ) ? GetClipInfo( movement ) : null } );
 		}
-		if ( biped is not null && ReadTargets() is { Length: > 0 } targets )
+		if ( ReadTargets() is { Length: > 0 } targets )
 			builder.WithData( targets );
 
 		if ( model.Sections.Count == 0 || model.Regions.Count == 0 )

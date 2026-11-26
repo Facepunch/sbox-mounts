@@ -68,7 +68,8 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 	}
 
 	protected static ProjectileOrientation ReadOrientation( int flags ) => (ProjectileOrientation)flags &
-		(ProjectileOrientation.AlongVelocity | ProjectileOrientation.SteeringAdjustsOrientation | ProjectileOrientation.CanTrackBehind);
+		(ProjectileOrientation.AlongVelocity | ProjectileOrientation.SteeringAdjustsOrientation
+			| ProjectileOrientation.CanTrackBehind | ProjectileOrientation.RobotronSteering);
 
 	protected ProjectileSpeedProfile ReadSpeedProfile( int projectile )
 	{

@@ -6,7 +6,8 @@ public enum ProjectileOrientation
 	None = 0,
 	AlongVelocity = 1,
 	SteeringAdjustsOrientation = 1 << 6,
-	CanTrackBehind = 1 << 8
+	CanTrackBehind = 1 << 8,
+	RobotronSteering = 1 << 9
 }
 
 public sealed record ProjectileSpeedProfile( float FinalSpeed, float StartDistance, float InverseDistance, bool FasterForPlayer, float NpcScale );
@@ -248,6 +249,16 @@ public abstract partial class Weapon
 						float seconds = System.MathF.Min( 2, delta.Length / pellet.Velocity.Length );
 						// Halo caps the prediction at two seconds and two world units.
 						delta += (velocity * (leading * seconds)).ClampLength( 240 );
+					}
+					if ( (orientation & ProjectileOrientation.RobotronSteering) != 0 )
+					{
+						var forward = delta.Normal;
+						var side = Vector3.Cross( Vector3.Up, forward ).Normal;
+						double phase = (System.Math.Floor( firedAt * 30 ) + tick) * (6.5 / 30);
+						var (sin, cos) = System.Math.SinCos( phase );
+						// The orbit follows the shared 30 Hz clock and narrows as the rocket approaches.
+						delta += (side * (float)cos + Vector3.Cross( forward, side ) * (float)sin)
+							* System.MathF.Min( delta.Length * 0.05f, 240 );
 					}
 					var desired = delta.Normal;
 					var direction = pellet.Velocity.Normal;

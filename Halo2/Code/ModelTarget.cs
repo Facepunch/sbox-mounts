@@ -11,6 +11,7 @@ public sealed class ModelTarget
 	public float MagnetismWeight { get; set; } = 1;
 	public bool Inconsequential { get; set; }
 	public bool IsWeak { get; set; }
+	public bool Lockable { get; set; }
 
 	static readonly ConditionalWeakTable<Model, ModelTarget[]> Targets = new();
 	internal static ModelTarget[] For( Model model ) => Targets.GetValue( model, static m => m.GetData<ModelTarget[]>() ?? [] );

@@ -98,23 +98,39 @@ public sealed class RocketLauncher : MagazineWeapon
 	{
 		point = default;
 		GameObject best = null;
+		Vector3 bestPosition = default;
 		float bestDot = System.MathF.Cos( LockAngle );
 		var eye = player.EyeTransform.Position;
 		foreach ( var vehicle in Scene.GetAllComponents<FourWheelVehicle>() )
 		{
-			var driver = vehicle.Seat?.GetOccupant();
-			if ( !driver.IsValid() || driver == player || vehicle.GetComponent<ModelRenderer>() is not {} renderer ) continue;
-			var center = renderer.Bounds.Center;
-			var delta = center - eye;
-			float distance = delta.Length;
-			float dot = Vector3.Dot( forward, delta.Normal );
-			if ( distance > LockRange || dot < bestDot ) continue;
-			var hit = BulletTrace( new Ray( eye, delta.Normal ), distance, 0 ).IgnoreGameObjectHierarchy( vehicle.GameObject ).Run();
-			if ( hit.StartedSolid || hit.Hit ) continue;
-			bestDot = dot;
-			best = vehicle.GameObject;
-			point = best.WorldTransform.PointToLocal( center );
+			if ( vehicle.GetComponent<ModelRenderer>() is not {} renderer ) continue;
+			if ( player.GetComponentInParent<FourWheelVehicle>() == vehicle || vehicle.Seat?.GetOccupant() == player ) continue;
+			if ( vehicle.Seat?.IsOccupied != true && !vehicle.GetComponentsInChildren<BaseChair>().Any( seat => seat.IsOccupied ) ) continue;
+			if ( renderer.Model is not {} model ) continue;
+			var targets = ModelTarget.For( model );
+			if ( targets.Length == 0 ) Consider( renderer.Bounds.Center );
+			foreach ( var target in targets )
+			{
+				if ( !target.Lockable ) continue;
+				var marker = renderer is SkinnedModelRenderer skin ? skin.GetAttachment( target.Marker )
+					: model.GetAttachment( target.Marker ) is {} local ? renderer.WorldTransform.ToWorld( local ) : (Transform?)null;
+				if ( marker is {} transform ) Consider( transform.Position );
+			}
+
+			void Consider( Vector3 position )
+			{
+				var delta = position - eye;
+				float distance = delta.Length;
+				float dot = Vector3.Dot( forward, delta.Normal );
+				if ( distance > LockRange || dot < bestDot ) return;
+				var hit = BulletTrace( new Ray( eye, delta.Normal ), distance, 0 ).IgnoreGameObjectHierarchy( vehicle.GameObject ).Run();
+				if ( hit.StartedSolid || hit.Hit ) return;
+				bestDot = dot;
+				best = vehicle.GameObject;
+				bestPosition = position;
+			}
 		}
+		if ( best.IsValid() ) point = best.WorldTransform.PointToLocal( bestPosition );
 		return best;
 	}
 
