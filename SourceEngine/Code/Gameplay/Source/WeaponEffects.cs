@@ -368,6 +368,7 @@ static class WeaponEffects
 		if ( !sparks.IsValid() ) return null;
 		sparks.GameObject.WorldPosition = position;
 		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );
+		sparks.ApplyShape = true;
 		sparks.InitialScale = width;
 		sparks.Force = true;
 		sparks.ForceSpace = ParticleEffect.SimulationSpace.World;
@@ -433,6 +434,40 @@ static class WeaponEffects
 		// effects/yellowflare_noz draws the effects/yellowflare texture.
 		var flare = burst.Add( "effects/yellowflare", mount, 0, magnitude * Game.Random.Int( 4, 8 ), Color.White, 0.2f );
 		burst.FadeTo( flare, 0, Color.White );
+		var grey = Game.Random.Int( 32, 64 ) / 255f;
+		var halo = burst.Add( "effects/yellowflare", mount, 0, magnitude * Game.Random.Int( 32, 64 ), Color.White * (grey * grey), 0.2f );
+		burst.FadeTo( halo, 0, Color.Black );
+		SparkSmoke( go, mount );
+	}
+
+	static readonly ParticleFloat SmokeGrowth = LinearOverLife( 1, 4 );
+	static readonly ParticleFloat SmokeFade = LinearOverLife( 1, 0 );
+
+	static ParticleFloat LinearOverLife( float start, float end ) => new()
+	{
+		Type = ParticleFloat.ValueType.Curve,
+		Evaluation = ParticleFloat.EvaluationType.Life,
+		CurveA = new Curve( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) )
+	};
+
+	static void SparkSmoke( GameObject burst, string mount )
+	{
+		// Smoke evolves over one second, but dies with the glow emitter after 0.2 seconds.
+		var smoke = Particles.Emitter( burst, "particle/particle_noisesphere", mount, false, false, 1 );
+		if ( !smoke.IsValid() ) return;
+		smoke.Lifetime = 1;
+		smoke.ApplyShape = true;
+		smoke.InitialScale = 2 * Game.Random.Int( 4, 8 );
+		smoke.Scale = SmokeGrowth;
+		smoke.ApplyAlpha = true;
+		smoke.Alpha = SmokeFade;
+		smoke.ApplyRotation = true;
+		smoke.InitialRoll = new ParticleFloat( 0, 360 );
+		smoke.AngularVelocity = new Vector3( 0, 0, Game.Random.Float( -2, 2 ).RadianToDegree() );
+		var origin = burst.WorldPosition + Particles.InCube( 4 ).WithZ( 0 );
+		if ( smoke.Emit( origin, 0 ) is not { } puff ) return;
+		puff.Color = new Color( 1, 1, 200 / 255f, Game.Random.Int( 16, 32 ) / 255f );
+		puff.Velocity = Particles.InCube( 16 ).WithZ( 16 );
 	}
 
 	/// <summary>
