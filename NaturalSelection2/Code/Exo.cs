@@ -90,7 +90,6 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	TimeUntil repath, fireUntil, nextJuke;
 	int strafeSide = 1;
-	GameObject firingTarget;
 	Rotation aim;
 	internal Vector3 AimDirection => aim.Forward;
 	bool attack, closePlayer, inRailRange;
@@ -192,17 +191,13 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
-		var aimPoint = visible ? CalculateAimPoint( enemy ) : default;
+		var aimPoint = visible ? CalculateAimPoint( enemy ) : memory.GetValueOrDefault();
 		viewTarget = visible ? aimPoint : null;
 		var weapon = Railguns ? BotWeaponAim.Weapon.Railgun : BotWeaponAim.Weapon.Minigun;
 		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, weapon, out viewTarget );
-		if ( aimed )
-		{
-			firingTarget = enemy;
-			fireUntil = 0.5f;
-		}
-		if ( visible && !aimed && fireUntil <= 0 && distance < 15 ) viewTarget = aimPoint;
-		attack = enemy.IsValid() && enemy == firingTarget && fireUntil > 0;
+		if ( aimed ) fireUntil = 0.5f;
+		if ( !aimed && fireUntil <= 0 && distance < 15 ) viewTarget = aimPoint;
+		attack = enemy.IsValid() && fireUntil > 0;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		if ( goal is { } destination && (!visible || distance > 10) )
