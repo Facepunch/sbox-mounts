@@ -18,6 +18,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	const float BodyRadius = 0.4f * Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
+	readonly AlienAim.Acquisition acquisition = new( 100 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -168,9 +169,15 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		UpdateFlightSound();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		var aim = flying ? flightDirection : WorldRotation.Forward;
+		bool ready = false;
 		if ( Networking.IsHost )
 		{
-			if ( Animation.LookObject.IsValid() ) aim = CalculateAimPoint( Animation.LookObject ) - EyePosition;
+			var target = attacking || wantsSpikes ? assignedEnemy : Animation.LookObject;
+			if ( target.IsValid() )
+			{
+				aim = CalculateAimPoint( target ) - EyePosition;
+				if ( attacking || wantsSpikes ) ready = acquisition.Ready( target, aim, View );
+			}
 			View = AlienAim.Turn( View, aim, 5 );
 			BodyRotation = FlightBodyRotation( BodyRotation.Angles(), View.Angles(), Animation.IsGrounded, Time.Delta );
 		}
@@ -191,12 +198,12 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
-		spiking = wantsSpikes && energy >= SpikeCost && Vector3.Dot( View.Forward, aim.Normal ) > 0.98f;
+		spiking = wantsSpikes && ready && energy >= SpikeCost;
 		if ( !spiking ) firingSpikes = false;
 		bool usingUmbra = umbraTarget.IsValid();
 		bool usingSpores = sporeTarget.IsValid();
 		var ability = usingUmbra ? "umbra" : usingSpores ? "spores" : "bite";
-		bool primary = usingUmbra || usingSpores ? energy >= CloudCost && (!usingSpores || Vector3.Dot( View.Forward, aim.Normal ) > 0.95f) : attacking && energy >= 5;
+		bool primary = usingUmbra || usingSpores ? energy >= CloudCost && (!usingSpores || Vector3.Dot( View.Forward, aim.Normal ) > 0.95f) : attacking && ready && energy >= 5;
 		var activity = primary ? "primary" : spiking ? "secondary" : "none";
 		var move = !Animation.IsGrounded ? "fly" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "attack_speed", 1 );
