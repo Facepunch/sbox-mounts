@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
 	int holdTick;
+	bool pendingGrabImpact;
 	int nextCaptureTick, cutStartTick;
 	int ElapsedHoldTicks => (int)((float)SinceGrab / HoldStep + 0.5f);
 	Vector3 fadingCaptureOffset;
@@ -58,7 +59,7 @@ public sealed partial class RabbitGuard
 		alignmentOffset = Vector3.Zero;
 		alignmentYaw = 0f;
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this, struggleVelocity );
-		victim.QueueThrowDamage( this );
+		pendingGrabImpact = true;
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
 		WorldRotation = Rotation.LookAt( holdDirection );
@@ -68,9 +69,9 @@ public sealed partial class RabbitGuard
 		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
 		victim.nextCaptureTick = 1;
 		IncreaseBreathing( 2f );
-		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", victim.WorldPosition, 0.6f );
-		victim.PlayMaterialEvent( "choke_grab", victim.WorldPosition, victim.GroundMaterialName, 1f );
-		Speak( "attack" );
+		var point = CharacterCenter( victim.GameObject );
+		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", point, 0.6f );
+		victim.PlayMaterialEvent( "choke_grab", point, victim.GroundMaterialName, 1f );
 		return true;
 	}
 
@@ -217,15 +218,23 @@ public sealed partial class RabbitGuard
 		var victim = holdPartner;
 		var separation = victim.WorldPosition - WorldPosition;
 		bool executing = Stance == CutFromHold;
-		if ( !executing && (!wantsBlockThrow || throwRecharge > 0f || MathF.Abs( separation.z ) > 0.4f * 40f) )
+		// UpdateAttack delivers WasGrabbed and the attack voice before HandleTethering
+		// can release either fighter on the next four-frame character update.
+		if ( pendingGrabImpact && SinceGrab >= CaptureLead )
 		{
-			ReleaseHold();
-			return;
+			pendingGrabImpact = false;
+			victim.QueueThrowDamage( this );
+			Speak( "attack" );
 		}
 		if ( nextHoldSound <= 0f )
 		{
-			PlayCombatSound( "Data/Sounds/cloth_foley/cloth_fabric_choke_move.xml", WorldPosition, Random.Shared.Float( 0.5f, 1f ) );
+			PlayCombatSound( "Data/Sounds/cloth_foley/cloth_fabric_choke_move.xml", CharacterCenter( GameObject ), Random.Shared.Float( 0.5f, 1f ) );
 			nextHoldSound = Random.Shared.Float( 0.3f, 0.7f );
+		}
+		if ( !pendingGrabImpact && !executing && (!wantsBlockThrow || throwRecharge > 0f || MathF.Abs( separation.z ) > 0.4f * 40f) )
+		{
+			ReleaseHold();
+			return;
 		}
 		bool armed = PrimaryItem.IsValid();
 		bool rat = victim.boundAnimations.Species == "rat";
@@ -404,6 +413,7 @@ public sealed partial class RabbitGuard
 	void ReleaseHold( bool enteringThrow = false )
 	{
 		var partner = holdPartner;
+		pendingGrabImpact = false;
 		if ( partner.IsValid() && Holding && !CaptureReactionEnded && !enteringThrow && !Downed )
 		{
 			// UnTether calls ApplyIdle(5). Its outgoing reader still owns EndAttack

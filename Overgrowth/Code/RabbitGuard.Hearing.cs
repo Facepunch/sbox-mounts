@@ -99,16 +99,19 @@ public sealed partial class RabbitGuard
 	void Hear( GameObject source, Vector3 position, HeardSound sound, bool awake )
 	{
 		if ( !Active || GameObject == source || Health < 1 || Unconscious || StaticCharacter || awakeTime < NoticeThreshold ) return;
+		// NotifySound only updates an attack, patrol or investigation. WasGrabbed has
+		// already given the captive its struggle or hold-still goal when the voice arrives.
+		if ( Fleeing || escortTarget.IsValid() || soughtItem.IsValid() || Held && holdPartner is { pendingGrabImpact: false } ) return;
 		if ( enemy.IsValid() )
 		{
-			if ( Fleeing || enemy != source ) return;
+			if ( enemy != source ) return;
 			ObserveTarget( source, TargetIsVisible( source ) );
 			lastSeen = TargetPosition( source );
 			NoticeCharacter( source );
 			sinceEnemySeen = 0;
 			return;
 		}
-		if ( escortTarget.IsValid() || !awake ) return;
+		if ( !awake ) return;
 		bool investigating = Investigating;
 		if ( investigating && sound == HeardSound.ItemImpact ) return;
 		bool knownAlly = knownCharacters.ContainsKey( source ) && GetDisposition( source ) == Sandbox.Npcs.Disposition.Friendly;
