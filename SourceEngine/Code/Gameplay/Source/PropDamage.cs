@@ -31,7 +31,7 @@ public sealed class PropDamage : Component
 
 		var projectile = blast && hit.Weapon.IsValid() ? hit.Weapon.GetComponent<Projectile>() : null;
 		var scale = bullet ? modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1) : 1;
-		if ( blast && projectile is not BlastProjectile )
+		if ( blast && projectile?.UsesSourceBlast != true )
 		{
 			scale *= modifiers.Explosive;
 

@@ -143,7 +143,7 @@ public sealed class CrossbowBolt : Projectile
 [Title( "HL2 Rocket" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Rocket", "Hl2Rocket" )]
-public sealed class Rocket : BlastProjectile, Component.IDamageable
+public sealed class Rocket : Projectile, Component.IDamageable
 {
 	internal const string LaunchModel = "models/weapons/w_missile_launch.mdl";
 	protected override string InitialModelPath => Ignited ? ModelPath : LaunchModel;
@@ -317,7 +317,7 @@ public sealed class Rocket : BlastProjectile, Component.IDamageable
 [Title( "HL2 Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Grenade", "Hl2Grenade" )]
-public sealed class Grenade : BlastProjectile
+public sealed class Grenade : Projectile
 {
 	// GRENADE_TIMER and GRENADE_RADIUS.
 	public const float Fuse = 2.5f;

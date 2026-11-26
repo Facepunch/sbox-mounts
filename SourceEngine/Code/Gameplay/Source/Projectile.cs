@@ -9,7 +9,7 @@ namespace Source1;
 /// path, as Source weapons spawn at the shoot position.
 /// </summary>
 [Alias( "Source1.SourceProjectile", "SourceProjectile" )]
-public abstract class Projectile : Component
+public abstract partial class Projectile : Component
 {
 	public enum Kinds { Bolt, Rocket, Grenade, ContactGrenade, EnergyBall, Bugbait, HeGrenade, Flashbang, SmokeGrenade }
 
@@ -257,8 +257,8 @@ public abstract class Projectile : Component
 			Damage = Damage,
 			ForceScale = 1.5f,
 			Prefab = prefab
-		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0, applyDamage: this is not BlastProjectile );
-		if ( this is BlastProjectile projectile ) projectile.ApplyBlast();
+		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0, applyDamage: !UsesSourceBlast );
+		if ( UsesSourceBlast ) ApplyBlast();
 
 		if ( prefab is not null && blast.IsValid() ) ExplosionEffects( WorldPosition, MountName, depth, Damage );
 		GameObject.Destroy();

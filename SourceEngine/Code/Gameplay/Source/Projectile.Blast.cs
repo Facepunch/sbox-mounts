@@ -2,9 +2,11 @@ using System;
 
 namespace Source1;
 
-public abstract class BlastProjectile : Projectile
+public abstract partial class Projectile
 {
-	internal void ApplyBlast()
+	internal bool UsesSourceBlast => this is Hl2.Grenade or Hl2.Rocket or Hl2.ContactGrenade;
+
+	void ApplyBlast()
 	{
 		if ( Radius <= 0 || Damage <= 0 ) return;
 		var origin = WorldPosition + Vector3.Up;
