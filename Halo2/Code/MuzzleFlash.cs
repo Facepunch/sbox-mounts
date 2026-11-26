@@ -62,9 +62,10 @@ public sealed class MuzzleFlash : Component
 			var layer = layers[i];
 			if ( !layer.IsValid() || (spec.SingleParticle && layer.ParticleCount > 0) ) continue;
 			if ( spec.Casing is not null || spec.ExhaustSmoke is not null ) layer.WorldTransform = WorldTransform.ToWorld( new Transform( spec.Offset, spec.Direction ) );
+			bool atMarker = firstPerson && spec.Casing is null && spec.ExhaustSmoke is null;
 			if ( !continuous && spec.Emission is {} emission )
 			{
-				_ = EmitOverTime( layer, emission.Start, MathX.Lerp( emission.Duration.x, emission.Duration.y, eventRandom ), rate * 30 );
+				_ = EmitOverTime( layer, emission.Start, MathX.Lerp( emission.Duration.x, emission.Duration.y, eventRandom ), rate * 30, atMarker );
 				continue;
 			}
 			if ( continuous )
@@ -74,6 +75,11 @@ public sealed class MuzzleFlash : Component
 			}
 			int count = (int)(rate + 0.0001f);
 			if ( spec.SingleParticle ) count = System.Math.Min( count, 1 );
+			if ( atMarker )
+			{
+				MarkerEmission.Queue( layer, count );
+				continue;
+			}
 			for ( int j = 0; j < count; j++ )
 			{
 				var position = spec.ExhaustSmoke is { InterpolatePosition: true } && previousPosition is Vector3 start
@@ -83,7 +89,7 @@ public sealed class MuzzleFlash : Component
 		}
 	}
 
-	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, float delay, float duration, float rate )
+	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, float delay, float duration, float rate, bool atMarker )
 	{
 		double start = Time.NowDouble;
 		int emitted = 0;
@@ -92,11 +98,9 @@ public sealed class MuzzleFlash : Component
 			double tick = System.Math.Floor( (Time.NowDouble - start) * 30 );
 			double elapsed = System.Math.Clamp( tick / 30 - delay, 0, duration );
 			int due = (int)(elapsed * rate + 0.0001);
-			while ( emitted < due )
-			{
-				layer.Emit( layer.WorldPosition, 0 );
-				emitted++;
-			}
+			if ( atMarker ) MarkerEmission.Queue( layer, due - emitted );
+			else for ( int i = emitted; i < due; i++ ) layer.Emit( layer.WorldPosition, 0 );
+			emitted = due;
 			if ( elapsed >= duration ) return;
 			await Task.Frame();
 		}

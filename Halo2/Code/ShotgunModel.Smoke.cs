@@ -45,7 +45,7 @@ public partial class ShotgunModel
 		if ( !softSmoke.IsValid() ) return;
 		float random = BlamRandom.Next( ref seed ) / 65535f;
 		int count = (int)(viewSmoke ? 5 + 2 * random : 10 + 5 * random);
-		for ( int i = 0; i < count; i++ ) softSmoke.Emit( softSmoke.WorldPosition, 0 );
+		MarkerEmission.Queue( softSmoke, count );
 	}
 
 	void StartTrailingSmoke( Particle p )

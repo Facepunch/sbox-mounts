@@ -261,11 +261,14 @@ internal abstract partial class WeaponLoader
 			}
 		}
 		float lifetime = Float( header + 52 );
+		// Retail's double modulation leaves midgray neutral. The decal sampler decodes sRGB.
+		float gain = layer == 2 ? MathF.Pow( (0.5f + 0.055f) / 1.055f, -2.4f ) : 1f;
+		var modulation = new Color( gain, gain, gain, 1 );
 		var tint = new ParticleGradient
 		{
 			Type = ParticleGradient.ValueType.Gradient,
-			GradientA = new Gradient( new Gradient.ColorFrame( 0, Color.White ), new Gradient.ColorFrame( 1 - Float( header + 60 ) / lifetime, Color.White ),
-				new Gradient.ColorFrame( 1, Color.White.WithAlpha( 0 ) ) )
+			GradientA = new Gradient( new Gradient.ColorFrame( 0, modulation ), new Gradient.ColorFrame( 1 - Float( header + 60 ) / lifetime, modulation ),
+				new Gradient.ColorFrame( 1, modulation.WithAlpha( 0 ) ) )
 		};
 		float rejection = Float( header + 24 );
 		return new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,

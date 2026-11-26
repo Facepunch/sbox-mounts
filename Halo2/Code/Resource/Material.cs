@@ -80,7 +80,12 @@ public class Halo2MaterialLoader( MapFile map, TagEntry tag ) : ResourceLoader<H
 			if ( shader.Effect == ShaderTag.EffectPass.Plasma ) effect.Set( "g_vPlasmaScroll", shader.PlasmaScroll );
 			for ( int i = 0; i < shader.EffectMaps.Length; i++ )
 			{
-				if ( LoadBitmap( shader.EffectMaps[i] ) is { } texture )
+				if ( i == 0 && shader.Effect == ShaderTag.EffectPass.AmmoDigit && map.GetTag( shader.EffectMaps[i] ) is {} digits )
+				{
+					effect.Set( "g_tLayer0", Texture.Load( Host.AssetPath( map, digits.TagPath, "vtex" ) + "/pages.vtex" ) );
+					effect.Set( "g_nDigitDivisor", shader.AmmoDigitDivisor );
+				}
+				else if ( LoadBitmap( shader.EffectMaps[i] ) is { } texture )
 					effect.Set( shader.Effect == ShaderTag.EffectPass.Eyes && i == 0 ? "g_tReflection" : $"g_tLayer{i}", texture );
 			}
 			for ( int i = 0; i < shader.EffectConstants.Length; i++ )

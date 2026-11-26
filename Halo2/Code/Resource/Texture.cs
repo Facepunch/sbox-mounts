@@ -14,6 +14,12 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 	{
 		type = ResourceType.Texture;
 		if ( spriteSequences is not null || bitmapIndex != 0 ) return null;
+		if ( name == "pages.vtex" && tag.DataSize >= 76 )
+		{
+			int count = mapFile.ReadInt32( mapFile.VaToOffset( (int)tag.DataVirtualAddress ) + 68 );
+			if ( count <= 0 ) return null;
+			return new Halo2TextureLoader( mapFile, tag ) { sheetPages = Enumerable.Range( 0, count ).ToArray() };
+		}
 		if ( name is "sheet.vtex" or "loop.vtex" ) return SpriteSheet( mapFile, tag, name == "loop.vtex" );
 		if ( name.StartsWith( "sequence_", StringComparison.Ordinal ) && name.EndsWith( ".vtex", StringComparison.Ordinal )
 			&& int.TryParse( name.AsSpan()[9..^5], out int selected ) && selected >= 0 )
@@ -104,6 +110,7 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 			}
 		}
 		var texture = Texture.Create( first.Width, first.Height * sheetPages.Length, format ).WithData( atlas ).WithMips( levels ).WithStaticUsage();
+		if ( spriteSequences is null ) return texture.Finish();
 		foreach ( var frames in spriteSequences )
 			texture = texture.AddSequence( frames, frames.Length, loop );
 		return texture.Finish();

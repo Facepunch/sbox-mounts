@@ -20,9 +20,11 @@ public class ShaderTag
 	/// <summary>Tag index of the change color map bitmap, or -1 if not found.</summary>
 	public int ChangeColorBitmapTagIndex { get; set; } = -1;
 
+	public int AmmoDigitDivisor { get; private set; }
+
 	public int ChangeColorChannels { get; private set; }
 
-	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail }
+	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail, Meter, ClampedIllumination, AmmoDigit }
 	public EffectPass Effect { get; private set; }
 	public int[] EffectMaps { get; private set; }
 	public Vector4[] EffectConstants { get; private set; }
@@ -98,6 +100,16 @@ public class ShaderTag
 				int bmpOff = map.VaToOffset( bmpPtr );
 				int Bitmap( int slot ) => slot >= 0 && slot < bmpCount ? map.ReadInt32( bmpOff + slot * 12 ) & 0xffff : -1;
 				string name = templateName[(templateName.LastIndexOf( '\\' ) + 1)..];
+				if ( name == "illum_detail" && map.ReadInt32( ppOff + 60 ) > 0 )
+				{
+					int overlay = map.VaToOffset( map.ReadInt32( ppOff + 64 ) );
+					AmmoDigitDivisor = map.ResolveStringId( map.ReadInt32( overlay ) ) switch
+					{
+						"primary_ammunition_ones" => 1,
+						"primary_ammunition_tens" => 10,
+						_ => 0
+					};
+				}
 				Effect = name switch
 				{
 					"emblem_overlay_simple" => EffectPass.Emblem,
@@ -105,6 +117,9 @@ public class ShaderTag
 					"transparent_lit_alpha_blend_two_change_color" => EffectPass.Hair,
 					"illum_bloom" => EffectPass.Bloom,
 					"illum" => EffectPass.SelfIllumination,
+					"illum_detail" when AmmoDigitDivisor != 0 => EffectPass.AmmoDigit,
+					"illum_clamped" => EffectPass.ClampedIllumination,
+					"meter_active_camo" => EffectPass.Meter,
 					"one_add_illum" => EffectPass.Additive,
 					"two_alpha_detail_masked" => EffectPass.MaskedDetail,
 					"one_alpha_env" or "two_alpha_env_illum" or "sky_one_alpha_env" => EffectPass.Eyes,
@@ -134,7 +149,7 @@ public class ShaderTag
 					{
 						EffectPass.Eyes => 3,
 						EffectPass.MaskedDetail or EffectPass.Plasma => 4,
-						EffectPass.Hair => 2,
+						EffectPass.Hair or EffectPass.Meter => 2,
 						EffectPass.Additive => 1,
 						_ => 0
 					};
@@ -156,8 +171,9 @@ public class ShaderTag
 				// Compiled templates place the same maps and registers at different offsets.
 				var (detail, uv, cube, tint, strength) = name switch
 				{
-					"tex_bump" or "tex_bump_shiny" or "tex_bump_alpha_test_single_pass" => (3, 2, -1, -1, -1),
-					"tex_bump_env" or "tex_bump_env_clamped" => (3, 0, 4, 1, 3),
+					"tex_bump" or "tex_bump_active_camo" or "tex_bump_shiny" or "tex_bump_alpha_test_single_pass" => (3, 2, -1, -1, -1),
+					"tex_bump_env" or "tex_bump_env_clamped" or "tex_bump_env_illum" => (3, 0, 4, 1, 3),
+					"tex_bump_dprs_env" => (3, 2, 4, -1, -1),
 					"tex_bump_env_combined" => (3, 2, 4, 0, 2),
 					"tex_bump_illum" => (2, 2, -1, -1, -1),
 					"tex_bump_env_no_detail" => (-1, -1, 3, 0, 2),
@@ -183,6 +199,7 @@ public class ShaderTag
 				}
 				int glowSlot = name switch
 				{
+					"tex_bump_env_illum" => 5,
 					"tex_bump_env_illum_two_change_color" => 6,
 					"tex_bump_env_illum_four_change_color_no_lod" => 5,
 					"tex_bump_env_illum_detail_honor_guard" or "tex_bump_illum" => 3,
@@ -193,6 +210,7 @@ public class ShaderTag
 					GlowBitmap = Bitmap( glowSlot );
 					int colorSlot = name switch
 					{
+						"tex_bump_env_illum" => 7,
 						"tex_bump_env_illum_two_change_color" => 3,
 						"tex_bump_env_illum_detail_honor_guard" => 5,
 						"tex_bump_illum" => 2,
@@ -218,7 +236,12 @@ public class ShaderTag
 				}
 				else if ( cube >= 0 )
 				{
-					int slot = name == "tex_bump_env_illum_detail_honor_guard" ? 6 : 4;
+					int slot = name switch
+					{
+						"tex_bump_dprs_env" => 7,
+						"tex_bump_env_illum_detail_honor_guard" => 6,
+						_ => 4
+					};
 					EnvironmentFacing = Register( slot ).WithW( Register( slot + 2 ).w );
 					EnvironmentGlancing = Register( slot + 1 ).WithW( Register( slot + 3 ).w );
 				}

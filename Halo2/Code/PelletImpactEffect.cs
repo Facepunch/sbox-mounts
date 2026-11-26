@@ -14,7 +14,7 @@ public sealed partial class PelletImpactEffect : Component
 		public DecalProjection Projection { get; set; }
 		public int Layer { get; set; } = 2;
 		DecalDefinition definition;
-		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1 };
+		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1, BlendMode = Sandbox.Rendering.DecalBlendMode.Multiply };
 	}
 
 	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness )

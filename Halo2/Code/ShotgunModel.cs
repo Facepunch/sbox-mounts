@@ -281,16 +281,12 @@ public partial class ShotgunModel : BaseWeaponModel
 
 	void EmitMuzzleParticles()
 	{
-		if ( muzzleFlash.IsValid() )
-		{
-			for ( int i = 0; i < muzzleFlash.MaxParticles; i++ )
-				muzzleFlash.Emit( MuzzleGameObject.WorldPosition, 0 );
-		}
+		if ( muzzleFlash.IsValid() ) MarkerEmission.Queue( muzzleFlash, muzzleFlash.MaxParticles );
 		EmitSoftSmoke();
 		EmitSparks();
-		if ( fierySmoke.IsValid() ) fierySmoke.Emit( fierySmoke.WorldPosition, 0 );
-		if ( shortFlare.IsValid() ) shortFlare.Emit( shortFlare.WorldPosition, 0 );
-		if ( longFlare.IsValid() ) longFlare.Emit( longFlare.WorldPosition, 0 );
+		if ( fierySmoke.IsValid() ) MarkerEmission.Queue( fierySmoke );
+		if ( shortFlare.IsValid() ) MarkerEmission.Queue( shortFlare );
+		if ( longFlare.IsValid() ) MarkerEmission.Queue( longFlare );
 	}
 
 	protected override void OnUpdate()
@@ -309,7 +305,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		while ( nextParticleTick <= due )
 		{
 			if ( nextParticleTick == 1 ) model?.EmitMuzzleParticles();
-			else if ( model?.trailingSmoke is {} smoke && smoke.IsValid() ) smoke.Emit( smoke.WorldPosition, 0 );
+			else if ( model?.trailingSmoke is {} smoke && smoke.IsValid() ) MarkerEmission.Queue( smoke );
 			nextParticleTick++;
 		}
 		if ( nextParticleTick > 13 ) nextParticleTick = 0;

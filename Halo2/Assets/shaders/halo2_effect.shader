@@ -5,7 +5,7 @@ HEADER
 FEATURES
 {
 	#include "common/features.hlsl"
-	Feature( F_PASS, 0..8( 0="None", 1="Emblem", 2="Plasma", 3="Hair", 4="Additive", 5="Eyes", 6="Self illumination", 7="Bloom", 8="Masked detail" ), "Halo 2 pass" );
+	Feature( F_PASS, 0..11( 0="None", 1="Emblem", 2="Plasma", 3="Hair", 4="Additive", 5="Eyes", 6="Self illumination", 7="Bloom", 8="Masked detail", 9="Meter", 10="Clamped illumination", 11="Ammunition digit" ), "Halo 2 pass" );
 }
 MODES
 {
@@ -22,6 +22,9 @@ COMMON
 	#define PASS_SELF_ILLUMINATION 6
 	#define PASS_BLOOM 7
 	#define PASS_MASKED_DETAIL 8
+	#define PASS_METER 9
+	#define PASS_CLAMPED_ILLUMINATION 10
+	#define PASS_AMMO_DIGIT 11
 }
 struct VertexInput
 {
@@ -44,7 +47,7 @@ PS
 	RenderState( BlendEnable, true );
 	RenderState( DepthWriteEnable, false );
 	RenderState( SrcBlend, ONE );
-	#if S_PASS == PASS_PLASMA || S_PASS == PASS_ADDITIVE || S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_BLOOM
+	#if S_PASS == PASS_PLASMA || S_PASS == PASS_ADDITIVE || S_PASS == PASS_AMMO_DIGIT || S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_CLAMPED_ILLUMINATION || S_PASS == PASS_BLOOM
 		RenderState( DstBlend, ONE );
 	#else
 		RenderState( DstBlend, INV_SRC_ALPHA );
@@ -84,6 +87,15 @@ PS
 		float3 g_vSecondaryColor < Default3( 1,1,1 ); >;
 	#endif
 
+	#if S_PASS == PASS_CLAMPED_ILLUMINATION
+		SamplerState IllumSampler < Filter( MIN_MAG_MIP_LINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); >;
+	#endif
+
+	#if S_PASS == PASS_AMMO_DIGIT
+		int WeaponRounds < Attribute( "WeaponRounds" ); Default( 0 ); >;
+		int g_nDigitDivisor < Default( 1 ); >;
+	#endif
+
 	float4 ShadeOverlay( PixelInput i )
 	{
 		float4 vertexUv = float4( i.vTextureCoords.xy, 0, 1 );
@@ -107,6 +119,11 @@ PS
 			edge = saturate( edge * curve * curve );
 			edge *= 2 - edge;
 			return float4( saturate( mask.rgb * g_vConstant2.rgb * edge + (1 - mask.a) * g_vConstant3.rgb ) * g_vConstant4.a, 0 );
+		#elif S_PASS == PASS_AMMO_DIGIT
+			int digit = (max( WeaponRounds, 0 ) / max( g_nDigitDivisor, 1 )) % 10;
+			float2 pageUv = float2( uv0.x, (frac( uv0.y ) + digit) * 0.1 );
+			float3 glyph = g_tLayer0.SampleGrad( g_sAniso, pageUv, ddx( uv0 ) * float2( 1, 0.1 ), ddy( uv0 ) * float2( 1, 0.1 ) ).rgb;
+			return float4( glyph * g_vConstant0.rgb, 1 );
 		#elif S_PASS == PASS_MASKED_DETAIL
 			float4 base = g_tLayer0.Sample( g_sAniso, uv0 );
 			float3 detail = g_tLayer1.Sample( g_sAniso, uv1 ).rgb;
@@ -124,13 +141,17 @@ PS
 			float alpha = overlay.a * g_vConstant2.a;
 			return float4( saturate( base + reflection * mask + overlay.rgb * g_vConstant1.rgb * alpha ), alpha );
 		#else
-			float4 base = g_tLayer0.Sample( g_sAniso, uv0 );
+			#if S_PASS == PASS_CLAMPED_ILLUMINATION
+				float4 base = g_tLayer0.Sample( IllumSampler, uv0 );
+			#else
+				float4 base = g_tLayer0.Sample( g_sAniso, uv0 );
+			#endif
 			#if S_PASS == PASS_HAIR
 				float2 mask = g_tLayer1.Sample( g_sAniso, uv1 ).rg;
 				Material m = Material::Init( i );
 				m.Albedo = base.rgb * lerp( 1.0.xxx, g_vPrimaryColor, mask.r ) * lerp( 1.0.xxx, g_vSecondaryColor, mask.g );
 				return float4( ShadingModelStandard::Shade( m ).rgb * base.a, base.a );
-			#elif S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_BLOOM
+			#elif S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_CLAMPED_ILLUMINATION || S_PASS == PASS_BLOOM
 				#if S_PASS == PASS_BLOOM
 					base.rgb = saturate( base.rgb + g_tLayer1.Sample( g_sAniso, uv1 ).rgb ) * g_tLayer2.Sample( g_sAniso, uv2 ).rgb;
 				#endif
@@ -138,6 +159,12 @@ PS
 				float power = saturate( dot( glow, glow ) );
 				if ( power == 0 ) discard;
 				return float4( glow, power );
+			#elif S_PASS == PASS_METER
+				// The retail combiner selects a tint and opacity using the display texture's alpha.
+				bool high = base.a >= g_vConstant0.a;
+				float3 tint = high ? g_vConstant3.rgb : g_vConstant1.rgb;
+				float opacity = (high ? g_vConstant4.a : g_vConstant2.a) * g_tLayer1.Sample( g_sAniso, uv1 ).a;
+				return float4( base.rgb * tint * opacity, opacity );
 			#elif S_PASS == PASS_ADDITIVE
 				return float4( base.rgb * g_vConstant0.rgb, base.a );
 			#elif S_PASS == PASS_EMBLEM

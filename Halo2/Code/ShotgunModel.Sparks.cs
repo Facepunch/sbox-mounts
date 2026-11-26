@@ -33,7 +33,7 @@ public partial class ShotgunModel
 		if ( !muzzleSparks.IsValid() ) return;
 		float random = BlamRandom.Next( ref seed ) / 65535f;
 		int count = (int)((viewSparks ? 15 : 10) + 5 * random + 0.0001f);
-		for ( int i = 0; i < count; i++ ) muzzleSparks.Emit( muzzleSparks.WorldPosition, 0 );
+		MarkerEmission.Queue( muzzleSparks, count );
 	}
 
 	void StartSpark( Particle p )
