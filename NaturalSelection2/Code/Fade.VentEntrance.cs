@@ -7,7 +7,6 @@ public sealed partial class Fade
 	NavMeshLink entrance;
 	Vector3 mouth, inward;
 	float? entranceStarted;
-	TimeUntil checkEntrance;
 
 	NavMeshLink FindEntrance( IReadOnlyList<NavMeshPathPoint> path, out Vector3 top, out Vector3 direction )
 	{
@@ -34,7 +33,7 @@ public sealed partial class Fade
 		return null;
 	}
 
-	void CheckEntrance( Vector3 goal )
+	void CheckEntrance( IReadOnlyList<NavMeshPathPoint> points )
 	{
 		if ( !locations.IsValid() || !locations.HasVents || InCombat || locations.IsVent( WorldPosition ) )
 		{
@@ -42,12 +41,7 @@ public sealed partial class Fade
 			entranceStarted = null;
 			return;
 		}
-		if ( checkEntrance > 0 || !Scene.NavMesh.IsEnabled ) return;
-		checkEntrance = 0.2f;
-		var agent = GetComponent<NavMeshAgent>();
-		var path = agent is { IsNavigating: true } ? agent.GetPath() : default;
-		if ( path.Points.Count == 0 ) path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = goal } );
-		var next = FindEntrance( path.Points, out mouth, out inward );
+		var next = FindEntrance( points, out mouth, out inward );
 		if ( next != entrance ) entranceStarted = null;
 		entrance = next;
 	}

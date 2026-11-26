@@ -31,9 +31,10 @@ public sealed partial class Fade
 
 	void Travel( Vector3 goal )
 	{
-		if ( PhysicsCarrier.IsValid() || Blinking ) return;
+		if ( PhysicsCarrier.IsValid() || ventBlink ) return;
 		bool nearVent = NearVent( goal );
-		CheckEntrance( goal );
+		UpdateTravelPath( goal );
+		if ( Blinking ) return;
 		bool climbing = EntranceAim( out var entranceAim );
 		if ( climbing || nearVent )
 		{

@@ -134,7 +134,14 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( ventBlink ) return;
 		if ( !NpcConVars.Enabled || PhysicsCarrier.IsValid() || !enemy.IsValid() || !Senses.VisibleHostiles.Contains( enemy ) )
 		{
-			view = AlienAim.Turn( view, WorldRotation.Forward, 5 );
+			var direction = WorldRotation.Forward;
+			if ( NpcConVars.Enabled && !PhysicsCarrier.IsValid() )
+			{
+				if ( Movement.MoveTarget is { } goal ) direction = TravelLook( goal );
+				else if ( retreatHive.IsValid() ) direction = retreatHive.EngagementPoint - EyePosition;
+				else if ( airGoal is { } destination ) direction = TravelLook( destination );
+			}
+			view = AlienAim.Turn( view, direction, 5 );
 			return;
 		}
 

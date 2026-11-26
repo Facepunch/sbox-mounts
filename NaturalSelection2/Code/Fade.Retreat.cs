@@ -38,7 +38,7 @@ public sealed partial class Fade
 		float distance = locations.IsValid() ? locations.WalkDistance( EyePosition, retreatHive.WorldPosition ) : EyePosition.Distance( retreatHive.WorldPosition );
 		if ( !InCombat && distance <= (3.25f + MathF.Sqrt( 8 )) * Scale )
 		{
-			Animation.SetLookTarget( retreatHive.GameObject );
+			Animation.SetLookTarget( retreatHive.EngagementPoint );
 			Movement.Stop();
 		}
 		else
