@@ -167,7 +167,11 @@ public sealed class BulletWeapon : Weapon
 	protected override void Think()
 	{
 		base.Think();
-		_fireDuration = Input.Down( "attack1" ) && !IsReloading ? _fireDuration + Time.Delta : 0;
+		if ( !Input.Down( "attack1" ) || IsReloading )
+			_fireDuration = 0;
+		else
+			// The first attack command contributes one movement tick, regardless of the render frame before it.
+			_fireDuration = _fireDuration == 0 ? ViewPunch.Tick : _fireDuration + Time.Delta;
 		// A ready launcher takes priority over bullets and reload on the same frame.
 		if ( Launches && base.WantsSecondaryAttack() && NextSecondaryFire <= 0 && (!IsReloading || CanLaunchDuringReload) )
 		{

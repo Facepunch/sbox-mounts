@@ -6,7 +6,7 @@ namespace Source1;
 /// <summary>The player's angular kick, integrated at the Source movement tick and composed by the camera.</summary>
 sealed class ViewPunch : CameraEffectSystem.BaseEffect
 {
-	const float Tick = 0.015f;
+	internal const float Tick = 0.015f;
 	static readonly ConditionalWeakTable<CameraComponent, ViewPunch> Active = new();
 	Vector3 _angle;
 	Vector3 _velocity;
