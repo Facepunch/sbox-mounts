@@ -108,8 +108,18 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	void Unfreeze()
 	{
-		if ( Active && HasOwner )
-			Owner.GetComponent<FrozenProps>()?.Unfreeze( AimRay );
+		if ( !Active || !HasOwner ) return;
+		int count = Owner.GetComponent<FrozenProps>()?.Unfreeze( AimRay ) ?? 0;
+		if ( count > 0 ) NotifyUnfrozen( count );
+	}
+
+	[Rpc.Owner( NetFlags.HostOnly | NetFlags.Reliable )]
+	void NotifyUnfrozen( int count )
+	{
+		var text = Game.Language.GetPhrase( "physgun.unfrozen", new() { { "count", count.ToString() } } );
+		Sandbox.UI.Notices.AddNotice( "ac_unit", Color.Cyan, text, 3 );
+		var file = SoundFile.Load( "mount://gmod/sound/npc/roller/mine/rmine_chirp_answer1.wav.vsnd" );
+		if ( file.IsValid() ) Sound.Play( new SoundEvent { UI = true, Sounds = [file] } );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]

@@ -10,15 +10,14 @@ sealed class FrozenProps : Component
 
 	internal void Track( Rigidbody body ) => _frozen.Add( body );
 
-	internal void Unfreeze( Ray aim )
+	internal int Unfreeze( Ray aim )
 	{
-		if ( _frozen.Count == 0 ) return;
+		if ( _frozen.Count == 0 ) return 0;
 		if ( Time.Now - _lastMiss < 0.25f )
 		{
-			foreach ( var body in _frozen )
-				Wake( body );
+			int count = Wake( _frozen );
 			_frozen.Clear();
-			return;
+			return count;
 		}
 
 		var hit = Scene.Trace.Ray( aim, 32768 ).IgnoreGameObjectHierarchy( GameObject.Root )
@@ -28,22 +27,25 @@ sealed class FrozenProps : Component
 		{
 			var connected = new HashSet<Rigidbody>();
 			PhysicsHold.GetConnectedBodies( bodyHit.GameObject, connected );
-			foreach ( var body in connected )
-				Wake( body );
+			return Wake( connected );
 		}
-		else
-		{
-			_lastMiss = Time.Now;
-		}
+		_lastMiss = Time.Now;
+		return 0;
 	}
 
-	void Wake( Rigidbody body )
+	int Wake( HashSet<Rigidbody> bodies )
 	{
-		if ( !body.IsValid() || body.IsProxy || body.MotionEnabled || body.GetComponentInParent<PlayerController>().IsValid() ) return;
-		var grab = new IPhysgunEvent.GrabEvent { Grabber = Network.Owner };
-		body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
-		if ( grab.Cancelled ) return;
-		body.MotionEnabled = true;
-		body.Sleeping = false;
+		int count = 0;
+		foreach ( var body in bodies )
+		{
+			if ( !body.IsValid() || body.IsProxy || body.MotionEnabled || body.GetComponentInParent<PlayerController>().IsValid() ) continue;
+			var grab = new IPhysgunEvent.GrabEvent { Grabber = Network.Owner };
+			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
+			if ( grab.Cancelled ) continue;
+			body.MotionEnabled = true;
+			body.Sleeping = false;
+			count++;
+		}
+		return count;
 	}
 }
