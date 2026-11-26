@@ -419,7 +419,7 @@ public sealed class BulletWeapon : Weapon
 			TryPlayEmptyClick( EmptyClickInterval );
 			return;
 		}
-		if ( Sounds.WeaponSound( this, "empty" ) is { } click ) GameObject.PlaySound( click );
+		PlayEmptySound();
 		WeaponModel?.OnDryFire();
 		SetNextPrimaryFire( Math.Max( DryTapRefireDelay, DryFireDuration ) );
 		_tapReady = (TimeUntil)DryTapRefireDelay;

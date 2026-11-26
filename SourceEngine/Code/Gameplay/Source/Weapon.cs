@@ -84,9 +84,19 @@ public abstract class Weapon : BaseCombatWeapon
 	protected bool TryPlayEmptyClick( float interval )
 	{
 		if ( _nextEmptyClick > 0 ) return false;
-		if ( DryFireSound is { } sound ) GameObject.PlaySound( sound );
+		PlayEmptySound();
 		_nextEmptyClick = interval;
 		return true;
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	protected void PlayEmptySound()
+	{
+		var sound = DryFireSound ?? Sounds.WeaponSound( this, "empty" );
+		if ( sound is null ) return;
+		if ( !Application.IsDedicatedServer ) Sounds.PlayWeaponSound( this, sound );
+		if ( Networking.IsHost && HasOwner )
+			Scene.GetSystem<NpcSystem>()?.EmitStimulus( StimulusKinds.Gunshot, Owner.WorldPosition, Owner.GameObject, radius: 500f, lifetime: 0.2f );
 	}
 
 	/// <summary>Random pitch added to the aim per attack (min, max degrees).</summary>
@@ -144,7 +154,7 @@ public abstract class Weapon : BaseCombatWeapon
 	protected bool BlockSubmergedShot( bool blockBothTriggers, bool playEmptySound = true )
 	{
 		if ( !HasOwner || !SourceWaterMap.IsUnderwater( Scene, Owner.EyeTransform.Position ) ) return false;
-		if ( playEmptySound && Sounds.WeaponSound( this, "empty" ) is { } sound ) GameObject.PlaySound( sound );
+		if ( playEmptySound ) PlayEmptySound();
 		SetNextPrimaryFire( 0.2f );
 		if ( blockBothTriggers ) SetNextSecondaryFire( 0.2f );
 		return true;
