@@ -251,7 +251,10 @@ public abstract class Weapon : BaseCombatWeapon
 		if ( Owner.ThirdPerson || Owner.IsProxy ) return false;
 
 		var punch = punchOverride ?? new Angles( Random.Shared.Float( PunchPitch.x, PunchPitch.y ), Random.Shared.Float( PunchYaw.x, PunchYaw.y ), Random.Shared.Float( PunchRoll.x, PunchRoll.y ) );
-		if ( PunchResponse == PunchResponses.Oscillate ) Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
+		if ( PunchResponse == PunchResponses.Oscillate )
+		{
+			if ( punch != Angles.Zero ) Scene.Camera?.AddPunch( punch, PunchFrequency, PunchDuration );
+		}
 		else ViewPunch.Apply( Owner, punch, PunchResponse == PunchResponses.ResetImpulse );
 
 		if ( ShakeAmplitude > 0f )
