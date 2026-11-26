@@ -3,13 +3,6 @@ namespace NS2;
 public sealed partial class Lerk
 {
 	Hive retreatHive;
-	Vector3 damageOrigin;
-
-	protected override void OnDamaged( IDamageable.DamageEvent hit )
-	{
-		base.OnDamaged( hit );
-		if ( hit.AcceptedDamage > 0 || AlienArmor.ArmorOnlyDamage( hit ) > 0 ) damageOrigin = hit.DamageInfo.Origin;
-	}
 
 	static bool ShouldRetreat( float healthFraction, float energyFraction, float distance ) =>
 		energyFraction <= 0.35f || healthFraction <= 0.6f || healthFraction < 0.9f && distance < Hive.HealRadius * 0.85f;
@@ -44,7 +37,7 @@ public sealed partial class Lerk
 				Movement.Stop();
 				return true;
 			}
-			goal += (goal - damageOrigin).Normal * retreatHive.Renderer.Model.Bounds.Maxs.x;
+			goal += (goal - LastDamageOrigin).Normal * retreatHive.Renderer.Model.Bounds.Maxs.x;
 		}
 		Movement.MoveTo( goal, Scale );
 		return true;

@@ -9,7 +9,6 @@ public sealed class Crag : AlienStructure
 {
 	internal const float HealRadius = 14 * Scale;
 	internal const string PainSound = "alien/structures/crag/wound";
-	internal Vector3 EngagementPoint => Renderer.GetAttachment( "target" )?.Position ?? ModelOrigin;
 	protected override GrowthStats Stats => new( 25, 0.5f, 300, 150, 120, 550, 275 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil nextHeal { get; set; }

@@ -5,7 +5,10 @@ namespace NS2;
 
 public sealed partial class Gorge
 {
-	Crag retreatCrag;
+	AlienStructure retreatTarget;
+	MapLocations retreatLocations;
+	float retreatDistance;
+	float RetreatRadius => retreatTarget is Hive ? Hive.HealRadius : Crag.HealRadius;
 	TimeUntil checkRetreat;
 	int nearbyFriends, nearbyEnemies;
 
@@ -16,17 +19,16 @@ public sealed partial class Gorge
 		if ( checkRetreat <= 0 )
 		{
 			checkRetreat = 0.25f;
-			retreatCrag = null;
-			float closest = 200 * 200 * Scale * Scale;
+			if ( !retreatLocations.IsValid() ) retreatLocations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+			retreatTarget = Hive.FindNearest( this, retreatLocations, out retreatDistance );
+			if ( !retreatTarget.IsValid() ) retreatDistance = 200 * Scale;
 			foreach ( var crag in Scene.GetAllComponents<Crag>() )
 			{
 				if ( !crag.IsBuilt || crag.Health <= 0 || crag.Faction != Faction ) continue;
-				float distance = WorldPosition.DistanceSquared( crag.WorldPosition );
-				if ( distance >= closest ) continue;
-				closest = distance;
-				retreatCrag = crag;
+				float distance = crag.DistanceFrom( this, retreatLocations );
+				if ( distance < retreatDistance ) (retreatTarget, retreatDistance) = (crag, distance);
 			}
-			if ( retreatCrag.IsValid() )
+			if ( retreatTarget.IsValid() )
 			{
 				nearbyFriends = nearbyEnemies = 0;
 				foreach ( var npc in Scene.GetAllComponents<BaseNpc>() )
@@ -35,10 +37,10 @@ public sealed partial class Gorge
 					if ( BaseNpc.IsLiveTarget( player.GameObject ) ) Count( player.GameObject );
 			}
 		}
-		if ( !retreatCrag.IsValid() || retreatCrag.Health <= 0 ) return 0;
-		float distanceMetres = WorldPosition.Distance( retreatCrag.WorldPosition ) / Scale;
+		if ( !retreatTarget.IsValid() || retreatTarget.Health <= 0 ) return 0;
+		float distanceMetres = retreatDistance / Scale;
 		float weight = 1;
-		if ( distanceMetres < Crag.HealRadius / Scale * 0.25f && health < 0.8f )
+		if ( distanceMetres < RetreatRadius / Scale * 0.25f && health < 0.8f )
 		{
 			health /= 3;
 			weight += health;
@@ -59,13 +61,17 @@ public sealed partial class Gorge
 	void Retreat()
 	{
 		firing = throwing = false;
-		bool close = WorldPosition.DistanceSquared( retreatCrag.WorldPosition ) < 0.09f * Crag.HealRadius * Crag.HealRadius;
-		Animation.SetLookTarget( close ? retreatCrag.GameObject : null );
-		if ( close ) Movement.Stop();
-		else if ( repath <= 0 )
+		bool close = retreatDistance < 0.3f * RetreatRadius;
+		Animation.SetLookTarget( close ? retreatTarget.GameObject : null );
+		if ( close && (underFire <= 0 || retreatTarget is Crag) )
 		{
-			Movement.MoveTo( retreatCrag.EngagementPoint, Scale );
-			repath = 0.2f;
+			Movement.Stop();
+			return;
 		}
+		if ( repath > 0 ) return;
+		var goal = retreatTarget.EngagementPoint;
+		if ( close ) goal += (goal - LastDamageOrigin).Normal * retreatTarget.Renderer.Model.Bounds.Maxs.x;
+		Movement.MoveTo( goal, Scale );
+		repath = 0.2f;
 	}
 }

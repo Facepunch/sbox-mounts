@@ -10,6 +10,7 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IE
 
 	private protected readonly AlienWounds wounds = new();
 	protected TimeUntil underFire;
+	protected Vector3 LastDamageOrigin { get; private set; }
 	TimeUntil dealtDamageRecently;
 
 	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent hit )
@@ -40,6 +41,7 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IE
 		if ( armorOnlyDamage > 0 ) armorOnlyDamage = BlockDamage( hit.DamageInfo, Math.Min( armorOnlyDamage, hp.Armour * 2 ) );
 		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
 		hp.Armour -= wounds.ApplyDamage( hit, hp.Armour, MaxHealth, hp.MaxArmour, armorOnlyDamage );
+		LastDamageOrigin = hit.DamageInfo.Origin;
 		underFire = 3;
 	}
 

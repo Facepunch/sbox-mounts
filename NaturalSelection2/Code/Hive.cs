@@ -7,15 +7,11 @@ public sealed class Hive : AlienStructure
 {
 	internal const float HealRadius = 12.7f * Scale;
 	internal const string PainSound = "alien/structures/hive_wound";
-	internal Vector3 EngagementPoint => Renderer.GetAttachment( "target" )?.Position ?? ModelOrigin;
 	protected override GrowthStats Stats => new( 180, 0.5f, 4000, 750, 260, 6000, 1400 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	TimeUntil nextHeal;
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hive>( root, renderer, "Hive" );
-
-	internal float DistanceFrom( AlienLifeform alien, MapLocations locations ) => locations.IsValid()
-		? locations.WalkDistance( alien.WorldPosition, WorldPosition ) : alien.WorldPosition.Distance( WorldPosition );
 
 	internal static Hive FindNearest( AlienLifeform alien, MapLocations locations, out float distance )
 	{
