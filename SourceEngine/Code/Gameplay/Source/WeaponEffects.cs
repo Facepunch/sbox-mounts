@@ -475,7 +475,7 @@ static class WeaponEffects
 		drops.ForceDirection = Vector3.Down * 800;
 		var renderer = drops.GetComponent<ParticleSpriteRenderer>();
 		renderer.VelocityStretch = true;
-		renderer.StretchTime = new ParticleFloat( 0.025f, explosion ? 0.1f : 0.05f );
+		renderer.StretchTime = explosion ? ExplosionDropStretch : SplashDropStretch;
 		for ( var i = 0; i < count; i++ )
 		{
 			var origin = position + Particles.InCube( explosion ? 32 : 8 ).WithZ( 0 );
@@ -602,6 +602,23 @@ static class WeaponEffects
 		burst.FadeTo( halo, 0, Color.Black );
 		SparkSmoke( go, mount );
 	}
+
+	// Trail particles shorten over their lifetime, down to 0.01 seconds of travel.
+	static readonly ParticleFloat SplashDropStretch = DropStretch( 0.05f );
+	static readonly ParticleFloat ExplosionDropStretch = DropStretch( 0.1f );
+
+	static ParticleFloat DropStretch( float longest ) => new()
+	{
+		Type = ParticleFloat.ValueType.CurveRange,
+		Evaluation = ParticleFloat.EvaluationType.Life,
+		CurveA = DropLength( 0.025f ),
+		CurveB = DropLength( longest )
+	};
+
+	static Curve DropLength( float initial ) => new(
+		new Curve.Frame( 0, initial ) { Mode = Curve.HandleMode.Linear },
+		new Curve.Frame( 1 - 0.01f / initial, 0.01f ) { Mode = Curve.HandleMode.Linear },
+		new Curve.Frame( 1, 0.01f ) );
 
 	static readonly ParticleFloat PlumeGrowth = LinearOverLife( 1, 2 );
 	static readonly ParticleFloat SmokeGrowth = LinearOverLife( 1, 4 );
