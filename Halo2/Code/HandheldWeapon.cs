@@ -92,6 +92,7 @@ public abstract class HandheldWeapon : Weapon
 
 	protected virtual bool CanCycleBarrel => PrimaryAutomatic &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
+	protected virtual double EarliestRateTick => 0;
 
 	protected override bool WantsPrimaryAttack() => roundQueued || base.WantsPrimaryAttack();
 
@@ -110,7 +111,7 @@ public abstract class HandheldWeapon : Weapon
 			if ( lastAutomaticRound is double previous )
 			{
 				// The barrel checks elapsed ticks against its current firing rate.
-				double due = previous + System.Math.Round( PrimaryDelay * 30 ) / 30.0;
+				double due = System.Math.Max( EarliestRateTick, previous + System.Math.Round( PrimaryDelay * 30 ) / 30.0 );
 				SetNextPrimaryFire( (float)(due - now) );
 				if ( now - due < PrimaryDelay ) automaticRoundAt = due;
 			}

@@ -35,6 +35,9 @@ public class BatteryWeapon : HandheldWeapon
 	[Property] public float RateRise { get; set; }
 	[Property] public float RateFall { get; set; }
 	float rateFraction;
+	double rateUpdatedAt;
+	double rateChangedAt;
+	bool barrelAccelerating;
 	[Property] public FiringCue[] FiringCues { get; set; }
 	int cueIndex;
 	int cueRemaining;
@@ -52,7 +55,8 @@ public class BatteryWeapon : HandheldWeapon
 	float HeatAt( double time )
 	{
 		if ( ShotHeat <= 0 ) return 0;
-		double ticks = System.Math.Max( 0, System.Math.Floor( time * 30 ) - System.Math.Floor( LastEnergyShot * 30 ) );
+		// Cooling starts one full weapon tick after the shot, even when it fired between scene ticks.
+		double ticks = System.Math.Max( 0, System.Math.Floor( (System.Math.BitIncrement( time ) - LastEnergyShot) * 30 ) );
 		double ventTicks = Venting && CoolingRate > 0
 			? System.Math.Min( ticks, System.Math.Floor( (ShotHeat - CooledThreshold) * 30 / CoolingRate ) + 1 ) : 0;
 		return (float)System.Math.Max( 0, ShotHeat - (ventTicks * CoolingRate + (ticks - ventTicks) * HeatLoss) / 30 );
@@ -162,15 +166,26 @@ public class BatteryWeapon : HandheldWeapon
 	protected virtual void PresentDischarge() => ShootEffects();
 
 	protected override bool CanCycleBarrel => !Overheated && Spent < 1 && base.CanCycleBarrel;
+	protected override double EarliestRateTick => rateChangedAt;
 
 	protected override void OnControl()
 	{
 		if ( FiringRate.y > FiringRate.x && FiringRate.x > 0 )
 		{
 			bool held = CanCycleBarrel && Input.Down( "attack1" );
-			rateFraction = (rateFraction + Time.Delta * (held ? RateRise : -RateFall)).Clamp( 0, 1 );
+			double now = Time.NowDouble;
+			int ticks = (int)System.Math.Floor( (now - rateUpdatedAt) * 30 );
+			if ( ticks > 0 )
+			{
+				rateFraction = (rateFraction + ticks / 30f * (barrelAccelerating ? RateRise : -RateFall)).Clamp( 0, 1 );
+				rateUpdatedAt += ticks / 30.0;
+			}
+			if ( held != barrelAccelerating ) rateUpdatedAt = now;
+			barrelAccelerating = held;
 			float rate = MathX.Lerp( FiringRate.x, FiringRate.y, rateFraction );
-			PrimaryDelay = CooldownSeconds( (int)System.MathF.Ceiling( 30 / rate ) );
+			var delay = CooldownSeconds( (int)System.MathF.Ceiling( 30 / rate ) );
+			if ( delay != PrimaryDelay ) rateChangedAt = rateUpdatedAt;
+			PrimaryDelay = delay;
 		}
 		base.OnControl();
 	}
@@ -182,6 +197,8 @@ public class BatteryWeapon : HandheldWeapon
 		lastPresentedShot = null;
 		nextVentTick = 0;
 		rateFraction = 0;
+		rateUpdatedAt = Time.NowDouble;
+		barrelAccelerating = false;
 		base.OnDisabled();
 	}
 
