@@ -24,6 +24,26 @@ internal sealed class AlienTargeting
 
 	readonly Dictionary<GameObject, Memory> memories = [];
 	MapLocations locations;
+	float lastStructureUpdate;
+
+	void UpdateHarvesterMemories( BaseNpc observer )
+	{
+		if ( Time.Now <= lastStructureUpdate + 0.5f ) return;
+		lastStructureUpdate = Time.Now;
+
+		const float range = 30 * MapLoader.Scale;
+		foreach ( var tower in observer.Scene.GetAllComponents<Harvester>() )
+		{
+			if ( tower.Health <= 0 || tower.Faction == observer.Faction ) continue;
+			foreach ( var scout in observer.Scene.GetAllComponents<BaseNpc>() )
+			{
+				if ( scout is not (Marine or Exo) || scout.Faction != observer.Faction || scout.Health <= 0 ) continue;
+				if ( scout.WorldPosition.DistanceSquared( tower.WorldPosition ) >= range * range ) continue;
+				Remember( tower.GameObject, tower.WorldPosition );
+				break;
+			}
+		}
+	}
 
 	static GameObject AssignedEnemy( BaseNpc npc ) => npc switch
 	{
@@ -86,6 +106,7 @@ internal sealed class AlienTargeting
 	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition, Func<GameObject, Vector3, bool> ignore = null )
 	{
 		lastKnownPosition = null;
+		if ( alien is Marine or Exo ) UpdateHarvesterMemories( alien );
 		var hostiles = alien.Senses.VisibleHostiles;
 		for ( int i = 0; i < hostiles.Count; i++ )
 			if ( hostiles[i].IsValid() ) Remember( hostiles[i], hostiles[i].WorldPosition );
