@@ -29,7 +29,10 @@ sealed class FrozenProps : Component
 			PhysicsHold.GetConnectedBodies( bodyHit.GameObject, connected );
 			return Wake( connected );
 		}
-		_lastMiss = Time.Now;
+		// A prop without a rigidbody still counts as an aimed reload.
+		var target = hit.GameObject;
+		if ( !hit.Hit || !target.IsValid() || (!target.Tags.Has( "source1_entity" ) && ToolMode.IsWorldObject( target )) )
+			_lastMiss = Time.Now;
 		return 0;
 	}
 
