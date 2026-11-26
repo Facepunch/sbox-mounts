@@ -288,9 +288,11 @@ public sealed class HoldPose
 	}
 
 	/// <summary>True for the left hand bone and the bones under it.</summary>
-	public bool IsInLeftHand( int bone )
+	public bool IsInLeftHand( int bone ) => IsInChain( bone, LeftHand );
+
+	bool IsInChain( int bone, int root )
 	{
-		while ( bone >= 0 && bone != LeftHand )
+		while ( bone >= 0 && bone != root )
 			bone = _bones[bone].ParentIndex;
 
 		return bone >= 0;
@@ -310,8 +312,24 @@ public sealed class HoldPose
 		// An additive firing gesture overlays the already animated idle.
 		var overlay = delta && _layerBase is not null ? shotClip : null;
 		EvaluateBase( overlay is null ? shotClip : null, delta, shotCycle, reloadCycle, reloadWeight );
-		if ( _layerBase is null ) return;
+		if ( _layerBase is not null ) ApplyLayers( overlay, shotCycle );
 
+		// Source solves IK after breathing and gestures. A reload can move the hand off its grip.
+		foreach ( var (bone, target) in _locks )
+		{
+			if ( !_tracked.Contains( bone ) ) continue;
+			var before = _pose[bone];
+			var after = _reload is not null && reloadWeight > 0 ? Blend( _pose[target], before, reloadWeight ) : _pose[target];
+			if ( before == after ) continue;
+			_pose[bone] = after;
+			foreach ( var child in _order )
+				if ( child > bone && IsInChain( child, bone ) )
+					_pose[child] = after.ToWorld( before.ToLocal( _pose[child] ) );
+		}
+	}
+
+	void ApplyLayers( Clip overlay, float shotCycle )
+	{
 		// Transfer the animated source pose to the holder's existing hand IK targets.
 		// The clock continues across deploys and shots.
 		Span<float> cycles = stackalloc float[_realTimeLayers.Length];
@@ -358,21 +376,8 @@ public sealed class HoldPose
 			if ( shooting && delta )
 				local = Add( local, shotClip.GetLocalTransform( shotCycle, i ) );
 
+			if ( _layerBase is not null ) _layerBase[i] = local;
 			_pose[i] = _bones[i].ParentIndex < 0 ? local : _pose[_bones[i].ParentIndex].ToWorld( local );
-		}
-
-		// The sequence's IK rules put a bone on a target bone its clips animate: the hands on the weapon's grips, a magazine
-		// in its well. A reload moves them itself.
-		foreach ( var (bone, target) in _locks )
-		{
-			if ( _tracked.Contains( bone ) )
-				_pose[bone] = Blend( _pose[bone], _pose[target], reloading ? 1 - reloadWeight : 1 );
-		}
-		if ( _layerBase is null ) return;
-		foreach ( var i in _order )
-		{
-			var parent = _bones[i].ParentIndex;
-			_layerBase[i] = parent < 0 ? _pose[i] : _pose[parent].ToLocal( _pose[i] );
 		}
 	}
 
