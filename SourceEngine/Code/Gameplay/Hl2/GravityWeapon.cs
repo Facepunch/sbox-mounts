@@ -553,9 +553,8 @@ sealed class PhysCannonEffects : IDisposable
 		UpdateElements( weapon, holding, ready );
 		UpdateMotor( weapon, holding, mount );
 		UpdateCore( holding, weapon.IsHeld && weapon.Active );
-		// DoEffectLaunch: the blast grows to scale 2 while fading out over 0.1s.
-		var blast = _launch / 0.1f;
-		MountedEffects.SetSprite( _blast, blast < 1 ? float.Lerp( 0.1f, 2, blast ) : 0, 255 * (1 - blast) );
+		float launchAge = _launch;
+		SetGlow( _blast, float.Lerp( 8, 64, Math.Min( 1, launchAge / 0.1f ) ), 255 * Math.Max( 0, 1 - launchAge / 0.2f ) );
 		foreach ( var glow in _glows )
 		{
 			if ( holding ) MountedEffects.SetSprite( glow, 0.5f, 64, GlowColor );
@@ -568,7 +567,7 @@ sealed class PhysCannonEffects : IDisposable
 		{
 			beam.Enabled = tip.IsValid() && holding;
 		}
-		if ( _puntBeam.IsValid() ) _puntBeam.Enabled = blast < 1;
+		if ( _puntBeam.IsValid() ) _puntBeam.Enabled = launchAge < 0.1f;
 		Follow();
 	}
 
@@ -643,9 +642,15 @@ sealed class PhysCannonEffects : IDisposable
 		}
 		var width = float.Lerp( _coreFrom.x, target.x, Math.Min( 1, _coreChanged * 5 ) );
 		var brightness = float.Lerp( _coreFrom.y, target.y, Math.Min( 1, _coreChanged / (holding ? 0.1f : 0.2f) ) );
-		_core.Size = width;
-		_core.Color = (Color.White * (brightness / 255f)).WithAlpha( 1 );
-		_core.Enabled = brightness > 0;
+		SetGlow( _core, width, brightness );
+	}
+
+	static void SetGlow( SpriteRenderer sprite, float width, float brightness )
+	{
+		if ( !sprite.IsValid() ) return;
+		sprite.Size = width;
+		sprite.Color = (Color.White * (brightness / 255f)).WithAlpha( 1 );
+		sprite.Enabled = brightness > 0;
 	}
 
 	void UpdateMotor( GravityWeapon weapon, bool holding, string mount )
