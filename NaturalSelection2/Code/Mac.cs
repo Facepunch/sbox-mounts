@@ -25,6 +25,9 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	internal const string PainSound = "marine/structures/mac/pain";
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
+	[Sync( SyncFlags.FromHost )] bool moving { get; set; }
+	GameObject leftJet, rightJet;
+	TimeUntil nextJetLoop;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -187,14 +190,23 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
+		if ( Networking.IsHost ) moving = Health > 0 && Movement?.Status == MovementLayer.MovementStatus.Moving;
 		if ( !Application.IsDedicatedServer )
 		{
-			if ( Animation.MoveVelocity.LengthSquared > 1 )
+			if ( moving )
 			{
 				if ( thrusters is null && GameResource.Load<SoundEvent>( "mount://ns2/sounds/marine/structures/mac/thrusters.sound" ) is { } sound )
 					thrusters = GameObject.PlaySound( sound );
 			}
 			else StopThrusters();
+			if ( moving && Renderer.Active && Graphics.IsAvailable )
+			{
+				bool replay = nextJetLoop <= 0;
+				var left = UpdateJet( ref leftJet, "fxnode_jet1", replay );
+				var right = UpdateJet( ref rightJet, "fxnode_jet2", replay );
+				if ( replay ) nextJetLoop = Math.Max( left, right );
+			}
+			else StopJets();
 		}
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		float intensity = AlienWounds.Intensity( flinchEnd );
@@ -220,9 +232,26 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		thrusters = null;
 	}
 
+	float UpdateJet( ref GameObject jet, string attachment, bool replay )
+	{
+		if ( Renderer.GetAttachment( attachment ) is not { } transform ) return 0;
+		jet ??= new GameObject( true, attachment ) { Parent = Renderer.GameObject, NetworkMode = NetworkMode.Never };
+		jet.WorldTransform = transform;
+		return replay ? CinematicLoader.Play( "cinematics/marine/mac/jet.cinematic", transform.Position, transform.Rotation, jet ) : 0;
+	}
+
+	void StopJets()
+	{
+		leftJet?.Destroy();
+		rightJet?.Destroy();
+		leftJet = rightJet = null;
+		nextJetLoop = 0;
+	}
+
 	protected override void OnDisabled()
 	{
 		StopThrusters();
+		StopJets();
 		base.OnDisabled();
 	}
 

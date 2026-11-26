@@ -9,22 +9,25 @@ internal sealed class CinematicLoader( string path ) : ResourceLoader<GameMount>
 {
 	protected override object Load() => Host.ReadAllBytes( path );
 
-	static readonly ConditionalWeakTable<ResourceLoader, Action<Vector3, Rotation, GameObject>[]> effects = new();
+	sealed record Clip( float Duration, Action<Vector3, Rotation, GameObject>[] Nodes );
+	static readonly ConditionalWeakTable<ResourceLoader, Clip> effects = new();
 
-	internal static void Play( string relative, Vector3 position, Rotation facing, GameObject parent = null )
+	internal static float Play( string relative, Vector3 position, Rotation facing, GameObject parent = null )
 	{
-		if ( !Graphics.IsAvailable ) return;
+		if ( !Graphics.IsAvailable ) return 0;
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		var loader = mount?.GetByPath( $"mount://ns2/ns2/{relative}" ) ?? mount?.GetByPath( $"mount://ns2/core/{relative}" );
-		if ( loader is null ) return;
+		if ( loader is null ) return 0;
 
-		foreach ( var play in effects.GetValue( loader, Read ) ) play( position, facing, parent );
+		var clip = effects.GetValue( loader, Read );
+		foreach ( var play in clip.Nodes ) play( position, facing, parent );
+		return clip.Duration;
 	}
 
-	static Action<Vector3, Rotation, GameObject>[] Read( ResourceLoader loader )
+	static Clip Read( ResourceLoader loader )
 	{
 		// CIN resources load synchronously. The bytes can come from a separately compiled mount.
-		if ( loader.GetOrCreate().Result is not byte[] data ) return [];
+		if ( loader.GetOrCreate().Result is not byte[] data ) return new( 0, [] );
 		using var stream = new MemoryStream( data, writable: false );
 		var file = CinematicFile.Read( stream );
 		var nodes = new List<Action<Vector3, Rotation, GameObject>>();
@@ -36,6 +39,6 @@ internal sealed class CinematicLoader( string path ) : ResourceLoader<GameMount>
 			else if ( node.Name == "Actor" ) nodes.Add( new CinematicActor( node, file.Duration ).Play );
 			else if ( node.Name == "Point Light" ) nodes.Add( new CinematicLight( node, file.Duration ).Play );
 		}
-		return nodes.ToArray();
+		return new( file.Duration, nodes.ToArray() );
 	}
 }
