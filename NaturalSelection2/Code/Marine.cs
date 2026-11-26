@@ -57,7 +57,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	GameObject firingTarget;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	Vector3? viewTarget;
-	readonly MarineWeaponAim acquisition = new( 90 );
+	readonly BotWeaponAim acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Rotation aim;
@@ -191,7 +191,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, MarineWeaponAim.Weapon.Bullets, out viewTarget ));
+		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, BotWeaponAim.Weapon.Bullets, out viewTarget ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;

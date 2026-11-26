@@ -60,7 +60,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	Vector3? viewTarget;
-	readonly MarineWeaponAim acquisition = new( 95 );
+	readonly BotWeaponAim acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
 	SparkAnimationGraph.Playback graph, weapon;
@@ -183,7 +183,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		inRailRange = distance <= 32;
 		var aimPoint = visible ? CalculateAimPoint( enemy ) : default;
 		viewTarget = visible ? aimPoint : null;
-		var weapon = Railguns ? MarineWeaponAim.Weapon.Railgun : MarineWeaponAim.Weapon.Minigun;
+		var weapon = Railguns ? BotWeaponAim.Weapon.Railgun : BotWeaponAim.Weapon.Minigun;
 		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, weapon, out viewTarget );
 		if ( aimed )
 		{

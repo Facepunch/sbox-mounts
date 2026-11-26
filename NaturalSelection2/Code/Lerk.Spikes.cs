@@ -45,7 +45,10 @@ public sealed partial class Lerk
 			bool pass = corpse.IsValid() || hp is { MaxHealth: > 0, Health: <= 0 } ||
 				obj?.Tags.HasAny( "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ) == true;
 			if ( pass ) trace = trace.IgnoreGameObjectHierarchy( obj );
-			if ( hp is not null && GetDisposition( obj ) == Disposition.Hostile )
+			bool hostile = hp is not null && GetDisposition( obj ) == Disposition.Hostile;
+			if ( hp is { Health: > 0 } ) acquisition.Record( hostile );
+			else if ( i == 0 && (!hit.Hit || obj?.Tags.Has( "world" ) == true) ) acquisition.Record( false );
+			if ( hostile )
 			{
 				float damage = hp is not (AlienLifeform or Marine or Exo) && (IsPlayerTarget( obj ) || obj.Tags.Has( "ns2_exosuit" )) ? 10 : 5;
 				var info = new DamageInfo { Damage = damage, Origin = origin, Position = position, Attacker = GameObject, Weapon = GameObject };

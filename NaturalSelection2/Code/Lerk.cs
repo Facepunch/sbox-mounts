@@ -21,7 +21,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
-	readonly AlienAim.Acquisition acquisition = new( 100 );
+	readonly BotWeaponAim acquisition = new( 100 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -181,8 +181,13 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 			if ( target.IsValid() )
 			{
 				var point = CalculateAimPoint( target );
-				aim = point - EyePosition;
-				if ( attacking || wantsSpikes ) ready = acquisition.TrackView( target, EyePosition, point, View, InCombat ? 1.5f : 1, AimSkillTier );
+				if ( attacking || wantsSpikes )
+				{
+					var group = wantsSpikes ? BotWeaponAim.Weapon.LerkSpikes : BotWeaponAim.Weapon.LerkBite;
+					ready = acquisition.Track( this, target, point, View, AimSkillTier, group, out var sampled, InCombat ? 1.5f : 1 );
+					if ( sampled is { } viewTarget ) aim = viewTarget - EyePosition;
+				}
+				else aim = point - EyePosition;
 			}
 			View = AlienAim.Turn( View, aim, acquisition.TurnRate );
 			BodyRotation = FlightBodyRotation( BodyRotation.Angles(), View.Angles(), Animation.IsGrounded, Time.Delta );
@@ -245,6 +250,12 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		PlayCue( "bite" );
 		energy = Math.Max( 0, energy - 5 );
 		var (hit, victim) = AlienMelee.Trace( this, View, 1.5f * Scale, 0.9f, 1.2f );
+		if ( hit.Hit )
+		{
+			var contact = hit.GameObject?.GetComponentInParent<IDamageable>();
+			if ( contact is { Health: > 0 } || hit.GameObject?.Tags.Has( "world" ) == true )
+				acquisition.Record( victim is not null );
+		}
 		if ( victim is not Component target ) return;
 		victim.OnDamage( new DamageInfo { Damage = 60, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject } );
 		if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
