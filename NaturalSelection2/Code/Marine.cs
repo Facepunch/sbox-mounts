@@ -243,6 +243,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 
+		if ( !enemy.IsValid() && VisitArmory() ) return;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		if ( goal is { } unseen && trackedEnemy == enemy && unreachable && !clearShot )

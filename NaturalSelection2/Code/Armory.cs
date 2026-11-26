@@ -78,6 +78,21 @@ public sealed class Armory : Ns2Npc, Component.IDamageable
 			Sound.Play( sound, origin );
 	}
 
+	internal static Armory FindNearest( Ns2Npc visitor, MapLocations locations, ref Armory previous, out float best )
+	{
+		Armory nearest = null;
+		best = float.MaxValue;
+		foreach ( var armory in visitor.Scene.GetAllComponents<Armory>() )
+		{
+			if ( !armory.IsBuilt || !armory.IsPowered || armory.Health <= 0 || armory.Faction != visitor.Faction ) continue;
+			float distance = locations.IsValid() ? locations.WalkDistance( visitor.WorldPosition, armory.WorldPosition ) : visitor.WorldPosition.Distance( armory.WorldPosition );
+			if ( armory == previous ) distance *= 0.9f;
+			if ( distance < best ) (nearest, best) = (armory, distance);
+		}
+		if ( nearest.IsValid() ) previous = nearest;
+		return nearest;
+	}
+
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		root.Tags.Add( "structure" );

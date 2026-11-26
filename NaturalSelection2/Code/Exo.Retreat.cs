@@ -47,17 +47,8 @@ public sealed partial class Exo
 
 	Armory NearestArmory( out float best )
 	{
-		Armory nearest = null;
-		best = float.MaxValue;
-		foreach ( var armory in Scene.GetAllComponents<Armory>() )
-		{
-			if ( !armory.IsBuilt || !armory.IsPowered || armory.Health <= 0 || armory.Faction != Faction ) continue;
-			float distance = ArmoryWalkDistance( armory );
-			if ( armory == lastNearestArmory ) distance *= 0.9f;
-			if ( distance < best ) (nearest, best) = (armory, distance);
-		}
-		if ( nearest.IsValid() ) lastNearestArmory = nearest;
-		return nearest;
+		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		return Armory.FindNearest( this, locations, ref lastNearestArmory, out best );
 	}
 
 	Armory CombatRetreatArmory()
