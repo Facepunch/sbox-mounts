@@ -38,7 +38,8 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 			count = 1;
 		}
 		var atlas = new Rect[count][];
-		int image = -1;
+		var pages = new List<int>();
+		var framePages = new List<int>();
 		for ( int i = 0; i < count; i++, sequence += 60 )
 		{
 			int frames = map.ReadInt32( sequence + 52 );
@@ -48,12 +49,23 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 			for ( int j = 0; j < frames; j++, row += 32 )
 			{
 				int frameImage = (short)map.ReadInt32( row );
-				if ( frameImage < 0 || (image >= 0 && image != frameImage) ) return null;
-				image = frameImage;
+				if ( frameImage < 0 ) return null;
+				if ( !pages.Contains( frameImage ) ) pages.Add( frameImage );
+				framePages.Add( pages.IndexOf( frameImage ) );
 				atlas[i][j] = SpriteBounds( map, row + 8 );
 			}
 		}
-		return new Halo2TextureLoader( map, bitmap, image, spriteSequences: atlas, loop: loop );
+		var loader = new Halo2TextureLoader( map, bitmap, pages[0], spriteSequences: atlas, loop: loop );
+		if ( pages.Count == 1 ) return loader;
+		loader.sheetPages = pages.ToArray();
+		int frame = 0;
+		foreach ( var sequenceFrames in atlas )
+			for ( int i = 0; i < sequenceFrames.Length; i++ )
+			{
+				var rect = sequenceFrames[i];
+				sequenceFrames[i] = new Rect( rect.Left, (framePages[frame++] + rect.Top) / pages.Count, rect.Width, rect.Height / pages.Count );
+			}
+		return loader;
 	}
 
 	internal static Rect SpriteBounds( MapFile map, int offset )
@@ -61,6 +73,38 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 		using var r = map.OpenReader( offset, 16 );
 		float left = r.ReadSingle(), right = r.ReadSingle(), top = r.ReadSingle(), bottom = r.ReadSingle();
 		return new Rect( left, top, right - left, bottom - top );
+	}
+
+	int[] sheetPages;
+
+	Texture LoadPagedSheet( BitmapData first, ImageFormat format, ReadOnlySpan<int> sizes, int length )
+	{
+		// Stack whole compressed block rows so sampling retains the authored pixels.
+		int levels = sizes.Length;
+		if ( format is not (ImageFormat.DXT1 or ImageFormat.DXT3 or ImageFormat.DXT5) ) return null;
+		while ( levels > 0 && first.Height % (4 << (levels - 1)) != 0 ) levels--;
+		if ( levels == 0 ) return null;
+		int mipBytes = 0;
+		foreach ( int size in sizes[..levels] ) mipBytes += size;
+		var atlas = new byte[checked(mipBytes * sheetPages.Length)];
+		for ( int i = 0; i < sheetPages.Length; i++ )
+		{
+			var page = BitmapTag.Read( mapFile, tag, sheetPages[i] );
+			if ( page is null || page.Width != first.Width || page.Height != first.Height ||
+				page.Format != first.Format || page.BitmapType != 0 || page.IsSwizzled || page.MipmapCount != first.MipmapCount ) return null;
+			var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, page, sizes, length );
+			int source = length, destination = atlas.Length;
+			foreach ( int size in sizes[..levels] )
+			{
+				source -= size;
+				destination -= size * sheetPages.Length;
+				pixels.AsSpan( source, size ).CopyTo( atlas.AsSpan( destination + i * size, size ) );
+			}
+		}
+		var texture = Texture.Create( first.Width, first.Height * sheetPages.Length, format ).WithData( atlas ).WithMips( levels ).WithStaticUsage();
+		foreach ( var frames in spriteSequences )
+			texture = texture.AddSequence( frames, frames.Length, loop );
+		return texture.Finish();
 	}
 
 	protected override object Load()
@@ -85,6 +129,9 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 			sizes[level] = checked(faces * Math.Max( 1, depth >> level ) * CalculateMipSize( data.Format, width, height ));
 			length = checked(length + sizes[level]);
 		}
+
+		if ( sheetPages is not null )
+			return LoadPagedSheet( data, format.Value, sizes, length );
 
 		// Decode directly to the runtime's smallest-first layout, preserving every authored mip.
 		var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, data, sizes, length );
