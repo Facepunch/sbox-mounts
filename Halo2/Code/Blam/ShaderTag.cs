@@ -28,7 +28,7 @@ public class ShaderTag
 
 	public int ChangeColorChannels { get; private set; }
 
-	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail, Meter, ClampedIllumination, AmmoDigit }
+	public enum EffectPass { None, Emblem, Plasma, Hair, Additive, Eyes, SelfIllumination, Bloom, MaskedDetail, Meter, ClampedIllumination, AmmoDigit, AdditiveEnvironment, Scope }
 	public EffectPass Effect { get; private set; }
 	public int[] EffectMaps { get; private set; }
 	public Vector4[] EffectConstants { get; private set; }
@@ -116,6 +116,7 @@ public class ShaderTag
 				}
 				Effect = name switch
 				{
+					"scope" => EffectPass.Scope,
 					"emblem_overlay_simple" => EffectPass.Emblem,
 					"plasma_mask_offset" => EffectPass.Plasma,
 					"transparent_lit_alpha_blend_two_change_color" => EffectPass.Hair,
@@ -126,12 +127,13 @@ public class ShaderTag
 					"meter_active_camo" => EffectPass.Meter,
 					"one_add_illum" => EffectPass.Additive,
 					"two_alpha_detail_masked" => EffectPass.MaskedDetail,
-					"one_alpha_env" or "two_alpha_env_illum" or "sky_one_alpha_env" => EffectPass.Eyes,
+					"two_add_env_illum_active_camo" => EffectPass.AdditiveEnvironment,
+					"one_alpha_env_active_camo" or "one_alpha_env" or "two_alpha_env_illum" or "sky_one_alpha_env" => EffectPass.Eyes,
 					_ => EffectPass.None
 				};
 				if ( Effect != EffectPass.None )
 				{
-					if ( Effect == EffectPass.Meter ) ReadMeterBindings( map, ppOff );
+					if ( Effect is EffectPass.Meter or EffectPass.AdditiveEnvironment ) ReadMeterBindings( map, ppOff );
 					if ( Effect == EffectPass.Plasma )
 					{
 						PlasmaScroll = ReadPlasmaScroll( map, ppOff );
@@ -139,6 +141,8 @@ public class ShaderTag
 					}
 					EffectMaps = new int[bmpCount];
 					for ( int i = 0; i < bmpCount; i++ ) EffectMaps[i] = Bitmap( i );
+					if ( Effect is EffectPass.Eyes or EffectPass.AdditiveEnvironment or EffectPass.Scope )
+						EffectMaps = ReadSamplerBindings( map, map.GetTag( templateDatum & 0xffff ), EffectMaps );
 					int count = pp.ReadInt32();
 					int offset = map.VaToOffset( pp.ReadInt32() );
 					EffectConstants = new Vector4[count];
@@ -149,10 +153,10 @@ public class ShaderTag
 					}
 					int registerCount = pp.ReadInt32();
 					int registers = map.VaToOffset( pp.ReadInt32() );
-					int firstRegister = Effect == EffectPass.Eyes && name != "sky_one_alpha_env" ? 4 : 0;
+					int firstRegister = (Effect is EffectPass.Eyes or EffectPass.AdditiveEnvironment) && name != "sky_one_alpha_env" ? 4 : 0;
 					int layers = Effect switch
 					{
-						EffectPass.Eyes => 3,
+						EffectPass.Eyes or EffectPass.AdditiveEnvironment => 3,
 						EffectPass.MaskedDetail or EffectPass.Plasma => 4,
 						EffectPass.Hair or EffectPass.Meter => 2,
 						EffectPass.Additive => 1,
@@ -252,6 +256,44 @@ public class ShaderTag
 				}
 			}
 		}
+	}
+
+	// Template parameters select bitmap slots. The pass maps those parameters to sampler stages.
+	static int[] ReadSamplerBindings( MapFile map, TagEntry templateTag, int[] bitmaps )
+	{
+		if ( templateTag.DataSize < 96 ) return bitmaps;
+		int Block( int field ) => map.VaToOffset( map.ReadInt32( field + 4 ) );
+		int U16( int offset ) => System.BitConverter.ToUInt16( map.ReadSpan( offset, 2 ) );
+		int root = map.VaToOffset( (int)templateTag.DataVirtualAddress ) + 88;
+		if ( map.ReadInt32( root ) == 0 ) return bitmaps;
+		int template = Block( root );
+		if ( map.ReadInt32( template + 16 ) == 0 || map.ReadInt32( template + 24 ) == 0 ) return bitmaps;
+		int pass = Block( template + 16 );
+		var passTag = map.GetTag( map.ReadInt32( pass + 4 ) & 0xffff );
+		if ( passTag is not { DataSize: >= 36 } ) return bitmaps;
+		int postprocess = map.VaToOffset( (int)passTag.DataVirtualAddress ) + 28;
+		if ( map.ReadInt32( postprocess ) == 0 ) return bitmaps;
+		int definition = Block( postprocess );
+		if ( map.ReadInt32( definition ) == 0 ) return bitmaps;
+		int impl = U16( pass + 8 ) & 511;
+		if ( impl >= map.ReadInt32( template + 24 ) ) return bitmaps;
+		int mappings = U16( Block( template + 24 ) + impl * 6 );
+		int bindings = U16( Block( definition ) );
+		if ( (mappings & 511) + (mappings >> 9) > map.ReadInt32( template + 32 ) ||
+			(bindings & 511) + (bindings >> 9) > map.ReadInt32( definition + 8 ) ) return bitmaps;
+		int[] stages = [-1, -1, -1, -1];
+		for ( int i = 0; i < bindings >> 9; i++ )
+		{
+			var binding = map.ReadSpan( Block( definition + 8 ) + ((bindings & 511) + i) * 4, 4 );
+			if ( binding[1] != 0 || binding[2] >= stages.Length ) continue;
+			for ( int j = 0; j < mappings >> 9; j++ )
+			{
+				var remap = map.ReadSpan( Block( template + 32 ) + ((mappings & 511) + j) * 4, 4 );
+				if ( remap[0] == binding[0] && remap[3] < bitmaps.Length )
+					stages[binding[2]] = bitmaps[remap[3]];
+			}
+		}
+		return stages;
 	}
 
 	// The meter template binds its threshold to the alpha of pixel constant 1 (0x61).

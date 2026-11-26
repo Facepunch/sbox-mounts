@@ -77,7 +77,21 @@ public partial class Halo2MaterialLoader( MapFile map, TagEntry tag ) : Resource
 		{
 			var effect = Material.Create( name, "shaders/halo2_effect.shader" );
 			effect.SetFeature( "F_PASS", (int)shader.Effect );
-			if ( shader.Effect == ShaderTag.EffectPass.Meter )
+			if ( shader.Effect == ShaderTag.EffectPass.Scope )
+			{
+				if ( map.Globals is { DataSize: >= 0x110 } globals )
+				{
+					int block = map.VaToOffset( (int)globals.DataVirtualAddress ) + 0x108;
+					if ( map.ReadInt32( block ) == 1 )
+					{
+						int rasterizer = map.VaToOffset( map.ReadInt32( block + 4 ) );
+						if ( LoadBitmap( map.ReadInt32( rasterizer + 0x64 ) & 0xffff ) is {} fallback ) effect.Set( "g_tLayer0", fallback );
+					}
+				}
+				if ( shader.EffectMaps.Length > 1 && LoadBitmap( shader.EffectMaps[1] ) is {} mask ) effect.Set( "g_tLayer1", mask );
+				return effect;
+			}
+			if ( shader.Effect is ShaderTag.EffectPass.Meter or ShaderTag.EffectPass.AdditiveEnvironment )
 				BindMeter( effect, shader );
 			if ( shader.Effect == ShaderTag.EffectPass.Plasma ) effect.Set( "g_vPlasmaScroll", shader.PlasmaScroll );
 			for ( int i = 0; i < shader.EffectMaps.Length; i++ )
@@ -88,13 +102,13 @@ public partial class Halo2MaterialLoader( MapFile map, TagEntry tag ) : Resource
 					effect.Set( "g_nDigitDivisor", shader.AmmoDigitDivisor );
 				}
 				else if ( LoadBitmap( shader.EffectMaps[i] ) is { } texture )
-					effect.Set( shader.Effect == ShaderTag.EffectPass.Eyes && i == 0 ? "g_tReflection" : $"g_tLayer{i}", texture );
+					effect.Set( (shader.Effect is ShaderTag.EffectPass.Eyes or ShaderTag.EffectPass.AdditiveEnvironment) && i == 0 ? "g_tReflection" : $"g_tLayer{i}", texture );
 			}
 			for ( int i = 0; i < shader.EffectConstants.Length; i++ )
 				effect.Set( $"g_vConstant{i}", shader.EffectConstants[i] );
 			if ( shader.EffectUV is { } rows )
 			{
-				int start = shader.Effect == ShaderTag.EffectPass.Eyes ? 2 : 0;
+				int start = shader.Effect is ShaderTag.EffectPass.Eyes or ShaderTag.EffectPass.AdditiveEnvironment ? 2 : 0;
 				for ( int i = 0; i < rows.Length; i++ ) effect.Set( $"g_vRow{start + i}", rows[i] );
 			}
 			return effect;

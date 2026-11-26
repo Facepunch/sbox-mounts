@@ -5,7 +5,7 @@ HEADER
 FEATURES
 {
 	#include "common/features.hlsl"
-	Feature( F_PASS, 0..11( 0="None", 1="Emblem", 2="Plasma", 3="Hair", 4="Additive", 5="Eyes", 6="Self illumination", 7="Bloom", 8="Masked detail", 9="Meter", 10="Clamped illumination", 11="Ammunition digit" ), "Halo 2 pass" );
+	Feature( F_PASS, 0..13( 0="None", 1="Emblem", 2="Plasma", 3="Hair", 4="Additive", 5="Eyes", 6="Self illumination", 7="Bloom", 8="Masked detail", 9="Meter", 10="Clamped illumination", 11="Ammunition digit", 12="Additive environment", 13="Scope" ), "Halo 2 pass" );
 }
 MODES
 {
@@ -25,6 +25,8 @@ COMMON
 	#define PASS_METER 9
 	#define PASS_CLAMPED_ILLUMINATION 10
 	#define PASS_AMMO_DIGIT 11
+	#define PASS_ADDITIVE_ENV 12
+	#define PASS_SCOPE 13
 }
 struct VertexInput
 {
@@ -47,7 +49,7 @@ PS
 	RenderState( BlendEnable, true );
 	RenderState( DepthWriteEnable, false );
 	RenderState( SrcBlend, ONE );
-	#if S_PASS == PASS_PLASMA || S_PASS == PASS_ADDITIVE || S_PASS == PASS_AMMO_DIGIT || S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_CLAMPED_ILLUMINATION || S_PASS == PASS_BLOOM
+	#if S_PASS == PASS_PLASMA || S_PASS == PASS_ADDITIVE_ENV || S_PASS == PASS_ADDITIVE || S_PASS == PASS_AMMO_DIGIT || S_PASS == PASS_SELF_ILLUMINATION || S_PASS == PASS_CLAMPED_ILLUMINATION || S_PASS == PASS_BLOOM
 		RenderState( DstBlend, ONE );
 	#else
 		RenderState( DstBlend, INV_SRC_ALPHA );
@@ -91,9 +93,19 @@ PS
 		SamplerState IllumSampler < Filter( MIN_MAG_MIP_LINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); >;
 	#endif
 
-	#if S_PASS == PASS_METER
+	#if S_PASS == PASS_SCOPE
+		Texture2D g_tScopeFrame < Attribute( "ScopeFrame" ); SrgbRead( false ); >;
+		bool HasScopeFrame < Attribute( "HasScopeFrame" ); Default( 0 ); >;
+	#endif
+	#if S_PASS == PASS_METER || S_PASS == PASS_ADDITIVE_ENV
+		CreateInputTexture2D( WeaponResponse, Linear, 8, "", "", "", Default4( 1,1,1,1 ) );
+		Texture2D g_tWeaponResponse < Channel( RGBA, Box( WeaponResponse ), Linear ); OutputFormat( RGBA8888 ); SrgbRead( false ); >;
 		float WeaponMeter < Attribute( "WeaponMeter" ); Default( 0 ); >;
 		float2 g_vMeterRange < Default2( 0, 1 ); >;
+		float4 SampleWeaponResponse()
+		{
+			return g_tWeaponResponse.SampleLevel( g_sAniso, float2( (saturate( WeaponMeter ) * 255 + 0.5) / 256, 0.5 ), 0 );
+		}
 	#endif
 
 	#if S_PASS == PASS_AMMO_DIGIT
@@ -124,6 +136,11 @@ PS
 			edge = saturate( edge * curve * curve );
 			edge *= 2 - edge;
 			return float4( saturate( mask.rgb * g_vConstant2.rgb * edge + (1 - mask.a) * g_vConstant3.rgb ) * g_vConstant4.a, 0 );
+		#elif S_PASS == PASS_SCOPE
+			float3 scene = HasScopeFrame
+				? g_tScopeFrame.SampleLevel( g_sBilinearClamp, saturate( uv0 ), 0 ).rgb
+				: g_tLayer0.Sample( g_sAniso, uv0 ).rgb;
+			return float4( scene * g_tLayer1.Sample( g_sAniso, uv1 ).rgb, 1 );
 		#elif S_PASS == PASS_AMMO_DIGIT
 			int digit = (max( WeaponRounds, 0 ) / max( g_nDigitDivisor, 1 )) % 10;
 			float2 pageUv = float2( uv0.x, (frac( uv0.y ) + digit) * 0.1 );
@@ -136,12 +153,17 @@ PS
 			float3 mask = g_tLayer3.Sample( g_sAniso, uv3 ).rgb;
 			float3 color = saturate( saturate( 2 * detail * base.rgb ) + add * base.a );
 			return float4( color * lerp( 1.0.xxx, mask, base.a ) * base.a * g_vConstant0.a, base.a );
-		#elif S_PASS == PASS_EYES
+		#elif S_PASS == PASS_EYES || S_PASS == PASS_ADDITIVE_ENV
 			Material m = Material::Init( i );
 			float3 dir = reflect( -CalculatePositionToCameraDirWs( m.WorldPosition ), normalize( i.vNormalWs ) );
 			float3 reflection = TexCube( g_tReflection, dir ).rgb * g_vConstant0.rgb;
 			float3 mask = g_tLayer1.Sample( g_sAniso, uv1 ).rgb;
-			float3 base = g_tLayer2.Sample( g_sAniso, uv2 ).rgb * g_vConstant3.rgb;
+			#if S_PASS == PASS_ADDITIVE_ENV
+				float3 baseTint = SampleWeaponResponse().rgb;
+			#else
+				float3 baseTint = g_vConstant3.rgb;
+			#endif
+			float3 base = g_tLayer2.Sample( g_sAniso, uv2 ).rgb * baseTint;
 			float4 overlay = g_tLayer3.Sample( g_sAniso, uv3 );
 			float alpha = overlay.a * g_vConstant2.a;
 			return float4( saturate( base + reflection * mask + overlay.rgb * g_vConstant1.rgb * alpha ), alpha );
@@ -167,7 +189,7 @@ PS
 			#elif S_PASS == PASS_METER
 				// The retail combiner selects a tint and opacity using the display texture's alpha.
 				bool high = base.a >= lerp( g_vMeterRange.x, g_vMeterRange.y, saturate( WeaponMeter ) );
-				float4 response = g_tLayer2.SampleLevel( g_sAniso, float2( (saturate( WeaponMeter ) * 255 + 0.5) / 256, 0.5 ), 0 );
+				float4 response = SampleWeaponResponse();
 				float3 tint = high ? g_vConstant3.rgb : response.rgb;
 				float opacity = (high ? response.a : g_vConstant2.a) * g_tLayer1.Sample( g_sAniso, uv1 ).a;
 				return float4( base.rgb * tint * opacity, opacity );

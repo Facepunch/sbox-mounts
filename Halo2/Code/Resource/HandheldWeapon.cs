@@ -254,6 +254,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			}
 			item.SpartanModel = (Host.GetByPath( $"{item.RigDirectory}/first_person.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.EliteModel = (Host.GetByPath( $"{item.RigDirectory}/first_person_elite.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
+			item.ScopeSize = new Vector2( Float( Header + 0x314 ), Float( Header + 0x318 ) );
 			item.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			item.DeployTime = Float( Header + 0x13c );
 		}

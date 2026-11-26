@@ -47,6 +47,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 		}
 	}
 
+	[Property] public Vector2 ScopeSize { get; set; }
+	protected WeaponScope Scope { get; set; }
 	[Property] public Vector3 ViewOffset { get; set; }
 	[Property] public float KickDuration { get; set; }
 	[Property] public float KickDegrees { get; set; }
@@ -297,6 +299,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 		// The camera already includes the rig's animated camera node.
 		var root = view.Transform.ToWorld( cameraAdjustment.ToLocal( global::Transform.Zero ) );
 		ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( ViewOffset ) );
+		if ( Scope.IsValid() && ZoomLevel == 0 && Owner is { ThirdPerson: false } ) Scope.Capture( camera, view, new Vector2( 0.5f ) + reticleOffset, ScopeSize );
 		if ( Offhand.IsValid() && Offhand.ViewModel.IsValid() )
 			Offhand.ViewModel.WorldTransform = root.WithPosition( root.PointToWorld( Offhand.ViewOffset ) );
 	}

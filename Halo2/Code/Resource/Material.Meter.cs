@@ -7,13 +7,14 @@ public partial class Halo2MaterialLoader
 {
 	void BindMeter( Material material, ShaderTag shader )
 	{
-		material.Set( "g_vMeterRange", shader.MeterRange ?? new Vector2( shader.EffectConstants[0].w ) );
+		bool meter = shader.Effect == ShaderTag.EffectPass.Meter;
+		if ( meter ) material.Set( "g_vMeterRange", shader.MeterRange ?? new Vector2( shader.EffectConstants[0].w ) );
 		// Bake the two animated pixel constants once. Each renderer supplies its own heat or ammo.
 		var pixels = new Color32[256];
 		for ( int i = 0; i < pixels.Length; i++ )
 		{
 			float input = i / 255f;
-			var tint = shader.EffectConstants[1];
+			var tint = shader.EffectConstants[meter ? 1 : 3];
 			int curve = shader.MeterTintCurve;
 			if ( curve != 0 )
 			{
@@ -25,7 +26,7 @@ public partial class Halo2MaterialLoader
 				}
 				tint = new Vector4( Vector3.Lerp( Rgb( 4 ), Rgb( 16 ), t ), 1 );
 			}
-			float opacity = shader.EffectConstants[4].w;
+			float opacity = meter ? shader.EffectConstants[4].w : 1;
 			int alpha = shader.MeterOpacityCurve;
 			if ( alpha != 0 )
 			{
@@ -34,7 +35,7 @@ public partial class Halo2MaterialLoader
 			}
 			pixels[i] = new Color( tint.x, tint.y, tint.z, opacity );
 		}
-		material.Set( "g_tLayer2", Texture.Create( pixels.Length, 1, ImageFormat.RGBA8888 ).WithData( pixels ).WithStaticUsage().Finish() );
+		material.Set( "g_tWeaponResponse", Texture.Create( pixels.Length, 1, ImageFormat.RGBA8888 ).WithData( pixels ).WithStaticUsage().Finish() );
 	}
 
 	float Float( int offset ) => BitConverter.Int32BitsToSingle( map.ReadInt32( offset ) );

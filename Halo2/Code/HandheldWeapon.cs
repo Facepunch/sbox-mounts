@@ -486,6 +486,7 @@ public abstract partial class HandheldWeapon : Weapon
 		model.Renderer = arms;
 		model.Weapon = this;
 		WeaponScreen.Attach( this, gun );
+		if ( ScopeSize.x > 0 && ScopeSize.y > 0 ) Scope = gun.GameObject.AddComponent<WeaponScope>();
 		model.TracerEffect = model.EjectBrass = model.MuzzleEffect = null;
 		view.Enabled = true;
 		model.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
