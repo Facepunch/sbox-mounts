@@ -11,6 +11,7 @@ public sealed partial class Fade
 	int hopsRemaining;
 	float lastJump;
 	Vector3? airGoal;
+	bool ductBlink;
 	MapLocations locations;
 	SoundHandle blinkLoop;
 	SkinnedModelRenderer blinkOverlay;
@@ -34,6 +35,11 @@ public sealed partial class Fade
 		if ( NearVent( goal ) )
 		{
 			hopsRemaining = 0;
+			if ( DuctBlinkAim( ductPoints ) is { } aim && lastBlink >= 0.4f )
+			{
+				view = Rotation.LookAt( aim - WorldPosition );
+				StartBlink( goal, true );
+			}
 			return;
 		}
 
@@ -48,8 +54,12 @@ public sealed partial class Fade
 			if ( hopsRemaining > 0 ) hopsRemaining--;
 			return;
 		}
-		if ( lastBlink < 0.4f ) return;
+		if ( lastBlink >= 0.4f ) StartBlink( goal, false );
+	}
 
+	void StartBlink( Vector3 goal, bool inDuct )
+	{
+		ductBlink = inDuct;
 		var body = GetComponent<Rigidbody>();
 		var velocity = IsOnGround ? Animation.MoveVelocity : body.Velocity;
 		airGoal = goal;
@@ -57,7 +67,7 @@ public sealed partial class Fade
 		body.Gravity = false;
 		energy -= 12;
 		blinkAge = 0;
-		releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
+		if ( !inDuct ) releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
 		Blinking = true;
 		ShowBlinkEffect( true );
 	}
@@ -73,7 +83,14 @@ public sealed partial class Fade
 		bool dropping = !InCombat && ventDrop.Active( WorldPosition );
 		if ( Blinking )
 		{
-			if ( !stop && !dropping && releaseBlink > 0 && energy > 12 )
+			bool held = releaseBlink > 0;
+			if ( ductBlink )
+			{
+				var aim = DuctBlinkAim( ductPoints );
+				held = aim.HasValue;
+				if ( held ) view = Rotation.LookAt( aim.Value - WorldPosition );
+			}
+			if ( !stop && !dropping && held && energy > 12 )
 			{
 				if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
 				var velocity = body.Velocity;
@@ -85,7 +102,8 @@ public sealed partial class Fade
 
 			Blinking = false;
 			lastBlink = 0;
-			hopsRemaining = dropping ? 0 : 2;
+			hopsRemaining = dropping || ductBlink ? 0 : 2;
+			ductBlink = false;
 			ShowBlinkEffect( false );
 		}
 
