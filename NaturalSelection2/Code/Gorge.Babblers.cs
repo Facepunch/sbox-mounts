@@ -58,7 +58,7 @@ public sealed partial class Gorge
 		float Priority( Babbler b ) => b.WorldPosition.DistanceSquared( WorldPosition ) * (b.ClingSlot == 0 ? 1 : 6.25f);
 		foreach ( var b in brood.OrderBy( Priority ) )
 		{
-			if ( b.ClingTarget == recipient || b.WorldPosition.DistanceSquared( WorldPosition ) > 1000f * 1000 * Scale * Scale ) continue;
+			if ( b.Health <= 0 || b.WorldPosition.DistanceSquared( WorldPosition ) > 1000f * 1000 * Scale * Scale ) continue;
 			b.Dispatch( recipient.GameObject, recipient.WorldPosition );
 			if ( --spots == 0 ) break;
 		}
