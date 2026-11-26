@@ -55,13 +55,13 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	{
 		internal Guid Source;
 		internal bool LeftArm;
-		internal TimeUntil Expires;
+		internal TimeUntil Expires = -1;
 
 		internal float Hit( Guid source, bool leftArm )
 		{
-			if ( Expires > 0 && (Source != source || LeftArm != leftArm) )
+			if ( Expires >= 0 && (Source != source || LeftArm != leftArm) )
 			{
-				Expires = 0;
+				Expires = -1;
 				return 1.5f;
 			}
 
