@@ -14,13 +14,33 @@ internal sealed class AlienTargeting
 	readonly Dictionary<GameObject, Memory> memories = [];
 	MapLocations locations;
 
+	static GameObject AssignedEnemy( BaseNpc npc ) => npc switch
+	{
+		Marine marine => marine.assignedEnemy,
+		Exo exo => exo.assignedEnemy,
+		_ => null
+	};
+
 	internal static bool HasResponders( BaseNpc self, BaseNpc target, int required )
 	{
 		foreach ( var other in self.Scene.GetAllComponents<BaseNpc>() )
 		{
 			if ( other == self || other.Faction != self.Faction || other.Health <= 0 ) continue;
-			var assigned = other switch { Marine m => m.assignedEnemy, Exo e => e.assignedEnemy, _ => null };
-			if ( assigned == target.GameObject && --required == 0 ) return true;
+			if ( AssignedEnemy( other ) == target.GameObject && --required == 0 ) return true;
+		}
+		return false;
+	}
+
+	static bool ShouldForget( BaseNpc observer, GameObject target, Vector3 lastSeen )
+	{
+		if ( observer is not (Marine or Exo) || target.GetComponent<BaseNpc>() is not (Drifter or AlienStructure) )
+			return true;
+
+		const float investigateRange = 4 * MapLoader.Scale;
+		foreach ( var npc in observer.Scene.GetAllComponents<BaseNpc>() )
+		{
+			if ( npc.Faction == observer.Faction && npc.Health > 0 && AssignedEnemy( npc ) == target &&
+				npc.WorldPosition.DistanceSquared( lastSeen ) < investigateRange * investigateRange ) return true;
 		}
 		return false;
 	}
@@ -71,7 +91,7 @@ internal sealed class AlienTargeting
 		int bestRoom = int.MaxValue;
 		foreach ( var (target, memory) in memories )
 		{
-			if ( !target.IsValid() || Time.Now - memory.Time > 5 || IsIgnoredPlayer( target ) )
+			if ( !target.IsValid() || IsIgnoredPlayer( target ) || Time.Now - memory.Time > 5 && ShouldForget( alien, target, memory.Position ) )
 			{
 				memories.Remove( target );
 				continue;
@@ -88,7 +108,11 @@ internal sealed class AlienTargeting
 			float wounded = 0;
 			if ( health is { MaxHealth: > 0 } )
 			{
-				if ( health.Health <= 0 ) continue;
+				if ( health.Health <= 0 )
+				{
+					memories.Remove( target );
+					continue;
+				}
 				float fraction = (health.Health + 2 * health.Armour) / (health.MaxHealth + 2 * health.MaxArmour);
 				wounded = Math.Max( 0, 0.3f - fraction ) * 3;
 			}
