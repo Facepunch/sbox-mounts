@@ -58,6 +58,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	static readonly ConditionalWeakTable<GameObject, Resonance> marks = new();
 	readonly Arm left = new(), right = new();
 	internal GameObject assignedEnemy;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly AlienAim.Acquisition acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
@@ -179,7 +180,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
-		bool aimed = visible && distance < 45 && acquisition.Ready( enemy, CalculateAimPoint( enemy ) - EyePosition, aim );
+		bool aimed = visible && distance < 45 && acquisition.TrackView( enemy, EyePosition, CalculateAimPoint( enemy ), aim, 1, AimSkillTier );
 		if ( aimed )
 		{
 			firingTarget = enemy;
@@ -217,7 +218,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		{
 			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;
 			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
+				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, acquisition.TurnRate );
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
 			var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";

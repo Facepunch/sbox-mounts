@@ -41,13 +41,8 @@ internal static class AlienAim
 					sample = 0.25f;
 				}
 			}
-			return IsReady;
+			return acquired <= 0;
 		}
-
-		bool IsReady => acquired <= 0;
-
-		internal bool Ready( GameObject enemy, Vector3 offset, Rotation view ) =>
-			Track( enemy, offset, view, 1 ) && IsReady;
 
 		bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier )
 		{

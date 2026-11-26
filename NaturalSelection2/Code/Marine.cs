@@ -53,6 +53,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	Vector3 lastAimPoint, modelOrigin;
 	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	GameObject firingTarget;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly AlienAim.Acquisition acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
@@ -185,7 +186,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || acquisition.Ready( enemy, aimPoint - EyePosition, aim ));
+		bool aimed = clearShot && (babbler || acquisition.TrackView( enemy, EyePosition, aimPoint, aim, 1, AimSkillTier ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
@@ -340,9 +341,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
 			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
+				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, acquisition.TurnRate );
 			else if ( wantsFire )
-				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, 5 );
+				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, acquisition.TurnRate );
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		var move = jumping ? "jump" : Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
