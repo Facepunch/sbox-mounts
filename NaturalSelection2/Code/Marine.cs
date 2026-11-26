@@ -63,6 +63,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	}
 
 	[Sync( SyncFlags.FromHost )] bool pistol { get; set; }
+	// The rifle weighs 0.13 equipped and 70% of that when stowed.
+	float InventorySpeed => 1.17f - 0.13f * (pistol ? 0.7f : 1);
 	Magazine Ammo => pistol ? pistolAmmo : rifleAmmo;
 	float BulletRange => (pistol ? 45 : 41) * Scale;
 	string WeaponName => pistol ? "pistol" : "rifle";
@@ -86,6 +88,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	readonly BotWeaponAim acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
+	Vector3 dodgeDirection;
 	Rotation aim;
 	internal Vector3 AimDirection => aim.Forward;
 	SparkAnimationGraph.Playback graph, weapon;
@@ -171,6 +174,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void Think()
 	{
+		dodgeDirection = Vector3.Zero;
 		viewTarget = null;
 		var targeting = AlienTargeting.ForTeam( this );
 		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
@@ -301,10 +305,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			sprintAge = 0;
 		}
 		if ( sprinting ) sinceSprint = 0;
-		// The rifle weighs 0.13 equipped and 70% of that when stowed.
-		float inventorySpeed = 1.17f - 0.13f * (pistol ? 0.7f : 1);
 		float speed = 5 + (sprinting ? 0.75f * Math.Clamp( (float)sprintAge / 1.5f, 0, 1 ) : 0);
-		Movement.WalkSpeed = Movement.RunSpeed = speed * inventorySpeed * SlowSpeedModifier * Scale;
+		Movement.WalkSpeed = Movement.RunSpeed = speed * InventorySpeed * SlowSpeedModifier * Scale;
 	}
 
 	void ApproachPoint( Vector3 point )
@@ -337,14 +339,15 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	void Strafe( GameObject enemy, Vector3 aimPoint, float distance )
 	{
 		sprintRequested = false;
-		if ( repath > 0 ) return;
-		repath = 0.1f;
-		var toward = (enemy.WorldPosition - WorldPosition).WithZ( 0 ).Normal;
-		var velocity = enemy.GetComponent<BaseNpc>()?.Animation?.MoveVelocity ?? enemy.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
-		if ( distance > 22 * Scale && Vector3.Dot( toward, velocity.WithZ( 0 ).Normal ) < -0.5f )
+		if ( distance > 22 * Scale )
 		{
-			Movement.Stop();
-			return;
+			var toward = (enemy.WorldPosition - WorldPosition).WithZ( 0 ).Normal;
+			var velocity = enemy.GetComponent<BaseNpc>()?.Animation?.MoveVelocity ?? enemy.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+			if ( Vector3.Dot( toward, velocity.WithZ( 0 ).Normal ) < -0.5f )
+			{
+				if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+				return;
+			}
 		}
 
 		if ( nextJuke <= 0 )
@@ -352,7 +355,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			strafeSide = -strafeSide;
 			nextJuke = Random.Shared.Float( 0.35f, 1 );
 		}
-		var side = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
+		dodgeDirection = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
+		if ( repath > 0 ) return;
+		repath = 0.1f;
 		if ( distance < 6 * Scale && nextDodge <= 0 && IsOnGround )
 		{
 			nextDodge = 2;
@@ -362,7 +367,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 		if ( IsAirborne ) return;
-		var destination = WorldPosition + side * Scale;
+		var destination = WorldPosition + dodgeDirection * Scale;
 		if ( Movement.ProjectPoint( destination ) is { } point )
 			Movement.MoveTo( point, 4, Movement.RunSpeed, enemy );
 		else Movement.Stop();
@@ -429,14 +434,37 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( !Networking.IsHost || Health <= 0 ) return;
 		if ( !IsOnGround )
 		{
+			if ( jumping && !PhysicsCarrier.IsValid() && NpcConVars.Enabled )
+			{
+				var velocity = body.Velocity / Scale;
+				// Spark applies gravity before sweeping the capsule for this tick.
+				body.Gravity = false;
+				velocity.z += Scene.PhysicsWorld.Gravity.z * body.GravityScale * Time.Delta / Scale;
+				var next = DodgeVelocity( velocity, aim, dodgeDirection, Time.Delta );
+				body.Velocity = next * Scale;
+			}
+			else EndDodge();
 			fallSpeed = -body.Velocity.z;
 			return;
 		}
 
-		jumping = false;
+		EndDodge();
 		if ( fallSpeed > 4 * Scale ) Land( fallSpeed );
 		fallSpeed = 0;
 		slowAmount = Math.Max( 0, slowAmount - Scene.FixedDelta );
+	}
+
+	void EndDodge()
+	{
+		if ( !jumping ) return;
+		jumping = false;
+		if ( body.IsValid() ) body.Gravity = true;
+	}
+
+	Vector3 DodgeVelocity( Vector3 velocity, Rotation view, Vector3 direction, float dt )
+	{
+		float speed = MarineMovement.DirectionalSpeed( view, direction, 5 * InventorySpeed * SlowSpeedModifier );
+		return SparkAirMovement.Steer( velocity, view, direction, speed, 11 * SlowSpeedModifier, 6 * SlowSpeedModifier, dt );
 	}
 
 	void Land( float impactSpeed )
@@ -633,6 +661,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void OnDisabled()
 	{
+		if ( Networking.IsHost ) EndDodge();
 		assignedEnemy = null;
 		StopRifleSound();
 		reloadSound?.Stop();
@@ -663,6 +692,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
+		EndDodge();
 		railgunDeath = e.DamageInfo.Tags.Has( "railgun" );
 		PlayWorldSound( "sounds/marine/common/death.sound" );
 		base.OnDeath( e );

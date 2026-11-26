@@ -5,9 +5,11 @@ public sealed class MarineMovement : SparkGroundMovement
 	protected override float GroundAcceleration => 13 * (Npc is Marine marine ? marine.SlowSpeedModifier : 1);
 	protected override float GroundFriction => 9;
 
-	protected override float GetGroundSpeed( Vector3 direction, float speed )
+	protected override float GetGroundSpeed( Vector3 direction, float speed ) => DirectionalSpeed( WorldRotation, direction, speed );
+
+	internal static float DirectionalSpeed( Rotation view, Vector3 direction, float speed )
 	{
-		var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
+		var forward = view.Forward.WithZ( 0 ).Normal;
 		if ( Vector3.Dot( direction, forward ) >= -0.000001f ) return speed;
 		return speed * ((direction + forward).IsNearlyZero( 0.000001f ) ? 0.4f : 0.56f);
 	}

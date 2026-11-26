@@ -136,11 +136,6 @@ public sealed partial class Fade
 	Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float gravity, float dt )
 	{
 		float maxSpeed = 6.2f + CeleritySpeedBonus;
-		var forward = view.Forward.WithZ( 0 ).Normal;
-		var left = view.Left.WithZ( 0 ).Normal;
-		float ahead = Math.Clamp( direction.Dot( forward ), -1, 1 );
-		float sideways = direction.Dot( left );
-
 		var planar = velocity.WithZ( 0 );
 		float speed = velocity.Length;
 		float friction = speed > (CelerityLevel > 0 ? 20.5f : 19) ? 0.4f : 0.17f - 0.01f * CelerityLevel;
@@ -148,26 +143,7 @@ public sealed partial class Fade
 
 		// Spark applies gravity once before steering and sweeps with the resulting velocity.
 		velocity.z += gravity * dt;
-		float startSpeed = planar.Length;
-		var wish = direction;
-		if ( ahead != 0 && ahead * forward.Dot( planar.Normal ) >= -0.8f )
-		{
-			float lateralSpeed = planar.Dot( left );
-			if ( sideways != 0 ) wish = left * Math.Sign( sideways );
-			else wish = Math.Abs( lateralSpeed ) > 0.2f * maxSpeed ? -left * Math.Sign( lateralSpeed ) : Vector3.Zero;
-		}
-
-		float addSpeed = 1.3f - planar.Dot( wish );
-		if ( ahead == 1 ) planar = (planar + forward * (80 * dt)).Normal * startSpeed;
-		if ( addSpeed > 0 ) planar += wish * Math.Min( addSpeed, 40 * dt * 1.3f );
-		planar += planar.Normal * (Math.Max( -velocity.z, 0 ) * dt * 0.34f);
-		planar = planar.ClampLength( startSpeed + dt * 0.54f );
-
-		float fraction = Math.Min( planar.Length / maxSpeed, 1 );
-		var move = (view.Forward * ahead + view.Left * sideways).WithZ( 0 ).Normal;
-		float speedLimit = Math.Max( planar.Length, maxSpeed );
-		planar += move * (6 * (1 - fraction * fraction) * dt);
-		return planar.ClampLength( speedLimit ).WithZ( velocity.z );
+		return SparkAirMovement.Steer( planar.WithZ( velocity.z ), view, direction, maxSpeed, 40, 6, dt );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
