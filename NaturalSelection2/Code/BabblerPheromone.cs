@@ -55,32 +55,32 @@ public sealed class BabblerPheromone : Component
 			var end = previousPosition + previousVelocity * (Time.Delta + 0.125f * 3);
 			var hit = Scene.Trace.Sphere( 0.125f * Scale, previousPosition, end ).IgnoreGameObjectHierarchy( GameObject )
 				.WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
-			ProcessHit( hit.GameObject, hit.EndPosition );
+			ProcessHit( hit.GameObject, position );
 		}
 		previousPosition = position;
 		previousVelocity = velocity;
 	}
 
-	void ProcessHit( GameObject other, Vector3 position )
+	void ProcessHit( GameObject other, Vector3 ballPosition )
 	{
 		var victim = other?.GetComponentInParent<IDamageable>() as Component;
 		if ( victim is Babbler ) return;
-		if ( victim == owner || victim is null && position.DistanceSquared( owner.WorldPosition ) < 0.75f * 0.75f * Scale * Scale )
+		if ( victim == owner || victim is null && ballPosition.DistanceSquared( owner.WorldPosition ) < 0.75f * 0.75f * Scale * Scale )
 		{
-			if ( !owner.BabblerApproachPoint.IsValid() ) return;
-			owner.DispatchBrood( owner.GameObject, position );
+			if ( !owner.CanReceiveBabblers ) return;
+			owner.DispatchBrood( owner.GameObject, ballPosition );
 			Pop();
 		}
 		else if ( victim is AlienLifeform recipient && owner.TryDonate( recipient ) ) Pop();
 		else if ( victim is IDamageable hp )
 		{
 			if ( hp.Health <= 0 && hp.MaxHealth > 0 || AlienTargeting.IsIgnoredPlayer( victim.GameObject ) || owner.GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;
-			owner.DispatchBrood( victim.GameObject, position );
+			owner.DispatchBrood( victim.GameObject, ballPosition );
 			Pop();
 		}
 		else if ( ++bounces <= 3 )
 		{
-			owner.DispatchBrood( owner.FindPheromoneTarget( position ), position );
+			owner.DispatchBrood( owner.FindPheromoneTarget( ballPosition ), ballPosition );
 		}
 	}
 
