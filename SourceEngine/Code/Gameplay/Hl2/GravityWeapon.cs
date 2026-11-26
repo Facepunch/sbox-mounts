@@ -573,7 +573,7 @@ sealed class PhysCannonEffects : IDisposable
 	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
 	static readonly string[] ViewTips = ["fork1t", "fork2t"];
 	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
-	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 * ViewModel.EffectDepthScale );
+	static readonly Curve ViewBeamWidth = BeamWidth( 1.5f * ViewModel.EffectDepthScale, 4 * ViewModel.EffectDepthScale );
 	static readonly Curve WorldBeamWidth = BeamWidth( 0.5f, 2 );
 	static Curve BeamWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
@@ -768,11 +768,11 @@ sealed class PhysCannonEffects : IDisposable
 			for ( var i = half; i < 128; i += half * 2 )
 				_beamNoise[i] = (_beamNoise[i - half] + _beamNoise[i + half]) * 0.5f + Random.Shared.Float( -1, 1 ) * (half / 64f);
 		}
-		// DrawSegs samples indices 0..127 using a 16.16 fixed-point step.
-		var step = (127 << 16) / (count - 1);
+		// The first and last noise samples stay zero, pinning both ends to their attachments.
+		var last = count - 1;
 		for ( var i = 0; i < count; i++ )
 		{
-			var point = start + delta * (i / (float)(count - 1)) + side * (_beamNoise[i * step >> 16] * length * 0.16f);
+			var point = start + delta * (i / (float)last) + side * (_beamNoise[i * 128 / last] * length * 0.16f);
 			points[i] = _view.IsValid() ? _view.BehindPosition( point ) : point;
 		}
 
@@ -786,7 +786,12 @@ sealed class PhysCannonEffects : IDisposable
 		return float.Lerp( _elementFrom, _open ? 1 : 0, spline );
 	}
 
-	Vector3 Place( GameObject anchor ) => _view.IsValid() ? _view.DrawnPosition( anchor ) : anchor.WorldPosition;
+	Vector3 Place( GameObject anchor )
+	{
+		if ( !_view.IsValid() || _renderer.GetAttachment( anchor.Name ) is not { } pose ) return anchor.WorldPosition;
+		var modelPosition = _renderer.SceneModel.Transform.PointToLocal( pose.Position );
+		return _renderer.WorldTransform.PointToWorld( modelPosition );
+	}
 
 	SpriteRenderer AddSprite( GameObject anchor, string name, string mount )
 	{
