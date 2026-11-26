@@ -461,9 +461,11 @@ public sealed partial class RabbitGuard
 		}
 		else
 		{
-			var agent = GetComponent<NavMeshAgent>( true );
-			agent.Enabled = true;
-			agent.SetAgentPosition( WorldPosition );
+			if ( GetComponent<NavMeshAgent>( true ) is { } agent )
+			{
+				agent.Enabled = true;
+				agent.SetAgentPosition( WorldPosition );
+			}
 			if ( wakeRoll )
 			{
 				var direction = CombatApproach( visible ? TargetPosition( enemy ) : lastSeen, out _ );
