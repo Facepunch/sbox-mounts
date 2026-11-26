@@ -315,6 +315,7 @@ static class WeaponEffects
 		// Tempents keep half their speed on each bounce.
 		collider.Elasticity = 0.5f;
 		var body = go.AddComponent<Rigidbody>();
+		body.RigidbodyFlags |= RigidbodyFlags.DisableCollisionSounds;
 		var shell = go.AddComponent<Shell>();
 		shell.Lifetime = lifetime;
 		shell.BounceSound = Sounds.Sound( bounce, mount );
