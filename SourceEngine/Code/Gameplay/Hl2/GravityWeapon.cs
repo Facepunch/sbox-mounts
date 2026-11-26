@@ -36,6 +36,7 @@ public sealed class GravityWeapon : Weapon
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
 	readonly List<(Rigidbody Body, float MassOverride, float AngularDamping)> _carriedBodies = [];
 	PhysicsOwnership _borrowed;
+	Rigidbody _pendingPickup;
 	float _loadWeight;
 	Vector3 _carryTarget;
 	Vector3 _carryCenterOffset;
@@ -111,7 +112,7 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
-	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && body.Mass <= MaxMass
+	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && Math.Max( body.Mass, body.MassOverride ) <= MaxMass
 		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body )
 		&& !IsFlesh( body ) && !AlreadyHeld( body.GameObject );
 
@@ -325,8 +326,9 @@ public sealed class GravityWeapon : Weapon
 			return;
 		}
 		if ( _carriedBodies.Count > 0 ) Release();
+		if ( _pendingPickup is not null && (!Pulling || !Active) ) RestoreOwner();
 		// A 0.1f retry rounds just past the fifth 50 Hz physics tick.
-		if ( Pulling && Active && NextSecondaryFire <= 0.000001f ) Pull();
+		if ( Pulling && Active && (_pendingPickup is not null || NextSecondaryFire <= 0.000001f) ) Pull();
 	}
 
 	void Pull()
@@ -336,9 +338,11 @@ public sealed class GravityWeapon : Weapon
 		var hit = FindTarget( PullLength );
 		var direct = HitEntity( hit );
 		var body = direct ? hit.GameObject.GetComponentInParent<Rigidbody>() : FindBodyInCone( aim );
+		if ( _pendingPickup is not null && body != _pendingPickup ) RestoreOwner();
 
 		if ( !CanPickUp( body ) )
 		{
+			RestoreOwner();
 			if ( _playedDenySound ) return;
 			_playedDenySound = true;
 			DenyPickup();
@@ -347,20 +351,30 @@ public sealed class GravityWeapon : Weapon
 		var target = direct ? hit.HitPosition : body.GameObject.GetBounds().Center;
 		if ( aim.Position.Distance( target ) > TraceLength )
 		{
+			RestoreOwner();
 			if ( !body.MotionEnabled ) return;
 			var direction = (aim.Position - body.GameObject.GetBounds().Center).Normal;
-			var scale = body.Mass < 50 ? (body.Mass + 0.5f) / 50 : 1;
-			var impulse = direction * (PullForce * scale);
 			if ( body.IsProxy )
 			{
 				using var recipients = Rpc.FilterInclude( body.Network.Owner );
-				PullRemoteBody( body, impulse );
+				PullRemoteBody( body, direction );
 			}
-			else body.ApplyImpulse( impulse );
+			else PullBody( body, direction );
 			return;
 		}
-		if ( body.GetComponentInParent<PlayerController>().IsValid()
-			|| !PhysicsOwnership.TryBorrow( body, CarryEntity( body.GameObject ), out _borrowed ) ) return;
+		if ( _pendingPickup is null )
+		{
+			bool remote = body.IsProxy;
+			if ( body.GetComponentInParent<PlayerController>().IsValid()
+				|| !PhysicsOwnership.TryBorrow( body, CarryEntity( body.GameObject ), out _borrowed ) ) return;
+			if ( remote )
+			{
+				// The new physics owner gets the simulated mass on the next physics step.
+				_pendingPickup = body;
+				return;
+			}
+		}
+		_pendingPickup = null;
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
 		ApplyCarryPhysics( body );
@@ -382,9 +396,17 @@ public sealed class GravityWeapon : Weapon
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PullRemoteBody( Rigidbody body, Vector3 impulse )
+	void PullRemoteBody( Rigidbody body, Vector3 direction )
 	{
-		if ( body.IsValid() && !body.IsProxy ) body.ApplyImpulse( impulse );
+		if ( body.IsValid() && !body.IsProxy ) PullBody( body, direction );
+	}
+
+	static void PullBody( Rigidbody body, Vector3 direction )
+	{
+		var mass = body.Mass;
+		if ( !body.MotionEnabled || mass > MaxMass ) return;
+		var scale = mass < 50 ? (mass + 0.5f) / 50 : 1;
+		body.ApplyImpulse( direction * (PullForce * scale) );
 	}
 
 	void ApplyCarryPhysics( Rigidbody grabbed )
@@ -475,6 +497,7 @@ public sealed class GravityWeapon : Weapon
 
 	void RestoreOwner()
 	{
+		_pendingPickup = null;
 		_borrowed?.Release();
 		_borrowed = null;
 	}
