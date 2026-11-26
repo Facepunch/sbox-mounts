@@ -459,7 +459,7 @@ public sealed class Grenade : Projectile
 public sealed class ContactGrenade : TumblingProjectile, Component.IDamageable
 {
 	const float FlightHullSize = 6;
-	[RequireComponent] BoxCollider ShotCollider { get; set; }
+	ManualHitbox _shotHitbox;
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnSmokeEnded ) )] bool SmokeEnded { get; set; }
 	protected override float Lifetime => float.PositiveInfinity;
 	bool _detonated;
@@ -491,9 +491,12 @@ public sealed class ContactGrenade : TumblingProjectile, Component.IDamageable
 		// Shots test the model's hitbox while movement sweeps an axis-aligned six-unit box.
 		var model = string.IsNullOrEmpty( ModelPath ) ? null : Model.Load( $"mount://{MountName}/{ModelPath}.vmdl" );
 		var bounds = model?.HitboxSet.All.FirstOrDefault()?.Shape is BBox hitbox ? hitbox : BBox.FromPositionAndSize( Vector3.Zero, FlightHullSize );
-		ShotCollider.Center = bounds.Center;
-		ShotCollider.Scale = bounds.Size;
 		if ( Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
+		_shotHitbox = GameObject.AddComponent<ManualHitbox>( false );
+		_shotHitbox.Shape = ManualHitbox.HitboxShape.Box;
+		_shotHitbox.CenterA = bounds.Center;
+		_shotHitbox.CenterB = bounds.Size;
+		_shotHitbox.Enabled = true;
 	}
 
 	public void OnDamage( in DamageInfo damage )
@@ -509,7 +512,7 @@ public sealed class ContactGrenade : TumblingProjectile, Component.IDamageable
 	{
 		if ( _detonated ) return;
 		_detonated = true;
-		ShotCollider.Enabled = false;
+		_shotHitbox.Enabled = false;
 		// Damage can arrive between fixed updates. Use the simulation position for the blast.
 		Transform.ClearInterpolation();
 		var mark = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity.Normal * 60 )
