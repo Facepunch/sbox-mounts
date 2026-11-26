@@ -8,6 +8,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	FlightState flight;
 	GameObject thrower;
 	Transform previousFlightPose;
+	ItemLine[] flightLines;
 	TimeUntil nextCharacterImpact;
 	internal GameObject ThrownBy => thrower;
 	internal bool IsThrown => flight != FlightState.Safe;
@@ -21,17 +22,20 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	void TraceFlight( Rigidbody body )
 	{
 		var pose = WorldTransform;
+		var previous = previousFlightPose;
+		previousFlightPose = pose;
 		if ( body.Sleeping ) nextCharacterImpact = 0f;
 		else if ( nextCharacterImpact <= 0f && body.Velocity.LengthSquared > 40f * 40f )
 		{
 			var owner = thrower.IsValid() ? thrower : guard.IsValid() ? guard.GameObject : null;
-			for ( int i = 0; i <= 8; i++ )
+			var segments = flightLines ??= GetFlightLines();
+			for ( int i = 0; i <= 8 && nextCharacterImpact <= 0f; i++ )
 			{
 				float fraction = i / 8f;
-				foreach ( var line in GetLines() )
+				foreach ( var line in segments )
 				{
 					// Overgrowth blends the two physics matrices element by element.
-					var (oldStart, oldEnd) = line.ToWorld( previousFlightPose );
+					var (oldStart, oldEnd) = line.ToWorld( previous );
 					var (newStart, newEnd) = line.ToWorld( pose );
 					var start = Vector3.Lerp( oldStart, newStart, fraction );
 					var end = Vector3.Lerp( oldEnd, newEnd, fraction );
@@ -42,25 +46,27 @@ public sealed partial class LevelItem : Component.ICollisionListener
 					if ( !fighter.IsValid() && !remains.IsValid() ) continue;
 					float mass = body.Mass;
 					if ( IsThrown && (remains.IsValid() || !fighter.DefendThrownItem( this, body )) )
-						HitCharacter( fighter, remains, body, thrower, hit, global::Transform.Lerp( previousFlightPose, pose, fraction, true ), start, end, line );
+						HitCharacter( fighter, remains, body, thrower, hit, global::Transform.Lerp( previous, pose, fraction, true ), start, end, line );
 					MarkThrowSafe();
 					nextCharacterImpact = 0.4f;
-					previousFlightPose = pose;
-					if ( body is { IsValid: true, Enabled: true } )
-					{
-						var velocity = body.Velocity;
-						var normal = Vector3.Lerp( Vector3.Random.Normal, (-velocity.Normal).WithZ( -velocity.Normal.z * 0.2f ), 0.6f ).Normal;
-						body.Velocity = Vector3.Reflect( velocity, normal ) * Random.Shared.Float( 0.1f, 0.25f );
-					}
 					PlayCharacterImpact( mass, hit.EndPosition );
-					return;
+					if ( Holder.IsValid() || StuckIn.IsValid() || !body.IsValid() || !body.Enabled ) return;
+					var velocity = body.Velocity;
+					var normal = Vector3.Lerp( Vector3.Random.Normal, (-velocity.Normal).WithZ( -velocity.Normal.z * 0.2f ), 0.6f ).Normal;
+					body.Velocity = Vector3.Reflect( velocity, normal ) * Random.Shared.Float( 0.1f, 0.25f );
 				}
 			}
 		}
-		previousFlightPose = pose;
 	}
 
-
+	ItemLine[] GetFlightLines()
+	{
+		// CheckThrownCollisionLine transforms the raw item XML points by the physics body's pose.
+		// The script API used for held-weapon clashes subtracts the asset-to-mass-center offset.
+		var origin = GetComponent<ModelRenderer>().Model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero;
+		var offset = LocalMassCenter - origin;
+		return GetLines().Select( line => line with { Start = line.Start + offset, End = line.End + offset } ).ToArray();
+	}
 
 	void AlignWithFlight( Rigidbody body )
 	{
