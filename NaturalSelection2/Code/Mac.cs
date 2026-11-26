@@ -145,7 +145,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	bool OtherMacIsWelding( Component candidate )
 	{
 		foreach ( var mac in Scene.GetAllComponents<Mac>() )
-			if ( mac != this && mac.target == candidate && mac.nextWeld > 0 ) return true;
+			if ( mac != this && mac.Faction == Faction && mac.target == candidate && mac.nextWeld > 0 ) return true;
 		return false;
 	}
 
