@@ -407,6 +407,60 @@ static class WeaponEffects
 		SplashPlume( surface, mount, 2 );
 	}
 
+	internal static void DeepWaterCloud( Vector3 position, string mount, float magnitude )
+	{
+		var scene = Game.ActiveScene;
+		var direction = Explosion.ForceDirection( scene, position, magnitude );
+		var first = WaterCloudEmitter( scene, position, mount, "effects/splash1" );
+		var second = WaterCloudEmitter( scene, position, mount, "effects/splash2" );
+		for ( var i = 0; i < 16; i++ )
+		{
+			var emitter = Game.Random.Int( 0, 1 ) == 0 ? first : second;
+			if ( emitter?.Emit( position + Particles.InCube( 32 ), 0 ) is not { } p ) continue;
+			// Source clamps explosion force to 2, giving 0.7 spread and 2100 axial speed.
+			var travel = (Particles.InCube( 0.7f ) + direction * Game.Random.Float( 1, 6 )).Normal;
+			p.Velocity = travel * (2100 * MathF.Abs( Vector3.Dot( travel, direction ) ));
+			p.Angles = new Angles( 0, 0, Game.Random.Int( 0, 360 ) );
+			p.StartScale = 2 * Game.Random.Int( 32, 64 );
+			p.Size = p.StartScale;
+		}
+	}
+
+	static ParticleEffect WaterCloudEmitter( Scene scene, Vector3 position, string mount, string material )
+	{
+		var cloud = Particles.Emitter( scene, material, mount, false, true, 16 );
+		if ( !cloud.IsValid() ) return null;
+		cloud.WorldPosition = position;
+		cloud.Lifetime = new ParticleFloat( 2, 3 );
+		cloud.ApplyShape = true;
+		cloud.Scale = PlumeGrowth;
+		var renderer = cloud.GetComponent<ParticleSpriteRenderer>();
+		renderer.CameraFadeNear = 64;
+		renderer.CameraFadeFar = 128;
+		var spinScale = 1f;
+		cloud.OnPreStep = dt =>
+		{
+			var decay = MathF.Pow( 0.0001f, dt / 0.5f );
+			foreach ( var p in cloud.Particles )
+			{
+				p.Velocity = p.Velocity.Normal * MathF.Max( 8, p.Velocity.Length * decay );
+				var spin = (16 * p.Rand() - 8) * spinScale;
+				p.Angles = p.Angles.WithRoll( p.Angles.roll + (MathF.CopySign( MathF.Max( 0.25f, MathF.Abs( spin ) ), spin ) * dt).RadianToDegree() );
+			}
+			spinScale *= 1 - 8 * dt;
+		};
+		cloud.OnPostStep = _ =>
+		{
+			foreach ( var p in cloud.Particles )
+			{
+				var alpha = 1 - p.LifeDelta;
+				p.Alpha = alpha < 0.75f ? alpha * alpha : alpha;
+			}
+		};
+		cloud.Invoke( 3, cloud.DestroyGameObject );
+		return cloud;
+	}
+
 	static void SplashDrops( Vector3 position, string mount, bool explosion )
 	{
 		var count = explosion ? 36 : 16;

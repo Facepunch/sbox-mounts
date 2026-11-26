@@ -258,12 +258,12 @@ public abstract class Projectile : Component
 			Prefab = prefab
 		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0 );
 
-		if ( prefab is not null && blast.IsValid() ) ExplosionEffects( WorldPosition, MountName, depth );
+		if ( prefab is not null && blast.IsValid() ) ExplosionEffects( WorldPosition, MountName, depth, Damage );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ExplosionEffects( Vector3 position, string mountName, float depth )
+	static void ExplosionEffects( Vector3 position, string mountName, float depth, float magnitude )
 	{
 		var name = "BaseExplosionEffect.Sound";
 		if ( depth >= 0 )
@@ -272,7 +272,11 @@ public abstract class Projectile : Component
 			var surface = depth <= 512 ? position + Vector3.Up * depth : position;
 			if ( !Application.IsDedicatedServer ) WeaponEffects.ExplosionSplash( surface, mountName );
 			if ( Sounds.Sound( "Physics.WaterSplash", mountName ) is { } splash ) Sound.Play( splash, surface );
-			if ( depth > 128 ) name = "WaterExplosionEffect.Sound";
+			if ( depth > 128 )
+			{
+				name = "WaterExplosionEffect.Sound";
+				if ( !Application.IsDedicatedServer ) WeaponEffects.DeepWaterCloud( position, mountName, magnitude );
+			}
 		}
 		if ( Sounds.Sound( name, mountName ) is { } sound ) Sound.Play( sound, position );
 	}

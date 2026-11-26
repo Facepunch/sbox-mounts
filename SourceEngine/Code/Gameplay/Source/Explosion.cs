@@ -7,6 +7,7 @@ sealed class Explosion
 {
 	/// <summary>The blast every explosive spawns without a prefab of its own.</summary>
 	const string DefaultPrefab = "/prefabs/engine/explosion_med.prefab";
+	static readonly Vector3[] ProbeAxes = [Vector3.Forward, Vector3.Backward, Vector3.Left, Vector3.Right, Vector3.Up, Vector3.Down];
 
 	public GameObject Source { get; init; }
 	public GameObject Attacker { get; init; }
@@ -16,6 +17,18 @@ sealed class Explosion
 	public float Damage { get; init; }
 	public float ForceScale { get; init; }
 	public PrefabFile Prefab { get; init; }
+
+	/// <summary>C_BaseExplosionEffect::GetForceDirection: away from whatever the six axis probes hit.</summary>
+	internal static Vector3 ForceDirection( Scene scene, Vector3 origin, float magnitude )
+	{
+		var direction = Vector3.Zero;
+		foreach ( var axis in ProbeAxes )
+		{
+			var tr = scene.Trace.Ray( origin, origin + axis * magnitude ).IgnoreDynamic().WithoutTags( "player", "projectile", "trigger", "debris" ).Run();
+			direction -= axis * (1 - tr.Fraction);
+		}
+		return direction.IsNearlyZero() ? Vector3.Up : direction.Normal;
+	}
 
 	/// <summary>Returns null when the blast couldn't be spawned.</summary>
 	public GameObject Spawn( bool playPrefabSound = true, bool playPrefabParticle = true )

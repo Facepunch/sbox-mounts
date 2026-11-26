@@ -46,24 +46,11 @@ public sealed class ExplosionEffect : Component
 		if ( !IsValid ) return;
 		_age = 0;
 		if ( Sounds.Sound( Sound, MountName ) is { } sound ) GameObject.PlaySound( sound );
-		_direction = ForceDirection();
+		_direction = Explosion.ForceDirection( Scene, WorldPosition, Magnitude );
 		Glow();
 		Core();
 		Sparks();
 		Scorch();
-	}
-
-	/// <summary>C_BaseExplosionEffect::GetForceDirection: away from whatever the six axis probes hit.</summary>
-	Vector3 ForceDirection()
-	{
-		var origin = WorldPosition;
-		var direction = Vector3.Zero;
-		foreach ( var axis in new[] { Vector3.Forward, Vector3.Backward, Vector3.Left, Vector3.Right, Vector3.Up, Vector3.Down } )
-		{
-			var tr = Scene.Trace.Ray( origin, origin + axis * Magnitude ).IgnoreDynamic().WithoutTags( "player", "projectile", "trigger", "debris" ).Run();
-			direction -= axis * (1 - tr.Fraction);
-		}
-		return direction.IsNearlyZero() ? Vector3.Up : direction.Normal;
 	}
 
 	void Glow()
