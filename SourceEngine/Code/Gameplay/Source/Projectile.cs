@@ -190,9 +190,10 @@ public abstract class Projectile : Component
 			return;
 		}
 		if ( Physical is not null ) return;
-		Velocity += Vector3.Down * Gravity * Time.Delta;
 		Steer();
-		var end = WorldPosition + Velocity * Time.Delta;
+		var gravityStep = Vector3.Down * (Gravity * Time.Delta);
+		var end = WorldPosition + (Velocity + gravityStep * 0.5f) * Time.Delta;
+		Velocity += gravityStep;
 		WorldRotation = NextRotation();
 		if ( !CanCollide )
 		{
