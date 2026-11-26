@@ -27,28 +27,38 @@ public sealed class AirDrag
 	private Vector3 LinearBasis( Vector3 size ) =>
 		new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * Fractions * MetresPerInch;
 
-	internal Vector3 LinearBasis( Model model, Vector3 scale ) => LinearBasis( SizeInMetres( model ) * scale.Abs() );
+	internal (Vector3 Linear, Vector3 Angular, Vector3 Inertia) Basis( Model model, Vector3 scale )
+	{
+		var size = SizeInMetres( model ) * scale.Abs();
+		var half = size * 0.5f;
+		var inertia = UnitMassInertia;
+		if ( scale != Vector3.One )
+		{
+			// Each principal moment is the sum of the second moments on the other two axes.
+			var second = (new Vector3( (inertia.x + inertia.y + inertia.z) * 0.5f ) - inertia) * scale * scale;
+			inertia = new( second.y + second.z, second.x + second.z, second.x + second.y );
+		}
+
+		var fractions = Fractions;
+		var angular = new Vector3(
+			AngularFactor( half.x, half.y, half.z, fractions.y, fractions.z, inertia.x ),
+			AngularFactor( half.y, half.z, half.x, fractions.z, fractions.x, inertia.y ),
+			AngularFactor( half.z, half.x, half.y, fractions.x, fractions.y, inertia.z ) );
+		return (LinearBasis( size ), angular, inertia / (MetresPerInch * MetresPerInch));
+	}
 
 	/// <summary>Applies the authored inertia and returns the drag factors for this rigid body.</summary>
 	internal static (Vector3 Linear, Vector3 Angular) ConfigureBody( Model model, Rigidbody body )
 	{
 		var physics = body.PhysicsBody;
 		if ( !physics.IsValid() || model?.GetData<AirDrag>() is not { } drag ) return default;
-		var size = SizeInMetres( model );
-		if ( size == Vector3.Zero ) return default;
 		var mass = physics.Mass;
-		var linear = drag.LinearBasis( size ) / mass;
-		var fractions = drag.Fractions;
-
-		var half = size * 0.5f;
-		var inertia = drag.UnitMassInertia * mass;
+		if ( mass <= 0 ) return default;
+		var basis = drag.Basis( model, Vector3.One );
+		var inertia = basis.Inertia * mass;
 		if ( inertia.x > 0 && inertia.y > 0 && inertia.z > 0 )
-			physics.SetInertiaTensor( inertia / (MetresPerInch * MetresPerInch), Rotation.Identity );
-		var angular = new Vector3(
-			AngularFactor( half.x, half.y, half.z, fractions.y, fractions.z, inertia.x ),
-			AngularFactor( half.y, half.z, half.x, fractions.z, fractions.x, inertia.y ),
-			AngularFactor( half.z, half.x, half.y, fractions.x, fractions.y, inertia.z ) );
-		return (linear, angular);
+			physics.SetInertiaTensor( inertia, Rotation.Identity );
+		return (basis.Linear / mass, basis.Angular / mass);
 	}
 
 	// Integrate the drag torque over both faces parallel to this spin axis.

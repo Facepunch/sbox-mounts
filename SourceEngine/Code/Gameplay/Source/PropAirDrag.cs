@@ -1,13 +1,14 @@
 namespace Source1;
 
-/// <summary>Translational air resistance for single-body Source props.</summary>
+/// <summary>Air resistance for single-body Source props.</summary>
 public sealed class PropAirDrag : Component, IScenePhysicsEvents
 {
 	ModelCollider collider;
 	Rigidbody body;
 	Model model;
 	Vector3 scale;
-	Vector3 basis;
+	(Vector3 Linear, Vector3 Angular, Vector3 Inertia) basis;
+	float inertiaMass;
 
 	internal static void Attach( GameObject target, Model model )
 	{
@@ -26,13 +27,26 @@ public sealed class PropAirDrag : Component, IScenePhysicsEvents
 		{
 			model = current;
 			scale = WorldScale;
-			basis = model?.GetData<AirDrag>()?.LinearBasis( model, scale ) ?? default;
+			inertiaMass = 0;
+			basis = model?.GetData<AirDrag>()?.Basis( model, scale ) ?? default;
 		}
 
-		var velocity = body.Velocity;
 		// Grabbing and releasing a body can change its mass between consecutive steps.
-		var fraction = (body.PhysicsBody.Rotation.Inverse * velocity).Abs().Dot( basis ) * Time.Delta / body.Mass;
-		if ( fraction > 0 ) body.Velocity = velocity * (1 - System.MathF.Min( fraction, 1 ));
+		var mass = body.Mass;
+		if ( inertiaMass != mass )
+		{
+			inertiaMass = mass;
+			if ( basis.Inertia.x > 0 && basis.Inertia.y > 0 && basis.Inertia.z > 0 )
+				body.PhysicsBody.SetInertiaTensor( basis.Inertia * mass, Rotation.Identity );
+		}
+		var inverse = body.PhysicsBody.Rotation.Inverse;
+		var step = Time.Delta / mass;
+		var velocity = body.Velocity;
+		var spin = body.AngularVelocity;
+		var linear = (inverse * velocity).Abs().Dot( basis.Linear ) * step;
+		var angular = (inverse * spin).Abs().Dot( basis.Angular ) * step;
+		if ( linear > 0 ) body.Velocity = velocity * (1 - System.MathF.Min( linear, 1 ));
+		if ( angular > 0 ) body.AngularVelocity = spin * (1 - System.MathF.Min( angular, 1 ));
 	}
 }
 
