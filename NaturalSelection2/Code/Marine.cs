@@ -154,8 +154,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var target = visible ? enemy.GetComponentInParent<IDamageable>() : null;
-		bool lifeformThreat = enemy.IsValid() && !enemy.Tags.HasAny( "ns2_harvester", "ns2_crag", "ns2_babbler" );
-		if ( (!enemy.IsValid() || lifeformThreat) && TryMaintainWeapons( goal ) )
+		bool structureOrBabbler = enemy.IsValid() && enemy.Tags.HasAny( "ns2_harvester", "ns2_hive", "ns2_crag", "ns2_babbler" );
+		if ( !structureOrBabbler && TryMaintainWeapons( goal ) )
 		{
 			assignedEnemy = null;
 			wantsFire = false;
@@ -164,7 +164,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		}
 		if ( target is not null )
 		{
-			bool usePistol = target is not (Babbler or Harvester or Crag) && rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
+			bool usePistol = !structureOrBabbler && rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
 				&& (rifleAmmo.Reserve == 0 || target.Health <= target.MaxHealth * 0.7f);
 			SelectWeapon( usePistol );
 		}

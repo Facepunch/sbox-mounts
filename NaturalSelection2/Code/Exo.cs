@@ -145,18 +145,19 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			Gorge => (2, 3f),
 			Hydra => (2, 2f),
 			Drifter => (1, 1f),
+			Hive => (6, 0.9f),
 			Harvester => (2, 0.8f),
 			Crag => (2, 0.95f),
 			_ => (0, 0f)
 		};
 		if ( responders == 0 ) return 0;
-		bool passive = target is Harvester or Crag;
+		bool passive = target is Hive or Harvester or Crag;
 		if ( !passive && !visible && Scene.NavMesh.IsEnabled && Scene.NavMesh.GetClosestPoint( position ) is { } ground &&
 			AlienTargeting.IsBehindFloor( Scene, position, ground ) ) return 0;
 
 		float distance = WorldPosition.Distance( position ) / Scale;
 		if ( (passive || distance >= 15) && AlienTargeting.HasResponders( this, target, responders ) )
-			weight = target switch { Crag => 0.2f, Harvester => 0.4f, _ => 0.1f };
+			weight = target switch { Crag => 0.2f, Hive => 0.5f, Harvester => 0.4f, _ => 0.1f };
 		return distance < 15 ? weight + (passive ? 3 : 10) / Math.Max( 1, distance ) : weight;
 	}
 

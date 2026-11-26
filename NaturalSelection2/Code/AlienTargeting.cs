@@ -20,20 +20,20 @@ internal sealed class AlienTargeting
 	float lastStructureUpdate;
 	float nextPlayerMemoryCleanup;
 
-	void UpdateHarvesterMemories( BaseNpc observer )
+	void UpdateStructureMemories( BaseNpc observer )
 	{
 		if ( Time.Now <= lastStructureUpdate + 0.5f ) return;
 		lastStructureUpdate = Time.Now;
 
 		const float range = 30 * MapLoader.Scale;
-		foreach ( var tower in observer.Scene.GetAllComponents<Harvester>() )
+		foreach ( var structure in observer.Scene.GetAllComponents<AlienStructure>() )
 		{
-			if ( tower.Health <= 0 || tower.Faction == observer.Faction ) continue;
+			if ( structure is not (Hive or Harvester) || structure.Health <= 0 || structure.Faction == observer.Faction ) continue;
 			foreach ( var scout in observer.Scene.GetAllComponents<BaseNpc>() )
 			{
 				if ( scout is not (Marine or Exo) || scout.Faction != observer.Faction || scout.Health <= 0 ) continue;
-				if ( scout.WorldPosition.DistanceSquared( tower.WorldPosition ) >= range * range ) continue;
-				Remember( tower.GameObject, tower.WorldPosition );
+				if ( scout.WorldPosition.DistanceSquared( structure.WorldPosition ) >= range * range ) continue;
+				Remember( structure.GameObject, structure.WorldPosition );
 				break;
 			}
 		}
@@ -61,8 +61,11 @@ internal sealed class AlienTargeting
 
 	static bool ShouldForget( BaseNpc observer, GameObject target, Vector3 lastSeen )
 	{
-		if ( observer is not (Marine or Exo) || target.GetComponent<BaseNpc>() is not (Drifter or AlienStructure) )
+		var npcTarget = target.GetComponent<BaseNpc>();
+		if ( observer is not (Marine or Exo) || npcTarget is not (Drifter or AlienStructure) )
 			return true;
+
+		if ( npcTarget is Hive ) return false;
 
 		const float investigateRange = 4 * MapLoader.Scale;
 		foreach ( var npc in observer.Scene.GetAllComponents<BaseNpc>() )
@@ -150,7 +153,7 @@ internal sealed class AlienTargeting
 	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition, Func<GameObject, Vector3, bool> ignore = null )
 	{
 		lastKnownPosition = null;
-		if ( alien is Marine or Exo ) UpdateHarvesterMemories( alien );
+		if ( alien is Marine or Exo ) UpdateStructureMemories( alien );
 		var hostiles = alien.Senses.VisibleHostiles;
 		for ( int i = 0; i < hostiles.Count; i++ )
 			if ( hostiles[i].IsValid() ) Remember( hostiles[i], hostiles[i].WorldPosition );
@@ -207,7 +210,7 @@ internal sealed class AlienTargeting
 			else if ( alien is Marine marine && health is BaseNpc victim && victim is AlienLifeform or AlienStructure or Drifter )
 			{
 				if ( victim is Drifter drifter && marine.IsHiddenByCloak( drifter ) ) continue;
-				if ( victim is Crag or Harvester )
+				if ( victim is Crag or Hive or Harvester )
 				{
 					action = MarineAction.AttackStructure;
 					urgency = marine.StructureUrgency( (AlienStructure)victim, marine.WalkDistance( victim.WorldPosition ) / MapLoader.Scale );
