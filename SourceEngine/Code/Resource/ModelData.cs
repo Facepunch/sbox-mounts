@@ -190,6 +190,22 @@ public sealed class SourceModelSequenceData
 	/// </summary>
 	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
 	public string BoneMask { get; set; }
+
+	/// <summary>Blend of a masked gesture whose absolute pose comes from one timed layer.</summary>
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingNull )]
+	public LayerRamp? PoseBlend { get; set; }
+
+	public readonly record struct LayerRamp( float Start, float Peak, float Tail, float End, bool Spline )
+	{
+		internal bool IsTimed => Start != End && float.IsFinite( Start ) && float.IsFinite( Peak ) && float.IsFinite( Tail ) && float.IsFinite( End );
+
+		internal float Weight( float cycle )
+		{
+			if ( cycle < Start || cycle >= End ) return 0;
+			var weight = cycle < Peak ? (cycle - Start) / (Peak - Start) : cycle > Tail ? (End - cycle) / (End - Tail) : 1;
+			return Spline ? weight * weight * (3 - 2 * weight) : weight;
+		}
+	}
 	/// <summary>
 	/// Additive sequences to play beside this one for its complete motion. For a whole-body sequence these are the
 	/// delta sequences authored as its layers, already baked into its clip with their parameters at zero.

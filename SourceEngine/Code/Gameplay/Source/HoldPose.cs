@@ -35,6 +35,7 @@ public sealed class HoldPose
 	readonly Dictionary<string, int> _indices = new( StringComparer.OrdinalIgnoreCase );
 	readonly (Clip Clip, bool Delta)[] _shots;
 	readonly Clip _reload;
+	SourceModelSequenceData.LayerRamp? _reloadBlend;
 	readonly Clip[] _realTimeLayers;
 	readonly Transform[] _rest;
 	readonly Transform[] _pose;
@@ -178,7 +179,8 @@ public sealed class HoldPose
 			return true;
 
 		var lowerClip = Find( lower );
-		var reloadClip = sequences.Get( reload ) is { Delta: false } ? Find( reload ) : null;
+		var reloadSequence = sequences.Get( reload );
+		var reloadClip = reloadSequence is { Delta: false } ? Find( reload ) : null;
 		var shotClips = shots.Where( x => Find( x ) is not null ).Select( x => (Find( x ), sequences.Get( x )?.Delta == true) ).ToArray();
 		// A whole-body clip has its delta layers baked in. A masked one leaves its aim matrix, and what the other layers do
 		// outside the mask, to clips of their own; the matrix's own clip is its centre.
@@ -194,7 +196,13 @@ public sealed class HoldPose
 		if ( used.Any( x => x is not null && (!x.IsBound || !IsPosed( x, skeleton.Bones.Count )) ) )
 			return false;
 
-		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed, HasCrouchPose = crouchIdle is not null, HasReloadGesture = playerGesture && reloadClip is { Duration: > 0 } };
+		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true )
+		{
+			Borrowed = borrowed,
+			HasCrouchPose = crouchIdle is not null,
+			HasReloadGesture = playerGesture && reloadClip is { Duration: > 0 },
+			_reloadBlend = reloadSequence?.PoseBlend
+		};
 		if ( pose.Knuckles < 2 )
 			pose = null;
 
@@ -310,7 +318,8 @@ public sealed class HoldPose
 	{
 		var (shotClip, delta) = _shots.Length > 0 && shotTime < ShotDuration( shot ) ? _shots[shot % _shots.Length] : default;
 		var shotCycle = shotClip is null ? 0 : shotTime / shotClip.Duration;
-		EvaluatePose( shotClip, delta, shotCycle, Math.Clamp( reloadCycle, 0, 1 ), reloadWeight, _realTimeLayers );
+		reloadCycle = Math.Clamp( reloadCycle, 0, 1 );
+		EvaluatePose( shotClip, delta, shotCycle, reloadCycle, reloadWeight * (_reloadBlend?.Weight( reloadCycle ) ?? 1), _realTimeLayers );
 
 		// Source solves IK after breathing and gestures. A reload can move the hand off its grip.
 		foreach ( var (bone, target) in _locks )

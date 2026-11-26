@@ -481,6 +481,7 @@ internal sealed partial class MdlFile
 				var mask = BoneMask( source, index );
 				masked = mask >= 0;
 				metadata.BoneMask = masked ? $"weights/{mask}" : null;
+				if ( masked ) metadata.PoseBlend = PoseBlend( source, index );
 				var deltaLayers = DeltaLayers( source, index );
 				metadata.AdditiveLayers = deltaLayers.Where( x => !masked || IsBlendGrid( x.Source, x.Index ) ).Select( x => x.Source.SequenceName( x.Index ) )
 					.Where( x => !string.IsNullOrWhiteSpace( x ) ).Distinct().ToArray();
@@ -899,6 +900,34 @@ internal sealed partial class MdlFile
 				SolveIkLocks( pose, locks );
 		}
 
+		private static SourceModelSequenceData.LayerRamp ReadRamp( ReadOnlySpan<byte> layer, int flags ) => new(
+			BinaryPrimitives.ReadSingleLittleEndian( layer[8..] ), BinaryPrimitives.ReadSingleLittleEndian( layer[12..] ),
+			BinaryPrimitives.ReadSingleLittleEndian( layer[16..] ), BinaryPrimitives.ReadSingleLittleEndian( layer[20..] ), (flags & LayerSpline) != 0 );
+
+		private SourceModelSequenceData.LayerRamp? PoseBlend( AnimationSource source, int index )
+		{
+			var sequence = source.Sequences[index];
+			if ( sequence.NumAutoLayers is <= 0 or > 64 )
+				return null;
+
+			SourceModelSequenceData.LayerRamp? blend = null;
+			for ( var i = 0; i < sequence.NumAutoLayers; i++ )
+			{
+				var layer = source.SequenceData( index, sequence.AutoLayerIndex + i * 24L, 24 );
+				var flags = BinaryPrimitives.ReadInt32LittleEndian( layer[4..] );
+				if ( Defined( source, BinaryPrimitives.ReadInt16LittleEndian( layer ) ) is not { } child
+					|| (child.Source.Sequences[child.Index].Flags & SequenceDelta) != 0 )
+					continue;
+
+				var ramp = ReadRamp( layer, flags );
+				if ( blend.HasValue || !ramp.IsTimed || child.Source.Sequences[child.Index].NumAutoLayers != 0
+					|| (flags & (LayerLocal | LayerPose | LayerCrossfade)) != 0 )
+					return null;
+				blend = ramp;
+			}
+			return blend.HasValue && !source.BoneMap.Any( bone => bone >= 0 && source.Weight( index, bone ) > 0 ) ? blend : null;
+		}
+
 		// bone_setup's AddSequenceLayers and AddLocalLayers.
 		private void AddLayers( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, bool local, Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false )
 		{
@@ -912,34 +941,25 @@ internal sealed partial class MdlFile
 				var flags = BinaryPrimitives.ReadInt32LittleEndian( layer[4..] );
 				if ( ((flags & LayerLocal) != 0) != local )
 					continue;
-				var start = BinaryPrimitives.ReadSingleLittleEndian( layer[8..] );
-				var peak = BinaryPrimitives.ReadSingleLittleEndian( layer[12..] );
-				var tail = BinaryPrimitives.ReadSingleLittleEndian( layer[16..] );
-				var end = BinaryPrimitives.ReadSingleLittleEndian( layer[20..] );
+				var blend = ReadRamp( layer, flags );
 				var layerCycle = cycle;
 				var layerWeight = weight;
-				if ( start != end && float.IsFinite( start ) && float.IsFinite( peak ) && float.IsFinite( tail ) && float.IsFinite( end ) )
+				if ( blend.IsTimed )
 				{
 					// The layer ramps in and out over the cycle, or over a pose parameter.
 					var driven = (flags & LayerPose) != 0;
 					var position = driven ? ParameterValue( source, BinaryPrimitives.ReadInt16LittleEndian( layer[2..] ), parameters ) : cycle;
-					if ( position < start || position >= end )
+					if ( position < blend.Start || position >= blend.End )
 						continue;
-					var ramp = 1f;
-					if ( position < peak && start != peak )
-						ramp = (position - start) / (peak - start);
-					else if ( position > tail && end != tail )
-						ramp = (end - position) / (end - tail);
-					if ( (flags & LayerSpline) != 0 )
-						ramp = ramp * ramp * (3 - 2 * ramp);
-					if ( (flags & LayerCrossfade) != 0 && position > tail )
+					var ramp = blend.Weight( position );
+					if ( (flags & LayerCrossfade) != 0 && position > blend.Tail )
 						layerWeight = ramp * weight / (1 - weight + ramp * weight);
 					else if ( (flags & LayerNoBlend) != 0 )
 						layerWeight = ramp;
 					else
 						layerWeight = weight * ramp;
 					if ( !driven )
-						layerCycle = (cycle - start) / (end - start);
+						layerCycle = (cycle - blend.Start) / (blend.End - blend.Start);
 				}
 				int child = BinaryPrimitives.ReadInt16LittleEndian( layer );
 				if ( Defined( source, child ) is not { } resolved )
