@@ -101,6 +101,20 @@ public sealed partial class RabbitGuard
 		hasSampledPose = true;
 	}
 
+	// The ledge solver moves the renderer around the grip after the graph was evaluated.
+	// Keep the evaluated joints in model space throughout the lean and limb passes.
+	void ReadLedgePose()
+	{
+		var model = PrepareSampledPose();
+		var basis = Renderer.SceneModel.Transform;
+		foreach ( var bone in model.Bones.AllBones )
+		{
+			if ( !Renderer.TryGetBoneTransformAnimation( bone, out var world ) ) return;
+			sampledPose[bone.Index] = basis.ToLocal( world );
+		}
+		hasSampledPose = true;
+	}
+
 	Model PrepareSampledPose()
 	{
 		EnsurePoseBuffers();

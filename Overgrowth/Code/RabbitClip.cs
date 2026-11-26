@@ -49,7 +49,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 
 	internal static string[] StatusChannels => ["escape", "cancel", "groundconform", "leftarm_blend", "rightarm_blend"];
 	readonly record struct LimbChain( int Anchor, int End );
-	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, LimbChain?[] LimbBones, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes, Transform Weapon );
+	internal static readonly string[] HandChannels = ["leftarm", "rightarm"];
+	private sealed record Key( int Time, Transform[] Bones, Transform[] ModelBones, LimbChain?[] LimbBones, Vector2 HandPresence, Vector3 Center, Vector3 Travel, float Yaw, float[] Status, float[] Shapes, Transform Weapon );
 
 	internal enum CenterMotion { Full, Vertical, None, Extract }
 
@@ -233,6 +234,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				if ( label.EndsWith( "step", StringComparison.Ordinal ) ) steps.Add( new( (float)time / duration, label, bone ) );
 			}
 			var limbBones = sampleLimbs ? new LimbChain?[4] : null;
+			Vector2 handPresence = default;
 			int ik = Count();
 			for ( int j = 0; j < ik; j++ )
 			{
@@ -246,6 +248,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				}
 				var label = Encoding.UTF8.GetString( reader.ReadBytes( Count() ) );
 				int limb = label switch { "left_leg" => 0, "right_leg" => 1, "leftarm" => 2, "rightarm" => 3, _ => -1 };
+				if ( limb >= 2 && length > 0 ) handPresence[limb - 2] = 1f;
 				if ( sampleLimbs && (uint)limb < limbBones.Length && length > 0 ) limbBones[limb] = new( anchor, end );
 			}
 			int shapes = Count();
@@ -301,7 +304,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				CenterMotion.Extract => retarget.ScaleOffset( savedCenter ),
 				_ => Vector3.Zero
 			};
-			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleLimbs ? pose : null, limbBones, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
+			keys[k] = new( time, retarget.ToLocalPose( pose ), sampleLimbs ? pose : null, limbBones, handPresence, retarget.ScaleOffset( offset ), travel, yaw, status, shapeWeights, weapon );
 		}
 
 		// ANM key times are integer milliseconds. Short, fast segments need subframes for their
@@ -319,6 +322,7 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 		int intervals = count == 1 ? 1 : duration / grid * (int)MathF.Ceiling( grid / spacing );
 		var clip = new ClipBuilder { Skeleton = rig, FrameRate = intervals * 1000f / duration };
 		int boneCount = rig.BoneCount;
+		var handWeights = HandChannels.Select( (_, side) => keys.Any( key => key.HandPresence[side] > 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var shapeTracks = morphs.Select( (_, index) => keys.Any( key => key.Shapes[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		var tracks = channels.Select( (_, index) => keys.Any( key => key.Status[index] != 0f ) ? new float[intervals + 1] : null ).ToArray();
 		LimbPose[][] feet = sampleLimbs ? [new LimbPose[intervals + 1], new LimbPose[intervals + 1]] : null;
@@ -364,6 +368,10 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 				float t2 = t * t, t3 = t2 * t;
 				float w0 = (-t3 + 2*t2 - t) * 0.5f, w1 = (3*t3 - 5*t2 + 2) * 0.5f;
 				float w2 = (-3*t3 + 4*t2 + t) * 0.5f, w3 = (t3 - t2) * 0.5f;
+				for ( int side = 0; side < handWeights.Length; side++ )
+					if ( handWeights[side] is { } weights )
+						weights[i] = a.HandPresence[side] * w0 + b.HandPresence[side] * w1
+							+ c.HandPresence[side] * w2 + d.HandPresence[side] * w3;
 				for ( int channel = 0; channel < shapeTracks.Length; channel++ )
 					if ( shapeTracks[channel] is { } shape )
 						shape[i] = a.Shapes[channel] * w0 + b.Shapes[channel] * w1 + c.Shapes[channel] * w2 + d.Shapes[channel] * w3;
@@ -439,6 +447,8 @@ internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration,
 			}
 		}
 		weaponTrack?.Write( clip );
+		for ( int side = 0; side < handWeights.Length; side++ )
+			if ( handWeights[side] is { } weights ) clip.AddFloatChannelTrack( "hand_ik", HandChannels[mirror is null ? side : 1 - side], weights );
 		for ( int channel = 0; channel < tracks.Length; channel++ )
 			if ( tracks[channel] is { } track ) clip.AddFloatChannelTrack( "status", mirror is null ? channels[channel] : RabbitMirror.SwapSide( channels[channel] ), track );
 		for ( int i = 0; i < morphs.Length; i++ )

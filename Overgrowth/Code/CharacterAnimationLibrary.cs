@@ -43,6 +43,7 @@ internal sealed class CharacterAnimationLibrary
 			bones.AddMorphChannels( morphs.Where( m => m.Steps == 1 ).Select( m => m.Name ).ToArray() );
 		if ( morphs.Any( m => m.Steps > 1 ) )
 			bones.AddFloatChannelSet( "multistep", morphs.Where( m => m.Steps > 1 ).Select( m => m.Name ).ToArray() );
+		bones.AddFloatChannelSet( "hand_ik", RabbitClip.HandChannels );
 		bones.AddFloatChannelSet( "status", RabbitClip.StatusChannels );
 		foreach ( var hand in new[] { "leftarm", "rightarm" } )
 			if ( skeleton.IKBones.TryGetValue( hand, out var chain ) )

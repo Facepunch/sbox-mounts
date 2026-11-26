@@ -217,6 +217,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( playing == PatrolIdle && pose == PatrolIdle && IsPatrolGroup && boundAnimations.PatrolRig is { } patrolRig )
 			ReadRetargetedPose( patrolRig, false );
+		if ( OnLedge ) ReadLedgePose();
 		if ( InThrow && playing == pose && Stance == pose ) ReadThrowPose();
 		if ( pose == Wall )
 		{

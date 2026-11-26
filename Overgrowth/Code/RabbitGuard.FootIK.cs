@@ -243,7 +243,9 @@ public sealed partial class RabbitGuard
 			}
 
 			var hand = SampleTarget( blend.Lower.Hands?[side], blend.Upper.Hands?[side] );
-			if ( hand.Weight <= 0f ) continue;
+			if ( ledge && Renderer.Animation.Debug.TryGetFloatChannel( "hand_ik", RabbitClip.HandChannels[side], out var handWeight ) )
+				hand = hand with { Weight = handWeight };
+			if ( !hand.Present || hand.Weight <= 0f ) continue;
 			var wrist = poseModel.Bones.GetBone( boundAnimations.Arms[side][0].Bone );
 			if ( TryGetAnimatedBone( wrist, out var handBone ) )
 				actionHandTargets[side] = new( PlaceTarget( wrist, handBone, hand.Transform ), Math.Clamp( hand.Weight, 0f, 1f ) * (1f - rollIKFade), true );
