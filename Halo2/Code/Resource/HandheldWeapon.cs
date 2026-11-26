@@ -477,9 +477,11 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	WeaponSoundTrack ReadSoundTrack( string function )
+	WeaponSoundTrack ReadSoundTrack( string function ) => ReadSoundTrack( Header, function );
+
+	WeaponSoundTrack ReadSoundTrack( int owner, string function )
 	{
-		for ( int i = 0, row = Block( Header + 0x94 ); i < map.ReadInt32( Header + 0x94 ); i++, row += 24 )
+		for ( int i = 0, row = Block( owner + 0x94 ); i < map.ReadInt32( owner + 0x94 ); i++, row += 24 )
 		{
 			if ( Reference( row ) is not { PrimaryClass: "dnsl", DataSize: > 0 } sound ||
 				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != function ) continue;

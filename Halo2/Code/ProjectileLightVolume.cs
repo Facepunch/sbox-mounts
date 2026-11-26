@@ -10,11 +10,22 @@ public sealed class ProjectileLightVolume : Component
 {
 	[Property] public VolumeLayer[] Layers { get; set; }
 	[Property] public float Falloff { get; set; }
+	[Property] public MuzzleFlashDefinition[] Glow { get; set; }
+	[Property] public WeaponSoundTrack Sound { get; set; }
 	[Property] public float Cutoff { get; set; }
+	readonly TrackVoice voice = new();
 
 	protected override void OnStart()
 	{
 		if ( Application.IsDedicatedServer || Layers is null ) return;
+		if ( Glow is { Length: > 0 } )
+		{
+			var glow = GameObject.AddComponent<MuzzleFlash>();
+			glow.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked;
+			uint seed = (uint)System.Random.Shared.Next();
+			foreach ( var effect in Glow )
+				glow.Emit( effect, false, GameObject, seed, BlamRandom.Next( ref seed ) / 65535f, false );
+		}
 		foreach ( var layer in Layers )
 		{
 			var texture = Texture.Load( layer.Texture );
@@ -34,6 +45,13 @@ public sealed class ProjectileLightVolume : Component
 			for ( int i = 0; i < layer.Sprites.Length; i++ ) effect.Emit( WorldPosition, 0 );
 		}
 	}
+
+	protected override void OnUpdate()
+	{
+		if ( Sound is not null && !Application.IsDedicatedServer ) voice.Update( Sound, true, GameObject );
+	}
+
+	protected override void OnDisabled() => voice.Stop( Sound );
 
 	void PlaceSprites( ParticleEffect effect, VolumeLayer layer )
 	{

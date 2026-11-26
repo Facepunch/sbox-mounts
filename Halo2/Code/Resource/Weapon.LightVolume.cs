@@ -14,25 +14,34 @@ internal sealed partial class HandheldWeaponLoader
 		return null;
 	}
 
-	string VolumePath( int projectile ) => LightVolume( projectile ) is {} tag ? Host.AssetPath( map, tag.TagPath, "prefab" ) : null;
+	string VolumePath( int projectile ) => LightVolume( projectile ) is {} tag
+		? Host.AssetPath( map, tag.TagPath, "prefab" ) : null;
 
 	void RegisterLightVolumes( MountContext context, HashSet<string> registered )
 	{
 		int barrels = Header + 0x2d0;
 		for ( int i = 0, row = Block( barrels ); i < map.ReadInt32( barrels ); i++, row += 0xec )
 		{
-			if ( LightVolume( Address( Reference( row + 0x8c ) ) ) is not {} tag || !registered.Add( ImpactPath( tag ) ) ) continue;
-			context.Add( ResourceType.PrefabFile, ImpactPath( tag ), new VolumeLoader( this, tag ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+			var projectile = Reference( row + 0x8c );
+			if ( projectile is null || LightVolume( Address( projectile ) ) is not {} volume || !registered.Add( ImpactPath( volume ) ) ) continue;
+			context.Add( ResourceType.PrefabFile, ImpactPath( volume ), new VolumeLoader( this, projectile, volume ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
 		}
 	}
 
-	sealed class VolumeLoader( HandheldWeaponLoader source, TagEntry tag ) : ResourceLoader<Halo2Mount>
+	sealed class VolumeLoader( HandheldWeaponLoader source, TagEntry projectile, TagEntry tag ) : ResourceLoader<Halo2Mount>
 	{
 		PrefabFile prefab;
 		protected override object Load()
 		{
 			var builder = new PrefabBuilder().WithName( Path );
-			using ( builder.Scope() ) source.ReadVolume( tag, new GameObject().AddComponent<ProjectileLightVolume>() );
+			using ( builder.Scope() )
+			{
+				var bolt = new GameObject().AddComponent<ProjectileLightVolume>();
+				source.ReadVolume( tag, bolt );
+				int header = source.Address( projectile );
+				bolt.Sound = source.ReadSoundTrack( header, "" );
+				source.ReadAttachments( header, bolt );
+			}
 			return prefab = builder.Create();
 		}
 
@@ -40,6 +49,25 @@ internal sealed partial class HandheldWeaponLoader
 		{
 			PrefabBuilder.Destroy( prefab );
 			base.Shutdown();
+		}
+	}
+
+	void ReadAttachments( int projectile, ProjectileLightVolume bolt )
+	{
+		int attachments = projectile + 0x94;
+		for ( int i = 0, row = Block( attachments ); i < map.ReadInt32( attachments ); i++, row += 24 )
+		{
+			var tag = Reference( row );
+			if ( tag is { PrimaryClass: "effe" } )
+				bolt.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
+			if ( tag is not { PrimaryClass: "hgil" } ) continue;
+			int light = Address( tag );
+			if ( Short( light + 4 ) != 0 || Float( light + 0xb0 ) != 0 ) continue;
+			var point = bolt.GameObject.AddComponent<PointLight>();
+			point.Radius = Float( light + 12 ) * Float( light + 24 ) * 120;
+			point.LightColor = new Color( Float( light + 0x64 ), Float( light + 0x68 ), Float( light + 0x6c ) );
+			point.Intensity = Float( light + 0x74 ) * 2;
+			point.Shadows = false;
 		}
 	}
 
