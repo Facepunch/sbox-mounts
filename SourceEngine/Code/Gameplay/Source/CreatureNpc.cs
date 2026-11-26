@@ -58,9 +58,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>How a creature gets around.</summary>
 	public enum Locomotions { Ground, Flying, Stationary }
 
-	/// <summary>bugbait_hear_radius in grenade_bugbait.cpp.</summary>
-	const float BugbaitHearRadius = 2500;
-
 	/// <summary>GUNSHIP_MIN_DAMAGE_THRESHOLD in npc_combinegunship.cpp: smaller blasts are not a hit.</summary>
 	const float BlastHitThreshold = 50;
 
@@ -126,6 +123,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	Rigidbody _body;
 	Vector3 _home;
 	Vector3? _command;
+	double _lastBugbaitExpiration;
 	Vector3? _squadGoal;
 	GameObject _squadTarget;
 
@@ -229,8 +227,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// </summary>
 	public static void HearBugbait( Scene scene, Vector3 position, GameObject thrower )
 	{
-		foreach ( var npc in scene.GetAllComponents<CreatureNpc>() )
-			npc.CommandTo( position, thrower );
+		Hl2.BugbaitCall.Emit( scene, position );
 	}
 
 	internal void SetSquadGoal( GameObject leader, Vector3? fightGoal, GameObject fightTarget )
@@ -243,9 +240,17 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 	public void CommandTo( Vector3 point, GameObject thrower )
 	{
-		if ( !Networking.IsHost || !RespondsToBugbait || Health < 1 || WorldPosition.Distance( point ) > BugbaitHearRadius )
+		var radius = (float)Hl2.BugbaitCall.HearingRadius;
+		ListenForBugbait( point, radius * radius, Time.NowDouble + Hl2.BugbaitCall.Duration );
+	}
+
+	internal void ListenForBugbait( Vector3 point, float radiusSquared, double expiration )
+	{
+		if ( !Networking.IsHost || !RespondsToBugbait || Health < 1 || expiration <= _lastBugbaitExpiration
+			|| EyePosition.DistanceSquared( point ) > radiusSquared )
 			return;
 
+		_lastBugbaitExpiration = expiration;
 		_command = point;
 		_sinceCommand = 0;
 	}

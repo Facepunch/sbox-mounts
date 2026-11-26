@@ -19,7 +19,7 @@ public sealed class SporeCloud : Component
 		go.WorldRotation = Rotation.LookAt( direction );
 		var cloud = go.AddComponent<SporeCloud>();
 		cloud.trail = parent.IsValid();
-		cloud.emitDuration = cloud.trail ? 9999 : 5;
+		cloud.emitDuration = cloud.trail ? 9999 : BugbaitCall.Duration;
 		cloud.spores = Particles.Emitter( go, "particle/fire", mount, true, false, cloud.trail ? 132 : 68 );
 		cloud.dust = Particles.Emitter( go, "particle/particle_noisesphere", mount, false, false, cloud.trail ? 17 : 9 );
 		if ( cloud.spores.IsValid() ) cloud.spores.Lifetime = 2;
