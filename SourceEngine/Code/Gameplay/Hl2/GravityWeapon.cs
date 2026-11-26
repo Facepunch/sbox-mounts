@@ -112,7 +112,21 @@ public sealed class GravityWeapon : Weapon
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
 	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && body.Mass <= MaxMass
-		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body ) && !IsFlesh( body );
+		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body )
+		&& !IsFlesh( body ) && !AlreadyHeld( body.GameObject );
+
+	bool AlreadyHeld( GameObject target )
+	{
+		var entity = CarryEntity( target );
+		foreach ( var gun in Scene.GetAllComponents<GravityWeapon>() )
+		{
+			if ( gun.HeldObject.IsValid() && CarryEntity( gun.HeldObject ) == entity ) return true;
+		}
+		return false;
+	}
+
+	// A model with several physics bodies is still one pickup.
+	static GameObject CarryEntity( GameObject part ) => part.GetComponentInParent<ModelPhysics>()?.GameObject ?? part;
 
 	bool IsStandingOn( Rigidbody body ) => Owner.GroundObject?.GetComponentInParent<Rigidbody>() == body;
 
@@ -415,16 +429,12 @@ public sealed class GravityWeapon : Weapon
 
 	protected override void OnDisabled()
 	{
+		if ( Networking.IsHost ) Release();
 		_effects?.Dispose();
 		_effects = null;
 		base.OnDisabled();
 	}
 
-	protected override void OnDestroy()
-	{
-		if ( Networking.IsHost ) Release();
-		base.OnDestroy();
-	}
 }
 
 /// <summary>
