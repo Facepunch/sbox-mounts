@@ -11,7 +11,11 @@ public abstract class AlienNpc : BaseNpc
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost && Health > 0 ) UpdateBiomass();
+		if ( Networking.IsHost && Health > 0 )
+		{
+			UpdateBiomass();
+			if ( Senses is { Active: true, VisibleHostiles.Count: > 0 } ) AlienTargeting.ForTeam( this ).ObservePlayers( this );
+		}
 		base.OnUpdate();
 	}
 
