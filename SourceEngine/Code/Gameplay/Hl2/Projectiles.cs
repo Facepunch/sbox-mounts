@@ -155,7 +155,9 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnFlightStateChanged ) )] bool Ignited { get; set; }
 	bool _ignitionPresented;
 	float _damageUntilShotDown = 20;
-	TimeUntil? _augerEnds;
+	[Sync( SyncFlags.FromHost )] TimeUntil AugerEnds { get; set; }
+	bool ShotDown => AugerEnds != default( TimeUntil );
+	ParticleEffect[] _embers;
 	TimeUntil _nextTurn;
 	Vector3 _aim;
 	SoundHandle _loop;
@@ -171,7 +173,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
 
 	protected override float Gravity => Ignited ? 0 : 600;
-	protected override Rotation NextRotation() => Ignited || _augerEnds.HasValue ? base.NextRotation() : Rotation.LookAt( _aim );
+	protected override Rotation NextRotation() => Ignited || ShotDown ? base.NextRotation() : Rotation.LookAt( _aim );
 
 	protected override void OnStart()
 	{
@@ -200,27 +202,27 @@ public sealed class Rocket : Projectile, Component.IDamageable
 
 	public void OnDamage( in DamageInfo damage )
 	{
-		if ( !Networking.IsHost || _augerEnds.HasValue || damage.Damage <= 0 ) return;
+		if ( !Networking.IsHost || ShotDown || damage.Damage <= 0 ) return;
 		if ( !damage.Tags.Has( "missiledefense" ) && !damage.Tags.Has( "airboat" ) ) return;
 		_damageUntilShotDown -= damage.Damage;
 		if ( _damageUntilShotDown > 0 ) return;
 
 		PlaySound( "Missile.ShotDown", WorldPosition, MountName );
-		_augerEnds = 1.5f;
+		AugerEnds = 1.5f;
 		_nextTurn = 0;
 		ReleaseLauncher();
 	}
 
 	protected override bool Simulate()
 	{
-		if ( _augerEnds is not { } end || end > 0 ) return true;
+		if ( !ShotDown || AugerEnds > 0 ) return true;
 		Explode();
 		return false;
 	}
 
 	protected override void Steer()
 	{
-		if ( _augerEnds.HasValue )
+		if ( ShotDown )
 		{
 			if ( _nextTurn <= 0 )
 			{
@@ -263,6 +265,17 @@ public sealed class Rocket : Projectile, Component.IDamageable
 		// IgniteThink starts CMissile's code-driven RocketTrail at the tail attachment.
 		if ( _smoke is null && Renderer.IsValid() && Renderer.Enabled && Renderer.Model.IsValid() )
 			_smoke = SmokeTrail.Rocket( Visual, TailAttachment( Renderer ) ?? Vector3.Zero, MountName ) ?? Visual;
+
+		if ( ShotDown && _smoke.IsValid() && Time.Delta > 0 )
+		{
+			_embers ??= SmokeTrail.CreateEmbers( _smoke, MountName );
+			var effect = _embers[Game.Random.Int( 0, _embers.Length - 1 )];
+			if ( effect.IsValid() )
+			{
+				for ( int i = 0; i < 8 && !effect.IsFull; i++ )
+					effect.Emit( _smoke.WorldPosition + Game.Random.VectorInCube( 8 ), 0 );
+			}
+		}
 	}
 
 	protected override void OnDestroy()
@@ -634,6 +647,32 @@ static class SmokeTrail
 		return effect.GameObject;
 	}
 
+	public static ParticleEffect[] CreateEmbers( GameObject parent, string mount )
+	{
+		var effects = new ParticleEffect[4];
+		for ( int i = 0; i < effects.Length; i++ )
+		{
+			var texture = MountedEffects.SpriteTexture( $"sprites/flamelet{i + 1}", mount );
+			var effect = Create( parent, Vector3.Zero, texture, "Damaged rocket flame", 0.25f, 16, 0.65f, linger: false );
+			if ( effect is null ) continue;
+
+			effect.ApplyRotation = true;
+			effect.InitialRoll = new ParticleFloat( 0, 360 );
+			effect.GetComponent<ParticleSpriteRenderer>( true ).Additive = true;
+			effect.AngularVelocity = new ParticleVector3 { Z = new ParticleFloat( -8, 8 ) };
+			effect.Alpha = new ParticleFloat
+			{
+				Type = ParticleFloat.ValueType.Curve,
+				Evaluation = ParticleFloat.EvaluationType.Life,
+				CurveA = new Curve( new Curve.Frame( 0, 1 ), new Curve.Frame( 1, 0 ) )
+			};
+			effect.OnParticleCreated = p => p.Velocity = Game.Random.VectorInCube( 1 ) * Game.Random.Float( 32, 128 );
+			effect.GameObject.Enabled = true;
+			effects[i] = effect;
+		}
+		return effects;
+	}
+
 	public static void Grenade( GameObject parent, string mount )
 	{
 		var smoke = MountedEffects.SpriteTexture( Smoke, mount );
@@ -658,7 +697,7 @@ static class SmokeTrail
 		}
 	}
 
-	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey )
+	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey, bool linger = true )
 	{
 		if ( texture is null ) return null;
 		var go = new GameObject( parent, false, name );
@@ -686,9 +725,12 @@ static class SmokeTrail
 		effect.Alpha = Opacity;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
-		var linger = go.AddComponent<TemporaryEffect>();
-		linger.BecomeOrphan = true;
-		linger.DestroyAfterSeconds = 0;
+		if ( linger )
+		{
+			var lifetimeOwner = go.AddComponent<TemporaryEffect>();
+			lifetimeOwner.BecomeOrphan = true;
+			lifetimeOwner.DestroyAfterSeconds = 0;
+		}
 		return effect;
 	}
 }
