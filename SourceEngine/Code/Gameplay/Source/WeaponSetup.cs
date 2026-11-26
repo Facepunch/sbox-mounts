@@ -122,25 +122,26 @@ static class WeaponSetup
 		return Read( definition.ModelPath ) ?? Read( world ) ?? Read( definition.FallbackModelPath );
 	}
 
-	internal static void BindAmmoTypes( BaseCombatWeapon weapon, SourceModelWeaponData data )
-	{
-		if ( data?.PrimaryAmmoResource is { } primary ) weapon.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( primary );
-		if ( data?.SecondaryAmmoResource is { } secondary ) weapon.SecondaryAmmoType = GameResource.Load<BaseAmmoResource>( secondary );
-	}
-
-	static void ApplyAmmo( BaseCombatWeapon weapon, SourceModelWeaponData data )
+	internal static void ApplyInventoryData( BaseCombatWeapon weapon, SourceModelWeaponData data )
 	{
 		if ( data is null ) return;
 		weapon.PreferredSlot = data.Bucket;
 		if ( data.BucketPosition is { } position ) weapon.SlotOrder = position;
 		if ( data.Weight is { } weight ) weapon.Value = weight;
+		if ( data.PrimaryAmmoResource is { } primary ) weapon.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( primary );
+		if ( data.SecondaryAmmoResource is { } secondary ) weapon.SecondaryAmmoType = GameResource.Load<BaseAmmoResource>( secondary );
 		if ( data.ClipSize > 0 && weapon.UsesAmmo ) weapon.ClipMaxSize = data.ClipSize;
-		BindAmmoTypes( weapon, data );
 		if ( data is { ClipSize: -1, DefaultClip: >= 0 } && weapon.UsesAmmo && weapon.PrimaryAmmoType is not null )
 		{
 			weapon.UsesClips = false;
 			weapon.StartingAmmo = data.DefaultClip.Value;
 		}
+	}
+
+	static void ApplyAmmo( BaseCombatWeapon weapon, SourceModelWeaponData data )
+	{
+		if ( data is null ) return;
+		ApplyInventoryData( weapon, data );
 		if ( weapon.DisplayIcon is null && data.Icon is { } icon && Sandbox.Mounting.Directory.Get( MountContent.Of( icon ) )?.GetByPath( icon ) is not null )
 			weapon.DisplayIcon = Texture.Load( icon );
 		// Counter-Strike scripts carry fire rate and ballistics; HL2 keeps them in code, so its catalog supplies them.

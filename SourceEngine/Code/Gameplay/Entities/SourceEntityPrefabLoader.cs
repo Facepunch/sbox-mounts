@@ -50,28 +50,21 @@ internal sealed class SourceEntityPrefabLoader( SourceEntity entity ) : Resource
 			root.Deserialize( JsonNode.Parse( build.Root().ToJsonString() ).AsObject() );
 			build.ResolveNested( root.Scene );
 			if ( entity.Kind == SourceEntityKind.Weapon && root.GetComponent<BaseCombatWeapon>( true ) is { } weapon )
-				BindWeaponAmmo( weapon );
+				ConfigureWeaponInventory( weapon );
 		}
 
 		prefab = builder.Create() ?? throw new InvalidOperationException( $"{Path}: could not create the prefab." );
 		return prefab;
 	}
 
-	// Holstered weapons need their ammo references on every peer, before their first equip.
-	void BindWeaponAmmo( BaseCombatWeapon weapon )
+	// Holstered weapons need their inventory settings on every peer, before their first equip.
+	void ConfigureWeaponInventory( BaseCombatWeapon weapon )
 	{
-		var world = entity.PreviewModel;
+		var view = weapon.ViewModelPrefab?.GetComponentInChildren<MountedModel>( true );
+		var world = weapon.WorldModelPrefab?.GetComponentInChildren<MountedModel>( true )?.ModelPath ?? entity.PreviewModel;
 		SourceModelWeaponData Lookup( string path ) => string.IsNullOrEmpty( path ) ? null : WeaponSetup.SelectWeaponData( Host.GetWeaponData( path ), world );
-		var data = Lookup( world );
-		if ( data is null && weapon.ViewModelPrefab is { } prefab && SourceEntities.Find( entity.Game, prefab.Name ) is { } view )
-		{
-			foreach ( var (model, fallback) in SourceEntities.ModelsOf( SourceEntities.Definition( view ) ) )
-			{
-				data = Lookup( model ) ?? Lookup( fallback );
-				if ( data is not null ) break;
-			}
-		}
-		WeaponSetup.BindAmmoTypes( weapon, data );
+
+		WeaponSetup.ApplyInventoryData( weapon, Lookup( view?.ModelPath ) ?? Lookup( world ) ?? Lookup( view?.FallbackModelPath ) );
 	}
 
 	protected override void Shutdown()
