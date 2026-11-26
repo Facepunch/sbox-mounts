@@ -358,8 +358,8 @@ public sealed partial class RabbitGuard
 				if ( item.StuckIn == Renderer ) item.StuckIn = corpseRenderer;
 				if ( item.Holder == Renderer ) item.Holder = corpseRenderer;
 			}
+		if ( cutThroat ) corpse.GetOrAddComponent<ArterialBleeding>().Begin( physics );
 		if ( deathImpulse is { } hit ) ApplyHitImpulse( physics, hit.Point, hit.Impulse, hit.LineDirection );
-		if ( cutThroat ) corpse.GetOrAddComponent<ArterialBleeding>();
 	}
 
 	internal static void ApplyHitImpulse( ModelPhysics ragdoll, Vector3 point, Vector3 impulse, Vector3 lineDirection = default )

@@ -10,6 +10,23 @@ internal sealed class ArterialBleeding : Component, Component.INetworkSnapshot
 	int tick;
 	BillboardParticle lastDrop;
 
+	internal void Begin( ModelPhysics physics )
+	{
+		var renderer = GetComponent<SkinnedModelRenderer>();
+		if ( CharacterLoader.AverageChainFrame( renderer, "head" ) is { } head &&
+			CharacterLoader.AverageChainFrame( renderer, "torso" ) is { } torso )
+			EmitMist( Vector3.Lerp( head.Position, torso.Position, 0.2f ), head.Left, head.Up, CharacterLoader.RagdollVelocity( physics ) ?? Vector3.Zero );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void EmitMist( Vector3 point, Vector3 left, Vector3 up, Vector3 velocity )
+	{
+		if ( Application.IsDedicatedServer || RabbitGuard.BloodLevel == 0 || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return;
+		for ( int i = 0; i < 10; i++ )
+			mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, velocity +
+				left * Random.Shared.Float( -200f, 200f ) + up * Random.Shared.Float( 0f, 200f ), RabbitGuard.BloodColor );
+	}
+
 	void INetworkSnapshot.WriteSnapshot( ref ByteStream writer )
 	{
 		writer.Write( tick );
@@ -37,13 +54,6 @@ internal sealed class ArterialBleeding : Component, Component.INetworkSnapshot
 			CharacterLoader.AverageChainFrame( renderer, "torso" ) is not { } torso ) return;
 		var point = Vector3.Lerp( head.Position, torso.Position, 0.2f );
 		var velocity = CharacterLoader.RagdollVelocity( physics ) ?? Vector3.Zero;
-		if ( tick == 0 && draw )
-		{
-			for ( int i = 0; i < 10; i++ )
-				mount.EmitBillboard( "Data/Particles/bloodcloud.xml", point, velocity +
-					head.Left * Random.Shared.Float( -200f, 200f ) + head.Up * Random.Shared.Float( 0f, 200f ), RabbitGuard.BloodColor );
-		}
-
 		while ( accumulator >= Step && remaining > 0f )
 		{
 			accumulator -= Step;

@@ -27,6 +27,7 @@ public sealed partial class RabbitGuard
 	int holdTick;
 	bool pendingGrabImpact;
 	int nextCaptureTick, cutStartTick;
+	bool cutMarked;
 	int ElapsedHoldTicks => (int)((float)SinceGrab / HoldStep + 0.5f);
 	Vector3 fadingCaptureOffset;
 	RabbitClip CaptureClip => boundAnimations.Clips[Stance].ForSide( MirroredAction );
@@ -279,7 +280,16 @@ public sealed partial class RabbitGuard
 		{
 			float elapsed = (float)SinceGrab - (cutStartTick - 0.5f) * HoldStep;
 			ReactionPhase = Math.Min( 1f, elapsed / reactionDuration );
-			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut ) FinishCut( victim );
+			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut )
+			{
+				if ( !cutMarked )
+				{
+					MarkCutWeapon( victim );
+					cutMarked = true;
+				}
+				// The captive processes FINISHING_THROAT_CUT on its next native frame.
+				if ( elapsed >= cut + HoldStep * 0.5f ) FinishCut( victim );
+			}
 		}
 	}
 
@@ -288,6 +298,7 @@ public sealed partial class RabbitGuard
 		Stance = CutFromHold;
 		victim.Stance = CutInHold;
 		cutStartTick = victim.cutStartTick = holdTick;
+		cutMarked = false;
 		victim.nextCaptureTick = holdTick + 1;
 		reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
 		ReactionPhase = victim.ReactionPhase = 0f;
@@ -421,18 +432,27 @@ public sealed partial class RabbitGuard
 		struggleVelocity *= startled > 0f ? MathF.Pow( 0.95f, HoldStep * 120f ) : MathF.Exp( -acceleration * HoldStep / maximum );
 	}
 
-	void FinishCut( RabbitGuard victim )
+	static Vector3 CutPoint( RabbitGuard victim )
 	{
 		var head = victim.Renderer.Model.Bones.GetBone( victim.boundAnimations.HeadBone )?.Parent;
-		var point = head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
+		return head is not null && victim.Renderer.TryGetBoneTransform( head, out var pose ) ? pose.Position : victim.EyePosition;
+	}
+
+	void MarkCutWeapon( RabbitGuard victim )
+	{
 		if ( PrimaryItem.IsValid() && CharacterLoader.AverageChainFrame( Renderer, "head" ) is { } ownHead )
 		{
+			var point = CutPoint( victim );
 			var center = CharacterCenter( GameObject );
 			for ( int i = 0; i < 3; i++ )
 				PrimaryItem.MarkCut( center, ownHead.Position, point + LevelItem.BloodScatter() * 12f );
 		}
+	}
+
+	void FinishCut( RabbitGuard victim )
+	{
 		PlayCombatSound( "Data/Sounds/weapon_foley/cut/flesh_hit.xml", CharacterCenter( victim.GameObject ) );
-		var damage = new ExecutionDamage { Damage = victim.Health, Position = point, Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
+		var damage = new ExecutionDamage { Damage = victim.Health, Position = CutPoint( victim ), Attacker = GameObject, Weapon = PrimaryItem?.GameObject };
 		chokeVictim = victim.GameObject;
 		damage.Tags.Add( "slash" );
 		damage.Tags.Add( "nevergib" );
