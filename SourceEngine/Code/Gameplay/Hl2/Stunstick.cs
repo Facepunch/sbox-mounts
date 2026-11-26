@@ -128,6 +128,8 @@ public sealed class Stunstick : MeleeWeapon
 		}
 		_arc.Enabled = _arcStart.IsValid() && _arcExpires > 0;
 		if ( !_arc.Enabled ) return;
+		if ( _arc.VectorPoints.Count != ArcSegments + 1 )
+			_arc.VectorPoints = new( new Vector3[ArcSegments + 1] );
 		var start = Position( _arcStart );
 		var delta = _arcEnd - start;
 		var side = delta.Cross( Scene.Camera.WorldPosition - start ).Normal * (delta.Length * 0.01f * _arcAmplitude);
@@ -159,7 +161,6 @@ public sealed class Stunstick : MeleeWeapon
 		_arc = MountedEffects.AddBeam( _effects, "sprites/lgtning", mount );
 		if ( _arc.IsValid() )
 		{
-			_arc.VectorPoints = new( new Vector3[ArcSegments + 1] );
 			_arc.Width = 1;
 			_arc.Color = Color.White;
 		}
