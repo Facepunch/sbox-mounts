@@ -29,7 +29,8 @@ public abstract partial class AlienLifeform
 
 	internal void AttachHatchling( Babbler babbler )
 	{
-		if ( freeSlots.Count == 0 || babbler.BroodOwner != this && brood.Count >= 6 ) return;
+		if ( !CanReceiveBabblers || !babbler.IsValid() || babbler.Health <= 0 || babbler.ClingSlot != 0 ) return;
+		if ( babbler.BroodOwner != this && brood.Count >= 6 ) return;
 		int slot = freeSlots[^1];
 		var point = Renderer.GetAttachmentObject( Sockets[slot - 1] );
 		if ( !point.IsValid() ) return;

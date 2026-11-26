@@ -360,6 +360,7 @@ public sealed partial class Babbler : Ns2Npc
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
+		GetComponent<ManualHitbox>( true ).Enabled = false;
 		DeathEffect( SphereCenter );
 		base.OnDeath( e );
 	}
