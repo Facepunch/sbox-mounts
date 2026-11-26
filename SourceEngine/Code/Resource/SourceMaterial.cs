@@ -51,6 +51,7 @@ internal sealed class SourceMaterial : IDisposable
 	}
 
 	private VmtParameters EffectParameters => effectParameters ??= new VmtParameters( VmtFile.SelectParameters( Source ), ContentRoot );
+	internal float DepthFeather => EffectParameters.DepthFeather;
 	internal bool SamplesLinear => EffectParameters.Boolean( "$nosrgb", Source.ShaderName.Equals( "Sprite", StringComparison.OrdinalIgnoreCase ) );
 	internal string BaseTexturePath => EffectParameters.String( "$basetexture" );
 

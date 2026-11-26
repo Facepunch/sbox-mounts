@@ -8,7 +8,7 @@ static class Particles
 {
 	public static ParticleEffect Emitter( GameObject parent, string material, string mountName, bool additive, bool lit, int count )
 	{
-		var texture = MountedEffects.SpriteTexture( material, mountName );
+		var texture = MountedEffects.SpriteTexture( material, mountName, out var source, forSprite: true );
 		if ( texture is null || !parent.IsValid() ) return null;
 		var go = new GameObject( parent, false, material );
 		go.NetworkMode = NetworkMode.Never;
@@ -18,6 +18,7 @@ static class Particles
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		MountedEffects.UseViewModelLayer( renderer );
 		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.DepthFeather = source?.DepthFeather ?? 0;
 		renderer.Additive = additive;
 		renderer.Lighting = lit;
 		renderer.SortMode = ParticleSpriteRenderer.ParticleSortMode.ByDistance;

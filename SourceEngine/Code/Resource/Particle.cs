@@ -745,7 +745,7 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 			renderer.Sprite.EmbeddedResource = new Sandbox.Resources.EmbeddedResource { ResourceCompiler = "embed" };
 			renderer.Additive = parameters.Boolean( "$additive" ) || parameters.Integer( "$spriterendermode", 0 ) == 5;
 			renderer.Lighting = source.ShaderName.Equals( "VertexLitGeneric", StringComparison.OrdinalIgnoreCase );
-			renderer.DepthFeather = parameters.Float( "$depthblendscale" );
+			renderer.DepthFeather = parameters.DepthFeather;
 			return renderer;
 		}
 	}

@@ -37,7 +37,7 @@ static class MountedEffects
 	/// <summary>The texture behind a Source sprite material, such as sprites/redglow1.</summary>
 	public static Texture SpriteTexture( string name, string mountName ) => SpriteTexture( name, mountName, out _, forSprite: true );
 
-	static Texture SpriteTexture( string name, string mountName, out SourceMaterial material, bool forSprite = false )
+	internal static Texture SpriteTexture( string name, string mountName, out SourceMaterial material, bool forSprite = false )
 	{
 		var mount = Sandbox.Mounting.Directory.Get( mountName );
 		material = mount is SourceGameMount source && mount.GetByPath( $"mount://{mountName}/materials/{name}.vmt.vmat" ) is not null
@@ -67,6 +67,7 @@ static class MountedEffects
 		// The sprite shader discards texels below the cutoff even when blending, which cut
 		// visible discs out of soft-alpha Source sprites such as muzzleflash2.
 		sprite.AlphaCutoff = 0;
+		sprite.DepthFeather = material?.DepthFeather ?? 0;
 		sprite.Size = 0;
 		if ( useViewModelLayer ) UseViewModelLayer( sprite );
 		go.Enabled = true;

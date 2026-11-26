@@ -18,6 +18,7 @@ internal readonly struct VmtParameters( IReadOnlyDictionary<string, string> valu
 	}
 
 	public string String( string key, string fallback = null ) => values.TryGetValue( key, out var value ) ? value : fallback;
+	public float DepthFeather => Boolean( "$depthblend" ) ? MathF.Max( 0, Float( "$depthblendscale", 50 ) ) : 0;
 	public bool Contains( string key ) => values.ContainsKey( key );
 
 	internal float[] Components( string key )

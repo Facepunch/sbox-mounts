@@ -23,7 +23,7 @@ public sealed class ExplosionEffect : Component
 		public float Life;
 		public float StartSize;
 		public float EndSize;
-		public Color Color;
+		public float Brightness;
 		public float RollSpeed;
 	}
 
@@ -57,12 +57,11 @@ public sealed class ExplosionEffect : Component
 		_light.Shadows = false;
 	}
 
-	List<Puff> Group( string material, bool additive, bool lit, int count, float depthFeather = 0 )
+	List<Puff> Group( string material, bool additive, bool lit, int count )
 	{
 		var effect = Particles.Emitter( GameObject, material, MountName, additive, lit, count );
 		if ( effect is null ) return null;
 		var renderer = effect.GetComponent<ParticleSpriteRenderer>();
-		renderer.DepthFeather = depthFeather;
 		renderer.CameraFadeNear = 64;
 		renderer.CameraFadeFar = 128;
 		var puffs = new List<Puff>( count );
@@ -72,14 +71,20 @@ public sealed class ExplosionEffect : Component
 
 	static float Deviation( Vector3 direction, Vector3 source, float spread ) => spread * MathF.Abs( source.Dot( direction ) );
 
-	void Add( List<Puff> group, Vector3 position, Vector3 velocity, float life, float startSize, float endSize, Color color, float rollSpeed )
+	static Color PuffColor( float brightness )
+	{
+		var linear = MathF.Pow( brightness, 2.2f );
+		return new Color( linear, linear, linear );
+	}
+
+	void Add( List<Puff> group, Vector3 position, Vector3 velocity, float life, float startSize, float endSize, float brightness, float rollSpeed )
 	{
 		var effect = _groups.First( x => x.Puffs == group ).Effect;
 		if ( effect.Emit( position, 0 ) is not { } p ) return;
 		p.Size = startSize * 2;
-		p.Color = color.WithAlpha( 1 );
+		p.Color = PuffColor( brightness );
 		p.Angles = new Angles( 0, 0, Game.Random.Float( 0, 360 ) );
-		var puff = new Puff { Particle = p, Velocity = velocity, Life = life, StartSize = startSize, EndSize = endSize, Color = color, RollSpeed = rollSpeed };
+		var puff = new Puff { Particle = p, Velocity = velocity, Life = life, StartSize = startSize, EndSize = endSize, Brightness = brightness, RollSpeed = rollSpeed };
 		group.Add( puff );
 	}
 
@@ -88,10 +93,9 @@ public sealed class ExplosionEffect : Component
 		var origin = WorldPosition;
 		var right = _direction.Cross( MathF.Abs( _direction.z ) > 0.9f ? Vector3.Forward : Vector3.Up ).Normal;
 		var up = right.Cross( _direction ).Normal;
-		if ( Group( "particle/particle_noisesphere", false, true, 44, depthFeather: 8 ) is { } smoke )
+		if ( Group( "particle/particle_noisesphere", false, true, 44 ) is { } smoke )
 		{
-			// Halved like the smoke grenade's puffs, for taking the full light of the scene.
-			Color Grey() => Color.White * Game.Random.Float( 0.5f, 1 ) * 0.5f;
+			float Grey() => Game.Random.Float( 0.25f, 0.5f );
 			for ( var i = 0; i < 4; i++ )
 			{
 				var dir = (Particles.InCube( Spread ) + _direction * Game.Random.Float( 1, 6 )).Normal;
@@ -123,7 +127,7 @@ public sealed class ExplosionEffect : Component
 			var deviation = Deviation( dir, _direction, Spread );
 			var speed = Game.Random.Float( 1, 400 ) * 16 * deviation * deviation * 0.5f;
 			var size = Math.Clamp( (int)(Game.Random.Int( 8, 16 ) * deviation), 4, 32 );
-			Add( group, origin + Particles.InCube( 32 ), dir * speed, Game.Random.Float( 2, 3 ), size, size, Color.White * (Game.Random.Int( 192, 255 ) / 255f), Game.Random.Float( -8, 8 ) );
+			Add( group, origin + Particles.InCube( 32 ), dir * speed, Game.Random.Float( 2, 3 ), size, size, Game.Random.Int( 192, 255 ) / 255f, Game.Random.Float( -8, 8 ) );
 		}
 		if ( Group( "effects/fire_cloud2", true, false, 32 ) is { } fire )
 		{
@@ -133,7 +137,7 @@ public sealed class ExplosionEffect : Component
 				var deviation = Deviation( dir, _direction, Spread );
 				var speed = Game.Random.Float( 400, 800 ) * 16 * deviation * deviation * 0.5f;
 				var size = Math.Clamp( (int)(Game.Random.Int( 32, 85 ) * deviation), 32, 85 );
-				Add( fire, origin + Particles.InCube( 48 ), dir * speed, Game.Random.Float( 0.2f, 0.4f ), size, size * 1.5f, Color.White * (Game.Random.Int( 128, 255 ) / 255f), Game.Random.Float( -16, 16 ) );
+				Add( fire, origin + Particles.InCube( 48 ), dir * speed, Game.Random.Float( 0.2f, 0.4f ), size, size * 1.5f, Game.Random.Int( 128, 255 ) / 255f, Game.Random.Float( -16, 16 ) );
 			}
 		}
 	}
@@ -254,7 +258,7 @@ public sealed class ExplosionEffect : Component
 				var ramp = (1 - t) * (1 - t);
 				// Source sizes are half widths.
 				p.Size = MathX.Lerp( puff.StartSize, puff.EndSize, t ) * 2;
-				p.Color = (puff.Color * ramp).WithAlpha( 1 );
+				p.Color = PuffColor( puff.Brightness * ramp );
 				p.Alpha = ramp;
 			}
 		}
