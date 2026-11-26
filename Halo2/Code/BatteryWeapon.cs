@@ -81,13 +81,15 @@ public class BatteryWeapon : HandheldWeapon
 		bool awaitCue = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold;
 		if ( !awaitCue ) OnShootEffects( default );
 		TimeSinceShoot = 0;
-		RequestEnergyShot( forward, awaitCue );
+		RequestEnergyShot( forward, awaitCue, FiringError );
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void RequestEnergyShot( Vector3 forward, bool awaitingCue )
+	void RequestEnergyShot( Vector3 forward, bool awaitingCue, Vector2 error )
 	{
 		if ( !IsHeld || !IsInHand || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		if ( !float.IsFinite( error.x ) || !float.IsFinite( error.y ) ) return;
+		ApplyFiringError( error );
 		float delay = FiringRate.y > 0 ? CooldownSeconds( (int)System.MathF.Ceiling( 30 / FiringRate.y ) ) : PrimaryDelay;
 		SetNextPrimaryFire( delay );
 		FireEnergy( forward, awaitingCue );

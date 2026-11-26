@@ -218,7 +218,7 @@ public sealed partial class Shotgun : Weapon
 		}
 		ShootEffects();
 		if ( IsHeld && Clip1 > 0 ) ChamberWorldModel();
-		LaunchProjectiles( ray, Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x );
+		LaunchProjectiles( ray, new( MinimumPelletAngle, Ballistics.SpreadBase.x + Ballistics.SpreadGrowth.x ) );
 	}
 
 	double? firstInsertAt;

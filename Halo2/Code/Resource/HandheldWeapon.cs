@@ -310,6 +310,10 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 		ConfigureKick( gun, barrel );
 		gun.Ballistics = ReadBallistics( gun.Ballistics, barrel, projectile, damage );
+		gun.ErrorProfile = new( new( Float( barrel + 0xdc ), Float( barrel + 0xe0 ) ),
+			new( Float( barrel + 0x50 ), Float( barrel + 0x54 ) ), Float( barrel + 0x58 ).RadianToDegree(),
+			new( Float( barrel + 0x5c ).RadianToDegree(), Float( barrel + 0x60 ).RadianToDegree() ),
+			(map.ReadInt32( Header + 0x12c ) & (1 << 27)) != 0 );
 		ConfigureProjectile( gun, barrel, projectile, damage );
 		return gun;
 	}

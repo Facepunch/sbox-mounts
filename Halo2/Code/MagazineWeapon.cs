@@ -48,7 +48,7 @@ public class MagazineWeapon : HandheldWeapon
 				TimeSinceShoot = 0;
 			}
 			else SetNextPrimaryFire( 0 ); // The host starts the cooldown when this trigger actually fires.
-			RequestRound( AimRay.Forward );
+			RequestRound( AimRay.Forward, FiringError );
 		}
 		if ( remainingShots == 0 ) return;
 		if ( --remainingShots == 0 || (IsHeld && !HasPrimaryAmmo()) )
@@ -66,9 +66,11 @@ public class MagazineWeapon : HandheldWeapon
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void RequestRound( Vector3 forward )
+	void RequestRound( Vector3 forward, Vector2 error )
 	{
 		if ( !IsInHand || !IsHeld || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
+		if ( !float.IsFinite( error.x ) || !float.IsFinite( error.y ) ) return;
+		ApplyFiringError( error );
 		SetNextPrimaryFire( PrimaryDelay );
 		FireRound( forward );
 	}

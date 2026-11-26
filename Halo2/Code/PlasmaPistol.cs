@@ -58,6 +58,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	{
 		if ( !CanPrimaryAttack() ) return;
 		SetNextPrimaryFire( PrimaryDelay );
+		RecordRound();
 		FireEnergy( forward, true, charged ? ChargedShot : null );
 	}
 

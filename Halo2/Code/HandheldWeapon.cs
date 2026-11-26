@@ -71,7 +71,7 @@ internal sealed class TrackVoice
 
 public sealed record ReticleLayout( Vector2 Size, Vector2 Offset );
 
-public abstract class HandheldWeapon : Weapon
+public abstract partial class HandheldWeapon : Weapon
 {
 	[Property] public ReticleLayout[] Reticles { get; set; }
 	static readonly string[] reticlePages = ["crosshair", "split_crosshair", "quarter_crosshair"];
@@ -104,6 +104,7 @@ public abstract class HandheldWeapon : Weapon
 	double? lastAutomaticRound;
 	double? automaticRoundAt;
 	double? lastBarrelTick;
+	double? previousBarrelTick;
 	bool roundQueued;
 
 	private protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active, GameObject source = null )
@@ -161,12 +162,16 @@ public abstract class HandheldWeapon : Weapon
 		}
 		else lastAutomaticRound = null;
 		base.OnControl();
+		UpdateBarrelError( canCycle && (held || roundQueued) );
 		automaticRoundAt = null;
 	}
 
 	protected double RecordRound()
 	{
-		lastBarrelTick = System.Math.Floor( Time.NowDouble * 30 );
+		double tick = System.Math.Floor( Time.NowDouble * 30 );
+		if ( tick != lastBarrelTick ) previousBarrelTick = lastBarrelTick;
+		lastBarrelTick = tick;
+		UpdateBarrelError( true );
 		roundQueued = false;
 		if ( automaticRoundAt is not double time ) return Time.NowDouble;
 		lastAutomaticRound = time;
@@ -180,6 +185,9 @@ public abstract class HandheldWeapon : Weapon
 		if ( ViewModel.IsValid() && ViewModel.Parent != GameObject ) DestroyViewModel();
 		lastAutomaticRound = null;
 		lastBarrelTick = null;
+		previousBarrelTick = null;
+		errorTick = null;
+		BarrelError = 0;
 		automaticRoundAt = null;
 		roundQueued = false;
 		base.OnDisabled();
@@ -283,7 +291,8 @@ public abstract class HandheldWeapon : Weapon
 		var config = Ballistics;
 		var volley = new ShotEffect[config.Pellets];
 		ref uint seed = ref BlamRandom.GameplayState( Scene );
-		float minimum = MinimumPelletAngle.DegreeToRadian(), maximum = CurrentSpread.x.DegreeToRadian();
+		var cone = ShotCone;
+		float minimum = cone.x.DegreeToRadian(), maximum = cone.y.DegreeToRadian();
 		for ( int i = 0; i < volley.Length; i++ )
 		{
 			var direction = Spread.Deviate( ray.Forward, minimum, maximum, ref seed );
@@ -303,7 +312,8 @@ public abstract class HandheldWeapon : Weapon
 	protected void LaunchBolt( Vector3 forward, EnergyDischarge discharge = null )
 	{
 		var ray = Holder is PlayerController player ? PlayerFiringRay( player, forward ) : new Ray( AimRay.Position, forward );
-		LaunchProjectiles( ray, discharge?.Ballistics.SpreadBase.x ?? CurrentSpread.x, discharge );
+		var cone = discharge is null ? ShotCone : new Vector2( discharge.MinimumAngle, discharge.Ballistics.SpreadBase.x );
+		LaunchProjectiles( ray, cone, discharge );
 	}
 
 	protected virtual void ConfigureHeldRenderer( SkinnedModelRenderer renderer, bool firstPerson ) { }

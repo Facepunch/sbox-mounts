@@ -100,10 +100,10 @@ public abstract partial class Weapon
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
 		GameObject Target = null, string SurfacePath = null, string Bone = null, bool Charged = false, bool? Alternate = null );
 
-	protected void LaunchProjectiles( Ray ray, float spreadDegrees, EnergyDischarge discharge = null )
+	protected void LaunchProjectiles( Ray ray, Vector2 cone, EnergyDischarge discharge = null )
 	{
-		float maximum = spreadDegrees.DegreeToRadian();
-		float minimum = (discharge?.MinimumAngle ?? MinimumPelletAngle).DegreeToRadian();
+		float maximum = cone.y.DegreeToRadian();
+		float minimum = cone.x.DegreeToRadian();
 		float initialSpeed = discharge?.Speed ?? PelletSpeed;
 		var profile = discharge is null ? SpeedProfile : discharge.SpeedProfile;
 		float scale = profile is { FasterForPlayer: true } ? (Holder is PlayerController ? 1.5f : profile.NpcScale) : 1;
