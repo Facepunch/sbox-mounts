@@ -11,7 +11,8 @@ public sealed class PhysicsGun : Weapon
 	[ConVar( "physgun_wheelspeed", Help = "Physics Gun carry distance per scroll notch." )]
 	public static float WheelSpeed { get; set; } = 10;
 
-	enum Trigger { Released, Grab, Push, Pull, Freeze }
+	enum Trigger { Released, Grab, Adjust, Push, Pull, Freeze }
+	System.IDisposable _movementHook;
 	[Sync] Trigger InputState { get; set; }
 	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
 	Vector3 _localPoint;
@@ -41,9 +42,9 @@ public sealed class PhysicsGun : Weapon
 		if ( Input.Down( "use" ) )
 		{
 			var forward = Input.AnalogMove.x;
-			if ( forward > 0 ) InputState = Trigger.Push;
-			if ( forward < 0 ) InputState = Trigger.Pull;
-			Input.AnalogMove = default;
+			InputState = forward switch { > 0 => Trigger.Push, < 0 => Trigger.Pull, _ => Trigger.Adjust };
+			_movementHook ??= Scene.AddHook( GameObjectSystem.Stage.PhysicsStep, -1, RedirectMovement,
+				nameof( PhysicsGun ), "Redirect player movement while adjusting a held body" );
 		}
 
 		var wheel = Input.MouseWheel.y;
@@ -53,6 +54,13 @@ public sealed class PhysicsGun : Weapon
 		Input.MouseWheel = default;
 		Input.ReleaseAction( "SlotNext" );
 		Input.ReleaseAction( "SlotPrev" );
+	}
+
+	// The controller builds its wish velocity in fixed update, after frame input handling.
+	void RedirectMovement()
+	{
+		if ( !IsProxy && Active && HasOwner && HeldBody.IsValid() && InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull )
+			Owner.WishVelocity = Vector3.Zero;
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
@@ -107,8 +115,21 @@ public sealed class PhysicsGun : Weapon
 		physics.SmoothRotate( yaw * _yawOffset, _arrivalTime, Time.Delta );
 	}
 
+	void StopRedirectingMovement()
+	{
+		_movementHook?.Dispose();
+		_movementHook = null;
+	}
+
+	protected override void OnDisabled()
+	{
+		StopRedirectingMovement();
+		base.OnDisabled();
+	}
+
 	protected override void OnHolstered()
 	{
+		StopRedirectingMovement();
 		if ( !IsProxy ) InputState = Trigger.Released;
 		if ( Networking.IsHost ) HeldBody = null;
 		base.OnHolstered();
