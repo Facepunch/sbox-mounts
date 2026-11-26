@@ -7,6 +7,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	const string GridConVar = "gm_snapgrid";
 	const float CarryMass = 45678;
 	const string KeepMassTag = "physgun_keep_mass";
+	internal const string UnfreezableTag = "physgun_unfreezable";
 	const string DisabledTag = "physgun_disabled";
 	const string LimitedTag = "physgun_limited";
 
@@ -190,7 +191,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( !Networking.IsHost ) return;
 		if ( !Active || !HasOwner || InputState is Trigger.Released or Trigger.Freeze )
 		{
-			if ( Active && HasOwner && InputState == Trigger.Freeze && HeldBody.IsValid() )
+			if ( Active && HasOwner && InputState == Trigger.Freeze && HeldBody.IsValid() && !HeldBody.Tags.Has( UnfreezableTag ) )
 			{
 				HeldBody.MotionEnabled = false;
 				Owner.GetOrAddComponent<FrozenProps>().Track( HeldBody );
@@ -271,7 +272,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run();
 
 	// Map props share a scene root. Dispatch to the mounted entity that owns this physics body.
-	static GameObject EntityRoot( Rigidbody body )
+	internal static GameObject EntityRoot( Rigidbody body )
 	{
 		var target = body.GameObject;
 		while ( !target.IsRoot && !target.Tags.Has( "source1_entity", includeAncestors: false ) && target.Parent is { } parent )

@@ -5,7 +5,7 @@ namespace Source1.GarrysMod;
 /// <summary>Keeps a player's frozen props available across Physics Gun replacements.</summary>
 sealed class FrozenProps : Component
 {
-	readonly HashSet<Rigidbody> _frozen = [];
+	HashSet<Rigidbody> _frozen = [];
 	float _lastMiss = float.NegativeInfinity;
 
 	internal void Track( Rigidbody body ) => _frozen.Add( body );
@@ -15,9 +15,9 @@ sealed class FrozenProps : Component
 		if ( _frozen.Count == 0 ) return 0;
 		if ( Time.Now - _lastMiss < 0.25f )
 		{
-			int count = Wake( _frozen );
-			_frozen.Clear();
-			return count;
+			var frozen = _frozen;
+			_frozen = [];
+			return Wake( frozen );
 		}
 
 		var hit = Scene.Trace.Ray( aim, 32768 ).IgnoreGameObjectHierarchy( GameObject.Root )
@@ -64,9 +64,14 @@ sealed class FrozenProps : Component
 		int count = 0;
 		foreach ( var body in bodies )
 		{
-			if ( !body.IsValid() || body.MotionEnabled || !PhysicsGun.CanMove( body, Network.Owner ) ) continue;
+			if ( !body.IsValid() || body.MotionEnabled || body.Tags.Has( PhysicsGun.UnfreezableTag ) || !PhysicsGun.CanMove( body, Network.Owner ) ) continue;
+			var target = PhysicsGun.EntityRoot( body );
+			bool allowed = true;
+			target.RunEvent<IPhysgunUnfreeze>( x => allowed &= x.CanUnfreeze( Network.Owner, body ) );
+			if ( !allowed || !body.IsValid() || body.MotionEnabled ) continue;
 			body.MotionEnabled = true;
 			body.Sleeping = false;
+			target.RunEvent<IPhysgunUnfreeze>( x => x.OnUnfrozen( Network.Owner, body ) );
 			count++;
 		}
 		return count;
