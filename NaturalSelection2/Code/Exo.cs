@@ -238,7 +238,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Health <= 0 ) return;
-		var output = PlayerGait.UpdatePose( this, 5.95f );
+		var output = PlayerGait.UpdatePose( this, 5.95f, WorldRotation );
 		if ( Networking.IsHost )
 		{
 			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;

@@ -90,7 +90,11 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Vector3 dodgeDirection;
-	Rotation aim;
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation aim { get; set; }
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float bodyYaw { get; set; }
+	float standingYaw;
+	TimeUntil nextIdleLook;
+	Vector3 idleDirection;
 	internal Vector3 AimDirection => aim.Forward;
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, weaponTag;
@@ -127,9 +131,10 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		sinceSprint = sinceAttackEnd = 1;
 		ignoreTarget = IsIgnoredTarget;
 		lastRequest = lastShot = lastHit = 1;
-		aim = WorldRotation;
 		if ( Networking.IsHost )
 		{
+			aim = WorldRotation;
+			standingYaw = aim.Angles().yaw;
 			body = GetComponent<Rigidbody>();
 			agent = GetComponent<NavMeshAgent>( true );
 			if ( Scene.PhysicsWorld.Gravity.z < 0 )
@@ -540,13 +545,15 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			if ( trigger && !pistol )
 				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
-			if ( (viewTarget ?? (wantsFire ? lastAimPoint : null)) is { } point )
-				aim = AlienAim.Turn( aim, point - EyePosition, acquisition.TurnRate );
+			UpdateView();
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		bool idle = IsMovementIdle;
 		var move = jumping ? "jump" : sprinting ? "sprint" : idle ? "idle" : "run";
-		var output = PlayerGait.UpdatePose( this, 5.75f );
+		var output = PlayerGait.UpdatePose( this, 5.75f, aim );
+		Renderer.WorldRotation = Rotation.FromYaw( aim.Angles().yaw );
+		output?.Set( "body_pitch", -aim.Angles().pitch );
+		output?.Set( "body_yaw", bodyYaw );
 		if ( graph is not null )
 		{
 			UpdateInputs( graph, move, activity, idle );
@@ -566,6 +573,34 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			weapon.Update( weaponAge, tag: weaponTag );
 		}
 		if ( !Application.IsDedicatedServer ) UpdateRifleSound();
+	}
+
+	void UpdateView()
+	{
+		if ( !NpcConVars.Enabled || PhysicsCarrier.IsValid() ) return;
+
+		var target = viewTarget ?? (wantsFire ? lastAimPoint : null);
+		Vector3 direction;
+		if ( target is { } point ) direction = point - EyePosition;
+		else if ( Animation.IsLooking ) direction = Animation.CalculateLookPosition() - EyePosition;
+		else if ( !IsMovementIdle ) direction = WorldRotation.Forward;
+		else
+		{
+			// NS2 bots choose a new point on the horizon every two seconds while guarding an area.
+			if ( nextIdleLook <= 0 )
+			{
+				idleDirection = Rotation.FromYaw( Random.Shared.NextSingle() * 360 ).Forward.WithZ( 0.4f + Random.Shared.NextSingle() * 0.25f );
+				nextIdleLook = 2;
+			}
+			direction = idleDirection;
+		}
+
+		aim = AlienAim.Turn( aim, direction, acquisition.TurnRate );
+		float yaw = aim.Angles().yaw;
+		float offset = Angles.NormalizeAngle( standingYaw - yaw );
+		offset = Animation.MoveVelocity.Length > 0.1f * Scale ? AlienAim.ApproachAngle( offset, 0, Time.Delta * 5 ) : Math.Clamp( offset, -85, 85 );
+		standingYaw = yaw + offset;
+		bodyYaw = offset % 90;
 	}
 
 	bool IsMovementIdle => Animation.MoveVelocity.LengthSquared < (0.1f * Scale) * (0.1f * Scale)

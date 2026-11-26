@@ -15,11 +15,10 @@ internal static class PlayerGait
 		return false;
 	}
 
-	internal static GraphParameters UpdatePose( BaseNpc npc, float maxSpeed )
+	internal static GraphParameters UpdatePose( BaseNpc npc, float maxSpeed, Rotation facing )
 	{
 		var output = npc.Renderer.Animation.IsValid ? npc.Renderer.Animation.Parameters : null;
 		var velocity = npc.Animation.MoveVelocity.WithZ( 0 );
-		var facing = npc.WorldRotation;
 		output?.Set( "move_speed", velocity.Length / (maxSpeed * MapLoader.Scale) );
 		output?.Set( "move_yaw", velocity.IsNearlyZero() ? 0f :
 			MathF.Atan2( Vector3.Dot( velocity, facing.Forward ), Vector3.Dot( velocity, facing.Left ) ).RadianToDegree() );
