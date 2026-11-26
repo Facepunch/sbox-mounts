@@ -148,14 +148,12 @@ public sealed partial class RabbitGuard
 		if ( searchPoints.Count == 0 )
 		{
 			const float spacing = 8f * 40f;
+			var center = CharacterCenter( GameObject );
 			for ( int i = -3; i < 3; ++i )
 			for ( int j = -3; j < 3; ++j )
 			{
 				var offset = new Vector3( j + Random.Shared.Float( -0.5f, 0.5f ), i + Random.Shared.Float( -0.5f, 0.5f ), Random.Shared.Float( -1f, 1f ) );
-				var sample = WorldPosition + offset * spacing;
-				var pointOnMesh = Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( sample, new Vector3( 4f, 4f, 8f ) * 40f ) )
-					?? Scene.NavMesh.GetClosestPoint( BBox.FromPositionAndSize( sample, new Vector3( 8f, 8f, 32f ) * 40f ) );
-				if ( pointOnMesh is not { } point ) continue;
+				if ( NavPoint( center + offset * spacing ) is not { } point ) continue;
 				// Investigate only where the leg sphere actually touches level geometry.
 				if ( !Scene.Trace.Sphere( 0.45f * 40f, point, point ).IgnoreDynamic()
 					.WithoutTags( "trigger", "npc", "player" ).Run().Hit ) continue;
