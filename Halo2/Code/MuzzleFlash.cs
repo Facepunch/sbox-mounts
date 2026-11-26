@@ -137,10 +137,10 @@ public sealed class MuzzleFlash : Component
 			if ( data.ParticleTint is null ) p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
 			p.Sequence = 0;
 			p.SequenceTime = new Vector3( data.Frame.Evaluate( t, 0 ), 0, 0 );
-			if ( data.Parallel && Scene.Camera.IsValid() )
+			if ( data.Parallel && go.Scene.Camera is { IsValid: true } camera )
 			{
 				var axis = data.LocalSpace ? go.WorldRotation.Forward : p.Velocity.Normal;
-				var up = Vector3.Cross( Scene.Camera.View.Position - p.Position, axis );
+				var up = Vector3.Cross( camera.View.Position - p.Position, axis );
 				up = up.LengthSquared < 0.000001f ? go.WorldRotation.Up : up.Normal;
 				p.Angles = Rotation.LookAt( Vector3.Cross( axis, up ), up ).Angles();
 			}

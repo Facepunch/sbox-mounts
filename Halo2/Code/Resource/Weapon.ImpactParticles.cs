@@ -125,6 +125,7 @@ internal abstract partial class WeaponLoader
 				@"effects\generic\smoke\smoke_soft_small" => (UnlitImpactSmokeName, ImpactLayer.Smoke),
 				@"effects\generic\sparks\sparks_trail" => (SparkTrailName, ImpactLayer.SparkTrail),
 				@"effects\generic\sparks\sparks_animated_soft" or @"effects\generic\sparks\sparks_animated_fiery" => (SparksName, ImpactLayer.Sparks),
+				@"effects\generic\smoke\smoke_soft_additive" or @"effects\generic\sparks\flash_h_shield_impact" => (null, ImpactLayer.AdditiveSprite),
 				@"effects\generic\flares\burst_additive" => (null, ImpactLayer.AdditiveFlare),
 				@"effects\objects\weapons\pistol\needler\shard_debris" => (null, ImpactLayer.GlassShards),
 				_ => (null, (ImpactLayer?)null)
@@ -137,7 +138,8 @@ internal abstract partial class WeaponLoader
 				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
 				if ( bitmap is null ) continue;
 				texturePath = Host.AssetPath( map, bitmap.TagPath, "vtex" );
-				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 ) texturePath += layer == ImpactLayer.ShieldDepletion ? "/loop.vtex" : "/sheet.vtex";
+				if ( layer == ImpactLayer.AdditiveSprite && Short( Address( bitmap ) ) == 3 ) texturePath += $"/sequence_{Short( definition + 8 )}.vtex";
+				else if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 ) texturePath += layer == ImpactLayer.ShieldDepletion ? "/loop.vtex" : "/sheet.vtex";
 			}
 			var texture = Texture.Load( texturePath );
 			if ( !texture.IsValid() || texture.IsError ) continue;
@@ -165,7 +167,7 @@ internal abstract partial class WeaponLoader
 			int controller = movement is null ? 0 : Block( Address( movement ) + 12 );
 			float Parameter( int control, int number ) => control == 0 ? 0 : Float( Block( Block( control + 4 ) + number * 20 + 12 ) + 4 );
 			int color = Block( emitter + 96 );
-			bool twoColorStops = (map.ReadInt32( color ) & 0xff00) == 0x2000;
+			bool twoColorStops = (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2;
 			Color Tint( int offset )
 			{
 				int rgb = map.ReadInt32( color + offset );
@@ -200,7 +202,11 @@ internal abstract partial class WeaponLoader
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				FrameCurve = layer is ImpactLayer.SparkTrail or ImpactLayer.ShieldDepletion ? ReadRange( definition + 92, 1 ) : null,
+				AlphaScale = layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
+				AgeTint = Short( emitter + 88 ) == 0 && (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2 && map.ReadSpan( color, 1 )[0] == 5
+					? ReadRange( emitter + 88, 1, fraction: true ) : null,
+				ColorRange = Short( emitter + 90 ),
+				FrameCurve = layer is ImpactLayer.SparkTrail or ImpactLayer.ShieldDepletion || (layer == ImpactLayer.AdditiveSprite && map.ReadInt32( definition + 100 ) > 0) ? ReadRange( definition + 92, 1 ) : null,
 				AnimatedFrames = cloth || layer is ImpactLayer.SparkTrail or ImpactLayer.ShieldDepletion ? ReadAnimatedFrames( definition ) : null, Cycles = cloth ? Bounds( definition + 92 ).y : 0,
 				SpriteAspect = geometry * 0.5f, RadiusBounds = dust ? Bounds( definition + 60 ) : default,
 				AngleBounds = spriteAngle ? Bounds( definition + 76 ) : default, AlphaInput = Short( emitter + 104 ),

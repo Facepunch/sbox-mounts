@@ -363,8 +363,11 @@ public abstract partial class Weapon
 
 	static void MoveProjectileBody( Pellet pellet, Vector3 position )
 	{
+		var exhaust = pellet.Exhaust;
+		var start = exhaust.IsValid() ? exhaust.WorldPosition : default;
 		var rotation = ProjectileRotation( pellet.Forward, pellet.Body.WorldRotation.Up );
 		pellet.Body.WorldTransform = new Transform( position, rotation );
+		if ( exhaust.IsValid() ) exhaust.StepFlight( start );
 	}
 
 	static Rotation ProjectileRotation( Vector3 forward, Vector3 up ) =>

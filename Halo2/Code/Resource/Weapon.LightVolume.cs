@@ -78,19 +78,21 @@ internal sealed partial class HandheldWeaponLoader
 			string function = map.ResolveStringId( map.ReadInt32( row + 16 ) );
 			if ( tag is { PrimaryClass: "dnsl" } && string.IsNullOrEmpty( function ) && ReadSoundTrack( row ) is {} track )
 				AtMarker( track.Marker ).AddComponent<ProjectileSound>().Track = track;
-			if ( tag is { PrimaryClass: "effe" } && (tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) ||
-				tag.TagPath == @"effects\scenarios\objects\covenant\military\scarab\main_gun_beam") )
+			if ( tag is { PrimaryClass: "effe" } && tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) )
 			{
 				ReadTimedEffects( tag, AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ) );
+				continue;
+			}
+			if ( tag is { PrimaryClass: "effe" } && (function == "acceleration_range" || tag.TagPath is @"effects\objects\weapons\grenade\frag_grenade\smoke_trail" or @"effects\scenarios\objects\covenant\military\scarab\main_gun_beam") )
+			{
+				if ( AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ), requireMarker: true ) is {} origin &&
+					ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
+					origin.AddComponent<ProjectileExhaust>().Effects = exhaust;
 				continue;
 			}
 			if ( tag is { PrimaryClass: "effe" } && root.GetComponent<ProjectileLightVolume>() is {} volume &&
 				string.IsNullOrEmpty( function ) )
 				volume.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
-			if ( tag is { PrimaryClass: "effe" } && (function == "acceleration_range" || tag.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") &&
-				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ), requireMarker: true ) is {} origin &&
-				ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
-				origin.AddComponent<ProjectileExhaust>().Effects = exhaust;
 			if ( tag is not { PrimaryClass: "hgil" } ) continue;
 			int light = Address( tag );
 			if ( Short( light + 4 ) != 0 || Float( light + 0xb0 ) != 0 ) continue;

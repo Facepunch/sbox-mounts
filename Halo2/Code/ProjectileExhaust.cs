@@ -17,10 +17,13 @@ public sealed class ProjectileExhaust : Component
 	uint random = (uint)System.Random.Shared.Next();
 	double started;
 	int nextTick;
+	bool drivenByFlight;
 
-	protected override void OnStart()
+	protected override void OnStart() => InitializeParticles();
+
+	void InitializeParticles()
 	{
-		if ( Application.IsDedicatedServer ) return;
+		if ( Application.IsDedicatedServer || particles.IsValid() ) return;
 		particles = GameObject.AddComponent<MuzzleFlash>();
 		particles.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked;
 		started = FiredAt > 0 ? FiredAt : Time.NowDouble;
@@ -28,9 +31,17 @@ public sealed class ProjectileExhaust : Component
 		previousPosition = WorldPosition;
 	}
 
+	internal void StepFlight( Vector3 start )
+	{
+		if ( Effects is null || Application.IsDedicatedServer ) return;
+		drivenByFlight = true;
+		if ( !particles.IsValid() ) InitializeParticles();
+		Emit( Effects, start, WorldPosition, 1 );
+	}
+
 	protected override void OnUpdate()
 	{
-		if ( !particles.IsValid() ) return;
+		if ( drivenByFlight || !particles.IsValid() ) return;
 		int due = (int)((Time.NowDouble - started) * 30);
 		if ( due < nextTick ) return;
 		int first = nextTick;

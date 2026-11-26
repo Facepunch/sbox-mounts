@@ -5,11 +5,11 @@ namespace Halo2;
 
 public sealed partial class PelletImpactEffect
 {
-	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt, SparkTrail, AdditiveFlare, ShieldDepletion }
+	public enum ImpactLayer { Rocks, Smoke, Sparks, Drift, MetalChips, GlassShards, ElectricArcs, FierySmoke, Plant, Cloth, Dust, Rubber, Mist, Shield, Spray, Ripple, Clumps, Burst, Dirt, SparkTrail, AdditiveFlare, ShieldDepletion, AdditiveSprite }
 
 	internal static bool HasSpriteRadius( ImpactLayer layer ) => layer is ImpactLayer.Dust or ImpactLayer.Mist or ImpactLayer.Dirt;
 
-	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst or ImpactLayer.AdditiveFlare;
+	internal static bool HasAnimatedRadius( ImpactLayer layer ) => layer is ImpactLayer.Smoke or ImpactLayer.Spray or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.Ripple or ImpactLayer.Clumps or ImpactLayer.Burst or ImpactLayer.AdditiveFlare or ImpactLayer.AdditiveSprite;
 
 	public sealed record ImpactEmitter( ImpactLayer Layer, ImpactSprite Sprite, Vector2 Count, Vector2 Lifetime, Vector2 Speed,
 		Vector2 Cone, Vector2 Spin, Vector2 Size, CurveRange RadiusCurve, CurveRange AlphaCurve, Color Tint, Color TintEnd,
@@ -22,6 +22,9 @@ public sealed partial class PelletImpactEffect
 		public int SizeInput { get; set; }
 		public int RadiusRange { get; set; }
 		public int ColorInput { get; set; }
+		public int ColorRange { get; set; }
+		public CurveRange? AgeTint { get; set; }
+		public CurveRange? AlphaScale { get; set; }
 		public int ConeInput { get; set; }
 		public int SpawnRadiusInput { get; set; }
 		public int Shape { get; set; }
@@ -170,7 +173,7 @@ public sealed partial class PelletImpactEffect
 		renderer.Sprite = sprite;
 		renderer.Scale = sparks ? 1 : 2;
 		renderer.Lighting = data.Lighting;
-		renderer.Additive = sparks || data.Layer is ImpactLayer.SparkTrail or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.ShieldDepletion or ImpactLayer.AdditiveFlare;
+		renderer.Additive = sparks || data.Layer is ImpactLayer.SparkTrail or ImpactLayer.ElectricArcs or ImpactLayer.FierySmoke or ImpactLayer.Shield or ImpactLayer.ShieldDepletion or ImpactLayer.AdditiveFlare or ImpactLayer.AdditiveSprite;
 		if ( sparks || (data.Layer is ImpactLayer.Dirt or ImpactLayer.SparkTrail && data.ParallelToDirection) || data.PerpendicularToDirection || data.Layer is ImpactLayer.Burst or ImpactLayer.AdditiveFlare ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		go.AddComponent<TemporaryEffect>().BecomeOrphan = true;
 
@@ -178,6 +181,7 @@ public sealed partial class PelletImpactEffect
 		{
 			float t = p.LifeDelta;
 			float life = p.Get<float>( "life_fraction" );
+			if ( data.AgeTint is {} ageTint ) p.Color = MuzzleFlash.InterpolateTint( data.Tint, data.TintEnd, ageTint.Evaluate( t, p.Get<float>( "tint_range" ) ) );
 			if ( data.ColorInput == 13 && go.Scene.Camera is {} camera )
 			{
 				// The explosion-rotation input projects accumulated turns onto the camera's left axis.
@@ -244,6 +248,8 @@ public sealed partial class PelletImpactEffect
 				p.Angles.roll = data.SpriteAngle.Evaluate( t, life ).Clamp( data.AngleBounds.x, data.AngleBounds.y ) * 360 + p.Get<float>( "mirror_angle" );
 			}
 			else p.Alpha = data.AlphaCurve.Evaluate( t, life ).Clamp( data.Alpha.x, data.Alpha.y );
+			if ( data.AlphaScale is {} alphaScale ) p.Alpha *= alphaScale.Evaluate( t, life ).Clamp( 0, 1 );
+			if ( data.Layer == ImpactLayer.AdditiveSprite && data.FrameCurve is {} frameCurve ) p.SequenceTime = new Vector3( frameCurve.Evaluate( t, life ), 0, 0 );
 			if ( animatedRadius )
 			{
 				float input = data.SizeInput == 0 ? t : p.Get<float>( "size" );
@@ -280,6 +286,7 @@ public sealed partial class PelletImpactEffect
 			float fourth = ParticleFraction();
 			float RandomInput( int input ) => input switch { 2 => life, 3 => fraction, 14 => size, 15 => fourth, 4 => 1, 5 => random.x, 6 => random.y, _ => 0 };
 			p.Set( "life_fraction", life );
+			if ( data.AgeTint.HasValue ) p.Set( "tint_range", RandomInput( data.ColorRange ) );
 			float lifetime = Sample( data.Lifetime, RandomInput( data.LifeInput ) );
 			p.Set( "lifetime", lifetime );
 			p.DeathTime = p.BornTime + lifetime;
