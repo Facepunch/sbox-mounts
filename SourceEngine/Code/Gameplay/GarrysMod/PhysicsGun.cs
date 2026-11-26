@@ -14,10 +14,15 @@ public sealed class PhysicsGun : Weapon
 	[ConVar( "phys_spinspeed", ConVarFlags.Server, Help = "Degrees per second to turn a held body with the movement keys." )]
 	public static float SpinSpeed { get; set => field = float.IsFinite( value ) ? value : 200; } = 200;
 
+	[ConVar( "gm_snapangles", ConVarFlags.Saved, Min = -360, Max = 360, Help = "Angle increment for Physics Gun rotation while holding Use and Run." )]
+	public static float SnapAngles { get; set; } = 45;
+
 	enum Trigger { Released, Grab, Adjust, Push, Pull, Freeze }
 	System.IDisposable _movementHook;
 	[Sync] Trigger InputState { get; set; }
 	bool Adjusting => InputState is Trigger.Adjust or Trigger.Push or Trigger.Pull;
+	[Sync] float SnapStep { get; set; } = -1;
+	float? _previousSnapStep;
 	[Sync] int SpinDirection { get; set; }
 	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
 	Vector3 _localPoint;
@@ -46,6 +51,7 @@ public sealed class PhysicsGun : Weapon
 
 		if ( Input.Down( "use" ) )
 		{
+			SnapStep = Input.Down( "run" ) ? System.MathF.Abs( float.IsFinite( SnapAngles ) ? SnapAngles : 45 ) : -1;
 			var forward = Input.AnalogMove.x;
 			SpinDirection = -System.Math.Sign( Input.AnalogMove.y );
 			InputState = forward switch { > 0 => Trigger.Push, < 0 => Trigger.Pull, _ => Trigger.Adjust };
@@ -103,6 +109,7 @@ public sealed class PhysicsGun : Weapon
 			_localPoint = transform.PointToLocal( hit.HitPosition );
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_yawOffset = yaw.Inverse * transform.Rotation;
+			_previousSnapStep = null;
 			_arrivalTime = body.GetComponentInParent<ModelPhysics>().IsValid() ? 0.1f : 0.05f;
 		}
 
@@ -115,14 +122,29 @@ public sealed class PhysicsGun : Weapon
 		if ( InputState is Trigger.Push or Trigger.Pull )
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
-		if ( Adjusting && SpinDirection != 0 )
-			_yawOffset = Rotation.FromYaw( SpinDirection * SpinSpeed * Time.Delta ) * _yawOffset;
-
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * _localPoint;
 		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
 		physics.Velocity = velocity.ClampLength( 4000 );
-		var angularError = ShadowController.AngularError( physics.Rotation, yaw * _yawOffset );
+		var angularError = ShadowController.AngularError( physics.Rotation, HoldRotation( yaw ) );
 		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, 5000f.DegreeToRadian(), 10000f.DegreeToRadian(), _arrivalTime, 0.8f );
+	}
+
+	Rotation HoldRotation( Rotation yaw )
+	{
+		if ( Adjusting && SpinDirection != 0 )
+			_yawOffset = Rotation.FromYaw( SpinDirection * SpinSpeed * Time.Delta ) * _yawOffset;
+
+		var target = yaw * _yawOffset;
+		bool snapping = Adjusting && SnapStep >= 0;
+		if ( !snapping && !_previousSnapStep.HasValue ) return target;
+
+		float step = snapping ? SnapStep : _previousSnapStep.Value;
+		target = step == 0 ? Rotation.Identity : target.Angles().SnapToGrid( step ).ToRotation();
+		_previousSnapStep = snapping ? step : null;
+
+		// Resume free rotation from the last grid angle.
+		if ( !snapping ) _yawOffset = yaw.Inverse * target;
+		return target;
 	}
 
 	void StopRedirectingMovement()
