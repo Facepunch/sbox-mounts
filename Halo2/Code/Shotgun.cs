@@ -487,37 +487,6 @@ public sealed partial class Shotgun : Weapon
 		return texture;
 	}
 
-	Color ReticleTint( out bool weakSpot )
-	{
-		weakSpot = false;
-		var ray = AimRay;
-		var hit = BulletTrace( ray, AutoAimRange, 0 ).Run();
-		var npc = hit.GameObject?.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
-		var disposition = Holder is {} holder ? npc?.GetDisposition( holder.GameObject ) : null;
-		if ( disposition is Sandbox.Npcs.Disposition.Friendly or Sandbox.Npcs.Disposition.Hostile )
-		{
-			var target = ModelTarget.FindDirect( npc.Renderer, ray, out float depth );
-			if ( target is null ) depth = ColliderDepth( ray, hit );
-			if ( depth <= AutoAimRange * 0.5f )
-			{
-				if ( disposition == Sandbox.Npcs.Disposition.Friendly ) return Color.FromBytes( 51, 255, 0 );
-				weakSpot = target?.IsWeak == true;
-				return Color.Red;
-			}
-		}
-
-		return Color.FromBytes( 117, 186, 255 );
-	}
-
-	static float ColliderDepth( Ray ray, SceneTraceResult hit )
-	{
-		var center = hit.Hitbox?.Body is { IsValid: true } body ? body.GetBounds().Center
-			: hit.Collider.IsValid() ? hit.Collider.WorldTransform.PointToWorld( hit.Collider.LocalBounds.Center )
-			: hit.EndPosition;
-		// A direct hit projects the target onto the aim ray. TU1.5 starts its confidence falloff at half range.
-		return Vector3.Dot( center - ray.Position, ray.Forward );
-	}
-
 	protected override void PlayMeleeView( string action ) => ViewModel?.GetComponent<ShotgunViewModel>()?.Melee( action );
 
 	protected override bool WantsReload() =>

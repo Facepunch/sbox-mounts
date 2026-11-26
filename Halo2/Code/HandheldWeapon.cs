@@ -98,7 +98,7 @@ public abstract partial class HandheldWeapon : Weapon
 		ref var texture = ref reticleTextures[mode];
 		if ( !texture.IsValid() ) texture = Texture.Load( $"{RigDirectory}.prefab/{reticlePages[mode]}.vtex" );
 		if ( !texture.IsValid() || texture.IsError ) return;
-		painter.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), Color.FromBytes( 117, 186, 255 ) );
+		painter.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), ReticleTint( out _ ) );
 	}
 
 	[Property] public string RigDirectory { get; set; }
