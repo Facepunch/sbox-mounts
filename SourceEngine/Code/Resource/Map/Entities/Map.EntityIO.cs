@@ -126,6 +126,15 @@ partial class MapLoader
 
 		private static Doo.Block BuildInput( Component target, string input, bool hasUser, string parameter )
 		{
+			if ( input.Equals( "Kill", StringComparison.OrdinalIgnoreCase ) )
+			{
+				return new Doo.InvokeBlock
+				{
+					InvokeType = Doo.InvokeType.Static,
+					Member = $"{typeof( Doo.Methods ).FullName}.{nameof( Doo.Methods.GameObjectDestroy )}",
+					Arguments = [new Doo.LiteralExpression { LiteralValue = target.GameObject }]
+				};
+			}
 			if ( target is SourceGlassPane )
 			{
 				var restore = input.Equals( "Restore", StringComparison.OrdinalIgnoreCase );
