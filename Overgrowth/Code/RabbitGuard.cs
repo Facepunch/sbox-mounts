@@ -388,18 +388,32 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 
 	void NoticeAttacker( GameObject attacker )
 	{
-		if ( !StaticCharacter && !CanAttack( enemy ) && CanAttack( attacker ) )
-			Remember( attacker, engage: false );
+		if ( StaticCharacter || !attacker.IsValid() || attacker == GameObject || IsIgnoredPlayer( attacker ) ) return;
+		if ( !CanAttack( attacker ) )
+		{
+			if ( attacker.GetComponent<BaseNpc>().IsValid() || attacker.GetComponentInParent<PlayerController>().IsValid() )
+				NoticeCharacter( attacker );
+			return;
+		}
+
+		// A notice records every attacker. Only a fighter already attacking keeps its chase target.
+		if ( enemy == attacker || (CanAttack( enemy ) && !Fleeing) )
+		{
+			NoticeCharacter( attacker );
+			return;
+		}
+		if ( Fleeing ) fleeFrom = attacker;
+		Remember( attacker, startle: false );
 	}
 
-	void Remember( GameObject target, bool engage = true )
+	void Remember( GameObject target, bool startle = true )
 	{
-		if ( !knownCharacters.ContainsKey( target ) && engage && !enemy.IsValid() && !escortTarget.IsValid() )
+		if ( !knownCharacters.ContainsKey( target ) && startle && !enemy.IsValid() && !escortTarget.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );
 		}
-		if ( !enemy.IsValid() && engage )
+		if ( !enemy.IsValid() )
 		{
 			bool frightening = target.GetComponent<RabbitGuard>() is { CausesFearOnSight: true };
 			fleeFrom = AlwaysAfraidOnSight || frightening && !NeverAfraidOnSight ? target : null;

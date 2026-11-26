@@ -183,7 +183,7 @@ public sealed partial class RabbitGuard
 		if ( Flee() || (soughtItem is not null && SeekWeapon()) ) return;
 		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
 		{
-			Remember( closest, engage: false );
+			Remember( closest, startle: false );
 			visible = CanSeeCharacter( closest, closest.GetComponent<RabbitGuard>() );
 		}
 		if ( !IsKnownThreat( enemy ) )
