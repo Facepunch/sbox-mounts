@@ -75,6 +75,8 @@ partial class MapLoader
 				instance.Tags.Add( "world" );
 			if ( prop.StaticPropIndex < 0 )
 				instance.Tags.Add( "source1_entity" );
+			if ( prop.EnableOnPhyscannon )
+				instance.Tags.Add( Hl2.GravityWeapon.EnableMotionTag );
 			var materialGroup = GetSkin( model, prop.Skin, path );
 			if ( useGameplay )
 			{

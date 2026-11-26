@@ -27,6 +27,7 @@ partial class MapLoader
 				Physics = PropPhysics.Rigid,
 				Gameplay = true,
 				StartAsleep = (flags & 1) != 0,
+				EnableOnPhyscannon = (flags & 64) != 0,
 				MotionEnabled = (flags & 8) == 0 && entity.Integer( "damagetoenablemotion" ) <= 0 && entity.Number( "forcetoenablemotion" ) <= 0,
 				MassScale = entity.Number( "massscale", 1 )
 			};

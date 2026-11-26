@@ -19,6 +19,8 @@ public sealed class GravityWeapon : Weapon
 		AttackDamageTags = [];
 	}
 
+	internal const string EnableMotionTag = "enable_on_physcannon";
+
 	enum PuntResult { Miss, Hit, HitDamageable, LaunchHeld }
 	enum CarryResult { Pickup, Drop, ForcedDrop }
 
@@ -79,13 +81,13 @@ public sealed class GravityWeapon : Weapon
 		var ray = TargetTrace( AimRay, range ).WithoutTags( "player" );
 		var tr = ray.Run();
 		var body = tr.GameObject?.GetComponentInParent<Rigidbody>();
-		if ( !body.IsValid() || !body.MotionEnabled )
+		if ( !body.IsValid() )
 		{
 			tr = ray.Size( 8 ).Run();
 			body = tr.GameObject?.GetComponentInParent<Rigidbody>();
 		}
 		hitPosition = tr.HitPosition;
-		return body.IsValid() && body.MotionEnabled ? body : null;
+		return body;
 	}
 
 	Rigidbody FindBodyInCone( Ray aim )
@@ -108,6 +110,9 @@ public sealed class GravityWeapon : Weapon
 	}
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
+
+	static bool CanActivate( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid()
+		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag ));
 
 	static bool IsFlesh( Rigidbody body )
 	{
@@ -161,7 +166,12 @@ public sealed class GravityWeapon : Weapon
 
 		if ( obj.GetComponentInParent<Rigidbody>() is { } body )
 		{
-			if ( !CanMove( body ) || IsFlesh( body ) ) return PuntResult.Miss;
+			if ( body.IsProxy || !body.PhysicsBody.IsValid() || IsFlesh( body ) ) return PuntResult.Miss;
+			if ( !body.MotionEnabled )
+			{
+				if ( !body.Tags.Has( EnableMotionTag ) ) return PuntResult.Hit;
+				body.MotionEnabled = true;
+			}
 			if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
 			PuntBodies( body, forward, trace.EndPosition );
 			return PuntResult.Hit;
@@ -273,7 +283,7 @@ public sealed class GravityWeapon : Weapon
 		var body = FindBody( PullLength, out var hit );
 		bool pull = body.IsValid() && aim.Position.Distance( hit ) > TraceLength;
 		body ??= FindBodyInCone( aim );
-		if ( !CanMove( body ) || body.Mass > MaxMass || IsFlesh( body ) )
+		if ( !CanActivate( body ) || body.IsProxy || body.Mass > MaxMass || IsFlesh( body ) )
 		{
 			if ( _playedDenySound ) return;
 			_playedDenySound = true;
@@ -282,11 +292,13 @@ public sealed class GravityWeapon : Weapon
 		}
 		if ( pull )
 		{
+			if ( !body.MotionEnabled ) return;
 			var direction = (aim.Position - body.GameObject.GetBounds().Center).Normal;
 			var scale = body.Mass < 50 ? (body.Mass + 0.5f) / 50 : 1;
 			body.ApplyImpulse( direction * (PullForce * scale) );
 			return;
 		}
+		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
 		var interactions = body.GetComponent<ModelRenderer>()?.Model?.GetData<PhysGunInteractions>();
 		_holdOffset = interactions?.PreferredCarryAngles is { } angles ? Rotation.From( angles ) : Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
@@ -383,7 +395,7 @@ public sealed class GravityWeapon : Weapon
 		if ( Application.IsDedicatedServer ) return;
 		_effects ??= new PhysCannonEffects();
 		// Only the owner traces; other peers show the idle claws.
-		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass } body && !IsFlesh( body );
+		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass } body && CanActivate( body ) && !IsFlesh( body );
 		_effects.Update( this, HeldObject, ready );
 	}
 
