@@ -26,7 +26,7 @@ public sealed partial class Lerk
 		var direction = SpikeDirection( View, Random.Shared.NextSingle(), Random.Shared.NextSingle() );
 		var origin = EyePosition;
 		var end = origin + direction * (41 * Scale);
-		var trace = Scene.Trace.Ray( origin, end ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseHitboxes();
+		var trace = Scene.Trace.Ray( origin, end ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes();
 		bool tracer = Random.Shared.NextSingle() < 0.75f;
 		for ( int i = 0; i < 20; i++ )
 		{

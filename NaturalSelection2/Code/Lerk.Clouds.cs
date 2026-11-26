@@ -35,7 +35,7 @@ public sealed partial class Lerk
 	{
 		var point = CalculateAimPoint( target );
 		var trace = Scene.Trace.Sphere( 0.15f * Scale, EyePosition, point )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseDamageHitboxes().Run();
 		return !trace.Hit || trace.GameObject == target || trace.EndPosition.DistanceSquared( point ) <= 2.25f * Scale * Scale ||
 			trace.GameObject?.GetComponentInParent<BaseNpc>() is { } blocker && target.GetComponent<BaseNpc>() is { } npc && npc.Faction == blocker.Faction;
 	}
@@ -54,7 +54,7 @@ public sealed partial class Lerk
 	{
 		if ( energy < CloudCost ) return;
 		var hit = Scene.Trace.Ray( EyePosition, EyePosition + View.Forward * CloudRange )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseHitboxes().Run();
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
 		var origin = Renderer.WorldTransform.PointToWorld( modelOrigin );
 		var travel = hit.EndPosition - origin;
 		var go = new GameObject( false, spores ? "Spore cloud" : "Umbra cloud" ) { WorldPosition = origin };

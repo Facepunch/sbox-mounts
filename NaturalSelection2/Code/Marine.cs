@@ -450,7 +450,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		float radius = Random.Shared.NextSingle() * MathF.Tan( (pistol ? 0.2f : 1.4f).DegreeToRadian() );
 		var d = (aim.Forward + (aim.Left * MathF.Cos( theta ) + aim.Up * MathF.Sin( theta )) * radius).Normal;
 		var eye = EyePosition;
-		var ray = Scene.Trace.Ray( eye, eye + d * BulletRange ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes();
+		var ray = Scene.Trace.Ray( eye, eye + d * BulletRange ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseDamageHitboxes();
 		bool box = lastShot >= 0.2f || lastHit < 0.5f;
 		lastShot = 0;
 		bool hitEntity = false;

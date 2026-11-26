@@ -31,7 +31,7 @@ public sealed class GorgeBile : Component
 			var trace = marker.Scene.Trace.Ray( origin, end ).WithoutTags( "trigger" );
 			var wall = trace.WithTag( "world" ).Run();
 			var point = target.WorldPosition;
-			var hit = trace.UseHitboxes().RunAll().FirstOrDefault( x => x.GameObject?.GetComponentInParent<IDamageable>() == (IDamageable)target );
+			var hit = trace.UseDamageHitboxes().RunAll().FirstOrDefault( x => x.GameObject?.GetComponentInParent<IDamageable>() == (IDamageable)target );
 			if ( hit.Hit && (!wall.Hit || hit.Fraction <= wall.Fraction) ) point = hit.HitPosition;
 			else if ( wall.Hit && wall.Fraction <= 0.9f ) continue;
 

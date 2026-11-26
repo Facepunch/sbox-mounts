@@ -75,7 +75,7 @@ internal static class AlienMelee
 	internal static IEnumerable<(SceneTraceResult Hit, IDamageable Victim)> Swing( BaseNpc npc, Rotation view, float reach, float width, float height, Attack attack )
 	{
 		var ray = npc.Scene.Trace.Ray( npc.EyePosition, npc.EyePosition + view.Forward * reach )
-			.IgnoreGameObjectHierarchy( npc.GameObject ).UseHitboxes();
+			.IgnoreGameObjectHierarchy( npc.GameObject ).UseDamageHitboxes();
 		if ( attack != Attack.Gore ) ray = ray.WithoutTags( "ns2_babbler" );
 
 		for ( int i = 0; i < 20; i++ )

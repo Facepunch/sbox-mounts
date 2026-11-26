@@ -14,7 +14,7 @@ public sealed class GorgeProjectile : Component
 		var end = eye + aim.Forward * (1.5f * Scale);
 		var trace = bile ? gorge.Scene.Trace.Ray( eye, end ) : gorge.Scene.Trace.Sphere( 0.15f * Scale, eye, end );
 		var start = trace
-			.IgnoreGameObjectHierarchy( gorge.GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
+			.IgnoreGameObjectHierarchy( gorge.GameObject ).WithoutTags( "trigger" ).UseDamageHitboxes().Run();
 		Gorge.PlayCue( bile ? "bilebomb" : "spit", eye );
 		var shot = new GameObject( false, bile ? "Bile bomb" : "Gorge spit" ) { WorldPosition = start.EndPosition, WorldRotation = aim };
 		var projectile = shot.AddComponent<GorgeProjectile>();
@@ -41,7 +41,7 @@ public sealed class GorgeProjectile : Component
 		var gravityStep = Bile ? Vector3.Down * (9.81f * Scale * Time.Delta) : Vector3.Zero;
 		var next = WorldPosition + (velocity + gravityStep * 0.5f) * Time.Delta;
 		velocity += gravityStep;
-		var trace = Scene.Trace.Sphere( (Bile ? 0.2f : 0.15f) * Scale, WorldPosition, next ).WithoutTags( "trigger" ).UseHitboxes();
+		var trace = Scene.Trace.Sphere( (Bile ? 0.2f : 0.15f) * Scale, WorldPosition, next ).WithoutTags( "trigger" ).UseDamageHitboxes();
 		if ( owner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( owner.GameObject );
 		var hit = trace.Run();
 		if ( hit.Hit ) Impact( hit );

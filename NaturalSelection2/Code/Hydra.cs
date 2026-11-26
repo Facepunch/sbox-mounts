@@ -121,7 +121,7 @@ public sealed class Hydra : AlienStructure
 		var origin = Barrel;
 		var direction = SpikeDirection( CalculateAimPoint( target ) - origin, GetVelocity( target ), Random.Shared.NextSingle(), Random.Shared.NextSingle(), out var fireDirection );
 		var hit = Scene.Trace.Ray( origin, origin + direction * Range ).IgnoreGameObjectHierarchy( GameObject )
-			.WithoutTags( "ns2_hydra", "trigger" ).UseHitboxes().Run();
+			.WithoutTags( "ns2_hydra", "trigger" ).UseDamageHitboxes().Run();
 		GameObject targetHit = null;
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is Component victim && GetDisposition( victim.GameObject ) == Disposition.Hostile )
 		{

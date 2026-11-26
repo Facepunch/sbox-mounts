@@ -47,8 +47,11 @@ public sealed class Mac : Ns2Npc, Component.IDamageable
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		renderer.LocalScale = Vector3.One * 0.75f;
-		renderer.LocalPosition = Vector3.Up * (0.4f * Scale);
-		var collider = root.AddComponent<CapsuleCollider>();
+		root.GetComponent<ModelHitboxes>( true ).Enabled = false;
+
+		var movement = new GameObject( root, true, "Movement" );
+		movement.Tags.Add( "ns2_movement" );
+		var collider = movement.AddComponent<CapsuleCollider>();
 		collider.Start = Vector3.Up * (0.5f * Scale);
 		collider.End = Vector3.Up * (0.7f * Scale);
 		collider.Radius = 0.5f * Scale;
@@ -72,6 +75,9 @@ public sealed class Mac : Ns2Npc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		// The MAC's damage hulls take their scale from the evaluated bones.
+		Renderer.SceneModel.Update( 0 );
+		GetComponent<ModelHitboxes>( true ).Enabled = true;
 		nextIdleSound = IdleSoundInterval;
 		if ( !Application.IsDedicatedServer ) Renderer.CreateAttachments = true;
 		pain = GetComponent<SupportPain>();

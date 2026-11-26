@@ -33,7 +33,7 @@ public sealed partial class Skulk
 		ShowAbilityEffect( "parasite_fire", WorldPosition, BodyRotation );
 		var forward = ViewRotation.Forward;
 		var ray = Scene.Trace.Ray( EyePosition, EyePosition + forward * (1000 * MapLoader.Scale) )
-			.IgnoreGameObjectHierarchy( GameObject ).UseHitboxes();
+			.IgnoreGameObjectHierarchy( GameObject ).UseDamageHitboxes();
 		var hit = ray.Run();
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is null )
 		{

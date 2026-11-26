@@ -54,7 +54,7 @@ public sealed class BabblerPheromone : Component
 		{
 			var end = previousPosition + previousVelocity * (Time.Delta + 0.125f * 3);
 			var hit = Scene.Trace.Sphere( 0.125f * Scale, previousPosition, end ).IgnoreGameObjectHierarchy( GameObject )
-				.WithoutTags( "trigger", "ns2_babbler" ).UseHitboxes().Run();
+				.WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
 			ProcessHit( hit.GameObject, hit.EndPosition );
 		}
 		previousPosition = position;

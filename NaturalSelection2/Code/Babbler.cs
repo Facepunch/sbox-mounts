@@ -325,7 +325,7 @@ public sealed partial class Babbler : Ns2Npc
 	void CheckImpact( Vector3 start, Vector3 direction )
 	{
 		const float reach = 0.7f * Scale;
-		var trace = Scene.Trace.Ray( start, start + direction * reach ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseHitboxes();
+		var trace = Scene.Trace.Ray( start, start + direction * reach ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes();
 		var hit = trace.Run();
 		if ( !hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true )
 		{
