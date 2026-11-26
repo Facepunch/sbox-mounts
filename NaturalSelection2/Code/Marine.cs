@@ -487,14 +487,37 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		base.OnDisabled();
 	}
 
-	protected override void OnDamaging( IDamageable.DamageEvent hit ) => AlienArmor.Absorb( hit, armor );
+	static float ArmorOnlyDamage( DamageInfo hit )
+	{
+		if ( hit.Tags.Has( "corrode" ) ) return hit.Damage * 0.12f;
+		return hit.Tags.Has( "armoronly" ) ? hit.Damage : 0;
+	}
+
+	protected override void OnDamaging( IDamageable.DamageEvent hit )
+	{
+		if ( hit.AcceptedDamage <= 0 || hit.DamageInfo.Tags.HasAny( "splash", "structuresonly", "nervegas" ) )
+		{
+			hit.Cancelled = true;
+			return;
+		}
+		if ( ArmorOnlyDamage( hit.DamageInfo ) > 0 )
+		{
+			hit.AcceptedDamage = 0;
+			hit.Cancelled = armor <= 0;
+			return;
+		}
+
+		hit.AcceptedDamage *= AlienArmor.PlayerDamageScale( hit.DamageInfo );
+		AlienArmor.Absorb( hit, armor );
+	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		if ( hit.AcceptedDamage <= 0 ) return;
+		float armorOnlyDamage = ArmorOnlyDamage( hit.DamageInfo );
+		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
 		combatUntil = 3;
 		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );
-		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30 );
+		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30, armorOnlyDamage );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

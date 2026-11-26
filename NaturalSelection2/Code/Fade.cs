@@ -193,7 +193,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( victim is not Component target ) return;
 
 		bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
-		float amount = player && target is not Exo ? 75 : 37.5f;
+		float amount = player && target is not (Marine or Exo) ? 75 : 37.5f;
 		if ( stab )
 		{
 			amount = OpenToStab( target.GameObject ) ? 270 : 120;

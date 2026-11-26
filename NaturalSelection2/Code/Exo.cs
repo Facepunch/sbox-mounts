@@ -368,13 +368,8 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 			return;
 		}
 
-		float damage = hit.AcceptedDamage;
-		if ( tags.Has( "puncture" ) ) damage *= 2;
-		else if ( tags.Has( "machinegun" ) ) damage *= 1.5f;
-		else if ( tags.Has( "corrode" ) ) damage *= 0.4f;
-		else if ( tags.HasAny( "clusterflame", "clusterflamefragment" ) ) damage *= 0.2f;
-
-		float ratio = tags.HasAny( "door", "structuralheavy" ) ? 1 : AlienArmor.HealthPerArmor( hit.DamageInfo );
+		float damage = hit.AcceptedDamage * (tags.Has( "corrode" ) ? 0.4f : AlienArmor.PlayerDamageScale( hit.DamageInfo ));
+		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
 		float armorLost = damage / ratio;
 		hit.AcceptedDamage = armorLost >= RemainingArmor ? Health : armorLost;
 	}

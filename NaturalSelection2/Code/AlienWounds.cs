@@ -12,15 +12,6 @@ internal sealed class AlienWounds
 	internal const string ExtraFlinch = "ns2_extra_flinch";
 	internal static float Intensity( TimeUntil end ) => Math.Clamp( end.Relative * Decay, 0, 1 );
 
-	internal static (float Armor, TimeUntil End) ApplyFlinch( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, TimeUntil end )
-	{
-		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
-		float healthLost = hit.AcceptedDamage;
-		float armorLost = ratio == 0 ? 0 : Math.Min( armor, healthLost * (0.7f / 0.3f) / ratio );
-		float damage = healthLost + armorLost * ratio;
-		return (armor - armorLost, Flinch( hit, damage, maxHealth, end ));
-	}
-
 	internal static TimeUntil Flinch( Component.IDamageable.DamageEvent hit, float damage, float maxHealth, TimeUntil end )
 	{
 		float intensity = Math.Clamp( Intensity( end ) + damage / (maxHealth * 0.2f), 0.2f, 1 );
@@ -30,11 +21,11 @@ internal sealed class AlienWounds
 		return intensity / Decay;
 	}
 
-	internal float ApplyDamage( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, float maxArmor )
+	internal float ApplyDamage( Component.IDamageable.DamageEvent hit, float armor, float maxHealth, float maxArmor, float armorOnlyDamage = 0 )
 	{
-		var (remaining, end) = ApplyFlinch( hit, armor, maxHealth, flinchEnd );
-		flinchEnd = end;
-		float armorLost = armor - remaining;
+		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
+		float armorLost = ratio == 0 ? 0 : Math.Min( armor, (armorOnlyDamage + hit.AcceptedDamage * (0.7f / 0.3f)) / ratio );
+		flinchEnd = Flinch( hit, hit.AcceptedDamage + armorLost * ratio, maxHealth, flinchEnd );
 		damageFraction += (hit.AcceptedDamage + armorLost * 2) / (maxHealth + maxArmor * 2);
 		return armorLost;
 	}
