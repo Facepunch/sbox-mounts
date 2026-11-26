@@ -15,7 +15,7 @@ internal static class AlienHealing
 
 	internal static bool IsAlien( Component target ) => target is AlienNpc or Babbler or Drifter || target.GameObject.Tags.Has( "ns2_lifeform" );
 
-	internal static bool Restore( Component target, float amount, float armorScalar )
+	internal static bool Restore( Component target, float amount, float armorScalar, bool rateLimited = true )
 	{
 		var hp = (Component.IDamageable)target;
 		if ( amount <= 0 || hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour ) return false;
@@ -25,10 +25,13 @@ internal static class AlienHealing
 		if ( IsAlien( target ) )
 		{
 			if ( target.GameObject.Tags.HasAll( "ns2_lifeform", "burning" ) ) amount *= 0.5f;
-			allowance = allowances.GetValue( target, static _ => new() );
-			limit = (hp.MaxHealth + 2 * hp.MaxArmour) * 0.12f;
-			allowance.Received = Math.Max( 0, allowance.Received - allowance.Last * limit );
-			allowance.Last = 0;
+			if ( rateLimited )
+			{
+				allowance = allowances.GetValue( target, static _ => new() );
+				limit = (hp.MaxHealth + 2 * hp.MaxArmour) * 0.12f;
+				allowance.Received = Math.Max( 0, allowance.Received - allowance.Last * limit );
+				allowance.Last = 0;
+			}
 		}
 
 		float health = Math.Clamp( hp.MaxHealth - hp.Health, 0, amount );

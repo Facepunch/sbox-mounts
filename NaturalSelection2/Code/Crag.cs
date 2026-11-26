@@ -37,7 +37,7 @@ public sealed class Crag : AlienStructure
 			_ => Math.Clamp( hp.MaxHealth * 0.042f, 7, 42 )
 		};
 		pulse.Next = 2;
-		return AlienHealing.Restore( target, amount, 0.5f );
+		return AlienHealing.Restore( target, amount, 0.5f, rateLimited: false );
 	}
 
 	protected override void OnUpdate()
