@@ -252,18 +252,15 @@ public abstract class Projectile : Component
 			ForceScale = 1.5f,
 			Prefab = prefab
 		}.Spawn();
-		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName );
+		// The prefab plays BaseGrenade.Explode. Source layers the explosion effect sound over it.
+		if ( prefab is not null && blast.IsValid() ) PlaySound( "BaseExplosionEffect.Sound", WorldPosition, MountName );
 		GameObject.Destroy();
 	}
 
-	/// <summary>
-	/// CBaseGrenade::Explode's te->Explosion plays BaseExplosionEffect.Sound on top of the prefab's BaseGrenade.Explode.
-	/// HL2 keeps the boom in the former and the debris in the latter; Counter-Strike swaps them.
-	/// </summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ExplosionSound( Vector3 position, string mountName )
+	protected static void PlaySound( string name, Vector3 position, string mountName )
 	{
-		if ( Sounds.Sound( "BaseExplosionEffect.Sound", mountName ) is { } sound ) Sound.Play( sound, position );
+		if ( Sounds.Sound( name, mountName ) is { } sound ) Sound.Play( sound, position );
 	}
 
 	protected void PlayImpact( SceneTraceResult tr, string sound, bool impactEffect = true ) =>

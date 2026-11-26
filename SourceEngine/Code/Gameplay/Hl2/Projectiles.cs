@@ -143,7 +143,7 @@ public sealed class CrossbowBolt : Projectile
 [Title( "HL2 Rocket" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Rocket", "Hl2Rocket" )]
-public sealed class Rocket : Projectile
+public sealed class Rocket : Projectile, Component.IDamageable
 {
 	internal const string LaunchModel = "models/weapons/w_missile_launch.mdl";
 	protected override string InitialModelPath => Ignited ? ModelPath : LaunchModel;
@@ -154,6 +154,9 @@ public sealed class Rocket : Projectile
 	const float HomingPerTick = 0.125f;
 	[Sync( SyncFlags.FromHost )] bool Ignited { get; set; }
 	bool _ignitionPresented;
+	float _damageUntilShotDown = 20;
+	TimeUntil? _augerEnds;
+	TimeUntil _nextTurn;
 	Vector3 _aim;
 	SoundHandle _loop;
 	GameObject _smoke;
@@ -167,7 +170,7 @@ public sealed class Rocket : Projectile
 	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
 
 	protected override float Gravity => Ignited ? 0 : 600;
-	protected override Rotation NextRotation() => Ignited ? base.NextRotation() : Rotation.LookAt( _aim );
+	protected override Rotation NextRotation() => Ignited || _augerEnds.HasValue ? base.NextRotation() : Rotation.LookAt( _aim );
 
 	protected override void OnStart()
 	{
@@ -179,8 +182,41 @@ public sealed class Rocket : Projectile
 		base.OnStart();
 	}
 
+	public void OnDamage( in DamageInfo damage )
+	{
+		if ( !Networking.IsHost || _augerEnds.HasValue || damage.Damage <= 0 ) return;
+		if ( !damage.Tags.Has( "missiledefense" ) && !damage.Tags.Has( "airboat" ) ) return;
+		_damageUntilShotDown -= damage.Damage;
+		if ( _damageUntilShotDown > 0 ) return;
+
+		PlaySound( "Missile.ShotDown", WorldPosition, MountName );
+		_augerEnds = 1.5f;
+		_nextTurn = 0;
+		ReleaseLauncher();
+	}
+
+	protected override bool Simulate()
+	{
+		if ( _augerEnds is not { } end || end > 0 ) return true;
+		Explode();
+		return false;
+	}
+
 	protected override void Steer()
 	{
+		if ( _augerEnds.HasValue )
+		{
+			if ( _nextTurn <= 0 )
+			{
+				var angles = WorldRotation.Angles();
+				angles.pitch += Game.Random.Float( -1, 8 );
+				angles.yaw += Game.Random.Float( -20, 20 );
+				Velocity = angles.Forward * 1000;
+				_nextTurn = 0.05f;
+			}
+			return;
+		}
+
 		if ( !Ignited )
 		{
 			if ( Age < IgniteDelay ) return;
@@ -216,6 +252,11 @@ public sealed class Rocket : Projectile
 	protected override void OnDestroy()
 	{
 		_loop?.Stop( 0.1f );
+		ReleaseLauncher();
+	}
+
+	void ReleaseLauncher()
+	{
 		if ( Networking.IsHost && Weapon is ProjectileWeapon launcher && launcher.LiveRocket == GameObject ) launcher.NotifyRocketDied();
 	}
 
