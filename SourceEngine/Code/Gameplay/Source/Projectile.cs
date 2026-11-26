@@ -71,7 +71,7 @@ public abstract class Projectile : Component
 			Kinds.Grenade => Spawn<Hl2.Grenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
 			Kinds.ContactGrenade => Spawn<Hl2.ContactGrenade>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
 			Kinds.EnergyBall => Spawn<Hl2.EnergyBall>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
-			Kinds.Bugbait => Spawn<Hl2.Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon ),
+			Kinds.Bugbait => Spawn<Hl2.Bugbait>( attacker, mount, origin, velocity, damage, radius, model, weapon: weapon, rotation: Rotation.Identity ),
 			_ => Css.Rules.Launch( kind, attacker, mount, origin, velocity, damage, radius, model, weapon )
 		};
 	}

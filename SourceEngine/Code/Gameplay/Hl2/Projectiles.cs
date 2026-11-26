@@ -602,6 +602,15 @@ public sealed class Bugbait : Projectile
 
 	public const float ThrowSpeed = 1000;
 
+	readonly Angles _angularVelocity = new( 600, Game.Random.Int( -1200, 1200 ), 0 );
+	Angles _angles;
+
+	protected override Rotation NextRotation()
+	{
+		_angles += _angularVelocity * Time.Delta;
+		return _angles.ToRotation();
+	}
+
 	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;
 
