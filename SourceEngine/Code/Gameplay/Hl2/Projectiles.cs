@@ -602,20 +602,28 @@ public sealed class Bugbait : TumblingProjectile
 	public static Vector3 ThrowVelocity( Vector3 forward, Vector3 inherited ) => inherited + forward * ThrowSpeed;
 
 	[Sync( SyncFlags.FromHost )] internal TimeUntil SolidAt { get; set; }
-	[RequireComponent] ModelCollider Hull { get; set; }
+	GameObject _shotTarget;
 	protected override bool CanCollide => SolidAt <= 0;
 
 	protected override void OnStart()
 	{
 		base.OnStart();
-		Hull.Enabled = CanCollide;
-		if ( !string.IsNullOrEmpty( ModelPath ) ) Hull.Model = Model.Load( $"mount://{MountName}/{ModelPath}.vmdl" );
 		if ( Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
+		var model = string.IsNullOrEmpty( ModelPath ) ? null : Model.Load( $"mount://{MountName}/{ModelPath}.vmdl" );
+		var hitbox = model?.HitboxSet.All.FirstOrDefault();
+		if ( hitbox?.Shape is not BBox box ) return;
+
+		_shotTarget = new GameObject( GameObject, false, "Bugbait hitbox" ) { NetworkMode = NetworkMode.Never };
+		if ( hitbox.Bone is { } bone ) _shotTarget.LocalTransform = bone.LocalTransform;
+		var collider = _shotTarget.AddComponent<BoxCollider>();
+		collider.Center = box.Center;
+		collider.Scale = box.Size;
+		_shotTarget.Enabled = CanCollide;
 	}
 
 	protected override void OnFixedUpdate()
 	{
-		Hull.Enabled = CanCollide;
+		if ( _shotTarget.IsValid() ) _shotTarget.Enabled = CanCollide;
 		base.OnFixedUpdate();
 	}
 
