@@ -22,6 +22,38 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 	protected int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
 
+	protected (int Row, TagEntry Bitmap, int Index)? HudPage( string widget, bool split, bool elite = false )
+	{
+		if ( Reference( Header + 0x2b0 ) is not {} definition ) return null;
+		int hud = Address( definition );
+		int widgets = Block( hud + 8 );
+		for ( int i = 0; i < map.ReadInt32( hud + 8 ); i++ )
+		{
+			int row = widgets + i * 100;
+			if ( map.ResolveStringId( map.ReadInt32( row ) ) != widget ) continue;
+			var bitmap = Reference( row + 0x20 );
+			if ( bitmap is null ) return null;
+			int sequence = map.ReadSpan( row + (split ? 0x31 : 0x30), 1 )[0];
+			int sequences = Address( bitmap ) + 60;
+			int count = map.ReadInt32( sequences );
+			// HUD sequence zero addresses the first image when the bitmap has no sequences.
+			int index = 0;
+			if ( count == 0 )
+			{
+				if ( sequence != 0 || map.ReadInt32( sequences + 8 ) <= 0 ) return null;
+			}
+			else
+			{
+				if ( sequence >= count ) return null;
+				int selected = Block( sequences ) + sequence * 60;
+				index = Short( selected + 32 );
+				if ( elite && Short( selected + 34 ) > 1 ) index++;
+			}
+			return (row, bitmap, index);
+		}
+		return null;
+	}
+
 	protected ProjectileSpeedProfile ReadSpeedProfile( int projectile )
 	{
 		int flags = map.ReadInt32( projectile + 0xbc );

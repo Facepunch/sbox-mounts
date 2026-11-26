@@ -196,6 +196,7 @@ public abstract partial class Weapon
 					continue;
 				}
 				if ( pellet.Velocity == Vector3.Zero ) continue;
+				var startingVelocity = pellet.Velocity;
 				if ( target.IsValid() )
 				{
 					var desired = (target.WorldTransform.PointToWorld( localPoint ) - start).Normal;
@@ -210,7 +211,8 @@ public abstract partial class Weapon
 				var velocityChange = Vector3.Down * fall;
 				if ( speedChange != 0 )
 					velocityChange += (profile.FollowsVelocity ? pellet.Velocity.Normal : pellet.Forward) * speedChange;
-				var displacement = (pellet.Velocity + velocityChange * 0.5f) * step;
+				// Guidance, acceleration and gravity all contribute over the same native tick.
+				var displacement = (startingVelocity + ((pellet.Velocity - startingVelocity) + velocityChange) * 0.5f) * step;
 				pellet.Velocity += velocityChange;
 				float distance = displacement.Length;
 				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )

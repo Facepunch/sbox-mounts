@@ -186,48 +186,25 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 
 	internal Halo2TextureLoader HudBitmap( string widget, bool split = false, float? meterFill = null, bool elite = false )
 	{
-		int hud = Address( Reference( Header + 0x2b0 ) );
-		int widgets = Block( hud + 8 );
-		for ( int i = 0; i < map.ReadInt32( hud + 8 ); i++ )
+		if ( HudPage( widget, split, elite ) is not {} page ) return null;
+		var (row, bitmap, index) = page;
+		if ( meterFill is float fill )
 		{
-			int row = widgets + i * 100;
-			if ( map.ResolveStringId( map.ReadInt32( row ) ) != widget ) continue;
-			var bitmap = Reference( row + 0x20 );
-			int sequence = map.ReadSpan( row + (split ? 0x31 : 0x30), 1 )[0];
-			int sequences = Address( bitmap ) + 60;
-			int count = map.ReadInt32( sequences );
-			// HUD sequence zero addresses the first image when the bitmap has no sequences.
-			int index = 0;
-			if ( count == 0 )
-			{
-				if ( sequence != 0 || map.ReadInt32( sequences + 8 ) <= 0 ) return null;
-			}
-			else
-			{
-				if ( sequence >= count ) return null;
-				int selected = Block( sequences ) + sequence * 60;
-				index = Short( selected + 32 );
-				if ( elite && Short( selected + 34 ) > 1 ) index++;
-			}
-			if ( meterFill is float fill )
-			{
-				int shader = Address( Reference( row + 0x28 ) );
-				int postprocess = Block( shader + 0x20 );
-				if ( map.ReadInt32( postprocess + 60 ) == 0 ) return null;
-				int rgb = HudColor( postprocess, 0, elite );
-				return new Halo2TextureLoader( map, bitmap, index, meter: (fill, rgb) );
-			}
-			if ( widget is "weapon_background_single" or "weapon_background_out" )
-			{
-				int shader = Address( Reference( row + 0x28 ) );
-				int postprocess = Block( shader + 0x20 );
-				if ( map.ReadInt32( postprocess + 60 ) < 5 ) return null;
-				int ColorAt( int slot ) => HudColor( postprocess, slot, elite );
-				return new Halo2TextureLoader( map, bitmap, index, hudGradient: (ColorAt( 1 ), ColorAt( 0 ), ColorAt( 4 )) );
-			}
-			return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
+			int shader = Address( Reference( row + 0x28 ) );
+			int postprocess = Block( shader + 0x20 );
+			if ( map.ReadInt32( postprocess + 60 ) == 0 ) return null;
+			int rgb = HudColor( postprocess, 0, elite );
+			return new Halo2TextureLoader( map, bitmap, index, meter: (fill, rgb) );
 		}
-		return null;
+		if ( widget is "weapon_background_single" or "weapon_background_out" )
+		{
+			int shader = Address( Reference( row + 0x28 ) );
+			int postprocess = Block( shader + 0x20 );
+			if ( map.ReadInt32( postprocess + 60 ) < 5 ) return null;
+			int ColorAt( int slot ) => HudColor( postprocess, slot, elite );
+			return new Halo2TextureLoader( map, bitmap, index, hudGradient: (ColorAt( 1 ), ColorAt( 0 ), ColorAt( 4 )) );
+		}
+		return new Halo2TextureLoader( map, bitmap, index, hudMask: widget is "crosshair" or "crosshair_weakspot" );
 	}
 
 	Dictionary<string, TagEntry> casingMaterials, pelletMaterials, pelletEffects;

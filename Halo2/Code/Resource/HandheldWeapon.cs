@@ -69,6 +69,23 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	internal string AmmoPath => $"ammo/{Name}.ammo";
 	PrefabFile prefab;
 
+	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+	{
+		type = ResourceType.Texture;
+		if ( Name != "rocket_launcher" ) return null;
+		bool split = name.StartsWith( "split_", StringComparison.Ordinal );
+		if ( split ) name = name[6..];
+		var widget = name switch
+		{
+			"lockable.vtex" => "lockable",
+			"locked.vtex" => "locked",
+			"locking.vtex" => "locking",
+			_ => null
+		};
+		if ( widget is null || HudPage( widget, split ) is not {} page ) return null;
+		return new Halo2TextureLoader( map, page.Bitmap, page.Index, hudMask: true );
+	}
+
 	protected override object Load()
 	{
 		var world = WorldModelPath;
