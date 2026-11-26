@@ -1,3 +1,4 @@
+using Sandbox.Npcs;
 using System;
 
 namespace NS2;
@@ -9,6 +10,7 @@ public sealed partial class Fade
 	TimeUntil releaseBlink;
 	int hopsRemaining;
 	float lastJump;
+	Vector3? airGoal;
 	MapLocations locations;
 	SoundHandle blinkLoop;
 	SkinnedModelRenderer blinkOverlay;
@@ -41,6 +43,7 @@ public sealed partial class Fade
 			if ( !IsOnGround || hopsRemaining == 0 && Time.Now <= lastJump + 0.15f ) return;
 			var jump = Animation.MoveVelocity.WithZ( 0 );
 			jump.z = MathF.Sqrt( 2 * 21.5f * 1.4f ) * Scale;
+			airGoal = goal;
 			Launch( jump );
 			lastJump = Time.Now;
 			if ( hopsRemaining > 0 ) hopsRemaining--;
@@ -50,6 +53,7 @@ public sealed partial class Fade
 
 		var body = GetComponent<Rigidbody>();
 		var velocity = IsOnGround ? Animation.MoveVelocity : body.Velocity;
+		airGoal = goal;
 		Launch( BlinkLaunchVelocity( velocity, view.Forward, IsOnGround ) );
 		body.Gravity = false;
 		energy -= 12;
@@ -62,7 +66,19 @@ public sealed partial class Fade
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
-		if ( !Networking.IsHost || !Blinking ) return;
+		if ( !Networking.IsHost ) return;
+		if ( !Blinking )
+		{
+			if ( !IsAirborne || PhysicsCarrier.IsValid() || Health <= 0 || !NpcConVars.Enabled )
+				airGoal = null;
+			else if ( airGoal is { } goal )
+			{
+				var direction = (goal - WorldPosition).WithZ( 0 ).Normal;
+				var rigidbody = GetComponent<Rigidbody>();
+				rigidbody.Velocity = AirVelocity( rigidbody.Velocity / Scale, view, direction, Time.Delta ) * Scale;
+			}
+			return;
+		}
 		var body = GetComponent<Rigidbody>();
 		if ( releaseBlink <= 0 || energy <= 12 || Health <= 0 || PhysicsCarrier.IsValid() )
 		{
@@ -79,6 +95,42 @@ public sealed partial class Fade
 		float cap = Math.Clamp( velocity.Length, 14 * Scale, 25 * Scale );
 		var increment = view.Forward * (Scale * Time.Delta);
 		body.Velocity = (velocity + increment * 40).ClampLength( cap ) + increment;
+	}
+
+	// GroundMoveMixin steers the existing horizontal momentum before applying normal air acceleration.
+	static Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float dt )
+	{
+		const float maxSpeed = 6.2f;
+		var forward = view.Forward.WithZ( 0 ).Normal;
+		var left = view.Left.WithZ( 0 ).Normal;
+		float ahead = Math.Clamp( direction.Dot( forward ), -1, 1 );
+		float sideways = direction.Dot( left );
+
+		var planar = velocity.WithZ( 0 );
+		float speed = velocity.Length;
+		float friction = speed > 19 ? 0.4f : 0.17f;
+		if ( speed > 0 ) planar *= Math.Max( 0, 1 - friction * dt * planar.Length / speed );
+
+		float startSpeed = planar.Length;
+		var wish = direction;
+		if ( ahead != 0 && ahead * forward.Dot( planar.Normal ) >= -0.8f )
+		{
+			float lateralSpeed = planar.Dot( left );
+			if ( sideways != 0 ) wish = left * Math.Sign( sideways );
+			else wish = Math.Abs( lateralSpeed ) > 0.2f * maxSpeed ? -left * Math.Sign( lateralSpeed ) : Vector3.Zero;
+		}
+
+		float addSpeed = 1.3f - planar.Dot( wish );
+		if ( ahead == 1 ) planar = (planar + forward * (80 * dt)).Normal * startSpeed;
+		if ( addSpeed > 0 ) planar += wish * Math.Min( addSpeed, 40 * dt * 1.3f );
+		planar += planar.Normal * (Math.Max( -velocity.z, 0 ) * dt * 0.34f);
+		planar = planar.ClampLength( startSpeed + dt * 0.54f );
+
+		float fraction = Math.Min( planar.Length / maxSpeed, 1 );
+		var move = (view.Forward * ahead + view.Left * sideways).WithZ( 0 ).Normal;
+		float speedLimit = Math.Max( planar.Length, maxSpeed );
+		planar += move * (6 * (1 - fraction * fraction) * dt);
+		return planar.ClampLength( speedLimit ).WithZ( velocity.z );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
