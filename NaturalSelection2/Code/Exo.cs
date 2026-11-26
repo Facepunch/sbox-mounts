@@ -336,7 +336,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 
 	void Fire( float damage, bool isLeft, bool fullCharge )
 	{
-		var direction = aim.Forward;
+		var direction = Railguns ? aim.Angles().Forward : aim.Forward;
 		if ( !Railguns )
 		{
 			float angle = Random.Shared.NextSingle() * MathF.Tau;
@@ -344,13 +344,25 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			direction = (direction + radius * (aim.Left * MathF.Cos( angle ) + aim.Up * MathF.Sin( angle ))).Normal;
 		}
 		var eye = EyePosition;
-		var end = eye + direction * ((Railguns ? 32 : 45) * Scale);
+		float range = Railguns ? 32 : 45;
+		var end = eye + direction * (range * Scale);
 		var ray = Scene.Trace.Ray( eye, end ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( GameObject ).UseDamageHitboxes();
 		float pierceStep = 0;
 		if ( Railguns )
 		{
-			end = Scene.Trace.Ray( eye, end ).WithTag( "world" ).Run().EndPosition;
+			// Spark builds the sweep from the two endpoints in map metres.
+			var origin = eye / Scale;
+			var railEnd = origin + direction * range;
+			direction = (railEnd - origin).Normal;
 			var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * (0.3f * Scale);
+			// Spark rejects box sweeps with a zero half-extent.
+			if ( extents.x == 0 || extents.y == 0 || extents.z == 0 )
+			{
+				acquisition.Record( false );
+				return;
+			}
+
+			end = Scene.Trace.Ray( eye, railEnd * Scale ).WithTag( "world" ).Run().EndPosition;
 			ray = ray.FromTo( eye, end ).Size( -extents, extents );
 			pierceStep = extents.y * 3;
 		}
