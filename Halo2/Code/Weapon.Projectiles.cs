@@ -54,6 +54,8 @@ public abstract partial class Weapon
 		public Vector3 Velocity;
 		public float Travelled;
 		public int DetonateAtTick;
+		public PhysicsShape BounceSurface;
+		public Vector3 BounceNormal;
 		public float TurnRate;
 		public float FuseSeconds;
 		public ProjectileContrail Trail;
@@ -173,6 +175,14 @@ public abstract partial class Weapon
 			{
 				var pellet = pellets[i];
 				var start = origin + pellet.Offset;
+				if ( pellet.Model is not null && !pellet.Model.IsValid() )
+				{
+					// A world cleanup can remove a live projectile before it reaches a contact.
+					if ( pellet.Trail.IsValid() ) pellet.Trail.Finish( start, firedAt + tick / 30.0 );
+					pellets[i] = default;
+					flying--;
+					continue;
+				}
 				if ( pellet.DetonateAtTick > 0 && tick >= pellet.DetonateAtTick )
 				{
 					if ( pellet.Model.IsValid() ) pellet.Model.Destroy();
@@ -207,8 +217,15 @@ public abstract partial class Weapon
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
 				// but requires an object contact to be strictly nearer.
 				var sweep = atRange ? displacement * 2 : displacement;
-				var hit = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
-					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
+				var trace = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
+					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes();
+				var hit = trace.Run();
+				if ( pellet.BounceSurface is {} surface && hit.StartedSolid && hit.Shape == surface && Vector3.Dot( sweep, pellet.BounceNormal ) > 0 )
+				{
+					// A cast starting on the reflecting face can report that face at fraction zero.
+					hit = trace.RunAll().FirstOrDefault( contact => !(contact.StartedSolid && contact.Shape == surface) );
+				}
+				pellet.BounceSurface = null;
 				if ( atRange && hit.Hit )
 				{
 					float remaining = Vector3.Dot( start + displacement - hit.HitPosition, displacement );
@@ -227,7 +244,7 @@ public abstract partial class Weapon
 					{
 						pellet.Trail?.Finish( origin + pellet.Offset, firedAt + tick / 30.0 + step );
 						(results ??= new()).Add( new( origin + pellet.Offset ) );
-						pellet.Velocity = Vector3.Zero;
+						pellet = default;
 						flying--;
 					}
 					pellets[i] = pellet;
@@ -242,7 +259,9 @@ public abstract partial class Weapon
 					{
 						var perpendicular = hit.Normal * dot;
 						pellet.Velocity = (pellet.Velocity - perpendicular) * (1 - bounce.ParallelFriction) - perpendicular * (1 - bounce.NormalFriction);
-						pellet.Offset = OutsideSurface( hit.HitPosition, hit.Normal ) - origin;
+						pellet.Offset = hit.HitPosition - origin;
+						pellet.BounceSurface = hit.Shape;
+						pellet.BounceNormal = hit.Normal;
 						pellet.Travelled += hit.Distance;
 						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
 						if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = new Transform( hit.HitPosition, Rotation.LookAt( pellet.Velocity ) );
