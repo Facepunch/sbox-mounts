@@ -138,13 +138,11 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		aim = WorldRotation;
 		worldTag = OnWorldTag;
 		left.Released = right.Released = 1;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
 		var path = Renderer.Model.ResourcePath;
-		if ( mount?.GetByPath( path ) is ModelLoader body )
-			graph = new( body.PropGraph, body );
-		if ( mount?.GetByPath( path.Replace( ".model.vmdl", "_view.model.vmdl" ) ) is ModelLoader view )
+		graph = CreatePlayback( path );
+		if ( FindModel( path.Replace( ".model.vmdl", "_view.model.vmdl" ) ) is { } view )
 		{
-			weapon = new( view.PropGraph, view );
+			weapon = view.CreatePlayback();
 			onTag = OnWeaponTag;
 		}
 	}
@@ -364,7 +362,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 			var origin = eye / Scale;
 			var railEnd = origin + direction * range;
 			direction = (railEnd - origin).Normal;
-			var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * (0.3f * Scale);
+			var extents = DamageTraces.SweepExtents( direction, 0.3f * Scale );
 			// Spark rejects box sweeps with a zero half-extent.
 			if ( extents.x == 0 || extents.y == 0 || extents.z == 0 )
 			{

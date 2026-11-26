@@ -30,14 +30,7 @@ public sealed partial class Lerk
 		bool tracer = Random.Shared.NextSingle() < 0.75f;
 		for ( int i = 0; i < 20; i++ )
 		{
-			var hit = trace.Run();
-			if ( !hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true )
-			{
-				// Spark retries a world hit or miss with a box perpendicular to the spike.
-				var d = direction;
-				var extents = new Vector3( d.WithX( 0 ).Length, d.WithY( 0 ).Length, d.WithZ( 0 ).Length ) * (0.045f * Scale);
-				hit = trace.FromTo( origin, hit.EndPosition ).Size( -extents, extents ).Run();
-			}
+			var hit = trace.TraceBullet( origin, direction, 0.045f * Scale );
 			var position = hit.EndPosition - direction * (0.13f * Scale);
 			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
 			var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();

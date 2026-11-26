@@ -81,14 +81,12 @@ public sealed partial class Lerk : AlienLifeform
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+		if ( FindModel( Renderer.Model.ResourcePath ) is { } model )
 		{
 			modelOrigin = model.BoundsCenter;
-			world = new( model.PropGraph, model );
+			world = model.CreatePlayback();
 		}
-		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/lerk/lerk_view.model.vmdl" ) is ModelLoader viewModel )
-			weapon = new( viewModel.PropGraph, viewModel );
+		weapon = CreatePlayback( "mount://ns2/ns2/models/alien/lerk/lerk_view.model.vmdl" );
 		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 7 * Scale / gravity;

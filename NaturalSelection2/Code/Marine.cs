@@ -136,11 +136,10 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 			rifleVariant = Random.Shared.Next( 3 );
 			age = 0;
-			var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-			if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+			if ( FindModel( Renderer.Model.ResourcePath ) is { } model )
 			{
 				modelOrigin = model.BoundsCenter;
-				graph = new( model.PropGraph, model );
+				graph = model.CreatePlayback();
 			}
 			worldTag = OnWorldTag;
 		}
@@ -167,8 +166,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( heldModel.IsValid() ) heldModel.Model = Model.Load( $"{directory}.model.vmdl" );
 		if ( Networking.IsHost )
 		{
-			var view = Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( $"{directory}_view.model.vmdl" ) as ModelLoader;
-			weapon = view?.PropGraph is { } g ? new( g, view ) : null;
+			weapon = CreatePlayback( $"{directory}_view.model.vmdl" );
 			reloading = false;
 		}
 	}
@@ -650,12 +648,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		bool hitEntity = false;
 		for ( int i = 0; i < 20; i++ )
 		{
-			var hit = ray.Run();
-			if ( box && (!hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true) )
-			{
-				var extents = new Vector3( d.WithX( 0 ).Length, d.WithY( 0 ).Length, d.WithZ( 0 ).Length ) * (0.018f * Scale);
-				hit = ray.FromTo( eye, hit.EndPosition ).Size( -extents, extents ).Run();
-			}
+			var hit = box ? ray.TraceBullet( eye, d, 0.018f * Scale ) : ray.Run();
 			var obj = hit.GetBulletTarget( out var hp, out bool pass );
 			if ( obj.IsValid() && !obj.Tags.Has( "world" ) )
 			{

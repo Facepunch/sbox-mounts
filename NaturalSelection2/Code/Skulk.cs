@@ -67,12 +67,10 @@ public sealed partial class Skulk : AlienLifeform
 		sneaky = Random.Shared.Next( 2 ) == 0;
 		worldTag = OnWorldTag;
 		PlayVoice( "spawn" );
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			world = new( model.PropGraph, model );
-		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/skulk/skulk_view.model.vmdl" ) is ModelLoader viewModel )
+		world = CreatePlayback( Renderer.Model.ResourcePath );
+		if ( FindModel( "mount://ns2/ns2/models/alien/skulk/skulk_view.model.vmdl" ) is { } viewModel )
 		{
-			weapon = new( viewModel.PropGraph, viewModel );
+			weapon = viewModel.CreatePlayback();
 			weaponTag = OnWeaponTag;
 			weapon.Set( "ability", "bite" );
 			weapon.Set( "attack_speed", 1 );

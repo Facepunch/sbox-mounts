@@ -70,11 +70,8 @@ public sealed partial class Gorge : AlienLifeform
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			world = new( model.PropGraph, model );
-		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/gorge/gorge_view.model.vmdl" ) is ModelLoader arms )
-			weapon = new( arms.PropGraph, arms );
+		world = CreatePlayback( Renderer.Model.ResourcePath );
+		weapon = CreatePlayback( "mount://ns2/ns2/models/alien/gorge/gorge_view.model.vmdl" );
 		worldTag = tag => AlienFootsteps.OnTag( this, "gorge", tag );
 		weaponTag = OnWeaponTag;
 		AnimationTime = 0;

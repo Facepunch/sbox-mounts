@@ -84,11 +84,8 @@ public sealed partial class Fade : AlienLifeform
 	{
 		base.OnStart();
 		if ( !Networking.IsHost ) return;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			world = new( model.PropGraph, model );
-		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/fade/fade_view.model.vmdl" ) is ModelLoader viewModel )
-			weapon = new( viewModel.PropGraph, viewModel );
+		world = CreatePlayback( Renderer.Model.ResourcePath );
+		weapon = CreatePlayback( "mount://ns2/ns2/models/alien/fade/fade_view.model.vmdl" );
 		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;

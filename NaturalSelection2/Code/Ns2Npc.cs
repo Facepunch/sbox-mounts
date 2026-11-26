@@ -4,6 +4,10 @@ namespace NS2;
 
 public abstract partial class Ns2Npc : BaseNpc
 {
+	private protected static ModelLoader FindModel( string path ) => Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( path ) as ModelLoader;
+
+	private protected static SparkAnimationGraph.Playback CreatePlayback( string path ) => FindModel( path )?.CreatePlayback();
+
 	Vector3? lastOrigin;
 	Vector3 engagementPoint;
 
@@ -31,6 +35,17 @@ internal static class DamageTraces
 {
 	internal static SceneTrace UseDamageHitboxes( this SceneTrace trace ) =>
 		trace.WithoutTags( "ns2_movement", BabblerPheromone.BallTag ).UseHitboxes();
+
+	internal static Vector3 SweepExtents( Vector3 direction, float radius ) =>
+		new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * radius;
+
+	internal static SceneTraceResult TraceBullet( this SceneTrace trace, Vector3 start, Vector3 direction, float radius )
+	{
+		var hit = trace.Run();
+		if ( hit.Hit && hit.GameObject?.Tags.Has( "world" ) != true ) return hit;
+		var extents = SweepExtents( direction, radius );
+		return trace.FromTo( start, hit.EndPosition ).Size( -extents, extents ).Run();
+	}
 
 	internal static GameObject GetBulletTarget( this SceneTraceResult hit, out Component.IDamageable health, out bool penetrable )
 	{

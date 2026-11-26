@@ -343,12 +343,7 @@ public sealed partial class Babbler : Ns2Npc
 	{
 		const float reach = 0.7f * Scale;
 		var trace = Scene.Trace.Ray( start, start + direction * reach ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes();
-		var hit = trace.Run();
-		if ( !hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true )
-		{
-			var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * reach;
-			hit = trace.FromTo( start, hit.EndPosition ).Size( -extents, extents ).Run();
-		}
+		var hit = trace.TraceBullet( start, direction, reach );
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is not Component victim || AlienTargeting.IsIgnoredPlayer( victim.GameObject ) || GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;
 		nextHit = 0.42f + Random.Shared.Float( -0.25f, 0.25f );
 		lastHit = 0;

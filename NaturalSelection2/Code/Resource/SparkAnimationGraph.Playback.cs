@@ -5,13 +5,18 @@ namespace NS2;
 
 internal sealed partial class SparkAnimationGraph
 {
+	internal (int Sequence, float Duration)[] BindClips( ModelLoader model ) => Array.ConvertAll( clips, name =>
+	{
+		int index = model.SequenceIndex( name );
+		return (index, model.SequenceDuration( index ));
+	} );
+
 	internal sealed class Playback
 	{
 		readonly SparkAnimationGraph graph;
 		readonly double[] inputs;
 		readonly ModelLoader model;
-		readonly int[] sequences;
-		readonly float[] durations;
+		readonly (int Sequence, float Duration)[] clips;
 		readonly List<(float Time, string Name)> markers = [];
 		readonly Track[] tracks;
 		float time;
@@ -82,8 +87,7 @@ internal sealed partial class SparkAnimationGraph
 			this.graph = graph;
 			inputs = new double[graph.inputs.Length];
 			this.model = model;
-			sequences = Array.ConvertAll( graph.clips, model.SequenceIndex );
-			durations = Array.ConvertAll( sequences, model.SequenceDuration );
+			clips = graph == model.PropGraph ? model.PlaybackClips : graph.BindClips( model );
 			tracks = new Track[graph.layers.Length];
 			foreach ( var layer in graph.layers )
 			{
@@ -126,7 +130,7 @@ internal sealed partial class SparkAnimationGraph
 				track.Remaining = 0;
 				if ( track.Current.Clip >= 0 )
 				{
-					float duration = durations[track.Current.Clip];
+					float duration = clips[track.Current.Clip].Duration;
 					float start = track.Current.Seconds( before );
 					float end = track.Current.Seconds( time );
 					float wrapped = duration > 0 ? start % duration : 0;
@@ -158,7 +162,7 @@ internal sealed partial class SparkAnimationGraph
 		void EmitMarkers( Sample sample, float before, GraphParameters pose, Action<string> emit )
 		{
 			if ( sample.Clip < 0 ) return;
-			model.EmitSequenceTags( sequences[sample.Clip], pose, sample.Seconds( before ), sample.Seconds( time ), markers, emit );
+			model.EmitSequenceTags( clips[sample.Clip].Sequence, pose, sample.Seconds( before ), sample.Seconds( time ), markers, emit );
 		}
 
 		bool Next( Layer layer, Track track, out int dest, out bool byLabel )
@@ -214,9 +218,9 @@ internal sealed partial class SparkAnimationGraph
 			if ( node.Action != ActionType.Play ) return;
 			if ( track.Current.Start != time && track.Current.Clip >= 0 ) track.Previous = track.Current;
 			float rate = Rate( node );
-			track.Current = new( sequences[node.Clip] >= 0 ? node.Clip : -1, time, rate );
+			track.Current = new( clips[node.Clip].Sequence >= 0 ? node.Clip : -1, time, rate );
 			track.Blend = rate == 0 ? 0 : (byLabel ? node.LabelBlend : node.Blend) / rate;
-			track.Remaining = durations[node.Clip] / rate;
+			track.Remaining = clips[node.Clip].Duration / rate;
 
 			void Emit( int index )
 			{

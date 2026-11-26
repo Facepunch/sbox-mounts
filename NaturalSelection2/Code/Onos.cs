@@ -93,12 +93,10 @@ public sealed partial class Onos : AlienLifeform
 		PlayCue( "spawn" );
 		var gravity = MathF.Abs( Scene.PhysicsWorld.Gravity.z );
 		if ( gravity > 0 ) GetComponent<Rigidbody>().GravityScale = 21.5f * Scale / gravity;
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			world = new( model.PropGraph, model );
-		if ( mount?.GetByPath( "mount://ns2/ns2/models/alien/onos/onos_view.model.vmdl" ) is ModelLoader view )
+		world = CreatePlayback( Renderer.Model.ResourcePath );
+		if ( FindModel( "mount://ns2/ns2/models/alien/onos/onos_view.model.vmdl" ) is { } view )
 		{
-			weapon = new( view.PropGraph, view );
+			weapon = view.CreatePlayback();
 			stompDuration = view.SequenceDuration( view.SequenceIndex( "stomp" ) );
 		}
 		AnimationTime = 0;

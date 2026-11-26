@@ -19,20 +19,20 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 
 	enum ChunkType
 	{
-		Vertices = 1,        // int32 n; n × 92-byte vertex
-		Indices = 2,         // int32 n; n × int32
+		Vertices = 1,        // int32 n; n Ã— 92-byte vertex
+		Indices = 2,         // int32 n; n Ã— int32
 		FaceSets = 3,        // material, firstFace, numFaces, bone palette
-		Materials = 4,       // int32 n; n × string
+		Materials = 4,       // int32 n; n Ã— string
 		Solids = 5,          // collision hulls: name, bone, coords, mass, points, tris
 		Bones = 6,           // name, parent, pos, rot, scale, scaleOrient, uniformScale
 		Animations = 7,      // curves (compressed) and/or per-frame poses
 		AnimationNodes = 8,  // play/blend/layer graph nodes
-		Sequences = 9,       // name → animation node (+ length, v≥2)
+		Sequences = 9,       // name â†’ animation node (+ length, vâ‰¥2)
 		BlendParameters = 10,
 		Cameras = 11,
 		HitProxies = 12,     // box hitboxes
 		AttachPoints = 13,
-		Joints = 14,         // ragdoll joints; flag==0 → 6 float limits
+		Joints = 14,         // ragdoll joints; flag==0 â†’ 6 float limits
 		CollisionPairs = 15, // disabled body collision pairs
 		CollisionReps = 16,
 		BoundingBox = 17,    // model-space center and half-extents
@@ -165,7 +165,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	// instead of reading it, so unused sections (e.g. redundant pose blobs) never load.
 	struct Reader
 	{
-		const int BufferSize = 128 * 1024; // must fit the largest single read (strings ≤ 64KB)
+		const int BufferSize = 128 * 1024; // must fit the largest single read (strings â‰¤ 64KB)
 
 		private readonly Stream stream;
 		private readonly byte[] buffer;
@@ -388,7 +388,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	private static void ReadVertices( ref Reader r, ParsedModel model )
 	{
 		int count = r.Int();
-		r.Check( (long)count * 92 ); // 92 bytes per vertex, v≥6 layout
+		r.Check( (long)count * 92 ); // 92 bytes per vertex, vâ‰¥6 layout
 		var dst = new SkinnedVertex[count];
 
 		for ( int i = 0; i < count; i++ )
@@ -523,7 +523,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			}
 
 			// Per-frame pose blobs. The engine ignores these when compressed curves
-			// exist — skipping them here means they're never decoded.
+			// exist â€” skipping them here means they're never decoded.
 			int numBoneCurves = r.Int();
 			if ( (uint)numBoneCurves > 5000 ) throw new InvalidDataException( "NS2 model: too many bone curves" );
 			anim.BoneCurves = new (int, long)[numBoneCurves];
@@ -655,7 +655,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			int body1 = r.Int();
 			var frame1 = ConvertCoords( r.ReadCoords() );
 
-			// flag != 0 → engine discards the joint and no limits follow
+			// flag != 0 â†’ engine discards the joint and no limits follow
 			if ( r.Int() != 0 )
 				continue;
 
@@ -739,6 +739,10 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	Dictionary<string, string> sequenceAliases;
 	internal string ResolveSequenceName( string name ) => sequenceAliases?.GetValueOrDefault( name ) ?? name;
 
+	internal SparkAnimationGraph.Playback CreatePlayback() => new( PropGraph, this );
+
+	internal (int Sequence, float Duration)[] PlaybackClips => field ??= PropGraph.BindClips( this );
+
 	internal SparkAnimationGraph PropGraph => field ??= LoadPropGraph();
 
 	SparkAnimationGraph LoadPropGraph()
@@ -769,7 +773,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			return;
 
 		// Name animations after sequences where possible:
-		// sequence → node → first type-1 descendant → animation
+		// sequence â†’ node â†’ first type-1 descendant â†’ animation
 		var names = new string[animations.Animations.Length];
 		foreach ( var seq in animations.Sequences )
 		{
@@ -781,7 +785,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				(sequenceAliases ??= new( StringComparer.OrdinalIgnoreCase ))[seq.Name] = names[animIndex];
 		}
 
-		// The rest are blend-node poses — name them "{parameter}_{value}" (e.g. arc_yaw_-90)
+		// The rest are blend-node poses â€” name them "{parameter}_{value}" (e.g. arc_yaw_-90)
 		// from the blend node that references them so they're usable in animgraphs.
 		foreach ( var node in animations.AnimationNodes )
 		{
@@ -831,7 +835,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		r.Seek( anim.CurvesOffset );
 
 		// Curves are parallel to the bone-curve list, which carries the actual bone
-		// indices — bones without curves keep their bind pose.
+		// indices â€” bones without curves keep their bind pose.
 		int boneCount = model.Bones.Length;
 		var posCurves = new Curve<Vector3>[boneCount];
 		var rotCurves = new Curve<Quaternion>[boneCount];
@@ -1465,7 +1469,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			}
 		}
 
-		// positions only — one tight pass over the interleaved vertex data
+		// positions only â€” one tight pass over the interleaved vertex data
 		var vertices = new Vector3[model.Vertices.Length];
 		for ( int i = 0; i < vertices.Length; i++ )
 			vertices[i] = model.Vertices[i].position;
@@ -1473,7 +1477,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		builder.AddTraceMesh( vertices, indices );
 	}
 
-	// Spark → s&box: y-up right-handed → z-up, ×40
+	// Spark â†’ s&box: y-up right-handed â†’ z-up, Ã—40
 	private const float Scale = 40.0f;
 
 	[MethodImpl( MethodImplOptions.AggressiveInlining )]

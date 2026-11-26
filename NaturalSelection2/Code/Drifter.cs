@@ -65,8 +65,7 @@ public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 		if ( !Networking.IsHost ) return;
 		AnimationTime = 0;
 		onTag = OnTag;
-		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
-			graph = new( model.PropGraph, model );
+		graph = CreatePlayback( Renderer.Model.ResourcePath );
 	}
 
 	protected override void Think()

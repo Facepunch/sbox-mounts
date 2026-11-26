@@ -30,7 +30,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float EnzymeGrowth => enzymeActive ? enzymeAge * 0.75f / Stats.BuildSeconds : 0;
 	internal bool HasEnzyme => enzymeActive;
 
-	ModelLoader MountedModel => Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( Renderer.Model.ResourcePath ) as ModelLoader;
+	ModelLoader MountedModel => FindModel( Renderer.Model.ResourcePath );
 
 	protected override Vector3 GetEngagementPoint()
 	{
@@ -112,7 +112,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		var idle = root.AddComponent<StructureIdleSound>();
 		idle.EventName = $"sound/NS2.fev/alien/structures/{idleSound}";
 		idle.Positional = true;
-		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( renderer.Model.ResourcePath ) is ModelLoader model )
+		if ( FindModel( renderer.Model.ResourcePath ) is { } model )
 			model.AddMovementCollision( renderer, trigger: npc is Hydra );
 	}
 
@@ -127,7 +127,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		age = 0;
 		maxArmor = Stats.Armor;
 		armor = maxArmor * 0.3f;
-		if ( model is not null ) graph = new( model.PropGraph, model );
+		if ( model is not null ) graph = model.CreatePlayback();
 	}
 
 	protected override void OnUpdate()

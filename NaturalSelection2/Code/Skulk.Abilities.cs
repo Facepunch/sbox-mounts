@@ -37,7 +37,7 @@ public sealed partial class Skulk
 		var hit = ray.Run();
 		if ( hit.GameObject?.GetComponentInParent<IDamageable>() is null )
 		{
-			var extent = new Vector3( forward.WithX( 0 ).Length, forward.WithY( 0 ).Length, forward.WithZ( 0 ).Length ) * (0.15f * MapLoader.Scale);
+			var extent = DamageTraces.SweepExtents( forward, 0.15f * MapLoader.Scale );
 			hit = ray.Size( -extent, extent ).Run();
 		}
 		if ( !hit.Hit ) return;

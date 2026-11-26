@@ -18,11 +18,10 @@ public sealed partial class Babbler
 
 	void StartGraph()
 	{
-		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+		if ( FindModel( Renderer.Model.ResourcePath ) is { } model )
 		{
 			modelOrigin = model.BoundsCenter;
-			graph = new( model.PropGraph, model );
+			graph = model.CreatePlayback();
 		}
 		animationTime = 0;
 	}

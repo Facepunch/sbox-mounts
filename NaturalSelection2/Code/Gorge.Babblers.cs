@@ -79,7 +79,7 @@ public sealed partial class Gorge
 		if ( !hit.GameObject.IsValid() || hit.GameObject.Tags.Has( "world" ) )
 		{
 			var forward = aim.Forward;
-			var size = new Vector3( forward.WithX( 0 ).Length, forward.WithY( 0 ).Length, forward.WithZ( 0 ).Length ) * (2 * 0.315f * Scale);
+			var size = DamageTraces.SweepExtents( forward, 2 * 0.315f * Scale );
 			hit = Scene.Trace.Ray( EyePosition, hit.Hit ? hit.EndPosition : end ).Size( size )
 				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
 		}
