@@ -7,7 +7,7 @@ namespace Overgrowth;
 
 public sealed class BalanceSurface : Component
 {
-	[Property, Hide] public Vector3[] Vertices { get; set; } = [];
+	[Property, Hide] public Vector3[] Vertices { get; set => field = value ?? []; } = [];
 
 	internal static Dictionary<int, List<int>> ReadLevel( BaseFileSystem fs, string level )
 	{
