@@ -4,7 +4,7 @@ namespace Diesel;
 using Matrix = System.Numerics.Matrix4x4;
 
 /// <summary>Authored character skeleton and skin, shared by browser resources and NPC appearances.</summary>
-sealed class PaydayCharacter
+sealed partial class PaydayCharacter
 {
 	public ModelFile File { get; }
 	public Dictionary<string, AnimationFile> Clips { get; }

@@ -22,6 +22,9 @@ public sealed class PaydayMount : BaseGameMount
 	internal Dictionary<string, PaydayCharacter> Characters { get; } = [];
 	/// <summary>Unit path for each unit IdString in the installed lookup.</summary>
 	internal Dictionary<ulong, string> UnitNames { get; } = [];
+	readonly List<string> animationPaths = [];
+	/// <summary>Authored animation source paths, usable below a browser character's /clips/ resource path.</summary>
+	public IReadOnlyList<string> AnimationPaths => animationPaths;
 
 	readonly Dictionary<string, UnitEndurance> endurance = new( StringComparer.Ordinal );
 	MapMaterials runtimeMaterials;
@@ -102,6 +105,7 @@ public sealed class PaydayMount : BaseGameMount
 		var worlds = Database.Entries.Values.Where( e => e.Type == worldType ).ToDictionary( e => e.Path );
 		ulong textureType = IdString.Hash( "texture" );
 		ulong unitType = IdString.Hash( "unit" );
+		ulong animationType = IdString.Hash( "animation" );
 		ulong materialType = IdString.Hash( "material_config" );
 		// The installed game supplies its own path dictionary. No external hashlist or extracted assets required.
 		var lookup = Database.Find( "idstring_lookup", "idstring_lookup" );
@@ -113,6 +117,7 @@ public sealed class PaydayMount : BaseGameMount
 		foreach ( var name in Encoding.Latin1.GetString( lookup ).Split( '\0' ).Distinct() )
 		{
 			ulong hash = IdString.Hash( name );
+			if ( Database.Entries.ContainsKey( (animationType, hash) ) ) animationPaths.Add( name );
 			if ( Database.Entries.ContainsKey( (bankType, hash) ) ) bankPaths.Add( name );
 			if ( Database.Entries.ContainsKey( (materialType, hash) ) )
 			{
@@ -273,6 +278,7 @@ public sealed class PaydayMount : BaseGameMount
 		browserMaterials = null;
 		Characters.Clear();
 		UnitNames.Clear();
+		animationPaths.Clear();
 		endurance.Clear();
 		sequenceManagers.Clear();
 		sequenceSounds.Clear();
