@@ -227,7 +227,7 @@ public sealed class Rocket : Projectile
 	protected override void Expire() => Explode();
 }
 
-/// <summary>weapon_frag's npc_grenade_frag: a VPhysics box that explodes when its fuse runs out.</summary>
+/// <summary>weapon_frag's npc_grenade_frag: a VPhysics projectile that explodes when its fuse runs out.</summary>
 [Title( "HL2 Grenade" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Grenade", "Hl2Grenade" )]
@@ -256,8 +256,6 @@ public sealed class Grenade : Projectile
 			var gravity = Scene.PhysicsWorld.Gravity.Length;
 			if ( gravity > 0 ) body.GravityScale = 600f / gravity;
 		}
-		if ( GetComponent<BoxCollider>() is { } box && Sandbox.Mounting.Directory.Get( MountName ) is SourceGameMount mount )
-			box.Surface = mount.GetSurface( "grenade", ModelPath );
 
 		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
 	}
@@ -283,6 +281,31 @@ public sealed class Grenade : Projectile
 
 	protected override float Lifetime => Fuse;
 	protected override float? Physical => HalfSize;
+	protected override Collider CreateCollider( float halfSize )
+	{
+		var mount = Sandbox.Mounting.Directory.Get( MountName );
+		var asset = mount?.GetByPath( $"mount://{MountName}/{ModelPath}.vmdl" );
+		if ( asset is null )
+		{
+			ModelPath = "models/weapons/w_grenade.mdl";
+			asset = mount?.GetByPath( $"mount://{MountName}/{ModelPath}.vmdl" );
+		}
+
+		var model = asset is null ? null : Model.Load( asset.Path );
+		Collider collider;
+		if ( model?.Physics?.Parts.Count > 0 )
+		{
+			var hull = GameObject.AddComponent<ModelCollider>();
+			hull.Model = model;
+			collider = hull;
+		}
+		else collider = base.CreateCollider( halfSize );
+
+		if ( mount is SourceGameMount source )
+			collider.Surface = source.GetSurface( "grenade", ModelPath );
+		return collider;
+	}
+
 	// AngularImpulse( 600, random -1200 to 1200, 0 ) in degrees per second.
 	protected override Vector3 Spin => new Vector3( 600, Game.Random.Float( -1200, 1200 ), 0 ) * (MathF.PI / 180);
 	protected override void Expire() => Explode();

@@ -22,7 +22,7 @@ public sealed class Mount : SourceGameMount
 		if ( standalone is not null )
 		{
 			var sources = ScanContent( standalone ).ToList();
-			if ( GarrysModArchive( garrysMod, IsGarrysModWeaponFile, IsGarrysModWorldModelFile ) is { } models )
+			if ( GarrysModArchive( garrysMod, IsGarrysModWeaponFile, ReplacesWorldModel ) is { } models )
 				sources.Add( models );
 			return sources;
 		}
@@ -43,7 +43,7 @@ public sealed class Mount : SourceGameMount
 		const string episodes = $"{directory}/content_hl2_dir.vpk";
 		if ( garrysMod.FileExists( episodes ) )
 			sources.Add( new( garrysMod, episodes, true ) );
-		if ( GarrysModArchive( garrysMod, IsGarrysModHalfLife2File, IsGarrysModWorldModelFile ) is { } archive )
+		if ( GarrysModArchive( garrysMod, IsGarrysModHalfLife2File, ReplacesWorldModel ) is { } archive )
 			sources.Add( archive );
 		const string scripts = $"{directory}/scripts";
 		if ( garrysMod.DirectoryExists( scripts ) )
@@ -67,6 +67,10 @@ public sealed class Mount : SourceGameMount
 	private static bool IsGarrysModViewModelFile( string path ) =>
 		(path.StartsWith( "models/weapons/c_", StringComparison.OrdinalIgnoreCase ) && !path.StartsWith( "models/weapons/c_arms", StringComparison.OrdinalIgnoreCase ))
 		|| path.StartsWith( "materials/models/weapons/v_stunstick/", StringComparison.OrdinalIgnoreCase );
+
+	// The thrown frag model is additional content. Held world models only replace existing HL2 assets.
+	private static bool ReplacesWorldModel( string path ) => IsGarrysModWorldModelFile( path )
+		&& !path.StartsWith( "models/weapons/w_npcnade.", StringComparison.OrdinalIgnoreCase );
 
 	// The viewmodels, the hand-rigged world models and the materials Garry's Mod added for those.
 	private static bool IsGarrysModWeaponFile( string path ) =>

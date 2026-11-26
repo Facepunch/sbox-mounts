@@ -27,7 +27,7 @@ public abstract class Projectile : Component
 	protected virtual float Lifetime => 10;
 	protected virtual float TraceRadius => 3;
 	protected virtual bool CanCollide => true;
-	/// <summary>A VPhysics object in Source: a rigid body with a box of twice this half-size, rather than a swept trace.</summary>
+	/// <summary>Half-size of the default collision box for a rigid-body projectile.</summary>
 	protected virtual float? Physical => null;
 	/// <summary>False for projectiles Source draws entirely in code, such as the combine ball.</summary>
 	protected virtual bool DrawModel => true;
@@ -98,8 +98,7 @@ public abstract class Projectile : Component
 		projectile.Velocity = velocity;
 		if ( projectile.Physical is { } extent )
 		{
-			var collider = go.AddComponent<BoxCollider>();
-			collider.Scale = Vector3.One * extent * 2;
+			projectile.CreateCollider( extent );
 			var body = go.AddComponent<Rigidbody>();
 			body.Velocity = velocity;
 			body.AngularVelocity = projectile.Spin;
@@ -108,6 +107,13 @@ public abstract class Projectile : Component
 		go.Enabled = true;
 		go.NetworkSpawn();
 		return projectile;
+	}
+
+	protected virtual Collider CreateCollider( float halfSize )
+	{
+		var box = GameObject.AddComponent<BoxCollider>();
+		box.Scale = Vector3.One * halfSize * 2;
+		return box;
 	}
 
 	/// <summary>The spin a physical projectile is launched with.</summary>
