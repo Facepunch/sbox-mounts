@@ -515,6 +515,7 @@ sealed class PhysCannonEffects : IDisposable
 	readonly List<SpriteRenderer> _glows = new();
 	readonly List<SpriteRenderer> _endcaps = new();
 	readonly List<(GameObject Tip, LineRenderer Beam)> _beams = new();
+	readonly float[] _beamNoise = new float[129];
 	readonly Dictionary<SpriteRenderer, GameObject> _anchors = new();
 	TimeSince _launch = 10;
 	TimeUntil _changeAt;
@@ -591,8 +592,7 @@ sealed class PhysCannonEffects : IDisposable
 		foreach ( var (tip, beam) in _beams )
 		{
 			if ( !tip.IsValid() || !beam.IsValid() || !beam.Enabled ) continue;
-			beam.VectorPoints[0] = Place( tip );
-			beam.VectorPoints[1] = Place( _coreAnchor );
+			DrawCarryBeam( beam, Place( tip ), Place( _coreAnchor ) );
 		}
 		if ( _puntBeam.IsValid() && _puntBeam.Enabled )
 		{
@@ -677,6 +677,33 @@ sealed class PhysCannonEffects : IDisposable
 			_holdSound.Stop();
 			_holdSound = null;
 		}
+	}
+
+	void DrawCarryBeam( LineRenderer beam, Vector3 start, Vector3 end )
+	{
+		var delta = end - start;
+		var length = delta.Length;
+		var side = (beam.Scene.Camera?.WorldRotation.Forward ?? Vector3.Forward).Cross( delta ).Normal;
+		var maxWidth = _view.IsValid() ? 4 : 2;
+		var count = (int)(length * 0.25f) + 3;
+		var overlapLimit = (int)(length / (maxWidth * 0.707f)) + 1;
+		count = Math.Clamp( Math.Min( count, overlapLimit ), 2, 128 );
+		var points = beam.VectorPoints;
+		if ( points.Count > count ) points.RemoveRange( count, points.Count - count );
+		while ( points.Count < count ) points.Add( default );
+
+		// Source samples a midpoint-displacement waveform perpendicular to the beam and camera.
+		for ( var half = 64; half > 0; half /= 2 )
+		{
+			for ( var i = half; i < 128; i += half * 2 )
+				_beamNoise[i] = (_beamNoise[i - half] + _beamNoise[i + half]) * 0.5f + Random.Shared.Float( -1, 1 ) * (half / 64f);
+		}
+		// DrawSegs samples indices 0..127 using a 16.16 fixed-point step.
+		var step = (127 << 16) / (count - 1);
+		for ( var i = 0; i < count; i++ )
+			points[i] = start + delta * (i / (float)(count - 1)) + side * (_beamNoise[i * step >> 16] * length * 0.16f);
+
+		beam.Texturing = beam.Texturing with { Scale = length * 0.01f, Scroll = 150 };
 	}
 
 	float Element()
