@@ -299,7 +299,9 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.AutoAimAngle = Float( Header + 0x208 );
 			gun.MagnetismAngle = Float( Header + 0x210 );
 			gun.MagnetismRange = Float( Header + 0x214 ) * 120;
-			bool damageFallsOff = (map.ReadInt32( projectile + 0xbc ) & 16) != 0;
+			int projectileFlags = map.ReadInt32( projectile + 0xbc );
+			gun.Orientation = ReadOrientation( projectileFlags );
+			bool damageFallsOff = (projectileFlags & 16) != 0;
 			gun.DamageFalloffRange = damageFallsOff ? Float( projectile + 0x16c ) * 120 : 0;
 			gun.UnderwaterDamageFalloffRange = damageFallsOff ? Float( projectile + 0x178 ) * 120 : 0;
 			gun.MinimumDamage = Float( damage + 0x1c );

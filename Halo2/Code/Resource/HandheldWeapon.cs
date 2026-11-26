@@ -210,13 +210,15 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			else gun.DetonationEffectPath = path;
 		}
 		gun.Trail = ReadTrail( projectile );
-		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
+		int flags = map.ReadInt32( projectile + 0xbc );
+		gun.Orientation = ReadOrientation( flags );
+		gun.Instantaneous = (flags & 32) != 0;
 		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
 		gun.SpeedProfile = ReadSpeedProfile( projectile );
 		gun.MinimumPelletAngle = Float( barrel + 0x70 ).RadianToDegree();
 		gun.AirGravityScale = Float( projectile + 0x164 );
 		gun.WaterGravityScale = Float( projectile + 0x170 );
-		bool falloff = (map.ReadInt32( projectile + 0xbc ) & 16) != 0;
+		bool falloff = (flags & 16) != 0;
 		gun.DamageFalloffRange = falloff ? Float( projectile + 0x16c ) * 120 : 0;
 		gun.UnderwaterDamageFalloffRange = falloff ? Float( projectile + 0x178 ) * 120 : 0;
 		gun.MinimumDamage = Float( damage + 0x1c );
@@ -284,13 +286,14 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
 			int bolt = Address( Reference( secondary + 0x8c ) );
 			int impact = Address( Reference( bolt + 0x148 ) );
-			bool fades = (map.ReadInt32( bolt + 0xbc ) & 16) != 0;
+			int flags = map.ReadInt32( bolt + 0xbc );
+			bool fades = (flags & 16) != 0;
 			pistol.ChargedShot = new( ReadBallistics( pistol.Ballistics, secondary, bolt, impact ), Float( bolt + 0x17c ) * 120,
 				Float( secondary + 0x70 ).RadianToDegree(), Float( bolt + 0x164 ), Float( bolt + 0x170 ), Float( impact + 0x1c ),
 				fades ? Float( bolt + 0x16c ) * 120 : 0, fades ? Float( bolt + 0x178 ) * 120 : 0,
 				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
 				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
-				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 ) { SpeedProfile = ReadSpeedProfile( bolt ) };
+				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 ) { SpeedProfile = ReadSpeedProfile( bolt ), Orientation = ReadOrientation( flags ) };
 			gun = pistol;
 		}
 		else gun = ConfigurePickup<BatteryWeapon>( root, world, title );

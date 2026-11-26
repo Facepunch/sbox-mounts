@@ -1,6 +1,15 @@
 namespace Halo2;
 
-public sealed record ProjectileSpeedProfile( float FinalSpeed, float StartDistance, float InverseDistance, bool FasterForPlayer, float NpcScale, bool FollowsVelocity );
+[System.Flags]
+public enum ProjectileOrientation
+{
+	None = 0,
+	AlongVelocity = 1,
+	SteeringAdjustsOrientation = 1 << 6,
+	CanTrackBehind = 1 << 8
+}
+
+public sealed record ProjectileSpeedProfile( float FinalSpeed, float StartDistance, float InverseDistance, bool FasterForPlayer, float NpcScale );
 
 public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
 
@@ -15,6 +24,7 @@ public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistic
 	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange )
 {
 	public ProjectileSpeedProfile SpeedProfile { get; init; }
+	public ProjectileOrientation Orientation { get; init; }
 }
 
 public abstract partial class Weapon
@@ -23,6 +33,7 @@ public abstract partial class Weapon
 	[Property] public BounceDefinition Bounce { get; set; }
 	[Property] public ShardDefinition Shard { get; set; }
 	[Property] public string ProjectileModel { get; set; }
+	[Property] public ProjectileOrientation Orientation { get; set; }
 	[Property] public ProjectileSpeedProfile SpeedProfile { get; set; }
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AirGravityScale { get; set; }
@@ -100,7 +111,7 @@ public abstract partial class Weapon
 			{
 				var body = new GameObject( false, model.Name );
 				body.NetworkMode = NetworkMode.Object;
-				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward ) );
+				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward, Perpendicular( forward ) ) );
 				body.AddComponent<ModelRenderer>().Model = model;
 				body.NetworkSpawn( true, null );
 				pellets[i].Model = body;
@@ -132,6 +143,8 @@ public abstract partial class Weapon
 			return IsLegacyWater( hit ) || trace.RunAll().Any( IsLegacyWater );
 		}
 		var ballistics = discharge?.Ballistics ?? Ballistics;
+		var orientation = discharge?.Orientation ?? Orientation;
+		bool alongVelocity = (orientation & ProjectileOrientation.AlongVelocity) != 0;
 		float minDamage = discharge?.MinimumDamage ?? MinimumDamage;
 		float dryRange = discharge?.DryFalloff ?? DamageFalloffRange, wetRange = discharge?.WetFalloff ?? UnderwaterDamageFalloffRange;
 		var bodyScales = discharge?.BodyScales ?? PelletBodyScales;
@@ -197,23 +210,33 @@ public abstract partial class Weapon
 				}
 				if ( pellet.Velocity == Vector3.Zero ) continue;
 				var startingVelocity = pellet.Velocity;
-				if ( target.IsValid() )
+				if ( target.IsValid() && pellet.TurnRate > 0 )
 				{
 					var desired = (target.WorldTransform.PointToWorld( localPoint ) - start).Normal;
 					var direction = pellet.Velocity.Normal;
-					float angle = System.MathF.Acos( Vector3.Dot( direction, desired ).Clamp( -1, 1 ) );
-					if ( angle > 0 && desired.LengthSquared > 0 )
-						pellet.Velocity = Vector3.Slerp( direction, desired, System.MathF.Min( 1, pellet.TurnRate * dt / angle ) ).Normal * pellet.Velocity.Length;
+					var axis = Vector3.Cross( direction, desired );
+					if ( axis.LengthSquared > 0 && ((orientation & ProjectileOrientation.CanTrackBehind) != 0 || direction.Dot( desired ) > 0) )
+					{
+						var turn = Rotation.FromAxis( axis.Normal, (pellet.TurnRate * dt).RadianToDegree() );
+						pellet.Velocity = turn * pellet.Velocity;
+						if ( (orientation & ProjectileOrientation.SteeringAdjustsOrientation) != 0 )
+						{
+							pellet.Forward = desired;
+							if ( pellet.Model.IsValid() )
+								pellet.Model.WorldRotation = ProjectileRotation( desired, pellet.Model.WorldRotation.Up );
+						}
+					}
 				}
 				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * dt) );
 				var velocityChange = Vector3.Down * fall;
 				if ( speedChange != 0 )
-					velocityChange += (profile.FollowsVelocity ? pellet.Velocity.Normal : pellet.Forward) * speedChange;
+					velocityChange += pellet.Forward * speedChange;
 				// Guidance, acceleration and gravity all contribute over the same native tick.
 				var displacement = (startingVelocity + ((pellet.Velocity - startingVelocity) + velocityChange) * 0.5f) * step;
 				pellet.Velocity += velocityChange;
+				if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
 				float distance = displacement.Length;
 				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )
 					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
@@ -242,7 +265,7 @@ public abstract partial class Weapon
 					if ( pellet.Model.IsValid() )
 					{
 						if ( atRange ) pellet.Model.Destroy();
-						else pellet.Model.WorldTransform = new Transform( origin + pellet.Offset, Rotation.LookAt( pellet.Velocity ) );
+						else MoveProjectileModel( pellet, origin + pellet.Offset );
 					}
 					if ( atRange )
 					{
@@ -268,7 +291,8 @@ public abstract partial class Weapon
 						pellet.BounceNormal = hit.Normal;
 						pellet.Travelled += hit.Distance;
 						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
-						if ( pellet.Model.IsValid() ) pellet.Model.WorldTransform = new Transform( hit.HitPosition, Rotation.LookAt( pellet.Velocity ) );
+						if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
+						if ( pellet.Model.IsValid() ) MoveProjectileModel( pellet, hit.HitPosition );
 						pellets[i] = pellet;
 						continue;
 					}
@@ -309,6 +333,15 @@ public abstract partial class Weapon
 
 		}
 	}
+
+	static void MoveProjectileModel( Pellet pellet, Vector3 position )
+	{
+		var rotation = ProjectileRotation( pellet.Forward, pellet.Model.WorldRotation.Up );
+		pellet.Model.WorldTransform = new Transform( position, rotation );
+	}
+
+	static Rotation ProjectileRotation( Vector3 forward, Vector3 up ) =>
+		Rotation.LookAt( forward, Vector3.Cross( forward, up ).LengthSquared < 1e-8f ? Perpendicular( forward ) : up );
 
 	static double SampleRange( Vector2 range, ref uint random ) => range.x == range.y ? range.x
 		: range.x + ((double)range.y - range.x) * (BlamRandom.Next( ref random ) * (double)(1f / 65535));

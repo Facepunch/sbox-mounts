@@ -54,6 +54,9 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		return null;
 	}
 
+	protected static ProjectileOrientation ReadOrientation( int flags ) => (ProjectileOrientation)flags &
+		(ProjectileOrientation.AlongVelocity | ProjectileOrientation.SteeringAdjustsOrientation | ProjectileOrientation.CanTrackBehind);
+
 	protected ProjectileSpeedProfile ReadSpeedProfile( int projectile )
 	{
 		int flags = map.ReadInt32( projectile + 0xbc );
@@ -67,7 +70,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 			int difficulty = Address( globals ) + 0xf8;
 			if ( map.ReadInt32( difficulty ) > 0 ) npcScale = Float( Block( difficulty ) + 0xa4 );
 		}
-		return new( final * 120, Float( projectile + 0x18c ) * 120, inverse, scaled, npcScale, (flags & 0x41) != 0 );
+		return new( final * 120, Float( projectile + 0x18c ) * 120, inverse, scaled, npcScale );
 	}
 
 	protected void ConfigureKick( Weapon gun, int barrel )
