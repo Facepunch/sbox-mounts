@@ -382,6 +382,8 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 		if ( _detonated ) return;
 		_detonated = true;
 		Hull.Enabled = false;
+		// Damage can arrive between fixed updates. Use the simulation position for the blast.
+		Transform.ClearInterpolation();
 		Explode();
 	}
 }
