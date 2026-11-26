@@ -7,6 +7,8 @@ namespace NS2;
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
 public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.5f * MapLoader.Scale);
+
 	protected override int BaseHealth => 75;
 	protected override int HealthPerBiomass => 3;
 

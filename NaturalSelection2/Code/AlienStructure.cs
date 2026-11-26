@@ -33,7 +33,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	internal float DistanceFrom( AlienLifeform alien, MapLocations locations ) => locations.IsValid()
 		? locations.WalkDistance( alien.WorldPosition, WorldPosition ) : alien.WorldPosition.Distance( WorldPosition );
 
-	internal Vector3 EngagementPoint => Renderer.GetAttachment( "target" )?.Position ?? ModelOrigin;
+	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? modelOrigin );
 
 	internal void RefreshEnzyme()
 	{

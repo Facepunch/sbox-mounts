@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Babbler" ), Category( "Natural Selection 2" )]
-public sealed partial class Babbler : BaseNpc
+public sealed partial class Babbler : Ns2Npc
 {
 	const float Scale = MapLoader.Scale;
 	const float Radius = 0.25f * Scale;

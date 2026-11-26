@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Drifter" ), Category( "Natural Selection 2" )]
-public sealed partial class Drifter : BaseNpc, Component.IDamageable
+public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	internal const string ConstructSound = "alien/drifter/drift";

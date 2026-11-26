@@ -5,8 +5,10 @@ using System;
 namespace NS2;
 
 [Title( "MAC" ), Category( "Natural Selection 2" )]
-public sealed class Mac : BaseNpc, Component.IDamageable
+public sealed class Mac : Ns2Npc, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => EyePosition;
+
 	const float Scale = MapLoader.Scale;
 	const float IdleSoundInterval = 25;
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 50;

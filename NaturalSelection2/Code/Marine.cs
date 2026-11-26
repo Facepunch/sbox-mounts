@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Marine" ), Category( "Natural Selection 2" )]
-public sealed partial class Marine : BaseNpc, Component.IDamageable
+public sealed partial class Marine : Ns2Npc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	internal const string PistolSound = "marine/pistol/fire";
@@ -51,7 +51,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	TimeSince lastShot, lastHit, lastRequest;
 	TimeUntil combatUntil, blindFireUntil;
 	Vector3 lastAimPoint, modelOrigin;
-	internal Vector3 EngagementPoint => Renderer.WorldTransform.PointToWorld( modelOrigin );
+	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	GameObject firingTarget;
 	readonly AlienAim.Acquisition acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;

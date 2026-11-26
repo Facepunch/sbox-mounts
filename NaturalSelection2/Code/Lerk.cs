@@ -7,6 +7,8 @@ namespace NS2;
 [Title( "Lerk" ), Category( "Natural Selection 2" )]
 public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.6f * Scale);
+
 	protected override int BaseHealth => 180;
 	protected override int HealthPerBiomass => 2;
 

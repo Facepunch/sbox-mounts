@@ -7,6 +7,8 @@ namespace NS2;
 [Title( "Fade" ), Category( "Natural Selection 2" )]
 public sealed partial class Fade : AlienLifeform, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.8f * Scale);
+
 	protected override int BaseHealth => 250;
 	protected override int HealthPerBiomass => 5;
 
@@ -167,7 +169,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		var eye = CalculateEyePosition( enemy );
 		double cone = Math.Cos( (exo.IsValid() ? 95 : 90) * Math.PI / 180 );
 		if ( Vector3.Dot( (WorldPosition - eye).Normal, forward ) <= cone )
-			return marine?.EngagementPoint ?? (exo.IsValid() ? enemy.WorldPosition + Vector3.Up * (1.5f * Scale) : CalculateAimPoint( enemy ));
+			return CalculateAimPoint( enemy );
 
 		if ( !Scene.NavMesh.IsEnabled ) return enemy.WorldPosition;
 		float radius = enemy.GetComponentInChildren<CapsuleCollider>()?.Radius ?? 0;

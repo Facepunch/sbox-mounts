@@ -3,6 +3,7 @@ namespace NS2;
 [Title( "Harvester" ), Category( "Natural Selection 2" )]
 public sealed class Harvester : AlienStructure
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.8f * Scale);
 	internal const string PainSound = "alien/structures/harvester_wound";
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	protected override GrowthStats Stats => new( 38, 0.5f, 2000, 200, 150, 2300, 320 );

@@ -7,6 +7,8 @@ namespace NS2;
 [Title( "Gorge" ), Category( "Natural Selection 2" )]
 public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.28f * Scale);
+
 	protected override int BaseHealth => 160;
 	protected override int HealthPerBiomass => 2;
 

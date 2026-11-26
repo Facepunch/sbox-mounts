@@ -3,7 +3,7 @@ using System;
 
 namespace NS2;
 
-public abstract class AlienNpc : BaseNpc
+public abstract class AlienNpc : Ns2Npc
 {
 	[Property, Range( 0, 12 ), Sync( SyncFlags.FromHost )] public int BiomassLevel { get; set; } = 1;
 	protected virtual int HealthPerBiomass => 0;

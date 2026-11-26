@@ -9,6 +9,8 @@ public sealed partial class Babbler
 	[Sync( SyncFlags.FromHost )] TimeSince animationTime { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose locomotion { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose action { get; set; }
+	Vector3 modelOrigin;
+	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	float moveSpeed;
 	Vector3 previousRenderPosition, facing;
 	bool wasJumping, wasAttacking, wasRunning;
@@ -17,7 +19,11 @@ public sealed partial class Babbler
 	void StartGraph()
 	{
 		var mount = Sandbox.Mounting.Directory.Get( "ns2" );
-		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model ) graph = new( model.PropGraph, model );
+		if ( mount?.GetByPath( Renderer.Model.ResourcePath ) is ModelLoader model )
+		{
+			modelOrigin = model.BoundsCenter;
+			graph = new( model.PropGraph, model );
+		}
 		animationTime = 0;
 	}
 

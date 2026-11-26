@@ -7,6 +7,8 @@ namespace NS2;
 [Title( "Onos" ), Category( "Natural Selection 2" )]
 public sealed partial class Onos : AlienLifeform, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (1.3f * Scale);
+
 	protected override int BaseHealth => 700;
 	protected override int HealthPerBiomass => 50;
 

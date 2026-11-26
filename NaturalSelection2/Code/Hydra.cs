@@ -6,6 +6,8 @@ namespace NS2;
 [Title( "Hydra" ), Category( "Natural Selection 2" )]
 public sealed class Hydra : AlienStructure
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.4f * Scale);
+
 	protected override GrowthStats Stats => new( 8, 0.375f, 145, 5, 140, 175, 25 );
 	protected override int HealthPerBiomass => 18;
 	const float Range = 17.78f * Scale;
@@ -60,14 +62,6 @@ public sealed class Hydra : AlienStructure
 		bodyPose = graph.GetPose( 0 );
 		flinchPose = graph.GetPose( 1 );
 	}
-
-	protected override Vector3 CalculateAimPoint( GameObject target ) => target.GetComponent<BaseNpc>() switch
-	{
-		Marine marine => marine.EngagementPoint,
-		Mac mac => mac.EyePosition,
-		Exo => target.WorldPosition + Vector3.Up * (1.5f * Scale),
-		_ => base.CalculateAimPoint( target )
-	};
 
 	void ScanTargets()
 	{

@@ -6,8 +6,10 @@ using System.Runtime.CompilerServices;
 namespace NS2;
 
 [Title( "Exo" ), Category( "Natural Selection 2" )]
-public sealed class Exo : BaseNpc, Component.IDamageable
+public sealed class Exo : Ns2Npc, Component.IDamageable
 {
+	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (1.5f * Scale);
+
 	const float Scale = MapLoader.Scale;
 	const string DeathSound = "marine/structures/generic_death";
 	[Property] public bool Railguns { get; set; }
