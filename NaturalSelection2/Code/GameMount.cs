@@ -120,6 +120,7 @@ public class GameMount : BaseGameMount
 			"marine/common/wound", "marine/common/wound_serious", "marine/common/spore_wound", "marine/common/death" } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Drifter.ConstructSound}.sound", new SparkSoundLoader( Drifter.ConstructSound ) );
+		context.Add( ResourceType.GameResource, "sounds/alien/common/regeneration_ability.sound", new SparkSoundLoader( "alien/common/regeneration_ability" ) );
 		Exo.RegisterSounds( context );
 		Onos.RegisterSounds( context );
 		var npcModels = new HashSet<string>( StringComparer.OrdinalIgnoreCase )

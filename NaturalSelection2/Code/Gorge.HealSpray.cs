@@ -257,7 +257,7 @@ public sealed partial class Gorge
 		var hp = (IDamageable)c;
 		float amount = c.GameObject.Tags.Has( "structure" ) ? 60 : (8 + hp.MaxHealth * 0.03f) * (c == this ? 0.5f : 1);
 		if ( c is AlienStructure structure ) amount = structure.SprayHealingLimit;
-		if ( AlienHealing.Restore( c, amount, 1 ) && c != this && c.GameObject.Tags.Has( "ns2_lifeform" ) )
+		if ( AlienHealing.Restore( c, amount, 1, feedback: c == this ? HealFeedback.Self : HealFeedback.External ) && c != this && c.GameObject.Tags.Has( "ns2_lifeform" ) )
 		{
 			var state = healing.GetValue( c, static _ => new() );
 			state.Last = 0;

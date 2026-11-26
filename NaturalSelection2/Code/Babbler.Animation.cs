@@ -30,6 +30,7 @@ public sealed partial class Babbler
 	protected override void OnUpdate()
 	{
 		if ( ClingSlot == 0 ) base.OnUpdate();
+		else UpdateHealFeedback();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		if ( ClingSlot != 0 )
 		{

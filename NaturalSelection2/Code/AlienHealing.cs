@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 
 namespace NS2;
 
+internal enum HealFeedback { External, Self, Hidden }
+
 internal static class AlienHealing
 {
 	sealed class Allowance
@@ -15,7 +17,7 @@ internal static class AlienHealing
 
 	internal static bool IsAlien( Component target ) => target is AlienNpc or Babbler or Drifter || target.GameObject.Tags.Has( "ns2_lifeform" );
 
-	internal static bool Restore( Component target, float amount, float armorScalar, bool rateLimited = true )
+	internal static bool Restore( Component target, float amount, float armorScalar, bool rateLimited = true, HealFeedback feedback = HealFeedback.External )
 	{
 		var hp = (Component.IDamageable)target;
 		if ( amount <= 0 || hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour ) return false;
@@ -39,6 +41,7 @@ internal static class AlienHealing
 		if ( amount > health )
 			hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + Clamp( (amount - health) * armorScalar ) );
 
+		if ( target is Ns2Npc npc ) npc.RecordHeal( feedback );
 		return true;
 
 		float Clamp( float value )
