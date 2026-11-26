@@ -580,8 +580,6 @@ public sealed class BulletWeapon : Weapon
 		LaunchAlternate( AimRay.Position, AimRay.Forward, attacker );
 		if ( AlternateProjectile == Projectile.Kinds.EnergyBall && HasOwner && !Owner.IsProxy )
 		{
-			var aim = Owner.EyeAngles;
-			Owner.EyeAngles = new Angles( aim.pitch + Random.Shared.Next( -4, 5 ), aim.yaw + Random.Shared.Next( -4, 5 ), 0 );
 			if ( !Owner.ThirdPerson )
 				ViewPunch.Apply( Scene.Camera, new Angles( -8, Random.Shared.Next( 1, 3 ), 0 ), false );
 			ScreenFade.Show( Scene.Camera, Color.White.WithAlpha( 64 / 255f ), 0, 0.1f );
