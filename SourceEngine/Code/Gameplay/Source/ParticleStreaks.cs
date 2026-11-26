@@ -13,9 +13,11 @@ public sealed class ParticleStreaks : Renderer
 	ParticleFloat _length;
 
 	internal static ParticleEffect Create( Vector3 origin, string mount, string name, int count, Vector2 lifetime,
-		ParticleFloat width, ParticleFloat length, GameObject parent = null )
+		ParticleFloat width, ParticleFloat length, GameObject parent = null, bool splash = false )
 	{
-		var material = Material.Load( $"mount://{mount}/materials/{name}.vmt.vmat" );
+		var texture = splash ? MountedEffects.SpriteTexture( name, mount ) : null;
+		if ( splash && texture is null ) return null;
+		var material = splash ? Material.FromShader( "shaders/source1/water_droplet.shader" ) : Material.Load( $"mount://{mount}/materials/{name}.vmt.vmat" );
 		if ( !material.IsValid() || material.IsError ) return null;
 		var go = new GameObject( parent ?? Game.ActiveScene, false, name ) { NetworkMode = NetworkMode.Never, WorldPosition = origin };
 		var particles = go.AddComponent<ParticleEffect>();
@@ -26,6 +28,11 @@ public sealed class ParticleStreaks : Renderer
 		var renderer = go.AddComponent<ParticleStreaks>();
 		renderer._particles = particles;
 		renderer._material = material;
+		if ( splash )
+		{
+			renderer.Attributes.Set( "DropTexture", texture );
+			renderer.Attributes.Set( "SplashOrigin", origin + Vector3.Up * 8 );
+		}
 		renderer._length = length;
 		renderer._batch = new SceneCustomObject( go.Scene.SceneWorld ) { RenderOverride = renderer.Draw };
 		renderer._batch.Flags.IsOpaque = false;
@@ -67,7 +74,7 @@ public sealed class ParticleStreaks : Renderer
 			var halfWidth = across * (0.5f * MathF.Min( delta.Length, p.Size.x ));
 			_vertices.AddQuad( p.Position + halfWidth, p.Position - halfWidth, end - halfWidth, end + halfWidth );
 		}
-		_vertices.Draw( _material );
+		_vertices.Draw( _material, Attributes );
 	}
 
 	protected override void OnEnabled()

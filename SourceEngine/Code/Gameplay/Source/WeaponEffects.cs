@@ -512,6 +512,7 @@ static partial class WeaponEffects
 		cloud.ApplyShape = true;
 		cloud.Scale = PlumeGrowth;
 		var renderer = cloud.GetComponent<ParticleSpriteRenderer>();
+		renderer.DepthFeather = MathF.Max( renderer.DepthFeather, 4 );
 		renderer.CameraFadeNear = 64;
 		renderer.CameraFadeFar = 128;
 		var spinScale = 1f;
@@ -541,18 +542,12 @@ static partial class WeaponEffects
 	static void SplashDrops( Vector3 position, string mount, bool explosion )
 	{
 		var count = explosion ? 36 : 16;
-		var drops = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, count );
-		if ( !drops.IsValid() ) return;
-		drops.WorldPosition = position;
 		var lifetime = explosion ? 1f : 0.5f;
-		drops.Lifetime = new ParticleFloat( lifetime * 0.5f, lifetime );
-		drops.ApplyShape = true;
-		drops.InitialScale = new ParticleFloat( 1, 3 );
+		var drops = ParticleStreaks.Create( position, mount, "effects/splash2", count, new( lifetime * 0.5f, lifetime ),
+			new( 1, 3 ), explosion ? ImpactTrailStretch : SplashDropStretch, splash: true );
+		if ( !drops.IsValid() ) return;
 		drops.Force = true;
 		drops.ForceDirection = Vector3.Down * 800;
-		var renderer = drops.GetComponent<ParticleSpriteRenderer>();
-		renderer.VelocityStretch = true;
-		renderer.StretchTime = explosion ? ImpactTrailStretch : SplashDropStretch;
 		for ( var i = 0; i < count; i++ )
 		{
 			var origin = position + Particles.InCube( explosion ? 32 : 8 ).WithZ( 0 );
@@ -571,12 +566,11 @@ static partial class WeaponEffects
 				p.Velocity = (Vector3.Up + Particles.InCube( 0.8f )) * Game.Random.Float( 150, 300 ) + Vector3.Up * Game.Random.Float( 32, 64 );
 			}
 		}
-		drops.OnPostStep = dt =>
+		drops.OnPostStep += dt =>
 		{
 			var attenuation = Math.Max( 0, 1 - 2 * dt );
 			foreach ( var drop in drops.Particles ) drop.Velocity *= attenuation;
 		};
-		drops.Invoke( lifetime, drops.DestroyGameObject );
 	}
 
 	static void SplashPlume( Vector3 position, string mount, int scale )
@@ -590,6 +584,8 @@ static partial class WeaponEffects
 		plume.ForceDirection = Vector3.Down * 800;
 		plume.ApplyShape = true;
 		plume.Scale = PlumeGrowth;
+		var renderer = plume.GetComponent<ParticleSpriteRenderer>();
+		renderer.DepthFeather = MathF.Max( renderer.DepthFeather, 4 );
 		for ( var i = 0; i < count; i++ )
 		{
 			if ( plume.Emit( position, 0 ) is not { } p ) continue;

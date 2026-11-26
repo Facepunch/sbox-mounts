@@ -26,6 +26,8 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 	readonly TagSet _refractionExclusions = new( ["source1_water"] );
 	readonly TagSet _underwaterExclusions = new( ["source1_water", "skybox", "source1_skybox2d", "source1_skybox3d"] );
 	int _filterKey = -1;
+	Model _surfaceModel;
+	bool _opaqueSurface;
 
 	protected override void OnEnabled()
 	{
@@ -38,6 +40,19 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 		if ( _captures is null || !Renderer.IsValid() || Material is not { IsValid: true } )
 			return;
 
+		if ( Renderer.Model != _surfaceModel )
+		{
+			_surfaceModel = Renderer.Model;
+			_opaqueSurface = _surfaceModel.IsValid() && _surfaceModel.Materials.All( m =>
+				m.GetVector4( "g_flSourceAlpha" ).x >= 1 && m.GetVector4( "g_flSourceWaterBlend" ).x >= 1 &&
+				m.GetFeature( "F_SOURCE_ALPHA_SINE" ) == 0 && m.GetFeature( "F_SOURCE_PROXIES" ) == 0 );
+		}
+
+		SetOpaquePass( PrepareCaptures() && _opaqueSurface );
+	}
+
+	bool PrepareCaptures()
+	{
 		CameraComponent camera = null;
 		if ( Scene.IsEditor )
 		{
@@ -53,11 +68,11 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 		commands.Attributes.Set( "SourceWaterHasRefraction", false );
 		Renderer.ExecuteBefore = commands;
 		if ( !camera.IsValid() || camera.Orthographic || camera.CustomProjectionMatrix is not null )
-			return;
+			return false;
 		var origin = WorldTransform.PointToWorld( new Vector3( 0, 0, Height ) );
 		var normal = WorldRotation.Up * (WorldScale.z < 0 ? -1 : 1);
 		if ( AboveWater != (Vector3.Dot( camera.WorldPosition - origin, normal ) >= 0) )
-			return;
+			return false;
 		// DetermineWaterRenderInfo keeps local reflections expensive, but lets
 		// refract-only water switch to cubemaps at water_lod_control's end distance.
 		if ( !Reflect )
@@ -67,7 +82,7 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 			var nearest = new Vector3( Math.Clamp( eye.x, bounds.Mins.x, bounds.Maxs.x ),
 				Math.Clamp( eye.y, bounds.Mins.y, bounds.Maxs.y ), Height );
 			if ( camera.WorldPosition.Distance( WorldTransform.PointToWorld( nearest ) ) >= CheapWaterEndDistance )
-				return;
+				return false;
 		}
 		commands.Attributes.Set( "SourceWaterPlane", new Vector4( normal, Vector3.Dot( origin, normal ) ) );
 		var atmosphere = GetAtmosphere();
@@ -142,7 +157,18 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 			commands.Attributes.Set( "SourceWaterRefractionViewport", view.Viewport );
 			commands.Attributes.Set( "SourceWaterRefractionDepthRange", view.DepthRange );
 			commands.Attributes.Set( "SourceWaterHasRefraction", view.IsValid );
+			return true;
 		}
+		return false;
+	}
+
+	// Captured water writes surface depth and can draw before translucent spray and smoke.
+	void SetOpaquePass( bool opaque )
+	{
+		var surface = Renderer.IsValid() ? Renderer.SceneObject : null;
+		if ( !surface.IsValid() || surface.Flags.IsOpaque == opaque && surface.Flags.IsTranslucent != opaque ) return;
+		surface.Flags.IsOpaque = opaque;
+		surface.Flags.IsTranslucent = !opaque;
 	}
 
 	FogSetup GetAtmosphere()
@@ -173,6 +199,7 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 
 	protected override void OnDisabled()
 	{
+		SetOpaquePass( false );
 		if ( Renderer.IsValid() ) Renderer.ExecuteBefore = null;
 		_captures = null;
 		_cameras.Clear();
