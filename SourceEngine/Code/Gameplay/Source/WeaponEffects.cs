@@ -234,7 +234,7 @@ static partial class WeaponEffects
 	{
 		const string material = "effects/muzzleflash1";
 		var count = Game.Random.Int( 4, 8 );
-		var trails = SparkTrails( origin, mount, count, new( 0.1f, 0.2f ), new( 0.25f, 0.5f ), ShotgunTrailLength, 0, false, material: material );
+		var trails = ParticleStreaks.Create( origin, mount, material, count, new( 0.1f, 0.2f ), new( 0.25f, 0.5f ), ShotgunTrailLength, 1024 * (0.2f + 0.05f) + 1 );
 		if ( trails.IsValid() )
 		{
 			trails.ApplyColor = true;
@@ -447,9 +447,9 @@ static partial class WeaponEffects
 		burst.FadeTo( flare, radius, Color.Black );
 	}
 
-	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null, string material = "effects/spark" )
+	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null )
 	{
-		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, material, mount, true, false, count );
+		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, "effects/spark", mount, true, false, count );
 		if ( !sparks.IsValid() ) return null;
 		sparks.GameObject.WorldPosition = position;
 		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );

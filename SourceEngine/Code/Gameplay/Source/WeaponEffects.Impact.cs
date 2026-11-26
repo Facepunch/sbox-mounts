@@ -158,20 +158,14 @@ static partial class WeaponEffects
 		const float maxLifetime = 0.1f;
 		var reflected = incoming - normal * (2 * incoming.Dot( normal )) + Particles.InCube( 0.2f );
 		var count = 2 * Game.Random.Int( 4, 8 );
-		var material = Material.Load( $"mount://{mount}/materials/effects/spark.vmt.vmat" );
-		if ( material.IsValid() && !material.IsError )
+		var effect = ParticleStreaks.Create( origin, mount, "effects/spark", count, new( 0.05f, maxLifetime ),
+			new( 1, 4 ), ImpactTrailStretch, 4 + 2 * maxSpeed * (maxLifetime + 0.1f) );
+		if ( effect.IsValid() )
 		{
-			var go = new GameObject( true, "effects/spark" ) { NetworkMode = NetworkMode.Never, WorldPosition = origin };
-			var effect = go.AddComponent<ParticleEffect>();
-			effect.MaxParticles = count;
-			effect.Lifetime = new ParticleFloat( 0.05f, maxLifetime );
-			effect.ApplyShape = true;
-			effect.InitialScale = new ParticleFloat( 1, 4 );
 			effect.Force = true;
 			effect.ForceDirection = Vector3.Down * 400;
 			effect.Damping = 8;
-			go.AddComponent<ImpactStreaks>().Initialize( effect, material, ImpactTrailStretch, 4 + 2 * maxSpeed * (maxLifetime + 0.1f) );
-			effect.Invoke( maxLifetime, effect.DestroyGameObject );
+
 			for ( var i = 0; i < count; i++ )
 			{
 				var spread = Game.Random.Float( 0, 2 );
