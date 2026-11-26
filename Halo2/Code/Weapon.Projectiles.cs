@@ -46,6 +46,7 @@ public abstract partial class Weapon
 	}
 
 	[Property] public ContrailAppearance Trail { get; set; }
+	protected virtual (GameObject Target, Vector3 LocalPoint, float TurnRate) ProjectileLock => default;
 
 	struct Pellet
 	{
@@ -82,13 +83,14 @@ public abstract partial class Weapon
 		if ( speed <= 0 || ballistics.Range < 0 ) return;
 		var model = ProjectileModel is { Length: > 0 } path ? Model.Load( path ) : null;
 		var pellets = new Pellet[ballistics.Pellets];
+		var guidance = ProjectileLock;
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
 		for ( int i = 0; i < pellets.Length; i++ )
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
 			pellets[i].Forward = forward;
 			pellets[i].Velocity = forward * speed + forward * inherited;
-			pellets[i].TurnRate = discharge?.TurnRate ?? 0;
+			pellets[i].TurnRate = discharge?.TurnRate ?? guidance.TurnRate;
 			if ( Shard is {} shard )
 			{
 				pellets[i].TurnRate = (float)SampleRange( shard.TurnRate, ref randomState );
@@ -106,8 +108,8 @@ public abstract partial class Weapon
 			if ( trail is { Lifetime: > 0, PointRate: > 0 } )
 				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity );
 		}
-		GameObject target = null;
-		Vector3 localPoint = default;
+		var target = guidance.Target;
+		var localPoint = guidance.LocalPoint;
 		if ( (discharge is { TurnRate: > 0 } || Shard is not null) && Holder is PlayerController player )
 		{
 			target = FindAttackTarget( player, new Ray( player.EyeTransform.Position, aim ), new( discharge?.TrackingAngle ?? Shard.TrackingAngle, discharge?.TrackingRange ?? Shard.TrackingRange ), out var point );

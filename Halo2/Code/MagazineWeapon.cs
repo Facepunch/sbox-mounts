@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed class MagazineWeapon : HandheldWeapon
+public class MagazineWeapon : HandheldWeapon
 {
 	[Property] public int BurstLength { get; set; }
 	[Property] public float RecoveryDelay { get; set; }
@@ -16,6 +16,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 	bool triggerPressedDuringReload;
 
 	protected override bool CanCycleBarrel => BurstLength <= 1 && base.CanCycleBarrel;
+	protected virtual bool PredictProjectileEffects => true;
 	protected override bool WantsPrimaryAttack() => !IsReloading && (triggerPressedDuringReload || base.WantsPrimaryAttack());
 
 	public override void PrimaryAttack()
@@ -40,8 +41,12 @@ public sealed class MagazineWeapon : HandheldWeapon
 		else if ( Networking.IsHost ) FireRound( AimRay.Forward );
 		else
 		{
-			OnShootEffects( default );
-			TimeSinceShoot = 0;
+			if ( PredictProjectileEffects )
+			{
+				OnShootEffects( default );
+				TimeSinceShoot = 0;
+			}
+			else SetNextPrimaryFire( 0 ); // The host starts the cooldown when this trigger actually fires.
 			RequestRound( AimRay.Forward );
 		}
 		if ( remainingShots == 0 ) return;
@@ -67,7 +72,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 		FireRound( forward );
 	}
 
-	void FireRound( Vector3 forward )
+	protected virtual void FireRound( Vector3 forward )
 	{
 		if ( IsHeld && !TakePrimaryAmmo() ) return;
 		LaunchBolt( forward );

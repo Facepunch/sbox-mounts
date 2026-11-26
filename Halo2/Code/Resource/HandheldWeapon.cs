@@ -213,7 +213,17 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 
 	MagazineWeapon CreateMagazine( GameObject root, string world, int barrel )
 	{
-		var gun = ConfigurePickup<MagazineWeapon>( root, world, title );
+		MagazineWeapon gun;
+		if ( Short( PrimaryTrigger + 6 ) == 5 )
+		{
+			var launcher = ConfigurePickup<RocketLauncher>( root, world, title );
+			launcher.LockAngle = Float( Header + 0x208 );
+			launcher.LockRange = Float( Header + 0x20c ) * 120;
+			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
+			launcher.GuidedTurnRate = Float( Address( Reference( secondary + 0x8c ) ) + 0x184 );
+			gun = launcher;
+		}
+		else gun = ConfigurePickup<MagazineWeapon>( root, world, title );
 		int magazine = Block( Header + 0x2c0 ) + Short( barrel + 0x28 ) * 0x5c;
 		gun.PrimaryAmmoType = GameResource.Load<BaseAmmoResource>( $"mount://{Host.Ident}/{AmmoPath}" );
 		gun.ClipMaxSize = Short( magazine + 0xa );
