@@ -94,7 +94,12 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 
 	internal void PlayWeaponOverlay( string name )
 	{
-		if ( !Bound || GetOverlayClip( name ) is not {} clip ) return;
+		if ( !Bound ) return;
+		// The Carbine stance binds its primary-fire clip in the second firing slot.
+		if ( name == "fire_1" && GetOverlayClip( name ) is null &&
+			GetOverlayClip( "fire_2" )?.Name.EndsWith( ":fire_1", StringComparison.Ordinal ) == true )
+			name = "fire_2";
+		if ( GetOverlayClip( name ) is not {} clip ) return;
 		var parameters = Renderer.Animation.Parameters;
 		parameters.Set( "overlay", name );
 		parameters.Set( "overlay_auto", true );

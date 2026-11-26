@@ -180,6 +180,18 @@ public class MagazineWeapon : Firearm
 		base.Reload();
 	}
 
+	protected override void OnReloadStarted()
+	{
+		base.OnReloadStarted();
+		PlayHolderOverlay( "reload_1" );
+	}
+
+	protected override void OnReloadFinished()
+	{
+		HolderAnimator?.StopWeaponOverlay( "reload_1" );
+		base.OnReloadFinished();
+	}
+
 	protected override int TakeReserveAmmo( BaseAmmoResource ammoType, int amount ) =>
 		IsReloading && transferred && ammoType == PrimaryAmmoType ? 0 : base.TakeReserveAmmo( ammoType, amount );
 

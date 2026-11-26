@@ -404,6 +404,12 @@ public abstract partial class HandheldWeapon : Weapon
 
 	internal virtual string RestAction => "idle";
 
+	protected override void OnEquipped()
+	{
+		base.OnEquipped();
+		if ( IsValid && IsActive ) PlayHolderOverlay( "ready" );
+	}
+
 	protected override void CreateWorldModel()
 	{
 		DestroyWorldModel();
