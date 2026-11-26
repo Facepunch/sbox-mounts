@@ -328,7 +328,7 @@ public abstract partial class HandheldWeapon : Weapon
 					PushLooseItem( item, hit.Direction );
 					force = 0;
 				}
-				ApplyDelayedHit( hit, PrecisionDamage( hit, config.Damage * scale, CanHeadshot ), force, Attacker, AttackDamageTags );
+				ApplyDelayedHit( hit, config.Damage * scale, force, Attacker, AttackDamageTags, canHeadshot: CanHeadshot );
 			}
 			volley[i] = new( hit.EndPosition, hit.Hit, hit.Normal, hit.GameObject, surface, ray.Position, NoEvents: i > 0 );
 		}

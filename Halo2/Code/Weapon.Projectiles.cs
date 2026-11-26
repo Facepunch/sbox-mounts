@@ -52,13 +52,6 @@ public abstract partial class Weapon
 	[Property] public bool PelletExplosive { get; set; }
 	[Property] public bool CanHeadshot { get; set; }
 
-	protected static float PrecisionDamage( SceneTraceResult hit, float damage, bool canHeadshot )
-	{
-		if ( damage > 0 && canHeadshot && hit.Hitbox?.Tags.Has( "headshot_section" ) == true
-			&& hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>() is { } npc && damage > ((Component.IDamageable)npc).Armour )
-			return damage + npc.Health;
-		return damage;
-	}
 	[Property] public float DamageFalloffRange { get; set; } = 960;
 	[Property] public float UnderwaterDamageFalloffRange { get; set; } = 120;
 
@@ -418,7 +411,6 @@ public abstract partial class Weapon
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
-				damage = PrecisionDamage( hit, damage, discharge?.CanHeadshot ?? CanHeadshot );
 				hit.Direction = pellet.Velocity.Normal;
 				bool? alternate = null;
 				ShardResponse? shardResponse = null;
@@ -453,7 +445,7 @@ public abstract partial class Weapon
 				pellet.Trail?.Finish( hit.HitPosition, segmentTime + step * (hit.Distance / distance) );
 				hit.StartPosition = origin;
 				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null, alternate ) );
-				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
+				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags, canHeadshot: discharge?.CanHeadshot ?? CanHeadshot );
 				if ( Shard is {} shard && shardResponse == ShardResponse.Attach && hit.GameObject.IsValid() )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );
 				else if ( pellet.Body.IsValid() ) pellet.Body.Destroy();

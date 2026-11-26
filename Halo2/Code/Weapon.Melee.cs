@@ -206,15 +206,16 @@ public abstract partial class Weapon
 		return vitality is null ? 0 : vitality.Health + vitality.Armour;
 	}
 
-	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
+	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true, bool canHeadshot = false )
 	{
-		if ( hitboxTags && hit.Hitbox?.Tags is {} section && section.Has( "headshot_section" ) && section.Has( "head" ) )
+		if ( hitboxTags && hit.Hitbox?.Tags is {} section && section.Has( "head" ) )
 		{
-			// The material named "head" also triggers Sandbox's damage multiplier. Halo has already resolved this section.
+			// Preserve the section in the hit claim. The host resolves it against the victim's current shield.
 			var resolved = new TagSet();
 			if ( tags is not null ) resolved.Add( tags );
 			resolved.Add( section );
 			resolved.Remove( "head" );
+			if ( canHeadshot ) resolved.Add( PrecisionDamageSystem.Headshot );
 			tags = resolved;
 			hitboxTags = false;
 		}

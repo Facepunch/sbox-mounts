@@ -96,8 +96,8 @@ internal static class CollisionModel
 					{
 						var hitbox = set.AddHull( $"{name}_{piece++}", nodes[node], points );
 						if ( (uint)material < surfaces.Length && surfaces[material] is {} surface ) hitbox.WithSurface( surface );
-						if ( (uint)material < headshotMaterials.Length && headshotMaterials[material] ) hitbox.AddTag( "headshot_section" );
-						if ( (uint)material < materials.Length && !string.IsNullOrWhiteSpace( materials[material] ) )
+						if ( (uint)material < headshotMaterials.Length && headshotMaterials[material] ) hitbox.AddTag( "head" );
+						if ( (uint)material < materials.Length && !string.IsNullOrWhiteSpace( materials[material] ) && materials[material] != "head" )
 							hitbox.AddTag( materials[material] );
 					}
 					catch ( ArgumentException )
