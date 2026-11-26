@@ -16,6 +16,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	bool AtAnchor => (WorldPosition - anchor).WithZ( 0 ).LengthSquared <= ArrivalDistance * ArrivalDistance;
 	Component target;
 	float targetRadius;
+	Vector3? backPosition;
 	TimeUntil nextIdleSearch, nextPositionCheck, nextWeld, inCombat;
 	TimeSince age;
 	[Sync( SyncFlags.FromHost )] TimeSince AnimationTime { get => age; set => age = value; }
@@ -82,16 +83,10 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	{
 		if ( nextIdleSearch <= 0 )
 		{
-			var found = FindWeldTarget();
-			if ( found != target ) nextPositionCheck = 0;
-			target = found;
+			target = FindWeldTarget();
 			if ( !target.IsValid() && AtAnchor ) nextIdleSearch = 0.35f;
 		}
-		if ( nextPositionCheck <= 0 )
-		{
-			nextPositionCheck = 0.4f;
-			UpdateWeldPosition();
-		}
+		UpdateWeldPosition();
 		if ( !target.IsValid() || nextWeld > 0 || target is not IDamageable { Health: > 0 } hp ) return;
 		if ( WorldPosition.Distance( target.WorldPosition ) >= 2.5f * Scale + targetRadius ) return;
 		if ( target.GameObject.Tags.Has( "structure" ) )
@@ -116,7 +111,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		{
 			Animation.SetLookTarget( null );
 			if ( !AtAnchor ) Movement.MoveTo( anchor, ArrivalDistance, speed );
-			else Movement.Stop();
+			else if ( Movement.MoveTarget.HasValue ) Movement.Stop();
 			return;
 		}
 
@@ -126,8 +121,13 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		float distance = WorldPosition.Distance( target.WorldPosition ) - targetRadius;
 		if ( distance < 2.5f * Scale && !obj.Tags.Has( "structure" ) )
 		{
-			var forward = target.GetComponent<PlayerController>()?.EyeTransform.Forward ?? target.WorldRotation.Forward;
-			if ( BackPosition( WorldPosition, target.WorldPosition, forward, targetRadius ) is { } position )
+			if ( nextPositionCheck < 0 )
+			{
+				nextPositionCheck = 0.4f;
+				var forward = target.GetComponent<PlayerController>()?.EyeTransform.Forward ?? target.WorldRotation.Forward;
+				backPosition = BackPosition( WorldPosition, target.WorldPosition, forward, targetRadius );
+			}
+			if ( backPosition is { } position )
 			{
 				Movement.MoveTo( position, 0, speed, obj );
 				return;
