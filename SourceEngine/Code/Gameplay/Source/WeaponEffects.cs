@@ -44,6 +44,11 @@ static class WeaponEffects
 	public static void MuzzleFlash( string type, GameObject attachment, bool firstPerson, string mount, float scale = 1 )
 	{
 		if ( Application.IsDedicatedServer || !attachment.IsValid() || type == Css.Rules.FlashNone ) return;
+		if ( !firstPerson && type is ("AR2" or "COMBINE") )
+		{
+			CombineWorldFlash( attachment, mount );
+			return;
+		}
 		var worldSpace = firstPerson && type is ("PISTOL" or "357" or "SHOTGUN");
 		var root = new GameObject( worldSpace ? null : attachment, false, "HL2 muzzle flash" );
 		root.NetworkMode = NetworkMode.Never;
@@ -103,7 +108,9 @@ static class WeaponEffects
 			var combineScale = Game.Random.Float( 2, 2.25f );
 			for ( var i = 1; i < 6; i++ )
 				burst.Add( Pick( CombineSprites ) + "_noz", mount, i * 8 * combineScale, (int)(Game.Random.Float( 6, 8 ) * (12 - i) / 12 * combineScale), color, 0.025f );
-			burst.Add( Pick( CombineSprites ) + "_noz", mount, 0, Game.Random.Float( 10, 16 ), Color.White * (Game.Random.Int( 64, 128 ) / 255f), 0.025f );
+			var radius = (int)Game.Random.Float( 10, 16 );
+			var core = burst.Add( Pick( CombineSprites ) + "_noz", mount, 0, radius, Color.White, 0.025f, alpha: Game.Random.Int( 64, 128 ) / 255f );
+			burst.FadeTo( core, radius, Color.White, 32 / 255f );
 			return;
 		}
 		var pistol = type == "PISTOL";
@@ -156,18 +163,70 @@ static class WeaponEffects
 
 	static void WorldFlash( string type, SpriteBurst burst, string mount, float scale )
 	{
-		// MuzzleFlash_Combine_NPC is a starburst; this keeps its sprites on the shared FX_MuzzleEffect layout.
-		var sprites = type is "COMBINE" or "AR2" ? CombineSprites : FlashSprites;
 		var size = Math.Clamp( Game.Random.Float( scale - 0.25f, scale + 0.25f ), 0.5f, 8 );
 		var singleFrame = type is "PISTOL" or "357" or "SMG1";
 		var lifetime = singleFrame ? 0.0001f : 0.1f;
 		for ( var i = 1; i < 9; i++ )
 		{
 			var radius = (int)(Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size);
-			var sprite = burst.Add( Pick( sprites ), mount, i * 2 * scale, radius, Color.White, lifetime );
+			var sprite = burst.Add( Pick( FlashSprites ), mount, i * 2 * scale, radius, Color.White, lifetime );
 			if ( !singleFrame ) burst.FadeTo( sprite, radius, Color.White, 128 / 255f );
 		}
 		if ( type == "SHOTGUN" ) ShotgunSparks( burst.WorldPosition, burst.WorldRotation.Forward, mount );
+	}
+
+	static void CombineWorldFlash( GameObject muzzle, string mount )
+	{
+		var scale = Game.Random.Float( 1, 1.5f );
+		var first = Emitter( CombineSprites[0], 20, 0.2f );
+		var second = Emitter( CombineSprites[1], 20, 0.2f );
+		EmitRow( Vector3.Forward, true );
+		EmitRow( Vector3.Left - Vector3.Up, false );
+		EmitRow( Vector3.Right - Vector3.Up, false );
+		EmitRow( Vector3.Up, false );
+
+		var core = Emitter( "effects/strider_muzzle", 1, Game.Random.Float( 0.3f, 0.4f ) );
+		if ( core.IsValid() )
+		{
+			core.InitialScale = 2 * (int)(scale * Game.Random.Float( 12, 16 ));
+			core.Scale = SmokeFade;
+			core.Emit( muzzle.WorldPosition, 0 );
+		}
+
+		ParticleEffect Emitter( string material, int count, float lifetime )
+		{
+			var effect = Particles.Emitter( muzzle, material, mount, true, false, count );
+			if ( !effect.IsValid() ) return null;
+			effect.LocalSpace = 1;
+			effect.ApplyShape = true;
+			effect.ApplyRotation = true;
+			effect.InitialRoll = new ParticleFloat( 0, 360 );
+			effect.ApplyAlpha = true;
+			effect.Alpha = SmokeFade;
+			effect.Lifetime = lifetime;
+			var renderer = effect.GetComponent<ParticleSpriteRenderer>();
+			renderer.CameraFadeNear = 16;
+			renderer.CameraFadeFar = 64;
+			effect.Invoke( lifetime, effect.DestroyGameObject );
+			return effect;
+		}
+
+		void EmitRow( Vector3 axis, bool forward )
+		{
+			var direction = muzzle.WorldRotation * axis;
+			var velocity = direction * Game.Random.Float( 50, 150 ) * (forward ? 1 : 0.25f);
+			for ( var i = 1; i <= 5; i++ )
+			{
+				var emitter = Game.Random.Int( 0, 1 ) == 0 ? first : second;
+				if ( !emitter.IsValid() ) continue;
+				var radius = forward ? Game.Random.Float( 6, 8 ) * (7.5f - i) / 6 : Game.Random.Float( 2, 4 ) * (6 - i) / 3;
+				var particle = emitter.Emit( muzzle.WorldPosition + direction * (i * scale * (forward ? 2 : 1)), 0 );
+				particle.StartScale = 2 * (int)(scale * radius);
+				particle.Size = particle.StartScale;
+				particle.DeathTime = particle.BornTime + (forward ? 0.1f : 0.2f);
+				particle.Velocity = velocity;
+			}
+		}
 	}
 
 	static void ShotgunSparks( Vector3 origin, Vector3 forward, string mount )
@@ -856,7 +915,7 @@ public sealed class SpriteBurst : Component
 	}
 
 	/// <summary>Source particle sizes are radii, so the drawn sprite is twice as wide. Roll is in degrees, random when unset.</summary>
-	public SpriteRenderer Add( string sprite, string mount, float offset, float size, Color color, float lifetime, float? roll = null )
+	public SpriteRenderer Add( string sprite, string mount, float offset, float size, Color color, float lifetime, float? roll = null, float alpha = 1 )
 	{
 		var renderer = MountedEffects.AddSprite( GameObject, sprite, mount, useViewModelLayer: !DrawBeforeViewModel );
 		if ( !renderer.IsValid() ) return null;
@@ -866,7 +925,7 @@ public sealed class SpriteBurst : Component
 		renderer.CameraFadeNear = CameraFade.x;
 		renderer.CameraFadeFar = CameraFade.y;
 		renderer.Size = size * 2;
-		renderer.Color = color.WithAlpha( 1 );
+		renderer.Color = color.WithAlpha( alpha );
 		_lifetime = MathF.Max( _lifetime, lifetime );
 		return renderer;
 	}
