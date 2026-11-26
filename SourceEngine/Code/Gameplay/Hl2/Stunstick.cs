@@ -40,7 +40,7 @@ public sealed class Stunstick : MeleeWeapon
 	{
 		if ( shot.Hit && !Application.IsDedicatedServer )
 			WeaponEffects.StunstickImpact( shot.HitPosition, shot.Normal, MountContent.Of( GameObject ) );
-		ImpactEffect( shot, GetShotDirection( shot ) );
+		SurfaceImpact( shot, MountContent.OfWeapon( this ) );
 	}
 
 

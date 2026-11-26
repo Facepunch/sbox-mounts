@@ -153,7 +153,7 @@ public class MeleeWeapon : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( !WaterImpact( shot ) ) ImpactEffect( shot, GetShotDirection( shot ) );
+		if ( !WaterImpact( shot ) ) SurfaceImpact( shot, MountContent.OfWeapon( this ) );
 	}
 
 	/// <summary>Draws the aiming dot with the current attack availability.</summary>

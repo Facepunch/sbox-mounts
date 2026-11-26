@@ -304,6 +304,12 @@ public abstract class Weapon : BaseCombatWeapon
 	/// </summary>
 	protected virtual void OnViewModelPlaced( ViewModel model ) { }
 
+	protected void SurfaceImpact( in ShotEffect shot, string mount )
+	{
+		var direction = GetShotDirection( shot );
+		if ( !WeaponEffects.Impact( shot, direction, mount ) ) ImpactEffect( shot, direction );
+	}
+
 	GameObject _bulletAttacker;
 	string[] _bulletIgnoreTags;
 

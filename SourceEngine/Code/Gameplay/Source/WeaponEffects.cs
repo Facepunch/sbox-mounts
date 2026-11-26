@@ -6,7 +6,7 @@ namespace Source1;
 /// Builds muzzle flashes and ejected shells from mounted sprites and models. HL2 animation events
 /// select the flash type. Counter-Strike weapon scripts specify the muzzle flash style.
 /// </summary>
-static class WeaponEffects
+static partial class WeaponEffects
 {
 	static readonly string[] FlashSprites = ["effects/muzzleflash1", "effects/muzzleflash2", "effects/muzzleflash3", "effects/muzzleflash4"];
 	static readonly string[] CombineSprites = ["effects/combinemuzzle1", "effects/combinemuzzle2"];
@@ -338,82 +338,6 @@ static class WeaponEffects
 		}
 	}
 
-	/// <summary>
-	/// Play the surface sound and place its decal alongside the Source impact effect.
-	/// </summary>
-	public static bool Impact( in BaseCombatWeapon.ShotEffect shot, Vector3 direction, string mount )
-	{
-		if ( Application.IsDedicatedServer || !shot.Hit || !shot.Surface.IsValid() ) return false;
-		var surface = shot.Surface;
-		var blood = BloodParticle( surface );
-		if ( blood is null ? surface.AudioSurface != AudioSurface.Metal : !MountedEffects.Prefab( blood, mount ).IsValid() ) return false;
-		var baseSurface = surface.GetBaseSurface();
-		var sound = surface.SoundCollection.Bullet ?? baseSurface?.SoundCollection.Bullet;
-		if ( sound.IsValid() ) Sound.Play( sound, shot.HitPosition );
-		var decal = surface.PrefabCollection.BulletImpactDecal ?? baseSurface?.PrefabCollection.BulletImpactDecal;
-		PlaceDecal( decal, shot.HitObject, shot.HitPosition, shot.Normal );
-		if ( blood is not null )
-			MountedEffects.Spawn( blood, new Transform( shot.HitPosition, Rotation.LookAt( shot.Normal ) * Rotation.FromPitch( 90 ) ), mount );
-		else if ( !surface.HasTag( "grate" ) )
-			MetalSparks( shot.HitPosition + shot.Normal, direction, shot.Normal, mount );
-		return true;
-	}
-
-	static void MetalSparks( Vector3 origin, Vector3 incoming, Vector3 normal, string mount )
-	{
-		var reflected = incoming - normal * (2 * incoming.Dot( normal )) + Particles.InCube( 0.2f );
-		var count = 2 * Game.Random.Int( 4, 8 );
-		var burst = new GameObject( true, "Metal impact" );
-		burst.NetworkMode = NetworkMode.Never;
-		burst.WorldPosition = origin;
-		burst.AddComponent<TemporaryEffect>().DestroyAfterSeconds = 0.1f;
-		var effect = Particles.Emitter( burst, "effects/spark", mount, true, false, count );
-		if ( effect.IsValid() )
-		{
-			effect.Lifetime = new ParticleFloat( 0.05f, 0.1f );
-			effect.InitialScale = new ParticleFloat( 1, 4 );
-			effect.Damping = 8;
-			effect.Force = true;
-			effect.ForceDirection = Vector3.Down * 400;
-			effect.Collision = true;
-			effect.Bounce = 0.25f;
-			var renderer = effect.GetComponent<ParticleSpriteRenderer>();
-			renderer.VelocityStretch = true;
-			renderer.StretchTime = new ParticleFloat( 0.025f, 0.1f );
-			for ( var i = 0; i < count; i++ )
-			{
-				var spread = Game.Random.Float( 0, 2 );
-				var dir = (reflected + Particles.InCube( 0.5f * spread )).Normal;
-				var spark = effect.Emit( origin, 0 );
-				if ( spark is not null ) spark.Velocity = dir * Game.Random.Float( 128, 512 ) * (2 - spread);
-			}
-		}
-		Hl2.FlatQuad.Create( "effects/yellowflare", origin, normal, Game.Random.Int( 24, 28 ), 0, 0.1f, mount, linear: true );
-	}
-
-	internal static Transform DecalTransform( GameObject target, Vector3 position, Vector3 normal )
-		=> target.WorldTransform.ToLocal( new Transform( position, Rotation.LookAt( -normal, Vector3.Random ) ) );
-
-	internal static void PlaceDecal( GameObject prefab, GameObject target, Vector3 position, Vector3 normal )
-	{
-		if ( target.IsValid() ) PlaceDecal( prefab, target, DecalTransform( target, position, normal ) );
-	}
-
-	internal static void PlaceDecal( GameObject prefab, GameObject target, Transform local )
-	{
-		if ( !prefab.IsValid() || !target.IsValid() ) return;
-		var mark = prefab.Clone( local, target );
-		mark.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-	}
-
-	/// <summary>Source surfaceprops by name: alien, antlion and zombie flesh bleed yellow, other flesh red.</summary>
-	static string BloodParticle( Surface surface )
-	{
-		var name = surface.ResourceName ?? "";
-		if ( name.Contains( "alienflesh" ) || name.Contains( "antlion" ) || name.Contains( "zombieflesh" ) ) return "blood_impact_yellow_01";
-		return name.Contains( "flesh" ) ? "blood_impact_red_01" : null;
-	}
-
 	/// <summary>The .357 tips all six casings out at the reload animation's weapon event.</summary>
 	public static void EjectCylinder( Vector3 center, Rotation facing, string mount )
 	{
@@ -635,7 +559,7 @@ static class WeaponEffects
 		drops.ForceDirection = Vector3.Down * 800;
 		var renderer = drops.GetComponent<ParticleSpriteRenderer>();
 		renderer.VelocityStretch = true;
-		renderer.StretchTime = explosion ? ExplosionDropStretch : SplashDropStretch;
+		renderer.StretchTime = explosion ? ImpactTrailStretch : SplashDropStretch;
 		for ( var i = 0; i < count; i++ )
 		{
 			var origin = position + Particles.InCube( explosion ? 32 : 8 ).WithZ( 0 );
@@ -769,7 +693,7 @@ static class WeaponEffects
 	static readonly ParticleFloat LargeSparkStretch = DropStretch( 0.05f, 0.02f );
 	static readonly ParticleFloat SmallSparkStretch = DropStretch( 0.03f, 0.02f );
 	static readonly ParticleFloat SplashDropStretch = DropStretch( 0.05f );
-	static readonly ParticleFloat ExplosionDropStretch = DropStretch( 0.1f );
+	static readonly ParticleFloat ImpactTrailStretch = DropStretch( 0.1f );
 
 	static ParticleFloat DropStretch( float longest, float shortest = 0.025f ) => new()
 	{
