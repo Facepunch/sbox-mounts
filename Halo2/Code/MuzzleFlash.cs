@@ -2,12 +2,14 @@ namespace Halo2;
 
 public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] Layers );
 
-public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity );
+public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity, bool Additive, float Gravity, float Drag );
+
+public sealed record MuzzleEmission( float Start, float Duration );
 
 public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
-	Vector2 BirthCount, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees );
+	Vector2 BirthCount, int BirthInput, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission );
 
 public sealed class MuzzleFlash : Component
 {
@@ -16,7 +18,7 @@ public sealed class MuzzleFlash : Component
 
 	float Sample( Vector2 bounds ) => bounds.x == bounds.y ? bounds.x : MathX.Lerp( bounds.x, bounds.y, BlamRandom.Next( ref seed ) / 65535f );
 
-	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder )
+	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, float systemRandom )
 	{
 		layers ??= new ParticleEffect[data.Layers.Length];
 		for ( int i = 0; i < layers.Length; i++ )
@@ -27,8 +29,32 @@ public sealed class MuzzleFlash : Component
 			var layer = layers[i];
 			if ( !layer.IsValid() ) continue;
 			if ( spec.Casing is not null ) layer.WorldTransform = WorldTransform.ToWorld( new Transform( spec.Offset, spec.Direction ) );
-			int count = (int)(Sample( spec.BirthCount ) + 0.0001f);
+			float rate = spec.BirthInput == 5 ? MathX.Lerp( spec.BirthCount.x, spec.BirthCount.y, systemRandom ) : Sample( spec.BirthCount );
+			if ( spec.Emission is {} emission )
+			{
+				_ = EmitOverTime( layer, emission, rate * 30 );
+				continue;
+			}
+			int count = (int)(rate + 0.0001f);
 			for ( int j = 0; j < count; j++ ) layer.Emit( layer.WorldPosition, 0 );
+		}
+	}
+
+	async System.Threading.Tasks.Task EmitOverTime( ParticleEffect layer, MuzzleEmission emission, float rate )
+	{
+		double start = Time.NowDouble + emission.Start;
+		int emitted = 0;
+		while ( layer.IsValid() )
+		{
+			double elapsed = System.Math.Clamp( Time.NowDouble - start, 0, emission.Duration );
+			int due = (int)(elapsed * rate + 0.0001);
+			while ( emitted < due )
+			{
+				layer.Emit( layer.WorldPosition, 0 );
+				emitted++;
+			}
+			if ( elapsed >= emission.Duration ) return;
+			await Task.Frame();
 		}
 	}
 
@@ -53,7 +79,7 @@ public sealed class MuzzleFlash : Component
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = 2;
-		renderer.Additive = data.Smoke is null && data.Casing is null;
+		renderer.Additive = data.Smoke?.Additive ?? (data.Casing is null);
 		renderer.Lighting = data.Casing is not null;
 		if ( data.Parallel ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		renderer.FogStrength = 0;
@@ -68,6 +94,7 @@ public sealed class MuzzleFlash : Component
 				p.Size *= smoke.Radius.Evaluate( t, p.Rand( 4, 0 ) );
 				p.Alpha = smoke.Alpha.Evaluate( t, 0 ).Clamp( 0, 1 ) * MathX.Lerp( smoke.Opacity.x, smoke.Opacity.y, p.Rand( 5, 0 ) );
 			}
+			if ( data.FlareAlpha is {} alpha ) p.Alpha = alpha.Evaluate( t, p.Rand( 5, 0 ) ).Clamp( 0, 1 );
 			p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
 			p.Sequence = 0;
 			p.SequenceTime = new Vector3( data.Frame.Evaluate( t, 0 ), 0, 0 );
@@ -83,7 +110,7 @@ public sealed class MuzzleFlash : Component
 		effect.OnParticleCreated += p =>
 		{
 			p.StartAngles.roll = p.Rand( 3, 0 ) * 360;
-			if ( data.Casing is not null )
+			if ( data.ConeDegrees > 0 || data.Casing is not null )
 			{
 				float azimuth = p.Rand( 6, 0 ) * System.MathF.Tau;
 				float angle = p.Rand( 7, 0 ) * data.ConeDegrees.DegreeToRadian();
@@ -97,7 +124,12 @@ public sealed class MuzzleFlash : Component
 		};
 		effect.OnPostStep += dt =>
 		{
-			foreach ( var p in effect.Particles ) Appearance( p );
+			foreach ( var p in effect.Particles )
+			{
+				Appearance( p );
+				if ( data.Smoke is {} smoke )
+					p.Velocity = (p.Velocity + Vector3.Down * (4.1712594f * 120 * smoke.Gravity * dt)) * (1 - (smoke.Drag * dt).Clamp( 0, 1 ));
+			}
 			if ( data.Casing is not null ) CasingParticles.Advance( effect, holder, data.Casing, dt );
 		};
 		go.Enabled = true;

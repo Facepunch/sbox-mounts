@@ -1,5 +1,11 @@
 namespace Halo2;
 
+[Sandbox.ModelEditor.GameData( "marker_groups" )]
+public sealed class MarkerGroups
+{
+	public Dictionary<string, List<string>> Additional { get; set; }
+}
+
 public sealed record WeaponSound( SoundEvent Sound, string Marker );
 
 public abstract class HandheldWeapon : Weapon
@@ -82,8 +88,14 @@ public abstract class HandheldWeapon : Weapon
 		if ( groups is null ) return;
 		foreach ( var flash in groups )
 		{
-			if ( EffectMarker( flash.Marker ) is {} muzzle )
-				muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, WeaponModel?.GameObject == ViewModel, Holder?.GameObject );
+			if ( EffectMarker( flash.Marker ) is not {} muzzle ) continue;
+			bool firstPerson = WeaponModel?.GameObject == ViewModel;
+			float systemRandom = System.Random.Shared.NextSingle();
+			muzzle.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemRandom );
+			var rig = muzzle.GetComponentInParent<SkinnedModelRenderer>();
+			if ( rig?.Model?.GetData<MarkerGroups>()?.Additional?.TryGetValue( flash.Marker, out var extra ) != true ) continue;
+			foreach ( var name in extra )
+				rig.GetAttachmentObject( name )?.GetOrAddComponent<MuzzleFlash>().Emit( flash, firstPerson, Holder?.GameObject, systemRandom );
 		}
 	}
 

@@ -533,6 +533,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		}
 
 		var used = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
+		var additional = new Dictionary<string, List<string>>();
 		for ( int i = 0; i < count; i++ )
 		{
 			string name = names[i];
@@ -556,10 +557,13 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				{
 					do { attachment = $"{name}_{suffix++}"; }
 					while ( reserved.Contains( attachment ) || !used.Add( attachment ) );
+					if ( !additional.TryGetValue( name, out var groupNames ) ) additional[name] = groupNames = new();
+					groupNames.Add( attachment );
 				}
 				builder.AddAttachment( attachment, ConvertPosition( position ), rotation, node == byte.MaxValue ? null : bones[node].Name );
 			}
 		}
+		if ( additional.Count > 0 ) builder.WithData( new MarkerGroups { Additional = additional } );
 		// Halo resolves a missing root marker to the first posed node.
 		if ( bones.Count > 0 && !used.Contains( "root" ) )
 			builder.AddAttachment( "root", Vector3.Zero, Rotation.Identity, bones[0].Name );

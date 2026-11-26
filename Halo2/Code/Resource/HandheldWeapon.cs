@@ -328,25 +328,45 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		int header = Address( effect );
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
 		var markers = new Dictionary<string, List<MuzzleFlashLayer>>();
+		float start = 0;
 		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
-			ReadSystems( ev + 48 );
+		{
+			start += Float( ev + 8 );
+			float duration = Float( ev + 16 );
+			ReadSystems( ev + 48, start, duration );
+			start += duration;
+		}
 		return markers.Select( pair => new MuzzleFlashDefinition( pair.Key, pair.Value.ToArray() ) ).ToArray();
 
-		void ReadSystems( int systems )
+		void ReadSystems( int systems, float start, float duration )
 		{
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				bool smoke = particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
-				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings";
-				if ( !smoke && !casing && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
+				bool fiery = particle?.TagPath == @"effects\generic\smoke\smoke_fiery_small";
+				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
+				bool smoke = fiery || soft || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
+				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
+					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
+				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_center";
+				if ( !smoke && !casing && !flare && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
 					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;
 				int definition = Address( particle );
 				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
 				if ( bitmap is null ) continue;
-				var frame = ReadAnimatedFrames( definition )[0];
-				var pivot = frame.Pivot * frame.InverseSize;
+				var texture = Host.AssetPath( map, bitmap.TagPath, "vtex" );
+				var pivot = new Vector2( 0.5f, 0.5f );
+				var aspect = Vector2.One;
+				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 )
+				{
+					var frame = ReadAnimatedFrames( definition )[0];
+					texture += $"/sequence_{Short( definition + 8 )}.vtex";
+					pivot = frame.Pivot * frame.InverseSize;
+					aspect = frame.Aspect;
+				}
+				else if ( BitmapTag.Read( map, bitmap, 0 ) is {} image )
+					aspect.x = (float)image.Width / image.Height;
 				var marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
 				if ( marker is null ) continue;
 				if ( !markers.TryGetValue( marker, out var layers ) ) markers[marker] = layers = new();
@@ -369,14 +389,22 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 					var offset = new Vector3( Float( emitter + 156 ), Float( emitter + 160 ), Float( emitter + 164 ) ) * 120;
 					var direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 );
 					Vector2 Bounds( int property ) => new( Float( Block( property + 8 ) + 4 ), Float( Block( property + 8 ) + 8 ) );
-					layers.Add( new( Host.AssetPath( map, bitmap.TagPath, "vtex" ) + $"/sequence_{Short( definition + 8 )}.vtex",
-						new Vector2( 1 - pivot.x, pivot.y ), frame.Aspect, Bounds( emitter + 24 ),
+					float Motion( int parameter )
+					{
+						if ( Reference( emitter ) is not {} movement || map.ReadInt32( Address( movement ) + 12 ) == 0 ) return 0;
+						int control = Block( Address( movement ) + 12 );
+						return Float( Block( Block( control + 4 ) + parameter * 20 + 12 ) + 4 );
+					}
+					layers.Add( new( texture,
+						new Vector2( 1 - pivot.x, pivot.y ), aspect, Bounds( emitter + 24 ),
 						ReadRange( emitter + 72, smoke ? 120 : 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ),
 						map.ReadInt32( definition + 100 ) > 0 ? ReadRange( definition + 92, 1 ) : default,
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
-						Bounds( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
-						smoke ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), Bounds( emitter + 104 ) ) : null, contacts, casing ? Bounds( emitter + 140 ).x : 0 ) );
+						Bounds( emitter + 8 ), Short( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
+						smoke ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (fiery || soft) ? Vector2.One : Bounds( emitter + 104 ), fiery, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
+						flare || soft || fiery ? ReadRange( emitter + 104, 1 ) : null,
+						(soft || fiery) && (start > 0 || duration > 1.001f / 30) ? new( start, duration ) : null ) );
 				}
 			}
 		}
