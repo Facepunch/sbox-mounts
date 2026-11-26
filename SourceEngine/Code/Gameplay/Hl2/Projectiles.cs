@@ -589,6 +589,9 @@ public sealed class EnergyBall : Projectile
 [Alias( "Source1.Hl2Bugbait", "Hl2Bugbait" )]
 public sealed class Bugbait : Projectile
 {
+	[ConVar( "bugbait_grenade_radius", ConVarFlags.Server, Help = "How far a thrown bugbait can distract Combine soldiers." )]
+	public static float DistractionRadius { get; set; } = 150;
+
 	public const float ThrowSpeed = 1000;
 
 	/// <summary>CWeaponBugBait::ThrowGrenade: forward at 1000 on top of the thrower's velocity.</summary>
@@ -612,7 +615,7 @@ public sealed class Bugbait : Projectile
 			var hull = npc.GetComponentInChildren<BoxCollider>();
 			if ( !hull.IsValid() ) continue;
 			var delta = hull.WorldTransform.PointToWorld( hull.Center ) - WorldPosition;
-			if ( MathF.Abs( delta.x ) + MathF.Abs( delta.y ) + MathF.Abs( delta.z ) >= 150 ) continue;
+			if ( MathF.Abs( delta.x ) + MathF.Abs( delta.y ) + MathF.Abs( delta.z ) >= DistractionRadius ) continue;
 			var sight = Scene.Trace.Ray( WorldPosition, npc.EyePosition )
 				.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( Attacker ).WithoutTags( "trigger" ).Run();
 			if ( !sight.Hit || sight.GameObject.GetComponentInParent<CombatNpc>() == npc )
