@@ -7,7 +7,7 @@ public sealed class PropDamage : Component
 
 	internal static void Attach( Prop prop )
 	{
-		if ( prop.Model?.GetData<PropDamageModifiers>() is { Bullet: not 1 } )
+		if ( prop.Model?.GetData<PropDamageModifiers>() is not null )
 			prop.GetOrAddComponent<PropDamage>();
 	}
 
@@ -24,7 +24,8 @@ public sealed class PropDamage : Component
 
 	void OnDamage( DamageInfo hit )
 	{
-		if ( hit.Tags.Has( DamageTags.Bullet ) && _prop.Model?.GetData<PropDamageModifiers>() is { Bullet: not 1 } modifiers )
-			hit.Damage = System.MathF.Truncate( hit.Damage * modifiers.Bullet );
+		if ( !hit.Tags.Has( DamageTags.Bullet ) || _prop.Model?.GetData<PropDamageModifiers>() is not { } modifiers ) return;
+		var scale = modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1);
+		hit.Damage = System.MathF.Truncate( hit.Damage * scale );
 	}
 }

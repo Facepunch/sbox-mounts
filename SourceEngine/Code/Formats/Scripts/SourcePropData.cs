@@ -56,7 +56,7 @@ internal sealed class SourcePropData
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		}, physGun, bullet == 1 && club == 1 ? null : new PropDamageModifiers { Bullet = bullet, Club = club });
+		}, physGun, new PropDamageModifiers { Bullet = bullet, Club = club });
 
 		void Apply( VmtNode section )
 		{
