@@ -34,7 +34,8 @@ public sealed class HoldPose
 	readonly IReadOnlyList<Skeleton.Bone> _bones;
 	readonly Dictionary<string, int> _indices = new( StringComparer.OrdinalIgnoreCase );
 	readonly (Clip Clip, bool Delta)[] _shots;
-	readonly Clip _reload;
+	Clip _reload;
+	(Clip Clip, SourceModelSequenceData Sequence)[] _reloadChoices = [];
 	SourceModelSequenceData.LayerRamp? _reloadBlend;
 	readonly Clip[] _realTimeLayers;
 	readonly Transform[] _rest;
@@ -184,6 +185,10 @@ public sealed class HoldPose
 		// A reload blends over the authored arms before the grip is solved on the combined pose.
 		if ( playerGesture && reloadClip is not null && aimSequence.IkTargets is { Length: > 0 } )
 			aimClip = Find( SourceAnimations.HoldRestClip( aim ) ) ?? aimClip;
+		var reloadChoices = playerGesture && reloadSequence is not null
+			? sequences.All.Where( x => !x.Delta && x.Activity == reloadSequence.Activity && x.ActivityWeight != 0 )
+				.Select( x => (Clip: Find( x.Name ), Sequence: x) ).Where( x => x.Clip is not null ).ToArray()
+			: [];
 		var shotClips = shots.Where( x => Find( x ) is not null ).Select( x => (Find( x ), sequences.Get( x )?.Delta == true) ).ToArray();
 		// A whole-body clip has its delta layers baked in. A masked one leaves its aim matrix, and what the other layers do
 		// outside the mask, to clips of their own; the matrix's own clip is its centre.
@@ -195,7 +200,7 @@ public sealed class HoldPose
 			.Where( clip => clip is { Duration: > 0 } ).ToArray() : [];
 
 		// A clip samples as garbage until it and its skeleton have streamed in.
-		Clip[] used = [aimClip, lowerClip, reloadClip, .. layerClips, .. realTimeLayers, .. shotClips.Select( x => x.Item1 )];
+		Clip[] used = [aimClip, lowerClip, reloadClip, .. layerClips, .. realTimeLayers, .. reloadChoices.Select( x => x.Clip ), .. shotClips.Select( x => x.Item1 )];
 		if ( used.Any( x => x is not null && (!x.IsBound || !IsPosed( x, skeleton.Bones.Count )) ) )
 			return false;
 
@@ -204,6 +209,7 @@ public sealed class HoldPose
 			Borrowed = borrowed,
 			HasCrouchPose = crouchIdle is not null,
 			HasReloadGesture = playerGesture && reloadClip is { Duration: > 0 },
+			_reloadChoices = reloadChoices,
 			_reloadBlend = reloadSequence?.PoseBlend
 		};
 		if ( pose.Knuckles < 2 )
@@ -316,6 +322,22 @@ public sealed class HoldPose
 			bone = _bones[bone].ParentIndex;
 
 		return bone >= 0;
+	}
+
+	internal void SelectReload( int choice )
+	{
+		if ( _reloadChoices.Length < 2 ) return;
+		var total = 0;
+		foreach ( var (_, sequence) in _reloadChoices ) total += Math.Abs( sequence.ActivityWeight );
+		choice %= total;
+		foreach ( var (clip, sequence) in _reloadChoices )
+		{
+			choice -= Math.Abs( sequence.ActivityWeight );
+			if ( choice >= 0 ) continue;
+			_reload = clip;
+			_reloadBlend = sequence.PoseBlend;
+			return;
+		}
 	}
 
 	/// <summary>How long a shot's sequence moves the pose for.</summary>

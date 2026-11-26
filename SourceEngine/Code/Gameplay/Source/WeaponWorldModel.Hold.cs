@@ -63,6 +63,7 @@ public sealed partial class WeaponWorldModel
 	int _heldShot;
 	float _shotTime = float.MaxValue;
 	bool _reloading;
+	int _reloadChoice;
 	float _reloadTime = float.MaxValue;
 	float _reloadWeight;
 	TimeSince _deployed;
@@ -91,7 +92,11 @@ public sealed partial class WeaponWorldModel
 		_shotTime += Time.Delta;
 		var reloading = _weapon.IsValid() && _weapon.IsReloading;
 		if ( reloading && !_reloading )
+		{
 			_reloadTime = 0;
+			_reloadChoice = Random.Shared.Next();
+			_hold.SelectReload( _reloadChoice );
+		}
 
 		_reloading = reloading;
 		_reloadTime += Time.Delta;
@@ -279,6 +284,7 @@ public sealed partial class WeaponWorldModel
 			var next = crouched ? _crouchedHold ?? _standingHold : _standingHold;
 			if ( next != _hold )
 			{
+				next.SelectReload( _reloadChoice );
 				StopHold();
 				_stanceBlendTime = next.Sequence.Snap ? 0 : MathF.Min( _hold.Sequence.FadeOut, next.Sequence.FadeIn );
 				_hold = BindHolder( next, holder ) ? next : null;
