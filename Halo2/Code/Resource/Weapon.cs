@@ -22,6 +22,22 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 	protected int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
 
+	protected ProjectileSpeedProfile ReadSpeedProfile( int projectile )
+	{
+		int flags = map.ReadInt32( projectile + 0xbc );
+		bool scaled = (flags & (1 << 10)) != 0;
+		float initial = Float( projectile + 0x17c ), final = Float( projectile + 0x180 );
+		float inverse = initial > 0 && final > 0 && initial != final ? Float( projectile + 0x194 ) / 120 : 0;
+		if ( !scaled && inverse <= 0 ) return null;
+		float npcScale = 1;
+		if ( scaled && map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" ) is {} globals )
+		{
+			int difficulty = Address( globals ) + 0xf8;
+			if ( map.ReadInt32( difficulty ) > 0 ) npcScale = Float( Block( difficulty ) + 0xa4 );
+		}
+		return new( final * 120, Float( projectile + 0x18c ) * 120, inverse, scaled, npcScale, (flags & 0x41) != 0 );
+	}
+
 	protected void ConfigureKick( Weapon gun, int barrel )
 	{
 		if ( map.ReadInt32( barrel + 0xe4 ) == 0 || Reference( Block( barrel + 0xe4 ) + 0x1c ) is not { PrimaryClass: "!tpj", DataSize: >= 0x8c } effect ) return;

@@ -1,5 +1,7 @@
 namespace Halo2;
 
+public sealed record ProjectileSpeedProfile( float FinalSpeed, float StartDistance, float InverseDistance, bool FasterForPlayer, float NpcScale, bool FollowsVelocity );
+
 public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
 
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
@@ -10,7 +12,10 @@ public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, flo
 
 public sealed record EnergyDischarge( BaseCombatWeapon.BallisticConfig Ballistics, float Speed, float MinimumAngle, float DryGravity, float WetGravity,
 	float MinimumDamage, float DryFalloff, float WetFalloff, Dictionary<string, float> BodyScales, bool Explosive,
-	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange );
+	ContrailAppearance Trail, float Heat, float Spent, SoundEvent Sound, string SoundMarker, float TurnRate, float TrackingAngle, float TrackingRange )
+{
+	public ProjectileSpeedProfile SpeedProfile { get; init; }
+}
 
 public abstract partial class Weapon
 {
@@ -18,6 +23,7 @@ public abstract partial class Weapon
 	[Property] public BounceDefinition Bounce { get; set; }
 	[Property] public ShardDefinition Shard { get; set; }
 	[Property] public string ProjectileModel { get; set; }
+	[Property] public ProjectileSpeedProfile SpeedProfile { get; set; }
 	[Property] public float PelletSpeed { get; set; }
 	[Property] public float AirGravityScale { get; set; }
 	[Property] public float WaterGravityScale { get; set; } = 0.2f;
@@ -43,6 +49,7 @@ public abstract partial class Weapon
 
 	struct Pellet
 	{
+		public Vector3 Forward;
 		public Vector3 Offset;
 		public Vector3 Velocity;
 		public float Travelled;
@@ -60,7 +67,10 @@ public abstract partial class Weapon
 	{
 		float maximum = spreadDegrees.DegreeToRadian();
 		float minimum = (discharge?.MinimumAngle ?? MinimumPelletAngle).DegreeToRadian();
-		float speed = discharge?.Speed ?? PelletSpeed;
+		float initialSpeed = discharge?.Speed ?? PelletSpeed;
+		var profile = discharge is null ? SpeedProfile : discharge.SpeedProfile;
+		float scale = profile is { FasterForPlayer: true } ? (Holder is PlayerController ? 1.5f : profile.NpcScale) : 1;
+		float speed = initialSpeed * scale;
 		var trail = discharge is null ? Trail : discharge.Trail;
 		var aim = ray.Forward;
 		var velocity = Sandbox.Npcs.BaseNpc.GetVelocity( Holder?.GameObject );
@@ -74,6 +84,7 @@ public abstract partial class Weapon
 		for ( int i = 0; i < pellets.Length; i++ )
 		{
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
+			pellets[i].Forward = forward;
 			pellets[i].Velocity = forward * speed + forward * inherited;
 			pellets[i].TurnRate = discharge?.TurnRate ?? 0;
 			if ( Shard is {} shard )
@@ -100,10 +111,10 @@ public abstract partial class Weapon
 			target = FindAttackTarget( player, new Ray( player.EyeTransform.Position, aim ), new( discharge?.TrackingAngle ?? Shard.TrackingAngle, discharge?.TrackingRange ?? Shard.TrackingRange ), out var point );
 			if ( target.IsValid() ) localPoint = target.WorldTransform.PointToLocal( point );
 		}
-		_ = FlyPellets( ray.Position, pellets, Attacker, discharge, target, localPoint );
+		_ = FlyPellets( ray.Position, pellets, Attacker, discharge, target, localPoint, profile, initialSpeed, scale );
 	}
 
-	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker, EnergyDischarge discharge, GameObject target, Vector3 localPoint )
+	async System.Threading.Tasks.Task FlyPellets( Vector3 origin, Pellet[] pellets, GameObject attacker, EnergyDischarge discharge, GameObject target, Vector3 localPoint, ProjectileSpeedProfile profile, float initialSpeed, float scale )
 	{
 		var scene = Scene;
 		bool InWater( Vector3 point )
@@ -137,6 +148,7 @@ public abstract partial class Weapon
 		const float dt = 1f / 30;
 		double firedAt;
 		using ( scene.Push() ) firedAt = Time.NowDouble;
+		float forwardDistance = 0, forwardSpeed = initialSpeed * scale;
 		for ( int tick = 0; flying > 0; tick++ )
 		{
 			while ( tick > 0 && scene.IsValid() )
@@ -147,6 +159,16 @@ public abstract partial class Weapon
 			}
 			if ( !scene.IsValid() ) return;
 			using var sceneScope = scene.Push();
+			float speedChange = 0;
+			if ( profile is { InverseDistance: > 0 } && initialSpeed != profile.FinalSpeed )
+			{
+				// The projectile maintains a forward-distance accumulator independent of gravity and inherited velocity.
+				float fraction = ((forwardDistance - profile.StartDistance * scale) * profile.InverseDistance).Clamp( 0, 1 );
+				float nextSpeed = (initialSpeed + (profile.FinalSpeed - initialSpeed) * fraction) * scale;
+				speedChange = nextSpeed - forwardSpeed;
+				forwardSpeed = nextSpeed;
+				forwardDistance += nextSpeed * dt;
+			}
 			for ( int i = 0; i < pellets.Length; i++ )
 			{
 				var pellet = pellets[i];
@@ -173,8 +195,11 @@ public abstract partial class Weapon
 				bool wet = tick == 0 ? originWet : InWater( start );
 				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
 				float step = dt * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * dt) );
-				var displacement = (pellet.Velocity + Vector3.Down * (0.5f * fall)) * step;
-				pellet.Velocity.z -= fall;
+				var velocityChange = Vector3.Down * fall;
+				if ( speedChange != 0 )
+					velocityChange += (profile.FollowsVelocity ? pellet.Velocity.Normal : pellet.Forward) * speedChange;
+				var displacement = (pellet.Velocity + velocityChange * 0.5f) * step;
+				pellet.Velocity += velocityChange;
 				float distance = displacement.Length;
 				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )
 					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );

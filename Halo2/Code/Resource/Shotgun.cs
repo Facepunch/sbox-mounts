@@ -358,6 +358,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.AirGravityScale = Float( projectile + 0x164 );
 			gun.WaterGravityScale = Float( projectile + 0x170 );
 			gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
+			gun.SpeedProfile = ReadSpeedProfile( projectile );
 			gun.AutoAimRange = Float( Header + 0x20c ) * 120;
 			gun.AutoAimAngle = Float( Header + 0x208 );
 			gun.MagnetismAngle = Float( Header + 0x210 );

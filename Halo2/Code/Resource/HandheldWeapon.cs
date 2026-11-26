@@ -185,6 +185,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		gun.Trail = ReadTrail( projectile );
 		gun.Instantaneous = (map.ReadInt32( projectile + 0xbc ) & 32) != 0;
 		gun.PelletSpeed = Float( projectile + 0x17c ) * 120;
+		gun.SpeedProfile = ReadSpeedProfile( projectile );
 		gun.MinimumPelletAngle = Float( barrel + 0x70 ).RadianToDegree();
 		gun.AirGravityScale = Float( projectile + 0x164 );
 		gun.WaterGravityScale = Float( projectile + 0x170 );
@@ -252,7 +253,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				fades ? Float( bolt + 0x16c ) * 120 : 0, fades ? Float( bolt + 0x178 ) * 120 : 0,
 				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
 				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
-				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 );
+				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 ) { SpeedProfile = ReadSpeedProfile( bolt ) };
 			gun = pistol;
 		}
 		else gun = ConfigurePickup<BatteryWeapon>( root, world, title );
