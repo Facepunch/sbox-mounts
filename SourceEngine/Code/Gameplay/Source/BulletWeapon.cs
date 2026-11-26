@@ -336,6 +336,8 @@ public sealed class BulletWeapon : Weapon
 		if ( !HasOwner || (!clickOnly && DryTapRefireDelay <= 0) )
 		{
 			base.DryFire();
+			if ( HasOwner && Secondary == SecondaryFires.DoubleShot && !IsReloading && DryFireDuration > 0 )
+				SetNextFire( DryFireDuration );
 			return;
 		}
 		if ( _holdingEmptyTrigger && AutoReload && CanReload() )
