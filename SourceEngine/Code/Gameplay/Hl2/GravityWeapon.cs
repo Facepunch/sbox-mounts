@@ -252,14 +252,14 @@ public sealed class GravityWeapon : Weapon
 		if ( result == CarryResult.Pickup ) SetNextSecondaryFire( 0.5f );
 		if ( result == CarryResult.Drop ) SetNextFire( 0.5f );
 		if ( result != CarryResult.ForcedDrop ) (WeaponModel as ViewModel)?.PlayPhyscannonAttack();
-		if ( Sounds.WeaponSound( this, result == CarryResult.Pickup ? "special1" : "melee_miss" ) is { } sound ) GameObject.PlaySound( sound );
+		Sounds.PlayWeaponSound( this, result == CarryResult.Pickup ? "special1" : "melee_miss" );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void DenyPickup()
-	{
-		if ( Sounds.WeaponSound( this, "special3" ) is { } sound ) GameObject.PlaySound( sound );
-	}
+	void DenyPickup() => Sounds.PlayWeaponSound( this, "special3" );
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	internal void PlayClawSound( bool open ) => Sounds.PlayWeaponSound( this, open ? "special2" : "melee_hit" );
 
 	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
 
@@ -267,7 +267,7 @@ public sealed class GravityWeapon : Weapon
 	void PuntEffects( PuntResult result )
 	{
 		var launch = result != PuntResult.Miss;
-		if ( Sounds.WeaponSound( this, launch ? "single_shot" : "empty" ) is { } sound ) GameObject.PlaySound( sound );
+		Sounds.PlayWeaponSound( this, launch ? "single_shot" : "empty" );
 		(WeaponModel as ViewModel)?.PlayPhyscannonAttack( launch );
 		if ( !launch ) return;
 
@@ -609,12 +609,8 @@ sealed class PhysCannonEffects : IDisposable
 			_elementFrom = current;
 			_elementMoved = 0;
 			_open = open;
-			if ( _view.IsValid() )
-			{
-				_view.OnClawsChanged();
-				if ( Sounds.WeaponSound( weapon, open ? "special2" : "melee_hit" ) is { } sound )
-					_renderer.GameObject.PlaySound( sound );
-			}
+			_view?.OnClawsChanged();
+			if ( !weapon.IsProxy && weapon.IsHeld ) weapon.PlayClawSound( open );
 			current = Element();
 		}
 		_view?.SetPoseParameter( "active", current );
