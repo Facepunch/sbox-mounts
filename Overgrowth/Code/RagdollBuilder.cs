@@ -149,7 +149,6 @@ static class RagdollBuilder
 
 		var bodyIds = Enumerable.Repeat( -1, count ).ToArray();
 		int bodyCount = 0;
-		int ellipsoids = 0;
 		for ( int i = 0; i < count; i++ )
 		{
 			if ( !centers.TryGetValue( i, out var info ) || info.Fixed )
@@ -158,8 +157,7 @@ static class RagdollBuilder
 			var bindPose = skeleton.BindPose[i];
 			var body = builder.AddBody( info.Mass, boneName: $"bone_{i}" ).SetBindPose( bindPose );
 			foreach ( var shape in shapes[i] )
-				if ( AddShape( body, shape, bindPose, center, scale ) )
-					ellipsoids++;
+				AddShape( body, shape, bindPose, center, scale );
 			if ( shapes[i].Count == 0 )
 			{
 				var bone = skeleton.Bones[i];
@@ -168,7 +166,6 @@ static class RagdollBuilder
 			}
 		}
 
-		int angularJoints = 0;
 		foreach ( var source in joints.Values )
 		{
 			int a = ResolveFixed( source.A );
@@ -214,7 +211,6 @@ static class RagdollBuilder
 					var joint = builder.AddBallJoint( bodyIds[a], bodyIds[b], frameA, frameB ).WithSwingLimit( swing );
 					// Bullet's first Euler angle and the engine's twist have opposite signs.
 					if ( limits[0] <= limits[1] ) joint.WithTwistLimit( -limits[1] * Degrees, -limits[0] * Degrees );
-					angularJoints++;
 					break;
 				case 2:
 					builder.AddFixedJoint( bodyIds[a], bodyIds[b], frameA, frameB );
@@ -223,8 +219,6 @@ static class RagdollBuilder
 					throw new InvalidDataException( $"Unknown Overgrowth joint type {source.Type}." );
 			}
 		}
-		if ( angularJoints > 0 || ellipsoids > 0 )
-			Log.Warning( $"Overgrowth physics {fzxPath}: {angularJoints} three-axis limits use swing/twist joints; {ellipsoids} ellipsoids use convex hulls." );
 		return shapes.Where( (_, i) => bodyIds[i] >= 0 ).Select( x => Math.Max( 1, x.Count ) ).ToArray();
 
 		int ResolveFixed( int bone )
@@ -330,7 +324,7 @@ static class RagdollBuilder
 		return new Vector3( squared.y + squared.z, squared.x + squared.z, squared.x + squared.y ) / 3f;
 	}
 
-	static bool AddShape( PhysicsBodyBuilder body, Shape shape, Transform pose, Vector3 center, float scale )
+	static void AddShape( PhysicsBodyBuilder body, Shape shape, Transform pose, Vector3 center, float scale )
 	{
 		var local = shape.LocalPose( pose, center, scale );
 		var size = shape.Size( scale );
@@ -347,9 +341,8 @@ static class RagdollBuilder
 				break;
 			case "sphere":
 				body.AddHull( SpherePoints.Select( p => p * size ).ToArray(), local );
-				return true;
+				break;
 		}
-		return false;
 	}
 
 	static Vector3[] CreateSpherePoints()
