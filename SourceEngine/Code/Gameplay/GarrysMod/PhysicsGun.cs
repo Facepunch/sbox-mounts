@@ -32,6 +32,27 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	[ConVar( "physgun_maxrange", ConVarFlags.Server | ConVarFlags.Replicated, Min = 128, Max = 32768, Help = "Maximum carry distance. The Physics Gun can pick up objects twice this far away." )]
 	public static float MaxRange { get; set => field = float.IsFinite( value ) ? value : 4096; } = 4096;
 
+	[ConVar( "physgun_maxSpeed", ConVarFlags.Server, Min = 0 )]
+	public static float MaxCarrySpeed { get; set; } = 5000;
+
+	[ConVar( "physgun_maxSpeedDamping", ConVarFlags.Server, Min = 0 )]
+	public static float MaxCarryDamping { get; set; } = 10000;
+
+	[ConVar( "physgun_maxAngular", ConVarFlags.Server, Min = 0 )]
+	public static float MaxAngularSpeed { get; set; } = 5000;
+
+	[ConVar( "physgun_maxAngularDamping", ConVarFlags.Server, Min = 0 )]
+	public static float MaxAngularDamping { get; set; } = 10000;
+
+	[ConVar( "physgun_DampingFactor", ConVarFlags.Server )]
+	public static float DampingFactor { get; set; } = 0.8f;
+
+	[ConVar( "physgun_timeToArrive", ConVarFlags.Server, Min = 0 )]
+	public static float TimeToArrive { get; set; } = 0.05f;
+
+	[ConVar( "physgun_timeToArriveRagdoll", ConVarFlags.Server, Min = 0 )]
+	public static float RagdollTimeToArrive { get; set; } = 0.1f;
+
 	[ConVar( "physgun_wheelspeed", Help = "Physics Gun carry distance per scroll notch." )]
 	public static float WheelSpeed { get; set; } = 10;
 
@@ -198,7 +219,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			_yawOffset = yaw.Inverse * transform.Rotation;
 			_previousSnapStep = null;
 			_lastMouseRotation = MouseRotation;
-			_arrivalTime = ragdoll ? 0.1f : 0.05f;
+			_arrivalTime = ragdoll ? RagdollTimeToArrive : TimeToArrive;
 		}
 
 		var physics = HeldBody?.PhysicsBody;
@@ -211,10 +232,10 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * GrabPoint;
-		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
+		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, MaxCarrySpeed, MaxCarryDamping, _arrivalTime, DampingFactor );
 		physics.Velocity = velocity.ClampLength( 4000 );
 		var angularError = ShadowController.AngularError( physics.Rotation, HoldRotation( yaw ) );
-		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, 5000f.DegreeToRadian(), 10000f.DegreeToRadian(), _arrivalTime, 0.8f );
+		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, MaxAngularSpeed.DegreeToRadian(), MaxAngularDamping.DegreeToRadian(), _arrivalTime, DampingFactor );
 	}
 
 	SceneTraceResult TraceTarget( Ray ray ) => Scene.Trace.Ray( ray, MaxRange * 2 )
