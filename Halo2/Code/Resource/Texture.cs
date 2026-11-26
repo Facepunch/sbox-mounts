@@ -13,7 +13,12 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
-		return name == "sheet.vtex" && spriteSequences is null ? SpriteSheet( mapFile, tag, false ) : null;
+		if ( spriteSequences is not null || bitmapIndex != 0 ) return null;
+		if ( name is "sheet.vtex" or "loop.vtex" ) return SpriteSheet( mapFile, tag, name == "loop.vtex" );
+		if ( name.EndsWith( ".vtex", StringComparison.Ordinal ) && int.TryParse( name.AsSpan( 0, name.Length - 5 ), out int index )
+			&& index > 0 && BitmapTag.Read( mapFile, tag, index ) is not null )
+			return new Halo2TextureLoader( mapFile, tag, index );
+		return null;
 	}
 
 	internal static Halo2TextureLoader SpriteSheet( MapFile map, TagEntry bitmap, bool loop )

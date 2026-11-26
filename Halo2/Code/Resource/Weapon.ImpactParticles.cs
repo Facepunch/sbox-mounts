@@ -80,6 +80,7 @@ internal abstract partial class WeaponLoader
 				@"effects\generic\energy\impact_energy" or @"effects\generic\energy\impact_energy_flat" => (ShieldName, ImpactLayer.Shield),
 				@"effects\generic\solids\plant_wood" => (WoodName, ImpactLayer.Plant),
 				@"effects\generic\smoke\smoke_impact" => (DustName, ImpactLayer.Dust),
+				@"effects\objects\characters\elite\elite_shield_depletion" => (null, ImpactLayer.ShieldDepletion),
 				@"effects\generic\sparks\electric_arcs" => (ArcName, ImpactLayer.ElectricArcs),
 				@"effects\generic\smoke\smoke_fiery_small" => (SmallFierySmokeName, ImpactLayer.FierySmoke),
 				@"effects\generic\smoke\smoke_fiery" => (null, ImpactLayer.FierySmoke),
@@ -106,7 +107,7 @@ internal abstract partial class WeaponLoader
 				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
 				if ( bitmap is null ) continue;
 				texturePath = Host.AssetPath( map, bitmap.TagPath, "vtex" );
-				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 ) texturePath += "/sheet.vtex";
+				if ( map.ReadInt32( Address( bitmap ) + 60 ) > 0 ) texturePath += layer == ImpactLayer.ShieldDepletion ? "/loop.vtex" : "/sheet.vtex";
 			}
 			var texture = Texture.Load( texturePath );
 			if ( !texture.IsValid() || texture.IsError ) continue;
@@ -169,8 +170,8 @@ internal abstract partial class WeaponLoader
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				FrameCurve = layer == ImpactLayer.SparkTrail ? ReadRange( definition + 92, 1 ) : null,
-				AnimatedFrames = cloth || layer == ImpactLayer.SparkTrail ? ReadAnimatedFrames( definition ) : null, Cycles = cloth ? Bounds( definition + 92 ).y : 0,
+				FrameCurve = layer is ImpactLayer.SparkTrail or ImpactLayer.ShieldDepletion ? ReadRange( definition + 92, 1 ) : null,
+				AnimatedFrames = cloth || layer is ImpactLayer.SparkTrail or ImpactLayer.ShieldDepletion ? ReadAnimatedFrames( definition ) : null, Cycles = cloth ? Bounds( definition + 92 ).y : 0,
 				SpriteAspect = geometry * 0.5f, RadiusBounds = dust ? Bounds( definition + 60 ) : default,
 				AngleBounds = spriteAngle ? Bounds( definition + 76 ) : default, AlphaInput = Short( emitter + 104 ),
 				SpriteAngle = drift || spriteAngle ? ReadRange( definition + 76, 1 ) : default,

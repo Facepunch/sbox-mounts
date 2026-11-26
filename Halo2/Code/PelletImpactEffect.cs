@@ -18,10 +18,13 @@ public sealed partial class PelletImpactEffect : Component
 	}
 
 	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness );
+	public sealed record LensReflection( string TexturePath, Vector2 Radius, Vector2 Brightness, Color Tint, float Modulation, float RotationOffset );
+	public sealed record ImpactLens( string Marker, float OcclusionRadius, float RotationScale, LensReflection[] Reflections );
 
 	public sealed record ContactEvent( float Skip, Vector2 Delay, Vector2 Duration, ImpactDecal[] Marks, bool HasParticles, ImpactEmitter[] Emitters )
 	{
 		public ImpactLight[] Lights { get; init; } = [];
+		public ImpactLens[] Lenses { get; init; } = [];
 		public SoundEvent[] Sounds { get; init; } = [];
 	}
 	public sealed record ContactVisuals
@@ -43,7 +46,7 @@ public sealed partial class PelletImpactEffect : Component
 	internal void PlayAtMarker( GameObject marker )
 	{
 		if ( Visuals is not null && marker.IsValid() )
-			_ = PlayContactEvents( Visuals, null, marker, marker, global::Transform.Zero, Vector3.Forward );
+			_ = PlayContactEvents( Visuals, null, marker, marker, global::Transform.Zero, Vector3.Forward, marker.Name );
 	}
 
 	internal bool Place( Surface surface, GameObject target, Vector3 point, Vector3 normal, Vector3 direction, string hitBone = null )
@@ -64,7 +67,7 @@ public sealed partial class PelletImpactEffect : Component
 	double EventFraction() => BlamRandom.Next( ref eventSeed ) * (double)(1f / 65535f);
 	float EventTime( Vector2 range ) => range.x == range.y ? range.x : (float)(range.x + ((double)range.y - range.x) * EventFraction());
 
-	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject target, GameObject parent, Transform local, Vector3 incoming )
+	async Task PlayContactEvents( ContactVisuals visuals, Surface surface, GameObject target, GameObject parent, Transform local, Vector3 incoming, string marker = null )
 	{
 		float elapsed = 0;
 		var clock = TaskSource.Create();
@@ -99,6 +102,8 @@ public sealed partial class PelletImpactEffect : Component
 				var transform = parent.WorldTransform.ToWorld( local );
 				foreach ( var sound in entry.Sounds ) Sound.Play( sound, transform.Position );
 				foreach ( var light in entry.Lights ) _ = PlayLight( parent, transform, light );
+				foreach ( var lens in entry.Lenses )
+					if ( lens.Marker == marker && duration > 0 ) _ = PlayLens( parent, lens, duration );
 				foreach ( var mark in entry.Marks )
 				{
 					if ( mark.Projection is {} projection )

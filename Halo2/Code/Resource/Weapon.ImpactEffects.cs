@@ -26,7 +26,7 @@ internal abstract partial class WeaponLoader
 		}
 	}
 
-	protected ContactVisuals ReadContactVisuals( TagEntry contact, bool includeSounds )
+	protected ContactVisuals ReadContactVisuals( TagEntry contact, bool includeSounds, bool atMarker = false )
 	{
 		int events = Address( contact ) + 20;
 		int eventCount = map.ReadInt32( events );
@@ -38,6 +38,7 @@ internal abstract partial class WeaponLoader
 			int parts = map.ReadInt32( row + 24 );
 			var marks = new List<ImpactDecal>();
 			var lights = new List<ImpactLight>();
+			var lenses = new List<ImpactLens>();
 			var sounds = new List<SoundEvent>();
 			if ( parts > 0 )
 			{
@@ -46,14 +47,42 @@ internal abstract partial class WeaponLoader
 				{
 					if ( ReadContactMark( contact, part ) is {} mark ) marks.Add( mark );
 					else if ( ReadLight( part ) is {} light ) lights.Add( light );
+					else if ( atMarker && ReadLens( contact, part ) is {} lens ) lenses.Add( lens );
 					else if ( includeSounds && Reference( part + 12 ) is { PrimaryClass: "!dns" } sound &&
 						GameResource.Load<SoundEvent>( Host.AssetPath( map, sound.TagPath, "sound" ) ) is {} cue ) sounds.Add( cue );
 				}
 			}
 			timeline[i] = new ContactEvent( Float( row + 4 ), new Vector2( Float( row + 8 ), Float( row + 12 ) ),
-				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) ) { Lights = lights.ToArray(), Sounds = sounds.ToArray() };
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ), marks.ToArray(), map.ReadInt32( row + 48 ) > 0, ReadImpactEmitters( contact, row ) ) { Lights = lights.ToArray(), Lenses = lenses.ToArray(), Sounds = sounds.ToArray() };
 		}
-		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles || e.Lights.Length > 0 || e.Sounds.Length > 0 ) ? new ContactVisuals( timeline ) : null;
+		return timeline.Any( e => e.Marks.Length > 0 || e.HasParticles || e.Lights.Length > 0 || e.Lenses.Length > 0 || e.Sounds.Length > 0 ) ? new ContactVisuals( timeline ) : null;
+	}
+
+	ImpactLens ReadLens( TagEntry contact, int part )
+	{
+		if ( Reference( part + 12 ) is not { PrimaryClass: "snel", DataSize: >= 100 } tag ) return null;
+		int header = Address( tag );
+		int rotationFunction = Short( header + 44 );
+		if ( rotationFunction is not (0 or 1) ) return null;
+		if ( Reference( header + 32 ) is not { PrimaryClass: "mtib" } bitmap ) return null;
+		int locations = Address( contact ) + 12;
+		int location = Short( part + 4 );
+		if ( (uint)location >= map.ReadInt32( locations ) ) return null;
+		var marker = map.ResolveStringId( map.ReadInt32( Block( locations ) + location * 4 ) );
+		string path = Host.AssetPath( map, bitmap.TagPath, "vtex" );
+		int count = map.ReadInt32( header + 64 );
+		if ( count <= 0 ) return null;
+		var reflections = new LensReflection[count];
+		int row = Block( header + 64 );
+		for ( int i = 0; i < count; i++, row += 48 )
+		{
+			int index = Short( row + 4 );
+			if ( BitmapTag.Read( map, bitmap, index ) is null || Short( row ) != 0 || Float( row + 8 ) != 0 ) return null;
+			reflections[i] = new( index == 0 ? path : $"{path}/{index}.vtex",
+				new Vector2( Float( row + 16 ), Float( row + 20 ) ) * 120, new( Float( row + 24 ), Float( row + 28 ) ),
+				new( Float( row + 36 ), Float( row + 40 ), Float( row + 44 ) ), Float( row + 32 ), Float( row + 12 ).DegreeToRadian() );
+		}
+		return new( marker, Float( header + 16 ) * 120, rotationFunction == 1 ? Float( header + 48 ) : 0, reflections );
 	}
 
 	ImpactLight ReadLight( int part )
