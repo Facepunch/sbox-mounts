@@ -527,7 +527,7 @@ public sealed class ViewModel : BaseWeaponModel
 		if ( _clips is null ) return;
 		BeginAttack();
 		var clip = string.IsNullOrEmpty( _clips.SecondaryFire ) ? _clips.Fire : _clips.SecondaryFire;
-		FlashUnlessAuthored( clip );
+		if ( _weapon is not BulletWeapon { AlternateProjectile: Projectile.Kinds.ContactGrenade } ) FlashUnlessAuthored( clip );
 		Play( clip );
 	}
 

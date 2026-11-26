@@ -27,13 +27,13 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 
 	internal void OnDoubleShot( Vector3? hitPoint ) => Attack( hitPoint, null, true );
 
-	void Attack( Vector3? hitPoint, Vector3? origin, bool doubleShot )
+	void Attack( Vector3? hitPoint, Vector3? origin, bool alternate )
 	{
 		base.OnAttack( hitPoint, origin );
 		_heldShot++;
 		_shotTime = 0;
 		if ( _hold?.HasReloadGesture == true ) _reloadTime = float.MaxValue;
-		if ( _weapon is not BulletWeapon weapon ) return;
+		if ( _weapon is not BulletWeapon weapon || (alternate && weapon.AlternateProjectile == Projectile.Kinds.ContactGrenade) ) return;
 		// World models rarely author their own flash; the viewmodel's AE_MUZZLEFLASH names the weapon's.
 		var type = _ownFlashType ?? WeaponSetup.FlashType( weapon ) ?? "SMG1";
 		var mount = MountContent.Of( Renderer.Model );
@@ -42,7 +42,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		if ( WeaponSetup.PumpDelay( weapon ) is { } delay )
 		{
 			_pumpPending = true;
-			_pumpAt = doubleShot ? weapon.AlternatePumpDelay : delay;
+			_pumpAt = alternate ? weapon.AlternatePumpDelay : delay;
 		}
 		else EjectShell();
 	}
