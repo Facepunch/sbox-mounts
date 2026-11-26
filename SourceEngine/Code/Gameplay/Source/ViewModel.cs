@@ -438,7 +438,7 @@ public sealed class ViewModel : BaseWeaponModel
 	}
 
 	/// <summary>Attachment rotations don't carry a mirrored viewmodel's reflection; reflect their directions instead.</summary>
-	Vector3 DrawnDirection( Vector3 direction )
+	internal Vector3 DrawnDirection( Vector3 direction )
 	{
 		if ( !Mirrored ) return direction;
 		var left = Renderer.WorldRotation.Left;

@@ -1,3 +1,5 @@
+using System;
+
 namespace Source1.GarrysMod;
 
 public sealed partial class PhysicsGun
@@ -10,6 +12,9 @@ public sealed partial class PhysicsGun
 	GameObject _muzzle;
 	SkinnedModelRenderer _beamModel;
 	readonly LineRenderer[] _lines = new LineRenderer[3];
+	readonly SpriteRenderer[] _muzzleGlows = new SpriteRenderer[7], _contactGlows = new SpriteRenderer[7];
+	Sprite _glowSprite;
+	Color _tint;
 	Texture _searchTexture, _grabTexture;
 	string _colorSetting;
 
@@ -17,7 +22,7 @@ public sealed partial class PhysicsGun
 	{
 		base.OnUpdate();
 		if ( Application.IsDedicatedServer ) return;
-		if ( !Active || !HasOwner || !BeamOn || !DrawBeams || !WeaponModel.IsValid() )
+		if ( !Active || !HasOwner || !WeaponModel.IsValid() )
 		{
 			if ( _beamRoot.IsValid() ) _beamRoot.Enabled = false;
 			return;
@@ -27,7 +32,7 @@ public sealed partial class PhysicsGun
 
 	protected override void OnViewModelPlaced( ViewModel model )
 	{
-		if ( Active && HasOwner && BeamOn && DrawBeams ) DrawBeam( model );
+		if ( Active && HasOwner ) DrawBeam( model );
 	}
 
 	void DrawBeam( ViewModel view )
@@ -39,27 +44,28 @@ public sealed partial class PhysicsGun
 			return;
 		}
 		if ( renderer != _beamModel || !_beamRoot.IsValid() ) CreateBeam( renderer, view is not null );
-		_beamRoot.Enabled = _muzzle.IsValid();
+		_beamRoot.Enabled = _muzzle.IsValid() && (!BeamOn || DrawBeams);
 		if ( !_beamRoot.Enabled ) return;
 		var start = view is null ? _muzzle.WorldPosition : view.DrawnPosition( _muzzle );
+		UpdateColor();
+		bool holding = BeamOn && HeldBody.IsValid();
+		var forward = _muzzle.WorldRotation.Forward;
+		if ( view is not null ) forward = view.DrawnDirection( forward );
+		int activeGlows = holding ? 7 : 2;
+		DrawGlows( BeamOn ? activeGlows : 3, start, forward * (BeamOn ? 2 : 5), muzzle: true );
+		foreach ( var line in _lines )
+			if ( line.IsValid() ) line.Enabled = BeamOn;
+		if ( !BeamOn )
+		{
+			DrawGlows( 0, default, default, muzzle: false );
+			return;
+		}
 		var ray = AimRay;
-		bool holding = HeldBody.IsValid();
 		var end = holding ? HeldBody.WorldPosition + HeldBody.WorldRotation * GrabPoint
 			: Scene.Trace.Ray( ray, MaxRange * 0.5f ).IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run().EndPosition;
 		float length = start.Distance( end );
 		var control = holding ? ray.Position + ray.Forward * (length * 0.6f) : end;
-		var setting = Owner.GetComponent<Player>()?.PhysgunColor ?? "";
-		if ( setting != _colorSetting )
-		{
-			_colorSetting = setting;
-			var tint = Color.Parse( setting ) ?? new Color( 0.30f, 1.80f, 2.10f );
-			var rgb = new Vector3( tint.r, tint.g, tint.b ).Normal;
-			var color = new Color( rgb.x, rgb.y, rgb.z );
-			var gradient = new Gradient( new Gradient.ColorFrame( 0, Color.Black ), new Gradient.ColorFrame( 1f / Segments, color ),
-				new Gradient.ColorFrame( 1 - 1f / Segments, color ), new Gradient.ColorFrame( 1, Color.Black ) );
-			foreach ( var line in _lines )
-				if ( line.IsValid() ) line.Color = gradient;
-		}
+		DrawGlows( activeGlows, end, default, muzzle: false );
 		for ( int i = 0; i < _lines.Length; i++ )
 		{
 			var line = _lines[i];
@@ -81,6 +87,52 @@ public sealed partial class PhysicsGun
 		}
 	}
 
+	void UpdateColor()
+	{
+		var setting = Owner.GetComponent<Player>()?.PhysgunColor ?? "";
+		if ( setting == _colorSetting ) return;
+		_colorSetting = setting;
+		var tint = Color.Parse( setting ) ?? new Color( 0.30f, 1.80f, 2.10f );
+		var rgb = new Vector3( tint.r, tint.g, tint.b ).Normal;
+		_tint = new Color( rgb.x, rgb.y, rgb.z );
+		var gradient = new Gradient( new Gradient.ColorFrame( 0, Color.Black ), new Gradient.ColorFrame( 1f / Segments, _tint ),
+			new Gradient.ColorFrame( 1 - 1f / Segments, _tint ), new Gradient.ColorFrame( 1, Color.Black ) );
+		foreach ( var line in _lines )
+			if ( line.IsValid() ) line.Color = gradient;
+	}
+
+	void DrawGlows( int count, Vector3 position, Vector3 step, bool muzzle )
+	{
+		if ( _glowSprite is null ) return;
+		var glows = muzzle ? _muzzleGlows : _contactGlows;
+		for ( int i = 0; i < glows.Length; i++ )
+		{
+			var sprite = glows[i];
+			if ( i >= count )
+			{
+				if ( sprite.IsValid() ) sprite.Enabled = false;
+				continue;
+			}
+			if ( !sprite.IsValid() )
+			{
+				var go = new GameObject( _beamRoot, true, muzzle ? "Muzzle glow" : "Contact glow" ) { NetworkMode = NetworkMode.Never };
+				sprite = glows[i] = go.AddComponent<SpriteRenderer>();
+				sprite.Sprite = _glowSprite;
+				sprite.Additive = true;
+				sprite.AlphaCutoff = 0;
+				bool firstPerson = WeaponModel is Source1.ViewModel;
+				sprite.RenderOptions.Game = !firstPerson;
+				sprite.RenderOptions.Overlay = firstPerson;
+			}
+			sprite.WorldPosition = position + step * i;
+			sprite.Size = !BeamOn ? 48 + MathF.Sin( (Time.Now + i * 3) * 5 ) * 8
+				: muzzle ? Game.Random.Float( 16, 64 ) : Game.Random.Float( 1, 16 );
+			float alpha = Game.Random.Int( BeamOn ? 100 : 120, 255 ) / 255f;
+			sprite.Color = _tint.WithAlpha( alpha * (muzzle ? 0.3f : 0.5f) );
+			sprite.Enabled = true;
+		}
+	}
+
 	void CreateBeam( SkinnedModelRenderer renderer, bool firstPerson )
 	{
 		ClearBeam();
@@ -89,6 +141,8 @@ public sealed partial class PhysicsGun
 		_muzzle = attachment is null ? null : renderer.GetAttachmentObject( attachment.Name );
 		_beamRoot = new GameObject( true, "Physics Gun beam" ) { NetworkMode = NetworkMode.Never };
 		var mount = MountContent.Of( renderer.Model );
+		var glow = MountedEffects.SpriteTexture( "sprites/physgun_glow", mount );
+		_glowSprite = glow is null ? null : Sprite.FromTexture( glow );
 		_searchTexture = MountedEffects.SpriteTexture( "sprites/physbeam_white", mount );
 		_grabTexture = MountedEffects.SpriteTexture( "sprites/physbeam_active_white", mount );
 		for ( int i = 0; i < _lines.Length; i++ )
@@ -104,6 +158,9 @@ public sealed partial class PhysicsGun
 	void ClearBeam()
 	{
 		_beamRoot?.Destroy();
+		Array.Clear( _muzzleGlows );
+		Array.Clear( _contactGlows );
+		_glowSprite = null;
 		_beamRoot = null;
 		_beamModel = null;
 		_colorSetting = null;
