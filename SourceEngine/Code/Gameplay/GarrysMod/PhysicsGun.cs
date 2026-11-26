@@ -4,7 +4,10 @@ namespace Source1.GarrysMod;
 public sealed class PhysicsGun : Weapon
 {
 	const float MinRange = 40;
-	const float MaxRange = 4096;
+
+	[ConVar( "physgun_maxrange", ConVarFlags.Server | ConVarFlags.Replicated, Min = 128, Max = 32768, Help = "Maximum carry distance. The Physics Gun can pick up objects twice this far away." )]
+	public static float MaxRange { get; set => field = float.IsFinite( value ) ? value : 4096; } = 4096;
+
 	[ConVar( "physgun_wheelspeed", Help = "Physics Gun carry distance per scroll notch." )]
 	public static float WheelSpeed { get; set; } = 10;
 
