@@ -8,6 +8,9 @@ namespace NS2;
 public sealed partial class Marine : Ns2Npc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
+	WebSlowdown web;
+	internal void ApplyWeb() => web.Apply( this, 0.34f );
+
 	const float StandingHeight = 1.9f * Scale;
 	internal const string PistolSound = "marine/pistol/fire";
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int WeaponsLevel { get; set; }
@@ -318,7 +321,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		if ( sprinting ) sinceSprint = 0;
 		float speed = 5 + (sprinting ? 0.75f * Math.Clamp( (float)sprintAge / 1.5f, 0, 1 ) : 0);
-		Movement.WalkSpeed = Movement.RunSpeed = speed * InventorySpeed * SlowSpeedModifier * (grounded ? 1 - crouchAmount * 0.5f : 1) * Scale;
+		Movement.WalkSpeed = Movement.RunSpeed = speed * InventorySpeed * SlowSpeedModifier * web.Speed * (grounded ? 1 - crouchAmount * 0.5f : 1) * Scale;
 	}
 
 	void ApproachPoint( Vector3 point )
@@ -502,7 +505,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	Vector3 DodgeVelocity( Vector3 velocity, Rotation view, Vector3 direction, float dt )
 	{
-		float speed = MarineMovement.DirectionalSpeed( view.Forward, direction, 5 * InventorySpeed * SlowSpeedModifier );
+		float speed = MarineMovement.DirectionalSpeed( view.Forward, direction, 5 * InventorySpeed * SlowSpeedModifier * web.Speed );
 		return SparkAirMovement.Steer( velocity, view, direction, speed, 11 * SlowSpeedModifier, 6 * SlowSpeedModifier, dt );
 	}
 
@@ -626,6 +629,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	{
 		if ( playback is null ) return;
 		playback.Set( "move", move );
+		playback.Set( "webbed", web.Active ? 1 : 0 );
 		playback.Set( "activity", activity );
 		playback.Set( "alive", 1 );
 		playback.Set( "weapon", WeaponName );
@@ -648,7 +652,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	void OnWorldTag( string tag )
 	{
-		if ( crouching || tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
+		if ( web.Active || crouching || tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
 		leftFoot = !leftFoot;
 		bool forward = Vector3.Dot( Animation.MoveVelocity, AimDirection ) > -0.1f * Scale;
 		PlayFootstep( SurfaceLoader.FootstepMaterial( GroundSurface ), forward, leftFoot );

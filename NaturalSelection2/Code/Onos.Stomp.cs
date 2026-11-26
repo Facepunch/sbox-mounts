@@ -62,6 +62,8 @@ public sealed partial class Onos
 			if ( TraceWorld( center + height, position + height ).Hit ) continue;
 			waveVictims.Add( victim );
 			ShowStompImpact( position, victim.WorldRotation );
+			if ( victim is Marine marine ) marine.ApplyWeb();
+			else if ( victim is Exo exo ) exo.ApplyWeb();
 			var player = victim.GetComponent<PlayerController>();
 			if ( player.IsValid() ) WebPlayer( player );
 			DealDamage( (IDamageable)victim, 50, position, "stomp" );

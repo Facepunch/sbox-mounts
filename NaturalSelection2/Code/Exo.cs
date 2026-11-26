@@ -15,6 +15,9 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int WeaponsLevel { get; set; }
 	[Property] public bool Railguns { get; set; }
 	bool HoldingRailCharge => Railguns && (leftPressed && left.Charge >= 1 || rightPressed && right.Charge >= 1);
+	WebSlowdown web;
+	internal void ApplyWeb() => web.Apply( this, 0.6f );
+
 	float GroundSpeed => (Railguns ? 4.879f : 4.522f) * Scale * (HoldingRailCharge ? 0.8f : 1f);
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost ), Change( nameof( OnArmorLevelChanged ) )]
 	public int ArmorLevel { get; set; }
@@ -241,7 +244,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 		var output = PlayerGait.UpdatePose( this, 5.95f, WorldRotation );
 		if ( Networking.IsHost )
 		{
-			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;
+			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed * web.Speed;
 			if ( viewTarget is { } point )
 				aim = AlienAim.Turn( aim, point - EyePosition, acquisition.TurnRate );
 			leftPressed = UpdateArm( left, leftPressed );
@@ -291,6 +294,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 	{
 		if ( playback is null ) return;
 		playback.Set( "move", move );
+		playback.Set( "webbed", web.Active ? 1 : 0 );
 		playback.Set( "weapon", "exo_weapon_holder" );
 		playback.Set( "alive", 1 );
 		playback.Set( "activity_left", leftPressed ? "primary" : "none" );
@@ -300,7 +304,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 
 	void OnWorldTag( string tag )
 	{
-		if ( tag == "step" && PlayerGait.CanPlayStep( this ) )
+		if ( tag == "step" && !web.Active && PlayerGait.CanPlayStep( this ) )
 			PlayFootstep();
 	}
 
