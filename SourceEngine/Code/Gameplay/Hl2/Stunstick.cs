@@ -103,6 +103,7 @@ public sealed class Stunstick : MeleeWeapon
 			WeaponEffects.ElectricSpark( tip, 1, Vector3.Zero, MountContent.OfWeapon( this ), view?.GameObject );
 		}
 
+		bool swinging = _swing < SwingDelay;
 		if ( view is null )
 		{
 			var center = tip - _tip.WorldRotation.Forward;
@@ -111,14 +112,14 @@ public sealed class Stunstick : MeleeWeapon
 		}
 		else
 		{
-			var fade = _swing < SwingDelay ? 1 : 0.1f;
-			Glow( _halo, tip, fade == 1 ? 22 : 20, 0.4f * fade );
+			var fade = 1 - 0.9f * (((float)_swing - SwingDelay) / 0.25f).Clamp( 0, 1 );
+			Glow( _halo, tip, swinging ? 22 : 20, 0.4f * fade );
 			foreach ( var (point, glow) in _electrodes )
 				Glow( glow, Position( point ), Game.Random.Float( 4, 5 ) * fade, Game.Random.Float( 0.05f, 0.5f ) * fade );
 		}
 
 		if ( !_arc.IsValid() ) return;
-		if ( Game.Random.Int( 0, view is null ? 5 : 3 ) == 0 )
+		if ( (view is null || swinging) && Game.Random.Int( 0, view is null ? 5 : 3 ) == 0 )
 		{
 			_arcStart = _electrodes.Length > 0 ? _electrodes[Game.Random.Int( 0, _electrodes.Length - 1 )].Point : _tip;
 			_arcOffset = Vector3.Random * Game.Random.Float( 4, 10 );
