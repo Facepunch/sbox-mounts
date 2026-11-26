@@ -140,8 +140,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 				HeldBody.MotionEnabled = false;
 				Owner.GetOrAddComponent<FrozenProps>().Track( HeldBody );
 			}
-			BeamOn = false;
-			HeldBody = null;
+			Release();
 			return;
 		}
 
@@ -153,7 +152,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			if ( !hit.Hit ) return;
 			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
-			if ( !body.IsValid() || body.IsProxy || !body.PhysicsBody.IsValid() || body.GetComponentInParent<PlayerController>().IsValid() ) return;
+			if ( !CanMove( body, Network.Owner ) || !body.PhysicsBody.IsValid() ) return;
 
 			HeldBody = body;
 			body.MotionEnabled = true;
@@ -164,12 +163,13 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			_previousSnapStep = null;
 			_lastMouseRotation = MouseRotation;
 			_arrivalTime = body.GetComponentInParent<ModelPhysics>().IsValid() ? 0.1f : 0.05f;
+			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
 		}
 
-		var physics = HeldBody.PhysicsBody;
+		var physics = HeldBody?.PhysicsBody;
 		if ( !physics.IsValid() )
 		{
-			HeldBody = null;
+			Release();
 			return;
 		}
 		if ( InputState is Trigger.Push or Trigger.Pull )
@@ -184,6 +184,22 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	SceneTraceResult TraceTarget( Ray ray ) => Scene.Trace.Ray( ray, MaxRange * 2 )
 		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run();
+
+	internal static bool CanMove( Rigidbody body, Connection grabber )
+	{
+		if ( !body.IsValid() || body.IsProxy || body.GetComponentInParent<PlayerController>().IsValid() ) return false;
+		var grab = new IPhysgunEvent.GrabEvent { Grabber = grabber };
+		body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
+		return !grab.Cancelled && body.IsValid();
+	}
+
+	void Release()
+	{
+		var body = HeldBody;
+		HeldBody = null;
+		BeamOn = false;
+		if ( body.IsValid() ) body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+	}
 
 	Rotation HoldRotation( Rotation yaw )
 	{
@@ -218,6 +234,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	protected override void OnDisabled()
 	{
+		if ( Networking.IsHost ) Release();
 		ClearBeam();
 		StopRedirectingMovement();
 		base.OnDisabled();
@@ -227,11 +244,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	{
 		StopRedirectingMovement();
 		if ( !IsProxy ) InputState = Trigger.Released;
-		if ( Networking.IsHost )
-		{
-			HeldBody = null;
-			BeamOn = false;
-		}
+		if ( Networking.IsHost ) Release();
 		ClearBeam();
 		base.OnHolstered();
 	}

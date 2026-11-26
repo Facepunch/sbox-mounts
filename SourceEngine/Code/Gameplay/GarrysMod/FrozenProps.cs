@@ -38,10 +38,7 @@ sealed class FrozenProps : Component
 		int count = 0;
 		foreach ( var body in bodies )
 		{
-			if ( !body.IsValid() || body.IsProxy || body.MotionEnabled || body.GetComponentInParent<PlayerController>().IsValid() ) continue;
-			var grab = new IPhysgunEvent.GrabEvent { Grabber = Network.Owner };
-			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
-			if ( grab.Cancelled ) continue;
+			if ( !body.IsValid() || body.MotionEnabled || !PhysicsGun.CanMove( body, Network.Owner ) ) continue;
 			body.MotionEnabled = true;
 			body.Sleeping = false;
 			count++;
