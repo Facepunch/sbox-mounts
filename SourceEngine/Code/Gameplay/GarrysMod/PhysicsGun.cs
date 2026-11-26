@@ -44,6 +44,12 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 
 	protected override void OnControl()
 	{
+		if ( Input.Pressed( "reload" ) )
+		{
+			Unfreeze();
+			return;
+		}
+
 		if ( NextPrimaryFire > 0 ) return;
 		if ( Input.Pressed( "attack2" ) && HeldBody.IsValid() )
 		{
@@ -95,6 +101,13 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
+	void Unfreeze()
+	{
+		if ( Active && HasOwner )
+			Owner.GetComponent<FrozenProps>()?.Unfreeze( AimRay );
+	}
+
+	[Rpc.Host( NetFlags.OwnerOnly )]
 	void Scroll( Rigidbody body, float offset )
 	{
 		if ( Active && HeldBody.IsValid() && HeldBody == body && float.IsFinite( offset ) )
@@ -108,7 +121,10 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( !Active || !HasOwner || InputState is Trigger.Released or Trigger.Freeze )
 		{
 			if ( Active && HasOwner && InputState == Trigger.Freeze && HeldBody.IsValid() )
+			{
 				HeldBody.MotionEnabled = false;
+				Owner.GetOrAddComponent<FrozenProps>().Track( HeldBody );
+			}
 			HeldBody = null;
 			return;
 		}
