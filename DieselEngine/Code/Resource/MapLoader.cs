@@ -67,7 +67,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
 		// Map content is snapshot-networked (sent once at join); runtime unit state needs a live
-		// networked object. MapInstance network-spawns NetworkMode.Object children on the host.
+		// networked object. The nested relay explicitly spawns itself when the host is active.
 		new GameObject( true, "PAYDAY map state" ) { Parent = root, NetworkMode = NetworkMode.Object }.AddComponent<PaydayMapState>();
 		Log.Info( $"PAYDAY {path}: {breakableUnits} breakable placements (unit endurance rules)." );
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );

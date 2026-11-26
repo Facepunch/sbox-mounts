@@ -3,7 +3,7 @@ namespace Diesel;
 /// <summary>
 /// Host → client replication for placed-unit state. Map content from a mount scene is snapshot-networked: clients
 /// get the host's objects once at join and no updates after. This component lives on a dedicated <c>NetworkMode.Object</c>
-/// child of the heist root (network-spawned by <c>MapInstance</c>) and carries, keyed by placed unit <c>GameObject.Id</c>:
+/// child of the map root (explicitly network-spawned by the host) and carries, keyed by placed unit <c>GameObject.Id</c>:
 /// <list type="bullet">
 /// <item><see cref="UnitSequences"/>: every sequence run on a unit, in order. Clients rebuild locally (runtime models are
 /// local resources, so a late joiner's snapshot can't resolve them either).</item>
@@ -67,7 +67,14 @@ public sealed class PaydayMapState : Component
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost ) return;
+		if ( Networking.IsHost )
+		{
+			// MapInstance only auto-spawns top-level Object roots, not this nested child.
+			// Also handle a lobby started after the map was loaded.
+			if ( Networking.IsActive && !Network.Active )
+				GameObject.NetworkSpawn();
+			return;
+		}
 		if ( GetComponentInParent<MapInstance>() is { IsLoaded: false } ) return;
 		ApplyReplicatedState();
 	}
