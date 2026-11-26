@@ -33,17 +33,21 @@ public class Halo2Mount : BaseGameMount
 	/// <summary>The game's install folder. Loaders read shared maps and textures.dat through this.</summary>
 	public BaseFileSystem FileSystem => appFs;
 
-	byte[] periodicNoise;
+	byte[] functionTables;
+	const int FunctionTableBytes = (4 + 16) * 1024;
 	internal ReadOnlySpan<byte> GetPeriodicNoise( int selector ) =>
-		(periodicNoise ??= ReadPeriodicNoise()).AsSpan( (selector - 8) * 1024, 1024 );
+		(functionTables ??= ReadFunctionTables()).AsSpan( (selector - 8) * 1024, 1024 );
 
-	byte[] ReadPeriodicNoise()
+	internal ReadOnlySpan<byte> GetTransition( int selector ) =>
+		(functionTables ??= ReadFunctionTables()).AsSpan( (4 + selector) * 1024, 1024 );
+
+	byte[] ReadFunctionTables()
 	{
-		// MCC stores the three 1024-byte noise tables consecutively in its executable.
+		// MCC stores the periodic tables 8–11 followed by the sixteen transition tables in its executable.
 		ReadOnlySpan<byte> prefix = [220, 20, 6, 250, 75, 185, 52, 68, 91, 169, 65, 218, 128, 197, 245, 94];
 		using var file = appFs.OpenRead( "halo2/halo2.dll" );
 		var buffer = new byte[64 * 1024];
-		for ( long start = 0; start <= file.Length - 3072; start += buffer.Length - prefix.Length + 1 )
+		for ( long start = 0; start <= file.Length - FunctionTableBytes; start += buffer.Length - prefix.Length + 1 )
 		{
 			file.Position = start;
 			var chunk = buffer.AsSpan( 0, (int)Math.Min( buffer.Length, file.Length - start ) );
@@ -51,12 +55,12 @@ public class Halo2Mount : BaseGameMount
 			int offset = chunk.IndexOf( prefix );
 			if ( offset < 0 ) continue;
 			file.Position = start + offset;
-			if ( file.Length - file.Position < 3072 ) break;
-			var tables = new byte[3072];
+			if ( file.Length - file.Position < FunctionTableBytes ) break;
+			var tables = new byte[FunctionTableBytes];
 			file.ReadExactly( tables );
 			return tables;
 		}
-		throw new InvalidDataException( "Missing MCC periodic noise tables" );
+		throw new InvalidDataException( "Missing MCC shader function tables" );
 	}
 
 	protected override void Initialize( InitializeContext context )

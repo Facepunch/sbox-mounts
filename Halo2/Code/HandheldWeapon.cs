@@ -435,6 +435,7 @@ public abstract partial class HandheldWeapon : Weapon
 		var renderer = WorldModel.AddComponent<SkinnedModelRenderer>();
 		renderer.Model = world;
 		ConfigureHeldRenderer( renderer, false );
+		WeaponScreen.Attach( this, renderer );
 		renderer.CreateAttachments = true;
 		var model = WorldModel.AddComponent<BaseWeaponModel>();
 		model.Renderer = renderer;
@@ -484,7 +485,7 @@ public abstract partial class HandheldWeapon : Weapon
 		var model = view.AddComponent<HandheldWeaponModel>();
 		model.Renderer = arms;
 		model.Weapon = this;
-		model.Gun = gun;
+		WeaponScreen.Attach( this, gun );
 		model.TracerEffect = model.EjectBrass = model.MuzzleEffect = null;
 		view.Enabled = true;
 		model.MuzzleGameObject = gun.GetAttachmentObject( "primary_trigger" );
@@ -497,8 +498,6 @@ public abstract partial class HandheldWeapon : Weapon
 public sealed class HandheldWeaponModel : BaseWeaponModel
 {
 	internal HandheldWeapon Weapon { get; set; }
-	internal SkinnedModelRenderer Gun { get; set; }
-	int displayedRounds = -1;
 	readonly AnimationSounds sounds = new();
 	internal FirstPersonAnimation AnimationData { get; private set; }
 	Halo2ClipInfo clip;
@@ -544,11 +543,6 @@ public sealed class HandheldWeaponModel : BaseWeaponModel
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( Gun.IsValid() && Weapon.IsValid() && displayedRounds != Weapon.Clip1 )
-		{
-			displayedRounds = Weapon.Clip1;
-			Gun.Attributes.Set( "WeaponRounds", displayedRounds );
-		}
 		if ( Weapon.IsValid() && dualGraph != WantsDualGraph )
 			Play( Weapon.RestAction );
 		if ( Weapon.IsValid() && AnimationData is { AmmunitionFrames: > 1 } data && Renderer.Animation.IsValid )

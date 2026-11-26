@@ -91,6 +91,11 @@ PS
 		SamplerState IllumSampler < Filter( MIN_MAG_MIP_LINEAR ); AddressU( CLAMP ); AddressV( CLAMP ); >;
 	#endif
 
+	#if S_PASS == PASS_METER
+		float WeaponMeter < Attribute( "WeaponMeter" ); Default( 0 ); >;
+		float2 g_vMeterRange < Default2( 0, 1 ); >;
+	#endif
+
 	#if S_PASS == PASS_AMMO_DIGIT
 		int WeaponRounds < Attribute( "WeaponRounds" ); Default( 0 ); >;
 		int g_nDigitDivisor < Default( 1 ); >;
@@ -161,9 +166,10 @@ PS
 				return float4( glow, power );
 			#elif S_PASS == PASS_METER
 				// The retail combiner selects a tint and opacity using the display texture's alpha.
-				bool high = base.a >= g_vConstant0.a;
-				float3 tint = high ? g_vConstant3.rgb : g_vConstant1.rgb;
-				float opacity = (high ? g_vConstant4.a : g_vConstant2.a) * g_tLayer1.Sample( g_sAniso, uv1 ).a;
+				bool high = base.a >= lerp( g_vMeterRange.x, g_vMeterRange.y, saturate( WeaponMeter ) );
+				float4 response = g_tLayer2.SampleLevel( g_sAniso, float2( (saturate( WeaponMeter ) * 255 + 0.5) / 256, 0.5 ), 0 );
+				float3 tint = high ? g_vConstant3.rgb : response.rgb;
+				float opacity = (high ? response.a : g_vConstant2.a) * g_tLayer1.Sample( g_sAniso, uv1 ).a;
 				return float4( base.rgb * tint * opacity, opacity );
 			#elif S_PASS == PASS_ADDITIVE
 				return float4( base.rgb * g_vConstant0.rgb, base.a );

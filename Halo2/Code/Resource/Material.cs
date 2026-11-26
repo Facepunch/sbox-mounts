@@ -8,7 +8,7 @@ namespace Halo2;
 /// Loads a Halo 2 shader (shad) tag as a material.
 /// Uses the halo2_model shader with separate change_color_map for tinting.
 /// </summary>
-public class Halo2MaterialLoader( MapFile map, TagEntry tag ) : ResourceLoader<Halo2Mount>
+public partial class Halo2MaterialLoader( MapFile map, TagEntry tag ) : ResourceLoader<Halo2Mount>
 {
 	static readonly Material DefaultMaterial = Material.Load( "materials/dev/primary_white.vmat" );
 
@@ -77,6 +77,8 @@ public class Halo2MaterialLoader( MapFile map, TagEntry tag ) : ResourceLoader<H
 		{
 			var effect = Material.Create( name, "shaders/halo2_effect.shader" );
 			effect.SetFeature( "F_PASS", (int)shader.Effect );
+			if ( shader.Effect == ShaderTag.EffectPass.Meter )
+				BindMeter( effect, shader );
 			if ( shader.Effect == ShaderTag.EffectPass.Plasma ) effect.Set( "g_vPlasmaScroll", shader.PlasmaScroll );
 			for ( int i = 0; i < shader.EffectMaps.Length; i++ )
 			{

@@ -263,6 +263,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		collider.Scale = renderer.Model.Bounds.Size;
 		root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 		var gun = root.AddComponent<T>();
+		if ( gun is HandheldWeapon handheld ) WeaponScreen.Attach( handheld, renderer );
 		gun.DisplayName = title;
 		gun.DamageAccelerationScale = Float( Header + 0x14 );
 		int flags = map.ReadInt32( Header + 0x12c );

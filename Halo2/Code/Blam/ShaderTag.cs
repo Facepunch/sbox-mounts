@@ -20,6 +20,10 @@ public class ShaderTag
 	/// <summary>Tag index of the change color map bitmap, or -1 if not found.</summary>
 	public int ChangeColorBitmapTagIndex { get; set; } = -1;
 
+	internal int MeterTintCurve { get; private set; }
+	internal int MeterOpacityCurve { get; private set; }
+	internal bool ConstantMeterOpacity { get; private set; }
+	public Vector2? MeterRange { get; private set; }
 	public int AmmoDigitDivisor { get; private set; }
 
 	public int ChangeColorChannels { get; private set; }
@@ -127,6 +131,7 @@ public class ShaderTag
 				};
 				if ( Effect != EffectPass.None )
 				{
+					if ( Effect == EffectPass.Meter ) ReadMeterBindings( map, ppOff );
 					if ( Effect == EffectPass.Plasma )
 					{
 						PlasmaScroll = ReadPlasmaScroll( map, ppOff );
@@ -246,6 +251,39 @@ public class ShaderTag
 					EnvironmentGlancing = Register( slot + 1 ).WithW( Register( slot + 3 ).w );
 				}
 			}
+		}
+	}
+
+	// The meter template binds its threshold to the alpha of pixel constant 1 (0x61).
+	void ReadMeterBindings( MapFile map, int pp )
+	{
+		int Block( int offset ) => map.VaToOffset( map.ReadInt32( pp + offset + 4 ) );
+		for ( int i = 0; i < map.ReadInt32( pp + 0x54 ); i++ )
+		{
+			uint binding = (uint)map.ReadInt32( Block( 0x54 ) + i * 4 );
+			int destination = (int)(binding & 0xffff);
+			if ( destination is not (0x61 or 0x83 or 0x64) ) continue;
+			int parameter = (int)(binding >> 24);
+			if ( parameter >= map.ReadInt32( pp + 0x4c ) ) continue;
+			int range = System.BitConverter.ToUInt16( map.ReadSpan( Block( 0x4c ) + parameter * 2, 2 ) );
+			if ( range >> 9 != 1 || (range & 511) >= map.ReadInt32( pp + 0x44 ) ) continue;
+			int index = (ushort)map.ReadInt32( Block( 0x44 ) + (range & 511) * 4 );
+			if ( index >= map.ReadInt32( pp + 0x3c ) ) continue;
+			int overlay = Block( 0x3c ) + index * 20;
+			string input = map.ResolveStringId( map.ReadInt32( overlay ) );
+			if ( input is not ("ammo" or "heat" or "one") || map.ReadInt32( overlay + 12 ) < 20 ) continue;
+			int curve = map.VaToOffset( map.ReadInt32( overlay + 16 ) );
+			if ( destination == 0x83 ) { MeterTintCurve = curve; continue; }
+			if ( destination == 0x64 )
+			{
+				MeterOpacityCurve = curve;
+				ConstantMeterOpacity = input == "one";
+				continue;
+			}
+			// The weapon meters use identity or a linear zero-to-one transition.
+			if ( map.ReadSpan( curve, 1 )[0] is not (0 or 2) ) continue;
+			using var endpoints = map.OpenReader( curve + 4, 8 );
+			MeterRange = new Vector2( endpoints.ReadSingle(), endpoints.ReadSingle() );
 		}
 	}
 
