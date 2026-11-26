@@ -134,32 +134,7 @@ static class WeaponEffects
 			burst.Add( Pick( sprites ), mount, i * 2 * scale, Game.Random.Float( 6, 9 ) * (12 - i) / 9 * size, Color.White, 0.1f );
 	}
 
-	/// <summary>
-	/// The shooter's own tracer, FX_PlayerTracer or FX_PlayerAR2Tracer: a static streak for one
-	/// frame starting beside the eye (ComputeTracerStartPosition plus the client's 4 units right).
-	/// </summary>
-	public static void PlayerTracer( string type, Transform eye, Vector3 end, string mount )
-	{
-		var start = eye.Position + eye.Rotation.Forward * 16 + eye.Rotation.Right * 6 + Vector3.Down * 4.5f;
-		var direction = (end - start).Normal;
-		var distance = start.Distance( end );
-		// CFXStaticLine's scale is the full width.
-		if ( type is "COMBINE" or "AR2" )
-		{
-			if ( distance < 128 ) return;
-			var length = MathF.Min( distance, Game.Random.Float( 256, 1024 ) );
-			Tracer.Create( "effects/gunshiptracer", start + direction * Game.Random.Float( 0, 8 ), direction, length, length, Game.Random.Float( 6, 12 ), 0, mount );
-			return;
-		}
-		if ( distance < 256 ) return;
-		var streak = distance * Game.Random.Float( 0.1f, 0.6f );
-		Tracer.Create( "effects/spark", start + direction * (8 + Game.Random.Float( -24, 64 )), direction, streak, streak, Game.Random.Float( 0.5f, 0.75f ), 0, mount );
-	}
-
-	/// <summary>
-	/// Everyone else's tracer, FX_Tracer or FX_AR2Tracer: a streak flying along the shot
-	/// (FX_AddDiscreetLine, whose scale is a half-width).
-	/// </summary>
+	/// <summary>A multiplayer weapon tracer travels from the rendered muzzle to the pellet endpoint.</summary>
 	public static void DrawTracer( string type, Vector3 start, Vector3 end, string mount )
 	{
 		var direction = (end - start).Normal;

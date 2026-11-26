@@ -745,12 +745,8 @@ public sealed class BulletWeapon : Weapon
 		if ( first ) _remoteVolleyTracer = phase == 0 || pelletCount > TracerFrequency - phase;
 		if ( IsProxy && HasOwner ? !_remoteVolleyTracer : phase != 0 ) return;
 
-		var type = WeaponSetup.FlashType( this );
-		var mount = MountContent.OfWeapon( this );
-		if ( WeaponModel is ViewModel && Scene.Camera.IsValid() )
-			WeaponEffects.PlayerTracer( type, Scene.Camera.WorldTransform, shot.HitPosition, mount );
-		else if ( WeaponModel is WeaponWorldModel world )
-			WeaponEffects.DrawTracer( type, shot.Origin ?? world.GetTracerOrigin().Position, shot.HitPosition, mount );
+		if ( WeaponModel is { } model && model.IsValid() )
+			WeaponEffects.DrawTracer( WeaponSetup.FlashType( this ), model.GetTracerOrigin().Position, shot.HitPosition, MountContent.OfWeapon( this ) );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
