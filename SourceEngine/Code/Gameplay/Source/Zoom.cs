@@ -3,11 +3,12 @@ namespace Source1;
 /// <summary>The player's crossbow lens finishes returning to normal even after the weapon is put away.</summary>
 [Title( "Source Weapon Zoom" )]
 [Category( "Source 1" )]
-public sealed class Zoom : Component, ICameraModifier
+public sealed class Zoom : Component, ICameraModifier, PlayerController.IEvents
 {
 	public const float FieldOfView = 20;
 	internal bool Zoomed { get; private set; }
 	internal float ViewModelFovOffset { get; private set; }
+	float _lookScale = 1;
 	float _start;
 	TimeSince _changed;
 
@@ -28,11 +29,14 @@ public sealed class Zoom : Component, ICameraModifier
 		_changed = 0;
 	}
 
+	void PlayerController.IEvents.OnEyeAngles( ref Angles angles ) => angles *= _lookScale;
+
 	int ICameraModifier.CameraOrder => 199;
 
 	void ICameraModifier.ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
-		if ( camera.GameObject != GameObject ) return;
+		if ( IsProxy || camera != Scene.Camera ) return;
+		_lookScale = 1;
 		ViewModelFovOffset = 0;
 		var zoom = Fraction;
 		if ( zoom <= 0 ) return;
@@ -45,5 +49,6 @@ public sealed class Zoom : Component, ICameraModifier
 		var zoomed = float.Lerp( unzoomed, FieldOfView, zoom );
 		view.FieldOfView = Screen.CreateVerticalFieldOfView( zoomed, scale );
 		ViewModelFovOffset = unzoomed - zoomed;
+		_lookScale = zoomed / unzoomed;
 	}
 }

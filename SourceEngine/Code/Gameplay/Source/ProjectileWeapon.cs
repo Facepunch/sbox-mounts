@@ -122,7 +122,8 @@ public sealed partial class ProjectileWeapon : Weapon
 		{
 			if ( HasOwner && !IsProxy && Scene.Camera.IsValid() )
 			{
-				_zoom = Scene.Camera.GetOrAddComponent<Zoom>();
+				_zoom = Owner.GetOrAddComponent<Zoom>();
+				_zoom.Flags |= ComponentFlags.NotNetworked;
 				_zoom.SetZoomed( !_zoom.Zoomed );
 			}
 			return;

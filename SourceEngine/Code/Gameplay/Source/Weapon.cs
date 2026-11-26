@@ -245,7 +245,7 @@ public abstract class Weapon : BaseCombatWeapon
 		if ( owner.IsValid() ) owner.GetOrAddComponent<ViewModelMotion>().Apply( ref placement, owner.Velocity, model.Mirrored );
 		model.Place( placement );
 		model.FollowCameraEffects( camera, view );
-		model.ApplyLens( camera, view, camera.GetComponent<Zoom>()?.ViewModelFovOffset ?? 0 );
+		model.ApplyLens( camera, view, owner?.GetComponent<Zoom>()?.ViewModelFovOffset ?? 0 );
 		OnViewModelPlaced( model );
 	}
 
