@@ -118,6 +118,7 @@ public abstract partial class HandheldWeapon : Weapon
 	protected virtual bool CanCycleBarrel => PrimaryAutomatic && Time.NowDouble >= PrimaryReadyAt &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
 	protected virtual double EarliestRateTick => 0;
+	protected virtual bool CanCatchUpRounds => Networking.IsHost;
 	protected virtual bool HasPendingRound => roundQueued;
 
 	double OtherBarrelReadyAt
@@ -145,24 +146,35 @@ public abstract partial class HandheldWeapon : Weapon
 		double now = Time.NowDouble;
 		bool held = Input.Down( TriggerButton );
 		bool canCycle = CanCycleBarrel;
+		bool continuous = CanCatchUpRounds && held && canCycle && lastAutomaticRound.HasValue;
 		if ( roundQueued && !canCycle && (PrimaryAutomatic || !CanPrimaryAttack()) ) roundQueued = false;
 		if ( canCycle && held && lastAutomaticRound is double last && now >= last + 1 / 30.0 )
 			roundQueued = true;
 
 		if ( canCycle && (held || roundQueued) && PrimaryDelay > 0 )
 		{
-			automaticRoundAt = now;
+			automaticRoundAt = System.Math.Floor( now * 30 ) / 30;
 			if ( lastAutomaticRound is double previous )
 			{
 				// The barrel checks elapsed ticks against its current firing rate.
 				double due = System.Math.Max( EarliestRateTick, previous + System.Math.Round( PrimaryDelay * 30 ) / 30.0 );
 				due = System.Math.Max( due, OtherBarrelReadyAt );
 				SetNextPrimaryFire( (float)(due - now) );
-				if ( now - due < PrimaryDelay ) automaticRoundAt = due;
+				if ( continuous || now - due < PrimaryDelay ) automaticRoundAt = due;
 			}
 		}
 		else lastAutomaticRound = null;
 		base.OnControl();
+		// A frame can cover several weapon ticks while the same trigger remains held.
+		while ( continuous && lastAutomaticRound is double fired && fired == automaticRoundAt && CanCycleBarrel )
+		{
+			double interval = System.Math.Round( PrimaryDelay * 30 ) / 30.0;
+			double next = System.Math.Max( fired + interval, OtherBarrelReadyAt );
+			if ( interval <= 0 || next > now ) break;
+			automaticRoundAt = next;
+			SetNextPrimaryFire( 0 );
+			if ( !FirePrimary() ) break;
+		}
 		UpdateBarrelError( HasPendingRound || (canCycle && held) );
 		automaticRoundAt = null;
 	}
