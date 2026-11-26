@@ -87,7 +87,7 @@ public sealed partial class Fade
 		bool dropping = !InCombat && ventDrop.Active( WorldPosition );
 		if ( Blinking )
 		{
-			bool held = releaseBlink > 0;
+			bool held = !attacking && releaseBlink > 0;
 			if ( ventBlink )
 			{
 				if ( !EntranceAim( out var aim ) ) aim = DuctBlinkAim( ductPoints );
@@ -121,6 +121,7 @@ public sealed partial class Fade
 		var landingOffset = (ventDrop.Landing - WorldPosition).WithZ( 0 );
 		if ( dropping && landingOffset.LengthSquared > 0.09f * Scale * Scale )
 			goal = ventDrop.Landing;
+		if ( attacking ) goal = Movement.MoveTarget ?? body.PhysicsBody.Position;
 		var direction = (goal - body.PhysicsBody.Position).WithZ( 0 ).Normal;
 		body.Gravity = false;
 		float gravity = Scene.PhysicsWorld.Gravity.z * body.GravityScale / Scale;

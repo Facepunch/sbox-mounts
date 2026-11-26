@@ -124,20 +124,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		}
 		if ( visible && attacking )
 		{
-			if ( Lerk.IsPlayerTarget( enemy ) )
-			{
-				if ( nextJuke <= 0 )
-				{
-					jukeSign = -jukeSign;
-					nextJuke = 0.35f + Random.Shared.NextSingle() * 0.65f;
-				}
-				var side = Vector3.Cross( EyePosition - CalculateAimPoint( enemy ), Vector3.Up ).Normal;
-				if ( side.LengthSquared > 0 ) Movement.MoveTo( WorldPosition + side * (Scale * jukeSign), 1, faceTarget: enemy );
-			}
-			else if ( WorldPosition.Distance( enemy.WorldPosition ) < 2.4f * 0.915f * Scale )
-			{
-				Movement.Stop();
-			}
+			MoveInMelee( enemy );
 			return;
 		}
 		if ( visible && Lerk.IsPlayerTarget( enemy ) ) goal = ApproachPosition( enemy );
@@ -146,6 +133,28 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
 			repath = 0.2f;
+		}
+	}
+
+	void MoveInMelee( GameObject enemy )
+	{
+		if ( Lerk.IsPlayerTarget( enemy ) )
+		{
+			if ( nextJuke <= 0 )
+			{
+				jukeSign = -jukeSign;
+				nextJuke = 0.35f + Random.Shared.NextSingle() * 0.65f;
+			}
+			var side = Vector3.Cross( EyePosition - CalculateAimPoint( enemy ), Vector3.Up ).Normal;
+			if ( side.LengthSquared > 0 )
+			{
+				var goal = WorldPosition + side * (Scale * jukeSign);
+				Movement.MoveTo( goal, 1, faceTarget: enemy );
+			}
+		}
+		else if ( WorldPosition.Distance( enemy.WorldPosition ) < 2.4f * 0.915f * Scale )
+		{
+			Movement.Stop();
 		}
 	}
 
@@ -173,6 +182,8 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		return origin.DistanceSquared( left ) < origin.DistanceSquared( right ) ? left : right;
 	}
 
+	static bool InAttackRange( float distance, float roll ) => distance / (double)Scale <= 2.4 + 0.05 + roll * 0.075;
+
 	void UpdateAttack( GameObject enemy )
 	{
 		attacking = false;
@@ -194,7 +205,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		view = AlienAim.Turn( view, aim, 5 );
 		if ( !acquisition.Ready( enemy, aim, view ) ) return;
 
-		attacking = WorldPosition.Distance( enemy.WorldPosition ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
+		attacking = InAttackRange( WorldPosition.Distance( enemy.WorldPosition ), Random.Shared.NextSingle() );
 		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )
 		{
 			bool wantsStab = StabUnlocked && energy >= 25 && OpenToStab( enemy );
