@@ -113,7 +113,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		capsule.Start = Vector3.Up * (0.35f * Scale);
 		capsule.End = Vector3.Up * (1.55f * Scale);
 		capsule.Radius = 0.35f * Scale;
-		root.AddComponent<Rigidbody>().EnableImpactDamage = false;
+		var rigidbody = root.AddComponent<Rigidbody>();
+		rigidbody.EnableImpactDamage = false;
+		rigidbody.Locking = new PhysicsLock { Pitch = true, Roll = true };
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = capsule.Radius;
 		agent.Height = StandingHeight;
