@@ -13,13 +13,13 @@ public class RenderModelTag
 	public List<BoundingBox> BoundingBoxes { get; } = new();
 	public List<Region> Regions { get; } = new();
 	public List<Section> Sections { get; } = new();
-	public List<Node> Nodes { get; } = new();
+	public List<Node> Nodes { get; }
 	public List<ShaderRef> Shaders { get; } = new();
 
 	public RenderModelTag( MapFile map, TagEntry tag )
 	{
-		if ( tag.DataSize == 0 )
-			return;
+		Nodes = ReadNodes( map, tag );
+		if ( tag.DataSize == 0 ) return;
 
 		using var reader = map.GetTagDataReader( tag );
 
@@ -35,11 +35,6 @@ public class RenderModelTag
 		// Sections at +36
 		int secCount = reader.ReadInt32();
 		int secPtr = reader.ReadInt32();
-
-		// Nodes at +72
-		reader.BaseStream.Seek( 72, SeekOrigin.Begin );
-		int nodeCount = reader.ReadInt32();
-		int nodePtr = reader.ReadInt32();
 
 		// Shaders at +96
 		reader.BaseStream.Seek( 96, SeekOrigin.Begin );
@@ -64,10 +59,6 @@ public class RenderModelTag
 		// Read sections (92 bytes each)
 		if ( secCount > 0 && secPtr != 0 )
 			ReadSections( map, secPtr, secCount );
-
-		// Read nodes (96 bytes each)
-		if ( nodeCount > 0 && nodePtr != 0 )
-			ReadNodes( map, nodePtr, nodeCount );
 
 		// Read shader references (32 bytes each on MCC)
 		if ( shaderCount > 0 && shaderPtr != 0 )
@@ -189,13 +180,18 @@ public class RenderModelTag
 		}
 	}
 
-	void ReadNodes( MapFile map, int ptr, int count )
+	internal static List<Node> ReadNodes( MapFile map, TagEntry tag )
 	{
-		int baseOff = map.VaToOffset( ptr );
+		if ( tag.DataSize == 0 ) return [];
+		if ( tag.DataSize < 80 ) throw new EndOfStreamException();
+		int block = map.VaToOffset( (int)tag.DataVirtualAddress ) + 72;
+		int count = map.ReadInt32( block ), pointer = map.ReadInt32( block + 4 );
+		if ( count <= 0 || pointer == 0 ) return [];
+		using var r = map.OpenReader( map.VaToOffset( pointer ), checked(count * 96) );
+		var nodes = new List<Node>( count );
 		for ( int i = 0; i < count; i++ )
 		{
-			int off = baseOff + i * 96;
-			using var r = map.OpenReader( off, 96 );
+			r.BaseStream.Position = i * 96;
 
 			var node = new Node
 			{
@@ -220,8 +216,9 @@ public class RenderModelTag
 			// InverseScale at +40
 			node.InverseScale = r.ReadSingle();
 
-			Nodes.Add( node );
+			nodes.Add( node );
 		}
+		return nodes;
 	}
 
 	void ReadShaders( MapFile map, int ptr, int count )

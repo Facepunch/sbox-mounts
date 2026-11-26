@@ -55,8 +55,8 @@ public partial class Halo2ModelLoader
 	public static Halo2ModelLoader ForModel( Model model ) => model is null ? null :
 		Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( model.Name ) as Halo2ModelLoader;
 
-	readonly Dictionary<(string, string, string), Halo2AnimationContext> contexts = new();
-	readonly Dictionary<int, Halo2ClipInfo> clipInfo = new();
+	readonly Dictionary<(string, string, string), Halo2AnimationContext> contexts = graph is null ? null : new();
+	readonly Dictionary<int, Halo2ClipInfo> clipInfo = graph is null ? null : new();
 
 	public IEnumerable<(string Mode, string WeaponClass, string WeaponType)> AnimationContexts()
 	{
@@ -140,8 +140,8 @@ public partial class Halo2ModelLoader
 
 	public Halo2ClipInfo GetClipInfo( int reference )
 	{
-		if ( clipInfo.TryGetValue( reference, out var info ) ) return info;
 		if ( graph is null ) return null;
+		if ( clipInfo.TryGetValue( reference, out var info ) ) return info;
 		if ( skeleton is null ) BuildSkeleton( GraphHeader );
 		if ( !HasClip( reference ) ) return null;
 		int entry = Entry( reference ), header = sources[(short)reference].Header;

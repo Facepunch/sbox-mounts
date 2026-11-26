@@ -6,9 +6,8 @@ namespace Halo2.Blam;
 /// <summary>Decodes the local-space base sequences embedded in MCC animation graphs.</summary>
 internal static class AnimationGraph
 {
-	public static void AddSequences( MapFile map, TagEntry graph, RenderModelTag model, ModelBuilder builder, float scale )
+	public static void AddSequences( MapFile map, TagEntry graph, Transform[] bind, int[] mapping, ModelBuilder builder, float scale )
 	{
-		ReadRig( map, graph, model, scale, out var bind, out var mapping );
 		using var header = map.GetTagDataReader( graph );
 		header.BaseStream.Position = 44;
 		int count = header.ReadInt32(), table = map.VaToOffset( header.ReadInt32() );
@@ -42,13 +41,12 @@ internal static class AnimationGraph
 			for ( int i = worker; i < jobs.Count; i += workers )
 				maxFrames = Math.Max( maxFrames, jobs[i].Frames );
 			var poses = new Transform[checked(maxFrames * bind.Length)];
-			var defaults = new Transform[bind.Length];
 			for ( int i = worker; i < jobs.Count; i += workers )
 			{
 				var job = jobs[i];
 				try
 				{
-					DecodeFrames( map, map.ReadSpan( job.Entry, 96 ), mapping, bind, defaults, poses, scale );
+					DecodeFrames( map, map.ReadSpan( job.Entry, 96 ), mapping, bind, poses, scale );
 					for ( int frame = 0; frame < job.Frames; frame++ )
 						job.Animation.AddFrame( poses.AsSpan( frame * bind.Length, bind.Length ) );
 				}
@@ -93,7 +91,7 @@ internal static class AnimationGraph
 	}
 
 	internal static void DecodeFrames( MapFile map, ReadOnlySpan<byte> entry,
-		int[] mapping, Transform[] bind, Transform[] defaults, Transform[] poses, float scale,
+		int[] mapping, Transform[] bind, Transform[] poses, float scale, bool additive = false,
 		Action<int, int, Vector3> translationStep = null )
 	{
 		int nodeCount = entry[19], frames = U16( entry, 20 );
@@ -104,10 +102,11 @@ internal static class AnimationGraph
 		int flags = checked(staticSize + compressed + uncompressed);
 		bool animated = compressed > 0 || uncompressed > 0;
 
-		bind.CopyTo( defaults, 0 );
+		if ( additive ) Array.Fill( poses, Transform.Zero, 0, bind.Length );
+		else bind.CopyTo( poses, 0 );
 		if ( staticSize > 0 )
-			Decode( data, 0, flags, staticFlags, mapping, nodeCount, defaults, bind.Length, 1, scale );
-		for ( int frame = 0; frame < frames; frame++ ) defaults.CopyTo( poses, frame * bind.Length );
+			Decode( data, 0, flags, staticFlags, mapping, nodeCount, poses, bind.Length, 1, scale );
+		for ( int frame = 1; frame < frames; frame++ ) Array.Copy( poses, 0, poses, frame * bind.Length, bind.Length );
 		if ( animated )
 			Decode( data, staticSize, flags + staticFlags, animatedFlags, mapping, nodeCount, poses, bind.Length, frames, scale, translationStep );
 

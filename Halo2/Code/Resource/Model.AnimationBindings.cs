@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Sandbox.Mounting;
 
@@ -12,7 +13,11 @@ internal sealed record AnimationBindings( IReadOnlyDictionary<string, int> Actio
 	DamageBinding[] Damage, IReadOnlyList<Halo2Transition> Transitions, GripTarget[] Ik, string GripModel,
 	Dictionary<int, Halo2ClipInfo> Clips, Dictionary<string, CuePlayback> Sounds )
 {
-	public Halo2AnimationContext Context() => new( Actions, Overlays,
+	// A remounted resource supplies a new text instance, leaving the old bindings collectible.
+	static readonly ConditionalWeakTable<string, AnimationBindings> decoded = new();
+	Halo2AnimationContext context;
+
+	public Halo2AnimationContext Context() => context ??= new( Actions, Overlays,
 		Damage.ToDictionary( d => (d.Kind, d.Direction, d.Region), d => d.Clip ), Transitions,
 		Ik.Select( i => (i.Marker, i.AttachTo) ).ToArray() );
 
@@ -20,7 +25,7 @@ internal sealed record AnimationBindings( IReadOnlyDictionary<string, int> Actio
 	{
 		var load = Sandbox.Mounting.Directory.Get( Halo2Mount.MountIdent )?.GetByPath( path )?.GetOrCreate();
 		return load is { IsCompletedSuccessfully: true } && load.Result is string json
-			? JsonSerializer.Deserialize<AnimationBindings>( json ) : null;
+			? decoded.GetValue( json, static text => JsonSerializer.Deserialize<AnimationBindings>( text ) ) : null;
 	}
 }
 

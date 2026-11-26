@@ -136,7 +136,7 @@ internal sealed partial class HandheldWeaponLoader
 		volume.Layers = new VolumeLayer[map.ReadInt32( header + 8 )];
 		for ( int i = 0, row = Block( header + 8 ); i < volume.Layers.Length; i++, row += 0x98 )
 		{
-			var bitmap = Reference( row + 4 ) ?? Reference( Block( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x108 ) + 0x30 );
+			var bitmap = Reference( row + 4 ) ?? Reference( Block( Address( Globals ) + 0x108 ) + 0x30 );
 			var offset = ReadCurveRange( Block( row + 0x10 ), 120 );
 			var radius = ReadCurveRange( Block( row + 0x18 ), 1 );
 			var alpha = ReadCurveRange( Block( row + 0x20 ), 1 );

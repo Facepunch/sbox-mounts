@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using Sandbox.Mounting;
 using System;
 using System.Collections.Generic;
@@ -181,22 +182,18 @@ public class Halo2Mount : BaseGameMount
 			if ( tag.PrimaryClass != "tmlh" || tag.DataSize < 0x28 ) continue;
 			try
 			{
-				using var reader = mapFile.GetTagDataReader( tag );
-				reader.BaseStream.Position = 0x04;
-				int renderDatum = reader.ReadInt32();
+				var definition = mapFile.ReadSpan( mapFile.VaToOffset( (int)tag.DataVirtualAddress ), (int)tag.DataSize );
+				int renderDatum = BinaryPrimitives.ReadInt32LittleEndian( definition[0x04..] );
 				if ( renderDatum == -1 ) continue;
-				reader.BaseStream.Position = 0x0c;
-				int collisionDatum = reader.ReadInt32();
+				int collisionDatum = BinaryPrimitives.ReadInt32LittleEndian( definition[0x0c..] );
 				var collision = mapFile.GetTag( collisionDatum & 0xffff ) is { PrimaryClass: "lloc", DataSize: >= 0x34 } coll ? coll : null;
 				int renderIndex = renderDatum & 0xffff;
 				if ( !modeToCollision.TryGetValue( renderIndex, out var existing ) || (existing.Collision is null && collision is not null) )
 					modeToCollision[renderIndex] = (collision, tag);
-				reader.BaseStream.Position = 0x14;
-				int animationDatum = reader.ReadInt32();
+				int animationDatum = BinaryPrimitives.ReadInt32LittleEndian( definition[0x14..] );
 				if ( mapFile.GetTag( animationDatum & 0xffff ) is { PrimaryClass: "damj", DataSize: > 0 } graph )
 					modeToAnimation.TryAdd( renderDatum & 0xffff, graph );
-				reader.BaseStream.Position = 0x24;
-				int physicsDatum = reader.ReadInt32();
+				int physicsDatum = BinaryPrimitives.ReadInt32LittleEndian( definition[0x24..] );
 				if ( physicsDatum == -1 ) continue;
 
 				var physics = mapFile.GetTag( physicsDatum & 0xffff );
@@ -211,11 +208,8 @@ public class Halo2Mount : BaseGameMount
 
 		foreach ( var tag in mapFile.Tags )
 		{
-			if ( string.IsNullOrEmpty( tag.TagPath ) || string.IsNullOrEmpty( tag.PrimaryClass ) )
-				continue;
-
-			// Skip tags with no local data (shared.map references)
-			if ( tag.DataSize == 0 )
+			if ( tag.DataSize == 0 || tag.PrimaryClass is not ("paew" or "!dns" or "edom" or "mtib" or "dahs")
+				|| string.IsNullOrEmpty( tag.TagPath ) )
 				continue;
 
 			var tagPath = tag.TagPath.Replace( '\\', '/' );

@@ -20,20 +20,19 @@ public static class BitmapTag
 		if ( (uint)index >= count ) return null;
 
 		int offset = map.VaToOffset( map.ReadInt32( block + 4 ) ) + index * 168;
-		using var r = map.OpenReader( offset, 168 );
-		r.BaseStream.Position = 4;
-		var bitmap = new BitmapData
+		var data = map.ReadSpan( offset, 168 );
+		return new BitmapData
 		{
-			Width = r.ReadInt16(), Height = r.ReadInt16(), Depth = r.ReadInt16(),
-			BitmapType = r.ReadInt16(), Format = r.ReadInt16(), Flags = r.ReadInt16()
+			Width = BinaryPrimitives.ReadInt16LittleEndian( data[4..] ),
+			Height = BinaryPrimitives.ReadInt16LittleEndian( data[6..] ),
+			Depth = BinaryPrimitives.ReadInt16LittleEndian( data[8..] ),
+			BitmapType = BinaryPrimitives.ReadInt16LittleEndian( data[10..] ),
+			Format = BinaryPrimitives.ReadInt16LittleEndian( data[12..] ),
+			Flags = BinaryPrimitives.ReadInt16LittleEndian( data[14..] ),
+			MipmapCount = BinaryPrimitives.ReadInt16LittleEndian( data[20..] ),
+			Lod0Pointer = BinaryPrimitives.ReadInt32LittleEndian( data[56..] ),
+			Lod0Size = BinaryPrimitives.ReadInt32LittleEndian( data[80..] )
 		};
-		r.BaseStream.Position = 20;
-		bitmap.MipmapCount = r.ReadInt16();
-		r.BaseStream.Position = 56;
-		bitmap.Lod0Pointer = r.ReadInt32();
-		r.BaseStream.Position = 80;
-		bitmap.Lod0Size = r.ReadInt32();
-		return bitmap;
 	}
 
 	// Staging buffers contain compressed bytes. Uploaded pixels
@@ -41,6 +40,13 @@ public static class BitmapTag
 	static readonly ArrayPool<byte> Staging = ArrayPool<byte>.Create( 4 * 1024 * 1024, 2 );
 
 	public static byte[] ReadPixelData( BaseFileSystem fileSystem, MapFile map, BitmapData bmp, ReadOnlySpan<int> mipSizes, int length )
+	{
+		var pixels = new byte[length];
+		ReadPixelData( fileSystem, map, bmp, mipSizes, pixels );
+		return pixels;
+	}
+
+	internal static void ReadPixelData( BaseFileSystem fileSystem, MapFile map, BitmapData bmp, ReadOnlySpan<int> mipSizes, Span<byte> pixels )
 	{
 		using var fs = fileSystem.OpenRead( $"{map.MapsDirectory}/textures.dat" );
 		fs.Position = bmp.Lod0Pointer & 0x3fffffff;
@@ -55,8 +61,7 @@ public static class BitmapTag
 			if ( count <= 0 || count > (bmp.Lod0Size - 4) / 4 )
 				throw new InvalidDataException( "Invalid bitmap segment table." );
 
-			var pixels = new byte[length];
-			int level = 0, written = 0, end = length;
+			int level = 0, written = 0, end = pixels.Length;
 			int cursor = 4 + count * 4;
 			for ( int i = 0; i < count && level < mipSizes.Length; i++ )
 			{
@@ -70,7 +75,7 @@ public static class BitmapTag
 				while ( level < mipSizes.Length )
 				{
 					int start = end - mipSizes[level];
-					var destination = pixels.AsSpan( start + written, mipSizes[level] - written );
+					var destination = pixels.Slice( start + written, mipSizes[level] - written );
 					int n;
 					if ( inflater is null )
 					{
@@ -101,7 +106,6 @@ public static class BitmapTag
 				cursor += sizeBytes;
 			}
 			if ( level != mipSizes.Length ) throw new InvalidDataException( "Incomplete bitmap mip chain." );
-			return pixels;
 		}
 		finally
 		{

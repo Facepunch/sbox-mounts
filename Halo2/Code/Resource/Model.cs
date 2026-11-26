@@ -64,7 +64,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 		// Keep the arm mesh's vertex bone indices intact. The animation graph parents
 		// the separate weapon skeleton under the right hand and also contains the camera.
-		var nodes = new RenderModelTag( mapFile, firstPersonWeapon ).Nodes;
+		var nodes = RenderModelTag.ReadNodes( mapFile, firstPersonWeapon );
 		var weaponBones = nodes.ToDictionary( n => n.StringId );
 		var indices = model.Nodes.Select( (n, i) => (n.StringId, i) ).ToDictionary( x => x.StringId, x => x.i );
 		var rows = Rows( GraphHeader + 12, 32 ).ToArray();
@@ -177,6 +177,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 					PreferredGrip = biped.DataSize >= 0x164 ? Label( unit + 0x160 ) : null
 				} );
 		}
+		if ( graph is not null && skeleton is null && (biped is null || HasFirstPersonWeapon) )
+			BuildSkeleton( GraphHeader, model );
 		if ( ReadBodyMaterial() is {} bodyMaterial ) builder.WithData( bodyMaterial );
 		if ( biped is null && !HasFirstPersonWeapon && GetChamberBinding() is {} chamber )
 			builder.WithData( chamber );
@@ -208,6 +210,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		var leftNodes = dualWieldable ? Rows( GraphHeader + 12, 32 ).Where( row => (mapFile.ReadInt32( row + 10 ) & 0x20) != 0 )
 			.Select( row => mapFile.ReadInt32( row ) ).ToHashSet() : null;
 		var leftBones = leftNodes is null ? null : model.Nodes.Select( n => leftNodes.Contains( n.StringId ) ).ToArray();
+		Span<short> lodSections = stackalloc short[6];
 		foreach ( var region in model.Regions )
 		{
 			string regionName = mapFile.ResolveStringId( region.StringId ) ?? $"region_{region.StringId}";
@@ -219,19 +222,16 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 				bool needsTraceMesh = Application.IsEditor && permIdx == 0;
 
 				// Halo 2 LOD levels: SuperHigh(0), High(1), Medium(2), Low(3), SuperLow(4), Potato(5)
-				ReadOnlySpan<int> lodSections =
-				[
-					perm.SuperHighSectionIndex,
-					perm.HighSectionIndex,
-					perm.MediumSectionIndex,
-					perm.LowSectionIndex,
-					perm.SuperLowSectionIndex,
-					perm.PotatoSectionIndex
-				];
+				lodSections[0] = perm.SuperHighSectionIndex;
+				lodSections[1] = perm.HighSectionIndex;
+				lodSections[2] = perm.MediumSectionIndex;
+				lodSections[3] = perm.LowSectionIndex;
+				lodSections[4] = perm.SuperLowSectionIndex;
+				lodSections[5] = perm.PotatoSectionIndex;
 
 				for ( int lod = 0; lod < lodSections.Length; lod++ )
 				{
-					int sectionIndex = lodSections[lod];
+					short sectionIndex = lodSections[lod];
 					if ( sectionIndex < 0 || sectionIndex >= model.Sections.Count )
 						continue;
 
@@ -257,8 +257,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			}
 		}
 
-		if ( bones.Count > 0 )
-			builder.AddBones( [.. bones] );
+		foreach ( var bone in bones )
+			builder.AddBone( bone );
 
 		AddAttachments( mapFile, tag, builder, bones );
 
@@ -266,7 +266,12 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 			CollisionModel.AddHitboxes( mapFile, collision, model, builder, ScaleFactor, collisionModel, materialNames );
 
 		if ( graph is not null && bones.Count > 0 )
-			Blam.AnimationGraph.AddSequences( mapFile, graph, model, builder, ScaleFactor );
+		{
+			var bind = bindPose;
+			var mapping = nodeMap;
+			if ( bind is null ) Blam.AnimationGraph.ReadRig( mapFile, graph, model, ScaleFactor, out bind, out mapping );
+			Blam.AnimationGraph.AddSequences( mapFile, graph, bind, mapping, builder, ScaleFactor );
+		}
 
 		// Physics bodies can be bound to a bone or authored in model space.
 		if ( phmoTag != null )
@@ -287,14 +292,8 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 	bool BuildSectionMeshes( BaseFileSystem fileSystem, MapFile map, RenderModelTag model, Section section, int sectionIndex, ModelBuilder builder, BoundingBox bounds, int lod, string regionName, int permIndex, Dictionary<int, Material> materials, List<ModelBuilder.Bone> bones, bool addTraceMesh, bool[] leftBones )
 	{
-		// Read geometry blob via DataPointer
-		var blobData = ReadSectionBlob( fileSystem, map, section );
-		if ( blobData == null || blobData.Length == 0 )
-			return false;
-
-		using var ms = new MemoryStream( blobData );
-		using var reader = new BinaryReader( ms );
-
+		if ( section.DataSize <= 0 ) return false;
+		using var reader = map.OpenRawReader( fileSystem, section.DataPointer, section.DataSize );
 		int baseAddress = section.BaseAddress;
 
 		// Find resource blocks by type
@@ -552,15 +551,6 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		return vertices;
 	}
 
-	static byte[] ReadSectionBlob( BaseFileSystem fileSystem, MapFile map, Section section )
-	{
-		if ( section.DataSize <= 0 )
-			return null;
-
-		// Pass full pointer to ReadRawData which handles location bits and absolute addressing
-		return map.ReadRawData( fileSystem, section.DataPointer, section.DataSize );
-	}
-
 	static List<int> ExtractTriangleList( ushort[] indices, int start, int length )
 	{
 		var result = new List<int>( length );
@@ -678,7 +668,7 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 
 	static List<ModelBuilder.Bone> BuildSkeleton( RenderModelTag model, MapFile map )
 	{
-		var bones = new List<ModelBuilder.Bone>();
+		var bones = new List<ModelBuilder.Bone>( model.Nodes.Count );
 		var worldTransforms = new Transform[model.Nodes.Count];
 
 		for ( int i = 0; i < model.Nodes.Count; i++ )

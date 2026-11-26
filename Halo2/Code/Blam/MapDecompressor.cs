@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
 using System.IO.Compression;
@@ -54,7 +55,6 @@ public static class MapDecompressor
 		fs.ReadExactly( data, 0, HeaderSize );
 		using var output = new MemoryStream( data, 0, data.Length, writable: true, publiclyVisible: true );
 		output.Position = HeaderSize;
-		var frame = Array.Empty<byte>();
 		fs.Position = tableOffset;
 		var table = new byte[checked(chunkCount * 8)];
 		fs.ReadExactly( table );
@@ -71,7 +71,7 @@ public static class MapDecompressor
 			}
 			else
 			{
-				InflateChunk( fs, size, output, ref frame );
+				InflateChunk( fs, size, output );
 			}
 		}
 
@@ -81,16 +81,23 @@ public static class MapDecompressor
 
 	// MCC stores zlib frames. DeflateStream reads the payload between the
 	// two-byte zlib header and the big-endian Adler-32 trailer.
-	internal static void InflateChunk( Stream source, int size, MemoryStream output, ref byte[] frame )
+	static void InflateChunk( Stream source, int size, MemoryStream output )
 	{
 		if ( size < 6 || size > source.Length - source.Position ) throw new InvalidDataException( "Truncated zlib chunk." );
-		if ( frame.Length < size ) frame = new byte[size];
-		source.ReadExactly( frame, 0, size );
-		using var payload = OpenDeflatePayload( frame, 0, size );
-		using var inflater = new DeflateStream( payload, CompressionMode.Decompress );
-		int start = (int)output.Position;
-		inflater.CopyTo( output );
-		CheckChecksum( output.GetBuffer().AsSpan( start, (int)output.Position - start ), frame.AsSpan( size - 4 ) );
+		var frame = ArrayPool<byte>.Shared.Rent( size );
+		try
+		{
+			source.ReadExactly( frame, 0, size );
+			using var payload = OpenDeflatePayload( frame, 0, size );
+			using var inflater = new DeflateStream( payload, CompressionMode.Decompress );
+			int start = (int)output.Position;
+			inflater.CopyTo( output );
+			CheckChecksum( output.GetBuffer().AsSpan( start, (int)output.Position - start ), frame.AsSpan( size - 4 ) );
+		}
+		finally
+		{
+			ArrayPool<byte>.Shared.Return( frame );
+		}
 	}
 
 	internal static MemoryStream OpenDeflatePayload( byte[] frame, int start, int size )

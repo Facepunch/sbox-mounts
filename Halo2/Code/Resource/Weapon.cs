@@ -14,6 +14,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 	protected readonly MapFile map = source;
 	protected readonly TagEntry weapon = tag;
 
+	protected TagEntry Globals => map.Globals ?? throw new InvalidOperationException( $"Missing globals in {map.Header.MapName}" );
 	protected int Header => map.VaToOffset( (int)weapon.DataVirtualAddress );
 	protected int Block( int offset ) => map.VaToOffset( map.ReadInt32( offset + 4 ) );
 	protected int Short( int offset ) => (short)map.ReadInt32( offset );
@@ -79,7 +80,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		float inverse = initial > 0 && final > 0 && initial != final ? Float( projectile + 0x194 ) / 120 : 0;
 		if ( !scaled && inverse <= 0 ) return null;
 		float npcScale = 1;
-		if ( scaled && map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" ) is {} globals )
+		if ( scaled && map.Globals is {} globals )
 		{
 			int difficulty = Address( globals ) + 0xf8;
 			if ( map.ReadInt32( difficulty ) > 0 ) npcScale = Float( Block( difficulty ) + 0xa4 );
@@ -269,7 +270,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.GripMarker = map.ResolveStringId( map.ReadInt32( Header + 0x284 ) );
 		gun.NpcOnly = (flags & (1 << 29)) != 0;
 		(gun.AnimationClass, gun.AnimationType) = AnimationIdentifiers;
-		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+		var globals = Globals;
 		gun.ZoomLevels = Short( Header + 0x1fe );
 		gun.AutoAimAngle = Float( Header + 0x208 );
 		gun.AutoAimRange = Float( Header + 0x20c ) * 120;

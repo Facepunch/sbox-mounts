@@ -70,8 +70,9 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 
 	internal static Rect SpriteBounds( MapFile map, int offset )
 	{
-		using var r = map.OpenReader( offset, 16 );
-		float left = r.ReadSingle(), right = r.ReadSingle(), top = r.ReadSingle(), bottom = r.ReadSingle();
+		var data = map.ReadSpan( offset, 16 );
+		float left = BinaryPrimitives.ReadSingleLittleEndian( data ), right = BinaryPrimitives.ReadSingleLittleEndian( data[4..] );
+		float top = BinaryPrimitives.ReadSingleLittleEndian( data[8..] ), bottom = BinaryPrimitives.ReadSingleLittleEndian( data[12..] );
 		return new Rect( left, top, right - left, bottom - top );
 	}
 
@@ -87,12 +88,13 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 		int mipBytes = 0;
 		foreach ( int size in sizes[..levels] ) mipBytes += size;
 		var atlas = new byte[checked(mipBytes * sheetPages.Length)];
+		var pixels = new byte[length];
 		for ( int i = 0; i < sheetPages.Length; i++ )
 		{
-			var page = BitmapTag.Read( mapFile, tag, sheetPages[i] );
+			var page = i == 0 ? first : BitmapTag.Read( mapFile, tag, sheetPages[i] );
 			if ( page is null || page.Width != first.Width || page.Height != first.Height ||
 				page.Format != first.Format || page.BitmapType != 0 || page.IsSwizzled || page.MipmapCount != first.MipmapCount ) return null;
-			var pixels = BitmapTag.ReadPixelData( Host.FileSystem, mapFile, page, sizes, length );
+			BitmapTag.ReadPixelData( Host.FileSystem, mapFile, page, sizes, pixels );
 			int source = length, destination = atlas.Length;
 			foreach ( int size in sizes[..levels] )
 			{

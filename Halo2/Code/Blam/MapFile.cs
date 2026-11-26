@@ -19,6 +19,8 @@ public class MapFile
 
 	readonly byte[] decompressedData;
 	readonly string sourcePath;
+	string[] strings;
+	internal TagEntry Globals => field ??= Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
 
 	/// <summary>VA translation magic: subtract from virtual address to get file offset.</summary>
 	public int Magic { get; }
@@ -77,8 +79,8 @@ public class MapFile
 		if ( stringId == -1 || index >= Header.StringCount )
 			return null;
 
-		int indexOff = Header.StringIndexAddress + index * 4;
-		return ReadString( Header.StringTableAddress + ReadInt32( indexOff ) );
+		var table = strings ??= new string[Math.Min( Header.StringCount, 65536 )];
+		return table[index] ??= ReadString( Header.StringTableAddress + ReadInt32( Header.StringIndexAddress + index * 4 ) );
 	}
 
 	/// <summary>
@@ -87,6 +89,18 @@ public class MapFile
 	/// <paramref name="fileSystem"/> is the one this map was read from; shared maps live beside it.
 	/// </summary>
 	public byte[] ReadRawData( BaseFileSystem fileSystem, int pointer, int size )
+	{
+		var segment = RawSegment( fileSystem, pointer, size );
+		return segment.Array == decompressedData ? segment.AsSpan().ToArray() : segment.Array;
+	}
+
+	internal BinaryReader OpenRawReader( BaseFileSystem fileSystem, int pointer, int size )
+	{
+		var segment = RawSegment( fileSystem, pointer, size );
+		return new BinaryReader( new MemoryStream( segment.Array, segment.Offset, segment.Count, writable: false ) );
+	}
+
+	ArraySegment<byte> RawSegment( BaseFileSystem fileSystem, int pointer, int size )
 	{
 		var location = (DataLocation)((pointer >> 30) & 0x3);
 		int address = pointer & 0x3FFFFFFF;
@@ -110,9 +124,7 @@ public class MapFile
 		}
 
 		// Local data: address is absolute offset in decompressed map
-		var result = new byte[size];
-		Array.Copy( decompressedData, address, result, 0, size );
-		return result;
+		return new ArraySegment<byte>( decompressedData, address, size );
 	}
 
 	List<TagEntry> ReadTags()
@@ -140,30 +152,29 @@ public class MapFile
 			}
 
 			// Read tag path from file table
-			string tagPath = "";
+			int pathOffset = -1;
 			if ( i < Header.TagCount && Header.FileTableAddress > 0 && Header.FileTableIndexAddress > 0 )
 			{
 				int strOffset = ReadInt32( Header.FileTableIndexAddress + i * 4 );
 				int strAddr = Header.FileTableAddress + strOffset;
-				if ( strAddr >= 0 && strAddr < decompressedData.Length )
-					tagPath = ReadString( strAddr );
+				if ( strAddr >= 0 && strAddr < decompressedData.Length && decompressedData[strAddr] != 0 )
+					pathOffset = strAddr;
 			}
 
-			tags.Add( new TagEntry
+			tags.Add( new TagEntry( this, pathOffset )
 			{
 				PrimaryClass = primaryClass,
 				Datum = datum,
 				DataVirtualAddress = dataVa,
 				DataSize = dataSize,
-				Index = i,
-				TagPath = tagPath
+				Index = i
 			} );
 		}
 
 		return tags;
 	}
 
-	string ReadString( int offset )
+	internal string ReadString( int offset )
 	{
 		int end = Array.IndexOf( decompressedData, (byte)0, offset );
 		return Encoding.ASCII.GetString( decompressedData, offset, (end < 0 ? decompressedData.Length : end) - offset );
@@ -240,12 +251,39 @@ public class MapHeader
 
 public class TagEntry
 {
+	volatile MapFile pathSource;
+	readonly int pathOffset;
+
+	public TagEntry() { }
+
+	internal TagEntry( MapFile map, int offset )
+	{
+		if ( offset >= 0 ) pathSource = map;
+		pathOffset = offset;
+	}
+
 	public string PrimaryClass { get; set; }
 	public uint Datum { get; set; }
 	public uint DataVirtualAddress { get; set; }
 	public uint DataSize { get; set; }
 	public int Index { get; set; }
-	public string TagPath { get; set; } = "";
+	public string TagPath
+	{
+		get
+		{
+			if ( pathSource is {} map )
+			{
+				field = map.ReadString( pathOffset );
+				pathSource = null;
+			}
+			return field;
+		}
+		set
+		{
+			field = value;
+			pathSource = null;
+		}
+	} = "";
 }
 
 public enum DataLocation

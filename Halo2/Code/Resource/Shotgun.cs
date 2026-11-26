@@ -212,7 +212,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 	void LoadMaterialEffects()
 	{
 		if ( pelletEffects is not null ) return;
-		var globals = map.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" );
+		var globals = map.Globals;
 		if ( globals is null ) return;
 		int materials = Address( globals ) + 0x150;
 		var casing = map.Tags.FirstOrDefault( t => t.TagPath == @"effects\objects\weapons\rifle\shotgun\shotgun_casing" );
@@ -313,7 +313,7 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.AttackSoundMarker = marker;
 			gun.DryFireSound = FiringSound( barrel, out var dryMarker, dry: true );
 			gun.DryFireMarker = dryMarker;
-			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+			var globals = Globals;
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
 			gun.CanHeadshot = (map.ReadInt32( damage + 0x14 ) & 2) != 0;

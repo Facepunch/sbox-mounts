@@ -109,7 +109,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 
 	Dictionary<string, BulletContact> LoadBulletContacts( TagEntry projectile, Dictionary<string, string> parents, HashSet<TagEntry> tagsToRegister )
 	{
-		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
+		int materials = Address( Globals ) + 0x150;
 		int responses = Address( projectile ) + 0x19c;
 		var rows = new Dictionary<string, int>();
 		for ( int i = 0, row = Block( responses ); i < map.ReadInt32( responses ); i++, row += 0x58 )
@@ -164,7 +164,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		int response = Block( header + 0x19c );
 		// Terminal contacts use action 15. Reflection has a separate bank.
 		if ( Short( response + 2 ) != 0 || Short( response + 0x14 ) is not (0 or 4) ) return;
-		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
+		int materials = Address( Globals ) + 0x150;
 		contactEffects = ReadMaterialBank( materials, projectile, 0x54, 15, 16, materialParents );
 		contactSounds = ReadProjectileSounds( materials, projectile, 15, materialParents );
 	}
@@ -354,7 +354,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		int area = Address( damage );
 		return new( Float( area ) * 120, Float( area + 4 ) * 120, Float( area + 0x18 ) * 120,
 			Float( area + 0x1c ), Float( area + 0x20 ), Float( area + 0x40 ) * 120,
-			BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), area ) );
+			BodyDamageScales( Address( Globals ), area ) );
 	}
 
 	void ConfigureProjectile( HandheldWeapon gun, int barrel, int projectile, int damage )
@@ -377,7 +377,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 					gun.Bounce = new( Float( response + 0x1c ), Float( response + 0x20 ), Float( response + 0x50 ), Float( response + 0x54 ),
 						(int)MathF.Round( Float( projectile + 0xd4 ) * 30 ) )
 					{
-						Sounds = ReadProjectileSounds( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150, Reference( barrel + 0x8c ), 19 )
+						Sounds = ReadProjectileSounds( Address( Globals ) + 0x150, Reference( barrel + 0x8c ), 19 )
 					};
 			}
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
@@ -410,7 +410,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		gun.DamageFalloffRange = falloff ? Float( projectile + 0x16c ) * 120 : 0;
 		gun.UnderwaterDamageFalloffRange = falloff ? Float( projectile + 0x178 ) * 120 : 0;
 		gun.MinimumDamage = Float( damage + 0x1c );
-		gun.PelletBodyScales = BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), damage );
+		gun.PelletBodyScales = BodyDamageScales( Address( Globals ), damage );
 		gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
 		gun.CanHeadshot = (map.ReadInt32( damage + 0x14 ) & 2) != 0;
 	}
@@ -481,7 +481,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			pistol.ChargedShot = new( ReadBallistics( pistol.Ballistics, secondary, bolt, impact ), Float( bolt + 0x17c ) * 120,
 				Float( secondary + 0x70 ).RadianToDegree(), Float( bolt + 0x164 ), Float( bolt + 0x170 ), Float( impact + 0x1c ),
 				fades ? Float( bolt + 0x16c ) * 120 : 0, fades ? Float( bolt + 0x178 ) * 120 : 0,
-				BodyDamageScales( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
+				BodyDamageScales( Address( Globals ), impact ), (map.ReadInt32( impact + 20 ) & 32) != 0,
 				ReadTrail( bolt ), Float( secondary + 0xa4 ), Float( secondary + 0xa8 ), FiringSound( secondary, out var chargedMarker ), chargedMarker,
 				Float( bolt + 0x188 ), Float( Header + 0x208 ), Float( Header + 0x20c ) * 120 )
 			{
@@ -610,7 +610,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				CasingSounds contacts = null;
 				if ( casing )
 				{
-					var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+					var globals = Globals;
 					var sounds = ReadMaterialBank( Address( globals ) + 0x150, particle, 0x6c, 10, 8 );
 					var cues = new List<CuePlayback>();
 					contacts = new CasingSounds { Casings = ReadSoundBank( sounds, cues, new() ), Cues = cues.ToArray() };

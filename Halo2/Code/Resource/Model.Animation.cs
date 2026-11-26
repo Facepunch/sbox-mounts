@@ -45,7 +45,7 @@ public partial class Halo2ModelLoader
 	int GraphHeader => mapFile.VaToOffset( (int)graph.DataVirtualAddress );
 
 	sealed record AnimationSource( int Header, int[] Mapping, float TranslationScale, bool ScaleRootOnly );
-	readonly Dictionary<int, AnimationSource> sources = new();
+	readonly Dictionary<int, AnimationSource> sources = graph is null ? null : new();
 	int Entry( int reference ) => mapFile.VaToOffset( mapFile.ReadInt32( sources[(short)reference].Header + 48 ) ) + (reference >> 16) * 96;
 
 	bool HasClip( int reference ) => sources.TryGetValue( (short)reference, out var source )
@@ -82,10 +82,10 @@ public partial class Halo2ModelLoader
 	Skeleton skeleton;
 	Transform[] bindPose;
 	int[] nodeMap;
-	readonly Dictionary<int, Clip> graphClips = new();
-	readonly Dictionary<int, Clip> oneShotClips = new();
-	readonly Dictionary<int, Clip> translationSteps = new();
-	readonly Dictionary<int, string> clipMasks = new();
+	readonly Dictionary<int, Clip> graphClips = graph is null ? null : new();
+	readonly Dictionary<int, Clip> oneShotClips = graph is null ? null : new();
+	readonly Dictionary<int, Clip> translationSteps = graph is null ? null : new();
+	readonly Dictionary<int, string> clipMasks = graph is null ? null : new();
 
 	IEnumerable<int> Rows( int block, int stride )
 	{
@@ -345,9 +345,9 @@ public partial class Halo2ModelLoader
 
 	int Kind( int entry ) => mapFile.ReadSpan( entry + 16, 1 )[0];
 
-	void BuildSkeleton( int header )
+	void BuildSkeleton( int header, Blam.RenderModelTag model = null )
 	{
-		var model = ReadRenderModel();
+		model ??= ReadRenderModel();
 		if ( model.Nodes.Count == 0 ) return;
 		Blam.AnimationGraph.ReadRig( mapFile, graph, model, ScaleFactor, out bindPose, out nodeMap );
 		var builder = new SkeletonBuilder();
@@ -381,6 +381,7 @@ public partial class Halo2ModelLoader
 		}
 
 		var masks = new Dictionary<string, string>();
+		var tracked = new char[names.Length];
 		foreach ( var (sourceIndex, source) in sources )
 		foreach ( var (index, entry) in Rows( source.Header + 44, 96 ).Index() )
 		{
@@ -389,25 +390,26 @@ public partial class Halo2ModelLoader
 			if ( !Blam.AnimationGraph.CanDecode( mapFile, data, source.Mapping.Length ) ) continue;
 			int start = mapFile.VaToOffset( mapFile.ReadInt32( entry + 44 ) ) + (ushort)mapFile.ReadInt32( entry + 54 )
 				+ mapFile.ReadInt32( entry + 56 ) + mapFile.ReadInt32( entry + 60 );
-			var tracked = new bool[names.Length];
-			foreach ( int size in new[] { (int)data[48], data[49] } )
+			Array.Fill( tracked, '0' );
+			for ( int block = 48; block <= 49; block++ )
 			{
+				int size = data[block];
 				int stride = size / 3;
 				var flags = mapFile.ReadSpan( start, size );
 				for ( int n = 0; n < data[19] && n / 8 < stride; n++ )
 				{
 					int i = n / 8;
 					if ( source.Mapping[n] >= 0 && ((flags[i] | flags[i + stride] | flags[i + 2 * stride]) & (1 << (n % 8))) != 0 )
-						tracked[source.Mapping[n]] = true;
+						tracked[source.Mapping[n]] = '1';
 				}
 				start += size;
 			}
-			var key = string.Concat( tracked.Select( used => used ? '1' : '0' ) );
+			var key = new string( tracked );
 			if ( !masks.TryGetValue( key, out var mask ) )
 			{
 				mask = $"tracks_{masks.Count}";
 				masks.Add( key, mask );
-				builder.AddBoneMask( mask, names.Select( (name, i) => (name, weight: tracked[i] ? 1f : 0f) )
+				builder.AddBoneMask( mask, names.Select( (name, i) => (name, weight: tracked[i] == '1' ? 1f : 0f) )
 					.ToDictionary( b => b.name, b => b.weight ) );
 			}
 			clipMasks[(index << 16) | (ushort)sourceIndex] = mask;
@@ -428,14 +430,13 @@ public partial class Halo2ModelLoader
 		bool additive = Kind( address ) == 1;
 		int frames = (ushort)mapFile.ReadInt32( address + 20 ), bones = bindPose.Length;
 		var poses = new Transform[checked(frames * bones)];
-		var defaults = additive ? Enumerable.Repeat( Transform.Zero, bones ).ToArray() : bindPose;
 		Vector3[] steps = null;
 		void RecordStep( int frame, int bone, Vector3 jump )
 		{
 			steps ??= new Vector3[poses.Length];
 			steps[frame * bones + bone] = jump * (source.ScaleRootOnly && bone != source.Mapping[0] ? 1 : source.TranslationScale);
 		}
-		Blam.AnimationGraph.DecodeFrames( mapFile, entry, source.Mapping, defaults, new Transform[bones], poses, ScaleFactor,
+		Blam.AnimationGraph.DecodeFrames( mapFile, entry, source.Mapping, bindPose, poses, ScaleFactor, additive,
 			oneShot && !additive ? RecordStep : null );
 		if ( source.TranslationScale != 1 )
 		{
