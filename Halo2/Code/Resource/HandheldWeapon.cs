@@ -116,6 +116,19 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 	{
 		var sword = ConfigurePickup<EnergySword>( root, world, title );
 		sword.BladeSound = ReadSoundTrack( "blade_activate" );
+		for ( int i = 0, row = Block( Header + 0x94 ); i < map.ReadInt32( Header + 0x94 ); i++, row += 24 )
+		{
+			if ( Reference( row ) is not { PrimaryClass: "effe" } effectTag ||
+				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != "turned_on" ) continue;
+			var marker = map.ResolveStringId( map.ReadInt32( row + 8 ) );
+			int header = Address( effectTag );
+			sword.GlowEvents = Enumerable.Range( 0, map.ReadInt32( header + 20 ) ).Select( index =>
+			{
+				int ev = Block( header + 20 ) + index * 56;
+				return new BladeGlowEvent( Float( ev + 4 ), Float( ev + 16 ), ReadMuzzleFlash( effectTag, index, marker ) );
+			} ).ToArray();
+			sword.GlowLoopStart = Short( header + 4 );
+		}
 		sword.TargetAngle = Float( Header + 0x208 );
 		sword.TargetRange = Float( Header + 0x20c ) * 120;
 		sword.AgesWithKills = (map.ReadInt32( Header + 0x12c ) & (1 << 26)) != 0;
@@ -329,7 +342,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		return gun;
 	}
 
-	MuzzleFlashDefinition[] ReadMuzzleFlash( TagEntry effect )
+	MuzzleFlashDefinition[] ReadMuzzleFlash( TagEntry effect, int selectedEvent = -1, string attachmentMarker = null )
 	{
 		if ( effect is not { PrimaryClass: "effe", DataSize: > 0 } ) return null;
 		int header = Address( effect );
@@ -340,6 +353,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		float start = 0;
 		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
 		{
+			if ( selectedEvent >= 0 && i != selectedEvent ) continue;
 			start += Float( ev + 8 );
 			float duration = Float( ev + 16 );
 			ReadSystems( ev + 48, start, new Vector2( duration, Float( ev + 20 ) ) );
@@ -374,7 +388,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				bool smoke = additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
-				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
+				bool blade = particle?.TagPath is @"effects\objects\weapons\melee\energy_blade\glow_blade" or @"effects\objects\weapons\melee\energy_blade\blade_charge";
+				bool flare = blade || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
 					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft" or @"effects\generic\flares\flash_shield"
 					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long" or @"effects\generic\energy\c_muzzle_flash_red_large"
 					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
@@ -396,7 +411,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				}
 				else if ( BitmapTag.Read( map, bitmap, 0 ) is {} image )
 					aspect.x = (float)image.Width / image.Height;
-				var marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
+				var marker = attachmentMarker ?? map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
 				if ( marker is null ) continue;
 				if ( !markers.TryGetValue( marker, out var layers ) ) markers[marker] = layers = new();
 				CasingSounds contacts = null;
@@ -424,14 +439,17 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						int control = Block( Address( movement ) + 12 );
 						return Float( Block( Block( control + 4 ) + parameter * 20 + 12 ) + 4 );
 					}
+					var births = Bounds( emitter + 8 );
+					if ( blade && Short( emitter + 8 ) == 9 )
+						births = Vector2.One * ReadRange( emitter + 8, 1 ).Evaluate( 1, 0 );
 					layers.Add( new( texture,
 						new Vector2( 1 - pivot.x, pivot.y ), aspect, Bounds( emitter + 24 ),
 						ReadRange( emitter + 72, smoke ? 120 : 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ),
 						map.ReadInt32( definition + 100 ) > 0 ? ReadRange( definition + 92, 1 ) : default,
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
-						Bounds( emitter + 8 ), Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
-						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
+						births, Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
+						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke || blade ? Bounds( emitter + 140 ).x : 0,
 						flare || soft || additiveSmoke || (!smoke && !casing && duration.y > 1.001f / 30) ? ReadRange( emitter + 104, 1 ) : null,
 						duration.y > 1.001f / 30 || start > 0 ? new( start - initialAdvance, duration ) : null ) );
 				}

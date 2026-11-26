@@ -1,5 +1,7 @@
 namespace Halo2;
 
+public sealed record BladeGlowEvent( float SkipChance, float Duration, MuzzleFlashDefinition[] Particles );
+
 public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEvents
 {
 	[Property] public bool AgesWithKills { get; set; }
@@ -51,11 +53,17 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 		ReadySoundDelay = aged.ReadySoundDelay;
 		ReadySoundMarker = aged.ReadySoundMarker;
 
+		if ( GetComponent<SkinnedModelRenderer>( true ) is {} loose ) SetBladeMaterials( loose, false );
 		if ( worldBlade.IsValid() ) SetBladeMaterials( worldBlade, false );
 		if ( viewBlade.IsValid() ) SetBladeMaterials( viewBlade, false );
 	}
 
 	SkinnedModelRenderer worldBlade, viewBlade;
+	[Property] public BladeGlowEvent[] GlowEvents { get; set; }
+	[Property] public int GlowLoopStart { get; set; }
+	int glowEvent, remainingGlowTicks;
+	double? nextGlowTick;
+	uint glowSeed = (uint)System.Random.Shared.Next();
 
 	[Property] public WeaponSoundTrack BladeSound { get; set; }
 	readonly TrackVoice bladeVoice = new();
@@ -63,7 +71,9 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( Application.IsDedicatedServer || BladeSound is null ) return;
+		if ( Application.IsDedicatedServer ) return;
+		UpdateGlow();
+		if ( BladeSound is null ) return;
 		GameObject marker = null;
 		if ( Powered && (!IsHeld || IsActive) )
 		{
@@ -80,8 +90,43 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 
 	protected override void OnDisabled()
 	{
+		nextGlowTick = null;
 		bladeVoice.Stop( BladeSound );
 		base.OnDisabled();
+	}
+
+	void UpdateGlow()
+	{
+		if ( GlowEvents is not { Length: > 0 } || !Powered || !IsActive || readyAt > 0 ||
+			Owner is not { ThirdPerson: false } || !ViewModel.IsValid() || !viewBlade.IsValid() )
+		{
+			nextGlowTick = null;
+			return;
+		}
+		double now = Time.NowDouble;
+		if ( nextGlowTick is null )
+		{
+			nextGlowTick = now;
+			glowEvent = 0;
+			remainingGlowTicks = 0;
+		}
+		while ( nextGlowTick <= now )
+		{
+			nextGlowTick += 1.0 / 30;
+			while ( remainingGlowTicks == 0 )
+			{
+				if ( glowEvent >= GlowEvents.Length ) glowEvent = System.Math.Max( 0, GlowLoopStart );
+				var ev = GlowEvents[glowEvent];
+				if ( ev.SkipChance > 0 && BlamRandom.Next( ref glowSeed ) * (1.0 / 65535) < ev.SkipChance )
+				{
+					glowEvent++;
+					continue;
+				}
+				remainingGlowTicks = System.Math.Max( 1, (int)System.MathF.Round( ev.Duration * 30 ) );
+			}
+			EmitMuzzleFlash( GlowEvents[glowEvent].Particles, true );
+			if ( --remainingGlowTicks == 0 ) glowEvent++;
+		}
 	}
 
 	[Property] public CuePlayback ReadySound { get; set; }
@@ -90,6 +135,13 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 
 	TimeUntil readyAt;
 	uint soundSeed = (uint)System.Random.Shared.Next();
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		if ( !Application.IsDedicatedServer && Powered && GetComponent<SkinnedModelRenderer>( true ) is {} loose )
+			SetBladeMaterials( loose, true );
+	}
 
 	protected override void OnEquipped()
 	{

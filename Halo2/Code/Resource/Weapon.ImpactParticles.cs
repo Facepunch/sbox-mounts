@@ -18,6 +18,7 @@ internal abstract partial class WeaponLoader
 			0 => 0,
 			1 => 4,
 			2 when Short( data + 2 ) == 0 => 8, // Linear transition.
+			3 when Short( data + 2 ) == 8 && !ranged => 16, // Periodic noise.
 			4 => 24,
 			5 => 80,
 			7 or 10 => 48,
@@ -32,6 +33,24 @@ internal abstract partial class WeaponLoader
 			if ( kind == 0 ) return new Curve( Key( 0, 0 ), Key( 1, 1 ) );
 			if ( kind == 1 ) return new Curve( Key( 0, upper ? 1 : 0 ) );
 			if ( kind == 2 ) return new Curve( Key( 0, Float( start ) ), Key( 1, Float( start + 4 ) ) );
+			if ( kind == 3 )
+			{
+				float frequency = Float( start ) * 36.57143f, phase = Float( start + 4 ) * 36.57143f;
+				float low = Float( start + 8 ), high = Float( start + 12 );
+				Curve.Frame Sample( float t )
+				{
+					float x = phase + t * frequency;
+					int index = (int)x;
+					var table = Host.PeriodicNoise;
+					float noise = (table[index & 1023] + (x - index) * (table[(index + 1) & 1023] - table[index & 1023])) / 255f;
+					return Key( t, (low + (high - low) * noise).Clamp( 0, 1 ) );
+				}
+				var keys = new List<Curve.Frame> { Sample( 0 ) };
+				for ( int i = (int)MathF.Floor( phase ) + 1; i < phase + frequency; i++ )
+					keys.Add( Sample( (i - phase) / frequency ) );
+				keys.Add( Sample( 1 ) );
+				return new Curve( keys );
+			}
 			if ( kind == 4 )
 			{
 				float slope = Float( start + 16 ), intercept = Float( start + 20 );

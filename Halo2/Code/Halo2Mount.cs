@@ -32,6 +32,21 @@ public class Halo2Mount : BaseGameMount
 	/// <summary>The game's install folder. Loaders read shared maps and textures.dat through this.</summary>
 	public BaseFileSystem FileSystem => appFs;
 
+	byte[] periodicNoise;
+	internal ReadOnlySpan<byte> PeriodicNoise
+	{
+		get
+		{
+			if ( periodicNoise is not null ) return periodicNoise;
+			// MCC stores the noise function as 1024 normalized bytes in its data section.
+			ReadOnlySpan<byte> prefix = [220, 20, 6, 250, 75, 185, 52, 68, 91, 169, 65, 218, 128, 197, 245, 94];
+			var image = appFs.ReadAllBytes( "halo2/halo2.dll" );
+			int index = image.IndexOf( prefix );
+			if ( index < 0 || index > image.Length - 1024 ) throw new InvalidDataException( "Missing MCC periodic noise table" );
+			return periodicNoise = image.Slice( index, 1024 ).ToArray();
+		}
+	}
+
 	protected override void Initialize( InitializeContext context )
 	{
 		if ( !context.IsAppInstalled( AppId ) )
