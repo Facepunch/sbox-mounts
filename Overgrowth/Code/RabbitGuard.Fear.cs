@@ -9,24 +9,20 @@ public sealed partial class RabbitGuard
 	[Property, Group( "Fear" )] public bool NeverAfraidOnSight { get; set; }
 	[Property, Group( "Fear" ), Range( 0f, 1f )] public float AfraidAtHealthLevel { get; set; }
 
-	GameObject fleeFrom;
+	bool Fleeing { get; set; }
 	TimeUntil fleeUpdate;
 	Vector3? fleeDestination;
 
 	bool HasCombatTarget => !Fleeing && IsKnownThreat( enemy );
 	bool HasAttackGoal => HasCombatTarget && !soughtItem.IsValid() && (!holdPartner.IsValid() || Holding);
-	bool Fleeing => fleeFrom.IsValid() && fleeFrom == enemy;
 
-	bool Flee()
+	void Flee()
 	{
-		if ( !IsKnownThreat( enemy ) ) { fleeFrom = null; return false; }
-		if ( !Fleeing && PermanentHealth <= MaxHealth * AfraidAtHealthLevel ) fleeFrom = enemy;
-		if ( !Fleeing ) return false;
-		if ( startled > 0f )
+		if ( !enemy.IsValid() || IsIgnoredPlayer( enemy ) || startled > 0f )
 		{
 			ReleaseMovementInput();
 			Stance = Ready;
-			return true;
+			return;
 		}
 		if ( fleeUpdate <= 0f )
 		{
@@ -37,7 +33,6 @@ public sealed partial class RabbitGuard
 		if ( fleeDestination is { } point ) MoveTowardPoint( point, 0f, 1f );
 		else ReleaseMovementInput();
 		Stance = Locomotion;
-		return true;
 	}
 
 	Vector3? RetreatDestination( Vector3 away )

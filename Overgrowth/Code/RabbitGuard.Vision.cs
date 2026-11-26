@@ -32,7 +32,6 @@ public sealed partial class RabbitGuard
 		if ( pendingRollThrow == actor ) pendingRollThrow = corpse;
 		if ( itemThrowTarget == actor ) itemThrowTarget = corpse;
 		if ( observedTarget == actor ) observedTarget = corpse;
-		if ( fleeFrom == actor ) fleeFrom = corpse;
 		if ( noticeSource == actor ) noticeSource = corpse;
 		if ( knownCasualties.Remove( actor ) ) knownCasualties.Add( corpse );
 		if ( chokeVictim == actor ) chokeVictim = corpse;
@@ -141,6 +140,7 @@ public sealed partial class RabbitGuard
 		knownCasualties.RemoveWhere( ally => !ally.IsValid() || ally.GetComponent<RabbitGuard>() is { Unconscious: false } );
 		var view = Omniscient ? default : GetViewBasis();
 		var observer = CharacterCenter( GameObject );
+		bool watchingForThreat = !Fleeing && !enemy.IsValid() && !escortTarget.IsValid();
 		foreach ( var candidate in Characters() )
 		{
 			var ally = candidate.GetComponent<RabbitGuard>();
@@ -177,11 +177,11 @@ public sealed partial class RabbitGuard
 			}
 			if ( hidden ) continue;
 			detectedEnemy = true;
-			if ( !enemy.IsValid() && !escortTarget.IsValid() )
+			if ( watchingForThreat )
 			{
 				LookAtNotice( center + TargetVelocity( candidate ) * (float)nextVisionCheck, source: candidate );
 			}
-			bool patrolling = !enemy.IsValid() && !escortTarget.IsValid() && !Investigating;
+			bool patrolling = watchingForThreat && !Investigating;
 			attention += (FocusVision.z == 0f ? 0.1f : 0.5f - 0.4f * MathF.Sqrt( separation ) / (FocusVision.z * 40f)) * (patrolling ? 1f : 3f) * (concealed ? 0.3f : 1f);
 
 		}
@@ -190,10 +190,10 @@ public sealed partial class RabbitGuard
 		{
 			if ( enemySeen >= 1f )
 			{
-				if ( !enemy.IsValid() ) Remember( closest );
+				if ( !enemy.IsValid() || Fleeing && closest != enemy ) Remember( closest );
 				else NoticeCharacter( closest );
 			}
-			else if ( !enemy.IsValid() && !escortTarget.IsValid() && !Investigating && enemySeen > 0.5f )
+			else if ( watchingForThreat && !Investigating && enemySeen > 0.5f )
 				investigatePoint = observer + (CharacterCenter( closest ) - observer).Normal * 120f;
 		}
 		AlertStage = enemy.IsValid() ? 2 : escortTarget.IsValid() || Investigating || enemySeen > 0 ? 1 : 0;

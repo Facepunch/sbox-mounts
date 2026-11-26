@@ -177,7 +177,12 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( Flee() || (soughtItem is not null && SeekWeapon()) ) return;
+		if ( Fleeing )
+		{
+			Flee();
+			return;
+		}
+		if ( soughtItem is not null && SeekWeapon() ) return;
 		if ( enemy is not null && ClosestKnownThreat() is { } closest && closest != enemy )
 		{
 			Remember( closest, startle: false );
@@ -215,6 +220,13 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
+		if ( PermanentHealth <= MaxHealth * AfraidAtHealthLevel )
+		{
+			Fleeing = true;
+			fleeUpdate = 0f;
+			Flee();
+			return;
+		}
 		if ( startled > 0 )
 		{
 			ReleaseMovementInput();

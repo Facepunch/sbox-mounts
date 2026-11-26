@@ -315,7 +315,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	}
 
 	bool IsUnaware => AlwaysUnaware || startled > 0f ||
-		!enemy.IsValid() && !escortTarget.IsValid() && !soughtItem.IsValid();
+		!Fleeing && !enemy.IsValid() && !escortTarget.IsValid() && !soughtItem.IsValid();
 
 	bool NeedsCombatPose()
 	{
@@ -404,21 +404,20 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			NoticeCharacter( attacker );
 			return;
 		}
-		if ( Fleeing ) fleeFrom = attacker;
 		Remember( attacker, startle: false );
 	}
 
 	void Remember( GameObject target, bool startle = true )
 	{
-		if ( !knownCharacters.ContainsKey( target ) && startle && !enemy.IsValid() && !escortTarget.IsValid() )
+		if ( !knownCharacters.ContainsKey( target ) && startle && !Fleeing && !enemy.IsValid() && !escortTarget.IsValid() )
 		{
 			startled = 1f;
 			Speak( "engage" );
 		}
-		if ( !enemy.IsValid() )
+		if ( !Fleeing && !enemy.IsValid() )
 		{
 			bool frightening = target.GetComponent<RabbitGuard>() is { CausesFearOnSight: true };
-			fleeFrom = AlwaysAfraidOnSight || frightening && !NeverAfraidOnSight ? target : null;
+			Fleeing = AlwaysAfraidOnSight || frightening && !NeverAfraidOnSight;
 			fleeUpdate = 0f;
 		}
 		ObserveTarget( target, true );

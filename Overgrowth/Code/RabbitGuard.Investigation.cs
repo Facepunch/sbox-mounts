@@ -23,7 +23,7 @@ public sealed partial class RabbitGuard
 
 	void NoticeCasualty( GameObject ally )
 	{
-		if ( !knownCasualties.Add( ally ) || enemy.IsValid() || Investigating || escortTarget.IsValid() ) return;
+		if ( !knownCasualties.Add( ally ) || Fleeing || enemy.IsValid() || Investigating || escortTarget.IsValid() ) return;
 		casualty = ally;
 		inspectPosition = null;
 		inspectUntil = null;
@@ -121,7 +121,7 @@ public sealed partial class RabbitGuard
 
 	void InvestigatePatrolDamage()
 	{
-		if ( CombatAllowed && !Unconscious && !StaticCharacter && !enemy.IsValid() && !Investigating &&
+		if ( CombatAllowed && !Unconscious && !StaticCharacter && !Fleeing && !enemy.IsValid() && !Investigating &&
 			!escortTarget.IsValid() && !soughtItem.IsValid() && !Held && !Holding )
 			BeginAreaSearch();
 	}

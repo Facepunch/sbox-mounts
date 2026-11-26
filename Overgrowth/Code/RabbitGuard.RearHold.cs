@@ -253,6 +253,7 @@ public sealed partial class RabbitGuard
 		if ( pendingGrabImpact && SinceGrab >= CaptureLead )
 		{
 			pendingGrabImpact = false;
+			victim.Fleeing = false;
 			victim.QueueThrowDamage( this );
 			Speak( "attack" );
 		}
