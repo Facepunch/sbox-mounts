@@ -8,6 +8,7 @@ namespace NS2;
 public sealed class Mac : BaseNpc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
+	const float IdleSoundInterval = 25;
 	[Sync( SyncFlags.FromHost )] float armor { get; set; } = 50;
 	float IDamageable.Armour { get => armor; set => armor = Math.Clamp( value, 0, 50 ); }
 	float IDamageable.MaxArmour => 50;
@@ -28,13 +29,13 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	SoundHandle thrusters;
 	[Sync( SyncFlags.FromHost )] bool moving { get; set; }
 	[Sync( SyncFlags.FromHost )] bool welding { get; set; }
-	TimeUntil nextWeldEffect;
+	TimeUntil nextWeldEffect, nextIdleSound;
 	GameObject leftJet, rightJet;
 	TimeUntil nextJetLoop;
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var cue in new[] { "weld", "thrusters" } )
+		foreach ( var cue in new[] { "weld", "thrusters", "idle" } )
 		{
 			var path = $"marine/structures/mac/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{path}.sound", new SparkSoundLoader( path ) );
@@ -69,6 +70,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		nextIdleSound = IdleSoundInterval;
 		if ( !Application.IsDedicatedServer ) Renderer.CreateAttachments = true;
 		pain = GetComponent<SupportPain>();
 		pain?.StartListening( flinchEnd );
@@ -198,6 +200,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		}
 		if ( !Application.IsDedicatedServer )
 		{
+			if ( Health > 0 && nextIdleSound <= 0 )
+			{
+				nextIdleSound = IdleSoundInterval;
+				if ( GameResource.Load<SoundEvent>( "mount://ns2/sounds/marine/structures/mac/idle.sound" ) is { } idle )
+					GameObject.PlaySound( idle );
+			}
 			if ( welding && nextWeldEffect < 0 )
 			{
 				nextWeldEffect = 0.5f;
