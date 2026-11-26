@@ -60,15 +60,13 @@ public class MeleeWeapon : Weapon
 		var damage = Damage;
 		if ( tr.GameObject.IsValid() && tr.GameObject.GetComponentInParent<IDamageable>() is Prop prop )
 			damage *= prop.Model?.GetData<PropDamageModifiers>()?.Club ?? 1;
-		ShootBullet( tr, damage, Damage * ImpulsePerDamage, hitboxTags: true );
+		ShootBullet( tr, damage, Damage * ImpulsePerDamage, hitboxTags: false );
 	}
 
 	SceneTraceResult TraceSwing( Ray aim )
 	{
-		var trace = Scene.Trace.Ray( aim, Range )
-			.IgnoreGameObjectHierarchy( AimIgnoreRoot )
-			.WithoutTags( "playercontroller" )
-			.UseHitboxes();
+		// Source swings use MASK_SHOT_HULL, which hits the player hull without hitgroups.
+		var trace = Scene.Trace.Ray( aim, Range ).IgnoreGameObjectHierarchy( AimIgnoreRoot );
 		var line = trace.Run();
 		if ( line.Hit ) return line;
 
