@@ -457,7 +457,7 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/whoosh/hit_whoosh.xml", position );
 			return;
 		}
-		rabbit?.ReleaseTetherExcept( this );
+		rabbit?.ReleaseTether( this );
 		float sharp = Random.Shared.Float( strike.SharpMin, strike.SharpMax );
 		if ( rabbit.IsValid() && boundAnimations.Species == "wolf" ) rabbit.Stab( position, offset.Normal, true );
 		bool parried = rabbit is not null && rabbit.TryPassiveBlock( this, strike, wasUnaware, sharp );

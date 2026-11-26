@@ -184,10 +184,15 @@ public sealed partial class RabbitGuard
 	{
 		RestartRecovery();
 		if ( Downed && ragdoll is { Active: true } )
-		{
 			ragdoll.GetComponent<RagdollDamping>()?.Refresh();
-			return;
-		}
+		else
+			BeginRagdoll( passive );
+
+		ReleaseTether();
+	}
+
+	void BeginRagdoll( bool passive )
+	{
 		EndLedge();
 		passiveRagdoll = passive;
 		fallAge = sinceRagdollImpact = 0;
@@ -225,7 +230,6 @@ public sealed partial class RabbitGuard
 			part.Component.CollisionEventsEnabled = true;
 		}
 		Downed = true;
-		if ( holdPartner.IsValid() ) ReleaseHold();
 	}
 
 	void OnDownedChanged( bool wasDown, bool isDown )

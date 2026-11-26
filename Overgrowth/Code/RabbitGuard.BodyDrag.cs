@@ -33,7 +33,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateBodyDrag()
 	{
-		if ( !WantsToDragBody || !IsOnGround || Downed || StaticCharacter || Holding || Held || strike is not null || InThrow )
+		if ( !WantsToDragBody || Downed || StaticCharacter || Holding || Held || strike is not null || InThrow )
 		{
 			ReleaseBodyDrag();
 			return;
@@ -169,11 +169,11 @@ public sealed partial class RabbitGuard
 		dragAnchor = null;
 	}
 
-	void ReleaseTetherExcept( RabbitGuard partner, bool enteringThrow = false )
+	void ReleaseTether( RabbitGuard except = null, bool enteringThrow = false )
 	{
-		if ( holdPartner.IsValid() && holdPartner != partner ) ReleaseHold( enteringThrow );
-		if ( bodyDragger.IsValid() && bodyDragger != partner ) bodyDragger.ReleaseBodyDrag();
-		if ( draggedPhysics.IsValid() && draggedPhysics.GetComponentInParent<RabbitGuard>() != partner )
+		if ( holdPartner.IsValid() && holdPartner != except ) ReleaseHold( enteringThrow );
+		if ( bodyDragger.IsValid() && bodyDragger != except ) bodyDragger.ReleaseBodyDrag();
+		if ( draggedPhysics.IsValid() && ( except is null || draggedPhysics.GetComponentInParent<RabbitGuard>() != except ) )
 			ReleaseBodyDrag();
 	}
 
