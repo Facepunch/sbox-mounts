@@ -386,7 +386,10 @@ public sealed partial class ProjectileWeapon : Weapon
 	void ThrowEffects( string clip, bool released = false )
 	{
 		(WeaponModel as ViewModel)?.OnThrow( clip );
-		if ( released && Kind is (Projectile.Kinds.Grenade or Projectile.Kinds.Bugbait) ) PostWeaponEvent( WeaponEvents.Attack );
+		if ( !released || Kind is not (Projectile.Kinds.Grenade or Projectile.Kinds.Bugbait) ) return;
+
+		if ( WeaponModel is WeaponWorldModel world ) world.OnAttack();
+		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
 	protected override void OnFixedUpdate()
