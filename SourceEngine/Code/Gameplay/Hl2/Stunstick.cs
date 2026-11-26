@@ -16,7 +16,6 @@ public sealed class Stunstick : MeleeWeapon
 	GameObject _arcStart;
 	Vector3 _arcEnd;
 	float _arcAmplitude;
-	float _arcDepthScale;
 	const int ArcSegments = 16;
 	readonly float[] _arcNoise = new float[ArcSegments + 1];
 	TimeUntil _arcExpires;
@@ -124,8 +123,6 @@ public sealed class Stunstick : MeleeWeapon
 			_arcEnd = Position( _arcStart ) + (view is null ? Particles.InCube( 10 ) + Vector3.One * 2 : Particles.InCube( 8 ));
 			_arcAmplitude = view is null ? Game.Random.Float( 1, 2 ) : Game.Random.Float( 16, 32 );
 			var width = Game.Random.Float( 1, view is null ? 3 : 2 );
-			_arcDepthScale = view is null ? 1 : Source1.ViewModel.BehindScale( Scene.Camera.WorldPosition.Distance( _arcEnd ) );
-			width *= _arcDepthScale;
 			_arc.Width = new Curve( new Curve.Frame( 0, width ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, 0 ) );
 			_arcExpires = view is null ? 0.01f : 0.05f;
 		}
@@ -143,10 +140,7 @@ public sealed class Stunstick : MeleeWeapon
 				_arcNoise[i + step / 2] = (_arcNoise[i] + _arcNoise[i + step]) * 0.5f + Game.Random.Float( -1, 1 ) * step / ArcSegments;
 		}
 		for ( int i = 0; i <= ArcSegments; i++ )
-		{
-			var point = start + delta * (i / (float)ArcSegments) + side * _arcNoise[i];
-			_arc.VectorPoints[i] = eye + (point - eye) * _arcDepthScale;
-		}
+			_arc.VectorPoints[i] = start + delta * (i / (float)ArcSegments) + side * _arcNoise[i];
 	}
 
 	void CreateEffects( SkinnedModelRenderer renderer, ViewModel view )

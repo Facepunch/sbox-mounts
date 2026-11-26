@@ -9,6 +9,8 @@ internal sealed class SourceMaterial : IDisposable
 	internal string ContentRoot { get; }
 	private readonly Lazy<SourceMaterialBuilder> builder;
 	private readonly object buildLock = new();
+	private VmtParameters? effectParameters;
+	private Material beamMaterial;
 	private bool disposed;
 
 	private SourceMaterial( SourceGameMount mount, string path, VmtFile source, object scope )
@@ -42,6 +44,25 @@ internal sealed class SourceMaterial : IDisposable
 		{
 			ObjectDisposedException.ThrowIf( disposed, this );
 			return builder.Value.CreateMaterial( name, mapSurface, screenOverlay );
+		}
+	}
+
+	private VmtParameters EffectParameters => effectParameters ??= new VmtParameters( VmtFile.SelectParameters( Source ), ContentRoot );
+	internal string BaseTexturePath => EffectParameters.String( "$basetexture" );
+
+	internal Material GetBeamMaterial( Texture texture )
+	{
+		lock ( buildLock )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			if ( beamMaterial is { IsValid: true } ) return beamMaterial.IsError ? null : beamMaterial;
+			var parameters = EffectParameters;
+			beamMaterial = Material.Create( "Source beam", "shaders/source1/beam.shader" );
+			if ( beamMaterial is not { IsValid: true, IsError: false } ) return null;
+			beamMaterial.Set( "g_tColor", texture );
+			beamMaterial.Set( "g_bSourceSrgb", !parameters.Boolean( "$nosrgb", Source.ShaderName.Equals( "Sprite", StringComparison.OrdinalIgnoreCase ) ) );
+			beamMaterial.SetFeature( "F_SOURCE_IGNORE_Z", parameters.Boolean( "$ignorez" ) ? 1 : 0 );
+			return beamMaterial;
 		}
 	}
 

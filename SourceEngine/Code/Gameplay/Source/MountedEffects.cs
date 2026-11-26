@@ -35,10 +35,17 @@ static class MountedEffects
 	}
 
 	/// <summary>The texture behind a Source sprite material, such as sprites/redglow1.</summary>
-	public static Texture SpriteTexture( string name, string mountName )
+	public static Texture SpriteTexture( string name, string mountName ) => SpriteTexture( name, mountName, out _ );
+
+	static Texture SpriteTexture( string name, string mountName, out SourceMaterial material )
 	{
-		var path = $"mount://{mountName}/materials/{name}.vtf.vtex";
-		return Sandbox.Mounting.Directory.Get( mountName )?.GetByPath( path ) is not null ? Texture.Load( path ) : null;
+		var mount = Sandbox.Mounting.Directory.Get( mountName );
+		material = mount is SourceGameMount source && mount.GetByPath( $"mount://{mountName}/materials/{name}.vmt.vmat" ) is not null
+			? source.GetSourceMaterial( name ) : null;
+		var texture = material is null ? name : material.BaseTexturePath;
+		if ( string.IsNullOrWhiteSpace( texture ) ) return null;
+		var path = $"mount://{mountName}/{VmtFile.NormalizePath( texture, ".vtf" )}.vtex";
+		return mount?.GetByPath( path ) is not null ? Texture.Load( path ) : null;
 	}
 
 	/// <summary>
@@ -87,7 +94,7 @@ static class MountedEffects
 	/// <summary>An additive textured line standing in for a code-driven Source beam.</summary>
 	public static LineRenderer AddBeam( GameObject parent, string name, string mountName )
 	{
-		var texture = SpriteTexture( name, mountName );
+		var texture = SpriteTexture( name, mountName, out var material );
 		if ( texture is null || !parent.IsValid() ) return null;
 		var go = new GameObject( parent, false, name );
 		go.NetworkMode = NetworkMode.Never;
@@ -98,8 +105,9 @@ static class MountedEffects
 		beam.Opaque = false;
 		beam.CastShadows = false;
 		beam.Face = SceneLineObject.FaceMode.Camera;
-		beam.Texturing = LineTexture( texture );
-		UseViewModelLayer( beam );
+		var texturing = LineTexture( texture );
+		texturing.Material = material?.GetBeamMaterial( texture );
+		beam.Texturing = texturing;
 		go.Enabled = true;
 		return beam;
 	}

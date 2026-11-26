@@ -573,7 +573,7 @@ sealed class PhysCannonEffects : IDisposable
 	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
 	static readonly string[] ViewTips = ["fork1t", "fork2t"];
 	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
-	static readonly Curve ViewBeamWidth = BeamWidth( 1.5f * ViewModel.EffectDepthScale, 4 * ViewModel.EffectDepthScale );
+	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 );
 	static readonly Curve WorldBeamWidth = BeamWidth( 0.5f, 2 );
 	static Curve BeamWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
@@ -656,8 +656,8 @@ sealed class PhysCannonEffects : IDisposable
 		foreach ( var (sprite, anchor) in _anchors )
 		{
 			if ( !sprite.IsValid() || !anchor.IsValid() ) continue;
-			if ( _view.IsValid() ) _view.PlaceBehind( sprite.GameObject, Place( anchor ) );
-			else sprite.WorldPosition = Place( anchor );
+			sprite.WorldPosition = Place( anchor );
+			if ( _view.IsValid() ) sprite.WorldScale = _view.WorldScale.y;
 		}
 		foreach ( var (tip, beam) in _beams )
 		{
@@ -771,10 +771,7 @@ sealed class PhysCannonEffects : IDisposable
 		// The first and last noise samples stay zero, pinning both ends to their attachments.
 		var last = count - 1;
 		for ( var i = 0; i < count; i++ )
-		{
-			var point = start + delta * (i / (float)last) + side * (_beamNoise[i * 128 / last] * length * 0.16f);
-			points[i] = _view.IsValid() ? _view.BehindPosition( point ) : point;
-		}
+			points[i] = start + delta * (i / (float)last) + side * (_beamNoise[i * 128 / last] * length * 0.16f);
 
 		beam.Texturing = beam.Texturing with { Scale = length * 0.01f, Scroll = 150 };
 	}
@@ -786,7 +783,7 @@ sealed class PhysCannonEffects : IDisposable
 		return float.Lerp( _elementFrom, _open ? 1 : 0, spline );
 	}
 
-	Vector3 Place( GameObject anchor ) => _view.IsValid() ? _view.PosedPosition( anchor ) : anchor.WorldPosition;
+	Vector3 Place( GameObject anchor ) => _view.IsValid() ? _view.DrawnPosition( anchor ) : anchor.WorldPosition;
 
 	SpriteRenderer AddSprite( GameObject anchor, string name, string mount )
 	{
@@ -817,17 +814,17 @@ sealed class PhysCannonEffects : IDisposable
 			punt.Color = Color.White;
 			punt.Enabled = false;
 		}
-		// sprites/glow04_noz names the glow04 texture.
 		foreach ( var prong in Prongs.Select( renderer.GetAttachmentObject ).Where( x => x.IsValid() ) )
-			if ( AddSprite( prong, "sprites/glow04", mount ) is { } glow ) _glows.Add( glow );
+			if ( AddSprite( prong, "sprites/glow04_noz", mount ) is { } glow ) _glows.Add( glow );
+		var variant = viewModel ? "sprites/orangelight1_noz" : "sprites/orangelight1_gmod";
+		var beamSprite = Sandbox.Mounting.Directory.Get( mount )?.GetByPath( $"mount://{mount}/materials/{variant}.vmt.vmat" ) is null
+			? "sprites/orangelight1" : variant;
 		foreach ( var name in viewModel ? ViewTips : WorldTips )
 		{
 			var tip = renderer.GetAttachmentObject( name ) ?? renderer.GameObject;
 			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
-			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam )
+			if ( MountedEffects.AddBeam( _root, beamSprite, mount ) is { } beam )
 			{
-				beam.RenderOptions.Game = !viewModel;
-				beam.RenderOptions.Overlay = viewModel;
 				beam.Width = viewModel ? ViewBeamWidth : WorldBeamWidth;
 				beam.Color = (Color.White * (128f / 255)).WithAlpha( 1 );
 				_beams.Add( (tip, beam) );

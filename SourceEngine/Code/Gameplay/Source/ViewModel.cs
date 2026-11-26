@@ -92,7 +92,7 @@ public sealed class ViewModel : BaseWeaponModel
 	TimeSince _lastPrimaryShot = 10;
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
-	readonly Dictionary<(GameObject Attachment, bool Behind), GameObject> _effectAnchors = new();
+	readonly Dictionary<GameObject, GameObject> _effectAnchors = new();
 	bool _scopeHidden;
 	string _swingClip;
 	internal bool IsSwinging => _swingClip is not null && _animation?.Current == _swingClip;
@@ -219,35 +219,8 @@ public sealed class ViewModel : BaseWeaponModel
 		var stretch = tangent / lens;
 		WorldScale = new Vector3( 1, stretch, stretch );
 		UpdateWorldMuzzle();
-		foreach ( var ((attachment, behind), anchor) in _effectAnchors )
-			PlaceEffectAnchor( attachment, anchor, behind );
-	}
-
-	// Past the far end of any viewmodel.
-	const float BehindViewModelDistance = 128;
-	internal static float BehindScale( float distance ) => distance > 0.01f ? MathF.Max( 1, BehindViewModelDistance / distance ) : 1;
-
-	/// <summary>
-	/// Source draws sprites attached to a viewmodel in the world pass and the viewmodel over them. Here they share depth
-	/// with the gun, so a glow inside the gun's own depth would draw over its far end. Places the effect on the same view
-	/// ray behind the whole gun, scaled to keep its size on screen.
-	/// </summary>
-	internal Vector3 BehindPosition( Vector3 drawn ) => _renderEye + (drawn - _renderEye) * EffectDepthScale;
-
-	internal Vector3 PosedPosition( GameObject attachment )
-	{
-		if ( Renderer.GetAttachment( attachment.Name ) is not { } pose ) return attachment.WorldPosition;
-		var modelPosition = Renderer.SceneModel.Transform.PointToLocal( pose.Position );
-		return Renderer.WorldTransform.PointToWorld( modelPosition );
-	}
-
-	internal const float EffectDepthScale = 8;
-	Vector3 _renderEye;
-
-	internal void PlaceBehind( GameObject effect, Vector3 drawn )
-	{
-		effect.WorldPosition = BehindPosition( drawn );
-		effect.WorldScale = EffectDepthScale;
+		foreach ( var (attachment, anchor) in _effectAnchors )
+			PlaceEffectAnchor( attachment, anchor );
 	}
 
 	/// <summary>
@@ -267,22 +240,22 @@ public sealed class ViewModel : BaseWeaponModel
 		MuzzleGameObject = _worldMuzzle;
 	}
 
-	internal GameObject EffectAnchor( GameObject attachment, bool behind = false )
+	internal GameObject EffectAnchor( GameObject attachment )
 	{
-		if ( _effectAnchors.TryGetValue( (attachment, behind), out var anchor ) ) return anchor;
+		if ( _effectAnchors.TryGetValue( attachment, out var anchor ) ) return anchor;
 
 		anchor = new GameObject( GameObject, true, "Viewmodel effect attachment" );
 		anchor.NetworkMode = NetworkMode.Never;
-		_effectAnchors.Add( (attachment, behind), anchor );
-		PlaceEffectAnchor( attachment, anchor, behind );
+		_effectAnchors.Add( attachment, anchor );
+		PlaceEffectAnchor( attachment, anchor );
 		return anchor;
 	}
 
-	void PlaceEffectAnchor( GameObject attachment, GameObject anchor, bool behind )
+	void PlaceEffectAnchor( GameObject attachment, GameObject anchor )
 	{
 		if ( !attachment.IsValid() ) return;
-		if ( behind ) PlaceBehind( anchor, PosedPosition( attachment ) );
-		else anchor.WorldPosition = DrawnPosition( attachment );
+		anchor.WorldPosition = DrawnPosition( attachment );
+		anchor.WorldScale = Vector3.One;
 		if ( !Mirrored ) anchor.WorldRotation = attachment.WorldRotation;
 	}
 
@@ -294,9 +267,7 @@ public sealed class ViewModel : BaseWeaponModel
 		attachment ??= _muzzle;
 		type ??= _flashType ?? WeaponSetup.FlashType( weapon );
 		if ( !attachment.IsValid() ) return;
-		if ( type == "PISTOL" && Game.Random.Int( 0, 3 ) != 0 )
-			WeaponEffects.PistolSmoke( PosedPosition( attachment ), DrawnDirection( attachment.WorldRotation.Forward ), _mount );
-		attachment = EffectAnchor( attachment, behind: !Css.Rules.IsFlash( type ) );
+		attachment = EffectAnchor( attachment );
 		WeaponEffects.MuzzleFlash( type, attachment, true, _mount, WeaponSetup.FlashScale( weapon ) );
 	}
 
@@ -454,18 +425,13 @@ public sealed class ViewModel : BaseWeaponModel
 		}
 	}
 
-	/// <summary>
-	/// Where a renderer attachment is drawn. Attachment objects take the renderer's scale twice, in the pose the model
-	/// reports and again from their parent, which undoes a mirror and doubles the lens stretch; one is divided back out.
-	/// </summary>
+	/// <summary>Places the animated attachment at the viewmodel's final transform for this frame.</summary>
 	internal Vector3 DrawnPosition( GameObject attachment )
 	{
-		var position = attachment.WorldPosition;
-		if ( !Renderer.IsValid() || attachment.Parent != Renderer.GameObject ) return position;
-		var renderer = Renderer.WorldTransform;
-		var local = renderer.Rotation.Inverse * (position - renderer.Position);
-		var scale = renderer.Scale;
-		return renderer.Position + renderer.Rotation * new Vector3( local.x / scale.x, local.y / scale.y, local.z / scale.z );
+		if ( !Renderer.IsValid() || attachment.Parent != Renderer.GameObject
+			|| Renderer.GetAttachment( attachment.Name ) is not { } pose ) return attachment.WorldPosition;
+		var position = Renderer.SceneModel.Transform.PointToLocal( pose.Position );
+		return Renderer.WorldTransform.PointToWorld( position );
 	}
 
 	/// <summary>Attachment rotations don't carry a mirrored viewmodel's reflection; reflect their directions instead.</summary>
@@ -727,13 +693,11 @@ public sealed class ViewModel : BaseWeaponModel
 	/// </summary>
 	public void FollowCameraEffects( CameraComponent camera, in CameraView view )
 	{
-		_renderEye = view.Position;
 		var effects = CameraEffectSystem.Get( Scene );
 		if ( effects is null ) return;
 
 		effects.QueryOffsets( camera, out var offset, out var angles, out _ );
 		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles );
-		_renderEye = renderTransform.Position;
 		WorldTransform = renderTransform.ToWorld( view.Transform.ToLocal( WorldTransform ) );
 	}
 

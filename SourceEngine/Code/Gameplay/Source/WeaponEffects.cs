@@ -48,6 +48,7 @@ static class WeaponEffects
 		root.NetworkMode = NetworkMode.Never;
 		root.LocalTransform = global::Transform.Zero;
 		var burst = root.AddComponent<SpriteBurst>();
+		burst.CameraFade = new Vector2( 16, 64 );
 		if ( firstPerson && Css.Rules.IsFlash( type ) ) CounterStrikePlayerFlash( type, burst, mount, scale );
 		else if ( firstPerson ) PlayerFlash( type, burst, mount );
 		else WorldFlash( type, burst, mount, Css.Rules.IsFlash( type ) ? scale * 0.75f : WorldScale( type ) );
@@ -97,11 +98,12 @@ static class WeaponEffects
 		{
 			var combineScale = Game.Random.Float( 2, 2.25f );
 			for ( var i = 1; i < 6; i++ )
-				burst.Add( Pick( CombineSprites ), mount, i * 8 * combineScale, Game.Random.Float( 6, 8 ) * (12 - i) / 12 * combineScale, color, 0.025f );
-			burst.Add( Pick( CombineSprites ), mount, 0, Game.Random.Float( 10, 16 ), Color.White * (Game.Random.Int( 64, 128 ) / 255f), 0.025f );
+				burst.Add( Pick( CombineSprites ) + "_noz", mount, i * 8 * combineScale, (int)(Game.Random.Float( 6, 8 ) * (12 - i) / 12 * combineScale), color, 0.025f );
+			burst.Add( Pick( CombineSprites ) + "_noz", mount, 0, Game.Random.Float( 10, 16 ), Color.White * (Game.Random.Int( 64, 128 ) / 255f), 0.025f );
 			return;
 		}
 		var pistol = type == "PISTOL";
+		if ( pistol && Game.Random.Int( 0, 3 ) != 0 ) PistolSmoke( burst.WorldPosition, burst.WorldRotation.Forward, mount );
 		var scale = pistol ? Game.Random.Float( 1, 1.25f ) : Game.Random.Float( 1.25f, 1.5f );
 		var spacing = pistol ? 4 : 8;
 		var lifetime = type switch
@@ -111,16 +113,19 @@ static class WeaponEffects
 			_ => 0.025f
 		};
 		for ( var i = 1; i < 6; i++ )
-			burst.Add( Pick( FlashSprites ), mount, i * spacing * scale, Game.Random.Float( 6, 8 ) * (8 - i) / 6 * scale, color, lifetime );
+			burst.Add( Pick( FlashSprites ) + "_noz", mount, i * spacing * scale, (int)(Game.Random.Float( 6, 8 ) * (8 - i) / 6 * scale), color, lifetime );
 	}
 
-	internal static void PistolSmoke( Vector3 muzzle, Vector3 forward, string mount )
+	static void PistolSmoke( Vector3 muzzle, Vector3 forward, string mount )
 	{
 		var smoke = Particles.Emitter( Game.ActiveScene, "particle/particle_smokegrenade", mount, false, false, 1 );
 		if ( !smoke.IsValid() ) return;
 		var lifetime = Game.Random.Float( 0.25f, 0.5f );
 		smoke.WorldPosition = muzzle + forward * 8;
 		smoke.Lifetime = lifetime;
+		var renderer = smoke.GetComponent<ParticleSpriteRenderer>();
+		renderer.CameraFadeNear = 16;
+		renderer.CameraFadeFar = 64;
 		smoke.ApplyShape = true;
 		smoke.InitialScale = 2 * Game.Random.Int( 2, 4 );
 		smoke.Scale = SmokeGrowth;
@@ -741,6 +746,7 @@ public sealed class Shell : Component, Component.ICollisionListener
 [Alias( "Source1.SourceSpriteBurst", "SourceSpriteBurst" )]
 public sealed class SpriteBurst : Component
 {
+	internal Vector2 CameraFade { get; set; }
 	readonly List<(SpriteRenderer Sprite, Vector2 Size, Color Color, Vector2 EndSize, Color EndColor)> _fades = new();
 	float _lifetime;
 	int _frames;
@@ -753,6 +759,8 @@ public sealed class SpriteBurst : Component
 		if ( !renderer.IsValid() ) return null;
 		renderer.GameObject.LocalPosition = new Vector3( offset, 0, 0 );
 		renderer.GameObject.LocalRotation = Rotation.FromRoll( roll ?? Game.Random.Int( 0, 360 ) );
+		renderer.CameraFadeNear = CameraFade.x;
+		renderer.CameraFadeFar = CameraFade.y;
 		renderer.Size = size * 2;
 		renderer.Color = color.WithAlpha( 1 );
 		_lifetime = MathF.Max( _lifetime, lifetime );
