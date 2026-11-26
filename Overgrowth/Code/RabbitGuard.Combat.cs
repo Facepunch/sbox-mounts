@@ -190,7 +190,7 @@ public sealed partial class RabbitGuard
 		}
 		if ( !IsKnownThreat( enemy ) )
 		{
-			if ( enemy is not null && !enemy.IsValid() ) FinishCombat( lastSeen );
+			if ( enemy is not null && !enemy.IsValid() ) patrolWait = 0f;
 			else if ( enemy.IsValid() && knownCharacters.TryGetValue( enemy, out var memory ) && !memory.Awake )
 				FinishCombat( memory.Position );
 			enemy = null;
@@ -235,8 +235,6 @@ public sealed partial class RabbitGuard
 		}
 		if ( FindWeapon() || TryCounterThrow() ) return;
 		var destination = visible ? TargetPosition( enemy ) : lastSeen;
-		var delta = visible ? CharacterCenter( enemy ) - CharacterCenter( GameObject ) : destination - WorldPosition;
-		float distance = delta.Length;
 		if ( !Omniscient && !visible && sinceEnemySeen > 2f )
 		{
 			var lastKnown = observedTarget == enemy && observationCount > 0 ? RecallTarget( Time.Now ).Position : destination;
@@ -246,7 +244,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 
-		if ( visible ) UpdateTactic( distance );
+		UpdateTactic( CharacterCenter( GameObject ).Distance( CharacterCenter( enemy ) ) );
 		if ( Stance == Roll ) return;
 		if ( TryStartStrike() ) return;
 
