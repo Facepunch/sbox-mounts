@@ -25,12 +25,13 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	sealed class Magazine
 	{
 		internal readonly int Capacity;
+		internal readonly int MaxReserve;
 		internal int Clip, Reserve;
 
 		internal Magazine( int capacity )
 		{
 			Clip = Capacity = capacity;
-			Reserve = capacity * 4;
+			Reserve = MaxReserve = capacity * 4;
 		}
 	}
 
@@ -153,7 +154,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var target = visible ? enemy.GetComponentInParent<IDamageable>() : null;
-		bool lifeformThreat = enemy.IsValid() && !enemy.Tags.HasAny( "ns2_harvester", "ns2_babbler" );
+		bool lifeformThreat = enemy.IsValid() && !enemy.Tags.HasAny( "ns2_harvester", "ns2_crag", "ns2_babbler" );
 		if ( (!enemy.IsValid() || lifeformThreat) && TryMaintainWeapons( goal ) )
 		{
 			assignedEnemy = null;
@@ -163,22 +164,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		}
 		if ( target is not null )
 		{
-			bool usePistol;
-			if ( target is Babbler )
-			{
-				usePistol = false;
-			}
-			else if ( target is Harvester )
-			{
-				float durability = target.Health + 2 * target.Armour;
-				float maxDurability = target.MaxHealth + 2 * target.MaxArmour;
-				usePistol = rifleAmmo.Reserve == 0 && (durability <= 0.15f * maxDurability ? pistolAmmo.Reserve > 0 : pistol);
-			}
-			else
-			{
-				usePistol = rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
-					&& (rifleAmmo.Reserve == 0 || target.Health <= target.MaxHealth * 0.7f);
-			}
+			bool usePistol = target is not (Babbler or Harvester or Crag) && rifleAmmo.Clip == 0 && pistolAmmo.Reserve > 0
+				&& (rifleAmmo.Reserve == 0 || target.Health <= target.MaxHealth * 0.7f);
 			SelectWeapon( usePistol );
 		}
 		else if ( !enemy.IsValid() && !reloading && rifleAmmo.Clip > 0 )

@@ -46,4 +46,13 @@ public sealed partial class Marine
 		if ( !passive && target.GameObject == lastAttacker && attackerExpires >= 0 ) close += 3;
 		return weight + close + wounded;
 	}
+
+	internal float StructureUrgency( AlienStructure target, float distance )
+	{
+		if ( Health <= MaxHealth * 0.2f || rifleAmmo.Reserve <= rifleAmmo.MaxReserve * 0.2f ) return 0;
+		var hp = (IDamageable)target;
+		float fraction = (hp.Health + 2 * hp.Armour) / (hp.MaxHealth + 2 * hp.MaxArmour);
+		float weight = target is Crag ? 0.95f : 0.9f;
+		return (weight + (1 - fraction) * 1.5f + (distance < 20 ? 0.3f : 0)) * 40 / (40 + distance);
+	}
 }

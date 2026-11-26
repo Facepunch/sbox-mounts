@@ -5,6 +5,8 @@ namespace NS2;
 
 internal sealed class AlienTargeting
 {
+	enum MarineAction { Pursue, AttackStructure, AttackBabbler, AttackLifeform }
+
 	sealed class Memory
 	{
 		public Vector3 Position;
@@ -160,6 +162,7 @@ internal sealed class AlienTargeting
 
 		GameObject best = null;
 		int bestPriority = int.MinValue;
+		var bestAction = MarineAction.Pursue;
 		float bestUrgency = float.MinValue;
 		int bestRoom = int.MaxValue;
 		foreach ( var (target, memory) in memories )
@@ -190,6 +193,7 @@ internal sealed class AlienTargeting
 				wounded = Math.Max( 0, 0.3f - fraction ) * 3;
 			}
 			float urgency;
+			var action = alien is Marine && health is Babbler ? MarineAction.AttackBabbler : MarineAction.AttackLifeform;
 			if ( alien is Gorge )
 				urgency = -alien.WorldPosition.DistanceSquared( memory.Position );
 			else if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
@@ -197,12 +201,23 @@ internal sealed class AlienTargeting
 				urgency = fade.AttackUrgency( fadeTarget );
 				if ( urgency <= 0 ) continue;
 			}
-			else if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
+			else if ( alien is Marine marine && health is BaseNpc victim && victim is AlienLifeform or AlienStructure or Drifter )
 			{
 				if ( victim is Drifter drifter && marine.IsHiddenByCloak( drifter ) ) continue;
-				urgency = marine.AttackUrgency( victim, marine.WalkDistance( memory.Position ) / MapLoader.Scale, wounded );
+				if ( victim is Crag or Harvester )
+				{
+					action = MarineAction.AttackStructure;
+					urgency = marine.StructureUrgency( (AlienStructure)victim, marine.WalkDistance( victim.WorldPosition ) / MapLoader.Scale );
+					if ( urgency <= 0 ) continue;
+				}
+				else
+				{
+					float distance = marine.WalkDistance( memory.Position ) / MapLoader.Scale;
+					action = distance <= 35 ? MarineAction.AttackLifeform : MarineAction.Pursue;
+					urgency = marine.AttackUrgency( victim, distance, wounded );
+				}
 			}
-			else if ( alien is Exo exo && health is BaseNpc unit && unit is AlienLifeform or Hydra or Drifter or Harvester or Babbler )
+			else if ( alien is Exo exo && health is BaseNpc unit && unit is AlienLifeform or AlienStructure or Drifter or Babbler )
 			{
 				urgency = exo.AttackUrgency( unit, memory.Position, hostiles.Contains( target ) );
 				if ( urgency <= 0 ) continue;
@@ -214,9 +229,11 @@ internal sealed class AlienTargeting
 				urgency = wounded;
 				if ( distance < 20 ) urgency += alien is Skulk ? 2 - distance * 0.1f : 10 / Math.Max( 1, distance );
 			}
-			if ( relationship.Priority == bestPriority && (urgency < bestUrgency || urgency == bestUrgency && roomOrder >= bestRoom) ) continue;
+			if ( relationship.Priority == bestPriority && (action < bestAction || action == bestAction &&
+				(urgency < bestUrgency || urgency == bestUrgency && roomOrder >= bestRoom)) ) continue;
 			best = target;
 			bestPriority = relationship.Priority;
+			bestAction = action;
 			bestUrgency = urgency;
 			bestRoom = roomOrder;
 		}
