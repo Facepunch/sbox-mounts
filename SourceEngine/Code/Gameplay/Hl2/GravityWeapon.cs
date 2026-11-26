@@ -712,7 +712,7 @@ sealed class PhysCannonEffects : IDisposable
 			: equipped ? new Vector2( firstPerson ? 10 : 8, firstPerson ? 128 : 0 ) : Vector2.Zero;
 		if ( target != _coreTarget )
 		{
-			_coreFrom = _core.Size.x > 0 ? new Vector2( _core.Size.x, _core.Color.r * 255 ) : Vector2.Zero;
+			_coreFrom = _core.Size.x > 0 ? new Vector2( _core.Size.x, _core.Color.a * 255 ) : Vector2.Zero;
 			_coreTarget = target;
 			_coreChanged = 0;
 		}
@@ -725,7 +725,7 @@ sealed class PhysCannonEffects : IDisposable
 	{
 		if ( !sprite.IsValid() ) return;
 		sprite.Size = width;
-		sprite.Color = ((tint ?? Color.White) * (brightness / 255f)).WithAlpha( 1 );
+		sprite.Color = (tint ?? Color.White).WithAlpha( brightness / 255f );
 		sprite.Enabled = brightness > 0;
 	}
 
