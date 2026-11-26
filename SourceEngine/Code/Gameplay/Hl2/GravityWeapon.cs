@@ -750,6 +750,8 @@ sealed class PhysCannonEffects : IDisposable
 			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
 			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam )
 			{
+				beam.RenderOptions.Game = !viewModel;
+				beam.RenderOptions.Overlay = viewModel;
 				beam.Width = viewModel ? ViewBeamWidth : WorldBeamWidth;
 				beam.Color = (Color.White * (128f / 255)).WithAlpha( 1 );
 				_beams.Add( (tip, beam) );
