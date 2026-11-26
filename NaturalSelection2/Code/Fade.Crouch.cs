@@ -116,7 +116,7 @@ public sealed partial class Fade
 			: Math.Clamp( MathF.Sin( MathF.PI * 0.5f * CrouchProgress( crouching ) ), 0, 1 );
 		if ( Networking.IsHost )
 		{
-			Movement.WalkSpeed = Movement.RunSpeed = 6.2f * Scale * (IsOnGround ? 1 - 0.5f * amount : 1);
+			Movement.WalkSpeed = Movement.RunSpeed = (6.2f * (IsOnGround ? 1 - 0.5f * amount : 1) + CeleritySpeedBonus) * Scale;
 		}
 		if ( Renderer.Animation.IsValid )
 		{

@@ -19,15 +19,21 @@ public sealed partial class Fade
 	float blinkAmount;
 	bool wasBlinking;
 
-	static Vector3 BlinkLaunchVelocity( Vector3 velocity, Vector3 forward, bool grounded )
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int CeleritySpurs { get; set; }
+	int CelerityLevel => Math.Clamp( CeleritySpurs, 0, 3 );
+	float CeleritySpeedBonus => CelerityLevel * 0.5f;
+
+	Vector3 BlinkLaunchVelocity( Vector3 velocity, Vector3 forward, bool grounded )
 	{
 		var planar = velocity.WithZ( 0 );
-		float cap = Math.Max( 13 * Scale, Vector3.Dot( planar, forward ) );
-		var launch = forward * (13 * Scale) + planar;
-		if ( launch.Length < 13.5f * Scale ) launch = forward * (13.5f * Scale);
+		float speed = (13 + 0.2f * CelerityLevel) * Scale;
+		float minimum = (13.5f + 0.2f * CelerityLevel) * Scale;
+		float cap = Math.Max( speed, Vector3.Dot( planar, forward ) );
+		var launch = forward * speed + planar;
+		if ( launch.Length < minimum ) launch = forward * minimum;
 		launch = launch.ClampLength( cap );
 		if ( grounded ) launch.z = Math.Max( launch.z, 2 * Scale );
-		return launch + forward * (2.5f * Scale);
+		return launch + forward * (2.5f * (1 + 0.05f * CelerityLevel) * Scale);
 	}
 
 	void Travel( Vector3 goal )
@@ -100,7 +106,7 @@ public sealed partial class Fade
 			{
 				if ( blinkAge > 0.08f ) energy = Math.Max( 0, energy - 32 * Time.Delta );
 				var velocity = body.Velocity;
-				float cap = Math.Clamp( velocity.Length, 14 * Scale, 25 * Scale );
+				float cap = Math.Clamp( velocity.Length, (14 + CeleritySpeedBonus) * Scale, 25 * Scale );
 				var increment = view.Forward * (Scale * Time.Delta);
 				body.Velocity = (velocity + increment * 40).ClampLength( cap ) + increment;
 				return;
@@ -131,9 +137,9 @@ public sealed partial class Fade
 	}
 
 	// GroundMoveMixin steers the existing horizontal momentum before applying normal air acceleration.
-	static Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float gravity, float dt )
+	Vector3 AirVelocity( Vector3 velocity, Rotation view, Vector3 direction, float gravity, float dt )
 	{
-		const float maxSpeed = 6.2f;
+		float maxSpeed = 6.2f + CeleritySpeedBonus;
 		var forward = view.Forward.WithZ( 0 ).Normal;
 		var left = view.Left.WithZ( 0 ).Normal;
 		float ahead = Math.Clamp( direction.Dot( forward ), -1, 1 );
@@ -141,7 +147,7 @@ public sealed partial class Fade
 
 		var planar = velocity.WithZ( 0 );
 		float speed = velocity.Length;
-		float friction = speed > 19 ? 0.4f : 0.17f;
+		float friction = speed > (CelerityLevel > 0 ? 20.5f : 19) ? 0.4f : 0.17f - 0.01f * CelerityLevel;
 		if ( speed > 0 ) planar *= Math.Max( 0, 1 - friction * dt * planar.Length / speed );
 
 		// Spark applies gravity once before steering and sweeps with the resulting velocity.
