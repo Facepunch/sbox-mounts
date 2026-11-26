@@ -72,8 +72,7 @@ public sealed partial class RabbitGuard
 		WorldRotation = Rotation.LookAt( holdDirection );
 		var entry = victim.CaptureClip.Animation.GetRootMotion( 0f );
 		victim.fadingCaptureOffset = victim.WorldRotation * (entry.Position * victim.WorldScale);
-		victim.alignmentOffset = WorldRotation * (entry.Position * victim.WorldScale) + (WorldPosition - victim.WorldPosition).WithZ( 0f );
-		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
+		victim.AlignGrabbedAnimation( this, entry );
 		victim.nextCaptureTick = 1;
 		IncreaseBreathing( 2f );
 		var point = CharacterCenter( victim.GameObject );

@@ -77,12 +77,21 @@ public sealed partial class RabbitGuard
 		victim.QueueThrowDamage( this );
 		victim.MirroredStance = MirroredAction;
 		var entry = victim.boundAnimations.Clips["thrown"].ForSide( MirroredAction ).Animation.GetRootMotion( 0f );
-		victim.alignmentOffset = WorldRotation * (entry.Position * victim.WorldScale) - facing;
-		victim.alignmentYaw = MathF.IEEERemainder( WorldRotation.Yaw() + entry.Rotation.Yaw() - victim.WorldRotation.Yaw(), 360f );
+		victim.AlignGrabbedAnimation( this, entry );
 		victim.willEscapeThrow = Random.Shared.Float() < victim.ThrowCounterProbability * GameDifficulty * GameDifficulty;
 		victim.stunnedBy = null;
 		PlayAttackStart( boundAnimations.ThrowMaterialEvent );
 		return true;
+	}
+
+	void AlignGrabbedAnimation( RabbitGuard attacker, Transform entry )
+	{
+		// WasGrabbed adds the world-space separation to the reader. RiggedObject
+		// scales that offset on consumption. The imported clip already includes model scale.
+		var separation = (attacker.WorldPosition - WorldPosition).WithZ( 0f );
+		alignmentOffset = attacker.WorldRotation * (entry.Position * WorldScale)
+			+ separation * (boundAnimations.MovementScale * WorldScale.z);
+		alignmentYaw = MathF.IEEERemainder( attacker.WorldRotation.Yaw() + entry.Rotation.Yaw() - WorldRotation.Yaw(), 360f );
 	}
 
 	void StartThrowAction( string action, RabbitGuard partner, bool mirrored )
