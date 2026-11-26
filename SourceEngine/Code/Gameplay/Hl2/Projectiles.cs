@@ -690,7 +690,7 @@ static class SmokeTrail
 
 	public static GameObject Rocket( GameObject parent, Vector3 offset, string mount )
 	{
-		var effect = Create( parent, offset, MountedEffects.SpriteTexture( Smoke, mount ), "HL2 rocket trail", 0.5f, 16, 0.65f );
+		var effect = Create( parent, offset, MountedEffects.SpriteTexture( Smoke, mount ), "HL2 rocket trail", 0.5f, 16, 0.65f, depthFeather: 8 );
 		if ( effect is null ) return null;
 
 		var emitter = effect.GameObject.AddComponent<ParticleSphereEmitter>();
@@ -745,7 +745,7 @@ static class SmokeTrail
 
 		void AddPuffs( Texture texture, int rate, float delay )
 		{
-			var effect = Create( parent, Vector3.Zero, texture, "SMG grenade smoke", 1, 24, 0.1f );
+			var effect = Create( parent, Vector3.Zero, texture, "SMG grenade smoke", 1, 24, 0.1f, depthFeather: 12 );
 			if ( effect is null ) return;
 			var renderer = effect.GetComponent<ParticleSpriteRenderer>( true );
 			renderer.CameraFadeNear = 64;
@@ -772,7 +772,7 @@ static class SmokeTrail
 		}
 	}
 
-	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey, bool linger = true )
+	static ParticleEffect Create( GameObject parent, Vector3 offset, Texture texture, string name, float lifetime, float diameter, float grey, float depthFeather = 0, bool linger = true )
 	{
 		if ( texture is null ) return null;
 		var go = new GameObject( parent, false, name );
@@ -800,6 +800,7 @@ static class SmokeTrail
 		effect.Alpha = Opacity;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.DepthFeather = depthFeather;
 		if ( linger )
 		{
 			var lifetimeOwner = go.AddComponent<TemporaryEffect>();
