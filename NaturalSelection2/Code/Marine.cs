@@ -497,7 +497,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	Vector3 DodgeVelocity( Vector3 velocity, Rotation view, Vector3 direction, float dt )
 	{
-		float speed = MarineMovement.DirectionalSpeed( view, direction, 5 * InventorySpeed * SlowSpeedModifier );
+		float speed = MarineMovement.DirectionalSpeed( view.Forward, direction, 5 * InventorySpeed * SlowSpeedModifier );
 		return SparkAirMovement.Steer( velocity, view, direction, speed, 11 * SlowSpeedModifier, 6 * SlowSpeedModifier, dt );
 	}
 
@@ -634,7 +634,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	{
 		if ( tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
 		leftFoot = !leftFoot;
-		bool forward = Vector3.Dot( Animation.MoveVelocity, WorldRotation.Forward ) > -0.1f * Scale;
+		bool forward = Vector3.Dot( Animation.MoveVelocity, AimDirection ) > -0.1f * Scale;
 		PlayFootstep( SurfaceLoader.FootstepMaterial( GroundSurface ), forward, leftFoot );
 	}
 
