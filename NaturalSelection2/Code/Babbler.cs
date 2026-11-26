@@ -55,16 +55,19 @@ public sealed partial class Babbler : Ns2Npc
 	TimeUntil nextClingLeap, freeRoam;
 	TimeUntil? ownerLossTimeout;
 	Vector3? orderedPosition;
-	bool ReturningToOwner => BroodOwner.IsValid() && orderedPosition is null && !target.IsValid() && freeRoam <= 0;
+	bool wagging;
+	TimeUntil nextWagCheck;
 
 	internal void Dispatch( GameObject enemy, Vector3 destination )
 	{
+		wagging = false;
+		feed = 0;
 		ClingTarget = null;
 		if ( BroodOwner.IsValid() && enemy == BroodOwner.GameObject )
 		{
 			target = null;
 			orderedPosition = null;
-			freeRoam = 0;
+			if ( ClingSlot == 0 ) ClingTarget = BroodOwner;
 			return;
 		}
 		if ( ClingSlot != 0 )
@@ -120,10 +123,10 @@ public sealed partial class Babbler : Ns2Npc
 		GameObject.Network.Refresh();
 	}
 
-	void ApproachOwner()
+	void ApproachClingTarget()
 	{
-		if ( !ClingTarget.IsValid() || ClingTarget.Health <= 0 ) ClingTarget = null;
-		var host = ClingTarget ?? BroodOwner;
+		var host = ClingTarget;
+		if ( host.Health <= 0 ) { ClingTarget = null; return; }
 		var point = host.BabblerApproachPoint;
 		if ( !point.IsValid() ) { ClingTarget = null; return; }
 		var delta = point.WorldPosition - SphereCenter;
@@ -173,12 +176,23 @@ public sealed partial class Babbler : Ns2Npc
 		StartGraph();
 		if ( Scene.PhysicsWorld.Gravity.z < 0 ) body.GravityScale = Gravity * Scale / -Scene.PhysicsWorld.Gravity.z;
 		Launch( new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -1, 1 ), Random.Shared.Float( 2, 4 ) ) * Scale );
-		if ( BroodOwner.IsValid() ) ApproachOwner();
+		if ( BroodOwner.IsValid() )
+		{
+			ClingTarget = BroodOwner;
+			ApproachClingTarget();
+		}
 	}
 
 	protected override void Think()
 	{
-		if ( ClingSlot != 0 || ReturningToOwner ) return;
+		if ( ClingSlot != 0 || ClingTarget.IsValid() ) return;
+		if ( wagging )
+		{
+			if ( !IsOnGround || nextWagCheck > 0 ) return;
+			nextWagCheck = 0.4f;
+			if ( BroodOwner.IsValid() && SphereCenter.DistanceSquared( BroodOwner.WorldPosition ) <= 64 * Scale * Scale ) return;
+			wagging = false;
+		}
 		if ( orderedPosition is { } destination )
 		{
 			if ( !IsOnGround ) return;
@@ -283,9 +297,9 @@ public sealed partial class Babbler : Ns2Npc
 			}
 		}
 		if ( PhysicsCarrier.IsValid() ) return;
-		if ( ReturningToOwner )
+		if ( ClingTarget.IsValid() )
 		{
-			ApproachOwner();
+			ApproachClingTarget();
 			return;
 		}
 		var origin = SphereCenter;
@@ -380,7 +394,7 @@ public sealed partial class Babbler : Ns2Npc
 
 	internal static void RegisterSounds( MountContext context )
 	{
-		foreach ( var id in new[] { "alien/babbler/jump", "alien/babbler/attack_jump", "alien/babbler/idle", "alien/structures/death_small" } )
+		foreach ( var id in new[] { "alien/babbler/jump", "alien/babbler/attack_jump", "alien/babbler/idle", "alien/babbler/fetch", "alien/structures/death_small" } )
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
 	}
 }

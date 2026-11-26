@@ -66,7 +66,7 @@ public sealed partial class Babbler
 		float yaw = MathF.Atan2( Vector3.Dot( Renderer.WorldRotation.Forward, planar ), Vector3.Dot( Renderer.WorldRotation.Left, planar ) ).RadianToDegree();
 		output?.Set( "move_speed", moveSpeed );
 		output?.Set( "move_yaw", (yaw + 180) % 360 );
-		UpdateGraph( output, feed > 0 ? "idle" : jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : "idle" );
+		UpdateGraph( output, feed > 0 ? "idle" : jumping ? "jump" : running && moveSpeed > 0.05f ? "run" : wagging ? "wag" : "idle" );
 	}
 
 	void UpdateGraph( Sandbox.Animation.GraphParameters output, string move )

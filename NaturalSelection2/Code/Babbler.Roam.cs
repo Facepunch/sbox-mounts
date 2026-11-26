@@ -16,6 +16,18 @@ public sealed partial class Babbler
 		nextRoam = 0.3f + Random.Shared.NextSingle() / 8;
 		if ( Movement.Status == MovementLayer.MovementStatus.Moving ) return;
 		if ( Movement.MoveTarget.HasValue ) Movement.Stop();
+		if ( BroodOwner.IsValid() && BroodOwner.Health > 0 && freeRoam <= 0 )
+		{
+			var ownerPosition = BroodOwner.EyePosition;
+			feed = 0;
+			if ( SphereCenter.DistanceSquared( ownerPosition ) < 6.4f * 6.4f * Scale * Scale )
+			{
+				wagging = true;
+				Wag( SphereCenter );
+			}
+			else Movement.MoveTo( ownerPosition, Radius, 8.2f * Scale );
+			return;
+		}
 		if ( pause > 0 ) return;
 
 		if ( Random.Shared.NextSingle() < 0.28f )
@@ -91,6 +103,9 @@ public sealed partial class Babbler
 		}
 		Launch( Vector3.Up * (Random.Shared.Float( 1, 5 ) * Scale) );
 	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void Wag( Vector3 position ) => PlaySoundAt( "alien/babbler/fetch", position );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void Chirp( Vector3 position ) => PlaySoundAt( "alien/babbler/jump", position );
