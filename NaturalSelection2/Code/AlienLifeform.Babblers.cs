@@ -64,7 +64,7 @@ public abstract partial class AlienLifeform
 		float absorbed = Math.Min( babblerShield, e.AcceptedDamage );
 		e.AcceptedDamage -= absorbed;
 		babblerShield -= absorbed;
-		underFire = 3;
+		RecordIncomingDamage( e.DamageInfo );
 		int attached = 6 - freeSlots.Count;
 		double perBabbler = ShieldPerBabbler;
 		int broken = Math.Clamp( (int)Math.Floor( (attached * perBabbler - babblerShield) / perBabbler ), 0, attached );

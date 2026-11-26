@@ -23,11 +23,15 @@ public abstract partial class AlienLifeform
 		shieldDecay = shells * 0.5f;
 	}
 
-	float AbsorbOverShield( float amount )
+	float AbsorbOverShield( DamageInfo hit, float amount )
 	{
 		if ( shieldAtRefresh <= 0 || amount <= 0 ) return amount;
 		float absorbed = Math.Min( OverShield, amount );
-		shieldSpent += absorbed;
+		if ( absorbed > 0 )
+		{
+			shieldSpent += absorbed;
+			RecordIncomingDamage( hit );
+		}
 		return amount - absorbed;
 	}
 }

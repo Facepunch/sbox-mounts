@@ -26,7 +26,7 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable, C
 		float armor = ((IDamageable)this).Armour;
 		// Armor-only hits with armor remaining are settled in OnDamaged.
 		if ( shieldAtRefresh > 0 && (armor <= 0 || AlienArmor.ArmorOnlyScale( hit.DamageInfo ) == 0) )
-			hit.AcceptedDamage = AbsorbOverShield( hit.AcceptedDamage );
+			hit.AcceptedDamage = AbsorbOverShield( hit.DamageInfo, hit.AcceptedDamage );
 		hit.AcceptedDamage *= AlienArmor.UmbraScale( hit );
 		AbsorbBabblerShield( hit );
 		AlienArmor.ApplyPlayerRules( hit, this, armor );
@@ -40,12 +40,17 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable, C
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
 		float armorOnlyScale = AlienArmor.ArmorOnlyScale( hit.DamageInfo );
-		float armorOnlyDamage = armorOnlyScale > 0 ? AbsorbOverShield( hit.DamageInfo.Damage ) * armorOnlyScale * AlienArmor.UmbraScale( hit ) : 0;
+		float armorOnlyDamage = armorOnlyScale > 0 ? AbsorbOverShield( hit.DamageInfo, hit.DamageInfo.Damage ) * armorOnlyScale * AlienArmor.UmbraScale( hit ) : 0;
 		var hp = (IDamageable)this;
 		if ( armorOnlyDamage > 0 ) armorOnlyDamage = BlockDamage( hit.DamageInfo, Math.Min( armorOnlyDamage, hp.Armour * 2 ) );
 		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
 		hp.Armour -= wounds.ApplyDamage( hit, hp.Armour, MaxHealth, hp.MaxArmour, armorOnlyDamage );
-		LastDamageOrigin = hit.DamageInfo.Origin;
+		RecordIncomingDamage( hit.DamageInfo );
+	}
+
+	void RecordIncomingDamage( DamageInfo hit )
+	{
+		LastDamageOrigin = hit.Attacker.IsValid() && hit.Weapon == hit.Attacker ? hit.Attacker.WorldPosition : hit.Origin;
 		underFire = 3;
 	}
 
