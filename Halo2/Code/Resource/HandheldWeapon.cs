@@ -141,6 +141,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 		if ( Reference( Header + 0x140 ) is not { PrimaryClass: "effe" } ready ) return sword;
 
+		sword.ReadyParticles = ReadMuzzleFlash( ready );
 		int effect = Address( ready );
 		if ( map.ReadInt32( effect + 0x14 ) == 0 ) return sword;
 		int firstEvent = Block( effect + 0x14 );
@@ -389,7 +390,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
 				bool blade = particle?.TagPath is @"effects\objects\weapons\melee\energy_blade\glow_blade" or @"effects\objects\weapons\melee\energy_blade\blade_charge";
-				bool flare = blade || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
+				bool ignition = particle?.TagPath is @"effects\generic\energy\energy_blade_activate" or @"effects\generic\energy\plasma_wispy";
+				bool flare = blade || ignition || particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
 					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft" or @"effects\generic\flares\flash_shield"
 					or @"effects\generic\energy\flash_c_generic_big" or @"effects\generic\energy\flash_c_generic_long" or @"effects\generic\energy\c_muzzle_flash_red_large"
 					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
@@ -433,6 +435,13 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 					var offset = new Vector3( Float( emitter + 156 ), Float( emitter + 160 ), Float( emitter + 164 ) ) * 120;
 					var direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 );
 					Vector2 Bounds( int property ) => new( Float( Block( property + 8 ) + 4 ), Float( Block( property + 8 ) + 8 ) );
+					Vector2 BirthBounds( int property )
+					{
+						if ( Short( property ) != 0 || Short( property + 4 ) != 0 ) return Bounds( property );
+						// Age is zero when the particle is born. Its range input can still vary.
+						var curve = ReadRange( property, 1 );
+						return new( curve.Evaluate( 0, 0 ), curve.Evaluate( 0, 1 ) );
+					}
 					float Motion( int parameter )
 					{
 						if ( Reference( emitter ) is not {} movement || map.ReadInt32( Address( movement ) + 12 ) == 0 ) return 0;
@@ -443,15 +452,20 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 					if ( blade && Short( emitter + 8 ) == 9 )
 						births = Vector2.One * ReadRange( emitter + 8, 1 ).Evaluate( 1, 0 );
 					layers.Add( new( texture,
-						new Vector2( 1 - pivot.x, pivot.y ), aspect, Bounds( emitter + 24 ),
+						new Vector2( 1 - pivot.x, pivot.y ), aspect, ignition || particle.TagPath == @"effects\generic\sparks\electric_arcs" ? BirthBounds( emitter + 24 ) : Bounds( emitter + 24 ),
 						ReadRange( emitter + 72, smoke ? 120 : 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ),
 						map.ReadInt32( definition + 100 ) > 0 ? ReadRange( definition + 92, 1 ) : default,
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
-						births, Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
-						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke || blade ? Bounds( emitter + 140 ).x : 0,
+						births, Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, (ignition ? BirthBounds( emitter + 40 ) : Bounds( emitter + 40 )) * 120, Short( emitter + 72 ) == 2,
+						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke || blade || ignition ? Bounds( emitter + 140 ).x : 0,
 						flare || soft || additiveSmoke || (!smoke && !casing && duration.y > 1.001f / 30) ? ReadRange( emitter + 104, 1 ) : null,
-						duration.y > 1.001f / 30 || start > 0 ? new( start - initialAdvance, duration ) : null ) );
+						duration.y > 1.001f / 30 || start > 0 ? new( start - initialAdvance, duration ) : null )
+					{
+						ParticleTint = Short( emitter + 88 ) == 3 && map.ReadSpan( color, 1 )[0] == 3 &&
+							Short( color + 2 ) is >= 8 and <= 10 && map.ReadSpan( color + 1, 1 )[0] == 0x20
+							? ReadRange( emitter + 88, 1, fraction: true ) : null
+					} );
 				}
 			}
 		}

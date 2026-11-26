@@ -7,10 +7,10 @@ namespace Halo2;
 
 internal abstract partial class WeaponLoader
 {
-	protected CurveRange ReadRange( int property, float units )
+	protected CurveRange ReadRange( int property, float units, bool fraction = false )
 	{
 		int data = Block( property + 8 );
-		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
+		float min = fraction ? 0 : Float( data + 4 ) * units, span = fraction ? 1 : Float( data + 8 ) * units - min;
 		int kind = map.ReadSpan( data, 1 )[0];
 		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;
 		int length = kind switch
@@ -18,7 +18,7 @@ internal abstract partial class WeaponLoader
 			0 => 0,
 			1 => 4,
 			2 when Short( data + 2 ) == 0 => 8, // Linear transition.
-			3 when Short( data + 2 ) == 8 && !ranged => 16, // Periodic noise.
+			3 when Short( data + 2 ) is >= 8 and <= 10 && !ranged => 16, // Periodic noise.
 			4 => 24,
 			5 => 80,
 			7 or 10 => 48,
@@ -41,7 +41,7 @@ internal abstract partial class WeaponLoader
 				{
 					float x = phase + t * frequency;
 					int index = (int)x;
-					var table = Host.PeriodicNoise;
+					var table = Host.GetPeriodicNoise( Short( data + 2 ) );
 					float noise = (table[index & 1023] + (x - index) * (table[(index + 1) & 1023] - table[index & 1023])) / 255f;
 					return Key( t, (low + (high - low) * noise).Clamp( 0, 1 ) );
 				}

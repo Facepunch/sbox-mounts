@@ -130,6 +130,7 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 	}
 
 	[Property] public CuePlayback ReadySound { get; set; }
+	[Property] public MuzzleFlashDefinition[] ReadyParticles { get; set; }
 	[Property] public string ReadySoundMarker { get; set; }
 	[Property] public float ReadySoundDelay { get; set; }
 
@@ -147,6 +148,8 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 	{
 		readyAt = CooldownSeconds( (int)System.MathF.Round( DeployTime * 30 ) );
 		base.OnEquipped();
+		if ( !Application.IsDedicatedServer && Powered && viewBlade.IsValid() )
+			EmitMuzzleFlash( ReadyParticles, viewRenderer: viewBlade );
 	}
 
 	protected override void ConfigureHeldRenderer( SkinnedModelRenderer renderer, bool firstPerson )

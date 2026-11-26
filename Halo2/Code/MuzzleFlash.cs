@@ -12,7 +12,10 @@ public sealed record MuzzleEmission( float Start, Vector2 Duration );
 public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
-	Vector2 BirthCount, int BirthInput, bool StartsSystem, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission );
+	Vector2 BirthCount, int BirthInput, bool StartsSystem, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke, CasingSounds Casing, float ConeDegrees, CurveRange? FlareAlpha, MuzzleEmission Emission )
+{
+	public CurveRange? ParticleTint { get; init; }
+}
 
 public sealed class MuzzleFlash : Component
 {
@@ -109,7 +112,7 @@ public sealed class MuzzleFlash : Component
 				p.Alpha = smoke.Alpha.Evaluate( t, 0 ).Clamp( 0, 1 ) * MathX.Lerp( smoke.Opacity.x, smoke.Opacity.y, p.Rand( 5, 0 ) );
 			}
 			if ( data.FlareAlpha is {} alpha ) p.Alpha = alpha.Evaluate( t, p.Rand( 5, 0 ) ).Clamp( 0, 1 );
-			p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
+			if ( data.ParticleTint is null ) p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
 			p.Sequence = 0;
 			p.SequenceTime = new Vector3( data.Frame.Evaluate( t, 0 ), 0, 0 );
 			if ( data.Parallel && Scene.Camera.IsValid() )
@@ -123,6 +126,8 @@ public sealed class MuzzleFlash : Component
 		}
 		effect.OnParticleCreated += p =>
 		{
+			if ( data.ParticleTint is {} tint )
+				p.Color = InterpolateTint( data.StartColor, data.EndColor, tint.Evaluate( p.Rand( 4, 0 ), 0 ) );
 			p.StartAngles.roll = p.Rand( 3, 0 ) * 360;
 			if ( data.ConeDegrees > 0 || data.Casing is not null )
 			{
@@ -148,5 +153,13 @@ public sealed class MuzzleFlash : Component
 		};
 		go.Enabled = true;
 		return effect;
+	}
+
+	static Color InterpolateTint( Color32 start, Color32 end, float fraction )
+	{
+		// Halo interpolates packed channels with a 14-bit fixed-point weight.
+		int weight = (int)System.MathF.Round( fraction.Clamp( 0, 1 ) * 16384 );
+		byte Channel( byte a, byte b ) => (byte)(a + (((b - a) * weight + 8192) >> 14));
+		return Color.FromBytes( Channel( start.r, end.r ), Channel( start.g, end.g ), Channel( start.b, end.b ) );
 	}
 }

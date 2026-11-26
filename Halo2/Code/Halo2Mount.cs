@@ -33,18 +33,18 @@ public class Halo2Mount : BaseGameMount
 	public BaseFileSystem FileSystem => appFs;
 
 	byte[] periodicNoise;
-	internal ReadOnlySpan<byte> PeriodicNoise
+	internal ReadOnlySpan<byte> GetPeriodicNoise( int selector )
 	{
-		get
+		if ( periodicNoise is null )
 		{
-			if ( periodicNoise is not null ) return periodicNoise;
-			// MCC stores the noise function as 1024 normalized bytes in its data section.
+			// MCC stores the three noise functions (8 through 10) as consecutive 1024-byte tables.
 			ReadOnlySpan<byte> prefix = [220, 20, 6, 250, 75, 185, 52, 68, 91, 169, 65, 218, 128, 197, 245, 94];
 			var image = appFs.ReadAllBytes( "halo2/halo2.dll" );
 			int index = image.IndexOf( prefix );
-			if ( index < 0 || index > image.Length - 1024 ) throw new InvalidDataException( "Missing MCC periodic noise table" );
-			return periodicNoise = image.Slice( index, 1024 ).ToArray();
+			if ( index < 0 || index > image.Length - 3072 ) throw new InvalidDataException( "Missing MCC periodic noise tables" );
+			periodicNoise = image.Slice( index, 3072 ).ToArray();
 		}
+		return periodicNoise.AsSpan( (selector - 8) * 1024, 1024 );
 	}
 
 	protected override void Initialize( InitializeContext context )
