@@ -160,7 +160,7 @@ public sealed class ViewModelHands : Component
 			{
 				var bone = bones[i];
 				_fingers[i] = bone.Name.StartsWith( "finger_" );
-				_aimChild[i] = _fingers[i] ? bones.FirstOrDefault( b => b.Parent == bone )?.Index ?? -1 : -1;
+				_aimChild[i] = _fingers[i] && bone.HasChildren ? bone.Children[0].Index : -1;
 				_supported[i] = (!bone.Name.Contains( "_L" ) || hasLeft) && (!bone.Name.Contains( "_R" ) || hasRight);
 				_arms[i] = (-1, -1);
 				if ( bone.Name.StartsWith( "arm_" ) && !bone.Name.Contains( "twist" ) )
