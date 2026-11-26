@@ -61,8 +61,11 @@ public sealed class PropSpawnSystem( Scene scene ) : GameObjectSystem<PropSpawnS
 		Scene.GetAll( props );
 		foreach ( var prop in props )
 		{
-			if ( prop.IsStatic || prop.IsProxy || prop.Model?.ResourcePath?.StartsWith( "mount://", System.StringComparison.Ordinal ) != true || prop.GetComponent<PropAirDrag>().IsValid() ) continue;
-			PropAirDrag.Attach( prop.GameObject, prop.Model );
+			if ( prop.IsProxy || prop.Model?.ResourcePath?.StartsWith( "mount://", System.StringComparison.Ordinal ) != true ) continue;
+			if ( !prop.IsStatic && !prop.GetComponent<PropAirDrag>().IsValid() )
+				PropAirDrag.Attach( prop.GameObject, prop.Model );
+			if ( prop.Health > 0 && !prop.GetComponent<PropDamage>().IsValid() )
+				PropDamage.Attach( prop );
 		}
 		props.Clear();
 	}

@@ -233,10 +233,8 @@ public abstract class Projectile : Component
 	protected bool DamageVictim( SceneTraceResult tr, TagSet tags, float impulse = 0, bool hitboxTags = false )
 	{
 		if ( tr.GameObject?.GetComponentInParent<Component.IDamageable>() is not { } victim ) return false;
-		var damage = Damage;
-		if ( tags.Contains( DamageTags.Bullet ) && victim is Prop prop && prop.Model?.GetData<PropDamageModifiers>() is { } modifiers )
-			damage = MathF.Truncate( damage * modifiers.Bullet );
-		BaseCombatWeapon.ShootBullet( tr, damage, impulse, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, tags, hitboxTags );
+		if ( victim is Prop prop && tags.Contains( DamageTags.Bullet ) ) PropDamage.Attach( prop );
+		BaseCombatWeapon.ShootBullet( tr, Damage, impulse, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, tags, hitboxTags );
 		return true;
 	}
 
