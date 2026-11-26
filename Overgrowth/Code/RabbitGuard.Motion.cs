@@ -41,6 +41,9 @@ public sealed partial class RabbitGuard
 		if ( GetComponent<NavMeshAgent>( true ) is not { } agent ) return;
 		agent.SetAgentPosition( WorldPosition );
 		agent.UpdatePosition = true;
+		// Both capsules can still overlap. Resume from the standing sweep before the crowd writes its cached height.
+		if ( !Downed && Movement is CharacterNavigation { Active: true } navigation )
+			navigation.UpdateGroundPlacement( this, resumeStanding: true );
 	}
 
 	void StopForCombat()

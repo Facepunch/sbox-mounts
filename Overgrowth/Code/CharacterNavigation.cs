@@ -150,14 +150,24 @@ public sealed class CharacterNavigation : NavigationLayer
 		// The scene can discard fixed steps during a slow frame. Keep the stride on the same clock as the crowd.
 		GroundAnimationDelta = Math.Max( 0f, Time.Delta - skippedRouteTime );
 		skippedRouteTime = 0f;
-		if ( routeStepDuration <= 0f || (!MoveTarget.HasValue && brakingVelocity.IsNearlyZero()) || LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
+		UpdateGroundPlacement( fighter );
+	}
+
+	internal void UpdateGroundPlacement( RabbitGuard fighter, bool resumeStanding = false )
+	{
+		if ( LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
 		{
 			ReleaseGroundPlacement();
 			return;
 		}
-		if ( !placingOnGround && !Agent.UpdatePosition ) return;
-		float fraction = Math.Clamp( (float)(Time.NowDouble - routeStepTime) / routeStepDuration, 0f, 1f );
-		var next = Vector3.Lerp( routeStepStart, Agent.AgentPosition, fraction );
+		bool moving = routeStepDuration > 0f && (MoveTarget.HasValue || !brakingVelocity.IsNearlyZero());
+		if ( !placingOnGround && (!Agent.UpdatePosition || !moving && !resumeStanding) ) return;
+		var next = WorldPosition;
+		if ( moving )
+		{
+			float fraction = Math.Clamp( (float)(Time.NowDouble - routeStepTime) / routeStepDuration, 0f, 1f );
+			next = Vector3.Lerp( routeStepStart, Agent.AgentPosition, fraction );
+		}
 		if ( fighter.StandingPosition( next.WithZ( WorldPosition.z ) ) is not { } position )
 		{
 			ReleaseGroundPlacement();
@@ -189,7 +199,12 @@ public sealed class CharacterNavigation : NavigationLayer
 			routeStepStart = Agent.AgentPosition;
 			routeStepTime = Time.NowDouble;
 			routeStepDuration = Time.Delta;
-			if ( braking ) fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, routeStepStart );
+			if ( braking )
+			{
+				// The navigation polygon can sit above the collision floor. Brake from the feet at the simulated XY.
+				var origin = routeStepStart.WithZ( WorldPosition.z );
+				fighter.AdvanceBraking( ref brakingVelocity, Time.Delta, fighter.StandingPosition( origin ) ?? origin );
+			}
 			else fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta, RequestedHeading );
 		}
 		else routeStepDuration = 0f;
