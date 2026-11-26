@@ -109,30 +109,38 @@ public sealed partial class EnergySword
 	{
 		var player = dash.Player;
 		var clock = TaskSource.Create( player.GameObject.EnabledToken );
-		double nextTick = Time.NowDouble;
+		bool launching = true;
+		double pendingTicks = 1;
 		try
 		{
 			// Movement belongs to the player and continues after the weapon is put away.
 			while ( true )
 			{
-				await clock.FixedUpdate();
 				if ( !ReferenceEquals( activeDash, dash ) ) return;
 				var eye = player.EyeTransform;
 				if ( !target.IsValid() ) break;
 				float distance = target.WorldTransform.PointToWorld( localPoint ).Distance( eye.Position );
 				if ( distance <= MeleeRange ) TryLunge( player );
-				while ( Time.NowDouble >= nextTick && !dash.Finished )
+				while ( pendingTicks >= 1 && !dash.Finished )
 				{
-					nextTick += 1.0 / 30;
+					pendingTicks--;
 					// The native action retains its launch direction until the player's aim leaves the cone.
 					if ( Vector3.Dot( eye.Forward, direction ) < 0.8660254f ) direction = eye.Forward;
 					dash.Advance( distance );
 				}
-				if ( dash.Finished && Time.NowDouble >= nextTick ) break;
+				if ( dash.Finished && pendingTicks >= 1 ) break;
 				var travel = direction * (dash.Speed * player.Scene.FixedDelta);
 				if ( player.IsOnGround ) travel = travel.WithZ( MathF.Max( 0, travel.z ) );
-				if ( DashBlocked( player, travel ) ) break;
+				if ( DashBlocked( player, travel ) )
+				{
+					// On launch the caller still has to start the dash animation before it can transition.
+					if ( launching ) await clock.FixedUpdate();
+					break;
+				}
 				if ( !player.IsProxy ) player.Body.Velocity = direction * dash.Speed;
+				launching = false;
+				pendingTicks += player.Scene.FixedDelta * 30;
+				await clock.FixedUpdate();
 			}
 		}
 		finally
