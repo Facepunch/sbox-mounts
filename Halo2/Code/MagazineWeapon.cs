@@ -9,6 +9,7 @@ public class MagazineWeapon : HandheldWeapon
 	double burstRoundAt;
 	GameObject burstAttacker;
 	double? transferAt;
+	double holsterTransferAt;
 	bool transferred;
 	double? emptyRoundAt;
 	double barrelIdleAt;
@@ -127,6 +128,8 @@ public class MagazineWeapon : HandheldWeapon
 					var cue = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" );
 					int ticks = cue?.Frame is int key && key >= 0 && key <= clip.Frames ? key : clip.Frames;
 					transferAt = Time.NowDouble + (System.Math.Max( 0, ticks - 1 ) + startTick) / 30.0;
+					// Holstering transfers the rounds once fewer than half the transfer ticks remain.
+					holsterTransferAt = Time.NowDouble + (ticks / 2 + 1 + startTick) / 30.0;
 				}
 			}
 		}
@@ -136,15 +139,25 @@ public class MagazineWeapon : HandheldWeapon
 	protected override int TakeReserveAmmo( BaseAmmoResource ammoType, int amount ) =>
 		IsReloading && transferred && ammoType == PrimaryAmmoType ? 0 : base.TakeReserveAmmo( ammoType, amount );
 
+	void TransferMagazine()
+	{
+		transferAt = null;
+		Clip1 += TakeReserveAmmo( PrimaryAmmoType, ReloadFillTarget - Clip1 );
+		transferred = true;
+	}
+
+	protected override bool OnHolstering( BaseInventoryItem next )
+	{
+		if ( Networking.IsHost && IsReloading && transferAt.HasValue && Time.NowDouble >= holsterTransferAt )
+			TransferMagazine();
+		return base.OnHolstering( next );
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
 		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
-		{
-			transferAt = null;
-			Clip1 += TakeReserveAmmo( PrimaryAmmoType, ReloadFillTarget - Clip1 );
-			transferred = true;
-		}
+			TransferMagazine();
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
 			FirePrimary( burstAttacker );
 		if ( IsReloading ) emptyRoundAt = null;
