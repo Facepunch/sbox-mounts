@@ -8,7 +8,12 @@ namespace Source1;
 [Alias( "Source1.SourceViewModelMotion", "SourceViewModelMotion" )]
 public sealed class ViewModelMotion : Component
 {
-	const double SwayDelay = 0.1;
+	[ConVar( "cl_wpn_sway_interp", Help = "Seconds of view angle history used for mounted weapon sway. Zero disables sway." )]
+	public static float SwayDelay { get; set; } = 0.1f;
+
+	[ConVar( "cl_wpn_sway_scale", Help = "Strength of mounted weapon sway when turning." )]
+	public static float SwayScale { get; set; } = 1.5f;
+
 	const float BobCycle = 0.45f;
 	double _lastTime = double.NaN;
 	double _lastBobTime = double.NaN;
@@ -38,6 +43,8 @@ public sealed class ViewModelMotion : Component
 			ApplyBob( ref eye, ref angles, owner.Velocity, now );
 
 		var rotation = angles.ToRotation();
+		eye.Rotation = rotation;
+		if ( SwayDelay <= 0 || !float.IsFinite( SwayDelay ) ) return;
 		if ( !double.IsFinite( _lastTime ) || now < _lastTime )
 		{
 			_history.Clear();
@@ -53,7 +60,7 @@ public sealed class ViewModelMotion : Component
 
 		var turn = angles - lagged.Angles();
 		if ( mirrored ) turn.yaw = -turn.yaw;
-		eye.Position += rotation * ((Vector3.Forward - turn.Forward) * 1.5f);
-		eye.Rotation = rotation;
+		if ( float.IsFinite( SwayScale ) )
+			eye.Position += rotation * ((Vector3.Forward - turn.Forward) * SwayScale);
 	}
 }
