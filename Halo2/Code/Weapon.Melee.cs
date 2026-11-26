@@ -48,7 +48,8 @@ public abstract partial class Weapon
 		foreach ( var index in indices )
 			ContactSounds.Cues[index].Play( position, ref contactSeed, null );
 	}
-	protected virtual bool CanUseHeldWeapon => Inventory is not {} inventory || inventory.ActiveItem == this;
+	protected bool IsHolstered => Inventory is {} inventory && inventory.ActiveItem != this;
+	protected bool CanUseHeldWeapon => !PuttingAway && !IsHolstered;
 
 	public override bool CanReload() => !MeleeActive && CanUseHeldWeapon && base.CanReload();
 	public override bool CanPrimaryAttack() => !MeleeActive && CanUseHeldWeapon && base.CanPrimaryAttack();

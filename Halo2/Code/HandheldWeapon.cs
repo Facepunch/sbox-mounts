@@ -49,6 +49,8 @@ public abstract class HandheldWeapon : Weapon
 		return time;
 	}
 
+	protected override void PlayPutAway() => ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "put_away" );
+
 	protected override void OnDisabled()
 	{
 		lastAutomaticRound = null;

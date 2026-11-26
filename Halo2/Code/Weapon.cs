@@ -254,6 +254,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnDisabled()
 	{
+		ClearPutAway();
 		dryTriggerHeld = false;
 		SetZoom( 0, audible: false );
 		ReleaseHolderAnimator();

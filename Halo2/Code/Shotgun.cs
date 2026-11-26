@@ -158,8 +158,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 	}
 
 	bool triggerConsumed;
-	bool IsHolstered => Inventory is {} inventory && inventory.ActiveItem != this;
-	protected override bool CanUseHeldWeapon => !IsHolstered && !PuttingAway;
 
 	protected override void OnControl()
 	{
@@ -597,83 +595,10 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 		PlayHolderOverlay( "ready" );
 	}
 
-	BaseInventoryItem requestedItem;
-	int putAwayFrames, putAwayDelay;
-	internal bool PuttingAway => putAwayFrames > 0;
-	float putAwayFrame;
-	bool finishingSwitch;
-
-	protected override bool OnHolstering( BaseInventoryItem next )
-	{
-		if ( finishingSwitch ) return true;
-		if ( PuttingAway )
-		{
-			requestedItem = next;
-			return false;
-		}
-		if ( HolderAnimator?.GetOverlayClip( "put_away" ) is not { Frames: > 0 } clip )
-			return base.OnHolstering( next );
-		if ( Networking.IsHost )
-		{
-			requestedItem = next;
-			CancelReload();
-			BeginPutAway( clip.Frames );
-		}
-		return false;
-	}
-
-	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void BeginPutAway( int frames )
-	{
-		if ( !IsHeld || IsHolstered ) return;
-		putAwayFrames = frames;
-		putAwayDelay = 2; // The unit's put-away channel starts with two delayed updates.
-		putAwayFrame = 0;
-		HolderAnimator?.SampleWeaponOverlay( "put_away", 0 );
-		ViewModel?.GetComponent<ShotgunViewModel>()?.PutAway();
-	}
-
-	protected override void OnFixedUpdate()
-	{
-		base.OnFixedUpdate();
-		if ( !PuttingAway ) return;
-		if ( putAwayDelay > 0 )
-		{
-			putAwayDelay--;
-			return;
-		}
-		float step = Time.Delta * 30;
-		putAwayFrame += step;
-		HolderAnimator?.SampleWeaponOverlay( "put_away", (putAwayFrame / System.Math.Max( 1, putAwayFrames - 1 )).Clamp( 0, 1 ) );
-		// The unit releases its secondary channel when the next step would reach the clip end.
-		if ( !Networking.IsHost || putAwayFrame + step < putAwayFrames - 0.0001f ) return;
-		var next = requestedItem;
-		finishingSwitch = true;
-		try
-		{
-			if ( next is null || (next.IsValid() && next.Inventory == Inventory) )
-				Inventory?.Switch( next, next is null );
-		}
-		finally
-		{
-			finishingSwitch = false;
-			if ( PuttingAway ) EndPutAway();
-		}
-	}
-
-	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void EndPutAway() => ClearPutAway();
-
-	void ClearPutAway()
-	{
-		if ( PuttingAway ) HolderAnimator?.StopWeaponOverlay( "put_away" );
-		putAwayFrames = 0;
-		requestedItem = null;
-	}
+	protected override void PlayPutAway() => ViewModel?.GetComponent<ShotgunViewModel>()?.PutAway();
 
 	protected override void OnDisabled()
 	{
-		ClearPutAway();
 		firstInsertAt = null;
 		chamberRenderer = null;
 		base.OnDisabled();
@@ -681,7 +606,6 @@ public sealed partial class Shotgun : Weapon, PlayerController.IEvents
 
 	protected override void OnHolstered()
 	{
-		ClearPutAway();
 		HolderAnimator?.StopWeaponOverlay( "ready" );
 		triggerConsumed = false;
 		SetNextPrimaryFire( BarrelRecoveryTime );

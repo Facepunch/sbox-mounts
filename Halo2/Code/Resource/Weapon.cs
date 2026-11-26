@@ -91,9 +91,8 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		return result;
 	}
 
-	void ConfigureMelee( Weapon gun )
+	void ConfigureMelee( Weapon gun, TagEntry globals )
 	{
-		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
 		gun.MeleeHalfExtents = new Vector2( Float( Header + 0x1b0 ), Float( Header + 0x1b4 ) ) * 120;
 		gun.MeleeRange = Float( Header + 0x1b8 ) * 120;
 		var strike = ReadMeleeDamage( Address( Reference( Header + 0x1bc ) ), globals );
@@ -198,7 +197,17 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 			gun.ZoomInSound = ZoomSound( Header + 0x26c );
 			gun.ZoomOutSound = ZoomSound( Header + 0x274 );
 		}
-		ConfigureMelee( gun );
+		var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
+		int players = Address( globals ) + 0x138;
+		if ( map.ReadInt32( players ) > 0 && Reference( Block( players ) + 0xb0 ) is { PrimaryClass: "dpib", DataSize: > 0 } body
+			&& ModelPath( Host, map, body ) is {} path && Host.GetByPath( path ) is Halo2ModelLoader model
+			&& model.GetAnimationContext( "combat", gun.AnimationClass, gun.AnimationType )?.Overlays.TryGetValue( "put_away", out int index ) == true
+			&& model.GetClipInfo( index ) is {} clip )
+		{
+			gun.DefaultPutAwayFrames = clip.Frames;
+			gun.DefaultPutAwayRelease = Weapon.ReleaseFrame( clip );
+		}
+		ConfigureMelee( gun, globals );
 		return gun;
 	}
 

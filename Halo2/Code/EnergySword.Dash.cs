@@ -178,6 +178,12 @@ public sealed partial class EnergySword
 		}
 	}
 
+	protected override void PlayPutAway()
+	{
+		if ( CanInterruptLunge ) InterruptMelee();
+		base.PlayPutAway();
+	}
+
 	protected override void OnHolstered()
 	{
 		if ( CanInterruptLunge ) InterruptMelee();
