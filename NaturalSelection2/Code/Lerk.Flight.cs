@@ -7,7 +7,7 @@ public sealed partial class Lerk
 {
 	bool flapPressed, gliding, flying, lowCruise;
 	TimeUntil checkLocations;
-	TimeSince cruiseChanged;
+	TimeSince cruiseChanged, lastAcceleration;
 	bool forwardBlocked;
 	MapLocations flightLocations;
 	Vector3 flightDirection;
@@ -93,12 +93,17 @@ public sealed partial class Lerk
 		return v;
 	}
 
-	static (bool Jump, bool Dive) FlightCommands( bool inCombat, bool grounded, bool held, float distance, float speed,
-		float height, float headroom, float sinceFlap )
+	static bool ShouldAccelerate( bool grounded, bool held, float speed, Vector3 velocity, Vector3 offset, float sinceAcceleration, bool escaping )
+	{
+		if ( held || offset.LengthSquared <= 16 || sinceAcceleration <= (escaping ? 0.25f : 0.45f) ) return false;
+		return speed < 0.8f || grounded && Vector3.Dot( velocity.Normal, offset.Normal ) > 0.2f;
+	}
+
+	static (bool Jump, bool Dive) FlightCommands( bool inCombat, bool grounded, bool held, bool accelerate, float speed, float height, float headroom )
 	{
 		if ( grounded ) return (!held, false);
 		float cap = inCombat ? 2.1f : 4.5f;
-		bool jump = !held && (height is > 0 and < 0.6f || distance > 4 && speed < 0.8f && sinceFlap > 0.45f);
+		bool jump = accelerate || !held && height is > 0 and < 0.6f;
 		bool aboveCap = height > cap || headroom < 0.7f;
 		bool glide = height < cap - 0.3f && speed > 0.8f;
 		return (glide || jump && !aboveCap, height > cap + 0.4f || headroom < 0.35f);
@@ -136,7 +141,9 @@ public sealed partial class Lerk
 		float height = floor.Hit ? (WorldPosition.z - floor.EndPosition.z) / Scale : 1;
 		float headroom = (ceiling.EndPosition.z - EyePosition.z) / Scale;
 		float speed = velocity.Length / (grounded ? 2.8f : 13);
-		var (jump, dive) = FlightCommands( InCombat, grounded, flapPressed, offset.Length / Scale, speed, height, headroom, lastFlap );
+		bool accelerate = ShouldAccelerate( grounded, flapPressed, speed, velocity, offset / Scale, lastAcceleration, InCombat && retreatHive.IsValid() );
+		if ( accelerate ) lastAcceleration = 0;
+		var (jump, dive) = FlightCommands( InCombat, grounded, flapPressed, accelerate, speed, height, headroom );
 		bool flap = jump && !flapPressed && !gliding && energy > 3;
 		flapPressed = jump;
 		if ( grounded && !flap ) { ReleaseFlight( body ); return; }
