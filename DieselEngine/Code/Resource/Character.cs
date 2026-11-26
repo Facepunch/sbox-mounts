@@ -37,6 +37,8 @@ sealed partial class PaydayCharacter
 		orientation = scripted ? obj.Element( "diesel" ).Attribute( "orientation_object" ) : "root_point";
 		File = new( db.Find( "model", objectPath ) );
 		unitGeometry = UnitGeometry.Read( unit, obj );
+		bool bulldozer = npcPhysics && unitPath == "units/characters/enemies/tank/tank";
+		if ( bulldozer ) unitGeometry.Graphics.Add( IdString.Hash( "g_glass_hole" ) );
 		var geometry = File.ReadGeometry( unitGeometry.Graphics, 0, raw: true ).ToArray();
 		var names = Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' )
 			.Distinct().GroupBy( IdString.Hash ).ToDictionary( g => g.Key, g => g.First() );
@@ -116,16 +118,19 @@ sealed partial class PaydayCharacter
 				mesh.Bounds = npcPhysics
 					? new BBox( new Vector3( -45, -45, -10 ), new Vector3( 45, 45, 85 ) )
 					: BBox.FromPoints( positions );
-				builder.AddMesh( mesh );
+				if ( bulldozer && (g.Name == IdString.Hash( "g_glass" ) || g.Name == IdString.Hash( "g_glass_hole" )) )
+					builder.AddMesh( mesh, "visor", g.Name == IdString.Hash( "g_glass" ) ? 0 : 1 );
+				else if ( bulldozer ) builder.AddMesh( mesh, "body", 0 );
+				else builder.AddMesh( mesh );
 			}
 		}
 		if ( Bones.Any( b => b.Name == "a_weapon_right_front" ) )
 			builder.AddAttachment( "hold_r", Vector3.Zero, Rotation.Identity, "a_weapon_right_front" );
-		if ( npcPhysics ) AddPhysics( builder );
+		if ( npcPhysics ) AddPhysics( builder, bulldozer );
 		Model = builder.Create();
 	}
 
-	void AddPhysics( ModelBuilder builder )
+	void AddPhysics( ModelBuilder builder, bool bulldozer )
 	{
 		var hitboxes = builder.AddHitboxSet( "default" );
 		// Capsule proxies fit the authored joints; living collision is supplied by the prefab.
@@ -142,14 +147,35 @@ sealed partial class PaydayCharacter
 		{
 			var b = bodies[i]; var bind = Bone( b.Bone );
 			var end = b.End is null ? Vector3.Up * 3 : bind.PointToLocal( Bone( b.End ).Position );
-			hitboxes.AddCapsule( b.Bone, b.Bone, new Capsule( Vector3.Zero, end, b.Radius ) )
-				.WithSurface( "flesh" ).AddTag( b.Bone == "Head" ? "head" : "body" );
+			if ( !bulldozer || b.Bone != "Head" )
+				hitboxes.AddCapsule( b.Bone, b.Bone, new Capsule( Vector3.Zero, end, b.Radius ) )
+					.WithSurface( "flesh" ).AddTag( b.Bone == "Head" ? "head" : "body" );
 			builder.AddBody( i < 2 ? 15 : 5, Surface.FindByName( "flesh" ), b.Bone )
 				.SetBindPose( bind ).SetDamping( .4f, 2 ).AddCapsule( new Capsule( Vector3.Zero, end, b.Radius ) );
 			if ( b.Parent is null ) continue;
 			int parent = Array.FindIndex( bodies, x => x.Bone == b.Parent );
 			builder.AddBallJoint( parent, i, Bone( b.Parent ).ToLocal( bind ), Transform.Zero )
 				.WithSwingLimit( i < 3 ? 35 : 85 ).WithTwistLimit( -30, 30 );
+		}
+		if ( bulldozer )
+		{
+			var head = Bone( "Head" );
+			var shapes = new Dictionary<ulong, string>
+			{
+				[IdString.Hash( "c_glass" )] = "sphere",
+				[IdString.Hash( "c_helmet" )] = "sphere"
+			};
+			var parts = File.ReadCollisionPrimitives( shapes, IdString.Hash( "root_point" ) )
+				.Select( p => (p.Name, p.Points) ).Concat( File.ReadGeometry( shapes.Keys.ToHashSet(), IdString.Hash( "root_point" ) )
+					.Select( p => (p.Name, Points: p.Positions) ) ).ToArray();
+			if ( parts.Length != 2 ) throw new InvalidDataException( "Bulldozer visor/helmet collision is missing." );
+			foreach ( var shape in parts )
+			{
+				var bounds = BBox.FromPoints( shape.Points.Select( p => head.PointToLocal( p ) ).ToArray() );
+				string tag = shape.Name == IdString.Hash( "c_glass" ) ? "payday_visor" : "payday_helmet";
+				hitboxes.AddSphere( tag, "Head", new Sphere( bounds.Center, bounds.Size.x / 2 ) )
+					.WithSurface( tag == "payday_visor" ? "glass" : "metal" ).AddTag( tag );
+			}
 		}
 	}
 

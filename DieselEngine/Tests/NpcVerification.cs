@@ -31,7 +31,7 @@ static class NpcVerification
 					var head = model.NodePose( pose, "Head" ) * root;
 					float height = head.Translation.Z / 2.54f;
 					if ( !float.IsFinite( height ) || height < -5 || height > 90
-						|| (name == "idle" && height < 45) )
+						|| (name == "idle" && height < (definition.Id == "shield" ? 35 : 45)) )
 						throw new Exception( $"{definition.Id}/{name}: invalid posed head height {height}." );
 				}
 			}

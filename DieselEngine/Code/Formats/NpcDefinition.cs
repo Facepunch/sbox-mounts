@@ -37,7 +37,9 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 		new( "murkywater", "Murkywater mercenary", "units/characters/enemies/murky_water1/murky_water1", "amcar4", Health: 200, Faction: "enemy", HostileToPlayer: true ),
 		new( "murkywater_2", "Murkywater mercenary (variant 2)", "units/characters/enemies/murky_water2/murky_water2", "amcar4", Health: 200, Faction: "enemy", HostileToPlayer: true ),
 		new( "gangster", "Gangster", "units/characters/enemies/gangster1/gangster1", "crosskill", Faction: "enemy", HostileToPlayer: true ),
-		new( "gangster_2", "Gangster (variant 2)", "units/characters/enemies/gangster2/gangster2", "ak", Faction: "enemy", HostileToPlayer: true )
+		new( "gangster_2", "Gangster (variant 2)", "units/characters/enemies/gangster2/gangster2", "ak", Faction: "enemy", HostileToPlayer: true ),
+		new( "shield", "Shield", "units/characters/enemies/shield/shield", "b9s", Health: 100, HostileToPlayer: true ),
+		new( "bulldozer", "Bulldozer", "units/characters/enemies/tank/tank", "reinbeck", Health: 1000, HostileToPlayer: true )
 	];
 	public static NpcDefinition Get( string id ) => All.First( n => n.Id == id );
 
@@ -70,6 +72,20 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 	}
 	public Dictionary<string, string> Clips()
 	{
+		if ( Id == "shield" ) return new()
+		{
+			["idle"] = "anims/shared/boss/shield/cbt_crh_idle",
+			["reload"] = "anims/shared/boss/shield/cbt_crh_reload",
+			["walk"] = "anims/shared/boss/shield/cbt_crh_walk_fwd",
+			["run"] = "anims/shared/boss/shield/cbt_crh_run_fwd"
+		};
+		if ( Id == "bulldozer" ) return new()
+		{
+			["idle"] = "anims/shared/boss/tank/cbt_std_idle",
+			["reload"] = "anims/shared/boss/tank/cbt_std_shotgun_reload",
+			["walk"] = "anims/shared/boss/tank/cbt_std_walk_fwd_slow",
+			["run"] = "anims/shared/boss/tank/cbt_std_run_fwd"
+		};
 		if ( Civilian ) return new()
 		{
 			["idle"] = "anims/shared/unarmed/neutral/" + (Female ? "ntl_irp_5_idle_b1_var1" : "ntl_irp_4_idle_b1_var1"),

@@ -5,7 +5,7 @@ namespace Diesel;
 
 /// <summary>Local law enforcement escalates against detected offenders, not every player.</summary>
 [Title( "PAYDAY Armed NPC" ), Group( "PAYDAY" )]
-public sealed class PaydayCombatNpc : BaseCombatNpc
+public class PaydayCombatNpc : BaseCombatNpc
 {
 	public PaydayCombatNpc() { Faction = Factions.Ally; }
 	[Property] public bool InitiallyHostile { get; set; }
@@ -13,6 +13,7 @@ public sealed class PaydayCombatNpc : BaseCombatNpc
 	[Property] public bool UseRadio { get; set; } = true;
 	[Property] public float RadioRange { get; set; } = 1800;
 	[Property] public float RadioDelay { get; set; } = 2.5f;
+	[Property] public PaydayShield BallisticShield { get; set; }
 	[Sync( SyncFlags.FromHost )] public bool CallingBackup { get; private set; }
 	public Vector3? ReportedPosition { get; private set; }
 	readonly HashSet<GameObject> radioKnown = [];
@@ -107,6 +108,12 @@ public sealed class PaydayCombatNpc : BaseCombatNpc
 		radioRetry = 5;
 		Escalate( e.Instigator );
 		base.OnDamaged( e );
+	}
+
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		if ( BallisticShield.IsValid() ) BallisticShield.Drop();
+		base.OnDeath( e );
 	}
 
 	void UpdateRadio()

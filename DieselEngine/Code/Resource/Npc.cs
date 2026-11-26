@@ -11,6 +11,12 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 		var model = await ResourceLibrary.LoadAsync<Model>( $"mount://payday/{definition.Model}.vmdl" );
 		if ( model is null || model.IsError ) throw new InvalidDataException( $"Missing skeletal model for {definition.Id}." );
 		GameObject weapon = null;
+		Model shieldModel = null;
+		SoundEvent visorSound = null;
+		if ( definition.Id == "bulldozer" && Host.SoundPath( "bulldozer_visor_shatter" ) is { } soundPath )
+			visorSound = await ResourceLibrary.LoadAsync<SoundEvent>( soundPath );
+		if ( definition.Id == "shield" )
+			shieldModel = await ResourceLibrary.LoadAsync<Model>( "mount://payday/units/weapons/shield/shield.unit.vmdl" );
 		if ( definition.Weapon is { } id )
 		{
 			string path = $"mount://payday/{WeaponDefinition.Get( id ).Root}";
@@ -26,14 +32,27 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 			root.Tags.Add( "npc" );
 			var renderer = new GameObject( true, "Character" ) { Parent = root }.AddComponent<SkinnedModelRenderer>();
 			renderer.Model = model; renderer.UseAnimGraph = false; renderer.CreateBoneObjects = true;
+			root.AddComponent<ModelHitboxes>().Renderer = renderer;
 			BaseNpc npc;
 			if ( definition.Civilian ) npc = root.AddComponent<PaydayCivilian>();
 			else
 			{
-				var combat = root.AddComponent<PaydayCombatNpc>();
+				var combat = definition.Id == "bulldozer" ? root.AddComponent<PaydayBulldozer>() : root.AddComponent<PaydayCombatNpc>();
+				if ( combat is PaydayBulldozer bulldozer ) bulldozer.VisorBreakSound = visorSound;
 				combat.Faction = definition.Faction;
 				combat.InitiallyHostile = definition.HostileToPlayer;
 				combat.RescueCivilians = definition.Faction == Factions.Ally;
+				if ( definition.Id is "shield" or "bulldozer" ) combat.RescueCivilians = false;
+				if ( shieldModel is not null )
+				{
+					var shield = new GameObject( true, "Ballistic shield" ) { Parent = root };
+					shield.AddComponent<ModelRenderer>().Model = shieldModel;
+					var collision = shield.AddComponent<ModelCollider>();
+					collision.Model = shieldModel; collision.Static = false;
+					shield.AddComponent<Rigidbody>().MotionEnabled = false;
+					combat.BallisticShield = shield.AddComponent<PaydayShield>();
+					combat.BallisticShield.Carrier = renderer;
+				}
 				combat.WeaponChoices = [weapon];
 				combat.IdleBehaviour = BaseCombatNpc.IdleBehaviours.HoldPost;
 				npc = combat;
