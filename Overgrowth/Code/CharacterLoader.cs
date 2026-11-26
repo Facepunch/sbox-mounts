@@ -30,6 +30,26 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	CharacterAnimationLibrary animationLibrary;
 	Vector3? modelCenter;
 	SkeletonData animationRig;
+	internal SkeletonData BodyShapeRig => animationRig;
+	GpuBuffer<uint> bodyShapeIndices;
+	internal GpuBuffer<uint> BodyShapeIndices
+	{
+		get
+		{
+			if ( bodyShapeIndices is not null ) return bodyShapeIndices;
+			var ids = animationRig.BoneIds.Select( b => (uint)b.x | (uint)b.y << 8 | (uint)b.z << 16 | (uint)b.w << 24 ).ToArray();
+			bodyShapeIndices = new( ids.Length );
+			bodyShapeIndices.SetData( ids );
+			return bodyShapeIndices;
+		}
+	}
+
+	protected override void Shutdown()
+	{
+		bodyShapeIndices?.Dispose();
+		bodyShapeIndices = null;
+		animationRig = null;
+	}
 	Dictionary<string, int> attachmentBones;
 	int[] attachmentParents, attachmentSymmetry;
 	internal Dictionary<int, Vector3> AttachmentCenters { get; private set; } = [];
@@ -75,7 +95,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	internal static CharacterLoader FromModel( Model model )
 	{
 		if ( model is null || Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( model.ResourcePath ) is not CharacterLoader loader || !loader.IsGuard ) return null;
-		if ( loader.Surface is null || loader.inertias is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
+		if ( loader.animationRig is null || loader.Surface is null || loader.inertias is null || loader.forceLevers is null || loader.bodyPoints is not { Length: > 0 } ) loader.RestoreBodyRig( model );
 		return loader;
 	}
 

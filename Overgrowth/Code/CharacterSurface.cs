@@ -36,13 +36,24 @@ internal sealed partial class CharacterSurface
 			palette[i] = pose.ToWorld( inverseBind[i] );
 		}
 		var posed = new Vector3[vertices.Length];
+		var shape = renderer.GetComponent<CharacterProportions>()?.GetShape( renderer.Model );
 		for ( int i = 0; i < posed.Length; i++ )
 		{
 			var v = vertices[i];
 			for ( int j = 0; j < 4; j++ )
 			{
 				float weight = v.Weights[j];
-				if ( weight > 0f ) posed[i] += palette[(int)v.Bones[j]].PointToWorld( v.Position ) * weight;
+				if ( weight <= 0f ) continue;
+				int bone = (int)v.Bones[j];
+				var point = v.Position;
+				if ( shape is not null )
+				{
+					var center = shape[2 * bone];
+					var axis = (Vector3)shape[2 * bone + 1];
+					var delta = point - (Vector3)center;
+					point += (delta - axis * axis.Dot( delta )) * center.w;
+				}
+				posed[i] += palette[bone].PointToWorld( point ) * weight;
 			}
 		}
 

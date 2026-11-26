@@ -37,10 +37,59 @@ struct PixelInput
 VS
 {
 	#include "common/vertex.hlsl"
+	#if D_CS_VERTEX_ANIMATION
+		bool g_bBodyProportions < Attribute( "BodyProportions" ); Default( 0 ); >;
+		StructuredBuffer<uint> g_bodyBoneIds < Attribute( "BodyBoneIds" ); >;
+		StructuredBuffer<float4> g_bodyBoneShape < Attribute( "BodyBoneShape" ); >;
+
+		void ApplyBodyProportions( VertexInput v, inout PixelInput p )
+		{
+			uint packed = g_bodyBoneIds[uint( v.nVertexCacheIndex )];
+			float3x4 basePose = 0, correction = 0;
+			[unroll] for ( uint i = 0; i < 4; ++i )
+			{
+				float weight = v.vBlendWeight[i];
+				if ( weight <= 0 ) continue;
+				uint bone = (packed >> (8 * i)) & 255;
+				float4 center = g_bodyBoneShape[2 * bone];
+				float3 axis = g_bodyBoneShape[2 * bone + 1].xyz;
+				float3x4 skin = GetTransformMatrix( v.nInstanceTransformID, bone ) * weight;
+				basePose += skin;
+				// Native display scaling widens the plane perpendicular to the bone.
+				[unroll] for ( uint row = 0; row < 3; ++row )
+				{
+					float3 radial = (skin[row].xyz - dot( skin[row].xyz, axis ) * axis) * center.w;
+					correction[row] += float4( radial, -dot( radial, center.xyz ) );
+				}
+			}
+
+			// The vertex cache already includes facial and hand morphs. Recover their
+			// object-space displacement from the difference with the unmodified vertex.
+			float3 rest = v.vPositionOs;
+			float3x3 linear = (float3x3)basePose;
+			float3 c0 = cross( linear[1], linear[2] );
+			float det = dot( linear[0], c0 );
+			if ( abs( det ) > 1e-7 )
+			{
+				float3 delta = p.vPositionWs - mul( basePose, float4( rest, 1 ) );
+				rest += (delta.x * c0 + delta.y * cross( linear[2], linear[0] ) + delta.z * cross( linear[0], linear[1] )) / det;
+			}
+			p.vPositionWs += mul( correction, float4( rest, 1 ) );
+			p.vPositionPs = Position3WsToPs( p.vPositionWs );
+			// envobject.vert interpolates the first two native bone axes. Native X/Y
+			// correspond to mounted Y/Z. Reuse the object-space normal map varyings.
+			float3x3 display = linear + (float3x3)correction;
+			p.vNormalOs = mul( display, float3( 0, 1, 0 ) );
+			p.vTangentOs = float4( mul( display, float3( 0, 0, 1 ) ), 2 );
+		}
+	#endif
 	PixelInput MainVs( VertexInput v )
 	{
 		PixelInput i = ProcessVertex( v );
 		VS_DecodeObjectSpaceNormalAndTangent( v, i.vNormalOs, i.vTangentOs );
+		#if D_CS_VERTEX_ANIMATION
+			if ( g_bBodyProportions ) ApplyBodyProportions( v, i );
+		#endif
 		i.vDetailUv = v.vTexCoord2;
 		i.vTint = GetExtraPerInstanceShaderData( v.nInstanceTransformID ).vTint;
 		return FinalizeVertex( i );
@@ -143,6 +192,14 @@ PS
 		float3 baseNormal = g_flTangentSpace > 0.5 ? UnpackTangent( normal )
 			: ObjectToTangent( normalize( float3( 1 - 2 * normal.g, 2 * normal.r - 1, 2 * normal.b - 1 ) ), i );
 		float3 worldNormal = TangentToWorld( baseNormal, i );
+		if ( i.vTangentOs.w > 1.5 )
+		{
+			// envobject.frag reconstructs the third axis after interpolation.
+			float3 nativeX = i.vNormalOs, nativeY = i.vTangentOs.xyz;
+			float3 n = nativeX * (2 * normal.r - 1) + nativeY * (2 * normal.b - 1)
+				+ cross( nativeX, nativeY ) * (1 - 2 * normal.g);
+			if ( dot( n, n ) > 1e-12 ) worldNormal = normalize( n );
+		}
 		float3 tint = g_vColorTint * i.vTint.rgb;
 
 		#if S_DETAIL

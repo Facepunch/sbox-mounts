@@ -231,6 +231,9 @@ internal sealed class LevelLoader( string levelPath ) : SceneLoader<GameMount>
 						case "fall_damage_mult" when !node.Element( "parameters" ).Elements( "parameter" ).Any( x => x.Attribute( "name" ) == "Fall Damage Multiplier" ):
 						case "Fall Damage Multiplier": fighter.FallDamageMultiplier = Math.Max( 0.001f, value ); break;
 						case "Wearing Metal Armor": fighter.MetalArmor = value != 0f; break;
+						case "Fat" when value != 0.5f: fighter.Renderer.GetOrAddComponent<CharacterProportions>().Fat = value; break;
+						case "Muscle" when value != 0.5f: fighter.Renderer.GetOrAddComponent<CharacterProportions>().Muscle = value; break;
+						case "Ear Size" when value != 1f: fighter.Renderer.GetOrAddComponent<CharacterProportions>().EarSize = value; break;
 						case "Cannot Be Disarmed": fighter.CannotBeDisarmed = value != 0f; break;
 						case "Character Scale" when value > 0f:
 							actor.LocalScale = value;

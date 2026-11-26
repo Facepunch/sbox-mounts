@@ -314,6 +314,7 @@ public sealed partial class RabbitGuard
 			}
 		}
 		Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
+		Renderer.GetComponent<CharacterProportions>()?.CopyTo( corpse );
 		foreach ( var witness in Scene.GetAllComponents<RabbitGuard>() )
 			witness.FollowCorpse( GameObject, corpse );
 		corpse.GetOrAddComponent<RagdollHands>().Begin( Renderer, Downed ? Renderer.GetComponent<RagdollHands>()?.Current : null );
