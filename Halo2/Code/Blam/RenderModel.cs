@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 
@@ -20,224 +21,78 @@ public class RenderModelTag
 	{
 		Nodes = ReadNodes( map, tag );
 		if ( tag.DataSize == 0 ) return;
-
-		using var reader = map.GetTagDataReader( tag );
-
-		// BoundingBoxes at +20 (TagBlock = count:4 + pointer:4)
-		reader.BaseStream.Seek( 20, SeekOrigin.Begin );
-		int bbCount = reader.ReadInt32();
-		int bbPtr = reader.ReadInt32();
-
-		// Regions at +28
-		int regCount = reader.ReadInt32();
-		int regPtr = reader.ReadInt32();
-
-		// Sections at +36
-		int secCount = reader.ReadInt32();
-		int secPtr = reader.ReadInt32();
-
-		// Shaders at +96
-		reader.BaseStream.Seek( 96, SeekOrigin.Begin );
-		int shaderCount = reader.ReadInt32();
-		int shaderPtr = reader.ReadInt32();
-
-		// Read bounding boxes (56 bytes each)
-		if ( bbCount > 0 && bbPtr != 0 )
+		var header = map.ReadSpan( map.VaToOffset( (int)tag.DataVirtualAddress ), checked((int)tag.DataSize) );
+		ReadBlock( map, header[20..], 56, BoundingBoxes, row => new BoundingBox
 		{
-			int bbOff = map.VaToOffset( bbPtr );
-			for ( int i = 0; i < bbCount; i++ )
+			XMin = Float( row, 0 ), XMax = Float( row, 4 ),
+			YMin = Float( row, 8 ), YMax = Float( row, 12 ),
+			ZMin = Float( row, 16 ), ZMax = Float( row, 20 ),
+			UMin = Float( row, 24 ), UMax = Float( row, 28 ),
+			VMin = Float( row, 32 ), VMax = Float( row, 36 )
+		} );
+		ReadBlock( map, header[28..], 16, Regions, row =>
+		{
+			var region = new Region { StringId = Int( row, 0 ) };
+			ReadBlock( map, row[8..], 16, region.Permutations, p => new Permutation
 			{
-				var bb = ReadBoundingBox( map, bbOff + i * 56 );
-				BoundingBoxes.Add( bb );
-			}
-		}
-
-		// Read regions (16 bytes each)
-		if ( regCount > 0 && regPtr != 0 )
-			ReadRegions( map, regPtr, regCount );
-
-		// Read sections (92 bytes each)
-		if ( secCount > 0 && secPtr != 0 )
-			ReadSections( map, secPtr, secCount );
-
-		// Read shader references (32 bytes each on MCC)
-		if ( shaderCount > 0 && shaderPtr != 0 )
-			ReadShaders( map, shaderPtr, shaderCount );
-	}
-
-	static BoundingBox ReadBoundingBox( MapFile map, int offset )
-	{
-		// BoundingBoxBlock: 56 bytes
-		// +0: XBounds (float min, float max)
-		// +8: YBounds, +16: ZBounds, +24: UBounds, +32: VBounds
-		using var r = map.OpenReader( offset, 56 );
-
-		return new BoundingBox
+				StringId = Int( p, 0 ), PotatoSectionIndex = Short( p, 4 ), SuperLowSectionIndex = Short( p, 6 ),
+				LowSectionIndex = Short( p, 8 ), MediumSectionIndex = Short( p, 10 ),
+				HighSectionIndex = Short( p, 12 ), SuperHighSectionIndex = Short( p, 14 )
+			} );
+			return region;
+		} );
+		ReadBlock( map, header[36..], 92, Sections, row =>
 		{
-			XMin = r.ReadSingle(), XMax = r.ReadSingle(),
-			YMin = r.ReadSingle(), YMax = r.ReadSingle(),
-			ZMin = r.ReadSingle(), ZMax = r.ReadSingle(),
-			UMin = r.ReadSingle(), UMax = r.ReadSingle(),
-			VMin = r.ReadSingle(), VMax = r.ReadSingle()
-		};
-	}
-
-	void ReadRegions( MapFile map, int ptr, int count )
-	{
-		int baseOff = map.VaToOffset( ptr );
-		for ( int i = 0; i < count; i++ )
-		{
-			int off = baseOff + i * 16;
-			using var r = map.OpenReader( off, 16 );
-
-			int nameStringId = r.ReadInt32();
-			r.ReadInt32(); // padding
-
-			// Permutations TagBlock at +8
-			int permCount = r.ReadInt32();
-			int permPtr = r.ReadInt32();
-
-			var region = new Region { StringId = nameStringId };
-
-			if ( permCount > 0 && permPtr != 0 )
-			{
-				int permOff = map.VaToOffset( permPtr );
-				for ( int j = 0; j < permCount; j++ )
-				{
-					using var pr = map.OpenReader( permOff + j * 16, 16 );
-
-					var perm = new Permutation
-					{
-						StringId = pr.ReadInt32(),
-						PotatoSectionIndex = pr.ReadInt16(),
-						SuperLowSectionIndex = pr.ReadInt16(),
-						LowSectionIndex = pr.ReadInt16(),
-						MediumSectionIndex = pr.ReadInt16(),
-						HighSectionIndex = pr.ReadInt16(),
-						SuperHighSectionIndex = pr.ReadInt16()
-					};
-					region.Permutations.Add( perm );
-				}
-			}
-
-			Regions.Add( region );
-		}
-	}
-
-	void ReadSections( MapFile map, int ptr, int count )
-	{
-		int baseOff = map.VaToOffset( ptr );
-		for ( int i = 0; i < count; i++ )
-		{
-			int off = baseOff + i * 92;
-			using var r = map.OpenReader( off, 92 );
-
 			var section = new Section
 			{
-				GeometryClassification = r.ReadInt16(), // +0
+				GeometryClassification = Short( row, 0 ),
+				VertexCount = (ushort)Short( row, 4 ), FaceCount = (ushort)Short( row, 6 ),
+				NodesPerVertex = row[20], TransparentNodesPerVertex = row[21],
+				DataPointer = Int( row, 56 ), DataSize = Int( row, 60 ), HeaderSize = Int( row, 68 )
 			};
-			r.ReadInt16(); // +2: padding
-
-			section.VertexCount = r.ReadUInt16(); // +4
-			section.FaceCount = r.ReadUInt16();   // +6
-
-			// Skip to NodesPerVertex at +20
-			r.BaseStream.Seek( 20, SeekOrigin.Begin );
-			section.NodesPerVertex = r.ReadByte();
-			section.TransparentNodesPerVertex = r.ReadByte();
-
-			// DataPointer at +56
-			r.BaseStream.Seek( 56, SeekOrigin.Begin );
-			section.DataPointer = r.ReadInt32();  // +56
-			section.DataSize = r.ReadInt32();     // +60
-			r.ReadInt32(); // +64
-			section.HeaderSize = r.ReadInt32();   // +68
-
-			// Resources TagBlock at +72
-			int resCount = r.ReadInt32();
-			int resPtr = r.ReadInt32();
-
-			if ( resCount > 0 && resPtr != 0 )
+			ReadBlock( map, row[72..], 16, section.Resources, r => new ResourceInfo
 			{
-				int resOff = map.VaToOffset( resPtr );
-				for ( int j = 0; j < resCount; j++ )
-				{
-					using var rr = map.OpenReader( resOff + j * 16, 16 );
-
-					rr.ReadInt32(); // +0: unknown
-					var res = new ResourceInfo
-					{
-						Type0 = rr.ReadInt16(), // +4
-						Type1 = rr.ReadInt16(), // +6
-						Size = rr.ReadInt32(),  // +8
-						Offset = rr.ReadInt32() // +12
-					};
-					section.Resources.Add( res );
-				}
-			}
-
-			Sections.Add( section );
-		}
+				Type0 = Short( r, 4 ), Type1 = Short( r, 6 ), Size = Int( r, 8 ), Offset = Int( r, 12 )
+			} );
+			return section;
+		} );
+		ReadBlock( map, header[96..], 32, Shaders, row =>
+		{
+			int datum = Int( row, 12 );
+			return new ShaderRef { TagIndex = datum & 0xffff, Datum = datum };
+		} );
 	}
 
 	internal static List<Node> ReadNodes( MapFile map, TagEntry tag )
 	{
-		if ( tag.DataSize == 0 ) return [];
+		var nodes = new List<Node>();
+		if ( tag.DataSize == 0 ) return nodes;
 		if ( tag.DataSize < 80 ) throw new EndOfStreamException();
-		int block = map.VaToOffset( (int)tag.DataVirtualAddress ) + 72;
-		int count = map.ReadInt32( block ), pointer = map.ReadInt32( block + 4 );
-		if ( count <= 0 || pointer == 0 ) return [];
-		using var r = map.OpenReader( map.VaToOffset( pointer ), checked(count * 96) );
-		var nodes = new List<Node>( count );
-		for ( int i = 0; i < count; i++ )
+		var block = map.ReadSpan( map.VaToOffset( (int)tag.DataVirtualAddress ) + 72, 8 );
+		ReadBlock( map, block, 96, nodes, row => new Node
 		{
-			r.BaseStream.Position = i * 96;
-
-			var node = new Node
-			{
-				StringId = r.ReadInt32(),     // +0
-				ParentIndex = r.ReadInt16(),  // +4
-				FirstChildIndex = r.ReadInt16(), // +6
-				NextSiblingIndex = r.ReadInt16(), // +8
-			};
-			r.ReadInt16(); // +10: padding
-
-			// Position at +12 (float3)
-			node.PositionX = r.ReadSingle();
-			node.PositionY = r.ReadSingle();
-			node.PositionZ = r.ReadSingle();
-
-			// Rotation at +24 (quaternion XYZW)
-			node.RotationX = r.ReadSingle();
-			node.RotationY = r.ReadSingle();
-			node.RotationZ = r.ReadSingle();
-			node.RotationW = r.ReadSingle();
-
-			// InverseScale at +40
-			node.InverseScale = r.ReadSingle();
-
-			nodes.Add( node );
-		}
+			StringId = Int( row, 0 ), ParentIndex = Short( row, 4 ),
+			FirstChildIndex = Short( row, 6 ), NextSiblingIndex = Short( row, 8 ),
+			PositionX = Float( row, 12 ), PositionY = Float( row, 16 ), PositionZ = Float( row, 20 ),
+			RotationX = Float( row, 24 ), RotationY = Float( row, 28 ), RotationZ = Float( row, 32 ),
+			RotationW = Float( row, 36 ), InverseScale = Float( row, 40 )
+		} );
 		return nodes;
 	}
 
-	void ReadShaders( MapFile map, int ptr, int count )
+	static void ReadBlock<T>( MapFile map, ReadOnlySpan<byte> block, int stride, List<T> rows, Func<ReadOnlySpan<byte>, T> decode )
 	{
-		int baseOff = map.VaToOffset( ptr );
-		// ShaderBlock for MCC (Halo2Xbox+): 32 bytes, TagReference at +8
+		int count = Int( block, 0 ), pointer = Int( block, 4 );
+		if ( count <= 0 || pointer == 0 ) return;
+		var data = map.ReadSpan( map.VaToOffset( pointer ), checked(count * stride) );
+		rows.Capacity = count;
 		for ( int i = 0; i < count; i++ )
-		{
-			int off = baseOff + i * 32;
-			using var r = map.OpenReader( off, 32 );
-
-			r.BaseStream.Seek( 8, SeekOrigin.Begin );
-			int classId = r.ReadInt32();   // TagReference classId
-			int tagDatum = r.ReadInt32();  // TagReference tagId (datum)
-
-			int tagIndex = tagDatum & 0xFFFF;
-			Shaders.Add( new ShaderRef { TagIndex = tagIndex, Datum = tagDatum } );
-		}
+			rows.Add( decode( data.Slice( i * stride, stride ) ) );
 	}
+
+	static int Int( ReadOnlySpan<byte> row, int offset ) => BinaryPrimitives.ReadInt32LittleEndian( row[offset..] );
+	static short Short( ReadOnlySpan<byte> row, int offset ) => BinaryPrimitives.ReadInt16LittleEndian( row[offset..] );
+	static float Float( ReadOnlySpan<byte> row, int offset ) => BinaryPrimitives.ReadSingleLittleEndian( row[offset..] );
 }
 
 public class BoundingBox

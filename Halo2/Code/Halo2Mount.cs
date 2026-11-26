@@ -34,18 +34,29 @@ public class Halo2Mount : BaseGameMount
 	public BaseFileSystem FileSystem => appFs;
 
 	byte[] periodicNoise;
-	internal ReadOnlySpan<byte> GetPeriodicNoise( int selector )
+	internal ReadOnlySpan<byte> GetPeriodicNoise( int selector ) =>
+		(periodicNoise ??= ReadPeriodicNoise()).AsSpan( (selector - 8) * 1024, 1024 );
+
+	byte[] ReadPeriodicNoise()
 	{
-		if ( periodicNoise is null )
+		// MCC stores the three 1024-byte noise tables consecutively in its executable.
+		ReadOnlySpan<byte> prefix = [220, 20, 6, 250, 75, 185, 52, 68, 91, 169, 65, 218, 128, 197, 245, 94];
+		using var file = appFs.OpenRead( "halo2/halo2.dll" );
+		var buffer = new byte[64 * 1024];
+		for ( long start = 0; start <= file.Length - 3072; start += buffer.Length - prefix.Length + 1 )
 		{
-			// MCC stores the three noise functions (8 through 10) as consecutive 1024-byte tables.
-			ReadOnlySpan<byte> prefix = [220, 20, 6, 250, 75, 185, 52, 68, 91, 169, 65, 218, 128, 197, 245, 94];
-			var image = appFs.ReadAllBytes( "halo2/halo2.dll" );
-			int index = image.IndexOf( prefix );
-			if ( index < 0 || index > image.Length - 3072 ) throw new InvalidDataException( "Missing MCC periodic noise tables" );
-			periodicNoise = image.Slice( index, 3072 ).ToArray();
+			file.Position = start;
+			var chunk = buffer.AsSpan( 0, (int)Math.Min( buffer.Length, file.Length - start ) );
+			file.ReadExactly( chunk );
+			int offset = chunk.IndexOf( prefix );
+			if ( offset < 0 ) continue;
+			file.Position = start + offset;
+			if ( file.Length - file.Position < 3072 ) break;
+			var tables = new byte[3072];
+			file.ReadExactly( tables );
+			return tables;
 		}
-		return periodicNoise.AsSpan( (selector - 8) * 1024, 1024 );
+		throw new InvalidDataException( "Missing MCC periodic noise tables" );
 	}
 
 	protected override void Initialize( InitializeContext context )
