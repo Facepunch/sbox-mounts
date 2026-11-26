@@ -50,6 +50,7 @@ public sealed class HoldPose
 	/// <summary>The pose is the SMG's, borrowed for a weapon its human has no hold for.</summary>
 	public bool Borrowed { get; private set; }
 	internal bool HasCrouchPose { get; private set; }
+	internal bool HasReloadGesture { get; private set; }
 	internal SourceModelSequenceData Sequence { get; }
 
 	/// <summary>The sequence holds the left hand on the weapon with IK.</summary>
@@ -140,6 +141,7 @@ public sealed class HoldPose
 		string[] shots;
 		string reload;
 		var borrowed = false;
+		var playerGesture = false;
 		if ( layers is not null )
 		{
 			lower = layers.Clips.Idle;
@@ -153,6 +155,7 @@ public sealed class HoldPose
 			aim = crouched ? crouchIdle ?? idle : idle;
 			shots = [sequences.FindGesture( player.Attack )];
 			reload = sequences.FindActivity( player.Reload );
+			playerGesture = true;
 		}
 		else if ( weaponClass is not null )
 		{
@@ -192,7 +195,7 @@ public sealed class HoldPose
 		if ( used.Any( x => x is not null && (!x.IsBound || !IsPosed( x, skeleton.Bones.Count )) ) )
 			return false;
 
-		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed, HasCrouchPose = crouchIdle is not null };
+		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed, HasCrouchPose = crouchIdle is not null, HasReloadGesture = playerGesture && reloadClip is { Duration: > 0 } };
 		if ( pose.Knuckles < 2 )
 			pose = null;
 

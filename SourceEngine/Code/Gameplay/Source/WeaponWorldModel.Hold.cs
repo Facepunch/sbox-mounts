@@ -63,7 +63,7 @@ public sealed partial class WeaponWorldModel
 	int _heldShot;
 	float _shotTime = float.MaxValue;
 	bool _reloading;
-	float _reloadTime;
+	float _reloadTime = float.MaxValue;
 	float _reloadWeight;
 	TimeSince _deployed;
 	Transform _rightStart;
@@ -95,10 +95,18 @@ public sealed partial class WeaponWorldModel
 
 		_reloading = reloading;
 		_reloadTime += Time.Delta;
-		_reloadWeight = _reloadWeight.Approach( reloading ? 1 : 0, Time.Delta / ReloadBlendTime );
-		var repeats = _hold.ReloadLoops || _weapon.IsValid() && _weapon.IncrementalReloading;
-		var reloadCycle = _reloadTime / (_hold.ReloadLoops ? _hold.ReloadDuration : MathF.Max( _weapon.IsValid() ? _weapon.ReloadTime : 1, 0.1f ));
-		_hold.Evaluate( _heldShot, _shotTime, repeats ? reloadCycle % 1 : reloadCycle, _reloadWeight );
+		var reloadCycle = _reloadTime / (_hold.HasReloadGesture || _hold.ReloadLoops ? _hold.ReloadDuration : MathF.Max( _weapon.IsValid() ? _weapon.ReloadTime : 1, 0.1f ));
+		if ( _hold.HasReloadGesture )
+		{
+			// The player's reload gesture plays once, even when only one shell is missing.
+			_reloadWeight = reloadCycle < 1 ? 1 : 0;
+		}
+		else
+		{
+			_reloadWeight = _reloadWeight.Approach( reloading ? 1 : 0, Time.Delta / ReloadBlendTime );
+			if ( _hold.ReloadLoops || _weapon.IsValid() && _weapon.IncrementalReloading ) reloadCycle %= 1;
+		}
+		_hold.Evaluate( _heldShot, _shotTime, reloadCycle, _reloadWeight );
 
 		// The human's hands, from between the holder's shoulders along the aim, scaled to the holder's arms. All of it in
 		// the body's space, where the graph takes its targets.

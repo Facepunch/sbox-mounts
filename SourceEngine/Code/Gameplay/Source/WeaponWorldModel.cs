@@ -32,6 +32,7 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		base.OnAttack( hitPoint, origin );
 		_heldShot++;
 		_shotTime = 0;
+		if ( _hold?.HasReloadGesture == true ) _reloadTime = float.MaxValue;
 		if ( _weapon is not BulletWeapon weapon ) return;
 		// World models rarely author their own flash; the viewmodel's AE_MUZZLEFLASH names the weapon's.
 		var type = _ownFlashType ?? WeaponSetup.FlashType( weapon ) ?? "SMG1";
