@@ -48,8 +48,22 @@ public sealed partial class Babbler : BaseNpc
 
 	[Sync( SyncFlags.FromHost )] internal int ClingSlot { get; private set; }
 	internal Gorge OwnerGorge { get; set; }
-	TimeUntil nextClingLeap;
+	TimeUntil nextClingLeap, freeRoam;
 	TimeUntil? ownerLossTimeout;
+	bool ReturningToOwner => OwnerGorge.IsValid() && !target.IsValid() && freeRoam <= 0;
+
+	internal void Dispatch( GameObject enemy )
+	{
+		if ( ClingSlot != 0 )
+		{
+			OwnerGorge.ReleaseSlot( ClingSlot );
+			DetachFromSocket();
+		}
+		target = enemy;
+		reachedTarget = false;
+		freeRoam = 6;
+	}
+
 
 	internal void ClingTo( GameObject point, int slot )
 	{
@@ -145,7 +159,7 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void Think()
 	{
-		if ( OwnerGorge.IsValid() ) return;
+		if ( ClingSlot != 0 || ReturningToOwner ) return;
 		var previous = target;
 		if ( !CanHunt( target ) ) target = null;
 		if ( target is null )
@@ -238,7 +252,7 @@ public sealed partial class Babbler : BaseNpc
 			}
 		}
 		if ( PhysicsCarrier.IsValid() ) return;
-		if ( OwnerGorge.IsValid() )
+		if ( ReturningToOwner )
 		{
 			ApproachOwner();
 			return;

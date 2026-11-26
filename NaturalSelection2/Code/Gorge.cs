@@ -31,7 +31,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	internal static void RegisterSounds( MountContext context )
 	{
 		AlienFootsteps.Register( context, "gorge" );
-		foreach ( var cue in new[] { "spit", "spit_hit", "bilebomb", "bilebomb_hit", "heal_spray", "slide_loop", "create_structure_start", "spawn", "wound", "wound_serious", "death" } )
+		foreach ( var cue in new[] { "spit", "spit_hit", "babbler_ball_spit", "bilebomb", "bilebomb_hit", "heal_spray", "slide_loop", "create_structure_start", "spawn", "wound", "wound_serious", "death" } )
 		{
 			var id = $"alien/gorge/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{id}.sound", new SparkSoundLoader( id ) );
@@ -88,6 +88,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		var enemy = targeting.FindEnemy( this, out var lastSeen, static ( obj, _ ) =>
 			obj.Tags.HasAny( "structure", "ns2_mac" ) );
 		float combatWeight = AttackWeight( enemy, lastSeen );
+		throwing = combatWeight < 20 && CanFleeThrow( enemy, enemy.IsValid() && lastSeen is null );
+		if ( throwing ) combatWeight = 20;
 		bool bombard = false;
 		if ( BileBombUnlocked )
 		{
@@ -108,8 +110,9 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
 		assignedTarget = null;
-		if ( SupportAlly( combatWeight, visible ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		if ( SupportAlly( combatWeight, visible ) || !throwing && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
+			throwing = false;
 			escort = null;
 			return;
 		}
@@ -131,7 +134,9 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( repath > 0 ) return;
 		repath = 0.2f;
 		float distance = EyePosition.Distance( goal.Value ) / Scale;
-		if ( bombarding && distance < 8 && Random.Shared.NextSingle() < 0.9f )
+		if ( throwing )
+			Movement.MoveTo( WorldPosition + (WorldPosition - goal.Value).WithZ( 0 ).Normal * (3 * Scale), 0, faceTarget: enemy );
+		else if ( bombarding && distance < 8 && Random.Shared.NextSingle() < 0.9f )
 			Movement.MoveTo( WorldPosition - WorldRotation.Forward * (0.75f * Scale), 0, faceTarget: enemy );
 		else if ( !bombarding && visible && distance is > 5 and < 15 )
 			Movement.MoveTo( WorldPosition - WorldRotation.Forward * (1.5f * Scale), 0, faceTarget: enemy );
@@ -207,7 +212,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			direction.z += 0.5f * 9.81f * Scale * time * time;
 		}
 		aim = AlienAim.Turn( aim, direction, 5 );
-		primaryHeld = firing && (bombarding ? energy > ShotCost : energy >= ShotCost) && Vector3.Dot( aim.Forward, direction.Normal ) > 0.98f;
+		primaryHeld = firing && (bombarding ? energy > ShotCost : energy >= ShotCost) && Vector3.Dot( aim.Forward, direction.Normal ) > (throwing ? 0.9f : 0.98f);
 		UpdateSprayInput( direction );
 		var activity = secondaryAttacking && energy >= 10 || sprayAnimation > 0 ? "secondary" : primaryHeld ? "primary" : "none";
 		var move = sliding ? "belly" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";
@@ -231,7 +236,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( tag == "heal" && secondaryAttacking && energy >= 10 ) Spray();
 		if ( tag != "shoot" || !primaryHeld || energy < ShotCost ) return;
 		energy -= ShotCost;
-		GorgeProjectile.Fire( this, aim, bombarding );
+		if ( throwing ) ThrowBabblers();
+		else GorgeProjectile.Fire( this, aim, bombarding );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

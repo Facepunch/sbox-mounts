@@ -13,6 +13,58 @@ public sealed partial class Gorge
 	TimeUntil nextHatch;
 	float babblerShield;
 
+	TimeUntil nextThrow;
+	bool throwing;
+
+	bool CanFleeThrow( GameObject threat, bool visible )
+	{
+		if ( !visible || freeSlots.Count > 4 || energy < 7 || nextThrow > 0 || GameObject.Tags.Has( "ns2_hallucination" ) ) return false;
+		if ( underFire <= 0 && (!InCombat || HealthFraction( this ) >= 0.75f) ) return false;
+		return (threat.Tags.HasAny( "ns2_marine", "ns2_exo" ) || threat.GetComponent<PlayerController>().IsValid()) &&
+			WorldPosition.DistanceSquared( threat.WorldPosition ) <= 14 * 14 * Scale * Scale;
+	}
+
+	void ThrowBabblers()
+	{
+		PlayCue( "babbler_ball_spit", WorldPosition );
+		nextThrow = 3;
+		throwing = false;
+		primaryHeld = false;
+		firing = false;
+		var end = EyePosition + aim.Forward * (16 * Scale);
+		var trace = Scene.Trace.Ray( EyePosition, end ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" );
+		var hit = trace.Run();
+		if ( !hit.GameObject.IsValid() || hit.GameObject.Tags.Has( "world" ) )
+		{
+			var forward = aim.Forward;
+			var size = new Vector3( forward.WithX( 0 ).Length, forward.WithY( 0 ).Length, forward.WithZ( 0 ).Length ) * (2 * 0.315f * Scale);
+			hit = Scene.Trace.Ray( EyePosition, hit.Hit ? hit.EndPosition : end ).Size( size )
+				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
+		}
+		var enemy = (hit.GameObject?.GetComponentInParent<IDamageable>() as Component)?.GameObject;
+		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
+		{
+			enemy = null;
+			var origin = WorldPosition;
+			var start = EyePosition + aim.Forward * Scale;
+			var dir = (start - origin).Normal;
+			float best = float.MaxValue;
+			foreach ( var obj in Senses.VisibleHostiles )
+			{
+				if ( !obj.IsValid() || AlienTargeting.IsIgnoredPlayer( obj ) || !(obj.Tags.HasAny( "ns2_marine", "ns2_exo" ) || obj.GetComponent<PlayerController>().IsValid()) ) continue;
+				var delta = obj.WorldPosition - origin;
+				if ( obj.WorldPosition.Distance( (origin + start) * 0.5f ) > 15 * Scale + origin.Distance( start ) * 0.5f ) continue;
+				float along = Vector3.Dot( delta, dir );
+				float score = along + (delta - dir * along).Length * 2;
+				if ( along <= 0 || score >= best || WallBetween( origin + Vector3.Up * (0.5f * Scale), obj.WorldPosition + Vector3.Up * (0.5f * Scale) ) ) continue;
+				enemy = obj;
+				best = score;
+			}
+		}
+		foreach ( var babbler in brood )
+			if ( babbler.WorldPosition.DistanceSquared( WorldPosition ) <= 1000f * 1000 * Scale * Scale ) babbler.Dispatch( enemy );
+	}
+
 	void UpdateBrood()
 	{
 		if ( nextHatch > 0 ) return;
@@ -44,7 +96,12 @@ public sealed partial class Gorge
 	internal void BabblerRemoved( Babbler babbler )
 	{
 		if ( !brood.Remove( babbler ) || babbler.ClingSlot == 0 ) return;
-		freeSlots.Add( babbler.ClingSlot );
+		ReleaseSlot( babbler.ClingSlot );
+	}
+
+	internal void ReleaseSlot( int slot )
+	{
+		freeSlots.Add( slot );
 		babblerShield = Math.Min( babblerShield, (6 - freeSlots.Count) * ShieldPerBabbler );
 	}
 
