@@ -82,35 +82,44 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 
 	protected SoundEvent FiringSound( int barrel, out string marker, int index = 0, bool dry = false )
 	{
-		marker = null;
-		if ( index >= map.ReadInt32( barrel + 0xe4 ) ) return null;
-		var effect = Reference( Block( barrel + 0xe4 ) + index * 52 + (dry ? 20 : 4) );
-		if ( effect is { PrimaryClass: "!dns" } )
-		{
-			marker = "root";
-			return GameResource.Load<SoundEvent>( Host.AssetPath( map, effect.TagPath, "sound" ) );
-		}
-		if ( effect is not { PrimaryClass: "effe", DataSize: > 0 } ) return null;
-		int events = Address( effect ) + 20;
-		if ( map.ReadInt32( events ) == 0 ) return null;
-		int part = FirstSoundPart( Block( events ) );
-		if ( part < 0 ) return null;
-		int locations = Address( effect ) + 12;
-		int location = Short( part + 4 );
-		if ( (uint)location < map.ReadInt32( locations ) )
-			marker = map.ResolveStringId( map.ReadInt32( Block( locations ) + location * 4 ) );
-		return GameResource.Load<SoundEvent>( Host.AssetPath( map, Reference( part + 12 ).TagPath, "sound" ) );
+		var first = FiringSounds( barrel, index, dry ).FirstOrDefault();
+		marker = first?.Marker;
+		return first?.Sound;
 	}
 
-	protected int FirstSoundPart( int effectEvent )
+	protected IEnumerable<WeaponSound> FiringSounds( int barrel, int index = 0, bool dry = false )
+	{
+		if ( index >= map.ReadInt32( barrel + 0xe4 ) ) yield break;
+		var effect = Reference( Block( barrel + 0xe4 ) + index * 52 + (dry ? 20 : 4) );
+		SoundEvent LoadSound( TagEntry tag ) => GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) );
+		if ( effect is { PrimaryClass: "!dns" } )
+		{
+			yield return new( LoadSound( effect ), "root" );
+			yield break;
+		}
+		if ( effect is not { PrimaryClass: "effe", DataSize: > 0 } ) yield break;
+		int events = Address( effect ) + 20;
+		if ( map.ReadInt32( events ) == 0 ) yield break;
+		int locations = Address( effect ) + 12;
+		foreach ( var part in SoundParts( Block( events ) ) )
+		{
+			int location = Short( part + 4 );
+			var marker = (uint)location < map.ReadInt32( locations )
+				? map.ResolveStringId( map.ReadInt32( Block( locations ) + location * 4 ) ) : null;
+			yield return new( LoadSound( Reference( part + 12 ) ), marker );
+		}
+	}
+
+	protected int FirstSoundPart( int effectEvent ) => SoundParts( effectEvent ).FirstOrDefault( -1 );
+
+	IEnumerable<int> SoundParts( int effectEvent )
 	{
 		int parts = effectEvent + 24;
 		for ( int i = 0, part = Block( parts ); i < map.ReadInt32( parts ); i++, part += 56 )
 		{
 			if ( Reference( part + 12 ) is { PrimaryClass: "!dns" } sound && sound.TagPath.StartsWith( @"sound\", StringComparison.OrdinalIgnoreCase ) )
-				return part;
+				yield return part;
 		}
-		return -1;
 	}
 
 	protected Dictionary<string, float> BodyDamageScales( int globals, int effect )

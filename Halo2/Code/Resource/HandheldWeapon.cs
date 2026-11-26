@@ -154,10 +154,17 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		float rate = Float( barrel + 4 );
 		float recovery = RecoveryTime( barrel );
 		gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
-		gun.AttackSound = FiringSound( barrel, out var marker );
-		gun.AttackSoundMarker = marker;
+		var sounds = FiringSounds( barrel ).ToArray();
+		if ( sounds.Length > 0 )
+		{
+			gun.AttackSound = sounds[0].Sound;
+			gun.AttackSoundMarker = sounds[0].Marker;
+		}
 		if ( map.ReadInt32( barrel + 0xe4 ) == 1 )
+		{
+			if ( sounds.Length > 1 ) gun.AdditionalFiringSounds = sounds[1..];
 			gun.PrimaryFlash = ReadMuzzleFlash( Reference( Block( barrel + 0xe4 ) + 4 ) );
+		}
 		ConfigureKick( gun, barrel );
 		gun.Ballistics = ReadBallistics( gun.Ballistics, barrel, projectile, damage );
 		ConfigureProjectile( gun, barrel, projectile, damage );

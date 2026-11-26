@@ -67,7 +67,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	void PlayChargedShot()
 	{
 		if ( Application.IsDedicatedServer ) return;
-		EffectMarker( ChargedShot.SoundMarker )?.PlaySound( ChargedShot.Sound );
+		PlayFiringSound( ChargedShot.Sound, ChargedShot.SoundMarker );
 		ViewModel?.GetComponent<HandheldWeaponModel>()?.Play( "fire_2" );
 		PlayHolderOverlay( "fire_2" );
 		PostWeaponEvent( WeaponEvents.Attack );

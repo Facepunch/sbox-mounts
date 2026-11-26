@@ -1,11 +1,14 @@
 namespace Halo2;
 
+public sealed record WeaponSound( SoundEvent Sound, string Marker );
+
 public abstract class HandheldWeapon : Weapon
 {
 	[Property] public string RigDirectory { get; set; }
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }
 
+	[Property] public WeaponSound[] AdditionalFiringSounds { get; set; }
 	[Property] public MuzzleFlashDefinition[] PrimaryFlash { get; set; }
 	[Property] public bool Instantaneous { get; set; } = true;
 	double? lastAutomaticRound;
@@ -58,6 +61,14 @@ public abstract class HandheldWeapon : Weapon
 		automaticRoundAt = null;
 		roundQueued = false;
 		base.OnDisabled();
+	}
+
+	protected override void PlayFiringSound()
+	{
+		base.PlayFiringSound();
+		if ( AdditionalFiringSounds is null ) return;
+		foreach ( var part in AdditionalFiringSounds )
+			PlayFiringSound( part.Sound, part.Marker );
 	}
 
 	protected override void OnShootEffects( ShotEffect shot )
