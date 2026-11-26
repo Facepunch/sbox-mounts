@@ -190,7 +190,9 @@ internal sealed class AlienTargeting
 				wounded = Math.Max( 0, 0.3f - fraction ) * 3;
 			}
 			float urgency;
-			if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
+			if ( alien is Gorge )
+				urgency = -alien.WorldPosition.DistanceSquared( memory.Position );
+			else if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
 			{
 				urgency = fade.AttackUrgency( fadeTarget );
 				if ( urgency <= 0 ) continue;

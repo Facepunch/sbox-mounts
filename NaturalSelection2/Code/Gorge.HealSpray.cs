@@ -17,7 +17,13 @@ public sealed partial class Gorge
 	Component patient;
 	internal GameObject assignedTarget;
 	// Recruit, Normal, Normal, Aggro, Veteran, Veteran in PlayerBot's distribution.
-	readonly float helpAbility = Random.Shared.Next( 6 ) switch { 0 => 0.1f, 1 or 2 => 0.9f, 3 => 0, _ => 0.5f };
+	readonly (float Help, float Aggression) personality = Random.Shared.Next( 6 ) switch
+	{
+		0 => (0.1f, 0.1f),
+		1 or 2 => (0.9f, 0.4f),
+		3 => (0, 0.9f),
+		_ => (0.5f, 0.7f)
+	};
 	TimeUntil searchPatients, sprayAnimation, nextSpray;
 	bool wantsSpray, previousSecondary, secondaryAttacking;
 
@@ -83,7 +89,7 @@ public sealed partial class Gorge
 			target is BaseNpc npc && AlienTargeting.HasResponders( this, npc, 1 ) ) return 3;
 		if ( target is Gorge && underFire > 0 && AlienTargeting.HasResponders( this, this, 1 ) ) return 0;
 
-		float weight = 10 - MathF.Log( distance ) + helpAbility - fraction * 1.25f;
+		float weight = 10 - MathF.Log( distance ) + personality.Help - fraction * 1.25f;
 		weight = target switch { Onos => weight * 1.2f, Fade => weight * 1.125f, Lerk => weight * 1.1f,
 			Skulk => weight + 0.5f, Gorge => weight * 0.01f, _ => weight };
 		return target.GameObject.Tags.Has( "burning" ) ? weight + 0.25f : weight;
@@ -92,6 +98,7 @@ public sealed partial class Gorge
 	float AttackWeight( GameObject enemy, Vector3? lastSeen )
 	{
 		if ( !enemy.IsValid() ) return 0;
+		if ( bombarding ) return 3;
 		float distance = WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) / Scale;
 		if ( distance <= 0 ) return float.PositiveInfinity;
 		float urgency = 1 + 1 / Math.Max( 1, distance );
@@ -105,7 +112,7 @@ public sealed partial class Gorge
 		return urgency * 20 / distance * HealthFraction( this );
 	}
 
-	bool SupportAlly( GameObject enemy, Vector3? lastSeen )
+	bool SupportAlly( float combatWeight, bool visible )
 	{
 		wantsSpray = false;
 		if ( searchPatients <= 0 )
@@ -126,12 +133,11 @@ public sealed partial class Gorge
 		var point = patient.WorldPosition;
 		float reach = 3.35f * Scale;
 		bool near = point.DistanceSquared( EyePosition ) < reach * reach;
-		if ( patient is AlienStructure { IsBuilt: false } || enemy.IsValid() && enemy.Tags.HasAny( "structure", "ns2_mac" ) ||
-			BileBombUnlocked && enemy.IsValid() && enemy.Tags.Has( "ns2_exo" ) )
+		if ( patient is AlienStructure { IsBuilt: false } )
 		{
-			if ( enemy.IsValid() && lastSeen is null && !near ) return false;
+			if ( visible && !near ) return false;
 		}
-		else if ( HealWeight( patient, WorldPosition.Distance( point ) / Scale ) <= AttackWeight( enemy, lastSeen ) ) return false;
+		else if ( HealWeight( patient, WorldPosition.Distance( point ) / Scale ) <= combatWeight ) return false;
 		assignedTarget = patient.GameObject;
 		Animation.SetLookTarget( patient.GameObject );
 		firing = false;

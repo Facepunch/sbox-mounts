@@ -85,19 +85,38 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = targeting.FindEnemy( this, out var lastSeen );
+		var enemy = targeting.FindEnemy( this, out var lastSeen, static ( obj, _ ) =>
+			obj.Tags.HasAny( "structure", "ns2_mac" ) );
+		float combatWeight = AttackWeight( enemy, lastSeen );
+		bool bombard = false;
+		if ( BileBombUnlocked )
+		{
+			var target = targeting.FindEnemy( this, out var lastSeenBile, static ( obj, _ ) =>
+				!obj.Tags.HasAny( "ns2_mac", "ns2_exo", "structure" ) || obj.GetComponent<AlienStructure>() is { IsBuilt: false } );
+			if ( target.IsValid() )
+			{
+				float weight = BombardWeight( target );
+				if ( weight > combatWeight )
+				{
+					enemy = target;
+					lastSeen = lastSeenBile;
+					combatWeight = weight;
+					bombard = true;
+				}
+			}
+		}
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
 		assignedTarget = null;
-		if ( SupportAlly( enemy, lastSeen ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		if ( SupportAlly( combatWeight, visible ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			escort = null;
 			return;
 		}
 		assignedTarget = enemy;
-		bombarding = visible && BileBombUnlocked && enemy.Tags.HasAny( "structure", "ns2_exo", "ns2_mac" );
+		bombarding = bombard && WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) <= 12 * Scale;
 		var goal = lastSeen ?? enemy?.WorldPosition;
-		firing = visible && EyePosition.Distance( goal.Value ) <= (bombarding ? 12 : 20) * Scale;
+		firing = visible && (bombard ? bombarding : EyePosition.Distance( goal.Value ) <= 20 * Scale);
 		if ( goal is null )
 		{
 			if ( !FollowLifeform() )
@@ -118,6 +137,14 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			Movement.MoveTo( WorldPosition - WorldRotation.Forward * (1.5f * Scale), 0, faceTarget: enemy );
 		else if ( firing ) Movement.Stop();
 		else Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
+	}
+
+	float BombardWeight( GameObject target )
+	{
+		float health = HealthFraction( this );
+		float urgency = target.Tags.Has( "ns2_exo" ) ? 2.5f : target.Tags.Has( "ns2_mac" ) ? 0.4f : 0;
+		float weight = 2.5f + urgency + personality.Aggression - (1 - health);
+		return underFire > 0 ? weight * 0.25f * health : weight;
 	}
 
 	BaseNpc escort;
