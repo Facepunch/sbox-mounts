@@ -74,10 +74,15 @@ sealed partial class ModelFile
 		return pose;
 	}
 	public Dictionary<ulong, AnimationFile.Track> Controllers( HashSet<ulong> enabled )
+		=> ControllerTracks( enabled, includeDescendants: true );
+
+	/// <summary>Object animation groups list their controlled nodes explicitly; weapon helpers can include descendants.</summary>
+	public Dictionary<ulong, AnimationFile.Track> ControllerTracks( HashSet<ulong> enabled, bool includeDescendants )
 	{
 		var result = new Dictionary<ulong, AnimationFile.Track>();
 		foreach ( var (id, node) in nodes )
 		{
+			if ( !includeDescendants && !enabled.Contains( node.Name ) ) continue;
 			uint ancestor = id;
 			int depth = 0;
 			while ( ancestor != 0 && !enabled.Contains( nodes[ancestor].Name ) )

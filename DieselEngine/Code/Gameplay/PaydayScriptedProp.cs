@@ -8,6 +8,8 @@ public sealed class PaydayScriptedProp : Component
 {
 	public const string NavigationTag = "payday_scripted_prop";
 	[Property] public SkinnedModelRenderer Renderer { get; set; }
+	/// <summary>Authored group name. Empty selects the full embedded timeline.</summary>
+	[Property] public string AnimationGroup { get; set; } = "";
 	[Property, Range( 0, 1 )] public float Cycle { get; set; }
 	[Property] public bool Playing { get; set; }
 	[Property] public bool Loop { get; set; }
@@ -17,13 +19,14 @@ public sealed class PaydayScriptedProp : Component
 	Graph graph;
 	SkinnedModelRenderer boundRenderer;
 	Model boundModel;
+	string boundGroup;
 	GameObject collisionRoot;
 	readonly List<(uint Node, GameObject Object)> colliders = [];
 
 	protected override void OnUpdate()
 	{
 		if ( !Renderer.IsValid() || Renderer.Model is null ) { Release(); return; }
-		if ( boundRenderer != Renderer || boundModel != Renderer.Model ) Initialize();
+		if ( boundRenderer != Renderer || boundModel != Renderer.Model || boundGroup != (AnimationGroup ?? "") ) Initialize();
 		if ( clip is null ) return;
 		if ( Playing && float.IsFinite( PlaybackRate ) )
 		{
@@ -33,7 +36,7 @@ public sealed class PaydayScriptedProp : Component
 		}
 		Cycle = float.IsFinite( Cycle ) ? Math.Clamp( Cycle, 0, 1 ) : 0;
 		Renderer.Animation.Parameters.Set( "cycle", Cycle );
-		var pose = assets.SampleEmbedded( Cycle * clip.Duration );
+		var pose = assets.SampleEmbedded( Cycle * clip.Duration, boundGroup );
 		foreach ( var (node, go) in colliders )
 			go.WorldTransform = Renderer.WorldTransform.ToWorld( pose[node] );
 	}
@@ -46,7 +49,8 @@ public sealed class PaydayScriptedProp : Component
 			throw new InvalidOperationException( "PAYDAY Scripted Prop requires a mounted scripted unit model." );
 		assets = loader.GetCharacter();
 		var parts = assets.GetScriptedCollision( path );
-		clip = Clip.Load( path + "/embedded.anim" );
+		var group = AnimationGroup ?? "";
+		clip = Clip.Load( path + (group.Length == 0 ? "/embedded.anim" : $"/groups/{group}.anim") );
 		if ( clip is null || clip.IsError ) throw new InvalidOperationException( "Scripted unit has no embedded timeline." );
 		var builder = new GraphBuilder().WithSkeleton( clip.Skeleton );
 		var cycle = builder.FloatParameter( "cycle", 0, 1 );
@@ -55,6 +59,7 @@ public sealed class PaydayScriptedProp : Component
 		Renderer.Animation.Graph = graph;
 		boundRenderer = Renderer;
 		boundModel = Renderer.Model;
+		boundGroup = group;
 		collisionRoot = new GameObject( true, "PAYDAY animated collision" )
 		{
 			Parent = GameObject, Flags = GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked
@@ -78,7 +83,7 @@ public sealed class PaydayScriptedProp : Component
 		colliders.Clear();
 		if ( boundRenderer.IsValid() && boundRenderer.Animation.Graph == graph ) boundRenderer.Animation.Graph = null;
 		graph?.Dispose();
-		graph = null; clip = null; assets = null; boundRenderer = null; boundModel = null;
+		graph = null; clip = null; assets = null; boundRenderer = null; boundModel = null; boundGroup = null;
 	}
 
 	protected override void OnDisabled() => Release();

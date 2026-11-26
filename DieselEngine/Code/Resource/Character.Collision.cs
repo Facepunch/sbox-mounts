@@ -4,7 +4,17 @@ partial class PaydayCharacter
 {
 	internal sealed record CollisionPart( uint Node, Model Model );
 	List<CollisionPart> collisionParts;
-	Dictionary<ulong, AnimationFile.Track> embeddedTracks;
+	readonly Dictionary<string, Dictionary<ulong, AnimationFile.Track>> embeddedTracks = new( StringComparer.Ordinal );
+
+	Dictionary<ulong, AnimationFile.Track> EmbeddedTracks( string group )
+	{
+		group ??= "";
+		if ( embeddedTracks.TryGetValue( group, out var tracks ) ) return tracks;
+		var enabled = group.Length == 0 ? File.RigNodes.Select( n => n.Name ).ToHashSet()
+			: animationGroups.TryGetValue( group, out var objects ) ? objects
+			: throw new InvalidDataException( $"Unknown authored animation group: {group}" );
+		return embeddedTracks[group] = File.ControllerTracks( enabled, includeDescendants: group.Length == 0 );
+	}
 
 	internal IReadOnlyList<CollisionPart> GetScriptedCollision( string path )
 	{
@@ -40,10 +50,9 @@ partial class PaydayCharacter
 		return collisionParts = result;
 	}
 
-	internal Dictionary<uint, Transform> SampleEmbedded( float time )
+	internal Dictionary<uint, Transform> SampleEmbedded( float time, string group = null )
 	{
-		embeddedTracks ??= File.Controllers( File.RigNodes.Select( n => n.Name ).ToHashSet() );
-		return File.Pose( null, time, embeddedTracks )
+		return File.Pose( null, time, EmbeddedTracks( group ) )
 			.ToDictionary( p => p.Key, p => ModelFile.Convert( p.Value * bindRoot ) );
 	}
 }

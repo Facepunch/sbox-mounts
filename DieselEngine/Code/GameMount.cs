@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Diesel;
 
-public sealed class PaydayMount : BaseGameMount
+public sealed partial class PaydayMount : BaseGameMount
 {
 	public override string Ident => "payday";
 	public override string Title => "PAYDAY: The Heist";
@@ -279,6 +279,8 @@ public sealed class PaydayMount : BaseGameMount
 		Characters.Clear();
 		UnitNames.Clear();
 		animationPaths.Clear();
+		animationInfo.Clear();
+		unitAnimationInfo.Clear();
 		endurance.Clear();
 		sequenceManagers.Clear();
 		sequenceSounds.Clear();

@@ -37,6 +37,36 @@ Verified locally: idle/walk resource loading on builder and police rigs, native/
 pose agreement, duration, moving bone tracks, and graph playback/rendering on the builder.
 The whole source-animation library has not been exhaustively checked.
 
+## Inspecting source metadata
+
+Metadata is available independently of model/clip creation:
+
+```csharp
+var mount = (Diesel.PaydayMount)await Sandbox.Mounting.Directory.Mount( "payday" );
+var animation = mount.GetAnimationInfo( "anims/fps/beretta/beretta_reload" );
+foreach ( var cue in animation.Cues )
+	Log.Info( $"{cue.Time:F3}s: {cue.Name}" );
+
+var timeline = mount.GetUnitAnimationInfo(
+	"units/vehicles/animated_cars/vehicle_street_getaway_event_van/vehicle_street_getaway_event_van" );
+foreach ( var group in timeline.Groups )
+	Log.Info( $"{group.Name}: {group.TrackCount} tracks, {group.StartTime}–{group.EndTime}s" );
+```
+
+Clip cues use seconds, preserve distinct names at the same timestamp and repeated names at
+different times, and omit exact duplicate name/time pairs. Cue names are authored markers
+(for example `mag_in`), not necessarily mounted sound-event paths.
+
+Group metadata includes its object names, explicitly selected controller count, key-time range,
+and raw `Enabled`, `Speed` and `Time` expressions. Omitted attributes remain null. A group may
+exist without timed controllers; its count and time range are then zero. Key-time ranges can
+include preroll and are not inferred sequence-manager playback ranges.
+
+Collections are read-only. Results are cached until mount refresh/shutdown. Missing sources
+throw `InvalidDataException`; these queries do not load NPC assets or dispatch events.
+The full `/embedded.anim` resource combines the unit's controllers. Select a named group
+through `/groups/<name>.anim` or `PaydayScriptedProp.AnimationGroup` as described below.
+
 ## Scripted vehicles
 
 The 17 units under `units/vehicles/animated_cars/` also expose rigged browser models
@@ -61,6 +91,26 @@ Map placements continue to use the existing placed-unit importer.
 All 17 rigs and 16 timelines passed load/source-pose checks at the start, midpoint and end.
 The hanging armored truck additionally passed native graph-pose and rendered-appearance checks.
 
+### Selecting an authored group
+
+Use `/groups/<name>.anim` to animate only the nodes explicitly listed in that source group:
+
+```csharp
+string van = "mount://payday/units/vehicles/animated_cars/"
+	+ "vehicle_street_getaway_event_van/vehicle_street_getaway_event_van.unit.vmdl";
+var doors = await ResourceLibrary.LoadAsync<Sandbox.Animation.Clip>( van + "/groups/doors.anim" );
+```
+
+Unselected nodes keep their bind-local transforms (and naturally follow an animated parent).
+Groups do not implicitly enable every descendant's controller. Group clips run from source
+time zero to the last selected key. Groups without positive-time keys cannot produce a timed clip.
+Authored `enabled`, `speed` and `time` settings remain metadata; requesting a group explicitly
+does not evaluate those expressions.
+
+Prefer a named action group for gameplay. The combined timeline can include mutually exclusive
+crash/drive branches or independent doors. All 58 timed groups across the 17 scripted units loaded
+successfully; 28 other groups contain no timed controllers. Van tests verify door/getaway isolation.
+
 ### Moving collision
 
 Add `Diesel.PaydayScriptedProp` to a game object and assign its `Renderer` to a
@@ -70,6 +120,7 @@ the renderer's animation graph and samples collision from the same timeline:
 ```csharp
 var prop = gameObject.AddComponent<Diesel.PaydayScriptedProp>();
 prop.Renderer = renderer;
+prop.AnimationGroup = "getaway"; // for the getaway-van model; empty means all controllers
 prop.Cycle = 0.25f; // normalized position in the full embedded timeline
 prop.Playing = true;
 prop.PlaybackRate = 1;
@@ -81,6 +132,8 @@ shapes. Concave mesh objects therefore become convex approximations, as with mov
 Generated keyframed colliders follow the source collision-node transforms, even for nodes
 omitted from the render skeleton. They are transient, excluded from navmesh generation,
 and removed when the component is disabled or destroyed.
+Changing `AnimationGroup` rebuilds the graph and collision with the selected tracks while retaining
+the normalized `Cycle`. Both rendering and collision use the same selection.
 
 Do not add a second static model collider for the same moving geometry. This component
 does not supply multiplayer timeline synchronization, collision-driven stopping, or mission

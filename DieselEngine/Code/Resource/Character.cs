@@ -15,6 +15,7 @@ sealed partial class PaydayCharacter
 	readonly string orientation;
 	readonly Matrix bindRoot;
 	readonly UnitGeometry unitGeometry;
+	readonly Dictionary<string, HashSet<ulong>> animationGroups;
 
 	public PaydayCharacter( BundleDatabase db, MapMaterials materials, NpcDefinition definition, string path )
 		: this( db, materials, definition.Unit, path, definition.Clips(), true ) { }
@@ -28,6 +29,9 @@ sealed partial class PaydayCharacter
 		var unit = UnitModel.Xml( db.Find( "unit", unitPath ) );
 		string objectPath = unit.Element( "object" ).Attribute( "file" );
 		var obj = UnitModel.Xml( db.Find( "object", objectPath ) );
+		animationGroups = (obj.Element( "animations" )?.Elements( "animation_group" ) ?? [])
+			.ToDictionary( g => g.Attribute( "name" ),
+				g => g.Elements( "object" ).Select( o => IdString.Hash( o.Attribute( "name" ) ) ).ToHashSet(), StringComparer.Ordinal );
 		scripted = UnitClassification.Classify( unitPath, unit ) == UnitKind.Scripted;
 		orientation = scripted ? obj.Element( "diesel" ).Attribute( "orientation_object" ) : "root_point";
 		File = new( db.Find( "model", objectPath ) );

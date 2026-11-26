@@ -54,9 +54,9 @@ partial class PaydayCharacter
 	}
 
 	/// <summary>Full embedded controller timeline in authored model space, including vehicle travel.</summary>
-	public Clip BuildEmbeddedClip( string modelPath, string clipPath )
+	public Clip BuildEmbeddedClip( string modelPath, string clipPath, string group = null )
 	{
-		var tracks = File.Controllers( File.RigNodes.Select( b => b.Name ).ToHashSet() );
+		var tracks = EmbeddedTracks( group );
 		float duration = tracks.Values.SelectMany( t => t.PositionTimes.Concat( t.RotationTimes ) ).DefaultIfEmpty().Max();
 		if ( duration <= 0 ) throw new InvalidDataException( "This model has no timed embedded motion." );
 		var target = GetSkeleton( modelPath );

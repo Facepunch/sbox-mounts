@@ -22,6 +22,11 @@ sealed class DieselModelLoader : ResourceLoader<PaydayMount>
 			type = ResourceType.AnimationClip;
 			return new CharacterAnimationLoader( embedded: true );
 		}
+		if ( scripted && name.StartsWith( "groups/", StringComparison.Ordinal ) && name.EndsWith( ".anim", StringComparison.Ordinal ) )
+		{
+			type = ResourceType.AnimationClip;
+			return new CharacterAnimationLoader( name[7..^5], embedded: true );
+		}
 		if ( !name.StartsWith( "clips/", StringComparison.Ordinal ) || !name.EndsWith( ".anim", StringComparison.Ordinal ) ) return null;
 		type = ResourceType.AnimationClip;
 		return new CharacterAnimationLoader( name[6..^5] );
@@ -33,7 +38,7 @@ sealed class DieselModelLoader : ResourceLoader<PaydayMount>
 		{
 			var parent = (DieselModelLoader)Parent;
 			var assets = parent.GetCharacter();
-			if ( embedded ) return assets.BuildEmbeddedClip( parent.Path, Path );
+			if ( embedded ) return assets.BuildEmbeddedClip( parent.Path, Path, source );
 			return source is null ? assets.GetSkeleton( parent.Path )
 				: assets.BuildClip( Host.Database, source, parent.Path, Path );
 		}
