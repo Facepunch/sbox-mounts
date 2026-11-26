@@ -154,23 +154,30 @@ public abstract class Weapon : BaseCombatWeapon
 		(inventory.PickupMode != BaseInventoryComponent.PickupBehaviour.Touch || _touchPickupAllowed <= 0)
 		&& base.OnCanPickup( inventory );
 
+	/// <summary>Loose alternate-fire rounds carried by the pickup, separate from the player's reserve.</summary>
+	[Property, Group( "Ammo" )] public int SecondaryPickupAmmo { get; set; } = -1;
+
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		WeaponSetup.ConfigureAmmo( this );
 		var sandboxAmmo = Game.Ident == "facepunch.sandbox" && MountContent.OfWeapon( this ) is "hl2" or "gmod";
-		if ( sandboxAmmo && GarrysMod.Ammo.MaxAmmo <= 0 && (UsesClips ? Clip1 : StartingAmmo) == 0 )
+		var secondary = UsesSecondaryClip ? Clip2 : SecondaryPickupAmmo;
+		if ( !sandboxAmmo && secondary <= 0 ) return base.OnAdding( inventory );
+
+		foreach ( var held in inventory.GetComponentsInChildren<Weapon>( true ) )
 		{
-			// An empty duplicate stays in the world when native carry limits are in use.
-			return !inventory.Items.Any( item => item != this && item.GetType() == GetType()
-				&& item.GameObject.PrefabInstanceSource == GameObject.PrefabInstanceSource );
+			if ( held == this || held.Inventory != inventory || held.GameObject.IsDestroyed || held.GetType() != GetType()
+				|| held.GameObject.PrefabInstanceSource != GameObject.PrefabInstanceSource ) continue;
+
+			var primary = UsesClips ? (Clip1 < 0 ? ClipMaxSize : Clip1) : StartingAmmo;
+			var given = held.UsesAmmo ? inventory.GiveAmmo( held.PrimaryAmmoType, primary ) : 0;
+			var alternateGiven = inventory.GiveAmmo( held.SecondaryAmmoType, secondary );
+			if ( given > 0 || alternateGiven > 0 || (sandboxAmmo && GarrysMod.Ammo.MaxAmmo > 0) )
+				GameObject.Destroy();
+			return false;
 		}
 
-		if ( base.OnAdding( inventory ) ) return true;
-
-		// With the Sandbox override, touching a duplicate consumes it even at full reserve.
-		if ( sandboxAmmo && GarrysMod.Ammo.MaxAmmo > 0 && Inventory is null && !GameObject.IsDestroyed )
-			GameObject.Destroy();
-		return false;
+		return true;
 	}
 
 	protected override void OnAdded( BaseInventoryComponent inventory )
@@ -186,6 +193,9 @@ public abstract class Weapon : BaseCombatWeapon
 			if ( !WasDropped ) inventory.GiveAmmo( PrimaryAmmoType, StartingAmmo );
 			StartingAmmo = 0;
 		}
+		if ( !WasDropped && !UsesSecondaryClip && SecondaryAmmoType is not null
+			&& WeaponSetup.WeaponData( this ) is { SecondaryClipSize: -1, SecondaryDefaultClip: int secondaryDefault } && secondaryDefault > 0 )
+			inventory.GiveAmmo( SecondaryAmmoType, secondaryDefault );
 		base.OnAdded( inventory );
 	}
 

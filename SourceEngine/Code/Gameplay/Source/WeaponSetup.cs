@@ -76,6 +76,9 @@ static class WeaponSetup
 		state.Data ??= ReadData( weapon );
 		ApplyAmmo( weapon, state.Data );
 
+		if ( weapon is Weapon { SecondaryPickupAmmo: < 0, UsesSecondaryClip: false } source && state.Data is { SecondaryClipSize: -1, SecondaryDefaultClip: > 0 } )
+			source.SecondaryPickupAmmo = state.Data.SecondaryDefaultClip.Value;
+
 		// A fresh pickup carries default_clip rounds in total. Preserve the rounds left in dropped weapons.
 		if ( state.Data is { ClipSize: > 0, DefaultClip: >= 0 } data && weapon.UsesPrimaryClip )
 		{
