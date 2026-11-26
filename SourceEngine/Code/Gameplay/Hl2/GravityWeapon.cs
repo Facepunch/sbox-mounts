@@ -159,13 +159,26 @@ public sealed class GravityWeapon : Weapon
 			var held = HeldObject.GetComponent<Rigidbody>();
 			Release();
 			if ( !held.IsValid() ) return;
-			// Pickup_DefaultPhysGunLaunchVelocity: physcannon_maxforce up to 100 kg, splined down to physcannon_minforce at 600.
-			var t = Math.Clamp( (held.Mass - 100) / 500, 0, 1 );
-			held.Velocity = forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) );
+			var model = held.GetComponentInParent<ModelPhysics>();
+			var mass = model is { Bodies.Count: > 0 } ? model.Bodies[0].Component.Mass : held.Mass;
+			var t = Math.Clamp( (mass - 100) / 500, 0, 1 );
+			var velocity = forward * float.Lerp( MaxLaunchSpeed, MinLaunchSpeed, t * t * (3 - 2 * t) );
 			var spin = _launchSpin is { } launchSpin
 				? Vector3.Up * launchSpin
 				: new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
-			held.AngularVelocity = held.WorldRotation * spin * (MathF.PI / 180);
+			spin *= MathF.PI / 180;
+			if ( model is { Bodies.Count: > 1 } )
+			{
+				foreach ( var part in model.Bodies )
+					if ( CanMove( part.Component ) ) Launch( part.Component );
+			}
+			else Launch( held );
+
+			void Launch( Rigidbody body )
+			{
+				body.Velocity = velocity;
+				body.AngularVelocity = body.WorldRotation * spin;
+			}
 			PuntEffects( PuntResult.LaunchHeld, center );
 			return;
 		}
