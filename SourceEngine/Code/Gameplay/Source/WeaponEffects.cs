@@ -328,9 +328,9 @@ static class WeaponEffects
 		burst.FadeTo( flare, radius, Color.Black );
 	}
 
-	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide )
+	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null )
 	{
-		var sparks = Particles.Emitter( Game.ActiveScene, "effects/spark", mount, true, false, count );
+		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, "effects/spark", mount, true, false, count );
 		if ( !sparks.IsValid() ) return null;
 		sparks.GameObject.WorldPosition = position;
 		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );
@@ -528,12 +528,12 @@ static class WeaponEffects
 	}
 
 	/// <summary>FX_ElectricSpark with a trail length of 1, as g_pEffects->Sparks draws it: big and little streaks and a yellow flare.</summary>
-	public static void ElectricSpark( Vector3 position, int magnitude, Vector3 direction, string mount )
+	public static void ElectricSpark( Vector3 position, int magnitude, Vector3 direction, string mount, GameObject parent = null )
 	{
 		if ( Application.IsDedicatedServer )
 			return;
 		var big = (int)(magnitude * magnitude * Game.Random.Float( 2, 4 ));
-		var bigTrails = SparkTrails( position, mount, big, new( magnitude, magnitude * 2 ), new( 2, 5 ), new( 0.02f, 0.05f ), 800, true );
+		var bigTrails = SparkTrails( position, mount, big, new( magnitude, magnitude * 2 ), new( 2, 5 ), new( 0.02f, 0.05f ), 800, true, parent );
 		if ( bigTrails.IsValid() )
 		{
 			for ( var i = 0; i < big; i++ )
@@ -545,7 +545,7 @@ static class WeaponEffects
 		}
 
 		var little = magnitude * Game.Random.Int( 16, 32 );
-		var littleTrails = SparkTrails( position, mount, little, new( magnitude * 0.1f, magnitude * 0.2f ), new( 2, 4 ), new( 0.02f, 0.03f ), 400, false );
+		var littleTrails = SparkTrails( position, mount, little, new( magnitude * 0.1f, magnitude * 0.2f ), new( 2, 4 ), new( 0.02f, 0.03f ), 400, false, parent );
 		if ( littleTrails.IsValid() )
 		{
 			for ( var i = 0; i < little; i++ )
@@ -556,7 +556,7 @@ static class WeaponEffects
 			}
 		}
 
-		var go = new GameObject( true, "Spark" );
+		var go = new GameObject( parent ?? Game.ActiveScene, true, "Spark" );
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = position;
 		var burst = go.AddComponent<SpriteBurst>();

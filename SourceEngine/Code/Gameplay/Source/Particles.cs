@@ -16,6 +16,7 @@ static class Particles
 		effect.MaxParticles = count;
 		effect.Lifetime = 1000;
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		MountedEffects.UseViewModelLayer( renderer );
 		renderer.Sprite = Sprite.FromTexture( texture );
 		renderer.Additive = additive;
 		renderer.Lighting = lit;

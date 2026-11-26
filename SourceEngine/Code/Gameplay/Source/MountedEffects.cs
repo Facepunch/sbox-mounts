@@ -67,9 +67,9 @@ static class MountedEffects
 	/// Effects under a viewmodel draw in its overlay layer, like Source's viewmodel render group:
 	/// sorted with the gun and kept out of the world's bloom.
 	/// </summary>
-	static void UseViewModelLayer( Renderer renderer )
+	internal static void UseViewModelLayer( Renderer renderer )
 	{
-		if ( renderer.GameObject.Components.GetInAncestorsOrSelf<ViewModel>() is null ) return;
+		if ( renderer.GameObject.Components.GetInAncestorsOrSelf<ViewModel>( true ) is null ) return;
 		renderer.RenderOptions.Game = false;
 		renderer.RenderOptions.Overlay = true;
 	}
