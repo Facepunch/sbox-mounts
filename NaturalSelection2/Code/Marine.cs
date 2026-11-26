@@ -57,6 +57,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Rotation aim;
+	internal Vector3 AimDirection => aim.Forward;
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, weaponTag;
 	bool leftFoot = true;

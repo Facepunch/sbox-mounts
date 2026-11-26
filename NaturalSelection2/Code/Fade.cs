@@ -27,7 +27,8 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	TimeUntil weaponSwitch;
 	[Property] public bool StabUnlocked { get; set; } = true;
 	float energy = 100;
-	TimeUntil repath;
+	TimeUntil repath, nextJuke;
+	int jukeSign = 1;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -109,6 +110,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 			enemy = null;
 			lastSeen = null;
 		}
+		if ( enemy != assignedEnemy ) attacking = false;
 		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		Animation.SetLookTarget( visible ? enemy : null );
@@ -120,12 +122,55 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 			if ( Movement.MoveTarget is { } destination ) TravelTo( destination );
 			return;
 		}
-		if ( !attacking ) TravelTo( goal.Value );
+		if ( visible && attacking )
+		{
+			if ( Lerk.IsPlayerTarget( enemy ) )
+			{
+				if ( nextJuke <= 0 )
+				{
+					jukeSign = -jukeSign;
+					nextJuke = 0.35f + Random.Shared.NextSingle() * 0.65f;
+				}
+				var side = Vector3.Cross( EyePosition - CalculateAimPoint( enemy ), Vector3.Up ).Normal;
+				if ( side.LengthSquared > 0 ) Movement.MoveTo( WorldPosition + side * (Scale * jukeSign), 1, faceTarget: enemy );
+			}
+			else if ( WorldPosition.Distance( enemy.WorldPosition ) < 2.4f * 0.915f * Scale )
+			{
+				Movement.Stop();
+			}
+			return;
+		}
+		if ( visible && Lerk.IsPlayerTarget( enemy ) ) goal = ApproachPosition( enemy );
+		TravelTo( goal.Value );
 		if ( repath <= 0 )
 		{
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
 			repath = 0.2f;
 		}
+	}
+
+	Vector3 ApproachPosition( GameObject enemy )
+	{
+		var marine = enemy.GetComponent<Marine>();
+		var exo = enemy.GetComponent<Exo>();
+		var forward = marine?.AimDirection ?? exo?.AimDirection ?? enemy.GetComponent<PlayerController>()?.EyeAngles.Forward ?? enemy.WorldRotation.Forward;
+		var eye = CalculateEyePosition( enemy );
+		double cone = Math.Cos( (exo.IsValid() ? 95 : 90) * Math.PI / 180 );
+		if ( Vector3.Dot( (WorldPosition - eye).Normal, forward ) <= cone )
+			return marine?.EngagementPoint ?? (exo.IsValid() ? enemy.WorldPosition + Vector3.Up * (1.5f * Scale) : CalculateAimPoint( enemy ));
+
+		if ( !Scene.NavMesh.IsEnabled ) return enemy.WorldPosition;
+		float radius = enemy.GetComponentInChildren<CapsuleCollider>()?.Radius ?? 0;
+		var flank = FlankPosition( WorldPosition, enemy.WorldPosition, forward, radius * MathF.Sqrt( 2 ) );
+		return Scene.NavMesh.GetClosestPoint( flank ) ?? enemy.WorldPosition;
+	}
+
+	static Vector3 FlankPosition( Vector3 origin, Vector3 target, Vector3 forward, float extent )
+	{
+		var behind = target - forward * (extent + 2 * Scale);
+		var left = behind + new Vector3( forward.y, -forward.x, forward.z ) * (2.4f * Scale);
+		var right = behind + new Vector3( -forward.y, forward.x, forward.z ) * (2.4f * Scale);
+		return origin.DistanceSquared( left ) < origin.DistanceSquared( right ) ? left : right;
 	}
 
 	void UpdateAttack( GameObject enemy )
@@ -149,8 +194,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		view = AlienAim.Turn( view, aim, 5 );
 		if ( !acquisition.Ready( enemy, aim, view ) ) return;
 
-		var touch = enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition;
-		attacking = EyePosition.Distance( touch ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
+		attacking = WorldPosition.Distance( enemy.WorldPosition ) <= (2.45f + Random.Shared.NextSingle() * 0.075f) * Scale;
 		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )
 		{
 			bool wantsStab = StabUnlocked && energy >= 25 && OpenToStab( enemy );
