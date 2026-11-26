@@ -14,21 +14,27 @@ internal sealed partial class HandheldWeaponLoader
 		return null;
 	}
 
-	string VolumePath( int projectile ) => LightVolume( projectile ) is {} tag
-		? Host.AssetPath( map, tag.TagPath, "prefab" ) : null;
+	string ProjectileEffectPath( TagEntry projectile )
+	{
+		var tag = LightVolume( Address( projectile ) ) ?? projectile;
+		return Host.AssetPath( map, tag.TagPath, "prefab" );
+	}
 
-	void RegisterLightVolumes( MountContext context, HashSet<string> registered )
+	void RegisterProjectileEffects( MountContext context, HashSet<string> registered )
 	{
 		int barrels = Header + 0x2d0;
 		for ( int i = 0, row = Block( barrels ); i < map.ReadInt32( barrels ); i++, row += 0xec )
 		{
 			var projectile = Reference( row + 0x8c );
-			if ( projectile is null || LightVolume( Address( projectile ) ) is not {} volume || !registered.Add( ImpactPath( volume ) ) ) continue;
-			context.Add( ResourceType.PrefabFile, ImpactPath( volume ), new VolumeLoader( this, projectile, volume ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
+			if ( projectile is null ) continue;
+			var volume = LightVolume( Address( projectile ) );
+			var path = ImpactPath( volume ?? projectile );
+			if ( !registered.Add( path ) ) continue;
+			context.Add( ResourceType.PrefabFile, path, new ProjectileEffectLoader( this, projectile, volume ) { Flags = ResourceFlags.DeveloperOnly | ResourceFlags.Effect } );
 		}
 	}
 
-	sealed class VolumeLoader( HandheldWeaponLoader source, TagEntry projectile, TagEntry tag ) : ResourceLoader<Halo2Mount>
+	sealed class ProjectileEffectLoader( HandheldWeaponLoader source, TagEntry projectile, TagEntry tag ) : ResourceLoader<Halo2Mount>
 	{
 		PrefabFile prefab;
 		protected override object Load()
@@ -36,11 +42,9 @@ internal sealed partial class HandheldWeaponLoader
 			var builder = new PrefabBuilder().WithName( Path );
 			using ( builder.Scope() )
 			{
-				var bolt = new GameObject().AddComponent<ProjectileLightVolume>();
-				source.ReadVolume( tag, bolt );
-				int header = source.Address( projectile );
-				bolt.Sound = source.ReadSoundTrack( header, "" );
-				source.ReadAttachments( header, bolt );
+				var root = new GameObject();
+				if ( tag is not null ) source.ReadVolume( tag, root.AddComponent<ProjectileLightVolume>() );
+				source.ReadAttachments( projectile, root );
 			}
 			return prefab = builder.Create();
 		}
@@ -52,18 +56,37 @@ internal sealed partial class HandheldWeaponLoader
 		}
 	}
 
-	void ReadAttachments( int projectile, ProjectileLightVolume bolt )
+	void ReadAttachments( TagEntry projectile, GameObject root )
 	{
-		int attachments = projectile + 0x94;
+		int header = Address( projectile );
+		var markers = new Dictionary<string, GameObject>();
+		GameObject AtMarker( string name )
+		{
+			if ( string.IsNullOrEmpty( name ) ) return root;
+			if ( markers.TryGetValue( name, out var emitter ) ) return emitter;
+			var path = ModelPath( Host, map, projectile );
+			if ( path is null || Model.Load( path )?.Attachments.GetTransform( name ) is not {} pose ) return root;
+			emitter = new GameObject( root, true, name );
+			emitter.LocalTransform = pose;
+			return markers[name] = emitter;
+		}
+
+		if ( ReadSoundTrack( header, "" ) is {} track )
+			AtMarker( track.Marker ).AddComponent<ProjectileSound>().Track = track;
+		int attachments = header + 0x94;
 		for ( int i = 0, row = Block( attachments ); i < map.ReadInt32( attachments ); i++, row += 24 )
 		{
 			var tag = Reference( row );
-			if ( tag is { PrimaryClass: "effe" } )
-				bolt.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
+			if ( tag is { PrimaryClass: "effe" } && root.GetComponent<ProjectileLightVolume>() is {} volume &&
+				string.IsNullOrEmpty( map.ResolveStringId( map.ReadInt32( row + 16 ) ) ) )
+				volume.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
+			if ( tag is { PrimaryClass: "effe" } && map.ResolveStringId( map.ReadInt32( row + 16 ) ) == "acceleration_range" &&
+				ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
+				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ).AddComponent<ProjectileExhaust>().Effects = exhaust;
 			if ( tag is not { PrimaryClass: "hgil" } ) continue;
 			int light = Address( tag );
 			if ( Short( light + 4 ) != 0 || Float( light + 0xb0 ) != 0 ) continue;
-			var point = bolt.GameObject.AddComponent<PointLight>();
+			var point = AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ).AddComponent<PointLight>();
 			point.Radius = Float( light + 12 ) * Float( light + 24 ) * 120;
 			point.LightColor = new Color( Float( light + 0x64 ), Float( light + 0x68 ), Float( light + 0x6c ) );
 			point.Intensity = Float( light + 0x74 ) * 2;

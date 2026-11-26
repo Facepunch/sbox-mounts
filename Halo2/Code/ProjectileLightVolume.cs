@@ -24,9 +24,7 @@ public sealed class ProjectileLightVolume : Component
 	[Property] public VolumeLayer[] Layers { get; set; }
 	[Property] public float Falloff { get; set; }
 	[Property] public MuzzleFlashDefinition[] Glow { get; set; }
-	[Property] public WeaponSoundTrack Sound { get; set; }
 	[Property] public float Cutoff { get; set; }
-	readonly TrackVoice voice = new();
 
 	protected override void OnStart()
 	{
@@ -58,13 +56,6 @@ public sealed class ProjectileLightVolume : Component
 			for ( int i = 0; i < layer.Count; i++ ) effect.Emit( WorldPosition, 0 );
 		}
 	}
-
-	protected override void OnUpdate()
-	{
-		if ( Sound is not null && !Application.IsDedicatedServer ) voice.Update( Sound, true, GameObject );
-	}
-
-	protected override void OnDisabled() => voice.Stop( Sound );
 
 	void PlaceSprites( ParticleEffect effect, VolumeLayer layer )
 	{

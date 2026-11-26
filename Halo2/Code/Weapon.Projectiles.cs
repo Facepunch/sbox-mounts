@@ -76,6 +76,7 @@ public abstract partial class Weapon
 		public float FuseSeconds;
 		public ProjectileContrail Trail;
 		public GameObject Body;
+		public ProjectileExhaust Exhaust;
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
@@ -121,6 +122,7 @@ public abstract partial class Weapon
 				body.NetworkMode = NetworkMode.Object;
 				body.WorldTransform = new Transform( ray.Position, Rotation.LookAt( forward, Perpendicular( forward ) ) );
 				if ( model is { IsError: false } ) body.AddComponent<ModelRenderer>().Model = model;
+				pellets[i].Exhaust = body.GetComponentInChildren<ProjectileExhaust>( true );
 				body.NetworkSpawn( true, null );
 				pellets[i].Body = body;
 			}
@@ -281,6 +283,8 @@ public abstract partial class Weapon
 				{
 					pellet.Offset += displacement;
 					pellet.Travelled += distance;
+					if ( pellet.Exhaust.IsValid() )
+						pellet.Exhaust.AccelerationRange = profile is null ? 1 : ((pellet.Travelled - profile.StartDistance) * profile.InverseDistance).Clamp( 0, 1 );
 					if ( pellet.Body.IsValid() )
 					{
 						if ( atRange ) pellet.Body.Destroy();
