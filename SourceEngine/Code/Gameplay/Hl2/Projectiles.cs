@@ -562,7 +562,12 @@ public sealed class EnergyBall : Projectile
 
 	protected override void Hit( SceneTraceResult tr )
 	{
-		var damaged = DamageVictim( tr, ["energy"] );
+		// Physics props take dissolving impact damage independently of the weapon's combat damage.
+		var hitProp = tr.GameObject?.GetComponentInParent<Component.IDamageable>() is Prop;
+		if ( hitProp )
+			BaseCombatWeapon.ShootBullet( tr, 1000, 0, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, [DamageTags.Crush, "dissolve"], hitboxTags: false );
+
+		var damaged = !hitProp && DamageVictim( tr, ["energy"] );
 		PlayImpact( tr, damaged ? "NPC_CombineBall.KillImpact" : "NPC_CombineBall.Impact", impactEffect: false );
 		BounceEffect( tr.HitPosition, tr.Normal, MountName );
 		Reflect( tr, 1 );
