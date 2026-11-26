@@ -175,19 +175,25 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		return distance < 15 ? weight + (passive ? 3 : 10) / Math.Max( 1, distance ) : weight;
 	}
 
+	// Spark uses gameplay extents for touch range. Some differ from the movement collider.
+	static float HorizontalExtent( GameObject target ) => target.GetComponent<BaseNpc>() switch
+	{
+		Onos => Onos.HorizontalExtents,
+		Hive => 2 * MathF.Sqrt( 2 ) * Scale,
+		Harvester => MathF.Sqrt( 2 ) * Scale,
+		Hydra or Crag or Babbler => 0.5f * MathF.Sqrt( 2 ) * Scale,
+		_ => ((target.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero) * target.WorldScale).WithZ( 0 ).Length * 0.5f
+	};
+
 	protected override void Think()
 	{
-		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory );
+		var targeting = AlienTargeting.ForTeam( this );
+		var enemy = targeting.FindEnemy( this, out var memory );
 		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );
-		float distance = float.MaxValue;
 		var goal = memory ?? enemy?.WorldPosition;
-		if ( goal is { } position )
-		{
-			var size = enemy.GetComponentInChildren<Collider>()?.LocalBounds.Size ?? Vector3.Zero;
-			distance = (EyePosition.Distance( position ) - (size * enemy.WorldScale).WithZ( 0 ).Length * 0.5f) / Scale;
-		}
+		float distance = enemy.IsValid() ? Math.Max( 0, targeting.WalkDistanceFromEye( this, enemy.WorldPosition ) - HorizontalExtent( enemy ) ) / Scale : float.MaxValue;
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;

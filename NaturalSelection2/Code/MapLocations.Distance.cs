@@ -9,9 +9,11 @@ public sealed partial class MapLocations
 	readonly Dictionary<string, Vector3[]> roomGateways = [];
 	readonly Dictionary<(string, string), GatewayRoute?> walkRoutes = [];
 
-	internal float WalkDistance( Vector3 from, Vector3 to )
+	internal float WalkDistance( Vector3 from, Vector3 to ) => WalkDistanceFromRoom( null, from, to );
+
+	internal float WalkDistanceFromRoom( string start, Vector3 from, Vector3 to )
 	{
-		var start = LocationAt( from );
+		start ??= LocationAt( from );
 		var end = LocationAt( to );
 		if ( start is null || end is null || start == end || !NavigationReady() )
 			return from.Distance( to );

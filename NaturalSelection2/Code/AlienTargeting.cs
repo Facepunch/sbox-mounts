@@ -150,6 +150,10 @@ internal sealed class AlienTargeting
 		return false;
 	}
 
+	internal float WalkDistanceFromEye( BaseNpc observer, Vector3 to ) =>
+		locations.IsValid() ? locations.WalkDistanceFromRoom( locations.LocationAt( observer.WorldPosition ), observer.EyePosition, to )
+			: observer.EyePosition.Distance( to );
+
 	internal GameObject FindEnemy( BaseNpc alien, out Vector3? lastKnownPosition, Func<GameObject, Vector3, bool> ignore = null )
 	{
 		lastKnownPosition = null;
