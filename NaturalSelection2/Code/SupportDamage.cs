@@ -11,7 +11,7 @@ internal static class SupportDamage
 	{
 		var tags = hit.DamageInfo.Tags;
 		bool structural = victim is not Drifter;
-		float damage = hit.AcceptedDamage;
+		float damage = hit.AcceptedDamage * AlienArmor.UmbraScale( hit );
 		if ( tags.HasAny( "gas", "biological" ) || (!structural && tags.HasAny( "structuresonly", "splash" )) ||
 			(victim is Mac && tags.Has( "nervegas" )) )
 			damage = 0;
@@ -25,9 +25,6 @@ internal static class SupportDamage
 			damage *= victim is Hydra && tags.Has( "flame" ) ? 5 : 2;
 		else if ( !structural && tags.Has( "spreading" ) ) damage *= 0.75f;
 
-		if ( tags.HasAny( "bullet", "buckshot", "railgun", "grenade" ) && victim.GetComponent<UmbraProtection>().IsValid() )
-			damage *= 0.8f;
-
 		var (ratio, fraction) = ArmorRule( hit.DamageInfo, victim );
 		if ( damage <= 0 || (fraction == 1 && armor <= 0) ) hit.Cancelled = true;
 		hit.AcceptedDamage = fraction == 1 ? 0 : damage - Math.Min( armor * ratio, damage * fraction );
@@ -37,7 +34,7 @@ internal static class SupportDamage
 	{
 		var (ratio, fraction) = ArmorRule( hit.DamageInfo, victim );
 		float lost = fraction == 1
-			? Math.Min( armor, (hit.DamageInfo.Damage > 0 ? hit.DamageInfo.Damage : 0) / ratio )
+			? Math.Min( armor, Math.Max( 0, hit.DamageInfo.Damage ) * AlienArmor.UmbraScale( hit ) / ratio )
 			: Math.Min( armor, hit.AcceptedDamage * fraction / ((1 - fraction) * ratio) );
 		NpcTeamMemory.RecordArmorLoss( hit, lost );
 		float damage = hit.AcceptedDamage + lost * ratio;
