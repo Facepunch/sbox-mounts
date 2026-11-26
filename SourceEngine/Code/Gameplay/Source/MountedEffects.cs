@@ -97,8 +97,7 @@ static class MountedEffects
 	/// <summary>An additive textured line standing in for a code-driven Source beam.</summary>
 	public static LineRenderer AddBeam( GameObject parent, string name, string mountName )
 	{
-		var texture = SpriteTexture( name, mountName, out var material );
-		if ( texture is null || !parent.IsValid() ) return null;
+		if ( !parent.IsValid() || BeamTexture( name, mountName ) is not { } texturing ) return null;
 		var go = new GameObject( parent, false, name );
 		go.NetworkMode = NetworkMode.Never;
 		var beam = go.AddComponent<LineRenderer>();
@@ -108,11 +107,18 @@ static class MountedEffects
 		beam.Opaque = false;
 		beam.CastShadows = false;
 		beam.Face = SceneLineObject.FaceMode.Camera;
-		var texturing = LineTexture( texture );
-		texturing.Material = material?.GetBeamMaterial( texture );
 		beam.Texturing = texturing;
 		go.Enabled = true;
 		return beam;
+	}
+
+	internal static TrailTextureConfig? BeamTexture( string name, string mountName )
+	{
+		var texture = SpriteTexture( name, mountName, out var material );
+		if ( texture is null ) return null;
+		var texturing = LineTexture( texture );
+		texturing.Material = material?.GetBeamMaterial( texture );
+		return texturing;
 	}
 
 	internal static TrailTextureConfig LineTexture( Texture texture )

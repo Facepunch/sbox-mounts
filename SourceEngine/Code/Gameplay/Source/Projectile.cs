@@ -279,6 +279,15 @@ public abstract partial class Projectile : Component
 		if ( Sounds.Sound( name, mountName ) is { } sound ) Sound.Play( sound, position );
 	}
 
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	protected static void Scorch( GameObject target, Transform local, string mount, bool large )
+	{
+		if ( Application.IsDedicatedServer || !target.IsValid() ) return;
+		var group = large ? "scorch" : "smallscorch";
+		var prefab = GameObject.GetPrefab( $"mount://{mount}/decals/{mount}_{group}.prefab" );
+		WeaponEffects.PlaceDecal( prefab, target, local );
+	}
+
 	protected void PlayImpact( SceneTraceResult tr, string sound, bool impactEffect = true ) =>
 		Impact( new BaseCombatWeapon.ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ), Velocity.Normal, sound, impactEffect, MountName );
 
