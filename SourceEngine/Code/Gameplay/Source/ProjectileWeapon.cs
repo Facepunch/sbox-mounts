@@ -203,8 +203,20 @@ public sealed partial class ProjectileWeapon : Weapon
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{
-		base.OnShootEffects( shot );
-		if ( Kind != Projectile.Kinds.Bolt || shot.NoEvents || Application.IsDedicatedServer ) return;
+		if ( Kind != Projectile.Kinds.Bolt || Application.IsDedicatedServer )
+		{
+			base.OnShootEffects( shot );
+			return;
+		}
+
+		if ( shot.NoEvents ) return;
+		if ( AttackSound is { } sound )
+		{
+			var handle = Sounds.PlayWeaponSound( this, sound );
+			if ( Network.IsOwner && handle.IsValid() ) handle.SpacialBlend = 0;
+		}
+		WeaponModel?.OnAttack( null, shot.Origin );
+		PostWeaponEvent( WeaponEvents.Attack );
 		WeaponEffects.CrossbowLoad( WeaponModel, MountContent.OfWeapon( this ) );
 		Sounds.PlayWeaponSound( this, "special2" );
 	}
