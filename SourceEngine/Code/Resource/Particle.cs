@@ -86,7 +86,6 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 		PcfFile.Element sphere;
 		PcfFile.Element box;
 		PcfFile.Element sequenceLifetime;
-		PcfFile.Element yawFlip;
 		ParticleFloat trailLength;
 		int sequenceMin;
 		int sequenceMax;
@@ -183,11 +182,14 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 					break;
 				case "rotation random":
 					timedFields.Remove( RollField );
-					var initial = op.Number( "rotation_initial" );
-					effect.InitialRoll = new ParticleFloat( initial + op.Number( "rotation_offset_min" ), initial + op.Number( "rotation_offset_max", 360 ) );
+					effect.InitialRoll = RandomAngle( op, "rotation" );
+					break;
+				case "rotation yaw random":
+					effect.InitialYaw = RandomAngle( op, "yaw" );
+					effect.Yaw = 0;
 					break;
 				case "rotation yaw flip random":
-					yawFlip = op;
+					effect.Yaw = Flip( op.Number( "Flip Percentage", 0.5f ) );
 					break;
 				case "sequence random":
 					sequenceMin = (int)op.Number( "sequence_min" );
@@ -713,7 +715,6 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 				// Without an orientation control point Source uses the world XY plane.
 				alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 				effect.InitialPitch = 90;
-				if ( yawFlip is not null ) effect.InitialYaw = Flip( Math.Clamp( yawFlip.Number( "Flip Percentage", 0.5f ), 0, 1 ) );
 			}
 			else if ( orientation != 0 )
 			{
@@ -736,11 +737,23 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 		}
 	}
 
+	static ParticleFloat RandomAngle( PcfFile.Element op, string field )
+	{
+		var initial = op.Number( $"{field}_initial" );
+		return RandomRange( initial + op.Number( $"{field}_offset_min" ), initial + op.Number( $"{field}_offset_max", 360 ),
+			op.Number( $"{field}_random_exponent", 1 ) );
+	}
+
 	static ParticleFloat Range( PcfFile.Element op, string min, string max, float fallback, string exponent = null, float scale = 1 )
 	{
 		var a = op.Number( min, fallback ) * scale;
 		var b = op.Number( max, fallback ) * scale;
-		var power = exponent is null ? 1 : Math.Max( 0, op.Number( exponent, 1 ) );
+		return RandomRange( a, b, exponent is null ? 1 : op.Number( exponent, 1 ) );
+	}
+
+	static ParticleFloat RandomRange( float a, float b, float power )
+	{
+		power = Math.Max( 0, power );
 		if ( power == 1 ) return new( a, b );
 
 		return new ParticleFloat
@@ -767,12 +780,17 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 	}
 
 	// 180 degrees for the given fraction of particles, picked by each particle's seed.
-	static ParticleFloat Flip( float chance ) => new()
+	static ParticleFloat Flip( float chance )
 	{
-		Type = ParticleFloat.ValueType.Curve,
-		Evaluation = ParticleFloat.EvaluationType.Seed,
-		CurveA = new Curve( new Curve.Frame( 0, 0 ) { Mode = Curve.HandleMode.Stepped }, new Curve.Frame( 1 - chance, 180 ) { Mode = Curve.HandleMode.Stepped } )
-	};
+		if ( chance <= 0 ) return 0;
+		if ( chance >= 1 ) return 180;
+		return new ParticleFloat
+		{
+			Type = ParticleFloat.ValueType.Curve,
+			Evaluation = ParticleFloat.EvaluationType.Seed,
+			CurveA = new Curve( new Curve.Frame( 0, 0 ) { Mode = Curve.HandleMode.Stepped }, new Curve.Frame( 1 - chance, 180 ) { Mode = Curve.HandleMode.Stepped } )
+		};
+	}
 
 	static Vector3 Vector( PcfFile.Element op, string key, Vector3 fallback = default ) => op.Vector( key ) is { Length: 3 } v ? new( v[0], v[1], v[2] ) : fallback;
 
