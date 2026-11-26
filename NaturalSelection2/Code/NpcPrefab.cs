@@ -34,7 +34,7 @@ internal sealed class NpcPrefab( string title, string directory, string tag, str
 			renderer.Model = Model.Load( ModelPath );
 			renderer.UseAnimGraph = true;
 			renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"mount://ns2/{directory}.animation_graph.ag" );
-			root.AddComponent<ModelHitboxes>().Renderer = renderer;
+			if ( tag != "ns2_babbler" ) root.AddComponent<ModelHitboxes>().Renderer = renderer;
 			configure( root, renderer );
 			if ( painSound is not null ) root.AddComponent<SupportPain>().Configure( Host, painSound );
 		}

@@ -22,8 +22,11 @@ public sealed partial class Babbler : Ns2Npc
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		renderer.LocalPosition = Vector3.Up * Radius;
+		var hitbox = root.AddComponent<ManualHitbox>();
+		hitbox.CenterA = renderer.LocalPosition;
+		hitbox.Radius = 2 * Radius;
 		var shape = new GameObject( root, true, "Collider" ).AddComponent<SphereCollider>();
-		shape.GameObject.Tags.Add( "playercontroller" );
+		shape.GameObject.Tags.Add( "playercontroller", "ns2_movement" );
 		shape.Radius = Radius;
 		shape.Center = renderer.LocalPosition;
 		var body = root.AddComponent<Rigidbody>();
@@ -93,7 +96,7 @@ public sealed partial class Babbler : Ns2Npc
 	{
 		GetComponent<Rigidbody>( true ).Enabled = enabled;
 		GetComponentInChildren<SphereCollider>( true ).Enabled = enabled;
-		GetComponent<ModelHitboxes>( true ).Enabled = enabled;
+		GetComponent<ManualHitbox>( true ).Enabled = enabled;
 		GetComponent<NavigationLayer>( true ).Enabled = enabled;
 		GetComponent<SensesLayer>( true ).Enabled = enabled;
 		GetComponent<AnimationLayer>( true ).Enabled = enabled;
