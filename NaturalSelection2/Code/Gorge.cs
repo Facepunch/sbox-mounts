@@ -112,20 +112,29 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			}
 		}
 		var recipient = combatWeight < 5 ? FindDonationTarget( threatPosition ) : null;
+		const float followWeight = 1.25f;
+		var friend = combatWeight <= followWeight && !recipient.IsValid() ? FindEscort() : null;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
-		if ( SupportAlly( recipient.IsValid() ? 5 : combatWeight ) || !recipient.IsValid() && !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		float competingWeight = recipient.IsValid() ? 5 : combatWeight;
+		if ( friend.IsValid() ) competingWeight = followWeight;
+		if ( SupportAlly( competingWeight ) || competingWeight <= 2.5f && PlantHydra( threatPosition ) )
 		{
 			throwing = false;
-			escort = null;
 			return;
 		}
 		if ( recipient.IsValid() )
 		{
 			throwing = firing = true;
-			escort = null;
 			Movement.Stop();
 			Animation.SetLookTarget( recipient.GameObject );
+			return;
+		}
+		if ( friend.IsValid() )
+		{
+			assignedTarget = friend.GameObject;
+			throwing = firing = false;
+			FollowLifeform( friend );
 			return;
 		}
 		assignedTarget = enemy;
@@ -135,14 +144,10 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		firing = structureThrow ? throwing : visible && (bombard ? bombarding : EyePosition.Distance( goal.Value ) <= 20 * Scale);
 		if ( goal is null )
 		{
-			if ( !FollowLifeform() )
-			{
-				Animation.SetLookTarget( null );
-				GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
-			}
+			Animation.SetLookTarget( null );
+			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 			return;
 		}
-		escort = null;
 		Animation.SetLookTarget( visible && (!structureThrow || throwing) ? enemy : null );
 		if ( repath > 0 ) return;
 		repath = 0.2f;
@@ -174,9 +179,9 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	BaseNpc escort;
 	TimeUntil checkEscort;
 
-	bool FollowLifeform()
+	BaseNpc FindEscort()
 	{
-		if ( checkEscort > 0 ) return escort.IsValid() && escort.Health > 0;
+		if ( checkEscort > 0 ) return escort.IsValid() && escort.Health > 0 && !AlienTargeting.HasResponders( this, escort, 1 ) ? escort : null;
 		checkEscort = 0.25f;
 		escort = null;
 		float nearest = 30 * Scale;
@@ -185,16 +190,20 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			if ( npc is not (Skulk or Onos or Fade or Lerk) || npc.Health <= 0 || npc.Faction != Faction ||
 				npc.GameObject.Tags.Has( "ns2_hallucination" ) ) continue;
 			float distance = npc.WorldPosition.Distance( WorldPosition );
-			if ( distance > nearest || Scene.GetAllComponents<Gorge>().Any( g => g != this && g.Health > 0 && g.escort == npc ) ) continue;
+			if ( distance > nearest || AlienTargeting.HasResponders( this, npc, 1 ) ) continue;
 			nearest = distance;
 			escort = npc;
 		}
-		if ( !escort.IsValid() ) return false;
+		return escort;
+	}
+
+	void FollowLifeform( BaseNpc escort )
+	{
+		float nearest = WorldPosition.Distance( escort.WorldPosition );
 		Animation.SetLookTarget( nearest >= 2.5f * Scale && nearest <= 6 * Scale ? escort.GameObject : null );
 		if ( nearest > 6 * Scale ) Movement.MoveTo( escort.WorldPosition, 0 );
 		else if ( nearest < 2.5f * Scale ) Movement.MoveTo( WorldPosition + (WorldPosition - escort.WorldPosition).Normal * (2 * Scale), 0 );
 		else Movement.Stop();
-		return true;
 	}
 
 	protected override void OnUpdate()
