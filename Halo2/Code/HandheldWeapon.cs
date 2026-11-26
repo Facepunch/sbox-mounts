@@ -69,8 +69,31 @@ internal sealed class TrackVoice
 	}
 }
 
+public sealed record ReticleLayout( Vector2 Size, Vector2 Offset );
+
 public abstract class HandheldWeapon : Weapon
 {
+	[Property] public ReticleLayout[] Reticles { get; set; }
+	static readonly string[] reticlePages = ["crosshair", "split_crosshair", "quarter_crosshair"];
+	readonly Texture[] reticleTextures = new Texture[3];
+
+	public override void DrawCrosshair( Painter painter, Vector2 center )
+	{
+		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
+		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
+		int mode = (viewport.z < 1 ? 1 : 0) + (viewport.w < 1 ? 1 : 0);
+		var layout = Reticles?.ElementAtOrDefault( mode );
+		if ( layout is null || IsDualWielding || ZoomLevel > 0 )
+		{
+			base.DrawCrosshair( painter, center );
+			return;
+		}
+		ref var texture = ref reticleTextures[mode];
+		if ( !texture.IsValid() ) texture = Texture.Load( $"{RigDirectory}.prefab/{reticlePages[mode]}.vtex" );
+		if ( !texture.IsValid() || texture.IsError ) return;
+		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
+		painter.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), Color.FromBytes( 117, 186, 255 ) );
+	}
 	[Property] public string RigDirectory { get; set; }
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }

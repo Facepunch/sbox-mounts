@@ -237,6 +237,8 @@ public class Halo2Mount : BaseGameMount
 					if ( (i == 0 || !handhelds.ContainsKey( name )) && HandheldWeaponLoader.ForTag( mapFile, tag, name ) is {} item )
 						handhelds[name] = item;
 				}
+				if ( handhelds.TryGetValue( name, out var handheld ) && tag.DataSize >= 0x2b8 )
+					handheld.FindReticleSource( mapFile, tag );
 			}
 
 			switch ( tag.PrimaryClass )

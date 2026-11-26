@@ -22,10 +22,23 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 	protected int Address( TagEntry tag ) => map.VaToOffset( (int)tag.DataVirtualAddress );
 	internal int MaxReserve => Short( Block( Header + 0x2c0 ) + 0xc );
 
-	protected (int Row, TagEntry Bitmap, int Index)? HudPage( string widget, bool split, bool elite = false )
+	protected (int Row, TagEntry Bitmap, int Index)? HudPage( string widget, bool split, bool elite = false ) =>
+		HudPage( widget, split ? 1 : 0, elite );
+
+	protected (int Row, TagEntry Bitmap, int Index)? HudPage( string widget, int layout, bool elite = false )
 	{
-		if ( Reference( Header + 0x2b0 ) is not {} definition ) return null;
-		int hud = Address( definition );
+		var visited = new HashSet<TagEntry>();
+		for ( var definition = Reference( Header + 0x2b0 ); definition is { DataSize: >= 16 } && visited.Add( definition ); )
+		{
+			int hud = Address( definition );
+			if ( FindHudPage( hud, widget, layout, elite ) is {} page ) return page;
+			definition = Reference( hud );
+		}
+		return null;
+	}
+
+	(int Row, TagEntry Bitmap, int Index)? FindHudPage( int hud, string widget, int layout, bool elite )
+	{
 		int widgets = Block( hud + 8 );
 		for ( int i = 0; i < map.ReadInt32( hud + 8 ); i++ )
 		{
@@ -33,7 +46,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 			if ( map.ResolveStringId( map.ReadInt32( row ) ) != widget ) continue;
 			var bitmap = Reference( row + 0x20 );
 			if ( bitmap is null ) return null;
-			int sequence = map.ReadSpan( row + (split ? 0x31 : 0x30), 1 )[0];
+			int sequence = map.ReadSpan( row + 0x30 + layout, 1 )[0];
 			int sequences = Address( bitmap ) + 60;
 			int count = map.ReadInt32( sequences );
 			// HUD sequence zero addresses the first image when the bitmap has no sequences.

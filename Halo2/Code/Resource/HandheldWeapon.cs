@@ -7,6 +7,38 @@ namespace Halo2;
 internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag, string title, string hold ) : WeaponLoader( source, tag )
 {
 	internal string Title => title;
+	HandheldWeaponLoader reticleSource;
+
+	// Original HUD pixel extents, in MCC hud_reticles bitmap-page order.
+	static readonly Vector2[] reticleSizes = [
+		new(55,55), new(46,34), new(54,53), new(53,45), new(45,45), new(28,50), new(56,17), new(7,7),
+		new(25,25), new(63,63), new(55,55), new(58,34), new(49,54), new(56,33), new(16,5), new(45,45),
+		new(55,55), new(35,35), new(51,62), new(13,5), new(55,53), new(55,53), new(9,9), new(27,27),
+		new(23,17), new(27,27), new(27,23), new(23,23), new(14,25), new(28,9), new(13,13), new(32,31),
+		new(28,28), new(27,16), new(25,27), new(28,17), new(27,27), new(17,17), new(25,31), new(27,27),
+		new(27,27), new(52,55), new(26,28), new(42,41), new(23,23), new(62,63), new(31,31), new(63,63),
+		new(31,31), new(35,19), new(17,9), new(51,27), new(25,13), new(48,17), new(24,9), new(49,29),
+		new(25,15), new(39,26), new(21,14)
+	];
+
+	ReticleLayout ReadReticle( int layout )
+	{
+		if ( HudPage( "crosshair", layout ) is not {} page || page.Bitmap.TagPath != @"ui\hud\bitmaps\new_hud\crosshairs\hud_reticles" ||
+			(uint)page.Index >= reticleSizes.Length ) return null;
+		int row = page.Row;
+		int offset = row + 0x34 + layout * 4;
+		int registration = row + 0x40 + layout * 8;
+		var size = reticleSizes[page.Index];
+		return new( size, new Vector2( Short( offset ), Short( offset + 2 ) ) -
+			new Vector2( MathF.Floor( size.x * Float( registration ) ), MathF.Floor( size.y * Float( registration + 4 ) ) ) );
+	}
+
+	internal void FindReticleSource( MapFile candidate, TagEntry definition )
+	{
+		if ( reticleSource is not null ) return;
+		var loader = candidate == map ? this : new HandheldWeaponLoader( candidate, definition, title, hold );
+		if ( loader.HudPage( "crosshair", false ).HasValue ) reticleSource = loader;
+	}
 
 	internal static HandheldWeaponLoader ForTag( MapFile map, TagEntry weapon, string name ) => name switch
 	{
@@ -163,18 +195,22 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = ResourceType.Texture;
-		if ( Name != "rocket_launcher" ) return null;
 		bool split = name.StartsWith( "split_", StringComparison.Ordinal );
+		bool quarter = name.StartsWith( "quarter_", StringComparison.Ordinal );
 		if ( split ) name = name[6..];
+		if ( quarter ) name = name[8..];
 		var widget = name switch
 		{
-			"lockable.vtex" => "lockable",
-			"locked.vtex" => "locked",
-			"locking.vtex" => "locking",
+			"crosshair.vtex" => "crosshair",
+			"crosshair_weakspot.vtex" => "crosshair_weakspot",
+			"lockable.vtex" when Name == "rocket_launcher" => "lockable",
+			"locked.vtex" when Name == "rocket_launcher" => "locked",
+			"locking.vtex" when Name == "rocket_launcher" => "locking",
 			_ => null
 		};
-		if ( widget is null || HudPage( widget, split ) is not {} page ) return null;
-		return new Halo2TextureLoader( map, page.Bitmap, page.Index, hudMask: true );
+		var source = widget is "crosshair" or "crosshair_weakspot" ? reticleSource ?? this : this;
+		if ( widget is null || source.HudPage( widget, quarter ? 2 : split ? 1 : 0 ) is not {} page ) return null;
+		return new Halo2TextureLoader( source.map, page.Bitmap, page.Index, hudMask: true );
 	}
 
 	protected override object Load()
@@ -194,6 +230,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			};
 			item.HoldType = hold;
 			item.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
+			if ( reticleSource is not null )
+				item.Reticles = [reticleSource.ReadReticle( 0 ), reticleSource.ReadReticle( 1 ), reticleSource.ReadReticle( 2 )];
 			item.SpartanModel = (Host.GetByPath( $"{item.RigDirectory}/first_person.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.EliteModel = (Host.GetByPath( $"{item.RigDirectory}/first_person_elite.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
