@@ -47,6 +47,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	[ConVar( "physgun_DampingFactor", ConVarFlags.Server )]
 	public static float DampingFactor { get; set; } = 0.8f;
 
+	[ConVar( "physgun_teleportDistance", ConVarFlags.Server, Min = 0, Help = "Snap a held body to its target when farther than this distance. Zero disables snapping." )]
+	public static float TeleportDistance { get; set; }
+
 	[ConVar( "physgun_timeToArrive", ConVarFlags.Server, Min = 0 )]
 	public static float TimeToArrive { get; set; } = 0.05f;
 
@@ -232,9 +235,20 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * GrabPoint;
-		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, MaxCarrySpeed, MaxCarryDamping, _arrivalTime, DampingFactor );
-		physics.Velocity = velocity.ClampLength( 4000 );
-		var angularError = ShadowController.AngularError( physics.Rotation, HoldRotation( yaw ) );
+		var rotation = HoldRotation( yaw );
+		var offset = position - physics.Position;
+		if ( TeleportDistance > 0 && offset.LengthSquared > TeleportDistance * TeleportDistance )
+		{
+			physics.Transform = new Transform( position, rotation );
+			physics.Velocity = Vector3.Zero;
+		}
+		else
+		{
+			var velocity = ShadowController.Velocity( physics.Velocity, offset, MaxCarrySpeed, MaxCarryDamping, _arrivalTime, DampingFactor );
+			physics.Velocity = velocity.ClampLength( 4000 );
+		}
+
+		var angularError = ShadowController.AngularError( physics.Rotation, rotation );
 		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, MaxAngularSpeed.DegreeToRadian(), MaxAngularDamping.DegreeToRadian(), _arrivalTime, DampingFactor );
 	}
 
