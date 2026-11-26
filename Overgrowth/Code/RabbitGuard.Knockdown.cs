@@ -217,16 +217,12 @@ public sealed partial class RabbitGuard
 		InheritPoseMotion( ragdoll );
 		motionSamples = 0;
 		ragdoll.GetOrAddComponent<RagdollDamping>().Reset( ragdoll );
+		ragdoll.GetOrAddComponent<RabbitBodyContact>().Fighter = this;
 		foreach ( var part in ragdoll.Bodies )
 		{
 			if ( !part.Component.IsValid() ) continue;
 			part.Component.EnableImpactDamage = false;
 			part.Component.CollisionEventsEnabled = true;
-			var listener = part.Component.GetOrAddComponent<RabbitBodyContact>();
-			listener.Fighter = this;
-			var head = Renderer.Model.Bones.GetBone( boundAnimations.HeadBone );
-			for ( int i = 0; head is not null && i < boundAnimations.Head.ChainLength; i++, head = head.Parent )
-				if ( part.Bone == head.Index ) listener.Head = true;
 		}
 		Downed = true;
 		if ( holdPartner.IsValid() ) ReleaseHold();
@@ -303,11 +299,11 @@ public sealed partial class RabbitGuard
 		remains.BodySounds = bodySounds;
 		if ( !zoneKilled )
 		{
+			physics.GetOrAddComponent<RabbitBodyContact>().Remains = remains;
 			foreach ( var part in physics.Bodies )
 			{
 				if ( !part.Component.IsValid() ) continue;
 				part.Component.CollisionEventsEnabled = true;
-				part.Component.GetOrAddComponent<RabbitBodyContact>().Remains = remains;
 			}
 		}
 		Renderer.GetComponent<CutMarks>()?.TransferTo( corpse );
