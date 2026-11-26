@@ -6,7 +6,6 @@ namespace NS2;
 public sealed partial class Gorge
 {
 	AlienStructure retreatTarget;
-	MapLocations retreatLocations;
 	float retreatDistance;
 	float RetreatRadius => retreatTarget is Hive ? Hive.HealRadius : Crag.HealRadius;
 	TimeUntil checkRetreat;
@@ -19,13 +18,13 @@ public sealed partial class Gorge
 		if ( checkRetreat <= 0 )
 		{
 			checkRetreat = 0.25f;
-			if ( !retreatLocations.IsValid() ) retreatLocations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-			retreatTarget = Hive.FindNearest( this, retreatLocations, out retreatDistance );
+			var map = Locations;
+			retreatTarget = Hive.FindNearest( this, map, out retreatDistance );
 			if ( !retreatTarget.IsValid() ) retreatDistance = 200 * Scale;
 			foreach ( var crag in Scene.GetAllComponents<Crag>() )
 			{
 				if ( !crag.IsBuilt || crag.Health <= 0 || crag.Faction != Faction ) continue;
-				float distance = crag.DistanceFrom( this, retreatLocations );
+				float distance = crag.DistanceFrom( this, map );
 				if ( distance < retreatDistance ) (retreatTarget, retreatDistance) = (crag, distance);
 			}
 			if ( retreatTarget.IsValid() )

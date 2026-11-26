@@ -15,6 +15,7 @@ public sealed partial class Gorge
 	static readonly ConditionalWeakTable<Component, Healing> healing = new();
 	readonly HashSet<Component> patients = [];
 	Component patient;
+	float patientDistance;
 	AlienStructure construction;
 	internal GameObject assignedTarget;
 	// Recruit, Normal, Normal, Aggro, Veteran, Veteran in PlayerBot's distribution.
@@ -90,8 +91,17 @@ public sealed partial class Gorge
 		if ( target is Gorge && underFire > 0 && AlienTargeting.HasResponders( this, this, 1 ) ) return 0;
 
 		float weight = 10 - MathF.Log( distance ) + personality.Help - fraction * 1.25f;
-		weight = target switch { Onos => weight * 1.2f, Fade => weight * 1.125f, Lerk => weight * 1.1f,
-			Skulk => weight + 0.5f, Gorge => weight * 0.01f, _ => weight };
+		weight = target switch
+		{
+			Hive when fraction < 0.25f => weight * 25,
+			Hive when fraction < 0.6f => weight * 1.3f,
+			Onos => weight * 1.2f,
+			Fade => weight * 1.125f,
+			Lerk => weight * 1.1f,
+			Skulk => weight + 0.5f,
+			Gorge => weight * 0.01f,
+			_ => weight
+		};
 		return target.GameObject.Tags.Has( "burning" ) ? weight + 0.25f : weight;
 	}
 
@@ -138,17 +148,19 @@ public sealed partial class Gorge
 				closest = distance;
 			}
 			patient = null;
-			float best = 10 * Scale;
-			FindPatients( WorldPosition, best );
+			patientDistance = float.PositiveInfinity;
+			FindPatients( WorldPosition, 10 * Scale );
+			var map = Locations;
 			foreach ( var c in patients )
 			{
-				float distance = c.WorldPosition.Distance( WorldPosition );
-				if ( distance > best || !NeedsHelp( c ) ) continue;
-				best = distance;
+				if ( !NeedsHelp( c ) ) continue;
+				float distance = map.IsValid() ? map.WalkDistance( WorldPosition, c.WorldPosition ) : WorldPosition.Distance( c.WorldPosition );
+				if ( distance >= patientDistance ) continue;
+				patientDistance = distance;
 				patient = c;
 			}
 		}
-		float heal = NeedsHelp( patient ) ? HealWeight( patient, WorldPosition.Distance( patient.WorldPosition ) / Scale ) : 0;
+		float heal = NeedsHelp( patient ) ? HealWeight( patient, patientDistance / Scale ) : 0;
 		float build = BuildWeight( construction );
 		bool building = build > heal;
 		if ( Math.Max( heal, build ) <= competingWeight )
