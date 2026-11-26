@@ -26,6 +26,8 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	SparkAnimationGraph.Playback graph;
 	SoundHandle thrusters;
 	[Sync( SyncFlags.FromHost )] bool moving { get; set; }
+	[Sync( SyncFlags.FromHost )] bool welding { get; set; }
+	TimeUntil nextWeldEffect;
 	GameObject leftJet, rightJet;
 	TimeUntil nextJetLoop;
 
@@ -66,6 +68,7 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( !Application.IsDedicatedServer ) Renderer.CreateAttachments = true;
 		pain = GetComponent<SupportPain>();
 		pain?.StartListening( flinchEnd );
 		if ( !Networking.IsHost ) return;
@@ -104,7 +107,6 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 			hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + 5 );
 		}
 		nextWeld = 0.5f;
-		WeldEffect();
 	}
 
 	void UpdateWeldPosition()
@@ -152,13 +154,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		return false;
 	}
 
-	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void WeldEffect()
 	{
 		if ( GameResource.Load<SoundEvent>( "mount://ns2/sounds/marine/structures/mac/weld.sound" ) is { } sound )
 			GameObject.PlaySound( sound );
-		if ( Renderer.GetAttachment( "fxnode_welder" ) is { } attachment )
-			CinematicLoader.Play( "cinematics/marine/mac/weld.cinematic", attachment.Position, attachment.Rotation, Renderer.GameObject );
+		if ( Renderer.GetAttachmentObject( "fxnode_welder" ) is { } nozzle )
+			CinematicLoader.Play( "cinematics/marine/mac/weld.cinematic", nozzle.WorldPosition, nozzle.WorldRotation, nozzle );
 	}
 
 	Component FindWeldTarget()
@@ -190,9 +191,18 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
-		if ( Networking.IsHost ) moving = Health > 0 && Movement?.Status == MovementLayer.MovementStatus.Moving;
+		if ( Networking.IsHost )
+		{
+			moving = Health > 0 && Movement?.Status == MovementLayer.MovementStatus.Moving;
+			welding = Health > 0 && nextWeld > 0;
+		}
 		if ( !Application.IsDedicatedServer )
 		{
+			if ( welding && nextWeldEffect < 0 )
+			{
+				nextWeldEffect = 0.5f;
+				WeldEffect();
+			}
 			if ( moving )
 			{
 				if ( thrusters is null && GameResource.Load<SoundEvent>( "mount://ns2/sounds/marine/structures/mac/thrusters.sound" ) is { } sound )
@@ -201,10 +211,12 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 			else StopThrusters();
 			if ( moving && Renderer.Active && Graphics.IsAvailable )
 			{
-				bool replay = nextJetLoop <= 0;
-				var left = UpdateJet( ref leftJet, "fxnode_jet1", replay );
-				var right = UpdateJet( ref rightJet, "fxnode_jet2", replay );
-				if ( replay ) nextJetLoop = Math.Max( left, right );
+				if ( nextJetLoop <= 0 )
+				{
+					var left = PlayJet( ref leftJet, "fxnode_jet1" );
+					var right = PlayJet( ref rightJet, "fxnode_jet2" );
+					nextJetLoop = Math.Max( left, right );
+				}
 			}
 			else StopJets();
 		}
@@ -232,12 +244,11 @@ public sealed class Mac : BaseNpc, Component.IDamageable
 		thrusters = null;
 	}
 
-	float UpdateJet( ref GameObject jet, string attachment, bool replay )
+	float PlayJet( ref GameObject jet, string attachment )
 	{
-		if ( Renderer.GetAttachment( attachment ) is not { } transform ) return 0;
-		jet ??= new GameObject( true, attachment ) { Parent = Renderer.GameObject, NetworkMode = NetworkMode.Never };
-		jet.WorldTransform = transform;
-		return replay ? CinematicLoader.Play( "cinematics/marine/mac/jet.cinematic", transform.Position, transform.Rotation, jet ) : 0;
+		if ( Renderer.GetAttachmentObject( attachment ) is not { } nozzle ) return 0;
+		jet ??= new GameObject( nozzle, true, "Jet" ) { NetworkMode = NetworkMode.Never };
+		return CinematicLoader.Play( "cinematics/marine/mac/jet.cinematic", nozzle.WorldPosition, nozzle.WorldRotation, jet );
 	}
 
 	void StopJets()
