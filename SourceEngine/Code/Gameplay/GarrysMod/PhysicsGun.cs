@@ -84,7 +84,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	[Sync] Rotation MouseRotation { get; set; } = Rotation.Identity;
 	Rotation _lastMouseRotation;
 	[Sync] int SpinDirection { get; set; }
-	[Sync( SyncFlags.FromHost )] public Rigidbody HeldBody { get; private set; }
+	[Sync( SyncFlags.FromHost )] Component HeldTarget { get; set; }
+	public Rigidbody HeldBody => HeldTarget as Rigidbody;
 	[Sync( SyncFlags.FromHost )] Vector3 GrabPoint { get; set; }
 	[Sync( SyncFlags.FromHost )] bool BeamOn { get; set; }
 	Rotation _yawOffset;
@@ -108,7 +109,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		}
 
 		if ( NextPrimaryFire > 0 ) return;
-		if ( Input.Pressed( "attack2" ) && HeldBody.IsValid() )
+		if ( Input.Pressed( "attack2" ) && HeldTarget.IsValid() )
 		{
 			InputState = Trigger.Freeze;
 			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
@@ -118,9 +119,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 		InputState = Input.Down( "attack1" ) && !Input.Down( "attack2" ) ? Trigger.Grab : Trigger.Released;
 		if ( InputState == Trigger.Grab ) GridSize = ConsoleSystem.GetValue( GridConVar ).ToFloat();
-		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldBody.IsValid() && TraceTarget( AimRay, MaxRange * 2 ).Hit )
+		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldTarget.IsValid() && TraceTarget( AimRay, MaxRange * 2 ).Hit )
 			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
-		if ( InputState != Trigger.Grab || !HeldBody.IsValid() ) return;
+		if ( InputState != Trigger.Grab || !HeldTarget.IsValid() ) return;
 
 		if ( Input.Down( "use" ) )
 		{
@@ -135,7 +136,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var wheel = Input.MouseWheel.y;
 		if ( wheel == 0 ) return;
 		var speed = float.IsFinite( WheelSpeed ) ? WheelSpeed.Clamp( -10000, 10000 ) : 10;
-		Scroll( HeldBody, wheel * (System.MathF.Abs( speed ) < 0.1f ? 0.1f : speed) );
+		Scroll( HeldTarget, wheel * (System.MathF.Abs( speed ) < 0.1f ? 0.1f : speed) );
 		Input.MouseWheel = default;
 		Input.ReleaseAction( "SlotNext" );
 		Input.ReleaseAction( "SlotPrev" );
@@ -143,7 +144,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	void PlayerController.IEvents.OnEyeAngles( ref Angles look )
 	{
-		if ( IsProxy || !Active || !HeldBody.IsValid() || !Input.Down( "attack1" ) || !Input.Down( "use" ) ) return;
+		if ( IsProxy || !Active || !HeldTarget.IsValid() || !Input.Down( "attack1" ) || !Input.Down( "use" ) ) return;
 
 		// Source's default mouse pitch and yaw convert one command count into 0.022 degrees of camera motion.
 		const float degreesPerCount = 0.022f;
@@ -157,7 +158,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	// The controller builds its wish velocity in fixed update, after frame input handling.
 	void RedirectMovement()
 	{
-		if ( !IsProxy && Active && HasOwner && HeldBody.IsValid() && Adjusting )
+		if ( !IsProxy && Active && HasOwner && HeldTarget.IsValid() && Adjusting )
 			Owner.WishVelocity = Vector3.Zero;
 	}
 
@@ -179,9 +180,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	}
 
 	[Rpc.Host( NetFlags.OwnerOnly )]
-	void Scroll( Rigidbody body, float offset )
+	void Scroll( Component target, float offset )
 	{
-		if ( Active && HeldBody.IsValid() && HeldBody == body && float.IsFinite( offset ) )
+		if ( Active && HeldTarget.IsValid() && HeldTarget == target && float.IsFinite( offset ) )
 			_distance = (_distance + offset).Clamp( MinRange, MaxRange );
 	}
 
@@ -202,56 +203,57 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 		var ray = AimRay;
 		var yaw = Rotation.FromYaw( Owner.EyeAngles.yaw );
-		if ( !HeldBody.IsValid() )
+		if ( !HeldTarget.IsValid() )
 		{
 			var hit = TraceTarget( ray, MaxRange * 2 );
 			if ( !hit.Hit ) return;
 			BeamOn = true;
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
-			if ( body.IsValid() && (body.Tags.Has( DisabledTag ) || (Limited && body.Tags.Has( LimitedTag ))) ) return;
-			if ( !CanMove( body, Network.Owner ) || !body.PhysicsBody.IsValid() ) return;
+			Component target = (Component)body ?? hit.GameObject?.GetComponentInParent<Projectile>();
+			if ( !target.IsValid() || target.Tags.Has( DisabledTag ) || (Limited && target.Tags.Has( LimitedTag )) ) return;
+			if ( !CanMove( target, Network.Owner ) || (body.IsValid() && !body.PhysicsBody.IsValid()) ) return;
 
-			HeldBody = body;
+			HeldTarget = target;
 			_previousMass = null;
-			EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
-			if ( !body.IsValid() || HeldBody != body || !body.PhysicsBody.IsValid() ) return;
-			body.MotionEnabled = true;
-			bool ragdoll = body.GetComponentInParent<ModelPhysics>().IsValid();
-			// With two holders, the gun that raised the mass restores it on release.
-			if ( !ragdoll && !body.Tags.Has( KeepMassTag ) && body.Mass < CarryMass )
+			EntityRoot( target ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+			if ( !target.IsValid() || HeldTarget != target ) return;
+			var transform = target.WorldTransform;
+			if ( body.IsValid() )
 			{
-				var mass = body.Mass;
-				var nativeOverride = 0f;
-				if ( body.MassOverride <= 0 )
+				if ( !body.PhysicsBody.IsValid() )
 				{
-					// ModelCollider can author the native mass while Rigidbody still uses automatic mass.
-					body.PhysicsBody.Mass = 0;
-					if ( body.Mass != mass ) nativeOverride = mass;
+					Release();
+					return;
 				}
-				_previousMass = (body.MassOverride, nativeOverride);
-				body.MassOverride = CarryMass;
+				PrepareBody( body );
+				transform = body.PhysicsBody.Transform;
 			}
-			var transform = body.PhysicsBody.Transform;
+
 			GrabPoint = transform.PointToLocal( hit.HitPosition );
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_yawOffset = yaw.Inverse * transform.Rotation;
 			_previousSnapStep = null;
 			_lastMouseRotation = MouseRotation;
-			_arrivalTime = ragdoll ? RagdollTimeToArrive : TimeToArrive;
 		}
 
+		if ( InputState is Trigger.Push or Trigger.Pull )
+			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
+
 		var physics = HeldBody?.PhysicsBody;
-		if ( !physics.IsValid() )
+		if ( HeldTarget is Rigidbody && !physics.IsValid() )
 		{
 			Release();
 			return;
 		}
-		if ( InputState is Trigger.Push or Trigger.Pull )
-			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
-
-		var position = ray.Position + ray.Forward * _distance - physics.Rotation * GrabPoint;
-		if ( GridSize > 0 && float.IsFinite( GridSize ) ) position = position.SnapToGrid( System.MathF.Min( GridSize, 4096 ) );
 		var rotation = HoldRotation( yaw );
+		var position = ray.Position + ray.Forward * _distance - (physics?.Rotation ?? rotation) * GrabPoint;
+		if ( GridSize > 0 && float.IsFinite( GridSize ) ) position = position.SnapToGrid( System.MathF.Min( GridSize, 4096 ) );
+		if ( HeldTarget is Projectile projectile )
+		{
+			projectile.WorldRotation = rotation;
+			projectile.WorldPosition = CarryPosition( projectile, position );
+			return;
+		}
 		var offset = position - physics.Position;
 		if ( TeleportDistance > 0 && offset.LengthSquared > TeleportDistance * TeleportDistance )
 		{
@@ -268,11 +270,44 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, MaxAngularSpeed.DegreeToRadian(), MaxAngularDamping.DegreeToRadian(), _arrivalTime, DampingFactor );
 	}
 
+	void PrepareBody( Rigidbody body )
+	{
+		body.MotionEnabled = true;
+		bool ragdoll = body.GetComponentInParent<ModelPhysics>().IsValid();
+		// With two holders, the gun that raised the mass restores it on release.
+		if ( !ragdoll && !body.Tags.Has( KeepMassTag ) && body.Mass < CarryMass )
+		{
+			var mass = body.Mass;
+			var nativeOverride = 0f;
+			if ( body.MassOverride <= 0 )
+			{
+				// ModelCollider can author the native mass while Rigidbody still uses automatic mass.
+				body.PhysicsBody.Mass = 0;
+				if ( body.Mass != mass ) nativeOverride = mass;
+			}
+			_previousMass = (body.MassOverride, nativeOverride);
+			body.MassOverride = CarryMass;
+		}
+		_arrivalTime = ragdoll ? RagdollTimeToArrive : TimeToArrive;
+	}
+
+	Vector3 CarryPosition( Projectile projectile, Vector3 end )
+	{
+		var start = projectile.WorldPosition;
+		SceneTraceResult Sweep( Vector3 from, Vector3 to ) =>
+			projectile.FlightHull( Scene.Trace.Ray( from, to ).WithTag( "world" ).WithoutTags( "trigger" ) ).Run();
+
+		var trace = Sweep( start, end );
+		if ( trace.StartedSolid && !Sweep( end, end ).StartedSolid ) return end;
+		// On obstruction Source retries the horizontal move at the entity's current height.
+		return trace.Hit ? Sweep( start, end.WithZ( start.z ) ).EndPosition : end;
+	}
+
 	SceneTraceResult TraceTarget( Ray ray, float distance ) => Scene.Trace.Ray( ray, distance )
 		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger" ).Run();
 
 	// Map props share a scene root. Dispatch to the mounted entity that owns this physics body.
-	internal static GameObject EntityRoot( Rigidbody body )
+	internal static GameObject EntityRoot( Component body )
 	{
 		var target = body.GameObject;
 		while ( !target.IsRoot && !target.Tags.Has( "source1_entity", includeAncestors: false ) && target.Parent is { } parent )
@@ -280,7 +315,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		return target;
 	}
 
-	internal static bool CanMove( Rigidbody body, Connection grabber )
+	internal static bool CanMove( Component body, Connection grabber )
 	{
 		if ( !body.IsValid() || body.IsProxy || body.GetComponentInParent<PlayerController>().IsValid() ) return false;
 		var grab = new IPhysgunEvent.GrabEvent { Grabber = grabber };
@@ -290,12 +325,13 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	void Release()
 	{
+		var target = HeldTarget;
 		var body = HeldBody;
 		var previousMass = _previousMass;
 		_previousMass = null;
-		HeldBody = null;
+		HeldTarget = null;
 		BeamOn = false;
-		if ( body.IsValid() ) EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+		if ( target.IsValid() ) EntityRoot( target ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
 		if ( previousMass is { } mass && body.IsValid() )
 		{
 			body.MassOverride = mass.Setting;

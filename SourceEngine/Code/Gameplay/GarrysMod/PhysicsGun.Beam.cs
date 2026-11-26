@@ -48,7 +48,7 @@ public sealed partial class PhysicsGun
 		if ( !_beamRoot.Enabled ) return;
 		var start = view is null ? _muzzle.WorldPosition : view.DrawnPosition( _muzzle );
 		UpdateColor();
-		bool holding = BeamOn && HeldBody.IsValid();
+		bool holding = BeamOn && HeldTarget.IsValid();
 		var forward = _muzzle.WorldRotation.Forward;
 		if ( view is not null ) forward = view.DrawnDirection( forward );
 		int activeGlows = holding ? 7 : 2;
@@ -61,7 +61,7 @@ public sealed partial class PhysicsGun
 			return;
 		}
 		var ray = AimRay;
-		var end = holding ? HeldBody.WorldPosition + HeldBody.WorldRotation * GrabPoint
+		var end = holding ? HeldTarget.WorldPosition + HeldTarget.WorldRotation * GrabPoint
 			: TraceTarget( ray, MaxRange * 0.5f ).EndPosition;
 		float length = start.Distance( end );
 		var control = holding ? ray.Position + ray.Forward * (length * 0.6f) : end;

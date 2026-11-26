@@ -171,7 +171,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnFlightStateChanged ) )] internal bool ClearLaunch { get; set; }
 	protected override bool CanCollide => Ignited || !ClearLaunch;
 	protected override float TraceRadius => 0;
-	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => Ignited ? trace.Run() : trace.Size( Vector3.One * 8 ).Run();
+	internal override SceneTrace FlightHull( SceneTrace trace ) => Ignited ? trace : trace.Size( Vector3.One * 8 );
 
 	protected override float Gravity => Ignited ? 0 : 600;
 	protected override Rotation NextRotation() => Ignited || ShotDown ? base.NextRotation() : Rotation.LookAt( _aim );
@@ -509,7 +509,7 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 
 	protected override void Hit( SceneTraceResult tr ) => Detonate();
 
-	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Vector3.One * FlightHullSize ).Run();
+	internal override SceneTrace FlightHull( SceneTrace trace ) => trace.Size( Vector3.One * FlightHullSize );
 
 	void Detonate()
 	{
@@ -632,7 +632,7 @@ public sealed class Bugbait : Projectile
 		base.OnFixedUpdate();
 	}
 
-	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Vector3.One * 4 ).Run();
+	internal override SceneTrace FlightHull( SceneTrace trace ) => trace.Size( Vector3.One * 4 );
 
 	protected override float Gravity => 600;
 	protected override float TraceRadius => 0;

@@ -208,9 +208,9 @@ public abstract class Projectile : Component
 			return;
 		}
 
-		var trace = Scene.Trace.Ray( WorldPosition, end ).Radius( TraceRadius )
+		var trace = Scene.Trace.Ray( WorldPosition, end )
 			.IgnoreGameObjectHierarchy( LaunchIgnoreRoot ?? Attacker ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "projectile", "trigger" ).UseHitboxes();
-		var tr = TraceFlight( trace );
+		var tr = TraceFlight( FlightHull( trace ) );
 		WorldPosition = tr.EndPosition;
 		if ( tr.Hit ) Hit( tr );
 	}
@@ -219,6 +219,7 @@ public abstract class Projectile : Component
 	protected virtual bool Simulate() => true;
 	protected virtual Rotation NextRotation() => Velocity.LengthSquared > 1 ? Rotation.LookAt( Velocity ) : WorldRotation;
 	protected virtual void Steer() { }
+	internal virtual SceneTrace FlightHull( SceneTrace trace ) => trace.Radius( TraceRadius );
 	protected virtual SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Run();
 	protected virtual void Hit( SceneTraceResult tr ) { }
 	protected virtual void Expire() => GameObject.Destroy();
