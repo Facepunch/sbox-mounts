@@ -104,6 +104,12 @@ public sealed class PlasmaPistol : BatteryWeapon
 		base.OnHolstered();
 	}
 
+	protected override void OnRemoved( BaseInventoryComponent inventory )
+	{
+		ResetTrigger();
+		base.OnRemoved( inventory );
+	}
+
 	void ResetTrigger()
 	{
 		chargeVoice.Stop( ChargeSound );

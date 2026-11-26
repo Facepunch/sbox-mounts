@@ -33,7 +33,7 @@ public sealed class BodyMaterial
 	static float DamageScale( SceneTraceResult hit, BodyMaterial body, Dictionary<string, float> scales, bool explosive )
 	{
 		if ( body is { ExplosivesOnly: true } && !explosive ) return 0;
-		var path = hit.Hitbox is not null ? hit.Surface?.ResourcePath : body?.SurfacePath;
+		var path = hit.Hitbox is null && body?.SurfacePath is {} material ? material : hit.Surface?.ResourcePath;
 		return path is not null && scales?.TryGetValue( path, out var scale ) == true ? scale : 1;
 	}
 }
