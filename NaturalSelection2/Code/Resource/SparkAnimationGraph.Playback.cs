@@ -26,6 +26,7 @@ internal sealed partial class SparkAnimationGraph
 			public readonly float Seconds( float time ) => (time - Start) * Rate;
 		}
 
+		[Library]
 		internal readonly record struct LayerPose( Sample Current, Sample Previous, float Blend )
 		{
 			internal void Write( PoseParameters layer, GraphParameters output, float time )
@@ -54,6 +55,7 @@ internal sealed partial class SparkAnimationGraph
 			}
 		}
 
+		[Library]
 		internal readonly record struct BodyPose( LayerPose Base, LayerPose Action )
 		{
 			static readonly PoseParameters BaseLayer = new( 0 ), ActionLayer = new( 1 );
