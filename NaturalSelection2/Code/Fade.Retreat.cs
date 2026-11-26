@@ -27,7 +27,7 @@ public sealed partial class Fade
 		if ( !retreatHive.IsValid() )
 		{
 			if ( reason == RetreatReason.None ) return false;
-			retreatHive = Hive.FindNearest( this, locations, out _ );
+			retreatHive = Hive.FindNearest( this, out _ );
 			if ( !retreatHive.IsValid() ) return false;
 			retreatReason = reason;
 			retreatAge = 0;

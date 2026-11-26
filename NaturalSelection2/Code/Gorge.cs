@@ -16,8 +16,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	float IDamageable.MaxArmour => 50;
 
 	const float Scale = MapLoader.Scale;
-	MapLocations locations;
-	MapLocations Locations => locations.IsValid() ? locations : locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 50;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }

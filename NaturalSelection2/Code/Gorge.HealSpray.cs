@@ -125,9 +125,9 @@ public sealed partial class Gorge
 	float BuildWeight( AlienStructure structure )
 	{
 		if ( !structure.IsValid() || structure.IsBuilt || structure.Health <= 0 || InCombat ||
-			AlienTargeting.HasResponders( this, structure, 1 ) ) return 0;
+			structure is not Hive && AlienTargeting.HasResponders( this, structure, 1 ) ) return 0;
 		float distance = WorldPosition.Distance( structure.WorldPosition ) / Scale;
-		float weight = 2 + personality.Help + (structure is Hydra ? 4 : structure is Harvester ? 3 : 0);
+		float weight = 2 + personality.Help + (structure switch { Hive => 5, Hydra => 4, Harvester => 3, Crag => 2.95f, _ => 0 });
 		return distance <= 15 || assignedTarget == structure.GameObject ? weight + 15 / distance : weight;
 	}
 
@@ -150,11 +150,10 @@ public sealed partial class Gorge
 			patient = null;
 			patientDistance = float.PositiveInfinity;
 			FindPatients( WorldPosition, 10 * Scale );
-			var map = Locations;
 			foreach ( var c in patients )
 			{
 				if ( !NeedsHelp( c ) ) continue;
-				float distance = map.IsValid() ? map.WalkDistance( WorldPosition, c.WorldPosition ) : WorldPosition.Distance( c.WorldPosition );
+				float distance = WorldPosition.Distance( c.WorldPosition );
 				if ( distance >= patientDistance ) continue;
 				patientDistance = distance;
 				patient = c;

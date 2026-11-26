@@ -18,13 +18,12 @@ public sealed partial class Gorge
 		if ( checkRetreat <= 0 )
 		{
 			checkRetreat = 0.25f;
-			var map = Locations;
-			retreatTarget = Hive.FindNearest( this, map, out retreatDistance );
+			retreatTarget = Hive.FindNearest( this, out retreatDistance );
 			if ( !retreatTarget.IsValid() ) retreatDistance = 200 * Scale;
 			foreach ( var crag in Scene.GetAllComponents<Crag>() )
 			{
 				if ( !crag.IsBuilt || crag.Health <= 0 || crag.Faction != Faction ) continue;
-				float distance = crag.DistanceFrom( this, map );
+				float distance = WorldPosition.Distance( crag.WorldPosition );
 				if ( distance < retreatDistance ) (retreatTarget, retreatDistance) = (crag, distance);
 			}
 			if ( retreatTarget.IsValid() )

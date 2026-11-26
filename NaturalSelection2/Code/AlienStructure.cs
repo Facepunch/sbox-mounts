@@ -30,9 +30,6 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 	float EnzymeGrowth => enzymeActive ? enzymeAge * 0.75f / Stats.BuildSeconds : 0;
 	internal bool HasEnzyme => enzymeActive;
 
-	internal float DistanceFrom( AlienLifeform alien, MapLocations locations ) => locations.IsValid()
-		? locations.WalkDistance( alien.WorldPosition, WorldPosition ) : alien.WorldPosition.Distance( WorldPosition );
-
 	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? modelOrigin );
 
 	internal void RefreshEnzyme()

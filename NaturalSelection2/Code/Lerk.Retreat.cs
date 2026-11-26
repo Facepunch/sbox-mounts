@@ -20,10 +20,10 @@ public sealed partial class Lerk
 		}
 
 		float distance;
-		if ( retreatHive.IsValid() && retreatHive.Health > 0 ) distance = retreatHive.DistanceFrom( this, flightLocations );
+		if ( retreatHive.IsValid() && retreatHive.Health > 0 ) distance = WorldPosition.Distance( retreatHive.WorldPosition );
 		else
 		{
-			var hive = Hive.FindNearest( this, flightLocations, out distance );
+			var hive = Hive.FindNearest( this, out distance );
 			if ( !hive.IsValid() || !ShouldRetreat( healthFraction, energyFraction, distance ) ) return false;
 			retreatHive = hive;
 		}

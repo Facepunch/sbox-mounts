@@ -108,7 +108,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		Vector3? lastSeen = null;
 		var enemy = reason == RetreatReason.None ? AlienTargeting.ForTeam( this ).FindEnemy( this, out lastSeen ) : null;
 		float range = (health > 0.95f ? 50 : 15) * Scale;
-		if ( enemy.IsValid() && WalkDistance( lastSeen ?? enemy.WorldPosition ) > range )
+		if ( enemy.IsValid() && WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) > range )
 		{
 			enemy = null;
 			lastSeen = null;
@@ -138,8 +138,6 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		}
 	}
 
-	float WalkDistance( Vector3 point ) => locations.IsValid() ? locations.WalkDistance( WorldPosition, point ) : WorldPosition.Distance( point );
-
 	void MoveInMelee( GameObject enemy )
 	{
 		if ( Lerk.IsPlayerTarget( enemy ) )
@@ -156,7 +154,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 				Movement.MoveTo( goal, 1, faceTarget: enemy );
 			}
 		}
-		else if ( WalkDistance( enemy.WorldPosition ) < 2.4f * 0.915f * Scale )
+		else if ( WorldPosition.Distance( enemy.WorldPosition ) < 2.4f * 0.915f * Scale )
 		{
 			Movement.Stop();
 		}
@@ -211,7 +209,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 			view = AlienAim.Turn( view, viewTarget - EyePosition, acquisition.TurnRate );
 		if ( !ready ) return;
 
-		attacking = InAttackRange( WalkDistance( enemy.WorldPosition ), Random.Shared.NextSingle() );
+		attacking = InAttackRange( WorldPosition.Distance( enemy.WorldPosition ), Random.Shared.NextSingle() );
 		if ( attacking && !Blinking && !stabbing && weaponSwitch <= 0 )
 		{
 			bool wantsStab = StabUnlocked && energy >= 25 && OpenToStab( enemy );
