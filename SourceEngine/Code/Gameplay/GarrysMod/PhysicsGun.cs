@@ -212,7 +212,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 			HeldBody = body;
 			_previousMass = null;
-			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+			EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
 			if ( !body.IsValid() || HeldBody != body || !body.PhysicsBody.IsValid() ) return;
 			body.MotionEnabled = true;
 			bool ragdoll = body.GetComponentInParent<ModelPhysics>().IsValid();
@@ -270,11 +270,20 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	SceneTraceResult TraceTarget( Ray ray ) => Scene.Trace.Ray( ray, MaxRange * 2 )
 		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run();
 
+	// Map props share a scene root. Dispatch to the mounted entity that owns this physics body.
+	static GameObject EntityRoot( Rigidbody body )
+	{
+		var target = body.GameObject;
+		while ( !target.IsRoot && !target.Tags.Has( "source1_entity", includeAncestors: false ) && target.Parent is { } parent )
+			target = parent;
+		return target;
+	}
+
 	internal static bool CanMove( Rigidbody body, Connection grabber )
 	{
 		if ( !body.IsValid() || body.IsProxy || body.GetComponentInParent<PlayerController>().IsValid() ) return false;
 		var grab = new IPhysgunEvent.GrabEvent { Grabber = grabber };
-		body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
+		EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
 		return !grab.Cancelled && body.IsValid();
 	}
 
@@ -285,7 +294,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		_previousMass = null;
 		HeldBody = null;
 		BeamOn = false;
-		if ( body.IsValid() ) body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+		if ( body.IsValid() ) EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
 		if ( previousMass is { } mass && body.IsValid() )
 		{
 			body.MassOverride = mass.Setting;
