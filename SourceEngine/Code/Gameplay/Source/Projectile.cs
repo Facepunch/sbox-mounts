@@ -257,14 +257,22 @@ public abstract class Projectile : Component
 			Prefab = prefab
 		}.Spawn();
 		// The prefab plays BaseGrenade.Explode. Source layers the explosion effect sound over it.
-		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName );
+		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName, SourceWaterMap.ExplosionDepth( Scene, WorldPosition ) ?? -1 );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ExplosionSound( Vector3 position, string mountName )
+	static void ExplosionSound( Vector3 position, string mountName, float depth )
 	{
-		if ( Sounds.Sound( "BaseExplosionEffect.Sound", mountName ) is { } sound ) Sound.Play( sound, position );
+		var name = "BaseExplosionEffect.Sound";
+		if ( depth >= 0 )
+		{
+			// Beyond the 512-unit surface trace, Source places the splash at the blast itself.
+			var surface = depth <= 512 ? position + Vector3.Up * depth : position;
+			if ( Sounds.Sound( "Physics.WaterSplash", mountName ) is { } splash ) Sound.Play( splash, surface );
+			if ( depth > 128 ) name = "WaterExplosionEffect.Sound";
+		}
+		if ( Sounds.Sound( name, mountName ) is { } sound ) Sound.Play( sound, position );
 	}
 
 	protected void PlayImpact( SceneTraceResult tr, string sound, bool impactEffect = true ) =>
