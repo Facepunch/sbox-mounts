@@ -570,7 +570,8 @@ public sealed class GravityWeapon : Weapon
 /// </summary>
 sealed class PhysCannonEffects : IDisposable
 {
-	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
+	static readonly string[] WorldProngs = ["fork1m", "fork1t", "fork2m", "fork2t", "fork3m", "fork3t"];
+	static readonly string[] ViewProngs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
 	static readonly string[] ViewTips = ["fork1t", "fork2t"];
 	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
 	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 );
@@ -804,9 +805,14 @@ sealed class PhysCannonEffects : IDisposable
 		var coreName = renderer.Model.Attachments.All.FirstOrDefault()?.Name;
 		var core = coreName is null ? renderer.GameObject : renderer.GetAttachmentObject( coreName ) ?? renderer.GameObject;
 		_coreAnchor = core;
-		_core = AddSprite( core, "sprites/orangecore1", mount );
-		_blast = AddSprite( core, "sprites/orangecore2", mount );
-		if ( localPlayer && MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } punt )
+		var content = Sandbox.Mounting.Directory.Get( mount );
+		string MaterialVariant( string name, string suffix = "_gmod" )
+			=> content?.GetByPath( $"mount://{mount}/materials/{name}{suffix}.vmt.vmat" ) is null ? name : name + suffix;
+
+		_core = AddSprite( core, MaterialVariant( "sprites/orangecore1" ), mount );
+		_blast = AddSprite( core, MaterialVariant( "sprites/orangecore2" ), mount );
+		var worldBeam = MaterialVariant( "sprites/orangelight1" );
+		if ( localPlayer && MountedEffects.AddBeam( _root, worldBeam, mount ) is { } punt )
 		{
 			_puntBeam = punt;
 			punt.Width = BeamWidth( 12, 4 );
@@ -814,15 +820,20 @@ sealed class PhysCannonEffects : IDisposable
 			punt.Color = Color.White;
 			punt.Enabled = false;
 		}
-		foreach ( var prong in Prongs.Select( renderer.GetAttachmentObject ).Where( x => x.IsValid() ) )
-			if ( AddSprite( prong, "sprites/glow04_noz", mount ) is { } glow ) _glows.Add( glow );
-		var variant = viewModel ? "sprites/orangelight1_noz" : "sprites/orangelight1_gmod";
-		var beamSprite = Sandbox.Mounting.Directory.Get( mount )?.GetByPath( $"mount://{mount}/materials/{variant}.vmt.vmat" ) is null
-			? "sprites/orangelight1" : variant;
+		var glowMaterial = MaterialVariant( "sprites/glow04_noz" );
+		foreach ( var name in viewModel ? ViewProngs : WorldProngs )
+		{
+			var prong = renderer.GetAttachmentObject( name );
+			if ( prong.IsValid() && AddSprite( prong, glowMaterial, mount ) is { } glow ) _glows.Add( glow );
+		}
+
+		var beamSprite = viewModel ? MaterialVariant( "sprites/orangelight1", "_noz" ) : worldBeam;
+		var endcapMaterial = MaterialVariant( "sprites/orangeflare1" );
 		foreach ( var name in viewModel ? ViewTips : WorldTips )
 		{
-			var tip = renderer.GetAttachmentObject( name ) ?? renderer.GameObject;
-			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
+			var tip = renderer.GetAttachmentObject( name );
+			if ( !tip.IsValid() ) continue;
+			if ( AddSprite( tip, endcapMaterial, mount ) is { } endcap ) _endcaps.Add( endcap );
 			if ( MountedEffects.AddBeam( _root, beamSprite, mount ) is { } beam )
 			{
 				beam.Width = viewModel ? ViewBeamWidth : WorldBeamWidth;
