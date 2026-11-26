@@ -82,13 +82,13 @@ public sealed partial class RabbitGuard
 				DrawPhase = Math.Min( 1f, drawElapsed / clip.Duration );
 				if ( fadingThrow ) DrawWeight = Math.Max( 0f, DrawWeight - 4f * Time.Delta );
 				else DrawWeight = Math.Clamp( Math.Min( (drawElapsed + 1f / 120f) * 8f, 1f - (drawElapsed - clip.Duration) * 8f ), 0f, 1f );
-				if ( (!fadingThrow || DrawWeight > 0f) && !Downed && HasThrowLayer )
+				if ( (!fadingThrow || DrawWeight > 0f) && HasThrowLayer )
 					ReleaseAtMarker( clip, previous, drawElapsed );
-				if ( !Downed && clip.DrawWeapon is { } draw && previous < draw.Time && drawElapsed >= draw.Time )
+				if ( clip.DrawWeapon is { } draw && previous < draw.Time && drawElapsed >= draw.Time )
 					TakeDrawnWeapon( draw.LeftHand, draw.LeftHip );
-				if ( !Downed && clip.HandSwap is { } swap && previous < swap.Time && drawElapsed >= swap.Time )
+				if ( clip.HandSwap is { } swap && previous < swap.Time && drawElapsed >= swap.Time )
 					SwapHeldWeapons( swap.Bone );
-				if ( DrawWeight <= 0f || Downed )
+				if ( DrawWeight <= 0f )
 				{
 					if ( HasThrowLayer ) itemThrowTarget = null;
 					DrawAnimation = null;

@@ -373,7 +373,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		return eyes ? CalculateEyePosition( target ) : target.WorldPosition;
 	}
 
-	Vector3 BodyVelocity => Downed && ragdoll.IsValid() ? CharacterLoader.RagdollVelocity( ragdoll ) ?? Vector3.Zero : Animation.MoveVelocity;
+	internal Vector3 BodyVelocity => Downed && ragdoll.IsValid() ? CharacterLoader.RagdollVelocity( ragdoll ) ?? Vector3.Zero : Animation.MoveVelocity;
 
 	static Vector3 TargetVelocity( GameObject target )
 	{

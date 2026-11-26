@@ -75,7 +75,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	internal void Throw( RabbitGuard owner, Vector3 target, Vector3 velocity, bool fullBody )
 	{
 		thrower = owner.GameObject;
-		var throwerVelocity = owner.Animation.MoveVelocity;
+		var throwerVelocity = owner.BodyVelocity;
 		Drop();
 		var body = GetComponent<Rigidbody>();
 		var delta = target - PhysicsPosition;
