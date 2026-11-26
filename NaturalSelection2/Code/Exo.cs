@@ -59,7 +59,8 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	readonly Arm left = new(), right = new();
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
-	readonly AlienAim.Acquisition acquisition = new( 95 );
+	Vector3 viewOffset;
+	readonly MarineWeaponAim acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
 	SparkAnimationGraph.Playback graph, weapon;
@@ -180,7 +181,9 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
-		bool aimed = visible && distance < 45 && acquisition.TrackView( enemy, EyePosition, CalculateAimPoint( enemy ), aim, 1, AimSkillTier );
+		viewOffset = Vector3.Zero;
+		var weapon = Railguns ? MarineWeaponAim.Weapon.Railgun : MarineWeaponAim.Weapon.Minigun;
+		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, CalculateAimPoint( enemy ), aim, AimSkillTier, weapon, out viewOffset );
 		if ( aimed )
 		{
 			firingTarget = enemy;
@@ -218,7 +221,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		{
 			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;
 			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, acquisition.TurnRate );
+				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) + viewOffset - EyePosition, acquisition.TurnRate );
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
 			var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
@@ -329,13 +332,22 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		var eye = EyePosition;
 		var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * ((Railguns ? 0.3f : 0.03f) * Scale);
 		var ray = Scene.Trace.Ray( eye, eye + direction * ((Railguns ? 32 : 45) * Scale) ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( GameObject ).UseHitboxes();
+		bool hitEntity = false;
 		for ( int i = 0; i < 20; i++ )
 		{
 			var hit = Railguns ? ray.Size( -extents, extents ).Run() : ray.Run();
 			if ( !Railguns && (!hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true) )
 				hit = ray.FromTo( eye, hit.EndPosition ).Size( -extents, extents ).Run();
 			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
-			if ( hp is not Component victim ) break;
+			if ( !hit.GameObject.IsValid() || hit.GameObject.Tags.Has( "world" ) || Railguns && damage <= 0 ) break;
+			hitEntity = true;
+			if ( !Railguns ) acquisition.Record( hp is not null );
+			if ( hp is not Component victim )
+			{
+				if ( !Railguns ) break;
+				ray = ray.IgnoreGameObjectHierarchy( hit.GameObject );
+				continue;
+			}
 			var onos = victim as Onos;
 			bool blocked = Railguns && onos is not null && onos.BlocksShotAt( hit.HitPosition );
 			if ( hp.Health > 0 && GetDisposition( victim.GameObject ) == Disposition.Hostile )
@@ -356,6 +368,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			if ( Railguns && victim.GameObject.Tags.Has( "ns2_lifeform" ) ) damage *= 0.5f;
 			ray = ray.IgnoreGameObjectHierarchy( victim.GameObject );
 		}
+		if ( Railguns || !hitEntity ) acquisition.Record( hitEntity );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

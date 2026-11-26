@@ -54,7 +54,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	GameObject firingTarget;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
-	readonly AlienAim.Acquisition acquisition = new( 90 );
+	Vector3 viewOffset;
+	readonly MarineWeaponAim acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Rotation aim;
@@ -187,7 +188,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || TrackBulletAim( enemy, aimPoint ));
+		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, MarineWeaponAim.Weapon.Bullets, out viewOffset ));
 		if ( useEntityAttack && !aimed && (blindFireUntil > 0 || distance < 15 * Scale) )
 			viewOffset = Vector3.Zero;
 		if ( aimed )
@@ -455,8 +456,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			if ( obj.IsValid() && !obj.Tags.Has( "world" ) )
 			{
 				hitEntity = true;
-				bulletSamples++;
-				if ( hp is not null ) bulletHits++;
+				acquisition.Record( hp is not null );
 			}
 			if ( hp is { Health: > 0 } && GetDisposition( obj ) == Disposition.Hostile )
 			{
@@ -470,7 +470,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			if ( !pass ) break;
 			ray = ray.IgnoreGameObjectHierarchy( obj );
 		}
-		if ( !hitEntity ) bulletSamples++;
+		if ( !hitEntity ) acquisition.Record( false );
 		if ( pistol && Networking.IsHost ) NpcTeamMemory.Get( Scene ).ReportPistolShot( this );
 		ShowMuzzle( pistol );
 	}
