@@ -25,7 +25,6 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 	internal bool SampleCuesFromGraph { get; set; } = true;
 	public Action<Halo2AnimationCue, Transform> CueFired { get; set; }
 
-	uint soundSeed = (uint)Random.Shared.Next();
 	AnimationBindings bindings;
 	Halo2AnimationContext context;
 	[Sync( SyncFlags.FromHost )] string HolderContext { get; set; }
@@ -362,7 +361,7 @@ public sealed class Halo2Animator : Component, Component.IAnimationEvent
 				else if ( sound.IsValid() ) Sound.Play( sound, position.Position );
 			}
 			else if ( bindings.Sounds.TryGetValue( cue.TagPath, out var playback ) )
-				playback.Play( position.Position, ref soundSeed, soundOwner );
+				playback.Play( Scene, position.Position, soundOwner );
 		}
 		if ( cue.Kind == "effect" && cue.TagPath is not null && Effects.TryGetValue( cue.TagPath, out var effect ) && effect.IsValid() )
 			effect.Clone( position );

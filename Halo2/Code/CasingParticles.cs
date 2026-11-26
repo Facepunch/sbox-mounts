@@ -4,14 +4,13 @@ public class CasingSounds
 {
 	public CuePlayback[] Cues { get; set; }
 	public Dictionary<string, int> Casings { get; set; }
-	protected uint Seed = (uint)System.Random.Shared.Next();
 
 	protected CuePlayback Cue( int index ) => index > 0 && index <= Cues.Length ? Cues[index - 1] : null;
 
-	internal SoundHandle PlayCasing( Surface surface, Vector3 position, float gain )
+	internal SoundHandle PlayCasing( Scene scene, Surface surface, Vector3 position, float gain )
 	{
 		if ( gain <= 0 ) return null;
-		var handle = Cue( ContactMaterial.Lookup( Casings, surface, true ) )?.Play( position, ref Seed, null );
+		var handle = Cue( ContactMaterial.Lookup( Casings, surface, true ) )?.Play( scene, position );
 		if ( handle.IsValid() ) handle.Volume *= gain;
 		return handle;
 	}
@@ -56,7 +55,7 @@ internal static class CasingParticles
 			if ( firstContact )
 			{
 				float gain = (casing.Velocity.Length / 120 - 0.5f).Clamp( 0, 1 );
-				contacts?.PlayCasing( hit.Surface, hit.HitPosition, gain );
+				contacts?.PlayCasing( casings.Scene, hit.Surface, hit.HitPosition, gain );
 			}
 		}
 	}

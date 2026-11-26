@@ -2,7 +2,6 @@ namespace Halo2;
 
 internal sealed class AnimationSounds
 {
-	uint seed = (uint)System.Random.Shared.Next();
 	int nextCue;
 
 	internal void Restart() => nextCue = 0;
@@ -17,7 +16,7 @@ internal sealed class AnimationSounds
 			if ( thirdPerson && (cue.Flags & 8) != 0 ) continue;
 			var emitter = thirdPerson ? weapon.WorldModel : view;
 			if ( !emitter.IsValid() ) emitter = weapon.GameObject;
-			sound.Play( emitter.WorldPosition, ref seed, emitter );
+			sound.Play( emitter.Scene, emitter.WorldPosition, emitter );
 		}
 	}
 }

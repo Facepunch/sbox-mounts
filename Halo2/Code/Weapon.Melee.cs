@@ -38,7 +38,6 @@ public abstract partial class Weapon
 	protected virtual FirstPersonAnimation FirstPersonAnimations() => Model.Load( FirstPersonRig )?.GetData<FirstPersonAnimation>();
 	protected abstract void PlayMeleeView( string action );
 	[Property] public MeleeContactSounds ContactSounds { get; set; }
-	uint contactSeed = (uint)System.Random.Shared.Next();
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void PlayContactSounds( string surfacePath, Vector3 position )
@@ -47,7 +46,7 @@ public abstract partial class Weapon
 		var indices = ContactMaterial.Lookup( ContactSounds.Materials, GameResource.Load<Surface>( surfacePath ), false );
 		if ( indices is null ) return;
 		foreach ( var index in indices )
-			ContactSounds.Cues[index].Play( position, ref contactSeed, null );
+			ContactSounds.Cues[index].Play( Scene, position );
 	}
 	protected bool IsHolstered => Inventory is not null && !IsInHand;
 	protected bool CanUseHeldWeapon => !PuttingAway && !IsHolstered;

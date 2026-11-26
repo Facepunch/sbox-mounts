@@ -50,7 +50,6 @@ public abstract partial class Weapon : BaseCombatWeapon
 	[Property] public float KickDegrees { get; set; }
 	[Property] public float KickDistance { get; set; }
 	[Property] public Vector2 KickJitter { get; set; }
-	uint kickSeed = (uint)System.Random.Shared.Next();
 	Vector3 kickOffset;
 	TimeUntil kickEnds;
 
@@ -362,6 +361,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 		}
 		if ( !shot.NoEvents && !IsProxy && KickDuration > 0 )
 		{
+			ref uint kickSeed = ref BlamRandom.PresentationState( Scene );
 			float radius = KickJitter.x + (KickJitter.y - KickJitter.x) * (BlamRandom.Next( ref kickSeed ) / 65535f);
 			float angle = System.MathF.Tau * (BlamRandom.Next( ref kickSeed ) / 65535f);
 			var (sin, cos) = System.MathF.SinCos( angle );

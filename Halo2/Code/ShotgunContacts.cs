@@ -12,11 +12,11 @@ public sealed class ShotgunContacts : CasingSounds
 		return PrefabFile.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}" )?.GetScene().GetComponent<Shotgun>()?.Contacts;
 	}
 
-	internal bool PlayPellet( Surface surface, Vector3 position )
+	internal bool PlayPellet( Scene scene, Surface surface, Vector3 position )
 	{
 		if ( Pellets.Count == 0 ) return false;
 		// Some authored materials have a visual effect and a silent impact.
-		Cue( ContactMaterial.Lookup( Pellets, surface, false ) )?.Play( position, ref Seed, null );
+		Cue( ContactMaterial.Lookup( Pellets, surface, false ) )?.Play( scene, position );
 		return true;
 	}
 }

@@ -7,10 +7,11 @@ namespace Halo2;
 
 public sealed record CuePlayback( string Path, float GainDb, float VarianceDb, short LowCents, short HighCents )
 {
-	internal SoundHandle Play( Vector3 position, ref uint seed, GameObject owner )
+	internal SoundHandle Play( Scene scene, Vector3 position, GameObject owner = null )
 	{
 		var sound = GameResource.Load<SoundEvent>( Path );
 		if ( !sound.IsValid() ) return null;
+		ref uint seed = ref BlamRandom.PresentationState( scene );
 		const float scale = 1f / 65535;
 		float db = GainDb + VarianceDb * (BlamRandom.Next( ref seed ) * scale);
 		double cents = LowCents + (HighCents - LowCents) * (BlamRandom.Next( ref seed ) * (double)scale);
@@ -82,7 +83,6 @@ sealed class Halo2SoundLoader( MapFile map, TagEntry tag, int gestalt, int audio
 		}
 	}
 
-	internal SoundHandle PlayCue( Vector3 position, ref uint seed, GameObject owner = null ) => Cue.Play( position, ref seed, owner );
 
 	protected override object Load()
 	{

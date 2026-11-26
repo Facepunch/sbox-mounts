@@ -6,10 +6,13 @@ namespace Halo2;
 internal sealed class BlamRandom
 {
 	static readonly ConditionalWeakTable<Scene, BlamRandom> scenes = new();
-	uint state = (uint)Random.Shared.Next();
+	uint gameplay = (uint)Random.Shared.Next();
+	uint presentation = (uint)Random.Shared.Next();
 
 	// Firing, melee selection and inventory drops advance the same simulation sequence.
-	internal static ref uint GameplayState( Scene scene ) => ref scenes.GetValue( scene, static _ => new BlamRandom() ).state;
+	static BlamRandom For( Scene scene ) => scenes.GetValue( scene, static _ => new BlamRandom() );
+	internal static ref uint GameplayState( Scene scene ) => ref For( scene ).gameplay;
+	internal static ref uint PresentationState( Scene scene ) => ref For( scene ).presentation;
 
 	internal static uint Next( ref uint state )
 	{

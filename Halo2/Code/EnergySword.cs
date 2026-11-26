@@ -137,7 +137,6 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 	[Property] public float ReadySoundDelay { get; set; }
 
 	TimeUntil readyAt;
-	uint soundSeed = (uint)System.Random.Shared.Next();
 
 	protected override void OnStart()
 	{
@@ -170,7 +169,7 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 		bool viewingFirstPerson = ViewModel.IsValid() && Owner is { ThirdPerson: false };
 		if ( firstPerson != viewingFirstPerson ) return;
 		var marker = renderer.GetAttachmentObject( ReadySoundMarker );
-		if ( marker.IsValid() ) ReadySound.Play( marker.WorldPosition, ref soundSeed, marker );
+		if ( marker.IsValid() ) ReadySound.Play( Scene, marker.WorldPosition, marker );
 	}
 
 	async System.Threading.Tasks.Task ActivateBlade( SkinnedModelRenderer renderer )

@@ -343,13 +343,13 @@ public sealed partial class Shotgun : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( shot.Hit ) PelletImpact( ShotgunContacts.For( this ), shot, GetShotDirection( shot ) );
+		if ( shot.Hit ) PelletImpact( Scene, ShotgunContacts.For( this ), shot, GetShotDirection( shot ) );
 	}
 
-	static void PelletImpact( ShotgunContacts contacts, in ShotEffect shot, Vector3 direction, string bone = null )
+	static void PelletImpact( Scene scene, ShotgunContacts contacts, in ShotEffect shot, Vector3 direction, string bone = null )
 	{
 		if ( Application.IsDedicatedServer ) return;
-		if ( contacts?.PlayPellet( shot.Surface, shot.HitPosition ) != true )
+		if ( contacts?.PlayPellet( scene, shot.Surface, shot.HitPosition ) != true )
 		{
 			ImpactEffect( shot, direction );
 			return;
@@ -369,7 +369,7 @@ public sealed partial class Shotgun : Weapon
 		{
 			var surface = result.SurfacePath is {} path ? GameResource.Load<Surface>( path ) : null;
 			var shot = new ShotEffect( result.Position, false, result.Normal, result.Target, surface, muzzle, NoEvents: true );
-			if ( result.Hit ) PelletImpact( contacts, shot with { Hit = true }, result.Direction, result.Bone );
+			if ( result.Hit ) PelletImpact( weapon.IsValid() ? weapon.Scene : Game.ActiveScene, contacts, shot with { Hit = true }, result.Direction, result.Bone );
 			if ( weapon.IsValid() ) weapon.OnShootEffects( shot );
 		}
 	}
