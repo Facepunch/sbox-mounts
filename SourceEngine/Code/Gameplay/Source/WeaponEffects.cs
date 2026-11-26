@@ -136,6 +136,7 @@ static partial class WeaponEffects
 		smoke.WorldPosition = muzzle + forward * 8;
 		smoke.Lifetime = lifetime;
 		var renderer = smoke.GetComponent<ParticleSpriteRenderer>();
+		renderer.DepthFeather = MathF.Max( renderer.DepthFeather, 4 );
 		renderer.CameraFadeNear = 16;
 		renderer.CameraFadeFar = 64;
 		smoke.ApplyShape = true;
