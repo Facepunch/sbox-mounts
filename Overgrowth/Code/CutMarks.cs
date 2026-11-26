@@ -22,7 +22,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 
 	void PaintLines( IEnumerable<Vector4> lines, int seed )
 	{
-		var renderer = PrepareBitmap();
+		if ( !TryPrepareBitmap( out var renderer ) ) return;
 		var size = new Vector2( bitmap.Width, bitmap.Height );
 		int expiry = DryTick + 253;
 		bitmap.SetPen( new Color32( 255, (byte)(expiry & 255), (byte)(expiry >> 8), 255 ), 1f );
@@ -38,17 +38,21 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 		Upload( renderer );
 	}
 
-	ModelRenderer PrepareBitmap()
+	bool TryPrepareBitmap( out ModelRenderer renderer )
 	{
-		var renderer = GetComponent<ModelRenderer>();
+		renderer = GetComponent<ModelRenderer>();
+		if ( !renderer.IsValid() || !renderer.Model.IsValid() ) return false;
 		if ( bitmap is null )
 		{
-			var color = renderer.Model.Materials[0].GetTexture( "g_tColor" );
+			var material = renderer.Model.Materials.FirstOrDefault();
+			if ( !material.IsValid() ) return false;
+			var color = material.GetTexture( "g_tColor" );
+			if ( !color.IsValid() ) return false;
 			bitmap = new Bitmap( Math.Max( 1, color.Width / 4 ), Math.Max( 1, color.Height / 4 ) );
 			bitmap.Clear( Color.Transparent );
 			bitmap.SetAntialias( false );
 		}
-		return renderer;
+		return true;
 	}
 
 	void INetworkSnapshot.WriteSnapshot( ref ByteStream writer )
@@ -62,8 +66,10 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	void INetworkSnapshot.ReadSnapshot( ref ByteStream reader )
 	{
 		if ( reader.ReadRemaining == 0 ) return;
+		var incoming = Bitmap.CreateFromBytes( reader.ReadArray<byte>() );
+		if ( incoming is null ) return;
 		bitmap?.Dispose();
-		bitmap = Bitmap.CreateFromBytes( reader.ReadArray<byte>() );
+		bitmap = incoming;
 		dryElapsed = reader.ReadRemaining > 0 ? reader.Read<double>() : 0d;
 		dryStart = Time.NowDouble;
 		dryEnd = dryStart + (reader.ReadRemaining > 0 ? reader.Read<double>() : 0d);
@@ -108,13 +114,14 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 
 	void SetDryTick( ModelRenderer renderer )
 	{
+		if ( !renderer.IsValid() ) return;
 		displayedDryTick = DryTick;
 		renderer.Attributes.Set( "CutDryTick", (float)displayedDryTick );
 	}
 
 	void Upload( ModelRenderer renderer )
 	{
-		if ( Application.IsDedicatedServer || bitmap is null ) return;
+		if ( Application.IsDedicatedServer || bitmap is null || !renderer.IsValid() ) return;
 		if ( texture is null ) texture = bitmap.ToTexture( false );
 		else texture.Update( bitmap );
 		renderer.Attributes.Set( "CutMask", texture );
@@ -126,7 +133,7 @@ public sealed partial class CutMarks : Component, Component.INetworkSnapshot
 	{
 		if ( Game.ActiveScene is not { } scene ) return;
 		foreach ( var marks in scene.GetAllComponents<CutMarks>() )
-			if ( marks.texture is not null ) UpdateAppearance( marks.GetComponent<ModelRenderer>() );
+			if ( marks.texture is not null && marks.GetComponent<ModelRenderer>() is { } renderer ) UpdateAppearance( renderer );
 	}
 
 	static void UpdateAppearance( ModelRenderer renderer )

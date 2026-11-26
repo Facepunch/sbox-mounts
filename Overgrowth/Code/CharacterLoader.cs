@@ -329,6 +329,8 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 
 	internal void FilterRagdollContacts( ModelPhysics physics )
 	{
+		if ( physics.Bodies.Count != physics.Model.Physics.Parts.Count ||
+			physics.Bodies.Any( part => !part.Component.IsValid() || !part.Component.PhysicsBody.IsValid() ) ) return;
 		overlappingBodies ??= FindOverlaps();
 		foreach ( var (a, b) in overlappingBodies )
 		{

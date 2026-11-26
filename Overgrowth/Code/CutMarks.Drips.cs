@@ -10,7 +10,7 @@ public sealed partial class CutMarks
 	internal void AddDrip( Vector3 point )
 	{
 		var renderer = GetComponent<SkinnedModelRenderer>();
-		if ( CharacterLoader.FromModel( renderer.Model )?.Surface is not { } surface ) return;
+		if ( CharacterLoader.FromModel( renderer?.Model )?.Surface is not { } surface ) return;
 		WakeDrying();
 		var posed = surface.Pose( renderer );
 		if ( posed.Length > 0 && surface.NearestDrip( posed, point ) is { } drip )
@@ -32,7 +32,7 @@ public sealed partial class CutMarks
 		dripClock += Time.Delta;
 		if ( dripClock < step ) return;
 		var renderer = GetComponent<SkinnedModelRenderer>();
-		if ( CharacterLoader.FromModel( renderer.Model )?.Surface is not { } surface ) return;
+		if ( CharacterLoader.FromModel( renderer?.Model )?.Surface is not { } surface ) return;
 		var posed = surface.Pose( renderer );
 		if ( posed.Length == 0 ) return;
 		var lines = new List<Vector4>();

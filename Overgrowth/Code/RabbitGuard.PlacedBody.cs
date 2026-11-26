@@ -24,9 +24,9 @@ public sealed partial class RabbitGuard
 
 	void SpawnPlacedBody()
 	{
-		if ( !Networking.IsHost ) return;
+		if ( !Networking.IsHost || !Renderer.IsValid() ) return;
 		var model = Renderer.Model;
-		var character = CharacterLoader.FromModel( model );
+		if ( CharacterLoader.FromModel( model ) is not { } character || model.Physics is not { } description ) return;
 		var corpse = new GameObject( false, GameObject.Name ) { WorldTransform = WorldTransform };
 		corpse.Tags.Add( "ragdoll" );
 		var prop = corpse.AddComponent<Prop>();
@@ -35,10 +35,10 @@ public sealed partial class RabbitGuard
 		prop.MaterialGroup = Renderer.MaterialGroup;
 		prop.Tint = Renderer.Tint;
 		var bones = model.CreateBoneObjects( corpse );
-		foreach ( var part in model.Physics.Parts )
+		foreach ( var part in description.Parts )
 		{
 			var bone = model.Bones.GetBone( part.BoneName );
-			var go = bones[bone];
+			if ( bone is null || !bones.TryGetValue( bone, out var go ) || !go.IsValid() ) continue;
 			int id = int.Parse( bone.Name.AsSpan( 5 ), CultureInfo.InvariantCulture );
 			if ( !PlacedBodyPose.TryGetValue( id, out var local ) || !character.AttachmentCenters.TryGetValue( id, out var center ) ) continue;
 			var world = WorldTransform.ToWorld( local );
@@ -47,8 +47,14 @@ public sealed partial class RabbitGuard
 		}
 		using ( Scene.BatchGroup() ) corpse.Enabled = true;
 		var physics = corpse.GetComponent<ModelPhysics>();
+		var renderer = corpse.GetComponent<SkinnedModelRenderer>();
+		if ( !physics.IsValid() || !renderer.IsValid() )
+		{
+			corpse.Destroy();
+			return;
+		}
 		physics.StartAsleep = true;
-		corpse.GetComponent<SkinnedModelRenderer>().UseAnimGraph = false;
+		renderer.UseAnimGraph = false;
 		ConfigureCorpse( corpse, physics );
 		corpse.GetComponent<RagdollDamping>().SetPlacedPose();
 		corpse.NetworkSpawn();

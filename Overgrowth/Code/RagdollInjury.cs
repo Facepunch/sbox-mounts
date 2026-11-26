@@ -55,11 +55,15 @@ internal sealed class RagdollInjury : Component
 
 	internal void StartInjury( ModelPhysics model, RagdollFallPose pose, float age, bool itemInjury, RagdollInjury previous = null, float stun = 0f )
 	{
+		if ( !model.IsValid() || pose?.Writhe is null ) return;
 		Enabled = true;
 		physics = model;
 		damping = GetComponent<RagdollDamping>( true );
-		damping.Refresh();
-		damping.Enabled = false;
+		if ( damping.IsValid() )
+		{
+			damping.Refresh();
+			damping.Enabled = false;
+		}
 		SetAutoSleep( false );
 		injuryPose = pose;
 		injuryAge = age;

@@ -9,7 +9,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	float hotspotDepth;
 	TimeSince? stillSince;
 	[Sync] internal bool Settled { get; private set; }
-	Transform[] placedPose;
+	(Rigidbody Body, Transform Pose)[] placedPose;
 
 	internal void EnterWater( WaterHotspot volume )
 	{
@@ -26,25 +26,28 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 
 	internal void SetPlacedPose()
 	{
-		placedPose = physics.Bodies.Select( part => part.Component.WorldTransform ).ToArray();
+		placedPose = physics.IsValid() ? physics.Bodies.Where( part => part.Component.IsValid() )
+			.Select( part => (part.Component, part.Component.WorldTransform) ).ToArray() : null;
 	}
 
 	// New shapes establish contacts on their first physics step. Install the saved sleeping
 	// pose on that island, so the initial contacts cannot displace a level-authored body.
 	void IScenePhysicsEvents.PostPhysicsStep()
 	{
-		if ( placedPose is null || physics.Joints.Any( joint => !joint.Component.Body1.IsValid() ) ) return;
-		for ( int i = 0; i < physics.Bodies.Count; i++ )
+		if ( placedPose is null ) return;
+		if ( !physics.IsValid() ) { placedPose = null; return; }
+		if ( physics.Joints.Any( joint => joint.Component.IsValid() && !joint.Component.Body1.IsValid() ) ) return;
+		foreach ( var (body, pose) in placedPose )
 		{
-			var body = physics.Bodies[i].Component;
-			body.WorldTransform = placedPose[i];
+			if ( !body.IsValid() ) continue;
+			body.WorldTransform = pose;
 			body.Velocity = body.AngularVelocity = Vector3.Zero;
 		}
 		placedPose = null;
 		stillSince = (TimeSince)2f;
 		Settled = true;
 		foreach ( var part in physics.Bodies )
-			part.Component.Sleeping = true;
+			if ( part.Component.IsValid() ) part.Component.Sleeping = true;
 	}
 
 	internal void Refresh()
@@ -52,6 +55,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		placedPose = null;
 		stillSince = null;
 		Settled = false;
+		if ( !physics.IsValid() ) return;
 		foreach ( var part in physics.Bodies )
 		{
 			if ( !part.Component.IsValid() ) continue;
@@ -62,19 +66,21 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 
 	internal void Reset( ModelPhysics model )
 	{
+		placedPose = null;
 		physics = model;
 		stillSince = null;
 		Settled = false;
+		if ( !model.IsValid() || !model.Model.IsValid() || model.Model.Physics is not { } description ) return;
 		var loader = CharacterLoader.FromModel( model.Model );
 		loader?.FilterRagdollContacts( model );
 		CharacterCollisionRules.Apply( Scene.PhysicsWorld );
 		float gravityScale = RabbitGuard.FallGravityScale( Scene.PhysicsWorld );
 		float scale = model.WorldScale.z;
-		var parts = model.Model.Physics.Parts;
+		var parts = description.Parts;
 		for ( int i = 0; i < physics.Bodies.Count; i++ )
 		{
 			var part = physics.Bodies[i];
-			if ( !part.Component.IsValid() ) continue;
+			if ( !part.Component.IsValid() || !part.Component.PhysicsBody.IsValid() || i >= parts.Count ) continue;
 			part.Component.GameObject.Tags.Add( CharacterCollisionRules.RagdollPart );
 			part.Component.MassOverride = parts[i].Mass * scale * scale * scale;
 			if ( loader is not null )

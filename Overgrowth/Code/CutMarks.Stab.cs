@@ -7,7 +7,7 @@ public sealed partial class CutMarks
 	internal void Stab( Vector3 origin, Vector3 direction, bool light )
 	{
 		var renderer = GetComponent<SkinnedModelRenderer>();
-		if ( direction.IsNearlyZero() || CharacterLoader.FromModel( renderer.Model )?.Surface is not { } surface ) return;
+		if ( direction.IsNearlyZero() || CharacterLoader.FromModel( renderer?.Model )?.Surface is not { } surface ) return;
 		var faces = surface.StabFaces( renderer, origin, direction, out var posed, out float size );
 		if ( faces.Count == 0 ) return;
 
@@ -73,7 +73,7 @@ public sealed partial class CutMarks
 
 	void DrawProjection( Vector4[] corners, GameMount.DecalStamp stamp, bool wet )
 	{
-		var renderer = PrepareBitmap();
+		if ( !TryPrepareBitmap( out var renderer ) ) return;
 		var size = new Vector2( bitmap.Width, bitmap.Height );
 		for ( int i = 0; i < corners.Length; i += 3 )
 		{
