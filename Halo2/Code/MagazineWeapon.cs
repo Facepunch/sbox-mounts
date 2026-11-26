@@ -4,6 +4,7 @@ public class MagazineWeapon : HandheldWeapon
 {
 	[Property] public int BurstLength { get; set; }
 	[Property] public float RecoveryDelay { get; set; }
+	[Property] public int RecoveryBufferTicks { get; set; }
 	[Property] public bool HasIdleMagazineBarrel { get; set; }
 	int remainingShots;
 	double burstRoundAt;
@@ -15,15 +16,24 @@ public class MagazineWeapon : HandheldWeapon
 	double barrelIdleAt;
 	bool dryFiring;
 	bool triggerPressedDuringReload;
+	bool triggerPressedDuringRecovery;
+	double recoveryEndsAt;
 
 	protected override bool CanCycleBarrel => BurstLength <= 1 && base.CanCycleBarrel;
+	protected override bool HasPendingRound => remainingShots > 0 || base.HasPendingRound;
 	protected virtual bool PredictProjectileEffects => true;
-	protected override bool WantsPrimaryAttack() => !IsReloading && (triggerPressedDuringReload || base.WantsPrimaryAttack());
+	protected override bool WantsPrimaryAttack() => !IsReloading && (triggerPressedDuringRecovery || triggerPressedDuringReload || base.WantsPrimaryAttack());
 
 	public override void PrimaryAttack()
 	{
 		triggerPressedDuringReload = false;
+		triggerPressedDuringRecovery = false;
 		double roundAt = RecordRound();
+		if ( RecoveryBufferTicks > 0 )
+		{
+			recoveryEndsAt = System.Math.Floor( roundAt * 30 ) / 30 + PrimaryDelay;
+			SetNextPrimaryFire( (float)(recoveryEndsAt - Time.NowDouble) );
+		}
 		emptyRoundAt = null;
 		if ( PrimaryAutomatic && BurstLength <= 1 && !HasIdleMagazineBarrel && IsHeld && Clip1 == 1 )
 		{
@@ -35,7 +45,7 @@ public class MagazineWeapon : HandheldWeapon
 		if ( BurstLength > 1 && remainingShots == 0 )
 		{
 			remainingShots = BurstLength;
-			burstRoundAt = Time.NowDouble;
+			burstRoundAt = System.Math.Floor( roundAt * 30 ) / 30;
 			burstAttacker = Attacker;
 		}
 		if ( Instantaneous ) base.PrimaryAttack();
@@ -88,6 +98,13 @@ public class MagazineWeapon : HandheldWeapon
 	protected override void OnControl()
 	{
 		bool held = Input.Down( TriggerButton );
+		if ( RecoveryBufferTicks > 0 )
+		{
+			double remaining = recoveryEndsAt - Time.NowDouble;
+			if ( !CanUseHeldWeapon || MeleeActive || IsReloading || !HasPrimaryAmmo() ) triggerPressedDuringRecovery = false;
+			else if ( remaining > 0 && remaining <= RecoveryBufferTicks / 30.0 && Input.Pressed( TriggerButton ) )
+				triggerPressedDuringRecovery = true;
+		}
 		if ( !held ) triggerPressedDuringReload = false;
 		else if ( !PrimaryAutomatic && IsReloading && Input.Pressed( TriggerButton ) ) triggerPressedDuringReload = true;
 		if ( emptyRoundAt is double shot && !held )
@@ -208,6 +225,8 @@ public class MagazineWeapon : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
+		triggerPressedDuringRecovery = false;
+		recoveryEndsAt = 0;
 		triggerPressedDuringReload = false;
 		remainingShots = 0;
 		emptyRoundAt = null;

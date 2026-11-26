@@ -118,6 +118,7 @@ public abstract partial class HandheldWeapon : Weapon
 	protected virtual bool CanCycleBarrel => PrimaryAutomatic &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
 	protected virtual double EarliestRateTick => 0;
+	protected virtual bool HasPendingRound => roundQueued;
 
 	double OtherBarrelReadyAt
 	{
@@ -162,7 +163,7 @@ public abstract partial class HandheldWeapon : Weapon
 		}
 		else lastAutomaticRound = null;
 		base.OnControl();
-		UpdateBarrelError( canCycle && (held || roundQueued) );
+		UpdateBarrelError( HasPendingRound || (canCycle && held) );
 		automaticRoundAt = null;
 	}
 

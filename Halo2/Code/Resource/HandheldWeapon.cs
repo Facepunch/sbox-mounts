@@ -297,6 +297,17 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		float rate = Float( barrel + 4 );
 		float recovery = RecoveryTime( barrel );
 		gun.PrimaryDelay = rate > 0 ? Weapon.CooldownSeconds( (int)MathF.Round( 30 / rate ) ) : recovery;
+		if ( gun is MagazineWeapon magazine && !gun.PrimaryAutomatic && magazine.BurstLength == 1 && rate == 0 )
+		{
+			float ticks = Float( barrel + 0x20 ) * 30;
+			int firstStage = (int)MathF.Floor( (1 - Float( barrel + 0x24 )) * ticks );
+			int secondStage = (int)MathF.Floor( ticks ) - firstStage;
+			if ( secondStage > 0 )
+			{
+				gun.PrimaryDelay = Weapon.CooldownSeconds( 2 + Math.Max( 1, firstStage ) + secondStage );
+				if ( (map.ReadInt32( barrel ) & (1 << 11)) != 0 ) magazine.RecoveryBufferTicks = secondStage;
+			}
+		}
 		var sounds = FiringSounds( barrel ).ToArray();
 		if ( sounds.Length > 0 )
 		{
