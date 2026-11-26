@@ -103,7 +103,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var pickupLeft = graph.FloatParameter( "pickup_left" );
 		var backhandNewest = usesKnife ? graph.BoolParameter( "knife_backhand_newest" ) : default;
 		var swingParameters = knifeLayers.ToDictionary( name => name, name => (
-			Phase: graph.FloatParameter( name + "_phase" ), Height: graph.FloatParameter( name + "_height" ),
+			Phase: graph.FloatParameter( name + "_phase" ),
 			Weight: graph.FloatParameter( name + "_weight" ), Left: graph.BoolParameter( name + "_left" ) ) );
 		var attackPhase = graph.FloatParameter( "attack_phase" );
 		var height = graph.FloatParameter( "attack_height_coord" );
@@ -437,7 +437,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var controls = swingParameters[name];
 			GraphBuilder.Node Side( bool left )
 			{
-				var blend = graph.BlendSpace( controls.Height, looping: false );
+				var blend = graph.BlendSpace( height, looping: false );
 				foreach ( var pose in poses ) blend.Add( pose.Height, graph.TimeControlledClip( pose.Clip.ForSide( left ).Animation, controls.Phase, new() { SampleRootMotion = false } ) );
 				return blend;
 			}
