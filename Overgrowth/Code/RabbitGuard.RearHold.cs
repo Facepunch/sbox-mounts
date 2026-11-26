@@ -385,11 +385,13 @@ public sealed partial class RabbitGuard
 		// WasGrabbed enters hit reaction one tether update after the attack starts.
 		UpdateHoldVelocity( false, holdTick >= HolderMovementTick );
 		victim.UpdateHoldVelocity( struggle, holdTick >= CaptiveMovementTick );
-		var flat = (victim.WorldPosition - WorldPosition).WithZ( 0f );
+		var separation = victim.WorldPosition - WorldPosition;
+		var flat = separation.WithZ( 0f );
 		if ( !flat.IsNearlyZero() )
 		{
 			holdDirection = Vector3.Lerp( flat.Normal, holdDirection, 0.1f * 0.1f );
-			var correction = ((flat - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f );
+			// HandleTethering limits the full midpoint correction before restoring both heights.
+			var correction = ((separation - holdDirection * distance) * 0.5f).ClampLength( 0.04f * 40f ).WithZ( 0f );
 			ApplyHoldCorrection( correction );
 			victim.ApplyHoldCorrection( -correction );
 			WorldRotation = victim.WorldRotation = Rotation.LookAt( holdDirection );
