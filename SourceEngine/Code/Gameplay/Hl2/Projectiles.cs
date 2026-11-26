@@ -250,6 +250,15 @@ public sealed class Grenade : Projectile
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( GetComponent<Rigidbody>() is { } body )
+		{
+			body.MassOverride = 1;
+			var gravity = Scene.PhysicsWorld.Gravity.Length;
+			if ( gravity > 0 ) body.GravityScale = 600f / gravity;
+		}
+		if ( GetComponent<BoxCollider>() is { } box && Sandbox.Mounting.Directory.Get( MountName ) is SourceGameMount mount )
+			box.Surface = mount.GetSurface( "grenade", ModelPath );
+
 		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
 	}
 
