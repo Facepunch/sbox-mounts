@@ -4,6 +4,29 @@ namespace Source1;
 
 // Stored on imported models through ModelBuilder.WithData; game code reads them into its own types with the same GameData names.
 
+[Sandbox.ModelEditor.GameData( "source_air_drag" ), Hide]
+public sealed class AirDrag
+{
+	public Vector3 AreaFractions { get; set; }
+
+	/// <summary>VPhysics uses projected areas in square metres and velocity in metres per second.</summary>
+	internal static Vector3 LinearFactors( Model model, float mass )
+	{
+		const float metresPerInch = 0.0254f;
+		if ( model?.GetData<AirDrag>() is not { } drag || model.Physics.Parts[0].Hulls is not { Count: > 0 } hulls )
+			return Vector3.Zero;
+
+		var bounds = hulls[0].Bounds;
+		for ( var i = 1; i < hulls.Count; i++ ) bounds = bounds.AddBBox( hulls[i].Bounds );
+		var size = bounds.Size * metresPerInch;
+		// The stored area fractions multiply the IVP axes (X, Z, Y).
+		var areas = drag.AreaFractions;
+		var fractions = new Vector3( areas.x, areas.z, areas.y );
+		// Half the default VPhysics air density (2 kg/m³) is one.
+		return new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * fractions * (metresPerInch / mass);
+	}
+}
+
 [Sandbox.ModelEditor.GameData( "source_prop_damage" ), Hide]
 public sealed class PropDamageModifiers
 {

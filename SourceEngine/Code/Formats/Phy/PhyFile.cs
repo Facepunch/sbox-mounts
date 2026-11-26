@@ -14,6 +14,7 @@ internal sealed partial class PhyFile
 		public int Index { get; internal set; }
 		public string Name { get; internal set; }
 		public string SurfaceProperty { get; internal set; } = "default";
+		public Vector3 DragAreaFractions { get; internal set; } = Vector3.One;
 		public float Mass { get; internal set; } = 1;
 		public float Damping { get; internal set; } = 0.1f;
 		public float RotationalDamping { get; internal set; } = 0.1f;
@@ -80,6 +81,7 @@ internal sealed partial class PhyFile
 				throw Error( $"solid {i} is smaller than its header." );
 			var end = Range( (long)offset + 4, size ) + size;
 			var compact = offset + 4;
+			var dragAreas = Vector3.One;
 			if ( Int( compact ) == 0x59485056 ) // VPHY
 			{
 				Range( offset, 32 );
@@ -91,7 +93,7 @@ internal sealed partial class PhyFile
 				var axisSize = Int( offset + 28 );
 				if ( surfaceSize < 48 || axisSize < 0 || 28L + surfaceSize + axisSize != size )
 					throw Error( $"solid {i} has inconsistent surface/axis-map sizes." );
-				Vector( offset + 16 );
+				dragAreas = Vector( offset + 16 );
 				compact = offset + 32;
 				rangeEnd = compact + surfaceSize;
 			}
@@ -114,7 +116,7 @@ internal sealed partial class PhyFile
 			var rootOffset = Int( compact + 32 );
 			rangeStart = compact + 48;
 			var convexes = ReadTree( Relative( compact, rootOffset, 28 ) );
-			solids[i] = new Solid { Index = i, Convexes = convexes.AsReadOnly() };
+			solids[i] = new Solid { Index = i, DragAreaFractions = dragAreas, Convexes = convexes.AsReadOnly() };
 			offset = end;
 		}
 		Solids = Array.AsReadOnly( solids );

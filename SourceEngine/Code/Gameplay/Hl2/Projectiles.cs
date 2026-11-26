@@ -246,15 +246,19 @@ public sealed class Grenade : Projectile
 	const float ThinkInterval = 7 * 0.015f;
 	float nextThink;
 	float nextBlip = 1;
+	Rigidbody _body;
+	Vector3 _dragFactors;
 
 	protected override void OnStart()
 	{
 		base.OnStart();
-		if ( GetComponent<Rigidbody>() is { } body )
+		_body = GetComponent<Rigidbody>();
+		if ( _body.IsValid() )
 		{
-			body.MassOverride = 1;
+			_body.MassOverride = 1;
+			_dragFactors = AirDrag.LinearFactors( GetComponent<ModelCollider>()?.Model, _body.MassOverride );
 			var gravity = Scene.PhysicsWorld.Gravity.Length;
-			if ( gravity > 0 ) body.GravityScale = 600f / gravity;
+			if ( gravity > 0 ) _body.GravityScale = 600f / gravity;
 		}
 
 		if ( Networking.IsHost ) Blip( WorldPosition, MountName );
@@ -262,6 +266,8 @@ public sealed class Grenade : Projectile
 
 	protected override bool Simulate()
 	{
+		if ( _body.IsValid() )
+			_body.LinearDamping = (WorldRotation.Inverse * _body.Velocity).Abs().Dot( _dragFactors );
 		if ( Age < nextThink ) return false;
 		var now = nextThink;
 		nextThink += ThinkInterval;
