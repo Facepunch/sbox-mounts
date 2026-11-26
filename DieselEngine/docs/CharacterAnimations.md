@@ -36,3 +36,27 @@ animator and physics setup.
 Verified locally: idle/walk resource loading on builder and police rigs, native/source
 pose agreement, duration, moving bone tracks, and graph playback/rendering on the builder.
 The whole source-animation library has not been exhaustively checked.
+
+## Scripted vehicles
+
+The 17 units under `units/vehicles/animated_cars/` also expose rigged browser models
+and `/rig.skel`. Sixteen contain embedded controllers, available as `/embedded.anim`.
+The separate `prisoner_truck_door` has a rig but no timed embedded motion.
+
+```csharp
+string vehicle = "mount://payday/units/vehicles/animated_cars/"
+	+ "vehicle_slaughterhouse_hanging_armored_truck/"
+	+ "vehicle_slaughterhouse_hanging_armored_truck.unit.vmdl";
+var motion = await ResourceLibrary.LoadAsync<Sandbox.Animation.Clip>( vehicle + "/embedded.anim" );
+```
+
+Use the same graph setup shown above. Embedded clips represent the entire authored controller
+timeline, not individual sequence-manager events. They preserve translation and rotation in
+the unit's authored orientation space, including vehicle travel in bone poses. They do not use
+character proportion retargeting or strip travel into a separate root-motion channel.
+Render rigs retain graphics/skin bones and their ancestors; unrelated collision helpers are omitted.
+These are visual animation resources, without driving AI, event triggers or moving collision.
+Map placements continue to use the existing placed-unit importer.
+
+All 17 rigs and 16 timelines passed load/source-pose checks at the start, midpoint and end.
+The hanging armored truck additionally passed native graph-pose and rendered-appearance checks.

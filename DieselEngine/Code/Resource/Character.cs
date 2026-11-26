@@ -3,7 +3,7 @@ using System.Text;
 namespace Diesel;
 using Matrix = System.Numerics.Matrix4x4;
 
-/// <summary>Authored character skeleton and skin, shared by browser resources and NPC appearances.</summary>
+/// <summary>Authored skeleton and skin, shared by browser characters, scripted props and NPC appearances.</summary>
 sealed partial class PaydayCharacter
 {
 	public ModelFile File { get; }
@@ -11,6 +11,9 @@ sealed partial class PaydayCharacter
 	public (uint Id, string Name, uint Parent)[] Bones { get; }
 	public Dictionary<uint, Transform> Bind { get; }
 	public Model Model { get; }
+	readonly bool scripted;
+	readonly string orientation;
+	readonly Matrix bindRoot;
 
 	public PaydayCharacter( BundleDatabase db, MapMaterials materials, NpcDefinition definition, string path )
 		: this( db, materials, definition.Unit, path, definition.Clips(), true ) { }
@@ -24,15 +27,36 @@ sealed partial class PaydayCharacter
 		var unit = UnitModel.Xml( db.Find( "unit", unitPath ) );
 		string objectPath = unit.Element( "object" ).Attribute( "file" );
 		var obj = UnitModel.Xml( db.Find( "object", objectPath ) );
+		scripted = UnitClassification.Classify( unitPath, unit ) == UnitKind.Scripted;
+		orientation = scripted ? obj.Element( "diesel" ).Attribute( "orientation_object" ) : "root_point";
 		File = new( db.Find( "model", objectPath ) );
+		var geometry = File.ReadGeometry( UnitGeometry.Read( unit, obj ).Graphics, 0, raw: true ).ToArray();
 		var names = Encoding.Latin1.GetString( db.Find( "idstring_lookup", "idstring_lookup" ) ).Split( '\0' )
 			.Distinct().GroupBy( IdString.Hash ).ToDictionary( g => g.Key, g => g.First() );
-		Bones = File.RigNodes.Select( n => (n.Id, names.GetValueOrDefault( n.Name, $"bone_{n.Name:x}" ), n.Parent) ).ToArray();
+		var nodes = File.RigNodes.ToArray();
+		var required = nodes.Select( n => n.Id ).ToHashSet();
+		if ( scripted )
+		{
+			// Collision/controller helpers can sit miles from the render geometry. Keep the
+			// skin's actual bones and ancestors, avoiding irrelevant tracks and precision loss.
+			required.Clear();
+			void Include( uint id )
+			{
+				while ( id != 0 && required.Add( id ) ) id = nodes.First( n => n.Id == id ).Parent;
+			}
+			foreach ( var part in geometry )
+			{
+				Include( nodes.First( n => n.Name == part.Name ).Id );
+				if ( part.Skin is { } skin ) foreach ( uint bone in skin.Bones ) Include( bone );
+			}
+		}
+		Bones = nodes.Where( n => required.Contains( n.Id ) ).Select( n => (n.Id, names.GetValueOrDefault( n.Name, $"bone_{n.Name:x}" ), n.Parent) ).ToArray();
 		if ( Bones.Length > 255 ) throw new InvalidDataException( "Character exceeds byte skin index limit." );
 		Clips = clips.ToDictionary( c => c.Key, c => new AnimationFile( db.Find( "animation", c.Value )
 			?? throw new InvalidDataException( $"Missing character animation: {c.Value}" ) ) );
 		var pose = File.Pose( null, 0 );
-		Matrix.Invert( File.NodePose( pose, "root_point" ), out var root );
+		Matrix.Invert( File.NodePose( pose, orientation ), out var root );
+		bindRoot = root;
 		Bind = pose.ToDictionary( p => p.Key, p => ModelFile.Convert( p.Value * root ) );
 		var builder = Sandbox.Model.Builder.WithName( path );
 		foreach ( var bone in Bones )
@@ -44,7 +68,7 @@ sealed partial class PaydayCharacter
 		}
 		var indices = Bones.Select( (b, i) => (b.Id, Index: (byte)i) ).ToDictionary( b => b.Id, b => b.Index );
 		string config = obj.Element( "diesel" ).Attribute( "materials" );
-		foreach ( var g in File.ReadGeometry( UnitGeometry.Read( unit, obj ).Graphics, 0, raw: true ) )
+		foreach ( var g in geometry )
 		{
 			var positions = new Vector3[g.Positions.Length];
 			var normals = new Vector3[g.Normals.Length];
