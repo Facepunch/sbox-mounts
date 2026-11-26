@@ -172,6 +172,7 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 					alphaMax = op.Number( "alpha_max", 255 ) / 255;
 					break;
 				case "color random":
+					if ( op.Number( "tint_perc" ) != 0 ) Skip( op, "world lighting tint" );
 					effect.Gradient = new ParticleGradient
 					{
 						Type = ParticleGradient.ValueType.Range,
@@ -552,7 +553,19 @@ internal sealed class SourceParticlePrefabLoader( string sourcePath, PcfFile.Ele
 		void ApplyColorFades()
 		{
 			if ( colorFades.Count == 0 ) return;
-			if ( effect.Gradient.Type == ParticleGradient.ValueType.Range ) Unsupported.Add( "Color Fade (from the midpoint of the random initial color)" );
+			if ( effect.Gradient.Type == ParticleGradient.ValueType.Range )
+			{
+				// Each color fade writes from the birth color, so the last active operator wins.
+				var fade = colorFades.LastOrDefault( f => f.Number( "fade_start_time" ) != f.Number( "fade_end_time", 1 ) );
+				if ( fade is null ) return;
+				var controller = root.AddComponent<SourceParticleColorFade>();
+				controller.Start = fade.Number( "fade_start_time" );
+				controller.End = fade.Number( "fade_end_time", 1 );
+				controller.Target = ColorValue( fade, "color_fade", Color.White );
+				controller.Ease = fade.Boolean( "ease_in_and_out", true );
+				effect.ApplyColor = false;
+				return;
+			}
 
 			var startColor = effect.Gradient.Evaluate( 0, 0.5f );
 			var frames = new Gradient.ColorFrame[65];
