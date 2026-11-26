@@ -25,6 +25,15 @@ foreach ( var unit in units.Values.Where( u => u.StartsWith( "units/vehicles/ani
 	var skeleton = await ResourceLibrary.LoadAsync<Sandbox.Animation.Skeleton>( modelPath + "/rig.skel" );
 	if ( model is null || model.IsError || skeleton is null || skeleton.BoneCount != model.Bones.AllBones.Count || !skeleton.IsProp )
 		throw new Exception( $"Missing scripted rig: {unit}" );
+	var loader = Sandbox.Mounting.MountUtility.FindLoader( modelPath );
+	var assets = loader.GetType().GetMethod( "GetCharacter", flags ).Invoke( loader, null );
+	var collision = ((System.Collections.IEnumerable)assets.GetType().GetMethod( "GetScriptedCollision", flags )
+		.Invoke( assets, new object[] { modelPath } )).Cast<object>().ToArray();
+	foreach ( var part in collision )
+	{
+		var hull = (Model)part.GetType().GetProperty( "Model" ).GetValue( part );
+		if ( hull is null || hull.IsError || hull.Physics.Parts.Count == 0 ) throw new Exception( $"Invalid scripted collision: {unit}" );
+	}
 	if ( duration > 0 )
 	{
 		var clip = await ResourceLibrary.LoadAsync<Sandbox.Animation.Clip>( modelPath + "/embedded.anim" );
@@ -58,6 +67,6 @@ foreach ( var unit in units.Values.Where( u => u.StartsWith( "units/vehicles/ani
 		}
 	}
 	results.Add( new { Unit = unit, Orientation = (string)obj.Element( "diesel" ).Attribute( "orientation_object" ),
-		SourceNodes = nodes.Length, RenderBones = skeleton.BoneCount, Tracks = controllers.Count, Duration = duration } );
+		SourceNodes = nodes.Length, RenderBones = skeleton.BoneCount, CollisionParts = collision.Length, Tracks = controllers.Count, Duration = duration } );
 }
 return results;

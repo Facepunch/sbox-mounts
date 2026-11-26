@@ -39,7 +39,7 @@ sealed class DieselModelLoader : ResourceLoader<PaydayMount>
 		}
 	}
 
-	PaydayCharacter GetCharacter() => assets ??= new PaydayCharacter( Host.Database, Host.BrowserMaterials, unit, Path );
+	internal PaydayCharacter GetCharacter() => assets ??= new PaydayCharacter( Host.Database, Host.BrowserMaterials, unit, Path );
 
 	public DieselModelLoader( string unit, UnitModel.BrowseInfo info )
 	{

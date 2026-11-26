@@ -55,8 +55,37 @@ timeline, not individual sequence-manager events. They preserve translation and 
 the unit's authored orientation space, including vehicle travel in bone poses. They do not use
 character proportion retargeting or strip travel into a separate root-motion channel.
 Render rigs retain graphics/skin bones and their ancestors; unrelated collision helpers are omitted.
-These are visual animation resources, without driving AI, event triggers or moving collision.
+The clip resources themselves provide visual animation without driving AI or event triggers.
 Map placements continue to use the existing placed-unit importer.
 
 All 17 rigs and 16 timelines passed load/source-pose checks at the start, midpoint and end.
 The hanging armored truck additionally passed native graph-pose and rendered-appearance checks.
+
+### Moving collision
+
+Add `Diesel.PaydayScriptedProp` to a game object and assign its `Renderer` to a
+`SkinnedModelRenderer` using one of the timed scripted-vehicle models. The component owns
+the renderer's animation graph and samples collision from the same timeline:
+
+```csharp
+var prop = gameObject.AddComponent<Diesel.PaydayScriptedProp>();
+prop.Renderer = renderer;
+prop.Cycle = 0.25f; // normalized position in the full embedded timeline
+prop.Playing = true;
+prop.PlaybackRate = 1;
+prop.Loop = false;
+```
+
+Collision uses one convex hull per enabled authored collision object, including primitive
+shapes. Concave mesh objects therefore become convex approximations, as with moving doors.
+Generated keyframed colliders follow the source collision-node transforms, even for nodes
+omitted from the render skeleton. They are transient, excluded from navmesh generation,
+and removed when the component is disabled or destroyed.
+
+Do not add a second static model collider for the same moving geometry. This component
+does not supply multiplayer timeline synchronization, collision-driven stopping, or mission
+sequence/event execution. Replacing its renderer/model rebuilds the owned animation/collision.
+
+Resource checks cover collision construction on all 17 scripted units. Moving trace checks
+cover the hanging truck (22 parts), getaway van (1), and garbage truck (21), including vacated
+van space and disable/re-enable cleanup.
