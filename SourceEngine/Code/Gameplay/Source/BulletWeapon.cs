@@ -85,6 +85,7 @@ public sealed class BulletWeapon : Weapon
 	/// <summary>Maximum primary-fire kick in degrees and seconds of held fire to reach it.</summary>
 	[Property, Group( "Recoil" )] public Vector2 MachineGunKick { get; set; }
 	float _fireDuration;
+	double _lastMachineGunKickTime = double.NaN;
 	TimeUntil _reloadInputDelay;
 	TimeUntil? _tapReady;
 
@@ -385,8 +386,12 @@ public sealed class BulletWeapon : Weapon
 		if ( TapRefireDelay > 0 && HasOwner ) _tapReady = (TimeUntil)TapRefireDelay;
 		if ( HasOwner && MachineGunKick.y > 0 )
 		{
-			if ( !Owner.ThirdPerson && !Owner.IsProxy )
+			// Rounds that fall due together are one machine gun volley with a single view kick.
+			if ( !Owner.ThirdPerson && !Owner.IsProxy && _lastMachineGunKickTime != Time.NowDouble )
+			{
+				_lastMachineGunKickTime = Time.NowDouble;
 				ViewPunch.MachineGunKick( Owner, MachineGunKick.x * Math.Min( _fireDuration / MachineGunKick.y, 1 ) );
+			}
 		}
 		else DoRecoil();
 		if ( !BurstMode || NpcControlled ) return;
