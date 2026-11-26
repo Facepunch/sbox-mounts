@@ -737,6 +737,7 @@ sealed class PhysCannonEffects : IDisposable
 		{
 			_puntBeam = punt;
 			punt.Width = BeamWidth( 12, 4 );
+			punt.Texturing = punt.Texturing with { WorldSpace = true, UnitsPerTexture = 100 };
 			punt.Color = Color.White;
 			punt.Enabled = false;
 		}
