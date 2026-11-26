@@ -247,7 +247,7 @@ public sealed class Grenade : Projectile
 	float nextThink;
 	float nextBlip = 1;
 	Rigidbody _body;
-	Vector3 _dragFactors;
+	(Vector3 Linear, Vector3 Angular) _dragFactors;
 
 	protected override void OnStart()
 	{
@@ -256,7 +256,7 @@ public sealed class Grenade : Projectile
 		if ( _body.IsValid() )
 		{
 			_body.MassOverride = 1;
-			_dragFactors = AirDrag.LinearFactors( GetComponent<ModelCollider>()?.Model, _body.MassOverride );
+			_dragFactors = AirDrag.Factors( GetComponent<ModelCollider>()?.Model, _body.MassOverride );
 			var gravity = Scene.PhysicsWorld.Gravity.Length;
 			if ( gravity > 0 ) _body.GravityScale = 600f / gravity;
 		}
@@ -267,7 +267,11 @@ public sealed class Grenade : Projectile
 	protected override bool Simulate()
 	{
 		if ( _body.IsValid() )
-			_body.LinearDamping = (WorldRotation.Inverse * _body.Velocity).Abs().Dot( _dragFactors );
+		{
+			var local = WorldRotation.Inverse;
+			_body.LinearDamping = (local * _body.Velocity).Abs().Dot( _dragFactors.Linear );
+			_body.AngularDamping = (local * _body.AngularVelocity).Abs().Dot( _dragFactors.Angular );
+		}
 		if ( Age < nextThink ) return false;
 		var now = nextThink;
 		nextThink += ThinkInterval;

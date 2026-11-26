@@ -8,13 +8,14 @@ namespace Source1;
 public sealed class AirDrag
 {
 	public Vector3 AreaFractions { get; set; }
+	public Vector3 UnitMassInertia { get; set; }
 
 	/// <summary>VPhysics uses projected areas in square metres and velocity in metres per second.</summary>
-	internal static Vector3 LinearFactors( Model model, float mass )
+	internal static (Vector3 Linear, Vector3 Angular) Factors( Model model, float mass )
 	{
 		const float metresPerInch = 0.0254f;
 		if ( model?.GetData<AirDrag>() is not { } drag || model.Physics.Parts[0].Hulls is not { Count: > 0 } hulls )
-			return Vector3.Zero;
+			return default;
 
 		var bounds = hulls[0].Bounds;
 		for ( var i = 1; i < hulls.Count; i++ ) bounds = bounds.AddBBox( hulls[i].Bounds );
@@ -23,7 +24,26 @@ public sealed class AirDrag
 		var areas = drag.AreaFractions;
 		var fractions = new Vector3( areas.x, areas.z, areas.y );
 		// Half the default VPhysics air density (2 kg/m³) is one.
-		return new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * fractions * (metresPerInch / mass);
+		var linear = new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * fractions * (metresPerInch / mass);
+
+		var half = size * 0.5f;
+		var inertia = drag.UnitMassInertia * mass;
+		var angular = new Vector3(
+			AngularFactor( half.x, half.y, half.z, fractions.y, fractions.z, inertia.x ),
+			AngularFactor( half.y, half.z, half.x, fractions.z, fractions.x, inertia.y ),
+			AngularFactor( half.z, half.x, half.y, fractions.x, fractions.y, inertia.z ) );
+		return (linear, angular);
+	}
+
+	// Integrate the drag torque over both faces parallel to this spin axis.
+	private static float AngularFactor( float length, float width, float height, float widthFraction, float heightFraction, float inertia )
+	{
+		if ( inertia <= 0 ) return 0;
+		var w2 = width * width;
+		var h2 = height * height;
+		var l2 = length * length / 3;
+		return 2 * length / inertia * (heightFraction * w2 * (l2 + w2 / 2 + h2)
+			+ widthFraction * h2 * (l2 + h2 / 2 + w2));
 	}
 }
 

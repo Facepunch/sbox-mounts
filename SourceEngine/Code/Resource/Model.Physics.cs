@@ -127,8 +127,8 @@ internal sealed partial class SourceModelBuilder
 			return;
 		}
 		if ( plan.Bodies.Length == 0 ) return;
-		if ( plan.Bodies.Length == 1 )
-			builder.WithData( new AirDrag { AreaFractions = plan.Bodies[0].Solid.DragAreaFractions } );
+		if ( plan.Bodies is [{ Solid: var single }] )
+			builder.WithData( new AirDrag { AreaFractions = single.DragAreaFractions, UnitMassInertia = single.UnitMassInertia * (single.Inertia > 0 ? single.Inertia : 1) } );
 
 		foreach ( var body in plan.Bodies )
 		{
