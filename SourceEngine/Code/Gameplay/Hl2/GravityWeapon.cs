@@ -251,7 +251,7 @@ public sealed class GravityWeapon : Weapon
 	{
 		if ( result == CarryResult.Pickup ) SetNextSecondaryFire( 0.5f );
 		if ( result == CarryResult.Drop ) SetNextFire( 0.5f );
-		if ( result != CarryResult.ForcedDrop ) (WeaponModel as ViewModel)?.PlayGravityGunAttack();
+		if ( result != CarryResult.ForcedDrop ) (WeaponModel as ViewModel)?.PlayPhyscannonAttack();
 		if ( Sounds.WeaponSound( this, result == CarryResult.Pickup ? "special1" : "melee_miss" ) is { } sound ) GameObject.PlaySound( sound );
 	}
 
@@ -268,7 +268,7 @@ public sealed class GravityWeapon : Weapon
 	{
 		var launch = result != PuntResult.Miss;
 		if ( Sounds.WeaponSound( this, launch ? "single_shot" : "empty" ) is { } sound ) GameObject.PlaySound( sound );
-		(WeaponModel as ViewModel)?.PlayGravityGunAttack( launch );
+		(WeaponModel as ViewModel)?.PlayPhyscannonAttack( launch );
 		if ( !launch ) return;
 
 		if ( Owner is { IsProxy: false, ThirdPerson: false } && !Application.IsDedicatedServer )

@@ -524,7 +524,7 @@ public sealed class ViewModel : BaseWeaponModel
 
 	internal void OnClawsChanged() => Play( _clips?.Idle );
 
-	internal void PlayGravityGunAttack( bool launch = false ) => Play( launch ? _clips?.SecondaryFire : _clips?.Fire );
+	internal void PlayPhyscannonAttack( bool launch = false ) => Play( launch ? _clips?.SecondaryFire : _clips?.Fire );
 
 	public void OnSqueeze() => Play( _clips?.SecondaryFire );
 

@@ -35,6 +35,7 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 	Rotation _yawOffset;
 	float _distance;
 	float _arrivalTime;
+	internal override bool ShouldPlayIdle => false;
 
 	public PhysicsGun()
 	{
@@ -54,11 +55,14 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		if ( Input.Pressed( "attack2" ) && HeldBody.IsValid() )
 		{
 			InputState = Trigger.Freeze;
+			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
 			SetNextFire( 0.5f );
 			return;
 		}
 
 		InputState = Input.Down( "attack1" ) && !Input.Down( "attack2" ) ? Trigger.Grab : Trigger.Released;
+		if ( InputState == Trigger.Grab && Input.Pressed( "attack1" ) && !HeldBody.IsValid() && TraceTarget( AimRay ).Hit )
+			(WeaponModel as ViewModel)?.PlayPhyscannonAttack();
 		if ( InputState != Trigger.Grab || !HeldBody.IsValid() ) return;
 
 		if ( Input.Down( "use" ) )
@@ -133,8 +137,7 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		var yaw = Rotation.FromYaw( Owner.EyeAngles.yaw );
 		if ( !HeldBody.IsValid() )
 		{
-			var hit = Scene.Trace.Ray( ray, MaxRange * 2 ).IgnoreGameObjectHierarchy( GameObject.Root )
-				.WithoutTags( "trigger", "projectile" ).Run();
+			var hit = TraceTarget( ray );
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
 			if ( !body.IsValid() || body.IsProxy || !body.PhysicsBody.IsValid() || body.GetComponentInParent<PlayerController>().IsValid() ) return;
 
@@ -164,6 +167,9 @@ public sealed class PhysicsGun : Weapon, PlayerController.IEvents
 		var angularError = ShadowController.AngularError( physics.Rotation, HoldRotation( yaw ) );
 		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, 5000f.DegreeToRadian(), 10000f.DegreeToRadian(), _arrivalTime, 0.8f );
 	}
+
+	SceneTraceResult TraceTarget( Ray ray ) => Scene.Trace.Ray( ray, MaxRange * 2 )
+		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" ).Run();
 
 	Rotation HoldRotation( Rotation yaw )
 	{
