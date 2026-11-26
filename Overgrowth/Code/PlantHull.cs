@@ -51,7 +51,7 @@ internal static class PlantHull
 		return selected;
 	}
 
-	internal static (List<Vector3> Hull, List<Vector3> Cloud) Load( GameMount mount, string model, string colorMap, ObjLoader.ObjData mesh )
+	internal static (List<Vector3> Hull, List<Vector3> Cloud) Load( GameMount mount, string model, string colorMap, ObjLoader.ObjData? displayMesh )
 	{
 		var cache = Path.ChangeExtension( model, null ) + "_" + Path.GetFileNameWithoutExtension( colorMap ) + ".hull";
 		if ( mount.FileSystem.FileExists( cache ) )
@@ -78,6 +78,7 @@ internal static class PlantHull
 
 		// CreatePointCloud works in square metres. ImageSampler returns RGB as a vec4
 		// with alpha 1, so even transparent texels participate in the source hull.
+		var mesh = displayMesh ?? ObjLoader.Load( mount.FileSystem, model );
 		var areas = new float[mesh.Indices.Count / 3];
 		for ( int i = 0; i < areas.Length; i++ )
 		{

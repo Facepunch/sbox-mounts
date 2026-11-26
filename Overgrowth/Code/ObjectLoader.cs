@@ -22,21 +22,53 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		var (path, center) = collisionMesh.Value;
 		return BalanceSurface.ReadTriangles( Host.FileSystem, path, center, marked );
 	}
-	internal List<Vector3> PlantPoints { get; private set; }
-	internal List<Vector3> PlantCloud { get; private set; }
-	internal ItemSharpness Sharpness { get; private set; }
+	List<Vector3> plantPoints, plantCloud;
+	ItemSharpness sharpness;
+	volatile bool contactDataLoaded;
+	readonly object contactDataLock = new();
+
+	internal List<Vector3> PlantPoints { get { EnsureContactData(); return plantPoints; } }
+	internal List<Vector3> PlantCloud { get { EnsureContactData(); return plantCloud; } }
+	internal ItemSharpness Sharpness { get { EnsureContactData(); return sharpness; } }
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 	string AppearancePath => Host.Resolve( ItemDefinition.Element( "appearance" )?.Attribute( "obj_path" ) );
 
 	internal (List<Vector3> Positions, List<Vector2> UVs, List<int> Indices) GetItemSurface()
 	{
-		if ( itemSurface.Indices is null )
-		{
-			var appearance = XmlAsset.Read( Host.FileSystem, AppearancePath, "Object" );
-			var mesh = ObjLoader.Load( Host.FileSystem, Host.Resolve( appearance.Element( "Model" ).Value ) );
-			itemSurface = (mesh.Positions, mesh.UVs, mesh.Indices);
-		}
+		EnsureContactData();
 		return itemSurface;
+	}
+
+	// A cached vmdl can be returned without executing Load on the current loader.
+	void EnsureContactData( XmlAsset appearance = null, ObjLoader.ObjData? mesh = null )
+	{
+		if ( contactDataLoaded ) return;
+		lock ( contactDataLock )
+		{
+			if ( contactDataLoaded ) return;
+			if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
+			{
+				appearance ??= XmlAsset.Read( Host.FileSystem, item ? AppearancePath : filePath, "Object" );
+				ReadContactData( appearance, mesh );
+			}
+			contactDataLoaded = true;
+		}
+	}
+
+	void ReadContactData( XmlAsset appearance, ObjLoader.ObjData? mesh )
+	{
+		if ( item )
+		{
+			var data = mesh ?? ObjLoader.Load( Host.FileSystem, Host.Resolve( appearance.Element( "Model" ).Value ) );
+			var map = appearance.Element( "SharpnessMap" )?.Value;
+			if ( !string.IsNullOrWhiteSpace( map ) ) sharpness = new( Host, map, data );
+			itemSurface = (data.Positions, data.UVs, data.Indices);
+		}
+		else if ( appearance.Element( "flags" )?.Attribute( "bush_collision" ) == "true" && appearance.Element( "ColorMap" )?.Value is { } colorMap )
+		{
+			var model = Host.Resolve( appearance.Element( "Model" ).Value );
+			(plantPoints, plantCloud) = PlantHull.Load( Host, model, colorMap, mesh );
+		}
 	}
 
 	protected override object Load()
@@ -44,34 +76,23 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 		var modelPath = filePath;
 		var material = Material.Load( "materials/default/white.vmat" );
 		var collision = false;
-		string sharpnessMap = null, surfacePath = null, plantColorMap = null;
-
+		string surfacePath = null;
+		XmlAsset root = null;
 
 		if ( !filePath.EndsWith( ".obj", System.StringComparison.OrdinalIgnoreCase ) )
 		{
-			var root = item ? ItemDefinition : XmlAsset.Read( Host.FileSystem, filePath, "Object" );
-			var objectPath = filePath;
-			if ( item )
-			{
-				objectPath = AppearancePath;
-				root = XmlAsset.Read( Host.FileSystem, objectPath, "Object" );
-			}
+			root = XmlAsset.Read( Host.FileSystem, item ? AppearancePath : filePath, "Object" );
 
 			modelPath = Host.Resolve( root.Element( "Model" )?.Value );
-			if ( item ) sharpnessMap = root.Element( "SharpnessMap" )?.Value;
 			surfacePath = Host.Resolve( root.Element( "MaterialPath" )?.Value ?? "Data/Materials/default.xml" );
-			material = Material.Load( Host.MountedPath( item ? filePath : objectPath ) + ".vmat" );
+			material = Material.Load( Host.MountedPath( filePath ) + ".vmat" );
 			var flags = root.Element( "flags" );
 			var bushCollision = (string)flags?.Attribute( "bush_collision" ) == "true";
 			collision = !item && !bushCollision && (string)flags?.Attribute( "no_collision" ) != "true";
-			if ( !item && bushCollision )
-				plantColorMap = root.Element( "ColorMap" )?.Value;
 		}
 
 		var data = ObjLoader.Load( Host.FileSystem, modelPath );
-		if ( plantColorMap is not null )
-			(PlantPoints, PlantCloud) = PlantHull.Load( Host, modelPath, plantColorMap, data );
-		if ( !string.IsNullOrWhiteSpace( sharpnessMap ) ) Sharpness = new( Host, sharpnessMap, data );
+		EnsureContactData( root, data );
 		var builder = Model.Builder.WithName( Path )
 			.AddMesh( ObjLoader.CreateMesh( data, Path, material ) );
 		var surface = surfacePath is null ? null : GameResource.Load<Surface>( Host.MountedPath( System.IO.Path.ChangeExtension( surfacePath, ".surface" ) ) );
@@ -81,7 +102,6 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 
 		if ( item )
 		{
-			itemSurface = (data.Positions, data.UVs, data.Indices);
 			AddItemPhysics( builder, itemDefinition, modelPath, data, surface );
 		}
 		else if ( collision )
