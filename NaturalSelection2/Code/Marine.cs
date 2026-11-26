@@ -42,7 +42,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	string WeaponName => pistol ? "pistol" : "rifle";
 	bool? equippedPistol;
 	bool previousPress, skipDraw = true;
-	TimeSince weaponAge;
+	TimeSince weaponAge, idleAge;
 	bool deployed, reloaded;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	[Sync( SyncFlags.FromHost )] TimeSince age { get; set; }
@@ -126,7 +126,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( Networking.IsHost && reloading ) CancelReloadSound();
 		skipDraw = equippedPistol is null;
 		equippedPistol = pistol;
-		weaponAge = 0;
+		weaponAge = idleAge = 0;
 		deployed = skipDraw && !pistol;
 		reloaded = previousPress = false;
 		lastRequest = lastShot = 1;
@@ -357,7 +357,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
 			bool attack = press && deployed && !reloading && (!pistol || lastShot >= 0.1f);
+			bool wasAttacking = trigger;
 			trigger = attack && Ammo.Clip > 0;
+			if ( wasAttacking && !trigger ) idleAge = 0;
 			if ( attack && Ammo.Clip == 0 )
 				BeginReload();
 			if ( trigger && !pistol )
@@ -406,7 +408,17 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		playback.Set( "reload_speed", 1 );
 		playback.Set( "skip_draw", skipDraw ? 1 : 0 );
 		playback.Set( "empty", Ammo.Clip == 0 && Ammo.Reserve == 0 ? 1 : 0 );
-		playback.Set( "idleName", "idle" );
+		if ( Movement.IsMoving || Animation.MoveVelocity.LengthSquared >= 0.01f * Scale * Scale )
+			idleAge = 0;
+		if ( idleAge >= 29.5f )
+			idleAge = 0;
+		else
+			playback.Set( "idleName", (float)idleAge switch
+			{
+				>= 19.5f => pistol ? "idle_gangster" : "idle_lower",
+				>= 9.5f => pistol ? "idle_spin" : "idle_brush",
+				_ => "idle"
+			} );
 	}
 
 	void OnWorldTag( string tag )
@@ -429,6 +441,11 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	void OnWeaponTag( string tag )
 	{
+		if ( tag is "idle_spin_start" or "idle_gangster_start" )
+		{
+			PlayWorldSound( tag == "idle_spin_start" ? "sounds/marine/pistol/idle_spin.sound" : "sounds/marine/pistol/idle_gangster.sound" );
+			return;
+		}
 		if ( tag == "shoot" && lastRequest < 0.1f && !reloading && Ammo.Clip > 0 && NpcConVars.Enabled )
 		{
 			FireBullet();
