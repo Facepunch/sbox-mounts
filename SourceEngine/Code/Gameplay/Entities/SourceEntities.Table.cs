@@ -12,6 +12,7 @@ static partial class SourceEntities
 					"Source1.GarrysMod.PhysicsGun": {"DisplayName": "Physics Gun", "HoldType": "tool", "DroppedGameObject": {"ref": "standalone_wm"}, "ViewModelPrefab": {"prefab": "entities/parts/physgun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/physgun_wm.prefab"}}
 				},
 				"standalone_wm": {
+					"Sandbox.SkinnedModelRenderer": {"MaterialGroup": "Skin 1"},
 					"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}
 				}
 			}
@@ -24,7 +25,10 @@ static partial class SourceEntities
 			""" ),
 		new( "gmod", SourceEntityKind.WorldModel, "physgun_wm", null, null, null, """
 			{
-				"model": {"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}}
+				"model": {
+					"Sandbox.SkinnedModelRenderer": {"MaterialGroup": "Skin 1"},
+					"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}
+				}
 			}
 			""" ),
 		new( "css", SourceEntityKind.Weapon, "ak47", "AK-47", "models/weapons/w_rif_ak47.mdl", null, """
