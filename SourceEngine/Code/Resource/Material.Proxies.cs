@@ -42,12 +42,9 @@ internal sealed partial class SourceMaterialBuilder
 
 		foreach ( var proxy in proxies.Children )
 		{
-			if ( !proxy.IsBlock || !(proxy.Name.Equals( "TextureScroll", StringComparison.OrdinalIgnoreCase )
+			if ( !proxy.IsBlock || !(IsEffectProxy( proxy, shader ) || proxy.Name.Equals( "TextureScroll", StringComparison.OrdinalIgnoreCase )
 				|| proxy.Name.Equals( "Sine", StringComparison.OrdinalIgnoreCase )
-				|| proxy.Name.Equals( "AnimatedTexture", StringComparison.OrdinalIgnoreCase )
-				|| (shader is "core" or "vortwarp" && proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase ))
-				|| (shader is "aftershock" or "volumeclouds" && proxy.Name.Equals( "CurrentTime", StringComparison.OrdinalIgnoreCase ))
-				|| (shader == "water" && proxy.Name.Equals( "WaterLOD", StringComparison.OrdinalIgnoreCase ))) )
+				|| proxy.Name.Equals( "AnimatedTexture", StringComparison.OrdinalIgnoreCase )) )
 			{
 				Log.Trace( $"{FullPath}: proxy '{proxy.Name}' is not implemented; using static parameters for the entire proxy block to avoid partial proxy dependencies." );
 				return unchanged;
@@ -58,19 +55,13 @@ internal sealed partial class SourceMaterialBuilder
 		foreach ( var proxy in proxies.Children )
 		{
 			var inputs = new VmtParameters( proxy.Values, FullPath );
-			if ( (shader == "vortwarp" && proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase ))
-				|| (shader is "aftershock" or "volumeclouds" && proxy.Name.Equals( "CurrentTime", StringComparison.OrdinalIgnoreCase ))
-				|| (shader == "core" && (proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase )
-				|| (proxy.Name.Equals( "Sine", StringComparison.OrdinalIgnoreCase )
-					&& inputs.String( "resultvar" )?.Equals( "$flowmaptexcoordoffset", StringComparison.OrdinalIgnoreCase ) == true))) )
+			if ( IsEffectProxy( proxy, shader ) )
 			{
+				if ( proxy.Name.Equals( "WaterLOD", StringComparison.OrdinalIgnoreCase ) )
+					Log.Trace( $"{FullPath}: WaterLOD's global distance controls are not imported; using the material's authored water mode without freezing independent wave proxies." );
 				continue;
 			}
-			else if ( proxy.Name.Equals( "WaterLOD", StringComparison.OrdinalIgnoreCase ) )
-			{
-				Log.Trace( $"{FullPath}: WaterLOD's global distance controls are not imported; using the material's authored water mode without freezing independent wave proxies." );
-			}
-			else if ( proxy.Name.Equals( "TextureScroll", StringComparison.OrdinalIgnoreCase ) )
+			if ( proxy.Name.Equals( "TextureScroll", StringComparison.OrdinalIgnoreCase ) )
 			{
 				var target = inputs.String( "texturescrollvar" )?.ToLowerInvariant();
 				if ( !SupportsTextureTransform( shader, target ) )

@@ -183,6 +183,8 @@ float g_flSourceDetailSrgb < Default( 0 ); >;
 float g_flSourceSelfIllum < Default( 0 ); >;
 float g_flSourceReceiveDecals < Default( 1 ); >;
 float g_flSourceHasSelfIllumMask < Default( 0 ); >;
+bool g_bSourceWeaponColor < Default( 0 ); >;
+float3 g_vSourceWeaponColor < Attribute( "SourceWeaponColor" ); Default3( -1, -1, -1 ); >;
 float3 g_vSourceSelfIllumTint < Default3( 1, 1, 1 ); >;
 float g_flSourceSelfIllumFresnel < Default( 0 ); >;
 float3 g_vSourceSelfIllumFresnel < Default3( 0, 1, 1 ); >;
@@ -579,7 +581,10 @@ float4 MainPs( PixelInput i ) : SV_Target0
 				mask = baseColor.aaa * saturate( pow( vertexFacing, g_vSourceSelfIllumFresnel.z ) * (1 - bias) + bias );
 			}
 			mask = saturate( mask * g_flSourceSelfIllum );
-			material.Emission += material.Albedo * SourceProxyVector( g_vSourceSelfIllumTint, g_vSourceSelfIllumTintProxy ) * mask * brightness;
+			float3 tint = SourceProxyVector( g_vSourceSelfIllumTint, g_vSourceSelfIllumTintProxy );
+			if ( g_bSourceWeaponColor && g_vSourceWeaponColor.x >= 0 )
+				tint = g_vSourceWeaponColor * ( 1.5 + 0.5 * sin( g_flTime * 5 ) );
+			material.Emission += material.Albedo * tint * mask * brightness;
 			material.Albedo *= 1 - mask;
 		}
 

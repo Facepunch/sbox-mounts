@@ -80,8 +80,12 @@ internal sealed partial class SourceMaterialBuilder
 		}
 	}
 
+	private static bool IsWeaponColor( VmtNode proxy ) => proxy.Name.Equals( "PlayerWeaponColor", StringComparison.OrdinalIgnoreCase )
+		&& proxy.Values.TryGetValue( "resultvar", out var target ) && target.Equals( "$selfillumtint", StringComparison.OrdinalIgnoreCase );
+
 	private static bool IsEffectProxy( VmtNode proxy, string shader )
 	{
+		if ( shader == "vertexlitgeneric" && IsWeaponColor( proxy ) ) return true;
 		if ( shader is "core" or "vortwarp" && proxy.Name.Equals( "EntityOrigin", StringComparison.OrdinalIgnoreCase ) ) return true;
 		if ( shader is "aftershock" or "volumeclouds" && proxy.Name.Equals( "CurrentTime", StringComparison.OrdinalIgnoreCase ) ) return true;
 		if ( shader == "water" && proxy.Name.Equals( "WaterLOD", StringComparison.OrdinalIgnoreCase ) ) return true;

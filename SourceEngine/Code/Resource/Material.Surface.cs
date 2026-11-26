@@ -148,6 +148,8 @@ internal sealed partial class SourceMaterialBuilder
 		SetFloat( "g_flSourceFresnelReflection", "$fresnelreflection", 1 );
 		material.Set( "g_flSourceLightmappedGeneric", !modelSurface && shaderName != "monitorscreen" );
 		material.Set( "g_flSourceSelfIllum", selfIllum );
+		if ( selfIllum && proxies?.Children.Any( IsWeaponColor ) == true )
+			material.Set( "g_bSourceWeaponColor", true );
 		SetVector( "g_vSourceSelfIllumTint", "$selfillumtint", Vector3.One, linearize: worldBlend );
 		material.Set( "g_flSourceSelfIllumFresnel", !worldBlend && selfIllum && parameters.Boolean( "$selfillumfresnel" ) );
 		SetVector( "g_vSourceSelfIllumFresnel", "$selfillumfresnelminmaxexp", new Vector3( 0, 1, 1 ) );
