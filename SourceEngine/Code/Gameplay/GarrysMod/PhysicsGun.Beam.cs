@@ -36,7 +36,7 @@ public sealed partial class PhysicsGun
 
 	protected override void OnViewModelPlaced( ViewModel model )
 	{
-		if ( Active && HasOwner ) DrawBeam( model );
+		if ( Active && HasOwner && WeaponModel == model ) DrawBeam( model );
 	}
 
 	void DrawBeam( ViewModel view )
