@@ -69,8 +69,11 @@ sealed class FrozenProps : Component
 			bool allowed = true;
 			target.RunEvent<IPhysgunUnfreeze>( x => allowed &= x.CanUnfreeze( Network.Owner, body ) );
 			if ( !allowed || !body.IsValid() || body.MotionEnabled ) continue;
+			if ( !PhysicsOwnership.TryBorrow( body, target, out var borrowed ) ) continue;
 			body.MotionEnabled = true;
 			body.Sleeping = false;
+			body.Network.Refresh( body );
+			borrowed?.Release();
 			target.RunEvent<IPhysgunUnfreeze>( x => x.OnUnfrozen( Network.Owner, body ) );
 			count++;
 		}

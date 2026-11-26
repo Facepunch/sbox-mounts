@@ -35,7 +35,7 @@ public sealed class GravityWeapon : Weapon
 	const float MaxCarrySpeed = 2500;
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
 	readonly List<(Rigidbody Body, float MassOverride, float AngularDamping)> _carriedBodies = [];
-	Connection _carryOwner;
+	PhysicsOwnership _borrowed;
 	float _loadWeight;
 	Vector3 _carryTarget;
 	Vector3 _carryCenterOffset;
@@ -111,17 +111,6 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
-	bool BeginCarry( Rigidbody body )
-	{
-		if ( !body.IsProxy ) return true;
-		// Only transfer an independent physics entity, never its networked parent.
-		if ( body.Network.RootGameObject != CarryEntity( body.GameObject ) || body.GetComponentInParent<PlayerController>() is not null ) return false;
-		var owner = body.Network.Owner;
-		body.Network.DropOwnership();
-		if ( !body.IsProxy ) _carryOwner = owner;
-		return !body.IsProxy;
-	}
-
 	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && body.Mass <= MaxMass
 		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body )
 		&& !IsFlesh( body ) && !AlreadyHeld( body.GameObject );
@@ -185,7 +174,7 @@ public sealed class GravityWeapon : Weapon
 					if ( CanMove( part.Component ) ) Launch( part.Component );
 			}
 			else Launch( held );
-			RestoreOwner( held );
+			RestoreOwner();
 
 			void Launch( Rigidbody body )
 			{
@@ -370,7 +359,8 @@ public sealed class GravityWeapon : Weapon
 			else body.ApplyImpulse( impulse );
 			return;
 		}
-		if ( !BeginCarry( body ) ) return;
+		if ( body.GetComponentInParent<PlayerController>().IsValid()
+			|| !PhysicsOwnership.TryBorrow( body, CarryEntity( body.GameObject ), out _borrowed ) ) return;
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
 		ApplyCarryPhysics( body );
@@ -483,11 +473,10 @@ public sealed class GravityWeapon : Weapon
 		body.AngularVelocity = ShadowController.Velocity( body.AngularVelocity, angularError, spinLimit, MaxCarrySpin * 2 );
 	}
 
-	void RestoreOwner( Rigidbody body )
+	void RestoreOwner()
 	{
-		if ( _carryOwner is { IsActive: true } && body.IsValid() && !body.IsProxy )
-			body.Network.AssignOwnership( _carryOwner );
-		_carryOwner = null;
+		_borrowed?.Release();
+		_borrowed = null;
 	}
 
 	void Release( bool launching = false )
@@ -504,7 +493,7 @@ public sealed class GravityWeapon : Weapon
 		_loadWeight = 0;
 		if ( !held.IsValid() )
 		{
-			_carryOwner = null;
+			RestoreOwner();
 			return;
 		}
 		if ( held.GetComponent<Rigidbody>() is { } body && CanMove( body ) )
@@ -516,7 +505,7 @@ public sealed class GravityWeapon : Weapon
 		{
 			npc.StopCarry( GameObject );
 		}
-		if ( !launching ) RestoreOwner( held.GetComponent<Rigidbody>() );
+		if ( !launching ) RestoreOwner();
 	}
 
 	protected override void OnUpdate()

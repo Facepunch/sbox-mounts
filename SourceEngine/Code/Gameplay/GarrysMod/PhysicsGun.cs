@@ -93,6 +93,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	float _arrivalTime;
 	BBox _modelHull;
 	(float Setting, float NativeOverride)? _previousMass;
+	PhysicsOwnership _borrowed;
 	internal override bool ShouldPlayIdle => false;
 
 	public PhysicsGun()
@@ -202,6 +203,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var yaw = Owner.EyeAngles.yaw;
 		if ( !HeldTarget.IsValid() )
 		{
+			if ( _borrowed.IsValid() ) Release();
 			var hit = TraceTarget( ray, MaxRange * 2 );
 			if ( !hit.Hit ) return;
 			BeamOn = true;
@@ -212,6 +214,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 				target = model;
 			if ( !target.IsValid() || target.Tags.Has( DisabledTag ) || (Limited && target.Tags.Has( LimitedTag )) ) return;
 			if ( !CanGrab( target, Network.Owner ) || (body.IsValid() && !body.PhysicsBody.IsValid()) ) return;
+			if ( !PhysicsOwnership.TryBorrow( target, EntityRoot( target ), out _borrowed ) ) return;
 
 			HeldTarget = target;
 			_previousMass = null;
@@ -279,7 +282,11 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 
 	void PrepareBody( Rigidbody body )
 	{
-		body.MotionEnabled = true;
+		if ( !body.MotionEnabled )
+		{
+			body.MotionEnabled = true;
+			body.Network.Refresh( body );
+		}
 		bool ragdoll = body.GetComponentInParent<ModelPhysics>().IsValid();
 		// With two holders, the gun that raised the mass restores it on release.
 		if ( !ragdoll && !body.Tags.Has( KeepMassTag ) && body.Mass < CarryMass )
@@ -329,7 +336,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	}
 
 	internal static bool CanMove( Component target ) =>
-		target.IsValid() && !target.IsProxy && !target.GetComponentInParent<PlayerController>().IsValid();
+		target.IsValid() && !target.GetComponentInParent<PlayerController>().IsValid();
 
 	static bool CanGrab( Component body, Connection grabber )
 	{
@@ -359,7 +366,9 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		var target = HeldTarget;
 		var body = HeldBody;
 		var previousMass = _previousMass;
+		var borrowed = _borrowed;
 		_previousMass = null;
+		_borrowed = null;
 		HeldTarget = null;
 		BeamOn = false;
 		if ( target.IsValid() ) EntityRoot( target ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
@@ -368,6 +377,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			body.MassOverride = mass.Setting;
 			if ( mass.NativeOverride > 0 && body.PhysicsBody.IsValid() ) body.PhysicsBody.Mass = mass.NativeOverride;
 		}
+		if ( body.IsValid() && !body.MotionEnabled ) body.Network.Refresh( body );
+		borrowed?.Release();
 	}
 
 	Angles HoldAngles( float yaw )
