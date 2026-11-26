@@ -23,6 +23,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	SparkAnimationGraph.Playback weapon;
 	Action<string> worldTag, weaponTag;
 	Rotation aim;
+	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
+	readonly BotWeaponAim acquisition = new( 95 );
 	float energy = 100;
 	[Property] public bool BileBombUnlocked { get; set; } = true;
 	bool firing, primaryHeld, bombarding;
@@ -244,7 +246,8 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		Regenerate( underFire > 0 );
 		if ( world is null || weapon is null ) return;
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
-		var direction = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
+		var target = Animation.LookObject;
+		var direction = target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
 		if ( wantsSpray && assignedTarget.IsValid() && assignedTarget.GetComponent<Rigidbody>() is { } body )
 		{
 			float distance = Math.Min( EyePosition.Distance( assignedTarget.WorldPosition ) / Scale, 1 );
@@ -256,10 +259,21 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 			float time = direction.WithZ( 0 ).Length / speed;
 			direction.z += 0.5f * 9.81f * Scale * time * time;
 		}
-		aim = AlienAim.Turn( aim, direction, 5 );
-		float aimThreshold = throwing && IsFleeTarget( Animation.LookObject ) ? 0.9f : 0.98f;
-		primaryHeld = firing && (bombarding ? energy > ShotCost : energy >= ShotCost) && Vector3.Dot( aim.Forward, direction.Normal ) > aimThreshold;
-		UpdateSprayInput( direction );
+		bool ready = false;
+		if ( target.IsValid() && (firing || wantsSpray) )
+		{
+			if ( throwing && IsFleeTarget( target ) )
+				ready = Vector3.Dot( aim.Forward, direction.Normal ) > 0.9f;
+			else if ( !bombarding || energy > ShotCost )
+			{
+				var point = EyePosition + (bombarding ? direction.Normal * Scale : direction);
+				ready = acquisition.Track( this, target, point, aim, AimSkillTier, BotWeaponAim.Weapon.Spit, out var sampled );
+				if ( sampled.HasValue && !(ready && wantsSpray) ) direction = sampled.Value - EyePosition;
+			}
+		}
+		aim = AlienAim.Turn( aim, direction, acquisition.TurnRate );
+		primaryHeld = firing && ready && (bombarding ? energy > ShotCost : energy >= ShotCost);
+		UpdateSprayInput( ready );
 		var activity = secondaryAttacking && energy >= 10 || sprayAnimation > 0 ? "secondary" : primaryHeld ? "primary" : "none";
 		var move = sliding ? "belly" : !Animation.IsGrounded ? "jump" : Movement.IsMoving ? "run" : "idle";
 		world.Set( "move", move );
@@ -275,6 +289,15 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		weapon.Set( "attack_speed", 1 );
 		weapon.Set( "activity", activity );
 		weapon.Update( AnimationTime, tag: weaponTag );
+	}
+
+	internal void RecordSpit( bool hit ) => acquisition.Record( hit );
+
+	internal void DirectBabblersTo( GameObject enemy )
+	{
+		foreach ( var babbler in brood )
+			if ( babbler.IsValid() && babbler.ClingSlot == 0 && babbler.WorldPosition.DistanceSquared( WorldPosition ) <= 8 * 8 * Scale * Scale )
+				babbler.Dispatch( enemy, enemy.WorldPosition );
 	}
 
 	void OnWeaponTag( string tag )

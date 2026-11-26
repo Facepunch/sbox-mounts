@@ -4,11 +4,12 @@ namespace NS2;
 
 internal sealed class BotWeaponAim( float fieldOfView )
 {
-	internal enum Weapon { Bullets, Minigun, Railgun, LerkSpikes, LerkBite }
+	internal enum Weapon { Bullets, Minigun, Railgun, LerkSpikes, LerkBite, Spit }
 
 	readonly AlienAim.Acquisition acquisition = new( fieldOfView );
 	internal float TurnRate => acquisition.TurnRate;
 
+	static readonly float[] SpitAccuracy = [13.5f, 15, 18.5f, 21.1f, 25.1f, 31.1f, 41.1f];
 	static readonly float[] SpikeAccuracy = [14.5f, 16.5f, 21, 25, 28.5f, 28.5f, 28.5f];
 	static readonly float[] MinigunAccuracy = [23, 25, 28, 30, 35, 39, 43];
 	static readonly float[] RailgunAccuracy = [25, 28, 30, 32, 35, 39, 43];
@@ -69,6 +70,7 @@ internal sealed class BotWeaponAim( float fieldOfView )
 
 		var accuracy = weapon switch
 		{
+			Weapon.Spit => SpitAccuracy,
 			Weapon.LerkSpikes => SpikeAccuracy,
 			Weapon.Minigun => MinigunAccuracy,
 			Weapon.Railgun => RailgunAccuracy,

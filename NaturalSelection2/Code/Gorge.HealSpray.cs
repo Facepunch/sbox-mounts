@@ -187,9 +187,9 @@ public sealed partial class Gorge
 		return WorldPosition.DistanceSquared( back - side ) < WorldPosition.DistanceSquared( back + side ) ? back - side : back + side;
 	}
 
-	void UpdateSprayInput( Vector3 direction )
+	void UpdateSprayInput( bool ready )
 	{
-		bool held = wantsSpray && Vector3.Dot( aim.Forward, direction.Normal ) > 0.98f;
+		bool held = wantsSpray && ready;
 		if ( !held ) secondaryAttacking = false;
 		else if ( previousSecondary && nextSpray < 0 && energy >= 10 ) secondaryAttacking = true;
 		previousSecondary = held;

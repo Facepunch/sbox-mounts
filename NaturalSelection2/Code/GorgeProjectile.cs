@@ -4,6 +4,7 @@ public sealed class GorgeProjectile : Component
 {
 	const float Scale = MapLoader.Scale;
 	Gorge owner;
+	bool hitEnemyPlayer;
 	Vector3 velocity;
 	[Sync( SyncFlags.FromHost )] bool Bile { get; set; }
 	TimeUntil expires;
@@ -14,7 +15,7 @@ public sealed class GorgeProjectile : Component
 		var end = eye + aim.Forward * (1.5f * Scale);
 		var trace = bile ? gorge.Scene.Trace.Ray( eye, end ) : gorge.Scene.Trace.Sphere( 0.15f * Scale, eye, end );
 		var start = trace
-			.IgnoreGameObjectHierarchy( gorge.GameObject ).WithoutTags( "trigger" ).UseDamageHitboxes().Run();
+			.IgnoreGameObjectHierarchy( gorge.GameObject ).WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
 		Gorge.PlayCue( bile ? "bilebomb" : "spit", eye );
 		var shot = new GameObject( false, bile ? "Bile bomb" : "Gorge spit" ) { WorldPosition = start.EndPosition, WorldRotation = aim };
 		var projectile = shot.AddComponent<GorgeProjectile>();
@@ -59,11 +60,18 @@ public sealed class GorgeProjectile : Component
 		if ( !Bile && owner.IsValid() && hit.GameObject?.GetComponentInParent<IDamageable>() is Component target &&
 			owner.GetDisposition( target.GameObject ) == Sandbox.Npcs.Disposition.Hostile )
 		{
+			hitEnemyPlayer = ((IDamageable)target).Health > 0 && Lerk.IsPlayerTarget( target.GameObject );
 			((IDamageable)target).OnDamage( new DamageInfo { Damage = 30, Position = hit.HitPosition, Origin = owner.EyePosition, Attacker = owner.GameObject, Weapon = GameObject } );
+			if ( hitEnemyPlayer && target.IsValid() ) owner.DirectBabblersTo( target.GameObject );
 		}
 		Gorge.PlayCue( Bile ? "bilebomb_hit" : "spit_hit", hit.EndPosition );
 		PlayImpact( hit.EndPosition, WorldRotation, Bile );
 		GameObject.Destroy();
+	}
+
+	protected override void OnDestroy()
+	{
+		if ( !Bile && Networking.IsHost && owner.IsValid() ) owner.RecordSpit( hitEnemyPlayer );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
