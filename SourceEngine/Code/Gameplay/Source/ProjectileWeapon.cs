@@ -340,7 +340,6 @@ public sealed partial class ProjectileWeapon : Weapon
 
 	protected override void OnViewModelPlaced( ViewModel model )
 	{
-		_laser?.Follow( model );
 		if ( Kind != Projectile.Kinds.Bolt || !model.Renderer.IsValid() ) return;
 
 		var charged = Clip1 > 0 || (IsReloading && BoltChargeDelay.HasValue && _boltChargeAt is null);
