@@ -42,6 +42,7 @@ public sealed class Crag : AlienStructure
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		output?.Set( "grow", Growth );
 		output?.Set( "intensity", FlinchIntensity );
 		if ( Graphics.IsAvailable && nextHeal > 0 && nextEffect <= 0 )
 		{
@@ -71,9 +72,5 @@ public sealed class Crag : AlienStructure
 		pose = graph.GetBodyPose();
 	}
 
-	protected override GameObject CreateRagdoll()
-	{
-		if ( graph is null ) return NpcCorpse.Attach( base.CreateRagdoll(), 3 );
-		return NpcCorpse.AnimateUntilRagdoll( Renderer, graph, age, flinchEnd );
-	}
+	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );
 }
