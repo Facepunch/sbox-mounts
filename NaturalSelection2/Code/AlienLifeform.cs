@@ -58,7 +58,15 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IE
 		int shells = Math.Clamp( RegenerationShells, 0, 3 );
 		float amount = shells == 0 ? Math.Clamp( BaseHealth * 0.02f, 1, 20 )
 			: Math.Clamp( BaseHealth * 0.06f, 6, 80 ) * shells / 3;
-		AlienHealing.Restore( this, amount, 0.5f );
+		if ( AlienHealing.Restore( this, amount, 0.5f ) && shells > 0 )
+			ShowRegeneration();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShowRegeneration()
+	{
+		var effect = this is Onos ? "cinematics/alien/heal_big.cinematic" : "cinematics/alien/heal.cinematic";
+		CinematicLoader.Play( effect, WorldPosition, WorldRotation, GameObject );
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
