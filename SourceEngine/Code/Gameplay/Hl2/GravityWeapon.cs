@@ -573,7 +573,7 @@ sealed class PhysCannonEffects : IDisposable
 	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
 	static readonly string[] ViewTips = ["fork1t", "fork2t"];
 	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
-	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 );
+	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 * ViewModel.EffectDepthScale );
 	static readonly Curve WorldBeamWidth = BeamWidth( 0.5f, 2 );
 	static Curve BeamWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
@@ -636,19 +636,15 @@ sealed class PhysCannonEffects : IDisposable
 		float launchAge = _launch;
 		SetGlow( _blast, float.Lerp( 8, 64, Math.Min( 1, launchAge / 0.1f ) ), 255 * Math.Max( 0, 1 - launchAge / 0.2f ) );
 		foreach ( var glow in _glows )
-		{
-			if ( holding ) MountedEffects.SetSprite( glow, 0.5f, 64, GlowColor );
-			else if ( ready ) MountedEffects.SetSprite( glow, 0.4f, 32, GlowColor );
-			else MountedEffects.SetSprite( glow, Game.Random.Float( 0.3f, 0.35f ), Game.Random.Float( 16, 24 ), GlowColor );
-		}
+			SetGlow( glow, Game.Random.Float( 6.4f, 9.6f ), Game.Random.Float( 16, 24 ), GlowColor );
 		foreach ( var endcap in _endcaps )
-			MountedEffects.SetSprite( endcap, holding ? Game.Random.Float( 0.1f, 0.15f ) : 0, Game.Random.Float( 200, 255 ) );
+			SetGlow( endcap, Game.Random.Float( 3, 5 ), holding ? Game.Random.Float( 200, 255 ) : 0 );
 		foreach ( var (tip, beam) in _beams )
 		{
 			beam.Enabled = tip.IsValid() && holding;
 		}
 		if ( _puntBeam.IsValid() ) _puntBeam.Enabled = launchAge < 0.1f;
-		Follow();
+		if ( !_view.IsValid() ) Follow();
 	}
 
 	/// <summary>
@@ -724,11 +720,11 @@ sealed class PhysCannonEffects : IDisposable
 		SetGlow( _core, width, brightness );
 	}
 
-	static void SetGlow( SpriteRenderer sprite, float width, float brightness )
+	static void SetGlow( SpriteRenderer sprite, float width, float brightness, Color? tint = null )
 	{
 		if ( !sprite.IsValid() ) return;
 		sprite.Size = width;
-		sprite.Color = (Color.White * (brightness / 255f)).WithAlpha( 1 );
+		sprite.Color = ((tint ?? Color.White) * (brightness / 255f)).WithAlpha( 1 );
 		sprite.Enabled = brightness > 0;
 	}
 
@@ -775,7 +771,10 @@ sealed class PhysCannonEffects : IDisposable
 		// DrawSegs samples indices 0..127 using a 16.16 fixed-point step.
 		var step = (127 << 16) / (count - 1);
 		for ( var i = 0; i < count; i++ )
-			points[i] = start + delta * (i / (float)(count - 1)) + side * (_beamNoise[i * step >> 16] * length * 0.16f);
+		{
+			var point = start + delta * (i / (float)(count - 1)) + side * (_beamNoise[i * step >> 16] * length * 0.16f);
+			points[i] = _view.IsValid() ? _view.BehindPosition( point ) : point;
+		}
 
 		beam.Texturing = beam.Texturing with { Scale = length * 0.01f, Scroll = 150 };
 	}

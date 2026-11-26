@@ -232,12 +232,15 @@ public sealed class ViewModel : BaseWeaponModel
 	/// with the gun, so a glow inside the gun's own depth would draw over its far end. Places the effect on the same view
 	/// ray behind the whole gun, scaled to keep its size on screen.
 	/// </summary>
+	internal Vector3 BehindPosition( Vector3 drawn ) => _renderEye + (drawn - _renderEye) * EffectDepthScale;
+
+	internal const float EffectDepthScale = 8;
+	Vector3 _renderEye;
+
 	internal void PlaceBehind( GameObject effect, Vector3 drawn )
 	{
-		var eye = Scene.Camera.IsValid() ? Scene.Camera.WorldPosition : WorldPosition;
-		var push = BehindScale( eye.Distance( drawn ) );
-		effect.WorldPosition = eye + (drawn - eye) * push;
-		effect.WorldScale = push;
+		effect.WorldPosition = BehindPosition( drawn );
+		effect.WorldScale = EffectDepthScale;
 	}
 
 	/// <summary>
@@ -712,11 +715,13 @@ public sealed class ViewModel : BaseWeaponModel
 	/// </summary>
 	public void FollowCameraEffects( CameraComponent camera, in CameraView view )
 	{
+		_renderEye = view.Position;
 		var effects = CameraEffectSystem.Get( Scene );
 		if ( effects is null ) return;
 
 		effects.QueryOffsets( camera, out var offset, out var angles, out _ );
 		var renderTransform = new Transform( view.Position + view.Rotation * offset, view.Rotation * angles );
+		_renderEye = renderTransform.Position;
 		WorldTransform = renderTransform.ToWorld( view.Transform.ToLocal( WorldTransform ) );
 	}
 
