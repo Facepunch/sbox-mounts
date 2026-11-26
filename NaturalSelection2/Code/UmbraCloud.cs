@@ -1,5 +1,3 @@
-using Sandbox.Npcs;
-
 namespace NS2;
 
 public sealed class UmbraCloud : LerkCloud
@@ -27,10 +25,10 @@ public sealed class UmbraCloud : LerkCloud
 		}
 		if ( pulse > 0 ) return;
 		pulse = 0.15f;
-		foreach ( var alien in Scene.GetAllComponents<BaseNpc>() )
+		foreach ( var alien in Scene.GetAllComponents<Ns2Npc>() )
 		{
-			if ( alien.Health <= 0 || alien.Faction != Faction || !alien.GameObject.Tags.Has( "ns2_lifeform" ) ||
-				alien.GameObject.Tags.Has( "burning" ) || WorldPosition.DistanceSquared( alien.WorldPosition ) > 16 * Scale * Scale ) continue;
+			if ( alien.Health <= 0 || alien.Faction != Faction || alien is not (AlienNpc or Drifter) ||
+				alien.GameObject.Tags.Has( "burning" ) || WorldPosition.DistanceSquared( alien.WorldPosition ) >= 16 * Scale * Scale ) continue;
 			alien.GameObject.GetOrAddComponent<UmbraProtection>().Refresh();
 		}
 		if ( expires <= 0 ) GameObject.Destroy();
@@ -39,16 +37,17 @@ public sealed class UmbraCloud : LerkCloud
 
 public sealed class UmbraProtection : Component
 {
-	TimeUntil expires, nextEffect;
-	Vector3 previousPosition;
+	TimeUntil expires;
+	TimeSince lastEffect;
+	Vector3? previousPosition;
 	GameObject overlay;
-	BaseNpc npc;
+	Ns2Npc npc;
 
 	internal void Refresh() => expires = 2.5f;
 
 	protected override void OnStart()
 	{
-		npc = GetComponent<BaseNpc>();
+		npc = GetComponent<Ns2Npc>();
 		if ( !Graphics.IsAvailable || !npc.IsValid() || !npc.Renderer.IsValid() ) return;
 		overlay = new GameObject( npc.Renderer.GameObject, false, "Umbra overlay" ) { NetworkMode = NetworkMode.Never };
 		var renderer = overlay.AddComponent<SkinnedModelRenderer>();
@@ -62,12 +61,13 @@ public sealed class UmbraProtection : Component
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost && expires <= 0 ) { Destroy(); return; }
-		if ( nextEffect > 0 || !Graphics.IsAvailable ) return;
-		nextEffect = previousPosition == WorldPosition ? 0.34f : 0.1f;
+		if ( Networking.IsHost && (expires <= 0 || GameObject.Tags.Has( "burning" )) ) { Destroy(); return; }
+		if ( !Graphics.IsAvailable || !npc.IsValid() ) return;
+		float interval = previousPosition == WorldPosition ? 0.34f : 0.1f;
 		previousPosition = WorldPosition;
-		if ( !npc.IsValid() ) return;
-		var effect = npc is Onos ? "umbra_drag_big" : "umbra_drag";
-		CinematicLoader.Play( $"cinematics/alien/{effect}.cinematic", Vector3.Lerp( WorldPosition, npc.EyePosition, 0.7f ), WorldRotation );
+		if ( lastEffect <= interval ) return;
+		lastEffect = 0;
+		var effect = npc is Onos or Hive ? "umbra_drag_big" : "umbra_drag";
+		CinematicLoader.Play( $"cinematics/alien/{effect}.cinematic", npc.EngagementPoint, WorldRotation );
 	}
 }
