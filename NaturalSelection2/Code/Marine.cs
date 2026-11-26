@@ -8,6 +8,7 @@ namespace NS2;
 public sealed partial class Marine : Ns2Npc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
+	const float StandingHeight = 1.9f * Scale;
 	internal const string PistolSound = "marine/pistol/fire";
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int WeaponsLevel { get; set; }
 
@@ -112,7 +113,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		root.AddComponent<Rigidbody>().EnableImpactDamage = false;
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = capsule.Radius;
-		agent.Height = 1.9f * Scale;
+		agent.Height = StandingHeight;
 		agent.Enabled = false;
 		root.AddComponent<MarineMovement>();
 		root.AddComponent<SensesLayer>().SightRange = 45 * Scale;
@@ -301,9 +302,9 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 		bool moving = velocity.LengthSquared > Scale * Scale;
 		var direction = wish.WithZ( 0 ).Normal;
-		bool next = (pressed || sprintLocked) && !requireSprintPress && grounded && moving && !reloading && !wantsFire && sinceAttackEnd > 0.2f
+		bool next = (pressed || sprintLocked) && !requireSprintPress && grounded && moving && !crouching && !reloading && !wantsFire && sinceAttackEnd > 0.2f
 			&& Vector3.Dot( direction, aim.Forward.WithZ( 0 ).Normal ) >= 0.2f && Vector3.Dot( velocity.WithZ( 0 ).Normal, direction ) >= 0.3f;
-		if ( sprintLocked && (wantsFire || !moving || !grounded) )
+		if ( sprintLocked && (wantsFire || !moving || !grounded || crouching) )
 		{
 			sprintLocked = false;
 			requireSprintPress = wantsFire;
@@ -317,7 +318,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		if ( sprinting ) sinceSprint = 0;
 		float speed = 5 + (sprinting ? 0.75f * Math.Clamp( (float)sprintAge / 1.5f, 0, 1 ) : 0);
-		Movement.WalkSpeed = Movement.RunSpeed = speed * InventorySpeed * SlowSpeedModifier * Scale;
+		Movement.WalkSpeed = Movement.RunSpeed = speed * InventorySpeed * SlowSpeedModifier * (grounded ? 1 - crouchAmount * 0.5f : 1) * Scale;
 	}
 
 	void ApproachPoint( Vector3 point )
@@ -531,6 +532,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( equippedPistol != pistol ) EquipWeapon();
 		if ( Networking.IsHost )
 		{
+			UpdateGuardCrouch();
 			UpdateSprint( sprintRequested && Movement.MoveTarget.HasValue, IsOnGround, Animation.MoveVelocity, agent.WishVelocity );
 			if ( wounds.Update() is { } cue )
 				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
@@ -552,6 +554,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		var move = jumping ? "jump" : sprinting ? "sprint" : idle ? "idle" : "run";
 		var output = PlayerGait.UpdatePose( this, 5.75f, aim );
 		Renderer.WorldRotation = Rotation.FromYaw( aim.Angles().yaw );
+		EyeHeight = (1.7f - 0.7f * crouchAmount) * Scale;
+		output?.Set( "crouch", crouchAmount );
 		output?.Set( "body_pitch", -aim.Angles().pitch );
 		output?.Set( "body_yaw", bodyYaw );
 		if ( graph is not null )
@@ -632,7 +636,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	void OnWorldTag( string tag )
 	{
-		if ( tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
+		if ( crouching || tag is not ("step" or "step_run" or "step_sprint") || !PlayerGait.CanPlayStep( this ) ) return;
 		leftFoot = !leftFoot;
 		bool forward = Vector3.Dot( Animation.MoveVelocity, AimDirection ) > -0.1f * Scale;
 		PlayFootstep( SurfaceLoader.FootstepMaterial( GroundSurface ), forward, leftFoot );

@@ -1,5 +1,6 @@
 using Sandbox.Npcs;
 using Sandbox.Npcs.Schedules;
+using System;
 
 namespace NS2;
 
@@ -18,6 +19,36 @@ public sealed partial class Marine : Component.IPressable
 			Faction = value ? Factions.Ally : Factions.Enemy;
 			if ( !value ) Leader = null;
 		}
+	}
+
+	TimeUntil guardCrouch;
+	[Sync( SyncFlags.FromHost ), Change( nameof( OnCrouchingChanged ) )] bool crouching { get; set; }
+	float crouchProgress;
+	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float crouchAmount { get; set; }
+
+	void UpdateGuardCrouch()
+	{
+		if ( NpcConVars.Enabled && ActiveSchedule is FollowSchedule && CanFollowLeader && Leader.GetComponent<PlayerController>() is { IsDucking: true } )
+			guardCrouch = 1;
+
+		bool desired = guardCrouch > 0;
+		crouchProgress = Math.Clamp( crouchProgress + (crouching ? 4 : -4) * Time.Delta, 0, 1 );
+		crouchAmount = crouchProgress is 0 or 1 ? crouchProgress : MathF.Sin( MathF.PI * 0.5f * crouchProgress );
+		if ( desired == crouching ) return;
+
+		var capsule = GetComponent<CapsuleCollider>();
+		var standing = Vector3.Up * (StandingHeight - capsule.Radius);
+		var crouched = Vector3.Up * (StandingHeight * 0.5f - capsule.Radius);
+		if ( !desired && Scene.Trace.Sphere( capsule.Radius, WorldTransform.PointToWorld( crouched ), WorldTransform.PointToWorld( standing ) )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).WithCollisionRules( GameObject.Tags ).Run().Hit ) return;
+
+		crouching = desired;
+	}
+
+	void OnCrouchingChanged( bool previous, bool current )
+	{
+		if ( GetComponent<CapsuleCollider>() is { } capsule )
+			capsule.End = Vector3.Up * ((current ? StandingHeight * 0.5f : StandingHeight) - capsule.Radius);
 	}
 
 	protected override BaseSchedule SelectSchedule()
