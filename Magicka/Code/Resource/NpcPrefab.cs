@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Sandbox.Npcs.Layers;
 
 namespace Magicka;
@@ -54,7 +54,7 @@ internal sealed class NpcPrefabLoader(
 			? Math.Clamp( template.Stats.Speed * MagickaSpace.UnitScale, 40f, 360f )
 			: 110f;
 
-		var weapon = ResolveWeapon( out var weaponScale );
+		var (weapon, weaponBone, weaponScale) = ResolveWeapon();
 		var (meleeClips, rangedClips, healClips) = ResolveAbilityClips( clips );
 		var attacks = meleeClips.Concat( rangedClips ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray();
 		var combat = DeriveCombatProfile( radius, weapon );
@@ -134,7 +134,7 @@ internal sealed class NpcPrefabLoader(
 				var held = visuals.AddComponent<MagickaHeldItem>();
 				held.Renderer = renderer;
 				held.ModelPath = Host.Url( weapon, "vmdl" );
-				held.Bone = ResolveWeaponBone();
+				held.Bone = weaponBone;
 				held.Scale = weaponScale;
 				held.FallbackOffset = new Vector3( 6f, -10f, height * 0.55f );
 			}
@@ -444,10 +444,10 @@ internal sealed class NpcPrefabLoader(
 	}
 
 	/// <summary>The first equipped item whose model the mount registered: right hand first.</summary>
-	private string ResolveWeapon( out float scale )
+	private (string Model, string Bone, float Scale) ResolveWeapon()
 	{
-		scale = 1f;
 		string fallback = null;
+		string fallbackBone = "rightattach";
 		float fallbackScale = 1f;
 
 		foreach ( var slot in template.Equipment.OrderBy( e => e.Slot ) )
@@ -458,34 +458,27 @@ internal sealed class NpcPrefabLoader(
 
 			var item = Host.ResolveItem( templateFile, slot.Item );
 			var itemScale = item?.Scale is > 0.05f and < 10f ? item.Scale : 1f;
+			var bone = string.IsNullOrEmpty( slot.Bone ) ? "rightattach" : slot.Bone;
 
 			// Prefer the right hand or a plain attachment over a shield or a body-mounted item.
-			if ( slot.Bone?.Contains( "right", StringComparison.OrdinalIgnoreCase ) == true
-				|| slot.Bone?.Contains( "attach", StringComparison.OrdinalIgnoreCase ) == true )
+			if ( bone.Contains( "right", StringComparison.OrdinalIgnoreCase )
+				|| bone.Contains( "attach", StringComparison.OrdinalIgnoreCase ) )
 			{
 				if ( model.Contains( "shield", StringComparison.OrdinalIgnoreCase ) )
 				{
-					fallback ??= model;
-					fallbackScale = itemScale;
+					if ( fallback is null )
+						(fallback, fallbackBone, fallbackScale) = (model, bone, itemScale);
 					continue;
 				}
 
-				scale = itemScale;
-				return model;
+				return (model, bone, itemScale);
 			}
 
-			fallback ??= model;
-			fallbackScale = itemScale;
+			if ( fallback is null )
+				(fallback, fallbackBone, fallbackScale) = (model, bone, itemScale);
 		}
 
-		scale = fallbackScale;
-		return fallback;
-	}
-
-	private string ResolveWeaponBone()
-	{
-		var slot = template.Equipment.OrderBy( e => e.Slot ).FirstOrDefault();
-		return string.IsNullOrEmpty( slot.Bone ) ? "rightattach" : slot.Bone;
+		return (fallback, fallbackBone, fallbackScale);
 	}
 
 	private string[] ResolveSound( string explicitCue, params string[] suffixes )

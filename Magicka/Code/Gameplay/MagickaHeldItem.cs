@@ -33,6 +33,18 @@ public sealed class MagickaHeldItem : Component
 			return;
 
 		var bone = Renderer.GetBoneObject( Bone );
+		if ( !bone.IsValid() )
+		{
+			foreach ( var b in Renderer.Model.Bones.AllBones )
+			{
+				if ( string.Equals( b.Name, Bone, StringComparison.OrdinalIgnoreCase ) )
+				{
+					bone = Renderer.GetBoneObject( b );
+					break;
+				}
+			}
+		}
+
 		var weapon = new GameObject( GameObject, true, "weapon" );
 		weapon.LocalScale = Vector3.One * Math.Clamp( Scale, 0.1f, 10f );
 
