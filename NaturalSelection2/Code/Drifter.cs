@@ -33,7 +33,9 @@ public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		renderer.LocalPosition = Vector3.Up * Scale;
-		var capsule = root.AddComponent<CapsuleCollider>();
+		var movement = new GameObject( root, true, "Movement" );
+		movement.Tags.Add( "ns2_movement" );
+		var capsule = movement.AddComponent<CapsuleCollider>();
 		capsule.Start = Vector3.Up * (0.5f * Scale);
 		capsule.End = Vector3.Up * (0.55f * Scale);
 		capsule.Radius = 0.5f * Scale;
