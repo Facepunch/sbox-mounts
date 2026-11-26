@@ -103,9 +103,8 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		npc.MaxHealth = npc.Stats.Health;
 		npc.Health = npc.MaxHealth * 0.3f;
 		npc.EyeHeight = Scale;
-		var shape = root.AddComponent<BoxCollider>();
-		shape.Scale = renderer.Model.Bounds.Size;
-		shape.Center = renderer.Model.Bounds.Center;
+		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( renderer.Model.ResourcePath ) is ModelLoader model )
+			model.AddMovementCollision( renderer, trigger: npc is Hydra );
 	}
 
 	protected override void OnStart()

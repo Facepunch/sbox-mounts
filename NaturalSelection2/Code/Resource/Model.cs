@@ -157,7 +157,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		public Joint[] Joints = [];
 		public AttachPoint[] AttachPoints = [];
 		public (int Start, int Count) PhysicsBodies;
-		public (int Start, int Count)? DamageBodies;
+		public (int Start, int Count)? DamageBodies, MovementBodies;
 		public string ExternalModel;
 	}
 
@@ -679,6 +679,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 			var range = ranges[r.Int()];
 			if ( name == "default" ) model.PhysicsBodies = range;
 			if ( name == "damage" ) model.DamageBodies = range;
+			if ( name == "move" ) model.MovementBodies = range;
 		}
 	}
 
@@ -1026,11 +1027,25 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		if ( damage.Count > 0 )
 		{
 			var hitboxes = builder.AddHitboxSet();
+			string modelSpaceBone = null;
 			foreach ( var solid in model.Solids.AsSpan( damage.Start, damage.Count ) )
 			{
-				if ( (uint)solid.BoneIndex >= model.Bones.Length || solid.Points.Length < 4 ) continue;
+				if ( solid.Points.Length < 4 ) continue;
+				string bone;
+				if ( solid.BoneIndex < 0 )
+				{
+					// Spark also supports damage hulls fixed in model space.
+					if ( modelSpaceBone is null )
+					{
+						modelSpaceBone = "__ns2_model_space";
+						builder.AddBone( modelSpaceBone, Vector3.Zero, Rotation.Identity );
+					}
+					bone = modelSpaceBone;
+				}
+				else if ( solid.BoneIndex < model.Bones.Length ) bone = model.Bones[solid.BoneIndex].Name;
+				else continue;
 				var points = Array.ConvertAll( solid.Points, p => solid.Transform.PointToWorld( p ) );
-				AddHitboxHulls( hitboxes, solid.Name, model.Bones[solid.BoneIndex].Name, points, solid.Triangles );
+				AddHitboxHulls( hitboxes, string.IsNullOrWhiteSpace( solid.Name ) ? bone : solid.Name, bone, points, solid.Triangles );
 			}
 		}
 		BuildMeshes( builder, model );
@@ -1123,7 +1138,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 	{
 		if ( model.PhysicsBodies.Count <= 0 || model.Solids.Length == 0 ) return [];
 		var body = new PhysicsBodyBuilder();
-		foreach ( var (_, points) in CollisionHulls( model, false ) )
+		foreach ( var (_, points) in CollisionHulls( model, model.PhysicsBodies, false ) )
 			body.AddHull( points, Transform.Zero, HullSimplification );
 
 		var physics = PhysicsGroupDescription.Create( $"{FullPath}/hulls.vphys", [body] );
@@ -1201,9 +1216,9 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		Method = PhysicsBodyBuilder.SimplifyMethod.QEM
 	};
 
-	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model, bool preserveBones )
+	private static IEnumerable<(int Bone, Vector3[] Points)> CollisionHulls( ParsedModel model, (int Start, int Count) range, bool preserveBones )
 	{
-		for ( int i = model.PhysicsBodies.Start; i < model.PhysicsBodies.Start + model.PhysicsBodies.Count; i++ )
+		for ( int i = range.Start; i < range.Start + range.Count; i++ )
 		{
 			var solid = model.Solids[i];
 			var bone = (uint)solid.BoneIndex < (uint)model.Bones.Length ? solid.BoneIndex : -1;
@@ -1214,6 +1229,29 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 				bone = -1;
 			}
 			yield return (bone, Array.ConvertAll( solid.Points, p => transform.PointToWorld( p ) ));
+		}
+	}
+
+	internal void AddMovementCollision( SkinnedModelRenderer renderer, bool trigger )
+	{
+		var model = Source;
+		var range = model.MovementBodies ?? model.PhysicsBodies;
+		Dictionary<BoneCollection.Bone, GameObject> bones = null;
+		var surface = CollisionSurface( model );
+		foreach ( var (bone, points) in CollisionHulls( model, range, true ) )
+		{
+			var parent = renderer.GameObject;
+			if ( bone >= 0 )
+			{
+				renderer.CreateBoneObjects = true;
+				bones ??= renderer.Model.CreateBoneObjects( renderer.GameObject );
+				parent = bones[renderer.Model.Bones.GetBone( model.Bones[bone].Name )];
+			}
+			var collider = parent.AddComponent<HullCollider>();
+			collider.IsTrigger = trigger;
+			collider.Type = HullCollider.PrimitiveType.Points;
+			collider.Points = points.ToList();
+			collider.Surface = surface;
 		}
 	}
 
@@ -1236,7 +1274,7 @@ public partial class ModelLoader( string fullPath ) : ResourceLoader<GameMount>
 		Surface surface = null;
 		var bodyMap = new List<int>();
 		var bodies = new Dictionary<int, (PhysicsBodyBuilder Builder, int Index)>();
-		foreach ( var (bone, points) in CollisionHulls( model, preserveBones ) )
+		foreach ( var (bone, points) in CollisionHulls( model, model.PhysicsBodies, preserveBones ) )
 		{
 			if ( !bodies.TryGetValue( bone, out var body ) )
 			{

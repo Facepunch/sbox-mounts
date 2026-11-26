@@ -17,7 +17,11 @@ public sealed class Crag : AlienStructure
 	sealed class Pulse { public TimeUntil Next; }
 	static readonly ConditionalWeakTable<BaseNpc, Pulse> pulses = new();
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Crag>( root, renderer, "Crag" );
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
+	{
+		renderer.LocalScale = Vector3.One * 0.8f;
+		Configure<Crag>( root, renderer, "Crag" );
+	}
 
 	bool TryHeal( BaseNpc target )
 	{
