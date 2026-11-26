@@ -1,6 +1,6 @@
 namespace Source1;
 
-/// <summary>Applies the mounted model's bullet resistance before the prop loses health.</summary>
+/// <summary>Applies the mounted model's damage modifiers before the prop loses health.</summary>
 public sealed class PropDamage : Component
 {
 	Prop _prop;
@@ -24,8 +24,12 @@ public sealed class PropDamage : Component
 
 	void OnDamage( DamageInfo hit )
 	{
-		if ( !hit.Tags.Has( DamageTags.Bullet ) || _prop.Model?.GetData<PropDamageModifiers>() is not { } modifiers ) return;
-		var scale = modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1);
+		var bullet = hit.Tags.Has( DamageTags.Bullet );
+		var blast = hit.Tags.Has( DamageTags.Explosion );
+		if ( !(bullet || blast) || _prop.Model?.GetData<PropDamageModifiers>() is not { } modifiers ) return;
+
+		var scale = bullet ? modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1) : 1;
+		if ( blast ) scale *= modifiers.Explosive;
 		hit.Damage = System.MathF.Truncate( hit.Damage * scale );
 	}
 }

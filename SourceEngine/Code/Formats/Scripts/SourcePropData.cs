@@ -49,6 +49,7 @@ internal sealed class SourcePropData
 
 		var bullet = parameters.Float( "dmg.bullets", 1 );
 		var club = parameters.Float( "dmg.club", 1 );
+		var explosive = parameters.Float( "dmg.explosive", 1 );
 		return (new ModelPropData
 		{
 			Health = parameters.Integer( "health", -1 ),
@@ -56,7 +57,7 @@ internal sealed class SourcePropData
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		}, physGun, new PropDamageModifiers { Bullet = bullet, Club = club });
+		}, physGun, new PropDamageModifiers { Bullet = bullet, Club = club, Explosive = explosive });
 
 		void Apply( VmtNode section )
 		{
