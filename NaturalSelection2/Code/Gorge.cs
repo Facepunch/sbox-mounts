@@ -88,11 +88,13 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		var enemy = targeting.FindEnemy( this, out var lastSeen );
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
-		if ( SupportAlly( visible ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		assignedTarget = null;
+		if ( SupportAlly( enemy, lastSeen ) || PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			escort = null;
 			return;
 		}
+		assignedTarget = enemy;
 		bombarding = visible && BileBombUnlocked && enemy.Tags.HasAny( "structure", "ns2_exo", "ns2_mac" );
 		var goal = lastSeen ?? enemy?.WorldPosition;
 		firing = visible && EyePosition.Distance( goal.Value ) <= (bombarding ? 12 : 20) * Scale;

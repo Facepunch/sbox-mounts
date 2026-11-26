@@ -40,6 +40,7 @@ internal sealed class AlienTargeting
 	static GameObject AssignedEnemy( BaseNpc npc ) => npc switch
 	{
 		Fade fade => fade.assignedEnemy,
+		Gorge gorge => gorge.assignedTarget,
 		Marine marine => marine.assignedEnemy,
 		Exo exo => exo.assignedEnemy,
 		_ => null

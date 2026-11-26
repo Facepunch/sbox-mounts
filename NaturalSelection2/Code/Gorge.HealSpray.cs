@@ -15,6 +15,9 @@ public sealed partial class Gorge
 	static readonly ConditionalWeakTable<Component, Healing> healing = new();
 	readonly HashSet<Component> patients = [];
 	Component patient;
+	internal GameObject assignedTarget;
+	// Recruit, Normal, Normal, Aggro, Veteran, Veteran in PlayerBot's distribution.
+	readonly float helpAbility = Random.Shared.Next( 6 ) switch { 0 => 0.1f, 1 or 2 => 0.9f, 3 => 0, _ => 0.5f };
 	TimeUntil searchPatients, sprayAnimation, nextSpray;
 	bool wantsSpray, previousSecondary, secondaryAttacking;
 
@@ -58,16 +61,51 @@ public sealed partial class Gorge
 		}
 	}
 
+	static float HealthFraction( IDamageable hp ) =>
+		(hp.Health + 2 * hp.Armour) / (hp.MaxHealth + 2 * hp.MaxArmour);
+
+	bool ToppingUp( Component c, float fraction ) => fraction < 0.98f && c.GameObject.Tags.Has( "ns2_lifeform" ) &&
+		healing.TryGetValue( c, out var h ) && h.Sprayer == this && h.Last < 1.5f;
+
 	bool NeedsHelp( Component c )
 	{
 		if ( !c.IsValid() || c is not IDamageable { Health: > 0 } hp || !Friendly( c ) ) return false;
 		if ( c is AlienStructure { IsBuilt: false } ) return true;
-		float fraction = (hp.Health + 2 * hp.Armour) / (hp.MaxHealth + 2 * hp.MaxArmour);
-		return fraction < 0.85f || fraction < 0.98f && c.GameObject.Tags.Has( "ns2_lifeform" ) &&
-			healing.TryGetValue( c, out var h ) && h.Sprayer == this && h.Last < 1.5f;
+		float fraction = HealthFraction( hp );
+		return fraction < 0.9f || ToppingUp( c, fraction );
 	}
 
-	bool SupportAlly( bool seesEnemy )
+	float HealWeight( Component target, float distance )
+	{
+		if ( distance <= 0 || distance > 10 ) return 0;
+		float fraction = HealthFraction( (IDamageable)target );
+		if ( fraction >= 0.85f && !ToppingUp( target, fraction ) ||
+			target is BaseNpc npc && AlienTargeting.HasResponders( this, npc, 1 ) ) return 3;
+		if ( target is Gorge && underFire > 0 && AlienTargeting.HasResponders( this, this, 1 ) ) return 0;
+
+		float weight = 10 - MathF.Log( distance ) + helpAbility - fraction * 1.25f;
+		weight = target switch { Onos => weight * 1.2f, Fade => weight * 1.125f, Lerk => weight * 1.1f,
+			Skulk => weight + 0.5f, Gorge => weight * 0.01f, _ => weight };
+		return target.GameObject.Tags.Has( "burning" ) ? weight + 0.25f : weight;
+	}
+
+	float AttackWeight( GameObject enemy, Vector3? lastSeen )
+	{
+		if ( !enemy.IsValid() ) return 0;
+		float distance = WorldPosition.Distance( lastSeen ?? enemy.WorldPosition ) / Scale;
+		if ( distance <= 0 ) return float.PositiveInfinity;
+		float urgency = 1 + 1 / Math.Max( 1, distance );
+		if ( distance > 20 )
+		{
+			var npc = enemy.GetComponent<BaseNpc>();
+			bool exo = npc is Exo;
+			bool covered = npc.IsValid() && AlienTargeting.HasResponders( this, npc, exo ? 6 : 4 );
+			urgency = exo ? (covered ? 0.8f : 1.2f) : (covered ? 0.6f : 1);
+		}
+		return urgency * 20 / distance * HealthFraction( this );
+	}
+
+	bool SupportAlly( GameObject enemy, Vector3? lastSeen )
 	{
 		wantsSpray = false;
 		if ( searchPatients <= 0 )
@@ -88,7 +126,13 @@ public sealed partial class Gorge
 		var point = patient.WorldPosition;
 		float reach = 3.35f * Scale;
 		bool near = point.DistanceSquared( EyePosition ) < reach * reach;
-		if ( seesEnemy && !near ) return false;
+		if ( patient is AlienStructure { IsBuilt: false } || enemy.IsValid() && enemy.Tags.HasAny( "structure", "ns2_mac" ) ||
+			BileBombUnlocked && enemy.IsValid() && enemy.Tags.Has( "ns2_exo" ) )
+		{
+			if ( enemy.IsValid() && lastSeen is null && !near ) return false;
+		}
+		else if ( HealWeight( patient, WorldPosition.Distance( point ) / Scale ) <= AttackWeight( enemy, lastSeen ) ) return false;
+		assignedTarget = patient.GameObject;
 		Animation.SetLookTarget( patient.GameObject );
 		firing = false;
 		wantsSpray = near && !WallBetween( EyePosition, point );
