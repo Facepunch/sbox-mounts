@@ -268,7 +268,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 
 	bool UpdateArm( Arm arm, bool pressed )
 	{
-		bool request = attack && NpcConVars.Enabled;
+		bool request = attack && AllowsAttack( assignedEnemy );
 		if ( !Railguns )
 		{
 			arm.Heat = Math.Clamp( arm.Heat + Time.Delta * (arm.Shooting ? 0.3f : -0.4f), 0, 1 );
@@ -329,7 +329,7 @@ public sealed partial class Exo : Ns2Npc, Component.IDamageable
 			}
 		}
 		bool isLeft = tag == "l_shoot";
-		if ( !isLeft && tag != "r_shoot" || !NpcConVars.Enabled ) return;
+		if ( !isLeft && tag != "r_shoot" || !AllowsAttack( assignedEnemy ) ) return;
 		var arm = isLeft ? left : right;
 		if ( !Railguns && !(isLeft ? leftPressed : rightPressed) ) return;
 		if ( !Railguns ) arm.Shooting = true;

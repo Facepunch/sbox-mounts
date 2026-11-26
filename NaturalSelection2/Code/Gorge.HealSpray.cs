@@ -77,7 +77,7 @@ public sealed partial class Gorge
 
 	bool NeedsHelp( Component c )
 	{
-		if ( !c.IsValid() || c is not IDamageable { Health: > 0 } hp || !Friendly( c ) ) return false;
+		if ( !c.IsValid() || c is not IDamageable { Health: > 0 } hp || AlienTargeting.IsIgnoredPlayer( c.GameObject ) || !Friendly( c ) ) return false;
 		float fraction = HealthFraction( hp );
 		return fraction < 0.9f || ToppingUp( c, fraction );
 	}

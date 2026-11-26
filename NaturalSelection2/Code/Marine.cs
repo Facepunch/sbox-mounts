@@ -529,7 +529,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			UpdateSprint( sprintRequested && Movement.MoveTarget.HasValue, IsOnGround, Animation.MoveVelocity, agent.WishVelocity );
 			if ( wounds.Update() is { } cue )
 				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
-			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
+			bool press = wantsFire && AllowsAttack( assignedEnemy ) && (!pistol || !previousPress);
 			previousPress = press;
 			bool attack = press && sinceSprint >= 0.2f && deployed && !reloading && (!pistol || lastShot >= 0.1f);
 			bool wasAttacking = trigger;
@@ -620,7 +620,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			PlayWorldSound( tag == "idle_spin_start" ? "sounds/marine/pistol/idle_spin.sound" : "sounds/marine/pistol/idle_gangster.sound" );
 			return;
 		}
-		if ( tag == "shoot" && lastRequest < 0.1f && !reloading && Ammo.Clip > 0 && NpcConVars.Enabled )
+		if ( tag == "shoot" && lastRequest < 0.1f && !reloading && Ammo.Clip > 0 && AllowsAttack( firingTarget ) )
 		{
 			FireBullet();
 			if ( --Ammo.Clip == 0 ) BeginReload();

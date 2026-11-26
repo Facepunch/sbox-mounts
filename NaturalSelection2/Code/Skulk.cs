@@ -173,7 +173,7 @@ public sealed partial class Skulk : AlienLifeform
 	void OnWeaponTag( string tag )
 	{
 		if ( tag == "attack_end" ) parasiteAttacking = false;
-		if ( tag != "hit" || parasiteAttacking ) return;
+		if ( tag != "hit" || parasiteAttacking || !AllowsAttack( sighted ) ) return;
 		energy = Math.Max( 0, energy - BiteEnergy );
 		PlayVoice( "bite" );
 		bool killed = false;

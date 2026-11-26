@@ -179,7 +179,7 @@ public sealed partial class Onos : AlienLifeform
 			if ( wounds.Update() is { } cue ) PlayCue( cue );
 			var ability = Shielding ? "boneshield" : "gore";
 			var move = Shielding ? "shield" : !Animation.IsGrounded ? "jump" : velocity.Length > 0.1f * Scale ? "run" : "idle";
-			bool canSwing = attacking && energy >= 10 && !Shielding && !stomping;
+			bool canSwing = attacking && AllowsAttack( target ) && energy >= 10 && !Shielding && !stomping;
 			if ( canSwing ) smashSwing ??= TraceGore().First().Victim is Component c && c.GameObject.Tags.Has( "structure" );
 			else smashSwing = null;
 			var activity = stomping ? (sinceStomp < stompDuration * 0.95f ? "secondary" : "none")
@@ -276,7 +276,7 @@ public sealed partial class Onos : AlienLifeform
 			if ( tag == "end" && stompHit ) wantsStomp = stomping = false;
 			return;
 		}
-		if ( tag != "hit" || Shielding ) return;
+		if ( tag != "hit" || Shielding || !AllowsAttack( target ) ) return;
 		PlayCue( "gore" );
 		energy = Math.Max( 0, energy - 10 );
 		bool smash = smashSwing == true;

@@ -82,10 +82,11 @@ internal sealed class AlienTargeting
 		return ground.z - position.z >= MapLoader.Scale && scene.Trace.Ray( position + lift, ground + lift ).WithTag( "world" ).Run().Hit;
 	}
 
-	internal static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget && target.GetComponentInParent<PlayerController>().IsValid();
+	internal static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget && target.IsValid() && target.GetComponentInParent<PlayerController>().IsValid();
 
 	internal void Remember( GameObject enemy, Vector3 position )
 	{
+		if ( IsIgnoredPlayer( enemy ) ) return;
 		if ( !memories.TryGetValue( enemy, out var memory ) ) memories[enemy] = memory = new();
 		memory.Position = position;
 		memory.Time = Time.Now;
@@ -143,7 +144,7 @@ internal sealed class AlienTargeting
 		int nearby = 0;
 		foreach ( var enemy in memories.Keys )
 		{
-			if ( !BaseNpc.IsLiveTarget( enemy ) || skulk.GetDisposition( enemy ) != Disposition.Hostile || enemy.Tags.Has( "structure" ) ) continue;
+			if ( !BaseNpc.IsLiveTarget( enemy ) || IsIgnoredPlayer( enemy ) || skulk.GetDisposition( enemy ) != Disposition.Hostile || enemy.Tags.Has( "structure" ) ) continue;
 			if ( !enemy.GetComponent<PlayerController>().IsValid() && !enemy.GetComponent<BaseNpc>().IsValid() ) continue;
 			if ( skulk.WorldPosition.DistanceSquared( enemy.WorldPosition ) < 25 * MapLoader.Scale * MapLoader.Scale && ++nearby == 2 ) return true;
 		}

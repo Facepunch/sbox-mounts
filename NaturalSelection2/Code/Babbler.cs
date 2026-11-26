@@ -296,7 +296,7 @@ public sealed partial class Babbler : Ns2Npc
 				return;
 			}
 		}
-		if ( PhysicsCarrier.IsValid() ) return;
+		if ( PhysicsCarrier.IsValid() || !NpcConVars.Enabled ) return;
 		if ( ClingTarget.IsValid() )
 		{
 			ApproachClingTarget();
@@ -308,7 +308,7 @@ public sealed partial class Babbler : Ns2Npc
 			CheckImpact( previousPosition, previousVelocity.Normal );
 		previousVelocity = body.Velocity;
 		previousPosition = origin;
-		if ( !target.IsValid() || Movement.MoveTarget.HasValue ) return;
+		if ( !target.IsValid() || AlienTargeting.IsIgnoredPlayer( target ) || Movement.MoveTarget.HasValue ) return;
 		var aim = CalculateAimPoint( target );
 		var player = target.GetComponent<PlayerController>();
 		var lead = GetVelocity( target );

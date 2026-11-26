@@ -256,7 +256,7 @@ public sealed partial class Gorge : AlienLifeform
 			direction.z += 0.5f * 9.81f * Scale * time * time;
 		}
 		bool ready = false;
-		if ( target.IsValid() && (firing || wantsSpray) )
+		if ( target.IsValid() && (firing || wantsSpray) && AllowsAttack( target ) )
 		{
 			if ( throwing && IsFleeTarget( target ) )
 				ready = Vector3.Dot( aim.Forward, direction.Normal ) > 0.9f;

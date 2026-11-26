@@ -57,7 +57,7 @@ internal sealed class NpcTeamMemory : GameObjectSystem<NpcTeamMemory>, Component
 
 	void RecordHit( BaseNpc victim, GameObject attacker )
 	{
-		if ( attacker.IsValid() ) recentHits[victim] = (attacker, Time.Now);
+		if ( attacker.IsValid() && !AlienTargeting.IsIgnoredPlayer( attacker ) ) recentHits[victim] = (attacker, Time.Now);
 	}
 
 	void UpdateReports()
@@ -74,7 +74,7 @@ internal sealed class NpcTeamMemory : GameObjectSystem<NpcTeamMemory>, Component
 
 		foreach ( var (victim, hit) in recentHits )
 		{
-			if ( !victim.IsValid() || victim.Health <= 0 || Time.Now >= hit.Time + 1 || !IsAlive( hit.Attacker ) )
+			if ( !victim.IsValid() || victim.Health <= 0 || Time.Now >= hit.Time + 1 || !IsAlive( hit.Attacker ) || AlienTargeting.IsIgnoredPlayer( hit.Attacker ) )
 			{
 				recentHits.Remove( victim );
 				continue;

@@ -32,7 +32,7 @@ public sealed partial class Gorge
 				foreach ( var npc in Scene.GetAllComponents<BaseNpc>() )
 					if ( npc != this && npc.Health > 0 && npc is AlienLifeform or Marine or Exo ) Count( npc.GameObject );
 				foreach ( var player in Scene.GetAllComponents<PlayerController>() )
-					if ( BaseNpc.IsLiveTarget( player.GameObject ) ) Count( player.GameObject );
+					if ( !NpcConVars.NoTarget && BaseNpc.IsLiveTarget( player.GameObject ) ) Count( player.GameObject );
 			}
 		}
 		if ( !retreatTarget.IsValid() || retreatTarget.Health <= 0 ) return 0;

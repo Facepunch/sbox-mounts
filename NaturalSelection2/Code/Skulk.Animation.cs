@@ -103,7 +103,7 @@ public sealed partial class Skulk
 
 		bool idle = !mover.MovingInput && (Animation.IsGrounded ? velocity : movement).Length < 0.1f * MapLoader.Scale;
 		var move = Leaping ? "leap" : mover.Jumping ? "jump" : idle ? "idle" : "run";
-		var activity = Biting || FiringParasite ? "primary" : "none";
+		var activity = (Biting || FiringParasite) && AllowsAttack( sighted ) ? "primary" : "none";
 		world.Set( "alive", Health > 0 ? 1 : 0 );
 		world.Set( "move", move );
 		world.Set( "activity", activity );

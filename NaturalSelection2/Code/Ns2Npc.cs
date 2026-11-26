@@ -4,6 +4,8 @@ namespace NS2;
 
 public abstract partial class Ns2Npc : BaseNpc
 {
+	private protected static bool AllowsAttack( GameObject target ) => NpcConVars.Enabled && !AlienTargeting.IsIgnoredPlayer( target );
+
 	private protected static ModelLoader FindModel( string path ) => Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( path ) as ModelLoader;
 
 	private protected static SparkAnimationGraph.Playback CreatePlayback( string path ) => FindModel( path )?.CreatePlayback();

@@ -173,7 +173,7 @@ public sealed partial class Lerk : AlienLifeform
 		if ( Networking.IsHost )
 		{
 			var target = attacking || wantsSpikes ? assignedEnemy : Animation.LookObject;
-			if ( target.IsValid() )
+			if ( target.IsValid() && AllowsAttack( target ) )
 			{
 				var point = CalculateAimPoint( target );
 				if ( attacking || wantsSpikes )
@@ -206,8 +206,8 @@ public sealed partial class Lerk : AlienLifeform
 		energy = Math.Min( 100, energy + GetEnergyRechargeRate( 13 ) * Time.Delta );
 		spiking = wantsSpikes && ready && energy >= SpikeCost;
 		if ( !spiking ) firingSpikes = false;
-		bool usingUmbra = umbraTarget.IsValid();
-		bool usingSpores = sporeTarget.IsValid();
+		bool usingUmbra = umbraTarget.IsValid() && NpcConVars.Enabled;
+		bool usingSpores = sporeTarget.IsValid() && AllowsAttack( sporeTarget );
 		var ability = usingUmbra ? "umbra" : usingSpores ? "spores" : "bite";
 		bool primary = usingUmbra || usingSpores ? energy >= CloudCost && (!usingSpores || Vector3.Dot( View.Forward, aim.Normal ) > 0.95f) : attacking && ready && energy >= 5;
 		var activity = primary ? "primary" : spiking ? "secondary" : "none";
@@ -236,7 +236,7 @@ public sealed partial class Lerk : AlienLifeform
 	void OnWeaponTag( string tag )
 	{
 		if ( tag == "shoot" && spiking && energy > SpikeCost ) FireSpike();
-		if ( tag != "hit" ) return;
+		if ( tag != "hit" || !AllowsAttack( sporeTarget ?? assignedEnemy ) ) return;
 		if ( umbraTarget.IsValid() || sporeTarget.IsValid() )
 		{
 			FireCloud( sporeTarget.IsValid() );

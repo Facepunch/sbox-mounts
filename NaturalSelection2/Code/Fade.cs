@@ -187,7 +187,7 @@ public sealed partial class Fade : AlienLifeform
 	{
 		attacking = false;
 		if ( ventBlink ) return;
-		if ( !NpcConVars.Enabled || PhysicsCarrier.IsValid() || !enemy.IsValid() )
+		if ( PhysicsCarrier.IsValid() || !enemy.IsValid() || !AllowsAttack( enemy ) )
 		{
 			var direction = WorldRotation.Forward;
 			if ( NpcConVars.Enabled && !PhysicsCarrier.IsValid() )
@@ -305,6 +305,7 @@ public sealed partial class Fade : AlienLifeform
 		bool stab = stabbing;
 		if ( !stab && (stabSelected || metabolizeAnimation > 0) ) return;
 		stabbing = false;
+		if ( !AllowsAttack( assignedEnemy ) ) return;
 		if ( !stab ) PlayCue( "swipe" );
 		energy = Math.Max( 0, energy - (stab ? 25 : 7) );
 		var attack = stab ? AlienMelee.Attack.Stab : AlienMelee.Attack.Swipe;

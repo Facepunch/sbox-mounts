@@ -183,6 +183,7 @@ public sealed class Mac : Ns2Npc, Component.IDamageable
 		foreach ( var hp in Scene.GetAllComponents<IDamageable>() )
 		{
 			if ( hp is not Component c || c is Mac || hp.Health <= 0 || hp.MaxHealth <= 0 ) continue;
+			if ( AlienTargeting.IsIgnoredPlayer( c.GameObject ) ) continue;
 			bool structure = c.GameObject.Tags.Has( "structure" );
 			if ( structure ? hp.Health >= hp.MaxHealth && hp.Armour >= hp.MaxArmour : hp.Armour >= hp.MaxArmour ) continue;
 			bool player = IsPlayerTarget( c );
