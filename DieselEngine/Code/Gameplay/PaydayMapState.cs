@@ -21,11 +21,15 @@ public sealed class PaydayMapState : Component
 	[Sync( SyncFlags.FromHost )] public NetDictionary<Guid, string> AlarmStates { get; set; } = new();
 	[Sync( SyncFlags.FromHost )] public NetDictionary<Guid, string> CameraStates { get; set; } = new();
 
-	readonly Dictionary<Guid, string> appliedLocally = [];
-	readonly HashSet<Guid> disabledLocally = [];
+	// A reload can recreate a target with the same deterministic ID. Cache the instance as well
+	// as its value so unchanged snapshots are restored to the replacement, without old audio.
+	readonly Dictionary<Guid, (PaydayUnitState Target, string State)> appliedLocally = [];
+	readonly Dictionary<Guid, GameObject> disabledLocally = [];
 	readonly HashSet<Guid> silentUnits = [];
 	readonly HashSet<Guid> silentDoors = [];
-	readonly Dictionary<Guid, string> doorsApplied = [], alarmsApplied = [], camerasApplied = [];
+	readonly Dictionary<Guid, (PaydayDoor Target, string State)> doorsApplied = [];
+	readonly Dictionary<Guid, (PaydayAlarm Target, string State)> alarmsApplied = [];
+	readonly Dictionary<Guid, (PaydaySecurityCamera Target, string State)> camerasApplied = [];
 	bool primed;
 
 	/// <summary>The sync object for a scene containing a PAYDAY map.</summary>
@@ -52,7 +56,6 @@ public sealed class PaydayMapState : Component
 		if ( !Networking.IsHost || !unit.IsValid() ) return;
 		string state = string.Join( "|", sequences );
 		UnitSequences[unit.Id] = state;
-		appliedLocally[unit.Id] = state;
 	}
 
 	/// <summary>Host: a unit was disabled.</summary>
@@ -60,7 +63,6 @@ public sealed class PaydayMapState : Component
 	{
 		if ( !Networking.IsHost || !unit.IsValid() || DisabledUnits.Contains( unit.Id ) ) return;
 		DisabledUnits.Add( unit.Id );
-		disabledLocally.Add( unit.Id );
 	}
 
 	protected override void OnUpdate()
@@ -82,37 +84,42 @@ public sealed class PaydayMapState : Component
 		// Clients: apply anything new from the host. The first pass is the join snapshot: restore state silently.
 		foreach ( var (id, state) in UnitSequences )
 		{
-			if ( appliedLocally.TryGetValue( id, out var current ) && current == state ) continue;
 			if ( Scene.Directory.FindByGuid( id ) is not { } go || go.Components.Get<PaydayUnitState>( FindMode.EverythingInSelf ) is not { } marker ) continue;
-			appliedLocally[id] = state;
-			marker.ApplyState( state.Split( '|', StringSplitOptions.RemoveEmptyEntries ), audible: !silentUnits.Remove( id ) );
+			bool applied = appliedLocally.TryGetValue( id, out var current );
+			if ( applied && ReferenceEquals( current.Target, marker ) && current.State == state ) continue;
+			bool silent = silentUnits.Remove( id ) || (applied && !ReferenceEquals( current.Target, marker ));
+			marker.ApplyState( state.Split( '|', StringSplitOptions.RemoveEmptyEntries ), audible: !silent );
+			appliedLocally[id] = (marker, state);
 		}
 		foreach ( var (id, state) in DoorStates )
 		{
-			if ( doorsApplied.TryGetValue( id, out var current ) && current == state ) continue;
 			if ( Scene.Directory.FindByGuid( id )?.Components.Get<PaydayDoor>( FindMode.EverythingInSelf ) is not { } door ) continue;
-			door.ApplyState( Json.Deserialize<PaydayDoor.NetworkState>( state ), !silentDoors.Remove( id ) );
-			doorsApplied[id] = state;
+			bool applied = doorsApplied.TryGetValue( id, out var current );
+			if ( applied && ReferenceEquals( current.Target, door ) && current.State == state ) continue;
+			bool silent = silentDoors.Remove( id ) || (applied && !ReferenceEquals( current.Target, door ));
+			door.ApplyState( Json.Deserialize<PaydayDoor.NetworkState>( state ), !silent );
+			doorsApplied[id] = (door, state);
 		}
 		foreach ( var (id, state) in AlarmStates )
 		{
-			if ( alarmsApplied.TryGetValue( id, out var current ) && current == state ) continue;
 			if ( Scene.Directory.FindByGuid( id )?.Components.Get<PaydayAlarm>( FindMode.EverythingInSelf ) is not { } alarm ) continue;
+			if ( alarmsApplied.TryGetValue( id, out var current ) && ReferenceEquals( current.Target, alarm ) && current.State == state ) continue;
 			alarm.ApplyState( Json.Deserialize<PaydayAlarm.NetworkState>( state ) );
-			alarmsApplied[id] = state;
+			alarmsApplied[id] = (alarm, state);
 		}
 		foreach ( var (id, state) in CameraStates )
 		{
-			if ( camerasApplied.TryGetValue( id, out var current ) && current == state ) continue;
 			if ( Scene.Directory.FindByGuid( id )?.Components.Get<PaydaySecurityCamera>( FindMode.EverythingInSelf ) is not { } camera ) continue;
+			if ( camerasApplied.TryGetValue( id, out var current ) && ReferenceEquals( current.Target, camera ) && current.State == state ) continue;
 			camera.ApplyState( Json.Deserialize<PaydaySecurityCamera.NetworkState>( state ) );
-			camerasApplied[id] = state;
+			camerasApplied[id] = (camera, state);
 		}
 		foreach ( var id in DisabledUnits )
-			if ( !disabledLocally.Contains( id ) && Scene.Directory.FindByGuid( id ) is { } go )
+			if ( Scene.Directory.FindByGuid( id ) is { } go
+				&& (!disabledLocally.TryGetValue( id, out var current ) || !ReferenceEquals( current, go )) )
 			{
 				go.Enabled = false;
-				disabledLocally.Add( id );
+				disabledLocally[id] = go;
 			}
 	}
 }

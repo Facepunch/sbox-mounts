@@ -20,6 +20,7 @@ try
 	if ( relay.GameObject.NetworkMode != NetworkMode.Object ) throw new Exception( "Map-state relay must remain live-networked." );
 	var source = states.First( s => s.Unit == "units/world/architecture/bank/bank_window/bank_window_large" );
 	var replica = source.GameObject.Clone();
+	var replacement = source.GameObject.Clone();
 	var copy = replica.GetComponent<Diesel.PaydayUnitState>();
 	var renderer = source.GetComponent<ModelRenderer>();
 	var original = renderer.Model;
@@ -41,6 +42,18 @@ try
 		throw new Exception( "Replica did not reconstruct the host geometry/state." );
 	((Component.IDamageable)source).OnDamage( new DamageInfo { Damage = 100 } );
 	if ( relay.UnitSequences[source.GameObject.Id] != state ) throw new Exception( "Destroyed body ran its stages again." );
-	return new { BreakablePlacements = states.Length, Sequence = state, ReplicaRestored = true, MissionInterpreter = false };
+	relay.UnitSequences[replica.Id] = state;
+	var apply = typeof( Diesel.PaydayMapState ).GetMethod( "ApplyReplicatedState", flags );
+	apply.Invoke( relay, null );
+	var replicaId = replica.Id;
+	typeof( GameObject ).GetMethod( "SetDeterministicId", flags ).Invoke( replica, new object[] { Guid.NewGuid() } );
+	typeof( GameObject ).GetMethod( "SetDeterministicId", flags ).Invoke( replacement, new object[] { replicaId } );
+	apply.Invoke( relay, null );
+	var replacementState = replacement.GetComponent<Diesel.PaydayUnitState>();
+	var replacementRenderer = replacement.GetComponent<ModelRenderer>();
+	if ( replacementState.Sequence != source.Sequence || replacement.Enabled != source.GameObject.Enabled
+		|| replacementRenderer.Enabled != renderer.Enabled || replacementRenderer.Model.ResourcePath != renderer.Model.ResourcePath )
+		throw new Exception( "Reloaded breakable did not reconstruct unchanged replicated geometry/state." );
+	return new { BreakablePlacements = states.Length, Sequence = state, ReplicaRestored = true, ReplacementRestored = true, MissionInterpreter = false };
 }
 finally { scene.Destroy(); }

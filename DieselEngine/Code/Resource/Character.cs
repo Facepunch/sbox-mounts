@@ -3,7 +3,7 @@ using System.Text;
 namespace Diesel;
 using Matrix = System.Numerics.Matrix4x4;
 
-/// <summary>Separate skeletal resource; map/browser character props retain their static import.</summary>
+/// <summary>Authored character skeleton and skin, shared by browser resources and NPC appearances.</summary>
 sealed class PaydayCharacter
 {
 	public ModelFile File { get; }
@@ -13,8 +13,15 @@ sealed class PaydayCharacter
 	public Model Model { get; }
 
 	public PaydayCharacter( BundleDatabase db, MapMaterials materials, NpcDefinition definition, string path )
+		: this( db, materials, definition.Unit, path, definition.Clips(), true ) { }
+
+	public PaydayCharacter( BundleDatabase db, MapMaterials materials, string unitPath, string path )
+		: this( db, materials, unitPath, path, [], false ) { }
+
+	PaydayCharacter( BundleDatabase db, MapMaterials materials, string unitPath, string path,
+		IEnumerable<KeyValuePair<string, string>> clips, bool npcPhysics )
 	{
-		var unit = UnitModel.Xml( db.Find( "unit", definition.Unit ) );
+		var unit = UnitModel.Xml( db.Find( "unit", unitPath ) );
 		string objectPath = unit.Element( "object" ).Attribute( "file" );
 		var obj = UnitModel.Xml( db.Find( "object", objectPath ) );
 		File = new( db.Find( "model", objectPath ) );
@@ -22,7 +29,7 @@ sealed class PaydayCharacter
 			.Distinct().GroupBy( IdString.Hash ).ToDictionary( g => g.Key, g => g.First() );
 		Bones = File.RigNodes.Select( n => (n.Id, names.GetValueOrDefault( n.Name, $"bone_{n.Name:x}" ), n.Parent) ).ToArray();
 		if ( Bones.Length > 255 ) throw new InvalidDataException( "Character exceeds byte skin index limit." );
-		Clips = definition.Clips().ToDictionary( c => c.Key, c => new AnimationFile( db.Find( "animation", c.Value )
+		Clips = clips.ToDictionary( c => c.Key, c => new AnimationFile( db.Find( "animation", c.Value )
 			?? throw new InvalidDataException( $"Missing character animation: {c.Value}" ) ) );
 		var pose = File.Pose( null, 0 );
 		Matrix.Invert( File.NodePose( pose, "root_point" ), out var root );
@@ -54,7 +61,7 @@ sealed class PaydayCharacter
 					byte[] bi = new byte[4], bw = new byte[4];
 					if ( skin is null )
 					{
-						bi[0] = indices[Bones.First( b => IdString.Hash( b.Name ) == g.Name ).Id]; bw[0] = 255;
+						bi[0] = indices[File.RigNodes.First( b => b.Name == g.Name ).Id]; bw[0] = 255;
 					}
 					else
 					{
@@ -75,12 +82,15 @@ sealed class PaydayCharacter
 				var mesh = new Mesh( material );
 				mesh.CreateVertexBuffer<SkinnedVertex>( vertices.Length, vertices.AsSpan() );
 				mesh.CreateIndexBuffer( vertices.Length, Enumerable.Range( 0, vertices.Length ).ToArray() );
-				mesh.Bounds = new BBox( new Vector3( -45, -45, -10 ), new Vector3( 45, 45, 85 ) );
+				mesh.Bounds = npcPhysics
+					? new BBox( new Vector3( -45, -45, -10 ), new Vector3( 45, 45, 85 ) )
+					: BBox.FromPoints( positions );
 				builder.AddMesh( mesh );
 			}
 		}
-		builder.AddAttachment( "hold_r", Vector3.Zero, Rotation.Identity, "a_weapon_right_front" );
-		AddPhysics( builder );
+		if ( Bones.Any( b => b.Name == "a_weapon_right_front" ) )
+			builder.AddAttachment( "hold_r", Vector3.Zero, Rotation.Identity, "a_weapon_right_front" );
+		if ( npcPhysics ) AddPhysics( builder );
 		Model = builder.Create();
 	}
 

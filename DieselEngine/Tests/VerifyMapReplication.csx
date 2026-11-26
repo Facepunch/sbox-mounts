@@ -49,6 +49,27 @@ try
 	Apply();
 	if ( delayed.Enabled ) throw new Exception( "Early disable state was lost before the object arrived." );
 
+	// Map reload can replace targets while retaining deterministic IDs and unchanged relay values.
+	GameObject Replace( GameObject old )
+	{
+		var id = old.Id;
+		typeof( GameObject ).GetMethod( "SetDeterministicId", flags ).Invoke( old, new object[] { Guid.NewGuid() } );
+		old.Enabled = false;
+		var replacement = new GameObject( true, "Reloaded " + old.Name );
+		typeof( GameObject ).GetMethod( "SetDeterministicId", flags ).Invoke( replacement, new object[] { id } );
+		return replacement;
+	}
+	var reloadedDoor = Replace( root ).AddComponent<Diesel.PaydayDoor>();
+	reloadedDoor.Leaf = new GameObject( true, "Reloaded leaf" ) { Parent = reloadedDoor.GameObject };
+	var reloadedAlarm = Replace( alarm.GameObject ).AddComponent<Diesel.PaydayAlarm>();
+	var reloadedCamera = Replace( camera.GameObject ).AddComponent<Diesel.PaydaySecurityCamera>();
+	var reloadedDisabled = Replace( delayed );
+	Apply();
+	if ( reloadedDoor.Amount != .2f || !reloadedAlarm.Disabled || !reloadedCamera.Disabled || reloadedDisabled.Enabled )
+		throw new Exception( "Unchanged replicated state was not restored to replacement map objects." );
+	if ( (float)typeof( Diesel.PaydayDoor ).GetField( "previousAmount", flags ).GetValue( reloadedDoor ) != .2f )
+		throw new Exception( "Reloaded door would replay old movement audio." );
+
 	var hostPhone = new GameObject( true, "Host phone" ).AddComponent<Diesel.PaydayAlarm>();
 	var player = new GameObject( true, "Phone user" );
 	var controller = player.AddComponent<PlayerController>();
@@ -74,6 +95,6 @@ try
 		var trace = scene.Trace.Ray( controller.EyePosition, hostPhone.WorldPosition + Vector3.Up * 24 ).IgnoreGameObjectHierarchy( player ).WithoutTags( "trigger" ).Run();
 		throw new Exception( $"Validated phone press failed: disabled={hostPhone.Disabled}, host={Networking.IsHost}, eye={controller.EyePosition}, player={player.WorldPosition}, hit={trace.GameObject?.Name}." );
 	}
-	return "PASS: door state/pose and movement, silent join baseline, startup ordering, phone/camera restoration, delayed disable target, host-validated phone relay.";
+	return "PASS: door state/pose and movement, silent join baseline, startup ordering, phone/camera restoration, delayed disable target, silent replacement-object restoration, host-validated phone relay.";
 }
 finally { scene.Destroy(); }
