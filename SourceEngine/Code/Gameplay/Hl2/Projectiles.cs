@@ -155,6 +155,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnFlightStateChanged ) )] bool Ignited { get; set; }
 	bool _ignitionPresented;
 	float _damageUntilShotDown = 20;
+	float _fractionalDamage;
 	[Sync( SyncFlags.FromHost )] TimeUntil AugerEnds { get; set; }
 	bool ShotDown => AugerEnds != default( TimeUntil );
 	ParticleEffect[] _embers;
@@ -204,7 +205,15 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	{
 		if ( !Networking.IsHost || ShotDown || damage.Damage <= 0 ) return;
 		if ( !damage.Tags.Has( "missiledefense" ) && !damage.Tags.Has( "airboat" ) ) return;
-		_damageUntilShotDown -= damage.Damage;
+		// Source carries fractional damage between hits and deducts whole health points.
+		var whole = MathF.Floor( damage.Damage );
+		_fractionalDamage += damage.Damage - whole;
+		if ( _fractionalDamage >= 1 )
+		{
+			whole++;
+			_fractionalDamage--;
+		}
+		_damageUntilShotDown -= whole;
 		if ( _damageUntilShotDown > 0 ) return;
 
 		ShootdownEffect( WorldPosition, MountName );
