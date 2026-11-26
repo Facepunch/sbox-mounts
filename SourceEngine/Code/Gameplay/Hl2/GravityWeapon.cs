@@ -484,20 +484,23 @@ public sealed class GravityWeapon : Weapon
 /// <summary>
 /// The physcannon's code-driven sprites and beams, reconstructed from the SDK's StartEffects and
 /// DoEffect states: a core glow at the first attachment, glows on every prong, endcaps and beams
-/// from the prong tips while carrying. Like Source's sprite and beam entities they draw in the world
-/// pass at the attachments' positions, so the viewmodel covers them. The world model only has "core".
+/// from the prong tips to the core while carrying.
 /// </summary>
 sealed class PhysCannonEffects : IDisposable
 {
-	// v_physcannon's prong attachments from the SDK's StartEffects; the world model only has "core".
 	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
-	static readonly string[] Tips = ["fork1t", "fork2t"];
+	static readonly string[] ViewTips = ["fork1t", "fork2t"];
+	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
+	static readonly Curve ViewBeamWidth = CarryWidth( 0, 4 );
+	static readonly Curve WorldBeamWidth = CarryWidth( 0.5f, 2 );
+	static Curve CarryWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
 	const float BeamLength = 250;
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
 	static readonly Color GlowColor = new( 1, 0.5f, 0 );
 	SkinnedModelRenderer _renderer;
 	ViewModel _view;
 	GameObject _root;
+	GameObject _coreAnchor;
 	SpriteRenderer _core;
 	SpriteRenderer _blast;
 	readonly List<SpriteRenderer> _glows = new();
@@ -551,13 +554,13 @@ sealed class PhysCannonEffects : IDisposable
 		}
 		foreach ( var endcap in _endcaps )
 			MountedEffects.SetSprite( endcap, holding ? Game.Random.Float( 0.1f, 0.15f ) : 0, Game.Random.Float( 200, 255 ) );
-		var end = holding ? held.GetBounds().Center : Vector3.Zero;
 		foreach ( var (tip, beam) in _beams )
 		{
-			if ( !tip.IsValid() ) continue;
-			var start = Place( tip );
-			if ( blast < 1 ) MountedEffects.SetBeam( beam, start, start + weapon.AimRay.Forward * BeamLength, 6.4f, 255 );
-			else MountedEffects.SetBeam( beam, start, end, holding ? Game.Random.Float( 1, 2 ) : 0, 128 );
+			var launching = blast < 1 && _view.IsValid();
+			beam.Enabled = tip.IsValid() && (holding || launching);
+			if ( !beam.Enabled ) continue;
+			beam.Width = launching ? 6.4f : _view.IsValid() ? ViewBeamWidth : WorldBeamWidth;
+			beam.Color = launching ? Color.White : (Color.White * (128f / 255)).WithAlpha( 1 );
 		}
 		Follow( weapon );
 	}
@@ -576,9 +579,10 @@ sealed class PhysCannonEffects : IDisposable
 		}
 		foreach ( var (tip, beam) in _beams )
 		{
-			if ( !tip.IsValid() || !beam.IsValid() ) continue;
+			if ( !tip.IsValid() || !beam.IsValid() || !beam.Enabled ) continue;
 			beam.VectorPoints[0] = Place( tip );
-			if ( _launch < 0.1f ) beam.VectorPoints[1] = beam.VectorPoints[0] + weapon.AimRay.Forward * BeamLength;
+			beam.VectorPoints[1] = _launch < 0.1f && _view.IsValid()
+				? beam.VectorPoints[0] + weapon.AimRay.Forward * BeamLength : Place( _coreAnchor );
 		}
 	}
 
@@ -678,14 +682,15 @@ sealed class PhysCannonEffects : IDisposable
 		_root.NetworkMode = NetworkMode.Never;
 		var coreName = renderer.Model.Attachments.All.FirstOrDefault()?.Name;
 		var core = coreName is null ? renderer.GameObject : renderer.GetAttachmentObject( coreName ) ?? renderer.GameObject;
+		_coreAnchor = core;
 		_core = AddSprite( core, "sprites/orangecore1", mount );
 		_blast = AddSprite( core, "sprites/orangecore2", mount );
 		// sprites/glow04_noz names the glow04 texture.
 		foreach ( var prong in Prongs.Select( renderer.GetAttachmentObject ).Where( x => x.IsValid() ) )
 			if ( AddSprite( prong, "sprites/glow04", mount ) is { } glow ) _glows.Add( glow );
-		var tips = viewModel ? Tips.Select( renderer.GetAttachmentObject ).Where( x => x.IsValid() ).ToArray() : [core];
-		foreach ( var tip in tips )
+		foreach ( var name in viewModel ? ViewTips : WorldTips )
 		{
+			var tip = renderer.GetAttachmentObject( name ) ?? renderer.GameObject;
 			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
 			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam ) _beams.Add( (tip, beam) );
 		}
