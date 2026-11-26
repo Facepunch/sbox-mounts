@@ -8,6 +8,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 	FlightState flight;
 	GameObject thrower;
 	Transform previousFlightPose;
+	float flightTickFraction;
 	ItemLine[] flightLines;
 	TimeUntil nextCharacterImpact;
 	internal GameObject ThrownBy => thrower;
@@ -70,12 +71,37 @@ public sealed partial class LevelItem : Component.ICollisionListener
 
 	void AlignWithFlight( Rigidbody body )
 	{
-		if ( !body.IsValid() || body.Velocity.IsNearlyZero() || GetLines() is not [var first, ..] ) return;
+		if ( body.Sleeping || GetLines() is not [var first, ..] ) return;
 		var physics = body.PhysicsBody;
 		if ( !physics.IsValid() ) return;
-		var axis = physics.Rotation * (first.End - first.Start).Normal;
-		physics.Rotation = Rotation.FromToRotation( axis, body.Velocity.Normal ) * physics.Rotation;
+		const float rate = 120f;
+		var gravity = body.Gravity ? Scene.PhysicsWorld.Gravity * body.GravityScale : Vector3.Zero;
+		var velocity = body.Velocity - gravity * (flightTickFraction / rate);
+		flightTickFraction += Time.Delta * rate;
+		// Five 50 Hz steps are twelve item ticks; allow for the float representation of 0.02 s.
+		int ticks = (int)MathF.Floor( flightTickFraction + 0.00001f );
+		flightTickFraction = Math.Max( 0f, flightTickFraction - ticks );
+		var rotation = physics.Rotation;
+		var localAxis = (first.End - first.Start).Normal;
+		for ( int i = 0; i < ticks; i++ )
+		{
+			if ( !velocity.IsNearlyZero() ) rotation = TurnAlongFlight( rotation, localAxis, velocity.Normal );
+			velocity += gravity / rate;
+		}
+		var center = physics.MassCenter;
+		physics.Rotation = rotation;
+		physics.Position += center - physics.MassCenter;
 		body.AngularVelocity = Vector3.Zero;
+	}
+
+	static Rotation TurnAlongFlight( Rotation rotation, Vector3 localAxis, Vector3 direction )
+	{
+		var axis = rotation * localAxis;
+		float halfAngle = 0.5f * MathF.Acos( Math.Clamp( axis.Dot( direction ), -1f, 1f ) );
+		// ItemObject uses the unnormalized cross product. Bullet extracts the rigid rotation on its next step.
+		var turn = new Rotation( axis.Cross( direction ) * MathF.Sin( halfAngle ), MathF.Cos( halfAngle ) );
+		var basis = Matrix.CreateRotation( rotation ) * Matrix.CreateRotation( turn );
+		return System.Numerics.Quaternion.Normalize( System.Numerics.Quaternion.CreateFromRotationMatrix( basis ) );
 	}
 
 	internal void Throw( RabbitGuard owner, Vector3 target, Vector3 velocity, bool fullBody )
@@ -103,7 +129,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		if ( flight == FlightState.Straight )
 		{
 			body.CollisionEventsEnabled = true;
-			AlignWithFlight( body );
+			flightTickFraction = 0f;
 			return;
 		}
 		if ( time <= 0f || mass <= 0f ) return;
