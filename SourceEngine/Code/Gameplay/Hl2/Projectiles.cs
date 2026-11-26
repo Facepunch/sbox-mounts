@@ -344,7 +344,26 @@ public sealed class Grenade : Projectile
 
 	// AngularImpulse( 600, random -1200 to 1200, 0 ) in degrees per second.
 	protected override Vector3 Spin => new Vector3( 600, Game.Random.Float( -1200, 1200 ), 0 ) * (MathF.PI / 180);
-	protected override void Expire() => Explode();
+	protected override void Expire()
+	{
+		Shake( WorldPosition );
+		Explode();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	internal static void Shake( Vector3 origin )
+	{
+		if ( Application.IsDedicatedServer ) return;
+		var scene = Game.ActiveScene;
+		if ( scene?.Camera is not { } camera ) return;
+		var player = scene.GetAllComponents<PlayerController>().FirstOrDefault( x => !x.IsProxy );
+		if ( player is not { IsOnGround: true } ) return;
+
+		// Source caps the grenade's shake amplitude at 16 before attenuating it by distance.
+		var center = player.WorldPosition + Vector3.Up * (player.CurrentHeight * 0.5f);
+		var amplitude = 16 * (1 - center.Distance( origin ) / 750);
+		if ( amplitude > 0 ) camera.AddShake( amplitude, 150, 1 );
+	}
 }
 
 /// <summary>SMG1 alt-fire grenade_ar2: arcs under reduced gravity and explodes on contact.</summary>
@@ -397,6 +416,7 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 			var world = mark.Collider is PhysicsCollider && mark.HasTag( "world" ) && !mark.GameObject.Tags.Has( "source1_entity" );
 			Scorch( mark.GameObject, WeaponEffects.DecalTransform( mark.GameObject, mark.HitPosition, mark.Normal ), MountName, world );
 		}
+		Grenade.Shake( WorldPosition );
 		Explode();
 	}
 
