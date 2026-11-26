@@ -369,11 +369,12 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				aim = AlienAim.Turn( aim, point - EyePosition, acquisition.TurnRate );
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
-		var move = jumping ? "jump" : Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";
+		bool idle = IsMovementIdle;
+		var move = jumping ? "jump" : idle ? "idle" : "run";
 		var output = PlayerGait.UpdatePose( this, 5.75f );
 		if ( graph is not null )
 		{
-			UpdateInputs( graph, move, activity );
+			UpdateInputs( graph, move, activity, idle );
 			graph.Update( age, output, worldTag );
 			movePose = graph.GetPose( 0 );
 			attackPose = graph.GetPose( 1 );
@@ -386,7 +387,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( weapon is not null )
 		{
 			if ( trigger ) lastRequest = 0;
-			UpdateInputs( weapon, move, activity );
+			UpdateInputs( weapon, move, activity, idle );
 			weapon.Update( weaponAge, tag: weaponTag );
 		}
 		if ( !pistol && trigger && !reloading && !Application.IsDedicatedServer )
@@ -397,7 +398,10 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		else StopRifleSound();
 	}
 
-	void UpdateInputs( SparkAnimationGraph.Playback playback, string move, string activity )
+	bool IsMovementIdle => Animation.MoveVelocity.LengthSquared < (0.1f * Scale) * (0.1f * Scale)
+		&& Movement.Status != MovementLayer.MovementStatus.Moving;
+
+	void UpdateInputs( SparkAnimationGraph.Playback playback, string move, string activity, bool idle )
 	{
 		if ( playback is null ) return;
 		playback.Set( "move", move );
@@ -408,7 +412,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		playback.Set( "reload_speed", 1 );
 		playback.Set( "skip_draw", skipDraw ? 1 : 0 );
 		playback.Set( "empty", Ammo.Clip == 0 && Ammo.Reserve == 0 ? 1 : 0 );
-		if ( Movement.IsMoving || Animation.MoveVelocity.LengthSquared >= 0.01f * Scale * Scale )
+		if ( !idle )
 			idleAge = 0;
 		if ( idleAge >= 29.5f )
 			idleAge = 0;
