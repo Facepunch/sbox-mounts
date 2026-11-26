@@ -38,12 +38,31 @@ Broken visor geometry on the resulting ragdoll has not been verified.
 All PAYDAY NPC prefabs now register their model hitboxes through `ModelHitboxes`.
 Previously the models contained hitbox data but only the coarse living collider was active.
 
-## Remaining special units
+### Taser and Cloaker (`entities/npcs/taser.prefab`, `entities/npcs/cloaker.prefab`)
 
-Taser and Cloaker assets/animation references have been inspected, but their special
-attacks are not exposed as working NPC prefabs yet. They need a clean cross-game
-incapacitation contract, interruption/recovery, and appropriate presentation rather than
-turning another game's NPC component off or destroying it to simulate a takedown.
+- Original character rigs, locomotion and weapon clips; AMCAR-4 and Compact-5.
+- Taser winds up a ranged hold with original charge/loop sounds and a simple visible wire.
+  Cloaker approaches through shared navigation and winds up a close-range strike using
+  `special_std_kick_fwd`. Its 72-inch root-to-root strike reach accommodates shared NPC hulls;
+  a 16-inch hold margin avoids cancelling on small physics shifts. Navigation rechecks reach
+  directly rather than trusting arrival at a stale target position.
+- Both use `BaseNpc.StartCarry` / owner-checked `StopCarry` to suspend grounded hostile
+  NPCs through the engine's shared physics/brain control. Victims remain enabled and
+  damageable, then resume their original AI after release.
+- Host-controlled target and phase; four-second hold, six-second retry, 0.6-second windup.
+  Cloaker deals 20 initial damage; both deal five damage per second while holding.
+  These durations/damage values are sandbox adaptations, not original difficulty balance.
+- Damage interrupts the attacker. Death, disable/destruction, loss of range/line of sight,
+  victim death, timeout and another carrier taking ownership all end the attack.
+  Cleanup cannot release another carrier's hold.
+- Grounded NPC targets only; players still receive normal firearm attacks. Flying NPCs,
+  scripted controllers and other custom brains outside the shared ground/carry contract
+  are not established as compatible targets.
+
+Player incapacitation/revival, authored victim reactions, Cloaker knockdown/ground attacks,
+exact kick impact timing and full Taser electrical particles remain unfinished. The current
+windup samples only the beginning of the kick clip; visual previews show the rigs and wire,
+not a complete authored takedown. Two-client replication remains unverified.
 
 ## Verification
 
@@ -55,10 +74,17 @@ turning another game's NPC component off or destroying it to simulate a takedown
 - `PreviewSpecialNpcs.csx`: disposable-scene visual inspection.
 - `InspectSpecialNpcs.csx`: original installed unit declarations, collision bodies,
   sequence data and animation paths.
+- `VerifyNpcDisablers.csx`: Taser/Cloaker against both HL1 grunt and HL2 Combine;
+  acquisition, no attacks while restrained, damage, interruption and resumed combat.
+- `VerifyDisablerCleanup.csx`: 14 lifecycle cases covering timeout, attacker death,
+  disable/destruction, obstruction, ownership transfer and victim death for both units.
+- `PreviewDisablerNpcs.csx`: rendered attack previews in disposable scenes.
 
 Reference behavior: installed PDTH `.unit`, `.object`, `.sequence_manager` and animation
 assets, plus the archived [PDTH Lua reference](https://github.com/DrNewbie/payday-the-heist-lua):
 `lib/tweak_data/charactertweakdata.lua`,
 `lib/units/enemies/cop/copinventory.lua`,
 `lib/units/enemies/cop/copdamage.lua`,
-`lib/units/enemies/tank/tankcopdamage.lua`.
+`lib/units/enemies/tank/tankcopdamage.lua`,
+`lib/units/enemies/cop/actions/upper_body/copactiontase.lua`,
+`lib/units/enemies/spooc/actions/lower_body/actionspooc.lua`.

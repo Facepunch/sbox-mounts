@@ -13,6 +13,12 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 		GameObject weapon = null;
 		Model shieldModel = null;
 		SoundEvent visorSound = null;
+		SoundEvent chargeSound = null, holdSound = null;
+		if ( definition.Id == "taser" )
+		{
+			chargeSound = await ResourceLibrary.LoadAsync<SoundEvent>( Host.SoundPath( "taser_charge" ) );
+			holdSound = await ResourceLibrary.LoadAsync<SoundEvent>( Host.SoundPath( "tasered_loop" ) );
+		}
 		if ( definition.Id == "bulldozer" && Host.SoundPath( "bulldozer_visor_shatter" ) is { } soundPath )
 			visorSound = await ResourceLibrary.LoadAsync<SoundEvent>( soundPath );
 		if ( definition.Id == "shield" )
@@ -37,12 +43,23 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 			if ( definition.Civilian ) npc = root.AddComponent<PaydayCivilian>();
 			else
 			{
-				var combat = definition.Id == "bulldozer" ? root.AddComponent<PaydayBulldozer>() : root.AddComponent<PaydayCombatNpc>();
+				PaydayCombatNpc combat = definition.Id switch
+				{
+					"bulldozer" => root.AddComponent<PaydayBulldozer>(),
+					"taser" or "cloaker" => root.AddComponent<PaydayDisablerNpc>(),
+					_ => root.AddComponent<PaydayCombatNpc>()
+				};
 				if ( combat is PaydayBulldozer bulldozer ) bulldozer.VisorBreakSound = visorSound;
+				if ( combat is PaydayDisablerNpc disabler )
+				{
+					disabler.AttackKind = definition.Id == "taser" ? PaydayDisablerNpc.AttackKinds.Taser : PaydayDisablerNpc.AttackKinds.Cloaker;
+					disabler.AttackRange = (definition.Id == "taser" ? 1400 : 1500) / 2.54f;
+					disabler.ChargeSound = chargeSound; disabler.HoldSound = holdSound;
+				}
 				combat.Faction = definition.Faction;
 				combat.InitiallyHostile = definition.HostileToPlayer;
 				combat.RescueCivilians = definition.Faction == Factions.Ally;
-				if ( definition.Id is "shield" or "bulldozer" ) combat.RescueCivilians = false;
+				if ( definition.Id is "shield" or "bulldozer" or "taser" or "cloaker" ) combat.RescueCivilians = false;
 				if ( shieldModel is not null )
 				{
 					var shield = new GameObject( true, "Ballistic shield" ) { Parent = root };

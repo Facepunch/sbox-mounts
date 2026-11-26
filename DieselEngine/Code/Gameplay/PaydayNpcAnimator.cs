@@ -18,7 +18,8 @@ public sealed class PaydayNpcAnimator : Component
 		var npc = GetComponent<BaseNpc>();
 		if ( !npc.IsValid() ) return;
 		float speed = npc.Animation?.MoveVelocity.Length ?? 0;
-		string clip = npc is BaseCombatNpc { Weapon.IsReloading: true } ? "reload"
+		string clip = npc is PaydayDisablerNpc { AttackKind: PaydayDisablerNpc.AttackKinds.Cloaker, AttackPhase: PaydayDisablerNpc.AttackPhases.Windup } ? "special"
+			: npc is BaseCombatNpc { Weapon.IsReloading: true } ? "reload"
 			: npc is PaydayCivilian { Surrendered: true, Leader: null } ? "surrender"
 			: speed > 140 ? "run" : speed > 10 ? "walk" : "idle";
 		if ( clip != CurrentClip ) { CurrentClip = clip; elapsed = 0; blend = 0; }
@@ -33,7 +34,7 @@ public sealed class PaydayNpcAnimator : Component
 			assets = mount.Characters.GetValueOrDefault( CharacterId );
 		if ( assets is null ) return;
 		var animation = assets.Clips[clip];
-		var pose = assets.Sample( clip, time % Math.Max( animation.Duration, .001f ) );
+		var pose = assets.Sample( clip, clip == "special" ? Math.Min( time, animation.Duration ) : time % Math.Max( animation.Duration, .001f ) );
 		blend = Math.Min( 1, blend + Time.Delta * 8 );
 		foreach ( var bone in assets.Bones )
 		{

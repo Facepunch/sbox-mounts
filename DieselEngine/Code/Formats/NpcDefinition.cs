@@ -39,7 +39,9 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 		new( "gangster", "Gangster", "units/characters/enemies/gangster1/gangster1", "crosskill", Faction: "enemy", HostileToPlayer: true ),
 		new( "gangster_2", "Gangster (variant 2)", "units/characters/enemies/gangster2/gangster2", "ak", Faction: "enemy", HostileToPlayer: true ),
 		new( "shield", "Shield", "units/characters/enemies/shield/shield", "b9s", Health: 100, HostileToPlayer: true ),
-		new( "bulldozer", "Bulldozer", "units/characters/enemies/tank/tank", "reinbeck", Health: 1000, HostileToPlayer: true )
+		new( "bulldozer", "Bulldozer", "units/characters/enemies/tank/tank", "reinbeck", Health: 1000, HostileToPlayer: true ),
+		new( "taser", "Taser", "units/characters/enemies/taser/taser", "amcar4", Health: 200, HostileToPlayer: true ),
+		new( "cloaker", "Cloaker", "units/characters/enemies/spooc/spooc", "compact5", Health: 150, HostileToPlayer: true )
 	];
 	public static NpcDefinition Get( string id ) => All.First( n => n.Id == id );
 
@@ -94,12 +96,14 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 			["surrender"] = "anims/shared/unarmed/neutral/pnc_drop_tied_idle_1_var1"
 		};
 		string kind = WeaponDefinition.Get( Weapon ).Slot == 1 ? "pistol" : "rifle";
-		return new()
+		var clips = new Dictionary<string, string>()
 		{
 			["idle"] = $"anims/shared/{kind}/combat/cbt_std_idle",
 			["reload"] = $"anims/shared/{kind}/combat/cbt_std_reload",
 			["walk"] = $"anims/shared/{kind}/combat/cbt_std_walk_fwd_fast",
 			["run"] = $"anims/shared/{kind}/combat/cbt_std_run_fwd"
 		};
+		if ( Id == "cloaker" ) clips["special"] = "anims/shared/special/special_std_kick_fwd";
+		return clips;
 	}
 }
