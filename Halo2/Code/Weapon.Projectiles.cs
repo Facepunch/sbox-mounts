@@ -75,6 +75,7 @@ public abstract partial class Weapon
 		public int DetonateAtTick;
 		public PhysicsShape BounceSurface;
 		public PhysicsShape PenetratedShape;
+		public WaterBody PenetratedWater;
 		public float PenetrationLimit;
 		public Vector3 BounceNormal;
 		public float TurnRate;
@@ -190,6 +191,7 @@ public abstract partial class Weapon
 		float maxRange = ballistics.Range > 0 ? ballistics.Range : float.PositiveInfinity;
 		var detonation = DetonationEffectPath;
 		bool originWet = InWater( origin );
+		bool traceWater = Shard is not null && scene.GetAllComponents<WaterBody>().Any();
 		int flying = pellets.Length;
 		var shooter = Holder?.GameObject ?? GameObject;
 		// Holstering disables the weapon, but pellets already in flight keep travelling.
@@ -285,7 +287,9 @@ public abstract partial class Weapon
 				{
 					float remaining = pellet.PenetrationLimit - pellet.Travelled;
 					var limit = start + displacement.Normal * remaining;
-					if ( scene.Trace.Ray( limit, limit ).WithCollisionRules( "bullet" ).RunAll().Any( h => h.Shape == medium && h.StartedSolid ) )
+					bool inside = pellet.PenetratedWater.IsValid() ? pellet.PenetratedWater.Contains( limit )
+						: scene.Trace.Ray( limit, limit ).WithCollisionRules( "bullet" ).RunAll().Any( h => h.Shape == medium && h.StartedSolid );
+					if ( inside )
 					{
 						step *= remaining / distance;
 						displacement = limit - start;
@@ -302,7 +306,7 @@ public abstract partial class Weapon
 				var trace = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes();
 				var hit = trace.Run();
-				if ( pellet.PenetratedShape is {} penetrated )
+				if ( !pellet.PenetratedWater.IsValid() && pellet.PenetratedShape is {} penetrated )
 				{
 					if ( hit.Hit && hit.Shape == penetrated )
 						hit = trace.RunAll().FirstOrDefault( contact => contact.Shape != penetrated );
@@ -314,6 +318,8 @@ public abstract partial class Weapon
 					hit = trace.RunAll().FirstOrDefault( contact => !(contact.StartedSolid && contact.Shape == surface) );
 				}
 				pellet.BounceSurface = null;
+				if ( traceWater )
+					TraceWaterEntry( scene, start, start + sweep, pellet.PenetratedWater, ref hit );
 				if ( atRange && hit.Hit )
 				{
 					float remaining = Vector3.Dot( start + displacement - hit.HitPosition, displacement );
@@ -323,6 +329,11 @@ public abstract partial class Weapon
 				{
 					pellet.Offset += displacement;
 					pellet.Travelled += distance;
+					if ( pellet.PenetratedWater.IsValid() && !pellet.PenetratedWater.Contains( start + displacement ) )
+					{
+						pellet.PenetratedWater = null;
+						pellet.PenetratedShape = null;
+					}
 					if ( pellet.Exhaust.IsValid() )
 						pellet.Exhaust.AccelerationRange = profile is null ? 1 : ((pellet.Travelled - profile.StartDistance) * profile.InverseDistance).Clamp( 0, 1 );
 					if ( pellet.Body.IsValid() )
@@ -386,6 +397,7 @@ public abstract partial class Weapon
 						pellet.Travelled += hit.Distance;
 						pellet.Velocity *= 1 - rule.EntryFriction;
 						pellet.PenetratedShape = hit.Shape;
+						pellet.PenetratedWater = hit.Collider is { IsTrigger: true } ? hit.GameObject.GetComponentInParent<WaterBody>() : null;
 						pellet.PenetrationLimit = pellet.Travelled + rule.PenetrationDistance;
 						if ( pellet.Body.IsValid() ) MoveProjectileBody( pellet, hit.HitPosition );
 						(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, Alternate: alternate ) );
@@ -421,6 +433,34 @@ public abstract partial class Weapon
 		}
 	}
 
+	static void TraceWaterEntry( Scene scene, Vector3 start, Vector3 end, WaterBody current, ref SceneTraceResult hit )
+	{
+		foreach ( var candidate in scene.Trace.Ray( start, end ).WithTag( "water" ).HitTriggers().RunAll() )
+		{
+			if ( !candidate.Collider.IsValid() || !candidate.Collider.IsTrigger ) continue;
+			var water = candidate.GameObject.GetComponentInParent<WaterBody>();
+			if ( !water.IsValid() || water == current || water.Contains( start ) ) continue;
+			var entry = candidate;
+			if ( !water.Contains( entry.HitPosition ) )
+			{
+				// The trigger encloses the wave crests. Locate the fluid surface inside it.
+				if ( !water.Contains( end ) ) continue;
+				float dry = entry.Fraction, wet = 1;
+				while ( true )
+				{
+					float mid = (dry + wet) * 0.5f;
+					if ( mid == dry || mid == wet ) break;
+					if ( water.Contains( Vector3.Lerp( start, end, mid ) ) ) wet = mid;
+					else dry = mid;
+				}
+				entry.Fraction = wet;
+				entry.EndPosition = entry.HitPosition = Vector3.Lerp( start, end, wet );
+				water.SampleSurface( water.ToSurface( entry.HitPosition ), out entry.Normal );
+			}
+			if ( !hit.Hit || entry.Fraction < hit.Fraction ) hit = entry;
+		}
+	}
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayBounceSounds( string[] cues, Vector3 position )
 	{
@@ -444,13 +484,23 @@ public abstract partial class Weapon
 	static double SampleRange( Vector2 range, ref uint random ) => range.x == range.y ? range.x
 		: range.x + ((double)range.y - range.x) * (BlamRandom.Next( ref random ) * (double)(1f / 65535));
 
-	sealed class AttachedShard( string tag, float fuse, Vector3 position )
+	sealed class AttachedShard( string tag, float fuse, GameObject target, PhysicsBody body, Transform contact )
 	{
 		public readonly string Tag = tag;
 		public readonly float Fuse = fuse;
-		public Vector3 Position = position;
+		public readonly GameObject Target = target;
+		Transform targetLocal = target.WorldTransform.ToLocal( contact );
+		readonly Transform boneLocal = body.IsValid() ? body.Transform.ToLocal( contact ) : default;
 		public double Due = Time.NowDouble + fuse;
 		public bool Consumed;
+
+		public Transform GetContact()
+		{
+			if ( !body.IsValid() ) return Target.WorldTransform.ToWorld( targetLocal );
+			var current = body.Transform.ToWorld( boneLocal );
+			targetLocal = Target.WorldTransform.ToLocal( current );
+			return current;
+		}
 	}
 
 	static readonly System.Runtime.CompilerServices.ConditionalWeakTable<GameObject, List<AttachedShard>> attachedShards = new();
@@ -458,14 +508,14 @@ public abstract partial class Weapon
 	static bool TryCombine( List<AttachedShard> siblings, ShardDefinition shard, Scene scene, out Vector3 center )
 	{
 		center = Vector3.Zero;
-		int count = siblings.Count( s => !s.Consumed && s.Tag == shard.ProjectileTag );
+		int count = siblings.Count( s => !s.Consumed && s.Target.IsValid() && s.Tag == shard.ProjectileTag );
 		if ( shard.CombineCount <= 0 || count <= shard.CombineCount ) return false;
 		// The child list is newest first in Halo. Its oldest qualifying needles form the center.
 		ref uint random = ref BlamRandom.GameplayState( scene );
 		for ( int i = siblings.Count - 1; i >= 0; i-- )
 		{
 			var sibling = siblings[i];
-			if ( sibling.Consumed || sibling.Tag != shard.ProjectileTag ) continue;
+			if ( sibling.Consumed || !sibling.Target.IsValid() || sibling.Tag != shard.ProjectileTag ) continue;
 			if ( count-- > shard.CombineCount )
 			{
 				double elapsed = System.Math.Clamp( Time.NowDouble + sibling.Fuse - sibling.Due, 0, sibling.Fuse );
@@ -475,7 +525,7 @@ public abstract partial class Weapon
 			}
 			sibling.Consumed = true;
 			sibling.Due = Time.NowDouble + sibling.Fuse;
-			center += sibling.Position;
+			center += sibling.GetContact().Position;
 		}
 		center /= shard.CombineCount;
 		return true;
@@ -487,8 +537,6 @@ public abstract partial class Weapon
 		if ( !target.IsValid() ) { if ( pellet.Body.IsValid() ) pellet.Body.Destroy(); return; }
 		var body = hit.Hitbox?.Body;
 		var contact = new Transform( hit.HitPosition, Rotation.LookAt( hit.Direction ) );
-		var targetLocal = target.WorldTransform.ToLocal( contact );
-		var boneLocal = body.IsValid() ? body.Transform.ToLocal( contact ) : default;
 		var localNormal = contact.Rotation.Inverse * hit.Normal;
 		if ( pellet.Body.IsValid() )
 		{
@@ -506,20 +554,14 @@ public abstract partial class Weapon
 			sibling.Due = Time.NowDouble + sibling.Fuse;
 			reset++;
 		}
-		var needle = new AttachedShard( shard.ProjectileTag, pellet.FuseSeconds, contact.Position );
+		var needle = new AttachedShard( shard.ProjectileTag, pellet.FuseSeconds, target, body, contact );
 		siblings.Add( needle );
 		while ( target.IsValid() )
 		{
 			using ( scene.Push() )
 			{
-				if ( body.IsValid() )
-				{
-					contact = body.Transform.ToWorld( boneLocal );
-					targetLocal = target.WorldTransform.ToLocal( contact );
-					if ( pellet.Body.IsValid() ) pellet.Body.WorldTransform = contact;
-				}
-				else contact = target.WorldTransform.ToWorld( targetLocal );
-				needle.Position = contact.Position;
+				contact = needle.GetContact();
+				if ( body.IsValid() && pellet.Body.IsValid() ) pellet.Body.WorldTransform = contact;
 				if ( Time.NowDouble >= needle.Due )
 				{
 					if ( needle.Consumed ) break;
