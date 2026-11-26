@@ -85,7 +85,7 @@ internal sealed class CinematicEmitter
 		velocityZ = Channel( "Particle Velocity Scale", 1 );
 	}
 
-	internal void Play( Vector3 position, Rotation facing, GameObject parent )
+	internal void Play( Vector3 position, Rotation facing, GameObject parent, bool endless = false )
 	{
 		if ( sprite is null && normal is null && model is null ) return;
 		var emitter = new GameObject( false, name ) { NetworkMode = NetworkMode.Never };
@@ -127,7 +127,7 @@ internal sealed class CinematicEmitter
 			renderer = sprites;
 		}
 		renderer.Enabled = visibility.IsVisibleAt( 0 );
-		emitter.AddComponent<TemporaryEffect>().DestroyAfterSeconds = loop ? clipDuration : duration;
+		if ( !endless || !loop ) emitter.AddComponent<TemporaryEffect>().DestroyAfterSeconds = loop ? clipDuration : duration;
 		emitter.Enabled = true;
 
 		if ( !continuous ) Emit( count, 0 );
@@ -138,8 +138,13 @@ internal sealed class CinematicEmitter
 		particles.OnPreStep += dt =>
 		{
 			elapsed += dt;
+			if ( endless && parent.IsValid() )
+			{
+				facing = parent.WorldRotation;
+				direction = facing * rotation;
+			}
 			renderer.Enabled = visibility.IsVisibleAt( elapsed );
-			float end = loop ? clipDuration : duration;
+			float end = loop ? (endless ? float.PositiveInfinity : clipDuration) : duration;
 			float time = Math.Min( elapsed, end );
 			int total = continuous ? (int)(time * count) : loop && duration > 0 ? (int)(time / duration) : 0;
 			if ( total > scheduled ) Emit( continuous ? total - scheduled : count, time );

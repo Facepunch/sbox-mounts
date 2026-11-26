@@ -128,7 +128,11 @@ public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
 		if ( Networking.IsHost ) UpdateCamouflage( Time.Delta );
-		if ( !Application.IsDedicatedServer ) UpdateCloakMaterial();
+		if ( !Application.IsDedicatedServer )
+		{
+			UpdateCloakMaterial();
+			UpdateTrail();
+		}
 		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
 		if ( !Application.IsDedicatedServer )
 		{
@@ -175,6 +179,7 @@ public sealed partial class Drifter : Ns2Npc, Component.IDamageable
 	protected override void OnDisabled()
 	{
 		ClearCloakMaterial();
+		ClearTrail();
 		StopLoop();
 		base.OnDisabled();
 	}
