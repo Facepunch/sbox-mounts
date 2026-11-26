@@ -22,11 +22,20 @@ public sealed class SporeCloud : Component
 		cloud.emitDuration = duration;
 		cloud.spores = Particles.Emitter( go, "particle/fire", mount, true, false, cloud.trail ? 132 : 68 );
 		cloud.dust = Particles.Emitter( go, "particle/particle_noisesphere", mount, false, false, cloud.trail ? 17 : 9 );
-		if ( cloud.spores.IsValid() ) cloud.spores.Lifetime = 2;
-		if ( cloud.dust.IsValid() ) cloud.dust.Lifetime = 1;
+		Configure( cloud.spores, 2 );
+		Configure( cloud.dust, 1 );
 		cloud.age = 0;
 		go.Enabled = true;
 		return cloud;
+	}
+
+	static void Configure( ParticleEffect effect, float lifetime )
+	{
+		if ( !effect.IsValid() ) return;
+		effect.Lifetime = lifetime;
+		var renderer = effect.GetComponent<ParticleSpriteRenderer>( true );
+		renderer.CameraFadeNear = 64;
+		renderer.CameraFadeFar = 128;
 	}
 
 	internal void StopEmitting()
@@ -68,15 +77,13 @@ public sealed class SporeCloud : Component
 	void UpdateParticles( ParticleEffect effect, bool smoky )
 	{
 		if ( !effect.IsValid() ) return;
-		var camera = Scene.Camera?.WorldTransform;
 		foreach ( var p in effect.Particles )
 		{
 			var t = p.LifeDelta.Clamp( 0, 1 );
 			var alpha = smoky ? MathX.Lerp( 32, 64, p.Rand() ) : MathX.Lerp( 128, 255, p.Rand() );
 			var ramp = alpha / 255 * MathF.Sin( MathF.PI * t );
 			p.Color = (Tint * ramp).WithAlpha( 1 );
-			var depth = camera is { } view ? (p.Position - view.Position).Dot( view.Rotation.Forward ) : 128;
-			p.Alpha = ramp * ((depth - 64) / 64).Clamp( 0, 1 );
+			p.Alpha = ramp;
 			p.Size = smoky ? MathX.Lerp( 64, trail ? 96 : 128, t ) : MathX.Lerp( p.Rand() < 0.5f ? 2 : 4, 2, t );
 			if ( smoky ) p.Angles = p.Angles.WithRoll( p.Angles.roll + MathX.Lerp( -2, 2, p.Rand() ).RadianToDegree() * Time.Delta );
 			p.Velocity = (p.Velocity.Normal + Particles.InCube( 0.5f )).Normal * (p.Velocity.Length - 64 * Time.Delta);
