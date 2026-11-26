@@ -64,7 +64,7 @@ sealed class FrozenProps : Component
 		int count = 0;
 		foreach ( var body in bodies )
 		{
-			if ( !body.IsValid() || body.MotionEnabled || body.Tags.Has( PhysicsGun.UnfreezableTag ) || !PhysicsGun.CanMove( body, Network.Owner ) ) continue;
+			if ( !PhysicsGun.CanMove( body ) || body.MotionEnabled || body.Tags.Has( PhysicsGun.UnfreezableTag ) ) continue;
 			var target = PhysicsGun.EntityRoot( body );
 			bool allowed = true;
 			target.RunEvent<IPhysgunUnfreeze>( x => allowed &= x.CanUnfreeze( Network.Owner, body ) );

@@ -211,7 +211,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			var body = hit.GameObject?.GetComponentInParent<Rigidbody>();
 			Component target = (Component)body ?? hit.GameObject?.GetComponentInParent<Projectile>();
 			if ( !target.IsValid() || target.Tags.Has( DisabledTag ) || (Limited && target.Tags.Has( LimitedTag )) ) return;
-			if ( !CanMove( target, Network.Owner ) || (body.IsValid() && !body.PhysicsBody.IsValid()) ) return;
+			if ( !CanGrab( target, Network.Owner ) || (body.IsValid() && !body.PhysicsBody.IsValid()) ) return;
 
 			HeldTarget = target;
 			_previousMass = null;
@@ -318,9 +318,12 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		return target;
 	}
 
-	internal static bool CanMove( Component body, Connection grabber )
+	internal static bool CanMove( Component target ) =>
+		target.IsValid() && !target.IsProxy && !target.GetComponentInParent<PlayerController>().IsValid();
+
+	static bool CanGrab( Component body, Connection grabber )
 	{
-		if ( !body.IsValid() || body.IsProxy || body.GetComponentInParent<PlayerController>().IsValid() ) return false;
+		if ( !CanMove( body ) ) return false;
 		var grab = new IPhysgunEvent.GrabEvent { Grabber = grabber };
 		EntityRoot( body ).RunEvent<IPhysgunEvent>( x => x.OnPhysgunGrab( grab ) );
 		return !grab.Cancelled && body.IsValid();
