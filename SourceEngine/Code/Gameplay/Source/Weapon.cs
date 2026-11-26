@@ -157,10 +157,18 @@ public abstract class Weapon : BaseCombatWeapon
 	protected override bool OnAdding( BaseInventoryComponent inventory )
 	{
 		WeaponSetup.ConfigureAmmo( this );
+		var sandboxAmmo = Game.Ident == "facepunch.sandbox" && MountContent.OfWeapon( this ) is "hl2" or "gmod";
+		if ( sandboxAmmo && GarrysMod.Ammo.MaxAmmo <= 0 && (UsesClips ? Clip1 : StartingAmmo) == 0 )
+		{
+			// An empty duplicate stays in the world when native carry limits are in use.
+			return !inventory.Items.Any( item => item != this && item.GetType() == GetType()
+				&& item.GameObject.PrefabInstanceSource == GameObject.PrefabInstanceSource );
+		}
+
 		if ( base.OnAdding( inventory ) ) return true;
 
-		// Sandbox consumes a world duplicate even when that weapon carries no ammunition.
-		if ( Inventory is null && !UsesAmmo && PrimaryAmmoType is null && MountContent.OfWeapon( this ) == "hl2" )
+		// With the Sandbox override, touching a duplicate consumes it even at full reserve.
+		if ( sandboxAmmo && GarrysMod.Ammo.MaxAmmo > 0 && Inventory is null && !GameObject.IsDestroyed )
 			GameObject.Destroy();
 		return false;
 	}
