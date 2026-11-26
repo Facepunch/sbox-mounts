@@ -126,7 +126,7 @@ public sealed partial class Gorge
 			if ( offset.LengthSquared >= range * range && WallBetween( eye, c.WorldPosition ) ) continue;
 			if ( Friendly( c ) )
 				Restore( c );
-			else if ( GetDisposition( c.GameObject ) == Disposition.Hostile && !c.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit", "structure" ) &&
+			else if ( GetDisposition( c.GameObject ) == Disposition.Hostile && !c.GameObject.Tags.HasAny( "ns2_exosuit", "structure" ) &&
 				(c is BaseNpc || c.GetComponentInParent<PlayerController>().IsValid()) )
 			{
 				var damage = new DamageInfo { Damage = 8, Origin = eye, Position = c.WorldPosition, Attacker = GameObject, Weapon = GameObject };

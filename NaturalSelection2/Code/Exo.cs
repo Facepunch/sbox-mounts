@@ -346,5 +346,6 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	{
 		float ratio = AlienArmor.HealthPerArmor( hit.DamageInfo );
 		hit.AcceptedDamage = ratio > 0 && !hit.DamageInfo.Tags.Has( "biological" ) ? hit.AcceptedDamage * MaxHealth / (ratio * ArmorCapacity) : 0;
+		if ( hit.AcceptedDamage <= 0 ) hit.Cancelled = true;
 	}
 }

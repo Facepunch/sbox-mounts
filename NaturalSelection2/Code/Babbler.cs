@@ -307,6 +307,7 @@ public sealed partial class Babbler : BaseNpc
 			e.AcceptedDamage += SupportDamage.ClusterBurnDamage;
 		else if ( tags.Has( "flame" ) )
 			e.AcceptedDamage *= 2.5f;
+		if ( e.AcceptedDamage <= 0 ) e.Cancelled = true;
 		base.OnDamaging( e );
 	}
 

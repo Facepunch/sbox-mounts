@@ -29,6 +29,7 @@ internal static class SupportDamage
 			damage *= 0.8f;
 
 		var (ratio, fraction) = ArmorRule( hit.DamageInfo, victim );
+		if ( damage <= 0 || (fraction == 1 && armor <= 0) ) hit.Cancelled = true;
 		hit.AcceptedDamage = fraction == 1 ? 0 : damage - Math.Min( armor * ratio, damage * fraction );
 	}
 
