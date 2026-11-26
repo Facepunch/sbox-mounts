@@ -47,6 +47,8 @@ public sealed partial class RabbitGuard
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
+		alignmentOffset = Vector3.Zero;
+		alignmentYaw = 0f;
 		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this, struggleVelocity );
 		victim.QueueThrowDamage( this );
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
@@ -130,6 +132,13 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		if ( Held || Stance != CutFromHold ) recentChoke = 0.5f;
+		if ( Stance == CutInHold )
+		{
+			// Execute queues the defender's reader on its next native frame.
+			float elapsed = (float)SinceGrab - cutStartTick * HoldStep;
+			ReactionPhase = Math.Clamp( elapsed / CaptureClip.Duration, 0f, 1f );
+			return;
+		}
 		if ( !Holding ) return;
 		var victim = holdPartner;
 		var separation = victim.WorldPosition - WorldPosition;
@@ -155,9 +164,8 @@ public sealed partial class RabbitGuard
 		}
 		if ( Stance == CutFromHold )
 		{
-			float elapsed = (float)SinceGrab - (victim.cutStartTick - 0.5f) * HoldStep;
+			float elapsed = (float)SinceGrab - (cutStartTick - 0.5f) * HoldStep;
 			ReactionPhase = Math.Min( 1f, elapsed / reactionDuration );
-			victim.ReactionPhase = Math.Min( 1f, elapsed / victim.CaptureClip.Duration );
 			if ( boundAnimations.Clips[CutFromHold].CutTime is { } cut && elapsed >= cut ) FinishCut( victim );
 		}
 	}
@@ -166,10 +174,13 @@ public sealed partial class RabbitGuard
 	{
 		Stance = CutFromHold;
 		victim.Stance = CutInHold;
-		victim.cutStartTick = holdTick;
+		cutStartTick = victim.cutStartTick = holdTick;
 		victim.nextCaptureTick = holdTick + 1;
 		reactionDuration = boundAnimations.Clips[CutFromHold].Duration;
 		ReactionPhase = victim.ReactionPhase = 0f;
+		// The defender may already have submitted its parameters for this scene update.
+		victim.Renderer.Animation.Parameters.Set( "stance", CutInHold );
+		victim.Renderer.Animation.Parameters.Set( "reaction_phase", 0f );
 		if ( CharacterLoader.FromModel( victim.Renderer.Model ) is { } character )
 		{
 			var faces = character.Surface.CutFaces( victim.Renderer, Vector3.Up, PrimaryItem.PhysicsPosition, -WorldRotation.Forward );
@@ -195,11 +206,14 @@ public sealed partial class RabbitGuard
 				AdvanceHoldEntry();
 				victim.AdvanceHoldEntry();
 			}
+			if ( Stance == ArmedGrab ) AdvanceArmedGrab();
 			victim.AdvanceCaptureAlignment( holdTick );
 			victim.DropHandItem();
 			if ( !struggle )
 			{
-				if ( holdTick >= 7 && Stance != CutFromHold ) BeginCut( victim );
+				// Ground controls start the cut one update after EndAttack. The defender
+				// consumes the outgoing capture motion before switching its reader.
+				if ( holdTick >= 8 && Stance != CutFromHold ) BeginCut( victim );
 				continue;
 			}
 			victim.KnockoutShield = 0;
@@ -220,6 +234,18 @@ public sealed partial class RabbitGuard
 
 	void ApplyChokeDamage( RabbitGuard victim, float rate ) =>
 		((IDamageable)victim).OnDamage( new HoldDamage { Attacker = GameObject, Position = victim.WorldPosition, Damage = 100f * rate * HoldStep } );
+
+	void AdvanceArmedGrab()
+	{
+		// The mobile attack fades in at 20 over the capture stance, which started one
+		// four-frame character update earlier and is itself fading in at 5.
+		var clip = CaptureClip;
+		float time = (holdTick - 0.5f) * HoldStep;
+		float weight = Math.Min( 1f, time * 20f ) * Math.Min( 1f, (time + 4f / 120f) * 5f );
+		var from = holdTick == 1 ? global::Transform.Zero : clip.Animation.GetRootMotion( (time - HoldStep) * AttackSpeed / clip.Duration );
+		var to = clip.Animation.GetRootMotion( time * AttackSpeed / clip.Duration );
+		ApplyPairedRootMotion( from, to, weight );
+	}
 
 	// Attack and hit-reaction states apply ground friction before integrating velocity.
 	void AdvanceHoldEntry()
