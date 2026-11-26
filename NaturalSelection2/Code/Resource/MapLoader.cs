@@ -13,6 +13,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	string FilePath { get; } = filePath;
 
 	internal const float Scale = 40.0f;
+	const string DoorLeafTag = "ns2_door_leaf";
 
 	readonly List<Model> renderModels = [];
 	readonly HashSet<PhysicsGroupDescription> physicsResources = [];
@@ -34,6 +35,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		var nav = root.Scene.NavMesh;
 		nav.IsEnabled = true;
 		nav.GenerateLinks = true;
+		nav.ExcludedBodies.Add( DoorLeafTag );
 		nav.AgentHeight = 2 * Scale;
 		nav.AgentRadius = 0.6f * Scale;
 		nav.AgentStepSize = 0.9f * Scale;
@@ -403,7 +405,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 			renderer.Sequence.Name = "opened";
 			renderer.Sequence.Looping = false;
 			go.Tags.Add( "world" );
-			AddAnimatedMapCollision( renderer );
+			AddAnimatedMapCollision( renderer, movingBoneTag: DoorLeafTag );
 			go.AddComponent<MapDoor>().Renderer = renderer;
 			return;
 		}
@@ -533,7 +535,7 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 	}
 
 	// These hulls follow the animation. Giving the bones rigidbodies would let the physgun unfreeze them.
-	static void AddAnimatedMapCollision( SkinnedModelRenderer renderer )
+	static void AddAnimatedMapCollision( SkinnedModelRenderer renderer, string movingBoneTag = null )
 	{
 		var model = renderer.Model;
 		if ( model.Physics is null ) return;
@@ -543,6 +545,9 @@ class MapLoader( string filePath ) : SceneLoader<GameMount>
 		{
 			var bone = model.Bones.GetBone( part.BoneName );
 			var target = bone is null ? renderer.GameObject : bones[bone];
+			// The door frame belongs to the root bone. Only the sliding leaves should be ignored by navigation.
+			if ( movingBoneTag is not null && bone?.Parent is not null )
+				target.Tags.Add( movingBoneTag );
 			foreach ( var hull in part.Hulls )
 			{
 				var collider = target.AddComponent<HullCollider>();
