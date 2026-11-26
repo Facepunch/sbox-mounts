@@ -38,6 +38,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 			HolderAnimator?.ConfigureWeapon( AnimationClass, AnimationType );
 		base.OnEquipped();
 		if ( !IsValid || Holder is not PlayerController || !IsActive ) return;
+		// The new weapon can melee during its draw, subject to the wielder's strike recovery.
+		SetNextSecondaryFire( 0 );
 		if ( FirstPersonAnimations()?.Actions.TryGetValue( "ready", out var clip ) == true )
 		{
 			PrimaryReadyAt = (System.Math.Floor( Time.NowDouble * 30 ) + ReleaseFrame( clip )) / 30;

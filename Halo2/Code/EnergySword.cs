@@ -149,6 +149,8 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 	{
 		readyAt = CooldownSeconds( (int)System.MathF.Round( DeployTime * 30 ) );
 		base.OnEquipped();
+		if ( !IsValid || !IsActive ) return;
+		if ( Holder is PlayerController ) SetNextPrimaryFire( 0 );
 		if ( !Application.IsDedicatedServer && Powered && viewBlade.IsValid() )
 			EmitMuzzleFlash( ReadyParticles, viewRenderer: viewBlade );
 	}
