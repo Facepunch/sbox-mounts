@@ -18,7 +18,7 @@ public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, f
 }
 
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
-	BlastDamage AttachedDamage, string ProjectileTag, int CombineCount, BlastDamage CombinedDamage, BlastDamage CombinedBlast, string CombinedEffect )
+	BlastDamage AttachedDamage, BlastDamage DetonationDamage, string ProjectileTag, int CombineCount, BlastDamage CombinedDamage, BlastDamage CombinedBlast, string CombinedEffect )
 {
 	public string DetonationEffect { get; init; }
 }
@@ -596,12 +596,17 @@ public abstract partial class Weapon
 					hit.StartPosition = hit.HitPosition = combined ? center : contact.Position;
 					hit.Direction = contact.Rotation.Forward;
 					hit.Normal = contact.Rotation * localNormal;
-					var direct = combined ? shard.CombinedDamage : shard.AttachedDamage;
-					float damage = direct.Maximum * BodyMaterial.DamageScale( hit, direct.BodyScales, true );
 					string path = combined ? shard.CombinedEffect : shard.DetonationEffect;
 					if ( path is not null ) PresentDetonation( path, target, hit.HitPosition, hit.Normal, hit.Direction );
-					ApplyDelayedHit( hit, damage, direct.Acceleration, attacker, new TagSet { "explosion" }, false );
-					if ( combined ) Detonate( scene, shard.CombinedBlast, center, hit.Normal, attacker );
+					void DamageAttachedTarget( BlastDamage effect )
+					{
+						float damage = effect.Maximum * BodyMaterial.DamageScale( hit, effect.BodyScales, true );
+						ApplyDelayedHit( hit, damage, effect.Acceleration, attacker, new TagSet { "explosion" }, false );
+					}
+					DamageAttachedTarget( combined ? shard.CombinedDamage : shard.AttachedDamage );
+					var blast = combined ? shard.CombinedBlast : shard.DetonationDamage;
+					if ( blast is { OuterRadius: > 0 } ) Detonate( scene, blast, hit.HitPosition, hit.Normal, attacker );
+					else if ( blast is not null && target.IsValid() ) DamageAttachedTarget( blast );
 					break;
 				}
 			}

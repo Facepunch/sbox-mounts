@@ -343,7 +343,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		{
 			gun.Shard = new( new Vector2( Float( projectile + 0x184 ), Float( projectile + 0x188 ) ),
 				Float( Header + 0x208 ), Float( Header + 0x20c ) * 120, new Vector2( Float( projectile + 0xd4 ), Float( projectile + 0xd8 ) ),
-				ReadBlast( Reference( projectile + 0x108 ) ), Reference( barrel + 0x8c ).TagPath,
+				ReadBlast( Reference( projectile + 0x108 ) ), ReadBlast( Reference( projectile + 0x100 ) ), Reference( barrel + 0x8c ).TagPath,
 				Short( projectile + 0xe6 ), ReadBlast( Reference( projectile + 0x12c ) ), ReadBlast( Reference( projectile + 0x118 ) ),
 				Host.AssetPath( map, Reference( projectile + 0x110 ).TagPath, "prefab" ) );
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
