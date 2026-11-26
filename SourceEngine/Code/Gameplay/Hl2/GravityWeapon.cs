@@ -37,6 +37,7 @@ public sealed class GravityWeapon : Weapon
 	readonly List<(Rigidbody Body, float MassOverride, float AngularDamping)> _carriedBodies = [];
 	float _loadWeight;
 	Vector3 _carryTarget;
+	Vector3 _carryCenterOffset;
 	Rotation _holdOffset;
 	float? _launchSpin;
 	float _carryError;
@@ -321,10 +322,15 @@ public sealed class GravityWeapon : Weapon
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
 		ApplyCarryPhysics( body );
-		var interactions = body.GetComponent<ModelRenderer>()?.Model?.GetData<PhysGunInteractions>();
+		var model = body.GetComponent<ModelRenderer>()?.Model ?? body.GetComponent<ModelCollider>()?.Model;
+		// Ragdolls are grabbed at the selected physics body's origin.
+		_carryCenterOffset = body.GetComponentInParent<ModelPhysics>() is not null ? Vector3.Zero
+			: model is not null ? model.Bounds.Center * body.WorldScale
+			: body.WorldRotation.Inverse * (body.PhysicsBody.GetBounds().Center - body.PhysicsBody.Position);
+		var interactions = model?.GetData<PhysGunInteractions>();
 		_holdOffset = interactions?.PreferredCarryAngles is { } angles ? Rotation.From( angles ) : Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
 		_launchSpin = interactions?.LaunchSpin;
-		_carryTarget = body.PhysicsBody.MassCenter;
+		_carryTarget = body.PhysicsBody.Position;
 		_carryGrace = 1;
 		_carryError = 0;
 		_carryTurnRate = 0;
@@ -358,7 +364,7 @@ public sealed class GravityWeapon : Weapon
 		if ( !CanMove( body ) || IsStandingOn( body ) ) return false;
 		if ( _carryGrace > 0 ) return true;
 
-		var error = body.PhysicsBody.MassCenter.Distance( _carryTarget );
+		var error = body.PhysicsBody.Position.Distance( _carryTarget );
 		// The grab controller discounts errors beyond its 2500 units/s tracking speed.
 		if ( error > MaxCarrySpeed * Time.Delta ) error *= 0.5f;
 		_carryError = float.Lerp( _carryError, error, MathF.Min( Time.Delta, 1 ) );
@@ -388,13 +394,14 @@ public sealed class GravityWeapon : Weapon
 		var axis = Owner.WorldPosition.WithZ( target.z );
 		var offset = target - axis;
 		if ( offset.LengthSquared < radius * radius ) target = axis + offset.Normal * radius;
-		_carryTarget = target;
-		MoveCarriedBody( body, target, eye.Rotation * _holdOffset );
+		var orientation = eye.Rotation * _holdOffset;
+		_carryTarget = target - orientation * _carryCenterOffset;
+		MoveCarriedBody( body, _carryTarget, orientation );
 	}
 
 	void MoveCarriedBody( Rigidbody body, Vector3 target, Rotation orientation )
 	{
-		var velocity = CarryVelocity( body.Velocity, target - body.PhysicsBody.MassCenter, MaxCarrySpeed, MaxCarrySpeed * 2 );
+		var velocity = CarryVelocity( body.Velocity, target - body.PhysicsBody.Position, MaxCarrySpeed, MaxCarrySpeed * 2 );
 		var contact = Scene.Trace.Body( body, body.PhysicsBody.Position + velocity * Time.Delta )
 			.IgnoreGameObjectHierarchy( HeldObject ).WithoutTags( "trigger" ).Run();
 		var other = contact.GameObject?.GetComponentInParent<Rigidbody>();
