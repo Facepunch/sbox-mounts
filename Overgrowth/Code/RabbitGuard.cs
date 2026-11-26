@@ -135,7 +135,12 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
 		}
-		else if ( (!UsesCombatIK && Stance is not (Threat or Idle or Ready or Watch or Locomotion)) || !HasGroundSupport ) plantedLegs = false;
+		else if ( !OnLedge )
+		{
+			// Ledge grips drive the stance solver continuously while both feet are off the ground.
+			if ( !HasGroundSupport || !UsesCombatIK && Stance is not (Threat or Idle or Ready or Watch or Locomotion) )
+				plantedLegs = false;
+		}
 		if ( Health < 1 || !Renderer.IsValid() || Renderer.Model is null ) return;
 		if ( !BindAnimations() ) return;
 		if ( Networking.IsHost )

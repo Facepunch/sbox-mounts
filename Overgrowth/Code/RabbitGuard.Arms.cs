@@ -137,7 +137,12 @@ public sealed partial class RabbitGuard
 			}
 			var mid = arm.Elbow;
 			var end = arm.Wrist;
-			if ( armsActive && remainder > 0f && dt > 0f )
+			if ( weight == 1f )
+			{
+				mid = elbow;
+				end = wrist;
+			}
+			else if ( armsActive && remainder > 0f && dt > 0f )
 			{
 				// Simulate expects targets at the end of a full tick, including the part after this frame.
 				float ahead = (tick - remainder) / dt;
