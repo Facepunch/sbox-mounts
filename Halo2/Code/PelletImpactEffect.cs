@@ -9,12 +9,33 @@ public sealed partial class PelletImpactEffect : Component
 	public sealed record DecalProjection( string Marker, Vector2 Distance, float Cone );
 
 	public sealed record ImpactDecal( string Tag, string Name, string TexturePath, Vector2 Modifier, Vector2 Radius,
-		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, float Lifetime, ParticleGradient Tint )
+		Vector2[] Sizes, Vector2[] Centers, int MaxOverlap, float RejectionDistance, Vector2 Lifetime, Vector2 Decay, Color LowerColor, Color UpperColor )
 	{
 		public DecalProjection Projection { get; set; }
+		public ImpactDecal Next { get; set; }
 		public int Layer { get; set; } = 2;
 		DecalDefinition definition;
-		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1, BlendMode = Sandbox.Rendering.DecalBlendMode.Multiply };
+		internal DecalDefinition Material => definition ??= new DecalDefinition
+		{
+			ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1,
+			// Double modulation leaves sRGB midgray neutral in the decoded texture.
+			Tint = Layer == 2 ? new Color( 1f / System.MathF.Pow( (0.5f + 0.055f) / 1.055f, 2.4f ) ) : Color.White,
+			BlendMode = Layer >= 4 ? Sandbox.Rendering.DecalBlendMode.Additive : Sandbox.Rendering.DecalBlendMode.Multiply
+		};
+
+		ParticleFloat? fixedOpacity;
+		internal ParticleFloat Opacity( float lifetime, float decay )
+		{
+			if ( fixedOpacity is {} cached ) return cached;
+			if ( lifetime <= 0 || decay <= 0 ) return 1;
+			float start = (1 - decay / lifetime).Clamp( 0, 1 );
+			var first = new Curve.Frame( 0, (lifetime / decay).Clamp( 0, 1 ) ) { Mode = Curve.HandleMode.Linear };
+			var last = new Curve.Frame( 1, 0 ) { Mode = Curve.HandleMode.Linear };
+			var opacity = new ParticleFloat { Type = ParticleFloat.ValueType.Curve, CurveA = start == 0 ? new Curve( first, last )
+				: new Curve( first, new Curve.Frame( start, 1 ) { Mode = Curve.HandleMode.Linear }, last ) };
+			if ( Lifetime.x == Lifetime.y && Decay.x == Decay.y ) fixedOpacity = opacity;
+			return opacity;
+		}
 	}
 
 	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness )
@@ -201,9 +222,17 @@ public sealed partial class PelletImpactEffect : Component
 
 	void PlaceMark( ImpactDecal data, GameObject parent, Vector3 point, Vector3 normal )
 	{
-		float Fraction() => BlamRandom.Next( ref decalSeed ) * (1f / 65535f);
-		float Sample( Vector2 range ) => range.x + (range.y - range.x) * Fraction();
-		float modifier = data.Modifier.x == data.Modifier.y ? data.Modifier.x : Sample( data.Modifier );
+		float modifier = Range( data.Modifier );
+		for ( ; data is not null; data = data.Next )
+			if ( !PlaceLayer( data, parent, point, normal, modifier ) ) break;
+	}
+
+	static float Fraction() => BlamRandom.Next( ref decalSeed ) * (1f / 65535f);
+	static float Range( Vector2 range ) => range.x == range.y ? range.x : Sample( range );
+	static float Sample( Vector2 range ) => range.x + (range.y - range.x) * Fraction();
+
+	static bool PlaceLayer( ImpactDecal data, GameObject parent, Vector3 point, Vector3 normal, float modifier )
+	{
 		if ( data.MaxOverlap > 0 )
 		{
 			int overlaps = 0;
@@ -212,7 +241,7 @@ public sealed partial class PelletImpactEffect : Component
 				if ( existing.Tag != data.Tag ) continue;
 				float distance = existing.Radius + data.RejectionDistance;
 				if ( existing.WorldTransform.PointToWorld( existing.Contact ).DistanceSquared( point ) > distance * distance ) continue;
-				if ( ++overlaps >= data.MaxOverlap ) return;
+				if ( ++overlaps >= data.MaxOverlap ) return false;
 			}
 		}
 
@@ -227,8 +256,10 @@ public sealed partial class PelletImpactEffect : Component
 		bool sheet = definition.ColorTexture.SequenceCount > 0;
 		int sequence = sheet ? ((int)BlamRandom.Next( ref decalSeed ) * (data.Sizes.Length - 1)) >> 16 : 0;
 		float radius = Sample( data.Radius ) * (modifier == 0 ? 1 : modifier);
-		// The color draw advances the stream even for these fixed white decal tints.
-		Fraction();
+		if ( radius <= 0 ) return false;
+		float lifetime = Range( data.Lifetime );
+		float decay = Range( data.Decay );
+		var tint = Color.Lerp( data.LowerColor, data.UpperColor, Fraction() );
 		var mark = new GameObject( parent, false, data.Name );
 		mark.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
 		var center = data.Centers[sequence] * radius;
@@ -244,11 +275,13 @@ public sealed partial class PelletImpactEffect : Component
 		decal.SequenceId = (uint)sequence;
 		decal.Size = data.Sizes[sequence] * radius;
 		decal.Rotation = 0;
-		decal.LifeTime = data.Lifetime;
-		decal.ColorTint = data.Tint;
+		decal.LifeTime = lifetime;
+		decal.ColorMix = data.Opacity( lifetime, decay );
+		decal.ColorTint = tint;
 		decal.SortLayer = (uint)data.Layer;
 		mark.AddComponent<TemporaryEffect>();
 		mark.Enabled = true;
+		return true;
 	}
 }
 

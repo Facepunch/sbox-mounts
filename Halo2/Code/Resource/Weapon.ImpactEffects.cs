@@ -224,11 +224,9 @@ internal abstract partial class WeaponLoader
 	ImpactDecal ReadContactMark( TagEntry contact, int part )
 	{
 		if ( Reference( part + 12 ) is not { PrimaryClass: "aced" } tag ) return default;
-		int header = Address( tag );
-		int layer = Short( header + 4 );
-		if ( layer is not (2 or 3) || Reference( header + 8 ) is not null ) return default;
+		int layer = Short( Address( tag ) + 4 );
 		DecalProjection projection = null;
-		if ( layer == 3 )
+		if ( layer is 3 or 4 )
 		{
 			int locations = Address( contact ) + 12;
 			int index = Short( part + 4 );
@@ -237,6 +235,29 @@ internal abstract partial class WeaponLoader
 			if ( marker is not ("forward" or "gravity") ) return default;
 			projection = new DecalProjection( marker, new Vector2( Float( part + 20 ), Float( part + 24 ) ) * 120, Float( part + 28 ) );
 		}
+		var modifier = new Vector2( Float( part + 40 ), Float( part + 44 ) );
+		ImpactDecal first = null, last = null;
+		HashSet<TagEntry> visited = null;
+		while ( tag?.PrimaryClass == "aced" )
+		{
+			int header = Address( tag );
+			var next = Reference( header + 8 );
+			if ( next is not null && !(visited ??= new()).Add( tag ) ) break;
+			if ( Short( header + 4 ) is >= 2 and <= 5 && ReadDecalLayer( tag, header, modifier ) is {} mark )
+			{
+				if ( last is null ) first = mark;
+				else last.Next = mark;
+				last = mark;
+			}
+			tag = next;
+		}
+		if ( first is not null ) first.Projection = projection;
+		return first;
+	}
+
+	ImpactDecal ReadDecalLayer( TagEntry tag, int header, Vector2 modifier )
+	{
+		int layer = Short( header + 4 );
 		if ( Reference( header + 136 ) is not {} bitmap ) return default;
 		int sequences = Address( bitmap ) + 60;
 		int count = map.ReadInt32( sequences );
@@ -260,19 +281,12 @@ internal abstract partial class WeaponLoader
 				centers[i] = (bounds.Size * 0.5f - new Vector2( Float( sprite + 24 ), Float( sprite + 28 ) )) * scale;
 			}
 		}
-		float lifetime = Float( header + 52 );
-		// Retail's double modulation leaves midgray neutral. The decal sampler decodes sRGB.
-		float gain = layer == 2 ? MathF.Pow( (0.5f + 0.055f) / 1.055f, -2.4f ) : 1f;
-		var modulation = new Color( gain, gain, gain, 1 );
-		var tint = new ParticleGradient
-		{
-			Type = ParticleGradient.ValueType.Gradient,
-			GradientA = new Gradient( new Gradient.ColorFrame( 0, modulation ), new Gradient.ColorFrame( 1 - Float( header + 60 ) / lifetime, modulation ),
-				new Gradient.ColorFrame( 1, modulation.WithAlpha( 0 ) ) )
-		};
+		Color ColorAt( int i ) => new( Float( header + i ), Float( header + i + 4 ), Float( header + i + 8 ) );
 		float rejection = Float( header + 24 );
 		return new ImpactDecal( tag.TagPath, tag.TagPath.Split( '\\' )[^1], path,
-			new Vector2( Float( part + 40 ), Float( part + 44 ) ), new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
-			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection), lifetime, tint ) { Projection = projection, Layer = layer };
+			modifier, new Vector2( Float( header + 16 ), Float( header + 20 ) ) * 120,
+			sizes, centers, Short( header + 6 ), Float( header + 20 ) * 120 * (rejection == 0 ? 1 : rejection),
+			new( Float( header + 52 ), Float( header + 56 ) ), new( Float( header + 60 ), Float( header + 64 ) ),
+			ColorAt( 28 ), ColorAt( 40 ) ) { Layer = layer };
 	}
 }
