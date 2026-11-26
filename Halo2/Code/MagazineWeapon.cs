@@ -221,8 +221,11 @@ public class MagazineWeapon : Firearm
 		if ( Networking.IsHost && !IsHeld ) UpdateLooseMagazine();
 		if ( IsReloading && transferAt is double due && Time.NowDouble >= due )
 			TransferMagazine();
-		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
-			FirePrimary( burstAttacker );
+		// A slow frame can cross more than one scheduled round of the same burst.
+		while ( remainingShots > 0 && NextPrimaryFire <= 0 )
+		{
+			if ( !FirePrimary( burstAttacker ) ) break;
+		}
 		if ( IsReloading ) emptyRoundAt = null;
 		if ( IsProxy && !(Networking.IsHost && emptyRoundAt.HasValue) ) return;
 		if ( !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;

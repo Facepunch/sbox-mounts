@@ -48,6 +48,7 @@ public abstract partial class Weapon
 		putAwayFrames = frames;
 		releaseFrame = release;
 		putAwayAt = System.Math.Floor( Time.NowDouble * 30 ) / 30;
+		if ( !IsProxy ) SetZoom( 0 );
 		PlayPutAway();
 		HolderAnimator?.SampleWeaponOverlay( "put_away", 0 );
 	}

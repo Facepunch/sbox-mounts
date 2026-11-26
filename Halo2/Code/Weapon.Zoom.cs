@@ -35,7 +35,7 @@ public abstract partial class Weapon : Component.IDamageable.IEvents
 		if ( pressed || (!string.IsNullOrWhiteSpace( ZoomKey ) && Input.Keyboard.Pressed( ZoomKey )) ) CycleZoom();
 	}
 
-	protected virtual bool CanZoom => !IsDualWielding && !IsReloading && !MeleeActive;
+	protected virtual bool CanZoom => CanUseHeldWeapon && !IsDualWielding && !IsReloading && !MeleeActive;
 
 	public void CycleZoom()
 	{
