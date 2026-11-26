@@ -233,12 +233,19 @@ static class WeaponEffects
 		Hl2.FlatQuad.Create( "effects/yellowflare", origin, normal, Game.Random.Int( 24, 28 ), 0, 0.1f, mount, linear: true );
 	}
 
+	internal static Transform DecalTransform( GameObject target, Vector3 position, Vector3 normal )
+		=> target.WorldTransform.ToLocal( new Transform( position, Rotation.LookAt( -normal, Vector3.Random ) ) );
+
 	internal static void PlaceDecal( GameObject prefab, GameObject target, Vector3 position, Vector3 normal )
 	{
+		if ( target.IsValid() ) PlaceDecal( prefab, target, DecalTransform( target, position, normal ) );
+	}
+
+	internal static void PlaceDecal( GameObject prefab, GameObject target, Transform local )
+	{
 		if ( !prefab.IsValid() || !target.IsValid() ) return;
-		var mark = prefab.Clone( new CloneConfig { Transform = new Transform( position, Rotation.LookAt( -normal, Vector3.Random ) ), StartEnabled = true } );
+		var mark = prefab.Clone( local, target );
 		mark.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
-		mark.SetParent( target, true );
 	}
 
 	/// <summary>Source surfaceprops by name: alien, antlion and zombie flesh bleed yellow, other flesh red.</summary>

@@ -390,7 +390,23 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 		Hull.Enabled = false;
 		// Damage can arrive between fixed updates. Use the simulation position for the blast.
 		Transform.ClearInterpolation();
+		var mark = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity.Normal * 60 )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "playercontroller" ).UseHitboxes().Run();
+		if ( mark.Hit && !mark.HasTag( "source1_sky" ) && mark.GameObject.IsValid() && mark.GameObject.GetComponentInParent<BaseNpc>() is null )
+		{
+			var world = mark.Collider is PhysicsCollider && mark.HasTag( "world" ) && !mark.GameObject.Tags.Has( "source1_entity" );
+			Scorch( mark.GameObject, WeaponEffects.DecalTransform( mark.GameObject, mark.HitPosition, mark.Normal ), MountName, world );
+		}
 		Explode();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void Scorch( GameObject target, Transform local, string mount, bool world )
+	{
+		if ( Application.IsDedicatedServer || !target.IsValid() ) return;
+		var group = world ? "scorch" : "smallscorch";
+		var prefab = GameObject.GetPrefab( $"mount://{mount}/decals/{mount}_{group}.prefab" );
+		WeaponEffects.PlaceDecal( prefab, target, local );
 	}
 }
 
