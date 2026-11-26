@@ -304,6 +304,16 @@ public abstract class Weapon : BaseCombatWeapon
 	/// </summary>
 	protected virtual void OnViewModelPlaced( ViewModel model ) { }
 
+	protected static Surface ImpactSurface( in SceneTraceResult hit )
+	{
+		var surface = hit.Collider is PhysicsCollider && hit.Shape is { IsHullShape: true } hull
+			? hull.Surface ?? hit.Surface : hit.Surface;
+		// Live colliders can retain a mounted surface across a content reload.
+		if ( !surface.IsValid() && surface?.ResourcePath is { } path )
+			return GameResource.Load<Surface>( path );
+		return surface;
+	}
+
 	protected void SurfaceImpact( in ShotEffect shot, string mount )
 	{
 		var direction = GetShotDirection( shot );

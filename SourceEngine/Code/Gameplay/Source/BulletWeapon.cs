@@ -655,7 +655,7 @@ public sealed class BulletWeapon : Weapon
 			for ( int i = 0; i < hits.Length; i++ )
 			{
 				var tr = hits[i];
-				effects[i] = new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface, NoEvents: i > 0 );
+				effects[i] = new ShotEffect( tr.EndPosition, tr.Hit, tr.Normal, tr.GameObject, ImpactSurface( tr ), NoEvents: i > 0 );
 			}
 			return effects;
 		}

@@ -13,8 +13,9 @@ static partial class WeaponEffects
 		var surface = shot.Surface;
 		var blood = BloodParticle( surface );
 		var debris = surface.AudioSurface is AudioSurface.Wood or AudioSurface.Concrete or AudioSurface.Ceramic;
+		var soil = surface.AudioSurface is AudioSurface.Soil or AudioSurface.Sand;
 		if ( blood is not null && !MountedEffects.Prefab( blood, mount ).IsValid() ) return false;
-		if ( blood is null && !debris && surface.AudioSurface != AudioSurface.Metal ) return false;
+		if ( blood is null && !debris && !soil && surface.AudioSurface != AudioSurface.Metal ) return false;
 		var baseSurface = surface.GetBaseSurface();
 		var sound = surface.SoundCollection.Bullet ?? baseSurface?.SoundCollection.Bullet;
 		if ( sound.IsValid() ) Sound.Play( sound, shot.HitPosition );
@@ -22,6 +23,8 @@ static partial class WeaponEffects
 		PlaceDecal( decal, shot.HitObject, shot.HitPosition, shot.Normal );
 		if ( blood is not null )
 			MountedEffects.Spawn( blood, new Transform( shot.HitPosition, Rotation.LookAt( shot.Normal ) * Rotation.FromPitch( 90 ) ), mount );
+		else if ( soil )
+			SoilImpact( shot.HitPosition + shot.Normal, shot.Normal, mount );
 		else if ( debris )
 			DebrisImpact( shot.HitPosition, shot.Normal, mount, surface.AudioSurface == AudioSurface.Wood );
 		else if ( !surface.HasTag( "grate" ) )
@@ -90,6 +93,26 @@ static partial class WeaponEffects
 			var velocity = (normal + Particles.InCube( 0.8f )) * Game.Random.Float( 8, 32 );
 			velocity.z -= Game.Random.Float( 8, 64 );
 			AddDust( dust, velocity, Game.Random.Int( 1, 4 ), Game.Random.Float( 0.25f, 0.5f ), 255 );
+		}
+	}
+
+	static void SoilImpact( Vector3 origin, Vector3 normal, string mount )
+	{
+		var smoke = ImpactDust( origin, mount, "particle/particle_smokegrenade", 8, 4, 1 );
+		var grit = ImpactDust( origin, mount, "effects/blood", 4, 2, 0.75f );
+		if ( smoke.IsValid() ) smoke.Damping = 18.42f;
+		if ( grit.IsValid() ) grit.Damping = 18.42f;
+
+		for ( int i = 0; i < 4; i++ )
+		{
+			Vector3 Burst() => (normal * Game.Random.Float( 1, 6 ) + Particles.InCube( 0.2f )).Normal * Game.Random.Float( 250, 500 ) * i;
+			if ( smoke.IsValid() )
+			{
+				AddDust( smoke, Burst(), Game.Random.Int( 3, 4 ) * (i + 1), Game.Random.Float( 0.5f, 1 ), Game.Random.Int( 32, 255 ) );
+				AddDust( smoke, (normal + Particles.InCube( 1 )).Normal * Game.Random.Float( 0, 50 ), Game.Random.Int( 1, 4 ), Game.Random.Float( 0.5f, 1 ), Game.Random.Int( 32, 64 ) );
+			}
+			if ( grit.IsValid() )
+				AddDust( grit, Burst(), Game.Random.Int( 2, 4 ) * (i + 1), Game.Random.Float( 0.25f, 0.75f ), 255 );
 		}
 	}
 

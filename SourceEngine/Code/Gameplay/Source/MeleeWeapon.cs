@@ -60,7 +60,7 @@ public class MeleeWeapon : Weapon
 		// Hit and miss recover at different speeds: replace the flat cooldown FirePrimary set.
 		SetNextPrimaryFire( tr.Hit ? SwingDelay : MissSwingDelay );
 
-		SwingEffects( new ShotEffect( tr.Hit ? tr.HitPosition : aim.Project( Range ), tr.Hit, tr.Normal, tr.GameObject, tr.Surface, aim.Position ) );
+		SwingEffects( new ShotEffect( tr.Hit ? tr.HitPosition : aim.Project( Range ), tr.Hit, tr.Normal, tr.GameObject, ImpactSurface( tr ), aim.Position ) );
 
 		tr.Direction = aim.Forward;
 		var damage = Damage;
@@ -126,7 +126,7 @@ public class MeleeWeapon : Weapon
 				var start = shot.Origin ?? shot.HitPosition + shot.Normal * 8;
 				var end = shot.HitPosition + (shot.HitPosition - start).Normal * 8;
 				var contact = Scene.Trace.Ray( start, end ).IgnoreGameObjectHierarchy( AimIgnoreRoot ).Run();
-				if ( contact.GameObject == shot.HitObject ) shot.Surface = contact.Surface;
+				if ( contact.GameObject == shot.HitObject ) shot.Surface = ImpactSurface( contact );
 			}
 			OnShootImpact( shot );
 		}
