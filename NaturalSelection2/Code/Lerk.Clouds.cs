@@ -28,31 +28,25 @@ public sealed partial class Lerk
 			if ( distance < closest ) (best, closest) = (candidate, distance);
 		}
 		if ( best == this ) return Time.Now - lastUmbra > 8 ? best : null;
-		if ( !best.IsValid() ) return null;
+		return best.IsValid() && CanSeeCloudTarget( best.GameObject ) ? best : null;
+	}
 
-		var point = CalculateAimPoint( best.GameObject );
+	bool CanSeeCloudTarget( GameObject target )
+	{
+		var point = CalculateAimPoint( target );
 		var trace = Scene.Trace.Sphere( 0.15f * Scale, EyePosition, point )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
-		if ( !trace.Hit || trace.GameObject?.GetComponentInParent<BaseNpc>() is { } blocker && blocker.Faction == best.Faction ||
-			trace.EndPosition.DistanceSquared( point ) <= 2.25f * Scale * Scale ) return best;
-		return null;
+		return !trace.Hit || trace.GameObject == target || trace.EndPosition.DistanceSquared( point ) <= 2.25f * Scale * Scale ||
+			trace.GameObject?.GetComponentInParent<BaseNpc>() is { } blocker && target.GetComponent<BaseNpc>() is { } npc && npc.Faction == blocker.Faction;
 	}
 
 	GameObject ChooseSporeTarget()
 	{
 		if ( !SporesUnlocked || energy <= 1.5f * CloudCost || Time.Now - lastSpore <= 8 || Time.Now - lastUmbra <= 2 ) return null;
-		GameObject best = null;
-		float closest = 20 * 20 * Scale * Scale;
-		foreach ( var target in Senses.VisibleHostiles )
-		{
-			if ( !target.IsValid() || AlienTargeting.IsIgnoredPlayer( target ) || !IsSpikeTarget( target ) ) continue;
-			if ( target.GetComponentInChildren<IDamageable>() is { MaxHealth: > 0, Health: <= 0 } ) continue;
-			float distance = WorldPosition.DistanceSquared( target.WorldPosition );
-			if ( distance < closest ) (best, closest) = (target, distance);
-		}
-		if ( best.IsValid() )
-			foreach ( var cloud in Scene.GetAllComponents<SporeCloud>() )
-				if ( best.WorldPosition.DistanceSquared( cloud.WorldPosition ) <= 11 * 11 * Scale * Scale ) return null;
+		var best = AlienTargeting.ForTeam( this ).NearestSporeTarget( this );
+		if ( !best.IsValid() || !CanSeeCloudTarget( best ) ) return null;
+		foreach ( var cloud in Scene.GetAllComponents<SporeCloud>() )
+			if ( best.WorldPosition.DistanceSquared( cloud.WorldPosition ) < 11 * 11 * Scale * Scale ) return null;
 		return best;
 	}
 

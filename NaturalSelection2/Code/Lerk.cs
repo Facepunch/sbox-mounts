@@ -113,7 +113,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		var touch = visible ? enemy.GetComponentInChildren<Collider>()?.FindClosestPoint( EyePosition ) ?? enemy.WorldPosition : default;
 		float distance = visible ? EyePosition.Distance( touch ) / Scale : float.PositiveInfinity;
 		attacking = distance < 1.5f;
-		wantsSpikes = !attacking && distance < 35 && IsSpikeTarget( enemy );
+		wantsSpikes = !attacking && distance < 35 && IsPlayerTarget( enemy );
 		if ( goal is null )
 			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 		else if ( attacking && enemy.Tags.Has( "structure" ) )

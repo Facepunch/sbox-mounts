@@ -91,6 +91,42 @@ internal sealed class AlienTargeting
 		memory.Time = Time.Now;
 	}
 
+	float lastAlienSightUpdate = float.NegativeInfinity;
+
+	internal GameObject NearestSporeTarget( Lerk lerk )
+	{
+		if ( lastAlienSightUpdate != Time.Now )
+		{
+			lastAlienSightUpdate = Time.Now;
+			foreach ( var scout in lerk.Scene.GetAllComponents<AlienNpc>() )
+			{
+				if ( scout.Health <= 0 || scout.Faction != lerk.Faction || scout.Senses is null ) continue;
+				foreach ( var target in scout.Senses.VisibleHostiles )
+					if ( target.IsValid() && Lerk.IsPlayerTarget( target ) ) Remember( target, target.WorldPosition );
+			}
+		}
+
+		if ( memories.Count == 0 ) return null;
+		if ( !locations.IsValid() ) locations = lerk.Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		var room = locations?.LocationAt( lerk.WorldPosition );
+		float closest = 20 * 20 * MapLoader.Scale * MapLoader.Scale;
+		GameObject best = null;
+		foreach ( var (target, memory) in memories )
+		{
+			if ( !BaseNpc.IsLiveTarget( target ) || Time.Now - memory.Time > 5 )
+			{
+				memories.Remove( target );
+				continue;
+			}
+			if ( IsIgnoredPlayer( target ) || lerk.GetDisposition( target ) != Disposition.Hostile || !Lerk.IsPlayerTarget( target ) ) continue;
+			if ( target.GetComponentInChildren<Component.IDamageable>() is { MaxHealth: > 0, Health: <= 0 } ) continue;
+			float distance = lerk.WorldPosition.DistanceSquared( target.WorldPosition );
+			if ( distance >= closest || room is not null && locations.NearbyRoomOrder( room, memory.Position ) < 0 ) continue;
+			(best, closest) = (target, distance);
+		}
+		return best;
+	}
+
 	internal bool HasXenocideTargets( Skulk skulk )
 	{
 		int nearby = 0;

@@ -9,7 +9,7 @@ public sealed partial class Lerk
 	bool shootLeft, firingSpikes;
 	TimeUntil nextSpikeSound;
 
-	static bool IsSpikeTarget( GameObject target ) => target.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" ) ||
+	internal static bool IsPlayerTarget( GameObject target ) => target.Tags.HasAny( "ns2_marine", "ns2_exo", "ns2_lifeform" ) ||
 		target.GetComponentInParent<PlayerController>().IsValid();
 
 	static Vector3 SpikeDirection( Rotation aim, float angleSample, float radiusSample )
@@ -47,7 +47,7 @@ public sealed partial class Lerk
 			if ( pass ) trace = trace.IgnoreGameObjectHierarchy( obj );
 			if ( hp is not null && GetDisposition( obj ) == Disposition.Hostile )
 			{
-				float damage = hp is not (AlienLifeform or Marine or Exo) && (IsSpikeTarget( obj ) || obj.Tags.Has( "ns2_exosuit" )) ? 10 : 5;
+				float damage = hp is not (AlienLifeform or Marine or Exo) && (IsPlayerTarget( obj ) || obj.Tags.Has( "ns2_exosuit" )) ? 10 : 5;
 				var info = new DamageInfo { Damage = damage, Origin = origin, Position = position, Attacker = GameObject, Weapon = GameObject };
 				info.Tags.Add( "puncture" );
 				hp.OnDamage( info );
