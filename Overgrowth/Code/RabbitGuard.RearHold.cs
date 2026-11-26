@@ -67,14 +67,13 @@ public sealed partial class RabbitGuard
 		SetHoldPose( armed ? ArmedGrab : RearHold, victim );
 		alignmentOffset = Vector3.Zero;
 		alignmentYaw = 0f;
-		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this, struggleVelocity );
+		victim.SetHoldPose( armed ? ArmedGrabbed : RearHeld, this );
 		pendingGrabImpact = true;
 		victim.MirroredAction = victim.MirroredStance = MirroredAction;
 		holdDirection = facing.Normal;
 		WorldRotation = Rotation.LookAt( holdDirection );
 		var entry = victim.CaptureClip.Animation.GetRootMotion( 0f );
 		victim.fadingCaptureOffset = victim.WorldRotation * (entry.Position * victim.WorldScale);
-		victim.AlignGrabbedAnimation( this, entry );
 		victim.nextCaptureTick = FirstCaptureTick;
 		IncreaseBreathing( 2f );
 		var point = CharacterCenter( victim.GameObject );
@@ -83,7 +82,7 @@ public sealed partial class RabbitGuard
 		return true;
 	}
 
-	void SetHoldPose( string pose, RabbitGuard partner, Vector3? inheritedVelocity = null )
+	void SetHoldPose( string pose, RabbitGuard partner )
 	{
 		ReleasedGrabTarget = null;
 		holdPartner = partner;
@@ -95,8 +94,8 @@ public sealed partial class RabbitGuard
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
 		MirroredAction = MirroredStance;
-		BeginPairedMovement( carryMomentum: !inheritedVelocity.HasValue );
-		struggleVelocity = inheritedVelocity ?? combatVelocity.WithZ( 0f );
+		BeginPairedMovement( carryMomentum: true );
+		struggleVelocity = combatVelocity.WithZ( 0f );
 		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
 		fadingCapture = pose is ArmedGrab or ArmedGrabbed ? pose : null;
@@ -250,13 +249,20 @@ public sealed partial class RabbitGuard
 		}
 		if ( !Holding ) return;
 		var victim = holdPartner;
-		var separation = victim.WorldPosition - WorldPosition;
 		bool executing = Stance == CutFromHold;
+		bool armed = PrimaryItem.IsValid();
+		bool blade = armed && boundAnimations.WeaponLabel != "staff";
+		bool struggle = !blade && !executing;
+		float distance = armed ? 14f : victim.boundAnimations.Species == "rat" ? 18f : 22f;
 		// UpdateAttack delivers WasGrabbed and the attack voice before HandleTethering
 		// can release either fighter on the next four-frame character update.
 		if ( pendingGrabImpact && SinceGrab >= CaptureLead )
 		{
+			if ( !AdvanceHoldPair( victim, distance, struggle, FirstCaptureTick - 1 ) ) return;
 			pendingGrabImpact = false;
+			// WasGrabbed takes both velocity and separation at the notification.
+			victim.struggleVelocity = struggleVelocity;
+			victim.AlignGrabbedAnimation( this, victim.CaptureClip.Animation.GetRootMotion( 0f ) );
 			victim.Fleeing = false;
 			victim.QueueThrowDamage( this );
 			Speak( "attack" );
@@ -266,15 +272,12 @@ public sealed partial class RabbitGuard
 			PlayCombatSound( "Data/Sounds/cloth_foley/cloth_fabric_choke_move.xml", CharacterCenter( GameObject ), Random.Shared.Float( 0.5f, 1f ) );
 			nextHoldSound = Random.Shared.Float( 0.3f, 0.7f );
 		}
-		if ( !pendingGrabImpact && !executing && (!wantsBlockThrow || throwRecharge > 0f || MathF.Abs( separation.z ) > 0.4f * 40f) )
+		if ( !pendingGrabImpact && !executing && (!wantsBlockThrow || throwRecharge > 0f || MathF.Abs( victim.WorldPosition.z - WorldPosition.z ) > 0.4f * 40f) )
 		{
 			ReleaseHold();
 			return;
 		}
-		bool armed = PrimaryItem.IsValid();
-		bool rat = victim.boundAnimations.Species == "rat";
-		bool blade = armed && boundAnimations.WeaponLabel != "staff";
-		if ( !AdvanceHoldPair( victim, armed ? 14f : rat ? 18f : 22f, !blade && !executing ) ) return;
+		if ( !AdvanceHoldPair( victim, distance, struggle, ElapsedHoldTicks ) ) return;
 		if ( CaptureReactionEnded && !blade && Stance != CutFromHold )
 		{
 			// The two movement updates resume after their attack and hit reaction respectively.
@@ -321,10 +324,9 @@ public sealed partial class RabbitGuard
 		}
 	}
 
-	bool AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle )
+	bool AdvanceHoldPair( RabbitGuard victim, float distance, bool struggle, int elapsed )
 	{
 		// SetAnimUpdateFreqs advances both tethered actors once every two physics frames.
-		int elapsed = ElapsedHoldTicks;
 		while ( holdTick < elapsed )
 		{
 			holdTick++;
