@@ -501,10 +501,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 				var extents = new Vector3( d.WithX( 0 ).Length, d.WithY( 0 ).Length, d.WithZ( 0 ).Length ) * (0.018f * Scale);
 				hit = ray.FromTo( eye, hit.EndPosition ).Size( -extents, extents ).Run();
 			}
-			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
-			var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();
-			var obj = (hp as Component)?.GameObject ?? corpse?.GameObject ?? hit.GameObject;
-			bool pass = corpse.IsValid() || obj.IsValid() && (hp is { MaxHealth: > 0, Health: <= 0 } || obj.Tags.HasAny( "ragdoll", "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ));
+			var obj = hit.GetBulletTarget( out var hp, out bool pass );
 			if ( obj.IsValid() && !obj.Tags.Has( "world" ) )
 			{
 				hitEntity = true;

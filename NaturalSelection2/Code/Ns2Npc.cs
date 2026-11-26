@@ -31,4 +31,13 @@ internal static class DamageTraces
 {
 	internal static SceneTrace UseDamageHitboxes( this SceneTrace trace ) =>
 		trace.WithoutTags( "ns2_movement", BabblerPheromone.BallTag ).UseHitboxes();
+
+	internal static GameObject GetBulletTarget( this SceneTraceResult hit, out Component.IDamageable health, out bool penetrable )
+	{
+		health = hit.GameObject?.GetComponentInParent<Component.IDamageable>();
+		var corpse = hit.GameObject?.GetComponentInParent<NpcCorpse>();
+		var target = (health as Component)?.GameObject ?? corpse?.GameObject ?? hit.GameObject;
+		penetrable = corpse.IsValid() || target.IsValid() && (health is { MaxHealth: > 0, Health: <= 0 } || target.Tags.HasAny( "ragdoll", "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ));
+		return target;
+	}
 }

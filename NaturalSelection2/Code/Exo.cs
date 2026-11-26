@@ -343,32 +343,28 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			direction = (direction + radius * (aim.Left * MathF.Cos( angle ) + aim.Up * MathF.Sin( angle ))).Normal;
 		}
 		var eye = EyePosition;
-		var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * ((Railguns ? 0.3f : 0.03f) * Scale);
 		var ray = Scene.Trace.Ray( eye, eye + direction * ((Railguns ? 32 : 45) * Scale) ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( GameObject ).UseDamageHitboxes();
+		if ( Railguns )
+		{
+			var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * (0.3f * Scale);
+			ray = ray.Size( -extents, extents );
+		}
 		bool hitEntity = false;
 		for ( int i = 0; i < 20; i++ )
 		{
-			var hit = Railguns ? ray.Size( -extents, extents ).Run() : ray.Run();
-			if ( !Railguns && (!hit.Hit || hit.GameObject?.Tags.Has( "world" ) == true) )
-				hit = ray.FromTo( eye, hit.EndPosition ).Size( -extents, extents ).Run();
-			var hp = hit.GameObject?.GetComponentInParent<IDamageable>();
-			if ( !hit.GameObject.IsValid() || hit.GameObject.Tags.Has( "world" ) || Railguns && damage <= 0 ) break;
+			var hit = ray.Run();
+			var target = hit.GetBulletTarget( out var hp, out bool pass );
+			if ( !target.IsValid() || target.Tags.Has( "world" ) || Railguns && damage <= 0 ) break;
 			hitEntity = true;
 			if ( !Railguns ) acquisition.Record( hp is not null );
-			if ( hp is not Component victim )
-			{
-				if ( !Railguns ) break;
-				ray = ray.IgnoreGameObjectHierarchy( hit.GameObject );
-				continue;
-			}
-			var onos = victim as Onos;
+			var onos = hp as Onos;
 			bool blocked = Railguns && onos is not null && onos.BlocksShotAt( hit.HitPosition );
-			if ( hp.Health > 0 && GetDisposition( victim.GameObject ) == Disposition.Hostile )
+			if ( hp is { Health: > 0 } && GetDisposition( target ) == Disposition.Hostile )
 			{
-				float amount = Marine.UpgradedWeaponDamage( damage, WeaponsLevel, victim.GameObject );
-				if ( fullCharge && victim.GameObject.Tags.Has( "ns2_lifeform" ) && !(onos?.Shielding ?? false) )
+				float amount = Marine.UpgradedWeaponDamage( damage, WeaponsLevel, target );
+				if ( fullCharge && target.Tags.Has( "ns2_lifeform" ) && !(onos?.Shielding ?? false) )
 				{
-					var mark = marks.GetValue( victim.GameObject, _ => new() );
+					var mark = marks.GetValue( target, _ => new() );
 					amount *= mark.Hit( GameObject.Id, isLeft );
 				}
 				var info = new DamageInfo { Damage = amount, Origin = eye, Position = hit.HitPosition, Attacker = GameObject, Weapon = GameObject };
@@ -377,9 +373,9 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 				hp.OnDamage( info );
 			}
 			if ( blocked ) break;
-			if ( !Railguns && !victim.GameObject.Tags.HasAny( "ns2_mac", "ns2_drifter", "ns2_hydra", "ns2_hallucination" ) ) break;
-			if ( Railguns && victim.GameObject.Tags.Has( "ns2_lifeform" ) ) damage *= 0.5f;
-			ray = ray.IgnoreGameObjectHierarchy( victim.GameObject );
+			if ( !Railguns && !pass ) break;
+			if ( Railguns && hp is not null && target.Tags.Has( "ns2_lifeform" ) ) damage *= 0.5f;
+			ray = ray.IgnoreGameObjectHierarchy( target );
 		}
 		if ( Railguns || !hitEntity ) acquisition.Record( hitEntity );
 	}
