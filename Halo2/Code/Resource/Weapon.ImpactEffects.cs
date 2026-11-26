@@ -80,10 +80,45 @@ internal abstract partial class WeaponLoader
 			return prefab = builder.Create();
 		}
 
+		protected override ResourceLoader ResolveChild( string name, out ResourceType type )
+		{
+			type = ResourceType.Model;
+			var parts = name.Split( '.' );
+			if ( parts.Length != 3 || parts[2] != "vmdl" || !int.TryParse( parts[0], out int index ) || !int.TryParse( parts[1], out int variant ) ) return null;
+			if ( source.map.GetTag( index ) is not { PrimaryClass: "MTRP", DataSize: >= 0xe0 } model ) return null;
+			int count = source.map.ReadInt32( source.Address( model ) + 0x80 );
+			return (uint)variant < count ? new ParticleMeshLoader( source, model, variant ) : null;
+		}
+
 		protected override void Shutdown()
 		{
 			PrefabBuilder.Destroy( prefab );
 			base.Shutdown();
+		}
+	}
+
+	sealed class ParticleMeshLoader( WeaponLoader source, TagEntry tag, int variant ) : ResourceLoader<Halo2Mount>
+	{
+		protected override object Load()
+		{
+			int header = source.Address( tag );
+			int span = source.Block( header + 0x80 ) + variant * 8;
+			int first = (ushort)source.Short( span + 4 ), count = (ushort)source.Short( span + 6 );
+			var vertices = new Vertex[source.map.ReadInt32( header + 0x88 )];
+			int row = source.Block( header + 0x88 );
+			Vector3 Vector( int offset ) => new( source.Float( offset ), source.Float( offset + 4 ), source.Float( offset + 8 ) );
+			for ( int i = 0; i < vertices.Length; i++, row += 0x38 )
+				vertices[i] = new Vertex( Vector( row ), Vector( row + 12 ), Vector( row + 24 ), new Vector4( source.Float( row + 48 ), source.Float( row + 52 ), 0, 0 ) );
+			int start = source.Block( header + 0x90 ) + first * 2;
+			var indices = Enumerable.Range( 0, count ).Select( i => (int)(ushort)source.Short( start + i * 2 ) ).ToArray();
+			var shader = source.Reference( header + 0x18 );
+			var mesh = new Mesh( Material.Load( source.Host.AssetPath( source.map, shader.TagPath, "vmat" ) ) );
+			mesh.CreateVertexBuffer( vertices.Length, vertices );
+			mesh.CreateIndexBuffer( indices.Length, indices );
+			var bounds = BBox.FromPositionAndSize( vertices[indices[0]].Position );
+			foreach ( int index in indices ) bounds = bounds.AddPoint( vertices[index].Position );
+			mesh.Bounds = bounds;
+			return Model.Builder.WithName( Path ).AddMesh( mesh ).Create();
 		}
 	}
 

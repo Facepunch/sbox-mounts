@@ -93,6 +93,12 @@ internal abstract partial class WeaponLoader
 			var particle = Reference( system );
 			if ( particle is null || map.ReadInt32( system + 48 ) != 1 ) continue;
 			int definition = Address( particle );
+			if ( particle.PrimaryClass == "MTRP" )
+			{
+				if ( particle.TagPath == @"effects\particle_models\human_debris\human_debris" )
+					emitters[i] = ReadImpactModel( contact, particle, system );
+				continue;
+			}
 			(string TextureName, ImpactLayer? Layer) style = particle.TagPath switch
 			{
 				@"effects\generic\solids\dirt_burst" => (DirtBurstName, ImpactLayer.Dirt),
@@ -118,7 +124,8 @@ internal abstract partial class WeaponLoader
 				@"effects\generic\solids\rocks" => (RocksName, ImpactLayer.Rocks),
 				@"effects\generic\solids\glass_breakable" => (GlassName, ImpactLayer.GlassShards),
 				@"effects\generic\solids\metal_chips" => (MetalChipsName, ImpactLayer.MetalChips),
-				@"effects\generic\smoke\drifting_smoke" or @"effects\generic\smoke\drifting_blacksmoke" => (null, ImpactLayer.Smoke),
+				@"effects\generic\energy\smoke_white_c_generic" => (null, ImpactLayer.AdditiveSprite),
+				@"effects\bitmaps\wip\burst_large" or @"effects\generic\solids\water_burst_small" or @"effects\generic\smoke\smoke_soft" or @"effects\generic\smoke\drifting_smoke" or @"effects\generic\smoke\drifting_blacksmoke" => (null, ImpactLayer.Smoke),
 				@"effects\generic\smoke\smoke_soft_small_lit" => (ImpactSmokeName, ImpactLayer.Smoke),
 				@"effects\generic\solids\impact_spray" => (SprayName, ImpactLayer.Spray),
 				@"effects\generic\solids\impact_spray_unlit" => (UnlitSprayName, ImpactLayer.Spray),
@@ -132,7 +139,7 @@ internal abstract partial class WeaponLoader
 				_ => (null, (ImpactLayer?)null)
 			};
 			if ( style.Layer is not {} layer ) continue;
-			bool driftingSmoke = layer == ImpactLayer.Smoke && style.TextureName is null;
+			bool smokeSprite = (layer == ImpactLayer.Smoke && style.TextureName is null) || particle.TagPath == @"effects\generic\energy\smoke_white_c_generic";
 			string texturePath;
 			if ( style.TextureName is {} name ) texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
 			else
@@ -149,7 +156,7 @@ internal abstract partial class WeaponLoader
 			int sequence = Short( definition + 8 );
 			if ( layer == ImpactLayer.Sparks ) origin = new Vector2( 1 - 48f / 56f, (sequence == 1 ? 5 : 4) / 9f );
 			var geometry = new Vector2( Float( definition + 164 ), Float( definition + 168 ) );
-			if ( driftingSmoke || HasSpriteRadius( layer ) || layer == ImpactLayer.AdditiveFlare )
+			if ( smokeSprite || HasSpriteRadius( layer ) || layer == ImpactLayer.AdditiveFlare )
 				origin = new Vector2( 1 + Float( definition + 156 ) / geometry.x, -Float( definition + 160 ) / geometry.y );
 			// Both frames of a burst share their footprint and pivot. The fourth random input blends the UVs.
 			if ( layer == ImpactLayer.Burst )
@@ -165,9 +172,7 @@ internal abstract partial class WeaponLoader
 				int data = Block( property + 8 );
 				return new Vector2( Float( data + 4 ), Float( data + 8 ) );
 			}
-			var movement = Reference( emitter );
-			int controller = movement is null ? 0 : Block( Address( movement ) + 12 );
-			float Parameter( int control, int number ) => control == 0 ? 0 : Float( Block( Block( control + 4 ) + number * 20 + 12 ) + 4 );
+			var motion = ReadImpactMotion( emitter );
 			int color = Block( emitter + 96 );
 			bool twoColorStops = (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2;
 			Color Tint( int offset )
@@ -182,30 +187,32 @@ internal abstract partial class WeaponLoader
 			bool spriteCurves = drift || dust || spriteAngle || cloth || layer == ImpactLayer.SparkTrail;
 			var size = Bounds( emitter + 72 ) * 120;
 			if ( layer == ImpactLayer.Rubber ) size *= Bounds( definition + 60 ).x;
-			bool collides = movement is not null && map.ReadInt32( Address( movement ) + 12 ) > 1 && Short( controller + 20 ) == 1;
 			int mirrors = layer is ImpactLayer.Plant or ImpactLayer.Dirt || (Short( definition + 10 ) & 1) != 0 ? 4 : 2;
 			int particleFlags = map.ReadInt32( definition );
 			emitters[i] = new ImpactEmitter( layer, new ImpactSprite( texturePath, origin ), Bounds( emitter + 8 ), Bounds( emitter + 24 ), Bounds( emitter + 40 ) * 120, Bounds( emitter + 140 ), Bounds( emitter + 56 ),
 				size, drift || dust ? ReadRange( definition + 60, 1 ) : animatedRadius || layer == ImpactLayer.Sparks ? ReadRange( emitter + 72, 120 ) : default,
 				spriteCurves ? ReadRange( definition + 44, 1 ) : ReadRange( emitter + 104, 1 ),
-				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), Parameter( controller, 0 ), Parameter( controller, 1 ), Parameter( controller, 2 ),
-				collides ? new Vector2( Parameter( controller + 20, 0 ), Parameter( controller + 20, 1 ) ) : default )
+				Tint( 4 ), Tint( twoColorStops ? 16 : 4 ), motion.Gravity, motion.Drag, motion.AngularDrag, motion.Collision ?? default )
 			{
 				ParallelToDirection = Short( definition + 4 ) == 1,
 				VerticalSprite = (particleFlags & 0x2000) != 0,
-				Collides = collides, MirrorsPerFrame = mirrors,
+				Collides = motion.Collision.HasValue, MirrorsPerFrame = mirrors,
 				PerpendicularToDirection = Short( definition + 4 ) == 2,
 				Lighting = (particleFlags & 0x80) != 0,
-				CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
+				Offset = new Vector3( Float( emitter + 156 ), Float( emitter + 160 ), Float( emitter + 164 ) ) * 120,
+				Direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 ),
+				SpeedCurve = Short( emitter + 40 ) == 4 ? ReadRange( emitter + 40, 120 ) : null, SpeedRange = Short( emitter + 42 ),
+				SpawnRadiusCurve = Short( emitter + 124 ) == 4 ? ReadRange( emitter + 124, 120 ) : null, SpawnRadiusRange = Short( emitter + 126 ),
+				AlphaRange = Short( emitter + 106 ), CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
 				RadiusRange = Short( emitter + 74 ), ColorInput = Short( emitter + 88 ), ConeInput = Short( emitter + 140 ), Sequence = sequence,
 				SpinCurve = map.ReadSpan( Block( emitter + 64 ), 1 )[0] == 4 ? ReadRange( emitter + 56, 1 ) : null,
 				SpinRange = Short( emitter + 58 ), SpinInput = Short( emitter + 56 ), SpawnRadiusInput = Short( emitter + 124 ),
 				DebrisFrames = layer == ImpactLayer.Dirt ? FixedFrames( texturePath, origin, geometry * 0.5f, particleFlags ) : layer is ImpactLayer.MetalChips or ImpactLayer.GlassShards or ImpactLayer.ElectricArcs or ImpactLayer.Plant or ImpactLayer.Rubber or ImpactLayer.Clumps ? ReadDebrisFrames( definition, texturePath, layer == ImpactLayer.Plant, mirrors ) : null,
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
-				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
+				CollidesWithWater = motion.Water,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				ParticleRadius = driftingSmoke ? ReadRange( definition + 60, 1 ) : null,
-				AlphaScale = driftingSmoke || layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
+				ParticleRadius = smokeSprite ? ReadRange( definition + 60, 1 ) : null,
+				AlphaScale = smokeSprite || layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
 				AgeTint = Short( emitter + 88 ) == 0 && (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2 && map.ReadSpan( color, 1 )[0] == 5
 					? ReadRange( emitter + 88, 1, fraction: true ) : null,
 				ColorRange = Short( emitter + 90 ),
@@ -218,6 +225,42 @@ internal abstract partial class WeaponLoader
 			};
 		}
 		return emitters.Any( e => e is not null ) ? emitters : null;
+	}
+
+	(float Gravity, float Drag, float AngularDrag, Vector2? Collision, bool Water) ReadImpactMotion( int emitter )
+	{
+		if ( Reference( emitter ) is not {} movement ) return default;
+		int header = Address( movement ), count = map.ReadInt32( header + 12 );
+		if ( count == 0 ) return default;
+		int control = Block( header + 12 );
+		float Parameter( int row, int i ) => Float( Block( Block( row + 4 ) + i * 20 + 12 ) + 4 );
+		Vector2? collision = count > 1 && Short( control + 20 ) == 1 ? new Vector2( Parameter( control + 20, 0 ), Parameter( control + 20, 1 ) ) : null;
+		return (Parameter( control, 0 ), Parameter( control, 1 ), Parameter( control, 2 ), collision, (map.ReadInt32( header + 8 ) & 4) != 0);
+	}
+
+	ImpactEmitter ReadImpactModel( TagEntry contact, TagEntry model, int system )
+	{
+		int emitter = Block( system + 48 );
+		Vector2 Bounds( int field ) => new( Float( Block( emitter + field + 8 ) + 4 ), Float( Block( emitter + field + 8 ) + 8 ) );
+		int color = Block( emitter + 96 );
+		Color Tint( int field )
+		{
+			int rgb = map.ReadInt32( color + field );
+			return Color.FromBytes( (byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb );
+		}
+		var motion = ReadImpactMotion( emitter );
+		string path = Host.AssetPath( map, contact.TagPath, "prefab" );
+		return new ImpactEmitter( ImpactLayer.ModelDebris, null, Bounds( 8 ), Bounds( 24 ), Bounds( 40 ) * 120, Bounds( 140 ), Bounds( 56 ), Bounds( 72 ) * 120,
+			default, ReadRange( emitter + 104, 1 ), Tint( 4 ), Tint( 16 ), motion.Gravity, motion.Drag, motion.AngularDrag, motion.Collision ?? default )
+		{
+			Collides = motion.Collision.HasValue, CollidesWithWater = motion.Water,
+			Models = Enumerable.Range( 0, map.ReadInt32( Address( model ) + 0x80 ) ).Select( i => $"{path}/{model.Datum & 0xffff}.{i}.vmdl" ).ToArray(),
+			CountInput = Short( emitter + 8 ), LifeInput = Short( emitter + 24 ), SpeedInput = Short( emitter + 40 ), SizeInput = Short( emitter + 72 ),
+			ConeInput = Short( emitter + 140 ), SpinInput = Short( emitter + 56 ), SpinRange = Short( emitter + 58 ), SpinCurve = ReadRange( emitter + 56, 1 ),
+			ColorInput = Short( emitter + 88 ), AlphaRange = Short( emitter + 106 ), Alpha = Bounds( 104 ),
+			Shape = map.ReadInt32( emitter + 120 ), SpawnRadiusInput = Short( emitter + 124 ), SpawnRadius = Bounds( 124 ) * 120,
+			Marker = map.ResolveStringId( map.ReadInt32( Block( Address( contact ) + 12 ) + 4 * Short( system + 8 ) ) )
+		};
 	}
 
 	protected AnimatedFrame[] ReadAnimatedFrames( int definition )
