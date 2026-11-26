@@ -348,6 +348,8 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
 			trigger = press && deployed && (!pistol || lastShot >= 0.1f);
+			if ( trigger && !pistol && !reloading && Ammo.Clip > 0 )
+				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
 			if ( Animation.LookObject.IsValid() )
 				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) - EyePosition, 5 );
@@ -469,6 +471,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			if ( !pass ) break;
 			ray = ray.IgnoreGameObjectHierarchy( obj );
 		}
+		if ( pistol && Networking.IsHost ) NpcTeamMemory.Get( Scene ).ReportPistolShot( this );
 		ShowMuzzle( pistol );
 	}
 

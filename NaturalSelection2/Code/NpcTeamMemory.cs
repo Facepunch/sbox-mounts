@@ -6,11 +6,12 @@ internal sealed class NpcTeamMemory : GameObjectSystem<NpcTeamMemory>, Component
 {
 	readonly Dictionary<string, AlienTargeting> teams = [];
 	readonly Dictionary<BaseNpc, (GameObject Attacker, float Time)> recentHits = [];
+	readonly Dictionary<Marine, float> pistolSounds = [];
 	float lastUpdate;
 
 	public NpcTeamMemory( Scene scene ) : base( scene )
 	{
-		Listen( Stage.FinishFixedUpdate, 0, UpdateReports, "NS2 team damage reports" );
+		Listen( Stage.FinishFixedUpdate, 0, UpdateReports, "NS2 team reports" );
 	}
 
 	internal AlienTargeting ForFaction( string faction )
@@ -18,6 +19,26 @@ internal sealed class NpcTeamMemory : GameObjectSystem<NpcTeamMemory>, Component
 		faction ??= string.Empty;
 		if ( !teams.TryGetValue( faction, out var team ) ) teams[faction] = team = new();
 		return team;
+	}
+
+	internal void ReportRifleFire( Marine shooter ) => ReportGunfire( shooter, 22 * MapLoader.Scale, inclusive: false );
+
+	internal void ReportPistolShot( Marine shooter )
+	{
+		// NS2 keeps the parented pistol sound alive for its asset length plus the server's sound end buffer.
+		pistolSounds[shooter] = Time.Now + 2.205f + 0.5f;
+	}
+
+	void ReportGunfire( Marine shooter, float range, bool inclusive )
+	{
+		foreach ( var listener in Scene.GetAllComponents<BaseNpc>() )
+		{
+			if ( listener is not (AlienLifeform or Marine or Exo) || listener.Health <= 0 || listener.Faction == shooter.Faction ) continue;
+			var distance = listener.WorldPosition.DistanceSquared( shooter.WorldPosition );
+			if ( inclusive ? distance > range * range : distance >= range * range ) continue;
+			if ( listener.GetDisposition( shooter.GameObject ) == Disposition.Hostile )
+				ForFaction( listener.Faction ).Remember( shooter.GameObject, shooter.WorldPosition );
+		}
 	}
 
 	void Component.IDamageable.IEvents.OnDamaged( Component.IDamageable.DamageEvent hit )
@@ -43,6 +64,14 @@ internal sealed class NpcTeamMemory : GameObjectSystem<NpcTeamMemory>, Component
 	{
 		if ( Time.Now <= lastUpdate + 0.133f ) return;
 		lastUpdate = Time.Now;
+		foreach ( var (shooter, expires) in pistolSounds )
+		{
+			if ( !shooter.IsValid() || Time.Now >= expires )
+				pistolSounds.Remove( shooter );
+			else
+				ReportGunfire( shooter, 14 * MapLoader.Scale, inclusive: true );
+		}
+
 		foreach ( var (victim, hit) in recentHits )
 		{
 			if ( !victim.IsValid() || victim.Health <= 0 || Time.Now >= hit.Time + 1 || !IsAlive( hit.Attacker ) )
