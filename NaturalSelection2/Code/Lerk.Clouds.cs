@@ -2,7 +2,7 @@ using Sandbox.Npcs;
 
 namespace NS2;
 
-public sealed partial class Lerk : Component.IDamageable.IEvents
+public sealed partial class Lerk
 {
 	[Property] public bool UmbraUnlocked { get; set; } = true;
 	[Property] public bool SporesUnlocked { get; set; } = true;
@@ -14,9 +14,9 @@ public sealed partial class Lerk : Component.IDamageable.IEvents
 	BaseNpc umbraTarget;
 	GameObject sporeTarget;
 
-	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent e )
+	private protected override void ObserveDamage( IDamageable.DamageEvent e )
 	{
-		if ( !Networking.IsHost || !UmbraUnlocked || e.AcceptedDamage <= 0 ) return;
+		if ( !UmbraUnlocked ) return;
 		Remember( e.Victim );
 		Remember( e.Instigator );
 

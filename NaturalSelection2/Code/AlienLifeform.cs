@@ -2,7 +2,7 @@ using System;
 
 namespace NS2;
 
-public abstract class AlienLifeform : AlienNpc
+public abstract class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
 {
 	private protected SparkAnimationGraph.Playback world;
 	[Sync( SyncFlags.FromHost )] protected TimeSince AnimationTime { get; set; }
@@ -10,6 +10,18 @@ public abstract class AlienLifeform : AlienNpc
 
 	private protected readonly AlienWounds wounds = new();
 	protected TimeUntil underFire;
+	TimeUntil dealtDamageRecently;
+
+	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent hit )
+	{
+		if ( !Networking.IsHost || hit.AcceptedDamage <= 0 ) return;
+		if ( hit.Instigator == GameObject ) dealtDamageRecently = 3;
+		ObserveDamage( hit );
+	}
+
+	private protected virtual void ObserveDamage( IDamageable.DamageEvent hit ) { }
+
+	internal bool InCombat => underFire > 0 || dealtDamageRecently > 0;
 
 	protected override void OnDamaging( IDamageable.DamageEvent hit )
 	{

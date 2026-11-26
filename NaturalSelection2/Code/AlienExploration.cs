@@ -45,6 +45,14 @@ public sealed class AlienExploration : BaseNpcLayer
 
 	internal void Explore( float stopDistance )
 	{
+		if ( Npc is AlienLifeform patient && Gorge.ShouldWaitForSpray( patient ) )
+		{
+			exploreGoal = null;
+			checkRooms = 0;
+			Npc.Movement.Stop();
+			Npc.Animation.SetLookTarget( null );
+			return;
+		}
 		if ( checkRooms > 0 ) return;
 		checkRooms = 0.5f;
 		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();

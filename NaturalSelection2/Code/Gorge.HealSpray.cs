@@ -18,6 +18,28 @@ public sealed partial class Gorge
 	TimeUntil searchPatients, sprayAnimation, nextSpray;
 	bool wantsSpray, previousSecondary, secondaryAttacking;
 
+	internal static bool ShouldWaitForSpray( AlienLifeform patient )
+	{
+		if ( patient is Gorge || !healing.TryGetValue( patient, out var state ) || state.Last > 1.5f ) return false;
+		var gorge = state.Sprayer;
+		if ( !gorge.IsValid() || gorge.Health <= 0 || gorge.InCombat || patient.InCombat || patient.GameObject.Tags.Has( "ns2_hallucination" ) ) return false;
+		var hp = (IDamageable)patient;
+		if ( (hp.Health + 2 * hp.Armour) / (hp.MaxHealth + 2 * hp.MaxArmour) >= 0.99f ) return false;
+
+		foreach ( var npc in patient.Scene.GetAllComponents<BaseNpc>() )
+			if ( npc is Marine or Exo or AlienLifeform && npc.Health > 0 && NearbyEnemy( npc.GameObject ) ) return false;
+		foreach ( var player in patient.Scene.GetAllComponents<PlayerController>() )
+			if ( BaseNpc.IsLiveTarget( player.GameObject ) && !AlienTargeting.IsIgnoredPlayer( player.GameObject ) && NearbyEnemy( player.GameObject ) ) return false;
+		return true;
+
+		bool NearbyEnemy( GameObject obj )
+		{
+			const float range = 15 * Scale;
+			return patient.GetDisposition( obj ) == Disposition.Hostile && patient.WorldPosition.DistanceSquared( obj.WorldPosition ) < range * range ||
+				gorge.GetDisposition( obj ) == Disposition.Hostile && gorge.WorldPosition.DistanceSquared( obj.WorldPosition ) < range * range;
+		}
+	}
+
 	bool Friendly( Component other )
 	{
 		var stance = GetDisposition( other.GameObject );
