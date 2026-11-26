@@ -43,7 +43,7 @@ static class Sounds
 			PlayWeaponSound( weapon, sound );
 	}
 
-	public static void PlayWeaponSound( BaseCombatWeapon weapon, SoundEvent sound ) =>
+	public static SoundHandle PlayWeaponSound( BaseCombatWeapon weapon, SoundEvent sound ) =>
 		(weapon.Holder?.GameObject ?? weapon.GameObject).PlaySound( sound );
 
 	/// <summary>Counter-Strike scripts name the silenced shot special1.</summary>

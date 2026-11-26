@@ -99,13 +99,28 @@ public class MeleeWeapon : Weapon
 
 	protected override void OnShootEffects( ShotEffect shot )
 	{
-		if ( Application.IsDedicatedServer ) return;
+		if ( Application.IsDedicatedServer )
+		{
+			base.OnShootEffects( shot );
+			return;
+		}
 
-		if ( !shot.Hit ) WaterImpact( shot );
+		if ( !shot.NoEvents && AttackSound is not null )
+		{
+			var swing = Sounds.PlayWeaponSound( this, AttackSound );
+			if ( swing.IsValid() && Network.IsOwner ) swing.SpacialBlend = 0;
+		}
 
-		// A missed swing has no impact point. The trace endpoint would select a hit animation.
-		base.OnShootEffects( shot.Hit ? shot : shot with { HitPosition = default } );
-		if ( shot.Hit && HitSound is not null ) GameObject.PlaySound( HitSound );
+		if ( shot.Hit )
+		{
+			if ( HitSound is not null ) Sounds.PlayWeaponSound( this, HitSound );
+			OnShootImpact( shot );
+		}
+		else WaterImpact( shot );
+
+		if ( shot.NoEvents ) return;
+		WeaponModel?.OnAttack( shot.Hit ? shot.HitPosition : null, shot.Origin );
+		PostWeaponEvent( WeaponEvents.Attack );
 	}
 
 	bool WaterImpact( in ShotEffect shot )
