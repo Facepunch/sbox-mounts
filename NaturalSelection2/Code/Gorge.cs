@@ -248,10 +248,11 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		var target = Animation.LookObject;
 		var direction = target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
-		if ( wantsSpray && assignedTarget.IsValid() && assignedTarget.GetComponent<Rigidbody>() is { } body )
+		if ( wantsSpray && target.IsValid() )
 		{
-			float distance = Math.Min( EyePosition.Distance( assignedTarget.WorldPosition ) / Scale, 1 );
-			direction += body.Velocity * (distance * 0.6f);
+			float distance = Math.Min( EyePosition.Distance( target.WorldPosition ) / Scale, 1 );
+			var velocity = target.GetComponent<BaseNpc>()?.Animation?.MoveVelocity ?? target.GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
+			direction += velocity * (distance * 0.6f);
 		}
 		if ( bombarding )
 		{
