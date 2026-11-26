@@ -102,6 +102,7 @@ public sealed class BulletWeapon : Weapon
 	[Property, Feature( "Shooting" )] public bool CanLaunchDuringReload { get; set; }
 	[Property, Feature( "Shooting" )] public float PrimaryDelayAfterLaunch { get; set; } = 1;
 	internal Projectile.Kinds? AlternateProjectile { get; set; }
+	internal float ReloadFinishDuration { get; set; }
 	internal float AlternatePumpDelay { get; set; }
 	internal float PumpDuration { get; set; } = 1;
 	internal bool NpcControlled => Holder is BaseNpc;
@@ -115,6 +116,7 @@ public sealed class BulletWeapon : Weapon
 	internal bool ShotQueued => _queuedPrimary || _queuedSecondary;
 	TimeUntil? _pumpStarts;
 	bool _reloadOnPump;
+	bool _lastShellInserting;
 	internal bool ReloadingDuringPump { get; private set; }
 	bool _pumpOnDeploy;
 	TimeUntil _alternateAt;
@@ -209,11 +211,16 @@ public sealed class BulletWeapon : Weapon
 				Reload();
 			}
 		}
-		if ( Secondary == SecondaryFires.DoubleShot && IsReloading )
+		if ( Secondary == SecondaryFires.DoubleShot && (IsReloading || _lastShellInserting) )
 		{
 			// Finish the current shell insert before firing the trigger that interrupted it.
 			_queuedPrimary |= Clip1 >= 1 && base.WantsPrimaryAttack();
 			_queuedSecondary |= !_queuedPrimary && Clip1 >= 2 && base.WantsSecondaryAttack();
+		}
+		if ( _lastShellInserting && NextPrimaryFire <= 0 )
+		{
+			_lastShellInserting = false;
+			if ( !ShotQueued ) SetNextFire( ReloadFinishDuration );
 		}
 		if ( Secondary == SecondaryFires.DoubleShot && Clip1 == 0 && NextPrimaryFire <= 0 && AutoReload && CanReload() )
 		{
@@ -247,6 +254,7 @@ public sealed class BulletWeapon : Weapon
 	{
 		if ( IsReloading && MountContent.OfWeapon( this ) == "hl2" ) SetNextFire( 0 );
 		_holdingEmptyTrigger = false;
+		_lastShellInserting = false;
 		_queuedPrimary = _queuedSecondary = false;
 		_tapReady = null;
 		_pumpOnDeploy |= _pumpStarts.HasValue;
@@ -456,7 +464,11 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnReloadInserted()
 	{
-		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled ) SetNextFire( ReloadTime );
+		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled )
+		{
+			SetNextFire( ReloadTime );
+			_lastShellInserting = Clip1 >= PrimaryClipSize || Ammo1 == 0;
+		}
 		base.OnReloadInserted();
 		if ( WeaponModel is not Source1.ViewModel ) Sounds.PlayWeaponSound( this, "reload" );
 	}

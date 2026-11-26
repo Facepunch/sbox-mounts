@@ -264,6 +264,7 @@ static class WeaponSetup
 			var secondary = Duration( clips.SecondaryFire );
 			if ( bullet.Secondary == Weapon.SecondaryFires.DoubleShot && secondary > 0 )
 			{
+				bullet.ReloadFinishDuration = Duration( clips.ReloadEnd );
 				bullet.AlternatePumpDelay = secondary;
 				bullet.PumpDuration = Duration( clips.Pump );
 			}
