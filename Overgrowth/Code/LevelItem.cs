@@ -92,6 +92,7 @@ public sealed partial class LevelItem : Component
 
 	Vector3 LocalMassCenter => GetComponent<ModelRenderer>()?.Model?.Attachments.GetTransform( "mass_center" )?.Position ?? Vector3.Zero;
 	internal Vector3 PhysicsPosition => WorldTransform.PointToWorld( LocalMassCenter );
+	internal string Label => Definition?.Element( "label" )?.Value;
 	internal int Hands => Definition?.Element( "grip" )?.Number( "hands" ) is { } hands ? (int)hands : 1;
 	XmlAsset itemDefinition;
 	internal XmlAsset Definition => itemDefinition ??= (Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader)?.ItemDefinition;

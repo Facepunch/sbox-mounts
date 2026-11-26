@@ -209,7 +209,7 @@ public sealed partial class RabbitGuard
 		Movement.Enabled = false;
 		UseAirHull( false );
 		MovementCapsule.Enabled = false;
-		strike = null;
+		if ( strike is { AsLayer: false } ) strike = null;
 		// Copy the live pose before letting the physics skeleton drive it.
 		ragdoll = Renderer.GetOrAddComponent<ModelPhysics>( false );
 		ragdoll.Renderer = Renderer;

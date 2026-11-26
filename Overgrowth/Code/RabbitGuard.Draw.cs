@@ -23,7 +23,7 @@ public sealed partial class RabbitGuard
 	{
 		var secondary = LeftHanded ? RightHandItem : LeftHandItem;
 		if ( !secondary.IsValid() || Downed || Unconscious ) return false;
-		if ( PrimaryItem.IsValid() && (boundAnimations.WeaponLabel != "knife" || secondary.Definition?.Element( "label" )?.Value is not ("sword" or "rapier")) ) return false;
+		if ( PrimaryItem.IsValid() && (boundAnimations.WeaponLabel != "knife" || secondary.Label is not ("sword" or "rapier")) ) return false;
 		DrawAnimation = SwapHands;
 		DrawLeft = MirroredStance;
 		drawElapsed = 0f;

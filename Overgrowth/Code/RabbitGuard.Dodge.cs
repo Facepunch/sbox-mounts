@@ -48,7 +48,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( boundAnimations.Species == "wolf" || startled > 0f || RollProgress < 1f || nextSuccessfulDodge > 0f || sinceDodgeAttempt < 0.5f ) return false;
 		bool forced = InMovementState && move.FleshUnblockable &&
-			(attacker.boundAnimations.WeaponLabel == "knife" ? Random.Shared.Next( 3 ) == 0 :
+			(attacker.PrimaryItem?.Label == "knife" ? Random.Shared.Next( 3 ) == 0 :
 			(!PrimaryItem.IsValid() || Random.Shared.Next( 10 ) == 0) && tactic == CombatTactic.Provoke);
 		if ( !(forced && Random.Shared.Float() <= GameDifficulty) && dodgeWindow <= 0f ) return false;
 

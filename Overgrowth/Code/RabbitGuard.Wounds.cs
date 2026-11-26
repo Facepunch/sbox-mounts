@@ -70,7 +70,7 @@ public sealed partial class RabbitGuard
 
 	void ApplySharpHit( RabbitClip clip, Vector3 position, Vector3 direction, RabbitGuard defender, bool parried, float sharp )
 	{
-		var label = boundAnimations.WeaponLabel;
+		var label = PrimaryItem?.Label;
 		bool knife = label == "knife";
 		var target = strikeTarget;
 		var victim = target.GetComponentInParent<IDamageable>();

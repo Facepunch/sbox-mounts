@@ -324,7 +324,8 @@ public sealed partial class RabbitGuard
 
 	void BeginReaction( GameObject attacker, Vector3 source, string animation, RabbitClip clip, bool activeBlock = false, float fadeRate = 10f )
 	{
-		strike = null;
+		// A hit reaction replaces the base animation. A fading knife layer can still reach its impact event.
+		if ( strike is { AsLayer: false } ) strike = null;
 		StopForCombat();
 		var facing = (source - WorldPosition).WithZ( 0 );
 		if ( !facing.IsNearlyZero() ) WorldRotation = Rotation.LookAt( facing );
