@@ -265,39 +265,39 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			foreach ( var pose in grabStances[name] ) blend.Add( pose.Height, CombatPose( pose.Clip, time ) );
 			return blend;
 		}
-		var states = names.Select( name =>
+		GraphBuilder.Node BuildPose( string name )
 		{
 			if ( idlePoses.TryGetValue( name, out var idle ) )
 			{
-				if ( name == RabbitGuard.Watch ) return machine.AddState( idle.Build( graph, coord => coordinates[coord], phase, false ) );
-				return machine.AddState( MovementStance( IdlePose( idle, false ), IdlePose( idle, true ) ) );
+				if ( name == RabbitGuard.Watch ) return idle.Build( graph, coord => coordinates[coord], phase, false );
+				return MovementStance( IdlePose( idle, false ), IdlePose( idle, true ) );
 			}
 			if ( name == RabbitGuard.PatrolIdle )
-				return machine.AddState( graph.ExternalGraphSlot( name, AnimationGroup( patrolGroup ?? "Data/Animations/r_relaxidle.xml", sources: patrolRigs ) ) );
+				return graph.ExternalGraphSlot( name, AnimationGroup( patrolGroup ?? "Data/Animations/r_relaxidle.xml", sources: patrolRigs ) );
 			if ( name == RabbitGuard.Roll )
 			{
 				GraphBuilder.Node Roll( bool mirrored ) => roll.Build( graph, label => coordinates.GetValueOrDefault( label ), coordinates["roll_phase"], mirrored );
-				return machine.AddState( MovementStance( Roll( false ), Roll( true ) ) );
+				return MovementStance( Roll( false ), Roll( true ) );
 			}
 			if ( name == RabbitGuard.LedgeHang )
-				return machine.AddState( AnimationGroup( "Data/Animations/r_ledge.xml" ) );
+				return AnimationGroup( "Data/Animations/r_ledge.xml" );
 			if ( name is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach )
 			{
 				var mode = name == RabbitGuard.ClimbUp ? RabbitClip.CenterMotion.Extract : RabbitClip.CenterMotion.Full;
 				var ledgeClip = clips[name] = library.Clip( name, mode, RabbitClip.PoseData.ActionIK ) with { Mirrored = library.Clip( name, mode, RabbitClip.PoseData.ActionIK, mirrored: true ) };
-				return machine.AddState( CombatPose( ledgeClip, ledgePhase ) );
+				return CombatPose( ledgeClip, ledgePhase );
 			}
 			if ( name == RabbitGuard.Wall )
-				return machine.AddState( wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, wallPhase, false ) );
+				return wall.Build( graph, label => label == "dir_coord" ? wallDirection : wallSpeed, wallPhase, false );
 			if ( name == RabbitGuard.FreeAir )
 			{
 				GraphBuilder.Node Jump( bool mirrored ) => air.Build( graph, label => coordinates[label], coordinates["air_phase"], mirrored );
-				return machine.AddState( graph.Blend( Jump( false ), Jump( true ), leftFootJump ) );
+				return graph.Blend( Jump( false ), Jump( true ), leftFootJump );
 			}
 			if ( name == RabbitGuard.Locomotion )
 			{
 				GraphBuilder.Node Gait( bool mirrored ) => WithEquipment( movement.Build( graph, label => coordinates[label], phase, mirrored ), "movement", mirrored );
-				return machine.AddState( MovementStance( Gait( false ), Gait( true ) ) );
+				return MovementStance( Gait( false ), Gait( true ) );
 			}
 			if ( bodyAttacks.TryGetValue( name, out var attack ) )
 			{
@@ -318,12 +318,12 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 
 				moves[name] = ReadMove( attackPaths[name], attack, poses );
 				if ( poses.Length == 1 )
-					return machine.AddState( CombatPose( poses[0].Clip, attackPhase ) );
+					return CombatPose( poses[0].Clip, attackPhase );
 
 				var blend = graph.BlendSpace( height, looping: false );
 				foreach ( var pose in poses )
 					blend.Add( pose.Height, CombatPose( pose.Clip, attackPhase ) );
-				return machine.AddState( blend );
+				return blend;
 			}
 
 			if ( RabbitGuard.RearHoldPoses.Contains( name ) )
@@ -331,54 +331,78 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				if ( name is RabbitGuard.CutFromHold or RabbitGuard.CutInHold )
 				{
 					var cut = clips[name] = CombatClip( name, name == RabbitGuard.CutInHold, null, true, RabbitClip.PoseData.ActionIK );
-					return machine.AddState( CombatPose( cut, reactionPhase ) );
+					return CombatPose( cut, reactionPhase );
 				}
 				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
-					return machine.AddState( ArmedStance( name, grabPhase ) );
+					return ArmedStance( name, grabPhase );
 				var grip = clips[name] = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true, RabbitClip.PoseData.ActionIK );
 				if ( name is RabbitGuard.RearHoldRat or RabbitGuard.RatHeldByRabbit )
 				{
 					var action = clips[name == RabbitGuard.RearHoldRat ? RabbitGuard.RearHold : RabbitGuard.RearHeld];
 					var returning = graph.Blend( CombatPose( action, capturePhase ), CombatPose( grip, grabPhase ), captureReturnWeight );
-					return machine.AddState( graph.Blend( CombatPose( grip, captureStancePhase ), returning, captureWeight ) );
+					return graph.Blend( CombatPose( grip, captureStancePhase ), returning, captureWeight );
 				}
 				if ( name is RabbitGuard.ArmedGrab or RabbitGuard.ArmedGrabbed )
 				{
 					var entry = ArmedStance( RabbitGuard.CaptureMovementStance( name ), captureStancePhase );
-					return machine.AddState( graph.Blend( entry, CombatPose( grip, capturePhase ), captureWeight ) );
+					return graph.Blend( entry, CombatPose( grip, capturePhase ), captureWeight );
 				}
-				return machine.AddState( CombatPose( grip, grabPhase ) );
+				return CombatPose( grip, grabPhase );
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
 			bool mobile = throwClips.ContainsKey( name ) || reactionNames.Contains( name ) || blocked.Any( pair => pair.Value == name && attacks[pair.Key].RequireElement( "flags" ).Attribute( "mobile" ) == "true" );
 			var clip = CombatClip( clipName, mobile, null, name != RabbitGuard.Watch, RabbitClip.PoseData.ActionIK );
 			clips[name] = clip;
 			if ( blocked.ContainsValue( name ) )
-				return machine.AddState( CombatPose( clip, attackPhase ) );
+				return CombatPose( clip, attackPhase );
 			if ( reactionStates.Contains( name ) )
-				return machine.AddState( CombatPose( clip, reactionPhase ) );
-			return machine.AddState( graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } ) );
-		} ).ToArray();
-		var airState = states[System.Array.IndexOf( names, RabbitGuard.FreeAir )];
-		var wallState = states[System.Array.IndexOf( names, RabbitGuard.Wall )];
-		var patrolState = states[System.Array.IndexOf( names, RabbitGuard.PatrolIdle )];
-		for ( int i = 0; i < states.Length; i++ )
+				return CombatPose( clip, reactionPhase );
+			return graph.Clip( clip.Animation, new() { SampleRootMotion = false, Looping = clip.Looping } );
+		}
+
+		// Ordinary hits and blocks share their incoming blend and can run in a nested machine.
+		bool IsCommonReaction( string name ) => (reactionNames.Contains( name ) || guards.ContainsKey( name ))
+			&& !RabbitGuard.IsGetUp( name ) && !RabbitGuard.IsDodge( name )
+			&& name is not (RabbitGuard.SpearThrow or RabbitGuard.SwordThrow) && !blocked.ContainsValue( name );
+		var groups = names.Distinct().GroupBy( name => IsCommonReaction( name ) ? null : name )
+			.Select( group => group.ToArray() ).ToArray();
+		const float reactionBlend = 0.05f;
+		GraphBuilder.Node BuildGroup( string[] poses )
 		{
-			string target = names[i];
-			var condition = graph.IdCompare( stance, target );
+			if ( poses.Length == 1 ) return BuildPose( poses[0] );
+			var reactionsMachine = graph.StateMachine();
+			var reactions = poses.Select( name => reactionsMachine.AddState( BuildPose( name ) ) ).ToArray();
+			for ( int i = 0; i < poses.Length; i++ )
+			{
+				var condition = graph.IdCompare( stance, poses[i] );
+				reactionsMachine.SetEntryCondition( reactions[i], condition );
+				foreach ( var previous in reactions )
+				{
+					if ( previous != reactions[i] )
+						reactionsMachine.AddTransition( previous, reactions[i], condition, new GraphBuilder.TransitionSettings { Duration = reactionBlend } );
+				}
+			}
+			return reactionsMachine.Build();
+		}
+
+		var states = groups.Select( group => machine.AddState( BuildGroup( group ) ) ).ToArray();
+		for ( int i = 0; i < groups.Length; i++ )
+		{
+			string target = groups[i][0];
+			var condition = graph.IdCompare( stance, groups[i] );
 			float duration = target is RabbitGuard.DragStance or RabbitGuard.OneHandDragStance ? 1f / 3f : target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
-				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
+				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? reactionBlend : 0.2f;
 			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
-			for ( int j = 0; j < states.Length; j++ )
+			for ( int j = 0; j < groups.Length; j++ )
 			{
 				if ( i == j ) continue;
-				var previous = states[j];
-				bool landing = groundPose && (previous == airState || previous == wallState);
-				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
-				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings
+				string previous = groups[j][0];
+				bool landing = groundPose && (previous is RabbitGuard.FreeAir or RabbitGuard.Wall);
+				bool waking = previous == RabbitGuard.PatrolIdle && RabbitGuard.IsGetUp( target );
+				machine.AddTransition( states[j], states[i], condition, new GraphBuilder.TransitionSettings
 				{
 					Duration = waking ? 0.05f : landing ? 0.1f : duration,
-					CanBeForced = RabbitGuard.IsGrabClip( names[j] ) && idlePoses.ContainsKey( target )
+					CanBeForced = RabbitGuard.IsGrabClip( previous ) && idlePoses.ContainsKey( target )
 				} );
 			}
 		}
