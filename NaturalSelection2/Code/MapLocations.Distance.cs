@@ -73,21 +73,38 @@ public sealed partial class MapLocations
 		return roomGateways[room] = points.ToArray();
 	}
 
-	Vector3? FindGateway( string a, Vector3 from, string b, Vector3 to )
+	Vector3? FindGateway( string a, Vector3 from, string b, Vector3 to ) =>
+		TraceGateway( a, from, b, to ) ?? TraceGateway( b, to, a, from );
+
+	Vector3? TraceGateway( string a, Vector3 from, string b, Vector3 to )
 	{
 		var path = Scene.NavMesh.CalculatePath( new() { Start = from, Target = to } );
 		if ( path.Status != NavMeshPathStatus.Complete || path.Points.Count < 2 ) return null;
-		var left = path.Points[0].Position;
-		if ( LocationAt( left ) != a || LocationAt( path.Points[^1].Position ) != b ) return null;
-		Vector3? first = null;
-		foreach ( var point in path.Points )
+		// Spark samples the corridor every half metre, 0.9 metres above its floor.
+		// The last point of a complete path is the projected destination on the floor.
+		const float spacing = 0.5f * MapLoader.Scale;
+		var offset = Vector3.Up * (0.9f * MapLoader.Scale);
+		float next = spacing;
+		Vector3? lastSource = null, firstDestination = null;
+		for ( int i = 1; i < path.Points.Count; i++ )
 		{
-			var room = LocationAt( point.Position );
-			if ( room == a ) left = point.Position;
-			else if ( room == b ) first ??= point.Position;
-			else if ( room is not null ) return null;
+			var start = path.Points[i - 1].Position;
+			var delta = path.Points[i].Position - start;
+			float length = delta.Length;
+			for ( ; next < length; next += spacing )
+			{
+				var sample = start + delta * (next / length) + offset;
+				var room = LocationAt( sample );
+				if ( room == a ) lastSource = sample;
+				else if ( lastSource is null ) return null;
+				else if ( room == b ) firstDestination ??= sample;
+				else if ( room is not null ) return null;
+			}
+			next -= length;
 		}
-		var right = first.Value;
+		var end = path.Points[^1].Position;
+		if ( lastSource is not { } left || LocationAt( end ) != b ) return null;
+		var right = firstDestination ?? end;
 
 		// Spark uses the original span to decide whether to take the 14 refinement steps.
 		int steps = left.DistanceSquared( right ) > 0.25f * MapLoader.Scale * MapLoader.Scale ? 14 : 0;
