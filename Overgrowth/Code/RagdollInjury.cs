@@ -9,6 +9,7 @@ internal sealed class RagdollInjury : Component
 	readonly RagdollMotorPose injuryMotor = new();
 	RagdollFallPose injuryPose;
 	float injuryAge, writheTime;
+	TimeSince lastInjuryUpdate;
 	internal float Age => injuryAge;
 	float initialStun;
 	float injuryMouth, mouthRemainder;
@@ -62,6 +63,7 @@ internal sealed class RagdollInjury : Component
 		SetAutoSleep( false );
 		injuryPose = pose;
 		injuryAge = age;
+		lastInjuryUpdate = 0f;
 		writheTime = previous?.writheTime ?? 0f;
 		MouthOpening = previous?.MouthOpening ?? 0f;
 		injuryMouth = previous?.injuryMouth ?? 0f;
@@ -80,8 +82,11 @@ internal sealed class RagdollInjury : Component
 		}
 		if ( injuryPose is null || !physics.IsValid() ) return;
 		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
-		writheTime += Time.Delta;
-		injuryAge += Time.Delta;
+		// The scene may skip physics steps while the character animation clock continues.
+		float elapsed = lastInjuryUpdate;
+		lastInjuryUpdate = 0f;
+		writheTime += elapsed;
+		injuryAge += elapsed;
 		while ( nextVoice < ItemVoiceTimes.Length && writheTime >= ItemVoiceTimes[nextVoice] && injuryAge < 12f )
 		{
 			Speak( "death" );
@@ -90,13 +95,13 @@ internal sealed class RagdollInjury : Component
 		float speed = velocity.Length / 40f;
 		float strength = Math.Clamp( Math.Clamp( 2f - speed * 0.3f, 0.2f, 1f ) * (12f - injuryAge) * 0.1f, 0f, 0.9f );
 		strength = Math.Max( 0f, strength - (fighter.IsValid() ? fighter.RagdollStun : Math.Max( 0f, initialStun - writheTime )) );
-		UpdateInjuredMouth( Time.Now, Time.Delta, strength );
+		UpdateInjuredMouth( Time.Now, elapsed, strength );
 		if ( strength > 0f )
 		{
 			float phase = (writheTime / injuryPose.Writhe.Clip.Duration) % 1f;
 			injuryMotor.Sample( physics.Model, injuryPose, phase, 0f, 0f, injured: true );
 		}
-		physics.GetComponent<RagdollHands>()?.Advance( injuryPose.Writhe.Clip, writheTime, Time.Delta, strength );
+		physics.GetComponent<RagdollHands>()?.Advance( injuryPose.Writhe.Clip, writheTime, elapsed, strength );
 		injuryMotor.Apply( physics, strength );
 		if ( injuryAge <= 12f ) return;
 		Enabled = false;

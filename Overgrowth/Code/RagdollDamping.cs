@@ -7,7 +7,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	ModelPhysics physics;
 	WaterHotspot water;
 	float hotspotDepth;
-	float stillTime;
+	TimeSince? stillSince;
 	[Sync] internal bool Settled { get; private set; }
 	Transform[] placedPose;
 
@@ -41,7 +41,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 			body.Velocity = body.AngularVelocity = Vector3.Zero;
 		}
 		placedPose = null;
-		stillTime = 2f;
+		stillSince = (TimeSince)2f;
 		Settled = true;
 		foreach ( var part in physics.Bodies )
 			part.Component.Sleeping = true;
@@ -50,7 +50,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	internal void Refresh()
 	{
 		placedPose = null;
-		stillTime = 0f;
+		stillSince = null;
 		Settled = false;
 		foreach ( var part in physics.Bodies )
 		{
@@ -63,7 +63,7 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 	internal void Reset( ModelPhysics model )
 	{
 		physics = model;
-		stillTime = 0f;
+		stillSince = null;
 		Settled = false;
 		var loader = CharacterLoader.FromModel( model.Model );
 		loader?.FilterRagdollContacts( model );
@@ -96,8 +96,10 @@ internal sealed class RagdollDamping : Component, IScenePhysicsEvents
 		if ( IsProxy || !physics.IsValid() || !physics.Active ) return;
 		if ( Settled && !physics.Bodies.Any( part => part.Component.IsValid() && !part.Component.Sleeping ) ) return;
 		if ( CharacterLoader.RagdollVelocity( physics ) is not { } velocity ) return;
-		if ( Settled ) stillTime = 0f;
-		stillTime = velocity.Length < 0.4f * 40f ? stillTime + Time.Delta : 0f;
+		if ( Settled ) stillSince = null;
+		if ( velocity.Length < 0.4f * 40f ) stillSince ??= (TimeSince)Time.Delta;
+		else stillSince = null;
+		float stillTime = stillSince?.Relative ?? 0f;
 		Settled = stillTime >= 2f;
 		// Bullet's damping argument is the fraction of velocity lost over one second.
 		// s&box takes a decay rate. At full damping Overgrowth puts the entire skeleton to sleep.
