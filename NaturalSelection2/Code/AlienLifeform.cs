@@ -8,6 +8,34 @@ public abstract class AlienLifeform : AlienNpc
 	[Sync( SyncFlags.FromHost )] protected TimeSince AnimationTime { get; set; }
 	bool railgunDeath;
 
+	private protected readonly AlienWounds wounds = new();
+	protected TimeUntil underFire;
+
+	protected override void OnDamaging( IDamageable.DamageEvent hit )
+	{
+		hit.AcceptedDamage *= AlienArmor.UmbraScale( hit );
+		AbsorbBabblerShield( hit );
+		float armor = ((IDamageable)this).Armour;
+		AlienArmor.ApplyPlayerRules( hit, this, armor );
+		if ( hit.Cancelled || hit.AcceptedDamage <= 0 ) return;
+		hit.AcceptedDamage = BlockDamage( hit.DamageInfo, hit.AcceptedDamage );
+		AlienArmor.Absorb( hit, armor );
+	}
+
+	protected virtual void AbsorbBabblerShield( IDamageable.DamageEvent hit ) { }
+
+	protected virtual float BlockDamage( DamageInfo hit, float damage ) => damage;
+
+	protected override void OnDamaged( IDamageable.DamageEvent hit )
+	{
+		float armorOnlyDamage = AlienArmor.ArmorOnlyDamage( hit );
+		var hp = (IDamageable)this;
+		if ( armorOnlyDamage > 0 ) armorOnlyDamage = BlockDamage( hit.DamageInfo, Math.Min( armorOnlyDamage, hp.Armour * 2 ) );
+		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
+		hp.Armour -= wounds.ApplyDamage( hit, hp.Armour, MaxHealth, hp.MaxArmour, armorOnlyDamage );
+		underFire = 3;
+	}
+
 	protected abstract int BaseHealth { get; }
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int RegenerationShells { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil nextHeal { get; set; }

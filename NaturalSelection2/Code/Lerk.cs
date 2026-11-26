@@ -17,7 +17,6 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	const float BodyRadius = 0.4f * Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();
-	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 30;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -28,7 +27,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	bool attacking, wantsSpikes, spiking;
 	TimeSince lastFlap = 1;
 	float energy = 100;
-	TimeUntil repath, underFire;
+	TimeUntil repath;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -217,18 +216,6 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
 			(target.GameObject.Tags.Has( "ns2_marine" ) || target.GetComponentInParent<PlayerController>().IsValid()) )
 			target.GameObject.GetOrAddComponent<LerkPoison>().Apply( victim );
-	}
-
-	protected override void OnDamaging( IDamageable.DamageEvent e )
-	{
-		AlienArmor.Absorb( e, Armor );
-	}
-
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.AcceptedDamage <= 0 ) return;
-		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 30 );
-		underFire = 3;
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

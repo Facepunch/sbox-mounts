@@ -16,7 +16,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();
-	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 50;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -27,7 +26,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	[Property] public bool BileBombUnlocked { get; set; } = true;
 	bool firing, primaryHeld, bombarding;
 	float ShotCost => bombarding ? 20 : 7;
-	TimeUntil repath, underFire;
+	TimeUntil repath;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -204,19 +203,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( tag != "shoot" || !primaryHeld || energy < ShotCost ) return;
 		energy -= ShotCost;
 		GorgeProjectile.Fire( this, aim, bombarding );
-	}
-
-	protected override void OnDamaging( IDamageable.DamageEvent e )
-	{
-		AbsorbWithBabblers( e );
-		AlienArmor.Absorb( e, Armor );
-	}
-
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.AcceptedDamage <= 0 ) return;
-		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 50 );
-		underFire = 3;
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

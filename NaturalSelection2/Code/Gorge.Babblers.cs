@@ -48,7 +48,7 @@ public sealed partial class Gorge
 		babblerShield = Math.Min( babblerShield, (6 - freeSlots.Count) * ShieldPerBabbler );
 	}
 
-	void AbsorbWithBabblers( IDamageable.DamageEvent e )
+	protected override void AbsorbBabblerShield( IDamageable.DamageEvent e )
 	{
 		if ( babblerShield <= 0 || e.AcceptedDamage <= 0 ||
 			e.DamageInfo.Tags.HasAny( "nervegas", "corrode", "armoronly", "structuresonly", "splash" ) ) return;

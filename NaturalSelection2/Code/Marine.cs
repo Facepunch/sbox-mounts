@@ -487,33 +487,17 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		base.OnDisabled();
 	}
 
-	static float ArmorOnlyDamage( DamageInfo hit )
-	{
-		if ( hit.Tags.Has( "corrode" ) ) return hit.Damage * 0.12f;
-		return hit.Tags.Has( "armoronly" ) ? hit.Damage : 0;
-	}
-
 	protected override void OnDamaging( IDamageable.DamageEvent hit )
 	{
-		if ( hit.AcceptedDamage <= 0 || hit.DamageInfo.Tags.HasAny( "splash", "structuresonly", "nervegas" ) )
-		{
-			hit.Cancelled = true;
-			return;
-		}
-		if ( ArmorOnlyDamage( hit.DamageInfo ) > 0 )
-		{
-			hit.AcceptedDamage = 0;
-			hit.Cancelled = armor <= 0;
-			return;
-		}
-
-		hit.AcceptedDamage *= AlienArmor.PlayerDamageScale( hit.DamageInfo );
+		hit.AcceptedDamage *= AlienArmor.UmbraScale( hit );
+		AlienArmor.ApplyPlayerRules( hit, this, armor );
+		if ( hit.Cancelled ) return;
 		AlienArmor.Absorb( hit, armor );
 	}
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
-		float armorOnlyDamage = ArmorOnlyDamage( hit.DamageInfo );
+		float armorOnlyDamage = AlienArmor.ArmorOnlyDamage( hit );
 		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
 		combatUntil = 3;
 		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );

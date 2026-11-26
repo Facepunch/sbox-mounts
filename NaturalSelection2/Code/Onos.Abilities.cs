@@ -13,7 +13,7 @@ public sealed partial class Onos
 
 	[Sync( SyncFlags.FromHost )] internal bool Shielding { get; private set; }
 	bool charging, wantsStomp, stomping, stompHit;
-	TimeSince sinceCharge, sinceChargeEnd = 10, sinceDamage = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp, sinceStompRequest = 10;
+	TimeSince sinceCharge, sinceChargeEnd = 10, sinceShieldEnd = 10, sinceBlocked = 10, sinceStomp, sinceStompRequest = 10;
 	TimeUntil rechargeShield;
 	float stompDuration;
 	sealed class StampedeCooldown { public TimeUntil Remaining; }
@@ -21,7 +21,7 @@ public sealed partial class Onos
 
 	void ChooseAbility( GameObject enemy, float distance )
 	{
-		bool wantShield = !attacking && sinceDamage < 1 && BoneShieldUnlocked && !wantsStomp;
+		bool wantShield = !attacking && underFire > 2 && BoneShieldUnlocked && !wantsStomp;
 		SetShield( wantShield );
 		if ( !attacking && !wantShield && StompUnlocked && (wantsStomp || sinceStompRequest > 6) &&
 			energy > 30 && distance <= 12 * Scale &&
@@ -101,18 +101,17 @@ public sealed partial class Onos
 	internal bool BlocksShotAt( Vector3 position ) => Shielding &&
 		Vector3.Dot( ViewRotation.Forward.WithZ( 0 ).Normal, (position - WorldPosition).Normal ) >= 0.34f;
 
-	void BlockDamage( IDamageable.DamageEvent e )
+	protected override float BlockDamage( DamageInfo hit, float damage )
 	{
-		if ( !Shielding ) return;
-		var hit = e.DamageInfo;
+		if ( !Shielding ) return damage;
 		var tags = hit.Tags;
 		if ( !(tags.Has( "bullet" ) || tags.Has( "blast" ) || tags.Has( "explosion" ) || tags.Has( "buckshot" ) ||
-			tags.Has( "melee" ) || tags.Has( "burn" ) || tags.Has( "heavy" ) ) ) return;
-		if ( !BlocksShotAt( hit.Position ) ) return;
+			tags.Has( "melee" ) || tags.Has( "burn" ) || tags.Has( "heavy" ) ) ) return damage;
+		if ( !BlocksShotAt( hit.Position ) ) return damage;
 		float factor = tags.Has( "heavy" ) ? 2 : 1;
-		float blocked = Math.Min( e.AcceptedDamage * factor, ShieldHealth );
+		float blocked = Math.Min( damage * factor, ShieldHealth );
 		ShieldHealth -= blocked;
-		e.AcceptedDamage -= blocked / factor;
+		underFire = 3;
 		sinceBlocked = 0;
 		rechargeShield = 3;
 		ShowShieldImpact( hit.Position );
@@ -121,6 +120,7 @@ public sealed partial class Onos
 			SetShield( false );
 			PlaySoundEvent( "alien/common/armor_break" );
 		}
+		return damage - blocked / factor;
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -133,7 +133,7 @@ public sealed partial class Onos
 		var speed = (RunSpeed + (charging ? Math.Min( 1, sinceCharge / 0.5f ) * (12.5f * Scale - RunSpeed) : 0)) * (Shielding ? 0.682f : 1);
 		Movement.RunSpeed = Movement.WalkSpeed = speed;
 		if ( rechargeShield <= 0 && ShieldHealth < 1000 ) ShieldHealth = Math.Min( 1000, ShieldHealth + 80 * Time.Delta );
-		Regenerate( sinceDamage < 3 );
+		Regenerate( underFire > 0 );
 		if ( stomping && sinceStomp > stompDuration + 0.15f ) wantsStomp = stomping = false;
 		if ( velocity.Length > 8.5f * Scale ) Stampede( velocity );
 

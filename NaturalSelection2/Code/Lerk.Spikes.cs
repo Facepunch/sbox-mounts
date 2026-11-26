@@ -47,7 +47,7 @@ public sealed partial class Lerk
 			if ( pass ) trace = trace.IgnoreGameObjectHierarchy( obj );
 			if ( hp is not null && GetDisposition( obj ) == Disposition.Hostile )
 			{
-				float damage = hp is not (Marine or Exo) && (IsSpikeTarget( obj ) || obj.Tags.Has( "ns2_exosuit" )) ? 10 : 5;
+				float damage = hp is not (AlienLifeform or Marine or Exo) && (IsSpikeTarget( obj ) || obj.Tags.Has( "ns2_exosuit" )) ? 10 : 5;
 				var info = new DamageInfo { Damage = damage, Origin = origin, Position = position, Attacker = GameObject, Weapon = GameObject };
 				info.Tags.Add( "puncture" );
 				hp.OnDamage( info );

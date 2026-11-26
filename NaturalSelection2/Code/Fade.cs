@@ -16,7 +16,6 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	readonly AlienTargeting targeting = new();
-	readonly AlienWounds wounds = new();
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -27,7 +26,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	TimeUntil weaponSwitch;
 	[Property] public bool StabUnlocked { get; set; } = true;
 	float energy = 100;
-	TimeUntil repath, underFire;
+	TimeUntil repath;
 
 	internal static void RegisterSounds( MountContext context )
 	{
@@ -193,7 +192,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( victim is not Component target ) return;
 
 		bool player = target.GameObject.Tags.HasAny( "ns2_marine", "ns2_lifeform", "ns2_exo", "ns2_exosuit" ) || target.GetComponentInParent<PlayerController>().IsValid();
-		float amount = player && target is not (Marine or Exo) ? 75 : 37.5f;
+		float amount = player && target is not (AlienLifeform or Marine or Exo) ? 75 : 37.5f;
 		if ( stab )
 		{
 			amount = OpenToStab( target.GameObject ) ? 270 : 120;
@@ -210,18 +209,6 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		var offset = (WorldPosition - target.WorldPosition).WithZ( 0 );
 		var forward = target.GetComponent<PlayerController>()?.EyeAngles.Forward ?? target.WorldRotation.Forward;
 		return offset.LengthSquared > 0.01f * Scale * Scale && Vector3.Dot( forward, offset ) < 0;
-	}
-
-	protected override void OnDamaging( IDamageable.DamageEvent e )
-	{
-		AlienArmor.Absorb( e, Armor );
-	}
-
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.AcceptedDamage <= 0 ) return;
-		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, 80 );
-		underFire = 3;
 	}
 
 	protected override void OnDeath( IDamageable.DeathEvent e )

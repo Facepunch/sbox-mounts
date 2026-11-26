@@ -338,19 +338,8 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 			e.AcceptedDamage = 0;
 			return;
 		}
-		if ( e.AcceptedDamage <= 0 ) return;
-		sinceDamage = 0;
-		BlockDamage( e );
-		AlienArmor.Absorb( e, Armor );
+		base.OnDamaging( e );
 	}
-
-	protected override void OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.AcceptedDamage <= 0 ) return;
-		Armor -= wounds.ApplyDamage( e, Armor, MaxHealth, MaxArmor );
-	}
-
-	readonly AlienWounds wounds = new();
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{

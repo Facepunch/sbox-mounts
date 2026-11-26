@@ -6,7 +6,6 @@ namespace NS2;
 public sealed partial class Skulk
 {
 	Action<string> worldTag;
-	readonly AlienWounds wounds = new();
 
 	internal static void RegisterSounds( MountContext context )
 	{

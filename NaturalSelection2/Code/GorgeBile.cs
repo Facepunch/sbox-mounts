@@ -54,7 +54,7 @@ public sealed class GorgeBile : Component
 		{
 			if ( !target.IsValid() || target is not IDamageable hp || hp.MaxHealth > 0 && hp.Health <= 0 ) continue;
 			float amount = damage;
-			if ( target is not (Marine or Exo) )
+			if ( target is not (AlienLifeform or Marine or Exo) )
 			{
 				var tags = target.GameObject.Tags;
 				if ( tags.HasAny( "ns2_exo", "ns2_exosuit" ) ) amount *= 0.4f;
