@@ -53,10 +53,12 @@ public sealed partial class RabbitGuard
 	sealed class HoldDamage : BluntDamage;
 	sealed class ExecutionDamage : DamageInfo;
 
+	bool HasHoldAnimations => Renderer.IsValid() && Renderer.Model.IsValid() && boundAnimations is not null;
+
 	bool BeginRearHold( RabbitGuard victim, Vector3 facing )
 	{
 		bool armed = PrimaryItem.IsValid();
-		if ( boundAnimations is null || !victim.IsValid() || victim.boundAnimations is null || victim.Holding || victim.Held ) return false;
+		if ( !HasHoldAnimations || !victim.IsValid() || !victim.HasHoldAnimations || victim.Holding || victim.Held ) return false;
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
 		bool rat = victim.boundAnimations.Species == "rat";
@@ -223,7 +225,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateRearHold()
 	{
-		if ( !holdPartner.IsValid() || !holdPartner.Active || holdPartner.boundAnimations is null || boundAnimations is null || holdPartner.holdPartner != this || Downed || holdPartner.Downed ||
+		if ( !holdPartner.IsValid() || !holdPartner.Active || !holdPartner.HasHoldAnimations || !HasHoldAnimations || holdPartner.holdPartner != this || Downed || holdPartner.Downed ||
 			Health < 1f || holdPartner.Health < 1f || !Holding && !Held )
 		{
 			ReleaseHold();
@@ -458,7 +460,7 @@ public sealed partial class RabbitGuard
 			grabFadeEnds = 1f / 5f;
 		}
 		bool fall = !enteringThrow && Held && !Downed && Health > 0f && CaptureReactionEnded;
-		bool finishCapture = Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
+		bool finishCapture = HasHoldAnimations && Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
 		bool clearPose = Held || Holding;
 		if ( partner is not null && !Downed ) combatVelocity = struggleVelocity.WithZ( combatVelocity.z );
 		holdPartner = null;
