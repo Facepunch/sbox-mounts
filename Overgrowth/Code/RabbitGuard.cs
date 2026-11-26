@@ -213,10 +213,15 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			pose = CombatPosture || AlertStage == 2 ? Ready : AlertStage == 1 ? Watch : Idle;
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
+		if ( DragStrength > 0f && HasGroundSupport && pose is (Idle or Ready or Watch or Threat or PatrolIdle) )
+		{
+			displayPose = LeftHandItem.IsValid() || RightHandItem.IsValid() ? OneHandDragStance : DragStance;
+			if ( Networking.IsHost && displayPose == OneHandDragStance ) MirroredStance = !RightHandItem.IsValid();
+		}
 		if ( pose == Locomotion && Networking.IsHost ) MirroredStance = LeftHanded;
 		Renderer.Animation.Parameters.Set( "close_coord", CloseAmount );
 		Renderer.Animation.Parameters.Set( "mirrored_pose", LedgeAnimation is not null ? LedgeMirrored :
-			pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
+			displayPose is DragStance or OneHandDragStance || pose is Threat or Idle or Ready or Locomotion ? MirroredStance : MirroredAction );
 		if ( playing is null && poseModel is null )
 		{
 			// Let the graph produce its first pose before any IK overrides read the bones.

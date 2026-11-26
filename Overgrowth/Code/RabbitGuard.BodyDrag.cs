@@ -6,6 +6,7 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	internal const string DragStance = "r_dragstance", OneHandDragStance = "r_dragstanceone";
 	static readonly string[] DragParts = ["head", "leftarm", "rightarm", "left_leg", "right_leg"];
 	TimeUntil dragWindow, dragSlideSound, recentChoke;
 	GameObject chokeVictim;

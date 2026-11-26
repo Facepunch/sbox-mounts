@@ -80,7 +80,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		bool wolf = species == "wolf";
 		if ( wolf ) reactionNames.UnionWith( ["w_slashedright", "w_slashedrighthard"] );
 		string[] wounded = wolf ? [] : [RabbitGuard.HalfWounded, RabbitGuard.Wounded];
-		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.LedgeHang, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
+		string[] names = [RabbitGuard.Idle, RabbitGuard.PatrolIdle, RabbitGuard.Watch, RabbitGuard.Ready, RabbitGuard.Threat, RabbitGuard.DragStance, RabbitGuard.OneHandDragStance, RabbitGuard.Locomotion, RabbitGuard.FreeAir, RabbitGuard.Wall, RabbitGuard.ClimbUp, RabbitGuard.LedgeReach, RabbitGuard.LedgeHang, RabbitGuard.Roll, .. RabbitGuard.RearHoldPoses, .. wounded, .. bodyAttacks.Keys, .. throwClips.Keys, .. reactionNames, .. guards.Keys, .. blocked.Values.Distinct()];
 		var stance = graph.IdParameter( "stance", names );
 		var machine = graph.StateMachine();
 		var phase = graph.FloatParameter( "stride_phase" );
@@ -183,6 +183,8 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var idlePoses = new Dictionary<string, RabbitMovement>
 		{
 			[RabbitGuard.Idle] = IdleTree( "Data/Animations/r_relaxidle.xml" ),
+			[RabbitGuard.DragStance] = IdleTree( "Data/Animations/r_dragstance.xml" ),
+			[RabbitGuard.OneHandDragStance] = IdleTree( "Data/Animations/r_dragstanceone.xml" ),
 			[RabbitGuard.Ready] = IdleTree( $"Data/Animations/{action}.xml" ),
 			[RabbitGuard.Watch] = IdleTree( $"Data/Animations/{RabbitGuard.Watch}.anm" ),
 			[RabbitGuard.Threat] = IdleTree( AnimationPath( "idle" ) )
@@ -369,7 +371,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			var condition = graph.IdCompare( stance, target );
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
 			// Get-up already blends from the captured ragdoll pose after the full body is posed.
-			float duration = target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
+			float duration = target is RabbitGuard.DragStance or RabbitGuard.OneHandDragStance ? 1f / 3f : target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
 			for ( int j = 0; j < states.Length; j++ )
