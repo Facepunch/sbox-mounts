@@ -7,7 +7,26 @@ public sealed class MarkerGroups
 }
 
 public sealed record BulletImpact( string[] Effects, string[] Sounds );
-public sealed record BulletContact( BulletImpact Primary, float AlternateChance, BulletImpact Alternate );
+public sealed record BulletContact( BulletImpact Primary, float AlternateChance, BulletImpact Alternate )
+{
+	public ShardContact Shard { get; init; }
+}
+
+public enum ShardResponse { Detonate, Fizzle, Overpenetrate, Attach, Bounce }
+
+public sealed record ShardContact( ShardResponse Response, ShardResponse Alternate, int Flags, Vector2 Angles, float AngleNoise, Vector2 Friction,
+	float EntryFriction, float PenetrationDistance )
+{
+	internal bool SelectAlternate( Scene scene, float angle, bool unit, float chance )
+	{
+		ref uint random = ref BlamRandom.GameplayState( scene );
+		if ( AngleNoise > 0 )
+			angle += (float)((2.0 * BlamRandom.Next( ref random ) / 65535 - 1) * AngleNoise);
+		return chance > 0 && (Angles.y == 0 || (angle >= Angles.x && angle <= Angles.y))
+			&& ((Flags & 2) == 0 || !unit) && ((Flags & 1) == 0 || unit)
+			&& (chance >= 1 || BlamRandom.Next( ref random ) / 65535.0 < chance);
+	}
+}
 
 public sealed record WeaponSound( SoundEvent Sound, string Marker );
 
@@ -141,14 +160,15 @@ public abstract class HandheldWeapon : Weapon
 			base.OnProjectileHit( shot, hit );
 			return;
 		}
-		PlayBulletContact( contacts, shot, hit.Direction, hit.Bone );
+		PlayBulletContact( contacts, shot, hit.Direction, hit.Bone, hit.Alternate );
 		OnShootEffects( shot with { Hit = false } );
 	}
 
-	void PlayBulletContact( Dictionary<string, BulletContact> contacts, in ShotEffect shot, Vector3 incoming, string bone = null )
+	void PlayBulletContact( Dictionary<string, BulletContact> contacts, in ShotEffect shot, Vector3 incoming, string bone = null, bool? alternate = null )
 	{
 		if ( ContactMaterial.Lookup( contacts, shot.Surface, true ) is not {} contact ) return;
-		var impact = contact.AlternateChance > 0 && Game.Random.Float() < contact.AlternateChance ? contact.Alternate : contact.Primary;
+		bool useAlternate = alternate ?? (contact.AlternateChance > 0 && Game.Random.Float() < contact.AlternateChance);
+		var impact = useAlternate ? contact.Alternate : contact.Primary;
 		if ( impact?.Effects is {} effects )
 			foreach ( var path in effects ) PlaceProjectileEffect( path, shot, incoming, bone );
 		PlayContactSounds( impact?.Sounds, shot.HitPosition );

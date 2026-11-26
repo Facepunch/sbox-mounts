@@ -74,16 +74,30 @@ public abstract partial class Weapon
 		public float Travelled;
 		public int DetonateAtTick;
 		public PhysicsShape BounceSurface;
+		public PhysicsShape PenetratedShape;
+		public float PenetrationLimit;
 		public Vector3 BounceNormal;
 		public float TurnRate;
 		public float FuseSeconds;
 		public ProjectileContrail Trail;
 		public GameObject Body;
 		public ProjectileExhaust Exhaust;
+
+		public void Reflect( SceneTraceResult hit, Vector3 origin, float parallelFriction, float normalFriction, bool alongVelocity )
+		{
+			var normal = hit.Normal * hit.Normal.Dot( Velocity );
+			Velocity = (Velocity - normal) * (1 - parallelFriction) - normal * (1 - normalFriction);
+			Offset = hit.HitPosition - origin;
+			BounceSurface = hit.Shape;
+			BounceNormal = hit.Normal;
+			Travelled += hit.Distance;
+			if ( alongVelocity && Velocity.LengthSquared > 0 ) Forward = Velocity.Normal;
+			if ( Body.IsValid() ) MoveProjectileBody( this, hit.HitPosition );
+		}
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
-		GameObject Target = null, string SurfacePath = null, string Bone = null, bool Charged = false );
+		GameObject Target = null, string SurfacePath = null, string Bone = null, bool Charged = false, bool? Alternate = null );
 
 	protected void LaunchProjectiles( Ray ray, float spreadDegrees, EnergyDischarge discharge = null )
 	{
@@ -266,15 +280,34 @@ public abstract partial class Weapon
 				pellet.Velocity += velocityChange;
 				if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
 				float distance = displacement.Length;
+				bool penetrationEnds = false;
+				if ( pellet.PenetratedShape is {} medium && pellet.Travelled + distance >= pellet.PenetrationLimit )
+				{
+					float remaining = pellet.PenetrationLimit - pellet.Travelled;
+					var limit = start + displacement.Normal * remaining;
+					if ( scene.Trace.Ray( limit, limit ).WithCollisionRules( "bullet" ).RunAll().Any( h => h.Shape == medium && h.StartedSolid ) )
+					{
+						step *= remaining / distance;
+						displacement = limit - start;
+						distance = remaining;
+						penetrationEnds = true;
+					}
+				}
 				if ( pellet.Trail.IsValid() )
 					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
-				bool atRange = step < dt || pellet.Travelled + distance >= maxRange;
+				bool atRange = penetrationEnds || step < dt || pellet.Travelled + distance >= maxRange;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
 				// but requires an object contact to be strictly nearer.
 				var sweep = atRange ? displacement * 2 : displacement;
 				var trace = scene.Trace.Ray( start, start + sweep ).IgnoreGameObjectHierarchy( shooter )
 					.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes();
 				var hit = trace.Run();
+				if ( pellet.PenetratedShape is {} penetrated )
+				{
+					if ( hit.Hit && hit.Shape == penetrated )
+						hit = trace.RunAll().FirstOrDefault( contact => contact.Shape != penetrated );
+					else if ( !hit.StartedSolid ) pellet.PenetratedShape = null;
+				}
 				if ( pellet.BounceSurface is {} surface && hit.StartedSolid && hit.Shape == surface && Vector3.Dot( sweep, pellet.BounceNormal ) > 0 )
 				{
 					// A cast starting on the reflecting face can report that face at fraction zero.
@@ -316,15 +349,8 @@ public abstract partial class Weapon
 					{
 						if ( bounce.Sounds is {} sounds && ContactMaterial.Lookup( sounds, hit.Surface, true ) is { Length: > 0 } cues )
 							PlayBounceSounds( cues, hit.HitPosition );
-						var perpendicular = hit.Normal * dot;
-						pellet.Velocity = (pellet.Velocity - perpendicular) * (1 - bounce.ParallelFriction) - perpendicular * (1 - bounce.NormalFriction);
-						pellet.Offset = hit.HitPosition - origin;
-						pellet.BounceSurface = hit.Shape;
-						pellet.BounceNormal = hit.Normal;
-						pellet.Travelled += hit.Distance;
+						pellet.Reflect( hit, origin, bounce.ParallelFriction, bounce.NormalFriction, alongVelocity );
 						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
-						if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
-						if ( pellet.Body.IsValid() ) MoveProjectileBody( pellet, hit.HitPosition );
 						pellets[i] = pellet;
 						continue;
 					}
@@ -341,15 +367,44 @@ public abstract partial class Weapon
 					if ( InWater( new Vector3( Before( p.x, d.x ), Before( p.y, d.y ), Before( p.z, d.z ) ) ) )
 						range = wetRange;
 				}
-				pellet.Trail?.Finish( hit.HitPosition, firedAt + tick / 30.0 + step * (hit.Distance / distance) );
 				float fraction = range > 0 ? (1 - (pellet.Travelled + hit.Distance) / range).Clamp( 0, 1 ) : 1;
 				float damage = (1 - fraction) * minDamage + fraction * ballistics.Damage;
 				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
-				hit.StartPosition = origin;
 				hit.Direction = pellet.Velocity.Normal;
-				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null ) );
+				bool? alternate = null;
+				ShardResponse? shardResponse = null;
+				if ( Shard is not null && this is HandheldWeapon { BulletContacts: {} contacts }
+					&& ContactMaterial.Lookup( contacts, impactSurface, true ) is { Shard: {} rule } contact )
+				{
+					bool unit = hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid();
+					float angle = System.MathF.Asin( (-hit.Normal.Dot( hit.Direction )).Clamp( -1, 1 ) );
+					alternate = rule.SelectAlternate( scene, angle, unit, contact.AlternateChance );
+					shardResponse = alternate.Value ? rule.Alternate : rule.Response;
+					if ( shardResponse == ShardResponse.Overpenetrate && hit.Shape is not null )
+					{
+						pellet.Offset = hit.HitPosition - origin;
+						pellet.Travelled += hit.Distance;
+						pellet.Velocity *= 1 - rule.EntryFriction;
+						pellet.PenetratedShape = hit.Shape;
+						pellet.PenetrationLimit = pellet.Travelled + rule.PenetrationDistance;
+						if ( pellet.Body.IsValid() ) MoveProjectileBody( pellet, hit.HitPosition );
+						(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, Alternate: alternate ) );
+						pellets[i] = pellet;
+						continue;
+					}
+					if ( shardResponse == ShardResponse.Bounce && !hit.StartedSolid )
+					{
+						(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, Alternate: alternate ) );
+						pellet.Reflect( hit, origin, rule.Friction.x, rule.Friction.y, alongVelocity );
+						pellets[i] = pellet;
+						continue;
+					}
+				}
+				pellet.Trail?.Finish( hit.HitPosition, firedAt + tick / 30.0 + step * (hit.Distance / distance) );
+				hit.StartPosition = origin;
+				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null, alternate ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
-				if ( Shard is {} shard && hit.GameObject.IsValid() && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
+				if ( Shard is {} shard && shardResponse == ShardResponse.Attach && hit.GameObject.IsValid() )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );
 				else if ( pellet.Body.IsValid() ) pellet.Body.Destroy();
 				if ( blast is not null ) Detonate( scene, blast, hit.HitPosition, hit.Normal, attacker );

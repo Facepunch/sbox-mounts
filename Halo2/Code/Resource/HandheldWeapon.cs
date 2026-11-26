@@ -86,7 +86,13 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				if ( rows.TryGetValue( name, out int row ) )
 				{
 					float chance = Float( row + 0x18 );
-					contacts[material] = new( Impact( Short( row + 2 ), material ), chance, chance > 0 ? Impact( Short( row + 0x14 ), material ) : null );
+					int primary = Short( row + 2 ), alternate = Short( row + 0x14 );
+					contacts[material] = new( Impact( primary, material ), chance, chance > 0 ? Impact( alternate, material ) : null )
+					{
+						Shard = Name == "needler" ? new( (ShardResponse)primary, (ShardResponse)alternate, Short( row + 0x16 ),
+							new( Float( row + 0x1c ), Float( row + 0x20 ) ), Float( row + 0x38 ), new( Float( row + 0x50 ), Float( row + 0x54 ) ),
+							Float( row + 0x48 ), Float( row + 0x4c ) * 120 ) : null
+					};
 					break;
 				}
 				if ( !parents.TryGetValue( name, out name ) ) break;
@@ -113,7 +119,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	{
 		var projectile = HasBarrel ? Reference( PrimaryBarrel + 0x8c ) : null;
 		if ( projectile is not null && ((map.ReadInt32( Address( projectile ) + 0xbc ) & 32) != 0
-			|| Name is "smg" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle") )
+			|| Name is "smg" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle" or "needler") )
 		{
 			var tags = new HashSet<TagEntry>();
 			bulletContacts = LoadBulletContacts( projectile, materialParents, tags );
