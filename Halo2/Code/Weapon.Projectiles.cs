@@ -11,7 +11,10 @@ public enum ProjectileOrientation
 
 public sealed record ProjectileSpeedProfile( float FinalSpeed, float StartDistance, float InverseDistance, bool FasterForPlayer, float NpcScale );
 
-public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks );
+public sealed record BounceDefinition( float MinimumAngle, float MaximumAngle, float ParallelFriction, float NormalFriction, int FuseTicks )
+{
+	public Dictionary<string, string[]> Sounds { get; init; }
+}
 
 public sealed record ShardDefinition( Vector2 TurnRate, float TrackingAngle, float TrackingRange, Vector2 FuseSeconds,
 	BlastDamage AttachedDamage, string ProjectileTag, int CombineCount, BlastDamage CombinedDamage, BlastDamage CombinedBlast, string CombinedEffect )
@@ -311,6 +314,8 @@ public abstract partial class Weapon
 					float angle = System.MathF.Asin( (-dot / pellet.Velocity.Length).Clamp( -1, 1 ) );
 					if ( angle >= bounce.MinimumAngle && angle <= bounce.MaximumAngle )
 					{
+						if ( bounce.Sounds is {} sounds && ContactMaterial.Lookup( sounds, hit.Surface, true ) is { Length: > 0 } cues )
+							PlayBounceSounds( cues, hit.HitPosition );
 						var perpendicular = hit.Normal * dot;
 						pellet.Velocity = (pellet.Velocity - perpendicular) * (1 - bounce.ParallelFriction) - perpendicular * (1 - bounce.NormalFriction);
 						pellet.Offset = hit.HitPosition - origin;
@@ -359,6 +364,14 @@ public abstract partial class Weapon
 			}
 
 		}
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void PlayBounceSounds( string[] cues, Vector3 position )
+	{
+		if ( Application.IsDedicatedServer ) return;
+		foreach ( string cue in cues )
+			if ( GameResource.Load<SoundEvent>( cue ) is {} sound ) Sound.Play( sound, position );
 	}
 
 	static void MoveProjectileBody( Pellet pellet, Vector3 position )

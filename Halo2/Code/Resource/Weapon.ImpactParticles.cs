@@ -124,8 +124,8 @@ internal abstract partial class WeaponLoader
 				@"effects\generic\solids\rocks" => (RocksName, ImpactLayer.Rocks),
 				@"effects\generic\solids\glass_breakable" => (GlassName, ImpactLayer.GlassShards),
 				@"effects\generic\solids\metal_chips" => (MetalChipsName, ImpactLayer.MetalChips),
-				@"effects\generic\energy\smoke_white_c_generic" => (null, ImpactLayer.AdditiveSprite),
-				@"effects\bitmaps\wip\burst_large" or @"effects\generic\solids\water_burst_small" or @"effects\generic\smoke\smoke_soft" or @"effects\generic\smoke\drifting_smoke" or @"effects\generic\smoke\drifting_blacksmoke" => (null, ImpactLayer.Smoke),
+				@"effects\bitmaps\wip\smoke_dirty_additive" or @"effects\generic\flares\flare_large" or @"effects\generic\energy\smoke_white_c_generic" => (null, ImpactLayer.AdditiveSprite),
+				@"effects\bitmaps\wip\burst_small" or @"effects\bitmaps\wip\burst_large" or @"effects\generic\solids\water_burst_small" or @"effects\generic\smoke\smoke_soft" or @"effects\generic\smoke\drifting_smoke" or @"effects\generic\smoke\drifting_blacksmoke" or @"effects\generic\smoke\smoke_volumetric" or @"effects\generic\smoke\smoke_volumetric_dark" => (null, ImpactLayer.Smoke),
 				@"effects\generic\smoke\smoke_soft_small_lit" => (ImpactSmokeName, ImpactLayer.Smoke),
 				@"effects\generic\solids\impact_spray" => (SprayName, ImpactLayer.Spray),
 				@"effects\generic\solids\impact_spray_unlit" => (UnlitSprayName, ImpactLayer.Spray),
@@ -139,7 +139,7 @@ internal abstract partial class WeaponLoader
 				_ => (null, (ImpactLayer?)null)
 			};
 			if ( style.Layer is not {} layer ) continue;
-			bool smokeSprite = (layer == ImpactLayer.Smoke && style.TextureName is null) || particle.TagPath == @"effects\generic\energy\smoke_white_c_generic";
+			bool smokeSprite = (layer == ImpactLayer.Smoke && style.TextureName is null) || particle.TagPath is @"effects\generic\energy\smoke_white_c_generic" or @"effects\bitmaps\wip\smoke_dirty_additive" or @"effects\generic\flares\flare_large";
 			string texturePath;
 			if ( style.TextureName is {} name ) texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
 			else

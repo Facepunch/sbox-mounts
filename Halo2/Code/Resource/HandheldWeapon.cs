@@ -52,9 +52,14 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 
 	void LoadContactBanks( Dictionary<string, string> materialParents )
 	{
-		if ( Name != "scarab_main_gun_handheld" ) return;
-		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
+		if ( !HasImpactBlast ) return;
 		var projectile = Reference( PrimaryBarrel + 0x8c );
+		int header = Address( projectile );
+		if ( Reference( header + 0x54 ) is null || map.ReadInt32( header + 0x19c ) != 1 ) return;
+		int response = Block( header + 0x19c );
+		// Terminal contacts use action 15. Reflection has a separate bank.
+		if ( Short( response + 2 ) != 0 || Short( response + 0x14 ) is not (0 or 4) ) return;
+		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
 		contactEffects = ReadMaterialBank( materials, projectile, 0x54, 15, 16, materialParents );
 		contactSounds = ReadMaterialBank( materials, projectile, 0x54, 15, 8, materialParents );
 	}
@@ -228,7 +233,10 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				int response = Block( projectile + 0x19c );
 				if ( Short( response + 2 ) == 0 && Short( response + 0x14 ) == 4 && Short( response + 0x16 ) == 2 && Float( response + 0x18 ) == 1 )
 					gun.Bounce = new( Float( response + 0x1c ), Float( response + 0x20 ), Float( response + 0x50 ), Float( response + 0x54 ),
-						(int)MathF.Round( Float( projectile + 0xd4 ) * 30 ) );
+						(int)MathF.Round( Float( projectile + 0xd4 ) * 30 ) )
+					{
+						Sounds = ReadBounceSounds( Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150, Reference( barrel + 0x8c ) )
+					};
 			}
 			gun.ProjectileModel = ModelPath( Host, map, Reference( barrel + 0x8c ) );
 			gun.ImpactBlast = ReadBlast( explosion );

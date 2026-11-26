@@ -7,9 +7,27 @@ namespace Halo2;
 
 internal abstract partial class WeaponLoader
 {
-	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null )
+	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null ) =>
+		ReadMaterialRows( materials, source, referenceOffset, action, bankOffset, materialParents ).ToDictionary( e => e.Key, e => Reference( e.Value ), StringComparer.OrdinalIgnoreCase );
+
+	protected Dictionary<string, string[]> ReadBounceSounds( int materials, TagEntry projectile )
 	{
-		var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+		var sounds = new Dictionary<string, string[]>( StringComparer.OrdinalIgnoreCase );
+		var entries = ReadMaterialRows( materials, projectile, 0x54, 19, 8 );
+		for ( int i = 0, row = Block( materials ); i < map.ReadInt32( materials ); i++, row += 0xb4 )
+		{
+			var name = map.ResolveStringId( map.ReadInt32( row ) );
+			if ( string.IsNullOrEmpty( name ) || !entries.TryGetValue( name, out int entry ) ) continue;
+			var surfaceSound = map.ReadSpan( entry + 22, 1 )[0] == 1 ? Reference( row + 0x38 ) : null;
+			sounds[name] = new[] { Reference( entry ), surfaceSound, Reference( entry + 8 ) }
+				.Where( tag => tag?.PrimaryClass == "!dns" ).Select( tag => Host.AssetPath( map, tag.TagPath, "sound" ) ).ToArray();
+		}
+		return sounds;
+	}
+
+	Dictionary<string, int> ReadMaterialRows( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null )
+	{
+		var result = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
 		if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
 		int actions = Address( foot );
 		if ( map.ReadInt32( actions ) <= action ) return result;
@@ -28,23 +46,23 @@ internal abstract partial class WeaponLoader
 					materialParents[name] = (uint)parent < count ? map.ResolveStringId( map.ReadInt32( rows + parent * 0xb4 ) ) : null;
 			}
 		}
-		var contacts = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+		var contacts = new Dictionary<string, int>( StringComparer.OrdinalIgnoreCase );
 		for ( int i = 0, entry = Block( bank ); i < entries; i++, entry += 24 )
 		{
 			// Cutscene maps retain authored names for materials that have no local index.
 			int index = Short( entry + 20 );
 			int field = (uint)index < count ? rows + index * 0xb4 : useAuthoredNames ? entry + 16 : -1;
 			if ( field >= 0 && map.ResolveStringId( map.ReadInt32( field ) ) is { Length: > 0 } name )
-				contacts[name] = Reference( entry );
+				contacts.TryAdd( name, entry );
 		}
 		foreach ( var material in materialParents.Keys )
 		{
 			string name = material;
 			for ( int depth = 0; !string.IsNullOrEmpty( name ) && depth < materialParents.Count; depth++ )
 			{
-				if ( contacts.TryGetValue( name, out var tag ) )
+				if ( contacts.TryGetValue( name, out int entry ) )
 				{
-					result[material] = tag;
+					result[material] = entry;
 					break;
 				}
 				if ( !materialParents.TryGetValue( name, out name ) ) break;

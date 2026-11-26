@@ -66,7 +66,7 @@ public sealed partial class PelletImpactEffect : Component
 	{
 		if ( Visuals is null || !target.IsValid() ) return false;
 		var parent = target;
-		if ( target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin )
+		if ( target is not Sandbox.Scene && target.GetComponentInChildren<SkinnedModelRenderer>() is { CreateBoneObjects: true } skin )
 		{
 			var bone = hitBone is null ? skin.GetClosestBone( point ) : skin.Model?.Bones.GetBone( hitBone );
 			parent = skin.GetBoneObject( bone ) ?? target;
