@@ -38,6 +38,7 @@ PS
 	CreateInputTexture2D( Particles, Linear, 8, "None", "_particles", ",0/,0/0", Default4( 1, 1, 1, 1 ) );
 	Texture2D g_tParticles < Channel( RGBA, Box( Particles ), Linear ); OutputFormat( DXT5 ); SrgbRead( False ); >;
 	float g_flTimeLastHealed < Default1( 0 ); >;
+	float g_flHealAge < Attribute( "Ns2HealAge" ); Default1( -1 ); >;
 
 	float4 MainPs( PixelInput i ) : SV_Target0
 	{
@@ -46,7 +47,7 @@ PS
 		const float3 tint = float3( 0.02, 0.02, .3 );
 		const float animationDuration = 2;
 		const float pulseAnimationDuration = 0.6;
-		float t = g_flTime - g_flTimeLastHealed;
+		float t = g_flHealAge >= 0 ? g_flHealAge : g_flTime - g_flTimeLastHealed;
 		float animFraction = 1 - clamp( t / animationDuration, 0, 1 );
 		float pulseAnimFraction = 1 - clamp( t / pulseAnimationDuration, 0, 1 );
 		float3 noise = Tex2DS( g_tParticles, g_sWrap, i.vTextureCoords.xy * 15 + float2( g_flTime * 1, 1.3 * g_flTime ) ).rgb;
