@@ -4,6 +4,8 @@ namespace Source1.GarrysMod;
 public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 {
 	const float MinRange = 40;
+	const float CarryMass = 45678;
+	const string KeepMassTag = "physgun_keep_mass";
 	const string DisabledTag = "physgun_disabled";
 	const string LimitedTag = "physgun_limited";
 
@@ -19,6 +21,8 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		}
 
 		var name = entity.Get( "classname" ).ToLowerInvariant();
+		if ( name is "prop_vehicle_jeep" or "prop_vehicle_apc" or "prop_vehicle_jeep_old" )
+			target.Tags.Add( KeepMassTag );
 		bool limited = name == "func_physbox" ? (entity.Integer( "spawnflags" ) & 0x8000) != 0
 			: name.StartsWith( "func_" ) || name.StartsWith( "prop_dynamic" ) || name.StartsWith( "prop_door" )
 			|| (name.StartsWith( "prop_" ) && (entity.Integer( "spawnflags" ) & (8 | 512)) != 0);
@@ -56,6 +60,7 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	Rotation _yawOffset;
 	float _distance;
 	float _arrivalTime;
+	float? _previousMassOverride;
 	internal override bool ShouldPlayIdle => false;
 
 	public PhysicsGun()
@@ -176,15 +181,24 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 			if ( !CanMove( body, Network.Owner ) || !body.PhysicsBody.IsValid() ) return;
 
 			HeldBody = body;
+			_previousMassOverride = null;
+			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+			if ( !body.IsValid() || HeldBody != body || !body.PhysicsBody.IsValid() ) return;
 			body.MotionEnabled = true;
+			bool ragdoll = body.GetComponentInParent<ModelPhysics>().IsValid();
+			// With two holders, the gun that raised the mass restores it on release.
+			if ( !ragdoll && !body.Tags.Has( KeepMassTag ) && body.Mass < CarryMass )
+			{
+				_previousMassOverride = body.MassOverride;
+				body.MassOverride = CarryMass;
+			}
 			var transform = body.PhysicsBody.Transform;
 			GrabPoint = transform.PointToLocal( hit.HitPosition );
 			_distance = ray.Position.Distance( hit.HitPosition );
 			_yawOffset = yaw.Inverse * transform.Rotation;
 			_previousSnapStep = null;
 			_lastMouseRotation = MouseRotation;
-			_arrivalTime = body.GetComponentInParent<ModelPhysics>().IsValid() ? 0.1f : 0.05f;
-			body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunPickup() );
+			_arrivalTime = ragdoll ? 0.1f : 0.05f;
 		}
 
 		var physics = HeldBody?.PhysicsBody;
@@ -217,9 +231,12 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 	void Release()
 	{
 		var body = HeldBody;
+		var previousMass = _previousMassOverride;
+		_previousMassOverride = null;
 		HeldBody = null;
 		BeamOn = false;
 		if ( body.IsValid() ) body.GameObject.Root.RunEvent<IPhysgunEvent>( x => x.OnPhysgunDrop() );
+		if ( previousMass.HasValue && body.IsValid() ) body.MassOverride = previousMass.Value;
 	}
 
 	Rotation HoldRotation( Rotation yaw )
