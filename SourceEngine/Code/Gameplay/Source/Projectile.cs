@@ -253,14 +253,14 @@ public abstract class Projectile : Component
 			Prefab = prefab
 		}.Spawn();
 		// The prefab plays BaseGrenade.Explode. Source layers the explosion effect sound over it.
-		if ( prefab is not null && blast.IsValid() ) PlaySound( "BaseExplosionEffect.Sound", WorldPosition, MountName );
+		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	protected static void PlaySound( string name, Vector3 position, string mountName )
+	static void ExplosionSound( Vector3 position, string mountName )
 	{
-		if ( Sounds.Sound( name, mountName ) is { } sound ) Sound.Play( sound, position );
+		if ( Sounds.Sound( "BaseExplosionEffect.Sound", mountName ) is { } sound ) Sound.Play( sound, position );
 	}
 
 	protected void PlayImpact( SceneTraceResult tr, string sound, bool impactEffect = true ) =>

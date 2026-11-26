@@ -17,7 +17,6 @@ public sealed class ExplosionEffect : Component
 	const float Force = 2;
 	const float Spread = 1 - 0.15f * Force;
 	const float Magnitude = 100;
-	const float GlowTime = 0.1f;
 
 	[Property] public string MountName { get; set; } = "css";
 	[Property] public string Sound { get; set; } = "BaseGrenade.Explode";
@@ -37,7 +36,6 @@ public sealed class ExplosionEffect : Component
 
 	readonly List<(ParticleEffect Effect, List<Puff> Puffs)> _groups = new();
 	Vector3 _direction;
-	SpriteRenderer _glow;
 	PointLight _light;
 	TimeSince _age;
 
@@ -70,7 +68,7 @@ public sealed class ExplosionEffect : Component
 
 	void Glow()
 	{
-		_glow = MountedEffects.AddSprite( GameObject, "sprites/light_glow02", MountName );
+		ExplosionOverlay.Show( Scene, WorldPosition, MountName, 0.05f );
 		var go = new GameObject( GameObject, true, "Flash" );
 		go.NetworkMode = NetworkMode.Never;
 		_light = go.AddComponent<PointLight>();
@@ -190,19 +188,7 @@ public sealed class ExplosionEffect : Component
 	protected override void OnUpdate()
 	{
 		var dt = Time.Delta;
-		var glow = 1 - _age / GlowTime;
-		if ( _glow.IsValid() && Scene.Camera is { } camera )
-		{
-			var toCamera = camera.WorldPosition - WorldPosition;
-			var distance = toCamera.Length;
-			// CExplosionOverlay: a sun-style glow 5% of the view wide, growing 16 view widths a second. Brought halfway
-			// to the eye so the floor doesn't cut it, as the overlay draws without depth.
-			_glow.Size = (0.05f + 16 * _age) * distance * 0.5f;
-			_glow.WorldPosition = WorldPosition + toCamera * 0.5f;
-			_glow.Color = new Color( 1, 0.9f, 0.7f ) * MathF.Max( glow, 0 );
-			_glow.Enabled = glow > 0;
-		}
-		if ( _light.IsValid() ) _light.Enabled = glow > 0;
+		if ( _light.IsValid() ) _light.Enabled = _age < ExplosionOverlay.Lifetime;
 		// CExplosionParticle velocity: 1/10000 left after half a second, never slower than 32.
 		var decay = MathF.Exp( MathF.Log( 0.0001f ) * dt / 0.5f );
 		foreach ( var (effect, puffs) in _groups )

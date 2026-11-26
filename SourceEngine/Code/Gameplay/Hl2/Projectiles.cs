@@ -207,10 +207,17 @@ public sealed class Rocket : Projectile, Component.IDamageable
 		_damageUntilShotDown -= damage.Damage;
 		if ( _damageUntilShotDown > 0 ) return;
 
-		PlaySound( "Missile.ShotDown", WorldPosition, MountName );
+		ShootdownEffect( WorldPosition, MountName );
 		AugerEnds = 1.5f;
 		_nextTurn = 0;
 		ReleaseLauncher();
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void ShootdownEffect( Vector3 position, string mount )
+	{
+		if ( Sounds.Sound( "Missile.ShotDown", mount ) is { } sound ) Sound.Play( sound, position );
+		ExplosionOverlay.Show( Scene, position, mount, 0.01f );
 	}
 
 	protected override bool Simulate()
