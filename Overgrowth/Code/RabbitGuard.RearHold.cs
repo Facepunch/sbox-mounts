@@ -12,6 +12,7 @@ public sealed partial class RabbitGuard
 	internal static readonly string[] RearHoldPoses = [RearHold, RearHoldRat, RearHeld, RatHeldByRabbit, ArmedGrab, ArmedGrabbed, ArmedHold, ArmedHeld, CutFromHold, CutInHold];
 	bool Holding => Stance is RearHold or RearHoldRat or ArmedGrab or ArmedHold || Stance == CutFromHold && holdPartner.IsValid();
 	bool Held => Stance is RearHeld or ArmedGrabbed ? ReactionPhase >= 1f : Stance is RatHeldByRabbit or ArmedHeld or CutInHold;
+	bool FinishingCaptureReaction => Stance is RearHeld or ArmedGrabbed && ReactionPhase < 1f;
 	internal static bool IsGrabClip( string pose ) => pose is RearHold or RearHoldRat or RearHeld or RatHeldByRabbit or ArmedGrab or ArmedGrabbed or ArmedHold or ArmedHeld;
 	bool InHoldMovementState => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
 	float grabPhase;
@@ -29,6 +30,9 @@ public sealed partial class RabbitGuard
 		return new( clip, clip, 0f );
 	}
 	RabbitGuard holdPartner;
+	[Sync] GameObject ReleasedGrabTarget { get; set; }
+	TimeUntil grabFadeEnds;
+	bool FadingGrab => ReleasedGrabTarget is not null && Stance == Threat && !Downed;
 	Vector3 holdDirection;
 	Vector3 struggleVelocity, struggleDirection;
 	float changeStruggleDirection, changeStruggleCrouch;
@@ -68,6 +72,7 @@ public sealed partial class RabbitGuard
 
 	void SetHoldPose( string pose, RabbitGuard partner, Vector3? inheritedVelocity = null )
 	{
+		ReleasedGrabTarget = null;
 		holdPartner = partner;
 		SinceGrab = 0f;
 		holdTick = 0;
@@ -114,7 +119,7 @@ public sealed partial class RabbitGuard
 				: clip.Animation.GetRootMotion( Math.Max( 0f, sample - step ) / clip.Duration );
 			var to = clip.Animation.GetRootMotion( sample / clip.Duration );
 			ApplyPairedRootMotion( from, to, weight );
-			if ( weight >= 1f && !cut )
+			if ( !cut && (weight >= 1f && holdPartner.IsValid() || sample >= clip.Duration) )
 			{
 				nextCaptureTick = 0;
 				break;
@@ -330,25 +335,44 @@ public sealed partial class RabbitGuard
 	void ReleaseHold( bool enteringThrow = false )
 	{
 		var partner = holdPartner;
+		if ( partner.IsValid() && Holding && !CaptureReactionEnded && !enteringThrow && !Downed )
+		{
+			// UnTether calls ApplyIdle(5). Its outgoing reader still owns EndAttack
+			// until the fade completes, including the original throw target.
+			ReleasedGrabTarget = partner.GameObject;
+			grabFadeEnds = 1f / 5f;
+		}
 		bool fall = !enteringThrow && Held && !Downed && Health > 0f && CaptureReactionEnded;
 		bool finishCapture = Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
 		bool clearPose = Held || Holding;
 		if ( partner is not null && !Downed ) combatVelocity = struggleVelocity.WithZ( combatVelocity.z );
 		holdPartner = null;
-		EndPairedMovement();
 		if ( finishCapture )
 		{
 			// An early release leaves the defender in the original capture hit reaction.
 			reactionDuration = boundAnimations.Clips[Stance].Duration;
-			ReactionPhase = Math.Clamp( (float)SinceGrab / reactionDuration, 0f, 1f );
+			float sampledTime = Math.Max( 0f, (nextCaptureTick - 1.5f) * HoldStep );
+			ReactionPhase = Math.Min( 1f, sampledTime / reactionDuration );
 		}
 		else if ( clearPose )
 		{
 			Stance = Threat;
 			ReactionPhase = 1f;
 		}
+		if ( !FadingGrab && !FinishingCaptureReaction ) EndPairedMovement();
 		if ( partner.IsValid() && partner.holdPartner == this ) partner.ReleaseHold();
 		if ( fall ) GoLimp();
+	}
+
+	void UpdateGrabFade()
+	{
+		if ( ReleasedGrabTarget is null ) return;
+		if ( FadingGrab )
+		{
+			if ( grabFadeEnds > 0f ) return;
+			EndGroupAttack();
+		}
+		ReleasedGrabTarget = null;
 	}
 
 }

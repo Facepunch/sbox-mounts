@@ -11,7 +11,8 @@ public sealed partial class RabbitGuard
 	[Property, Range( 0f, 1f )] public float ThrowCounterProbability { get; set; } = 0.4f;
 	float ThrowFadeRate => Stance switch { "throw" => 20f, "thrown" => 5f, _ => 100f };
 	bool InThrow => Stance is "throw" or "thrown" or "thrown_counter";
-	internal Vector3? PairedGroundVelocity => IsAirborne ? null : InThrow ? combatVelocity : Held || Holding ? struggleVelocity : null;
+	bool ReleasedGrabMotion => FadingGrab || FinishingCaptureReaction;
+	internal Vector3? PairedGroundVelocity => IsAirborne ? null : InThrow || ReleasedGrabMotion ? combatVelocity : Held || Holding ? struggleVelocity : null;
 	bool wantsBlockThrow, willEscapeThrow;
 	TimeUntil throwRecharge = 5f, blockStun;
 	RabbitGuard stunnedBy, throwPartner;

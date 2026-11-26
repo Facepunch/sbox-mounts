@@ -16,7 +16,7 @@ public sealed partial class RabbitGuard
 	void UpdatePairedGroundSupport()
 	{
 		PairedGroundSupport = false;
-		if ( !restoreAgentPosition || !IsOnGround || PhysicsCarrier.IsValid() || !holdPartner.IsValid() && !throwPartner.IsValid() ) return;
+		if ( !restoreAgentPosition || !IsOnGround || PhysicsCarrier.IsValid() ) return;
 		// During a grab the partner's hull can surround the floor probe. Retain the
 		// existing support only while the paired mover still detects that same floor.
 		var floor = TracePairedFloor();
@@ -106,6 +106,7 @@ public sealed partial class RabbitGuard
 	SceneTrace MovementTrace( SceneTrace trace )
 	{
 		trace = trace.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( CharacterCollisionRules.RagdollPart, CharacterCollisionRules.ThrownItem );
+		if ( IgnoresCharacterContact ) trace = trace.WithoutTags( CharacterCollisionRules.FighterHull );
 		if ( holdPartner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( holdPartner.GameObject );
 		return InThrow && throwPartner.IsValid() ? trace.IgnoreGameObjectHierarchy( throwPartner.GameObject ) : trace;
 	}

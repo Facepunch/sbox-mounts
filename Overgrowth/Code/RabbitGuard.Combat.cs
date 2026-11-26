@@ -252,11 +252,12 @@ public sealed partial class RabbitGuard
 		Stance = !Movement.MoveTarget.HasValue || footStanceTarget.IsValid() || speed <= 0.6f * 40f ? Threat : Locomotion;
 	}
 
-	bool InAttackState => !Downed && (strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem || Holding && !CaptureReactionEnded);
+	bool InAttackState => !Downed && (strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem || Holding && !CaptureReactionEnded || FadingGrab);
 
 	GameObject CurrentAttackTarget => Stance == "throw" ? throwPartner?.GameObject
 		: IsThrowingItem ? itemThrowTarget
 		: Holding ? holdPartner?.GameObject
+		: FadingGrab ? ReleasedGrabTarget
 		: strikeTarget;
 
 	// GetAttackTarget first considers attackers, then standing characters, then conscious ragdolls.

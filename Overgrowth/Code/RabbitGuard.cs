@@ -128,10 +128,11 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( Networking.IsHost && Health > 0 && !Downed && InThrow && boundAnimations is not null ) UpdateThrow();
 		if ( Networking.IsHost )
 		{
+			UpdateGrabFade();
 			if ( holdPartner is null ) AdvanceCaptureAlignment( ElapsedHoldTicks );
 			if ( Holding || Held || holdPartner is not null ) UpdateRearHold();
 		}
-		if ( restoreAgentPosition && (Downed || Health <= 0f || !(InThrow || Held || Holding)) ) EndPairedMovement();
+		if ( restoreAgentPosition && (Downed || Health <= 0f || !(InThrow || Held || Holding || ReleasedGrabMotion)) ) EndPairedMovement();
 		if ( Downed || Health < 1 )
 		{
 			if ( armsActive || earsActive || plantedLegs || chestActive ) ReleaseProceduralPose();
@@ -247,6 +248,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			var grab = GrabPose( pose );
 			grabPhase = playing == pose ? grabPhase + Time.Delta * grab.Frequency : 0f;
 			grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
+			if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
 		}
 		if ( OnLedge ) Renderer.Animation.Parameters.Set( "ledge_phase", LedgePhase );
@@ -282,7 +284,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( !NpcConVars.Enabled || !IsAirborne || Health <= 0f || !Renderer.IsValid() || boundAnimations is null ||
 			Downed || StaticCharacter || Holding || Held || LedgeAnimation is not null ) return;
 		AdvanceCombatMomentum( Time.Delta );
-		if ( InThrow || AdvanceItemThrow() ) return;
+		if ( FadingGrab || InThrow || AdvanceItemThrow() ) return;
 		if ( ReactionPhase < 1f )
 		{
 			if ( !UpdateDefense() ) Stance = Ready;
@@ -304,6 +306,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		if ( Holding || Held || LedgeAnimation is not null ) return;
 		AdvanceCombatMomentum( Time.Delta );
+		if ( FadingGrab ) return;
 		bool rolling = RollProgress < 1f;
 		if ( rolling && AdvanceRoll() ) return;
 		UpdateStanceAmounts();

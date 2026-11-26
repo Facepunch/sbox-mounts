@@ -11,7 +11,8 @@ public sealed partial class RabbitGuard
 	readonly HashSet<RabbitGuard> contactCandidates = new();
 	readonly HashSet<ModelPhysics> nearbyRagdolls = new();
 
-	bool CanTouchCharacters => !Downed && !Unconscious && !InThrow && Health > 0 && boundAnimations is not null && contactReady <= 0f;
+	bool IgnoresCharacterContact => InThrow || FadingGrab || FinishingCaptureReaction || (Held || Holding) && !CaptureReactionEnded;
+	bool CanTouchCharacters => !Downed && !Unconscious && !IgnoresCharacterContact && Health > 0 && boundAnimations is not null && contactReady <= 0f;
 
 	void UpdateCharacterContacts()
 	{
