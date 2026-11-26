@@ -27,9 +27,8 @@ public sealed class CharacterNavigation : NavigationLayer
 	[Property] public bool StickToNavMesh { get; set; }
 	TimeSince sinceAirborne = 0f;
 
-	protected override bool UsesGround => !runOffDirection.HasValue
-		&& Npc is not (RabbitGuard { OnLedge: true } or RabbitGuard { PairedGroundSupport: true, IsOnGround: true })
-		&& base.UsesGround;
+	bool WalksOnGround => !runOffDirection.HasValue && Npc is not RabbitGuard { OnLedge: true } && base.UsesGround;
+	protected override bool UsesGround => WalksOnGround && Npc is not RabbitGuard { PairedGroundSupport: true, IsOnGround: true };
 
 	internal void ReleaseInput()
 	{
@@ -155,7 +154,7 @@ public sealed class CharacterNavigation : NavigationLayer
 
 	internal void UpdateGroundPlacement( RabbitGuard fighter, bool resumeStanding = false )
 	{
-		if ( LinkTraversal.HasValue || !UsesGround || Agent is not { Active: true } )
+		if ( LinkTraversal.HasValue || !WalksOnGround || Agent is not { Active: true } )
 		{
 			ReleaseGroundPlacement();
 			return;

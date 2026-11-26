@@ -16,6 +16,7 @@ public sealed partial class RabbitGuard
 	internal static bool IsGrabClip( string pose ) => pose is RearHold or RearHoldRat or RearHeld or RatHeldByRabbit or ArmedGrab or ArmedGrabbed or ArmedHold or ArmedHeld;
 	bool InHoldMovementState => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
 	float grabPhase;
+	string grabReader;
 	const float HoldStep = 2f / 120f;
 	int holdTick;
 	int nextCaptureTick, cutStartTick;

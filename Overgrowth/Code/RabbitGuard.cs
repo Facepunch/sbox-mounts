@@ -243,10 +243,14 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
 		if ( playing == pose && (pose is ClimbUp or LedgeReach || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
-		if ( IsGrabClip( pose ) )
+		if ( IsGrabClip( pose ) ) grabReader = pose;
+		else if ( !FadingGrab ) grabReader = null;
+		if ( grabReader is not null )
 		{
-			var grab = GrabPose( pose );
-			grabPhase = playing == pose ? grabPhase + Time.Delta * grab.Frequency : 0f;
+			// The native fade collection keeps advancing the outgoing animation reader.
+			bool entering = grabReader == pose && playing != pose;
+			var grab = GrabPose( grabReader );
+			grabPhase = entering ? 0f : grabPhase + Time.Delta * grab.Frequency;
 			grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
 			if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );

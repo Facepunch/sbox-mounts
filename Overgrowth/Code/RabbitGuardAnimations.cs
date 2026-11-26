@@ -349,12 +349,18 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			float duration = target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
 				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
-			foreach ( var previous in states )
+			for ( int j = 0; j < states.Length; j++ )
 			{
-				if ( previous == states[i] ) continue;
+				if ( i == j ) continue;
+				var previous = states[j];
 				bool landing = groundPose && (previous == airState || previous == wallState);
 				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
-				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings { Duration = waking ? 0.05f : landing ? 0.1f : duration } );
+				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings
+				{
+					Duration = waking ? 0.05f : landing ? 0.1f : duration,
+					// UnTether blends back to the idle reader even while that pose is still fading out.
+					CanBeForced = RabbitGuard.IsGrabClip( names[j] ) && idlePoses.ContainsKey( target )
+				} );
 			}
 		}
 		// Skeleton::Read skips unweighted helper bones in the hierarchy exposed to the IK scripts.

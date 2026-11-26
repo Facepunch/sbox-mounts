@@ -10,15 +10,18 @@ public sealed partial class RabbitGuard
 	bool restoreAgentPosition;
 	internal bool PairedGroundSupport { get; private set; }
 
-	SceneTraceResult TracePairedFloor() => MovementTrace( Scene.Trace.Ray(
-		WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f ) ).WithCollisionRules( Tags ).Run();
+	SceneTrace FloorProbe => Scene.Trace.Ray( WorldPosition + Vector3.Up * 16f, WorldPosition + Vector3.Down * 8f );
+
+	SceneTraceResult TracePairedFloor() => MovementTrace( FloorProbe.WithoutTags( "npc" ) ).WithCollisionRules( Tags ).Run();
 
 	void UpdatePairedGroundSupport()
 	{
+		if ( !restoreAgentPosition && !PairedGroundSupport ) return;
 		PairedGroundSupport = false;
-		if ( !restoreAgentPosition || !IsOnGround || PhysicsCarrier.IsValid() ) return;
-		// During a grab the partner's hull can surround the floor probe. Retain the
-		// existing support only while the paired mover still detects that same floor.
+		if ( !IsOnGround || PhysicsCarrier.IsValid() ) return;
+		// The two capsules may still enclose the ordinary floor probe after their clips end.
+		// Give the probe back as soon as it clears the other character or the support changes.
+		if ( !restoreAgentPosition && !FloorProbe.IgnoreGameObjectHierarchy( GameObject ).WithTag( "npc" ).Run().StartedSolid ) return;
 		var floor = TracePairedFloor();
 		PairedGroundSupport = floor.Hit && !floor.StartedSolid && floor.Body?.GameObject == GroundObject;
 	}
@@ -35,7 +38,7 @@ public sealed partial class RabbitGuard
 
 	void EndPairedMovement()
 	{
-		PairedGroundSupport = false;
+		if ( Downed ) PairedGroundSupport = false;
 		if ( !restoreAgentPosition ) return;
 		restoreAgentPosition = false;
 		if ( GetComponent<NavMeshAgent>( true ) is not { } agent ) return;
