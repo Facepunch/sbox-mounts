@@ -15,19 +15,28 @@ public class Halo2TextureLoader( MapFile mapFile, TagEntry tag, int bitmapIndex 
 		type = ResourceType.Texture;
 		if ( spriteSequences is not null || bitmapIndex != 0 ) return null;
 		if ( name is "sheet.vtex" or "loop.vtex" ) return SpriteSheet( mapFile, tag, name == "loop.vtex" );
+		if ( name.StartsWith( "sequence_", StringComparison.Ordinal ) && name.EndsWith( ".vtex", StringComparison.Ordinal )
+			&& int.TryParse( name.AsSpan()[9..^5], out int selected ) && selected >= 0 )
+			return SpriteSheet( mapFile, tag, false, selected );
 		if ( name.EndsWith( ".vtex", StringComparison.Ordinal ) && int.TryParse( name.AsSpan( 0, name.Length - 5 ), out int index )
 			&& index > 0 && BitmapTag.Read( mapFile, tag, index ) is not null )
 			return new Halo2TextureLoader( mapFile, tag, index );
 		return null;
 	}
 
-	internal static Halo2TextureLoader SpriteSheet( MapFile map, TagEntry bitmap, bool loop )
+	internal static Halo2TextureLoader SpriteSheet( MapFile map, TagEntry bitmap, bool loop, int selected = -1 )
 	{
 		if ( bitmap.DataSize < 76 ) return null;
 		int sequences = map.VaToOffset( (int)bitmap.DataVirtualAddress ) + 60;
 		int count = map.ReadInt32( sequences );
 		if ( count is <= 0 or > 256 ) return null;
+		if ( selected >= count ) return null;
 		int sequence = map.VaToOffset( map.ReadInt32( sequences + 4 ) );
+		if ( selected >= 0 )
+		{
+			sequence += selected * 60;
+			count = 1;
+		}
 		var atlas = new Rect[count][];
 		int image = -1;
 		for ( int i = 0; i < count; i++, sequence += 60 )

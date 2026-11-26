@@ -13,7 +13,16 @@ internal abstract partial class WeaponLoader
 		float min = Float( data + 4 ) * units, span = Float( data + 8 ) * units - min;
 		int kind = map.ReadSpan( data, 1 )[0];
 		bool ranged = (map.ReadSpan( data + 1, 1 )[0] & 1) != 0;
-		int length = kind switch { 0 => 0, 1 => 4, 4 => 24, 5 => 80, 7 or 10 => 48, _ => throw new NotSupportedException( $"Unsupported particle curve {kind}" ) };
+		int length = kind switch
+		{
+			0 => 0,
+			1 => 4,
+			2 when Short( data + 2 ) == 0 => 8, // Linear transition.
+			4 => 24,
+			5 => 80,
+			7 or 10 => 48,
+			_ => throw new NotSupportedException( $"Unsupported particle curve {kind}" )
+		};
 		var first = ReadCurve( data + 20, false );
 		return new CurveRange( first, ranged ? ReadCurve( data + 20 + length, true ) : first );
 
@@ -22,6 +31,7 @@ internal abstract partial class WeaponLoader
 			Curve.Frame Key( float t, float v ) => new( t, min + span * v ) { Mode = Curve.HandleMode.Linear };
 			if ( kind == 0 ) return new Curve( Key( 0, 0 ), Key( 1, 1 ) );
 			if ( kind == 1 ) return new Curve( Key( 0, upper ? 1 : 0 ) );
+			if ( kind == 2 ) return new Curve( Key( 0, Float( start ) ), Key( 1, Float( start + 4 ) ) );
 			if ( kind == 4 )
 			{
 				float slope = Float( start + 16 ), intercept = Float( start + 20 );

@@ -315,30 +315,33 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		return gun;
 	}
 
-	MuzzleFlashDefinition ReadMuzzleFlash( TagEntry effect )
+	MuzzleFlashDefinition[] ReadMuzzleFlash( TagEntry effect )
 	{
 		if ( effect is not { PrimaryClass: "effe", DataSize: > 0 } ) return null;
 		int header = Address( effect );
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
-		string marker = null;
-		var layers = new List<MuzzleFlashLayer>();
+		var markers = new Dictionary<string, List<MuzzleFlashLayer>>();
 		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
 			ReadSystems( ev + 48 );
-		return layers.Count == 0 ? null : new( marker, layers.ToArray() );
+		return markers.Select( pair => new MuzzleFlashDefinition( pair.Key, pair.Value.ToArray() ) ).ToArray();
 
 		void ReadSystems( int systems )
 		{
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				if ( particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
-					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long") ) continue;
+				bool smoke = particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
+				if ( !smoke && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
+					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
+					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;
 				int definition = Address( particle );
 				var bitmap = map.GetTag( map.ReadInt32( Block( Block( definition + 140 ) + 4 ) ) & 0xffff );
 				if ( bitmap is null ) continue;
 				var frame = ReadAnimatedFrames( definition )[0];
 				var pivot = frame.Pivot * frame.InverseSize;
-				marker ??= map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
+				var marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + 4 * map.ReadInt32( row + 8 ) ) );
+				if ( marker is null ) continue;
+				if ( !markers.TryGetValue( marker, out var layers ) ) markers[marker] = layers = new();
 				for ( int j = 0, emitter = Block( row + 48 ); j < map.ReadInt32( row + 48 ); j++, emitter += 0xb8 )
 				{
 					int color = Block( emitter + 96 );
@@ -350,12 +353,14 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 					var offset = new Vector3( Float( emitter + 156 ), Float( emitter + 160 ), Float( emitter + 164 ) ) * 120;
 					var direction = Rotation.From( -Float( emitter + 172 ).RadianToDegree(), Float( emitter + 168 ).RadianToDegree(), 0 );
 					Vector2 Bounds( int property ) => new( Float( Block( property + 8 ) + 4 ), Float( Block( property + 8 ) + 8 ) );
-					layers.Add( new( Host.AssetPath( map, bitmap.TagPath, "vtex" ) + "/sheet.vtex", Short( definition + 8 ),
+					layers.Add( new( Host.AssetPath( map, bitmap.TagPath, "vtex" ) + $"/sequence_{Short( definition + 8 )}.vtex",
 						new Vector2( 1 - pivot.x, pivot.y ), frame.Aspect, Bounds( emitter + 24 ),
-						ReadRange( emitter + 72, 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ), ReadRange( definition + 92, 1 ),
+						ReadRange( emitter + 72, smoke ? 120 : 120 * Bounds( definition + 60 ).x ), ReadRange( emitter + 56, 1 ),
+						map.ReadInt32( definition + 100 ) > 0 ? ReadRange( definition + 92, 1 ) : default,
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
-						Bounds( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ).x * 120, Short( emitter + 72 ) == 2 ) );
+						Bounds( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
+						smoke ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), Bounds( emitter + 104 ) ) : null ) );
 				}
 			}
 		}

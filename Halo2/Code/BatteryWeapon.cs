@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition Flash );
+public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition[] Flash );
 
 public class BatteryWeapon : HandheldWeapon
 {

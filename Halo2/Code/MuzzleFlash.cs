@@ -2,10 +2,12 @@ namespace Halo2;
 
 public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] Layers );
 
-public sealed record MuzzleFlashLayer( string Texture, int Sequence, Vector2 Pivot, Vector2 Aspect,
+public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity );
+
+public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 Aspect,
 	Vector2 Lifetime, CurveRange Radius, CurveRange Spin, CurveRange Frame, Color StartColor, Color EndColor,
 	Vector3 Offset, Rotation Direction, bool Parallel, int CameraMode, bool LocalSpace,
-	Vector2 BirthCount, Vector2 SpawnRadius, float Speed, bool RandomSize );
+	Vector2 BirthCount, Vector2 SpawnRadius, Vector2 Speed, bool RandomSize, MuzzleSmoke Smoke );
 
 public sealed class MuzzleFlash : Component
 {
@@ -42,7 +44,7 @@ public sealed class MuzzleFlash : Component
 		var renderer = go.AddComponent<ParticleSpriteRenderer>();
 		renderer.Sprite = sprite;
 		renderer.Scale = 2;
-		renderer.Additive = true;
+		renderer.Additive = data.Smoke is null;
 		if ( data.Parallel ) renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
 		renderer.FogStrength = 0;
 		renderer.RenderOptions.Game = !firstPerson;
@@ -51,8 +53,13 @@ public sealed class MuzzleFlash : Component
 		{
 			float t = p.LifeDelta;
 			p.Size = data.Aspect * data.Radius.Evaluate( data.RandomSize ? p.Rand( 1, 0 ) : t, p.Rand( 1, 0 ) );
+			if ( data.Smoke is {} smoke )
+			{
+				p.Size *= smoke.Radius.Evaluate( t, p.Rand( 4, 0 ) );
+				p.Alpha = smoke.Alpha.Evaluate( t, 0 ).Clamp( 0, 1 ) * MathX.Lerp( smoke.Opacity.x, smoke.Opacity.y, p.Rand( 5, 0 ) );
+			}
 			p.Color = Color.Lerp( data.StartColor, data.EndColor, t );
-			p.Sequence = data.Sequence;
+			p.Sequence = 0;
 			p.SequenceTime = new Vector3( data.Frame.Evaluate( t, 0 ), 0, 0 );
 			if ( data.Parallel && Scene.Camera.IsValid() )
 			{
@@ -66,7 +73,7 @@ public sealed class MuzzleFlash : Component
 		effect.OnParticleCreated += p =>
 		{
 			p.StartAngles.roll = p.Rand( 3, 0 ) * 360;
-			p.Velocity = go.WorldRotation.Forward * data.Speed;
+			p.Velocity = go.WorldRotation.Forward * Sample( data.Speed );
 			if ( data.SpawnRadius.y > 0 ) p.Position += go.WorldRotation * Spread.RandomDirection( ref seed ) * Sample( data.SpawnRadius );
 			Appearance( p );
 		};
