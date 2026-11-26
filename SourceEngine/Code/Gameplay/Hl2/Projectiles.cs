@@ -503,6 +503,8 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 
 	protected override void Hit( SceneTraceResult tr ) => Detonate();
 
+	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Hull.Scale ).Run();
+
 	void Detonate()
 	{
 		if ( _detonated ) return;
