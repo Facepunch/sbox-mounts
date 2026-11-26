@@ -751,6 +751,11 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( !WeaponEffects.Impact( shot, GetShotDirection( shot ), MountContent.OfWeapon( this ) ) ) base.OnShootImpact( shot );
+		if ( !shot.Hit ) return;
+		var mount = MountContent.OfWeapon( this );
+		if ( WeaponSetup.WeaponData( this )?.ClassName == "weapon_ar2" && !(shot.HitObject.IsValid() && shot.HitObject.Tags.Has( "source1_sky" )) )
+			Hl2.FlatQuad.Create( "effects/combinemuzzle2", shot.HitPosition + shot.Normal, shot.Normal, Game.Random.Float( 24, 32 ), 0, 0.25f, mount );
+
+		if ( !WeaponEffects.Impact( shot, GetShotDirection( shot ), mount ) ) base.OnShootImpact( shot );
 	}
 }
