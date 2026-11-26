@@ -344,18 +344,31 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			direction = (direction + radius * (aim.Left * MathF.Cos( angle ) + aim.Up * MathF.Sin( angle ))).Normal;
 		}
 		var eye = EyePosition;
-		var ray = Scene.Trace.Ray( eye, eye + direction * ((Railguns ? 32 : 45) * Scale) ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( GameObject ).UseDamageHitboxes();
+		var end = eye + direction * ((Railguns ? 32 : 45) * Scale);
+		var ray = Scene.Trace.Ray( eye, end ).WithoutTags( "trigger" ).IgnoreGameObjectHierarchy( GameObject ).UseDamageHitboxes();
+		float pierceStep = 0;
 		if ( Railguns )
 		{
+			end = Scene.Trace.Ray( eye, end ).WithTag( "world" ).Run().EndPosition;
 			var extents = new Vector3( direction.WithX( 0 ).Length, direction.WithY( 0 ).Length, direction.WithZ( 0 ).Length ) * (0.3f * Scale);
-			ray = ray.Size( -extents, extents );
+			ray = ray.FromTo( eye, end ).Size( -extents, extents );
+			pierceStep = extents.y * 3;
 		}
 		bool hitEntity = false;
 		for ( int i = 0; i < 20; i++ )
 		{
 			var hit = ray.Run();
 			var target = hit.GetBulletTarget( out var hp, out bool pass );
-			if ( !target.IsValid() || target.Tags.Has( "world" ) || Railguns && damage <= 0 ) break;
+			if ( !target.IsValid() || Railguns && damage <= 0 ) break;
+			if ( target.Tags.Has( "world" ) )
+			{
+				// Spark clips the shot by its centerline. Its wider sweep can graze cover on the way.
+				if ( pierceStep <= 0 ) break;
+				var next = hit.EndPosition + direction * pierceStep;
+				if ( (end - next).Dot( direction ) <= 0 ) break;
+				ray = ray.FromTo( next, end );
+				continue;
+			}
 			hitEntity = true;
 			if ( !Railguns ) acquisition.Record( hp is not null );
 			var onos = hp as Onos;
