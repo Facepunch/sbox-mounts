@@ -14,7 +14,6 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 	string _muzzleName;
 	string[] _alternateMuzzles = [];
 	int _shots;
-	int _tracerShots;
 	bool _pumpPending;
 	bool _silencerShown;
 	Model _unsilencedModel;
@@ -38,8 +37,6 @@ public sealed partial class WeaponWorldModel : BaseWeaponModel
 		var type = _ownFlashType ?? WeaponSetup.FlashType( weapon ) ?? "SMG1";
 		var mount = MountContent.Of( Renderer.Model );
 		if ( !weapon.Silenced ) WeaponEffects.MuzzleFlash( type, NextMuzzle(), false, mount, WeaponSetup.FlashScale( weapon ) );
-		if ( hitPoint is { } hit && WeaponEffects.HasTracer( type, _tracerShots++ ) )
-			WeaponEffects.DrawTracer( type, origin ?? GetTracerOrigin().Position, hit, mount );
 		// weapon_shotgun's Pump plays its sound for everyone; the owner's viewmodel plays it with the pump clip.
 		if ( WeaponSetup.PumpDelay( weapon ) is { } delay )
 		{

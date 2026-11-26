@@ -89,7 +89,6 @@ public sealed class ViewModel : BaseWeaponModel
 	readonly HashSet<string> _muzzleEventClips = new( StringComparer.OrdinalIgnoreCase );
 	bool _hasVentPose;
 	int _burstShots;
-	int _tracerShots;
 	TimeSince _lastPrimaryShot = 10;
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
@@ -498,8 +497,6 @@ public sealed class ViewModel : BaseWeaponModel
 			return;
 		}
 		var clip = AttackClip();
-		if ( hitPoint is { } hit && WeaponEffects.HasTracer( _flashType, _tracerShots++ ) && Scene.Camera.IsValid() )
-			WeaponEffects.PlayerTracer( _flashType, Scene.Camera.WorldTransform, hit, _mount );
 		// Later rounds of an authored burst are already in its clip.
 		if ( clip is null ) return;
 		FlashUnlessAuthored( clip );

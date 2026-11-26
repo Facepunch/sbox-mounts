@@ -48,6 +48,11 @@ public sealed class BulletWeapon : Weapon
 	/// <summary>Physical kick applied to a standalone (unheld) gun when it fires.</summary>
 	[Property, Group( "Recoil" )] public float ShootForce { get; set; } = 100000f;
 
+	/// <summary>Draw a tracer every N eligible bullets. Zero disables tracers.</summary>
+	[Property, Feature( "Shooting" )] public int TracerFrequency { get; set; } = 2;
+	static uint _tracerShots;
+	bool _remoteVolleyTracer;
+
 	/// <summary>
 	/// Scale of the bullet impact effect on a client-side ragdoll.
 	/// </summary>
@@ -667,7 +672,8 @@ public sealed class BulletWeapon : Weapon
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
 	void AlternateEffects( ShotEffect[] volley )
 	{
-		foreach ( var shot in volley ) OnShootEffects( shot with { NoEvents = true } );
+		for ( int i = 0; i < volley.Length; i++ )
+			PlayPelletEffects( volley[i] with { NoEvents = true }, volley.Length, i == 0 );
 		PostWeaponEvent( WeaponEvents.Attack );
 		AlternateNoise();
 		if ( Application.IsDedicatedServer ) return;
@@ -711,14 +717,40 @@ public sealed class BulletWeapon : Weapon
 	}
 
 	/// <summary>Runs for every pellet on every peer: NPCs hear the shot, and ragdolls take the hit wherever they simulate.</summary>
-	protected override void OnShootEffects( ShotEffect shot )
+	protected override void OnShootEffects( ShotEffect shot ) =>
+		PlayPelletEffects( shot, Ballistics.Pellets, !shot.NoEvents );
+
+	void PlayPelletEffects( ShotEffect shot, int pelletCount, bool first )
 	{
 		base.OnShootEffects( shot );
 
+		DrawPelletTracer( shot, pelletCount, first );
 		EmitGunfireNoise( shot );
 
 		if ( shot.Hit )
 			PushRagdoll( shot.HitObject, shot.HitPosition, shot.Origin ?? GetMuzzleTransform().Position, RagdollImpactScale, RagdollBodyShare );
+	}
+
+	void DrawPelletTracer( in ShotEffect shot, int pelletCount, bool first )
+	{
+		if ( Application.IsDedicatedServer || TracerFrequency <= 0 || (!shot.Hit && shot.HitPosition == default) ) return;
+		if ( Secondary != SecondaryFires.DoubleShot )
+		{
+			if ( !first ) return;
+			pelletCount = 1;
+		}
+
+		var phase = _tracerShots++ % (uint)TracerFrequency;
+		// Remote player fire carries one tracer flag for the entire volley.
+		if ( first ) _remoteVolleyTracer = phase == 0 || pelletCount > TracerFrequency - phase;
+		if ( IsProxy && HasOwner ? !_remoteVolleyTracer : phase != 0 ) return;
+
+		var type = WeaponSetup.FlashType( this );
+		var mount = MountContent.OfWeapon( this );
+		if ( WeaponModel is ViewModel && Scene.Camera.IsValid() )
+			WeaponEffects.PlayerTracer( type, Scene.Camera.WorldTransform, shot.HitPosition, mount );
+		else if ( WeaponModel is WeaponWorldModel world )
+			WeaponEffects.DrawTracer( type, shot.Origin ?? world.GetTracerOrigin().Position, shot.HitPosition, mount );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )

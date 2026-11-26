@@ -135,12 +135,6 @@ static class WeaponEffects
 	}
 
 	/// <summary>
-	/// The 357 and shotgun fire with a tracer frequency of 0; everything else draws one
-	/// every second shot (CBaseCombatWeapon::PrimaryAttack and the NPC FireBullets calls).
-	/// </summary>
-	public static bool HasTracer( string type, int shot ) => type is not ("357" or "SHOTGUN") && shot % 2 == 0;
-
-	/// <summary>
 	/// The shooter's own tracer, FX_PlayerTracer or FX_PlayerAR2Tracer: a static streak for one
 	/// frame starting beside the eye (ComputeTracerStartPosition plus the client's 4 units right).
 	/// </summary>
