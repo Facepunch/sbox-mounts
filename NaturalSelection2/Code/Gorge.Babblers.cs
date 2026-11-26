@@ -93,7 +93,7 @@ public sealed partial class Gorge
 		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || victim.Health <= 0 && victim.MaxHealth > 0 || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
 		{
 			var start = Scene.Trace.Ray( EyePosition, EyePosition + aim.Forward * Scale ).IgnoreGameObjectHierarchy( GameObject )
-				.WithoutTags( "trigger" ).Run().EndPosition;
+				.WithoutTags( "trigger" ).UseDamageHitboxes().Run().EndPosition;
 			enemy = FindPheromoneTarget( start );
 			ActivePheromone = BabblerPheromone.Launch( this, start, aim );
 		}

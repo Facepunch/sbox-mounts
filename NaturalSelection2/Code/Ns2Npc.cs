@@ -30,5 +30,5 @@ public abstract partial class Ns2Npc : BaseNpc
 internal static class DamageTraces
 {
 	internal static SceneTrace UseDamageHitboxes( this SceneTrace trace ) =>
-		trace.WithoutTags( "ns2_movement" ).UseHitboxes();
+		trace.WithoutTags( "ns2_movement", BabblerPheromone.BallTag ).UseHitboxes();
 }
