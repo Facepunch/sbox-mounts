@@ -1,6 +1,9 @@
 namespace Halo2;
 
-public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] Layers );
+public sealed record MuzzleFlashDefinition( string Marker, MuzzleFlashLayer[] Layers )
+{
+	public List<PelletImpactEffect.ImpactLight> Lights { get; init; } = new();
+}
 
 public sealed record MuzzleSmoke( CurveRange Radius, CurveRange Alpha, Vector2 Opacity, bool Additive, float Gravity, float Drag );
 
@@ -20,6 +23,8 @@ public sealed class MuzzleFlash : Component
 
 	internal void Emit( MuzzleFlashDefinition data, bool firstPerson, GameObject holder, float systemRandom )
 	{
+		foreach ( var light in data.Lights )
+			_ = PelletImpactEffect.PlayLight( GameObject, WorldTransform, light );
 		layers ??= new ParticleEffect[data.Layers.Length];
 		for ( int i = 0; i < layers.Length; i++ )
 		{

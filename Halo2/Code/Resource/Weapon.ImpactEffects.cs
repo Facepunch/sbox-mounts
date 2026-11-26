@@ -130,15 +130,15 @@ internal abstract partial class WeaponLoader
 		return new( marker, Float( header + 16 ) * 120, rotationFunction == 1 ? Float( header + 48 ) : 0, reflections );
 	}
 
-	ImpactLight ReadLight( int part )
+	protected ImpactLight ReadLight( int part )
 	{
 		if ( Reference( part + 12 ) is not { PrimaryClass: "hgil", DataSize: >= 228 } tag ) return null;
 		int p = Address( tag );
-		if ( Short( p + 4 ) != 0 || Short( p + 0xb6 ) != 0 || Float( p + 0xb0 ) <= 0 ||
+		if ( Short( p + 4 ) != 0 || Short( p + 0xb6 ) is not (0 or 4) || Float( p + 0xb0 ) <= 0 ||
 			map.ReadInt32( p + 0x34 ) != 0 || map.ReadInt32( p + 0xc4 ) != 0 || map.ReadInt32( p + 0xcc ) != 0 || map.ReadInt32( p + 0xd4 ) != 0 ) return null;
 		Color ColorAt( int i ) => new( Float( p + i ), Float( p + i + 4 ), Float( p + i + 8 ) );
 		return new( Float( p + 0xb0 ), new Vector2( Float( p + 8 ), Float( p + 12 ) ) * (120 * Float( p + 24 )),
-			ColorAt( 0x58 ), ColorAt( 0x64 ), new Vector2( Float( p + 0x70 ), Float( p + 0x74 ) ) * 2 );
+			ColorAt( 0x58 ), ColorAt( 0x64 ), new Vector2( Float( p + 0x70 ), Float( p + 0x74 ) ) * 2 ) { QuarticFade = Short( p + 0xb6 ) == 4 };
 	}
 
 	ImpactDecal ReadContactMark( TagEntry contact, int part )

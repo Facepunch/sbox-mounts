@@ -328,27 +328,42 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		int header = Address( effect );
 		if ( map.ReadInt32( header + 20 ) == 0 ) return null;
 		var markers = new Dictionary<string, List<MuzzleFlashLayer>>();
+		var lights = new Dictionary<string, List<PelletImpactEffect.ImpactLight>>();
 		float start = 0;
 		for ( int i = 0, ev = Block( header + 20 ); i < map.ReadInt32( header + 20 ); i++, ev += 56 )
 		{
 			start += Float( ev + 8 );
 			float duration = Float( ev + 16 );
 			ReadSystems( ev + 48, start, duration );
+			if ( start == 0 )
+			{
+				for ( int j = 0, part = Block( ev + 24 ); j < map.ReadInt32( ev + 24 ); j++, part += 56 )
+				{
+					if ( ReadLight( part ) is not {} light ) continue;
+					int index = Short( part + 4 );
+					if ( (uint)index >= map.ReadInt32( header + 12 ) ) continue;
+					var marker = map.ResolveStringId( map.ReadInt32( Block( header + 12 ) + index * 4 ) );
+					if ( marker is null ) continue;
+					if ( !lights.TryGetValue( marker, out var list ) ) lights[marker] = list = new();
+					list.Add( light );
+				}
+			}
 			start += duration;
 		}
-		return markers.Select( pair => new MuzzleFlashDefinition( pair.Key, pair.Value.ToArray() ) ).ToArray();
+		return markers.Keys.Union( lights.Keys ).Select( marker => new MuzzleFlashDefinition( marker,
+			markers.GetValueOrDefault( marker )?.ToArray() ?? [] ) { Lights = lights.GetValueOrDefault( marker ) ?? new() } ).ToArray();
 
 		void ReadSystems( int systems, float start, float duration )
 		{
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				bool fiery = particle?.TagPath == @"effects\generic\smoke\smoke_fiery_small";
+				bool fiery = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery";
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
 				bool smoke = fiery || soft || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
-				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_center";
+				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center";
 				if ( !smoke && !casing && !flare && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst"
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
 					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;

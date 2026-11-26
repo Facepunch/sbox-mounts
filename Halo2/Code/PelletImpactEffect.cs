@@ -17,7 +17,20 @@ public sealed partial class PelletImpactEffect : Component
 		internal DecalDefinition Material => definition ??= new DecalDefinition { ColorTexture = Texture.Load( TexturePath ), Width = 1, Height = 1 };
 	}
 
-	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness );
+	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness )
+	{
+		public bool QuarticFade { get; init; }
+
+		internal float Control( float age )
+		{
+			if ( !QuarticFade ) return 1 - age;
+			// Halo interpolates between byte samples of its quartic fade.
+			static float Sample( int index ) => (int)(255 * System.Math.Pow( index / 1023d, 4 )) / 255f;
+			float position = age.Clamp( 0, 1 ) * 1023;
+			int index = (int)System.MathF.Round( position - 0.1f );
+			return index == 1023 ? 0 : 1 - MathX.Lerp( Sample( index ), Sample( index + 1 ), position % 1 );
+		}
+	}
 	public sealed record LensReflection( string TexturePath, Vector2 Radius, Vector2 Brightness, Color Tint, float Modulation, float RotationOffset );
 	public sealed record ImpactLens( string Marker, float OcclusionRadius, float RotationScale, LensReflection[] Reflections );
 
@@ -135,9 +148,9 @@ public sealed partial class PelletImpactEffect : Component
 		}
 	}
 
-	static async Task PlayLight( GameObject parent, Transform transform, ImpactLight data )
+	internal static async Task PlayLight( GameObject parent, Transform transform, ImpactLight data )
 	{
-		var go = new GameObject( parent, false, "Impact light" );
+		var go = new GameObject( parent, false, "Effect light" );
 		go.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
 		go.WorldTransform = transform;
 		var light = go.AddComponent<PointLight>();
@@ -147,7 +160,7 @@ public sealed partial class PelletImpactEffect : Component
 		{
 			using ( go.Scene.Push() )
 			{
-				float control = 1 - System.MathF.Floor( elapsed * 30 ) / (data.Duration * 30);
+				float control = data.Control( System.MathF.Floor( elapsed * 30 ) / (data.Duration * 30) );
 				if ( control <= 0 ) break;
 				light.Radius = MathX.Lerp( data.Radius.x, data.Radius.y, control );
 				light.LightColor = Color.Lerp( data.EndColor, data.StartColor, control );
