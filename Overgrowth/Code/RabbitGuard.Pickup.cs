@@ -133,7 +133,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( Networking.IsHost )
 		{
-			if ( Downed || Unconscious || Health < 1 ) StopSeekingWeapon();
+			if ( Unconscious || Health < 1 ) StopSeekingWeapon();
 			ReachWeight = Math.Clamp( ReachWeight + (reaching ? ReachFadeSpeed : -ReachFadeSpeed) * Time.Delta, 0f, 1f );
 			if ( reaching || ReachWeight > 0f )
 			{

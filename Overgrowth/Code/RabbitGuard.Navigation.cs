@@ -4,16 +4,27 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
-	Vector3 runGroundNormal;
-	float groundSpeedLimit;
 	const float GroundAcceleration = 35f * 40f;
+	Vector3 runGroundNormal;
+	float PreFrictionSpeedScale { get; set; } = 1f;
+
+	[Sync] float GroundSpeedLimit
+	{
+		get;
+		set
+		{
+			field = value;
+			PreFrictionSpeedScale = value > 0f ? MathF.Exp( GroundAcceleration / (30f * value) ) : 1f;
+		}
+	}
 
 	float GroundDrive( float duck )
 	{
 		float crouch = 1f - duck * (boundAnimations?.CharacterSpecies == "cat" ? 0.25f : 0.5f);
 		return GroundAcceleration * crouch * PlantMovementScale( duck ) * (boundAnimations?.Species == "wolf" ? 0.8f : 1f);
 	}
-	[Sync] float PreFrictionSpeedScale { get; set; } = 1f;
+
+	float MovementSpeedRatio( Vector3 velocity ) => velocity.Length / (GroundSpeedLimit > 0f ? GroundSpeedLimit : GroundRunSpeed);
 
 	// WorldToGroundSpace keeps an AI character's requested horizontal heading on slopes.
 	static Vector3 GroundDirection( Vector3 direction, Vector3 normal )
@@ -60,14 +71,13 @@ public sealed partial class RabbitGuard
 		float limit = Math.Min( run * 1.5f, Math.Max( agent.Velocity.Length * 0.98f, slopeLimit ) );
 		bool wolf = boundAnimations?.Species == "wolf";
 		if ( wolf ) limit *= 1.5f;
-		groundSpeedLimit = limit;
+		GroundSpeedLimit = limit;
 		float friction = acceleration / limit;
 		// The crowd steps before the displayed pose. Sample the spring at the motor's
 		// simulation time without advancing the pose a second time.
 		float elapsed = (float)(Time.NowDouble - groundCrouchTime);
 		float duck = groundCrouchTime > 0 && elapsed > 0f && InLocomotion ? SampleCrouchSpring( groundCrouchTarget, elapsed ).Amount : duckAmount;
 		float drive = GroundDrive( duck );
-		PreFrictionSpeedScale = MathF.Exp( friction * tick );
 		float terminal = input * tangent.WithZ( 0f ).Length * drive * tick / (PreFrictionSpeedScale - 1f);
 		float response = 1f - MathF.Exp( -friction * step );
 		float steeringAcceleration = (direction.WithZ( 0f ).Normal * terminal - velocity).Length * (response / step);
@@ -96,7 +106,7 @@ public sealed partial class RabbitGuard
 	{
 		float limit = Math.Clamp( velocity.Length * 0.98f, GroundRunSpeed, GroundRunSpeed * 1.5f );
 		if ( boundAnimations?.Species == "wolf" ) limit *= 1.5f;
-		PreFrictionSpeedScale = MathF.Exp( (35f * 40f) / (30f * limit) );
+		GroundSpeedLimit = limit;
 		AdvanceMomentum( ref velocity, step, 1f / PreFrictionSpeedScale, origin );
 	}
 

@@ -51,8 +51,8 @@ public sealed partial class RabbitGuard
 		Vector3 DriveAt( int index ) => heading * (tick * GroundDrive( CrouchSpringAt( climbStartDuck, climbStartDuckVelocity, groundCrouchTarget, index * tick ).Amount ));
 		while ( climbGroundTicks < due )
 		{
-			groundSpeedLimit = Math.Min( GroundRunSpeed * 1.5f, Math.Max( climbApproachVelocity.Length * 0.98f, GroundRunSpeed * (1f - 0.7f * heading.z) ) );
-			climbApproachVelocity = (climbApproachVelocity + DriveAt( climbGroundTicks++ )) * MathF.Exp( -GroundAcceleration * tick / groundSpeedLimit );
+			GroundSpeedLimit = Math.Min( GroundRunSpeed * 1.5f, Math.Max( climbApproachVelocity.Length * 0.98f, GroundRunSpeed * (1f - 0.7f * heading.z) ) );
+			climbApproachVelocity = (climbApproachVelocity + DriveAt( climbGroundTicks++ )) * MathF.Exp( -GroundAcceleration * tick / GroundSpeedLimit );
 			MoveGroundDelta( climbApproachVelocity * tick, out var travel );
 			climbApproachVelocity = travel / tick;
 		}
@@ -67,7 +67,7 @@ public sealed partial class RabbitGuard
 		if ( boundAnimations is null || direction.IsNearlyZero() || destination.z <= WorldPosition.z ) return false;
 		var normal = runGroundNormal.IsNearlyZero() ? FloorNormal() : runGroundNormal;
 		float launchSpeed = JumpInitialVelocity * 40f;
-		float limit = groundSpeedLimit > 0f ? groundSpeedLimit : GroundRunSpeed;
+		float limit = GroundSpeedLimit > 0f ? GroundSpeedLimit : GroundRunSpeed;
 		float forwardSpeed = GroundRunSpeed * Math.Min( 1f, BodyVelocity.Length / limit + 0.2f );
 		velocity = direction * forwardSpeed + Vector3.Up * launchSpeed;
 		if ( velocity.Normal.Dot( normal ) < 0.3f )

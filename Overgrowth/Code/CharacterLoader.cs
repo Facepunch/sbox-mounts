@@ -101,7 +101,7 @@ public class CharacterLoader( string filePath, bool guard = false ) : ResourceLo
 	{
 		if ( !chainCenters.TryGetValue( chain, out var points ) || points.Length == 0 ) return null;
 		var tip = points[0];
-		return BodyTransform( tip, fighter.Renderer, null, fighter )?.PointToWorld( tip.Center );
+		return BodyTransform( tip, fighter.Renderer, fighter.Renderer.GetComponent<ModelPhysics>(), fighter )?.PointToWorld( tip.Center );
 	}
 
 	internal static Vector3? AverageChainPosition( SkinnedModelRenderer renderer, string chain )

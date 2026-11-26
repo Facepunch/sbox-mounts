@@ -18,7 +18,7 @@ public sealed partial class RabbitGuard
 	void UpdateBreathing( float dt )
 	{
 		var velocity = BodyVelocity;
-		float speedRatio = velocity.Length / GroundRunSpeed;
+		float speedRatio = MovementSpeedRatio( velocity );
 		if ( CombatPosture ) speedRatio = (1f + speedRatio) * 0.5f;
 		float target = 0.9f + 4f * speedRatio;
 		breathSpeed = Math.Min( 5f, target + (breathSpeed - target) * MathF.Pow( 0.999f - 0.009f * speedRatio, dt * 120f ) );
