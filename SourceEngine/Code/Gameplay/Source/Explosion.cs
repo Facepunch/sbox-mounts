@@ -18,7 +18,7 @@ sealed class Explosion
 	public PrefabFile Prefab { get; init; }
 
 	/// <summary>Returns null when the blast couldn't be spawned.</summary>
-	public GameObject Spawn()
+	public GameObject Spawn( bool playPrefabSound = true )
 	{
 		var scene = Source.IsValid() ? Source.Scene : Game.ActiveScene;
 		if ( !scene.IsValid() ) return null;
@@ -32,6 +32,8 @@ sealed class Explosion
 
 		var go = GameObject.Clone( prefab, new CloneConfig { Transform = new Transform( Position, Rotation ), StartEnabled = false } );
 		if ( !go.IsValid() ) return null;
+
+		if ( !playPrefabSound && go.GetComponent<MountedEffect>( true ) is { } effect ) effect.Sound = string.Empty;
 
 		go.RunEvent<RadiusDamage>( x =>
 		{

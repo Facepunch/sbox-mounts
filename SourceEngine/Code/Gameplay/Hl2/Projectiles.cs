@@ -433,7 +433,7 @@ public sealed class Grenade : Projectile
 	protected override void Expire()
 	{
 		Shake( WorldPosition );
-		Explode();
+		Explode( playPrefabSound: true );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

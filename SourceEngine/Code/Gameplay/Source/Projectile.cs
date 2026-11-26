@@ -239,7 +239,7 @@ public abstract class Projectile : Component
 		return true;
 	}
 
-	protected void Explode()
+	protected void Explode( bool playPrefabSound = false )
 	{
 		var prefab = MountContent.Prefab( MountName, "explosion" );
 		var effect = prefab is null ? null : GameObject.GetPrefab( prefab.ResourcePath )?.GetComponent<MountedEffect>();
@@ -255,8 +255,8 @@ public abstract class Projectile : Component
 			Damage = Damage,
 			ForceScale = 1.5f,
 			Prefab = prefab
-		}.Spawn();
-		// The prefab plays BaseGrenade.Explode. Source layers the explosion effect sound over it.
+		}.Spawn( playPrefabSound );
+		// Projectile impacts play the explosion effect sound at the blast origin.
 		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName, SourceWaterMap.ExplosionDepth( Scene, WorldPosition ) ?? -1 );
 		GameObject.Destroy();
 	}
