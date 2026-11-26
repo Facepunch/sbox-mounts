@@ -127,7 +127,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		skipDraw = equippedPistol is null;
 		equippedPistol = pistol;
 		weaponAge = 0;
-		deployed = reloaded = previousPress = false;
+		deployed = skipDraw && !pistol;
+		reloaded = previousPress = false;
 		lastRequest = lastShot = 1;
 		var directory = $"mount://ns2/ns2/models/marine/{WeaponName}/{WeaponName}";
 		if ( heldModel.IsValid() ) heldModel.Model = Model.Load( $"{directory}.model.vmdl" );
@@ -429,7 +430,11 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			FireBullet();
 			if ( --Ammo.Clip == 0 ) BeginReload();
 		}
-		else if ( tag == "deploy_end" ) deployed = true;
+		else if ( tag == "deploy_end" )
+		{
+			deployed = true;
+			skipDraw = false;
+		}
 		else if ( tag == "reload" )
 		{
 			int rounds = Math.Min( Ammo.Capacity - Ammo.Clip, Ammo.Reserve );
