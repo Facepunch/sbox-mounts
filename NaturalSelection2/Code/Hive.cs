@@ -14,6 +14,22 @@ public sealed class Hive : AlienStructure
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hive>( root, renderer, "Hive" );
 
+	internal float DistanceFrom( AlienLifeform alien, MapLocations locations ) => locations.IsValid()
+		? locations.WalkDistance( alien.WorldPosition, WorldPosition ) : alien.WorldPosition.Distance( WorldPosition );
+
+	internal static Hive FindNearest( AlienLifeform alien, MapLocations locations, out float distance )
+	{
+		Hive best = null;
+		distance = float.PositiveInfinity;
+		foreach ( var hive in alien.Scene.GetAllComponents<Hive>() )
+		{
+			if ( !hive.IsBuilt || hive.Faction != alien.Faction || hive.Health <= 0 ) continue;
+			float candidate = hive.DistanceFrom( alien, locations );
+			if ( candidate < distance ) (best, distance) = (hive, candidate);
+		}
+		return best;
+	}
+
 	protected override void OnUpdate()
 	{
 		if ( Health <= 0 || GameObject.IsDestroyed ) return;

@@ -26,20 +26,13 @@ public sealed partial class Lerk
 			return false;
 		}
 
-		float Distance( Hive hive ) => flightLocations.IsValid() ? flightLocations.WalkDistance( WorldPosition, hive.WorldPosition ) : WorldPosition.Distance( hive.WorldPosition );
-		float distance = float.PositiveInfinity;
-		if ( retreatHive.IsValid() && retreatHive.Health > 0 ) distance = Distance( retreatHive );
+		float distance;
+		if ( retreatHive.IsValid() && retreatHive.Health > 0 ) distance = retreatHive.DistanceFrom( this, flightLocations );
 		else
 		{
-			retreatHive = null;
-			foreach ( var hive in Scene.GetAllComponents<Hive>() )
-			{
-				if ( !hive.IsBuilt || hive.Faction != Faction || hive.Health <= 0 ) continue;
-				float candidate = Distance( hive );
-				if ( candidate < distance && ShouldRetreat( healthFraction, energyFraction, candidate ) )
-					(retreatHive, distance) = (hive, candidate);
-			}
-			if ( !retreatHive.IsValid() ) return false;
+			var hive = Hive.FindNearest( this, flightLocations, out distance );
+			if ( !hive.IsValid() || !ShouldRetreat( healthFraction, energyFraction, distance ) ) return false;
+			retreatHive = hive;
 		}
 
 		var goal = retreatHive.EngagementPoint;

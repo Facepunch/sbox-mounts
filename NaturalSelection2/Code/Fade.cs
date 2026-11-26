@@ -97,8 +97,13 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var lastSeen );
-		if ( enemy.IsValid() && !CanEngage( lastSeen ?? enemy.WorldPosition ) )
+		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
+		float health = (Health + 2 * Armor) / (MaxHealth + 2 * ((IDamageable)this).MaxArmour);
+		var reason = RetreatThreshold( health, energy / 100, InCombat, locations?.AlienPlayerBalance( WorldPosition ) ?? 0 );
+		Vector3? lastSeen = null;
+		var enemy = reason == RetreatReason.None ? AlienTargeting.ForTeam( this ).FindEnemy( this, out lastSeen ) : null;
+		float range = (health > 0.95f ? 50 : 15) * Scale;
+		if ( enemy.IsValid() && WorldPosition.DistanceSquared( lastSeen ?? enemy.WorldPosition ) > range * range )
 		{
 			enemy = null;
 			lastSeen = null;
@@ -110,7 +115,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		if ( goal is null )
 		{
 			attacking = false;
-			GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
+			if ( !RetreatToHive( reason, health ) ) GameObject.GetOrAddComponent<AlienExploration>().Explore( Scale );
 			if ( Movement.MoveTarget is { } destination ) TravelTo( destination );
 			return;
 		}
@@ -147,18 +152,6 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 				weaponSwitch = 1;
 			}
 		}
-	}
-
-	bool CanEngage( Vector3 lastSeen )
-	{
-		float health = (Health + 2 * Armor) / (MaxHealth + 2 * ((IDamageable)this).MaxArmour);
-		if ( health < 0.55f || InCombat && energy < 30 ) return false;
-
-		float range = (health > 0.95f ? 50 : 15) * Scale;
-		if ( WorldPosition.DistanceSquared( lastSeen ) > range * range ) return false;
-
-		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		return !locations.IsValid() || locations.AlienPlayerBalance( WorldPosition ) > -2;
 	}
 
 	internal float AttackUrgency( BaseNpc target )

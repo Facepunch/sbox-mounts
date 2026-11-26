@@ -37,7 +37,7 @@ public sealed partial class Fade
 			return;
 		}
 
-		if ( hopsRemaining > 0 || energy <= 50 )
+		if ( hopsRemaining > 0 || energy <= (retreatHive.IsValid() ? 24 : 50) )
 		{
 			if ( !IsOnGround || hopsRemaining == 0 && Time.Now <= lastJump + 0.15f ) return;
 			var jump = Animation.MoveVelocity.WithZ( 0 );
