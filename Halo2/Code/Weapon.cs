@@ -51,6 +51,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	// Loose weapons retain unclaimed ammunition when the recipient reaches the reserve cap.
 	[Sync( SyncFlags.FromHost )] int looseReserve { get; set; } = -1;
+	// The inventory exposes one ammo count. Retain the second magazine's share for detachment.
+	int? pairedReserve;
 	protected int LooseReserve => looseReserve >= 0 ? looseReserve : Clip1 < 0 ? StartingAmmo : 0;
 	int LoadedRounds => Clip1 < 0 ? ClipMaxSize : Clip1;
 
@@ -70,7 +72,20 @@ public abstract partial class Weapon : BaseCombatWeapon
 	int CarriedReserve( BaseInventoryComponent inventory )
 	{
 		int available = inventory?.GetAmmo( PrimaryAmmoType ) ?? 0;
-		return available == int.MaxValue ? 0 : System.Math.Min( available, MaxReserveAmmo - LooseReserve );
+		if ( available == 0 || available == int.MaxValue ) return 0;
+		if ( pairedReserve is int share ) available = System.Math.Min( available, share );
+		else if ( MatchingWeapon( inventory )?.pairedReserve is int other ) available = System.Math.Max( 0, available - other );
+		return System.Math.Min( available, MaxReserveAmmo - LooseReserve );
+	}
+
+	protected override int TakeReserveAmmo( BaseAmmoResource ammoType, int amount )
+	{
+		int taken = base.TakeReserveAmmo( ammoType, amount );
+		if ( taken > 0 && pairedReserve is int share && ammoType == PrimaryAmmoType )
+			pairedReserve = System.Math.Max( 0, share - taken );
+		else if ( taken > 0 && Offhand.IsValid() && Offhand.PrimaryAmmoType == ammoType && Offhand.pairedReserve is int other )
+			Offhand.pairedReserve = System.Math.Min( other, Inventory.GetAmmo( ammoType ) );
+		return taken;
 	}
 
 	protected override bool OnAdding( BaseInventoryComponent inventory )
@@ -112,7 +127,9 @@ public abstract partial class Weapon : BaseCombatWeapon
 		int reserve = LooseReserve;
 		StartingAmmo = 0;
 		base.OnAdded( inventory );
-		looseReserve = reserve - inventory.GiveAmmo( PrimaryAmmoType, reserve );
+		int credited = inventory.GiveAmmo( PrimaryAmmoType, reserve );
+		looseReserve = reserve - credited;
+		pairedReserve = offhandPickup == inventory && MatchingWeapon( inventory ).IsValid() ? credited : null;
 	}
 
 	protected override void OnRemoved( BaseInventoryComponent inventory )
@@ -123,6 +140,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 		// Drop and transfer have already reparented the weapon. Removal for destruction has not.
 		if ( Inventory != inventory && UsesClips && UsesAmmo )
 			looseReserve = LooseReserve + inventory.TakeAmmo( PrimaryAmmoType, CarriedReserve( inventory ) );
+		if ( UsesClips && UsesAmmo && MatchingWeapon( inventory ) is {} remaining ) remaining.pairedReserve = null;
+		pairedReserve = null;
 	}
 
 	protected override bool OnDrop()
