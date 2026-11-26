@@ -20,19 +20,20 @@ sealed partial class PaydayCharacter
 	public PaydayCharacter( BundleDatabase db, MapMaterials materials, NpcDefinition definition, string path )
 		: this( db, materials, definition.Unit, path, definition.Clips(), true ) { }
 
-	public PaydayCharacter( BundleDatabase db, MapMaterials materials, string unitPath, string path )
-		: this( db, materials, unitPath, path, [], false ) { }
+	public PaydayCharacter( BundleDatabase db, MapMaterials materials, string unitPath, string path, bool scripted = false )
+		: this( db, materials, unitPath, path, [], false, scripted ) { }
 
 	PaydayCharacter( BundleDatabase db, MapMaterials materials, string unitPath, string path,
-		IEnumerable<KeyValuePair<string, string>> clips, bool npcPhysics )
+		IEnumerable<KeyValuePair<string, string>> clips, bool npcPhysics, bool scriptedRig = false )
 	{
 		var unit = UnitModel.Xml( db.Find( "unit", unitPath ) );
 		string objectPath = unit.Element( "object" ).Attribute( "file" );
 		var obj = UnitModel.Xml( db.Find( "object", objectPath ) );
 		animationGroups = (obj.Element( "animations" )?.Elements( "animation_group" ) ?? [])
-			.ToDictionary( g => g.Attribute( "name" ),
-				g => g.Elements( "object" ).Select( o => IdString.Hash( o.Attribute( "name" ) ) ).ToHashSet(), StringComparer.Ordinal );
-		scripted = UnitClassification.Classify( unitPath, unit ) == UnitKind.Scripted;
+			.GroupBy( g => g.Attribute( "name" ), StringComparer.Ordinal )
+			.ToDictionary( g => g.Key,
+				g => g.SelectMany( a => a.Elements( "object" ) ).Select( o => IdString.Hash( o.Attribute( "name" ) ) ).ToHashSet(), StringComparer.Ordinal );
+		scripted = scriptedRig || UnitClassification.Classify( unitPath, unit ) == UnitKind.Scripted;
 		orientation = scripted ? obj.Element( "diesel" ).Attribute( "orientation_object" ) : "root_point";
 		File = new( db.Find( "model", objectPath ) );
 		unitGeometry = UnitGeometry.Read( unit, obj );

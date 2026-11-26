@@ -91,6 +91,34 @@ Map placements continue to use the existing placed-unit importer.
 All 17 rigs and 16 timelines passed load/source-pose checks at the start, midpoint and end.
 The hanging armored truck additionally passed native graph-pose and rendered-appearance checks.
 
+### Other animated props
+
+Ordinary non-character unit models with timed embedded controllers expose an opt-in
+`/animated.vmdl` child. Load it into a `SkinnedModelRenderer`, then use its `/rig.skel`,
+`/embedded.anim` and `/groups/<name>.anim` children just like the scripted vehicles:
+
+```csharp
+string container = "mount://payday/units/world/props/container/container_anim/"
+	+ "container_anim.unit.vmdl/animated.vmdl";
+renderer.Model = await ResourceLibrary.LoadAsync<Model>( container );
+var prop = renderer.GameObject.AddComponent<Diesel.PaydayScriptedProp>();
+prop.Renderer = renderer;
+prop.AnimationGroup = "ag_left_door";
+prop.Playing = true;
+```
+
+The base `.unit.vmdl` retains its ordinary static/physics behavior. The animated variant
+uses the source orientation object, pruned render bones and opt-in authored collision.
+Timed controllers are required; unsupported controller formats still reject loading.
+Duplicate group definitions combine their explicitly listed nodes.
+
+Verified examples: construction crane, hospital saw, grand piano, container doors,
+hospital elevator/hatches, hospital elevator doors and the apartment animated Charger.
+Ten named clips match source bone poses at four sampled cycles. Forty authored collision
+parts load across those seven assets; five groups move collision. The source crane/saw
+collision remains stationary, and the backdrop Charger has no enabled collision.
+This is resource/component support, not automatic playback of every placed map prop.
+
 ### Selecting an authored group
 
 Use `/groups/<name>.anim` to animate only the nodes explicitly listed in that source group:

@@ -6,11 +6,18 @@ sealed class DieselModelLoader : ResourceLoader<PaydayMount>
 	readonly string unit;
 	readonly bool character;
 	readonly bool scripted;
+	readonly bool hasCollision;
 	PaydayCharacter assets;
 
 	protected override ResourceLoader ResolveChild( string name, out ResourceType type )
 	{
 		type = default;
+		if ( name == "animated.vmdl" && !character && !scripted )
+		{
+			if ( Host.GetUnitAnimationInfo( unit )?.EndTime is not > 0 ) return null;
+			type = ResourceType.Model;
+			return new DieselModelLoader( unit, new( UnitKind.Scripted, hasCollision ) );
+		}
 		if ( !character && !scripted ) return null;
 		if ( name == "rig.skel" )
 		{
@@ -44,13 +51,14 @@ sealed class DieselModelLoader : ResourceLoader<PaydayMount>
 		}
 	}
 
-	internal PaydayCharacter GetCharacter() => assets ??= new PaydayCharacter( Host.Database, Host.BrowserMaterials, unit, Path );
+	internal PaydayCharacter GetCharacter() => assets ??= new PaydayCharacter( Host.Database, Host.BrowserMaterials, unit, Path, scripted );
 
 	public DieselModelLoader( string unit, UnitModel.BrowseInfo info )
 	{
 		this.unit = unit;
 		character = info.Kind == UnitKind.Character;
 		scripted = info.Kind == UnitKind.Scripted;
+		hasCollision = info.HasCollision;
 		Tags.Add( info.Kind.ToString().ToLowerInvariant() );
 		Flags = ResourceFlags.NeverRagdoll;
 		if ( info.Kind is UnitKind.Architecture or UnitKind.Character or UnitKind.Scripted ) Flags |= ResourceFlags.DeveloperOnly;
