@@ -55,7 +55,7 @@ static class MountedEffects
 	/// An additive billboard standing in for a code-driven Source sprite. Source draws a
 	/// sprite at its texture width times its scale; see <see cref="SetSprite"/>.
 	/// </summary>
-	public static SpriteRenderer AddSprite( GameObject parent, string name, string mountName )
+	public static SpriteRenderer AddSprite( GameObject parent, string name, string mountName, bool useViewModelLayer = true )
 	{
 		var texture = SpriteTexture( name, mountName );
 		if ( texture is null || !parent.IsValid() ) return null;
@@ -68,7 +68,7 @@ static class MountedEffects
 		// visible discs out of soft-alpha Source sprites such as muzzleflash2.
 		sprite.AlphaCutoff = 0;
 		sprite.Size = 0;
-		UseViewModelLayer( sprite );
+		if ( useViewModelLayer ) UseViewModelLayer( sprite );
 		go.Enabled = true;
 		return sprite;
 	}

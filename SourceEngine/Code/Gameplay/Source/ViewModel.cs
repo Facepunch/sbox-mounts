@@ -93,6 +93,7 @@ public sealed class ViewModel : BaseWeaponModel
 	GameObject _muzzle;
 	GameObject _worldMuzzle;
 	readonly Dictionary<GameObject, GameObject> _effectAnchors = new();
+	internal event Action<CameraView, float> LensApplied;
 	readonly List<(GameObject Anchor, string Type, float Scale)> _muzzleFlashes = new();
 	bool _scopeHidden;
 	string _swingClip;
@@ -226,6 +227,7 @@ public sealed class ViewModel : BaseWeaponModel
 		foreach ( var flash in _muzzleFlashes )
 			WeaponEffects.MuzzleFlash( flash.Type, flash.Anchor, true, _mount, flash.Scale );
 		_muzzleFlashes.Clear();
+		LensApplied?.Invoke( view, stretch );
 	}
 
 	/// <summary>

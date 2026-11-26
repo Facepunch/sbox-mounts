@@ -49,7 +49,10 @@ static class WeaponEffects
 		root.NetworkMode = NetworkMode.Never;
 		root.WorldTransform = attachment.WorldTransform;
 		var burst = root.AddComponent<SpriteBurst>();
+		burst.DrawBeforeViewModel = firstPerson && !Css.Rules.IsFlash( type );
 		burst.CameraFade = new Vector2( 16, 64 );
+		if ( firstPerson && type is ("SMG1" or "AR2" or "COMBINE") )
+			burst.UseViewModelLens( attachment.GetComponentInParent<ViewModel>() );
 		if ( firstPerson && Css.Rules.IsFlash( type ) ) CounterStrikePlayerFlash( type, burst, mount, scale );
 		else if ( firstPerson ) PlayerFlash( type, burst, mount );
 		else WorldFlash( type, burst, mount, Css.Rules.IsFlash( type ) ? scale * 0.75f : WorldScale( type ) );
@@ -819,17 +822,46 @@ public sealed class Shell : Component, Component.ICollisionListener
 [Alias( "Source1.SourceSpriteBurst", "SourceSpriteBurst" )]
 public sealed class SpriteBurst : Component
 {
+	internal bool DrawBeforeViewModel { get; set; }
 	internal Vector2 CameraFade { get; set; }
 	readonly List<(SpriteRenderer Sprite, Vector2 Size, Color Color, Vector2 EndSize, Color EndColor)> _fades = new();
 	float _lifetime;
 	TimeSince _age;
 
+	ViewModel _view;
+	List<(SpriteRenderer Sprite, float Offset)> _localParticles;
+
+	internal void UseViewModelLens( ViewModel view )
+	{
+		if ( !view.IsValid() ) return;
+		_view = view;
+		_localParticles = new();
+		view.LensApplied += PlaceLocalParticles;
+	}
+
+	void PlaceLocalParticles( CameraView camera, float stretch )
+	{
+		foreach ( var (sprite, offset) in _localParticles )
+		{
+			var point = WorldPosition + WorldRotation.Forward * offset;
+			var delta = point - camera.Position;
+			var lateral = delta - camera.Rotation.Forward * delta.Dot( camera.Rotation.Forward );
+			sprite.WorldPosition = point + lateral * (stretch - 1);
+		}
+	}
+
+	protected override void OnDestroy()
+	{
+		if ( _view.IsValid() ) _view.LensApplied -= PlaceLocalParticles;
+	}
+
 	/// <summary>Source particle sizes are radii, so the drawn sprite is twice as wide. Roll is in degrees, random when unset.</summary>
 	public SpriteRenderer Add( string sprite, string mount, float offset, float size, Color color, float lifetime, float? roll = null )
 	{
-		var renderer = MountedEffects.AddSprite( GameObject, sprite, mount );
+		var renderer = MountedEffects.AddSprite( GameObject, sprite, mount, useViewModelLayer: !DrawBeforeViewModel );
 		if ( !renderer.IsValid() ) return null;
 		renderer.GameObject.LocalPosition = new Vector3( offset, 0, 0 );
+		_localParticles?.Add( (renderer, offset) );
 		renderer.GameObject.LocalRotation = Rotation.FromRoll( roll ?? Game.Random.Int( 0, 360 ) );
 		renderer.CameraFadeNear = CameraFade.x;
 		renderer.CameraFadeFar = CameraFade.y;
