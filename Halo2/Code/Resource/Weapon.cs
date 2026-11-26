@@ -261,6 +261,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		root.AddComponent<Rigidbody>().GravityScale = 4.1712594f * 120 / 850;
 		var gun = root.AddComponent<T>();
 		gun.DisplayName = title;
+		gun.DamageAccelerationScale = Float( Header + 0x14 );
 		int flags = map.ReadInt32( Header + 0x12c );
 		gun.DualWieldable = (flags & (1 << 22)) != 0;
 		gun.GripMarker = map.ResolveStringId( map.ReadInt32( Header + 0x284 ) );

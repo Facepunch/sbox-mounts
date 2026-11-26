@@ -379,6 +379,8 @@ public abstract partial class Weapon : BaseCombatWeapon
 		return null;
 	}
 
+	[Property] public float DamageAccelerationScale { get; set; } = 1;
+
 	protected override float GetHitForce( GameObject target, float force )
 	{
 		var body = target.GetComponentInParent<Rigidbody>();
@@ -386,7 +388,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 			|| target.GetComponentInParent<PlayerController>() is not null ) return force;
 
 		// The damage tag supplies a velocity change. ApplyImpulseAt takes momentum.
-		return force * body.Mass;
+		return force * body.Mass * (body.GetComponent<Weapon>()?.DamageAccelerationScale ?? 1);
 	}
 
 	protected override SceneTrace BulletTrace( Ray ray, float distance, float radius ) =>

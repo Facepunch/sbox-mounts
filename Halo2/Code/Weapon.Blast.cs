@@ -34,10 +34,12 @@ public abstract partial class Weapon
 			var target = (obj.GetComponentInParent<Component.IDamageable>() as Component)?.GameObject
 				?? obj.GetComponentInParent<Rigidbody>()?.GameObject;
 			if ( !target.IsValid() ) continue;
+			var itemBody = target.GetComponent<BaseInventoryItem>() is { Inventory: null } ? target.GetComponent<Rigidbody>() : null;
 			foreach ( var collider in obj.GetComponentsInChildren<Collider>( true ) )
 			{
 				if ( !collider.Active || collider.IsTrigger ) continue;
-				var point = collider.FindClosestPoint( origin );
+				var point = itemBody.IsValid() ? itemBody.WorldTransform.PointToWorld( itemBody.MassCenter )
+					: collider.FindClosestPoint( origin );
 				float distance = point.Distance( origin );
 				if ( distance >= blast.OuterRadius || (nearest.TryGetValue( target, out var previous ) && previous.Distance <= distance) ) continue;
 				nearest[target] = (collider, point, distance);
@@ -66,10 +68,15 @@ public abstract partial class Weapon
 			else if ( contact.Distance > 0 && !Visible( exposed, contact.Point ) ) continue;
 
 			float fraction = ((blast.OuterRadius - contact.Distance) / (blast.OuterRadius - blast.InnerRadius)).Clamp( 0, 1 );
+			if ( target.GetComponentInParent<BaseInventoryItem>() is { Inventory: null } )
+			{
+				// Loose items receive the original damage routine's two normalized upward adjustments.
+				direction = ((direction + Vector3.Up * 0.15f).Normal + Vector3.Up * 0.3f).Normal;
+			}
 			var hit = new SceneTraceResult { Hit = true, StartPosition = origin, HitPosition = contact.Point,
 				GameObject = contact.Collider.GameObject, Collider = contact.Collider, Direction = direction };
 			float damage = MathX.Lerp( blast.Minimum, blast.Maximum, fraction ) * BodyMaterial.DamageScale( hit, blast.BodyScales, true );
-			ApplyDelayedHit( hit, damage, blast.Acceleration * fraction, attacker, new TagSet { "explosion" }, false );
+			ApplyDelayedHit( hit, damage, blast.Acceleration, attacker, new TagSet { "explosion" }, false );
 		}
 	}
 }
