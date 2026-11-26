@@ -5,6 +5,28 @@ static partial class SourceEntities
 	[Sandbox.SkipHotload]
 	static readonly SourceEntity[] Table =
 	[
+		new( "gmod", SourceEntityKind.Weapon, "physgun", "Physics Gun", "models/weapons/w_physics.mdl", null, """
+			{
+				".": {
+					"Source1.BulletWeapon": null,
+					"Source1.GarrysMod.PhysicsGun": {"DisplayName": "Physics Gun", "HoldType": "tool", "DroppedGameObject": {"ref": "standalone_wm"}, "ViewModelPrefab": {"prefab": "entities/parts/physgun_vm.prefab"}, "WorldModelPrefab": {"prefab": "entities/parts/physgun_wm.prefab"}}
+				},
+				"standalone_wm": {
+					"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}
+				}
+			}
+			""" ),
+		new( "gmod", SourceEntityKind.ViewModel, "physgun_vm", null, null, null, """
+			{
+				".": {"Source1.ViewModel": {"Fire": "fire", "Reload": null, "EjectBrass": null}},
+				"Viewmodel": {"Source1.MountedModel": {"ModelPath": "models/weapons/c_superphyscannon.mdl"}}
+			}
+			""" ),
+		new( "gmod", SourceEntityKind.WorldModel, "physgun_wm", null, null, null, """
+			{
+				"model": {"Source1.MountedModel": {"ModelPath": "models/weapons/w_physics.mdl"}}
+			}
+			""" ),
 		new( "css", SourceEntityKind.Weapon, "ak47", "AK-47", "models/weapons/w_rif_ak47.mdl", null, """
 			{
 				".": {
