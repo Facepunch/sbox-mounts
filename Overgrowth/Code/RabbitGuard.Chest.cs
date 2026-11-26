@@ -141,7 +141,7 @@ public sealed partial class RabbitGuard
 		var target = swiping && strikeTarget.IsValid() ? strikeTarget : ForcedLookTarget();
 		if ( !target.IsValid() && throwing ) target = itemThrowTarget;
 		if ( !target.IsValid() ) return null;
-		var direction = (target.WorldPosition - WorldPosition).WithZ( 0f ).Normal;
+		var direction = (TargetPosition( target ) - WorldPosition).WithZ( 0f ).Normal;
 		if ( direction.IsNearlyZero() || (speed <= 40f && !swiping && !throwing) ) return Rotation.LookAt( facing );
 		return InterpolateFacing( facing, direction, 1f - MathF.Pow( 0.9f, Time.Delta * 120f ) );
 	}

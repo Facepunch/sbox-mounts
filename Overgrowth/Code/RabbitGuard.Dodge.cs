@@ -24,9 +24,9 @@ public sealed partial class RabbitGuard
 		{
 			dodgeRemainder -= tick;
 			// UpdateActiveDodgeMechanics polls WantsToDodge separately for input and recharge.
-			if ( WantsToDodge() && dodgeRecharge <= 0f && InMovementState && IsOnGround && enemy.IsValid() )
+			if ( WantsToDodge() && dodgeRecharge <= 0f && InMovementState && IsOnGround && !IsTethered && enemy.IsValid() )
 			{
-				dodgeDirection = (WorldPosition - enemy.WorldPosition).Normal;
+				dodgeDirection = (CharacterCenter( GameObject ) - CharacterCenter( enemy )).Normal;
 				dodgeWindow = 0.2f;
 			}
 			if ( WantsToDodge() ) dodgeRecharge = 0.2f;
@@ -53,7 +53,7 @@ public sealed partial class RabbitGuard
 		if ( !(forced && Random.Shared.Float() <= GameDifficulty) && dodgeWindow <= 0f ) return false;
 
 		sinceDodgeAttempt = 0f;
-		var toward = (attacker.WorldPosition - WorldPosition).WithZ( 0f ).Normal;
+		var toward = (TargetPosition( attacker.GameObject ) - WorldPosition).WithZ( 0f ).Normal;
 		if ( Downed || toward.Dot( dodgeDirection ) > 0.85f ) return false;
 		var animation = move.Height switch { "high" => DodgeHigh, "medium" => DodgeMiddle, _ => DodgeLow };
 		MirroredAction = MirroredStance;

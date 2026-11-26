@@ -243,7 +243,7 @@ public sealed partial class RabbitGuard
 		{
 			EndRoll();
 			MirroredAction = MirroredStance;
-			BeginReaction( attacker.GameObject, attacker.WorldPosition, slot, guard, activeBlock: true );
+			BeginReaction( attacker.GameObject, TargetPosition( attacker.GameObject ), slot, guard, activeBlock: true );
 		}
 
 		PickBlockFollowUp();
@@ -306,7 +306,7 @@ public sealed partial class RabbitGuard
 		}
 		var clip = boundAnimations.Clips[animation];
 		MirroredAction = MirroredStance = reflected;
-		BeginReaction( attacker.GameObject, attacker.WorldPosition, animation, clip, fadeRate: 20f );
+		BeginReaction( attacker.GameObject, TargetPosition( attacker.GameObject ), animation, clip, fadeRate: 20f );
 		// A spear can force the authored hit reaction even when its damage gets through.
 		if ( !parried ) return false;
 		if ( sizeAdvantage ) ReceiveBlockImpact( attacker, move, 2f );
