@@ -9,6 +9,7 @@ public sealed partial class Lerk
 	TimeUntil checkLocations;
 	TimeSince cruiseChanged, lastAcceleration;
 	bool forwardBlocked;
+	float? ventEntered;
 	MapLocations flightLocations;
 	Vector3 flightDirection;
 	NavMeshPath flightPath;
@@ -33,6 +34,16 @@ public sealed partial class Lerk
 			pathIndex++;
 		}
 		return goal;
+	}
+
+	bool WalksVent( Vector3 next, bool grounded )
+	{
+		if ( !flightLocations.IsValid() ) return false;
+
+		var offset = next - WorldPosition;
+		if ( !ventEntered.HasValue && (!grounded || offset.LengthSquared > 25 * Scale * Scale) ) return false;
+		bool flat = offset.z <= 0.5f * Scale && flightLocations.IsVent( next );
+		return ventEntered is { } entered ? !flat || Time.Now - entered <= 1 : flat;
 	}
 
 	static Rotation FlightBodyRotation( Angles body, Angles head, bool grounded, float dt )
@@ -115,28 +126,30 @@ public sealed partial class Lerk
 		if ( !Networking.IsHost ) return;
 		var body = GetComponent<Rigidbody>();
 		if ( !body.IsValid() ) return;
-		if ( Health <= 0 || PhysicsCarrier.IsValid() || Movement.MoveTarget is not { } goal || attacking )
-		{
-			ReleaseFlight( body );
-			return;
-		}
 		if ( !flightLocations.IsValid() && checkLocations <= 0 )
 		{
 			flightLocations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
 			checkLocations = 1;
 		}
-		if ( flightLocations.IsValid() && flightLocations.IsVent( WorldPosition ) )
+		ventEntered = flightLocations.IsValid() && flightLocations.IsVent( WorldPosition ) ? ventEntered ?? Time.Now : null;
+		if ( Health <= 0 || PhysicsCarrier.IsValid() || Movement.MoveTarget is not { } goal || attacking )
 		{
 			ReleaseFlight( body );
 			return;
 		}
-
 		var offset = goal - WorldPosition;
 		if ( offset.WithZ( 0 ).Length < Scale ) { ReleaseFlight( body ); return; }
 		bool grounded = IsOnGround;
 		var velocity = (grounded ? Animation.MoveVelocity : body.Velocity) / Scale;
 		var trace = Scene.Trace.WithTag( "world" );
 		var floor = trace.Ray( EyePosition, EyePosition - Vector3.Up * (10 * Scale) ).Run();
+		var ground = floor.Hit ? floor.EndPosition : WorldPosition;
+		var waypoint = FlightWaypoint( goal, ground );
+		if ( WalksVent( waypoint, grounded ) )
+		{
+			ReleaseFlight( body );
+			return;
+		}
 		var ceiling = trace.Ray( EyePosition, EyePosition + Vector3.Up * (6 * Scale) ).Run();
 		float height = floor.Hit ? (WorldPosition.z - floor.EndPosition.z) / Scale : 1;
 		float headroom = (ceiling.EndPosition.z - EyePosition.z) / Scale;
@@ -153,10 +166,8 @@ public sealed partial class Lerk
 		if ( forwardBlocked != ahead.Hit ) { forwardBlocked = ahead.Hit; cruiseChanged = 0; }
 		if ( cruiseChanged >= (forwardBlocked ? 0.1f : 0.5f) ) lowCruise = forwardBlocked;
 		float cruise = lowCruise ? 1.3f : 2.6f;
-		var ground = floor.Hit ? floor.EndPosition : WorldPosition;
 		float desiredZ = Math.Min( ground.z + cruise * Scale, ceiling.EndPosition.z - 1.3f * Scale );
 		float steerDistance = ahead.Hit ? Math.Max( 2 * Scale, (ahead.EndPosition - WorldPosition).WithZ( 0 ).Length ) : 4 * Scale;
-		var waypoint = FlightWaypoint( goal, ground );
 		var forward = (waypoint - WorldPosition).WithZ( 0 ).Normal * steerDistance + Vector3.Up * (desiredZ - WorldPosition.z);
 		flightDirection = forward.Normal;
 		var facing = Rotation.LookAt( flightDirection );
