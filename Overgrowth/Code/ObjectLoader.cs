@@ -41,6 +41,13 @@ public class ObjectLoader( string filePath, bool item = false ) : ResourceLoader
 	internal XmlAsset ItemDefinition => itemDefinition ??= XmlAsset.Read( Host.FileSystem, filePath, "item" );
 	string AppearancePath => Host.Resolve( ItemDefinition.Element( "appearance" )?.Attribute( "obj_path" ) );
 
+	internal bool HasWeaponModel()
+	{
+		if ( ItemDefinition.Element( "type" )?.Value != "weapon" || !Host.FileSystem.FileExists( AppearancePath ) ) return false;
+		var appearance = XmlAsset.Read( Host.FileSystem, AppearancePath, "Object" );
+		return Host.FileSystem.FileExists( Host.Resolve( appearance.RequireElement( "Model" ).Value ) );
+	}
+
 	internal (List<Vector3> Positions, List<Vector2> UVs, List<int> Indices) GetItemSurface()
 	{
 		EnsureContactData();

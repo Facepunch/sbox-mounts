@@ -123,12 +123,27 @@ public partial class GameMount : BaseGameMount, IHotloadManaged
 				context.Add(ResourceType.Material,path,new MaterialLoader(path,"Object")); break;
 			case "DecalObject": context.Add(ResourceType.Material,path,new MaterialLoader(path,"DecalObject")); break;
 			case "item":
-				context.Add( ResourceType.Model, path, new ObjectLoader( path, true ) );
-				context.Add( ResourceType.Material, path, new MaterialLoader( path, "item" ) );
+				MountItem( context, path );
 				break;
 			}
 			return;
 		}
+	}
+
+	void MountItem( MountContext context, string path )
+	{
+		var item = new ObjectLoader( path, true );
+		context.Add( ResourceType.Model, path, item );
+		context.Add( ResourceType.Material, path, new MaterialLoader( path, "item" ) );
+		try
+		{
+			if ( !item.HasWeaponModel() ) return;
+			var title = Path.GetFileNameWithoutExtension( path ).Replace( '_', ' ' ).ToTitleCase();
+			var prefab = new WeaponPrefab( title, item );
+			prefab.Tags.Add( "weapon" );
+			context.Add( ResourceType.PrefabFile, path, prefab );
+		}
+		catch ( InvalidDataException ex ) { Log.Warning( $"Skipping Overgrowth weapon {path}: {ex.Message}" ); }
 	}
 
 	/// <summary>
