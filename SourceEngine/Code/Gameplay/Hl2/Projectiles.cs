@@ -458,7 +458,8 @@ public sealed class Grenade : Projectile
 [Alias( "Source1.Hl2ContactGrenade", "Hl2ContactGrenade" )]
 public sealed class ContactGrenade : Projectile, Component.IDamageable
 {
-	[RequireComponent] BoxCollider Hull { get; set; }
+	const float FlightHullSize = 6;
+	[RequireComponent] BoxCollider ShotCollider { get; set; }
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnSmokeEnded ) )] bool SmokeEnded { get; set; }
 	protected override float Lifetime => float.PositiveInfinity;
 	bool _detonated;
@@ -492,8 +493,13 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 
 	protected override void OnEnabled()
 	{
-		Hull.Scale = Vector3.One * 6;
-		if ( Networking.IsHost && Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
+		if ( !Networking.IsHost ) return;
+		// Shots test the model's hitbox while movement sweeps an axis-aligned six-unit box.
+		var model = string.IsNullOrEmpty( ModelPath ) ? null : Model.Load( $"mount://{MountName}/{ModelPath}.vmdl" );
+		var bounds = model?.HitboxSet.All.FirstOrDefault()?.Shape is BBox hitbox ? hitbox : BBox.FromPositionAndSize( Vector3.Zero, FlightHullSize );
+		ShotCollider.Center = bounds.Center;
+		ShotCollider.Scale = bounds.Size;
+		if ( Attacker.IsValid() ) Tags.Add( Source1.Weapon.OwnedProjectileTag( Attacker ) );
 	}
 
 	public void OnDamage( in DamageInfo damage )
@@ -503,13 +509,13 @@ public sealed class ContactGrenade : Projectile, Component.IDamageable
 
 	protected override void Hit( SceneTraceResult tr ) => Detonate();
 
-	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Hull.Scale ).Run();
+	protected override SceneTraceResult TraceFlight( SceneTrace trace ) => trace.Size( Vector3.One * FlightHullSize ).Run();
 
 	void Detonate()
 	{
 		if ( _detonated ) return;
 		_detonated = true;
-		Hull.Enabled = false;
+		ShotCollider.Enabled = false;
 		// Damage can arrive between fixed updates. Use the simulation position for the blast.
 		Transform.ClearInterpolation();
 		var mark = Scene.Trace.Ray( WorldPosition, WorldPosition + Velocity.Normal * 60 )
