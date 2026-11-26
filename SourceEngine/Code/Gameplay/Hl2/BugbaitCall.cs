@@ -1,3 +1,5 @@
+using Sandbox.Npcs;
+
 namespace Source1.Hl2;
 
 /// <summary>The short-lived AI sound left where an unsuppressed pheropod bursts.</summary>
@@ -11,9 +13,10 @@ public sealed class BugbaitCall : Component
 
 	double expires;
 	float radiusSquared;
+	GameObject thrower;
 	TimeUntil nextListen;
 
-	internal static void Emit( Scene scene, Vector3 position )
+	internal static void Emit( Scene scene, Vector3 position, GameObject thrower )
 	{
 		if ( !Networking.IsHost || Duration <= 0 ) return;
 		var go = new GameObject( scene, false, "Bugbait call" );
@@ -21,6 +24,7 @@ public sealed class BugbaitCall : Component
 		go.WorldPosition = position;
 		var call = go.AddComponent<BugbaitCall>();
 		call.expires = Time.NowDouble + Duration;
+		call.thrower = thrower;
 		call.radiusSquared = (float)HearingRadius * HearingRadius;
 		go.Enabled = true;
 	}
@@ -35,6 +39,7 @@ public sealed class BugbaitCall : Component
 
 		if ( nextListen > 0 ) return;
 		nextListen = 0.1f;
+		if ( NpcConVars.NoTarget && Npcs.IsPlayer( thrower ) ) return;
 		foreach ( var npc in Scene.GetAllComponents<CreatureNpc>() )
 			npc.ListenForBugbait( WorldPosition, radiusSquared, expires );
 	}

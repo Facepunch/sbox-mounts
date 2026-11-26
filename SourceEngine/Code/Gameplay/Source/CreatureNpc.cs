@@ -227,7 +227,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// </summary>
 	public static void HearBugbait( Scene scene, Vector3 position, GameObject thrower )
 	{
-		Hl2.BugbaitCall.Emit( scene, position );
+		Hl2.BugbaitCall.Emit( scene, position, thrower );
 	}
 
 	internal void SetSquadGoal( GameObject leader, Vector3? fightGoal, GameObject fightTarget )
