@@ -23,7 +23,13 @@ public abstract partial class SourceGameMount
 						{
 							var definition = ResolveSurfaceSound( SourceSoundDefinition.Parse( root, path ) );
 							if ( definition is null ) continue;
-							context.Add( ResourceType.GameResource, $"sounds/events/{Uri.EscapeDataString( root.Name.ToLowerInvariant() )}.sound", new SurfaceSoundLoader( definition ) );
+							var name = $"sounds/events/{Uri.EscapeDataString( root.Name.ToLowerInvariant() )}";
+							context.Add( ResourceType.GameResource, $"{name}.sound", new SurfaceSoundLoader( definition ) );
+							if ( definition.Encoding == WaveEncoding.Doppler )
+							{
+								context.Add( ResourceType.GameResource, $"{name}.incoming.sound", new SurfaceSoundLoader( definition, 0 ) );
+								context.Add( ResourceType.GameResource, $"{name}.outgoing.sound", new SurfaceSoundLoader( definition, 1 ) );
+							}
 							names.Add( root.Name );
 						}
 						catch ( Exception e ) when ( e is InvalidDataException or NotSupportedException )

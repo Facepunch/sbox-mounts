@@ -3,8 +3,10 @@ using System.Globalization;
 
 namespace Source1;
 
+internal enum WaveEncoding { Standard, DistanceVariant, Directional, Doppler }
+
 internal sealed record SourceSoundDefinition( string Name, string SourcePath, IReadOnlyList<string> Waves,
-	(float Min, float Max) Volume, (float Min, float Max) Pitch, float SoundLevel, bool Dry, bool DistanceVariant = false, bool Directional = false )
+	(float Min, float Max) Volume, (float Min, float Max) Pitch, float SoundLevel, bool Dry, WaveEncoding Encoding = WaveEncoding.Standard )
 {
 	internal float Gain( float distance )
 	{
@@ -52,8 +54,7 @@ internal sealed record SourceSoundDefinition( string Name, string SourcePath, IR
 		var parameters = new VmtParameters( root.Values, $"{path}: {root.Name}" );
 		var waves = new List<string>();
 		bool dry = false;
-		bool distanceVariant = false;
-		bool directional = false;
+		var encoding = WaveEncoding.Standard;
 		foreach ( var entry in root.Children )
 		{
 			if ( !entry.IsBlock && entry.Name.Equals( "wave", StringComparison.OrdinalIgnoreCase ) )
@@ -101,33 +102,38 @@ internal sealed record SourceSoundDefinition( string Name, string SourcePath, IR
 			throw new InvalidDataException( $"{path}: sound '{root.Name}' has invalid sound level." );
 		level = MathF.Truncate( level );
 
-		return new( root.Name, path, waves.AsReadOnly(), volume, (pitch.Min / 100, pitch.Max / 100), level, dry, distanceVariant, directional );
+		return new( root.Name, path, waves.AsReadOnly(), volume, (pitch.Min / 100, pitch.Max / 100), level, dry, encoding );
 
 		void AddWave( string wave )
 		{
 			int prefix = 0;
 			bool waveDry = false;
-			bool waveDistanceVariant = false;
-			bool waveDirectional = false;
+			var waveEncoding = WaveEncoding.Standard;
 			while ( prefix < wave.Length && "*?!#><^@)}(".Contains( wave[prefix] ) )
 			{
-				if ( "?!>(".Contains( wave[prefix] ) )
+				if ( "?!(".Contains( wave[prefix] ) )
 					throw new NotSupportedException( $"{path}: sound '{root.Name}' uses unsupported wave encoding '{wave}'." );
-				waveDistanceVariant |= wave[prefix] == '^';
-				waveDirectional |= wave[prefix] == '<';
+				var mode = wave[prefix] switch
+				{
+					'^' => WaveEncoding.DistanceVariant,
+					'<' => WaveEncoding.Directional,
+					'>' => WaveEncoding.Doppler,
+					_ => WaveEncoding.Standard
+				};
+				if ( mode != WaveEncoding.Standard )
+				{
+					if ( waveEncoding != WaveEncoding.Standard && waveEncoding != mode )
+						throw new NotSupportedException( $"{path}: sound '{root.Name}' combines incompatible stereo channel encodings." );
+					waveEncoding = mode;
+				}
 				waveDry |= wave[prefix++] == '#';
 			}
 			if ( waves.Count > 0 && dry != waveDry )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes dry and reverberated random waves." );
 			dry = waveDry;
-			if ( waves.Count > 0 && distanceVariant != waveDistanceVariant )
-				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes ordinary and distance-variant waves." );
-			distanceVariant = waveDistanceVariant;
-			if ( waveDirectional && waveDistanceVariant )
-				throw new NotSupportedException( $"{path}: sound '{root.Name}' combines incompatible stereo channel encodings." );
-			if ( waves.Count > 0 && directional != waveDirectional )
-				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes ordinary and directional waves." );
-			directional = waveDirectional;
+			if ( waves.Count > 0 && encoding != waveEncoding )
+				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes wave encodings." );
+			encoding = waveEncoding;
 			wave = ScriptManifest.ContentPath( wave[prefix..] );
 			if ( wave.Contains( '$' ) || (!wave.EndsWith( ".wav" ) && !wave.EndsWith( ".mp3" )) )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' uses unsupported wave '{wave}'." );

@@ -54,7 +54,7 @@ internal sealed class SourceSurfaceLoader( SourceSurfaceDefinition definition ) 
 
 }
 
-internal sealed class SurfaceSoundLoader( SourceSoundDefinition definition ) : ResourceLoader<SourceGameMount>
+internal sealed class SurfaceSoundLoader( SourceSoundDefinition definition, int? channel = null ) : ResourceLoader<SourceGameMount>
 {
-	protected override object Load() => SourceSoundEvents.Create( Host, definition );
+	protected override object Load() => SourceSoundEvents.Create( Host, definition, channel: channel );
 }

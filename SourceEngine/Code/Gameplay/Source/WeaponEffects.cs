@@ -132,18 +132,52 @@ static class WeaponEffects
 	}
 
 	/// <summary>A multiplayer weapon tracer travels from the rendered muzzle to the pellet endpoint.</summary>
-	public static void DrawTracer( string type, Vector3 start, Vector3 end, string mount )
+	public static void DrawTracer( Scene scene, string type, Vector3 start, Vector3 end, string mount )
 	{
 		var direction = (end - start).Normal;
 		var distance = start.Distance( end );
 		if ( type is "COMBINE" or "AR2" )
 		{
-			if ( distance >= 128 )
-				Tracer.Create( "effects/gunshiptracer", start, direction, distance, Game.Random.Float( 128, 256 ), Game.Random.Float( 0.5f, 1.5f ) * 2, 8000, mount );
+			if ( distance < 128 ) return;
+			Tracer.Create( "effects/gunshiptracer", start, direction, distance, Game.Random.Float( 128, 256 ), Game.Random.Float( 0.5f, 1.5f ) * 2, 8000, mount );
+			PlayFlyby( scene, start, end, direction, mount );
 			return;
 		}
 		if ( distance >= 256 )
 			Tracer.Create( "effects/spark", start, direction, distance, Game.Random.Float( 64, 128 ), Game.Random.Float( 0.75f, 0.9f ) * 2, 5000, mount );
+	}
+
+	static TimeSince _lastFlyby = 1;
+
+	static void PlayFlyby( Scene scene, Vector3 start, Vector3 end, Vector3 direction, string mount )
+	{
+		if ( _lastFlyby < 0.1f || !scene.Camera.IsValid() ) return;
+		var listener = scene.Camera.WorldPosition;
+		var along = direction.Dot( listener - start );
+		if ( along <= 0 || new Line( start, end ).SqrDistance( listener ) >= 72 * 72 ) return;
+
+		var incoming = Sounds.Sound( "Bullets.GunshipNearmiss.incoming", mount );
+		var outgoing = Sounds.Sound( "Bullets.GunshipNearmiss.outgoing", mount );
+		if ( incoming?.Sounds is not { Count: > 0 } waves || outgoing?.Sounds.Count != waves.Count ) return;
+
+		_lastFlyby = 0;
+		var index = Game.Random.Int( 0, waves.Count - 1 );
+		var closest = start + direction * along;
+		var pitch = float.Lerp( 1.5f, 0.25f, Math.Clamp( (listener.Distance( closest ) - 12) / 228, 0, 1 ) );
+		var volume = incoming.Volume.GetValue();
+		// Each channel carries one half of the pass. Keep both on the same take and timeline.
+		PlayChannel( waves[index], closest - direction * 48 );
+		PlayChannel( outgoing.Sounds[index], closest + direction * 48 );
+
+		void PlayChannel( SoundFile file, Vector3 position )
+		{
+			var sound = Sound.PlayFile( file, volume, pitch );
+			if ( !sound.IsValid() ) return;
+			sound.Position = position;
+			sound.Distance = incoming.Distance;
+			sound.Falloff = incoming.Falloff;
+			sound.FalloffMode = incoming.FalloffMode;
+		}
 	}
 
 	/// <summary>

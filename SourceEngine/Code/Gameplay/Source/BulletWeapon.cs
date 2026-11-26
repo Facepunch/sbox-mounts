@@ -746,7 +746,7 @@ public sealed class BulletWeapon : Weapon
 		if ( IsProxy && HasOwner ? !_remoteVolleyTracer : phase != 0 ) return;
 
 		if ( WeaponModel is { } model && model.IsValid() )
-			WeaponEffects.DrawTracer( WeaponSetup.FlashType( this ), model.GetTracerOrigin().Position, shot.HitPosition, MountContent.OfWeapon( this ) );
+			WeaponEffects.DrawTracer( Scene, WeaponSetup.FlashType( this ), model.GetTracerOrigin().Position, shot.HitPosition, MountContent.OfWeapon( this ) );
 	}
 
 	protected override void OnShootImpact( in ShotEffect shot )
