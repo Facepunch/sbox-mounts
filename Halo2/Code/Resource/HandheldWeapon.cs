@@ -186,11 +186,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			};
 			item.HoldType = hold;
 			item.RigDirectory = $"mount://{Host.Ident}/weapons/{Name}";
-			int models = Block( Header + 0x2a8 );
-			if ( Reference( models ) is { PrimaryClass: "edom" } spartan )
-				item.SpartanModel = Host.AssetPath( map, spartan.TagPath, "vmdl" );
-			if ( map.ReadInt32( Header + 0x2a8 ) > 1 && Reference( models + 16 ) is { PrimaryClass: "edom" } elite )
-				item.EliteModel = Host.AssetPath( map, elite.TagPath, "vmdl" );
+			item.SpartanModel = (Host.GetByPath( $"{item.RigDirectory}/first_person.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
+			item.EliteModel = (Host.GetByPath( $"{item.RigDirectory}/first_person_elite.vmdl" ) as Halo2ModelLoader)?.FirstPersonWeaponPath;
 			item.ViewOffset = new Vector3( Float( Header + 0x308 ), Float( Header + 0x30c ), Float( Header + 0x310 ) ) * 120;
 			item.DeployTime = Float( Header + 0x13c );
 		}

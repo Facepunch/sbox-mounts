@@ -22,6 +22,8 @@ public sealed class UnitDefinition
 public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry phmoTag = null, TagEntry biped = null, TagEntry graph = null,
 	TagEntry collision = null, TagEntry firstPersonWeapon = null, TagEntry collisionModel = null, string[] materialNames = null ) : ResourceLoader<Halo2Mount>
 {
+	internal string FirstPersonWeaponPath => firstPersonWeapon is null ? null : Host.AssetPath( mapFile, firstPersonWeapon.TagPath, "vmdl" );
+
 	ModelTarget[] ReadTargets()
 	{
 		int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
