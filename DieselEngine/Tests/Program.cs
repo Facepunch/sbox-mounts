@@ -543,6 +543,19 @@ var aquariumLayers = aquariumBank.RenderLoopLayers( WwiseBank.Hash( "emitter_aqu
 if ( aquariumLayers.Count == 0 || aquariumLayers.Any( wav => wav.Length <= 44 || BitConverter.ToInt32( wav, 24 ) != 44100 ) )
 	throw new Exception( "Aquarium loop resampling failed." );
 Console.WriteLine( $"PASS: aquarium 6 kHz media decoded and rendered into {aquariumLayers.Count} playback layers." );
+foreach ( var name in new[] { "ambience_indoors_03", "ambience_indoors_05" } )
+{
+	string shortBank = eventBanks[name];
+	var bank = new WwiseBank( db.Find( "bnk", bankNames.Single( p => SoundNames.BankShortName( p ) == shortBank ) ),
+		id => db.Find( "stream", $"soundbanks/streamed/{shortBank}/{id}" ) );
+	var media = bank.Resolve( name ).Select( bank.Decode ).ToArray();
+	if ( !media.Any( wav => BitConverter.ToInt32( wav, 24 ) == 3000 && wav.Length > 44 ) )
+		throw new Exception( $"{name}: authored 3 kHz media did not decode." );
+	var layers = bank.RenderLoopLayers( WwiseBank.Hash( name ), name );
+	if ( layers.Count == 0 || layers.Any( wav => wav.Length <= 44 || BitConverter.ToInt32( wav, 24 ) != 44100 ) )
+		throw new Exception( $"{name}: loop resampling failed." );
+	Console.WriteLine( $"PASS: {name} 3 kHz media decoded and rendered into {layers.Count} playback layers." );
+}
 int emittersTotal = 0, emittersResolved = 0;
 foreach ( var level in soundLevels )
 	if ( db.Find( "world_sounds", $"{level}/world_sounds" ) is { } worldSoundBytes )

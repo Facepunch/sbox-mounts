@@ -38,7 +38,7 @@ public sealed class PaydaySoundscape : Component
 
 	const float FadeTime = 1.5f;
 
-	readonly List<(SoundHandle Handle, float Target)> beds = [];
+	readonly List<(SoundHandle Handle, float Target, string Event)> beds = [];
 	string currentAmbience, currentOccasional;
 	TimeUntil nextScan, nextOccasional;
 	readonly List<SoundHandle> occasionals = [];
@@ -59,7 +59,7 @@ public sealed class PaydaySoundscape : Component
 		// Crossfade: fade every bed towards its target; drop the ones that finished fading out.
 		for ( int i = beds.Count - 1; i >= 0; i-- )
 		{
-			var (handle, target) = beds[i];
+			var (handle, target, _) = beds[i];
 			if ( handle is null || !handle.IsValid() ) { beds.RemoveAt( i ); continue; }
 			handle.Volume = MathX.Approach( handle.Volume, target, Time.Delta / FadeTime );
 			if ( target <= 0 && handle.Volume <= 0.001f ) { handle.Stop(); beds.RemoveAt( i ); }
@@ -86,7 +86,18 @@ public sealed class PaydaySoundscape : Component
 		}
 		if ( string.Equals( ambience, currentAmbience, StringComparison.OrdinalIgnoreCase ) ) return;
 		currentAmbience = ambience;
-		for ( int i = 0; i < beds.Count; i++ ) beds[i] = (beds[i].Handle, 0);
+		// Re-entering an area during its fade-out should recover the existing voices,
+		// not layer another copy of the same event over them.
+		bool reused = false;
+		for ( int i = 0; i < beds.Count; i++ )
+		{
+			var bed = beds[i];
+			bool match = string.Equals( bed.Event, ambience, StringComparison.OrdinalIgnoreCase )
+				&& bed.Handle.IsValid() && bed.Handle.IsPlaying;
+			beds[i] = (bed.Handle, match ? 1 : 0, bed.Event);
+			reused |= match;
+		}
+		if ( reused ) return;
 		if ( Silent( ambience ) || Mount?.GetLoopLayers( ambience, 2000 ) is not { Count: > 0 } layers ) return;
 		bool first = beds.Count == 0;
 		foreach ( var layer in layers )
@@ -96,7 +107,7 @@ public sealed class PaydaySoundscape : Component
 			handle.ListenLocal = true;
 			handle.DistanceAttenuation = false;
 			handle.Volume = first ? 1 : 0;
-			beds.Add( (handle, 1) );
+			beds.Add( (handle, 1, ambience) );
 		}
 	}
 
@@ -126,7 +137,7 @@ public sealed class PaydaySoundscape : Component
 	void StopAll()
 	{
 		StopOccasionals();
-		foreach ( var (handle, _) in beds ) handle?.Stop();
+		foreach ( var (handle, _, _) in beds ) handle?.Stop();
 		beds.Clear();
 		currentAmbience = null;
 		currentOccasional = null;
