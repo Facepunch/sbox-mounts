@@ -339,8 +339,11 @@ public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 		return target;
 	}
 
+	internal static bool IsWorld( GameObject target ) =>
+		!target.Tags.Has( "source1_entity" ) && ToolMode.IsWorldObject( target );
+
 	internal static bool CanMove( Component target ) =>
-		target.IsValid() && !target.GetComponentInParent<PlayerController>().IsValid();
+		target.IsValid() && !IsWorld( target.GameObject ) && !target.GetComponentInParent<PlayerController>().IsValid();
 
 	static bool CanGrab( Component body, Connection grabber )
 	{

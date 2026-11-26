@@ -22,12 +22,11 @@ sealed class FrozenProps : Component
 
 		var hit = Scene.Trace.Ray( aim, 32768 ).IgnoreGameObjectHierarchy( GameObject.Root )
 			.WithoutTags( "trigger" ).Run();
-		var bodyHit = hit.GameObject?.GetComponentInParent<Rigidbody>();
-		if ( bodyHit.IsValid() ) return WakeConnected( bodyHit );
-		// A prop without a rigidbody still counts as an aimed reload.
 		var target = hit.GameObject;
-		if ( !hit.Hit || !target.IsValid() || (!target.Tags.Has( "source1_entity" ) && ToolMode.IsWorldObject( target )) )
-			_lastMiss = Time.Now;
+		if ( hit.Hit && target.IsValid() && !PhysicsGun.IsWorld( target ) )
+			return target.GetComponentInParent<Rigidbody>() is { } body ? WakeConnected( body ) : 0;
+
+		_lastMiss = Time.Now;
 		return 0;
 	}
 
@@ -37,7 +36,7 @@ sealed class FrozenProps : Component
 		var bodies = new List<Rigidbody>();
 		void Add( Rigidbody body )
 		{
-			if ( body.IsValid() && visited.Add( body ) ) bodies.Add( body );
+			if ( body.IsValid() && visited.Add( body ) && !PhysicsGun.IsWorld( body.GameObject ) ) bodies.Add( body );
 		}
 
 		Add( hit );
