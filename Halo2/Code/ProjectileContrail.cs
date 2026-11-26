@@ -2,6 +2,7 @@ namespace Halo2;
 
 public sealed class ContrailAppearance
 {
+	public string Marker { get; set; }
 	public string TexturePath { get; set; }
 	public float Width { get; set; }
 	public float Lifetime { get; set; }
@@ -22,9 +23,14 @@ public sealed class ProjectileContrail : Component
 	[Sync( SyncFlags.FromHost )] double segmentTime { get; set; }
 	[Sync( SyncFlags.FromHost )] double endTime { get; set; }
 
+	readonly record struct Segment( double Time, Vector3 Position, Vector3 Velocity );
+	readonly List<Segment> history = new();
 	LineRenderer line;
+	GameObject projectile;
+	Vector3 markerOffset;
+	Vector3 worldOffset;
 
-	internal static ProjectileContrail Create( ContrailAppearance appearance, Vector3 position, Vector3 velocity )
+	internal static ProjectileContrail Create( ContrailAppearance appearance, Vector3 position, Vector3 velocity, GameObject projectile, Vector3 markerOffset )
 	{
 		var go = new GameObject( false, "Projectile contrail" );
 		go.NetworkMode = NetworkMode.Object;
@@ -32,22 +38,53 @@ public sealed class ProjectileContrail : Component
 		var trail = go.AddComponent<ProjectileContrail>();
 		trail.Appearance = appearance;
 		trail.FiredAt = Time.NowDouble;
+		trail.projectile = projectile;
+		trail.markerOffset = markerOffset;
 		trail.SetSegment( position, velocity, trail.FiredAt );
 		go.NetworkSpawn( true, null );
 		return trail;
 	}
 
+	Vector3 MarkerOffset() => markerOffset == Vector3.Zero ? Vector3.Zero :
+		projectile.IsValid() ? projectile.WorldRotation * markerOffset : worldOffset;
+
 	internal void SetSegment( Vector3 position, Vector3 velocity, double time )
 	{
-		origin = position;
+		var offset = MarkerOffset();
+		if ( Velocity.AlmostEqual( velocity ) && worldOffset.AlmostEqual( offset ) ) return;
+		worldOffset = offset;
+		origin = position + offset;
 		Velocity = velocity;
 		segmentTime = time;
+		RememberSegment();
 	}
 
 	internal void Finish( Vector3 position, double time )
 	{
-		SetSegment( position, Velocity, time );
+		origin = position + MarkerOffset();
+		segmentTime = time;
 		endTime = time;
+		RememberSegment();
+	}
+
+	void RememberSegment()
+	{
+		if ( Application.IsDedicatedServer ) return;
+		var segment = new Segment( segmentTime, origin, Velocity );
+		if ( history.Count > 0 && history[^1].Time >= segmentTime )
+		{
+			if ( history[^1].Time == segmentTime ) history[^1] = segment;
+			return;
+		}
+		history.Add( segment );
+	}
+
+	Vector3 PositionAt( double time )
+	{
+		int i = history.Count - 1;
+		while ( i > 0 && history[i].Time > time ) i--;
+		var segment = history[i];
+		return segment.Position + segment.Velocity * (float)(time - segment.Time);
 	}
 
 	protected override void OnStart()
@@ -56,7 +93,7 @@ public sealed class ProjectileContrail : Component
 		line = GameObject.AddComponent<LineRenderer>();
 		line.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked;
 		line.UseVectorPoints = true;
-		line.VectorPoints = [origin, origin, origin];
+		line.VectorPoints = [origin, origin];
 		line.Opaque = line.CastShadows = false;
 		line.Additive = true;
 		// The line shader extends its vertices by this radius on either side of the centerline.
@@ -82,9 +119,23 @@ public sealed class ProjectileContrail : Component
 		if ( !line.IsValid() ) return;
 		double head = endTime > 0 ? System.Math.Min( endTime, now ) : now;
 		double tail = System.Math.Min( head, System.Math.Max( FiredAt, now - Appearance.Lifetime ) );
-		line.VectorPoints[0] = origin + Velocity * (float)(head - segmentTime);
+		if ( history.Count == 0 || history[^1].Time < segmentTime ) RememberSegment();
+		while ( history.Count > 1 && history[1].Time <= tail ) history.RemoveAt( 0 );
+
+		var points = line.VectorPoints;
+		points.Clear();
+		points.Add( PositionAt( head ) );
 		double transition = System.Math.Clamp( now - Appearance.Transition, tail, head );
-		line.VectorPoints[1] = origin + Velocity * (float)(transition - segmentTime);
-		line.VectorPoints[2] = origin + Velocity * (float)(tail - segmentTime);
+		if ( history.Count == 1 )
+		{
+			points.Add( PositionAt( transition ) );
+			points.Add( PositionAt( tail ) );
+			return;
+		}
+		double interval = 1.0 / Appearance.PointRate;
+		long birth = (long)System.Math.Ceiling( (head - FiredAt) / interval ) - 1;
+		for ( double t = FiredAt + birth * interval; t > tail; t -= interval )
+			points.Add( PositionAt( t ) );
+		points.Add( PositionAt( tail ) );
 	}
 }

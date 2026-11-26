@@ -511,8 +511,9 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			return new ContrailAppearance
 			{
 				TexturePath = Host.AssetPath( map, texture.TagPath, "vtex" ),
+				Marker = map.ResolveStringId( map.ReadInt32( row + 8 ) ),
 				PointRate = Float( trail + 4 ), Repeats = Float( trail + 0x1c ),
-				Transition = Float( first + 8 ), Lifetime = Float( first + 8 ) + Float( last ),
+				Transition = Float( first ) + Float( first + 8 ), Lifetime = Float( first ) + Float( first + 8 ) + Float( last ),
 				Width = Float( first + 24 ) * 120, StartColor = Tint( first ), EndColor = Tint( last )
 			};
 		}

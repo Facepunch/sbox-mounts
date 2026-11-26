@@ -99,6 +99,8 @@ public abstract partial class Weapon
 		var model = ProjectileModel is { Length: > 0 } path ? Model.Load( path ) : null;
 		var volumePath = discharge is null ? ProjectileVolume : discharge.Volume;
 		var volume = volumePath is null ? null : GameObject.GetPrefab( volumePath );
+		var trailOffset = model is { IsError: false } && !string.IsNullOrEmpty( trail?.Marker )
+			? model.Attachments.GetTransform( trail.Marker )?.Position ?? Vector3.Zero : Vector3.Zero;
 		var pellets = new Pellet[ballistics.Pellets];
 		var guidance = ProjectileLock;
 		ref uint randomState = ref BlamRandom.GameplayState( Scene );
@@ -123,7 +125,7 @@ public abstract partial class Weapon
 				pellets[i].Body = body;
 			}
 			if ( trail is { Lifetime: > 0, PointRate: > 0 } )
-				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity );
+				pellets[i].Trail = ProjectileContrail.Create( trail, ray.Position, pellets[i].Velocity, pellets[i].Body, trailOffset );
 		}
 		var target = guidance.Target;
 		var localPoint = guidance.LocalPoint;
@@ -255,7 +257,7 @@ public abstract partial class Weapon
 				pellet.Velocity += velocityChange;
 				if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
 				float distance = displacement.Length;
-				if ( pellet.Trail.IsValid() && !pellet.Trail.Velocity.AlmostEqual( displacement / step ) )
+				if ( pellet.Trail.IsValid() )
 					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
 				bool atRange = step < dt || pellet.Travelled + distance >= maxRange;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
