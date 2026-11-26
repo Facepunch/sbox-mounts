@@ -83,7 +83,7 @@ public abstract partial class Weapon
 	}
 
 	protected readonly record struct PelletResult( Vector3 Position, bool Hit = false, Vector3 Direction = default, Vector3 Normal = default,
-		GameObject Target = null, string SurfacePath = null, string Bone = null );
+		GameObject Target = null, string SurfacePath = null, string Bone = null, bool Charged = false );
 
 	protected void LaunchProjectiles( Ray ray, float spreadDegrees, EnergyDischarge discharge = null )
 	{
@@ -347,7 +347,7 @@ public abstract partial class Weapon
 				damage *= BodyMaterial.ResolveHit( hit, bodyScales, explosive, out var impactSurface );
 				hit.StartPosition = origin;
 				hit.Direction = pellet.Velocity.Normal;
-				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name ) );
+				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
 				if ( Shard is {} shard && hit.GameObject.IsValid() && (hit.GameObject.GetComponentInParent<PlayerController>().IsValid() || hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>().IsValid()) )
 					_ = AttachShard( scene, shard, pellet, hit, attacker );
@@ -490,6 +490,8 @@ public abstract partial class Weapon
 	protected virtual void ProjectileImpacts( Vector3 origin, PelletResult[] results ) =>
 		PlayProjectileImpacts( IsValid ? this : null, origin, results );
 
+	protected virtual void OnProjectileHit( in ShotEffect shot, in PelletResult hit ) => OnShootEffects( shot );
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void PlayProjectileImpacts( Weapon weapon, Vector3 origin, PelletResult[] results )
 	{
@@ -498,7 +500,7 @@ public abstract partial class Weapon
 		{
 			if ( !hit.Hit ) continue;
 			var surface = hit.SurfacePath is {} path ? GameResource.Load<Surface>( path ) : null;
-			weapon.OnShootEffects( new ShotEffect( hit.Position, true, hit.Normal, hit.Target, surface, origin, NoEvents: true ) );
+			weapon.OnProjectileHit( new ShotEffect( hit.Position, true, hit.Normal, hit.Target, surface, origin, NoEvents: true ), hit );
 		}
 	}
 }

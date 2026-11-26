@@ -4,6 +4,9 @@ public sealed class PlasmaPistol : BatteryWeapon
 {
 	[Property] public int LatchTicks { get; set; }
 	[Property] public int ChargeTicks { get; set; }
+	[Property] public Dictionary<string, BulletContact> ChargedContacts { get; set; }
+	protected override Dictionary<string, BulletContact> ContactsForProjectile( bool charged ) => charged ? ChargedContacts : BulletContacts;
+
 	[Property] public EnergyDischarge ChargedShot { get; set; }
 	[Property] public WeaponSoundTrack ChargeSound { get; set; }
 

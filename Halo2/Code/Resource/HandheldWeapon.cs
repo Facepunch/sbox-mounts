@@ -51,11 +51,10 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 	Dictionary<string, TagEntry> contactEffects;
 	Dictionary<string, string[]> contactSounds;
 
-	Dictionary<string, BulletContact> bulletContacts;
+	Dictionary<string, BulletContact> bulletContacts, chargedContacts;
 
-	HashSet<TagEntry> LoadBulletContacts( Dictionary<string, string> parents )
+	Dictionary<string, BulletContact> LoadBulletContacts( TagEntry projectile, Dictionary<string, string> parents, HashSet<TagEntry> tagsToRegister )
 	{
-		var projectile = Reference( PrimaryBarrel + 0x8c );
 		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
 		int responses = Address( projectile ) + 0x19c;
 		var rows = new Dictionary<string, int>();
@@ -63,7 +62,6 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			if ( map.ResolveStringId( map.ReadInt32( row + 12 ) ) is { Length: > 0 } name )
 				rows.TryAdd( name, row );
 
-		var tagsToRegister = new HashSet<TagEntry>();
 		var banks = new Dictionary<int, Dictionary<string, BulletImpact>>();
 		BulletImpact Impact( int response, string material )
 		{
@@ -79,7 +77,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			return bank.GetValueOrDefault( material );
 		}
 
-		bulletContacts = new();
+		var contacts = new Dictionary<string, BulletContact>();
 		foreach ( var material in parents.Keys )
 		{
 			var name = material;
@@ -88,13 +86,13 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				if ( rows.TryGetValue( name, out int row ) )
 				{
 					float chance = Float( row + 0x18 );
-					bulletContacts[material] = new( Impact( Short( row + 2 ), material ), chance, chance > 0 ? Impact( Short( row + 0x14 ), material ) : null );
+					contacts[material] = new( Impact( Short( row + 2 ), material ), chance, chance > 0 ? Impact( Short( row + 0x14 ), material ) : null );
 					break;
 				}
 				if ( !parents.TryGetValue( name, out name ) ) break;
 			}
 		}
-		return tagsToRegister;
+		return contacts;
 	}
 
 	void LoadContactBanks( Dictionary<string, string> materialParents )
@@ -113,8 +111,17 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 
 	internal void RegisterEffects( MountContext context, HashSet<string> registered, Dictionary<string, string> materialParents )
 	{
-		if ( Name is "battle_rifle" or "smg" or "magnum" or "covenant_carbine" or "sniper_rifle" )
-			foreach ( var tag in LoadBulletContacts( materialParents ) ) Register( context, tag );
+		if ( Name is "battle_rifle" or "smg" or "magnum" or "covenant_carbine" or "sniper_rifle" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle" )
+		{
+			var tags = new HashSet<TagEntry>();
+			bulletContacts = LoadBulletContacts( Reference( PrimaryBarrel + 0x8c ), materialParents, tags );
+			if ( Name == "plasma_pistol" )
+			{
+				int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
+				chargedContacts = LoadBulletContacts( Reference( secondary + 0x8c ), materialParents, tags );
+			}
+			foreach ( var tag in tags ) Register( context, tag );
+		}
 		LoadContactBanks( materialParents );
 		if ( contactEffects is not null )
 			foreach ( var effect in contactEffects.Values.Distinct() ) Register( context, effect );
@@ -377,6 +384,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			var pistol = ConfigurePickup<PlasmaPistol>( root, world, title );
 			pistol.LatchTicks = (int)MathF.Round( Float( PrimaryTrigger + 16 ) * 30 );
 			pistol.ChargeTicks = (int)MathF.Round( Float( PrimaryTrigger + 28 ) * 30 );
+			pistol.ChargedContacts = chargedContacts;
 			pistol.ChargeSound = ReadSoundTrack( "primary_charged" );
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
 			int bolt = Address( Reference( secondary + 0x8c ) );

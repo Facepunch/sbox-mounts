@@ -132,15 +132,33 @@ public abstract class HandheldWeapon : Weapon
 
 	[Property] public Dictionary<string, BulletContact> BulletContacts { get; set; }
 
+	protected virtual Dictionary<string, BulletContact> ContactsForProjectile( bool charged ) => BulletContacts;
+
+	protected override void OnProjectileHit( in ShotEffect shot, in PelletResult hit )
+	{
+		if ( ContactsForProjectile( hit.Charged ) is not {} contacts )
+		{
+			base.OnProjectileHit( shot, hit );
+			return;
+		}
+		PlayBulletContact( contacts, shot, hit.Direction, hit.Bone );
+		OnShootEffects( shot with { Hit = false } );
+	}
+
+	void PlayBulletContact( Dictionary<string, BulletContact> contacts, in ShotEffect shot, Vector3 incoming, string bone = null )
+	{
+		if ( ContactMaterial.Lookup( contacts, shot.Surface, true ) is not {} contact ) return;
+		var impact = contact.AlternateChance > 0 && Game.Random.Float() < contact.AlternateChance ? contact.Alternate : contact.Primary;
+		if ( impact?.Effects is {} effects )
+			foreach ( var path in effects ) PlaceProjectileEffect( path, shot, incoming, bone );
+		PlayContactSounds( impact?.Sounds, shot.HitPosition );
+	}
+
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
 		if ( BulletContacts is not null )
 		{
-			if ( !shot.Hit || ContactMaterial.Lookup( BulletContacts, shot.Surface, true ) is not {} contact ) return;
-			var impact = contact.AlternateChance > 0 && Game.Random.Float() < contact.AlternateChance ? contact.Alternate : contact.Primary;
-			if ( impact?.Effects is {} effects )
-				foreach ( var path in effects ) PlaceProjectileEffect( path, shot );
-			PlayContactSounds( impact?.Sounds, shot.HitPosition );
+			if ( shot.Hit ) PlayBulletContact( BulletContacts, shot, GetShotDirection( shot ) );
 			return;
 		}
 		if ( ProjectileContactEffects is null )
@@ -152,12 +170,12 @@ public abstract class HandheldWeapon : Weapon
 		if ( ProjectileContactSounds is not null )
 			PlayContactSounds( ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ), shot.HitPosition );
 		if ( ContactMaterial.Lookup( ProjectileContactEffects, shot.Surface, true ) is {} effect )
-			PlaceProjectileEffect( effect, shot );
+			PlaceProjectileEffect( effect, shot, GetShotDirection( shot ) );
 	}
 
-	void PlaceProjectileEffect( string path, in ShotEffect shot ) =>
+	void PlaceProjectileEffect( string path, in ShotEffect shot, Vector3 incoming, string bone = null ) =>
 		PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
-			shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+			shot.HitPosition, shot.Normal, incoming, bone );
 
 	static void PlayContactSounds( string[] cues, Vector3 position )
 	{
