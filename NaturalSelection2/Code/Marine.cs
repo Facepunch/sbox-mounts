@@ -269,6 +269,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		{
 			sprintRequested = false;
 			base.Think();
+			UpdateGuardView();
 			return;
 		}
 		if ( !enemy.IsValid() && VisitArmory() ) return;

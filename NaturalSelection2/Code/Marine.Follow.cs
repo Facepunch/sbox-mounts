@@ -21,11 +21,27 @@ public sealed partial class Marine : Component.IPressable
 		}
 	}
 
+	Vector3? guardLookTarget;
+	float lastGuardLook;
 	TimeUntil guardInputExpires = -1;
 	bool guardSprint;
 	[Sync( SyncFlags.FromHost ), Change( nameof( OnCrouchingChanged ) )] bool crouching { get; set; }
 	float crouchProgress;
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] float crouchAmount { get; set; }
+
+	void UpdateGuardView()
+	{
+		if ( !guardSprint && guardInputExpires >= 0 ) return;
+		float distance = WalkDistance( Leader.WorldPosition ) / Scale;
+		if ( distance <= 3.6f || distance > 5 ) return;
+
+		if ( Time.Now > lastGuardLook + 3 + Random.Shared.NextSingle() * 3.5f )
+		{
+			lastGuardLook = Time.Now;
+			guardLookTarget = EyePosition + Rotation.FromYaw( Random.Shared.NextSingle() * 360 ).Forward * (30 * Scale);
+		}
+		viewTarget = guardLookTarget;
+	}
 
 	void UpdateGuardInput()
 	{
@@ -89,5 +105,7 @@ public sealed partial class Marine : Component.IPressable
 
 		EndCurrentSchedule();
 		Leader = Leader == player.GameObject ? null : player.GameObject;
+		guardLookTarget = null;
+		lastGuardLook = 0;
 	}
 }
