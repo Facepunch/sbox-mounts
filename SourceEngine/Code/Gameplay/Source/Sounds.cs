@@ -40,18 +40,15 @@ static class Sounds
 	public static void PlayWeaponSound( BaseCombatWeapon weapon, string role )
 	{
 		if ( !Application.IsDedicatedServer && WeaponSound( weapon, role ) is { } sound )
-			(weapon.Holder?.GameObject ?? weapon.GameObject).PlaySound( sound );
+			PlayWeaponSound( weapon, sound );
 	}
+
+	public static void PlayWeaponSound( BaseCombatWeapon weapon, SoundEvent sound ) =>
+		(weapon.Holder?.GameObject ?? weapon.GameObject).PlaySound( sound );
 
 	/// <summary>Counter-Strike scripts name the silenced shot special1.</summary>
 	public static string FireSoundRole( BaseCombatWeapon weapon ) => weapon is BulletWeapon { Silenced: true } ? "special1" : "single_shot";
 
 	public static SoundEvent WeaponSound( SourceModelWeaponData data, string role ) => data?.Sounds.TryGetValue( role, out var path ) == true
 		&& Sandbox.Mounting.Directory.Get( MountContent.Of( path ) )?.GetByPath( path ) is not null ? GameResource.Load<SoundEvent>( path ) : null;
-
-	/// <summary>Play the reload sound named in the weapon script.</summary>
-	public static void PlayReloadSound( BaseCombatWeapon weapon, GameObject source )
-	{
-		if ( !Application.IsDedicatedServer && source.IsValid() && WeaponSound( weapon, "reload" ) is { } sound ) source.PlaySound( sound );
-	}
 }

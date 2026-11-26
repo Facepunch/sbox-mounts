@@ -607,7 +607,7 @@ public sealed class ViewModel : BaseWeaponModel
 	void PlayReloadSound( string clip )
 	{
 		if ( Sounds.WeaponSound( _weapon, "reload" ) is { } sound && _animation?.PlaysSound( clip, sound ) != true )
-			GameObject.PlaySound( sound );
+			Sounds.PlayWeaponSound( _weapon, sound );
 	}
 
 	public override void OnReloadFinish()

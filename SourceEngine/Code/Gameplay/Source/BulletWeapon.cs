@@ -290,7 +290,7 @@ public sealed class BulletWeapon : Weapon
 		}
 		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled ) SetNextFire( ReloadStartTime );
 		base.OnReloadStarted();
-		if ( !IncrementalReloading && !animator.IsValid() && WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
+		if ( !IncrementalReloading && !animator.IsValid() && WeaponModel is not Source1.ViewModel ) Sounds.PlayWeaponSound( this, "reload" );
 	}
 
 	protected override void OnReloadFinished()
@@ -458,7 +458,7 @@ public sealed class BulletWeapon : Weapon
 	{
 		if ( Secondary == SecondaryFires.DoubleShot && !NpcControlled ) SetNextFire( ReloadTime );
 		base.OnReloadInserted();
-		if ( WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
+		if ( WeaponModel is not Source1.ViewModel ) Sounds.PlayWeaponSound( this, "reload" );
 	}
 
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )

@@ -192,7 +192,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		if ( IsLauncher && !UsesPrimaryClip ) WeaponModel?.OnReloadStart();
 		else base.OnReloadStarted();
 		if ( !Application.IsDedicatedServer && BoltChargeDelay is { } delay ) _boltChargeAt = (TimeUntil)delay;
-		if ( HasOwner && !Owner.IsProxy && WeaponModel is not Source1.ViewModel ) Sounds.PlayReloadSound( this, GameObject );
+		if ( HasOwner && !Owner.IsProxy && WeaponModel is not Source1.ViewModel ) Sounds.PlayWeaponSound( this, "reload" );
 	}
 
 	protected override void OnReloadFinished()
