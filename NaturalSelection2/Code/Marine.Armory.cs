@@ -98,7 +98,7 @@ public sealed partial class Marine
 		else if ( repath <= 0 )
 		{
 			repath = 0.2f;
-			Movement.MoveTo( combatStation.EngagementPoint, Scale, faceTarget: visible ? enemy : null );
+			MoveAlongRoute( combatStation.EngagementPoint, visible ? enemy : null );
 		}
 		return true;
 	}

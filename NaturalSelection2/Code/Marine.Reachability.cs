@@ -72,7 +72,7 @@ public sealed partial class Marine : Component.IDamageable.IEvents
 	{
 		if ( lastFiringPosition is { } from )
 		{
-			if ( WorldPosition.Distance( from ) > 1.5f * Scale ) Movement.MoveTo( from, Scale );
+			if ( WorldPosition.Distance( from ) > 1.5f * Scale ) MoveAlongRoute( from );
 			else Movement.Stop();
 			return;
 		}
@@ -87,6 +87,6 @@ public sealed partial class Marine : Component.IDamageable.IEvents
 			bestDistance = distance;
 			sinceProgress = 0;
 		}
-		Movement.MoveTo( position, Scale );
+		MoveAlongRoute( position );
 	}
 }

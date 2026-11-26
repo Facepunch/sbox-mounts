@@ -32,6 +32,10 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	bool wantsFire;
 	Rigidbody body;
 	float fallSpeed;
+	NavMeshAgent agent;
+	bool sprintRequested, sprintHeld, sprintLocked, requireSprintPress;
+	TimeSince sprintPressAge, sprintAge, sinceSprint, sinceAttackEnd;
+	[Sync( SyncFlags.FromHost )] bool sprinting { get; set; }
 	[Sync( SyncFlags.FromHost )] bool jumping { get; set; }
 	[Sync( SyncFlags.FromHost )] bool trigger { get; set; }
 	[Sync( SyncFlags.FromHost )] bool reloading { get; set; }
@@ -116,6 +120,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	{
 		base.OnStart();
 		body = GetComponent<Rigidbody>();
+		agent = GetComponent<NavMeshAgent>( true );
+		sinceSprint = sinceAttackEnd = 1;
 		if ( Scene.PhysicsWorld.Gravity.z < 0 )
 			body.GravityScale = 21.5f * Scale / -Scene.PhysicsWorld.Gravity.z;
 		ignoreTarget = IsIgnoredTarget;
@@ -254,8 +260,50 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 		if ( goal is { } p && !clearShot )
-			Movement.MoveTo( p, Scale, faceTarget: visible ? enemy : null );
+			MoveAlongRoute( p, visible ? enemy : null );
 		else Movement.Stop();
+	}
+
+	void MoveAlongRoute( Vector3 point, GameObject faceTarget = null )
+	{
+		sprintRequested = WalkDistance( point ) > 10 * Scale;
+		Movement.MoveTo( point, Scale, faceTarget: faceTarget );
+	}
+
+	void UpdateSprint( bool pressed, bool grounded, Vector3 velocity, Vector3 wish )
+	{
+		if ( !reloading && pressed != sprintHeld )
+		{
+			if ( pressed )
+			{
+				sprintPressAge = 0;
+				requireSprintPress = false;
+			}
+			else if ( sprintPressAge < 0.2f ) sprintLocked = !sprintLocked;
+			sprintHeld = pressed;
+		}
+
+		bool moving = velocity.LengthSquared > Scale * Scale;
+		var direction = wish.WithZ( 0 ).Normal;
+		bool next = (pressed || sprintLocked) && !requireSprintPress && grounded && moving && !reloading && !wantsFire && sinceAttackEnd > 0.2f
+			&& Vector3.Dot( direction, aim.Forward.WithZ( 0 ).Normal ) >= 0.2f && Vector3.Dot( velocity.WithZ( 0 ).Normal, direction ) >= 0.3f;
+		if ( sprintLocked && (wantsFire || !moving || !grounded) )
+		{
+			sprintLocked = false;
+			requireSprintPress = wantsFire;
+		}
+		if ( sprinting != next )
+		{
+			if ( next || sprintAge > 5 )
+				PlayWorldSound( next ? "sounds/marine/common/sprint_start.sound" : "sounds/marine/common/sprint_tired.sound" );
+			sprinting = next;
+			sprintAge = 0;
+		}
+		if ( sprinting ) sinceSprint = 0;
+		// The rifle weighs 0.13 equipped and 70% of that when stowed.
+		float inventorySpeed = 1.17f - 0.13f * (pistol ? 0.7f : 1);
+		float speed = 5 + (sprinting ? 0.75f * Math.Clamp( (float)sprintAge / 1.5f, 0, 1 ) : 0);
+		Movement.WalkSpeed = Movement.RunSpeed = speed * inventorySpeed * Scale;
 	}
 
 	void ApproachPoint( Vector3 point )
@@ -265,7 +313,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		viewTarget = velocity.LengthSquared > 1 ? EyePosition + velocity : point.WithZ( EyePosition.z );
 		if ( repath > 0 ) return;
 		repath = 0.2f;
-		Movement.MoveTo( point, Scale );
+		MoveAlongRoute( point );
 	}
 
 	void AttackStructure( GameObject enemy, Vector3? lastSeen )
@@ -287,6 +335,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	void Strafe( GameObject enemy, Vector3 aimPoint, float distance )
 	{
+		sprintRequested = false;
 		if ( repath > 0 ) return;
 		repath = 0.1f;
 		var toward = (enemy.WorldPosition - WorldPosition).WithZ( 0 ).Normal;
@@ -314,7 +363,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( IsAirborne ) return;
 		var destination = WorldPosition + side * Scale;
 		if ( Movement.ProjectPoint( destination ) is { } point )
-			Movement.MoveTo( point, 4, 5 * Scale, enemy );
+			Movement.MoveTo( point, 4, Movement.RunSpeed, enemy );
 		else Movement.Stop();
 	}
 
@@ -404,14 +453,15 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( equippedPistol != pistol ) EquipWeapon();
 		if ( Networking.IsHost )
 		{
+			UpdateSprint( sprintRequested && Movement.MoveTarget.HasValue, IsOnGround, Animation.MoveVelocity, agent.WishVelocity );
 			if ( wounds.Update() is { } cue )
 				PlayWorldSound( $"sounds/marine/common/{(lastHitWasGas ? "spore_wound" : cue)}.sound" );
 			bool press = wantsFire && NpcConVars.Enabled && (!pistol || !previousPress);
 			previousPress = press;
-			bool attack = press && deployed && !reloading && (!pistol || lastShot >= 0.1f);
+			bool attack = press && sinceSprint >= 0.2f && deployed && !reloading && (!pistol || lastShot >= 0.1f);
 			bool wasAttacking = trigger;
 			trigger = attack && Ammo.Clip > 0;
-			if ( wasAttacking && !trigger ) idleAge = 0;
+			if ( wasAttacking && !trigger ) idleAge = sinceAttackEnd = 0;
 			if ( attack && Ammo.Clip == 0 )
 				BeginReload();
 			if ( trigger && !pistol )
@@ -422,7 +472,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		bool idle = IsMovementIdle;
-		var move = jumping ? "jump" : idle ? "idle" : "run";
+		var move = jumping ? "jump" : sprinting ? "sprint" : idle ? "idle" : "run";
 		var output = PlayerGait.UpdatePose( this, 5.75f );
 		if ( graph is not null )
 		{
