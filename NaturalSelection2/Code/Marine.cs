@@ -50,11 +50,13 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	TimeSince lastShot, lastHit, lastRequest;
 	TimeUntil combatUntil, blindFireUntil;
-	Vector3 lastAimPoint, modelOrigin;
+	Vector3 modelOrigin;
+	Vector3? lastAimPoint;
+	TimeUntil refreshCloseAim;
 	protected override Vector3 GetEngagementPoint() => Renderer.WorldTransform.PointToWorld( modelOrigin );
 	GameObject firingTarget;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
-	Vector3 viewOffset;
+	Vector3? viewTarget;
 	readonly MarineWeaponAim acquisition = new( 90 );
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
@@ -139,7 +141,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 
 	protected override void Think()
 	{
-		viewOffset = Vector3.Zero;
+		viewTarget = null;
 		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
 		var goal = memory ?? enemy?.WorldPosition;
@@ -177,7 +179,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			SelectWeapon( false );
 		}
 		if ( Ammo.Clip == 0 ) BeginReload();
-		var aimPoint = visible ? CalculateAimPoint( enemy ) : lastAimPoint;
+		var aimPoint = visible ? CalculateAimPoint( enemy ) : default;
+		if ( visible ) viewTarget = aimPoint;
 		// NS2 uses the structure attack routine for Drifters even though they can move.
 		bool useEntityAttack = visible && target is not (AlienStructure or Drifter);
 		float distance = visible ? EyePosition.Distance( enemy.WorldPosition ) : 0;
@@ -188,14 +191,26 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 		bool clearShot = visible && distance < (useEntityAttack ? 32.5f : 22) * Scale;
 		bool babbler = visible && enemy.Tags.Has( "ns2_babbler" );
-		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, MarineWeaponAim.Weapon.Bullets, out viewOffset ));
-		if ( useEntityAttack && !aimed && (blindFireUntil > 0 || distance < 15 * Scale) )
-			viewOffset = Vector3.Zero;
+		bool aimed = clearShot && (babbler || acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, MarineWeaponAim.Weapon.Bullets, out viewTarget ));
 		if ( aimed )
 		{
 			lastAimPoint = aimPoint;
 			firingTarget = enemy;
 			blindFireUntil = useEntityAttack ? 0.5f : 0;
+		}
+		else if ( useEntityAttack )
+		{
+			if ( blindFireUntil > 0 ) viewTarget = lastAimPoint;
+			else if ( distance < 15 * Scale )
+			{
+				if ( refreshCloseAim <= 0 )
+				{
+					lastAimPoint = aimPoint;
+					refreshCloseAim = 0.5f;
+				}
+				if ( lastAimPoint.HasValue ) viewTarget = lastAimPoint;
+			}
+			else lastAimPoint = null;
 		}
 		wantsFire = !reloading && Ammo.Clip > 0 && (aimed || enemy.IsValid() && enemy == firingTarget && blindFireUntil > 0);
 		if ( useEntityAttack && clearShot )
@@ -344,10 +359,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			if ( trigger && !pistol && !reloading && Ammo.Clip > 0 )
 				NpcTeamMemory.Get( Scene ).ReportRifleFire( this );
 
-			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) + viewOffset - EyePosition, acquisition.TurnRate );
-			else if ( wantsFire )
-				aim = AlienAim.Turn( aim, lastAimPoint - EyePosition, acquisition.TurnRate );
+			if ( (viewTarget ?? (wantsFire ? lastAimPoint : null)) is { } point )
+				aim = AlienAim.Turn( aim, point - EyePosition, acquisition.TurnRate );
 		}
 		var activity = reloading ? "reload" : trigger ? "primary" : "none";
 		var move = jumping ? "jump" : Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";

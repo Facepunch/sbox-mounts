@@ -9,6 +9,7 @@ internal static class AlienAim
 		// BotAim passes its class FOV directly to the cone cosine.
 		readonly float cone = MathF.Cos( fieldOfView );
 		internal GameObject Target { get; private set; }
+		internal Vector3? ViewTarget { get; private set; }
 		internal bool HasSample { get; private set; }
 		TimeSince lastTracked;
 		TimeUntil acquired;
@@ -22,7 +23,10 @@ internal static class AlienAim
 
 		internal bool TrackView( GameObject enemy, Vector3 eye, Vector3 point, Rotation view, float modifier, int skillTier )
 		{
+			ViewTarget = point;
 			if ( !Track( enemy, point - eye, view, skillTier ) ) return false;
+			// Spark's zero tracking interval produces the latest point once it has two samples.
+			ViewTarget = HasSample ? point : null;
 			turnModifier = modifier;
 			if ( sample < 0 )
 			{
@@ -42,7 +46,7 @@ internal static class AlienAim
 					sample = 0.25f;
 				}
 			}
-			return acquired <= 0;
+			return HasSample && acquired <= 0;
 		}
 
 		bool Track( GameObject enemy, Vector3 offset, Rotation view, int skillTier )

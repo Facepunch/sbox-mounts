@@ -59,7 +59,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 	readonly Arm left = new(), right = new();
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
-	Vector3 viewOffset;
+	Vector3? viewTarget;
 	readonly MarineWeaponAim acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
 	[Sync( SyncFlags.FromHost )] bool rightPressed { get; set; }
@@ -181,14 +181,16 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		bool player = enemy.IsValid() && (enemy.Tags.HasAny( "ns2_lifeform", "ns2_marine", "ns2_exo" ) || enemy.GetComponentInParent<PlayerController>().IsValid());
 		closePlayer = player && distance < 10;
 		inRailRange = distance <= 32;
-		viewOffset = Vector3.Zero;
+		var aimPoint = visible ? CalculateAimPoint( enemy ) : default;
+		viewTarget = visible ? aimPoint : null;
 		var weapon = Railguns ? MarineWeaponAim.Weapon.Railgun : MarineWeaponAim.Weapon.Minigun;
-		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, CalculateAimPoint( enemy ), aim, AimSkillTier, weapon, out viewOffset );
+		bool aimed = visible && distance < 45 && acquisition.Track( this, enemy, aimPoint, aim, AimSkillTier, weapon, out viewTarget );
 		if ( aimed )
 		{
 			firingTarget = enemy;
 			fireUntil = 0.5f;
 		}
+		if ( visible && !aimed && fireUntil <= 0 && distance < 15 ) viewTarget = aimPoint;
 		attack = enemy.IsValid() && enemy == firingTarget && fireUntil > 0;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
@@ -220,8 +222,8 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		if ( Networking.IsHost )
 		{
 			Movement.WalkSpeed = Movement.RunSpeed = GroundSpeed;
-			if ( Animation.LookObject.IsValid() )
-				aim = AlienAim.Turn( aim, CalculateAimPoint( Animation.LookObject ) + viewOffset - EyePosition, acquisition.TurnRate );
+			if ( viewTarget is { } point )
+				aim = AlienAim.Turn( aim, point - EyePosition, acquisition.TurnRate );
 			leftPressed = UpdateArm( left, leftPressed );
 			rightPressed = UpdateArm( right, rightPressed );
 			var move = Animation.MoveVelocity.Length > 0.1f * Scale ? "run" : "idle";

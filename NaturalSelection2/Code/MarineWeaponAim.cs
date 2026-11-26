@@ -22,11 +22,11 @@ internal sealed class MarineWeaponAim( float fieldOfView )
 		if ( hit ) bulletHits++;
 	}
 
-	internal bool Track( Ns2Npc owner, GameObject enemy, Vector3 point, Rotation aim, int tier, Weapon weapon, out Vector3 viewOffset )
+	internal bool Track( Ns2Npc owner, GameObject enemy, Vector3 point, Rotation aim, int tier, Weapon weapon, out Vector3? viewTarget )
 	{
-		viewOffset = Vector3.Zero;
 		var previous = acquisition.Target;
 		bool ready = acquisition.TrackView( enemy, owner.EyePosition, point, aim, 1, tier );
+		viewTarget = acquisition.ViewTarget;
 		if ( previous != acquisition.Target ) bulletHits = bulletSamples = 0;
 		if ( !acquisition.HasSample ) return ready;
 
@@ -61,7 +61,7 @@ internal sealed class MarineWeaponAim( float fieldOfView )
 					? (target.Renderer.LocalBounds.Size + Vector3.One * (spread * MapLoader.Scale)) * direction : Vector3.Zero;
 			}
 		}
-		viewOffset = missOffset;
+		viewTarget += missOffset;
 		return ready;
 	}
 }
