@@ -61,8 +61,9 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	{
 		var equipped = PrimaryItem.IsValid() ? PrimaryItem : null;
 		var patrolGroup = Stance == PatrolIdle && IsPatrolGroup ? PatrolAnimation : boundPatrolGroup;
-		// Keep the current graph until the outgoing knife layer has delivered its last event.
-		bool finishWeaponAnimation = IsThrowingItem || Downed && currentKnifeLayer is { Active: true };
+		// Finish the outgoing weapon reaction or knife layer on the graph that owns its clip.
+		bool finishWeaponAnimation = IsThrowingItem || Downed && currentKnifeLayer is { Active: true } ||
+			ReactionPhase < 1f && boundAnimations?.Clips.ContainsKey( Stance ) == true;
 		if ( patrolGroup != boundPatrolGroup || boundAnimations is null || boundModel != Renderer.Model || Renderer.Animation.Graph is null
 			|| boundStanceOverride != UnarmedStanceOverride || Species is not null && boundAnimations.Species != Species
 			|| equippedForAnimation != equipped && !finishWeaponAnimation )

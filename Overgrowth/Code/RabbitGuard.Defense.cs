@@ -104,7 +104,14 @@ public sealed partial class RabbitGuard
 			return false;
 		}
 		if ( Time.Delta <= 0f ) return true;
-		var pose = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		if ( !boundAnimations.Clips.TryGetValue( Stance, out var reaction ) )
+		{
+			activeBlockReaction = false;
+			reactionMotion = null;
+			ReactionPhase = 1f;
+			return false;
+		}
+		var pose = reaction.ForSide( MirroredAction );
 		if ( FinishingCaptureReaction )
 		{
 			// Untethering leaves the captive's existing attack reader running.
