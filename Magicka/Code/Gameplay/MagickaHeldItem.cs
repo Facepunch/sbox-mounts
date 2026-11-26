@@ -11,6 +11,7 @@ public sealed class MagickaHeldItem : Component
 	[Property] public string ModelPath { get; set; }
 	[Property] public string Bone { get; set; } = "rightattach";
 	[Property] public float Scale { get; set; } = 1f;
+	[Property] public Angles LocalAngles { get; set; }
 	[Property] public Vector3 FallbackOffset { get; set; }
 
 	private bool _placed;
@@ -52,7 +53,7 @@ public sealed class MagickaHeldItem : Component
 		{
 			weapon.Parent = bone;
 			weapon.LocalPosition = Vector3.Zero;
-			weapon.LocalRotation = Rotation.Identity;
+			weapon.LocalRotation = LocalAngles.ToRotation();
 		}
 		else
 		{

@@ -136,6 +136,8 @@ internal sealed class NpcPrefabLoader(
 				held.ModelPath = Host.Url( weapon, "vmdl" );
 				held.Bone = weaponBone;
 				held.Scale = weaponScale;
+				if ( weapon.Contains( "book", StringComparison.OrdinalIgnoreCase ) )
+					held.LocalAngles = new Angles( 0f, 180f, 0f );
 				held.FallbackOffset = new Vector3( 6f, -10f, height * 0.55f );
 			}
 
