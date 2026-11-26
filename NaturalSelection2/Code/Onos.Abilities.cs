@@ -128,7 +128,8 @@ public sealed partial class Onos
 
 	void UpdateAbilities( Vector3 velocity )
 	{
-		energy = Math.Clamp( energy + Time.Delta * ((Shielding ? 5 : 10) - (charging ? 20 : 0)), 0, 100 );
+		float recharge = GetEnergyRechargeRate( 15 ) * (Shielding ? 0.5f : 1);
+		energy = Math.Clamp( energy + Time.Delta * (recharge - (charging ? 20 : 0)), 0, 100 );
 		if ( charging && (energy <= 0 || sinceCharge > 1 && velocity.Length < 4.5f * Scale) ) EndCharge();
 		var speed = (RunSpeed + (charging ? Math.Min( 1, sinceCharge / 0.5f ) * (12.5f * Scale - RunSpeed) : 0)) * (Shielding ? 0.682f : 1);
 		Movement.RunSpeed = Movement.WalkSpeed = speed;

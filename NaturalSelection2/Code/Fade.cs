@@ -259,7 +259,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
 		UpdateAttack( assignedEnemy );
-		energy = Math.Min( 100, energy + 10 * Time.Delta );
+		energy = Math.Min( 100, energy + GetEnergyRechargeRate( 15 ) * Time.Delta );
 		bool metabolizing = metabolizeAnimation > 0;
 		var ability = metabolizing ? "vortex" : stabSelected ? "stab" : "swipe";
 		var activity = metabolizing || attacking && !drawingWeapon && !Blinking && energy >= (stabSelected ? 25 : 7) ? "primary" : "none";

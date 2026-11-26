@@ -46,6 +46,11 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IE
 	}
 
 	protected abstract int BaseHealth { get; }
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int AdrenalineSpurs { get; set; }
+
+	protected float GetEnergyRechargeRate( float fullAdrenalineRate )
+		=> 10 + (fullAdrenalineRate - 10) * Math.Clamp( AdrenalineSpurs, 0, 3 ) / 3;
+
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int RegenerationShells { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeUntil nextHeal { get; set; }
 

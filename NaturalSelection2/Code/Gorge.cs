@@ -245,7 +245,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( wounds.Update() is { } cue ) PlayCue( cue, WorldPosition );
 		Regenerate( underFire > 0 );
 		if ( world is null || weapon is null ) return;
-		energy = Math.Min( 100, energy + 10 * Time.Delta );
+		energy = Math.Min( 100, energy + GetEnergyRechargeRate( 13 ) * Time.Delta );
 		var target = Animation.LookObject;
 		var direction = target.IsValid() ? CalculateAimPoint( target ) - EyePosition : WorldRotation.Forward;
 		if ( wantsSpray && target.IsValid() )

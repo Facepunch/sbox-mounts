@@ -208,7 +208,7 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 		if ( world is null || weapon is null || Health <= 0 ) return;
 		Regenerate( underFire > 0 );
 		if ( wounds.Update() is { } cue ) PlayCue( cue );
-		energy = Math.Min( 100, energy + 10 * Time.Delta );
+		energy = Math.Min( 100, energy + GetEnergyRechargeRate( 13 ) * Time.Delta );
 		spiking = wantsSpikes && ready && energy >= SpikeCost;
 		if ( !spiking ) firingSpikes = false;
 		bool usingUmbra = umbraTarget.IsValid();

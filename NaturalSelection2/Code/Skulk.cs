@@ -93,7 +93,7 @@ public sealed partial class Skulk : AlienLifeform, Component.IDamageable
 			}
 			Regenerate( underFire > 0 );
 			UpdateFlinch();
-			energy = Math.Min( 100, energy + Time.Delta * 10 );
+			energy = Math.Min( 100, energy + GetEnergyRechargeRate( 27 ) * Time.Delta );
 			if ( Leaping && leapEnds <= 0 ) Leaping = false;
 		}
 
