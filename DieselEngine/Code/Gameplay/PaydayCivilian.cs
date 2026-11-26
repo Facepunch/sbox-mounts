@@ -7,6 +7,8 @@ namespace Diesel;
 public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 {
 	[Property] public bool Wander { get; set; } = true;
+	[Property] public bool ReportAlarms { get; set; } = true;
+	[Property] public bool UseEscapePoints { get; set; } = true;
 	[Sync( SyncFlags.FromHost )] public bool Surrendered { get; private set; }
 	[Sync( SyncFlags.FromHost )] public GameObject Leader { get; private set; }
 	[Sync( SyncFlags.FromHost )] public bool Panicking { get; private set; }
@@ -51,9 +53,6 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 	public void Scare( GameObject source )
 		=> Scare( source, true );
 
-	/// <summary>A mission order was assigned or removed: drop the current schedule so it's reselected.</summary>
-	internal void ReceiveOrder() => EndCurrentSchedule();
-
 	void Scare( GameObject source, bool warnOthers )
 	{
 		if ( !Networking.IsHost || Health <= 0 || Surrendered || !source.IsValid() ) return;
@@ -88,25 +87,19 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 		{
 			var alarm = Scene.GetAllComponents<PaydayAlarm>().Where( a => !Evacuating && a.CanReserve( GameObject ) && CanVisit( a ) )
 				.OrderBy( a => a.WorldPosition.Distance( WorldPosition ) ).FirstOrDefault();
-			if ( alarm.IsValid() && alarm.WorldPosition.Distance( WorldPosition ) < 800 )
+			if ( ReportAlarms && alarm.IsValid() && alarm.WorldPosition.Distance( WorldPosition ) < 800 )
 			{
 				var report = GetSchedule<PaydayReportAlarm>();
 				report.Alarm = alarm; report.Threat = threat; return report;
 			}
 			var exit = Scene.GetAllComponents<PaydayEscapePoint>().Where( e => e.Enabled && CanVisit( e ) )
 				.OrderBy( e => e.WorldPosition.Distance( WorldPosition ) ).FirstOrDefault();
-			if ( exit.IsValid() )
+			if ( UseEscapePoints && exit.IsValid() )
 			{
 				var escape = GetSchedule<PaydayEscape>();
 				escape.Exit = exit; return escape;
 			}
 			var flee = GetSchedule<FleeSchedule>(); flee.Source = threat; flee.PanicLevel = .7f; return flee;
-		}
-		// Mission special objective (walk to a point and stay), unless surrendered or panicking (handled above).
-		if ( PaydayMissionOrder.Active( this ) is { } order )
-		{
-			if ( order.Arrived ) return GetSchedule<PaydayHoldObjective>();
-			var objective = GetSchedule<PaydayObjectiveSchedule>(); objective.Order = order; return objective;
 		}
 		return Wander ? GetSchedule<WanderSchedule>() : GetSchedule<IdleSchedule>();
 	}

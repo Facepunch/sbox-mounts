@@ -1,3 +1,4 @@
+// Archived experimental interpreter; not compiled into the mount.
 using Sandbox.Npcs;
 
 namespace Diesel;

@@ -49,7 +49,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		// Import callbacks are batched: wall collision becomes available only after scene load.
 		if ( ResolveDoorway )
 		{
-			MapLoader.SettleAjarDoor( GameObject, this );
+			PaydayDoorPlacement.Resolve( GameObject, this );
 			ResolveDoorway = false;
 		}
 		Scene.NavMesh.ExcludedBodies.Add( NavigationTag );
@@ -229,14 +229,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		}
 		if ( Debug ) Log.Info( Open ? "  -> closing" : "  -> opening" );
 		if ( Open ) SetOpen( false );
-		else
-		{
-			OpenAway( player.GameObject );
-			// Missions listen for "open" (elevator/fence doors) and "open_out" (apartment doors); which way PDTH
-			// names a given swing isn't known, so all opening names are reported.
-			foreach ( var sequence in new[] { "open", "open_out", "open_in" } )
-				PaydayMission.SequenceRan( GameObject, sequence, player.GameObject );
-		}
+		else OpenAway( player.GameObject );
 	}
 
 	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) =>

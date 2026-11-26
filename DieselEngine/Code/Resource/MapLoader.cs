@@ -19,8 +19,7 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 	MapMaterials materials;
 	MapLights lights;
 	Material sky;
-	HashSet<int> missionUnits = [];
-	int placed, missing, taggedUnits, breakableUnits;
+	int placed, missing, breakableUnits;
 	readonly List<PaydayDoor> apartmentDoors = [];
 
 	protected override void OnSceneUnloaded()
@@ -33,13 +32,9 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 
 	protected override void BuildScene()
 	{
-		placed = missing = taggedUnits = breakableUnits = 0;
+		placed = missing = breakableUnits = 0;
 		apartmentDoors.Clear();
 		var db = Host.Database;
-		string levelDirectory = path[..path.LastIndexOf( '/' )];
-		MissionData mission = null;
-		try { mission = MissionData.Read( db, levelDirectory ); missionUnits = mission.ReferencedUnits(); }
-		catch ( Exception e ) { Log.Warning( $"PAYDAY {path} mission: {e.Message}" ); missionUnits = []; }
 		lights = new MapLights( db );
 		var root = new GameObject( true, Title );
 		root.Scene.Enabled = false;
@@ -66,20 +61,15 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 			}
 		}
 		AddBrushes( world, root, directory );
-		foreach ( var door in apartmentDoors ) SettleAjarDoor( door.GameObject, door );
+		foreach ( var door in apartmentDoors ) PaydayDoorPlacement.Resolve( door.GameObject, door );
 		AddSounds( root, directory );
 		AddSky( root, environment );
 		MapEnvironment.Add( root, environment );
 		root.AddComponent<PaydayNavigation>();
-		// Map content is snapshot-networked (sent once at join); runtime mission/breakable state needs a live
+		// Map content is snapshot-networked (sent once at join); runtime unit state needs a live
 		// networked object. MapInstance network-spawns NetworkMode.Object children on the host.
-		new GameObject( true, "PAYDAY mission network" ) { Parent = root, NetworkMode = NetworkMode.Object }.AddComponent<PaydayMissionSync>();
+		new GameObject( true, "PAYDAY map state" ) { Parent = root, NetworkMode = NetworkMode.Object }.AddComponent<PaydayMapState>();
 		Log.Info( $"PAYDAY {path}: {breakableUnits} breakable placements (unit endurance rules)." );
-		if ( mission is { Elements.Count: > 0 } )
-		{
-			root.AddComponent<PaydayMission>().Level = levelDirectory;
-			Log.Info( $"PAYDAY {path}: mission has {mission.Scripts.Count} scripts, {mission.Elements.Count} elements; tagged {taggedUnits} of {missionUnits.Count} referenced units." );
-		}
 		Log.Info( $"PAYDAY {path}: placed {placed} units; {missing} missing/unsupported placements; {models.Count} unique unit states; {materials.TextureCount} textures; {lights.Count} authored lights." );
 	}
 
@@ -114,20 +104,18 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 				ApplyTransform( go, unit );
 				go.Tags.Add( "world" );
 				int placedId = unit.GetValueOrDefault( "unit_id" ) is float unitId ? (int)unitId : 0;
-				bool referenced = placedId != 0 && missionUnits.Contains( placedId );
 				// Breakable by its own sequence-manager endurance (glass, bulbs, stands…). Doors handle their own glass.
 				bool breakable = model.DoorParts is null && model.DoorLeaf is null && Host.GetEndurance( name ) is not null;
-				if ( referenced || breakable )
+				if ( breakable )
 				{
-					// The mission or damage can switch this unit to another sequence state at runtime.
+					// Damage can switch this unit to another sequence state at runtime.
 					go.IsStatic = false;
-					var marker = go.AddComponent<PaydayMissionUnit>();
+					var marker = go.AddComponent<PaydayUnitState>();
 					marker.Id = placedId;
 					marker.Unit = name;
 					marker.MaterialVariation = variation;
 					marker.Breakable = breakable;
-					if ( referenced ) taggedUnits++;
-					if ( breakable ) breakableUnits++;
+					breakableUnits++;
 				}
 				if ( model.DoorParts is { } parts )
 				{
@@ -286,68 +274,6 @@ sealed class MapLoader( string path ) : SceneLoader<PaydayMount>
 		}
 		placed += brushes;
 		Log.Info( $"PAYDAY {path}: placed {brushes} brush instances from {entries.Count} brush units." );
-	}
-
-	/// <summary>
-	/// Apartment doors have no frame of their own and their origin sits on the hinge, so the level designers left doors ajar
-	/// by yawing the whole unit (11°, −23°, 101°…) instead of using an open state. Taken literally, that ajar pose becomes the
-	/// "closed" one and opening swings another 96° into the wall. Identify the doorway from its opposite jamb, keep the
-	/// leaf exactly where it was by rotating it about the hinge instead, and let the door rest there until it's used.
-	/// The swing follows the way it was left ajar.
-	/// </summary>
-	internal static void SettleAjarDoor( GameObject go, PaydayDoor door )
-	{
-		float yaw = go.WorldRotation.Yaw();
-		float snapped = MathF.Round( yaw / 90 ) * 90;
-		// The nearest cardinal direction can be the OPEN pose (e.g. a door opened 101°
-		// is only 11° from the neighbouring wall). Prefer a clear leaf span ending at a jamb.
-		// Wait until all architecture/brush collision exists before making these queries.
-		var model = door.Leaf?.GetComponent<ModelRenderer>()?.Model;
-		var hinge = go.WorldTransform.PointToWorld( door.Pivot );
-		if ( model is not null )
-		{
-			var span = (model.Bounds.Center - door.Pivot).WithZ( 0 );
-			var axis = MathF.Abs( span.x ) > MathF.Abs( span.y )
-				? Vector3.Forward * MathF.Sign( span.x ) : Vector3.Left * MathF.Sign( span.y );
-			float width = MathF.Abs( axis.x ) > 0
-				? MathF.Max( MathF.Abs( model.Bounds.Mins.x - door.Pivot.x ), MathF.Abs( model.Bounds.Maxs.x - door.Pivot.x ) )
-				: MathF.Max( MathF.Abs( model.Bounds.Mins.y - door.Pivot.y ), MathF.Abs( model.Bounds.Maxs.y - door.Pivot.y ) );
-			var candidates = new List<float>();
-			for ( int i = 0; i < 4; i++ )
-			{
-				float candidate = snapped + i * 90;
-				float opening = Normalize( yaw + door.InitialOpenAngle - candidate );
-				if ( MathF.Abs( opening ) > 175 ) continue;
-				var along = Rotation.FromYaw( candidate ) * axis;
-				var normal = Vector3.Cross( Vector3.Up, along );
-				bool fits = true;
-				foreach ( float height in new[] { 30f, 60f } )
-				{
-					var start = hinge.WithZ( go.WorldPosition.z + height );
-					var jamb = go.Scene.Trace.Ray( start + along * 8, start + along * (width + 8) )
-						.IgnoreGameObjectHierarchy( go ).WithoutTags( PaydayDoor.NavigationTag, "player", "trigger" ).Run();
-					var middle = start + along * (width * .5f);
-					var wall = go.Scene.Trace.Ray( middle - normal * 12, middle + normal * 12 )
-						.IgnoreGameObjectHierarchy( go ).WithoutTags( PaydayDoor.NavigationTag, "player", "trigger" ).Run();
-					if ( !jamb.Hit || jamb.StartedSolid || MathF.Abs( jamb.Distance + 8 - width ) > 6 || wall.Hit || wall.StartedSolid )
-						fits = false;
-				}
-				if ( fits ) candidates.Add( candidate );
-			}
-			if ( candidates.Count == 1 ) snapped = candidates[0];
-		}
-		float ajar = Normalize( yaw - snapped );
-		if ( MathF.Abs( ajar ) < 1 ) return;
-		// Rebase about the leaf's local hinge axis, retaining authored pitch/roll.
-		// Replacing the whole rotation with yaw straightens crooked doors and moves their geometry.
-		go.WorldRotation *= Rotation.FromYaw( -ajar );
-		go.WorldPosition = hinge - go.WorldRotation * door.Pivot;
-		float total = Normalize( door.InitialOpenAngle + ajar );
-		if ( MathF.Abs( total ) > .01f && MathF.Sign( total ) != MathF.Sign( door.FixedOpenAngle ) ) door.FixedOpenAngle = -door.FixedOpenAngle;
-		door.InitialOpenAngle = total;
-		door.Leaf.LocalTransform = new Transform( Vector3.Zero ).RotateAround( door.Pivot, Rotation.FromYaw( total ) );
-
-		static float Normalize( float angle ) => ((angle + 180) % 360 + 360) % 360 - 180;
 	}
 
 	/// <summary>

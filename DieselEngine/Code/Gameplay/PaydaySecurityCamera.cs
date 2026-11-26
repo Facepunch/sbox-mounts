@@ -12,6 +12,8 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 	[Property] public float FieldOfView { get; set; } = 80;
 	[Property] public float DetectionDelay { get; set; } = 1.5f;
 	[Property] public float AlertRadius { get; set; } = 2000;
+	[Property] public bool AlertNpcs { get; set; } = true;
+	[Property] public bool ShowStateTint { get; set; } = true;
 	[Sync( SyncFlags.FromHost )] public float Health { get; private set; } = 30;
 	[Sync( SyncFlags.FromHost )] public bool Disabled { get; private set; }
 	[Sync( SyncFlags.FromHost )] public bool Activated { get; private set; }
@@ -23,7 +25,7 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 
 	protected override void OnUpdate()
 	{
-		if ( Renderer.IsValid() )
+		if ( ShowStateTint && Renderer.IsValid() )
 			Renderer.Tint = Disabled ? new Color( .2f, .2f, .2f ) : Activated ? new Color( 1, .3f, .3f )
 				: Detecting ? new Color( 1, .75f, .3f ) : Color.White;
 		if ( !Networking.IsHost || Disabled || scan > 0 ) return;
@@ -38,7 +40,8 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 		if ( visibleFor < DetectionDelay ) return;
 		Activated = true; Detecting = false;
 		reported.Add( suspect );
-		Scene.GetSystem<NpcSystem>().EmitStimulus( StimulusKinds.Gunshot, WorldTransform.ToWorld( Lens ).Position, suspect, AlertRadius, 8 );
+		if ( AlertNpcs )
+			Scene.GetSystem<NpcSystem>().EmitStimulus( StimulusKinds.Gunshot, WorldTransform.ToWorld( Lens ).Position, suspect, AlertRadius, 8 );
 		suspect = null;
 	}
 
@@ -58,8 +61,6 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 		Health = Math.Max( 0, Health - damage.Damage );
 		if ( Health > 0 ) return;
 		Disabled = true; Detecting = false; suspect = null;
-		// 108 mission triggers wait for cameras' "stop" sequence (camera taken out).
-		PaydayMission.SequenceRan( GameObject, "stop", damage.Attacker );
 	}
 
 	protected override void OnDisabled()
