@@ -41,11 +41,49 @@ public sealed class PaydayDoor : Component, Component.IPressable
 	SoundHandle openingSound;
 	bool openingSoundPlayed, closingSoundPlayed = true;
 	float previousAmount;
+	internal readonly record struct NetworkState( bool Open, float Amount, bool Blocked, float Direction,
+		bool Resting, float OpenAngle, Transform RootPose );
+	NetworkState? published;
+	PaydayMapState publishedRelay;
+	bool receivedState;
+
+	internal void ApplyState( NetworkState state, bool audible )
+	{
+		receivedState = true;
+		ResolveDoorway = false;
+		Open = state.Open; Amount = state.Amount; Blocked = state.Blocked;
+		Direction = state.Direction; Resting = state.Resting; OpenAngle = state.OpenAngle;
+		LocalTransform = state.RootPose;
+		if ( Leaf.IsValid() ) Leaf.LocalTransform = Pose( Amount );
+		if ( !audible )
+		{
+			previousAmount = Amount;
+			openingSoundPlayed = Open;
+			closingSoundPlayed = !Open;
+		}
+	}
+
+	void PublishState()
+	{
+		var relay = PaydayMapState.For( Scene );
+		if ( relay is null ) return;
+		var state = new NetworkState( Open, Amount, Blocked, Direction, Resting, OpenAngle, LocalTransform );
+		if ( publishedRelay == relay && published == state ) return;
+		relay.DoorStates[GameObject.Id] = Json.Serialize( state );
+		published = state;
+		publishedRelay = relay;
+	}
 	Model Model => Leaf.IsValid() ? Leaf.GetComponent<ModelRenderer>()?.Model : null;
 	Vector3 Center => WorldTransform.PointToWorld( Model?.Bounds.Center ?? Vector3.Up * 40 );
 
 	protected override void OnStart()
 	{
+		if ( receivedState )
+		{
+			Scene.NavMesh.ExcludedBodies.Add( NavigationTag );
+			_ = LoadSounds();
+			return;
+		}
 		// Import callbacks are batched: wall collision becomes available only after scene load.
 		if ( ResolveDoorway )
 		{
@@ -87,6 +125,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		closingSoundPlayed = !Open; // a door placed open can still play its closing sound
 		if ( Debug ) Log.Info( $"PAYDAY door start: {State}" );
 		_ = LoadSounds();
+		if ( Networking.IsHost ) PublishState();
 	}
 
 	async Task LoadSounds()
@@ -159,6 +198,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 			}
 		}
 		previousAmount = Amount;
+		if ( Networking.IsHost ) PublishState();
 	}
 
 	protected override void OnDisabled()
@@ -212,9 +252,18 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		SetOpen( true );
 	}
 
-	[Rpc.Host]
 	public void Toggle( GameObject source )
 	{
+		if ( PaydayMapState.For( Scene ) is { } relay ) relay.RequestDoor( GameObject.Id, source );
+		else ToggleDirect( source );
+	}
+
+	[Rpc.Host]
+	void ToggleDirect( GameObject source ) => ToggleHost( source );
+
+	internal void ToggleHost( GameObject source )
+	{
+		if ( !Networking.IsHost ) return;
 		if ( Debug ) Log.Info( $"PAYDAY door use: {State}" );
 		if ( !Leaf.IsValid() || Model is null || !source.IsValid() || source.Scene != Scene ) return;
 		var player = source.Root?.GetComponent<PlayerController>();
@@ -230,6 +279,7 @@ public sealed class PaydayDoor : Component, Component.IPressable
 		if ( Debug ) Log.Info( Open ? "  -> closing" : "  -> opening" );
 		if ( Open ) SetOpen( false );
 		else OpenAway( player.GameObject );
+		PublishState();
 	}
 
 	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) =>

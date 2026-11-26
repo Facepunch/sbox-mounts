@@ -12,6 +12,7 @@ try
 {
 	using var scope = scene.Push();
 	scene.Enabled = true;
+	var relay = new GameObject( true, "Live map-state relay" ).AddComponent<Diesel.PaydayMapState>();
 	var floor = new GameObject( true, "Floor" ).AddComponent<BoxCollider>();
 	floor.Scale = new Vector3( 2000, 2000, 20 ); floor.Center = new Vector3( 0, 0, -10 );
 	var root = new GameObject( true, "Authored hinge" );

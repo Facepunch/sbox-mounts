@@ -7,6 +7,7 @@ try
 {
 	using var scope = scene.Push();
 	scene.Enabled = true;
+	var relay = new GameObject( true, "Live map-state relay" ).AddComponent<Diesel.PaydayMapState>();
 	var map = new GameObject( true, "Map root" );
 	var floor = new GameObject( true, "Floor" ).AddComponent<BoxCollider>();
 	floor.Scale = new Vector3( 3000, 3000, 20 ); floor.Center = new Vector3( 0, 0, -10 );
@@ -51,9 +52,11 @@ try
 	var seen = camera.GetType().GetField( "visibleFor", System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic ).GetValue( camera );
 	if ( !Flag( camera, "Activated" ) || guard.GetDisposition( player ) != Sandbox.Npcs.Disposition.Hostile )
 		throw new Exception( $"Camera failed to report offender to nearby guard: activated={Flag(camera,"Activated")}, detecting={Flag(camera,"Detecting")}, guard={guard.GetDisposition(player)}, sound={guard.Senses?.Disturbance}, seen={seen}, delay={camera.GetType().GetProperty("DetectionDelay").GetValue(camera)}." );
+	var beforeDamage = relay.CameraStates[camera.GameObject.Id];
 	((Component.IDamageable)camera).OnDamage( new DamageInfo { Damage = 100, Attacker = player } );
 	Tick( 1 );
 	if ( !Flag( camera, "Disabled" ) || Flag( camera, "Detecting" ) ) throw new Exception( "Camera survived destruction." );
+	if ( relay.CameraStates[camera.GameObject.Id] == beforeDamage ) throw new Exception( "Camera destruction did not publish new state." );
 	camera.GameObject.Destroy(); guard.GameObject.Destroy(); Tick( 1 );
 	camera = Camera();
 	Tick( 1 );

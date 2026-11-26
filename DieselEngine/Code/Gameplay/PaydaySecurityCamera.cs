@@ -22,9 +22,26 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 	TimeSince visibleFor;
 	TimeUntil scan;
 	readonly HashSet<GameObject> reported = [];
+	internal readonly record struct NetworkState( float Health, bool Disabled, bool Activated, bool Detecting );
+	NetworkState? published;
+	PaydayMapState publishedRelay;
+	internal void ApplyState( NetworkState state )
+	{
+		Health = state.Health; Disabled = state.Disabled; Activated = state.Activated; Detecting = state.Detecting;
+	}
+	void PublishState()
+	{
+		var relay = PaydayMapState.For( Scene );
+		if ( relay is null ) return;
+		var state = new NetworkState( Health, Disabled, Activated, Detecting );
+		if ( publishedRelay == relay && published == state ) return;
+		relay.CameraStates[GameObject.Id] = Json.Serialize( state );
+		published = state; publishedRelay = relay;
+	}
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost ) PublishState();
 		if ( ShowStateTint && Renderer.IsValid() )
 			Renderer.Tint = Disabled ? new Color( .2f, .2f, .2f ) : Activated ? new Color( 1, .3f, .3f )
 				: Detecting ? new Color( 1, .75f, .3f ) : Color.White;
@@ -59,8 +76,9 @@ public sealed class PaydaySecurityCamera : Component, Component.IDamageable
 	{
 		if ( !Networking.IsHost || Disabled || damage is null || !float.IsFinite( damage.Damage ) || damage.Damage <= 0 ) return;
 		Health = Math.Max( 0, Health - damage.Damage );
-		if ( Health > 0 ) return;
+		if ( Health > 0 ) { PublishState(); return; }
 		Disabled = true; Detecting = false; suspect = null;
+		PublishState();
 	}
 
 	protected override void OnDisabled()

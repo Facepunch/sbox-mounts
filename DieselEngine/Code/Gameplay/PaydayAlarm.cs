@@ -14,6 +14,19 @@ public sealed class PaydayAlarm : Component, Component.IPressable
 	[Property] public PointLight Indicator { get; set; }
 	GameObject reservedBy;
 	TimeUntil reservation;
+	internal readonly record struct NetworkState( bool Activated, bool Disabled );
+	NetworkState? published;
+	PaydayMapState publishedRelay;
+	internal void ApplyState( NetworkState state ) { Activated = state.Activated; Disabled = state.Disabled; }
+	void PublishState()
+	{
+		var relay = PaydayMapState.For( Scene );
+		if ( relay is null ) return;
+		var state = new NetworkState( Activated, Disabled );
+		if ( publishedRelay == relay && published == state ) return;
+		relay.AlarmStates[GameObject.Id] = Json.Serialize( state );
+		published = state; publishedRelay = relay;
+	}
 	public bool CanReserve( GameObject reporter ) => Enabled && !Disabled && !Activated
 		&& (!reservedBy.IsValid() || reservation <= 0 || reservedBy == reporter);
 	internal bool Reserve( GameObject reporter )
@@ -28,6 +41,7 @@ public sealed class PaydayAlarm : Component, Component.IPressable
 	protected override void OnUpdate()
 	{
 		if ( Indicator.IsValid() ) Indicator.Enabled = Activated && !Disabled && MathF.Sin( Time.Now * 8 ) > 0;
+		if ( Networking.IsHost ) PublishState();
 	}
 	public bool Report( GameObject reporter, GameObject threat )
 	{
@@ -37,16 +51,25 @@ public sealed class PaydayAlarm : Component, Component.IPressable
 			.IgnoreGameObjectHierarchy( reporter ).WithoutTags( "trigger" ).Run();
 		if ( tr.Hit && !PaydayInteraction.BelongsTo( tr.GameObject, GameObject ) ) return false;
 		Activated = true;
+		PublishState();
 		Scene.GetSystem<NpcSystem>().EmitStimulus( StimulusKinds.Gunshot, WorldPosition, threat, AlertRadius, 8 );
 		return true;
 	}
 	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) => new IPressable.Tooltip( Disabled ? "Alarm disabled" : "Disable alarm", "phone_disabled", null );
 	bool IPressable.CanPress( IPressable.Event e ) => !Disabled;
 	bool IPressable.Press( IPressable.Event e ) { DisableAlarm( e.Source.GameObject ); return true; }
-	[Rpc.Host]
 	public void DisableAlarm( GameObject source )
 	{
-		if ( PaydayInteraction.CanUse( this, source ) ) Disabled = true;
+		if ( PaydayMapState.For( Scene ) is { } relay ) relay.RequestAlarm( GameObject.Id, source );
+		else DisableDirect( source );
+	}
+	[Rpc.Host]
+	void DisableDirect( GameObject source ) => DisableHost( source );
+	internal void DisableHost( GameObject source )
+	{
+		if ( !Networking.IsHost || !PaydayInteraction.CanUse( this, source ) ) return;
+		Disabled = true;
+		PublishState();
 	}
 }
 
