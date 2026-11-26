@@ -1,5 +1,6 @@
 using Sandbox.Npcs;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace NS2;
 
@@ -8,7 +9,17 @@ internal sealed class AlienTargeting
 	sealed class Memory
 	{
 		public Vector3 Position;
-		public float Time, LastUncloaked;
+		public float Time;
+	}
+
+	static readonly ConditionalWeakTable<Scene, Dictionary<string, AlienTargeting>> teams = new();
+
+	internal static AlienTargeting ForTeam( BaseNpc npc )
+	{
+		var sceneTeams = teams.GetOrCreateValue( npc.Scene );
+		var faction = npc.Faction ?? string.Empty;
+		if ( !sceneTeams.TryGetValue( faction, out var team ) ) sceneTeams[faction] = team = new();
+		return team;
 	}
 
 	readonly Dictionary<GameObject, Memory> memories = [];
@@ -119,11 +130,7 @@ internal sealed class AlienTargeting
 			float urgency;
 			if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
 			{
-				if ( victim is Drifter drifter )
-				{
-					if ( drifter.CloakFraction <= 0.5f ) memory.LastUncloaked = Time.Now;
-					else if ( drifter.CloakFraction > 0.8f || Time.Now - memory.LastUncloaked < 3 ) continue;
-				}
+				if ( victim is Drifter drifter && marine.IsHiddenByCloak( drifter ) ) continue;
 				urgency = marine.AttackUrgency( victim, marine.WalkDistance( memory.Position ) / MapLoader.Scale, wounded );
 			}
 			else if ( alien is Exo exo && health is BaseNpc unit && unit is AlienLifeform or Hydra or Drifter or Harvester or Babbler )
@@ -133,7 +140,7 @@ internal sealed class AlienTargeting
 			}
 			else
 			{
-				float distance = alien.WorldPosition.Distance( target.WorldPosition ) / MapLoader.Scale;
+				float distance = alien.WorldPosition.Distance( alien is Marine or Exo ? memory.Position : target.WorldPosition ) / MapLoader.Scale;
 				if ( alien is Skulk && distance > 50 ) continue;
 				urgency = wounded;
 				if ( distance < 20 ) urgency += alien is Skulk ? 2 - distance * 0.1f : 10 / Math.Max( 1, distance );

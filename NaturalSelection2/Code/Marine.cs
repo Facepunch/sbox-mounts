@@ -56,7 +56,6 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	TimeUntil repath, nextJuke, nextDodge;
 	int strafeSide = 1;
 	Rotation aim;
-	readonly AlienTargeting targeting = new();
 	SparkAnimationGraph.Playback graph, weapon;
 	Action<string> worldTag, weaponTag;
 	bool leftFoot = true;
@@ -136,10 +135,10 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
+		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
 		assignedEnemy = enemy;
 		var goal = memory ?? enemy?.WorldPosition;
-		if ( enemy.IsValid() && TrackReachability( enemy ) && sinceProgress > 5 )
+		if ( enemy.IsValid() && TrackReachability( enemy, goal.Value ) && sinceProgress > 5 )
 		{
 			ignoredEnemy = enemy;
 			ignoredPosition = memory ?? enemy.WorldPosition;

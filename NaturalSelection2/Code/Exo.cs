@@ -55,7 +55,6 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	static readonly ConditionalWeakTable<GameObject, Resonance> marks = new();
 	readonly Arm left = new(), right = new();
-	readonly AlienTargeting targeting = new();
 	internal GameObject assignedEnemy;
 	readonly AlienAim.Acquisition acquisition = new( 95 );
 	[Sync( SyncFlags.FromHost )] bool leftPressed { get; set; }
@@ -161,7 +160,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = targeting.FindEnemy( this, out var memory );
+		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var memory );
 		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && !memory.HasValue;
 		Animation.SetLookTarget( visible ? enemy : null );

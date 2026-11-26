@@ -1,5 +1,6 @@
 using Sandbox.Npcs;
 using System;
+using System.Runtime.CompilerServices;
 
 namespace NS2;
 
@@ -8,6 +9,22 @@ public sealed partial class Marine
 	internal GameObject assignedEnemy;
 	GameObject lastAttacker;
 	TimeUntil attackerExpires;
+
+	sealed class CloakMemory
+	{
+		public float LastUncloaked;
+	}
+
+	readonly ConditionalWeakTable<Drifter, CloakMemory> cloakMemories = new();
+
+	internal bool IsHiddenByCloak( Drifter drifter )
+	{
+		if ( drifter.CloakFraction > 0.8f ) return true;
+		var memory = cloakMemories.GetOrCreateValue( drifter );
+		if ( drifter.CloakFraction > 0.5f ) return Time.Now - memory.LastUncloaked < 3;
+		memory.LastUncloaked = Time.Now;
+		return false;
+	}
 
 	internal float AttackUrgency( BaseNpc target, float distance, float wounded )
 	{

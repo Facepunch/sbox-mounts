@@ -29,7 +29,7 @@ public sealed partial class Marine : Component.IDamageable.IEvents
 	bool IsIgnoredTarget( GameObject target, Vector3 position ) =>
 		target == ignoredEnemy && position.DistanceSquared( ignoredPosition ) < 9 * Scale * Scale;
 
-	bool TrackReachability( GameObject enemy )
+	bool TrackReachability( GameObject enemy, Vector3 position )
 	{
 		if ( trackedEnemy != enemy || sinceCheck > 5 )
 		{
@@ -39,7 +39,7 @@ public sealed partial class Marine : Component.IDamageable.IEvents
 		}
 		if ( sinceCheck < 0.5f ) return unreachable;
 		sinceCheck = 0;
-		bool blocked = IsUnreachable( enemy, enemy.WorldPosition );
+		bool blocked = IsUnreachable( enemy, position );
 		if ( blocked && !unreachable )
 		{
 			lastFiringPosition = null;
