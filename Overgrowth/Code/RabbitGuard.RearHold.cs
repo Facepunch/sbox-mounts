@@ -301,10 +301,10 @@ public sealed partial class RabbitGuard
 		ReleaseHold();
 	}
 
-	void ReleaseHold()
+	void ReleaseHold( bool enteringThrow = false )
 	{
 		var partner = holdPartner;
-		bool fall = Held && !Downed && Health > 0f && CaptureReactionEnded;
+		bool fall = !enteringThrow && Held && !Downed && Health > 0f && CaptureReactionEnded;
 		bool finishCapture = Held && !Downed && Health > 0f && !fall && Stance is RearHeld or ArmedGrabbed;
 		bool clearPose = Held || Holding;
 		if ( partner is not null && !Downed ) combatVelocity = struggleVelocity.WithZ( combatVelocity.z );

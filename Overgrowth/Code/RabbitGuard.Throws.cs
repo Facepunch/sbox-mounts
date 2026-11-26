@@ -64,11 +64,14 @@ public sealed partial class RabbitGuard
 		}
 		else throwRecharge = 5f;
 		WorldRotation = Rotation.LookAt( facing );
-		enemy = victim.GameObject;
 		StartThrowAction( "throw", victim, MirroredStance );
 		IncreaseBreathing( 2f );
 		victim.InterruptWeaponLayers();
 		victim.EndRoll();
+		// WasGrabbed untethers both actors before the victim enters the new hit reaction.
+		if ( victim.holdPartner.IsValid() && victim.holdPartner != this )
+			victim.ReleaseHold( enteringThrow: true );
+		if ( victim.draggedBody.IsValid() ) victim.ReleaseBodyDrag();
 		victim.StartThrowAction( "thrown", this, MirroredAction );
 		// WasGrabbed copies the attacker's horizontal velocity independently of clip motion.
 		victim.combatVelocity = combatVelocity.WithZ( victim.combatVelocity.z );
