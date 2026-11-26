@@ -7,6 +7,7 @@ public sealed partial class Drifter
 {
 	[Property] public bool ShadeHive { get; set; }
 	[Sync( SyncFlags.FromHost )] float cloakFraction { get; set; }
+	internal float CloakFraction => cloakFraction;
 	TimeUntil inCombat, revealed, nextScan, firstCloakCheck;
 	bool camouflageActive, hasCloaked;
 	SkinnedModelRenderer cloakOverlay;

@@ -5,11 +5,22 @@ namespace NS2;
 
 internal sealed class AlienTargeting
 {
-	readonly Dictionary<GameObject, (Vector3 Position, float Time)> memories = [];
+	sealed class Memory
+	{
+		public Vector3 Position;
+		public float Time, LastUncloaked;
+	}
+
+	readonly Dictionary<GameObject, Memory> memories = [];
 
 	internal static bool IsIgnoredPlayer( GameObject target ) => NpcConVars.NoTarget && target.GetComponentInParent<PlayerController>().IsValid();
 
-	internal void Remember( GameObject enemy, Vector3 position ) => memories[enemy] = (position, Time.Now);
+	internal void Remember( GameObject enemy, Vector3 position )
+	{
+		if ( !memories.TryGetValue( enemy, out var memory ) ) memories[enemy] = memory = new();
+		memory.Position = position;
+		memory.Time = Time.Now;
+	}
 
 	internal bool HasXenocideTargets( Skulk skulk )
 	{
@@ -56,7 +67,17 @@ internal sealed class AlienTargeting
 			{
 				if ( health.Health <= 0 ) continue;
 				float fraction = (health.Health + 2 * health.Armour) / (health.MaxHealth + 2 * health.MaxArmour);
-				urgency += Math.Max( 0, 0.3f - fraction ) * 3;
+				float wounded = Math.Max( 0, 0.3f - fraction ) * 3;
+				if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
+				{
+					if ( victim is Drifter drifter )
+					{
+						if ( drifter.CloakFraction <= 0.5f ) memory.LastUncloaked = Time.Now;
+						else if ( drifter.CloakFraction > 0.8f || Time.Now - memory.LastUncloaked < 3 ) continue;
+					}
+					urgency = marine.AttackUrgency( victim, distance, wounded );
+				}
+				else urgency += wounded;
 			}
 			if ( relationship.Priority == bestPriority && urgency <= bestUrgency ) continue;
 			best = target;

@@ -137,6 +137,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 	protected override void Think()
 	{
 		var enemy = targeting.FindEnemy( this, out var memory, ignoreUntil > 0 ? ignoreTarget : null );
+		assignedEnemy = enemy;
 		var goal = memory ?? enemy?.WorldPosition;
 		if ( enemy.IsValid() && TrackReachability( enemy ) && sinceProgress > 5 )
 		{
@@ -144,6 +145,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 			ignoredPosition = memory ?? enemy.WorldPosition;
 			ignoreUntil = 15;
 			trackedEnemy = null;
+			assignedEnemy = null;
 			wantsFire = false;
 			Animation.SetLookTarget( null );
 			Movement.Stop();
@@ -155,6 +157,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		bool lifeformThreat = enemy.IsValid() && !enemy.Tags.HasAny( "ns2_harvester", "ns2_babbler" );
 		if ( (!enemy.IsValid() || lifeformThreat) && TryMaintainWeapons( goal ) )
 		{
+			assignedEnemy = null;
 			wantsFire = false;
 			Movement.Stop();
 			return;
@@ -482,6 +485,7 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 
 	protected override void OnDisabled()
 	{
+		assignedEnemy = null;
 		StopRifleSound();
 		reloadSound?.Stop();
 		base.OnDisabled();
@@ -500,6 +504,11 @@ public sealed partial class Marine : BaseNpc, Component.IDamageable
 		float armorOnlyDamage = AlienArmor.ArmorOnlyDamage( hit );
 		if ( hit.AcceptedDamage <= 0 && armorOnlyDamage <= 0 ) return;
 		combatUntil = 3;
+		if ( hit.Instigator.IsValid() )
+		{
+			lastAttacker = hit.Instigator;
+			attackerExpires = 3;
+		}
 		lastHitWasGas = hit.DamageInfo.Tags.Has( "gas" );
 		armor -= wounds.ApplyDamage( hit, armor, MaxHealth, 30, armorOnlyDamage );
 	}
