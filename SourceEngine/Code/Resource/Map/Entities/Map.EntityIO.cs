@@ -18,6 +18,9 @@ partial class MapLoader
 			{
 				switch ( component )
 				{
+					case MapRelay relay:
+						BuildOutput( entity, "OnTrigger", true, relay.OnTrigger );
+						break;
 					case Hl2.BugbaitSensor sensor:
 						sensor.OnBaited = BuildOutput( entity, "OnBaited", true );
 						break;
@@ -41,6 +44,7 @@ partial class MapLoader
 						continue;
 					var supported = ioEntities.TryGetValue( entity, out var component ) && (component is Door
 						&& (key.Equals( "OnOpen", StringComparison.OrdinalIgnoreCase ) || key.Equals( "OnClose", StringComparison.OrdinalIgnoreCase ))
+						|| component is MapRelay && key.Equals( "OnTrigger", StringComparison.OrdinalIgnoreCase )
 						|| component is Hl2.BugbaitSensor && key.Equals( "OnBaited", StringComparison.OrdinalIgnoreCase )
 					|| component is SourceGlassPane && key.Equals( "OnBreak", StringComparison.OrdinalIgnoreCase )
 						|| component is Button && key.Equals( "OnPressed", StringComparison.OrdinalIgnoreCase ));
@@ -49,27 +53,54 @@ partial class MapLoader
 				}
 		}
 
-		private Doo BuildOutput( MapEntity source, string output, bool hasUser )
+		private Doo BuildOutput( MapEntity source, string output, bool hasUser, List<MapOutputConnection> relayOutputs = null )
 		{
 			var actions = new List<(float Delay, Doo.Block Block)>();
 			foreach ( var (_, value) in source.KeyValues.Where( entry => entry.Key.Equals( output, StringComparison.OrdinalIgnoreCase ) ) )
 			{
 				var connection = BspEntityConnection.Read( output, value );
-				if ( connection.FireCount > 0 || (connection.Parameter.Length > 0 && !connection.Input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )
-					&& !connection.Input.Equals( "SetFightTarget", StringComparison.OrdinalIgnoreCase )) )
+				if ( connection.Parameter.Length > 0 && !connection.Input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )
+					&& !connection.Input.Equals( "SetFightTarget", StringComparison.OrdinalIgnoreCase ) )
 				{
-					warnings.Add( $"Output '{output}' to '{connection.Target}.{connection.Input}' requires a parameter or finite fire count not supported by native Doo events; omitted." );
+					warnings.Add( $"Output '{output}' to '{connection.Target}.{connection.Input}' requires an unsupported parameter; omitted." );
 					continue;
 				}
 				var targets = ResolveTargets( source, connection.Target ).ToArray();
 				if ( targets.Length == 0 )
 					warnings.Add( $"Output '{output}' target '{connection.Target}' has no imported native receiver; omitted." );
+				var blocks = new List<Doo.Block>();
 				foreach ( var target in targets )
 				{
 					var action = BuildInput( target, connection.Input, hasUser, connection.Parameter );
-					if ( action is not null ) actions.Add( (connection.Delay, action) );
+					if ( action is not null ) blocks.Add( action );
 					else warnings.Add( $"Input '{connection.Input}' on '{target.GetType().Name}' is not supported by the engine's public Doo methods; omitted." );
 				}
+				if ( blocks.Count == 0 ) continue;
+				if ( relayOutputs is null && connection.FireCount < 0 )
+				{
+					foreach ( var block in blocks ) actions.Add( (connection.Delay, block) );
+					continue;
+				}
+
+				if ( connection.Delay > 0 )
+					blocks.Insert( 0, new Doo.DelayBlock { Seconds = new Doo.LiteralExpression { LiteralValue = connection.Delay } } );
+				var outputConnection = new MapOutputConnection { Remaining = connection.FireCount, Delay = connection.Delay, Action = new Doo { Body = blocks } };
+				if ( relayOutputs is not null )
+				{
+					relayOutputs.Add( outputConnection );
+					continue;
+				}
+
+				var limited = ioEntities[source].GameObject.GetOrAddComponent<LimitedMapOutputs>();
+				var index = limited.Connections.Count;
+				limited.Connections.Add( outputConnection );
+				actions.Add( (0, new Doo.InvokeBlock
+				{
+					InvokeType = Doo.InvokeType.Member,
+					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = limited },
+					Member = $"{typeof( LimitedMapOutputs ).FullName}.{nameof( LimitedMapOutputs.Fire )}",
+					Arguments = [new Doo.LiteralExpression { LiteralValue = index }, UserArgument( hasUser )]
+				}) );
 			}
 			if ( actions.Count == 0 ) return null;
 			var body = new List<Doo.Block>();
@@ -89,6 +120,10 @@ partial class MapLoader
 			return BspEntityConnection.ResolveTargets( source, name, ioEntities.Keys ).Select( entity => ioEntities[entity] );
 		}
 
+		private static Doo.Expression UserArgument( bool hasUser ) => hasUser
+			? new Doo.VariableExpression { VariableName = "user" }
+			: new Doo.LiteralExpression { LiteralValue = default };
+
 		private static Doo.Block BuildInput( Component target, string input, bool hasUser, string parameter )
 		{
 			if ( target is SourceGlassPane )
@@ -105,10 +140,15 @@ partial class MapLoader
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
 				};
 			}
-			if ( target is Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
+			if ( target is MapRelay or Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
 			{
 				var listener = (target, input.ToLowerInvariant()) switch
 				{
+					(MapRelay, "trigger") => nameof( MapRelay.Trigger ),
+					(MapRelay, "enable") => nameof( MapRelay.TurnOn ),
+					(MapRelay, "disable") => nameof( MapRelay.TurnOff ),
+					(MapRelay, "toggle") => nameof( MapRelay.Toggle ),
+					(MapRelay, "cancelpending") => nameof( MapRelay.CancelPending ),
 					(Hl2.BugbaitSensor, "enable") => nameof( Hl2.BugbaitSensor.StartListening ),
 					(Hl2.BugbaitSensor, "disable") => nameof( Hl2.BugbaitSensor.StopListening ),
 					(Hl2.BugbaitSensor, "toggle") => nameof( Hl2.BugbaitSensor.ToggleListening ),
@@ -125,7 +165,7 @@ partial class MapLoader
 					InvokeType = Doo.InvokeType.Member,
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
 					Member = $"{target.GetType().FullName}.{listener}",
-					Arguments = listener == nameof( Hl2.AntlionMaker.SetFightTarget ) ? [new Doo.LiteralExpression { LiteralValue = parameter }] : null
+					Arguments = listener == nameof( MapRelay.Trigger ) ? [UserArgument( hasUser )] : listener == nameof( Hl2.AntlionMaker.SetFightTarget ) ? [new Doo.LiteralExpression { LiteralValue = parameter }] : null
 				};
 			}
 			if ( target is not Door ) return null;

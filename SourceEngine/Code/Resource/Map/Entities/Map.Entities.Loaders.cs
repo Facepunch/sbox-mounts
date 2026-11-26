@@ -29,6 +29,7 @@ partial class MapLoader
 			"info_target" => new NamedTargetLoader(),
 			"npc_antlion_template_maker" => new AntlionMakerLoader(),
 			"info_node_hint" => new NodeHintLoader(),
+			"logic_relay" => new RelayLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
 			"info_projecteddecal" => new ProjectedDecalEntityLoader(),
@@ -159,6 +160,24 @@ partial class MapLoader
 		}
 	}
 
+	private sealed class RelayLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			var point = new GameObject( true, entity.Get( "targetname", "logic_relay" ) )
+			{
+				Parent = builder.World,
+				LocalPosition = entity.Vector( "origin" )
+			};
+			var relay = point.AddComponent<MapRelay>();
+			relay.Disabled = entity.Integer( "StartDisabled" ) != 0;
+			var flags = entity.Integer( "spawnflags" );
+			relay.Once = (flags & 1) != 0;
+			relay.FastRetrigger = (flags & 2) != 0;
+			builder.RegisterEntityIO( entity, relay );
+		}
+	}
 	private sealed class BugbaitSensorLoader : EntityLoader
 	{
 		public override bool SupportsSkybox => false;
