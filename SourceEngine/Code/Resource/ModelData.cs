@@ -10,11 +10,12 @@ public sealed class AirDrag
 	public Vector3 AreaFractions { get; set; }
 	public Vector3 UnitMassInertia { get; set; }
 
-	/// <summary>VPhysics uses projected areas in square metres and velocity in metres per second.</summary>
-	internal static (Vector3 Linear, Vector3 Angular) Factors( Model model, float mass )
+	/// <summary>Applies the authored inertia and returns the drag factors for this rigid body.</summary>
+	internal static (Vector3 Linear, Vector3 Angular) ConfigureBody( Model model, Rigidbody body )
 	{
 		const float metresPerInch = 0.0254f;
-		if ( model?.GetData<AirDrag>() is not { } drag || model.Physics.Parts[0].Hulls is not { Count: > 0 } hulls )
+		var physics = body.PhysicsBody;
+		if ( !physics.IsValid() || model?.GetData<AirDrag>() is not { } drag || model.Physics.Parts[0].Hulls is not { Count: > 0 } hulls )
 			return default;
 
 		var bounds = hulls[0].Bounds;
@@ -24,10 +25,13 @@ public sealed class AirDrag
 		var areas = drag.AreaFractions;
 		var fractions = new Vector3( areas.x, areas.z, areas.y );
 		// Half the default VPhysics air density (2 kg/m³) is one.
+		var mass = physics.Mass;
 		var linear = new Vector3( size.y * size.z, size.x * size.z, size.x * size.y ) * fractions * (metresPerInch / mass);
 
 		var half = size * 0.5f;
 		var inertia = drag.UnitMassInertia * mass;
+		if ( inertia.x > 0 && inertia.y > 0 && inertia.z > 0 )
+			physics.SetInertiaTensor( inertia / (metresPerInch * metresPerInch), Rotation.Identity );
 		var angular = new Vector3(
 			AngularFactor( half.x, half.y, half.z, fractions.y, fractions.z, inertia.x ),
 			AngularFactor( half.y, half.z, half.x, fractions.z, fractions.x, inertia.y ),

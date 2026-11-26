@@ -257,7 +257,7 @@ public sealed class Grenade : Projectile
 		if ( _body.IsValid() )
 		{
 			_body.MassOverride = 1;
-			_dragFactors = AirDrag.Factors( GetComponent<ModelCollider>()?.Model, _body.MassOverride );
+			_dragFactors = AirDrag.ConfigureBody( GetComponent<ModelCollider>()?.Model, _body );
 			var gravity = Scene.PhysicsWorld.Gravity.Length;
 			if ( gravity > 0 ) _body.GravityScale = 600f / gravity;
 		}
