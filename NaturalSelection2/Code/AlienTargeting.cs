@@ -39,6 +39,7 @@ internal sealed class AlienTargeting
 
 	static GameObject AssignedEnemy( BaseNpc npc ) => npc switch
 	{
+		Fade fade => fade.assignedEnemy,
 		Marine marine => marine.assignedEnemy,
 		Exo exo => exo.assignedEnemy,
 		_ => null
@@ -153,7 +154,7 @@ internal sealed class AlienTargeting
 
 		if ( alien is Marine or Exo && !locations.IsValid() )
 			locations = alien.Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		bool useRooms = locations.IsValid() && locations.Volumes.Length > 0;
+		bool useRooms = alien is Marine or Exo && locations.IsValid() && locations.Volumes.Length > 0;
 		var room = useRooms ? locations.LocationAt( alien.WorldPosition ) : null;
 
 		GameObject best = null;
@@ -188,7 +189,12 @@ internal sealed class AlienTargeting
 				wounded = Math.Max( 0, 0.3f - fraction ) * 3;
 			}
 			float urgency;
-			if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
+			if ( alien is Fade fade && health is BaseNpc fadeTarget && fadeTarget is Marine or Exo or Mac )
+			{
+				urgency = fade.AttackUrgency( fadeTarget );
+				if ( urgency <= 0 ) continue;
+			}
+			else if ( alien is Marine marine && health is BaseNpc victim && (victim is AlienLifeform or Hydra or Drifter) )
 			{
 				if ( victim is Drifter drifter && marine.IsHiddenByCloak( drifter ) ) continue;
 				urgency = marine.AttackUrgency( victim, marine.WalkDistance( memory.Position ) / MapLoader.Scale, wounded );

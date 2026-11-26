@@ -15,7 +15,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
-	readonly AlienTargeting targeting = new();
+	internal GameObject assignedEnemy;
 	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
@@ -96,7 +96,8 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 
 	protected override void Think()
 	{
-		var enemy = targeting.FindEnemy( this, out var lastSeen );
+		var enemy = AlienTargeting.ForTeam( this ).FindEnemy( this, out var lastSeen );
+		assignedEnemy = enemy;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		Animation.SetLookTarget( visible ? enemy : null );
 		var goal = lastSeen ?? enemy?.WorldPosition;
@@ -125,6 +126,17 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 			Movement.MoveTo( goal.Value, Scale, faceTarget: visible ? enemy : null );
 			repath = 0.2f;
 		}
+	}
+
+	internal float AttackUrgency( BaseNpc target )
+	{
+		float distance = WorldPosition.Distance( target.WorldPosition ) / Scale;
+		if ( distance > 50 || target is not (Marine or Exo) ) return 0;
+		if ( distance < 15 ) return 1 + 1 / Math.Max( 1, distance );
+
+		bool covered = AlienTargeting.HasResponders( this, target, 2 );
+		float weight = target is Exo ? (covered ? 0.8f : 1.2f) : (covered ? 0.6f : 1);
+		return weight * 40 / (40 + distance);
 	}
 
 	void TravelTo( Vector3 goal )
