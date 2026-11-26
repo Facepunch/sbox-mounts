@@ -22,11 +22,13 @@ public sealed partial class RabbitGuard
 	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
+	const int FirstCaptureTick = (int)(CaptureLead / HoldStep) + 1;
 	const int HolderMovementTick = 8, CaptiveMovementTick = 9;
 	float CaptureActionTime => (float)SinceGrab - CaptureLead + 1f / 120f;
 	int holdTick;
 	bool pendingGrabImpact;
 	int nextCaptureTick, cutStartTick;
+	float captureRootTime;
 	bool cutMarked;
 	int ElapsedHoldTicks => (int)((float)SinceGrab / HoldStep + 0.5f);
 	Vector3 fadingCaptureOffset;
@@ -73,7 +75,7 @@ public sealed partial class RabbitGuard
 		var entry = victim.CaptureClip.Animation.GetRootMotion( 0f );
 		victim.fadingCaptureOffset = victim.WorldRotation * (entry.Position * victim.WorldScale);
 		victim.AlignGrabbedAnimation( this, entry );
-		victim.nextCaptureTick = 1;
+		victim.nextCaptureTick = FirstCaptureTick;
 		IncreaseBreathing( 2f );
 		var point = CharacterCenter( victim.GameObject );
 		PlayCombatSound( "Data/Sounds/voice/animal2/voice_bunny_jump_land.xml", point, 0.6f );
@@ -88,6 +90,7 @@ public sealed partial class RabbitGuard
 		SinceGrab = 0f;
 		holdTick = 0;
 		nextCaptureTick = cutStartTick = 0;
+		captureRootTime = 0f;
 		strike = null;
 		activeBlockReaction = false;
 		ReactionPhase = 1f;
@@ -202,10 +205,10 @@ public sealed partial class RabbitGuard
 		var clip = CaptureClip;
 		while ( nextCaptureTick <= tick )
 		{
-			float sample = (nextCaptureTick - 0.5f) * step;
+			float sample = (nextCaptureTick - FirstCaptureTick + 0.5f) * step;
 			float active = Math.Min( 1f, sample * fadeRate );
 			float stance = Math.Min( 1f, (sample + frame) * fadeRate );
-			if ( nextCaptureTick == 1 )
+			if ( nextCaptureTick == FirstCaptureTick )
 				MoveGroundDelta( fadingCaptureOffset * (stance * (1f - active)) );
 			float weight = active * stance;
 			if ( cut )
@@ -215,15 +218,17 @@ public sealed partial class RabbitGuard
 				weight *= Math.Min( 1f, sample * 10f );
 			}
 			var from = cut && nextCaptureTick == cutStartTick + 1 ? global::Transform.Zero
-				: clip.RootMotionAt( sample - step );
+				: clip.RootMotionAt( captureRootTime );
 			var to = clip.RootMotionAt( sample );
 			ApplyPairedRootMotion( from, to, weight );
+			captureRootTime = sample;
 			if ( !cut && (weight >= 1f && holdPartner.IsValid() || sample >= clip.Duration) )
 			{
 				nextCaptureTick = 0;
 				break;
 			}
-			nextCaptureTick++;
+			// SetAnimUpdateFreqs returns to four native frames per update on release.
+			nextCaptureTick += SecondaryPoseFrames / 2;
 		}
 	}
 
@@ -482,8 +487,7 @@ public sealed partial class RabbitGuard
 		{
 			// An early release leaves the defender in the original capture hit reaction.
 			reactionDuration = boundAnimations.Clips[Stance].Duration;
-			float sampledTime = Math.Max( 0f, (nextCaptureTick - 1.5f) * HoldStep );
-			ReactionPhase = Math.Min( 1f, sampledTime / reactionDuration );
+			ReactionPhase = Math.Clamp( CaptureActionTime / reactionDuration, 0f, 1f );
 		}
 		else if ( clearPose )
 		{

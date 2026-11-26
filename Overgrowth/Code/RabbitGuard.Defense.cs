@@ -107,11 +107,14 @@ public sealed partial class RabbitGuard
 		}
 		if ( Time.Delta <= 0f ) return true;
 		var pose = boundAnimations.Clips[Stance].ForSide( MirroredAction );
-		bool captureMotion = FinishingCaptureReaction;
+		if ( FinishingCaptureReaction )
+		{
+			// Untethering leaves the captive's existing attack reader running.
+			ReactionPhase = Math.Clamp( CaptureActionTime / reactionDuration, 0f, 1f );
+			return ReactionPhase < 1f;
+		}
 		var previousPhase = ReactionPhase;
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / reactionDuration );
-		// The outgoing capture still consumes its alignment and root motion together.
-		if ( captureMotion ) return ReactionPhase < 1f;
 		if ( reactionMotion?.Clip == pose )
 		{
 			reactionMotion.Advance( this, ReactionPhase * reactionDuration );
