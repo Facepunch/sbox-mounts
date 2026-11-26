@@ -420,11 +420,9 @@ public sealed class GravityWeapon : Weapon
 		body.Velocity = velocity;
 
 		_carryTurnRate = _carryTurnRate.Approach( obstructed ? 0.1f : 1, 2 * Time.Delta );
-		var rotation = Rotation.Difference( body.WorldRotation, orientation );
-		var spinAxis = new Vector3( rotation.x, rotation.y, rotation.z ).Normal;
-		var angle = rotation.Angle().DegreeToRadian() * (rotation.w < 0 ? -1 : 1);
+		var angularError = ShadowController.AngularError( body.WorldRotation, orientation );
 		var spinLimit = MaxCarrySpin * _carryTurnRate * _carryTurnRate * _carryTurnRate;
-		body.AngularVelocity = ShadowController.Velocity( body.AngularVelocity, spinAxis * angle, spinLimit, MaxCarrySpin * 2 );
+		body.AngularVelocity = ShadowController.Velocity( body.AngularVelocity, angularError, spinLimit, MaxCarrySpin * 2 );
 	}
 
 	void Release()

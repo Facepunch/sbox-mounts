@@ -112,7 +112,8 @@ public sealed class PhysicsGun : Weapon
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * _localPoint;
 		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
 		physics.Velocity = velocity.ClampLength( 4000 );
-		physics.SmoothRotate( yaw * _yawOffset, _arrivalTime, Time.Delta );
+		var angularError = ShadowController.AngularError( physics.Rotation, yaw * _yawOffset );
+		physics.AngularVelocity = ShadowController.Velocity( physics.AngularVelocity, angularError, 5000f.DegreeToRadian(), 10000f.DegreeToRadian(), _arrivalTime, 0.8f );
 	}
 
 	void StopRedirectingMovement()
