@@ -16,18 +16,18 @@ public class MagazineWeapon : Firearm
 	double? emptyRoundAt;
 	double barrelIdleAt;
 	bool dryFiring;
-	bool triggerPressedDuringReload;
+	bool heldTriggerQueued;
 	bool triggerPressedDuringRecovery;
 	double recoveryEndsAt;
 
 	protected override bool CanCycleBarrel => BurstLength <= 1 && base.CanCycleBarrel;
 	protected override bool HasPendingRound => remainingShots > 0 || base.HasPendingRound;
 	protected virtual bool PredictProjectileEffects => true;
-	protected override bool WantsPrimaryAttack() => remainingShots == 0 && !IsReloading && (triggerPressedDuringRecovery || triggerPressedDuringReload || base.WantsPrimaryAttack());
+	protected override bool WantsPrimaryAttack() => remainingShots == 0 && !IsReloading && (triggerPressedDuringRecovery || heldTriggerQueued || base.WantsPrimaryAttack());
 
 	public override void PrimaryAttack()
 	{
-		triggerPressedDuringReload = false;
+		heldTriggerQueued = false;
 		triggerPressedDuringRecovery = false;
 		double roundAt = RecordRound();
 		if ( RecoveryBufferTicks > 0 )
@@ -113,8 +113,8 @@ public class MagazineWeapon : Firearm
 			else if ( remaining > 0 && remaining <= RecoveryBufferTicks / 30.0 && Input.Pressed( TriggerButton ) )
 				triggerPressedDuringRecovery = true;
 		}
-		if ( !held ) triggerPressedDuringReload = false;
-		else if ( !PrimaryAutomatic && IsReloading && Input.Pressed( TriggerButton ) ) triggerPressedDuringReload = true;
+		if ( !held ) heldTriggerQueued = false;
+		else if ( !PrimaryAutomatic && (Time.NowDouble < PrimaryReadyAt || (IsReloading && Input.Pressed( TriggerButton ))) ) heldTriggerQueued = true;
 		if ( emptyRoundAt is double shot && !held )
 		{
 			double elapsedTicks = System.Math.Max( 1, System.Math.Floor( (Time.NowDouble - shot) * 30 ) );
@@ -251,7 +251,7 @@ public class MagazineWeapon : Firearm
 	{
 		triggerPressedDuringRecovery = false;
 		recoveryEndsAt = 0;
-		triggerPressedDuringReload = false;
+		heldTriggerQueued = false;
 		CancelBurst();
 		emptyRoundAt = null;
 		base.OnDisabled();
