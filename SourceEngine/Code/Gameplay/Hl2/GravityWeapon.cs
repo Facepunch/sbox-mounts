@@ -19,7 +19,7 @@ public sealed class GravityWeapon : Weapon
 		AttackDamageTags = [];
 	}
 
-	enum PuntResult { Miss, Hit, LaunchHeld }
+	enum PuntResult { Miss, Hit, HitDamageable, LaunchHeld }
 	enum CarryResult { Pickup, Drop, ForcedDrop }
 
 	const float TraceLength = 250;
@@ -72,19 +72,19 @@ public sealed class GravityWeapon : Weapon
 	}
 
 	SceneTrace TargetTrace( Ray ray, float range ) => Scene.Trace.Ray( ray, range )
-		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "player", "projectile" );
+		.IgnoreGameObjectHierarchy( GameObject.Root ).WithoutTags( "trigger", "projectile" );
 
-	Rigidbody FindBody( float range, out Vector3 hitPosition, bool punt = false )
+	Rigidbody FindBody( float range, out Vector3 hitPosition )
 	{
-		var ray = TargetTrace( AimRay, range );
-		var tr = punt ? ray.Size( 16 ).Run() : ray.Run();
+		var ray = TargetTrace( AimRay, range ).WithoutTags( "player" );
+		var tr = ray.Run();
 		var body = tr.GameObject?.GetComponentInParent<Rigidbody>();
 		if ( !body.IsValid() || !body.MotionEnabled )
 		{
-			tr = punt ? ray.Run() : ray.Size( 8 ).Run();
+			tr = ray.Size( 8 ).Run();
 			body = tr.GameObject?.GetComponentInParent<Rigidbody>();
 		}
-		hitPosition = punt ? tr.EndPosition : tr.HitPosition;
+		hitPosition = tr.HitPosition;
 		return body.IsValid() && body.MotionEnabled ? body : null;
 	}
 
@@ -99,7 +99,7 @@ public sealed class GravityWeapon : Weapon
 			var offset = body.GameObject.GetBounds().Center - aim.Position;
 			var distance = offset.Length;
 			if ( distance >= nearest || offset.Dot( aim.Forward ) <= distance * 0.97f ) continue;
-			var trace = TargetTrace( new Ray( aim.Position, offset / distance ), distance ).Run();
+			var trace = TargetTrace( new Ray( aim.Position, offset / distance ), distance ).WithoutTags( "player" ).Run();
 			if ( trace.GameObject?.GetComponentInParent<Rigidbody>() != body ) continue;
 			nearest = distance;
 			result = body;
@@ -148,15 +148,39 @@ public sealed class GravityWeapon : Weapon
 			PuntEffects( PuntResult.LaunchHeld );
 			return;
 		}
-		var body = FindBody( TraceLength, out var hit, punt: true );
-		if ( !CanMove( body ) || IsFlesh( body ) )
+		var ray = TargetTrace( AimRay, TraceLength );
+		// A hull can graze the world beside an otherwise reachable target.
+		PuntEffects( PuntTarget( ray.Size( 16 ).Run(), forward ) ?? PuntTarget( ray.Run(), forward ) ?? PuntResult.Miss );
+	}
+
+	PuntResult? PuntTarget( SceneTraceResult trace, Vector3 forward )
+	{
+		var obj = trace.GameObject;
+		if ( !obj.IsValid() ) return null;
+		if ( obj.GetComponentInParent<PlayerController>() is not null ) return PuntResult.Miss;
+
+		if ( obj.GetComponentInParent<Rigidbody>() is { } body )
 		{
-			PuntEffects( PuntResult.Miss );
-			return;
+			if ( !CanMove( body ) || IsFlesh( body ) ) return PuntResult.Miss;
+			if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
+			PuntBodies( body, forward, trace.EndPosition );
+			return PuntResult.Hit;
 		}
-		if ( forward.z < 0 ) forward = forward.WithZ( forward.z * -0.65f );
-		PuntBodies( body, forward, hit );
-		PuntEffects( PuntResult.Hit );
+
+		var target = obj.GetComponentInParent<IDamageable>();
+		if ( target is null or Prop { Health: <= 0 } ) return null;
+
+		var damage = new DamageInfo( 1, Owner.GameObject, GameObject, trace.Hitbox )
+		{
+			Origin = AimRay.Position,
+			Position = trace.EndPosition,
+			Normal = trace.Normal,
+			Shape = trace.Shape
+		};
+		damage.Tags.Add( DamageTags.Crush );
+		damage.Tags.Add( "physgun" );
+		target.OnDamage( damage );
+		return PuntResult.HitDamageable;
 	}
 
 	static void PuntBodies( Rigidbody struck, Vector3 forward, Vector3 hit )
