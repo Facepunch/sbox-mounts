@@ -6,7 +6,7 @@ public sealed class BugbaitCall : Component
 	[ConVar( "bugbait_hear_radius", ConVarFlags.Server )]
 	public static int HearingRadius { get; set; } = 2500;
 
-	[ConVar( "bugbait_distract_time", ConVarFlags.Server | ConVarFlags.Replicated )]
+	[ConVar( "bugbait_distract_time", ConVarFlags.Server )]
 	public static float Duration { get; set; } = 5;
 
 	double expires;

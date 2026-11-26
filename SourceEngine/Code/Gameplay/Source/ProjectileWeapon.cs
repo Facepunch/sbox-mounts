@@ -308,7 +308,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		if ( Kind == Projectile.Kinds.Bugbait && !Application.IsDedicatedServer )
 		{
 			if ( WasDropped && !IsHeld )
-				_baitTrail ??= Hl2.SporeCloud.Create( WorldPosition, Vector3.Up, MountContent.OfWeapon( this ), GameObject );
+				_baitTrail ??= Hl2.SporeCloud.Create( WorldPosition, Vector3.Up, MountContent.OfWeapon( this ), 9999, GameObject );
 			else if ( _baitTrail.IsValid() )
 				StopBaitTrail();
 		}

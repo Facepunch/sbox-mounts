@@ -11,7 +11,7 @@ public sealed class SporeCloud : Component
 	float emitDuration;
 	bool trail;
 
-	internal static SporeCloud Create( Vector3 position, Vector3 direction, string mount, GameObject parent = null )
+	internal static SporeCloud Create( Vector3 position, Vector3 direction, string mount, float duration, GameObject parent = null )
 	{
 		var go = new GameObject( parent, false, "Bugbait spores" );
 		go.NetworkMode = NetworkMode.Never;
@@ -19,7 +19,7 @@ public sealed class SporeCloud : Component
 		go.WorldRotation = Rotation.LookAt( direction );
 		var cloud = go.AddComponent<SporeCloud>();
 		cloud.trail = parent.IsValid();
-		cloud.emitDuration = cloud.trail ? 9999 : BugbaitCall.Duration;
+		cloud.emitDuration = duration;
 		cloud.spores = Particles.Emitter( go, "particle/fire", mount, true, false, cloud.trail ? 132 : 68 );
 		cloud.dust = Particles.Emitter( go, "particle/particle_noisesphere", mount, false, false, cloud.trail ? 17 : 9 );
 		if ( cloud.spores.IsValid() ) cloud.spores.Lifetime = 2;
