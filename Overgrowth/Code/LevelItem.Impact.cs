@@ -62,17 +62,17 @@ public sealed partial class LevelItem
 			mount.PlayGroup( $"Data/Sounds/weapon_foley/impact/{group}.xml", point );
 	}
 
-	void HitFighter( RabbitGuard fighter, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 end, ItemLine line )
+	void HitFighter( RabbitGuard fighter, Rigidbody body, GameObject attacker, SceneTraceResult hit, Transform sample, Vector3 start, Vector3 end, ItemLine line )
 	{
 		var velocity = body.Velocity;
 		float mass = body.Mass;
 		var loader = Sandbox.Mounting.Directory.Get( "overgrowth" )?.GetByPath( GetComponent<ModelRenderer>().Model.ResourcePath ) as ObjectLoader;
 		bool cut = line.Material == "metal" && loader?.Sharpness?.At( WorldTransform.PointToLocal( hit.EndPosition + velocity.Normal * 40f ) ) > 0.3f;
-		var axis = sample.Rotation * (line.End - line.Start).Normal;
+		var axis = (end - start).Normal;
 		if ( cut )
 		{
 			fighter.Stab( hit.EndPosition, axis, false );
-			MarkBlood( sample.PointToLocal( hit.EndPosition ), WorldRotation.Inverse * axis, 8f );
+			MarkBlood( Vector3.Lerp( line.Start, line.End, hit.Fraction ), WorldRotation.Inverse * axis, 8f );
 		}
 		string label = Definition.Element( "label" )?.Value;
 		bool embedded = cut && (label == "spear" || MathF.Abs( axis.Dot( hit.Normal ) ) > 0.4f);

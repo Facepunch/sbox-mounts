@@ -27,17 +27,19 @@ public sealed partial class LevelItem : Component.ICollisionListener
 			var owner = thrower.IsValid() ? thrower : guard.IsValid() ? guard.GameObject : null;
 			for ( int i = 0; i <= 8; i++ )
 			{
-				var sample = global::Transform.Lerp( previousFlightPose, pose, i / 8f, true );
+				float fraction = i / 8f;
 				foreach ( var line in GetLines() )
 				{
-					var (start, end) = line.ToWorld( sample );
-					var trace = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes();
-					if ( owner.IsValid() ) trace = trace.IgnoreGameObjectHierarchy( owner );
-					var hit = trace.Run();
-					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter ) continue;
+					// Overgrowth blends the two physics matrices element by element.
+					var (oldStart, oldEnd) = line.ToWorld( previousFlightPose );
+					var (newStart, newEnd) = line.ToWorld( pose );
+					var start = Vector3.Lerp( oldStart, newStart, fraction );
+					var end = Vector3.Lerp( oldEnd, newEnd, fraction );
+					var hit = Scene.Trace.Ray( start, end ).UsePhysicsWorld( false ).UseHitboxes().Run();
+					if ( !hit.Hit || hit.GameObject.GetComponentInParent<RabbitGuard>( true ) is not { } fighter || fighter.GameObject == owner ) continue;
 					float mass = body.Mass;
 					if ( IsThrown && !fighter.DefendThrownItem( this, body ) )
-						HitFighter( fighter, body, thrower, hit, sample, end, line );
+						HitFighter( fighter, body, thrower, hit, global::Transform.Lerp( previousFlightPose, pose, fraction, true ), start, end, line );
 					MarkThrowSafe();
 					nextCharacterImpact = 0.4f;
 					previousFlightPose = pose;
