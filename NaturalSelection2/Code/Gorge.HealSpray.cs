@@ -86,11 +86,11 @@ public sealed partial class Gorge
 		var forward = target.WorldRotation.Forward.WithZ( 0 ).Normal;
 		var offset = (WorldPosition - target.WorldPosition).WithZ( 0 );
 		if ( Vector3.Dot( forward, offset.Normal ) <= 0.866f && offset.Length >= 3 * Scale ) return null;
-		var collider = target.GetComponentInChildren<Collider>();
-		float clearance = collider.IsValid() ? collider.LocalBounds.Size.WithZ( 0 ).Length * 0.5f : 0;
+		var clearance = target is Onos ? Onos.HorizontalExtents :
+			target.GetComponentInChildren<Collider>()?.LocalBounds.Size.WithZ( 0 ).Length * 0.5f ?? 0;
 		var back = target.WorldPosition - forward * (clearance + 3.1f * Scale);
 		var side = Vector3.Cross( Vector3.Up, forward ) * (2 * Scale);
-		return Vector3.Dot( side, WorldPosition - back ) > 0 ? back + side : back - side;
+		return WorldPosition.DistanceSquared( back - side ) < WorldPosition.DistanceSquared( back + side ) ? back - side : back + side;
 	}
 
 	void UpdateSprayInput( Vector3 direction )

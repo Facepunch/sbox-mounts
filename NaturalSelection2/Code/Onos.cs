@@ -14,6 +14,7 @@ public sealed partial class Onos : AlienLifeform, Component.IDamageable
 	float IDamageable.MaxArmour => MaxArmor;
 
 	const float Scale = MapLoader.Scale;
+	internal static readonly float HorizontalExtents = new Vector2( 0.7f, 0.4f ).Length * Scale;
 	const float RunSpeed = 6.6f * Scale;
 	const float MaxArmor = 450;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
