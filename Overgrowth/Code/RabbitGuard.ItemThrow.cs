@@ -18,7 +18,9 @@ public sealed partial class RabbitGuard
 			!PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();
-		bool flipping = RollProgress < 1f;
+		bool airFlip = !AirFlipAxis.IsNearlyZero() && airFlipProgress <= 1f;
+		float flipProgress = airFlip ? airFlipProgress : RollProgress;
+		bool flipping = airFlip || RollProgress < 1f;
 		if ( HasCombatTarget && (IsOnGround || flipping) && WantsItemThrow( label, secondary ) && SelectThrowTarget( label ) is { } selected )
 		{
 			pendingRollThrow = selected;
@@ -26,7 +28,7 @@ public sealed partial class RabbitGuard
 		}
 		var target = pendingRollThrow;
 		if ( rollThrowExpires <= 0f || !target.IsValid() ) return false;
-		if ( flipping && RollProgress <= 0.5f ) return true;
+		if ( flipping && flipProgress <= 0.5f ) return true;
 		pendingRollThrow = null;
 		itemThrowTarget = target;
 		if ( IsOnGround && !flipping && label is ("big_sword" or "spear" or "staff") )
@@ -72,6 +74,7 @@ public sealed partial class RabbitGuard
 		if ( ReactionPhase >= 1f )
 		{
 			itemThrowTarget = null;
+			StartAttackRecoveryFlip();
 			Stance = Ready;
 			EndGroupAttack();
 		}

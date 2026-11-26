@@ -116,11 +116,45 @@ public sealed partial class RabbitGuard
 	}
 	Vector3? airVelocity;
 	[Sync] float AirTuck { get; set; }
+	[Sync] Vector3 AirFlipAxis { get; set; }
+	[Sync( SyncFlags.Interpolate )] float AirFlipAngle { get; set; }
+	[Sync( SyncFlags.Interpolate )] float AirFlipTuck { get; set; }
+	float airFlipVelocity, airFlipProgress, airFlipRemainder;
+
+	void StartAttackRecoveryFlip()
+	{
+		if ( Animation.IsGrounded || boundAnimations.Species is not ("rabbit" or "cat") ) return;
+		AirFlipAxis = Vector3.Up.Cross( -WorldRotation.Forward ).Normal;
+		AirFlipAngle = airFlipProgress = airFlipRemainder = 0f;
+		AirFlipTuck = 0.5f;
+		airFlipVelocity = 0.1f;
+		PlayMaterialEvent( "flip", WorldPosition, GroundMaterialName, 1f );
+	}
+
+	void AdvanceAttackRecoveryFlip()
+	{
+		if ( AirFlipAxis.IsNearlyZero() ) return;
+		// FlipInfo.UpdateFlip advances once per four native physics frames.
+		const float step = 4f / 120f;
+		airFlipRemainder += Time.Delta;
+		while ( airFlipRemainder >= step )
+		{
+			airFlipRemainder -= step;
+			airFlipProgress += step * 2.5f;
+			float tuck = Math.Clamp( airFlipVelocity, 0f, 1f );
+			if ( airFlipProgress <= 1f ) tuck = Math.Max( tuck, MathF.Sin( airFlipProgress * 3.1417f ) );
+			AirFlipTuck = tuck + (AirFlipTuck - tuck) * 0.7f;
+			airFlipVelocity += (1f - AirFlipAngle) * step * 50f;
+			AirFlipAngle += airFlipVelocity * step;
+			airFlipVelocity *= 0.89f * 0.89f * 0.89f * 0.89f;
+		}
+	}
+
 	BodyFallSounds bodySounds;
 	[Sync] bool ThrowGrounded { get; set; }
 	bool HasGroundSupport => InThrow ? ThrowGrounded : Animation.IsGrounded;
 
-	// Physics::gravity is 9.8 m/s�. Retain the scene's gravity direction and zero-gravity behavior.
+	// Physics::gravity is 9.8 m/sï¿½. Retain the scene's gravity direction and zero-gravity behavior.
 	internal static float FallGravityScale( PhysicsWorld world ) => world.Gravity.Length > 0f ? 9.8f * 40f / world.Gravity.Length : 1f;
 
 	// CheckTerminalVelocity attenuates the whole velocity vector once per character update.
@@ -162,6 +196,7 @@ public sealed partial class RabbitGuard
 		{
 			if ( Networking.IsHost )
 			{
+				AirFlipAxis = default;
 				JumpLaunch = 0f;
 				UpdateWallContact( false );
 			}
@@ -179,18 +214,21 @@ public sealed partial class RabbitGuard
 		UpdateWallContact( grounded );
 		if ( !grounded )
 		{
+			AdvanceAttackRecoveryFlip();
 			AirTuck = Math.Max( pendingTuck, airVelocity.HasValue ? AirTuck * MathF.Pow( 0.98f, Time.Delta * 120f ) : 0f );
 			pendingTuck = 0f;
 			airVelocity = Animation.MoveVelocity;
 			return;
 		}
 		pendingTuck = 0f;
+		float landingAngle = AirFlipAxis.IsNearlyZero() ? rollAngle : AirFlipAngle;
+		AirFlipAxis = default;
 		if ( airVelocity is not { } velocity ) return;
 		airVelocity = null;
 		JumpLaunch = 0f;
 		ApplyLandingShock( velocity );
 		if ( !IsValid || Health < 1f || Downed ) return;
-		if ( MathF.Abs( rollAngle - 0.5f ) < 0.3f || InAttackState )
+		if ( MathF.Abs( landingAngle - 0.5f ) < 0.3f || InAttackState )
 		{
 			KnockoutShield = Math.Max( 0, KnockoutShield - 1 );
 			GoLimp();
@@ -227,16 +265,17 @@ public sealed partial class RabbitGuard
 			if ( playing == FreeAir ) ReadAirPose();
 			var velocity = Animation.MoveVelocity / 40f;
 			if ( playing != FreeAir ) jumpCycle.Phase = 0f;
-			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
+			if ( Networking.IsHost && !keepJumpFacing && !touchedWall && AirFlipAxis.IsNearlyZero() )
 				TurnInAir( velocity, Time.Delta );
 
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
 			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + JumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
 			up = Math.Clamp( 0.5f - up * 0.5f, 0f, 1f );
-			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = AirTuck, Up = up };
+			float tuck = AirFlipAxis.IsNearlyZero() ? AirTuck : Math.Max( AirTuck, AirFlipTuck );
+			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = tuck, Up = up };
 			float frequency = boundAnimations.AirMovement.Evaluate( controls, jumpCycle.Phase, LeftFootJump ).Frequency;
-			Renderer.Animation.Parameters.Set( "tuck_coord", AirTuck );
+			Renderer.Animation.Parameters.Set( "tuck_coord", tuck );
 			jumpCycle.Advance( frequency );
 			Renderer.Animation.Parameters.Set( "up_coord", up );
 			Renderer.Animation.Parameters.Set( "flail_coord", flail );

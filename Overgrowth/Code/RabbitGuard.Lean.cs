@@ -55,7 +55,9 @@ public sealed partial class RabbitGuard
 			var slope = Rotation.FromToRotation( parent.Inverse * Vector3.Up, parent.Inverse * FloorNormal() );
 			rotation = Rotation.Slerp( Rotation.Identity, slope, Math.Min( 1f, conform ) ) * rotation;
 		}
-		if ( displayingRoll )
+		if ( !AirFlipAxis.IsNearlyZero() && !HasGroundSupport )
+			rotation = Rotation.FromAxis( parent.Inverse * AirFlipAxis, (AirFlipAngle * 6.2832f).RadianToDegree() ) * rotation;
+		else if ( displayingRoll )
 			rotation = Rotation.FromAxis( parent.Inverse * Vector3.Up.Cross( RollDirection ), (rollAngle * 6.2832f).RadianToDegree() ) * rotation;
 		if ( rotation != Rotation.Identity )
 		{
