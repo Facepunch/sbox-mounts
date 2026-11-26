@@ -6,7 +6,7 @@ public sealed partial class RabbitGuard
 {
 	internal const string ThrowLayer = "r_knifethrowlayer", FlipThrowLayer = "r_knifethrowfliplayer";
 	internal const string SpearThrow = "r_spearthrow", SwordThrow = "r_dogswordthrow";
-	GameObject itemThrowTarget, bodyThrowTarget, handThrowLookTarget;
+	GameObject itemThrowTarget;
 	GameObject pendingRollThrow;
 	TimeUntil rollThrowExpires;
 	bool HasThrowLayer => DrawAnimation is ThrowLayer or FlipThrowLayer;
@@ -31,7 +31,6 @@ public sealed partial class RabbitGuard
 		itemThrowTarget = target;
 		if ( IsOnGround && !flipping && label is ("big_sword" or "spear" or "staff") )
 		{
-			bodyThrowTarget = target;
 			Stance = label == "big_sword" ? SwordThrow : SpearThrow;
 			MirroredAction = MirroredStance;
 			MirroredStance = !MirroredStance;
@@ -40,7 +39,6 @@ public sealed partial class RabbitGuard
 			return true;
 		}
 		DrawLeft = LeftHanded || secondary && label is ("sword" or "rapier");
-		handThrowLookTarget = target;
 		DrawAnimation = flipping ? FlipThrowLayer : ThrowLayer;
 		drawElapsed = 0f;
 		return true;
@@ -64,16 +62,16 @@ public sealed partial class RabbitGuard
 	bool AdvanceItemThrow()
 	{
 		if ( !IsThrowingItem ) return false;
-		if ( bodyThrowTarget.IsValid() ) TurnDuringStrike( TargetPosition( bodyThrowTarget ) - WorldPosition );
+		if ( itemThrowTarget.IsValid() ) TurnDuringStrike( TargetPosition( itemThrowTarget ) - WorldPosition );
 		var clip = boundAnimations.Clips[Stance].ForSide( MirroredAction );
+		float previous = ReactionPhase * clip.Duration;
 		var from = clip.Animation.GetRootMotion( ReactionPhase );
 		ReactionPhase = Math.Min( 1f, ReactionPhase + Time.Delta / clip.Duration );
 		ApplyRootMotion( from, clip.Animation.GetRootMotion( ReactionPhase ) );
-		if ( itemThrowTarget is not null && clip.WeaponRelease is { } release && ReactionPhase * clip.Duration >= release.Time )
-			ReleaseThrownItem( release.Left, true );
+		ReleaseAtMarker( clip, previous, ReactionPhase * clip.Duration, fullBody: true );
 		if ( ReactionPhase >= 1f )
 		{
-			bodyThrowTarget = null;
+			itemThrowTarget = null;
 			Stance = Ready;
 		}
 		return true;
@@ -103,10 +101,16 @@ public sealed partial class RabbitGuard
 		return chosen;
 	}
 
+	void ReleaseAtMarker( RabbitClip clip, float previous, float elapsed, bool fullBody = false )
+	{
+		if ( clip.WeaponRelease is not { } release || elapsed <= previous ) return;
+		if ( elapsed >= release.Time && (previous == 0f || previous < release.Time) )
+			ReleaseThrownItem( release.Left, fullBody );
+	}
+
 	void ReleaseThrownItem( bool left, bool fullBody = false )
 	{
 		var target = itemThrowTarget;
-		itemThrowTarget = null;
 		var item = left ? LeftHandItem : RightHandItem;
 		if ( !item.IsValid() ) item = left ? RightHandItem : LeftHandItem;
 		if ( !item.IsValid() || item.Holder != Renderer ) return;
@@ -116,7 +120,8 @@ public sealed partial class RabbitGuard
 		{
 			end = CharacterCenter( target );
 			velocity = TargetVelocity( target );
-			if ( target.GetComponent<RabbitGuard>() is { } other && CharacterLoader.AverageChainPosition( other.Renderer, "torso" ) is { } torso ) end = torso;
+			var renderer = target.GetComponent<RabbitGuard>()?.Renderer ?? target.GetComponent<SkinnedModelRenderer>();
+			end = CharacterLoader.AverageChainPosition( renderer, "torso" ) ?? end;
 		}
 		item.Throw( this, end, velocity, fullBody );
 		if ( item == LeftHandItem ) LeftHandItem = null;

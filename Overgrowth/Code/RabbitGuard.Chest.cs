@@ -121,7 +121,7 @@ public sealed partial class RabbitGuard
 			return;
 		}
 		var target = currentKnifeLayer is { Active: true } && strikeTarget.IsValid() ? strikeTarget
-			: HasThrowLayer && handThrowLookTarget.IsValid() ? handThrowLookTarget
+			: HasThrowLayer && itemThrowTarget.IsValid() ? itemThrowTarget
 			: ForcedLookTarget();
 		if ( !target.IsValid() ) target = idleLookCharacter;
 		if ( noticeSource.IsValid() && IsIgnoredPlayer( noticeSource ) ) noticeLook = 0f;
@@ -139,7 +139,7 @@ public sealed partial class RabbitGuard
 		bool throwing = HasThrowLayer;
 		if ( Stance != Threat && !swiping && !(throwing && speed < 48f) ) return null;
 		var target = swiping && strikeTarget.IsValid() ? strikeTarget : ForcedLookTarget();
-		if ( !target.IsValid() && throwing ) target = handThrowLookTarget;
+		if ( !target.IsValid() && throwing ) target = itemThrowTarget;
 		if ( !target.IsValid() ) return null;
 		var direction = (target.WorldPosition - WorldPosition).WithZ( 0f ).Normal;
 		if ( direction.IsNearlyZero() || (speed <= 40f && !swiping && !throwing) ) return Rotation.LookAt( facing );

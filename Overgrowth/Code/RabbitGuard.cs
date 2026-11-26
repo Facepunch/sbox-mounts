@@ -379,6 +379,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	static Vector3 TargetVelocity( GameObject target )
 	{
 		if ( target.GetComponent<RabbitGuard>() is { } fighter ) return fighter.BodyVelocity;
+		if ( target.GetComponent<CharacterRemains>()?.Physics is { Active: true } physics && CharacterLoader.RagdollVelocity( physics ) is { } velocity ) return velocity;
 		return GetVelocity( target );
 	}
 

@@ -255,7 +255,7 @@ public sealed partial class RabbitGuard
 	bool InAttackState => !Downed && (strike is { AsLayer: false } || Stance == "throw" || IsThrowingItem || Holding && !CaptureReactionEnded);
 
 	GameObject CurrentAttackTarget => Stance == "throw" ? throwPartner?.GameObject
-		: IsThrowingItem ? bodyThrowTarget
+		: IsThrowingItem ? itemThrowTarget
 		: Holding ? holdPartner?.GameObject
 		: strikeTarget;
 

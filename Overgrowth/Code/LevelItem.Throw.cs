@@ -75,7 +75,9 @@ public sealed partial class LevelItem : Component.ICollisionListener
 		var body = GetComponent<Rigidbody>();
 		var delta = target - PhysicsPosition;
 		float mass = body.MassOverride;
-		float effectiveMass = MathF.Max( 1f, fullBody ? mass * 0.25f : mass );
+		var label = Definition.Element( "label" )?.Value;
+		bool heavyThrow = fullBody && label is ("big_sword" or "spear" or "staff");
+		float effectiveMass = MathF.Max( 1f, heavyThrow ? mass * 0.25f : mass );
 		var horizontal = delta.WithZ( 0f ).Normal;
 		float speed = 800f / effectiveMass + horizontal.Dot( throwerVelocity );
 		float up = 400f / effectiveMass + throwerVelocity.z;
@@ -86,7 +88,7 @@ public sealed partial class LevelItem : Component.ICollisionListener
 			launch = FlightPath.Velocity( delta + velocity * time, gravity, speed, up, 0f, out time );
 		if ( launch == Vector3.Zero ) launch = horizontal * speed + Vector3.Up * up;
 		body.Velocity = incomingVelocity = launch.ClampLength( MathF.Max( 0f, speed + up ) );
-		flight = fullBody && Definition.Element( "label" )?.Value is ("spear" or "staff") ? FlightState.Straight : FlightState.Thrown;
+		flight = heavyThrow && label != "big_sword" ? FlightState.Straight : FlightState.Thrown;
 		if ( flight == FlightState.Straight )
 		{
 			body.CollisionEventsEnabled = true;

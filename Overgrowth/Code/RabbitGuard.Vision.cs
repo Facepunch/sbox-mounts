@@ -29,6 +29,8 @@ public sealed partial class RabbitGuard
 	{
 		if ( knownCharacters.Remove( actor, out var memory ) ) knownCharacters[corpse] = memory;
 		if ( enemy == actor ) enemy = corpse;
+		if ( pendingRollThrow == actor ) pendingRollThrow = corpse;
+		if ( itemThrowTarget == actor ) itemThrowTarget = corpse;
 		if ( observedTarget == actor ) observedTarget = corpse;
 		if ( fleeFrom == actor ) fleeFrom = corpse;
 		if ( noticeSource == actor ) noticeSource = corpse;
