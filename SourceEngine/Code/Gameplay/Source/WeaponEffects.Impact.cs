@@ -159,7 +159,7 @@ static partial class WeaponEffects
 		var reflected = incoming - normal * (2 * incoming.Dot( normal )) + Particles.InCube( 0.2f );
 		var count = 2 * Game.Random.Int( 4, 8 );
 		var effect = ParticleStreaks.Create( origin, mount, "effects/spark", count, new( 0.05f, maxLifetime ),
-			new( 1, 4 ), ImpactTrailStretch, 4 + 2 * maxSpeed * (maxLifetime + 0.1f) );
+			new( 1, 4 ), ImpactTrailStretch );
 		if ( effect.IsValid() )
 		{
 			effect.Force = true;

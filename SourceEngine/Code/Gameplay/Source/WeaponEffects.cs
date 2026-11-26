@@ -234,7 +234,7 @@ static partial class WeaponEffects
 	{
 		const string material = "effects/muzzleflash1";
 		var count = Game.Random.Int( 4, 8 );
-		var trails = ParticleStreaks.Create( origin, mount, material, count, new( 0.1f, 0.2f ), new( 0.25f, 0.5f ), ShotgunTrailLength, 1024 * (0.2f + 0.05f) + 1 );
+		var trails = ParticleStreaks.Create( origin, mount, material, count, new( 0.1f, 0.2f ), new( 0.25f, 0.5f ), ShotgunTrailLength );
 		if ( trails.IsValid() )
 		{
 			trails.ApplyColor = true;
@@ -449,21 +449,13 @@ static partial class WeaponEffects
 
 	static ParticleEffect SparkTrails( Vector3 position, string mount, int count, Vector2 lifetime, ParticleFloat width, ParticleFloat trail, float gravity, bool collide, GameObject parent = null )
 	{
-		var sparks = Particles.Emitter( parent ?? Game.ActiveScene, "effects/spark", mount, true, false, count );
+		var sparks = ParticleStreaks.Create( position, mount, "effects/spark", count, lifetime, width, trail, parent );
 		if ( !sparks.IsValid() ) return null;
-		sparks.GameObject.WorldPosition = position;
-		sparks.Lifetime = new ParticleFloat( lifetime.x, lifetime.y );
-		sparks.ApplyShape = true;
-		sparks.InitialScale = width;
 		sparks.Force = true;
 		sparks.ForceSpace = ParticleEffect.SimulationSpace.World;
 		sparks.ForceDirection = Vector3.Down * gravity;
 		sparks.Collision = collide;
 		sparks.Bounce = 0.3f;
-		var renderer = sparks.GetComponent<ParticleSpriteRenderer>();
-		renderer.VelocityStretch = true;
-		renderer.StretchTime = trail;
-		sparks.Invoke( lifetime.y, sparks.DestroyGameObject );
 		return sparks;
 	}
 
