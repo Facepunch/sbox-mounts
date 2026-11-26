@@ -71,6 +71,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	int strafeSide = 1;
 	GameObject firingTarget;
 	Rotation aim;
+	internal Vector3 AimDirection => aim.Forward;
 	bool attack, closePlayer, inRailRange;
 
 	internal static void RegisterSounds( MountContext context )

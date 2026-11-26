@@ -219,7 +219,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	{
 		if ( !target.Tags.Has( "ns2_exo" ) || target.Tags.Has( "nanoshielded" ) ) return false;
 		var offset = (WorldPosition - target.WorldPosition).WithZ( 0 );
-		var forward = target.GetComponent<PlayerController>()?.EyeAngles.Forward ?? target.WorldRotation.Forward;
+		var forward = target.GetComponent<Exo>()?.AimDirection ?? target.GetComponent<PlayerController>()?.EyeAngles.Forward ?? target.WorldRotation.Forward;
 		return offset.LengthSquared > 0.01f * Scale * Scale && Vector3.Dot( forward, offset ) < 0;
 	}
 
