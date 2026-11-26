@@ -13,9 +13,19 @@ public sealed record VolumeLayer( string Texture, VolumeSprite[] Sprites, float 
 public sealed record VolumeCurves( CurveRange Offset, CurveRange Radius, CurveRange Width, CurveRange Height,
 	CurveRange Alpha, CurveRange Tint, Color32 StartColor, Color32 EndColor )
 {
+	public Color32? MiddleColor { get; init; }
+
 	public VolumeSprite Sample( float phase, float range ) => new( Offset.Evaluate( phase, range ), Radius.Evaluate( phase, range ) * 120,
 		new( Width.Evaluate( phase, 0 ), Height.Evaluate( phase, 0 ) ), Alpha.Evaluate( phase, range ),
-		MuzzleFlash.InterpolateTint( StartColor, EndColor, Tint.Evaluate( phase, range ) ) );
+		SampleTint( Tint.Evaluate( phase, range ) ) );
+
+	Color SampleTint( float fraction )
+	{
+		if ( MiddleColor is not {} middle ) return MuzzleFlash.InterpolateTint( StartColor, EndColor, fraction );
+		return fraction < 0.5f
+			? MuzzleFlash.InterpolateTint( StartColor, middle, fraction * 2 )
+			: MuzzleFlash.InterpolateTint( middle, EndColor, fraction * 2 - 1 );
+	}
 }
 
 [Hide]

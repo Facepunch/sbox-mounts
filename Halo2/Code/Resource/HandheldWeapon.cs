@@ -61,7 +61,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	bool HasProjectileEffects => Name is "big_needler_handheld" or "phantom_turret_handheld" or "flak_cannon" or "brute_shot" or "rocket_launcher" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
+	bool HasProjectileEffects => HasImpactBlast || Name is "big_needler_handheld" or "phantom_turret_handheld" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
 	string Name => TagName( weapon );
 	static string TagName( TagEntry entry ) => System.IO.Path.GetFileName( entry.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
@@ -393,7 +393,8 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
 				bool energySmoke = particle?.TagPath is @"effects\generic\energy\smoke_c_generic" or @"effects\generic\energy\plasma_overheat";
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
-				bool exhaustSmoke = (effect.TagPath.EndsWith( @"\rocket_exhaust", StringComparison.Ordinal ) || effect.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) || effect.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") && Short( row + 12 ) == 0;
+				bool beam = effect.TagPath == @"effects\scenarios\objects\covenant\military\scarab\main_gun_beam";
+				bool exhaustSmoke = (beam || effect.TagPath.EndsWith( @"\rocket_exhaust", StringComparison.Ordinal ) || effect.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) || effect.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") && Short( row + 12 ) == 0;
 				bool smoke = exhaustSmoke || additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
@@ -473,7 +474,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
 						births, Short( emitter + 8 ), j == 0, Bounds( emitter + 124 ) * 120, (ignition ? BirthBounds( emitter + 40 ) : Bounds( emitter + 40 )) * 120, Short( emitter + 72 ) == 2,
-						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (exhaustSmoke || additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke || blade || ignition ? Bounds( emitter + 140 ).x : 0,
+						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (exhaustSmoke || additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), beam || additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke || blade || ignition ? Bounds( emitter + 140 ).x : 0,
 						flare || soft || additiveSmoke || (!smoke && !casing && duration.y > 1.001f / 30) ? ReadRange( emitter + 104, 1 ) : null,
 						duration.y > 1.001f / 30 || start > 0 ? new( start - initialAdvance, duration ) : null )
 					{
@@ -482,6 +483,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 							ReadRange( emitter + 104, 1 ), Short( emitter + 104 ) == 2, (Short( row + 22 ) & 0x80) != 0 ) : null,
 						RandomCone = ember && Short( emitter + 140 ) == 15 ? ReadRange( emitter + 140, 1 ) : null,
 						SingleParticle = (Short( row + 22 ) & 4) != 0,
+						LineEmitter = Short( emitter + 120 ) == 9,
 						RandomRadiusScale = exhaustFlame ? ReadRange( definition + 60, 1 ) : null,
 						ParticleTint = Short( emitter + 88 ) == 3 && map.ReadSpan( color, 1 )[0] == 3 &&
 							Short( color + 2 ) is >= 8 and <= 10 && map.ReadSpan( color + 1, 1 )[0] == 0x20

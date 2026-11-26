@@ -19,6 +19,7 @@ public sealed record MuzzleFlashLayer( string Texture, Vector2 Pivot, Vector2 As
 	public ExhaustSmoke ExhaustSmoke { get; init; }
 	public CurveRange? RandomCone { get; init; }
 	public bool SingleParticle { get; init; }
+	public bool LineEmitter { get; init; }
 	public CurveRange? RandomRadiusScale { get; init; }
 	public CurveRange? ParticleTint { get; init; }
 }
@@ -158,11 +159,15 @@ public sealed class MuzzleFlash : Component
 				var radial = new Vector3( 0, System.MathF.Sin( azimuth ), System.MathF.Cos( azimuth ) );
 				var direction = Vector3.Forward * System.MathF.Cos( angle ) + radial * System.MathF.Sin( angle );
 				float speed = data.ExhaustSmoke?.Speed is {} speedCurve ? BoundedValue( speedCurve, emissionScale, data.Speed )
-					: data.RandomCone.HasValue ? Sample( data.Speed ) : p.LifeTimeRemaining.Remap( data.Lifetime.x, data.Lifetime.y, data.Speed.x, data.Speed.y );
+					: data.RandomCone.HasValue || data.LineEmitter ? Sample( data.Speed ) : p.LifeTimeRemaining.Remap( data.Lifetime.x, data.Lifetime.y, data.Speed.x, data.Speed.y );
 				p.Velocity = go.WorldRotation * direction * speed;
 			}
 			else p.Velocity = go.WorldRotation.Forward * (data.ExhaustSmoke?.Speed is {} speedCurve ? BoundedValue( speedCurve, emissionScale, data.Speed ) : Sample( data.Speed ));
-			if ( data.SpawnRadius.y > 0 ) p.Position += go.WorldRotation * Spread.RandomDirection( ref seed ) * Sample( data.SpawnRadius );
+			if ( data.SpawnRadius.y > 0 )
+			{
+				var axis = data.LineEmitter ? Vector3.Left * (2f * BlamRandom.Next( ref seed ) / 65535f - 1f) : Spread.RandomDirection( ref seed );
+				p.Position += go.WorldRotation * axis * Sample( data.SpawnRadius );
+			}
 			Appearance( p );
 		};
 		effect.OnPostStep += dt =>

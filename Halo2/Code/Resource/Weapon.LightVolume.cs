@@ -78,6 +78,12 @@ internal sealed partial class HandheldWeaponLoader
 			string function = map.ResolveStringId( map.ReadInt32( row + 16 ) );
 			if ( tag is { PrimaryClass: "dnsl" } && string.IsNullOrEmpty( function ) && ReadSoundTrack( row ) is {} track )
 				AtMarker( track.Marker ).AddComponent<ProjectileSound>().Track = track;
+			if ( tag is { PrimaryClass: "effe" } && (tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) ||
+				tag.TagPath == @"effects\scenarios\objects\covenant\military\scarab\main_gun_beam") )
+			{
+				ReadTimedEffects( tag, AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ) );
+				continue;
+			}
 			if ( tag is { PrimaryClass: "effe" } && root.GetComponent<ProjectileLightVolume>() is {} volume &&
 				string.IsNullOrEmpty( function ) )
 				volume.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
@@ -85,8 +91,6 @@ internal sealed partial class HandheldWeaponLoader
 				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ), requireMarker: true ) is {} origin &&
 				ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
 				origin.AddComponent<ProjectileExhaust>().Effects = exhaust;
-			if ( tag is { PrimaryClass: "effe" } && tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) )
-				ReadTimedEffects( tag, AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ) );
 			if ( tag is not { PrimaryClass: "hgil" } ) continue;
 			int light = Address( tag );
 			if ( Short( light + 4 ) != 0 || Float( light + 0xb0 ) != 0 ) continue;
@@ -144,7 +148,10 @@ internal sealed partial class HandheldWeaponLoader
 			int aspect = Block( row + 0x38 );
 			var width = ReadCurveRange( Block( aspect ), 1 );
 			var height = ReadCurveRange( Block( aspect + 8 ), 1 );
-			var curves = new VolumeCurves( offset, radius, width, height, alpha, tint, Tint( 4 ), Tint( 16 ) );
+			var curves = new VolumeCurves( offset, radius, width, height, alpha, tint, Tint( 4 ), Tint( 16 ) )
+			{
+				MiddleColor = (map.ReadSpan( color + 1, 1 )[0] >> 4) == 3 ? Tint( 8 ) : null
+			};
 			int count = map.ReadInt32( row + 12 );
 			var layer = new VolumeLayer( Host.AssetPath( map, bitmap.TagPath, "vtex" ), [], Float( aspect + 0x10 ), Float( aspect + 0x14 ), Float( aspect + 0x18 ) );
 			int flags = map.ReadInt32( row + 0x5c );
