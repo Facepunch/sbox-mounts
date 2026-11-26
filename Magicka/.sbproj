@@ -1,0 +1,24 @@
+{
+  "Title": "Magicka",
+  "Type": "addon",
+  "Org": "local",
+  "OrgTitle": null,
+  "Ident": "magicka",
+  "Schema": 1,
+  "IncludeSourceFiles": false,
+  "Resources": null,
+  "PublishUsedAssetsOnly": false,
+  "PackageReferences": [],
+  "EditorReferences": null,
+  "Mounts": [
+    "magicka"
+  ],
+  "IsStandaloneOnly": false,
+  "AI": {
+    "EnableMcpCommunication": true
+  },
+  "Metadata": {
+    "ParentPackage": "facepunch.sandbox",
+    "StartupScene": "scenes/sandbox.scene"
+  }
+}
