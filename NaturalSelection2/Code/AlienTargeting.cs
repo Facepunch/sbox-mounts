@@ -113,8 +113,11 @@ internal sealed class AlienTargeting
 	{
 		if ( memories.Count == 0 ) return null;
 		if ( !locations.IsValid() ) locations = lerk.Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		var room = locations?.LocationAt( lerk.WorldPosition );
-		float closest = 20 * 20 * MapLoader.Scale * MapLoader.Scale;
+		bool useRooms = locations.IsValid() && locations.Volumes.Length > 0;
+		var room = useRooms ? locations.LocationAt( lerk.WorldPosition ) : null;
+		if ( useRooms && room is null ) return null;
+		int bestRoom = int.MaxValue;
+		float closest = float.MaxValue;
 		GameObject best = null;
 		foreach ( var (target, memory) in memories )
 		{
@@ -127,7 +130,10 @@ internal sealed class AlienTargeting
 			if ( IsIgnoredPlayer( target ) || lerk.GetDisposition( target ) != Disposition.Hostile ) continue;
 			if ( target.GetComponentInChildren<Component.IDamageable>() is { MaxHealth: > 0, Health: <= 0 } ) continue;
 			float distance = lerk.WorldPosition.DistanceSquared( target.WorldPosition );
-			if ( distance >= closest || room is not null && locations.NearbyRoomOrder( room, memory.Position ) < 0 ) continue;
+			if ( distance >= 20 * 20 * MapLoader.Scale * MapLoader.Scale || distance > closest ) continue;
+			int roomOrder = useRooms ? locations.NearbyRoomOrder( room, memory.Position ) : 0;
+			if ( roomOrder < 0 || distance == closest && roomOrder >= bestRoom ) continue;
+			bestRoom = roomOrder;
 			(best, closest) = (target, distance);
 		}
 		return best;
