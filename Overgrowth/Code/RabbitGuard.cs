@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 	[Property, Sync] public string Species { get; private set; }
 	[Property] public bool StaticCharacter { get; set; }
 	[Property] public bool AlwaysUnaware { get; set; }
+	const float CharacterQueryRadius = 0.5f * 40f;
 	const float NoticeThreshold = 1f;
 	float awakeTime;
 	TimeUntil nextVisionCheck;

@@ -57,8 +57,6 @@ public sealed partial class RabbitGuard
 		return closest;
 	}
 
-	const float CharacterQueryRadius = 0.5f * 40f;
-
 	static bool InView( ref VisionHull hull, Vector3 settings, Vector3 center )
 	{
 		float range = settings.z * 40f;

@@ -6,6 +6,7 @@ public sealed partial class RabbitGuard
 {
 	const float ContactDistance = 0.7f * 40f;
 	TimeUntil contactReady = 0.2f;
+	double lastContactDecay = double.NegativeInfinity;
 	[Sync( SyncFlags.Interpolate )] Vector3 ContactVelocity { get; set; }
 	readonly HashSet<RabbitGuard> contactCandidates = new();
 	readonly HashSet<ModelPhysics> nearbyRagdolls = new();
@@ -18,7 +19,7 @@ public sealed partial class RabbitGuard
 		bool uprightContact = CanTouchCharacters;
 		bool ragdollContact = !StaticCharacter && IsOnGround;
 		if ( !uprightContact && !ragdollContact ) return;
-		ContactVelocity = Animation.IsGrounded ? ContactVelocity * MathF.Pow( 0.9f, Time.Delta * 120f ) : default;
+		DecayContactVelocity();
 		var center = CharacterCenter( GameObject );
 		Vector3? massCenter = null;
 		contactCandidates.Clear();
@@ -34,13 +35,16 @@ public sealed partial class RabbitGuard
 			}
 			if ( !uprightContact || !other.IsValid() || !other.CanTouchCharacters || other == holdPartner || Id.CompareTo( other.Id ) >= 0 ||
 				StaticCharacter && other.StaticCharacter || !contactCandidates.Add( other ) ) continue;
+			// Overgrowth dispatches body contact only when the two character query spheres touch.
+			var between = other.CharacterCenter( other.GameObject ) - center;
+			if ( between.LengthSquared > 4f * CharacterQueryRadius * CharacterQueryRadius ) continue;
 			massCenter ??= ContactCenter();
 			if ( massCenter is not { } here || other.ContactCenter() is not { } there ) continue;
 			var delta = there - here;
 			float distance = delta.Length;
 			if ( distance >= ContactDistance || distance <= 0f ) continue;
 			var offset = delta * (0.5f * (ContactDistance - distance) / distance);
-			var direction = (other.CharacterCenter( other.GameObject ) - center).Normal;
+			var direction = between.Normal;
 			ReceiveCharacterContact( other, -offset, direction );
 			other.ReceiveCharacterContact( this, offset, -direction );
 			if ( !StaticCharacter ) massCenter -= offset;
@@ -75,11 +79,20 @@ public sealed partial class RabbitGuard
 		return center.WithZ( CharacterCenter( GameObject ).z );
 	}
 
+	// Both partners receive their push together, even if one has yet to run its fixed update.
+	void DecayContactVelocity()
+	{
+		if ( lastContactDecay == Time.NowDouble ) return;
+		lastContactDecay = Time.NowDouble;
+		ContactVelocity = Animation.IsGrounded ? ContactVelocity * MathF.Pow( 0.9f, Time.Delta * 120f ) : default;
+	}
+
 	void ReceiveCharacterContact( RabbitGuard other, Vector3 offset, Vector3 toward )
 	{
 		if ( StaticCharacter ) return;
 		Hear( other.GameObject, CharacterCenter( GameObject ) + toward * (5f * 40f), HeardSound.Footstep, true );
 		TranslateRoot( offset );
+		DecayContactVelocity();
 		ContactVelocity += offset * (120f * 0.15f);
 	}
 }
