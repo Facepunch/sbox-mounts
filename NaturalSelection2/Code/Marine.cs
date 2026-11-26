@@ -105,7 +105,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		agent.Radius = capsule.Radius;
 		agent.Height = 1.9f * Scale;
 		agent.Enabled = false;
-		root.AddComponent<NavigationLayer>().RunSpeed = 5 * Scale;
+		root.AddComponent<MarineMovement>();
 		root.AddComponent<SensesLayer>().SightRange = 45 * Scale;
 		root.AddComponent<AnimationLayer>().EnableFootstepSounds = false;
 		var npc = root.AddComponent<Marine>();
