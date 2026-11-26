@@ -1,19 +1,37 @@
 using Sandbox.Npcs;
+using Sandbox.Physics;
 
 namespace NS2;
 
 public sealed class BabblerPheromone : Component
 {
 	const float Scale = MapLoader.Scale;
+	const string BallTag = "ns2_pheromone";
 	Gorge owner;
 	int bounces;
 	Rigidbody body;
 	Vector3 previousPosition, previousVelocity;
 	TimeUntil expires, nextTrail;
 
+	protected override void OnEnabled()
+	{
+		var world = Scene.PhysicsWorld;
+		var existing = world.CollisionRules;
+		if ( existing.GetCollisionRule( BallTag, BallTag ) == CollisionRules.Result.Ignore &&
+			existing.GetCollisionRule( BallTag, "ns2_babbler" ) == CollisionRules.Result.Ignore ) return;
+
+		// Scene worlds initially share the project's collision rules.
+		var rules = new CollisionRules { Defaults = new( existing.Defaults ), Pairs = new( existing.Pairs ) };
+		rules.Pairs[(BallTag, BallTag)] = CollisionRules.Result.Ignore;
+		rules.Pairs[(BallTag, "ns2_babbler")] = CollisionRules.Result.Ignore;
+		rules.Serialize(); // Rebuild the lookup used by scene traces.
+		world.CollisionRules = rules;
+	}
+
 	internal static BabblerPheromone Launch( Gorge gorge, Vector3 start, Rotation aim )
 	{
 		var obj = new GameObject( false, "Babbler pheromone" ) { WorldPosition = start, WorldRotation = aim };
+		obj.Tags.Add( BallTag );
 		var ball = obj.AddComponent<BabblerPheromone>();
 		ball.owner = gorge;
 		ball.expires = 5;
@@ -54,7 +72,7 @@ public sealed class BabblerPheromone : Component
 		{
 			var end = previousPosition + previousVelocity * (Time.Delta + 0.125f * 3);
 			var hit = Scene.Trace.Sphere( 0.125f * Scale, previousPosition, end ).IgnoreGameObjectHierarchy( GameObject )
-				.WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
+				.WithoutTags( "trigger", "ns2_babbler", BallTag ).UseDamageHitboxes().Run();
 			ProcessHit( hit.GameObject, hit.EndPosition );
 		}
 		previousPosition = position;
