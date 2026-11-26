@@ -99,7 +99,9 @@ public sealed class PhysicsGun : Weapon
 			_distance = _distance.Approach( InputState == Trigger.Push ? MaxRange : MinRange, 100 * Time.Delta );
 
 		var position = ray.Position + ray.Forward * _distance - physics.Rotation * _localPoint;
-		physics.SmoothMove( new Transform( position, yaw * _yawOffset ), _arrivalTime, Time.Delta );
+		var velocity = ShadowController.Velocity( physics.Velocity, position - physics.Position, 5000, 10000, _arrivalTime, 0.8f );
+		physics.Velocity = velocity.ClampLength( 4000 );
+		physics.SmoothRotate( yaw * _yawOffset, _arrivalTime, Time.Delta );
 	}
 
 	protected override void OnHolstered()

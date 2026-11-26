@@ -401,7 +401,7 @@ public sealed class GravityWeapon : Weapon
 
 	void MoveCarriedBody( Rigidbody body, Vector3 target, Rotation orientation )
 	{
-		var velocity = CarryVelocity( body.Velocity, target - body.PhysicsBody.Position, MaxCarrySpeed, MaxCarrySpeed * 2 );
+		var velocity = ShadowController.Velocity( body.Velocity, target - body.PhysicsBody.Position, MaxCarrySpeed, MaxCarrySpeed * 2 );
 		var contact = Scene.Trace.Body( body, body.PhysicsBody.Position + velocity * Time.Delta )
 			.IgnoreGameObjectHierarchy( HeldObject ).WithoutTags( "trigger" ).Run();
 		var other = contact.GameObject?.GetComponentInParent<Rigidbody>();
@@ -424,11 +424,8 @@ public sealed class GravityWeapon : Weapon
 		var spinAxis = new Vector3( rotation.x, rotation.y, rotation.z ).Normal;
 		var angle = rotation.Angle().DegreeToRadian() * (rotation.w < 0 ? -1 : 1);
 		var spinLimit = MaxCarrySpin * _carryTurnRate * _carryTurnRate * _carryTurnRate;
-		body.AngularVelocity = CarryVelocity( body.AngularVelocity, spinAxis * angle, spinLimit, MaxCarrySpin * 2 );
+		body.AngularVelocity = ShadowController.Velocity( body.AngularVelocity, spinAxis * angle, spinLimit, MaxCarrySpin * 2 );
 	}
-
-	static Vector3 CarryVelocity( Vector3 velocity, Vector3 delta, float limit, float dampingLimit ) =>
-		velocity - velocity.ClampLength( dampingLimit ) + (delta / Time.Delta).ClampLength( limit );
 
 	void Release()
 	{
