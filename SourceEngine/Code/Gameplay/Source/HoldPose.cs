@@ -40,7 +40,7 @@ public sealed class HoldPose
 	readonly Transform[] _rest;
 	readonly Transform[] _pose;
 	readonly SortedSet<int> _tracked = new();
-	readonly (int Bone, int Target)[] _locks = [];
+	readonly (int Bone, int Target, string ReleaseChannel)[] _locks = [];
 	int[] _order = [];
 	bool _resting;
 
@@ -263,7 +263,7 @@ public sealed class HoldPose
 		var fist = knuckles.Aggregate( Vector3.Zero, ( sum, bone ) => sum + _pose[bone].Position ) / Knuckles;
 		Grip = _pose[RightHand].ToLocal( new Transform( fist ) );
 
-		_locks = aim.IkTargets.Select( x => (Find( x.Bone ), Track( x.TargetBone )) ).Where( x => x.Item1 >= 0 && x.Item2 >= 0 ).ToArray();
+		_locks = aim.IkTargets.Select( x => (Find( x.Bone ), Track( x.TargetBone ), SourceAnimations.ReleaseChannel( x.Bone )) ).Where( x => x.Item1 >= 0 && x.Item2 >= 0 ).ToArray();
 		_resting = false;
 	}
 
@@ -322,11 +322,16 @@ public sealed class HoldPose
 		EvaluatePose( shotClip, delta, shotCycle, reloadCycle, reloadWeight * (_reloadBlend?.Weight( reloadCycle ) ?? 1), _realTimeLayers );
 
 		// Source solves IK after breathing and gestures. A reload can move the hand off its grip.
-		foreach ( var (bone, target) in _locks )
+		foreach ( var (bone, target, releaseChannel) in _locks )
 		{
 			if ( !_tracked.Contains( bone ) ) continue;
 			var before = _pose[bone];
-			var after = _reload is not null && reloadWeight > 0 ? Blend( _pose[target], before, reloadWeight ) : _pose[target];
+			var after = _pose[target];
+			if ( _reload is not null && reloadWeight > 0 )
+			{
+				var release = _reload.TryGetFloatChannel( reloadCycle, SourceAnimations.IkRelease, releaseChannel, out var amount ) ? amount : 1;
+				after = Blend( after, before, reloadWeight * release );
+			}
 			if ( before == after ) continue;
 			_pose[bone] = after;
 			foreach ( var child in _order )

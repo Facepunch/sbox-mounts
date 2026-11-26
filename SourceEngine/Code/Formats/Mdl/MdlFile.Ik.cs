@@ -356,8 +356,6 @@ internal sealed partial class MdlFile
 					if ( rule.RuleWeight * rule.Weight > 0.999f && rule.Type != IkUnlatch )
 					{
 						context[chain].Clear();
-						if ( rule.Type == IkRelease )
-							continue;
 					}
 					context[chain].Add( rule );
 				}
@@ -430,6 +428,24 @@ internal sealed partial class MdlFile
 			return float.IsFinite( position.x ) && float.IsFinite( position.y ) && float.IsFinite( position.z );
 		}
 
+		// Each release blends the existing grip towards the animated end bone.
+		private void RecordReleases( List<IkRule>[] context, int frame, int frameCount, ref Dictionary<string, float[]> tracks )
+		{
+			for ( var i = 0; i < context.Length; i++ )
+			{
+				var release = 0f;
+				foreach ( var rule in context[i] )
+					if ( rule.Type == IkRelease )
+						release += (1 - release) * rule.Weight * rule.RuleWeight;
+
+				if ( release <= 0 ) continue;
+				var bone = master._boneNames[chains[i].End];
+				tracks ??= new();
+				if ( !tracks.TryGetValue( bone, out var samples ) ) tracks[bone] = samples = new float[frameCount];
+				samples[frame] = release;
+			}
+		}
+
 		private Transform[] WorldPose( Transform[] pose )
 		{
 			var world = new Transform[pose.Length];
@@ -465,7 +481,7 @@ internal sealed partial class MdlFile
 		// CIKContext::SolveDependencies: once every layer is in, moves each chain with rules to its target.
 		private void SolveIk( Transform[] pose, List<IkRule>[] context )
 		{
-			if ( context is null || context.All( x => x.Count == 0 ) )
+			if ( context is null || context.All( rules => !rules.Exists( rule => rule.Type == IkSelf ) ) )
 				return;
 			var world = WorldPose( pose );
 			var targets = new Transform[chains.Length];

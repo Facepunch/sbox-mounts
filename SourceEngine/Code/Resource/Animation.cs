@@ -6,16 +6,20 @@ namespace Source1;
 internal sealed class SourceAnimations
 {
 	public const string SkeletonName = "skeleton.skel";
+	public const string IkRelease = "ik_release";
+	public static string ReleaseChannel( string bone ) => $"release:{bone}";
 
 	public (string Name, string Parent, Transform Local)[] Bones { get; }
 	public IReadOnlyList<(string Name, float[] Weights)> Masks { get; }
+	public string[] IkEndBones { get; }
 	public Dictionary<string, MdlFile.ImportedAnimation> Clips { get; } = new( StringComparer.OrdinalIgnoreCase );
 
 	public SourceAnimations( (string Name, string Parent, Transform Local)[] bones, IReadOnlyList<(string Name, float[] Weights)> masks,
-		IReadOnlyList<MdlFile.ImportedAnimation> clips )
+		IReadOnlyList<MdlFile.ImportedAnimation> clips, string[] ikEndBones )
 	{
 		Bones = bones;
 		Masks = masks;
+		IkEndBones = ikEndBones;
 		foreach ( var clip in clips )
 		{
 			Clips.TryAdd( clip.Name, clip );
@@ -36,6 +40,7 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 			return null;
 
 		var builder = Sandbox.Animation.Skeleton.Builder;
+		if ( animations.IkEndBones.Length > 0 ) builder.AddFloatChannelSet( SourceAnimations.IkRelease, Array.ConvertAll( animations.IkEndBones, SourceAnimations.ReleaseChannel ) );
 		foreach ( var bone in animations.Bones )
 		{
 			builder.AddBone( bone.Name, bone.Local, bone.Parent );
@@ -67,10 +72,10 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 		if ( !skeleton.IsValid() )
 			return null;
 
-		Transform[][] frames;
+		MdlFile.BakedClip baked;
 		try
 		{
-			frames = clip.ReadFrames();
+			baked = clip.ReadFrames();
 		}
 		catch ( Exception e ) when ( MdlFile.IsDataError( e ) )
 		{
@@ -78,7 +83,7 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 			return null;
 		}
 
-		if ( frames is null || frames.Length == 0 )
+		if ( baked.Frames is not { Length: > 0 } )
 			return null;
 
 		var builder = Sandbox.Animation.Clip.Builder;
@@ -88,7 +93,7 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 
 		var bones = skeleton.Bones;
 		var pose = new Transform[bones.Count];
-		foreach ( var frame in frames )
+		foreach ( var frame in baked.Frames )
 		{
 			for ( var bone = 0; bone < pose.Length; bone++ )
 			{
@@ -99,6 +104,9 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 
 			builder.AddFrame( pose );
 		}
+		if ( baked.Releases is not null )
+			foreach ( var (bone, samples) in baked.Releases )
+				builder.AddFloatChannelTrack( SourceAnimations.IkRelease, SourceAnimations.ReleaseChannel( bone ), samples );
 
 		return builder.Create( Path );
 	}

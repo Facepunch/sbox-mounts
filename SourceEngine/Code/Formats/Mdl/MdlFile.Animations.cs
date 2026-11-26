@@ -6,11 +6,13 @@ namespace Source1;
 
 internal sealed partial class MdlFile
 {
+	internal readonly record struct BakedClip( Transform[][] Frames, Dictionary<string, float[]> Releases = null );
+
 	/// <summary>
 	/// One clip of a model. <see cref="ReadFrames"/> bakes its frames on demand, as parent-space transforms
 	/// in the model's bone order, and throws when the animation data is invalid.
 	/// </summary>
-	internal sealed record ImportedAnimation( string Name, float FrameRate, bool Looping, int FrameCount, Func<Transform[][]> ReadFrames,
+	internal sealed record ImportedAnimation( string Name, float FrameRate, bool Looping, int FrameCount, Func<BakedClip> ReadFrames,
 		SourceModelSequenceData Metadata, SourceModelPoseLayerData PoseLayer = null, bool Delta = false );
 
 	/// <summary>
@@ -19,7 +21,7 @@ internal sealed partial class MdlFile
 	/// <paramref name="BoneMasks"/> holds the distinct sequence weight lists by bone, in that same order.
 	/// </summary>
 	internal sealed record ImportedAnimations( IReadOnlyList<ImportedAnimation> Clips, SourceModelPoseParameterData[] PoseParameters,
-		IReadOnlyList<(string Name, float[] Weights)> BoneMasks, IReadOnlyList<(string Name, int Parent)> IkBones )
+		IReadOnlyList<(string Name, float[] Weights)> BoneMasks, IReadOnlyList<(string Name, int Parent)> IkBones, string[] IkEndBones )
 	{
 		/// <summary>
 		/// The sequence data to store on the model. Every read of it parses the stored form,
@@ -459,7 +461,8 @@ internal sealed partial class MdlFile
 			} ).ToArray();
 			// A masked clip drives the IK targets it carries, so every mask weights them fully.
 			var masks = boneMasks.Select( ( weights, i ) => ($"weights/{i}", (float[])[.. weights, .. Enumerable.Repeat( 1f, ikBones.Count )]) ).ToArray();
-			return new( result, parameters, masks, ikBones.Select( x => (IkBoneName( x ), x.Bone) ).ToArray() );
+			return new( result, parameters, masks, ikBones.Select( x => (IkBoneName( x ), x.Bone) ).ToArray(),
+				chains.Where( x => x.End >= 0 ).Select( x => master._boneNames[x.End] ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray() );
 		}
 
 		private void ExportSequence( AnimationSource source, int index, string name )
@@ -491,7 +494,7 @@ internal sealed partial class MdlFile
 					// do to the other bones would be lost behind the mask, so it is offered as an additive clip of its own.
 					var remainder = $"__additive/{name}";
 					var weights = boneMasks[mask];
-					result.Add( new( remainder, rate, looping, frameCount, () => BakeRemainder( source, index, frameCount, weights ),
+					result.Add( new( remainder, rate, looping, frameCount, () => new( BakeRemainder( source, index, frameCount, weights ) ),
 						new SourceModelSequenceData { Name = remainder, Looping = looping, Delta = true }, Delta: true ) );
 					names.Add( remainder );
 					metadata.AdditiveLayers = [.. metadata.AdditiveLayers, remainder];
@@ -612,7 +615,7 @@ internal sealed partial class MdlFile
 			{
 				var cell = i;
 				names.Add( clips[i] );
-				result.Add( new( clips[i], 30, false, 1, () => [WithIkBones( PoseLayerFrame( source, index, cell ), null )], null, layer, Delta: true ) );
+				result.Add( new( clips[i], 30, false, 1, () => new( [WithIkBones( PoseLayerFrame( source, index, cell ), null )] ), null, layer, Delta: true ) );
 			}
 		}
 
@@ -833,11 +836,12 @@ internal sealed partial class MdlFile
 		// them in as well would apply them twice, and a layer ramping in would drag the bind pose along.
 		// So the first non-delta sequence to weight a bone poses it fully, whatever its weight at that moment;
 		// later ones blend over it by their weights as in Source.
-		private Transform[][] Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false )
+		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false )
 		{
 			decoded.Clear();
 			var delta = (source.Sequences[index].Flags & SequenceDelta) != 0;
 			var frames = new Transform[frameCount][];
+			Dictionary<string, float[]> releases = null;
 			for ( var frame = 0; frame < frameCount; frame++ )
 			{
 				var cycle = frameCount == 1 ? 0 : (float)frame / (frameCount - 1);
@@ -864,9 +868,10 @@ internal sealed partial class MdlFile
 					pose[bone].Rotation = q.Normal;
 				}
 				frames[frame] = WithIkBones( pose, ik );
+				if ( masked && ik is not null ) RecordReleases( ik, frame, frameCount, ref releases );
 			}
 			decoded.Clear();
-			return frames;
+			return new( frames, releases );
 		}
 
 		// bone_setup's AccumulatePose: blends one sequence, then its auto layers, onto the pose, and gathers
