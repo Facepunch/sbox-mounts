@@ -1,6 +1,6 @@
 namespace Halo2;
 
-public class MagazineWeapon : HandheldWeapon
+public class MagazineWeapon : Firearm
 {
 	[Property] public int BurstLength { get; set; }
 	[Property] public float RecoveryDelay { get; set; }
@@ -34,14 +34,7 @@ public class MagazineWeapon : HandheldWeapon
 			recoveryEndsAt = System.Math.Floor( roundAt * 30 ) / 30 + PrimaryDelay;
 			SetNextPrimaryFire( (float)(recoveryEndsAt - Time.NowDouble) );
 		}
-		emptyRoundAt = null;
-		if ( PrimaryAutomatic && BurstLength <= 1 && !HasIdleMagazineBarrel && IsHeld && Clip1 == 1 )
-		{
-			emptyRoundAt = roundAt;
-			// A held trigger attempts one dry shot before the barrel enters recovery.
-			double heldDelay = Holder is PlayerController && Input.Down( TriggerButton ) ? PrimaryDelay : 0;
-			barrelIdleAt = roundAt + heldDelay + 1 / 30.0 + RecoveryDelay;
-		}
+		RecordEmptyRound( roundAt, Holder is PlayerController && Input.Down( TriggerButton ) );
 		if ( BurstLength > 1 && remainingShots == 0 )
 		{
 			remainingShots = BurstLength;
@@ -58,7 +51,7 @@ public class MagazineWeapon : HandheldWeapon
 				TimeSinceShoot = 0;
 			}
 			else SetNextPrimaryFire( 0 ); // The host starts the cooldown when this trigger actually fires.
-			RequestRound( AimRay.Forward, FiringError );
+			RequestRound( AimRay.Forward, false, FiringError, (long)System.Math.Round( roundAt * 30 ) );
 		}
 		if ( remainingShots == 0 ) return;
 		if ( --remainingShots == 0 || (IsHeld && !HasPrimaryAmmo()) )
@@ -77,14 +70,21 @@ public class MagazineWeapon : HandheldWeapon
 		SetNextPrimaryFire( (float)System.Math.Max( 0, burstRoundAt - Time.NowDouble ) );
 	}
 
-	[Rpc.Host( NetFlags.OwnerOnly )]
-	void RequestRound( Vector3 forward, Vector2 error )
+	protected override bool UsesRemoteAutomaticFire => !Instantaneous && PredictProjectileEffects && BurstLength <= 1 && PrimaryAutomatic;
+	protected override void FireRemoteRound( Vector3 forward, bool awaitingCue, double shotTime )
 	{
-		if ( !IsInHand || !IsHeld || !CanPrimaryAttack() || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
-		if ( !float.IsFinite( error.x ) || !float.IsFinite( error.y ) ) return;
-		ApplyFiringError( error );
-		SetNextPrimaryFire( PrimaryDelay );
+		if ( Instantaneous ) return;
+		if ( UsesRemoteAutomaticFire ) RecordEmptyRound( shotTime, true );
 		FireRound( forward );
+	}
+
+	void RecordEmptyRound( double roundAt, bool held )
+	{
+		emptyRoundAt = null;
+		if ( !PrimaryAutomatic || BurstLength > 1 || HasIdleMagazineBarrel || !IsHeld || Clip1 != 1 ) return;
+		emptyRoundAt = roundAt;
+		// A held trigger attempts one dry shot before the barrel enters recovery.
+		barrelIdleAt = roundAt + (held ? PrimaryDelay : 0) + 1 / 30.0 + RecoveryDelay;
 	}
 
 	protected virtual void FireRound( Vector3 forward )
@@ -227,7 +227,8 @@ public class MagazineWeapon : HandheldWeapon
 		if ( remainingShots > 0 && NextPrimaryFire <= 0 )
 			FirePrimary( burstAttacker );
 		if ( IsReloading ) emptyRoundAt = null;
-		if ( IsProxy || !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
+		if ( IsProxy && !(Networking.IsHost && emptyRoundAt.HasValue) ) return;
+		if ( !IsInHand || !IsHeld || !AutoReload || Clip1 != 0 || !CanReload() ) return;
 		if ( HasIdleMagazineBarrel || (emptyRoundAt.HasValue || BurstLength > 1 ? Time.NowDouble >= barrelIdleAt : NextPrimaryFire <= 0) )
 			ReloadEmptyBarrel();
 	}

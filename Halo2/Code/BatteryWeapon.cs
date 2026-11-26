@@ -2,7 +2,7 @@ namespace Halo2;
 
 public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition[] Flash );
 
-public class BatteryWeapon : HandheldWeapon
+public class BatteryWeapon : Firearm
 {
 	[Property] public MuzzleFlashDefinition[] VentParticles { get; set; }
 	double nextVentTick;
@@ -41,8 +41,6 @@ public class BatteryWeapon : HandheldWeapon
 	[Property] public FiringCue[] FiringCues { get; set; }
 	int cueIndex;
 	int cueRemaining;
-	readonly Queue<(Vector3 Forward, bool AwaitingCue, Vector2 Error, double Tick)> pendingEnergyShots = new();
-	double nextRemoteRound;
 
 	[Sync( SyncFlags.FromHost )] public float Spent { get; private set; }
 	[Sync( SyncFlags.FromHost )] float ShotHeat { get; set; }
@@ -55,7 +53,8 @@ public class BatteryWeapon : HandheldWeapon
 
 	float CoolingRate => Venting && OverheatedLoss > 0 ? OverheatedLoss : HeatLoss;
 	// Sample on the original weapon clock. Cooling continues on dropped and holstered items.
-	public float Heat => HeatAt( Time.NowDouble );
+	public float Heat => HeatAt( !Networking.IsHost && !IsProxy && IsHeld && OwnerToHostTicks is double offset
+		? Time.NowDouble + offset / 30 : Time.NowDouble );
 
 	float HeatAt( double time )
 	{
@@ -101,51 +100,12 @@ public class BatteryWeapon : HandheldWeapon
 		bool awaitCue = MisfireThreshold is > 0 and < 1 && Spent > MisfireThreshold;
 		if ( !awaitCue ) OnShootEffects( default );
 		TimeSinceShoot = 0;
-		RequestEnergyShot( forward, awaitCue, FiringError );
+		RequestRound( forward, awaitCue, FiringError, (long)System.Math.Round( shotTime * 30 ) );
 	}
 
-	[Rpc.Host( NetFlags.OwnerOnly )]
-	void RequestEnergyShot( Vector3 forward, bool awaitingCue, Vector2 error )
-	{
-		if ( !IsHeld || !IsInHand || !forward.LengthSquared.AlmostEqual( 1, 0.001f ) ) return;
-		if ( !float.IsFinite( error.x ) || !float.IsFinite( error.y ) ) return;
-		if ( PrimaryAutomatic )
-		{
-			FirePendingEnergyShots();
-			if ( !CanCycleBarrel ) return;
-			double now = System.Math.Floor( Time.NowDouble * 30 );
-			int interval = FiringRate.y > 0 ? (int)System.MathF.Ceiling( 30 / FiringRate.y ) : (int)System.Math.Round( PrimaryDelay * 30 );
-			interval = System.Math.Max( 1, interval );
-			// Keep one barrel interval of jitter on either side of the host clock.
-			double tick = nextRemoteRound < now - interval ? now : nextRemoteRound;
-			if ( tick > now + interval ) return;
-			nextRemoteRound = tick + interval;
-			pendingEnergyShots.Enqueue( (forward, awaitingCue, error, tick) );
-			FirePendingEnergyShots();
-			return;
-		}
-		if ( !CanPrimaryAttack() ) return;
-		ApplyFiringError( error );
-		float delay = FiringRate.y > 0 ? CooldownSeconds( (int)System.MathF.Ceiling( 30 / FiringRate.y ) ) : PrimaryDelay;
-		SetNextPrimaryFire( delay );
-		FireEnergy( forward, awaitingCue );
-	}
-
-	void FirePendingEnergyShots()
-	{
-		while ( pendingEnergyShots.TryPeek( out var shot ) )
-		{
-			if ( !IsInHand || !IsHeld || !CanCycleBarrel || !CanPrimaryAttack() )
-			{
-				pendingEnergyShots.Clear();
-				return;
-			}
-			if ( Time.NowDouble < shot.Tick / 30 ) return;
-			pendingEnergyShots.Dequeue();
-			ApplyFiringError( shot.Error );
-			FireEnergy( shot.Forward, shot.AwaitingCue, shotTime: shot.Tick / 30 );
-		}
-	}
+	protected override float RemoteFireDelay => FiringRate.y > 0 ? CooldownSeconds( (int)System.MathF.Ceiling( 30 / FiringRate.y ) ) : PrimaryDelay;
+	protected override bool CanScheduleRound( double time ) => base.CanCycleBarrel && Spent < 1 && (!Venting || HeatAt( time ) < CooledThreshold);
+	protected override void FireRemoteRound( Vector3 forward, bool awaitingCue, double shotTime ) => FireEnergy( forward, awaitingCue, shotTime: shotTime );
 
 	protected void FireEnergy( Vector3 forward, bool awaitingCue, EnergyDischarge discharge = null, double? shotTime = null )
 	{
@@ -221,7 +181,6 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected override bool CanCycleBarrel => !Overheated && Spent < 1 && base.CanCycleBarrel;
 	protected override double EarliestRateTick => rateChangedAt;
-	protected override bool CanCatchUpRounds => true;
 
 	protected override void OnControl()
 	{
@@ -246,8 +205,6 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
-		pendingEnergyShots.Clear();
-		nextRemoteRound = 0;
 		firingVoice.Stop( FiringTrack );
 		overheatVoice.Stop( OverheatTrack );
 		lastPresentedShot = null;
@@ -261,7 +218,6 @@ public class BatteryWeapon : HandheldWeapon
 	protected override void UpdateWeaponState()
 	{
 		base.UpdateWeaponState();
-		FirePendingEnergyShots();
 		if ( !Application.IsDedicatedServer )
 		{
 			bool held = IsHeld && IsInHand;
