@@ -71,6 +71,8 @@ public abstract partial class Weapon
 		public Vector3 Forward;
 		public Vector3 Offset;
 		public Vector3 Velocity;
+		public float ForwardSpeed;
+		public float ForwardDistance;
 		public float Travelled;
 		public int DetonateAtTick;
 		public PhysicsShape BounceSurface;
@@ -84,10 +86,10 @@ public abstract partial class Weapon
 		public GameObject Body;
 		public ProjectileExhaust Exhaust;
 
-		public void Reflect( SceneTraceResult hit, Vector3 origin, float parallelFriction, float normalFriction, bool alongVelocity )
+		public void Reflect( SceneTraceResult hit, Vector3 origin, float parallelFriction, float normalFriction, bool alongVelocity, Vector3 velocityChange = default )
 		{
 			var normal = hit.Normal * hit.Normal.Dot( Velocity );
-			Velocity = (Velocity - normal) * (1 - parallelFriction) - normal * (1 - normalFriction);
+			Velocity = (Velocity - normal) * (1 - parallelFriction) - normal * (1 - normalFriction) + velocityChange;
 			Offset = hit.HitPosition - origin;
 			BounceSurface = hit.Shape;
 			BounceNormal = hit.Normal;
@@ -128,6 +130,7 @@ public abstract partial class Weapon
 			var forward = Spread.Deviate( aim, minimum, maximum, ref randomState );
 			pellets[i].Forward = forward;
 			pellets[i].Velocity = forward * speed + forward * inherited;
+			pellets[i].ForwardSpeed = speed;
 			pellets[i].TurnRate = discharge?.TurnRate ?? guidance.TurnRate;
 			if ( Shard is {} shard )
 			{
@@ -202,7 +205,6 @@ public abstract partial class Weapon
 		const float dt = 1f / 30;
 		double firedAt;
 		using ( scene.Push() ) firedAt = Time.NowDouble;
-		float forwardDistance = 0, forwardSpeed = initialSpeed * scale;
 		for ( int tick = 0; flying > 0; tick++ )
 		{
 			while ( tick > 0 && scene.IsValid() )
@@ -213,16 +215,6 @@ public abstract partial class Weapon
 			}
 			if ( !scene.IsValid() ) return;
 			using var sceneScope = scene.Push();
-			float speedChange = 0;
-			if ( profile is { InverseDistance: > 0 } && initialSpeed != profile.FinalSpeed )
-			{
-				// The projectile maintains a forward-distance accumulator independent of gravity and inherited velocity.
-				float fraction = ((forwardDistance - profile.StartDistance * scale) * profile.InverseDistance).Clamp( 0, 1 );
-				float nextSpeed = (initialSpeed + (profile.FinalSpeed - initialSpeed) * fraction) * scale;
-				speedChange = nextSpeed - forwardSpeed;
-				forwardSpeed = nextSpeed;
-				forwardDistance += nextSpeed * dt;
-			}
 			for ( int i = 0; i < pellets.Length; i++ )
 			{
 				var pellet = pellets[i];
@@ -272,17 +264,27 @@ public abstract partial class Weapon
 						}
 					}
 				}
-				bool wet = tick == 0 ? originWet : InWater( scene, start );
-				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * dt;
-				float step = dt * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * dt) );
+				float duration = dt;
+				double segmentTime = firedAt + tick / 30.0;
+			AdvanceSegment:
+				bool wet = tick == 0 && duration == dt ? originWet : InWater( scene, start );
+				float fall = (wet ? waterGravity : airGravity) * (4.1712594f * 120) * duration;
+				float step = duration * System.MathF.Min( 1, (maxRange - pellet.Travelled) / (pellet.Velocity.Length * duration) );
 				var velocityChange = Vector3.Down * fall;
-				if ( speedChange != 0 )
-					velocityChange += pellet.Forward * speedChange;
+				if ( profile is { InverseDistance: > 0 } && initialSpeed != profile.FinalSpeed )
+				{
+					float progress = ((pellet.ForwardDistance - profile.StartDistance * scale) * profile.InverseDistance).Clamp( 0, 1 );
+					float nextSpeed = (initialSpeed + (profile.FinalSpeed - initialSpeed) * progress) * scale;
+					velocityChange += pellet.Forward * (nextSpeed - pellet.ForwardSpeed);
+					pellet.ForwardSpeed = nextSpeed;
+					pellet.ForwardDistance += nextSpeed * duration;
+				}
 				// Guidance, acceleration and gravity all contribute over the same native tick.
 				var displacement = (startingVelocity + ((pellet.Velocity - startingVelocity) + velocityChange) * 0.5f) * step;
 				pellet.Velocity += velocityChange;
 				if ( alongVelocity && pellet.Velocity.LengthSquared > 0 ) pellet.Forward = pellet.Velocity.Normal;
 				float distance = displacement.Length;
+				bool rangeLimited = step < duration;
 				bool penetrationEnds = false;
 				if ( pellet.PenetratedShape is {} medium && pellet.Travelled + distance >= pellet.PenetrationLimit )
 				{
@@ -299,8 +301,8 @@ public abstract partial class Weapon
 					}
 				}
 				if ( pellet.Trail.IsValid() )
-					pellet.Trail.SetSegment( start, displacement / step, firedAt + tick / 30.0 );
-				bool atRange = penetrationEnds || step < dt || pellet.Travelled + distance >= maxRange;
+					pellet.Trail.SetSegment( start, displacement / step, segmentTime );
+				bool atRange = penetrationEnds || rangeLimited || pellet.Travelled + distance >= maxRange;
 				// A trace excludes its endpoint. Halo includes world geometry at maximum range,
 				// but requires an object contact to be strictly nearer.
 				var sweep = atRange ? displacement * 2 : displacement;
@@ -344,7 +346,7 @@ public abstract partial class Weapon
 					}
 					if ( atRange )
 					{
-						pellet.Trail?.Finish( origin + pellet.Offset, firedAt + tick / 30.0 + step );
+						pellet.Trail?.Finish( origin + pellet.Offset, segmentTime + step );
 						(results ??= new()).Add( new( origin + pellet.Offset ) );
 						pellet = default;
 						flying--;
@@ -361,8 +363,21 @@ public abstract partial class Weapon
 					{
 						if ( bounce.Sounds is {} sounds && ContactMaterial.Lookup( sounds, hit.Surface, true ) is { Length: > 0 } cues )
 							PlayBounceSounds( cues, hit.HitPosition );
-						pellet.Reflect( hit, origin, bounce.ParallelFriction, bounce.NormalFriction, alongVelocity );
+						float contactFraction = (hit.Distance / distance).Clamp( 0, 1 );
+						// The original reflects the incoming velocity before applying acceleration up to contact.
+						pellet.Velocity = startingVelocity;
+						pellet.Reflect( hit, origin, bounce.ParallelFriction, bounce.NormalFriction, alongVelocity, velocityChange * contactFraction );
 						if ( pellet.DetonateAtTick == 0 ) pellet.DetonateAtTick = tick + bounce.FuseTicks;
+						float contactTime = step * contactFraction;
+						float remainingTime = step - contactTime;
+						if ( remainingTime > 0 && remainingTime < step && pellet.Travelled < maxRange && pellet.Velocity.LengthSquared > 0 )
+						{
+							segmentTime += contactTime;
+							start = hit.HitPosition;
+							duration = remainingTime;
+							startingVelocity = pellet.Velocity;
+							goto AdvanceSegment;
+						}
 						pellets[i] = pellet;
 						continue;
 					}
@@ -413,7 +428,7 @@ public abstract partial class Weapon
 						continue;
 					}
 				}
-				pellet.Trail?.Finish( hit.HitPosition, firedAt + tick / 30.0 + step * (hit.Distance / distance) );
+				pellet.Trail?.Finish( hit.HitPosition, segmentTime + step * (hit.Distance / distance) );
 				hit.StartPosition = origin;
 				(results ??= new()).Add( new( hit.HitPosition, true, hit.Direction, hit.Normal, hit.GameObject, impactSurface?.ResourcePath, hit.Hitbox?.Bone?.Name, discharge is not null, alternate ) );
 				ApplyDelayedHit( hit, damage, ballistics.Force, attacker, tags is { IsEmpty: false } ? new TagSet( tags.TryGetAll() ) : null );
