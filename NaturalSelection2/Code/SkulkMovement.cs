@@ -52,7 +52,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 
 	public override void MoveTo( Vector3 target, float stopDistance = 10, float? speed = null, GameObject faceTarget = null )
 	{
-		this.speed = speed ?? RunSpeed;
+		this.speed = speed ?? ((Skulk)Npc).CurrentMoveSpeed;
 		StopDistance = stopDistance;
 		MoveTarget = target;
 		path = Scene.NavMesh.CalculatePath( new() { Start = WorldPosition, Target = target } );
@@ -172,7 +172,7 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		else
 		{
 			var forward = ((Skulk)Npc).ViewRotation.Forward.WithZ( 0 ).Normal;
-			body.Velocity = AirVelocity( body.Velocity, wish.WithZ( 0 ).Normal, forward, RunSpeed, Time.Delta );
+			body.Velocity = AirVelocity( body.Velocity, wish.WithZ( 0 ).Normal, forward, ((Skulk)Npc).CurrentMoveSpeed, Time.Delta );
 		}
 		Npc.Animation.SetMove( body.Velocity );
 	}
@@ -212,10 +212,11 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			returningToFloor = detach = 1;
 	}
 
-	static Vector3 GroundVelocity( Vector3 velocity, Vector3 along, float speed, float groundedFor, float dt )
+	Vector3 GroundVelocity( Vector3 velocity, Vector3 along, float speed, float groundedFor, float dt )
 	{
 		float contact = 1 - MathF.Cos( Math.Clamp( groundedFor * 10, 0, 1 ) * MathF.PI / 2 );
-		float friction = velocity.Length * (0.055f + contact * (11 - 0.055f));
+		float airFriction = ((Skulk)Npc).AirFriction;
+		float friction = velocity.Length * (airFriction + contact * (11 - airFriction));
 		if ( along.IsNearlyZero() && velocity.Length < 4 * MapLoader.Scale )
 			friction = Math.Max( friction, 6 * MapLoader.Scale );
 		velocity -= velocity.Normal * Math.Min( velocity.Length, friction * dt );
@@ -223,11 +224,11 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 		return velocity + along * add;
 	}
 
-	static Vector3 AirVelocity( Vector3 current, Vector3 direction, Vector3 forward, float runSpeed, float dt )
+	Vector3 AirVelocity( Vector3 current, Vector3 direction, Vector3 forward, float runSpeed, float dt )
 	{
 		const float scale = MapLoader.Scale;
 		var flat = current.WithZ( 0 );
-		flat -= flat * Math.Min( 1, 0.055f * dt * flat.Length / Math.Max( 0.001f, current.Length ) );
+		flat -= flat * Math.Min( 1, ((Skulk)Npc).AirFriction * dt * flat.Length / Math.Max( 0.001f, current.Length ) );
 		float initial = flat.Length;
 
 		var left = Vector3.Cross( Vector3.Up, forward );
@@ -257,7 +258,8 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 	{
 		float boost = 0;
 		float vertical = 8.22f;
-		var view = ((Skulk)Npc).ViewRotation.Forward;
+		var npc = (Skulk)Npc;
+		var view = npc.ViewRotation.Forward;
 		if ( wallJump )
 		{
 			direction = view;
@@ -265,21 +267,20 @@ public sealed class SkulkMovement : MovementLayer, Component.ICollisionListener
 			if ( lastWallJump >= 0.4f )
 			{
 				vertical += 4.3f * view.z;
-				boost = Math.Max( 0.1f, 6.4f * (1 - Math.Clamp( planarSpeed / (11 * MapLoader.Scale), 0, 1 )) );
+				boost = Math.Max( 0.1f, 6.4f * (1 - Math.Clamp( planarSpeed / npc.WallJumpSpeed, 0, 1 )) );
 			}
 			lastWallJump = 0;
 		}
 		else if ( sinceLanding < 0.5f )
 		{
-			boost = Math.Max( 0.05f, 7 * (1 - Math.Clamp( planarSpeed / (8.5f * MapLoader.Scale), 0, 1 )) );
+			boost = Math.Max( 0.05f, 7 * (1 - Math.Clamp( planarSpeed / npc.BunnyHopSpeed, 0, 1 )) );
 			vertical += 2.15f * view.z;
 		}
 		if ( LastJump > 1.5f ) boost *= 0.5f;
 		var velocity = body.Velocity.WithZ( vertical * MapLoader.Scale ) + direction.WithZ( 0 ).Normal * (boost * MapLoader.Scale);
 		LastJump = 0;
 		Leap( velocity );
-		var npc = (Skulk)Npc;
-		float fraction = velocity.WithZ( 0 ).Length / (11 * MapLoader.Scale);
+		float fraction = velocity.WithZ( 0 ).Length / npc.WallJumpSpeed;
 		if ( fraction > 0.75f ) npc.PlayMovementSound( fraction > 0.95f ? "jump_best" : "jump_good" );
 		npc.PlayMovementSound( "jump" );
 	}

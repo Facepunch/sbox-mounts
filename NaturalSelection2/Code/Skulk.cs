@@ -79,6 +79,11 @@ public sealed partial class Skulk : AlienLifeform
 		}
 	}
 
+	internal float CurrentMoveSpeed => (Movement.RunSpeed + CeleritySpeedBonus * MapLoader.Scale) * (sneaking ? 0.5931035f : 1);
+	internal float AirFriction => 0.055f - 0.009f * CelerityLevel;
+	internal float WallJumpSpeed => (11 + 0.4f * CelerityLevel) * MapLoader.Scale;
+	internal float BunnyHopSpeed => (8.5f + 0.2f * CelerityLevel) * MapLoader.Scale;
+
 	protected override void OnUpdate()
 	{
 		if ( GameObject.IsDestroyed ) return;

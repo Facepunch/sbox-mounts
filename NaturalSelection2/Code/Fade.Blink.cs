@@ -19,10 +19,6 @@ public sealed partial class Fade
 	float blinkAmount;
 	bool wasBlinking;
 
-	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int CeleritySpurs { get; set; }
-	int CelerityLevel => Math.Clamp( CeleritySpurs, 0, 3 );
-	float CeleritySpeedBonus => CelerityLevel * 0.5f;
-
 	Vector3 BlinkLaunchVelocity( Vector3 velocity, Vector3 forward, bool grounded )
 	{
 		var planar = velocity.WithZ( 0 );

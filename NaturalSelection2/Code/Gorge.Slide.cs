@@ -13,10 +13,10 @@ public sealed partial class Gorge
 	static bool CanStartSlide( Vector3 velocity, Vector3 facing ) =>
 		velocity.WithZ( 0 ).Length < 3 * Scale || Vector3.Dot( velocity.WithZ( 0 ).Normal, facing ) >= 0.2f;
 
-	static Vector3 SlideVelocity( Vector3 velocity, Vector3 facing, Vector3 wish, bool starting, float dt )
+	Vector3 SlideVelocity( Vector3 velocity, Vector3 facing, Vector3 wish, bool starting, float dt )
 	{
 		var planar = velocity.WithZ( 0 );
-		if ( starting ) planar += facing * Math.Max( 0, 9.6f * Scale - Math.Max( 0, Vector3.Dot( facing, planar ) ) );
+		if ( starting ) planar += facing * Math.Max( 0, (9.6f + CeleritySpeedBonus) * Scale - Math.Max( 0, Vector3.Dot( facing, planar ) ) );
 		return ((planar + wish.WithZ( 0 ).Normal * (25 * Scale * dt)).Normal * planar.Length).WithZ( velocity.z );
 	}
 
@@ -48,6 +48,7 @@ public sealed partial class Gorge
 	{
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost ) return;
+		Movement.RunSpeed = Movement.WalkSpeed = (6 + CeleritySpeedBonus) * Scale;
 		var agent = GetComponent<NavMeshAgent>();
 		if ( Health <= 0 || firing || wantsSpray || PhysicsCarrier.IsValid() || !agent.IsValid() || !agent.Enabled || agent.IsTraversingLink ||
 			Movement.MoveTarget is not { } goal || IsAirborne )

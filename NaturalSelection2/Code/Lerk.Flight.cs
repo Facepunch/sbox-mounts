@@ -64,9 +64,10 @@ public sealed partial class Lerk
 	}
 
 	// Spark applies flap, air strafe, glide and crouch dive in that order. Velocities here are in metres per second.
-	static Vector3 FlightVelocity( Vector3 v, Rotation facing, Vector3 move, bool grounded, bool flap, bool glide,
+	Vector3 FlightVelocity( Vector3 v, Rotation facing, Vector3 move, bool grounded, bool flap, bool glide,
 		bool wasGliding, bool sneak, bool dive, float dt )
 	{
+		float maxSpeed = 13 + CeleritySpeedBonus;
 		if ( flap )
 		{
 			if ( grounded || move.IsNearlyZero() )
@@ -77,7 +78,7 @@ public sealed partial class Lerk
 			else
 			{
 				var input = move.WithY( move.y * 0.75f );
-				float cap = Math.Max( 13, Vector3.Dot( input, v ) );
+				float cap = Math.Max( maxSpeed, Vector3.Dot( input, v ) );
 				float force = 5;
 				if ( move.x != 1 && v.z < 0 ) v.z = v.z * 0.5f + 3.8f;
 				else if ( move.x == 1 && move.y == 0 ) force = 8.3f;
@@ -90,7 +91,7 @@ public sealed partial class Lerk
 		if ( glide )
 		{
 			var direction = (facing * move.WithY( move.y * 0.5f )).Normal;
-			float speed = Math.Min( 13, v.Length - (sneak ? 0 : v.Normal.z * 6 * dt) );
+			float speed = Math.Min( maxSpeed, v.Length - (sneak ? 0 : v.Normal.z * 6 * dt) );
 			if ( sneak ) speed -= Math.Clamp( v.Length - 4.5f, 0, 8.5f * dt );
 			if ( speed < 4.5f )
 			{
@@ -102,7 +103,7 @@ public sealed partial class Lerk
 		if ( dive && !grounded )
 		{
 			if ( v.z > 0 ) v.z -= v.z * 5 * dt;
-			else if ( v.z < -19.5f ) v.z -= v.z * 1.5f * dt;
+			else if ( v.z < -1.5f * maxSpeed ) v.z -= v.z * 1.5f * dt;
 		}
 		return v;
 	}
@@ -127,6 +128,7 @@ public sealed partial class Lerk
 	{
 		base.OnFixedUpdate();
 		if ( !Networking.IsHost ) return;
+		Movement.RunSpeed = Movement.WalkSpeed = (2.8f + CeleritySpeedBonus) * Scale;
 		var body = GetComponent<Rigidbody>();
 		if ( !body.IsValid() ) return;
 		if ( !flightLocations.IsValid() && checkLocations <= 0 )

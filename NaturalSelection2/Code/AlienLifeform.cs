@@ -69,6 +69,10 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable, C
 		return baseArmor + (int)(bonus * Math.Clamp( CarapaceShells, 0, 3 ) / 3);
 	}
 
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int CeleritySpurs { get; set; }
+	protected int CelerityLevel => Math.Clamp( CeleritySpurs, 0, 3 );
+	protected float CeleritySpeedBonus => CelerityLevel * 0.5f;
+
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int AdrenalineSpurs { get; set; }
 
 	protected float GetEnergyRechargeRate( float fullAdrenalineRate )

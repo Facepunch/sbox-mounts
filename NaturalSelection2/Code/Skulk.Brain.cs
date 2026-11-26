@@ -68,7 +68,7 @@ public sealed partial class Skulk
 	void Pursue( Vector3 point )
 	{
 		if ( repath > 0 ) return;
-		Movement.MoveTo( point, Reach * 0.6f, Movement.RunSpeed * (sneaking ? 0.5931035f : 1) );
+		Movement.MoveTo( point, Reach * 0.6f, CurrentMoveSpeed );
 		repath = 0.2f;
 	}
 

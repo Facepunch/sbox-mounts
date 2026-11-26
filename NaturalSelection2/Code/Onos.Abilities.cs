@@ -132,7 +132,7 @@ public sealed partial class Onos
 		energy = Math.Clamp( energy + Time.Delta * (recharge - (charging ? 20 : 0)), 0, 100 );
 		if ( charging && (energy <= 0 || sinceCharge > 1 && velocity.Length < 4.5f * Scale) ) EndCharge();
 		var speed = (RunSpeed + (charging ? Math.Min( 1, sinceCharge / 0.5f ) * (12.5f * Scale - RunSpeed) : 0)) * (Shielding ? 0.682f : 1);
-		Movement.RunSpeed = Movement.WalkSpeed = speed;
+		Movement.RunSpeed = Movement.WalkSpeed = speed + (Shielding ? 0 : CeleritySpeedBonus * Scale);
 		if ( rechargeShield <= 0 && ShieldHealth < 1000 ) ShieldHealth = Math.Min( 1000, ShieldHealth + 80 * Time.Delta );
 		Regenerate( underFire > 0 );
 		if ( stomping && sinceStomp > stompDuration + 0.15f ) wantsStomp = stomping = false;
