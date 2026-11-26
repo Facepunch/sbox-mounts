@@ -262,13 +262,14 @@ public sealed partial class RabbitGuard
 
 	void InheritPoseMotion( ModelPhysics target )
 	{
+		var velocity = Animation.IsValid() ? Animation.MoveVelocity : GetComponent<Rigidbody>()?.Velocity ?? Vector3.Zero;
 		foreach ( var part in target.Bodies )
 		{
 			var body = part.Component;
 			if ( !body.IsValid() ) continue;
 			if ( motionSamples < 2 || poseModel != target.Model || previousMotionPose is null || currentMotionPose is null )
 			{
-				body.Velocity = Animation.MoveVelocity;
+				body.Velocity = velocity;
 				body.AngularVelocity = Vector3.Zero;
 				continue;
 			}
