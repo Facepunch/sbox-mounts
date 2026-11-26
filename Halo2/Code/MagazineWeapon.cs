@@ -13,11 +13,14 @@ public sealed class MagazineWeapon : HandheldWeapon
 	double? emptyRoundAt;
 	double barrelIdleAt;
 	bool dryFiring;
+	bool triggerPressedDuringReload;
 
 	protected override bool CanCycleBarrel => BurstLength <= 1 && base.CanCycleBarrel;
+	protected override bool WantsPrimaryAttack() => !IsReloading && (triggerPressedDuringReload || base.WantsPrimaryAttack());
 
 	public override void PrimaryAttack()
 	{
+		triggerPressedDuringReload = false;
 		double roundAt = RecordRound();
 		emptyRoundAt = null;
 		if ( PrimaryAutomatic && BurstLength <= 1 && !HasIdleMagazineBarrel && IsHeld && Clip1 == 1 )
@@ -76,7 +79,10 @@ public sealed class MagazineWeapon : HandheldWeapon
 
 	protected override void OnControl()
 	{
-		if ( emptyRoundAt is double shot && !Input.Down( "attack1" ) )
+		bool held = Input.Down( "attack1" );
+		if ( !held ) triggerPressedDuringReload = false;
+		else if ( !PrimaryAutomatic && IsReloading && Input.Pressed( "attack1" ) ) triggerPressedDuringReload = true;
+		if ( emptyRoundAt is double shot && !held )
 		{
 			double elapsedTicks = System.Math.Max( 1, System.Math.Floor( (Time.NowDouble - shot) * 30 ) );
 			barrelIdleAt = System.Math.Min( barrelIdleAt, shot + elapsedTicks / 30 + RecoveryDelay );
@@ -148,6 +154,7 @@ public sealed class MagazineWeapon : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
+		triggerPressedDuringReload = false;
 		remainingShots = 0;
 		emptyRoundAt = null;
 		burstAttacker = null;
