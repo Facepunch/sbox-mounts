@@ -4,7 +4,7 @@ namespace Source1;
 
 internal sealed partial class TextureLoader
 {
-	private static (ImageFormat Format, byte[] Pixels, int MipCount) ReadTextureData( VtfFile vtf, int? frame )
+	private static (ImageFormat Format, byte[] Pixels, int MipCount) ReadTextureData( VtfFile vtf, int? frame, bool linear )
 	{
 		var width = vtf.Header.Width;
 		var height = vtf.Header.Height;
@@ -19,11 +19,17 @@ internal sealed partial class TextureLoader
 			or VtfFormat.DXT3 or VtfFormat.DXT5;
 		// FindOrCreateTexture2 incorrectly adds render-target flags to multi-mip cubes.
 		// DXT cannot be a render target; decoding also preserves sub-4x4 authored mips.
-		var decompress = isCube && mipCount > 1 && compressed;
+		var decompress = compressed && (linear || (isCube && mipCount > 1));
 		if ( decompress )
 		{
 			format = ImageFormat.RGBA8888;
 			needsConversion = true;
+		}
+
+		if ( linear )
+		{
+			if ( format == ImageFormat.RGBA8888 ) format = ImageFormat.RGBA8888_LINEAR;
+			if ( format == ImageFormat.BGRA8888 ) format = ImageFormat.BGRA8888_LINEAR;
 		}
 
 		var faceCount = isCube ? 6 : 1;

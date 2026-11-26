@@ -12,6 +12,7 @@ internal sealed class SourceTexture : IDisposable
 	private bool disposed;
 	private VtfSheet sheet;
 	private bool sheetLoaded;
+	private Texture linearSprite;
 
 	internal VtfSheet Sheet
 	{
@@ -58,6 +59,15 @@ internal sealed class SourceTexture : IDisposable
 		return Texture.Load( frame == 0 ? texturePath : TextureLoader.FramePath( texturePath[..^5], frame ), false );
 	}
 
+	internal Texture GetLinearSprite()
+	{
+		lock ( frameLock )
+		{
+			ObjectDisposedException.ThrowIf( disposed, this );
+			return linearSprite ??= TextureLoader.CreateTexture( ReadTexture( 0 ), texturePath + ".linear", 0, Sheet, linear: true );
+		}
+	}
+
 	public Texture GetAnimationFrames()
 	{
 		ObjectDisposedException.ThrowIf( disposed, this );
@@ -102,6 +112,7 @@ internal sealed class SourceTexture : IDisposable
 		{
 			disposed = true;
 			decodedFrames.Clear();
+			linearSprite = null;
 		}
 	}
 }

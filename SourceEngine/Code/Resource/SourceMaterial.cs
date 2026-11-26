@@ -48,6 +48,7 @@ internal sealed class SourceMaterial : IDisposable
 	}
 
 	private VmtParameters EffectParameters => effectParameters ??= new VmtParameters( VmtFile.SelectParameters( Source ), ContentRoot );
+	internal bool SamplesLinear => EffectParameters.Boolean( "$nosrgb", Source.ShaderName.Equals( "Sprite", StringComparison.OrdinalIgnoreCase ) );
 	internal string BaseTexturePath => EffectParameters.String( "$basetexture" );
 
 	internal Material GetBeamMaterial( Texture texture )
@@ -60,7 +61,7 @@ internal sealed class SourceMaterial : IDisposable
 			beamMaterial = Material.Create( "Source beam", "shaders/source1/beam.shader" );
 			if ( beamMaterial is not { IsValid: true, IsError: false } ) return null;
 			beamMaterial.Set( "g_tColor", texture );
-			beamMaterial.Set( "g_bSourceSrgb", !parameters.Boolean( "$nosrgb", Source.ShaderName.Equals( "Sprite", StringComparison.OrdinalIgnoreCase ) ) );
+			beamMaterial.Set( "g_bSourceSrgb", !SamplesLinear );
 			beamMaterial.SetFeature( "F_SOURCE_IGNORE_Z", parameters.Boolean( "$ignorez" ) ? 1 : 0 );
 			return beamMaterial;
 		}

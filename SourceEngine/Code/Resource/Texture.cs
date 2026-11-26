@@ -20,7 +20,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		return texture;
 	}
 
-	internal static Texture CreateTexture( VtfFile vtf, string filename, int? frame, VtfSheet sheet = null )
+	internal static Texture CreateTexture( VtfFile vtf, string filename, int? frame, VtfSheet sheet = null, bool linear = false )
 	{
 		var width = vtf.Header.Width;
 		var height = vtf.Header.Height;
@@ -41,7 +41,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 		if ( isCube && width != height )
 			throw new InvalidDataException( $"VTF cubemap faces must be square: {filename}" );
 
-		var (format, data, mipCount) = ReadTextureData( vtf, frame );
+		var (format, data, mipCount) = ReadTextureData( vtf, frame, linear );
 		if ( format == ImageFormat.None )
 		{
 			Log.Trace( $"Unsupported texture format {srcFormat} for {filename}" );

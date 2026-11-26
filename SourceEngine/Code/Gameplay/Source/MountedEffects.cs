@@ -35,9 +35,9 @@ static class MountedEffects
 	}
 
 	/// <summary>The texture behind a Source sprite material, such as sprites/redglow1.</summary>
-	public static Texture SpriteTexture( string name, string mountName ) => SpriteTexture( name, mountName, out _ );
+	public static Texture SpriteTexture( string name, string mountName ) => SpriteTexture( name, mountName, out _, forSprite: true );
 
-	static Texture SpriteTexture( string name, string mountName, out SourceMaterial material )
+	static Texture SpriteTexture( string name, string mountName, out SourceMaterial material, bool forSprite = false )
 	{
 		var mount = Sandbox.Mounting.Directory.Get( mountName );
 		material = mount is SourceGameMount source && mount.GetByPath( $"mount://{mountName}/materials/{name}.vmt.vmat" ) is not null
@@ -45,7 +45,10 @@ static class MountedEffects
 		var texture = material is null ? name : material.BaseTexturePath;
 		if ( string.IsNullOrWhiteSpace( texture ) ) return null;
 		var path = $"mount://{mountName}/{VmtFile.NormalizePath( texture, ".vtf" )}.vtex";
-		return mount?.GetByPath( path ) is not null ? Texture.Load( path ) : null;
+		if ( mount?.GetByPath( path ) is null ) return null;
+		if ( forSprite && material?.SamplesLinear == true )
+			return ((SourceGameMount)mount).GetSourceTexture( texture, material.ContentRoot ).GetLinearSprite();
+		return Texture.Load( path );
 	}
 
 	/// <summary>
