@@ -157,12 +157,12 @@ internal sealed class RabbitRetarget
 				result[i] = pose[i].WithPosition( (pose[i].Position + hipOffset) * (legRatio * scale) );
 				continue;
 			}
-			// Native Retarget only fills in bind rotations after the first added bone.
+			// Retarget overwrites these rotations even when the clip contains more bones than its source rig.
 			Rotation rotation;
-			if ( i < pose.Length && parent < pose.Length )
-				rotation = pose[parent].Rotation.Inverse * pose[i].Rotation;
-			else if ( i > sourceBind.Length )
+			if ( i > sourceBind.Length )
 				rotation = (parent < sourceBind.Length ? sourceBind[parent] : target.BindPose[parent]).Rotation.Inverse * target.BindPose[i].Rotation;
+			else if ( i < pose.Length && parent < pose.Length )
+				rotation = pose[parent].Rotation.Inverse * pose[i].Rotation;
 			else
 				rotation = Rotation.Identity;
 

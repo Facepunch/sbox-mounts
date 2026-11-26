@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard
 	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
+	float CaptureActionTime => (float)SinceGrab - CaptureLead + 1f / 120f;
 	int holdTick;
 	bool pendingGrabImpact;
 	int nextCaptureTick, cutStartTick;
@@ -95,8 +96,9 @@ public sealed partial class RabbitGuard
 		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
 		fadingCapture = pose is ArmedGrab or ArmedGrabbed ? pose : null;
-		if ( fadingCapture is not null )
+		if ( fadingCapture is not null || RatHoldBlend( pose ) )
 		{
+			Renderer.Animation.Parameters.Set( "capture_return_weight", 0f );
 			Renderer.Animation.Parameters.Set( "capture_phase", 0f );
 			Renderer.Animation.Parameters.Set( "capture_weight", 0f );
 			Renderer.Animation.Parameters.Set( "capture_stance_phase", 0f );
@@ -114,7 +116,9 @@ public sealed partial class RabbitGuard
 	}
 
 	internal static string CaptureMovementStance( string pose ) => pose == ArmedGrab ? ArmedHold : ArmedHeld;
-	string GraphStance( string pose ) => Stance is ArmedGrab or ArmedGrabbed && pose == CaptureMovementStance( Stance ) ? Stance : pose;
+	bool RatHoldBlend( string pose ) => UnarmedHoldStance is RearHoldRat or RatHeldByRabbit && pose is RearHold or RearHeld or RearHoldRat or RatHeldByRabbit;
+	string GraphStance( string pose ) => RatHoldBlend( pose ) ? UnarmedHoldStance
+		: Stance is ArmedGrab or ArmedGrabbed && pose == CaptureMovementStance( Stance ) ? Stance : pose;
 
 	string CaptureEntryPose( string pose )
 	{
@@ -126,7 +130,12 @@ public sealed partial class RabbitGuard
 	void UpdateGrabReader( string pose )
 	{
 		if ( Stance is ArmedGrab or ArmedGrabbed ) fadingCapture = Stance;
-		float capturePhase = fadingCapture is null ? 0f : UpdateCaptureBlend();
+		float capturePhase = 0f;
+		if ( fadingCapture is not null )
+		{
+			capturePhase = UpdateCaptureBlend( fadingCapture, CaptureMovementStance( fadingCapture ), fadingCapture == ArmedGrab );
+			if ( !FadingGrab && Stance != fadingCapture && capturePhase >= 1f && CaptureActionTime >= 0.2f ) fadingCapture = null;
+		}
 		if ( IsGrabClip( pose ) ) grabReader = pose;
 		else if ( !FadingGrab ) grabReader = null;
 		if ( grabReader is null ) return;
@@ -144,20 +153,27 @@ public sealed partial class RabbitGuard
 
 		grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
 		Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
+		if ( RatHoldBlend( grabReader ) )
+		{
+			bool attacker = UnarmedHoldStance == RearHoldRat;
+			UpdateCaptureBlend( attacker ? RearHold : RearHeld, UnarmedHoldStance, attacker );
+			// A release during the attack leaves that reader fading into idle.
+			float returnAge = grabReader == UnarmedHoldStance ? (float)SinceGrab + 1f / 120f - (attacker ? 8 : 9) * HoldStep : 0f;
+			Renderer.Animation.Parameters.Set( "capture_return_weight", Math.Clamp( returnAge * 5f, 0f, 1f ) );
+		}
 	}
 
-	float UpdateCaptureBlend()
+	float UpdateCaptureBlend( string action, string entry, bool attacker )
 	{
-		bool attacker = fadingCapture == ArmedGrab;
-		float age = (float)SinceGrab - CaptureLead + 1f / 120f;
+		float age = CaptureActionTime;
 		float stanceAge = Math.Max( 0f, age + (attacker ? CaptureLead : 1f / 120f) );
-		var stance = GrabPose( CaptureMovementStance( fadingCapture ) );
-		float phase = Math.Clamp( age * GrabPose( fadingCapture ).Frequency * (attacker ? AttackSpeed : 1f), 0f, 1f );
+		var stance = GrabPose( entry );
+		float phase = Math.Clamp( age * GrabPose( action ).Frequency * (attacker ? AttackSpeed : 1f), 0f, 1f );
+		float entryPhase = stanceAge * stance.Frequency;
 		var parameters = Renderer.Animation.Parameters;
 		parameters.Set( "capture_phase", phase );
-		parameters.Set( "capture_stance_phase", Math.Min( 1f, stanceAge * stance.Frequency ) );
+		parameters.Set( "capture_stance_phase", entry is RearHoldRat or RatHeldByRabbit && stance.Events.Looping ? entryPhase % 1f : Math.Min( 1f, entryPhase ) );
 		parameters.Set( "capture_weight", Math.Clamp( age * (attacker ? 20f : 5f), 0f, 1f ) );
-		if ( !FadingGrab && Stance != fadingCapture && phase >= 1f && age >= 0.2f ) fadingCapture = null;
 		return phase;
 	}
 

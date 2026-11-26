@@ -114,6 +114,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var capturePhase = graph.FloatParameter( "capture_phase" );
 		var captureStancePhase = graph.FloatParameter( "capture_stance_phase" );
 		var captureWeight = graph.FloatParameter( "capture_weight" );
+		var captureReturnWeight = graph.FloatParameter( "capture_return_weight" );
 		var grabStances = new Dictionary<string, RabbitAttack.Pose[]>();
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase", "leg_support", "hang_active" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
@@ -334,6 +335,13 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
 					return machine.AddState( ArmedStance( name, grabPhase ) );
 				var grip = clips[name] = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true, RabbitClip.PoseData.ActionIK );
+				if ( name is RabbitGuard.RearHoldRat or RabbitGuard.RatHeldByRabbit )
+				{
+					// FadeCollection blends the returning stance with the reaction before applying the outgoing entry pose.
+					var action = clips[name == RabbitGuard.RearHoldRat ? RabbitGuard.RearHold : RabbitGuard.RearHeld];
+					var returning = graph.Blend( CombatPose( action, capturePhase ), CombatPose( grip, grabPhase ), captureReturnWeight );
+					return machine.AddState( graph.Blend( CombatPose( grip, captureStancePhase ), returning, captureWeight ) );
+				}
 				if ( name is RabbitGuard.ArmedGrab or RabbitGuard.ArmedGrabbed )
 				{
 					// FadeCollection mixes the newest reader first, then applies the outgoing idle.
@@ -372,11 +380,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 				bool waking = previous == patrolState && RabbitGuard.IsGetUp( target );
 				machine.AddTransition( previous, states[i], condition, new GraphBuilder.TransitionSettings
 				{
-					Duration = waking || names[j] == RabbitGuard.RearHoldRat && target == RabbitGuard.RearHold ? 0.05f : landing ? 0.1f : duration,
-					// Capture can return to a struggle or idle reader while its previous instance is still fading out.
+					Duration = waking ? 0.05f : landing ? 0.1f : duration,
+					// UnTether blends back to the idle reader even while that pose is still fading out.
 					CanBeForced = RabbitGuard.IsGrabClip( names[j] ) && idlePoses.ContainsKey( target )
-						|| names[j] == RabbitGuard.RearHold && target == RabbitGuard.RearHoldRat
-						|| names[j] == RabbitGuard.RearHeld && target == RabbitGuard.RatHeldByRabbit
 				} );
 			}
 		}
