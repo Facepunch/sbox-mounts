@@ -118,6 +118,7 @@ internal abstract partial class WeaponLoader
 				@"effects\generic\solids\rocks" => (RocksName, ImpactLayer.Rocks),
 				@"effects\generic\solids\glass_breakable" => (GlassName, ImpactLayer.GlassShards),
 				@"effects\generic\solids\metal_chips" => (MetalChipsName, ImpactLayer.MetalChips),
+				@"effects\generic\smoke\drifting_smoke" or @"effects\generic\smoke\drifting_blacksmoke" => (null, ImpactLayer.Smoke),
 				@"effects\generic\smoke\smoke_soft_small_lit" => (ImpactSmokeName, ImpactLayer.Smoke),
 				@"effects\generic\solids\impact_spray" => (SprayName, ImpactLayer.Spray),
 				@"effects\generic\solids\impact_spray_unlit" => (UnlitSprayName, ImpactLayer.Spray),
@@ -131,6 +132,7 @@ internal abstract partial class WeaponLoader
 				_ => (null, (ImpactLayer?)null)
 			};
 			if ( style.Layer is not {} layer ) continue;
+			bool driftingSmoke = layer == ImpactLayer.Smoke && style.TextureName is null;
 			string texturePath;
 			if ( style.TextureName is {} name ) texturePath = $"mount://{Halo2Mount.MountIdent}/{PrefabPath}/{name}";
 			else
@@ -147,7 +149,7 @@ internal abstract partial class WeaponLoader
 			int sequence = Short( definition + 8 );
 			if ( layer == ImpactLayer.Sparks ) origin = new Vector2( 1 - 48f / 56f, (sequence == 1 ? 5 : 4) / 9f );
 			var geometry = new Vector2( Float( definition + 164 ), Float( definition + 168 ) );
-			if ( HasSpriteRadius( layer ) || layer == ImpactLayer.AdditiveFlare )
+			if ( driftingSmoke || HasSpriteRadius( layer ) || layer == ImpactLayer.AdditiveFlare )
 				origin = new Vector2( 1 + Float( definition + 156 ) / geometry.x, -Float( definition + 160 ) / geometry.y );
 			// Both frames of a burst share their footprint and pivot. The fourth random input blends the UVs.
 			if ( layer == ImpactLayer.Burst )
@@ -202,7 +204,8 @@ internal abstract partial class WeaponLoader
 				Shape = map.ReadInt32( emitter + 120 ), SpawnRadius = Bounds( emitter + 124 ) * 120, Alpha = Bounds( emitter + 104 ),
 				CollidesWithWater = movement is not null && (map.ReadInt32( Address( movement ) + 8 ) & 4) != 0,
 				DiesInWater = (particleFlags & 0x800) != 0, DiesOnStructure = (particleFlags & 0x400) != 0,
-				AlphaScale = layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
+				ParticleRadius = driftingSmoke ? ReadRange( definition + 60, 1 ) : null,
+				AlphaScale = driftingSmoke || layer == ImpactLayer.AdditiveSprite ? ReadRange( definition + 44, 1 ) : null,
 				AgeTint = Short( emitter + 88 ) == 0 && (map.ReadSpan( color + 1, 1 )[0] >> 4) == 2 && map.ReadSpan( color, 1 )[0] == 5
 					? ReadRange( emitter + 88, 1, fraction: true ) : null,
 				ColorRange = Short( emitter + 90 ),

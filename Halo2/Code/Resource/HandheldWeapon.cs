@@ -48,8 +48,22 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	internal void RegisterEffects( MountContext context, HashSet<string> registered )
+	Dictionary<string, TagEntry> contactEffects, contactSounds;
+
+	void LoadContactBanks( Dictionary<string, string> materialParents )
 	{
+		if ( Name != "scarab_main_gun_handheld" ) return;
+		int materials = Address( map.Tags.First( t => t.PrimaryClass == "gtam" ) ) + 0x150;
+		var projectile = Reference( PrimaryBarrel + 0x8c );
+		contactEffects = ReadMaterialBank( materials, projectile, 0x54, 15, 16, materialParents );
+		contactSounds = ReadMaterialBank( materials, projectile, 0x54, 15, 8, materialParents );
+	}
+
+	internal void RegisterEffects( MountContext context, HashSet<string> registered, Dictionary<string, string> materialParents )
+	{
+		LoadContactBanks( materialParents );
+		if ( contactEffects is not null )
+			foreach ( var effect in contactEffects.Values.Distinct() ) Register( context, effect );
 		Register( context, DetonationEffect );
 		if ( HasProjectileEffects ) RegisterProjectileEffects( context, registered );
 		if ( Name == "needler" ) Register( context, Reference( Address( Reference( PrimaryBarrel + 0x8c ) ) + 0x110 ) );
@@ -226,6 +240,11 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 			else gun.DetonationEffectPath = path;
 		}
 		if ( HasProjectileEffects ) gun.ProjectileVolume = ProjectileEffectPath( Reference( barrel + 0x8c ) );
+		if ( contactEffects is not null )
+		{
+			gun.ProjectileContactEffects = contactEffects.ToDictionary( e => e.Key, e => e.Value is {} tag ? Host.AssetPath( map, tag.TagPath, "prefab" ) : null );
+			gun.ProjectileContactSounds = contactSounds.ToDictionary( e => e.Key, e => e.Value is {} tag ? Host.AssetPath( map, tag.TagPath, "sound" ) : null );
+		}
 		gun.Trail = ReadTrail( projectile );
 		int flags = map.ReadInt32( projectile + 0xbc );
 		gun.Orientation = ReadOrientation( flags );

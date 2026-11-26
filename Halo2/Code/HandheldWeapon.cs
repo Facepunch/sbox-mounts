@@ -124,6 +124,26 @@ public abstract class HandheldWeapon : Weapon
 			PlayFiringSound( part.Sound, part.Marker );
 	}
 
+	[Property] public Dictionary<string, string> ProjectileContactEffects { get; set; }
+	[Property] public Dictionary<string, string> ProjectileContactSounds { get; set; }
+
+	protected override void OnShootImpact( in ShotEffect shot )
+	{
+		if ( ProjectileContactEffects is null )
+		{
+			base.OnShootImpact( shot );
+			return;
+		}
+		if ( !shot.Hit ) return;
+		if ( ProjectileContactSounds is not null && ContactMaterial.Lookup( ProjectileContactSounds, shot.Surface, true ) is {} cue &&
+			GameResource.Load<SoundEvent>( cue ) is {} sound )
+			Sound.Play( sound, shot.HitPosition );
+		var path = ContactMaterial.Lookup( ProjectileContactEffects, shot.Surface, true );
+		if ( path is not null )
+			PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
+				shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+	}
+
 	protected override void OnShootEffects( ShotEffect shot )
 	{
 		base.OnShootEffects( shot );

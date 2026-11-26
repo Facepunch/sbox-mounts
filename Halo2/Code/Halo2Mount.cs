@@ -90,6 +90,7 @@ public class Halo2Mount : BaseGameMount
 		} );
 
 		MeleeMaterialSounds.Clear();
+		var materialParents = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var weaponRigs = new HashSet<string>( StringComparer.Ordinal );
 		var handhelds = new Dictionary<string, HandheldWeaponLoader>( StringComparer.Ordinal );
 		foreach ( var map in maps )
@@ -97,7 +98,7 @@ public class Halo2Mount : BaseGameMount
 			if ( map is null ) continue;
 			try
 			{
-				RegisterMapTags( context, map, weaponRigs, handhelds );
+				RegisterMapTags( context, map, weaponRigs, handhelds, materialParents );
 			}
 			catch ( Exception ex )
 			{
@@ -109,7 +110,7 @@ public class Halo2Mount : BaseGameMount
 		foreach ( var (name, item) in handhelds )
 		{
 			item.Tags.Add( "weapon" );
-			item.RegisterEffects( context, registeredEffects );
+			item.RegisterEffects( context, registeredEffects, materialParents );
 			if ( item.UsesMagazine )
 				context.Add( ResourceType.GameResource, item.AmmoPath, new WeaponAmmoLoader( $"{item.Title} rounds", item.MaxReserve ) );
 			context.Add( ResourceType.PrefabFile, $"weapons/{name}.prefab", item );
@@ -118,7 +119,7 @@ public class Halo2Mount : BaseGameMount
 		return Task.CompletedTask;
 	}
 
-	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> weaponRigs, Dictionary<string, HandheldWeaponLoader> handhelds )
+	void RegisterMapTags( MountContext context, MapFile mapFile, HashSet<string> weaponRigs, Dictionary<string, HandheldWeaponLoader> handhelds, Dictionary<string, string> materialParents )
 	{
 		var mapName = mapFile.Header.MapName;
 		var audioTag = mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "!hgu" && t.DataSize >= 104 );
@@ -133,7 +134,9 @@ public class Halo2Mount : BaseGameMount
 			for ( int i = 0; i < materialNames.Length; i++, row += 0xb4 )
 			{
 				var name = materialNames[i] = mapFile.ResolveStringId( mapFile.ReadInt32( row ) );
-				if ( string.IsNullOrWhiteSpace( name ) || MeleeMaterialSounds.ContainsKey( name ) ) continue;
+				if ( string.IsNullOrWhiteSpace( name ) ) continue;
+				materialParents.TryAdd( name, mapFile.ResolveStringId( mapFile.ReadInt32( row + 4 ) ) );
+				if ( MeleeMaterialSounds.ContainsKey( name ) ) continue;
 				var sound = mapFile.GetTag( mapFile.ReadInt32( row + 0x64 ) & 0xffff );
 				MeleeMaterialSounds[name] = sound?.PrimaryClass == "!dns" ? AssetPath( mapFile, sound.TagPath, "sound" ) : null;
 				context.Add( ResourceType.GameResource, $"surfaces/{name}.surface", new SurfaceLoader( mapFile, row ) );

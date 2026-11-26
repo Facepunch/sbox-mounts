@@ -7,7 +7,7 @@ namespace Halo2;
 
 internal abstract partial class WeaponLoader
 {
-	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset )
+	protected Dictionary<string, TagEntry> ReadMaterialBank( int materials, TagEntry source, int referenceOffset, int action, int bankOffset, Dictionary<string, string> materialParents = null )
 	{
 		var result = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
 		if ( source is null || Reference( Address( source ) + referenceOffset ) is not { PrimaryClass: "toof" } foot ) return result;
@@ -17,21 +17,37 @@ internal abstract partial class WeaponLoader
 		int entries = map.ReadInt32( bank );
 		if ( entries == 0 ) return result;
 		int count = map.ReadInt32( materials ), rows = Block( materials );
-		var contacts = new Dictionary<int, TagEntry>();
-		int entry = Block( bank );
-		for ( int i = 0; i < entries; i++, entry += 24 ) contacts[Short( entry + 20 )] = Reference( entry );
-		for ( int i = 0; i < count; i++ )
+		bool useAuthoredNames = materialParents is not null;
+		if ( materialParents is null )
 		{
-			if ( map.ResolveStringId( map.ReadInt32( rows + i * 0xb4 ) ) is not {} name ) continue;
-			int index = i;
-			for ( int depth = 0; (uint)index < count && depth < count; depth++ )
+			materialParents = new( StringComparer.OrdinalIgnoreCase );
+			for ( int i = 0; i < count; i++ )
 			{
-				if ( contacts.TryGetValue( index, out var sound ) )
+				int row = rows + i * 0xb4, parent = Short( row + 8 );
+				if ( map.ResolveStringId( map.ReadInt32( row ) ) is { Length: > 0 } name )
+					materialParents[name] = (uint)parent < count ? map.ResolveStringId( map.ReadInt32( rows + parent * 0xb4 ) ) : null;
+			}
+		}
+		var contacts = new Dictionary<string, TagEntry>( StringComparer.OrdinalIgnoreCase );
+		for ( int i = 0, entry = Block( bank ); i < entries; i++, entry += 24 )
+		{
+			// Cutscene maps retain authored names for materials that have no local index.
+			int index = Short( entry + 20 );
+			int field = (uint)index < count ? rows + index * 0xb4 : useAuthoredNames ? entry + 16 : -1;
+			if ( field >= 0 && map.ResolveStringId( map.ReadInt32( field ) ) is { Length: > 0 } name )
+				contacts[name] = Reference( entry );
+		}
+		foreach ( var material in materialParents.Keys )
+		{
+			string name = material;
+			for ( int depth = 0; !string.IsNullOrEmpty( name ) && depth < materialParents.Count; depth++ )
+			{
+				if ( contacts.TryGetValue( name, out var tag ) )
 				{
-					result[name] = sound;
+					result[material] = tag;
 					break;
 				}
-				index = Short( rows + index * 0xb4 + 8 );
+				if ( !materialParents.TryGetValue( name, out name ) ) break;
 			}
 		}
 		return result;

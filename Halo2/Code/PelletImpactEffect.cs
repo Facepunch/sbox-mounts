@@ -131,6 +131,7 @@ public sealed partial class PelletImpactEffect : Component
 			if ( entry.Emitters is { Length: > 0 } emitters && duration > 0 )
 			{
 				var random = InitializeImpactSystems( emitters.Length );
+				var layers = new ParticleEffect[emitters.Length];
 				int tick = (int)System.MathF.Floor( elapsed * 30 + 0.00001f ) + 1;
 				float previous = 0;
 				while ( previous < duration )
@@ -140,7 +141,7 @@ public sealed partial class PelletImpactEffect : Component
 					if ( !parent.IsValid() ) return;
 					float active = boundary + 0.000001f >= end ? duration : boundary - elapsed;
 					using ( parent.Scene.Push() )
-						EmitImpactParticles( emitters, random, previous, active, parent, parent.WorldTransform.ToWorld( local ), incoming );
+						EmitImpactParticles( emitters, random, layers, previous, active, parent, parent.WorldTransform.ToWorld( local ), incoming );
 					previous = active;
 				}
 			}
