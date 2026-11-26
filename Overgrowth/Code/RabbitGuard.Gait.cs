@@ -103,7 +103,7 @@ public sealed partial class RabbitGuard
 	{
 		if ( !Networking.IsHost || clip.Steps.Count == 0 ) return;
 		// AnimationReader activates the nearest authored clip's events in [start, end), including wraps.
-		for ( int cycle = 0; cycle < end; cycle++ )
+		for ( int cycle = 0; cycle < end && (cycle == 0 || clip.Looping); cycle++ )
 		{
 			foreach ( var step in clip.Steps )
 			{

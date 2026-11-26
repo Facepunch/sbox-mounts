@@ -272,8 +272,9 @@ public sealed partial class RabbitGuard
 		if ( LedgeAnimation == LedgeHang ) return true;
 		var clip = boundAnimations.Clips[LedgeAnimation].ForSide( LedgeMirrored );
 		float previousPhase = LedgePhase;
-		LedgePhase = Math.Min( 1f, LedgePhase + Time.Delta / clip.Duration );
-		PlayCycleSteps( clip, previousPhase, LedgePhase );
+		float nextPhase = previousPhase + Time.Delta / clip.Duration;
+		PlayCycleSteps( clip, previousPhase, nextPhase );
+		LedgePhase = Math.Min( 1f, nextPhase );
 		if ( LedgeAnimation == ClimbUp )
 		{
 			float time = LedgePhase * clip.Duration;
