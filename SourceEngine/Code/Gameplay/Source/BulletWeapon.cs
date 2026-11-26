@@ -85,6 +85,7 @@ public sealed class BulletWeapon : Weapon
 	/// <summary>Maximum primary-fire kick in degrees and seconds of held fire to reach it.</summary>
 	[Property, Group( "Recoil" )] public Vector2 MachineGunKick { get; set; }
 	float _fireDuration;
+	TimeUntil _reloadInputDelay;
 	TimeUntil? _tapReady;
 
 	[Property] public SecondaryFires Secondary { get; set; }
@@ -167,7 +168,7 @@ public sealed class BulletWeapon : Weapon
 	protected override void Think()
 	{
 		base.Think();
-		if ( !Input.Down( "attack1" ) || IsReloading )
+		if ( !Input.Down( "attack1" ) || (IsReloading && (!CanLaunchDuringReload || _reloadInputDelay > 0)) )
 			_fireDuration = 0;
 		else
 			// The first attack command contributes one movement tick, regardless of the render frame before it.
@@ -261,6 +262,8 @@ public sealed class BulletWeapon : Weapon
 
 	protected override void OnReloadStarted()
 	{
+		// An interruptible reload preserves the launcher's existing attack deadline.
+		_reloadInputDelay = NextSecondaryFire;
 		_fireDuration = 0;
 		_holdingEmptyTrigger = false;
 		_accuracyPenalty = 0;
