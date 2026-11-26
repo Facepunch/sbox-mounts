@@ -5,7 +5,7 @@ using System;
 namespace NS2;
 
 [Title( "Drifter" ), Category( "Natural Selection 2" )]
-public sealed class Drifter : BaseNpc, Component.IDamageable
+public sealed partial class Drifter : BaseNpc, Component.IDamageable
 {
 	const float Scale = MapLoader.Scale;
 	internal const string ConstructSound = "alien/drifter/drift";
@@ -125,6 +125,8 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 	{
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
+		if ( Networking.IsHost ) UpdateCamouflage( Time.Delta );
+		if ( !Application.IsDedicatedServer ) UpdateCloakMaterial();
 		if ( Health > 0 ) pain?.UpdateSound( flinchEnd );
 		if ( !Application.IsDedicatedServer )
 		{
@@ -173,6 +175,7 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 
 	protected override void OnDisabled()
 	{
+		ClearCloakMaterial();
 		StopLoop();
 		base.OnDisabled();
 	}
@@ -181,7 +184,13 @@ public sealed class Drifter : BaseNpc, Component.IDamageable
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit )
 	{
+		float previous = armor;
 		(armor, flinchEnd) = SupportDamage.Apply( hit, this, armor, MaxHealth, flinchEnd );
+		if ( hit.AcceptedDamage > 0 || armor < previous )
+		{
+			Reveal();
+			inCombat = 3;
+		}
 	}
 
 	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) : NpcCorpse.Animate( Renderer, graph, age );
