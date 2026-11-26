@@ -243,9 +243,10 @@ public abstract class Projectile : Component
 	{
 		var prefab = MountContent.Prefab( MountName, "explosion" );
 		var effect = prefab is null ? null : GameObject.GetPrefab( prefab.ResourcePath )?.GetComponent<MountedEffect>();
+		var depth = SourceWaterMap.ExplosionDepth( Scene, WorldPosition ) ?? -1;
 		// A game can ship the projectile without the newer PCF explosion. Use
 		// the engine's ordinary blast in that case, rather than an invisible impact.
-		if ( !string.IsNullOrWhiteSpace( effect?.Particle ) && !MountedEffects.Exists( effect.Particle, MountName ) ) prefab = null;
+		if ( depth < 0 && !string.IsNullOrWhiteSpace( effect?.Particle ) && !MountedEffects.Exists( effect.Particle, MountName ) ) prefab = null;
 		var blast = new Explosion
 		{
 			Source = GameObject,
@@ -255,20 +256,21 @@ public abstract class Projectile : Component
 			Damage = Damage,
 			ForceScale = 1.5f,
 			Prefab = prefab
-		}.Spawn( playPrefabSound );
-		// Projectile impacts play the explosion effect sound at the blast origin.
-		if ( prefab is not null && blast.IsValid() ) ExplosionSound( WorldPosition, MountName, SourceWaterMap.ExplosionDepth( Scene, WorldPosition ) ?? -1 );
+		}.Spawn( playPrefabSound, playPrefabParticle: depth < 0 );
+
+		if ( prefab is not null && blast.IsValid() ) ExplosionEffects( WorldPosition, MountName, depth );
 		GameObject.Destroy();
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ExplosionSound( Vector3 position, string mountName, float depth )
+	static void ExplosionEffects( Vector3 position, string mountName, float depth )
 	{
 		var name = "BaseExplosionEffect.Sound";
 		if ( depth >= 0 )
 		{
 			// Beyond the 512-unit surface trace, Source places the splash at the blast itself.
 			var surface = depth <= 512 ? position + Vector3.Up * depth : position;
+			if ( !Application.IsDedicatedServer ) Hl2.FlatQuad.ExplosionRipple( surface, mountName );
 			if ( Sounds.Sound( "Physics.WaterSplash", mountName ) is { } splash ) Sound.Play( splash, surface );
 			if ( depth > 128 ) name = "WaterExplosionEffect.Sound";
 		}

@@ -129,6 +129,10 @@ public sealed class FlatQuad : Component
 		=> Spawn( "effects/splashwake1", position + normal * 0.5f, normal, 16, 128, 1.5f, mount, 0.7f, 0.25f,
 			rollSpeed: Game.Random.Float( -16, 16 ), additive: false );
 
+	internal static void ExplosionRipple( Vector3 surface, string mount )
+		=> Spawn( "effects/splashwake1", surface + Vector3.Up * 2, Vector3.Up, 64, 256, 2, mount, 0.85f, 0.25f,
+			rollSpeed: Game.Random.Float( -4, 4 ), additive: false );
+
 	static void Spawn( string material, Vector3 position, Vector3 normal, float startWidth, float endWidth, float life, string mount,
 		float scaleBias, float alphaBias, float rollSpeed = 0, bool additive = true )
 	{
