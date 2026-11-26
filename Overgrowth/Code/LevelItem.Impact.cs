@@ -22,9 +22,9 @@ public sealed partial class LevelItem
 		float impulse = pendingEmbed.HasValue ? body.Mass : RabbitGuard.BodyImpactImpulse( collision ) / 40f;
 		if ( !pendingEmbed.HasValue )
 		{
-			if ( body.Velocity.LengthSquared < 160f || impulse <= 0.1f ) return;
+			if ( body.Velocity.LengthSquared < 160f ) return;
 			BillboardParticle.EmitSkid( surface, point, terrainHit );
-			if ( impactSoundDelay > 0f ) return;
+			if ( impactSoundDelay > 0f || impulse <= 0.1f ) return;
 		}
 		string step = body.Mass < 1f ? "weapon_drop_light" : body.Mass < 3f ? "weapon_drop_medium" : "weapon_drop_heavy";
 		PlayImpact( surface, step, point, impulse, Definition?.Element( "physics" )?.Attribute( "sound_modifier" ) );

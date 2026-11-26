@@ -83,14 +83,15 @@ public sealed partial class RabbitGuard
 	internal static void ReportSound( GameObject source, Vector3 position, HeardSound sound, float radius )
 	{
 		if ( !source.IsValid() || IsIgnoredPlayer( source ) ) return;
-		// AISound broadcasts to character spheres within twice the event radius.
-		float broadcastRange = (sound == HeardSound.ItemImpact ? radius : 2f * radius + 0.5f) * 40f;
+		// The broadcast overlaps a half-metre character sphere; hearing tests its center.
+		float broadcastRange = ((sound == HeardSound.ItemImpact ? radius : 2f * radius) + 0.5f) * 40f;
 		bool awake = source.GetComponent<RabbitGuard>() is not { Unconscious: true } && !source.GetComponent<CharacterRemains>().IsValid() && IsLiveTarget( source );
 		foreach ( var guard in source.Scene.GetAllComponents<RabbitGuard>() )
 		{
 			if ( guard.Unconscious || !guard.Active || guard.StaticCharacter ) continue;
-			float range = Math.Min( broadcastRange, radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier );
-			if ( range > 0f && guard.CharacterCenter( guard.GameObject ).DistanceSquared( position ) < range * range )
+			float range = radius * 40f * (guard.boundAnimations?.Species == "rabbit" ? 2f : 1f) * guard.HearingModifier;
+			float distanceSquared = guard.CharacterCenter( guard.GameObject ).DistanceSquared( position );
+			if ( range > 0f && distanceSquared <= broadcastRange * broadcastRange && distanceSquared < range * range )
 				guard.Hear( source, position, sound, awake );
 		}
 	}
