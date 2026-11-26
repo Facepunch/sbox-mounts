@@ -85,6 +85,7 @@ public sealed class PropDamageModifiers
 	public float Bullet { get; set; } = 1;
 	public float Club { get; set; } = 1;
 	public float Explosive { get; set; } = 1;
+	public bool FireResistant { get; set; }
 }
 
 [Sandbox.ModelEditor.GameData( "physgun_interactions" ), Hide]

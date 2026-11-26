@@ -33,6 +33,7 @@ internal sealed class SourcePropData
 		var values = new Dictionary<string, string>( StringComparer.OrdinalIgnoreCase );
 		var bases = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		var flammable = false;
+		var fireResistant = false;
 		Apply( prop );
 		foreach ( var block in roots )
 			ReadInteractions( block );
@@ -57,7 +58,7 @@ internal sealed class SourcePropData
 			Explosive = false,
 			ExplosionDamage = damage,
 			ExplosionRadius = radius
-		}, physGun, new PropDamageModifiers { Bullet = bullet, Club = club, Explosive = explosive });
+		}, physGun, new PropDamageModifiers { Bullet = bullet, Club = club, Explosive = explosive, FireResistant = fireResistant });
 
 		void Apply( VmtNode section )
 		{
@@ -88,7 +89,10 @@ internal sealed class SourcePropData
 			}
 			if ( block.IsBlock && block.Name.Equals( "fire_interactions", StringComparison.OrdinalIgnoreCase )
 				&& block.Values.TryGetValue( "flammable", out var value ) )
+			{
 				flammable = value.Equals( "yes", StringComparison.OrdinalIgnoreCase );
+				fireResistant |= value.Equals( "no", StringComparison.OrdinalIgnoreCase );
+			}
 		}
 	}
 }

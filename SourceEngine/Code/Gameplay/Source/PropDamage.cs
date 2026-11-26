@@ -4,6 +4,7 @@ namespace Source1;
 public sealed class PropDamage : Component
 {
 	Prop _prop;
+	PropFire _fire;
 
 	internal static void Attach( Prop prop )
 	{
@@ -28,12 +29,13 @@ public sealed class PropDamage : Component
 		var blast = hit.Tags.Has( DamageTags.Explosion );
 		if ( !(bullet || blast) || _prop.Model?.GetData<PropDamageModifiers>() is not { } modifiers ) return;
 
+		var projectile = blast && hit.Weapon.IsValid() ? hit.Weapon.GetComponent<Projectile>() : null;
 		var scale = bullet ? modifiers.Bullet * (hit.Tags.Has( "buckshot" ) ? 2 : 1) : 1;
 		if ( blast )
 		{
 			scale *= modifiers.Explosive;
 
-			if ( hit.Weapon.IsValid() && hit.Weapon.GetComponent<Projectile>() is { Radius: > 0 } projectile && projectile is not Css.Grenade )
+			if ( projectile is { Radius: > 0 } and not Css.Grenade )
 			{
 				var bounds = _prop.Model.PhysicsBounds.Transform( WorldTransform );
 				var testZ = projectile.UnderwaterBlast ? bounds.Mins.z : bounds.Maxs.z;
@@ -52,5 +54,8 @@ public sealed class PropDamage : Component
 			}
 		}
 		hit.Damage = System.MathF.Truncate( hit.Damage * scale );
+		if ( blast && !_fire.IsValid() && hit.Damage > 0 && hit.Damage < _prop.Health && !modifiers.FireResistant
+			&& projectile is not null and not Css.Grenade )
+			_fire = PropFire.Ignite( _prop );
 	}
 }
