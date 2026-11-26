@@ -47,6 +47,9 @@ public class BatteryWeapon : HandheldWeapon
 	[Sync( SyncFlags.FromHost )] double LastEnergyShot { get; set; }
 	[Sync( SyncFlags.FromHost )] bool Venting { get; set; }
 	bool showingVentExit;
+	(float Heat, double ShotTime, float VentRate, float BaseRate, float Threshold) coolingSample;
+	double sampledTicks;
+	float sampledHeat;
 
 	float CoolingRate => Venting && OverheatedLoss > 0 ? OverheatedLoss : HeatLoss;
 	// Sample on the original weapon clock. Cooling continues on dropped and holstered items.
@@ -57,9 +60,24 @@ public class BatteryWeapon : HandheldWeapon
 		if ( ShotHeat <= 0 ) return 0;
 		// Cooling starts one full weapon tick after the shot, even when it fired between scene ticks.
 		double ticks = System.Math.Max( 0, System.Math.Floor( (System.Math.BitIncrement( time ) - LastEnergyShot) * 30 ) );
-		double ventTicks = Venting && CoolingRate > 0
-			? System.Math.Min( ticks, System.Math.Floor( (ShotHeat - CooledThreshold) * 30 / CoolingRate ) + 1 ) : 0;
-		return (float)System.Math.Max( 0, ShotHeat - (ventTicks * CoolingRate + (ticks - ventTicks) * HeatLoss) / 30 );
+		var sample = (ShotHeat, LastEnergyShot, CoolingRate, HeatLoss, CooledThreshold);
+		if ( coolingSample != sample || ticks < sampledTicks )
+		{
+			coolingSample = sample;
+			sampledTicks = 0;
+			sampledHeat = ShotHeat;
+		}
+		// Native rounds each subtraction to float before comparing the vent threshold.
+		while ( sampledTicks < ticks && sampledHeat > 0 )
+		{
+			float rate = sampledHeat >= CooledThreshold ? CoolingRate : HeatLoss;
+			float next = System.MathF.Max( 0, sampledHeat - rate / 30f );
+			if ( next >= sampledHeat ) break;
+			sampledHeat = next;
+			sampledTicks++;
+		}
+		sampledTicks = ticks;
+		return sampledHeat;
 	}
 	public bool Overheated => Venting && Heat >= CooledThreshold;
 	internal override string RestAction => Overheated && !showingVentExit ? "overheated" : "idle";
