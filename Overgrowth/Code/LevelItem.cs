@@ -156,16 +156,16 @@ public sealed partial class LevelItem : Component
 		return material is not null;
 	}
 
-	internal static void Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, int type, bool mirrored, string attachmentPath = null )
+	internal static bool Attach( GameMount mount, GameObject item, Model model, RabbitGuard actor, int type, bool mirrored, string attachmentPath = null )
 	{
 		if ( !item.IsValid() || !actor.IsValid() || !actor.Renderer.IsValid() || !model.IsValid() ||
 			CharacterLoader.FromModel( actor.Renderer.Model ) is not { } character ||
-			mount?.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return;
+			mount?.GetByPath( model.ResourcePath ) is not ObjectLoader loader ) return false;
 		string anim, chain;
 		int depth = 0;
 		if ( type == 2 )
 		{
-			if ( string.IsNullOrEmpty( attachmentPath ) ) return;
+			if ( string.IsNullOrEmpty( attachmentPath ) ) return false;
 			var attachment = XmlAsset.Read( mount.FileSystem, mount.Resolve( attachmentPath ), "attachment" );
 			anim = attachment.Element( "anim" )?.Value;
 			chain = attachment.Element( "attach" )?.Attribute( "ik_chain" );
@@ -177,9 +177,9 @@ public sealed partial class LevelItem : Component
 			anim = slot?.Attribute( "anim" );
 			chain = slot?.Attribute( "ik_attach" );
 		}
-		if ( string.IsNullOrEmpty( anim ) || string.IsNullOrEmpty( chain ) ) return;
+		if ( string.IsNullOrEmpty( anim ) || string.IsNullOrEmpty( chain ) ) return false;
 		int bone = character.AttachmentBone( chain, depth, mirrored );
-		if ( bone < 0 ) return;
+		if ( bone < 0 ) return false;
 		var grip = ItemGrip.Read( mount.FileSystem, mount.Resolve( anim ), bone, mirrored, type != 2, chain == "hip", character.AttachmentScale );
 		var center = -(model.Attachments.GetTransform( "asset_origin" )?.Position ?? Vector3.Zero);
 		if ( item.GetComponent<ModelCollider>() is { } collider ) collider.Enabled = false;
@@ -217,6 +217,7 @@ public sealed partial class LevelItem : Component
 			if ( mirrored ) actor.RightHipWeapon = attachmentComponent;
 			else actor.LeftHipWeapon = attachmentComponent;
 		}
+		return true;
 	}
 
 	internal static Rigidbody AddPhysics( GameObject item, Model model )

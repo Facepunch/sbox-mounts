@@ -30,6 +30,7 @@ public sealed partial class RabbitGuard
 
 	LevelItem WeaponAtHand( bool left )
 	{
+		if ( !Renderer.IsValid() ) return null;
 		var palm = CharacterLoader.FromModel( Renderer.Model )?.ChainOrigin( this, left ? "leftarm" : "rightarm" );
 		return palm.HasValue ? NearestWeapon( palm.Value, 36f ) : null;
 	}
@@ -174,12 +175,11 @@ public sealed partial class RabbitGuard
 
 	bool TakeWeapon( LevelItem item )
 	{
-		if ( item.Hands > FreeHands || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return false;
+		if ( !item.IsValid() || item.Hands > FreeHands || Sandbox.Mounting.Directory.Get( "overgrowth" ) is not GameMount mount ) return false;
 		var position = item.PhysicsPosition;
 		if ( item.StuckIn.IsValid() && item.StuckIn != Renderer ) ExtractWeapon( item, lift: true );
 		bool left = PrimaryItem.IsValid() ? !LeftHanded : LeftHanded;
-		LevelItem.Attach( mount, item.GameObject, item.ItemModel, this, 0, left );
-		if ( item.Holder != Renderer ) return false;
+		if ( !LevelItem.Attach( mount, item.GameObject, item.ItemModel, this, 0, left ) ) return false;
 		PlayGrabSound( item, position, 0.5f );
 		return true;
 	}
