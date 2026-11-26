@@ -15,25 +15,21 @@ public sealed partial class RabbitGuard
 	bool BeginItemThrow()
 	{
 		if ( Downed || InThrow || IsTethered || IsThrowingItem || IsGetUp( Stance ) || strike is { AsLayer: false } ||
-			!HasCombatTarget || !PrimaryItem.IsValid() ) return false;
+			!PrimaryItem.IsValid() ) return false;
 		string label = boundAnimations.WeaponLabel;
 		bool secondary = (LeftHanded ? RightHandItem : LeftHandItem).IsValid();
-		var target = rollThrowExpires > 0f ? pendingRollThrow : null;
-		if ( !target.IsValid() )
+		bool flipping = RollProgress < 1f;
+		if ( HasCombatTarget && (IsOnGround || flipping) && WantsItemThrow( label, secondary ) && SelectThrowTarget( label ) is { } selected )
 		{
-			if ( !WantsItemThrow( label, secondary ) ) return false;
-			target = SelectThrowTarget( label );
-			if ( !target.IsValid() ) return false;
+			pendingRollThrow = selected;
+			rollThrowExpires = 1f;
 		}
-		if ( RollProgress <= 0.5f )
-		{
-			if ( pendingRollThrow != target || rollThrowExpires <= 0f ) rollThrowExpires = 1f;
-			pendingRollThrow = target;
-			return true;
-		}
+		var target = pendingRollThrow;
+		if ( rollThrowExpires <= 0f || !target.IsValid() ) return false;
+		if ( flipping && RollProgress <= 0.5f ) return true;
 		pendingRollThrow = null;
 		itemThrowTarget = target;
-		if ( Animation.IsGrounded && RollProgress >= 1f && label is ("big_sword" or "spear" or "staff") )
+		if ( IsOnGround && !flipping && label is ("big_sword" or "spear" or "staff") )
 		{
 			bodyThrowTarget = target;
 			Stance = label == "big_sword" ? SwordThrow : SpearThrow;
@@ -45,7 +41,7 @@ public sealed partial class RabbitGuard
 		}
 		DrawLeft = LeftHanded || secondary && label is ("sword" or "rapier");
 		handThrowLookTarget = target;
-		DrawAnimation = RollProgress < 1f ? FlipThrowLayer : ThrowLayer;
+		DrawAnimation = flipping ? FlipThrowLayer : ThrowLayer;
 		drawElapsed = 0f;
 		return true;
 	}
