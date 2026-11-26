@@ -279,7 +279,7 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			var pistol = ConfigurePickup<PlasmaPistol>( root, world, title );
 			pistol.LatchTicks = (int)MathF.Round( Float( PrimaryTrigger + 16 ) * 30 );
 			pistol.ChargeTicks = (int)MathF.Round( Float( PrimaryTrigger + 28 ) * 30 );
-			pistol.ChargeSound = ReadChargeSound();
+			pistol.ChargeSound = ReadSoundTrack( "primary_charged" );
 			int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
 			int bolt = Address( Reference( secondary + 0x8c ) );
 			int impact = Address( Reference( bolt + 0x148 ) );
@@ -294,6 +294,8 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 		else gun = ConfigurePickup<BatteryWeapon>( root, world, title );
 		gun.UsesAmmo = gun.UsesClips = false;
+		gun.FiringTrack = ReadSoundTrack( "audio_firing" );
+		gun.OverheatTrack = ReadSoundTrack( "overheated" );
 		gun.VentParticles = ReadMuzzleFlash( Reference( Header + 0x16c ) );
 		gun.HeatPerShot = Float( barrel + 0xa4 );
 		gun.SpentPerShot = Float( barrel + 0xa8 );
@@ -431,18 +433,18 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 		}
 	}
 
-	ChargeSoundTrack ReadChargeSound()
+	WeaponSoundTrack ReadSoundTrack( string function )
 	{
 		for ( int i = 0, row = Block( Header + 0x94 ); i < map.ReadInt32( Header + 0x94 ); i++, row += 24 )
 		{
 			if ( Reference( row ) is not { PrimaryClass: "dnsl", DataSize: > 0 } sound ||
-				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != "primary_charged" ) continue;
+				map.ResolveStringId( map.ReadInt32( row + 16 ) ) != function ) continue;
 			int tracks = Address( sound ) + 0x24;
 			if ( map.ReadInt32( tracks ) != 1 ) continue;
 			int track = Block( tracks );
 			SoundEvent Cue( int offset ) => Reference( track + offset ) is { PrimaryClass: "!dns" } tag
 				? GameResource.Load<SoundEvent>( Host.AssetPath( map, tag.TagPath, "sound" ) ) : null;
-			return new( map.ResolveStringId( map.ReadInt32( row + 8 ) ), Cue( 0x14 ), Cue( 0x1c ),
+			return new( map.ResolveStringId( map.ReadInt32( row + 8 ) ), Cue( 0x14 ), Cue( 0x1c ), Cue( 0x24 ),
 				MathF.Pow( 10, Float( track + 8 ) / 20 ), Float( track + 16 ) );
 		}
 		return null;

@@ -1,20 +1,17 @@
 namespace Halo2;
 
-public sealed record ChargeSoundTrack( string Marker, SoundEvent Start, SoundEvent Loop, float Gain, float FadeOut );
-
 public sealed class PlasmaPistol : BatteryWeapon
 {
 	[Property] public int LatchTicks { get; set; }
 	[Property] public int ChargeTicks { get; set; }
 	[Property] public EnergyDischarge ChargedShot { get; set; }
-	[Property] public ChargeSoundTrack ChargeSound { get; set; }
+	[Property] public WeaponSoundTrack ChargeSound { get; set; }
 
 	[Sync( SyncFlags.FromHost )] bool HoldingTrigger { get; set; }
 	[Sync( SyncFlags.FromHost )] double PressedAt { get; set; }
 	[Sync( SyncFlags.FromHost )] Vector3? PendingRelease { get; set; }
 	bool showingCharge;
-	SoundHandle chargeVoice;
-	bool chargeStarted;
+	readonly TrackVoice chargeVoice = new();
 
 	double ChargedAt => PressedAt + (LatchTicks + ChargeTicks) / 30.0;
 	public bool FullyCharged => (HoldingTrigger || PendingRelease.HasValue) && Time.NowDouble >= ChargedAt;
@@ -89,24 +86,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	void UpdateChargeSound()
 	{
-		if ( !HoldingTrigger || !IsActive || Time.NowDouble < PressedAt + LatchTicks / 30.0 )
-		{
-			if ( chargeStarted ) StopChargeSound();
-			return;
-		}
-		if ( ChargeSound is not {} track || chargeVoice.IsValid() ) return;
-		var emitter = EffectMarker( track.Marker );
-		if ( !emitter.IsValid() ) return;
-		chargeVoice = emitter.PlaySound( chargeStarted ? track.Loop : track.Start ?? track.Loop );
-		if ( chargeVoice.IsValid() ) chargeVoice.Volume *= track.Gain;
-		chargeStarted = true;
-	}
-
-	void StopChargeSound()
-	{
-		chargeVoice?.Stop( ChargeSound?.FadeOut ?? 0 );
-		chargeVoice = null;
-		chargeStarted = false;
+		UpdateTrack( chargeVoice, ChargeSound, HoldingTrigger && IsActive && Time.NowDouble >= PressedAt + LatchTicks / 30.0 );
 	}
 
 	protected override void OnDisabled()
@@ -123,7 +103,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	void ResetTrigger()
 	{
-		StopChargeSound();
+		chargeVoice.Stop( ChargeSound );
 		showingCharge = false;
 		if ( !Networking.IsHost ) return;
 		HoldingTrigger = false;

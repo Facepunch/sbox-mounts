@@ -2,10 +2,56 @@ namespace Halo2;
 
 public sealed record FiringCue( SoundEvent Sound, string Marker, int Repeats, MuzzleFlashDefinition[] Flash );
 
+public sealed record WeaponSoundTrack( string Marker, SoundEvent Start, SoundEvent Loop, SoundEvent End, float Gain, float FadeOut );
+
 public class BatteryWeapon : HandheldWeapon
 {
 	[Property] public MuzzleFlashDefinition[] VentParticles { get; set; }
 	double nextVentTick;
+
+	[Property] public WeaponSoundTrack FiringTrack { get; set; }
+	[Property] public WeaponSoundTrack OverheatTrack { get; set; }
+	readonly TrackVoice firingVoice = new(), overheatVoice = new();
+	double? lastPresentedShot;
+
+	protected sealed class TrackVoice
+	{
+		public SoundHandle Handle;
+		public bool Started;
+		public void Stop( WeaponSoundTrack track )
+		{
+			Handle?.Stop( track?.FadeOut ?? 0 );
+			Handle = null;
+			Started = false;
+		}
+	}
+
+	protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active )
+	{
+		if ( track is null || (!active && !voice.Started) || (active && voice.Handle.IsValid()) ) return;
+		var cue = active ? (voice.Started ? track.Loop : track.Start ?? track.Loop) : track.End;
+		if ( !active ) voice.Stop( track );
+		var emitter = string.IsNullOrEmpty( track.Marker ) ? WeaponModel?.GameObject ?? GameObject : EffectMarker( track.Marker );
+		if ( !emitter.IsValid() || !cue.IsValid() ) return;
+		var handle = emitter.PlaySound( cue );
+		if ( !handle.IsValid() ) return;
+		handle.Volume *= track.Gain;
+		if ( active )
+		{
+			voice.Handle = handle;
+			voice.Started = true;
+		}
+	}
+
+	protected override void OnShootEffects( ShotEffect shot )
+	{
+		base.OnShootEffects( shot );
+		if ( !shot.NoEvents && FiringTrack is not null && !Application.IsDedicatedServer )
+		{
+			lastPresentedShot = Time.NowDouble;
+			UpdateTrack( firingVoice, FiringTrack, true );
+		}
+	}
 
 	[Property] public float HeatPerShot { get; set; }
 	[Property] public float SpentPerShot { get; set; }
@@ -162,6 +208,9 @@ public class BatteryWeapon : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
+		firingVoice.Stop( FiringTrack );
+		overheatVoice.Stop( OverheatTrack );
+		lastPresentedShot = null;
 		nextVentTick = 0;
 		rateFraction = 0;
 		base.OnDisabled();
@@ -170,6 +219,13 @@ public class BatteryWeapon : HandheldWeapon
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
+		if ( !Application.IsDedicatedServer )
+		{
+			bool held = IsHeld && IsActive;
+			bool firing = lastPresentedShot is double shot && System.Math.Floor( Time.NowDouble * 30 ) - System.Math.Floor( shot * 30 ) <= 1;
+			UpdateTrack( firingVoice, FiringTrack, held && firing );
+			UpdateTrack( overheatVoice, OverheatTrack, held && Overheated );
+		}
 		if ( !Application.IsDedicatedServer && IsHeld && IsActive && Overheated && VentParticles is { Length: > 0 } )
 		{
 			double now = Time.NowDouble;
