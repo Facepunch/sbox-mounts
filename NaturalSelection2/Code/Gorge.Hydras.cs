@@ -6,6 +6,7 @@ public sealed partial class Gorge
 {
 	readonly List<Hydra> planted = new( 3 );
 	TimeUntil nextPlantCheck, dropCooldown;
+	bool needsHydra;
 
 	protected override void OnBiomassChanged()
 	{
@@ -13,12 +14,13 @@ public sealed partial class Gorge
 			if ( hydra.IsValid() ) hydra.BiomassLevel = BiomassLevel;
 	}
 
-	bool PlantHydra( Vector3? threat )
+	bool CanPlantHydra( Vector3? threat )
 	{
-		if ( nextPlantCheck > 0 ) return false;
-		nextPlantCheck = 1f / 6;
-		if ( energy < 30 || underFire > 0 || dropCooldown > 0 || GameObject.Tags.Has( "ns2_hallucination" ) ||
+		if ( energy < 30 || InCombat || GameObject.Tags.Has( "ns2_hallucination" ) ||
 			threat is { } position && WorldPosition.Distance( position ) <= 25 * Scale ) return false;
+		if ( nextPlantCheck > 0 && (!needsHydra || dropCooldown > 0) ) return needsHydra;
+		nextPlantCheck = 1f / 6;
+		needsHydra = false;
 		planted.RemoveAll( static h => !h.IsValid() || h.Health <= 0 );
 		if ( planted.Count >= 3 ) return false;
 		foreach ( var harvester in Scene.GetAllComponents<Harvester>() )
@@ -29,30 +31,37 @@ public sealed partial class Gorge
 			foreach ( var h in Scene.GetAllComponents<Hydra>() )
 				if ( h.Health > 0 && h.WorldPosition.Distance( harvester.WorldPosition ) <= 10 * Scale && ++count == 3 ) break;
 			if ( count >= 3 ) continue;
-
-			firing = false;
-			Animation.SetLookTarget( null );
-			Movement.Stop();
-			float angle = Random.Shared.NextSingle() * MathF.Tau;
-			var floor = WorldPosition + new Vector3( MathF.Cos( angle ), MathF.Sin( angle ), 0 ) * (2.5f * Scale);
-			var direction = (floor - EyePosition).Normal;
-			if ( HydraPlacement( direction ) is { } pose )
-			{
-				var child = GameObject.Clone( PrefabFile.Load( "mount://ns2/entities/npcs/hydra.prefab" ), pose );
-				if ( !child.IsValid() ) return true;
-				var hydra = child.GetComponent<Hydra>();
-				hydra.BiomassLevel = BiomassLevel;
-				hydra.UpdateBiomass();
-				planted.Add( hydra );
-				if ( Networking.IsActive ) child.NetworkSpawn();
-				energy -= 30;
-				dropCooldown = 1;
-				PlayCue( "create_structure_start", WorldPosition );
-				ShowStructureSpit( EyePosition, Rotation.LookAt( direction ) );
-			}
-			return true;
+			needsHydra = true;
+			break;
 		}
-		return false;
+		return needsHydra;
+	}
+
+	void PlantHydra()
+	{
+		firing = false;
+		Animation.SetLookTarget( null );
+		Movement.Stop();
+		if ( dropCooldown > 0 ) return;
+		dropCooldown = 1f / 6;
+		float angle = Random.Shared.NextSingle() * MathF.Tau;
+		var floor = WorldPosition + new Vector3( MathF.Cos( angle ), MathF.Sin( angle ), 0 ) * (2.5f * Scale);
+		var direction = (floor - EyePosition).Normal;
+		if ( HydraPlacement( direction ) is { } pose )
+		{
+			var child = GameObject.Clone( PrefabFile.Load( "mount://ns2/entities/npcs/hydra.prefab" ), pose );
+			if ( !child.IsValid() ) return;
+			var hydra = child.GetComponent<Hydra>();
+			hydra.BiomassLevel = BiomassLevel;
+			hydra.UpdateBiomass();
+			planted.Add( hydra );
+			nextPlantCheck = 0;
+			if ( Networking.IsActive ) child.NetworkSpawn();
+			energy -= 30;
+			dropCooldown = 1;
+			PlayCue( "create_structure_start", WorldPosition );
+			ShowStructureSpit( EyePosition, Rotation.LookAt( direction ) );
+		}
 	}
 
 	Transform? HydraPlacement( Vector3 direction )

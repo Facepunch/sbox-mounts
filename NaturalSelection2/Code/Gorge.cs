@@ -118,9 +118,17 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		bombarding = false;
 		float competingWeight = recipient.IsValid() ? 5 : combatWeight;
 		if ( friend.IsValid() ) competingWeight = followWeight;
-		if ( SupportAlly( competingWeight ) || competingWeight <= 2.5f && PlantHydra( threatPosition ) )
+		const float plantWeight = 2.5f;
+		bool plant = competingWeight <= plantWeight && CanPlantHydra( threatPosition );
+		if ( SupportAlly( plant ? plantWeight : competingWeight ) )
 		{
 			throwing = false;
+			return;
+		}
+		if ( plant )
+		{
+			throwing = false;
+			PlantHydra();
 			return;
 		}
 		if ( recipient.IsValid() )
