@@ -111,6 +111,7 @@ public sealed class Mac : Ns2Npc, Component.IDamageable
 			if ( hp.Armour >= hp.MaxArmour ) return;
 			hp.Armour = Math.Min( hp.MaxArmour, hp.Armour + 5 );
 		}
+		if ( target is Ns2Npc npc ) npc.RecordHeal( HealFeedback.External );
 		nextWeld = 0.5f;
 	}
 
