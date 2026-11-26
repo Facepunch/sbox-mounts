@@ -38,7 +38,7 @@ public sealed class BabblerPheromone : Component
 
 	protected override void OnUpdate()
 	{
-		if ( Networking.IsHost && expires <= 0 ) { Pop(); return; }
+		if ( Networking.IsHost && expires <= 0 ) { Pop( WorldPosition ); return; }
 		if ( !Graphics.IsAvailable || nextTrail > 0 ) return;
 		nextTrail = 0.15f;
 		CinematicLoader.Play( "cinematics/alien/babbler/pheromone_trail.cinematic", WorldPosition, WorldRotation );
@@ -55,7 +55,7 @@ public sealed class BabblerPheromone : Component
 			var end = previousPosition + previousVelocity * (Time.Delta + 0.125f * 3);
 			var hit = Scene.Trace.Sphere( 0.125f * Scale, previousPosition, end ).IgnoreGameObjectHierarchy( GameObject )
 				.WithoutTags( "trigger", "ns2_babbler" ).UseDamageHitboxes().Run();
-			ProcessHit( hit.GameObject, position );
+			ProcessHit( hit.GameObject, hit.EndPosition );
 		}
 		previousPosition = position;
 		previousVelocity = velocity;
@@ -69,14 +69,14 @@ public sealed class BabblerPheromone : Component
 		{
 			if ( !owner.CanReceiveBabblers ) return;
 			owner.DispatchBrood( owner.GameObject, ballPosition );
-			Pop();
+			Pop( ballPosition );
 		}
-		else if ( victim is AlienLifeform recipient && owner.TryDonate( recipient ) ) Pop();
+		else if ( victim is AlienLifeform recipient && owner.TryDonate( recipient ) ) Pop( ballPosition );
 		else if ( victim is IDamageable hp )
 		{
 			if ( hp.Health <= 0 && hp.MaxHealth > 0 || AlienTargeting.IsIgnoredPlayer( victim.GameObject ) || owner.GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;
 			owner.DispatchBrood( victim.GameObject, ballPosition );
-			Pop();
+			Pop( ballPosition );
 		}
 		else if ( ++bounces <= 3 )
 		{
@@ -84,9 +84,9 @@ public sealed class BabblerPheromone : Component
 		}
 	}
 
-	void Pop()
+	void Pop( Vector3 position )
 	{
-		Puff( WorldPosition );
+		Puff( position );
 		GameObject.Destroy();
 	}
 
