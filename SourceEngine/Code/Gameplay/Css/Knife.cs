@@ -54,6 +54,10 @@ public sealed class Knife : MeleeWeapon
 
 	public override void SecondaryAttack() => Swing( true );
 
+	// KnifeSlash supplies its own contact sound.
+	protected override void OnShootImpact( in ShotEffect shot ) =>
+		ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+
 	void Swing( bool stab )
 	{
 		var tr = Scene.Trace.Ray( AimRay, stab ? StabRange : SlashRange )

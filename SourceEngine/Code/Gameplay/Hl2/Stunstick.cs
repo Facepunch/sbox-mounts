@@ -34,9 +34,9 @@ public sealed class Stunstick : MeleeWeapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		SolidImpact( shot );
 		if ( shot.Hit && !Application.IsDedicatedServer )
 			WeaponEffects.StunstickImpact( shot.HitPosition, shot.Normal, MountContent.Of( GameObject ) );
+		ImpactEffect( shot, GetShotDirection( shot ) );
 	}
 
 	/// <summary>Switches the stick on or off, on the host.</summary>

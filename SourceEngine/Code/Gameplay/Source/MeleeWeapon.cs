@@ -120,6 +120,14 @@ public class MeleeWeapon : Weapon
 		if ( shot.Hit )
 		{
 			if ( HitSound is not null ) Sounds.PlayWeaponSound( this, HitSound );
+			// A peer can receive the hit before it knows the mounted surface. Resolve it on the struck object.
+			if ( !shot.Surface.IsValid() && shot.HitObject.IsValid() )
+			{
+				var start = shot.Origin ?? shot.HitPosition + shot.Normal * 8;
+				var end = shot.HitPosition + (shot.HitPosition - start).Normal * 8;
+				var contact = Scene.Trace.Ray( start, end ).IgnoreGameObjectHierarchy( AimIgnoreRoot ).Run();
+				if ( contact.GameObject == shot.HitObject ) shot.Surface = contact.Surface;
+			}
 			OnShootImpact( shot );
 		}
 		else WaterImpact( shot );
@@ -145,19 +153,7 @@ public class MeleeWeapon : Weapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		if ( shot.Hit && !WaterImpact( shot ) ) SolidImpact( shot );
-	}
-
-	protected void SolidImpact( in ShotEffect shot )
-	{
-		if ( !shot.Hit || !shot.HitObject.IsValid() )
-			return;
-
-		var impact = shot.Surface?.SoundCollection.ImpactHard ?? shot.Surface?.GetBaseSurface()?.SoundCollection.ImpactHard;
-		if ( impact is not null )
-			shot.HitObject.PlaySound( impact, shot.HitObject.WorldTransform.PointToLocal( shot.HitPosition ) );
-
-		ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, GetShotDirection( shot ) );
+		if ( !WaterImpact( shot ) ) ImpactEffect( shot, GetShotDirection( shot ) );
 	}
 
 	/// <summary>Draws the aiming dot with the current attack availability.</summary>
