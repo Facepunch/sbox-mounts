@@ -22,6 +22,7 @@ public sealed partial class RabbitGuard
 	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
+	const int HolderMovementTick = 8, CaptiveMovementTick = 9;
 	float CaptureActionTime => (float)SinceGrab - CaptureLead + 1f / 120f;
 	int holdTick;
 	bool pendingGrabImpact;
@@ -149,18 +150,26 @@ public sealed partial class RabbitGuard
 			grabPhase = grab.Frequency / 120f;
 		}
 		else if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
+		else if ( grabReader == UnarmedHoldStance && Stance == grabReader && grabReader is RearHold or RearHeld && SinceGrab >= CaptureLead )
+		{
+			// WasGrabbed restarts both readers. Returning to the same stance clip keeps that reader running.
+			grabPhase = CaptureActionTime * grab.Frequency * (grabReader == RearHold ? AttackSpeed : 1f);
+		}
 		else grabPhase = grabReader == pose && playing != pose ? 0f : grabPhase + Time.Delta * grab.Frequency;
 
-		grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
-		Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
 		if ( RatHoldBlend( grabReader ) )
 		{
 			bool attacker = UnarmedHoldStance == RearHoldRat;
 			UpdateCaptureBlend( attacker ? RearHold : RearHeld, UnarmedHoldStance, attacker );
 			// A release during the attack leaves that reader fading into idle.
-			float returnAge = grabReader == UnarmedHoldStance ? (float)SinceGrab + 1f / 120f - (attacker ? 8 : 9) * HoldStep : 0f;
-			Renderer.Animation.Parameters.Set( "capture_return_weight", Math.Clamp( returnAge * 5f, 0f, 1f ) );
+			float returnAge = grabReader == UnarmedHoldStance
+				? Math.Max( 0f, (float)SinceGrab - (attacker ? HolderMovementTick : CaptiveMovementTick) * HoldStep ) : 0f;
+			if ( returnAge > 0f ) grabPhase = returnAge * grab.Frequency;
+			Renderer.Animation.Parameters.Set( "capture_return_weight", Math.Min( returnAge * 5f, 1f ) );
 		}
+
+		grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
+		Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
 	}
 
 	float UpdateCaptureBlend( string action, string entry, bool attacker )
@@ -263,8 +272,8 @@ public sealed partial class RabbitGuard
 		if ( CaptureReactionEnded && !blade && Stance != CutFromHold )
 		{
 			// The two movement updates resume after their attack and hit reaction respectively.
-			if ( armed || holdTick >= 8 ) Stance = armed ? ArmedHold : UnarmedHoldStance;
-			if ( armed || holdTick >= 9 ) victim.Stance = armed ? ArmedHeld : victim.UnarmedHoldStance;
+			if ( armed || holdTick >= HolderMovementTick ) Stance = armed ? ArmedHold : UnarmedHoldStance;
+			if ( armed || holdTick >= CaptiveMovementTick ) victim.Stance = armed ? ArmedHeld : victim.UnarmedHoldStance;
 		}
 		if ( Stance == CutFromHold )
 		{
@@ -362,8 +371,8 @@ public sealed partial class RabbitGuard
 	void MoveHoldPair( RabbitGuard victim, float distance, bool struggle )
 	{
 		// WasGrabbed enters hit reaction one tether update after the attack starts.
-		UpdateHoldVelocity( false, holdTick >= 8 );
-		victim.UpdateHoldVelocity( struggle, holdTick >= 9 );
+		UpdateHoldVelocity( false, holdTick >= HolderMovementTick );
+		victim.UpdateHoldVelocity( struggle, holdTick >= CaptiveMovementTick );
 		var flat = (victim.WorldPosition - WorldPosition).WithZ( 0f );
 		if ( !flat.IsNearlyZero() )
 		{
