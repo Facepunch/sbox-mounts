@@ -46,6 +46,29 @@ static class Sounds
 	public static SoundHandle PlayWeaponSound( BaseCombatWeapon weapon, SoundEvent sound ) =>
 		(weapon.Holder?.GameObject ?? weapon.GameObject).PlaySound( sound );
 
+	/// <summary>Play the same mounted wave, volume and pitch for every listener of a networked weapon event.</summary>
+	public static void PlayWeaponSound( BaseCombatWeapon weapon, string role, int seed )
+	{
+		if ( Application.IsDedicatedServer || WeaponSound( weapon, role ) is not { Sounds.Count: > 0 } sound ) return;
+		var random = new Random( seed );
+		var wave = sound.Sounds[random.Next( sound.Sounds.Count )];
+		var handle = Sandbox.Sound.PlayFile( wave, random.Float( sound.Volume.Min, sound.Volume.Max ), random.Float( sound.Pitch.Min, sound.Pitch.Max ) );
+		if ( !handle.IsValid() ) return;
+
+		handle.Parent = weapon.Holder?.GameObject ?? weapon.GameObject;
+		handle.FollowParent = true;
+		handle.LocalTransform = Transform.Zero;
+		handle.TargetMixer = sound.DefaultMixer.Get();
+		handle.Distance = sound.Distance;
+		handle.Falloff = sound.Falloff;
+		handle.FalloffMode = sound.FalloffMode;
+		handle.MinDistance = sound.MinDistance;
+		handle.DistanceAttenuation = sound.DistanceAttenuation;
+		handle.AirAbsorption = sound.AirAbsorption;
+		handle.OcclusionEnabled = sound.OcclusionEnabled;
+		handle.ReverbEnabled = sound.ReverbEnabled;
+	}
+
 	/// <summary>Counter-Strike scripts name the silenced shot special1.</summary>
 	public static string FireSoundRole( BaseCombatWeapon weapon ) => weapon is BulletWeapon { Silenced: true } ? "special1" : "single_shot";
 

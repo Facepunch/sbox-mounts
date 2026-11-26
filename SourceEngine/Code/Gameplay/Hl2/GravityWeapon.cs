@@ -282,11 +282,13 @@ public sealed class GravityWeapon : Weapon
 
 	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
 
+	void PuntEffects( PuntResult result, Vector3 impact = default ) => PlayPuntEffects( result, impact, Game.Random.Next() );
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PuntEffects( PuntResult result, Vector3 impact = default )
+	void PlayPuntEffects( PuntResult result, Vector3 impact, int soundSeed )
 	{
 		var launch = result != PuntResult.Miss;
-		Sounds.PlayWeaponSound( this, launch ? "single_shot" : "empty" );
+		Sounds.PlayWeaponSound( this, launch ? "single_shot" : "empty", soundSeed );
 		(WeaponModel as ViewModel)?.PlayPhyscannonAttack( launch );
 		if ( !launch ) return;
 
