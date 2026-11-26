@@ -47,7 +47,7 @@ public abstract partial class Weapon
 		if ( !IsHeld || IsHolstered ) return;
 		putAwayFrames = frames;
 		releaseFrame = release;
-		putAwayAt = Time.NowDouble;
+		putAwayAt = System.Math.Floor( Time.NowDouble * 30 ) / 30;
 		PlayPutAway();
 		HolderAnimator?.SampleWeaponOverlay( "put_away", 0 );
 	}

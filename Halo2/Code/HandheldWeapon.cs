@@ -106,18 +106,6 @@ public abstract partial class HandheldWeapon : Weapon
 	double? lastBarrelTick;
 	double? previousBarrelTick;
 	bool roundQueued;
-	double readyAt;
-
-	protected override void OnEquipped()
-	{
-		base.OnEquipped();
-		if ( !IsValid || Holder is not PlayerController || !IsActive ) return;
-		if ( FirstPersonAnimations()?.Actions.TryGetValue( "ready", out var clip ) == true )
-		{
-			readyAt = (System.Math.Floor( Time.NowDouble * 30 ) + Weapon.ReleaseFrame( clip )) / 30;
-			SetNextPrimaryFire( (float)(readyAt - Time.NowDouble) );
-		}
-	}
 
 	private protected void UpdateTrack( TrackVoice voice, WeaponSoundTrack track, bool active, GameObject source = null )
 	{
@@ -127,7 +115,7 @@ public abstract partial class HandheldWeapon : Weapon
 		voice.Update( track, active, emitter );
 	}
 
-	protected virtual bool CanCycleBarrel => PrimaryAutomatic && Time.NowDouble >= readyAt &&
+	protected virtual bool CanCycleBarrel => PrimaryAutomatic && Time.NowDouble >= PrimaryReadyAt &&
 		CanUseHeldWeapon && !MeleeActive && !IsReloading && HasPrimaryAmmo();
 	protected virtual double EarliestRateTick => 0;
 	protected virtual bool HasPendingRound => roundQueued;
@@ -195,7 +183,6 @@ public abstract partial class HandheldWeapon : Weapon
 
 	protected override void OnDisabled()
 	{
-		readyAt = 0;
 		if ( ViewModel.IsValid() && ViewModel.Parent != GameObject ) DestroyViewModel();
 		lastAutomaticRound = null;
 		lastBarrelTick = null;

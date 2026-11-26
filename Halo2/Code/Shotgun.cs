@@ -590,7 +590,7 @@ public sealed partial class Shotgun : Weapon
 		float remaining = NextPrimaryFire;
 		base.OnEquipped();
 		if ( !IsValid || !IsHeld || IsHolstered ) return;
-		if ( remaining > DeployTime ) SetNextPrimaryFire( remaining );
+		if ( remaining > NextPrimaryFire ) SetNextPrimaryFire( remaining );
 		PlayHolderOverlay( "ready" );
 	}
 

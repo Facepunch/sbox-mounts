@@ -24,12 +24,19 @@ public abstract partial class Weapon : BaseCombatWeapon
 	[Property] public string AttackSoundMarker { get; set; }
 	[Property] public string DryFireMarker { get; set; }
 	bool dryTriggerHeld;
+	protected double PrimaryReadyAt { get; private set; }
 
 	protected override void OnEquipped()
 	{
 		if ( Networking.IsHost && AnimationClass is { Length: > 0 } && AnimationType is { Length: > 0 } )
 			HolderAnimator?.ConfigureWeapon( AnimationClass, AnimationType );
 		base.OnEquipped();
+		if ( !IsValid || Holder is not PlayerController || !IsActive ) return;
+		if ( FirstPersonAnimations()?.Actions.TryGetValue( "ready", out var clip ) == true )
+		{
+			PrimaryReadyAt = (System.Math.Floor( Time.NowDouble * 30 ) + ReleaseFrame( clip )) / 30;
+			SetNextPrimaryFire( (float)(PrimaryReadyAt - Time.NowDouble) );
+		}
 	}
 
 	[Property] public Vector3 ViewOffset { get; set; }
@@ -281,6 +288,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 
 	protected override void OnDisabled()
 	{
+		PrimaryReadyAt = 0;
 		ClearPutAway();
 		dryTriggerHeld = false;
 		SetZoom( 0, audible: false );
