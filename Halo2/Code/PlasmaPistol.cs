@@ -17,9 +17,22 @@ public sealed class PlasmaPistol : BatteryWeapon
 	readonly TrackVoice chargeVoice = new();
 
 	double ChargedAt => PressedAt + (LatchTicks + ChargeTicks) / 30.0;
-	public bool FullyCharged => (HoldingTrigger || PendingRelease.HasValue) && Time.NowDouble >= ChargedAt;
+	public bool FullyCharged => !PuttingAway && (HoldingTrigger || PendingRelease.HasValue) && Time.NowDouble >= ChargedAt;
 	internal override string RestAction => FullyCharged ? "overcharged" : base.RestAction;
 	protected override bool WantsPrimaryAttack() => false;
+
+	public override bool CanSecondaryAttack()
+	{
+		if ( PendingRelease.HasValue ) return false;
+		if ( HoldingTrigger )
+		{
+			// The press wins a simultaneous melee input. During the latch delay the unit
+			// can still start a strike, up to and including the tick the barrel would latch.
+			double ticks = System.Math.Floor( Time.NowDouble * 30 ) - System.Math.Round( PressedAt * 30 );
+			if ( ticks <= 0 || ticks > LatchTicks ) return false;
+		}
+		return base.CanSecondaryAttack();
+	}
 
 	protected override void Think()
 	{
@@ -37,7 +50,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 		if ( pressed )
 		{
 			if ( !CanPrimaryAttack() ) return;
-			PressedAt = Time.NowDouble;
+			PressedAt = System.Math.Floor( Time.NowDouble * 30 ) / 30;
 			HoldingTrigger = true;
 			return;
 		}
@@ -90,7 +103,19 @@ public sealed class PlasmaPistol : BatteryWeapon
 
 	void UpdateChargeSound()
 	{
-		UpdateTrack( chargeVoice, ChargeSound, HoldingTrigger && IsInHand && Time.NowDouble >= PressedAt + LatchTicks / 30.0 );
+		UpdateTrack( chargeVoice, ChargeSound, HoldingTrigger && IsInHand && !PuttingAway && Time.NowDouble >= PressedAt + LatchTicks / 30.0 );
+	}
+
+	protected override void PlayPutAway()
+	{
+		ResetTrigger();
+		base.PlayPutAway();
+	}
+
+	protected override void PlayMeleeView( string action )
+	{
+		ResetTrigger();
+		base.PlayMeleeView( action );
 	}
 
 	protected override void OnDisabled()
