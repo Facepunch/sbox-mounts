@@ -155,7 +155,7 @@ public sealed partial class ProjectileWeapon : Weapon
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	void GuidingSound( bool on )
 	{
-		if ( Sounds.WeaponSound( this, on ? "special1" : "special2" ) is { } sound ) GameObject.PlaySound( sound );
+		Sounds.PlayWeaponSound( this, on ? "special1" : "special2" );
 	}
 
 	/// <summary>Host only: CWeaponRPG::NotifyRocketDied reloads the launcher.</summary>
@@ -206,7 +206,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		base.OnShootEffects( shot );
 		if ( Kind != Projectile.Kinds.Bolt || shot.NoEvents || Application.IsDedicatedServer ) return;
 		WeaponEffects.CrossbowLoad( WeaponModel, MountContent.OfWeapon( this ) );
-		if ( Sounds.WeaponSound( this, "special2" ) is { } flight ) GameObject.PlaySound( flight );
+		Sounds.PlayWeaponSound( this, "special2" );
 	}
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), SpreadBloom );
@@ -318,7 +318,7 @@ public sealed partial class ProjectileWeapon : Weapon
 			if ( IsReloading )
 			{
 				WeaponEffects.CrossbowLoad( WeaponModel, MountContent.OfWeapon( this ) );
-				if ( Sounds.WeaponSound( this, "special1" ) is { } sound ) GameObject.PlaySound( sound );
+				Sounds.PlayWeaponSound( this, "special1" );
 			}
 		}
 		if ( !IsLauncher || Application.IsDedicatedServer ) return;
@@ -454,10 +454,7 @@ public sealed partial class ProjectileWeapon : Weapon
 		.IgnoreGameObjectHierarchy( AimIgnoreRoot ).WithoutTags( "projectile", "trigger" ).UseHitboxes().Run().Hit;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void ThrowSound( string role )
-	{
-		if ( Sounds.WeaponSound( this, role ) is { } sound ) GameObject.PlaySound( sound );
-	}
+	void ThrowSound( string role ) => Sounds.PlayWeaponSound( this, role );
 
 	(Vector3 Origin, Vector3 Velocity) RollLaunch( Vector3 forward, Vector3 inherited )
 	{

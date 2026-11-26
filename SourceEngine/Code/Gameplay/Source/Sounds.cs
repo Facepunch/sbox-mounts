@@ -37,6 +37,12 @@ static class Sounds
 
 	public static SoundEvent WeaponSound( BaseCombatWeapon weapon, string role ) => WeaponSound( WeaponSetup.WeaponData( weapon ), role );
 
+	public static void PlayWeaponSound( BaseCombatWeapon weapon, string role )
+	{
+		if ( !Application.IsDedicatedServer && WeaponSound( weapon, role ) is { } sound )
+			(weapon.Holder?.GameObject ?? weapon.GameObject).PlaySound( sound );
+	}
+
 	/// <summary>Counter-Strike scripts name the silenced shot special1.</summary>
 	public static string FireSoundRole( BaseCombatWeapon weapon ) => weapon is BulletWeapon { Silenced: true } ? "special1" : "single_shot";
 
