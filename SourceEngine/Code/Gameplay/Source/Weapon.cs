@@ -203,9 +203,8 @@ public abstract class Weapon : BaseCombatWeapon
 			if ( !WasDropped ) inventory.GiveAmmo( PrimaryAmmoType, StartingAmmo );
 			StartingAmmo = 0;
 		}
-		if ( !WasDropped && !UsesSecondaryClip && SecondaryAmmoType is not null
-			&& WeaponSetup.WeaponData( this ) is { SecondaryClipSize: -1, SecondaryDefaultClip: int secondaryDefault } && secondaryDefault > 0 )
-			inventory.GiveAmmo( SecondaryAmmoType, secondaryDefault );
+		if ( !WasDropped && !UsesSecondaryClip && SecondaryAmmoType is not null && SecondaryPickupAmmo > 0 )
+			inventory.GiveAmmo( SecondaryAmmoType, SecondaryPickupAmmo );
 		base.OnAdded( inventory );
 	}
 
