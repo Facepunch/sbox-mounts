@@ -77,9 +77,8 @@ public sealed partial class RabbitGuard
 		var contact = collision.Contact;
 		if ( contact.NormalSpeed <= 0f ) return contact.Impulse;
 		var other = collision.Other.Body;
-		bool otherLimb = articulated && other.IsValid() && other.Component.IsValid() && other.Component.GetComponentInParent<ModelPhysics>().IsValid();
 		var self = collision.Self.Body;
-		float inverseMass = InverseContactMass( self, articulated ) + InverseContactMass( other, otherLimb );
+		float inverseMass = InverseContactMass( self ) + InverseContactMass( other );
 		if ( inverseMass <= 0f ) return contact.Impulse;
 		float speedChange = contact.NormalSpeed;
 		if ( articulated && self.IsValid() )
@@ -93,13 +92,33 @@ public sealed partial class RabbitGuard
 		}
 		return Math.Max( contact.Impulse, speedChange / inverseMass );
 
-		float InverseContactMass( PhysicsBody body, bool limb )
+		float InverseContactMass( PhysicsBody body )
 		{
 			if ( !body.IsValid() || !body.MotionEnabled || body.Mass <= 0f ) return 0f;
-			// The joints constrain rotation at a limb contact. The free-body angular term
-			// underestimates the momentum transferred through the skeleton.
-			if ( limb ) return 1f / body.Mass;
-			var arm = Vector3.Cross( contact.Point - body.MassCenter, contact.Normal );
+			if ( !articulated || !body.Component.IsValid() || body.Component.GetComponentInParent<ModelPhysics>() is not { } model )
+				return FreeInverseMass( body, contact.Point, contact.Normal );
+
+			float mass = body.Mass;
+			foreach ( var joint in model.Joints )
+			{
+				if ( !joint.Component.IsValid() || !joint.Body1.Component.IsValid() || !joint.Body2.Component.IsValid() ) continue;
+				bool first = joint.Body1.Component.PhysicsBody == body;
+				if ( !first && joint.Body2.Component.PhysicsBody != body ) continue;
+				var neighbor = (first ? joint.Body2 : joint.Body1).Component;
+				if ( !neighbor.PhysicsBody.IsValid() || !neighbor.PhysicsBody.MotionEnabled || neighbor.PhysicsBody.Mass <= 0f ) continue;
+				var anchor = neighbor.WorldTransform.PointToWorld( (first ? joint.LocalFrame2 : joint.LocalFrame1).Position );
+				// Only motion along the line between contact and joint loads the next limb directly.
+				var direction = (anchor - contact.Point).Normal;
+				float projection = direction.Dot( contact.Normal );
+				float inverse = FreeInverseMass( neighbor.PhysicsBody, anchor, direction );
+				if ( inverse > 0f ) mass += projection * projection / inverse;
+			}
+			return 1f / mass;
+		}
+
+		static float FreeInverseMass( PhysicsBody body, Vector3 point, Vector3 normal )
+		{
+			var arm = Vector3.Cross( point - body.MassCenter, normal );
 			var axis = (body.Rotation * body.InertiaRotation).Inverse * arm;
 			var inertia = body.Inertia;
 			return 1f / body.Mass + Angular( axis.x, inertia.x ) + Angular( axis.y, inertia.y ) + Angular( axis.z, inertia.z );
