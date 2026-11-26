@@ -17,6 +17,8 @@ public sealed partial class RabbitGuard
 	bool InHoldMovementState => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
 	float grabPhase;
 	string grabReader;
+	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
+	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
 	int holdTick;
 	int nextCaptureTick, cutStartTick;
@@ -86,6 +88,36 @@ public sealed partial class RabbitGuard
 		struggleVelocity = inheritedVelocity ?? combatVelocity.WithZ( 0f );
 		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
+		if ( pose is ArmedGrab or ArmedGrabbed )
+		{
+			// Submit the movement stance for both partners, including one that already updated.
+			playing = grabReader = CaptureMovementStance( pose );
+			grabPhase = 0f;
+			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
+			Renderer.Animation.Parameters.Set( "stance", playing );
+		}
+	}
+
+	static string CaptureMovementStance( string pose ) => pose == ArmedGrab ? ArmedHold : ArmedHeld;
+
+	void UpdateGrabReader( string pose )
+	{
+		if ( IsGrabClip( pose ) ) grabReader = pose;
+		else if ( !FadingGrab ) grabReader = null;
+		if ( grabReader is null ) return;
+
+		// FadeCollection continues to advance the outgoing reader after UnTether.
+		var grab = GrabPose( grabReader );
+		if ( grabReader is ArmedGrab or ArmedGrabbed )
+		{
+			float age = Math.Max( 0f, (float)SinceGrab - CaptureLead + 1f / 120f );
+			grabPhase = age * grab.Frequency * (grabReader == ArmedGrab ? AttackSpeed : 1f);
+		}
+		else if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
+		else grabPhase = grabReader == pose && playing != pose ? 0f : grabPhase + Time.Delta * grab.Frequency;
+
+		grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
+		Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
 	}
 
 	void AdvanceCaptureAlignment( int tick )
@@ -117,8 +149,8 @@ public sealed partial class RabbitGuard
 				weight *= Math.Min( 1f, sample * 10f );
 			}
 			var from = cut && nextCaptureTick == cutStartTick + 1 ? global::Transform.Zero
-				: clip.Animation.GetRootMotion( Math.Max( 0f, sample - step ) / clip.Duration );
-			var to = clip.Animation.GetRootMotion( sample / clip.Duration );
+				: clip.RootMotionAt( sample - step );
+			var to = clip.RootMotionAt( sample );
 			ApplyPairedRootMotion( from, to, weight );
 			if ( !cut && (weight >= 1f && holdPartner.IsValid() || sample >= clip.Duration) )
 			{
@@ -248,8 +280,8 @@ public sealed partial class RabbitGuard
 		var clip = CaptureClip;
 		float time = (holdTick - 0.5f) * HoldStep;
 		float weight = Math.Min( 1f, time * 20f ) * Math.Min( 1f, (time + 4f / 120f) * 5f );
-		var from = holdTick == 1 ? global::Transform.Zero : clip.Animation.GetRootMotion( (time - HoldStep) * AttackSpeed / clip.Duration );
-		var to = clip.Animation.GetRootMotion( time * AttackSpeed / clip.Duration );
+		var from = holdTick == 1 ? global::Transform.Zero : clip.RootMotionAt( (time - HoldStep) * AttackSpeed );
+		var to = clip.RootMotionAt( time * AttackSpeed );
 		ApplyPairedRootMotion( from, to, weight );
 	}
 

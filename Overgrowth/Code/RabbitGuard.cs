@@ -204,6 +204,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		}
 		UpdateBreathing( Time.Delta );
 		var pose = AirPose();
+		if ( pose is ArmedGrab or ArmedGrabbed && SinceGrab < CaptureLead ) pose = CaptureMovementStance( pose );
 		if ( pose != FreeAir ) jumpCycle.Fade( this, "air_phase" );
 		if ( pose != Wall ) wallCycle.Fade( this, "wall_phase" );
 		if ( pose == Locomotion && Animation.IsGrounded && GaitSpeed <= 0.6f * 40f )
@@ -243,18 +244,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( OnLedge ) UpdateLedgeFeet();
 		Array.Clear( actionHandTargets );
 		if ( playing == pose && (pose is ClimbUp or LedgeReach || pose == Stance && UsesCombatIK) ) UpdateActionIK( pose );
-		if ( IsGrabClip( pose ) ) grabReader = pose;
-		else if ( !FadingGrab ) grabReader = null;
-		if ( grabReader is not null )
-		{
-			// The native fade collection keeps advancing the outgoing animation reader.
-			bool entering = grabReader == pose && playing != pose;
-			var grab = GrabPose( grabReader );
-			grabPhase = entering ? 0f : grabPhase + Time.Delta * grab.Frequency;
-			grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
-			if ( FinishingCaptureReaction ) grabPhase = ReactionPhase;
-			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
-		}
+		UpdateGrabReader( pose );
 		if ( OnLedge ) Renderer.Animation.Parameters.Set( "ledge_phase", LedgePhase );
 		if ( boundAnimations.IdlePoses.TryGetValue( displayPose, out var idle ) )
 		{

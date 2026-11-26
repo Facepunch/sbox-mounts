@@ -24,6 +24,8 @@ internal sealed record Step( float Phase, string Event, int Bone );
 
 internal sealed record RabbitClip( Clip Animation, bool Looping, float Duration, Impact Impact, float[] PreparePhases, Impact Blocked, float DamageMin, float DamageMax, List<Step> Steps, LimbPose[][] Feet )
 {
+	internal Transform RootMotionAt( float seconds ) => Animation.GetRootMotion( Math.Clamp( seconds / Duration, 0f, 1f ) );
+
 	internal LimbPose[][] Hands { get; private init; }
 	internal float? GrabTime { get; init; }
 	internal (float Time, bool Left)? WeaponRelease { get; init; }
