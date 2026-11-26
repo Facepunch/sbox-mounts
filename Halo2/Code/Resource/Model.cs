@@ -15,6 +15,9 @@ public sealed class UnitDefinition
 	public int DefaultTeam { get; set; }
 	public bool ImmuneToAssassination { get; set; }
 	public string ShieldMaterial { get; set; }
+	public float StandingHeight { get; set; }
+	public float CrouchingHeight { get; set; }
+	public float Radius { get; set; }
 }
 
 /// <summary>
@@ -136,12 +139,19 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		if ( biped is { DataSize: >= 0xc4 } && firstPersonWeapon is null )
 		{
 			int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
-			builder.WithData( new UnitDefinition
+			var definition = new UnitDefinition
 			{
 				DefaultTeam = (short)mapFile.ReadInt32( unit + 0xc0 ),
 				ImmuneToAssassination = (mapFile.ReadInt32( unit + 0xbc ) & (1 << 16)) != 0,
 				ShieldMaterial = ShieldMaterial
-			} );
+			};
+			if ( biped is { PrimaryClass: "dpib", DataSize: >= 0x274 } )
+			{
+				definition.StandingHeight = Float( unit + 0x268 ) * ScaleFactor;
+				definition.CrouchingHeight = Float( unit + 0x26c ) * ScaleFactor;
+				definition.Radius = Float( unit + 0x270 ) * ScaleFactor;
+			}
+			builder.WithData( definition );
 		}
 		if ( biped is not null && firstPersonWeapon is null && mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 ) is {} globals )
 		{

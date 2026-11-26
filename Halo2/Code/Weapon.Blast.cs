@@ -46,6 +46,33 @@ public abstract partial class Weapon
 			}
 		}
 
+		// A biped's movement capsule can extend past its model colliders.
+		void IncludeBiped( GameObject target, ModelRenderer renderer, bool crouching )
+		{
+			if ( renderer?.Model?.GetData<UnitDefinition>() is not { Radius: > 0, StandingHeight: > 0 } unit ) return;
+			var transform = target.WorldTransform;
+			var local = transform.PointToLocal( origin );
+			float height = crouching ? unit.CrouchingHeight : unit.StandingHeight;
+			float radius = unit.Radius;
+			var axis = Vector3.Up * local.z.Clamp( radius, System.MathF.Max( radius, height - radius ) );
+			var delta = local - axis;
+			var point = delta.LengthSquared <= radius * radius ? origin : transform.PointToWorld( axis + delta.Normal * radius );
+			float distance = point.Distance( origin );
+			if ( distance >= blast.OuterRadius )
+			{
+				nearest.Remove( target );
+				return;
+			}
+			var collider = nearest.TryGetValue( target, out var previous ) ? previous.Collider
+				: target.GetComponentsInChildren<Collider>( true ).FirstOrDefault( c => c.Active && !c.IsTrigger );
+			if ( collider.IsValid() ) nearest[target] = (collider, point, distance);
+		}
+
+		foreach ( var npc in scene.GetAllComponents<Sandbox.Npcs.BaseNpc>() )
+			IncludeBiped( npc.GameObject, npc.Renderer, false );
+		foreach ( var player in scene.GetAllComponents<PlayerController>() )
+			IncludeBiped( player.GameObject, player.Renderer, player.IsDucking );
+
 		foreach ( var (target, contact) in nearest )
 		{
 			if ( !target.IsValid() || !contact.Collider.IsValid() ) continue;
