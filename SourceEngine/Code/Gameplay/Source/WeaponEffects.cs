@@ -727,26 +727,28 @@ static class WeaponEffects
 		if ( Application.IsDedicatedServer )
 			return;
 		var big = (int)(magnitude * magnitude * Game.Random.Float( 2, 4 ));
-		var bigTrails = SparkTrails( position, mount, big, new( magnitude, magnitude * 2 ), new( 2, 5 ), new( 0.02f, 0.05f ), 800, true, parent );
+		var bigTrails = SparkTrails( position, mount, big, new( magnitude, magnitude * 2 ), new( 2, 5 ), LargeSparkStretch, 800, true, parent );
 		if ( bigTrails.IsValid() )
 		{
 			for ( var i = 0; i < big; i++ )
 			{
-				var dir = Particles.InCube( 1 ).WithZ( Game.Random.Float( 0.5f, 1 ) ) + 2 * direction;
+				var dir = Particles.InCube( 1 ).WithZ( Game.Random.Float( 0.5f, 1 ) );
+				if ( direction != Vector3.Zero ) dir = (dir + 2 * direction).Normal;
 				if ( bigTrails.Emit( position, 0 ) is { } particle )
-					particle.Velocity = dir.Normal * Game.Random.Float( 64, 300 );
+					particle.Velocity = dir * Game.Random.Float( 64, 300 );
 			}
 		}
 
 		var little = magnitude * Game.Random.Int( 16, 32 );
-		var littleTrails = SparkTrails( position, mount, little, new( magnitude * 0.1f, magnitude * 0.2f ), new( 2, 4 ), new( 0.02f, 0.03f ), 400, false, parent );
+		var littleTrails = SparkTrails( position, mount, little, new( magnitude * 0.1f, magnitude * 0.2f ), new( 2, 4 ), SmallSparkStretch, 400, false, parent );
 		if ( littleTrails.IsValid() )
 		{
 			for ( var i = 0; i < little; i++ )
 			{
-				var dir = Particles.InCube( 1 ) + direction;
+				var dir = Particles.InCube( 1 );
+				if ( direction != Vector3.Zero ) dir = (dir + direction).Normal;
 				if ( littleTrails.Emit( position, 0 ) is { } particle )
-					particle.Velocity = dir.Normal * Game.Random.Float( 128, 256 );
+					particle.Velocity = dir * Game.Random.Float( 128, 256 );
 			}
 		}
 
@@ -754,7 +756,7 @@ static class WeaponEffects
 		go.NetworkMode = NetworkMode.Never;
 		go.WorldPosition = position;
 		var burst = go.AddComponent<SpriteBurst>();
-		// effects/yellowflare_noz draws the effects/yellowflare texture.
+		burst.CameraFade = new Vector2( 16, 64 );
 		var flare = burst.Add( "effects/yellowflare", mount, 0, magnitude * Game.Random.Int( 4, 8 ), Color.White, 0.2f );
 		burst.FadeTo( flare, 0, Color.White );
 		var grey = Game.Random.Int( 32, 64 ) / 255f;
@@ -764,14 +766,16 @@ static class WeaponEffects
 	}
 
 	// Trail particles shorten over their lifetime, down to 0.01 seconds of travel.
+	static readonly ParticleFloat LargeSparkStretch = DropStretch( 0.05f, 0.02f );
+	static readonly ParticleFloat SmallSparkStretch = DropStretch( 0.03f, 0.02f );
 	static readonly ParticleFloat SplashDropStretch = DropStretch( 0.05f );
 	static readonly ParticleFloat ExplosionDropStretch = DropStretch( 0.1f );
 
-	static ParticleFloat DropStretch( float longest ) => new()
+	static ParticleFloat DropStretch( float longest, float shortest = 0.025f ) => new()
 	{
 		Type = ParticleFloat.ValueType.CurveRange,
 		Evaluation = ParticleFloat.EvaluationType.Life,
-		CurveA = DropLength( 0.025f ),
+		CurveA = DropLength( shortest ),
 		CurveB = DropLength( longest )
 	};
 
@@ -797,6 +801,10 @@ static class WeaponEffects
 		// Smoke evolves over one second, but dies with the glow emitter after 0.2 seconds.
 		var smoke = Particles.Emitter( burst, "particle/particle_noisesphere", mount, false, false, 1 );
 		if ( !smoke.IsValid() ) return;
+		var renderer = smoke.GetComponent<ParticleSpriteRenderer>();
+		renderer.CameraFadeNear = 16;
+		renderer.CameraFadeFar = 64;
+		renderer.DepthFeather = 4;
 		smoke.Lifetime = 1;
 		smoke.ApplyShape = true;
 		smoke.InitialScale = 2 * Game.Random.Int( 4, 8 );

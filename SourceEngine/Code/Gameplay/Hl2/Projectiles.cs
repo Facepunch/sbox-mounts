@@ -22,6 +22,45 @@ public sealed class CrossbowBolt : Projectile
 	TimeUntil? _removeAfterImpact;
 	SpriteRenderer _glow;
 	TimeSince _glowAge;
+	ParticleEffect _blur;
+	Vector3 _lastDrawPosition;
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		if ( !Visual.IsValid() ) return;
+		_blur = Particles.Emitter( Visual, "effects/muzzleflash1", MountName, true, false, 20 );
+		_lastDrawPosition = Visual.WorldPosition;
+	}
+
+	void UpdateBlur()
+	{
+		if ( !_blur.IsValid() ) return;
+		var position = Visual.WorldPosition;
+		var motion = position - _lastDrawPosition;
+		_lastDrawPosition = position;
+		var distance = motion.Length;
+		if ( HiddenOnImpact || distance == 0 )
+		{
+			if ( _blur.ParticleCount > 0 ) _blur.Clear();
+			return;
+		}
+
+		var direction = motion / distance;
+		var spacing = MathF.Min( distance * 0.5f, 4 );
+		for ( var i = 0; i < _blur.MaxParticles; i++ )
+		{
+			var point = position + direction * (24 - (i + 1) * spacing);
+			if ( i < _blur.Particles.Count )
+			{
+				_blur.Particles[i].Position = point;
+				continue;
+			}
+			var halo = _blur.Emit( point, 0 );
+			halo.Size = 6;
+			halo.Color = (Color.White * float.Lerp( 0.25f, 0.05f, Math.Clamp( (i - 5) / 6f, 0, 1 ) )).WithAlpha( 1 );
+		}
+	}
 
 	internal static Vector3 LaunchVelocity( Scene scene, Vector3 eye, Vector3 forward )
 		=> forward * (SourceWaterMap.IsUnderwater( scene, eye ) ? WaterVelocity : AirVelocity);
@@ -40,6 +79,7 @@ public sealed class CrossbowBolt : Projectile
 	{
 		base.OnUpdate();
 		if ( HiddenOnImpact && Visual.IsValid() ) Visual.Enabled = false;
+		UpdateBlur();
 		if ( !_glow.IsValid() ) return;
 		if ( _glowAge >= ImpactLifetime ) _glow.GameObject.Destroy();
 		else MountedEffects.SetSprite( _glow, 0.2f, 128 * (1 - _glowAge / 3) );
