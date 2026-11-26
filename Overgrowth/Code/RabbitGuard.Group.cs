@@ -42,7 +42,7 @@ public sealed partial class RabbitGuard
 
 		var clipped = WalkableRay( WorldPosition, WorldPosition + flat * 40f );
 		float reachable = (clipped - WorldPosition).WithZ( 0f ).Length;
-		return flat * (reachable / (40f * force.Length));
+		return force * (reachable / (40f * force.Length));
 	}
 
 	bool unassignedPatrol;

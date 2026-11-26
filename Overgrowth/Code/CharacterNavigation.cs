@@ -207,7 +207,6 @@ public sealed class CharacterNavigation : NavigationLayer
 			else fighter.UpdateGroundSpeed( Agent, requestedGroundSpeed, Time.Delta, RequestedHeading );
 		}
 		else routeStepDuration = 0f;
-		RequestedHeading = null;
 	}
 
 	// UpdateAnimation turns toward actual travel at ten radians per second. When the desired

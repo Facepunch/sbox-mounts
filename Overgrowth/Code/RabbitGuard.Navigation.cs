@@ -19,7 +19,7 @@ public sealed partial class RabbitGuard
 	static Vector3 GroundDirection( Vector3 direction, Vector3 normal )
 	{
 		var left = normal.Cross( Vector3.Forward ).Normal;
-		var tangent = left * direction.y + left.Cross( normal ) * direction.x;
+		var tangent = left * direction.y + left.Cross( normal ) * direction.x + normal * direction.z;
 		return (direction * tangent.WithZ( 0f ).Length).WithZ( tangent.z );
 	}
 
@@ -68,9 +68,9 @@ public sealed partial class RabbitGuard
 		float duck = groundCrouchTime > 0 && elapsed > 0f && InLocomotion ? SampleCrouchSpring( groundCrouchTarget, elapsed ).Amount : duckAmount;
 		float drive = GroundDrive( duck );
 		PreFrictionSpeedScale = MathF.Exp( friction * tick );
-		float terminal = input * MathF.Sqrt( Math.Max( 0f, 1f - tangent.z * tangent.z ) ) * drive * tick / (PreFrictionSpeedScale - 1f);
+		float terminal = input * tangent.WithZ( 0f ).Length * drive * tick / (PreFrictionSpeedScale - 1f);
 		float response = 1f - MathF.Exp( -friction * step );
-		float steeringAcceleration = (direction * terminal - velocity).Length * (response / step);
+		float steeringAcceleration = (direction.WithZ( 0f ).Normal * terminal - velocity).Length * (response / step);
 		// The crowd limits its wish speed by braking distance. While there is room,
 		// approach the authored velocity vector, preserving momentum through turns.
 		float distance = agent.TargetPosition is { } target ? (target - agent.AgentPosition).WithZ( 0f ).Length : 0f;
@@ -114,7 +114,7 @@ public sealed partial class RabbitGuard
 			return false;
 		}
 		Movement.MoveTo( point, 0f, intent.Length * speed * GroundRunSpeed, faceTarget );
-		if ( Movement is CharacterNavigation navigation ) navigation.RequestedHeading = intent.WithZ( 0f ).Normal;
+		if ( Movement is CharacterNavigation navigation ) navigation.RequestedHeading = intent.Normal;
 		return true;
 	}
 
@@ -145,7 +145,7 @@ public sealed partial class RabbitGuard
 		var separation = repulsion ?? TeammateSeparation();
 		intent += separation;
 		if ( intent.LengthSquared > 1f ) intent = intent.Normal;
-		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent * 40f;
+		if ( !separation.IsNearlyZero() ) point = WorldPosition + intent.WithZ( 0f ) * 40f;
 		return intent;
 	}
 
