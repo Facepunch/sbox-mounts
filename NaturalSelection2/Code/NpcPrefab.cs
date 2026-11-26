@@ -30,6 +30,7 @@ internal sealed class NpcPrefab( string title, string directory, string tag, str
 			var root = new GameObject( true, title ) { NetworkMode = NetworkMode.Object };
 			root.Tags.Add( "npc", "removable", tag );
 			var renderer = new GameObject( root, true, "Model" ).AddComponent<SkinnedModelRenderer>();
+			renderer.CreateAttachments = tag == "ns2_lifeform";
 			renderer.Model = Model.Load( ModelPath );
 			renderer.UseAnimGraph = true;
 			renderer.Animation.Graph = Sandbox.Animation.Graph.Load( $"mount://ns2/{directory}.animation_graph.ag" );

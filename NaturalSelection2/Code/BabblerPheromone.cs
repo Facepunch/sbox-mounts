@@ -71,6 +71,7 @@ public sealed class BabblerPheromone : Component
 			owner.DispatchBrood( owner.GameObject, position );
 			Pop();
 		}
+		else if ( victim is AlienLifeform recipient && owner.TryDonate( recipient ) ) Pop();
 		else if ( victim is IDamageable hp )
 		{
 			if ( hp.Health <= 0 && hp.MaxHealth > 0 || AlienTargeting.IsIgnoredPlayer( victim.GameObject ) || owner.GetDisposition( victim.GameObject ) != Disposition.Hostile ) return;

@@ -2,7 +2,7 @@ using System;
 
 namespace NS2;
 
-public abstract class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
+public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
 {
 	private protected SparkAnimationGraph.Playback world;
 	[Sync( SyncFlags.FromHost )] protected TimeSince AnimationTime { get; set; }
@@ -30,8 +30,6 @@ public abstract class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
 		hit.AcceptedDamage = BlockDamage( hit.DamageInfo, hit.AcceptedDamage );
 		AlienArmor.Absorb( hit, armor );
 	}
-
-	protected virtual void AbsorbBabblerShield( IDamageable.DamageEvent hit ) { }
 
 	protected virtual float BlockDamage( DamageInfo hit, float damage ) => damage;
 
@@ -63,6 +61,7 @@ public abstract class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
+		while ( brood.Count > 0 ) BreakBabbler( brood[0] );
 		railgunDeath = e.DamageInfo.Tags.Has( "railgun" );
 		if ( railgunDeath ) ShowRailgunDeath( GetType().Name.ToLowerInvariant(), WorldPosition );
 		base.OnDeath( e );

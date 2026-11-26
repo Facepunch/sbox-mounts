@@ -4,14 +4,7 @@ namespace NS2;
 
 public sealed partial class Gorge
 {
-	// Gorge base health is 160. NS2 rounds 13% to 21 before dividing it between the six attachment points.
-	const float ShieldPerBabbler = 3.5f;
-	static readonly string[] Sockets = ["babbler_attach1", "babbler_attach2", "babbler_attach3", "babbler_attach4", "babbler_attach5", "babbler_attach6"];
-	readonly List<Babbler> brood = new( 6 );
-	readonly List<int> freeSlots = [1, 2, 3, 4, 5, 6];
-	internal GameObject BabblerApproachPoint => freeSlots.Count > 0 ? Renderer.GetAttachmentObject( Sockets[freeSlots[0] - 1] ) : null;
 	TimeUntil nextHatch;
-	float babblerShield;
 
 	internal BabblerPheromone ActivePheromone { get; private set; }
 	TimeUntil nextThrow;
@@ -39,6 +32,39 @@ public sealed partial class Gorge
 			WorldPosition.DistanceSquared( threat.WorldPosition ) <= 14 * 14 * Scale * Scale;
 	}
 
+	AlienLifeform FindDonationTarget( Vector3? threat )
+	{
+		if ( !CanThrowBabblers( 3 ) || InCombat || threat is { } position &&
+			WorldPosition.DistanceSquared( position ) < 25 * 25 * Scale * Scale ) return null;
+		AlienLifeform best = null;
+		float nearest = 10 * 10 * Scale * Scale;
+		foreach ( var candidate in Scene.GetAllComponents<AlienLifeform>() )
+		{
+			if ( candidate is Gorge || candidate.Health <= 0 || !Friendly( candidate ) ) continue;
+			float distance = WorldPosition.DistanceSquared( candidate.WorldPosition );
+			if ( distance > nearest || candidate.DonationSpots() < 2 || WallBetween( EyePosition, CalculateAimPoint( candidate.GameObject ) ) ) continue;
+			best = candidate;
+			nearest = distance;
+		}
+		return best;
+	}
+
+	internal bool TryDonate( AlienLifeform recipient )
+	{
+		if ( recipient == this || !recipient.CanReceiveBabblers || !Friendly( recipient ) ) return false;
+		int spots = recipient.DonationSpots();
+		if ( spots == 0 ) return true;
+		// NS2 prefers nearby free Babblers before taking them off their owner's shield.
+		float Priority( Babbler b ) => b.WorldPosition.DistanceSquared( WorldPosition ) * (b.ClingSlot == 0 ? 1 : 6.25f);
+		foreach ( var b in brood.OrderBy( Priority ) )
+		{
+			if ( b.ClingTarget == recipient || b.WorldPosition.DistanceSquared( WorldPosition ) > 1000f * 1000 * Scale * Scale ) continue;
+			b.Dispatch( recipient.GameObject, recipient.WorldPosition );
+			if ( --spots == 0 ) break;
+		}
+		return true;
+	}
+
 	void ThrowBabblers()
 	{
 		ActivePheromone = null;
@@ -58,6 +84,11 @@ public sealed partial class Gorge
 				.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
 		}
 		var victim = hit.GameObject?.GetComponentInParent<IDamageable>();
+		if ( victim is AlienLifeform recipient && TryDonate( recipient ) )
+		{
+			BabblerPheromone.Puff( hit.HitPosition );
+			return;
+		}
 		var enemy = (victim as Component)?.GameObject;
 		if ( !enemy.IsValid() || AlienTargeting.IsIgnoredPlayer( enemy ) || victim.Health <= 0 && victim.MaxHealth > 0 || GetDisposition( enemy ) != Sandbox.Npcs.Disposition.Hostile )
 		{
@@ -116,50 +147,9 @@ public sealed partial class Gorge
 		var child = GameObject.Clone( PrefabFile.Load( "mount://ns2/entities/npcs/babbler.prefab" ), pose, startEnabled: false );
 		if ( !child.IsValid() ) return;
 		var babbler = child.GetComponent<Babbler>( true );
-		babbler.OwnerGorge = this;
+		babbler.BroodOwner = this;
 		brood.Add( babbler );
 		child.Enabled = true;
 		if ( Networking.IsActive ) child.NetworkSpawn();
-	}
-
-	internal void AttachHatchling( Babbler babbler )
-	{
-		if ( freeSlots.Count == 0 ) return;
-		int slot = freeSlots[^1];
-		var point = Renderer.GetAttachmentObject( Sockets[slot - 1] );
-		if ( !point.IsValid() ) return;
-		freeSlots.RemoveAt( freeSlots.Count - 1 );
-		babbler.ClingTo( point, slot );
-		babblerShield += ShieldPerBabbler;
-	}
-
-	internal void BabblerRemoved( Babbler babbler )
-	{
-		if ( !brood.Remove( babbler ) || babbler.ClingSlot == 0 ) return;
-		ReleaseSlot( babbler.ClingSlot );
-	}
-
-	internal void ReleaseSlot( int slot )
-	{
-		freeSlots.Add( slot );
-		babblerShield = Math.Min( babblerShield, (6 - freeSlots.Count) * ShieldPerBabbler );
-	}
-
-	protected override void AbsorbBabblerShield( IDamageable.DamageEvent e )
-	{
-		if ( babblerShield <= 0 || e.AcceptedDamage <= 0 ||
-			e.DamageInfo.Tags.HasAny( "nervegas", "corrode", "armoronly", "structuresonly", "splash" ) ) return;
-		float absorbed = Math.Min( babblerShield, e.AcceptedDamage );
-		e.AcceptedDamage -= absorbed;
-		babblerShield -= absorbed;
-		underFire = 3;
-		while ( freeSlots.Count < 6 && babblerShield <= (5 - freeSlots.Count) * ShieldPerBabbler )
-			BreakBabbler( brood.Find( b => b.ClingSlot != 0 ) );
-	}
-
-	void BreakBabbler( Babbler babbler )
-	{
-		BabblerRemoved( babbler );
-		babbler.Kill();
 	}
 }

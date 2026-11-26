@@ -47,15 +47,17 @@ public sealed partial class Babbler : BaseNpc
 	}
 
 	[Sync( SyncFlags.FromHost )] internal int ClingSlot { get; private set; }
-	internal Gorge OwnerGorge { get; set; }
+	internal AlienLifeform BroodOwner { get; set; }
+	internal AlienLifeform ClingTarget { get; private set; }
 	TimeUntil nextClingLeap, freeRoam;
 	TimeUntil? ownerLossTimeout;
 	Vector3? orderedPosition;
-	bool ReturningToOwner => OwnerGorge.IsValid() && orderedPosition is null && !target.IsValid() && freeRoam <= 0;
+	bool ReturningToOwner => BroodOwner.IsValid() && orderedPosition is null && !target.IsValid() && freeRoam <= 0;
 
 	internal void Dispatch( GameObject enemy, Vector3 destination )
 	{
-		if ( OwnerGorge.IsValid() && enemy == OwnerGorge.GameObject )
+		ClingTarget = null;
+		if ( BroodOwner.IsValid() && enemy == BroodOwner.GameObject )
 		{
 			target = null;
 			orderedPosition = null;
@@ -64,14 +66,16 @@ public sealed partial class Babbler : BaseNpc
 		}
 		if ( ClingSlot != 0 )
 		{
-			OwnerGorge.ReleaseSlot( ClingSlot );
+			BroodOwner.ReleaseSlot( ClingSlot );
 			DetachFromSocket();
 		}
-		target = enemy;
+		ClingTarget = enemy?.GetComponent<AlienLifeform>();
+		if ( ClingTarget.IsValid() && ClingTarget.Faction != Faction ) ClingTarget = null;
+		target = ClingTarget.IsValid() ? null : enemy;
 		orderedPosition = enemy.IsValid() ? null : destination + new Vector3(
 			Random.Shared.Float( -0.25f, 0.25f ), Random.Shared.Float( -0.25f, 0.25f ), Random.Shared.Float( 0, 0.5f ) ) * Scale;
 		reachedTarget = false;
-		freeRoam = 6;
+		freeRoam = ClingTarget.IsValid() ? 0 : 6;
 	}
 
 	internal void ClingTo( GameObject point, int slot )
@@ -79,6 +83,7 @@ public sealed partial class Babbler : BaseNpc
 		Movement.Stop();
 		GameObject.Parent = point;
 		ClingSlot = slot;
+		ClingTarget = null;
 		LocalTransform = global::Transform.Zero;
 		Renderer.LocalTransform = global::Transform.Zero;
 		SetFreeMovement( false );
@@ -114,16 +119,18 @@ public sealed partial class Babbler : BaseNpc
 
 	void ApproachOwner()
 	{
-		var point = OwnerGorge.BabblerApproachPoint;
-		if ( !point.IsValid() ) return;
+		if ( !ClingTarget.IsValid() || ClingTarget.Health <= 0 ) ClingTarget = null;
+		var host = ClingTarget ?? BroodOwner;
+		var point = host.BabblerApproachPoint;
+		if ( !point.IsValid() ) { ClingTarget = null; return; }
 		var delta = point.WorldPosition - SphereCenter;
 		float distance = delta.Length;
 		if ( distance <= 0.7f * Scale )
 		{
-			OwnerGorge.AttachHatchling( this );
+			host.AttachHatchling( this );
 			return;
 		}
-		var wall = Scene.Trace.Ray( EyePosition, point.WorldPosition ).IgnoreGameObjectHierarchy( OwnerGorge.GameObject )
+		var wall = Scene.Trace.Ray( EyePosition, point.WorldPosition ).IgnoreGameObjectHierarchy( host.GameObject )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ns2_babbler" ).Run();
 		if ( distance < 2.5f * Scale && wall.Fraction >= 0.9f )
 		{
@@ -145,7 +152,7 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnDestroy()
 	{
-		if ( OwnerGorge.IsValid() ) OwnerGorge.BabblerRemoved( this );
+		if ( BroodOwner.IsValid() ) BroodOwner.BabblerRemoved( this );
 		base.OnDestroy();
 	}
 
@@ -163,7 +170,7 @@ public sealed partial class Babbler : BaseNpc
 		StartGraph();
 		if ( Scene.PhysicsWorld.Gravity.z < 0 ) body.GravityScale = Gravity * Scale / -Scene.PhysicsWorld.Gravity.z;
 		Launch( new Vector3( Random.Shared.Float( -1, 1 ), Random.Shared.Float( -1, 1 ), Random.Shared.Float( 2, 4 ) ) * Scale );
-		if ( OwnerGorge.IsValid() ) ApproachOwner();
+		if ( BroodOwner.IsValid() ) ApproachOwner();
 	}
 
 	protected override void Think()
@@ -233,7 +240,7 @@ public sealed partial class Babbler : BaseNpc
 	{
 		foreach ( var sibling in Scene.GetAllComponents<Babbler>() )
 		{
-			if ( sibling == this || sibling.Faction != Faction || sibling.OwnerGorge != OwnerGorge || sibling.ClingSlot != 0 || !sibling.target.IsValid() ) continue;
+			if ( sibling == this || sibling.Faction != Faction || sibling.BroodOwner != BroodOwner || sibling.ClingSlot != 0 || !sibling.target.IsValid() ) continue;
 			if ( WorldPosition.DistanceSquared( sibling.WorldPosition ) < 30 * 30 * Scale * Scale && CanHunt( sibling.target ) )
 				return sibling.target;
 		}
@@ -254,10 +261,10 @@ public sealed partial class Babbler : BaseNpc
 
 	protected override void OnFixedUpdate()
 	{
-		if ( Networking.IsHost && OwnerGorge is not null && !OwnerGorge.IsValid() )
+		if ( Networking.IsHost && BroodOwner is not null && !BroodOwner.IsValid() )
 		{
 			if ( ClingSlot != 0 ) DetachFromSocket();
-			OwnerGorge = null;
+			BroodOwner = null;
 			ownerLossTimeout = 1;
 		}
 		if ( ClingSlot != 0 ) return;
@@ -265,7 +272,7 @@ public sealed partial class Babbler : BaseNpc
 		if ( !Networking.IsHost || !body.IsValid() || Health <= 0 ) return;
 		if ( ownerLossTimeout is { } timeout )
 		{
-			if ( OwnerGorge.IsValid() ) ownerLossTimeout = null;
+			if ( BroodOwner.IsValid() ) ownerLossTimeout = null;
 			else if ( timeout <= 0 )
 			{
 				Kill();

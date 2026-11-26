@@ -40,7 +40,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
-		renderer.CreateAttachments = true;
 		var hull = new GameObject( root, true, "Collider" );
 		hull.Tags.Add( "playercontroller" );
 		var sphere = hull.AddComponent<SphereCollider>();
@@ -87,6 +86,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 	{
 		var enemy = targeting.FindEnemy( this, out var lastSeen, static ( obj, _ ) =>
 			obj.Tags.HasAny( "structure", "ns2_mac" ) );
+		var threatPosition = lastSeen ?? enemy?.WorldPosition;
 		float combatWeight = AttackWeight( enemy, lastSeen );
 		bool fleeThrow = combatWeight < 20 && CanFleeThrow( enemy, enemy.IsValid() && lastSeen is null );
 		if ( fleeThrow ) combatWeight = 20;
@@ -111,13 +111,22 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 				}
 			}
 		}
+		var recipient = combatWeight < 5 ? FindDonationTarget( threatPosition ) : null;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
 		assignedTarget = null;
-		if ( SupportAlly( combatWeight, visible ) || !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		if ( SupportAlly( recipient.IsValid() ? 5 : combatWeight, visible ) || !recipient.IsValid() && !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			throwing = false;
 			escort = null;
+			return;
+		}
+		if ( recipient.IsValid() )
+		{
+			throwing = firing = true;
+			escort = null;
+			Movement.Stop();
+			Animation.SetLookTarget( recipient.GameObject );
 			return;
 		}
 		assignedTarget = enemy;
@@ -254,7 +263,6 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 
 	protected override void OnDeath( IDamageable.DeathEvent e )
 	{
-		while ( brood.Count > 0 ) BreakBabbler( brood[0] );
 		PlayCue( "death", WorldPosition );
 		base.OnDeath( e );
 	}
