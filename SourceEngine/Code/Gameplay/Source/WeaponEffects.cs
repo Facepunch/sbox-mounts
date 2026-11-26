@@ -402,6 +402,7 @@ static class WeaponEffects
 	internal static void ExplosionSplash( Vector3 surface, string mount )
 	{
 		Hl2.FlatQuad.ExplosionRipple( surface, mount );
+		Hl2.WaterShaft.CreatePair( surface, mount );
 		SplashDrops( surface, mount, explosion: true );
 		SplashPlume( surface, mount, 2 );
 	}
