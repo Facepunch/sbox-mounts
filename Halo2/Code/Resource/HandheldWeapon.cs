@@ -111,10 +111,12 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 
 	internal void RegisterEffects( MountContext context, HashSet<string> registered, Dictionary<string, string> materialParents )
 	{
-		if ( Name is "battle_rifle" or "smg" or "magnum" or "covenant_carbine" or "sniper_rifle" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle" )
+		var projectile = HasBarrel ? Reference( PrimaryBarrel + 0x8c ) : null;
+		if ( projectile is not null && ((map.ReadInt32( Address( projectile ) + 0xbc ) & 32) != 0
+			|| Name is "smg" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle") )
 		{
 			var tags = new HashSet<TagEntry>();
-			bulletContacts = LoadBulletContacts( Reference( PrimaryBarrel + 0x8c ), materialParents, tags );
+			bulletContacts = LoadBulletContacts( projectile, materialParents, tags );
 			if ( Name == "plasma_pistol" )
 			{
 				int secondary = Block( Header + 0x2d0 ) + Short( PrimaryTrigger + 10 ) * 0xec;
