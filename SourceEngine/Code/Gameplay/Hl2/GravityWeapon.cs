@@ -34,7 +34,7 @@ public sealed class GravityWeapon : Weapon
 	[Sync] public bool Pulling { get; set; }
 	const float MaxCarrySpeed = 2500;
 	const float MaxCarrySpin = 20 * MathF.PI; // 3600 degrees per second
-	readonly List<(Rigidbody Body, float MassOverride)> _carriedBodies = [];
+	readonly List<(Rigidbody Body, float MassOverride, float AngularDamping)> _carriedBodies = [];
 	float _loadWeight;
 	Vector3 _carryTarget;
 	Rotation _holdOffset;
@@ -320,7 +320,7 @@ public sealed class GravityWeapon : Weapon
 		}
 		if ( !body.MotionEnabled ) body.MotionEnabled = true;
 		HeldObject = body.GameObject;
-		SetCarryMass( body );
+		ApplyCarryPhysics( body );
 		var interactions = body.GetComponent<ModelRenderer>()?.Model?.GetData<PhysGunInteractions>();
 		_holdOffset = interactions?.PreferredCarryAngles is { } angles ? Rotation.From( angles ) : Owner.EyeTransform.Rotation.Inverse * body.WorldRotation;
 		_launchSpin = interactions?.LaunchSpin;
@@ -333,21 +333,23 @@ public sealed class GravityWeapon : Weapon
 		CarryEffects( CarryResult.Pickup );
 	}
 
-	void SetCarryMass( Rigidbody grabbed )
+	void ApplyCarryPhysics( Rigidbody grabbed )
 	{
 		if ( grabbed.GetComponentInParent<ModelPhysics>() is { Bodies.Count: > 1 } model )
 		{
 			var mass = MathF.Min( 1, 7.5f / model.Bodies.Count );
 			foreach ( var part in model.Bodies )
-				SetMass( part.Component, part.Component == grabbed ? 1 : mass );
+				Apply( part.Component, part.Component == grabbed ? 1 : mass );
 		}
-		else SetMass( grabbed, 1 );
+		else Apply( grabbed, 1 );
 
-		void SetMass( Rigidbody body, float mass )
+		void Apply( Rigidbody body, float mass )
 		{
 			_loadWeight += body.Mass;
-			_carriedBodies.Add( (body, body.MassOverride) );
+			_carriedBodies.Add( (body, body.MassOverride, body.AngularDamping) );
 			body.MassOverride = mass;
+			// VPhysics applies rotational damping through its gravity controller.
+			body.AngularDamping = body.PhysicsBody.GravityEnabled ? 10 : 0;
 		}
 	}
 
@@ -416,8 +418,12 @@ public sealed class GravityWeapon : Weapon
 	{
 		var held = HeldObject;
 		HeldObject = null;
-		foreach ( var (part, massOverride) in _carriedBodies )
-			if ( part.IsValid() ) part.MassOverride = massOverride;
+		foreach ( var (part, massOverride, angularDamping) in _carriedBodies )
+		{
+			if ( !part.IsValid() ) continue;
+			part.MassOverride = massOverride;
+			part.AngularDamping = angularDamping;
+		}
 		_carriedBodies.Clear();
 		_loadWeight = 0;
 		if ( !held.IsValid() ) return;
