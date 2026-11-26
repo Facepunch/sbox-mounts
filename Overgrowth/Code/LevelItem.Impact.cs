@@ -36,7 +36,7 @@ public sealed partial class LevelItem
 	void PlayImpact( string surface, string step, Vector3 point, float gain, string modifier )
 	{
 		if ( Sandbox.Mounting.Directory.Get( "overgrowth" ) is GameMount mount )
-			mount.PlaySurfaceEvent( GameObject, surface, step, point, gain, modifier );
+			mount.PlayItemImpact( GameObject, surface, step, point, gain, modifier );
 	}
 
 	void TryEmbed( GameMount mount, PhysicsBody body, PhysicsContact contact )

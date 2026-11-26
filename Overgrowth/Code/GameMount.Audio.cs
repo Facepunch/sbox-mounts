@@ -34,15 +34,38 @@ public partial class GameMount
 
 	internal void PlaySurfaceEvent( GameObject actor, string surface, string step, Vector3 position, float gain, string mod, bool useMaterialDistance = false )
 	{
-		var material = ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );
-		PlayEvent( material, mod, actor, step, position, gain, useMaterialDistance );
+		PlayEvent( SurfaceMaterial( surface ), mod, actor, step, position, gain, useMaterialDistance );
+	}
+
+	XmlAsset SurfaceMaterial( string surface ) => ReadMaterial( $"Data/Materials/{surface ?? "default"}.xml" ) ?? ReadMaterial( "Data/Materials/default.xml" );
+
+	static XmlAsset MaterialEvent( XmlAsset material, string mod, string step )
+	{
+		var events = material?.Elements( "events" );
+		return events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
+			?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
+	}
+
+	internal void PlayItemImpact( GameObject item, string surface, string step, Vector3 position, float gain, string mod )
+	{
+		var entry = MaterialEvent( SurfaceMaterial( surface ), mod, step );
+		if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
+		var parent = entry.Attribute( "attached" ) == "true" ? item : null;
+		float distance = item.Scene.Camera?.View.Position.Distance( position ) ?? 0f;
+		float filtered = Math.Clamp( distance / 400f - 0.4f, 0f, 1f );
+		if ( filtered < 1f ) PlayImpactLayer( 1f - filtered, false );
+		if ( filtered > 0f ) PlayImpactLayer( filtered, true );
+
+		void PlayImpactLayer( float maxGain, bool distant )
+		{
+			var handle = PlayGroupLayer( group, position, gain, parent, maxGain, distant );
+			if ( handle.IsValid() ) handle.AirAbsorption = false;
+		}
 	}
 
 	void PlayEvent( XmlAsset material, string mod, GameObject actor, string step, Vector3 position, float gain, bool useMaterialDistance )
 	{
-		var events = material?.Elements( "events" );
-		var entry = events?.FirstOrDefault( e => e.Attribute( "mod" ) == mod )?.Element( step )
-			?? events?.FirstOrDefault( e => e.Attribute( "mod" ) is null )?.Element( step );
+		var entry = MaterialEvent( material, mod, step );
 		if ( entry?.Attribute( "soundgroup" ) is not { } group ) return;
 		var handle = PlayGroup( group, position, gain, entry.Attribute( "attached" ) == "true" ? actor : null );
 		if ( !handle.IsValid() ) return;
@@ -53,7 +76,7 @@ public partial class GameMount
 		}
 	}
 
-	internal (SoundFile File, float Volume, float Distance) PickSound( string path, bool voice = false )
+	internal (SoundFile File, float Volume, float Distance) PickSound( string path, bool voice = false, bool distant = false )
 	{
 		if ( !soundGroups.TryGetValue( path, out var group ) )
 		{
@@ -69,19 +92,24 @@ public partial class GameMount
 			recent.Enqueue( variant );
 			if ( recent.Count > group.Variants / 2 ) recent.Dequeue();
 		}
-		var file = SoundFile.Load( MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd" );
+		string resource = MountedPath( $"{path[..^4]}_{variant}.wav" ) + ".vsnd";
+		var file = distant && GetByPath( resource ) is SoundLoader loader ? loader.DistantSound : null;
+		file ??= SoundFile.Load( resource );
 		return (file, group.Volume, group.Distance);
 	}
 
-	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f, GameObject parent = null )
+	internal SoundHandle PlayGroup( string path, Vector3 position, float gain = 1f, GameObject parent = null ) =>
+		PlayGroupLayer( path, position, gain, parent, 1f, false );
+
+	SoundHandle PlayGroupLayer( string path, Vector3 position, float gain, GameObject parent, float maxGain, bool distant )
 	{
-		var (file, volume, distance) = PickSound( path );
+		var (file, volume, distance) = PickSound( path, distant: distant );
 		if ( file is null ) return null;
 		float level = volume * gain;
-		var handle = Sound.PlayFile( file, Math.Min( 1f, level ) );
+		var handle = Sound.PlayFile( file, Math.Min( maxGain, level ) );
 		if ( handle.IsValid() )
 		{
-			ConfigureGroup( handle, level, distance );
+			ConfigureGroup( handle, level / maxGain, distance );
 			handle.Position = position;
 			if ( parent.IsValid() )
 			{
