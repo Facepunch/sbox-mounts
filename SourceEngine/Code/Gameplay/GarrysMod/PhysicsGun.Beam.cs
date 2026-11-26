@@ -7,8 +7,12 @@ public sealed partial class PhysicsGun
 	const int Segments = 16;
 	[ConVar( "physgun_drawbeams", Help = "Draw active Physics Gun beams." )]
 	public static bool DrawBeams { get; set; } = true;
+	[ConVar( "physgun_halo", ConVarFlags.Saved, Help = "Outline the object held by a Physics Gun." )]
+	public static bool DrawHalo { get; set; } = true;
 
 	GameObject _beamRoot;
+	HighlightOutline _outline;
+	GameObject _outlined;
 	GameObject _muzzle;
 	SkinnedModelRenderer _beamModel;
 	readonly LineRenderer[] _lines = new LineRenderer[3];
@@ -49,6 +53,7 @@ public sealed partial class PhysicsGun
 		var start = view is null ? _muzzle.WorldPosition : view.DrawnPosition( _muzzle );
 		UpdateColor();
 		bool holding = BeamOn && HeldTarget.IsValid();
+		UpdateOutline( holding && DrawHalo ? HeldTarget.GameObject : null );
 		var forward = _muzzle.WorldRotation.Forward;
 		if ( view is not null ) forward = view.DrawnDirection( forward );
 		int activeGlows = holding ? 7 : 2;
@@ -95,10 +100,24 @@ public sealed partial class PhysicsGun
 		var tint = Color.Parse( setting ) ?? new Color( 0.30f, 1.80f, 2.10f );
 		var rgb = new Vector3( tint.r, tint.g, tint.b ).Normal;
 		_tint = new Color( rgb.x, rgb.y, rgb.z );
+		if ( _outline.IsValid() ) _outline.Color = _tint;
 		var gradient = new Gradient( new Gradient.ColorFrame( 0, Color.Black ), new Gradient.ColorFrame( 1f / Segments, _tint ),
 			new Gradient.ColorFrame( 1 - 1f / Segments, _tint ), new Gradient.ColorFrame( 1, Color.Black ) );
 		foreach ( var line in _lines )
 			if ( line.IsValid() ) line.Color = gradient;
+	}
+
+	void UpdateOutline( GameObject target )
+	{
+		if ( target == _outlined ) return;
+		_outlined = target;
+		if ( !target.IsValid() )
+		{
+			_outline.Hide();
+			return;
+		}
+		_outline ??= ObjectHighlight.Create( _beamRoot );
+		_outline.Show( ObjectHighlight.GetTarget( target ), new HighlightStyle( _tint, Color.Transparent, HighlightStyle.Selected.Width ) );
 	}
 
 	void DrawGlows( int count, Vector3 position, Vector3 step, bool muzzle )
@@ -162,6 +181,8 @@ public sealed partial class PhysicsGun
 		Array.Clear( _contactGlows );
 		_glowSprite = null;
 		_beamRoot = null;
+		_outline = null;
+		_outlined = null;
 		_beamModel = null;
 		_colorSetting = null;
 	}
