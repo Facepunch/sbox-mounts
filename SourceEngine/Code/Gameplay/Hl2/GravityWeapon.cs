@@ -154,7 +154,8 @@ public sealed class GravityWeapon : Weapon
 		if ( HeldObject.IsValid() )
 		{
 			var playerCenter = Owner.WorldPosition + Vector3.Up * (Owner.CurrentHeight * 0.5f);
-			if ( playerCenter.Distance( HeldObject.GetBounds().Center ) > TraceLength )
+			var center = HeldObject.GetBounds().Center;
+			if ( playerCenter.Distance( center ) > TraceLength )
 			{
 				PuntEffects( PuntResult.Miss );
 				return;
@@ -169,12 +170,19 @@ public sealed class GravityWeapon : Weapon
 				? Vector3.Up * launchSpin
 				: new Vector3( Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ), Game.Random.Float( -600, 600 ) );
 			held.AngularVelocity = held.WorldRotation * spin * (MathF.PI / 180);
-			PuntEffects( PuntResult.LaunchHeld );
+			PuntEffects( PuntResult.LaunchHeld, center );
 			return;
 		}
 		var ray = TargetTrace( AimRay, TraceLength );
 		// A hull can graze the world beside an otherwise reachable target.
-		PuntEffects( PuntTarget( ray.Size( 16 ).Run(), forward ) ?? PuntTarget( ray.Run(), forward ) ?? PuntResult.Miss );
+		var trace = ray.Size( 16 ).Run();
+		var result = PuntTarget( trace, forward );
+		if ( result is null )
+		{
+			trace = ray.Run();
+			result = PuntTarget( trace, forward );
+		}
+		PuntEffects( result ?? PuntResult.Miss, trace.EndPosition );
 	}
 
 	PuntResult? PuntTarget( SceneTraceResult trace, Vector3 forward )
@@ -264,7 +272,7 @@ public sealed class GravityWeapon : Weapon
 	internal override bool ShouldPlayIdle => !Input.Down( "attack1" );
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PuntEffects( PuntResult result )
+	void PuntEffects( PuntResult result, Vector3 impact = default )
 	{
 		var launch = result != PuntResult.Miss;
 		Sounds.PlayWeaponSound( this, launch ? "single_shot" : "empty" );
@@ -280,7 +288,7 @@ public sealed class GravityWeapon : Weapon
 		}
 		if ( result == PuntResult.LaunchHeld ) _attack2Debounce = true;
 		SetNextSecondaryFire( PrimaryDelay );
-		_effects?.Launch( result == PuntResult.LaunchHeld );
+		_effects?.Launch( result == PuntResult.LaunchHeld, impact );
 	}
 
 	protected override void OnFixedUpdate()
@@ -459,7 +467,7 @@ public sealed class GravityWeapon : Weapon
 		_effects.Update( this, HeldObject, ready );
 	}
 
-	protected override void OnViewModelPlaced( ViewModel model ) => _effects?.Follow( this );
+	protected override void OnViewModelPlaced( ViewModel model ) => _effects?.Follow();
 
 	public override void DrawCrosshair( Painter painter, Vector2 center ) => Crosshair.Draw( painter, center, CanPrimaryAttack(), 0 );
 
@@ -491,16 +499,17 @@ sealed class PhysCannonEffects : IDisposable
 	static readonly string[] Prongs = ["fork1b", "fork1m", "fork1t", "fork2b", "fork2m", "fork2t"];
 	static readonly string[] ViewTips = ["fork1t", "fork2t"];
 	static readonly string[] WorldTips = ["fork1t", "fork2t", "fork3t"];
-	static readonly Curve ViewBeamWidth = CarryWidth( 0, 4 );
-	static readonly Curve WorldBeamWidth = CarryWidth( 0.5f, 2 );
-	static Curve CarryWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
-	const float BeamLength = 250;
+	static readonly Curve ViewBeamWidth = BeamWidth( 0, 4 );
+	static readonly Curve WorldBeamWidth = BeamWidth( 0.5f, 2 );
+	static Curve BeamWidth( float start, float end ) => new( new Curve.Frame( 0, start ) { Mode = Curve.HandleMode.Linear }, new Curve.Frame( 1, end ) );
 	// StartEffects tints the prong glows kRenderTransAdd 255, 128, 0.
 	static readonly Color GlowColor = new( 1, 0.5f, 0 );
 	SkinnedModelRenderer _renderer;
 	ViewModel _view;
 	GameObject _root;
 	GameObject _coreAnchor;
+	LineRenderer _puntBeam;
+	Vector3 _impact;
 	SpriteRenderer _core;
 	SpriteRenderer _blast;
 	readonly List<SpriteRenderer> _glows = new();
@@ -520,8 +529,9 @@ sealed class PhysCannonEffects : IDisposable
 	TimeSince _motorChanged;
 	float _releaseVolume;
 
-	public void Launch( bool fromHold )
+	public void Launch( bool fromHold, Vector3 impact )
 	{
+		_impact = impact;
 		_launch = 0;
 		_changeAt = fromHold ? 0.1f : 0.5f;
 		_closePending = true;
@@ -538,7 +548,7 @@ sealed class PhysCannonEffects : IDisposable
 		}
 		if ( !renderer.IsValid() || !renderer.Model.IsValid() || !renderer.Enabled ) return;
 		var mount = MountContent.Of( renderer.Model );
-		if ( !_root.IsValid() ) Build( renderer, model as ViewModel, mount );
+		if ( !_root.IsValid() ) Build( renderer, model as ViewModel, mount, weapon.Owner is { IsProxy: false } );
 		var holding = held.IsValid();
 		UpdateElements( weapon, holding, ready );
 		UpdateMotor( weapon, holding, mount );
@@ -556,20 +566,17 @@ sealed class PhysCannonEffects : IDisposable
 			MountedEffects.SetSprite( endcap, holding ? Game.Random.Float( 0.1f, 0.15f ) : 0, Game.Random.Float( 200, 255 ) );
 		foreach ( var (tip, beam) in _beams )
 		{
-			var launching = blast < 1 && _view.IsValid();
-			beam.Enabled = tip.IsValid() && (holding || launching);
-			if ( !beam.Enabled ) continue;
-			beam.Width = launching ? 6.4f : _view.IsValid() ? ViewBeamWidth : WorldBeamWidth;
-			beam.Color = launching ? Color.White : (Color.White * (128f / 255)).WithAlpha( 1 );
+			beam.Enabled = tip.IsValid() && holding;
 		}
-		Follow( weapon );
+		if ( _puntBeam.IsValid() ) _puntBeam.Enabled = blast < 1;
+		Follow();
 	}
 
 	/// <summary>
 	/// Moves the effects onto the attachments. The weapon also calls this once the viewmodel is placed for the frame,
 	/// which happens after updates, so they don't trail the view.
 	/// </summary>
-	public void Follow( GravityWeapon weapon )
+	public void Follow()
 	{
 		foreach ( var (sprite, anchor) in _anchors )
 		{
@@ -581,8 +588,12 @@ sealed class PhysCannonEffects : IDisposable
 		{
 			if ( !tip.IsValid() || !beam.IsValid() || !beam.Enabled ) continue;
 			beam.VectorPoints[0] = Place( tip );
-			beam.VectorPoints[1] = _launch < 0.1f && _view.IsValid()
-				? beam.VectorPoints[0] + weapon.AimRay.Forward * BeamLength : Place( _coreAnchor );
+			beam.VectorPoints[1] = Place( _coreAnchor );
+		}
+		if ( _puntBeam.IsValid() && _puntBeam.Enabled )
+		{
+			_puntBeam.VectorPoints[0] = Place( _coreAnchor );
+			_puntBeam.VectorPoints[1] = _impact;
 		}
 	}
 
@@ -674,7 +685,7 @@ sealed class PhysCannonEffects : IDisposable
 		return sprite;
 	}
 
-	void Build( SkinnedModelRenderer renderer, ViewModel view, string mount )
+	void Build( SkinnedModelRenderer renderer, ViewModel view, string mount, bool localPlayer )
 	{
 		_view = view;
 		var viewModel = view.IsValid();
@@ -685,6 +696,13 @@ sealed class PhysCannonEffects : IDisposable
 		_coreAnchor = core;
 		_core = AddSprite( core, "sprites/orangecore1", mount );
 		_blast = AddSprite( core, "sprites/orangecore2", mount );
+		if ( localPlayer && MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } punt )
+		{
+			_puntBeam = punt;
+			punt.Width = BeamWidth( 12, 4 );
+			punt.Color = Color.White;
+			punt.Enabled = false;
+		}
 		// sprites/glow04_noz names the glow04 texture.
 		foreach ( var prong in Prongs.Select( renderer.GetAttachmentObject ).Where( x => x.IsValid() ) )
 			if ( AddSprite( prong, "sprites/glow04", mount ) is { } glow ) _glows.Add( glow );
@@ -692,7 +710,12 @@ sealed class PhysCannonEffects : IDisposable
 		{
 			var tip = renderer.GetAttachmentObject( name ) ?? renderer.GameObject;
 			if ( viewModel && AddSprite( tip, "sprites/orangeflare1", mount ) is { } endcap ) _endcaps.Add( endcap );
-			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam ) _beams.Add( (tip, beam) );
+			if ( MountedEffects.AddBeam( _root, "sprites/orangelight1", mount ) is { } beam )
+			{
+				beam.Width = viewModel ? ViewBeamWidth : WorldBeamWidth;
+				beam.Color = (Color.White * (128f / 255)).WithAlpha( 1 );
+				_beams.Add( (tip, beam) );
+			}
 		}
 	}
 
@@ -704,6 +727,7 @@ sealed class PhysCannonEffects : IDisposable
 		_coreFrom = _coreTarget = Vector2.Zero;
 		_root?.Destroy();
 		_root = null;
+		_puntBeam = null;
 		_view = null;
 		_glows.Clear();
 		_endcaps.Clear();
