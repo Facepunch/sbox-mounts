@@ -138,6 +138,7 @@ public class GameMount : BaseGameMount
 			NpcPrefab.Register( context, "Marine", Marine.Configure, "ns2_marine", "marine", "male/male" ),
 			NpcPrefab.Register( context, "Minigun Exo", ( root, renderer ) => Exo.Configure( root, renderer, false ), "ns2_exo", "marine", "exosuit/exosuit_mm" ),
 			NpcPrefab.Register( context, "Railgun Exo", ( root, renderer ) => Exo.Configure( root, renderer, true ), "ns2_exo", "marine", "exosuit/exosuit_rr" ),
+			NpcPrefab.Register( context, "Armory", Armory.Configure, "ns2_armory", "marine" ),
 			NpcPrefab.Register( context, "MAC", Mac.Configure, "ns2_mac", "marine", painSound: Mac.PainSound ),
 			NpcPrefab.Register( context, "Hydra", Hydra.Configure, "ns2_hydra", painSound: Hydra.PainSound ),
 			NpcPrefab.Register( context, "Babbler", Babbler.Configure, "ns2_babbler" ),

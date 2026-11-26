@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace NS2;
 
 [Title( "Exo" ), Category( "Natural Selection 2" )]
-public sealed class Exo : Ns2Npc, Component.IDamageable
+public sealed partial class Exo : Ns2Npc, Component.IDamageable
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (1.5f * Scale);
 
@@ -206,6 +206,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 		attack = enemy.IsValid() && fireUntil > 0;
 		if ( repath > 0 ) return;
 		repath = 0.2f;
+		if ( !enemy.IsValid() && RetreatToArmory() ) return;
 		if ( goal is { } destination && (!visible || distance > 10) )
 			Movement.MoveTo( destination, Scale, faceTarget: visible ? enemy : null );
 		else if ( visible && player )

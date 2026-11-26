@@ -13,7 +13,7 @@ internal static class SupportDamage
 		bool structural = victim is not Drifter;
 		float damage = hit.AcceptedDamage * AlienArmor.UmbraScale( hit );
 		if ( tags.HasAny( "gas", "biological" ) || (!structural && tags.HasAny( "structuresonly", "splash" )) ||
-			(victim is Mac && tags.Has( "nervegas" )) )
+			(victim is Mac or Armory && tags.Has( "nervegas" )) )
 			damage = 0;
 		else if ( tags.HasAny( "clusterflame", "clusterflamefragment" ) )
 		{
@@ -44,7 +44,7 @@ internal static class SupportDamage
 	static (float Ratio, float Fraction) ArmorRule( DamageInfo hit, Component victim )
 	{
 		var tags = hit.Tags;
-		if ( tags.Has( "armoronly" ) || (victim is not Mac && tags.Has( "nervegas" )) ) return (2, 1);
+		if ( tags.Has( "armoronly" ) || (victim is not (Mac or Armory) && tags.Has( "nervegas" )) ) return (2, 1);
 		if ( tags.Has( "falling" ) ) return (2, 0);
 		if ( victim is not Drifter && tags.Has( "structuresonlylight" ) ) return (9, 0.9f);
 		if ( tags.HasAny( "door", "structuralheavy", "heavy" ) ) return (1, 0.7f);
