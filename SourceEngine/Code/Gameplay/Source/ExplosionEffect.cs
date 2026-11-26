@@ -1,22 +1,17 @@
 using System;
 
-namespace Source1.Css;
+namespace Source1;
 
-/// <summary>
-/// The HE grenade's blast as CBaseGrenade::Explode draws it: TE_Explosion's C_TEExplosion, a 0.1 second glow
-/// (CExplosionOverlay) and C_BaseExplosionEffect's fireballs, embers, dust and sparks, then a scorch decal.
-/// Approximations: lit sprites stand in for the dust's sampled world light, a point light for the flash,
-/// sandbox's scorch for the Scorch decal, and the cement flecks are left out.
-/// </summary>
-[Title( "CS:S Explosion Effect" )]
-[Category( "Counter-Strike: Source" )]
-[Alias( "Source1.CssExplosionEffect", "CssExplosionEffect" )]
+/// <summary>Fire, embers, dust, sparks and the initial flash of a dry-land explosion.</summary>
+[Title( "Source Explosion Effect" )]
+[Category( "Source 1" )]
+[Alias( "Source1.Css.ExplosionEffect", "Source1.CssExplosionEffect", "CssExplosionEffect" )]
 public sealed class ExplosionEffect : Component
 {
-	// EXPLOSION_FORCE_MIN and _MAX are both 2, so every blast spreads alike.
 	const float Force = 2;
 	const float Spread = 1 - 0.15f * Force;
-	const float Magnitude = 100;
+	[Property] public float Magnitude { get; set; } = 100;
+	[Property] public bool CreateScorch { get; set; } = true;
 
 	[Property] public string MountName { get; set; } = "css";
 	[Property] public string Sound { get; set; } = "BaseGrenade.Explode";
@@ -31,7 +26,6 @@ public sealed class ExplosionEffect : Component
 		public float StartAlpha;
 		public Color Color;
 		public float RollSpeed;
-		public bool Spark;
 	}
 
 	readonly List<(ParticleEffect Effect, List<Puff> Puffs)> _groups = new();
@@ -45,12 +39,12 @@ public sealed class ExplosionEffect : Component
 		await Sandbox.Mounting.Directory.Mount( MountName );
 		if ( !IsValid ) return;
 		_age = 0;
-		if ( Sounds.Sound( Sound, MountName ) is { } sound ) GameObject.PlaySound( sound );
+		if ( !string.IsNullOrEmpty( Sound ) && Sounds.Sound( Sound, MountName ) is { } sound ) GameObject.PlaySound( sound );
 		_direction = Explosion.ForceDirection( Scene, WorldPosition, Magnitude );
 		Glow();
 		Core();
-		Sparks();
-		Scorch();
+		Debris();
+		if ( CreateScorch ) Scorch();
 	}
 
 	void Glow()
@@ -68,25 +62,29 @@ public sealed class ExplosionEffect : Component
 	{
 		var effect = Particles.Emitter( GameObject, material, MountName, additive, lit, count );
 		if ( effect is null ) return null;
-		var puffs = new List<Puff>();
+		var renderer = effect.GetComponent<ParticleSpriteRenderer>();
+		renderer.CameraFadeNear = 64;
+		renderer.CameraFadeFar = 128;
+		var puffs = new List<Puff>( count );
 		_groups.Add( (effect, puffs) );
 		return puffs;
 	}
 
 	static float Deviation( Vector3 direction, Vector3 source, float spread ) => spread * MathF.Abs( source.Dot( direction ) );
 
-	Puff Add( List<Puff> group, Vector3 position, Vector3 velocity, float life, float startSize, float endSize, float alpha, Color color, float rollSpeed )
+	void Add( List<Puff> group, Vector3 position, Vector3 velocity, float life, float startSize, float endSize, float alpha, Color color, float rollSpeed )
 	{
 		var effect = _groups.First( x => x.Puffs == group ).Effect;
-		var p = effect.Emit( position, 0 );
-		p.Velocity = Vector3.Zero;
+		if ( effect.Emit( position, 0 ) is not { } p ) return;
+		p.Velocity = velocity;
+		p.Size = startSize * 2;
+		p.Color = color;
+		p.Alpha = alpha;
 		p.Angles = new Angles( 0, 0, Game.Random.Float( 0, 360 ) );
 		var puff = new Puff { Particle = p, Velocity = velocity, Life = life, StartSize = startSize, EndSize = endSize, StartAlpha = alpha, Color = color, RollSpeed = rollSpeed };
 		group.Add( puff );
-		return puff;
 	}
 
-	/// <summary>C_BaseExplosionEffect::CreateCore.</summary>
 	void Core()
 	{
 		var origin = WorldPosition;
@@ -142,21 +140,76 @@ public sealed class ExplosionEffect : Component
 		}
 	}
 
-	/// <summary>C_BaseExplosionEffect::CreateDebris' sparks: fast streaks under 200 gravity, damped 8 per second.</summary>
-	void Sparks()
+	record struct Spark( LineRenderer Line, Vector3 Position, Vector3 Velocity, float Life, float Length );
+	readonly List<Spark> _sparks = new();
+
+	void Debris()
 	{
-		var sparks = Group( "effects/fire_cloud2", true, false, 16 );
-		if ( sparks is null ) return;
-		var renderer = _groups[^1].Effect.GetComponent<ParticleSpriteRenderer>();
-		renderer.VelocityStretch = true;
-		renderer.StretchTime = 0.075f;
 		var count = Game.Random.Int( 8, 16 );
 		for ( var i = 0; i < count; i++ )
 		{
-			var dir = (Particles.InCube( 1 ) + _direction).Normal;
-			var width = Game.Random.Float( 2, 16 );
-			var spark = Add( sparks, WorldPosition, dir * Game.Random.Float( 1500, 2500 ), Game.Random.Float( 0.1f, 0.15f ), width, width, 1, Color.White, 0 );
-			spark.Spark = true;
+			var line = MountedEffects.AddBeam( GameObject, "effects/fire_cloud2", MountName );
+			if ( !line.IsValid() ) break;
+			var direction = (Particles.InCube( 1 ) + _direction).Normal;
+			line.Color = Color.White;
+			line.Width = Game.Random.Float( 2, 16 ) * 0.5f;
+			var spark = new Spark( line, WorldPosition, direction * Game.Random.Float( 1500, 2500 ),
+				Game.Random.Float( 0.1f, 0.15f ), Game.Random.Float( 0.05f, 0.1f ) );
+			DrawSpark( spark, 0 );
+			_sparks.Add( spark );
+		}
+
+		var flecks = new ParticleEffect[2];
+		count = Game.Random.Int( 16, 32 );
+		for ( var i = 0; i < flecks.Length; i++ )
+		{
+			var effect = Particles.Emitter( GameObject, $"effects/fleck_cement{i + 1}", MountName, false, false, count );
+			flecks[i] = effect;
+			if ( !effect.IsValid() ) continue;
+			effect.Lifetime = 3;
+			effect.Force = true;
+			effect.ForceDirection = Vector3.Down * 800;
+			effect.Collision = true;
+			effect.Bounce = 0.5f;
+			effect.ApplyAlpha = true;
+			effect.Alpha = WeaponEffects.LinearOverLife( 1, 0 );
+			effect.ApplyRotation = true;
+			effect.InitialRoll = new ParticleFloat( 0, 360 );
+			effect.AngularVelocity = new ParticleVector3 { Z = new( 0, 360 ) };
+		}
+		for ( var i = 0; i < count; i++ )
+		{
+			if ( flecks[Game.Random.Int( 0, 1 )]?.Emit( WorldPosition + _direction * 16 + Particles.InCube( 8 ), 0 ) is not { } p ) continue;
+			var size = Game.Random.Int( 1, 3 );
+			var direction = (_direction + Particles.InCube( 1 )).Normal;
+			var deviation = Deviation( direction, _direction, 0.8f );
+			p.Velocity = direction * (Game.Random.Float( 64, 256 ) * (4 - size) * 8 * deviation * deviation);
+			p.Size = size * 2;
+			p.Color = (Color.White * Game.Random.Float( 0.125f, 0.375f )).WithAlpha( 1 );
+		}
+	}
+
+	static void DrawSpark( Spark spark, float age )
+	{
+		spark.Line.VectorPoints[0] = spark.Position;
+		spark.Line.VectorPoints[1] = spark.Position + spark.Velocity * MathF.Max( 0.01f, spark.Length * (1 - age / spark.Life) );
+	}
+
+	void UpdateSparks( float dt )
+	{
+		for ( var i = _sparks.Count - 1; i >= 0; i-- )
+		{
+			var spark = _sparks[i];
+			if ( _age >= spark.Life )
+			{
+				spark.Line.GameObject.Destroy();
+				_sparks.RemoveAt( i );
+				continue;
+			}
+			var velocity = (spark.Velocity + Vector3.Down * (200 * dt)) * MathF.Max( 0, 1 - 8 * dt );
+			spark = spark with { Position = spark.Position + spark.Velocity * dt, Velocity = velocity };
+			_sparks[i] = spark;
+			DrawSpark( spark, _age );
 		}
 	}
 
@@ -175,8 +228,9 @@ public sealed class ExplosionEffect : Component
 	protected override void OnUpdate()
 	{
 		var dt = Time.Delta;
+		UpdateSparks( dt );
 		if ( _light.IsValid() ) _light.Enabled = _age < ExplosionOverlay.Lifetime;
-		// CExplosionParticle velocity: 1/10000 left after half a second, never slower than 32.
+		// The expanding cloud loses nearly all of its initial speed within half a second.
 		var decay = MathF.Exp( MathF.Log( 0.0001f ) * dt / 0.5f );
 		foreach ( var (effect, puffs) in _groups )
 		{
@@ -189,16 +243,6 @@ public sealed class ExplosionEffect : Component
 				{
 					effect.Terminate( p );
 					puffs.RemoveAt( i );
-					continue;
-				}
-				if ( puff.Spark )
-				{
-					puff.Velocity += Vector3.Down * 200 * dt;
-					puff.Velocity *= MathF.Max( 0, 1 - 8 * dt );
-					p.Velocity = puff.Velocity;
-					p.Size = puff.StartSize;
-					p.Color = puff.Color;
-					p.Alpha = 1 - t;
 					continue;
 				}
 				var direction = puff.Velocity.Normal;

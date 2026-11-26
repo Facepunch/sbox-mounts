@@ -52,6 +52,12 @@ sealed class Explosion
 			if ( !playPrefabParticle ) effect.Particle = string.Empty;
 		}
 
+		if ( go.GetComponent<ExplosionEffect>( true ) is { } blast )
+		{
+			blast.Magnitude = Damage;
+			blast.Enabled = playPrefabParticle;
+		}
+
 		go.RunEvent<RadiusDamage>( x =>
 		{
 			if ( !applyDamage ) x.DamageOnEnabled = false;

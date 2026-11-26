@@ -242,11 +242,7 @@ public abstract partial class Projectile : Component
 	protected void Explode( bool playPrefabSound = false )
 	{
 		var prefab = MountContent.Prefab( MountName, "explosion" );
-		var effect = prefab is null ? null : GameObject.GetPrefab( prefab.ResourcePath )?.GetComponent<MountedEffect>();
 		var depth = SourceWaterMap.ExplosionDepth( Scene, WorldPosition ) ?? -1;
-		// A game can ship the projectile without the newer PCF explosion. Use
-		// the engine's ordinary blast in that case, rather than an invisible impact.
-		if ( depth < 0 && !string.IsNullOrWhiteSpace( effect?.Particle ) && !MountedEffects.Exists( effect.Particle, MountName ) ) prefab = null;
 		UnderwaterBlast = SourceWaterMap.IsUnderwater( Scene, WorldPosition ) && SourceWaterMap.IsUnderwater( Scene, WorldPosition + Vector3.Up * 24 );
 		var blast = new Explosion
 		{

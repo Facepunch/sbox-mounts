@@ -2142,7 +2142,7 @@ static partial class SourceEntities
 					"TemporaryEffect": {"DestroyAfterSeconds": 3},
 					"Source1.MountedEffect": null,
 					"Sandbox.RadiusDamage": {"Radius": 350, "PhysicsForceScale": 1.5},
-					"Source1.Css.ExplosionEffect": {}
+					"Source1.ExplosionEffect": {}
 				}
 			}
 			""" ),
@@ -2156,7 +2156,9 @@ static partial class SourceEntities
 		new( "hl2", SourceEntityKind.Effect, "explosion", null, null, null, """
 			{
 				".": {
-					"Source1.MountedEffect": {"Particle": "grenade_explosion_01", "Sound": "BaseGrenade.Explode"},
+					"TemporaryEffect": {"BecomeOrphan": true, "DestroyAfterSeconds": 3},
+					"Source1.MountedEffect": {"Sound": "BaseGrenade.Explode"},
+					"Source1.ExplosionEffect": {"Sound": "", "CreateScorch": false},
 					"Sandbox.RadiusDamage": {"Radius": 250, "PhysicsForceScale": 1.5}
 				}
 			}

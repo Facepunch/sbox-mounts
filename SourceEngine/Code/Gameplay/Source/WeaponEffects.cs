@@ -726,7 +726,7 @@ static class WeaponEffects
 	static readonly ParticleFloat MagnumSmokeGrowth = LinearOverLife( 1, 8 );
 	static readonly ParticleFloat SmokeFade = LinearOverLife( 1, 0 );
 
-	static ParticleFloat LinearOverLife( float start, float end ) => new()
+	internal static ParticleFloat LinearOverLife( float start, float end ) => new()
 	{
 		Type = ParticleFloat.ValueType.Curve,
 		Evaluation = ParticleFloat.EvaluationType.Life,
