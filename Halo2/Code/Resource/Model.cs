@@ -13,6 +13,7 @@ namespace Halo2;
 public sealed class UnitDefinition
 {
 	public int DefaultTeam { get; set; }
+	public bool ImmuneToAssassination { get; set; }
 }
 
 /// <summary>
@@ -116,7 +117,14 @@ public partial class Halo2ModelLoader( MapFile mapFile, TagEntry tag, TagEntry p
 		var model = ReadRenderModel();
 		var builder = Model.Builder.WithName( Path );
 		if ( biped is { DataSize: >= 0xc4 } && firstPersonWeapon is null )
-			builder.WithData( new UnitDefinition { DefaultTeam = (short)mapFile.ReadInt32( mapFile.VaToOffset( (int)biped.DataVirtualAddress ) + 0xc0 ) } );
+		{
+			int unit = mapFile.VaToOffset( (int)biped.DataVirtualAddress );
+			builder.WithData( new UnitDefinition
+			{
+				DefaultTeam = (short)mapFile.ReadInt32( unit + 0xc0 ),
+				ImmuneToAssassination = (mapFile.ReadInt32( unit + 0xbc ) & (1 << 16)) != 0
+			} );
+		}
 		if ( biped is not null && firstPersonWeapon is null && mapFile.Tags.FirstOrDefault( t => t.PrimaryClass == "gtam" && t.DataSize >= 0x140 ) is {} globals )
 		{
 			int index = 0;

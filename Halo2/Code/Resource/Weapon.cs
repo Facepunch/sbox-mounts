@@ -174,6 +174,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		gun.MeleeDamage = strike.Maximum;
 		gun.MeleeBodyScales = strike.BodyScales;
 		gun.MeleeExplosive = strike.Explosive;
+		gun.Assassination = strike.Assassination;
 		gun.MeleeForce = strike.Force;
 		gun.ContactSounds = ReadMeleeSounds( Address( globals ) );
 		gun.MeleeForwardSpeed = Float( Block( Address( globals ) + 0x130 ) + 0x2c );
@@ -245,7 +246,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 
 	MeleeDamageProfile ReadMeleeDamage( int effect, TagEntry globals ) => new(
 		Float( effect + 0x1c ), Float( effect + 0x20 ), Float( effect + 0x40 ) * 120,
-		BodyDamageScales( Address( globals ), effect ), (map.ReadInt32( effect + 0x14 ) & 0x20) != 0 );
+		BodyDamageScales( Address( globals ), effect ), (map.ReadInt32( effect + 0x14 ) & 0x20) != 0, Short( effect + 0x10 ) == 2 );
 
 	SoundEvent ZoomSound( int reference ) => Reference( reference ) is { PrimaryClass: "!dns" } sound
 		? GameResource.Load<SoundEvent>( Host.AssetPath( map, sound.TagPath, "sound" ) ) : null;

@@ -48,6 +48,8 @@ public sealed partial class EnergySword : MeleeWeapon, Component.IDamageable.IEv
 		MeleeHalfExtents = aged.MeleeHalfExtents;
 		MeleeRange = aged.MeleeRange;
 		MeleeBodyScales = aged.MeleeBodyScales;
+		MeleeExplosive = aged.MeleeExplosive;
+		Assassination = aged.Assassination;
 		ContactSounds = aged.ContactSounds;
 		ReadySound = aged.ReadySound;
 		ReadySoundDelay = aged.ReadySoundDelay;

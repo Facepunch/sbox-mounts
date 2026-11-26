@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Halo2;
 
-public sealed record MeleeDamageProfile( float Minimum, float Maximum, float Force, Dictionary<string, float> BodyScales, bool Explosive );
+public sealed record MeleeDamageProfile( float Minimum, float Maximum, float Force, Dictionary<string, float> BodyScales, bool Explosive, bool Assassination );
 
 public sealed record MeleeContactSounds( bool AtContact, Dictionary<string, int[]> Materials, CuePlayback[] Cues );
 
@@ -11,6 +11,7 @@ public abstract partial class Weapon
 {
 	[Property] public Dictionary<string, float> MeleeBodyScales { get; set; }
 	[Property] public bool MeleeExplosive { get; set; }
+	[Property] public bool Assassination { get; set; }
 	[Property] public float MinimumMeleeDamage { get; set; } = 20;
 	[Property] public float MeleeForwardSpeed { get; set; } = 2.25f;
 	[Property] public float MeleeDamage { get; set; }
@@ -110,21 +111,22 @@ public abstract partial class Weapon
 		if ( actions?.TryGetValue( action, out var clip ) != true ) return;
 		bool lunge = action is "melee_lunge" or "melee_lunge_airborne";
 		InterruptReload();
-		float duration = CooldownSeconds( clip.Frames );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
-		PlayMeleeAnimation( MeleeOwner, action, duration, CooldownSeconds( recovery ) );
+		PlayMeleeAnimation( MeleeOwner, action, clip.Frames, recovery );
 		if ( action is not ("melee_dash" or "melee_dash_airborne") && clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" ) is {} impact )
-			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), lunge, Time.NowDouble + impact.Frame / 30.0 );
+			_ = ResolveStrike( Inventory, Attacker, StrikeFraction(), lunge, StrikeFrameTime( impact.Frame ) );
 	}
 
+	static double StrikeFrameTime( int frame ) => (Math.Floor( Time.NowDouble * 30 ) + frame) / 30;
+
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void PlayMeleeAnimation( GameObject wielder, string action, float duration, float recovery )
+	void PlayMeleeAnimation( GameObject wielder, string action, int duration, int recovery )
 	{
 		if ( !wielder.IsValid() ) return;
 		var state = meleeRecovery.GetValue( wielder, static _ => new MeleeRecovery() );
 		state.Action = action;
-		state.End = duration;
-		state.NextStrike = recovery;
+		state.End = StrikeFrameTime( duration ) - Time.NowDouble;
+		state.NextStrike = StrikeFrameTime( recovery ) - Time.NowDouble;
 		if ( wielder != MeleeOwner ) return;
 		SetNextSecondaryFire( 0 );
 		SetZoom( 0 );
@@ -181,7 +183,27 @@ public abstract partial class Weapon
 		// The contact rays select the recipient. The damage request carries the attacker's aim.
 		hit.Direction = aim.Forward;
 		float damage = (1 - fraction) * (profile?.Minimum ?? MinimumMeleeDamage) + fraction * (profile?.Maximum ?? MeleeDamage);
-		ApplyDelayedHit( hit, damage * BodyMaterial.DamageScale( hit, profile?.BodyScales ?? MeleeBodyScales, profile?.Explosive ?? MeleeExplosive ), profile?.Force ?? MeleeForce, attacker, new TagSet { "melee" }, false );
+		damage *= BodyMaterial.DamageScale( hit, profile?.BodyScales ?? MeleeBodyScales, profile?.Explosive ?? MeleeExplosive );
+		if ( profile?.Assassination ?? Assassination )
+			damage += AssassinationVitality( hit, attacker );
+		ApplyDelayedHit( hit, damage, profile?.Force ?? MeleeForce, attacker, new TagSet { "melee" }, false );
+	}
+
+	static float AssassinationVitality( SceneTraceResult hit, GameObject attacker )
+	{
+		var npc = hit.GameObject.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
+		var player = hit.GameObject.GetComponentInParent<PlayerController>();
+		if ( !npc.IsValid() && !player.IsValid() ) return 0;
+		var target = npc?.GameObject ?? player.GameObject;
+		if ( target == attacker || target.GetComponentInParent<BaseChair>().IsValid() ) return 0;
+		if ( npc.IsValid() && attacker.IsValid() && npc.GetDisposition( attacker ) == Sandbox.Npcs.Disposition.Friendly ) return 0;
+		var facing = npc.IsValid() ? npc.WorldRotation.Forward : player.EyeTransform.Forward;
+		if ( Vector3.Dot( facing.WithZ( 0 ), hit.Direction.WithZ( 0 ) ) <= 0 ) return 0;
+		if ( (npc?.Renderer ?? player?.Renderer)?.Model?.GetData<UnitDefinition>()?.ImmuneToAssassination == true ) return 0;
+
+		// Halo clears body and shield before ordinary damage. Deliver one hit so the receiver owns death and attribution.
+		var vitality = target.GetComponents<Component.IDamageable>().FirstOrDefault( x => x.Health > 0 );
+		return vitality is null ? 0 : vitality.Health + vitality.Armour;
 	}
 
 	protected void ApplyDelayedHit( SceneTraceResult hit, float damage, float force, GameObject attacker, TagSet tags, bool hitboxTags = true )
