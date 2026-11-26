@@ -8,50 +8,34 @@ public sealed partial class Lerk
 	[Property] public bool SporesUnlocked { get; set; } = true;
 	const float CloudCost = 27;
 	const float CloudRange = 17 * Scale;
-	readonly Dictionary<BaseNpc, float> combat = [];
 	Vector3 modelOrigin;
 	float lastUmbra, lastSpore;
 	BaseNpc umbraTarget;
 	GameObject sporeTarget;
-
-	private protected override void ObserveDamage( IDamageable.DamageEvent e )
-	{
-		if ( !UmbraUnlocked ) return;
-		Remember( e.Victim );
-		Remember( e.Instigator );
-
-		void Remember( GameObject actor )
-		{
-			if ( actor.IsValid() && actor.Tags.Has( "ns2_lifeform" ) && actor.GetComponent<BaseNpc>() is { } alien && alien.Faction == Faction )
-				combat[alien] = Time.Now + 3;
-		}
-	}
 
 	BaseNpc ChooseUmbraTarget()
 	{
 		if ( !UmbraUnlocked || energy <= 1.5f * CloudCost || Time.Now - lastUmbra <= 4 || Time.Now - lastSpore <= 4 ) return null;
 		BaseNpc best = null;
 		float closest = CloudRange * CloudRange;
-		foreach ( var (candidate, expires) in combat )
+		foreach ( var candidate in Scene.GetAllComponents<AlienLifeform>() )
 		{
-			if ( expires <= Time.Now || !candidate.IsValid() || candidate.Health <= 0 )
-			{
-				combat.Remove( candidate );
-				continue;
-			}
+			if ( !candidate.InCombat || candidate.Health <= 0 ) continue;
 			if ( candidate.GetComponent<UmbraProtection>().IsValid() || candidate.Faction != Faction ) continue;
 			float distance = WorldPosition.DistanceSquared( candidate.WorldPosition );
 			if ( distance >= CloudRange * CloudRange ) continue;
-			if ( candidate == this )
-			{
-				if ( Time.Now - lastUmbra <= 8 ) continue;
-				distance = 100 * Scale * Scale;
-			}
+			if ( candidate == this ) distance = 100 * Scale * Scale;
 			if ( distance < closest ) (best, closest) = (candidate, distance);
 		}
-		if ( best.IsValid() && best != this && Scene.Trace.Ray( EyePosition, CalculateAimPoint( best.GameObject ) )
-			.IgnoreGameObjectHierarchy( GameObject ).IgnoreGameObjectHierarchy( best.GameObject ).WithoutTags( "trigger" ).Run().Hit ) return null;
-		return best;
+		if ( best == this ) return Time.Now - lastUmbra > 8 ? best : null;
+		if ( !best.IsValid() ) return null;
+
+		var point = CalculateAimPoint( best.GameObject );
+		var trace = Scene.Trace.Sphere( 0.15f * Scale, EyePosition, point )
+			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
+		if ( !trace.Hit || trace.GameObject?.GetComponentInParent<BaseNpc>() is { } blocker && blocker.Faction == best.Faction ||
+			trace.EndPosition.DistanceSquared( point ) <= 2.25f * Scale * Scale ) return best;
+		return null;
 	}
 
 	GameObject ChooseSporeTarget()

@@ -16,10 +16,7 @@ public abstract class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
 	{
 		if ( !Networking.IsHost || hit.AcceptedDamage <= 0 ) return;
 		if ( hit.Instigator == GameObject ) dealtDamageRecently = 3;
-		ObserveDamage( hit );
 	}
-
-	private protected virtual void ObserveDamage( IDamageable.DamageEvent hit ) { }
 
 	internal bool InCombat => underFire > 0 || dealtDamageRecently > 0;
 
