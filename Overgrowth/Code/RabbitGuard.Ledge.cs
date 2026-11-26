@@ -60,6 +60,8 @@ public sealed partial class RabbitGuard
 		return DriveAt( climbWindupTicks );
 	}
 
+	float ClimbJumpInput => Math.Min( 1f, MovementSpeedRatio( BodyVelocity ) + 0.2f );
+
 	internal bool TryClimbLaunch( Vector3 destination, out Vector3 velocity )
 	{
 		velocity = default;
@@ -67,8 +69,7 @@ public sealed partial class RabbitGuard
 		if ( boundAnimations is null || direction.IsNearlyZero() || destination.z <= WorldPosition.z ) return false;
 		var normal = runGroundNormal.IsNearlyZero() ? FloorNormal() : runGroundNormal;
 		float launchSpeed = JumpInitialVelocity * 40f;
-		float limit = GroundSpeedLimit > 0f ? GroundSpeedLimit : GroundRunSpeed;
-		float forwardSpeed = GroundRunSpeed * Math.Min( 1f, BodyVelocity.Length / limit + 0.2f );
+		float forwardSpeed = GroundRunSpeed * ClimbJumpInput;
 		velocity = direction * forwardSpeed + Vector3.Up * launchSpeed;
 		if ( velocity.Normal.Dot( normal ) < 0.3f )
 		{

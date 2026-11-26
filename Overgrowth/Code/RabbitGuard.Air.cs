@@ -56,6 +56,10 @@ public sealed partial class RabbitGuard
 
 	internal void StartJump( Vector3 velocity, bool climb, Vector3 releaseDrive )
 	{
+		// StartJump reads normalized movement input for a climb and horizontal m/s for a path jump.
+		keepJumpFacing = (climb ? ClimbJumpInput : velocity.WithZ( 0f ).Length / 40f) <= 0.4f;
+		JumpLaunch = 1f;
+		firstJumpPose = true;
 		if ( StandingPosition( WorldPosition ) is { } feet ) WorldPosition = feet;
 		if ( boundAnimations.CharacterSpecies != "rabbit" ) velocity.z *= 0.6f;
 		if ( climb ) StartLedgeApproach( velocity );
@@ -83,7 +87,9 @@ public sealed partial class RabbitGuard
 
 	[Sync] bool LeftFootJump { get; set; }
 	bool nextJumpUsesLeft, keepJumpFacing;
-	float jumpLaunch, pendingTuck;
+	[Sync] float JumpLaunch { get; set; }
+	bool firstJumpPose;
+	float pendingTuck;
 	AirCycle jumpCycle, wallCycle;
 
 	// Overgrowth keeps the outgoing reader advancing at its last blend coordinates during a fade.
@@ -154,7 +160,11 @@ public sealed partial class RabbitGuard
 	{
 		if ( Downed || !Networking.IsHost )
 		{
-			if ( Networking.IsHost ) UpdateWallContact( false );
+			if ( Networking.IsHost )
+			{
+				JumpLaunch = 0f;
+				UpdateWallContact( false );
+			}
 			airVelocity = null;
 			pendingTuck = 0f;
 			return;
@@ -177,6 +187,7 @@ public sealed partial class RabbitGuard
 		pendingTuck = 0f;
 		if ( airVelocity is not { } velocity ) return;
 		airVelocity = null;
+		JumpLaunch = 0f;
 		ApplyLandingShock( velocity );
 		if ( !IsValid || Health < 1f || Downed ) return;
 		if ( MathF.Abs( rollAngle - 0.5f ) < 0.3f || InAttackState )
@@ -205,24 +216,22 @@ public sealed partial class RabbitGuard
 		if ( LedgeAnimation is not null ) return LedgeAnimation;
 		var pose = !Animation.IsGrounded && Stance is Idle or Ready or Watch or Threat or Locomotion or PatrolIdle ? FreeAir : Stance;
 
-		if ( pose == FreeAir && !WallDirection.IsNearlyZero() ) return Wall;
-
 		if ( pose == FreeAir )
 		{
+			if ( Networking.IsHost && JumpLaunch > 0f )
+			{
+				if ( !firstJumpPose ) JumpLaunch = Math.Max( 0f, JumpLaunch - Time.Delta * 2f );
+				firstJumpPose = false;
+			}
+			if ( !WallDirection.IsNearlyZero() ) return Wall;
 			if ( playing == FreeAir ) ReadAirPose();
 			var velocity = Animation.MoveVelocity / 40f;
-			if ( playing != FreeAir )
-			{
-				bool jumping = playing != Wall && Animation.Traversal is { } link && link == Sandbox.Engine.Resources.NavMeshLinkType.Jump;
-				jumpLaunch = jumping ? 1f : 0f;
-				if ( playing != Wall ) keepJumpFacing = jumping && velocity.WithZ( 0f ).Length <= 0.4f;
-				jumpCycle.Phase = 0f;
-			}
+			if ( playing != FreeAir ) jumpCycle.Phase = 0f;
 			if ( Networking.IsHost && !keepJumpFacing && !touchedWall )
 				TurnInAir( velocity, Time.Delta );
 
 			Renderer.Animation.Parameters.Set( "left_foot_jump", LeftFootJump ? 1f : 0f );
-			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + jumpLaunch * 0.5f;
+			float up = Math.Min( 1.5f, velocity.z / Math.Max( 0.001f, JumpInitialVelocity ) + 0.5f ) + JumpLaunch * 0.5f;
 			float flail = Math.Min( 0.6f + MathF.Sin( Time.Now * 2f ) * 0.2f, Math.Clamp( (velocity.Length - 10f) * 0.05f, 0.3f, 1f ) );
 			up = Math.Clamp( 0.5f - up * 0.5f, 0f, 1f );
 			var controls = new RabbitMovement.Controls { Flail = flail, Tuck = AirTuck, Up = up };
@@ -232,7 +241,6 @@ public sealed partial class RabbitGuard
 			Renderer.Animation.Parameters.Set( "up_coord", up );
 			Renderer.Animation.Parameters.Set( "flail_coord", flail );
 			Renderer.Animation.Parameters.Set( "air_phase", jumpCycle.Phase );
-			jumpLaunch = Math.Max( 0, jumpLaunch - Time.Delta * 2f );
 		}
 		return pose;
 	}
