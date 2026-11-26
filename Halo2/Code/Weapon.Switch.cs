@@ -14,6 +14,8 @@ public abstract partial class Weapon
 	double putAwayAt;
 	bool finishingSwitch;
 
+	protected virtual void InterruptReload() => CancelReload();
+
 	protected override bool OnHolstering( BaseInventoryItem next )
 	{
 		if ( finishingSwitch ) return true;
@@ -28,6 +30,7 @@ public abstract partial class Weapon
 			requestedItem = next;
 			return false;
 		}
+		if ( Networking.IsHost ) InterruptReload();
 		var clip = HolderAnimator?.GetOverlayClip( "put_away" );
 		int frames = clip?.Frames ?? DefaultPutAwayFrames;
 		if ( frames <= 0 )
@@ -35,7 +38,6 @@ public abstract partial class Weapon
 		if ( Networking.IsHost )
 		{
 			requestedItem = next;
-			CancelReload();
 			BeginPutAway( frames, clip is null ? DefaultPutAwayRelease : ReleaseFrame( clip ) );
 		}
 		return false;

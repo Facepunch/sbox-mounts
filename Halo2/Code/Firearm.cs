@@ -12,6 +12,21 @@ public abstract class Firearm : HandheldWeapon
 	protected abstract void FireRemoteRound( Vector3 forward, bool awaitingCue, double shotTime );
 	protected override bool CanCatchUpRounds => Networking.IsHost || UsesRemoteAutomaticFire;
 
+	protected override bool WantsSecondaryAttack() => !Input.Pressed( "reload" ) && base.WantsSecondaryAttack();
+
+	protected override void OnControl()
+	{
+		// The unit handles the reload input before checking magazine capacity.
+		if ( IsActive && MeleeActive && Input.Pressed( "reload" ) ) InterruptStrikeForReload();
+		base.OnControl();
+	}
+
+	[Rpc.Broadcast( NetFlags.OwnerOnly )]
+	void InterruptStrikeForReload()
+	{
+		if ( IsActive && MeleeActive ) InterruptMelee();
+	}
+
 	[Rpc.Host( NetFlags.OwnerOnly )]
 	protected void RequestRound( Vector3 forward, bool awaitingCue, Vector2 error, long ownerTick )
 	{

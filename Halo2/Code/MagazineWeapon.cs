@@ -11,7 +11,7 @@ public class MagazineWeapon : Firearm
 	double burstRoundAt;
 	GameObject burstAttacker;
 	double? transferAt;
-	double holsterTransferAt;
+	double interruptedTransferAt;
 	bool transferred;
 	double? emptyRoundAt;
 	double barrelIdleAt;
@@ -172,8 +172,8 @@ public class MagazineWeapon : Firearm
 					var cue = clip.Cues.FirstOrDefault( cue => cue.Kind == "primary_keyframe" );
 					int ticks = cue?.Frame is int key && key >= 0 && key <= clip.Frames ? key : clip.Frames;
 					transferAt = startedAt + (System.Math.Max( 0, ticks - 1 ) + startTick) / 30.0;
-					// Holstering transfers the rounds once fewer than half the transfer ticks remain.
-					holsterTransferAt = startedAt + (ticks / 2 + 1 + startTick) / 30.0;
+					// Interrupting a reload transfers the rounds once fewer than half the transfer ticks remain.
+					interruptedTransferAt = startedAt + (ticks / 2 + 1 + startTick) / 30.0;
 				}
 			}
 		}
@@ -190,12 +190,12 @@ public class MagazineWeapon : Firearm
 		transferred = true;
 	}
 
-	protected override bool OnHolstering( BaseInventoryItem next )
+	protected override void InterruptReload()
 	{
-		if ( Networking.IsHost && IsReloading && transferAt.HasValue && Time.NowDouble >= holsterTransferAt )
+		if ( Networking.IsHost && IsReloading && transferAt.HasValue && Time.NowDouble >= interruptedTransferAt )
 			TransferMagazine();
 		transferAt = null;
-		return base.OnHolstering( next );
+		base.InterruptReload();
 	}
 
 	protected override void OnHolstered()
@@ -227,7 +227,7 @@ public class MagazineWeapon : Firearm
 	protected override void OnAdded( BaseInventoryComponent inventory )
 	{
 		base.OnAdded( inventory );
-		if ( transferAt.HasValue && Time.NowDouble >= holsterTransferAt )
+		if ( transferAt.HasValue && Time.NowDouble >= interruptedTransferAt )
 			TransferMagazine();
 		transferAt = null;
 	}

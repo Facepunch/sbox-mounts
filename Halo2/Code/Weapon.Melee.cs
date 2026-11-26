@@ -109,7 +109,7 @@ public abstract partial class Weapon
 	{
 		if ( actions?.TryGetValue( action, out var clip ) != true ) return;
 		bool lunge = action is "melee_lunge" or "melee_lunge_airborne";
-		CancelReload();
+		InterruptReload();
 		float duration = CooldownSeconds( clip.Frames );
 		int recovery = clip.Cues.FirstOrDefault( cue => cue.Kind == "secondary_keyframe" )?.Frame ?? clip.Frames;
 		PlayMeleeAnimation( MeleeOwner, action, duration, CooldownSeconds( recovery ) );
