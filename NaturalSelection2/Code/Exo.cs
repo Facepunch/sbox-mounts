@@ -74,7 +74,7 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 	internal static void RegisterSounds( MountContext context )
 	{
 		context.Add( ResourceType.GameResource, $"sounds/{DeathSound}.sound", new SparkSoundLoader( DeathSound, 0 ) );
-		foreach ( var cue in new[] { "spin", "spin_2", "railgun_fire", "step" } )
+		foreach ( var cue in new[] { "spin", "spin_2", "spin_up", "spin_up_2", "spin_down", "spin_down_2", "tail", "tail_2", "railgun_fire", "step" } )
 		{
 			var path = $"marine/heavy/{cue}";
 			context.Add( ResourceType.GameResource, $"sounds/{path}.sound", new SparkSoundLoader( path ) );
@@ -213,7 +213,11 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		{
 			arm.Heat = Math.Clamp( arm.Heat + Time.Delta * (arm.Shooting ? 0.3f : -0.4f), 0, 1 );
 			request &= arm.Heat < 0.95f;
-			if ( !request ) arm.Shooting = false;
+			if ( !request && arm.Shooting )
+			{
+				PlayMinigunCue( arm == left ? "tail_2" : "tail" );
+				arm.Shooting = false;
+			}
 			return request;
 		}
 
@@ -248,6 +252,22 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 
 	void OnWeaponTag( string tag )
 	{
+		if ( !Railguns )
+		{
+			var cue = tag switch
+			{
+				"left_minigun_attack_start" => "spin_up_2",
+				"right_minigun_attack_start" => "spin_up",
+				"left_minigun_attack_end" => "spin_down_2",
+				"right_minigun_attack_end" => "spin_down",
+				_ => null
+			};
+			if ( cue is not null )
+			{
+				PlayMinigunCue( cue );
+				return;
+			}
+		}
 		bool isLeft = tag == "l_shoot";
 		if ( !isLeft && tag != "r_shoot" || !NpcConVars.Enabled ) return;
 		var arm = isLeft ? left : right;
@@ -317,6 +337,12 @@ public sealed class Exo : BaseNpc, Component.IDamageable
 		var cue = Railguns ? "railgun_fire" : isLeft ? "spin_2" : "spin";
 		var handle = PlayHeavySound( cue );
 		if ( !Railguns ) arm.Loop = handle;
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	void PlayMinigunCue( string cue )
+	{
+		if ( !Application.IsHeadless ) PlayHeavySound( cue );
 	}
 
 	SoundHandle PlayHeavySound( string cue ) =>
