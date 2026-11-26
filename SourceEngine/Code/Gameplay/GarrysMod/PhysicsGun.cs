@@ -3,6 +3,8 @@ namespace Source1.GarrysMod;
 /// <summary>The Physics Gun carries the point under the crosshair, including individual ragdoll bodies.</summary>
 public sealed partial class PhysicsGun : Weapon, PlayerController.IEvents
 {
+	public override Ray AimRay => Owner.IsValid() ? Owner.EyeTransform.ForwardRay : base.AimRay;
+
 	const float MinRange = 40;
 	const string GridConVar = "gm_snapgrid";
 	const float CarryMass = 45678;
