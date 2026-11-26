@@ -60,12 +60,12 @@ internal sealed partial class HandheldWeaponLoader
 	{
 		int header = Address( projectile );
 		var markers = new Dictionary<string, GameObject>();
-		GameObject AtMarker( string name )
+		GameObject AtMarker( string name, bool requireMarker = false )
 		{
 			if ( string.IsNullOrEmpty( name ) ) return root;
 			if ( markers.TryGetValue( name, out var emitter ) ) return emitter;
 			var path = ModelPath( Host, map, projectile );
-			if ( path is null || Model.Load( path )?.Attachments.GetTransform( name ) is not {} pose ) return root;
+			if ( path is null || Model.Load( path )?.Attachments.GetTransform( name ) is not {} pose ) return requireMarker ? null : root;
 			emitter = new GameObject( root, true, name );
 			emitter.LocalTransform = pose;
 			return markers[name] = emitter;
@@ -82,8 +82,9 @@ internal sealed partial class HandheldWeaponLoader
 				string.IsNullOrEmpty( function ) )
 				volume.Glow = ReadMuzzleFlash( tag, attachmentMarker: "" );
 			if ( tag is { PrimaryClass: "effe" } && (function == "acceleration_range" || tag.TagPath == @"effects\objects\weapons\grenade\frag_grenade\smoke_trail") &&
+				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ), requireMarker: true ) is {} origin &&
 				ReadMuzzleFlash( tag, attachmentMarker: "" ) is { Length: > 0 } exhaust )
-				AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ).AddComponent<ProjectileExhaust>().Effects = exhaust;
+				origin.AddComponent<ProjectileExhaust>().Effects = exhaust;
 			if ( tag is { PrimaryClass: "effe" } && tag.TagPath.EndsWith( @"\flak_bolt_armed", StringComparison.Ordinal ) )
 				ReadTimedEffects( tag, AtMarker( map.ResolveStringId( map.ReadInt32( row + 8 ) ) ) );
 			if ( tag is not { PrimaryClass: "hgil" } ) continue;

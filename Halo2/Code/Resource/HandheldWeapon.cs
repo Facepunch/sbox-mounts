@@ -61,7 +61,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		}
 	}
 
-	bool HasProjectileEffects => Name is "flak_cannon" or "brute_shot" or "rocket_launcher" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
+	bool HasProjectileEffects => Name is "big_needler_handheld" or "phantom_turret_handheld" or "flak_cannon" or "brute_shot" or "rocket_launcher" or "needler" or "plasma_pistol" or "plasma_rifle" or "brute_plasma_rifle";
 	string Name => TagName( weapon );
 	static string TagName( TagEntry entry ) => System.IO.Path.GetFileName( entry.TagPath.Replace( '\\', '/' ) );
 	int PrimaryTrigger => Block( Header + 0x2c8 );
