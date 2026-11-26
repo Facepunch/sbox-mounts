@@ -95,7 +95,7 @@ public sealed partial class RabbitGuard
 		{
 			weaponLookTime = 2f / 30f;
 			weaponLookPoint = nearby.PhysicsPosition;
-			duckAmount = Math.Max( duckAmount, 1f - (weaponLookPoint - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
+			groundCrouchTarget = Math.Max( groundCrouchTarget, 1f - (weaponLookPoint - center).WithZ( 0f ).LengthSquared / (40f * 40f) );
 		}
 
 		if ( RollProgress >= 1f && !reaching && WeaponAtHand( PickupLeft ) is not null )

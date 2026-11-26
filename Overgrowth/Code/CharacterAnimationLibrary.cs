@@ -80,9 +80,11 @@ internal sealed class CharacterAnimationLibrary
 			.Select( (weight, i) => (Name: $"pain_{i}", Weight: weight) ).ToArray();
 		foreach ( var group in painMask )
 			bones.AddBoneMask( group.Name, pain.ToDictionary( pair => pair.Key, pair => pair.Value == group.Weight ? 1f : 0f ), defaultFloatChannelWeight: 0f );
-		var pickupMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count );
-		bones.AddBoneMask( "pickup_right", pickupMask, defaultFloatChannelWeight: 0f );
-		bones.AddBoneMask( "pickup_left", pickupMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value ), defaultFloatChannelWeight: 0f );
+		foreach ( bool mirrored in new[] { false, true } )
+		{
+			var mask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_pickup.anm", skeleton.Bones.Count, mirrored ? mirror : null, floatChannels, bindItem: false );
+			bones.AddBoneMask( mirrored ? "pickup_left" : "pickup_right", mask, defaultFloatChannelWeight: 0f );
+		}
 		var knifeMask = RabbitClip.ReadLayerMask( fs, "Data/Animations/r_knifeslash.anm", skeleton.Bones.Count );
 		var left = knifeMask.ToDictionary( pair => $"bone_{mirror.Opposite( int.Parse( pair.Key[5..] ) )}", pair => pair.Value );
 		foreach ( var shape in morphs.Where( shape => shape.Name is "fist_l" or "fist_r" ) ) knifeMask[shape.Name] = left[shape.Name] = 1f;
