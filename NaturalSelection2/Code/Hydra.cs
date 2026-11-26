@@ -21,7 +21,7 @@ public sealed class Hydra : AlienStructure
 	bool attacking, alerting;
 	Vector3 Barrel => WorldPosition + WorldRotation.Up * Scale;
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hydra>( root, renderer, "Hydra" );
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hydra>( root, renderer, "Hydra", "hydra/idle" );
 
 	internal static void RegisterSounds( MountContext context )
 	{

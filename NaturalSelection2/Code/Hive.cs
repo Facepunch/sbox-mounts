@@ -11,7 +11,7 @@ public sealed class Hive : AlienStructure
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	TimeUntil nextHeal;
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hive>( root, renderer, "Hive" );
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hive>( root, renderer, "Hive", "hive_idle" );
 
 	internal static Hive FindNearest( AlienLifeform alien, MapLocations locations, out float distance )
 	{

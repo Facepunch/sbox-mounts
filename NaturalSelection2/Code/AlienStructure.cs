@@ -93,7 +93,7 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		publishedMaturity = maturity;
 	}
 
-	protected static void Configure<T>( GameObject root, SkinnedModelRenderer renderer, string name ) where T : AlienStructure, new()
+	protected static void Configure<T>( GameObject root, SkinnedModelRenderer renderer, string name, string idleSound ) where T : AlienStructure, new()
 	{
 		root.Tags.Add( "structure" );
 		var npc = root.AddComponent<T>();
@@ -103,6 +103,9 @@ public abstract class AlienStructure : AlienNpc, Component.IDamageable
 		npc.MaxHealth = npc.Stats.Health;
 		npc.Health = npc.MaxHealth * 0.3f;
 		npc.EyeHeight = Scale;
+		var idle = root.AddComponent<StructureIdleSound>();
+		idle.EventName = $"sound/NS2.fev/alien/structures/{idleSound}";
+		idle.Positional = true;
 		if ( Sandbox.Mounting.Directory.Get( "ns2" )?.GetByPath( renderer.Model.ResourcePath ) is ModelLoader model )
 			model.AddMovementCollision( renderer, trigger: npc is Hydra );
 	}

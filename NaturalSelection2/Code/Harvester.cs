@@ -8,7 +8,7 @@ public sealed class Harvester : AlienStructure
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	protected override GrowthStats Stats => new( 38, 0.5f, 2000, 200, 150, 2300, 320 );
 
-	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Harvester>( root, renderer, "Harvester" );
+	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Harvester>( root, renderer, "Harvester", "harvester_active" );
 
 	protected override void OnUpdate()
 	{

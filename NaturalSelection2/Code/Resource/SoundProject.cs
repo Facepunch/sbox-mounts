@@ -8,7 +8,18 @@ namespace NS2;
 /// STRR holds the shared names. LGCY stores groups, events and then their playlist definitions.</summary>
 internal sealed partial class SoundProject
 {
-	internal sealed record Event( Layer[] Layers, float Volume, float Pitch, int Limit, int Steal, float FadeIn, float FadeOut, float PitchRandom, float Reverb, float Pan );
+	internal sealed record Event( Layer[] Layers, float Volume, float Pitch, int Limit, int Steal, float FadeIn, float FadeOut, float PitchRandom, float Reverb, float Pan, int Mode, float MinDistance, float MaxDistance )
+	{
+		internal float DistanceGain( float meters )
+		{
+			if ( meters <= MinDistance ) return 1;
+			float distance = Math.Min( meters, MaxDistance );
+			const int linear = 0x200000, linearSquare = 0x400000;
+			if ( (Mode & (linear | linearSquare)) == 0 ) return MinDistance / Math.Max( distance, 0.001f );
+			float gain = 1 - (distance - MinDistance) / Math.Max( MaxDistance - MinDistance, 0.001f );
+			return (Mode & linearSquare) != 0 ? gain * gain : gain;
+		}
+	}
 	internal sealed record Layer( int Definition, bool Loop, float Volume, float Pitch )
 	{
 		internal Playlist Playlist { get; set; }
@@ -137,7 +148,10 @@ internal sealed partial class SoundProject
 			float gain = info.Float(), pitch = info.Float(), pitchRandom = info.Float();
 			info.Skip( 8 );
 			int limit = info.Int();
-			info.Skip( 72 );
+			info.Skip( 4 );
+			int mode = info.Int();
+			float minDistance = info.Float(), maxDistance = info.Float();
+			info.Skip( 56 );
 			int steal = info.Int();
 			info.Skip( 8 );
 			float reverb = MathF.Pow( 10, info.Float() / 20 );
@@ -189,7 +203,7 @@ internal sealed partial class SoundProject
 
 			for ( int j = r.Count( 4 ); j > 0; j-- )
 				gain *= categories.GetValueOrDefault( $"master/{r.String()}", 1 );
-			Events[name] = new( layers.ToArray(), gain, pitch, limit, steal, fadeIn, fadeOut, pitchRandom, reverb, pan );
+			Events[name] = new( layers.ToArray(), gain, pitch, limit, steal, fadeIn, fadeOut, pitchRandom, reverb, pan, mode, minDistance, maxDistance );
 		}
 	}
 

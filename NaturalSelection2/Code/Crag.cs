@@ -20,7 +20,7 @@ public sealed class Crag : AlienStructure
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
 		renderer.LocalScale = Vector3.One * 0.8f;
-		Configure<Crag>( root, renderer, "Crag" );
+		Configure<Crag>( root, renderer, "Crag", "crag/idle" );
 	}
 
 	bool TryHeal( BaseNpc target )
