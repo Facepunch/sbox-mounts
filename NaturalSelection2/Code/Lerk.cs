@@ -255,6 +255,7 @@ public sealed partial class Lerk : AlienLifeform
 					acquisition.Record( victim is not null );
 			}
 			if ( victim is not Component target ) continue;
+			LeechShield( victim, 0.02f );
 			victim.OnDamage( new DamageInfo { Damage = 60, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject } );
 			if ( target.IsValid() && victim.Health > 0 && !target.GameObject.Tags.HasAny( "ns2_exo", "ns2_exosuit" ) &&
 				(target.GameObject.Tags.Has( "ns2_marine" ) || target.GetComponentInParent<PlayerController>().IsValid()) )

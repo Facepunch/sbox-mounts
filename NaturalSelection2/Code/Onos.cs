@@ -298,6 +298,7 @@ public sealed partial class Onos : AlienLifeform
 				lastTargetStructural = structural;
 			}
 			if ( victim is null ) continue;
+			LeechShield( victim, 0.0183f );
 			DealDamage( victim, structural ? 180 : 90, hit.EndPosition, smash ? "smash" : "gore" );
 		}
 		if ( smash && lastHit.Hit && (!hitEntity || lastTargetStructural) )

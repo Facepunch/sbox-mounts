@@ -5,12 +5,11 @@ internal static class AlienArmor
 	internal static float UmbraScale( Component.IDamageable.DamageEvent hit ) =>
 		hit.DamageInfo.Tags.HasAny( "bullet", "buckshot", "railgun", "grenade" ) && hit.Victim.GetComponent<UmbraProtection>().IsValid() ? 0.8f : 1;
 
-	internal static float ArmorOnlyDamage( Component.IDamageable.DamageEvent hit )
-	{
-		var info = hit.DamageInfo;
-		if ( info.Tags.Has( "corrode" ) ) return info.Damage * 0.12f * UmbraScale( hit );
-		return info.Tags.HasAny( "armoronly", "nervegas" ) ? info.Damage * UmbraScale( hit ) : 0;
-	}
+	internal static float ArmorOnlyScale( DamageInfo info ) =>
+		info.Tags.Has( "corrode" ) ? 0.12f : info.Tags.HasAny( "armoronly", "nervegas" ) ? 1 : 0;
+
+	internal static float ArmorOnlyDamage( Component.IDamageable.DamageEvent hit ) =>
+		hit.DamageInfo.Damage * ArmorOnlyScale( hit.DamageInfo ) * UmbraScale( hit );
 
 	internal static void ApplyPlayerRules( Component.IDamageable.DamageEvent hit, Component victim, float armor )
 	{

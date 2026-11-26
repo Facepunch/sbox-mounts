@@ -180,6 +180,7 @@ public sealed partial class Skulk : AlienLifeform
 			if ( victim is null ) continue;
 			var npc = victim as BaseNpc;
 			bool alive = npc.IsValid() && npc.Health > 0;
+			LeechShield( victim, 0.0466f );
 			DealDamage( victim, 75, hit.EndPosition, "bite" );
 			killed = alive && (!npc.IsValid() || npc.Health <= 0);
 		}

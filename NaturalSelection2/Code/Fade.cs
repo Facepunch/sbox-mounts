@@ -306,6 +306,7 @@ public sealed partial class Fade : AlienLifeform
 			}
 			var damage = new DamageInfo { Damage = amount, Origin = EyePosition, Position = hit.EndPosition, Attacker = GameObject, Weapon = GameObject };
 			damage.Tags.Add( stab ? "structural" : "puncture" );
+			if ( !stab ) LeechShield( victim, 0.0333f );
 			victim.OnDamage( damage );
 		}
 	}

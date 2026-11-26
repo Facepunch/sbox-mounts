@@ -61,6 +61,7 @@ public sealed class GorgeProjectile : Component
 			owner.GetDisposition( target.GameObject ) == Sandbox.Npcs.Disposition.Hostile )
 		{
 			hitEnemyPlayer = ((IDamageable)target).Health > 0 && Lerk.IsPlayerTarget( target.GameObject );
+			owner.LeechShield( (IDamageable)target, 0.0267f );
 			((IDamageable)target).OnDamage( new DamageInfo { Damage = 30, Position = hit.HitPosition, Origin = owner.EyePosition, Attacker = owner.GameObject, Weapon = GameObject } );
 			if ( hitEnemyPlayer && target.IsValid() ) owner.DirectBabblersTo( target.GameObject );
 		}
