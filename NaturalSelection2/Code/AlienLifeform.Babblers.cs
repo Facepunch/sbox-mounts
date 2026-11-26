@@ -8,9 +8,9 @@ public abstract partial class AlienLifeform
 	private protected readonly List<Babbler> brood = new( 6 );
 	private protected readonly List<int> freeSlots = [1, 2, 3, 4, 5, 6];
 	protected float babblerShield;
-	float ShieldPerBabbler => Math.Min( 85, MathF.Round( BaseHealth * (this switch
+	double ShieldPerBabbler => Math.Min( 85, Math.Round( BaseHealth * (this switch
 	{
-		Skulk => 0.28f, Gorge => 0.13f, Lerk => 0.14f, Fade => 0.16f, _ => 0.1f
+		Skulk => 0.28, Gorge => 0.13, Lerk => 0.14, Fade => 0.16, _ => 0.1
 	}), MidpointRounding.AwayFromZero ) ) / 6;
 
 	internal GameObject BabblerApproachPoint => freeSlots.Count > 0 && Renderer.IsValid()
@@ -42,7 +42,7 @@ public abstract partial class AlienLifeform
 			brood.Add( babbler );
 		}
 		babbler.ClingTo( point, slot );
-		babblerShield += ShieldPerBabbler;
+		babblerShield = (float)(babblerShield + ShieldPerBabbler);
 	}
 
 	internal void BabblerRemoved( Babbler babbler )
@@ -54,7 +54,7 @@ public abstract partial class AlienLifeform
 	internal void ReleaseSlot( int slot )
 	{
 		freeSlots.Add( slot );
-		babblerShield = Math.Min( babblerShield, (6 - freeSlots.Count) * ShieldPerBabbler );
+		babblerShield = Math.Min( babblerShield, (float)((6 - freeSlots.Count) * ShieldPerBabbler) );
 	}
 
 	void AbsorbBabblerShield( IDamageable.DamageEvent e )
@@ -65,7 +65,10 @@ public abstract partial class AlienLifeform
 		e.AcceptedDamage -= absorbed;
 		babblerShield -= absorbed;
 		underFire = 3;
-		while ( freeSlots.Count < 6 && babblerShield <= (5 - freeSlots.Count) * ShieldPerBabbler )
+		int attached = 6 - freeSlots.Count;
+		double perBabbler = ShieldPerBabbler;
+		int broken = Math.Clamp( (int)Math.Floor( (attached * perBabbler - babblerShield) / perBabbler ), 0, attached );
+		for ( int i = 0; i < broken; i++ )
 			BreakBabbler( brood.Find( b => b.ClingSlot != 0 ) );
 	}
 
