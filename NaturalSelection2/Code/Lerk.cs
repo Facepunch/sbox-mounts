@@ -5,16 +5,14 @@ using System;
 namespace NS2;
 
 [Title( "Lerk" ), Category( "Natural Selection 2" )]
-public sealed partial class Lerk : AlienLifeform, Component.IDamageable
+public sealed partial class Lerk : AlienLifeform
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.6f * Scale);
 
 	protected override int BaseHealth => 180;
 	protected override int HealthPerBiomass => 2;
 
-	const float MaxArmor = 30;
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
-	float IDamageable.MaxArmour => MaxArmor;
+	protected override int MaxArmor => GetArmorLimit( 30, 12, 1 );
 
 	const float Scale = MapLoader.Scale;
 	const float BodyRadius = 0.4f * Scale;
@@ -22,7 +20,6 @@ public sealed partial class Lerk : AlienLifeform, Component.IDamageable
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly BotWeaponAim acquisition = new( 100 );
-	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback weapon;

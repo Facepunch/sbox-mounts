@@ -5,22 +5,20 @@ using System;
 namespace NS2;
 
 [Title( "Fade" ), Category( "Natural Selection 2" )]
-public sealed partial class Fade : AlienLifeform, Component.IDamageable
+public sealed partial class Fade : AlienLifeform
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.8f * Scale);
 
 	protected override int BaseHealth => 250;
 	protected override int HealthPerBiomass => 5;
 
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 80 ); }
-	float IDamageable.MaxArmour => 80;
+	protected override int MaxArmor => GetArmorLimit( 80, 20, 2.5f );
 
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
 	internal GameObject assignedEnemy;
 	[Property, Range( 1, 7 )] public int AimSkillTier { get; set; } = 1;
 	readonly AlienAim.Acquisition acquisition = new( 90 );
-	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 80;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback weapon;

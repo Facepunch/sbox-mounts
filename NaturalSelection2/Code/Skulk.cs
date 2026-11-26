@@ -5,15 +5,14 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Skulk" ), Category( "Natural Selection 2" )]
-public sealed partial class Skulk : AlienLifeform, Component.IDamageable
+public sealed partial class Skulk : AlienLifeform
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.5f * MapLoader.Scale);
 
 	protected override int BaseHealth => 75;
 	protected override int HealthPerBiomass => 3;
 
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
-	float IDamageable.MaxArmour => MaxArmor;
+	protected override int MaxArmor => GetArmorLimit( 10, 5, 1 );
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{

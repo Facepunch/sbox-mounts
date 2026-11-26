@@ -5,22 +5,19 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Onos" ), Category( "Natural Selection 2" )]
-public sealed partial class Onos : AlienLifeform, Component.IDamageable
+public sealed partial class Onos : AlienLifeform
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (1.3f * Scale);
 
 	protected override int BaseHealth => 700;
 	protected override int HealthPerBiomass => 50;
 
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, MaxArmor ); }
-	float IDamageable.MaxArmour => MaxArmor;
+	protected override int MaxArmor => GetArmorLimit( 450, 50, 20 );
 
 	const float Scale = MapLoader.Scale;
 	internal static readonly float HorizontalExtents = new Vector2( 0.7f, 0.4f ).Length * Scale;
 	const float RunSpeed = 6.6f * Scale;
-	const float MaxArmor = 450;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
-	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = MaxArmor;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose MovePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose AttackPose { get; set; }
 	[Sync( SyncFlags.FromHost | SyncFlags.Interpolate )] Rotation ViewRotation { get; set; }

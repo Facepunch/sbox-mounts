@@ -5,19 +5,17 @@ using Sandbox.Npcs.Layers;
 namespace NS2;
 
 [Title( "Gorge" ), Category( "Natural Selection 2" )]
-public sealed partial class Gorge : AlienLifeform, Component.IDamageable
+public sealed partial class Gorge : AlienLifeform
 {
 	protected override Vector3 GetEngagementPoint() => WorldPosition + Vector3.Up * (0.28f * Scale);
 
 	protected override int BaseHealth => 160;
 	protected override int HealthPerBiomass => 2;
 
-	float IDamageable.Armour { get => Armor; set => Armor = Math.Clamp( value, 0, 50 ); }
-	float IDamageable.MaxArmour => 50;
+	protected override int MaxArmor => GetArmorLimit( 50, 12, 2 );
 
 	const float Scale = MapLoader.Scale;
 	static readonly SparkAnimationGraph.PoseParameters Locomotion = new( 0 ), ActionLayer = new( 1 );
-	[Sync( SyncFlags.FromHost )] public float Armor { get; private set; } = 50;
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose movePose { get; set; }
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.LayerPose attackPose { get; set; }
 	SparkAnimationGraph.Playback weapon;

@@ -2,7 +2,7 @@ using System;
 
 namespace NS2;
 
-public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IEvents
+public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable, Component.IDamageable.IEvents
 {
 	private protected SparkAnimationGraph.Playback world;
 	[Sync( SyncFlags.FromHost )] protected TimeSince AnimationTime { get; set; }
@@ -46,6 +46,20 @@ public abstract partial class AlienLifeform : AlienNpc, Component.IDamageable.IE
 	}
 
 	protected abstract int BaseHealth { get; }
+	protected abstract int MaxArmor { get; }
+	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int CarapaceShells { get; set; }
+	[Sync( SyncFlags.FromHost )] float armorFraction { get; set; } = 1;
+
+	public float Armor => armorFraction * MaxArmor;
+	float IDamageable.MaxArmour => MaxArmor;
+	float IDamageable.Armour { get => Armor; set => armorFraction = Math.Clamp( value / MaxArmor, 0, 1 ); }
+
+	protected int GetArmorLimit( int baseArmor, int carapaceBonus, float bonusPerBiomass )
+	{
+		float bonus = carapaceBonus + Math.Clamp( BiomassLevel, 0, 12 ) * bonusPerBiomass;
+		return baseArmor + (int)(bonus * Math.Clamp( CarapaceShells, 0, 3 ) / 3);
+	}
+
 	[Property, Range( 0, 3 ), Sync( SyncFlags.FromHost )] public int AdrenalineSpurs { get; set; }
 
 	protected float GetEnergyRechargeRate( float fullAdrenalineRate )
