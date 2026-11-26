@@ -49,6 +49,8 @@ public sealed class HoldPose
 
 	/// <summary>The pose is the SMG's, borrowed for a weapon its human has no hold for.</summary>
 	public bool Borrowed { get; private set; }
+	internal bool HasCrouchPose { get; private set; }
+	internal SourceModelSequenceData Sequence { get; }
 
 	/// <summary>The sequence holds the left hand on the weapon with IK.</summary>
 	public bool LocksLeftHand { get; }
@@ -119,6 +121,9 @@ public sealed class HoldPose
 	/// The human's hold of a weapon, or null when its sequences have none. False while the sequences are still loading.
 	/// </summary>
 	public static bool TryResolve( Model human, BaseCombatWeapon weapon, Model weaponModel, out HoldPose pose )
+		=> TryResolve( human, weapon, weaponModel, out pose, crouched: false );
+
+	internal static bool TryResolve( Model human, BaseCombatWeapon weapon, Model weaponModel, out HoldPose pose, bool crouched )
 	{
 		pose = null;
 		var skeleton = human.AnimationSkeleton();
@@ -130,6 +135,7 @@ public sealed class HoldPose
 		var layers = Css.PlayerAnimState.Resolve( human, sequences, weapon, weaponModel, Hl2.ActTable.Resolve( sequences, weaponClass ) );
 
 		string lower = null;
+		string crouchIdle = null;
 		string aim;
 		string[] shots;
 		string reload;
@@ -143,7 +149,8 @@ public sealed class HoldPose
 		}
 		else if ( Hl2.ActTable.PlayerActivities( weaponClass ) is { } player && sequences.FindActivity( player.Idle ) is { } idle )
 		{
-			aim = idle;
+			crouchIdle = sequences.FindActivity( Hl2.ActTable.CrouchIdle( weaponClass ) );
+			aim = crouched ? crouchIdle ?? idle : idle;
 			shots = [sequences.FindGesture( player.Attack )];
 			reload = sequences.FindActivity( player.Reload );
 		}
@@ -185,7 +192,7 @@ public sealed class HoldPose
 		if ( used.Any( x => x is not null && (!x.IsBound || !IsPosed( x, skeleton.Bones.Count )) ) )
 			return false;
 
-		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed };
+		pose = new HoldPose( skeleton, aimSequence, aimClip, lowerClip, layerClips, realTimeLayers, shotClips, reloadClip, layers?.ReloadLoops == true ) { Borrowed = borrowed, HasCrouchPose = crouchIdle is not null };
 		if ( pose.Knuckles < 2 )
 			pose = null;
 
@@ -194,6 +201,7 @@ public sealed class HoldPose
 
 	HoldPose( Skeleton skeleton, SourceModelSequenceData aim, Clip aimClip, Clip lower, Clip[] layers, Clip[] realTimeLayers, (Clip, bool)[] shots, Clip reload, bool reloadLoops )
 	{
+		Sequence = aim;
 		_bones = skeleton.Bones;
 		_shots = shots;
 		_realTimeLayers = realTimeLayers;

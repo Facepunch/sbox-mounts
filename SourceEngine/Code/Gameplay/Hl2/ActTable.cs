@@ -81,6 +81,8 @@ public static class ActTable
 		? ($"ACT_HL2MP_IDLE_{hold}", $"ACT_HL2MP_GESTURE_RANGE_ATTACK_{hold}", $"ACT_HL2MP_GESTURE_RELOAD_{hold}")
 		: null;
 
+	internal static string CrouchIdle( string weaponClass ) => $"ACT_HL2MP_IDLE_CROUCH_{PlayerHoldTypes[weaponClass]}";
+
 	/// <summary>
 	/// The row a model holds a weapon with: its weapon script's class, else a class its HoldType names, else the class for its
 	/// well-known hold or the closest one, whichever the model has activities for first. Unarmed past those; a weapon without a

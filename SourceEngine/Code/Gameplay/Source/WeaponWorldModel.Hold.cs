@@ -35,6 +35,9 @@ public sealed partial class WeaponWorldModel
 	const float ResolveRetryInterval = 1;
 
 	HoldPose _hold;
+	HoldPose _standingHold;
+	HoldPose _crouchedHold;
+	float? _stanceBlendTime;
 	(Model Weapon, Model Holder) _holdFor;
 	bool _holdPending;
 	TimeSince _holdRequested;
@@ -117,7 +120,7 @@ public sealed partial class WeaponWorldModel
 			_leftStart = HandInBody( holder, HolderLeftHand ) ?? leftTarget;
 		}
 
-		var deployTime = _weapon.IsValid() ? _weapon.DeployTime : 0;
+		var deployTime = _stanceBlendTime ?? (_weapon.IsValid() ? _weapon.DeployTime : 0);
 		var deployed = deployTime > 0 ? MathF.Min( _deployed / deployTime, 1 ) : 1;
 		rightTarget = Blend( _rightStart, rightTarget, deployed );
 		leftTarget = Blend( _leftStart, leftTarget, deployed );
@@ -141,6 +144,7 @@ public sealed partial class WeaponWorldModel
 		else if ( !parameters.TrySet( RightHandIk, rightTarget ) )
 		{
 			_hold = null;
+			_standingHold = _crouchedHold = null;
 			StopHold();
 			return false;
 		}
@@ -237,6 +241,7 @@ public sealed partial class WeaponWorldModel
 			StopHold();
 			_holdFor = (Renderer.Model, holder.Model);
 			_hold = null;
+			_standingHold = _crouchedHold = null;
 			_holder = holder;
 			_posed = false;
 			_holdPending = true;
@@ -249,12 +254,27 @@ public sealed partial class WeaponWorldModel
 		{
 			_holdPending = false;
 			_hold = hold is not null && BindHolder( hold, holder ) ? hold : null;
+			_standingHold = _hold;
 		}
 		else if ( _holdPending && _nextHoldTry && _holdRequested > ResolveTimeout )
 		{
 			_nextHoldTry = ResolveRetryInterval;
 		}
 
+		if ( _hold is not null && _standingHold?.HasCrouchPose == true )
+		{
+			bool crouched = _weapon.IsValid() && _weapon.Owner.IsValid() && _weapon.Owner.IsDucking;
+			if ( crouched && _crouchedHold is null && HoldPose.Human( MountContent.Of( Renderer.Model ) ) is { } reference )
+				HoldPose.TryResolve( reference, _weapon, Renderer.Model, out _crouchedHold, crouched: true );
+
+			var next = crouched ? _crouchedHold ?? _standingHold : _standingHold;
+			if ( next != _hold )
+			{
+				StopHold();
+				_stanceBlendTime = next.Sequence.Snap ? 0 : MathF.Min( _hold.Sequence.FadeOut, next.Sequence.FadeIn );
+				_hold = BindHolder( next, holder ) ? next : null;
+			}
+		}
 		return _hold is not null;
 	}
 
@@ -403,6 +423,7 @@ public sealed partial class WeaponWorldModel
 
 	void StopHold()
 	{
+		_stanceBlendTime = null;
 		if ( !_holding )
 			return;
 
