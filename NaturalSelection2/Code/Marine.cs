@@ -31,7 +31,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 	bool railgunDeath;
 	bool wantsFire;
 	Rigidbody body;
-	float fallSpeed;
+	float fallSpeed, slowAmount;
+	internal float SlowSpeedModifier => 1 - 0.7f * slowAmount;
 	NavMeshAgent agent;
 	bool sprintRequested, sprintHeld, sprintLocked, requireSprintPress;
 	TimeSince sprintPressAge, sprintAge, sinceSprint, sinceAttackEnd;
@@ -303,7 +304,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		// The rifle weighs 0.13 equipped and 70% of that when stowed.
 		float inventorySpeed = 1.17f - 0.13f * (pistol ? 0.7f : 1);
 		float speed = 5 + (sprinting ? 0.75f * Math.Clamp( (float)sprintAge / 1.5f, 0, 1 ) : 0);
-		Movement.WalkSpeed = Movement.RunSpeed = speed * inventorySpeed * Scale;
+		Movement.WalkSpeed = Movement.RunSpeed = speed * inventorySpeed * SlowSpeedModifier * Scale;
 	}
 
 	void ApproachPoint( Vector3 point )
@@ -355,7 +356,7 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( distance < 6 * Scale && nextDodge <= 0 && IsOnGround )
 		{
 			nextDodge = 2;
-			Launch( Animation.MoveVelocity.WithZ( MathF.Sqrt( 2 * 21.5f * 1.25f ) * Scale ) );
+			Launch( Animation.MoveVelocity.WithZ( 8.22f * Scale ) );
 			jumping = true;
 			PlayWorldSound( SurfaceLoader.SoundPath( "marine/common/jump" ) );
 			return;
@@ -433,9 +434,18 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		}
 
 		jumping = false;
-		if ( fallSpeed > 5 * Scale )
-			PlayWorldSound( SurfaceLoader.SoundPath( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" ) );
+		if ( fallSpeed > 4 * Scale ) Land( fallSpeed );
 		fallSpeed = 0;
+		slowAmount = Math.Max( 0, slowAmount - Scene.FixedDelta );
+	}
+
+	void Land( float impactSpeed )
+	{
+		float loss = Math.Clamp( (impactSpeed / Scale - 4) / 18, 0, 1 );
+		slowAmount = Math.Min( 1, slowAmount + loss );
+		if ( agent.Enabled ) agent.Velocity *= 1 - loss;
+		if ( impactSpeed > 5 * Scale )
+			PlayWorldSound( SurfaceLoader.SoundPath( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" ) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]

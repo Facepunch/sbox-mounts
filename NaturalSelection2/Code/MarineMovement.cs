@@ -2,7 +2,7 @@ namespace NS2;
 
 public sealed class MarineMovement : SparkGroundMovement
 {
-	protected override float GroundAcceleration => 13;
+	protected override float GroundAcceleration => 13 * (Npc is Marine marine ? marine.SlowSpeedModifier : 1);
 	protected override float GroundFriction => 9;
 
 	protected override float GetGroundSpeed( Vector3 direction, float speed )

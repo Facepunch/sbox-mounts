@@ -69,7 +69,16 @@ public abstract class SparkGroundMovement : NavigationLayer
 			// On a straight run the crowd can cap the speed itself. Keep the available
 			// acceleration at cruising speed so its arrival planner doesn't start braking early.
 			Agent.MaxSpeed = speed;
-			Agent.Acceleration = along > speed ? GroundFriction * along : GroundAcceleration * speed - GroundFriction * along;
+			float gain = GroundAcceleration * speed - GroundFriction * along;
+			if ( gain < 0 && GroundAcceleration < GroundFriction )
+			{
+				// A slowed Marine can lose more speed to friction than its input restores.
+				float damped = along * (1 - friction);
+				float next = damped + Math.Clamp( speed - damped, 0, GroundAcceleration * speed * Scene.FixedDelta );
+				Agent.MaxSpeed = Math.Min( speed, next );
+				Agent.Acceleration = (along - next) / Scene.FixedDelta;
+			}
+			else Agent.Acceleration = along > speed ? GroundFriction * along : gain;
 			return;
 		}
 		float wishSpeed = Math.Min( speed * (GroundAcceleration / GroundFriction), along + (speed - along) / friction );
