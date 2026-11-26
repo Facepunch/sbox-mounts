@@ -277,6 +277,7 @@ internal abstract partial class WeaponLoader( MapFile source, TagEntry tag ) : R
 		if ( map.ReadInt32( Address( globals ) + 0xf0 ) > 0 )
 		{
 			int control = Block( Address( globals ) + 0xf0 );
+			gun.VerticalAimOffset = Float( control + 0x1c );
 			gun.PickupHoldSeconds = Float( control + 0x7c );
 			gun.MagnetismFriction = Float( control );
 			gun.MagnetismAdhesion = Float( control + 4 );

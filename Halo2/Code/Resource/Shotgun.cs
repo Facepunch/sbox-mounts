@@ -314,10 +314,8 @@ internal sealed partial class ShotgunLoader( MapFile source, TagEntry tag ) : We
 			gun.DryFireSound = FiringSound( barrel, out var dryMarker, dry: true );
 			gun.DryFireMarker = dryMarker;
 			var globals = map.Tags.First( t => t.PrimaryClass == "gtam" );
-			int playerControl = Block( Address( globals ) + 0xf0 );
 			gun.PelletBodyScales = BodyDamageScales( Address( globals ), damage );
 			gun.PelletExplosive = (map.ReadInt32( damage + 0x14 ) & 0x20) != 0;
-			gun.VerticalAimOffset = Float( playerControl + 0x1c );
 		}
 		return prefab = builder.Create();
 	}

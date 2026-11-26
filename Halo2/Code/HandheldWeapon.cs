@@ -69,7 +69,7 @@ internal sealed class TrackVoice
 	}
 }
 
-public sealed record ReticleLayout( Vector2 Size, Vector2 Offset );
+public sealed record ReticleLayout( Vector2 Size, Vector2 Offset, int HiddenUnitStates = 0 );
 
 public abstract partial class HandheldWeapon : Weapon
 {
@@ -82,18 +82,25 @@ public abstract partial class HandheldWeapon : Weapon
 		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
 		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
 		int mode = (viewport.z < 1 ? 1 : 0) + (viewport.w < 1 ? 1 : 0);
-		var layout = Reticles?.ElementAtOrDefault( mode );
-		if ( layout is null || IsDualWielding || ZoomLevel > 0 )
-		{
-			base.DrawCrosshair( painter, center );
-			return;
-		}
+		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
+		// Both weapon HUDs submit their own widget at the same projected aim point.
+		DrawWeaponReticle( painter, center, mode, scale );
+		if ( Offhand is HandheldWeapon other && other.IsValid() )
+			other.DrawWeaponReticle( painter, center, mode, scale );
+	}
+
+	void DrawWeaponReticle( Painter painter, Vector2 center, int mode, float scale )
+	{
+		if ( Reticles?.ElementAtOrDefault( mode ) is not {} layout ) return;
+		int zoomState = ZoomLevel switch { 0 => 0x40, 1 => 0x80, 2 => 0x100, _ => 0 };
+		if ( UsesBinoculars && ZoomLevel > 0 ) zoomState |= 0x400;
+		if ( (layout.HiddenUnitStates & zoomState) != 0 ) return;
 		ref var texture = ref reticleTextures[mode];
 		if ( !texture.IsValid() ) texture = Texture.Load( $"{RigDirectory}.prefab/{reticlePages[mode]}.vtex" );
 		if ( !texture.IsValid() || texture.IsError ) return;
-		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
 		painter.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), Color.FromBytes( 117, 186, 255 ) );
 	}
+
 	[Property] public string RigDirectory { get; set; }
 	[Property] public string SpartanModel { get; set; }
 	[Property] public string EliteModel { get; set; }

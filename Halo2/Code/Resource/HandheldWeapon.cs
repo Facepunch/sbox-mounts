@@ -30,7 +30,7 @@ internal sealed partial class HandheldWeaponLoader( MapFile source, TagEntry tag
 		int registration = row + 0x40 + layout * 8;
 		var size = reticleSizes[page.Index];
 		return new( size, new Vector2( Short( offset ), Short( offset + 2 ) ) -
-			new Vector2( MathF.Floor( size.x * Float( registration ) ), MathF.Floor( size.y * Float( registration + 4 ) ) ) );
+			new Vector2( MathF.Floor( size.x * Float( registration ) ), MathF.Floor( size.y * Float( registration + 4 ) ) ), Short( row + 0x10 ) );
 	}
 
 	internal void FindReticleSource( MapFile candidate, TagEntry definition )

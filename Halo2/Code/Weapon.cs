@@ -210,9 +210,55 @@ public abstract partial class Weapon : BaseCombatWeapon
 		return Sample( index ) * (1 - fraction) + Sample( index + 1 ) * fraction;
 	}
 
+	[Property] public float VerticalAimOffset { get; set; } = 0.165f;
+
+	// MCC projects the authored observer offset through the safe camera rectangle.
+	// Preserve the player's selected lens and rotate the view so the aim ray meets that pixel.
+	Vector2 reticleOffset;
+	void ApplyObserverAim( CameraComponent camera, ref CameraView view )
+	{
+		reticleOffset = Vector2.Zero;
+		var viewport = camera.Viewport;
+		var rect = camera.ScreenRect;
+		var size = rect.Size;
+		if ( Owner is { ThirdPerson: false } && !camera.Orthographic && size.x > 0 && size.y > 0 && viewport.z > 0 && viewport.w > 0 )
+		{
+			float aspect = size.x / size.y;
+			float referenceAspect = System.MathF.Min( aspect, 16f / 9f );
+			float halfFov = System.MathF.Tan( view.FieldOfView.DegreeToRadian() * 0.5f );
+			float horizontal = camera.FovAxis == CameraComponent.Axis.Horizontal ? halfFov : halfFov * referenceAspect;
+			float vertical = camera.FovAxis == CameraComponent.Axis.Horizontal ? halfFov / aspect : halfFov;
+			const float mccAngleScale = 0.895f;
+			float observer = System.MathF.Tan( System.MathF.Atan( horizontal * 0.75f ) * mccAngleScale );
+			float projection = System.MathF.Tan( System.MathF.Atan( horizontal / referenceAspect ) * mccAngleScale );
+			// Outer edges use the HUD safe area. Interior split seams use a four-pixel inset.
+			var hudScale = size / new Vector2( 640 * viewport.z, 480 * viewport.w );
+			int left = (int)(rect.Left + (viewport.x == 0 ? 48 : 4) * hudScale.x);
+			int right = (int)(rect.Right - (viewport.x + viewport.z >= 1 ? 48 : 4) * hudScale.x);
+			int top = (int)(rect.Top + (viewport.y == 0 ? 36 : 4) * hudScale.y);
+			int bottom = (int)(rect.Bottom - (viewport.y + viewport.w >= 1 ? 36 : 4) * hudScale.y);
+			if ( projection > 0 )
+			{
+				// The observer truncates safe edges in display pixels before it centers and projects the aim point.
+				float y = (top + bottom + (bottom - top) * VerticalAimOffset * observer / projection) * 0.5f;
+				var anchor = new Vector2( (left + right) / 2, System.MathF.Floor( y + 0.5f ) );
+				reticleOffset = (anchor - rect.Position) / size - new Vector2( 0.5f );
+				var aimInView = new Vector3( 1, -2 * reticleOffset.x * vertical * aspect, -2 * reticleOffset.y * vertical );
+				view.Rotation *= Rotation.LookAt( aimInView ).Inverse;
+			}
+		}
+	}
+
+	public override void DrawHud( Painter painter, Vector2 crosshair )
+	{
+		if ( Owner is { ThirdPerson: false } ) crosshair += painter.Bounds.Size * reticleOffset;
+		base.DrawHud( painter, crosshair );
+	}
+
 	protected override void ModifyCamera( CameraComponent camera, ref CameraView view )
 	{
 		ApplyZoomLens( ref view );
+		ApplyObserverAim( camera, ref view );
 
 		if ( kickEnds > 0 && KickDuration > 0 )
 		{
