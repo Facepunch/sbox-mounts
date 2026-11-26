@@ -17,7 +17,7 @@ public sealed partial class Drifter : BaseNpc, Component.IDamageable
 	[Sync( SyncFlags.FromHost )] TimeUntil nextRegeneration { get; set; }
 	bool hasOrder;
 	[Sync( SyncFlags.FromHost )] bool constructing { get; set; }
-	Harvester target;
+	AlienStructure target;
 	Vector3 returnPosition;
 	TimeUntil search;
 	TimeSince age;
@@ -72,9 +72,9 @@ public sealed partial class Drifter : BaseNpc, Component.IDamageable
 		if ( !hasOrder && search <= 0 && Time.Now > 3 )
 		{
 			search = 4;
-			foreach ( var candidate in Scene.GetAllComponents<Harvester>() )
+			foreach ( var candidate in Scene.GetAllComponents<AlienStructure>() )
 			{
-				if ( candidate.Health <= 0 || candidate.IsBuilt || candidate.HasEnzyme || candidate.Faction != Faction ||
+				if ( candidate is Hydra || candidate.Health <= 0 || candidate.IsBuilt || candidate.HasEnzyme || candidate.Faction != Faction ||
 					WorldPosition.DistanceSquared( candidate.WorldPosition ) > 144 * Scale * Scale ) continue;
 				if ( Scene.GetAllComponents<Drifter>().Any( other => other != this && other.target == candidate && other.Health > 0 ) ) continue;
 				target = candidate;
