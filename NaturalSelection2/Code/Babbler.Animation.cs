@@ -31,6 +31,7 @@ public sealed partial class Babbler
 	{
 		if ( ClingSlot == 0 ) base.OnUpdate();
 		else UpdateHealFeedback();
+		if ( Networking.IsHost ) Attacking = ClingSlot == 0 && feed <= 0 && lastHit < 0.2f;
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		if ( ClingSlot != 0 )
 		{
@@ -51,7 +52,6 @@ public sealed partial class Babbler
 		}
 		bool jumping = !Animation.IsGrounded;
 		bool running = !jumping && Movement.IsMoving;
-		if ( Networking.IsHost ) Attacking = feed <= 0 && lastHit < 0.2f;
 		if ( !Application.IsHeadless )
 		{
 			if ( jumping && !wasJumping && velocity.LengthSquared > 4 * Scale * Scale ) PlaySoundAt( "alien/babbler/jump", SphereCenter );
