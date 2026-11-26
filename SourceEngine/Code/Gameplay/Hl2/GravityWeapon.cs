@@ -111,8 +111,10 @@ public sealed class GravityWeapon : Weapon
 
 	static bool CanMove( Rigidbody body ) => body.IsValid() && body.MotionEnabled && !body.IsProxy && body.PhysicsBody.IsValid();
 
-	static bool CanActivate( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid()
-		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag ));
+	bool CanPickUp( Rigidbody body ) => body.IsValid() && body.PhysicsBody.IsValid() && body.Mass <= MaxMass
+		&& (body.MotionEnabled || body.Tags.Has( EnableMotionTag )) && !IsStandingOn( body ) && !IsFlesh( body );
+
+	bool IsStandingOn( Rigidbody body ) => Owner.GroundObject?.GetComponentInParent<Rigidbody>() == body;
 
 	static bool IsFlesh( Rigidbody body )
 	{
@@ -283,7 +285,7 @@ public sealed class GravityWeapon : Weapon
 		var body = FindBody( PullLength, out var hit );
 		bool pull = body.IsValid() && aim.Position.Distance( hit ) > TraceLength;
 		body ??= FindBodyInCone( aim );
-		if ( !CanActivate( body ) || body.IsProxy || body.Mass > MaxMass || IsFlesh( body ) )
+		if ( !CanPickUp( body ) || body.IsProxy )
 		{
 			if ( _playedDenySound ) return;
 			_playedDenySound = true;
@@ -314,7 +316,7 @@ public sealed class GravityWeapon : Weapon
 
 	bool CanContinueCarry( Rigidbody body )
 	{
-		if ( !CanMove( body ) || Owner.GroundObject == HeldObject ) return false;
+		if ( !CanMove( body ) || IsStandingOn( body ) ) return false;
 		if ( _carryGrace > 0 ) return true;
 
 		var error = body.PhysicsBody.MassCenter.Distance( _carryTarget );
@@ -395,7 +397,7 @@ public sealed class GravityWeapon : Weapon
 		if ( Application.IsDedicatedServer ) return;
 		_effects ??= new PhysCannonEffects();
 		// Only the owner traces; other peers show the idle claws.
-		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && FindBody( TraceLength, out _ ) is { Mass: <= MaxMass } body && CanActivate( body ) && !IsFlesh( body );
+		var ready = !IsProxy && !HeldObject.IsValid() && IsHeld && CanPickUp( FindBody( TraceLength, out _ ) );
 		_effects.Update( this, HeldObject, ready );
 	}
 
