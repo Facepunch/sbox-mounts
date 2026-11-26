@@ -114,8 +114,7 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		var recipient = combatWeight < 5 ? FindDonationTarget( threatPosition ) : null;
 		bool visible = enemy.IsValid() && lastSeen is null;
 		bombarding = false;
-		assignedTarget = null;
-		if ( SupportAlly( recipient.IsValid() ? 5 : combatWeight, visible ) || !recipient.IsValid() && !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
+		if ( SupportAlly( recipient.IsValid() ? 5 : combatWeight ) || !recipient.IsValid() && !fleeThrow && !structureThrow && PlantHydra( lastSeen ?? enemy?.WorldPosition ) )
 		{
 			throwing = false;
 			escort = null;
@@ -220,9 +219,9 @@ public sealed partial class Gorge : AlienLifeform, Component.IDamageable
 		if ( world is null || weapon is null ) return;
 		energy = Math.Min( 100, energy + 10 * Time.Delta );
 		var direction = Animation.LookObject.IsValid() ? CalculateAimPoint( Animation.LookObject ) - EyePosition : WorldRotation.Forward;
-		if ( wantsSpray && patient.IsValid() && patient.GetComponent<Rigidbody>() is { } body )
+		if ( wantsSpray && assignedTarget.IsValid() && assignedTarget.GetComponent<Rigidbody>() is { } body )
 		{
-			float distance = Math.Min( EyePosition.Distance( patient.WorldPosition ) / Scale, 1 );
+			float distance = Math.Min( EyePosition.Distance( assignedTarget.WorldPosition ) / Scale, 1 );
 			direction += body.Velocity * (distance * 0.6f);
 		}
 		if ( bombarding )

@@ -15,6 +15,7 @@ public sealed partial class Gorge
 	static readonly ConditionalWeakTable<Component, Healing> healing = new();
 	readonly HashSet<Component> patients = [];
 	Component patient;
+	AlienStructure construction;
 	internal GameObject assignedTarget;
 	// Recruit, Normal, Normal, Aggro, Veteran, Veteran in PlayerBot's distribution.
 	readonly (float Help, float Aggression) personality = Random.Shared.Next( 6 ) switch
@@ -76,7 +77,6 @@ public sealed partial class Gorge
 	bool NeedsHelp( Component c )
 	{
 		if ( !c.IsValid() || c is not IDamageable { Health: > 0 } hp || !Friendly( c ) ) return false;
-		if ( c is AlienStructure { IsBuilt: false } ) return true;
 		float fraction = HealthFraction( hp );
 		return fraction < 0.9f || ToppingUp( c, fraction );
 	}
@@ -112,12 +112,31 @@ public sealed partial class Gorge
 		return urgency * 20 / distance * HealthFraction( this );
 	}
 
-	bool SupportAlly( float combatWeight, bool visible )
+	float BuildWeight( AlienStructure structure )
+	{
+		if ( !structure.IsValid() || structure.IsBuilt || structure.Health <= 0 || InCombat ||
+			AlienTargeting.HasResponders( this, structure, 1 ) ) return 0;
+		float distance = WorldPosition.Distance( structure.WorldPosition ) / Scale;
+		float weight = 2 + personality.Help + (structure is Hydra ? 4 : structure is Harvester ? 3 : 0);
+		return distance <= 15 || assignedTarget == structure.GameObject ? weight + 15 / distance : weight;
+	}
+
+	bool SupportAlly( float competingWeight )
 	{
 		wantsSpray = false;
 		if ( searchPatients <= 0 )
 		{
 			searchPatients = 0.25f;
+			construction = null;
+			float closest = float.MaxValue;
+			foreach ( var structure in Scene.GetAllComponents<AlienStructure>() )
+			{
+				if ( structure.IsBuilt || structure.Health <= 0 || structure.Faction != Faction ) continue;
+				float distance = WorldPosition.DistanceSquared( structure.WorldPosition );
+				if ( distance >= closest ) continue;
+				construction = structure;
+				closest = distance;
+			}
 			patient = null;
 			float best = 10 * Scale;
 			FindPatients( WorldPosition, best );
@@ -129,23 +148,26 @@ public sealed partial class Gorge
 				patient = c;
 			}
 		}
-		if ( !NeedsHelp( patient ) ) return false;
-		var point = patient.WorldPosition;
-		float reach = 3.35f * Scale;
-		bool near = point.DistanceSquared( EyePosition ) < reach * reach;
-		if ( patient is AlienStructure { IsBuilt: false } )
+		float heal = NeedsHelp( patient ) ? HealWeight( patient, WorldPosition.Distance( patient.WorldPosition ) / Scale ) : 0;
+		float build = BuildWeight( construction );
+		bool building = build > heal;
+		if ( Math.Max( heal, build ) <= competingWeight )
 		{
-			if ( visible && !near ) return false;
+			assignedTarget = null;
+			return false;
 		}
-		else if ( HealWeight( patient, WorldPosition.Distance( point ) / Scale ) <= combatWeight ) return false;
-		assignedTarget = patient.GameObject;
-		Animation.SetLookTarget( patient.GameObject );
+
+		var target = building ? construction : patient;
+		var point = target.WorldPosition;
+		bool inRange = !building || WorldPosition.DistanceSquared( point ) <= (3.5f * 0.95f * Scale) * (3.5f * 0.95f * Scale);
+		assignedTarget = target.GameObject;
+		Animation.SetLookTarget( inRange ? target.GameObject : null );
 		firing = false;
-		wantsSpray = near && !WallBetween( EyePosition, point );
+		wantsSpray = inRange && EyePosition.DistanceSquared( point ) < 3.35f * 3.35f * Scale * Scale && !WallBetween( EyePosition, point );
 		if ( repath <= 0 )
 		{
-			var destination = wantsSpray ? HealingPosition( patient ) : point;
-			if ( destination is { } goal ) Movement.MoveTo( goal, Scale, faceTarget: patient.GameObject );
+			var destination = wantsSpray ? HealingPosition( target ) : point;
+			if ( destination is { } goal ) Movement.MoveTo( goal, Scale, faceTarget: inRange ? target.GameObject : null );
 			else Movement.Stop();
 			repath = 0.2f;
 		}
