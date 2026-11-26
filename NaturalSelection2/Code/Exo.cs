@@ -366,21 +366,25 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			ray = ray.FromTo( eye, end ).Size( -extents, extents );
 			pierceStep = extents.y * 3;
 		}
+		Span<Guid> pierced = stackalloc Guid[Railguns ? 20 : 0];
+		int piercedCount = 0;
 		bool hitEntity = false;
+		var start = eye;
 		for ( int i = 0; i < 20; i++ )
 		{
+			if ( Railguns && (end - start).Dot( direction ) <= 0 ) break;
 			var hit = ray.Run();
 			var target = hit.GetBulletTarget( out var hp, out bool pass );
 			if ( !target.IsValid() || Railguns && damage <= 0 ) break;
-			if ( target.Tags.Has( "world" ) )
+			if ( Railguns )
 			{
-				// Spark clips the shot by its centerline. Its wider sweep can graze cover on the way.
-				if ( pierceStep <= 0 ) break;
-				var next = hit.EndPosition + direction * pierceStep;
-				if ( (end - next).Dot( direction ) <= 0 ) break;
-				ray = ray.FromTo( next, end );
-				continue;
+				// Spark advances through contacts, including cover and actors already damaged.
+				start = hit.EndPosition + direction * pierceStep;
+				ray = ray.FromTo( start, end );
+				if ( target.Tags.Has( "world" ) || pierced[..piercedCount].Contains( target.Id ) ) continue;
+				pierced[piercedCount++] = target.Id;
 			}
+			else if ( target.Tags.Has( "world" ) ) break;
 			hitEntity = true;
 			if ( !Railguns ) acquisition.Record( hp is not null );
 			var onos = hp as Onos;
@@ -401,7 +405,7 @@ public sealed class Exo : Ns2Npc, Component.IDamageable
 			if ( blocked ) break;
 			if ( !Railguns && !pass ) break;
 			if ( Railguns && hp is not null && target.Tags.Has( "ns2_lifeform" ) ) damage *= 0.5f;
-			ray = ray.IgnoreGameObjectHierarchy( target );
+			if ( !Railguns ) ray = ray.IgnoreGameObjectHierarchy( target );
 		}
 		if ( Railguns || !hitEntity ) acquisition.Record( hitEntity );
 	}
