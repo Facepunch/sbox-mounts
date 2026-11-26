@@ -74,7 +74,7 @@ public sealed partial class RabbitGuard
 		if ( active )
 		{
 			if ( HasCombatTarget && WantsToAttack ) target = 1f;
-			else if ( Investigating && dragWindow > 0f && !NeedsCombatPose() &&
+			else if ( WantsToDragBody && !NeedsCombatPose() &&
 				(!PrimaryItem.IsValid() || boundAnimations.WeaponLabel is not ("big_sword" or "spear" or "staff")) ) target = -1f;
 		}
 		ThreatAmount = SampleThreat( target, active, PrimaryItem.IsValid(), Time.Delta );

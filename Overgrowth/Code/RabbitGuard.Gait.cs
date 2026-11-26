@@ -5,6 +5,8 @@ namespace Overgrowth;
 
 public sealed partial class RabbitGuard
 {
+	const float WalkThreshold = 0.6f * 40f;
+	string ReadyMovementStance => GaitSpeed > WalkThreshold ? Locomotion : Ready;
 	float stridePhase, strideFrequency;
 	bool walkingSinceLanding;
 	readonly Vector3[] lastSkidPosition = new Vector3[2];

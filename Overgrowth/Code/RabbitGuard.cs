@@ -207,7 +207,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( pose is ArmedGrab or ArmedGrabbed && SinceGrab < CaptureLead ) pose = CaptureMovementStance( pose );
 		if ( pose != FreeAir ) jumpCycle.Fade( this, "air_phase" );
 		if ( pose != Wall ) wallCycle.Fade( this, "wall_phase" );
-		if ( pose == Locomotion && Animation.IsGrounded && GaitSpeed <= 0.6f * 40f )
+		if ( pose == Locomotion && Animation.IsGrounded && GaitSpeed <= WalkThreshold )
 			pose = CombatPosture || AlertStage == 2 ? Ready : AlertStage == 1 ? Watch : Idle;
 		if ( pose == Ready && CombatPosture ) pose = Threat;
 		var displayPose = WoundedPose( pose );
@@ -307,7 +307,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( InThrow || AdvanceItemThrow() || UpdateDefense( !rolling ) ) return;
 		if ( RollProgress >= 1f && !GettingUp && strike is not { AsLayer: false } ) hitsOnGround = 0;
 		UpdateCombat();
-		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length * PreFrictionSpeedScale > 0.6f * 40f )
+		if ( Stance is Idle or Watch or Ready && Movement is CharacterNavigation navigation && navigation.BrakingVelocity.Length * PreFrictionSpeedScale > WalkThreshold )
 			Stance = Locomotion;
 	}
 

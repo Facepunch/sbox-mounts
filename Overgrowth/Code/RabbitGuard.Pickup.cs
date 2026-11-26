@@ -91,7 +91,7 @@ public sealed partial class RabbitGuard
 		seekTime += Time.Delta * (Animation.MoveVelocity.LengthSquared < 40f * 40f ? 11f : 1f);
 		var point = soughtItem.PhysicsPosition;
 		MoveTowardPoint( point, 0f, 1f );
-		Stance = Animation.MoveVelocity.WithZ( 0f ).Length < 5f ? Threat : Locomotion;
+		Stance = ReadyMovementStance;
 		if ( NearestWeapon( center, 80f ) is { } nearby )
 		{
 			weaponLookTime = 2f / 30f;

@@ -63,7 +63,8 @@ public sealed partial class RabbitGuard
 		if ( moveDelay > 0f ) point = corner = WorldPosition;
 		var toward = (point - WorldPosition).WithZ( 0f ).Normal;
 		var intent = PathSteering( corner, toward, urgent ? 40f : 0f, ref point );
-		Stance = MoveWithIntent( point, intent, speed ) ? Locomotion : Ready;
+		MoveWithIntent( point, intent, speed );
+		Stance = ReadyMovementStance;
 		return null;
 	}
 
@@ -203,7 +204,8 @@ public sealed partial class RabbitGuard
 		else
 		{
 			var dest = searchTarget.Position - Vector3.Up * 18f;
-			Stance = MoveTowardPoint( moveDelay > 0f ? WorldPosition : dest, 0f, 0.4f ) ? Locomotion : Ready;
+			MoveTowardPoint( moveDelay > 0f ? WorldPosition : dest, 0f, 0.4f );
+			Stance = ReadyMovementStance;
 		}
 		return true;
 	}

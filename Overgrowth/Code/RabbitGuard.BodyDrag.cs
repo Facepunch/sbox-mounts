@@ -21,6 +21,8 @@ public sealed partial class RabbitGuard
 	[Sync( SyncFlags.Interpolate )] Vector3 DragPoint { get; set; }
 	[Sync( SyncFlags.Interpolate )] float DragStrength { get; set; }
 
+	bool WantsToDragBody => Investigating && !soughtItem.IsValid() && dragWindow > 0f;
+
 	void BeginBodyInspection( float seconds )
 	{
 		// The following area search keeps the deadline set on entering body inspection.
@@ -31,7 +33,7 @@ public sealed partial class RabbitGuard
 
 	void UpdateBodyDrag()
 	{
-		if ( !Investigating || dragWindow <= 0f || !IsOnGround || Downed || StaticCharacter || Holding || Held || strike is not null || InThrow )
+		if ( !WantsToDragBody || !IsOnGround || Downed || StaticCharacter || Holding || Held || strike is not null || InThrow )
 		{
 			ReleaseBodyDrag();
 			return;
