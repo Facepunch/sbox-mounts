@@ -467,9 +467,13 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			return;
 		}
 
+		if ( airVelocity != Vector3.Zero )
+		{
+			// Passive falls hand back to navigation before the contact tick applies gravity.
+			if ( !jumping ) airVelocity += Scene.PhysicsWorld.Gravity * (body.GravityScale * Time.Delta);
+			if ( airVelocity.LengthSquared > 16 * Scale * Scale ) Land( airVelocity );
+		}
 		EndDodge();
-		float fallSpeed = -airVelocity.z;
-		if ( fallSpeed > 4 * Scale ) Land( fallSpeed );
 		airVelocity = Vector3.Zero;
 		slowAmount = Math.Max( 0, slowAmount - Scene.FixedDelta );
 	}
@@ -502,11 +506,19 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		return SparkAirMovement.Steer( velocity, view, direction, speed, 11 * SlowSpeedModifier, 6 * SlowSpeedModifier, dt );
 	}
 
-	void Land( float impactSpeed )
+	void Land( Vector3 velocity )
 	{
-		float loss = Math.Clamp( (impactSpeed / Scale - 4) / 18, 0, 1 );
-		slowAmount = Math.Min( 1, slowAmount + loss );
-		if ( agent.Enabled ) agent.Velocity *= 1 - loss;
+		var up = WorldRotation.Up;
+		var floor = Scene.Trace.Ray( WorldPosition + up * 16, WorldPosition - up * (8 + Scene.NavMesh.AgentStepSize) )
+			.IgnoreGameObjectHierarchy( GameObject ).WithCollisionRules( Tags ).WithoutTags( "npc" ).Run();
+		var normal = floor.Hit && !floor.StartedSolid ? floor.Normal : up;
+		float impactSpeed = -normal.Dot( velocity );
+		if ( normal.z > 0.5f && impactSpeed > 4 * Scale )
+		{
+			float loss = Math.Clamp( (impactSpeed / Scale - 4) / 18, 0, 1 );
+			slowAmount = Math.Min( 1, slowAmount + loss );
+			if ( agent.Enabled ) agent.Velocity *= 1 - loss;
+		}
 		if ( impactSpeed > 5 * Scale )
 			PlayWorldSound( SurfaceLoader.SoundPath( $"materials/{SurfaceLoader.FootstepMaterial( GroundSurface )}/fall" ) );
 	}
