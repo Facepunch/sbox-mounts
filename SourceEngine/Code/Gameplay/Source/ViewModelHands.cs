@@ -333,7 +333,7 @@ public sealed class ViewModelHands : Component
 			var side = name[^1];
 			int? next;
 			var transverse = false;
-			if ( name.StartsWith( "arm_lower_" ) && !name.Contains( "twist" ) ) next = Bone( $"hand_{side}" );
+			if ( _arms[i].End >= 0 ) next = _arms[i].End;
 			else if ( name.StartsWith( "hand_" ) ) next = Bone( $"finger_middle_0_{side}" );
 			else if ( name.StartsWith( "finger_" ) && !name.Contains( "_meta_" ) )
 			{
@@ -451,7 +451,13 @@ public sealed class ViewModelHands : Component
 				pose = _fingers[i] && (!_contacts[i] || _parents[i] >= 0 && _contacts[_parents[i]] && _fingers[_parents[i]]) ? pose.WithRotation( mapped.Rotation ) : mapped;
 				var arm = _arms[i];
 				if ( arm.End >= 0 && _mapped[arm.End] is { } end && _mapped[arm.Hand] is { } hand )
-					pose = pose.WithRotation( Rotation.LookAt( end.Position - pose.Position, hand.Rotation.Up ) );
+				{
+					// Aim the arm at its fitted joint while preserving the roll from its animation.
+					var forward = (end.Position - pose.Position).Normal;
+					pose = pose.WithRotation( _mapping[i] >= 0
+						? Rotation.FromToRotation( pose.Rotation * _local[arm.End].Position.Normal, forward ) * pose.Rotation
+						: Rotation.LookAt( forward, hand.Rotation.Up ) );
+				}
 			}
 			// Source has no separate metacarpals. Aim our palm bones and any
 			// unrecovered finger segment at its next known contact, instead of
