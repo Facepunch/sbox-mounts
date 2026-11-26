@@ -15,7 +15,8 @@ public abstract partial class Weapon
 	internal bool IsDualWielding => Offhand.IsValid() || IsOffhand;
 	protected bool IsInHand => IsActive || IsOffhand;
 	protected string TriggerButton => IsOffhand ? "attack2" : "attack1";
-	protected override bool WantsPrimaryAttack() => PrimaryAutomatic ? Input.Down( TriggerButton ) : Input.Pressed( TriggerButton );
+	protected virtual bool PrimaryTriggerPressed => Input.Pressed( TriggerButton );
+	protected override bool WantsPrimaryAttack() => PrimaryAutomatic ? Input.Down( TriggerButton ) : PrimaryTriggerPressed;
 	protected virtual void UpdateWeaponState() { }
 
 	void SetOffhand( Weapon item )

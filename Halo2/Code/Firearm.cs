@@ -4,6 +4,7 @@ public abstract class Firearm : HandheldWeapon
 {
 	readonly Queue<(Vector3 Forward, bool AwaitingCue, Vector2 Error, double Tick)> pendingRounds = new();
 	double nextRemoteRound;
+	bool awaitingReady;
 	[Sync( SyncFlags.FromHost )] protected double? OwnerToHostTicks { get; private set; }
 
 	protected virtual bool UsesRemoteAutomaticFire => PrimaryAutomatic;
@@ -12,13 +13,24 @@ public abstract class Firearm : HandheldWeapon
 	protected abstract void FireRemoteRound( Vector3 forward, bool awaitingCue, double shotTime );
 	protected override bool CanCatchUpRounds => Networking.IsHost || UsesRemoteAutomaticFire;
 
+	protected override bool PrimaryTriggerPressed => base.PrimaryTriggerPressed ||
+		(awaitingReady && Time.NowDouble >= PrimaryReadyAt && Input.Down( TriggerButton ));
+
+	protected override void OnEquipped()
+	{
+		base.OnEquipped();
+		awaitingReady = PrimaryReadyAt > Time.NowDouble;
+	}
+
 	protected override bool WantsSecondaryAttack() => !Input.Pressed( "reload" ) && base.WantsSecondaryAttack();
 
 	protected override void OnControl()
 	{
 		// The unit handles the reload input before checking magazine capacity.
 		if ( IsActive && MeleeActive && Input.Pressed( "reload" ) ) InterruptStrikeForReload();
+		bool ready = awaitingReady && Time.NowDouble >= PrimaryReadyAt && NextPrimaryFire <= 0;
 		base.OnControl();
+		if ( ready ) awaitingReady = false;
 	}
 
 	[Rpc.Broadcast( NetFlags.OwnerOnly )]
@@ -84,6 +96,7 @@ public abstract class Firearm : HandheldWeapon
 
 	protected override void OnDisabled()
 	{
+		awaitingReady = false;
 		pendingRounds.Clear();
 		nextRemoteRound = 0;
 		if ( Networking.IsHost ) OwnerToHostTicks = null;

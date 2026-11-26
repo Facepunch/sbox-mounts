@@ -37,7 +37,7 @@ public sealed class PlasmaPistol : BatteryWeapon
 	protected override void Think()
 	{
 		base.Think();
-		if ( Input.Pressed( TriggerButton ) ) SetTrigger( true );
+		if ( PrimaryTriggerPressed ) SetTrigger( true );
 		if ( Input.Released( TriggerButton ) ) SetTrigger( false );
 	}
 
