@@ -17,6 +17,7 @@ public sealed partial class RabbitGuard
 	bool InHoldMovementState => Stance is CutFromHold or CutInHold || (Holding || Held) && CaptureReactionEnded;
 	float grabPhase;
 	string grabReader;
+	string fadingCapture;
 	// The movement stance starts one four-frame update before WasGrabbed starts the paired attack.
 	const float CaptureLead = 4f / 120f;
 	const float HoldStep = 2f / 120f;
@@ -88,6 +89,13 @@ public sealed partial class RabbitGuard
 		struggleVelocity = inheritedVelocity ?? combatVelocity.WithZ( 0f );
 		combatVelocity = Vector3.Up * combatVelocity.z;
 		Stance = pose;
+		fadingCapture = pose is ArmedGrab or ArmedGrabbed ? pose : null;
+		if ( fadingCapture is not null )
+		{
+			Renderer.Animation.Parameters.Set( "capture_phase", 0f );
+			Renderer.Animation.Parameters.Set( "capture_weight", 0f );
+			Renderer.Animation.Parameters.Set( "capture_stance_phase", 0f );
+		}
 		if ( pose == ArmedGrab || pose == ArmedGrabbed && Time.Delta >= CaptureLead )
 		{
 			// The captor selects its movement stance on entry. The captive's movement
@@ -96,11 +104,12 @@ public sealed partial class RabbitGuard
 			playing = grabReader = CaptureMovementStance( pose );
 			grabPhase = 0f;
 			Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
-			Renderer.Animation.Parameters.Set( "stance", playing );
+			Renderer.Animation.Parameters.Set( "stance", pose );
 		}
 	}
 
-	static string CaptureMovementStance( string pose ) => pose == ArmedGrab ? ArmedHold : ArmedHeld;
+	internal static string CaptureMovementStance( string pose ) => pose == ArmedGrab ? ArmedHold : ArmedHeld;
+	string GraphStance( string pose ) => Stance is ArmedGrab or ArmedGrabbed && pose == CaptureMovementStance( Stance ) ? Stance : pose;
 
 	string CaptureEntryPose( string pose )
 	{
@@ -111,6 +120,8 @@ public sealed partial class RabbitGuard
 
 	void UpdateGrabReader( string pose )
 	{
+		if ( Stance is ArmedGrab or ArmedGrabbed ) fadingCapture = Stance;
+		float capturePhase = fadingCapture is null ? 0f : UpdateCaptureBlend();
 		if ( IsGrabClip( pose ) ) grabReader = pose;
 		else if ( !FadingGrab ) grabReader = null;
 		if ( grabReader is null ) return;
@@ -118,10 +129,7 @@ public sealed partial class RabbitGuard
 		// FadeCollection continues to advance the outgoing reader after UnTether.
 		var grab = GrabPose( grabReader );
 		if ( grabReader is ArmedGrab or ArmedGrabbed )
-		{
-			float age = Math.Max( 0f, (float)SinceGrab - CaptureLead + 1f / 120f );
-			grabPhase = age * grab.Frequency * (grabReader == ArmedGrab ? AttackSpeed : 1f);
-		}
+			grabPhase = capturePhase;
 		else if ( grabReader == ArmedHeld && Stance == ArmedGrabbed )
 		{
 			grabPhase = grab.Frequency / 120f;
@@ -131,6 +139,21 @@ public sealed partial class RabbitGuard
 
 		grabPhase = grab.Events.Looping ? grabPhase % 1f : Math.Min( grabPhase, 1f );
 		Renderer.Animation.Parameters.Set( "grab_phase", grabPhase );
+	}
+
+	float UpdateCaptureBlend()
+	{
+		bool attacker = fadingCapture == ArmedGrab;
+		float age = (float)SinceGrab - CaptureLead + 1f / 120f;
+		float stanceAge = Math.Max( 0f, age + (attacker ? CaptureLead : 1f / 120f) );
+		var stance = GrabPose( CaptureMovementStance( fadingCapture ) );
+		float phase = Math.Clamp( age * GrabPose( fadingCapture ).Frequency * (attacker ? AttackSpeed : 1f), 0f, 1f );
+		var parameters = Renderer.Animation.Parameters;
+		parameters.Set( "capture_phase", phase );
+		parameters.Set( "capture_stance_phase", Math.Min( 1f, stanceAge * stance.Frequency ) );
+		parameters.Set( "capture_weight", Math.Clamp( age * (attacker ? 20f : 5f), 0f, 1f ) );
+		if ( !FadingGrab && Stance != fadingCapture && phase >= 1f && age >= 0.2f ) fadingCapture = null;
+		return phase;
 	}
 
 	void AdvanceCaptureAlignment( int tick )

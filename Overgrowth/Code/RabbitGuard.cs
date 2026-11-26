@@ -222,7 +222,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 			// Let the graph produce its first pose before any IK overrides read the bones.
 			playing = displayPose;
 			if ( pose == Locomotion ) SetGaitParameters( GaitControls, StrideCycles % 1f );
-			Renderer.Animation.Parameters.Set( "stance", playing );
+			Renderer.Animation.Parameters.Set( "stance", GraphStance( playing ) );
 			return;
 		}
 		if ( playing == PatrolIdle && pose == PatrolIdle && IsPatrolGroup && boundAnimations.PatrolRig is { } patrolRig )
@@ -272,7 +272,7 @@ public sealed partial class RabbitGuard : BaseNpc, IHotloadManaged
 		if ( ReactionPhase < 1f ) Renderer.Animation.Parameters.Set( "reaction_phase", ReactionPhase );
 		if ( playing == displayPose ) return;
 		playing = displayPose;
-		Renderer.Animation.Parameters.Set( "stance", playing );
+		Renderer.Animation.Parameters.Set( "stance", GraphStance( playing ) );
 	}
 
 	// Ground schedules pause in flight, but Overgrowth keeps the active animation and its events running.

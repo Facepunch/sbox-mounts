@@ -111,6 +111,9 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var ledgePhase = graph.FloatParameter( "ledge_phase" );
 		var reactionPhase = graph.FloatParameter( "reaction_phase" );
 		var grabPhase = graph.FloatParameter( "grab_phase" );
+		var capturePhase = graph.FloatParameter( "capture_phase" );
+		var captureStancePhase = graph.FloatParameter( "capture_stance_phase" );
+		var captureWeight = graph.FloatParameter( "capture_weight" );
 		var grabStances = new Dictionary<string, RabbitAttack.Pose[]>();
 		var coordinates = new[] { "close_coord", "up_coord", "tuck_coord", "flail_coord", "air_phase", "tall_coord", "threat_coord", "forward_roll_coord", "roll_phase", "leg_support", "hang_active" }.ToDictionary( label => label, label => graph.FloatParameter( label ) );
 		coordinates["stride_phase"] = phase;
@@ -244,6 +247,22 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		} );
 		var reactionStates = reactionNames.Concat( guards.Keys ).Concat( throwClips.Keys ).ToHashSet();
 		var patrolRigs = patrolGroup is null ? null : new HashSet<RabbitRetarget>();
+		var grabCoordinates = new Dictionary<string, GraphBuilder.Node>();
+		foreach ( var name in new[] { RabbitGuard.ArmedHold, RabbitGuard.ArmedHeld } )
+		{
+			var group = XmlAsset.Read( fs, $"Data/Animations/{name}.xml", "SyncedAnimationGroup" );
+			grabCoordinates[name] = coordinates[group.Element( "CoordLabel" ).Value];
+			grabStances[name] = group.Element( "Animations" ).Elements( "Animation" )
+				.Select( x => new RabbitAttack.Pose( x.Number( "coord" ).Value,
+					CombatClip( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), true, null, true, RabbitClip.PoseData.ActionIK ) ) )
+				.OrderBy( p => p.Height ).ToArray();
+		}
+		GraphBuilder.Node ArmedStance( string name, GraphBuilder.Node time )
+		{
+			var blend = graph.BlendSpace( grabCoordinates[name], looping: false );
+			foreach ( var pose in grabStances[name] ) blend.Add( pose.Height, CombatPose( pose.Clip, time ) );
+			return blend;
+		}
 		var states = names.Select( name =>
 		{
 			if ( idlePoses.TryGetValue( name, out var idle ) )
@@ -313,18 +332,14 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 					return machine.AddState( CombatPose( cut, reactionPhase ) );
 				}
 				if ( name is RabbitGuard.ArmedHold or RabbitGuard.ArmedHeld )
-				{
-					var file = $"Data/Animations/{name}.xml";
-					var group = XmlAsset.Read( fs, file, "SyncedAnimationGroup" );
-					var poses = grabStances[name] = group.Element( "Animations" ).Elements( "Animation" )
-						.Select( x => new RabbitAttack.Pose( x.Number( "coord" ).Value,
-							CombatClip( System.IO.Path.GetFileNameWithoutExtension( x.Attribute( "path" ) ), true, null, true, RabbitClip.PoseData.ActionIK ) ) )
-						.OrderBy( p => p.Height ).ToArray();
-					var blend = graph.BlendSpace( coordinates[group.Element( "CoordLabel" ).Value], looping: false );
-					foreach ( var pose in poses ) blend.Add( pose.Height, CombatPose( pose.Clip, grabPhase ) );
-					return machine.AddState( blend );
-				}
+					return machine.AddState( ArmedStance( name, grabPhase ) );
 				var grip = clips[name] = CombatClip( name, name is not (RabbitGuard.RearHold or RabbitGuard.RearHoldRat), null, true, RabbitClip.PoseData.ActionIK );
+				if ( name is RabbitGuard.ArmedGrab or RabbitGuard.ArmedGrabbed )
+				{
+					// FadeCollection mixes the newest reader first, then applies the outgoing idle.
+					var entry = ArmedStance( RabbitGuard.CaptureMovementStance( name ), captureStancePhase );
+					return machine.AddState( graph.Blend( entry, CombatPose( grip, capturePhase ), captureWeight ) );
+				}
 				return machine.AddState( CombatPose( grip, grabPhase ) );
 			}
 			var clipName = guards.GetValueOrDefault( name ) ?? throwClips.GetValueOrDefault( name, name );
@@ -347,7 +362,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			// Overgrowth fades linearly at 20/s into combat and 100/s when swapping a blocked strike.
 			// Get-up already blends from the captured ragdoll pose after the full body is posed.
 			float duration = target is RabbitGuard.ClimbUp or RabbitGuard.LedgeReach ? 0.125f : (RabbitGuard.IsDodge( target ) || target is RabbitGuard.SpearThrow or RabbitGuard.SwordThrow or RabbitGuard.CutFromHold or RabbitGuard.CutInHold) ? 0.1f : target == RabbitGuard.Roll ? 0.25f : RabbitGuard.IsGetUp( target ) ? 0f : (blocked.ContainsValue( target ) || target == "thrown_counter") ? 0.01f
-				: target is "throw" or RabbitGuard.ArmedGrab or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
+				: target is "throw" or RabbitGuard.FreeAir || attacks.ContainsKey( target ) || reactionNames.Contains( target ) || guards.ContainsKey( target ) ? 0.05f : 0.2f;
 			bool groundPose = idlePoses.ContainsKey( target ) || target is RabbitGuard.PatrolIdle or RabbitGuard.Locomotion;
 			for ( int j = 0; j < states.Length; j++ )
 			{
