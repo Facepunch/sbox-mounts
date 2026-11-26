@@ -382,6 +382,29 @@ static class WeaponEffects
 		return sparks;
 	}
 
+	internal static void WaterSplash( Vector3 position, string mount )
+	{
+		if ( Sounds.Sound( "Physics.WaterSplash", mount ) is { } sound ) Sound.Play( sound, position );
+		var drops = Particles.Emitter( Game.ActiveScene, "effects/splash2", mount, false, true, 16 );
+		if ( !drops.IsValid() ) return;
+		drops.WorldPosition = position;
+		drops.Lifetime = new ParticleFloat( 0.25f, 0.5f );
+		drops.ApplyShape = true;
+		drops.InitialScale = new ParticleFloat( 1, 3 );
+		drops.Force = true;
+		drops.ForceDirection = Vector3.Down * 800;
+		var renderer = drops.GetComponent<ParticleSpriteRenderer>();
+		renderer.VelocityStretch = true;
+		renderer.StretchTime = new ParticleFloat( 0.025f, 0.05f );
+		for ( var i = 0; i < 16; i++ )
+		{
+			var origin = position + Particles.InCube( 8 ).WithZ( 0 );
+			if ( drops.Emit( origin, 0 ) is { } p )
+				p.Velocity = (Vector3.Up + Particles.InCube( 0.8f )) * Game.Random.Float( 150, 300 ) + Vector3.Up * Game.Random.Float( 32, 64 );
+		}
+		drops.Invoke( 0.5f, drops.DestroyGameObject );
+	}
+
 	public static void GaussImpact( Vector3 position, Vector3 direction, string mount )
 	{
 		if ( Application.IsDedicatedServer ) return;

@@ -34,7 +34,7 @@ public sealed class Stunstick : MeleeWeapon
 
 	protected override void OnShootImpact( in ShotEffect shot )
 	{
-		base.OnShootImpact( shot );
+		SolidImpact( shot );
 		if ( shot.Hit && !Application.IsDedicatedServer )
 			WeaponEffects.StunstickImpact( shot.HitPosition, shot.Normal, MountContent.Of( GameObject ) );
 	}

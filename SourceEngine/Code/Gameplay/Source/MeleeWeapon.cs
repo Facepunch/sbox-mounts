@@ -54,7 +54,7 @@ public class MeleeWeapon : Weapon
 		// Hit and miss recover at different speeds: replace the flat cooldown FirePrimary set.
 		SetNextPrimaryFire( tr.Hit ? SwingDelay : MissSwingDelay );
 
-		SwingEffects( new ShotEffect( tr.HitPosition, tr.Hit, tr.Normal, tr.GameObject, tr.Surface ) );
+		SwingEffects( new ShotEffect( tr.Hit ? tr.HitPosition : aim.Project( Range ), tr.Hit, tr.Normal, tr.GameObject, tr.Surface, aim.Position ) );
 
 		tr.Direction = aim.Forward;
 		var damage = Damage;
@@ -103,12 +103,33 @@ public class MeleeWeapon : Weapon
 	{
 		if ( Application.IsDedicatedServer ) return;
 
+		if ( !shot.Hit ) WaterImpact( shot );
+
 		// A missed swing has no impact point. The trace endpoint would select a hit animation.
 		base.OnShootEffects( shot.Hit ? shot : shot with { HitPosition = default } );
 		if ( shot.Hit && HitSound is not null ) GameObject.PlaySound( HitSound );
 	}
 
+		bool WaterImpact( in ShotEffect shot )
+	{
+		if ( shot.Origin is not { } start ) return false;
+		foreach ( var map in Scene.GetAll<SourceWaterMap>() )
+		{
+			if ( !map.Active || map.FindWater( shot.HitPosition ) < 0 || map.FindWater( start ) >= 0 ) continue;
+			var entry = Scene.Trace.Ray( start, shot.HitPosition ).WithTag( "water" ).HitTriggersOnly().Run();
+			if ( !entry.Hit ) continue;
+			WeaponEffects.WaterSplash( entry.HitPosition, MountContent.OfWeapon( this ) );
+			return true;
+		}
+		return false;
+	}
+
 	protected override void OnShootImpact( in ShotEffect shot )
+	{
+		if ( shot.Hit && !WaterImpact( shot ) ) SolidImpact( shot );
+	}
+
+	protected void SolidImpact( in ShotEffect shot )
 	{
 		if ( !shot.Hit || !shot.HitObject.IsValid() )
 			return;
