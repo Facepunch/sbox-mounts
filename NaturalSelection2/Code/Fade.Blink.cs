@@ -31,8 +31,7 @@ public sealed partial class Fade
 	void Travel( Vector3 goal )
 	{
 		if ( PhysicsCarrier.IsValid() || Blinking ) return;
-		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		if ( locations.IsValid() && locations.IsVent( WorldPosition ) )
+		if ( NearVent( goal ) )
 		{
 			hopsRemaining = 0;
 			return;

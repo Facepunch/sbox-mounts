@@ -50,7 +50,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer )
 	{
-		const float radius = 0.4f * Scale, height = 2.1f * Scale;
+		const float radius = 0.4f * Scale, height = StandingHeight;
 		var child = new GameObject( root, true, "Collider" );
 		child.Tags.Add( "playercontroller" );
 		var collider = child.AddComponent<CapsuleCollider>();
@@ -182,6 +182,7 @@ public sealed partial class Fade : AlienLifeform, Component.IDamageable
 	{
 		if ( GameObject.IsDestroyed ) return;
 		base.OnUpdate();
+		UpdateCrouch();
 		UpdateBlinkPresentation();
 		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
 		output?.Set( "move_speed", Animation.MoveVelocity.Length / (6.2f * Scale) );
