@@ -358,14 +358,16 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 			for ( int i = 0, row = Block( systems ); i < map.ReadInt32( systems ); i++, row += 56 )
 			{
 				var particle = Reference( row );
-				bool fiery = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery";
+				bool additiveSmoke = particle?.TagPath is @"effects\generic\smoke\smoke_fiery_small" or @"effects\generic\smoke\smoke_fiery" or @"effects\generic\smoke\smoke_wispy_small_additive";
 				bool soft = particle?.TagPath == @"effects\generic\smoke\smoke_soft";
 				bool energySmoke = particle?.TagPath == @"effects\generic\energy\smoke_c_generic";
 				bool shieldFlash = particle?.TagPath == @"effects\generic\sparks\flash_h_shield_impact";
-				bool smoke = fiery || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
+				bool smoke = additiveSmoke || soft || energySmoke || particle?.TagPath is @"effects\objects\weapons\rifle\battle_rifle\smoke" or @"effects\objects\weapons\rifle\smg\muzzle_smoke";
 				bool casing = particle?.TagPath is @"effects\objects\weapons\pistol\magnum\magnum_casings" or @"effects\objects\weapons\rifle\battle_rifle\br_casings"
 					or @"effects\objects\weapons\rifle\sniper_rifle\sr_casing_par";
-				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center";
+				bool flare = particle?.TagPath is @"effects\generic\weapon_flares\muzzle_flash_long" or @"effects\generic\weapon_flares\muzzle_flash_long_2" or @"effects\generic\weapon_flares\muzzle_flash_center"
+					or @"effects\generic\flares\flare_large" or @"effects\generic\flares\ring" or @"effects\generic\flares\burst_soft"
+					or @"effects\generic\sparks\electric_arcs" or @"effects\generic\energy\energy_bolt_trail";
 				if ( !smoke && !shieldFlash && !casing && !flare && particle?.TagPath is not (@"effects\generic\energy\flash_c_generic" or @"effects\generic\energy\flash_c_generic_med" or @"effects\generic\energy\plasma_electric_burst" or @"effects\generic\energy\tracer_c_generic"
 					or @"effects\objects\weapons\rifle\smg\fire_burst_center" or @"effects\objects\weapons\rifle\smg\fire_burst_long"
 					or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash" or @"effects\objects\weapons\rifle\battle_rifle\muzzle_flash_center") ) continue;
@@ -419,9 +421,9 @@ internal sealed class HandheldWeaponLoader( MapFile source, TagEntry tag, string
 						Tint( 4 ), (map.ReadInt32( color ) & 0xff00) == 0x2000 ? Tint( 16 ) : Tint( 4 ),
 						offset, direction, Short( definition + 4 ) == 1, Short( row + 18 ), Short( row + 12 ) == 1,
 						Bounds( emitter + 8 ), Short( emitter + 8 ), Bounds( emitter + 124 ) * 120, Bounds( emitter + 40 ) * 120, Short( emitter + 72 ) == 2,
-						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (fiery || soft) ? Vector2.One : Bounds( emitter + 104 ), fiery || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
-						flare || soft || fiery ? ReadRange( emitter + 104, 1 ) : null,
-						(soft || fiery || energySmoke) && (start > 0 || duration > 1.001f / 30) ? new( start, duration ) : null ) );
+						smoke || shieldFlash ? new( ReadRange( definition + 60, 1 ), ReadRange( definition + 44, 1 ), (additiveSmoke || soft) ? Vector2.One : Bounds( emitter + 104 ), additiveSmoke || energySmoke || shieldFlash, Motion( 0 ), Motion( 1 ) ) : null, contacts, casing || smoke ? Bounds( emitter + 140 ).x : 0,
+						flare || soft || additiveSmoke ? ReadRange( emitter + 104, 1 ) : null,
+						(soft || additiveSmoke || energySmoke) && (start > 0 || duration > 1.001f / 30) ? new( start, duration ) : null ) );
 				}
 			}
 		}

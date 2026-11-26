@@ -19,13 +19,13 @@ public sealed partial class PelletImpactEffect : Component
 
 	public sealed record ImpactLight( float Duration, Vector2 Radius, Color EndColor, Color StartColor, Vector2 Brightness )
 	{
-		public bool QuarticFade { get; init; }
+		public int FadePower { get; init; }
 
 		internal float Control( float age )
 		{
-			if ( !QuarticFade ) return 1 - age;
-			// Halo interpolates between byte samples of its quartic fade.
-			static float Sample( int index ) => (int)(255 * System.Math.Pow( index / 1023d, 4 )) / 255f;
+			if ( FadePower <= 1 ) return 1 - age;
+			// Halo interpolates between byte samples of its authored power curve.
+			float Sample( int index ) => (int)(255 * System.Math.Pow( index / 1023d, FadePower )) / 255f;
 			float position = age.Clamp( 0, 1 ) * 1023;
 			int index = (int)System.MathF.Round( position - 0.1f );
 			return index == 1023 ? 0 : 1 - MathX.Lerp( Sample( index ), Sample( index + 1 ), position % 1 );
