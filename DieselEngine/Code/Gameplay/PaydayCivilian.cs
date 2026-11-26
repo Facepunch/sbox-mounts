@@ -6,6 +6,7 @@ namespace Diesel;
 [Title( "PAYDAY Civilian" ), Group( "PAYDAY" )]
 public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 {
+	public PaydayCivilian() { Faction = Factions.Citizen; }
 	[Property] public bool Wander { get; set; } = true;
 	[Property] public bool ReportAlarms { get; set; } = true;
 	[Property] public bool UseEscapePoints { get; set; } = true;
@@ -34,6 +35,8 @@ public sealed class PaydayCivilian : BaseNpc, Component.IPressable
 			if ( !Surrendered && threatScan <= 0 )
 			{
 				threatScan = .25f;
+				if ( Senses?.VisibleThreats.FirstOrDefault() is { } visibleThreat )
+					Scare( visibleThreat );
 				foreach ( var player in Scene.GetAllComponents<PlayerController>() )
 					if ( PaydayPerception.Armed( player ) && PaydayPerception.CanSee( this, player.GameObject, player.EyePosition ) )
 					{

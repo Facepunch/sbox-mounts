@@ -1,6 +1,7 @@
 namespace Diesel;
 
-sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon = null, bool Female = false, float Health = 100 )
+sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon = null, bool Female = false, float Health = 100,
+	string Faction = "ally", bool HostileToPlayer = false )
 {
 	public bool Civilian => Weapon is null;
 	public string Prefab => $"entities/npcs/{Id}.prefab";
@@ -22,14 +23,28 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 		new( "butcher", "Slaughterhouse worker", "units/characters/civilians/butcher_1/butcher_1" ),
 		new( "security", "Security guard", "units/characters/enemies/security/security_guard_01", "crosskill" ),
 		new( "cop", "Police officer", "units/characters/enemies/cop/cop", "b9s" ),
-		new( "swat", "SWAT", "units/characters/enemies/swat/swat", "amcar4", Health: 200 )
+		new( "swat", "SWAT", "units/characters/enemies/swat/swat", "amcar4", Health: 200, HostileToPlayer: true ),
+		new( "security_2", "Security guard (variant 2)", "units/characters/enemies/security/security_guard_02", "crosskill" ),
+		new( "cop_2", "Police officer (variant 2)", "units/characters/enemies/cop2/cop2", "b9s" ),
+		new( "cop_3", "Police officer (variant 3)", "units/characters/enemies/cop3/cop3", "bronco44" ),
+		new( "swat_2", "SWAT (variant 2)", "units/characters/enemies/swat2/swat2", "amcar4", Health: 200, HostileToPlayer: true ),
+		new( "swat_3", "SWAT (variant 3)", "units/characters/enemies/swat3/swat3", "compact5", Health: 200, HostileToPlayer: true ),
+		new( "heavy_swat", "Heavy SWAT", "units/characters/enemies/swat_kevlar1/swat_kevlar1", "amcar4", Health: 300, HostileToPlayer: true ),
+		new( "heavy_swat_2", "Heavy SWAT (variant 2)", "units/characters/enemies/swat_kevlar2/swat_kevlar2", "amcar4", Health: 300, HostileToPlayer: true ),
+		new( "fbi", "FBI agent", "units/characters/enemies/fbi1/fbi1", "compact5", HostileToPlayer: true ),
+		new( "fbi_2", "FBI agent (variant 2)", "units/characters/enemies/fbi2/fbi2", "crosskill", HostileToPlayer: true ),
+		new( "fbi_3", "FBI agent (variant 3)", "units/characters/enemies/fbi3/fbi3", "amcar4", HostileToPlayer: true ),
+		new( "murkywater", "Murkywater mercenary", "units/characters/enemies/murky_water1/murky_water1", "amcar4", Health: 200, Faction: "enemy", HostileToPlayer: true ),
+		new( "murkywater_2", "Murkywater mercenary (variant 2)", "units/characters/enemies/murky_water2/murky_water2", "amcar4", Health: 200, Faction: "enemy", HostileToPlayer: true ),
+		new( "gangster", "Gangster", "units/characters/enemies/gangster1/gangster1", "crosskill", Faction: "enemy", HostileToPlayer: true ),
+		new( "gangster_2", "Gangster (variant 2)", "units/characters/enemies/gangster2/gangster2", "ak", Faction: "enemy", HostileToPlayer: true )
 	];
 	public static NpcDefinition Get( string id ) => All.First( n => n.Id == id );
 
 	/// <summary>
 	/// The closest roster entry for a mission spawn's unit path (<c>ElementSpawnCivilian/EnemyDummy.enemy</c>).
-	/// Exact units first, then family. Unported specials (FBI, heavy SWAT, Bulldozer, Shield, Taser, Cloaker,
-	/// gangsters, ...) fall back to SWAT for law enforcement; unknown civilians to the casual roster.
+	/// Exact units first, then family. Unlisted enemy units (including special units) fall back
+	/// to SWAT; unknown civilians to the casual roster. This is an appearance fallback only.
 	/// </summary>
 	public static NpcDefinition ForUnit( string unit )
 	{
@@ -62,7 +77,7 @@ sealed record NpcDefinition( string Id, string Title, string Unit, string Weapon
 			["run"] = "anims/shared/unarmed/neutral/" + (Female ? "pnc_std_fe_run_fwd_var2" : "pnc_std_run_fwd"),
 			["surrender"] = "anims/shared/unarmed/neutral/pnc_drop_tied_idle_1_var1"
 		};
-		string kind = Weapon == "amcar4" ? "rifle" : "pistol";
+		string kind = WeaponDefinition.Get( Weapon ).Slot == 1 ? "pistol" : "rifle";
 		return new()
 		{
 			["idle"] = $"anims/shared/{kind}/combat/cbt_std_idle",

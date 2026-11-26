@@ -7,6 +7,7 @@ namespace Diesel;
 [Title( "PAYDAY Armed NPC" ), Group( "PAYDAY" )]
 public sealed class PaydayCombatNpc : BaseCombatNpc
 {
+	public PaydayCombatNpc() { Faction = Factions.Ally; }
 	[Property] public bool InitiallyHostile { get; set; }
 	[Property] public bool RescueCivilians { get; set; } = true;
 	[Property] public bool UseRadio { get; set; } = true;
@@ -32,7 +33,7 @@ public sealed class PaydayCombatNpc : BaseCombatNpc
 	protected override void SetupRelationships()
 	{
 		base.SetupRelationships();
-		if ( !InitiallyHostile ) SetRelationship( Factions.Player, Disposition.Neutral );
+		SetRelationship( Factions.Player, InitiallyHostile ? Disposition.Hostile : Disposition.Neutral );
 	}
 
 	protected override void OnUpdate()
@@ -117,22 +118,30 @@ public sealed class PaydayCombatNpc : BaseCombatNpc
 		if ( !radioSuspect.IsValid() )
 		{
 			CancelRadio();
-			foreach ( var player in Scene.GetAllComponents<PlayerController>() )
+			var suspects = Scene.GetAllComponents<BaseNpc>()
+				.Where( n => n != this && n.Active && n.Health > 0 && GetDisposition( n.GameObject ) == Disposition.Hostile )
+				.Select( n => (Object: n.GameObject, Eye: n.EyePosition) )
+				.Concat( Scene.GetAllComponents<PlayerController>()
+					.Where( p => p.Active && (PaydayPerception.Armed( p ) || GetDisposition( p.GameObject ) == Disposition.Hostile) )
+					.Select( p => (Object: p.GameObject, Eye: p.EyePosition) ) );
+			foreach ( var suspect in suspects )
 			{
-				if ( !player.Active || radioKnown.Contains( player.GameObject )
-					|| (!PaydayPerception.Armed( player ) && GetDisposition( player.GameObject ) != Disposition.Hostile)
-					|| !PaydayPerception.CanSee( this, player.GameObject, player.EyePosition ) ) continue;
-				radioSuspect = player.GameObject;
-				radioPosition = player.WorldPosition;
+				if ( radioKnown.Contains( suspect.Object )
+					|| !PaydayPerception.CanSee( this, suspect.Object, suspect.Eye ) ) continue;
+				radioSuspect = suspect.Object;
+				radioPosition = suspect.Object.WorldPosition;
 				radioDelay = Math.Max( .1f, RadioDelay );
 				CallingBackup = true;
 				break;
 			}
 		}
 		if ( !radioSuspect.IsValid() ) return;
-		var suspect = radioSuspect.GetComponent<PlayerController>();
-		if ( suspect.IsValid() && PaydayPerception.CanSee( this, radioSuspect, suspect.EyePosition ) )
-			radioPosition = suspect.WorldPosition;
+		var npc = radioSuspect.GetComponent<BaseNpc>();
+		if ( npc.IsValid() && (!npc.Active || npc.Health <= 0) ) { CancelRadio(); return; }
+		var player = radioSuspect.GetComponent<PlayerController>();
+		var eye = npc.IsValid() ? npc.EyePosition : player.IsValid() ? player.EyePosition : radioSuspect.WorldPosition;
+		if ( PaydayPerception.CanSee( this, radioSuspect, eye ) )
+			radioPosition = radioSuspect.WorldPosition;
 		if ( radioDelay > 0 ) return;
 		radioKnown.Add( radioSuspect );
 		foreach ( var officer in Scene.GetAllComponents<PaydayCombatNpc>() )

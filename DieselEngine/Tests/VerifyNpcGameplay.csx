@@ -28,7 +28,7 @@ try
 	var target = new GameObject( true, "Hostile target" );
 	target.WorldPosition = new Vector3( 300, 0, 0 );
 	var victim = target.AddComponent<Sandbox.Npcs.BaseCombatNpc>();
-	victim.Faction = Sandbox.Npcs.Factions.Ally; victim.Health = 10000;
+	victim.Faction = Sandbox.Npcs.Factions.Enemy; victim.Health = 10000;
 	var hitbox = target.AddComponent<BoxCollider>(); hitbox.Center = new Vector3( 0, 0, 36 ); hitbox.Scale = new Vector3( 28, 28, 72 );
 	var wall = new GameObject( true, "Sight blocker" ); wall.WorldPosition = new Vector3( 450, 0, 80 );
 	wall.AddComponent<BoxCollider>().Scale = new Vector3( 30, 2000, 160 );

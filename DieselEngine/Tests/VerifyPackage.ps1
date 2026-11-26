@@ -44,6 +44,7 @@ try {
     $methods = @{
         'Diesel.PaydayMount' = @('GetAnimationInfo', 'GetUnitAnimationInfo')
         'Diesel.PaydayScriptedProp' = @('get_AnimationGroup')
+        'Diesel.PaydayUnitState' = @('get_DamageBodies')
         'Diesel.DieselModelLoader' = @('ResolveChild')
     }
     foreach ($name in $methods.Keys) {

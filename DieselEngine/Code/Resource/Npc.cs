@@ -31,7 +31,9 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 			else
 			{
 				var combat = root.AddComponent<PaydayCombatNpc>();
-				combat.InitiallyHostile = definition.Id == "swat";
+				combat.Faction = definition.Faction;
+				combat.InitiallyHostile = definition.HostileToPlayer;
+				combat.RescueCivilians = definition.Faction == Factions.Ally;
 				combat.WeaponChoices = [weapon];
 				combat.IdleBehaviour = BaseCombatNpc.IdleBehaviours.HoldPost;
 				npc = combat;

@@ -27,16 +27,43 @@ try
 			var marker = go.AddComponent<Diesel.PaydayUnitState>();
 			marker.Unit = unit; marker.Breakable = true; marker.DamageBodies = bounds;
 			go.AddComponent<ModelRenderer>().Model = (Model)result.GetType().GetProperty( "Model" ).GetValue( result );
+			go.AddComponent<ModelCollider>().Model = (Model)result.GetType().GetProperty( "Model" ).GetValue( result );
 			var serialized = go.Serialize().ToJsonString();
 			if ( !serialized.Contains( "\"DamageBodies\"" ) || !serialized.Contains( targets[0] ) )
 				throw new Exception( "Map snapshot omitted body attribution bounds." );
 			return marker;
 		}
+		int tracedBodies = 0;
+		var untraced = new System.Collections.Generic.List<string>();
 		foreach ( var body in targets )
 		{
 			var marker = Create();
-			var position = marker.WorldTransform.PointToWorld( bounds[body].Center );
-			((Component.IDamageable)marker).OnDamage( new DamageInfo { Position = position, Damage = 10000 } );
+			scene.GameTick( .05 );
+			var box = bounds[body];
+			var size = box.Maxs - box.Mins;
+			// Angled/hollow shapes need not intersect a ray through their AABB centre.
+			Vector3? impact = null;
+			foreach ( var axis in new[] { Vector3.Forward, Vector3.Left, Vector3.Up } )
+			foreach ( float x in new[] { 0f, -.3f, .3f } )
+			foreach ( float y in new[] { 0f, -.3f, .3f } )
+			foreach ( float z in new[] { 0f, -.3f, .3f } )
+			{
+				if ( impact.HasValue ) continue;
+				var center = box.Center + new Vector3( size.x * x, size.y * y, size.z * z );
+				var reach = axis * (size.Length + 30);
+				var trace = scene.Trace.Ray( marker.WorldTransform.PointToWorld( center + reach ),
+					marker.WorldTransform.PointToWorld( center - reach ) ).Run();
+				if ( !trace.Hit || trace.GameObject != marker.GameObject ) continue;
+				var selected = (string)typeof(Diesel.PaydayUnitState).GetMethod( "FindDamageBody", flags )
+					.Invoke( marker, new object[] { trace.EndPosition, enabled } );
+				if ( selected == body ) impact = trace.EndPosition;
+			}
+			if ( impact.HasValue ) tracedBodies++;
+			else untraced.Add( body );
+			// Keep the original supplied-impact regression for bodies this finite ray
+			// probe cannot reach. Report those explicitly, not as traced-hit coverage.
+			((Component.IDamageable)marker).OnDamage( new DamageInfo {
+				Position = impact ?? marker.WorldTransform.PointToWorld( box.Center ), Damage = 10000 } );
 			var damage = (System.Collections.IDictionary)typeof(Diesel.PaydayUnitState).GetField( "damageTaken", flags ).GetValue( marker );
 			var touched = damage.Keys.Cast<(string Body, string Type)>().Select( k => k.Body ).Distinct().ToArray();
 			if ( touched.Length != 1 || touched[0] != body ) throw new Exception( $"Impact on {body} affected: {string.Join( ", ", touched )}" );
@@ -49,7 +76,9 @@ try
 		var blastDamage = (System.Collections.IDictionary)typeof(Diesel.PaydayUnitState).GetField( "damageTaken", flags ).GetValue( blast );
 		if ( blastDamage.Count < targets.Length ) throw new Exception( "Explosion no longer reaches independent bodies." );
 		blast.GameObject.Destroy();
-		results.Add( new { Unit = unit, IsolatedBodies = targets.Length, RotatedScaledPlacement = true, RebuildBounds = true, ExplosionCoverage = true } );
+		if ( tracedBodies == 0 ) throw new Exception( $"No real traced-hit coverage: {unit}" );
+		results.Add( new { Unit = unit, IsolatedBodies = targets.Length, TracedBodies = tracedBodies, UntracedBodies = untraced,
+			RotatedScaledPlacement = true, RebuildBounds = true, ExplosionCoverage = true } );
 	}
 	return results;
 }
