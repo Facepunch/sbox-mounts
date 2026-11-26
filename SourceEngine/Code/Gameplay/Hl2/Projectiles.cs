@@ -13,14 +13,13 @@ public sealed class CrossbowBolt : Projectile
 	public const float AirVelocity = 3500;
 	const float WaterVelocity = 1500;
 	const float StuckLifetime = 30;
+	const float ImpactLifetime = 2;
 	const float PinDistance = 128;
 	protected override float Gravity => _ricocheted ? 600 : 30;
 	protected override float TraceRadius => 1;
 	[Sync( SyncFlags.FromHost )] bool HiddenOnImpact { get; set; }
 	bool _ricocheted;
-	bool _stuck;
-	GameObject _hitObject;
-	Transform _hitLocal;
+	TimeUntil? _removeAfterImpact;
 	SpriteRenderer _glow;
 	TimeSince _glowAge;
 
@@ -29,10 +28,11 @@ public sealed class CrossbowBolt : Projectile
 
 	/// <summary>CCrossbowBolt's glow sprite stays off in flight; hits turn it on and fade it over 3 seconds.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void Sparkle()
+	void Sparkle( Vector3 localOffset )
 	{
-		if ( !Visual.IsValid() ) return;
-		_glow ??= MountedEffects.AddSprite( Visual, "sprites/light_glow02", MountName );
+		if ( Application.IsDedicatedServer ) return;
+		_glow = MountedEffects.AddSprite( GameObject, "sprites/light_glow02", MountName );
+		if ( _glow.IsValid() ) _glow.LocalPosition = localOffset;
 		_glowAge = 0;
 	}
 
@@ -40,7 +40,9 @@ public sealed class CrossbowBolt : Projectile
 	{
 		base.OnUpdate();
 		if ( HiddenOnImpact && Visual.IsValid() ) Visual.Enabled = false;
-		if ( _glow.IsValid() ) MountedEffects.SetSprite( _glow, 0.2f, 128 * MathF.Max( 0, 1 - _glowAge / 3 ) );
+		if ( !_glow.IsValid() ) return;
+		if ( _glowAge >= ImpactLifetime ) _glow.GameObject.Destroy();
+		else MountedEffects.SetSprite( _glow, 0.2f, 128 * (1 - _glowAge / 3) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -48,9 +50,8 @@ public sealed class CrossbowBolt : Projectile
 
 	protected override bool Simulate()
 	{
-		if ( !_stuck ) return true;
-		if ( _hitObject.IsValid() ) WorldTransform = _hitObject.WorldTransform.ToWorld( _hitLocal );
-		if ( Age > (HiddenOnImpact ? 2f : StuckLifetime) || (_hitObject is not null && !_hitObject.IsValid()) ) GameObject.Destroy();
+		if ( _removeAfterImpact is not { } remaining ) return true;
+		if ( remaining ) GameObject.Destroy();
 		return false;
 	}
 
@@ -114,18 +115,17 @@ public sealed class CrossbowBolt : Projectile
 		if ( indestructible )
 		{
 			HiddenOnImpact = true;
-			_stuck = true;
-			Age = 0;
+			_removeAfterImpact = ImpactLifetime;
 			Velocity = Vector3.Zero;
 			return;
 		}
-		Sparkle();
 		Embed( tr, direction );
+		Sparkle( WorldTransform.PointToLocal( tr.EndPosition ) );
 	}
 
 	void Embed( SceneTraceResult wall, Vector3 direction )
 	{
-		var anchor = wall.HitPosition;
+		var anchor = wall.EndPosition;
 		var ragdoll = Scene.Trace.Ray( anchor, anchor - direction * PinDistance ).WithTag( "ragdoll" ).Run();
 		if ( ragdoll.Body is { BodyType: PhysicsBodyType.Dynamic } bone )
 		{
@@ -133,12 +133,9 @@ public sealed class CrossbowBolt : Projectile
 			PhysicsJoint.CreateBallSocket( PhysicsPoint.World( Scene.PhysicsWorld.Body, anchor ), PhysicsPoint.World( bone, ragdoll.HitPosition ) );
 			PlayImpact( ragdoll, "Weapon_Crossbow.BoltSkewer", impactEffect: false );
 		}
-		_stuck = true;
-		Age = 0;
+		_removeAfterImpact = StuckLifetime;
 		Velocity = Vector3.Zero;
 		WorldPosition = anchor - direction * 8;
-		_hitObject = wall.GameObject;
-		if ( _hitObject.IsValid() ) _hitLocal = _hitObject.WorldTransform.ToLocal( WorldTransform );
 	}
 }
 
