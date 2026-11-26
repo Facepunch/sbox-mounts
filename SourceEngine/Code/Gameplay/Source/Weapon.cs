@@ -39,6 +39,14 @@ public abstract class Weapon : BaseCombatWeapon
 	{
 		ViewModelPrefab = RefreshPrefab( ViewModelPrefab );
 		WorldModelPrefab = RefreshPrefab( WorldModelPrefab );
+		// A late-joining client can receive the weapon before its mounted model prefabs.
+		if ( (ViewModelPrefab is null || WorldModelPrefab is null) && GameObject.PrefabInstanceSource is { } path
+			&& path.StartsWith( "mount://", StringComparison.OrdinalIgnoreCase )
+			&& GameObject.GetPrefab( path )?.GetComponent<Weapon>( true ) is { } template )
+		{
+			ViewModelPrefab ??= template.ViewModelPrefab;
+			WorldModelPrefab ??= template.WorldModelPrefab;
+		}
 		_deployUntil = DeployTime;
 		var primary = NextPrimaryFire;
 		var secondary = NextSecondaryFire;
@@ -185,6 +193,9 @@ public abstract class Weapon : BaseCombatWeapon
 	{
 		base.OnUpdate();
 		ShowStandalone();
+		// The initial inventory snapshot can equip the proxy before its holder has a renderer.
+		if ( IsProxy && !WorldModel.IsValid() && IsActive && WorldModelPrefab.IsValid() && HolderRenderer.IsValid() )
+			CreateWorldModel();
 
 		// The HUD icon comes from the mounted weapon script, which may not be readable until its game has mounted
 		if ( DisplayIcon is null && _sinceIconAttempt > 1 )
