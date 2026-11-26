@@ -8,6 +8,7 @@ public sealed partial class Fade
 	TimeSince blinkAge, lastBlink = 10;
 	TimeUntil releaseBlink;
 	int hopsRemaining;
+	float lastJump;
 	MapLocations locations;
 	SoundHandle blinkLoop;
 	SkinnedModelRenderer blinkOverlay;
@@ -27,22 +28,25 @@ public sealed partial class Fade
 
 	void Travel( Vector3 goal )
 	{
-		if ( PhysicsCarrier.IsValid() || Blinking || metabolizeAnimation > 0 ) return;
+		if ( PhysicsCarrier.IsValid() || Blinking ) return;
 		if ( !locations.IsValid() ) locations = Scene.GetAllComponents<MapLocations>().FirstOrDefault();
-		if ( locations.IsValid() && locations.IsVent( WorldPosition ) ) return;
-
-		var offset = goal - WorldPosition;
-		if ( offset.Length < Scale ) return;
-		if ( hopsRemaining > 0 )
+		if ( locations.IsValid() && locations.IsVent( WorldPosition ) )
 		{
-			if ( !IsOnGround ) return;
+			hopsRemaining = 0;
+			return;
+		}
+
+		if ( hopsRemaining > 0 || energy <= 50 )
+		{
+			if ( !IsOnGround || hopsRemaining == 0 && Time.Now <= lastJump + 0.15f ) return;
 			var jump = Animation.MoveVelocity.WithZ( 0 );
 			jump.z = MathF.Sqrt( 2 * 21.5f * 1.4f ) * Scale;
 			Launch( jump );
-			hopsRemaining--;
+			lastJump = Time.Now;
+			if ( hopsRemaining > 0 ) hopsRemaining--;
 			return;
 		}
-		if ( energy <= 50 || lastBlink < 0.4f ) return;
+		if ( lastBlink < 0.4f ) return;
 
 		var body = GetComponent<Rigidbody>();
 		var velocity = IsOnGround ? Animation.MoveVelocity : body.Velocity;
@@ -50,7 +54,7 @@ public sealed partial class Fade
 		body.Gravity = false;
 		energy -= 12;
 		blinkAge = 0;
-		releaseBlink = (offset.Length > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
+		releaseBlink = (WorldPosition.Distance( goal ) > 12 * Scale ? 0.6f : 0.3f) * (0.8f + Random.Shared.NextSingle() * 0.4f);
 		Blinking = true;
 		ShowBlinkEffect( true );
 	}
