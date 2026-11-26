@@ -60,7 +60,7 @@ public static class ActTable
 	[SkipHotload]
 	static readonly Dictionary<string, string> PlayerHoldTypes = new( StringComparer.OrdinalIgnoreCase )
 	{
-		["weapon_357"] = "PISTOL",
+		["weapon_357"] = "REVOLVER",
 		["weapon_pistol"] = "PISTOL",
 		["weapon_smg1"] = "SMG1",
 		["weapon_ar2"] = "AR2",
