@@ -365,12 +365,8 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 			}
 		}
 
-		if ( nextJuke <= 0 )
-		{
-			strafeSide = -strafeSide;
-			nextJuke = Random.Shared.Float( 0.35f, 1 );
-		}
-		var side = Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
+		var side = StrafeDirection( aimPoint );
+		if ( side == Vector3.Zero ) return;
 		if ( repath > 0 ) return;
 		repath = 0.1f;
 		if ( distance < 6 * Scale && nextDodge <= 0 && IsOnGround )
@@ -387,6 +383,16 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( Movement.ProjectPoint( destination ) is { } point )
 			Movement.MoveTo( point, 4, Movement.RunSpeed, enemy );
 		else Movement.Stop();
+	}
+
+	Vector3 StrafeDirection( Vector3 aimPoint )
+	{
+		if ( nextJuke <= 0 )
+		{
+			strafeSide = -strafeSide;
+			nextJuke = Random.Shared.Float( 0.35f, 1 );
+		}
+		return Vector3.Cross( EyePosition - aimPoint, Vector3.Up ).Normal * strafeSide;
 	}
 
 	void SelectWeapon( bool usePistol )
@@ -451,6 +457,11 @@ public sealed partial class Marine : Ns2Npc, Component.IDamageable
 		if ( !IsOnGround ) airVelocity = body.Velocity;
 		if ( jumping && !PhysicsCarrier.IsValid() && NpcConVars.Enabled )
 		{
+			// Navigation pauses in midair, but the bot can still change its strafe input.
+			if ( IsAirborne )
+				dodgeDirection = IsLiveTarget( assignedEnemy ) && AllowsAttack( assignedEnemy )
+					? StrafeDirection( CalculateAimPoint( assignedEnemy ) ) : Vector3.Zero;
+
 			// The ground probe returns control to navigation before the last air step.
 			var velocity = airVelocity / Scale;
 			velocity.z += Scene.PhysicsWorld.Gravity.z * body.GravityScale * Time.Delta / Scale;
