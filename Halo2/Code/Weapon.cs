@@ -250,6 +250,16 @@ public abstract partial class Weapon : BaseCombatWeapon
 		}
 	}
 
+	// Weapon HUD widgets use Halo's 640 x 480 reference resolution in every viewport.
+	protected float HudScale( Painter painter, out int layout )
+	{
+		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
+		layout = (viewport.z < 1 ? 1 : 0) + (viewport.w < 1 ? 1 : 0);
+		return viewport.z > 0 && viewport.w > 0
+			? System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) )
+			: 0;
+	}
+
 	public override void DrawHud( Painter painter, Vector2 crosshair )
 	{
 		if ( Owner is { ThirdPerson: false } ) crosshair += painter.Bounds.Size * reticleOffset;
@@ -302,7 +312,7 @@ public abstract partial class Weapon : BaseCombatWeapon
 	{
 		if ( HolderAnimator is {} existing ) return existing;
 		var body = HolderRenderer;
-		if ( body?.Model?.GetData<WeaponAttachment>() is null || string.IsNullOrEmpty( AnimationClass ) || string.IsNullOrEmpty( AnimationType ) ) return null;
+		if ( body?.Model?.HasData<WeaponAttachment>() != true || string.IsNullOrEmpty( AnimationClass ) || string.IsNullOrEmpty( AnimationType ) ) return null;
 
 		var animator = body.GameObject.AddComponent<Halo2Animator>();
 		animator.Flags |= ComponentFlags.NotSaved | ComponentFlags.NotNetworked | ComponentFlags.NotCloned;

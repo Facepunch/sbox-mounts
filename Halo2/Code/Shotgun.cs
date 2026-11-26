@@ -355,7 +355,7 @@ public sealed partial class Shotgun : Weapon
 			return;
 		}
 		var path = contacts.Effects is {} effects ? ContactMaterial.Lookup( effects, shot.Surface, true ) : null;
-		var effect = path is null ? null : PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>();
+		var effect = path is null ? null : GameObject.GetPrefab( path )?.GetComponent<PelletImpactEffect>();
 		if ( effect?.Place( shot.Surface, shot.HitObject, shot.HitPosition, shot.Normal, direction, bone ) != true )
 			ImpactPrefab( shot.HitObject, shot.Surface, shot.HitPosition, shot.Normal, direction );
 	}
@@ -387,12 +387,10 @@ public sealed partial class Shotgun : Weapon
 	public override void DrawHud( Painter painter, Vector2 crosshair )
 	{
 		base.DrawHud( painter, crosshair );
-		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
-		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
-		var bounds = painter.Bounds;
-		float scale = System.MathF.Min( bounds.Width / (640 * viewport.z), bounds.Height / (480 * viewport.w) );
+		float scale = HudScale( painter, out int layout );
 		if ( scale <= 0 ) return;
-		bool split = viewport.z < 1 || viewport.w < 1;
+		var bounds = painter.Bounds;
+		bool split = layout != 0;
 		var safeCorner = new Vector2( bounds.Width / scale, 0 ) + (split ? new Vector2( -8, 8 ) : new Vector2( -48, 36 ));
 		var holderModel = HolderRenderer?.Model;
 		if ( hudHolderModel != holderModel )
@@ -413,7 +411,7 @@ public sealed partial class Shotgun : Weapon
 			painter.Texture( background, new Rect( bounds.Position + (safeCorner + new Vector2( -103, 0 )) * scale, new Vector2( 103, 19 ) * scale ) );
 		// The original shotgun HUD uses the same logical offsets in full and split views.
 		DrawReserve( painter, safeCorner + new Vector2( -82, -1 ), scale );
-		if ( (viewport.z < 1 && viewport.w < 1) || Clip1 <= 0 ) return;
+		if ( layout == 2 || Clip1 <= 0 ) return;
 		if ( displayedShells != Clip1 || !ammoMeter.IsValid() )
 		{
 			var prefix = eliteHud ? "ammo_meter_elite_" : "ammo_meter_";
@@ -460,11 +458,9 @@ public sealed partial class Shotgun : Weapon
 	{
 		if ( !reticle.IsValid() ) BindHudTextures();
 		if ( !reticle.IsValid() || reticle.IsError ) return;
-		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
-		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
-		// The HUD scales against the entire display. Both split layouts use the smaller shotgun page.
-		bool split = viewport.z < 1 || viewport.w < 1;
-		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
+		float scale = HudScale( painter, out int layout );
+		if ( scale <= 0 ) return;
+		bool split = layout != 0;
 		float size = split ? 28 : 55;
 		float registration = System.MathF.Floor( size * 0.5f );
 		var bounds = new Rect( center - Vector2.One * (registration * scale), Vector2.One * (size * scale) );

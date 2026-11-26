@@ -79,14 +79,6 @@ public sealed class ProjectileContrail : Component
 		history.Add( segment );
 	}
 
-	Vector3 PositionAt( double time )
-	{
-		int i = history.Count - 1;
-		while ( i > 0 && history[i].Time > time ) i--;
-		var segment = history[i];
-		return segment.Position + segment.Velocity * (float)(time - segment.Time);
-	}
-
 	protected override void OnStart()
 	{
 		if ( Application.IsDedicatedServer || Appearance is null ) return;
@@ -120,15 +112,24 @@ public sealed class ProjectileContrail : Component
 		double head = endTime > 0 ? System.Math.Min( endTime, now ) : now;
 		double tail = System.Math.Min( head, System.Math.Max( FiredAt, now - Appearance.Lifetime ) );
 		if ( history.Count == 0 || history[^1].Time < segmentTime ) RememberSegment();
-		while ( history.Count > 1 && history[1].Time <= tail ) history.RemoveAt( 0 );
+		int expired = 0;
+		while ( expired + 1 < history.Count && history[expired + 1].Time <= tail ) expired++;
+		if ( expired > 0 ) history.RemoveRange( 0, expired );
 
 		var points = line.VectorPoints;
 		points.Clear();
+		// The line samples from head to tail, so each segment is visited at most once.
+		int index = history.Count - 1;
+		Vector3 PositionAt( double time )
+		{
+			while ( index > 0 && history[index].Time > time ) index--;
+			var segment = history[index];
+			return segment.Position + segment.Velocity * (float)(time - segment.Time);
+		}
 		points.Add( PositionAt( head ) );
-		double transition = System.Math.Clamp( now - Appearance.Transition, tail, head );
 		if ( history.Count == 1 )
 		{
-			points.Add( PositionAt( transition ) );
+			points.Add( PositionAt( System.Math.Clamp( now - Appearance.Transition, tail, head ) ) );
 			points.Add( PositionAt( tail ) );
 			return;
 		}

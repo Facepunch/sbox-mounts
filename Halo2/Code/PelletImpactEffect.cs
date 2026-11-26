@@ -177,7 +177,7 @@ public sealed partial class PelletImpactEffect : Component
 		var dust = surface.PrefabCollection.BulletImpact ?? surface.GetBaseSurface()?.PrefabCollection.BulletImpact;
 		if ( dust.IsValid() )
 		{
-			var impact = dust.Clone( new CloneConfig { Transform = transform, StartEnabled = true } );
+			var impact = dust.Clone( transform );
 			impact.Flags |= GameObjectFlags.NotNetworked | GameObjectFlags.NotSaved;
 			impact.SetParent( parent, true );
 			if ( impact.GetComponent<TemporaryEffect>() is {} effect ) effect.BecomeOrphan = true;

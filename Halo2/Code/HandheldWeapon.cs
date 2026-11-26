@@ -81,10 +81,8 @@ public abstract partial class HandheldWeapon : Weapon
 
 	public override void DrawCrosshair( Painter painter, Vector2 center )
 	{
-		var viewport = Scene.Camera?.Viewport ?? new Vector4( 0, 0, 1, 1 );
-		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
-		int mode = (viewport.z < 1 ? 1 : 0) + (viewport.w < 1 ? 1 : 0);
-		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
+		float scale = HudScale( painter, out int mode );
+		if ( scale <= 0 ) return;
 		// Both weapon HUDs submit their own widget at the same projected aim point.
 		DrawWeaponReticle( painter, center, mode, scale );
 		if ( Offhand is HandheldWeapon other && other.IsValid() )
@@ -95,7 +93,7 @@ public abstract partial class HandheldWeapon : Weapon
 	{
 		// Existing inventory instances can retain layouts from before the weak-spot pages were mounted.
 		if ( Reticles is not null && WeakReticles is null && GameObject.PrefabInstanceSource is {} path &&
-			PrefabFile.Load( path )?.GetScene()?.GetComponent<HandheldWeapon>() is { WeakReticles: not null } source )
+			GameObject.GetPrefab( path )?.GetComponent<HandheldWeapon>() is { WeakReticles: not null } source )
 		{
 			Reticles = source.Reticles;
 			WeakReticles = source.WeakReticles;
@@ -103,6 +101,8 @@ public abstract partial class HandheldWeapon : Weapon
 		if ( Reticles?.ElementAtOrDefault( mode ) is not {} primary ) return;
 		int zoomState = ZoomLevel switch { 0 => 0x40, 1 => 0x80, 2 => 0x100, _ => 0 };
 		if ( UsesBinoculars && ZoomLevel > 0 ) zoomState |= 0x400;
+		var weak = WeakReticles?.ElementAtOrDefault( mode );
+		if ( (primary.HiddenUnitStates & zoomState) != 0 && (weak is null || (weak.HiddenUnitStates & zoomState) != 0) ) return;
 		var tint = ReticleTint( out bool weakSpot );
 		void Draw( Painter canvas, ReticleLayout layout, ref Texture texture, string suffix )
 		{
@@ -112,7 +112,7 @@ public abstract partial class HandheldWeapon : Weapon
 				canvas.Texture( texture, new Rect( center + layout.Offset * scale, layout.Size * scale ), tint );
 		}
 		Draw( painter, primary, ref reticleTextures[mode], "" );
-		if ( weakSpot && WeakReticles?.ElementAtOrDefault( mode ) is {} weak )
+		if ( weakSpot && weak is not null )
 			Draw( painter, weak, ref weakReticleTextures[mode], "_weakspot" );
 	}
 
@@ -284,7 +284,7 @@ public abstract partial class HandheldWeapon : Weapon
 	}
 
 	void PlaceProjectileEffect( string path, in ShotEffect shot, Vector3 incoming, string bone = null ) =>
-		PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
+		GameObject.GetPrefab( path )?.GetComponent<PelletImpactEffect>()?.Place( null, shot.HitObject.IsValid() ? shot.HitObject : Scene,
 			shot.HitPosition, shot.Normal, incoming, bone );
 
 	static void PlayContactSounds( string[] cues, Vector3 position )

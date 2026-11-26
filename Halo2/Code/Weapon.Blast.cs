@@ -13,7 +13,7 @@ public abstract partial class Weapon
 	static void PresentDetonation( string path, GameObject target, Vector3 point, Vector3 normal, Vector3 incoming )
 	{
 		if ( Application.IsDedicatedServer || !target.IsValid() ) return;
-		PrefabFile.Load( path )?.GetScene().GetComponent<PelletImpactEffect>()?.Place( null, target, point, normal, incoming );
+		GameObject.GetPrefab( path )?.GetComponent<PelletImpactEffect>()?.Place( null, target, point, normal, incoming );
 	}
 
 	static Vector3 OutsideSurface( Vector3 origin, Vector3 normal )

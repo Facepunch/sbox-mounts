@@ -57,13 +57,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		muzzleFlash.Alpha = firstPerson ? new ParticleFloat( 1, 0 ) { Evaluation = ParticleFloat.EvaluationType.Life }
 			: FadeAfterPlateau( 5.00483f );
 		MirrorBillboards( muzzleFlash );
-		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = Sprite.FromTexture( texture );
-		renderer.Scale = 2 * 60f / 62f;
-		renderer.Additive = true;
-		renderer.FogStrength = 0;
-		renderer.RenderOptions.Game = !firstPerson;
-		renderer.RenderOptions.Overlay = firstPerson;
+		AddFlashRenderer( go, texture, firstPerson ).Scale = 2 * 60f / 62f;
 		go.Enabled = true;
 		fierySmoke = CreateFierySmoke( firstPerson );
 		ConfigureSoftSmoke( firstPerson );
@@ -76,6 +70,17 @@ public partial class ShotgunModel : BaseWeaponModel
 		flareSprite.Animations[0].Origin = new Vector2( 1, 0.5f );
 		shortFlare = CreateFlare( flareSprite, true );
 		longFlare = CreateFlare( flareSprite, false );
+	}
+
+	static ParticleSpriteRenderer AddFlashRenderer( GameObject go, Texture texture, bool firstPerson )
+	{
+		var renderer = go.AddComponent<ParticleSpriteRenderer>();
+		renderer.Sprite = Sprite.FromTexture( texture );
+		renderer.Additive = true;
+		renderer.FogStrength = 0;
+		renderer.RenderOptions.Game = !firstPerson;
+		renderer.RenderOptions.Overlay = firstPerson;
+		return renderer;
 	}
 
 	ParticleEffect CreateFlare( Sprite sprite, bool shortReach )
@@ -145,13 +150,7 @@ public partial class ShotgunModel : BaseWeaponModel
 		smoke.ApplyRotation = true;
 		smoke.InitialRoll = new ParticleFloat( 0, 360 );
 		MirrorBillboards( smoke );
-		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = Sprite.FromTexture( texture );
-		renderer.Scale = 2;
-		renderer.Additive = true;
-		renderer.FogStrength = 0;
-		renderer.RenderOptions.Game = !firstPerson;
-		renderer.RenderOptions.Overlay = firstPerson;
+		AddFlashRenderer( go, texture, firstPerson ).Scale = 2;
 		go.Enabled = true;
 		return smoke;
 	}

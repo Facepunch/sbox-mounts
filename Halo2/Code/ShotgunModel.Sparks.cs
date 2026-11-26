@@ -22,14 +22,9 @@ public partial class ShotgunModel
 		{
 			foreach ( var p in muzzleSparks.Particles ) UpdateSpark( p );
 		};
-		var renderer = go.AddComponent<ParticleSpriteRenderer>();
-		renderer.Sprite = Sprite.FromTexture( texture );
+		var renderer = AddFlashRenderer( go, texture, firstPerson );
 		renderer.Sprite.Animations[0].Origin = new Vector2( 1 - 48f / 56f, 4f / 9f );
 		renderer.Alignment = ParticleSpriteRenderer.BillboardAlignment.Particle;
-		renderer.Additive = true;
-		renderer.FogStrength = 0;
-		renderer.RenderOptions.Game = !firstPerson;
-		renderer.RenderOptions.Overlay = firstPerson;
 		go.Enabled = true;
 	}
 

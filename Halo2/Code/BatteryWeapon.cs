@@ -242,7 +242,7 @@ public class BatteryWeapon : Firearm
 		if ( showingVentExit || !ViewModel.IsValid() ) return;
 		var model = ViewModel.GetComponent<HandheldWeaponModel>();
 		if ( model?.AnimationData?.Actions.TryGetValue( "o_h_exit", out var exit ) != true ) return;
-		int frames = exit.Cues.FirstOrDefault( c => c.Kind == "allow_interruption" )?.Frame ?? exit.Frames;
+		int frames = ReleaseFrame( exit );
 		if ( heat - CooledThreshold > CoolingRate * frames / 30 ) return;
 		showingVentExit = true;
 		model.Play( "o_h_exit" );

@@ -9,7 +9,7 @@ public sealed class ShotgunContacts : CasingSounds
 	{
 		if ( weapon.IsValid() && weapon.Contacts is { Effects: not null } contacts ) return contacts;
 		// A pellet can outlive its weapon. Older scene instances can also lack the authored bank.
-		return PrefabFile.Load( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}" )?.GetScene().GetComponent<Shotgun>()?.Contacts;
+		return GameObject.GetPrefab( $"mount://{Halo2Mount.MountIdent}/{ShotgunLoader.PrefabPath}" )?.GetComponent<Shotgun>()?.Contacts;
 	}
 
 	internal bool PlayPellet( Scene scene, Surface surface, Vector3 position )

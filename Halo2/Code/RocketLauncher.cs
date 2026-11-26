@@ -165,13 +165,12 @@ public sealed class RocketLauncher : MagazineWeapon
 			if ( Phase == LockPhase.Acquiring )
 				rotation = 12 * (float)System.Math.Clamp( System.Math.Floor( (Time.NowDouble - AcquireStarted) * 30 ), 0, 14 );
 		}
-		var viewport = camera.Viewport;
-		if ( viewport.z <= 0 || viewport.w <= 0 ) return;
-		if ( viewport.z < 1 || viewport.w < 1 ) widget = "split_" + widget;
+		float scale = HudScale( painter, out int layout );
+		if ( scale <= 0 ) return;
+		if ( layout != 0 ) widget = "split_" + widget;
 		if ( !indicators.TryGetValue( widget, out var texture ) || !texture.IsValid() )
 			indicators[widget] = texture = Texture.Load( $"mount://{Halo2Mount.MountIdent}/weapons/rocket_launcher.prefab/{widget}.vtex" );
 		if ( !texture.IsValid() || texture.IsError ) return;
-		float scale = System.MathF.Min( painter.Bounds.Width / (640 * viewport.z), painter.Bounds.Height / (480 * viewport.w) );
 		// MCC stores the four rocket HUD pages at twice their logical dimensions.
 		var size = new Vector2( texture.Width, texture.Height ) * 0.5f;
 		var registration = new Vector2( System.MathF.Floor( size.x * 0.5f ), System.MathF.Floor( size.y * 0.5f ) );
