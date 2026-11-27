@@ -16,40 +16,108 @@ public sealed class Armory : Ns2Npc, Component.IDamageable
 	protected override void OnDamaging( IDamageable.DamageEvent hit ) => SupportDamage.Absorb( hit, this, armor );
 
 	protected override void OnDamaged( IDamageable.DamageEvent hit ) =>
-		(armor, _) = SupportDamage.Apply( hit, this, armor, MaxHealth, default );
+		(armor, flinchEnd) = SupportDamage.Apply( hit, this, armor, MaxHealth, flinchEnd );
 
 	protected override Vector3 GetEngagementPoint() =>
 		Renderer.WorldTransform.PointToWorld( Renderer.GetAttachment( "target", false )?.Position ?? Vector3.Zero );
 
 	readonly Dictionary<Marine, TimeUntil> resupplied = [];
 	TimeUntil nextScan;
+	const float UseRange = 2 * MapLoader.Scale;
+	static readonly (Vector3 Offset, string Parameter)[] Sides =
+	[
+		(Vector3.Left * UseRange, "log_w"), (Vector3.Backward * UseRange, "log_n"),
+		(Vector3.Forward * UseRange, "log_s"), (Vector3.Right * UseRange, "log_e")
+	];
+	[Sync( SyncFlags.FromHost )] int openSides { get; set; }
+	[Sync( SyncFlags.FromHost )] bool deployed { get; set; }
+	SparkAnimationGraph.Playback graph;
+	Action<string> onTag;
+	[Sync( SyncFlags.FromHost )] TimeSince age { get; set; }
+	[Sync( SyncFlags.FromHost )] TimeUntil flinchEnd { get; set; }
+	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 
 	protected override void OnStart()
 	{
 		base.OnStart();
+		if ( Networking.IsHost )
+		{
+			age = 0;
+			graph = CreatePlayback( Renderer.Model.ResourcePath );
+			onTag = tag => deployed |= tag == "deploy_end";
+		}
 		nextScan = 0.3f;
 	}
 
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
-		if ( !Networking.IsHost || Health <= 0 || nextScan > 0 ) return;
+		if ( Health <= 0 || GameObject.IsDestroyed ) return;
+		var output = Renderer.Animation.IsValid ? Renderer.Animation.Parameters : null;
+		float intensity = AlienWounds.Intensity( flinchEnd );
+		output?.Set( "intensity", intensity );
+		if ( deployed && IsPowered && IsBuilt && output is not null )
+		{
+			for ( int i = 0; i < Sides.Length; i++ )
+			{
+				string parameter = Sides[i].Parameter;
+				float target = (openSides & (1 << i)) != 0 ? 1 : 0;
+				if ( output.TryGetFloat( parameter, out var amount ) && amount != target )
+					output.Set( parameter, amount.Approach( target, Time.Delta * 2 ) );
+			}
+		}
+		if ( !Networking.IsHost )
+		{
+			pose.Write( output, age );
+			return;
+		}
+		if ( graph is not null )
+		{
+			graph.Set( "built", IsBuilt ? 1 : 0 );
+			graph.Set( "active", IsBuilt ? 1 : 0 );
+			graph.Set( "powered", IsPowered ? 1 : 0 );
+			graph.Set( "alive", 1 );
+			graph.Set( "flinch", intensity > 0 ? 1 : 0 );
+			graph.Update( age, output, onTag );
+			pose = graph.GetBodyPose();
+		}
+		if ( nextScan > 0 ) return;
 		nextScan = 0.3f;
 		foreach ( var (marine, cooldown) in resupplied )
 		{
 			if ( cooldown <= 0 || !marine.IsValid() ) resupplied.Remove( marine );
 		}
+		openSides = 0;
 		if ( !IsBuilt || !IsPowered ) return;
 		foreach ( var marine in Scene.GetAllComponents<Marine>() )
+		{
+			CheckSides( marine, UseRange );
 			TryResupply( marine );
+		}
+		foreach ( var exo in Scene.GetAllComponents<Exo>() )
+			CheckSides( exo, UseRange + 1.5f * MapLoader.Scale );
 	}
+
+	void CheckSides( Ns2Npc visitor, float range )
+	{
+		if ( visitor.Faction != Faction || visitor.Health <= 0 ) return;
+		var local = WorldTransform.PointToLocal( visitor.WorldPosition );
+		if ( local.LengthSquared >= (UseRange + range) * (UseRange + range) ) return;
+		for ( int i = 0; i < Sides.Length; i++ )
+		{
+			if ( local.DistanceSquared( Sides[i].Offset ) < range * range ) openSides |= 1 << i;
+		}
+	}
+
+	protected override GameObject CreateRagdoll() => graph is null ? NpcCorpse.Attach( base.CreateRagdoll(), 1.5f ) :
+		NpcCorpse.Animate( Renderer, graph, age );
 
 	void TryResupply( Marine marine )
 	{
 		if ( marine.Faction != Faction || marine.Health <= 0 || resupplied.ContainsKey( marine ) ) return;
 		var offset = WorldPosition - marine.WorldPosition;
-		const float range = 2 * MapLoader.Scale;
-		if ( offset.LengthSquared >= range * range || marine.AimDirection.Dot( offset.Normal ) <= 0.75f ) return;
+
+		if ( offset.LengthSquared >= UseRange * UseRange || marine.AimDirection.Dot( offset.Normal ) <= 0.75f ) return;
 
 		bool heal = marine.Health < marine.MaxHealth;
 		if ( heal )

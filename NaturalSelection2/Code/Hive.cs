@@ -6,12 +6,31 @@ namespace NS2;
 public sealed class Hive : AlienStructure
 {
 	internal const float HealRadius = 12.7f * Scale;
+	internal const string DeathSound = "alien/structures/hive_death";
 	internal const string PainSound = "alien/structures/hive_wound";
 	protected override GrowthStats Stats => new( 180, 0.5f, 4000, 750, 260, 6000, 1400 );
 	[Sync( SyncFlags.FromHost )] SparkAnimationGraph.Playback.BodyPose pose { get; set; }
 	TimeUntil nextHeal;
 
 	internal static void Configure( GameObject root, SkinnedModelRenderer renderer ) => Configure<Hive>( root, renderer, "Hive", "hive_idle" );
+
+	protected override GameObject CreateRagdoll() => null;
+
+	protected override void OnDeath( IDamageable.DeathEvent e )
+	{
+		ShowDeath( WorldPosition, WorldRotation );
+		base.OnDeath( e );
+	}
+
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void ShowDeath( Vector3 position, Rotation rotation )
+	{
+		if ( Application.IsHeadless ) return;
+		CinematicLoader.Play( "cinematics/alien/hive/explode.cinematic", position, rotation );
+		CinematicLoader.Play( "cinematics/alien/hive/explode_residue.cinematic", position, rotation );
+		if ( GameResource.Load<SoundEvent>( $"mount://ns2/sounds/{DeathSound}.sound" ) is { } sound )
+			Sound.Play( sound, position );
+	}
 
 	internal static Hive FindNearest( AlienLifeform alien, out float distance )
 	{

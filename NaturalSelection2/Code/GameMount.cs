@@ -113,7 +113,7 @@ public class GameMount : BaseGameMount
 		Babbler.RegisterSounds( context );
 		Hydra.RegisterSounds( context );
 		Mac.RegisterSounds( context );
-		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound, Crag.PainSound, Hive.PainSound } )
+		foreach ( var cue in new[] { Mac.PainSound, Drifter.PainSound, Hydra.PainSound, Harvester.PainSound, Crag.PainSound, Hive.PainSound, Hive.DeathSound } )
 			context.Add( ResourceType.GameResource, $"sounds/{cue}.sound", new SparkSoundLoader( cue, 0 ) );
 		context.Add( ResourceType.GameResource, $"sounds/{Mac.PainSound}_impact.sound", new SparkSoundLoader( Mac.PainSound, 1 ) );
 		Marine.RegisterRifleSounds( context );
