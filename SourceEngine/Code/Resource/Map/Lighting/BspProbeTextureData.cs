@@ -6,6 +6,7 @@ internal sealed class BspProbeTextureData
 {
 	private static readonly int[] HammerSides = [0, 2, 4, 1, 3, 5];
 	public byte[] Data { get; }
+	public int ClampedValues { get; private set; }
 
 	private readonly int probes;
 	public BspProbeTextureData( Vector3Int counts )
@@ -34,7 +35,7 @@ internal sealed class BspProbeTextureData
 		for ( int channel = 0; channel < 4; channel++ )
 		{
 			int index = indices[channel];
-			if ( index is < -1 or > 254 || !float.IsFinite( strengths[channel] ) || strengths[channel] < 0 )
+			if ( index is < -1 or > 254 || float.IsNaN( strengths[channel] ) || strengths[channel] < 0 )
 				throw new InvalidDataException( "Invalid BSP probe direct-light index or strength." );
 			Data[probes * 48 + probe * 4 + channel] = index < 0 ? (byte)255 : (byte)index;
 			WriteHalf( probes * 52 + probe * 8 + channel * 2, index < 0 ? 0 : MathF.Sqrt( strengths[channel] ) );
@@ -43,8 +44,11 @@ internal sealed class BspProbeTextureData
 
 	private void WriteHalf( int offset, float value )
 	{
-		if ( !float.IsFinite( value ) || value < 0 || value > 65504 )
-			throw new InvalidDataException( "BSP probe lighting is outside the finite half-float texture range." );
+		// Extreme authored lights can overflow the half-float range; keep the map loadable and report it.
+		var clamped = float.IsNaN( value ) ? 0 : Math.Clamp( value, 0, 65504 );
+		if ( clamped != value )
+			ClampedValues++;
+		value = clamped;
 		BitConverter.TryWriteBytes( Data.AsSpan( offset, 2 ), (Half)value );
 	}
 }

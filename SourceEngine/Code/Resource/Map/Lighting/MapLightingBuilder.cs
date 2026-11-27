@@ -32,6 +32,7 @@ internal sealed class MapLightingBuilder( BspFile bsp, MapLoader loader, BspLigh
 			Parent = world
 		};
 		var worldIndices = CreateIndexedWorldLights( root, skybox );
+		int clampedValues = 0;
 		Span<Vector3> cube = stackalloc Vector3[6];
 		Span<int> indices = stackalloc int[4];
 		Span<float> strengths = stackalloc float[4];
@@ -91,10 +92,14 @@ internal sealed class MapLightingBuilder( BspFile bsp, MapLoader loader, BspLigh
 			var component = go.AddComponent<LightProbeVolume>();
 			component.Bounds = new BBox( bounds.Mins - bounds.Center, bounds.Maxs - bounds.Center );
 			component.Priority = -(int)Math.Ceiling( Math.Log2( Math.Max( 1, bounds.Size.LengthSquared ) ) );
+			clampedValues += textures.ClampedValues;
 
 			probeTextures.Add( component, counts, textures );
 			go.Enabled = true;
 		}
+
+		if ( clampedValues > 0 )
+			Log.Trace( $"{FullPath}: {clampedValues} BSP probe lighting values were outside the half-float texture range and were clamped." );
 
 		probeTextures.Finish();
 		root.Enabled = true;
