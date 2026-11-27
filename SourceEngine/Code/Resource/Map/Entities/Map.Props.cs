@@ -78,6 +78,9 @@ partial class MapLoader
 			if ( entity is not null )
 			{
 				GarrysMod.PhysicsGun.TagMapEntity( instance, entity );
+				// A physics prop flagged as debris, which characters walk through.
+				if ( prop.Physics == PropPhysics.Rigid && (entity.Integer( "spawnflags" ) & 4) != 0 )
+					instance.Tags.Add( Hl2.ZombieProps.DebrisTag );
 				if ( !skybox && prop.Solid != 0 && entity.Get( "classname" ) is "prop_dynamic" or "prop_dynamic_override"
 					&& entity.Get( "gmod_allowphysgun" ) != "0" )
 					instance.NetworkMode = NetworkMode.Object;

@@ -131,6 +131,8 @@ public static class Zombies
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "poison_headcrab";
 				zombie.ThrowsCrabs = true;
+				var props = p.Root.AddComponent<ZombieProps>();
+				props.AttackSound = "NPC_PoisonZombie.Attack";
 				p.Renderer.BodyGroups = 341;
 				p.Box( 42, 70 );
 			}
@@ -158,6 +160,8 @@ public static class Zombies
 				zombie.LegsModel = "models/zombie/classic_legs.mdl";
 				zombie.TorsoModel = "models/zombie/classic_torso.mdl";
 				zombie.GibsFromBlasts = true;
+				var props = p.Root.AddComponent<ZombieProps>();
+				props.AttackSound = "Zombie.Attack";
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
@@ -210,6 +214,8 @@ public static class Zombies
 				zombie.Headcrab = "headcrab";
 				zombie.LegsModel = "models/zombie/zombie_soldier_legs.mdl";
 				zombie.TorsoModel = "models/zombie/zombie_soldier_torso.mdl";
+				var props = p.Root.AddComponent<ZombieProps>();
+				props.EnemyMustSeeProp = true;
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
