@@ -6,19 +6,22 @@ namespace Source1;
 /// <summary>Shared by the mounted NPCs and their behaviours: hit timing, grab points and knockback.</summary>
 public static class Npcs
 {
-	/// <summary>When a creature's attack clip lands its hits: the mounted impact markers when the author supplied them, else the fallback delay.</summary>
-	public static float[] AttackTimes( Model model, string clip, float fallback )
+	/// <summary>
+	/// When a creature's attack clip lands its hits, with the marker for each: the mounted impact markers when the author
+	/// supplied them, else the fallback delay, which has none.
+	/// </summary>
+	public static (float Time, string Event)[] AttackEvents( Model model, string clip, float fallback )
 	{
-		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [fallback];
+		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [(fallback, null)];
 		var impacts = ModelSequences.Of( model ).All.FirstOrDefault( s => s.Name == clip )?.Events
 			// AE_ZOMBIE_ATTACK_SCREAM is only the attack sound
 			.Where( e => e.Name?.StartsWith( "AE_ZOMBIE_ATTACK_", StringComparison.Ordinal ) == true && e.Name != "AE_ZOMBIE_ATTACK_SCREAM"
 				|| e.Name?.Contains( "_MELEE_HIT", StringComparison.Ordinal ) == true
 				|| e.Name?.StartsWith( "AE_HUNTER_MELEE_ATTACK_", StringComparison.Ordinal ) == true
 				|| e.Name is "AE_VORTIGAUNT_ZAP_SHOOT" or "AE_VORTIGAUNT_CLAW_LEFT" or "AE_VORTIGAUNT_CLAW_RIGHT" or "AE_VORTIGAUNT_KICK"
-				or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" )
-			.Select( e => Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration ).Distinct().Order().ToArray();
-		return impacts is { Length: > 0 } ? impacts : [fallback];
+				or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" or "AE_ANTLIONGUARD_SHOVE" )
+			.Select( e => (Time: Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration, Event: e.Name ) ).DistinctBy( x => x.Time ).OrderBy( x => x.Time ).ToArray();
+		return impacts is { Length: > 0 } ? impacts : [(fallback, null)];
 	}
 
 	/// <summary>

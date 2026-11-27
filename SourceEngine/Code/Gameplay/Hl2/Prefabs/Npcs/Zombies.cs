@@ -3,6 +3,24 @@ namespace Source1.Hl2.Prefabs.Npcs;
 [Library]
 public static class Zombies
 {
+	/// <summary>
+	/// The zombie claw: reach between body centres and the swing box, the turn rates before and through a swing, no pause
+	/// between swings, and what a blow does to a player.
+	/// </summary>
+	static void Claws( CreatureNpc npc, float reach, float box, float faceTurnRate = 250, float swingTurnRate = 1200 )
+	{
+		npc.AttackRange = reach;
+		npc.AttackInterval = 0;
+		npc.SwingCone = 0.7f;
+		npc.SwingBox = box;
+		npc.FaceTurnRate = faceTurnRate;
+		npc.SwingTurnRate = swingTurnRate;
+		npc.SwingKick = new Angles( -15, -20, -10 );
+		npc.SwingShove = new Vector2( 200, 100 );
+		npc.SwingHitSound = "Zombie.AttackHit";
+		npc.SwingMissSound = "Zombie.AttackMiss";
+	}
+
 	[Entities.Definitions]
 	public static IEnumerable<EntityDefinition> All()
 	{
@@ -44,8 +62,13 @@ public static class Zombies
 				npc.Attack = "Melee";
 				npc.MoveSpeed = 220;
 				npc.AttackDamage = 3;
-				npc.AttackInterval = 0.8f;
 				npc.AttackDelay = 0.2f;
+				Claws( npc, reach: 50, box: 26, swingTurnRate: 200 );
+				npc.SwingKick = new Angles( -3, -5, -3 );
+				npc.SwingShove = new Vector2( 0, -50 );
+				npc.SwingHitSound = "NPC_FastZombie.AttackHit";
+				npc.SwingMissSound = "NPC_FastZombie.AttackMiss";
+				npc.Flinches = CreatureNpc.FlinchRules.HitGroup;
 				npc.Voice = "NPC_FastZombie";
 				npc.EyeHeight = 57.6f;
 				var leap = p.Root.AddComponent<Leap>();
@@ -123,9 +146,9 @@ public static class Zombies
 				npc.Attack = "Throw";
 				npc.MoveSpeed = 65;
 				npc.AttackDamage = 25;
-				npc.AttackRange = 70;
-				npc.AttackInterval = 1.5f;
 				npc.AttackDelay = 0.8f;
+				Claws( npc, reach: 70, box: 26 );
+				npc.Flinches = CreatureNpc.FlinchRules.HitGroup;
 				npc.Voice = "NPC_PoisonZombie";
 				npc.EyeHeight = 56;
 				var zombie = p.Root.AddComponent<Zombie>();
@@ -150,8 +173,9 @@ public static class Zombies
 				npc.Idle = "Idle01";
 				npc.Attack = "attackA";
 				npc.MoveSpeed = 55;
-				npc.AttackInterval = 1.9f;
 				npc.AttackDelay = 0.55f;
+				Claws( npc, reach: 55, box: 26 );
+				npc.Flinches = CreatureNpc.FlinchRules.Zombie;
 				npc.Voice = "Zombie";
 				npc.EyeHeight = 57.6f;
 				var zombie = p.Root.AddComponent<Zombie>();
@@ -181,6 +205,8 @@ public static class Zombies
 				npc.MoveSpeed = 35;
 				npc.AttackDamage = 10;
 				npc.AttackHeight = 15;
+				Claws( npc, reach: 55, box: 24, faceTurnRate: 600, swingTurnRate: 600 );
+				npc.Flinches = CreatureNpc.FlinchRules.None;
 				npc.Voice = "Zombie";
 				npc.EyeHeight = 15;
 				var zombie = p.Root.AddComponent<Zombie>();
@@ -205,8 +231,9 @@ public static class Zombies
 				npc.Move = "walk_All";
 				npc.Attack = "AttackA";
 				npc.MoveSpeed = 80;
-				npc.AttackRange = 75;
 				npc.AttackDamage = 10;
+				Claws( npc, reach: 55, box: 26 );
+				npc.Flinches = CreatureNpc.FlinchRules.HitGroup;
 				npc.Voice = "Zombine";
 				npc.EyeHeight = 57.6f;
 				p.Root.AddComponent<ZombineGrenade>();

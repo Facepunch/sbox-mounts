@@ -71,6 +71,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	[Sync( SyncFlags.FromHost )] Phase State { get; set; }
 	[Sync( SyncFlags.FromHost )] string Clip { get; set; }
 	public bool Charging => State != Phase.None;
+	internal TimeSince SinceHit => _sinceHit;
 
 	ModelSequences _sequences;
 	string _start, _run, _stop, _turnLeft, _turnRight, _anticipation, _hitGesture;
@@ -504,14 +505,19 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		ImpactPush( end, 200, 500 );
 	}
 
-	/// <summary>Shoves loose physics objects near a point away from its own origin, harder the closer they are, down to half at the edge.</summary>
-	void ImpactPush( Vector3 centre, float radius, float strength )
+	/// <summary>
+	/// Shoves loose physics objects near a point away from its own origin, harder the closer they are, down to half at the edge;
+	/// only those within <paramref name="reach"/> of its origin.
+	/// </summary>
+	internal void ImpactPush( Vector3 centre, float radius, float strength, float reach = float.PositiveInfinity )
 	{
 		var bodies = Scene.FindInPhysics( new Sphere( centre, radius ) ).Select( x => x.GetComponentInParent<Rigidbody>() )
 			.Where( x => x.IsValid() && x.MotionEnabled && !x.Tags.Has( "ragdoll" ) && !IsCharacter( Entity( x.GameObject ) ) ).Distinct().ToArray();
 		foreach ( var body in bodies )
 		{
 			var mass = body.PhysicsBody.MassCenter;
+			if ( WorldPosition.Distance( mass ) > reach )
+				continue;
 			var falloff = 1 - 0.5f * MathF.Min( centre.Distance( mass ) / radius, 1 );
 			var impulse = MathF.Max( 1, strength - WorldPosition.Distance( mass ) / 2.5f ) * PushScale * falloff * Game.Random.Float( 0.85f, 1.15f );
 			Push( body.GameObject, (mass - WorldPosition).Normal * impulse );
@@ -526,7 +532,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 
 	/// <summary>An impulse through the body's mass centre, adding at most <see cref="MaxPushSpeed"/>, applied where the body is simulated.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void Push( GameObject target, Vector3 impulse )
+	internal static void Push( GameObject target, Vector3 impulse )
 	{
 		if ( target.IsValid() && target.GetComponent<Rigidbody>() is { IsProxy: false } body )
 			body.ApplyImpulse( impulse.ClampLength( MaxPushSpeed * body.Mass ) );
