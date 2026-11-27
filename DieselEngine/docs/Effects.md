@@ -96,9 +96,21 @@ standalone-client loading. Independent spawning, rendered playback, sequence int
 physical fragment motion, silent restoration and cleanup pass in the standalone client.
 The tests warm assets and sample short bursts during playback because the live client
 continues advancing scenes between awaited script ticks. See the main README for the
-installed package hash. Multiplayer and full-map stress testing remain pending.
+installed package hash. Multiplayer verification remains pending.
 
 The installed looping/child-effect increment also passes standalone-client recycling,
 source following, stop/restart, source disable/destruction, finite hierarchy cleanup and
 scene budgets. The explosion fixture reaches the 64-effect cap; the fire fixture recycles
 341 particles. These bounded playback checks do not establish full native visual fidelity.
+
+Full Bank simulation stress check (`VerifyMapEffectStress.csx`): 3,393 model renderers,
+32 simultaneous window-burst emitters, peak 2,048 particles, all finite emitters cleaned up.
+The maximum measured simulation tick was 141.2 ms (including first-use work); this is a
+budget/lifecycle result, not a smooth-frame-rate or GPU benchmark.
+
+Two-process attempt: host fixture passes 18 drill particle visuals and five distinct registered
+debris models with physical movement. The peer initially cancelled code-archive resolution;
+reconnection reached scene setup but logged an engine `CWorldRendererMgr::UnmountWorldVPK`
+assertion for Flatgrass, followed by inspection timeout. Peer replication and remote cleanup
+remain unverified. The test fixtures are `SpawnNetworkEffects.csx`, `InspectNetworkEffects.csx`
+and `CleanupNetworkEffects.csx`. The disposable session was cleaned up after the blocked attempt.
