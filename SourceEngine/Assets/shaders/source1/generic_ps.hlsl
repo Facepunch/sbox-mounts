@@ -385,6 +385,9 @@ float4 SourceSurfaceSample( Texture2DArray image, SamplerState sampling, float2 
 	#include "source1/four_way_blend.hlsl"
 #endif
 
+float4 g_vSourceWaterFog < Attribute( "SourceWaterFog" ); Default4( 0, 0, 0, 0 ); >;
+float4 g_vSourceWaterFogPlane < Attribute( "SourceWaterFogPlane" ); >;
+
 float4 MainPs( PixelInput i ) : SV_Target0
 {
 	float2 uv = i.vTextureCoords.xy;
@@ -751,6 +754,23 @@ float4 MainPs( PixelInput i ) : SV_Target0
 				output.rgb *= Fog::Transmittance( material.WorldPosition, i.vPositionSs.xy );
 			#else
 				output.rgb = Fog::Apply( material.WorldPosition, i.vPositionSs.xy, output.rgb );
+			#endif
+		}
+		if ( g_vSourceWaterFog.w > 0 )
+		{
+			float viewDepth = 1 / i.vPositionSs.w;
+			#if S_SOURCE_FOUR_WAY
+				float fog = saturate( viewDepth * g_vSourceWaterFog.w );
+				output.rgb = lerp( output.rgb, g_vSourceWaterFog.rgb, fog * fog );
+			#else
+				float belowSurface = g_vSourceWaterFogPlane.w - dot( material.WorldPosition, g_vSourceWaterFogPlane.xyz );
+				float eyeToReceiver = dot( g_vCameraPositionWs.xyz - material.WorldPosition, g_vSourceWaterFogPlane.xyz );
+				float fraction = eyeToReceiver > 0 ? saturate( belowSurface / eyeToReceiver ) : 0;
+				float fog = saturate( fraction * viewDepth * g_vSourceWaterFog.w );
+				output.rgb = lerp( output.rgb, g_vSourceWaterFog.rgb, fog );
+				#if !S_TRANSLUCENT && !S_ALPHA_TEST && !S_ADDITIVE_BLEND
+					output.a = fog;
+				#endif
 			#endif
 		}
 		return output;

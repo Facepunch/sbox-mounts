@@ -27,6 +27,7 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 	readonly TagSet _refractionExclusions = new( ["source1_water"] );
 	readonly TagSet _underwaterExclusions = new( ["source1_water", "skybox", "source1_skybox2d", "source1_skybox3d"] );
 	int _filterKey = -1;
+	CameraComponent _refractionCamera;
 	Model _surfaceModel;
 	bool _opaqueSurface;
 
@@ -70,14 +71,14 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 		Renderer.ExecuteBefore = commands;
 		if ( !camera.IsValid() || camera.Orthographic || camera.CustomProjectionMatrix is not null )
 			return false;
+		if ( !camera.GetFrustum().IsInside( Renderer.Bounds, partially: true ) )
+			return false;
 		if ( Map.IsValid() && !Map.CanSeeWater( camera.WorldPosition ) )
 			return false;
 		var origin = WorldTransform.PointToWorld( new Vector3( 0, 0, Height ) );
 		var normal = WorldRotation.Up * (WorldScale.z < 0 ? -1 : 1);
 		if ( AboveWater != (Vector3.Dot( camera.WorldPosition - origin, normal ) >= 0) )
 			return false;
-		// DetermineWaterRenderInfo keeps local reflections expensive, but lets
-		// refract-only water switch to cubemaps at water_lod_control's end distance.
 		if ( !Reflect )
 		{
 			var eye = WorldTransform.PointToLocal( camera.WorldPosition );
@@ -87,7 +88,6 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 			if ( camera.WorldPosition.Distance( WorldTransform.PointToWorld( nearest ) ) >= CheapWaterEndDistance )
 				return false;
 		}
-		commands.Attributes.Set( "SourceWaterPlane", new Vector4( normal, Vector3.Dot( origin, normal ) ) );
 		var atmosphere = GetAtmosphere();
 		int filterKey = (ReflectEntities ? 1 : 0) | (ReflectSky ? 2 : 0) | (ReflectSkybox3D ? 4 : 0);
 		if ( filterKey != _filterKey )
@@ -132,9 +132,26 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 
 		if ( Refract )
 		{
-			var target = commands.GetRenderTarget( "Source water refraction", 1, ImageFormat.RGBA16161616F, ImageFormat.Default );
+			var target = commands.GetRenderTarget( "Source water refraction", 1, ImageFormat.RGBA16161616F, ImageFormat.None );
 			var fogColor = Material.GetColor( "g_vSourceFogColor" ).WithAlpha( 1 );
-			var view = commands.DrawRefraction( camera, new Plane( origin, AboveWater ? -normal : normal ), target, new RefractionSetup
+			var refractionCamera = camera;
+			if ( AboveWater )
+			{
+				if ( !_refractionCamera.IsValid() )
+				{
+					var capture = new GameObject( GameObject, true, "Water refraction camera" );
+					capture.Flags |= GameObjectFlags.NotSaved | GameObjectFlags.NotNetworked;
+					_refractionCamera = capture.AddComponent<CameraComponent>( false );
+					_refractionCamera.IsMainCamera = false;
+					capture.AddComponent<WaterRefractionFog>().Surface = this;
+				}
+				refractionCamera = _refractionCamera;
+				refractionCamera.ZNear = camera.ZNear;
+				refractionCamera.ZFar = camera.ZFar;
+				refractionCamera.RenderExcludeTags.SetFrom( camera.RenderExcludeTags );
+				refractionCamera.RenderTags.SetFrom( camera.RenderTags );
+			}
+			var view = commands.DrawRefraction( refractionCamera, new Plane( origin, AboveWater ? -normal : normal ), target, new RefractionSetup
 			{
 				// DF_FUDGE_UP keeps two units above the surface for the underwater
 				// capture; the view from below keeps two units below it instead.
@@ -154,11 +171,7 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 				}
 			} );
 			commands.Attributes.Set( "SourceWaterRefraction", target.ColorTexture );
-			commands.Attributes.Set( "SourceWaterRefractionDepth", target.DepthTexture );
-			commands.Attributes.Set( "SourceWaterRefractionProjectionToView", view.ProjectionToView );
-			commands.Attributes.Set( "SourceWaterRefractionDepthUvScaleBias", view.DepthUvScaleBias );
 			commands.Attributes.Set( "SourceWaterRefractionViewport", view.Viewport );
-			commands.Attributes.Set( "SourceWaterRefractionDepthRange", view.DepthRange );
 			commands.Attributes.Set( "SourceWaterHasRefraction", view.IsValid );
 			return true;
 		}
@@ -202,9 +215,29 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 
 	protected override void OnDisabled()
 	{
+		if ( _refractionCamera.IsValid() ) _refractionCamera.GameObject.Destroy();
 		SetOpaquePass( false );
 		if ( Renderer.IsValid() ) Renderer.ExecuteBefore = null;
 		_captures = null;
 		_cameras.Clear();
+	}
+}
+
+[Hide]
+public sealed class WaterRefractionFog : BasePostProcess
+{
+	internal SourceWater Surface { get; set; }
+	public override bool IsCameraEffect => true;
+
+	public override void Render()
+	{
+		if ( !Surface.IsValid() || Surface.Material is not { IsValid: true } material ) return;
+		var normal = Surface.WorldRotation.Up * (Surface.WorldScale.z < 0 ? -1 : 1);
+		var point = Surface.WorldTransform.PointToWorld( new Vector3( 0, 0, Surface.Height ) );
+		TargetCamera.Attributes.Set( "SourceWaterFogPlane", new Vector4( normal, Vector3.Dot( normal, point ) ) );
+		float start = material.GetVector4( "g_flSourceFogStart" ).x;
+		float end = material.GetVector4( "g_flSourceFogEnd" ).x;
+		var color = material.GetVector4( "g_vSourceFogColor" );
+		TargetCamera.Attributes.Set( "SourceWaterFog", new Vector4( color.x, color.y, color.z, 1 / Math.Max( end - start, 0.001f ) ) );
 	}
 }

@@ -72,7 +72,7 @@ partial class MapLoader
 		var parameters = WaterParameters( material );
 		var cheap = parameters.Boolean( "$forcecheap" );
 		var above = parameters.Boolean( "$abovewater", true );
-		var reflect = !cheap && parameters.Boolean( "$forceexpensive", true )
+		var reflect = !cheap
 			&& !string.IsNullOrWhiteSpace( parameters.String( "$reflecttexture" ) );
 		var refract = !cheap && !string.IsNullOrWhiteSpace( parameters.String( "$refracttexture" ) );
 		return new( above, reflect, refract, parameters.Boolean( "$reflectentities" ) || parameters.Contains( "$reflectonlymarkedentities" ), parameters.Boolean( "$reflect2dskybox", true ),
