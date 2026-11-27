@@ -16,6 +16,7 @@ internal class BspFormat
 	};
 
 	internal virtual void IndexMap( string path, IReadOnlyDictionary<string, SourceGameMount.SourceFile> files ) { }
+	internal virtual void AddPreviewPoint( BspFile map, GameObject world ) { }
 	internal virtual string MapThumbnail( string path ) => null;
 	internal virtual void BindCubemap( Material material, string path ) { }
 

@@ -9,6 +9,19 @@ internal sealed partial class MapFormat
 
 	internal override string MapThumbnail( string path ) => thumbnails.GetValueOrDefault( path );
 
+	internal override void AddPreviewPoint( BspFile map, GameObject world )
+	{
+		var observer = map.Entities.Where( e => e.Get( "classname" ) == "info_observer_menu" )
+			.MaxBy( e => e.Vector( "origin" ).z );
+		if ( observer is null ) return;
+
+		var angles = observer.Angles;
+		angles.pitch += 6; // Frame more of the playable floor from the elevated menu camera.
+		var preview = new GameObject( world, true, "Map Preview" );
+		preview.LocalTransform = new Transform( observer.Vector( "origin" ), Rotation.From( angles ) );
+		preview.Tags.Add( "map_preview" );
+	}
+
 	private void IndexThumbnail( string path, IReadOnlyDictionary<string, SourceGameMount.SourceFile> files )
 	{
 		var name = Path.GetFileNameWithoutExtension( path );
