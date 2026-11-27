@@ -21,6 +21,24 @@ public static class Zombies
 		npc.SwingMissSound = "Zombie.AttackMiss";
 	}
 
+	/// <summary>Its sounds besides the claws, and searching for an enemy it lost sight of.</summary>
+	static void VoiceAndSearch( EntityPrefab p, ZombieVoice.Breed breed )
+	{
+		p.Root.AddComponent<ZombieVoice>().Kind = breed;
+		p.Root.AddComponent<EnemySearch>();
+	}
+
+	/// <summary>A headcrab's wake-up display and chatter; added ahead of its leap so the display isn't cut short.</summary>
+	static void CrabAlert( EntityPrefab p ) => p.Root.AddComponent<HeadcrabAlert>();
+
+	/// <summary>A headcrab keeps after an unseen enemy a little less long than a zombie, and goes home after.</summary>
+	static void CrabSearch( EntityPrefab p )
+	{
+		var search = p.Root.AddComponent<EnemySearch>();
+		search.Memory = 5;
+		search.Wanders = false;
+	}
+
 	[Entities.Definitions]
 	public static IEnumerable<EntityDefinition> All()
 	{
@@ -42,9 +60,12 @@ public static class Zombies
 				npc.AttackInterval = 0.7f;
 				npc.Voice = "NPC_FastHeadcrab";
 				npc.EyeHeight = 15;
+				CrabAlert( p );
 				var leap = p.Root.AddComponent<Leap>();
 				leap.Kind = Leap.Leaper.FastHeadcrab;
 				leap.SoundPrefix = "NPC_FastHeadcrab";
+				p.Root.AddComponent<FastCrabScuttle>();
+				CrabSearch( p );
 				p.Box( 25, 20 );
 			}
 		};
@@ -79,6 +100,8 @@ public static class Zombies
 				zombie.LegsModel = "models/gibs/fast_zombie_legs.mdl";
 				zombie.TorsoModel = "models/gibs/fast_zombie_torso.mdl";
 				zombie.GibsFromBlasts = true;
+				p.Root.AddComponent<FastZombieMelee>();
+				VoiceAndSearch( p, ZombieVoice.Breed.Fast );
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
@@ -102,8 +125,10 @@ public static class Zombies
 				npc.AttackRange = 60;
 				npc.Voice = "NPC_Headcrab";
 				npc.EyeHeight = 12;
+				CrabAlert( p );
 				var leap = p.Root.AddComponent<Leap>();
 				leap.SoundPrefix = "NPC_Headcrab";
+				CrabSearch( p );
 				p.Box( 24, 16 );
 			}
 		};
@@ -125,9 +150,12 @@ public static class Zombies
 				npc.AttackInterval = 2;
 				npc.Voice = "NPC_BlackHeadcrab";
 				npc.EyeHeight = 16;
+				CrabAlert( p );
+				p.Root.AddComponent<PoisonCrabPanic>();
 				var leap = p.Root.AddComponent<Leap>();
 				leap.Kind = Leap.Leaper.PoisonHeadcrab;
 				leap.SoundPrefix = "NPC_BlackHeadcrab";
+				CrabSearch( p );
 				p.Box( 28, 22 );
 			}
 		};
@@ -156,6 +184,7 @@ public static class Zombies
 				zombie.ThrowsCrabs = true;
 				var props = p.Root.AddComponent<ZombieProps>();
 				props.AttackSound = "NPC_PoisonZombie.Attack";
+				VoiceAndSearch( p, ZombieVoice.Breed.Poison );
 				p.Renderer.BodyGroups = 341;
 				p.Box( 42, 70 );
 			}
@@ -186,6 +215,8 @@ public static class Zombies
 				zombie.GibsFromBlasts = true;
 				var props = p.Root.AddComponent<ZombieProps>();
 				props.AttackSound = "Zombie.Attack";
+				p.Root.AddComponent<DoorPounding>();
+				VoiceAndSearch( p, ZombieVoice.Breed.Classic );
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
@@ -212,6 +243,7 @@ public static class Zombies
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "headcrab";
 				zombie.IsTorso = true;
+				VoiceAndSearch( p, ZombieVoice.Breed.Classic );
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 24 );
 			}
@@ -243,6 +275,7 @@ public static class Zombies
 				zombie.TorsoModel = "models/zombie/zombie_soldier_torso.mdl";
 				var props = p.Root.AddComponent<ZombieProps>();
 				props.EnemyMustSeeProp = true;
+				VoiceAndSearch( p, ZombieVoice.Breed.Zombine );
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}

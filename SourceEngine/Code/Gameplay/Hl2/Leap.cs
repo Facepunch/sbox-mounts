@@ -24,6 +24,12 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	// Crab leap range between the bodies and facing needed; an enemy's eyes this high need headroom first
 	const float CrabMinLeap = 48, CrabMaxLeap = 256, CrabFacing = 0.65f, OverhangHeight = 36;
 
+	// A crab squares up to within about 6 degrees before its leap clip starts; past 45 off it turns with its turn clip
+	const float CrabAim = 0.994f, TurnClipAngle = 45;
+
+	/// <summary>A turn clip not kept up this long is gone: something else has the crab.</summary>
+	const float StaleTurn = 0.05f;
+
 	// Arc limits: aim height and launch speed, for a leap and a throw (the thrown speed cap is also the fast zombie's);
 	// the speed caps hold at 600 gravity and scale with the root of the scene's
 	const float MaxAimHeight = 120, MaxThrownHeight = 400, MaxLeapSpeed = 650, MaxThrownSpeed = 1000, CapGravity = 600;
@@ -51,6 +57,9 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	/// <summary>The leap clip has played out in flight: a crab goes idle, a fast zombie holds its strike pose.</summary>
 	[Sync( SyncFlags.FromHost )] bool ClipDone { get; set; }
 
+	/// <summary>The turn clip a crab plays as it turns in place, or null.</summary>
+	[Sync( SyncFlags.FromHost )] string TurnClip { get; set; }
+
 	float _launchTime, _airLimit;
 	float? _telegraphTime;
 	string _idleClip, _strikeClip;
@@ -58,7 +67,10 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	Vector3? _locked;
 	bool _telegraphed, _armed, _failed, _struck, _screamed;
 	TimeSince _phase, _clipStarted, _launched, _sinceTarget;
-	TimeUntil _nextLeap;
+	TimeUntil _nextLeap, _pause;
+	string _turnLeft, _turnRight;
+	bool _turned;
+	TimeSince _sinceTurn;
 	Flight? _flight;
 	Vector3 _releasedFrom, _releaseAway;
 	int _releaseHops;
@@ -66,27 +78,45 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 
 	bool IsZombie => Kind == Leaper.FastZombie;
 
-	/// <summary>Degrees per second it turns to face its enemy.</summary>
+	/// <summary>Host: winding up, in the air, backing off or still hopping off a body.</summary>
+	internal bool Busy => State != Phase.None || _releaseHops > 0;
+
+	/// <summary>Degrees per second it turns to face its enemy through its leap.</summary>
 	float TurnRate => Kind is Leaper.FastHeadcrab or Leaper.FastZombie ? 1200 : 300;
+
+	/// <summary>Degrees per second a crab turns in place: in its idle, and with its turn clip when well off.</summary>
+	float IdleTurnRate => Kind == Leaper.FastHeadcrab ? 1200 : 300;
+	float TurnClipRate => Kind == Leaper.Headcrab ? 150 : IdleTurnRate;
 
 	public override string Animation => State switch
 	{
 		Phase.WindUp => Clip,
 		Phase.Flight => !ClipDone ? Clip : IsZombie ? _strikeClip ?? Clip : _idleClip,
-		_ => null,
+		_ => TurnClip,
 	};
 
-	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(Clip, false), (_strikeClip, false), (_idleClip, true)];
+	public override IEnumerable<(string Name, bool Loop)> AnimationChoices =>
+		[(Clip, false), (_strikeClip, false), (_idleClip, true), (_turnLeft, true), (_turnRight, true)];
 
 	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		Clip = sequences.FindActivity( "ACT_RANGE_ATTACK1" );
 		_idleClip = sequences.FindActivity( "ACT_IDLE" );
 		_strikeClip = sequences.FindActivity( "ACT_FASTZOMBIE_LEAP_STRIKE" );
+		_turnLeft = sequences.FindActivity( "ACT_TURN_LEFT" );
+		_turnRight = sequences.FindActivity( "ACT_TURN_RIGHT" );
 		var events = sequences.Get( Clip )?.Events ?? [];
 		var duration = Duration( Clip, 0 );
 		_launchTime = (events.FirstOrDefault( e => e.Name is "AE_HEADCRAB_JUMPATTACK" or "AE_FASTZOMBIE_LEAP" )?.Cycle ?? 0) * duration;
 		_telegraphTime = events.FirstOrDefault( e => e.Name == "AE_HEADCRAB_JUMP_TELEGRAPH" )?.Cycle * duration;
+	}
+
+	/// <summary>Host: a turn clip left over from a think in which another behaviour had the crab is dropped.</summary>
+	protected override void OnUpdate()
+	{
+		if ( Networking.IsHost && TurnClip is not null && _sinceTurn > StaleTurn && !_turned )
+			TurnClip = null;
+		_turned = false;
 	}
 
 	/// <summary>Host think; true while the leap owns the creature.</summary>
@@ -119,23 +149,84 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		if ( _releaseHops > 0 )
 			return HopOffBody();
 
-		switch ( IsZombie ? CanPounce( target ) ? Verdict.Leap : Verdict.None : Judge( target ) )
+		if ( !IsZombie )
+			return Squaring( target );
+
+		if ( !CanPounce( target ) )
+			return false;
+
+		StartWindUp( target );
+		return true;
+	}
+
+	/// <summary>
+	/// A crab with its enemy in leaping range and in clear view holds its ground from landing to its next leap: it stands
+	/// through the pause after a leap, and through a lockout turns in place only to face its enemy roughly; then it squares
+	/// up to within about 6 degrees and leaps. Out of range or out of clear view the creature's chase takes it.
+	/// </summary>
+	bool Squaring( GameObject target )
+	{
+		// The turn clip shows only while it is turning in place this think
+		_turned = false;
+		var owns = Square( target );
+		if ( !_turned )
+			TurnClip = null;
+		return owns;
+	}
+
+	bool Square( GameObject target )
+	{
+		var verdict = Judge( target );
+		if ( verdict == Verdict.None )
+			return false;
+
+		Npc.Movement?.Stop();
+		if ( !_pause )
+			return true;
+
+		if ( verdict == Verdict.TooClose )
 		{
-			case Verdict.Leap:
-				StartWindUp( target );
-				return true;
-
-			case Verdict.TooClose:
-				StartRetreat( target );
-				return true;
-
-			case Verdict.Turn:
-				npc.Movement?.Stop();
-				TurnToward( target.WorldPosition );
-				return true;
+			StartRetreat( target );
+			return true;
 		}
 
-		return false;
+		// Locked out of leaping: it only turns to face roughly
+		if ( !_nextLeap )
+		{
+			if ( verdict == Verdict.Turn )
+				TurnInPlace( target.WorldPosition );
+			return true;
+		}
+
+		if ( Facing( target.WorldPosition ) < CrabAim )
+		{
+			TurnInPlace( target.WorldPosition );
+			return true;
+		}
+
+		StartWindUp( target );
+		return true;
+	}
+
+	/// <summary>
+	/// A crab's turn in place: in its idle at its idle rate, or, begun more than 45 degrees off, with its turn clip at that
+	/// clip's rate the whole way round.
+	/// </summary>
+	void TurnInPlace( Vector3 point )
+	{
+		var flat = (point - WorldPosition).WithZ( 0 );
+		if ( flat.Length < 1 )
+			return;
+
+		var yaw = WorldRotation.Yaw();
+		var delta = Angles.NormalizeAngle( Rotation.LookAt( flat ).Yaw() - yaw );
+		var going = TurnClip is not null && _sinceTurn < StaleTurn * 4 && (TurnClip == _turnLeft ? delta > 0 : delta < 0);
+		var clip = going ? TurnClip : MathF.Abs( delta ) > TurnClipAngle ? delta > 0 ? _turnLeft : _turnRight : null;
+		_turned = true;
+		_sinceTurn = 0;
+		var step = (clip is null ? IdleTurnRate : TurnClipRate) * MathF.Min( Time.Delta, 0.2f );
+		TurnClip = clip;
+		WorldRotation = Rotation.FromYaw( yaw + Math.Clamp( delta, -step, step ) );
 	}
 
 	void Enter( Phase phase )
@@ -156,7 +247,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	/// <summary>The crab's leap check: in range, a clear view eye to eye and headroom, then facing.</summary>
 	Verdict Judge( GameObject target )
 	{
-		if ( !target.IsValid() || !Npc.IsOnGround || !_nextLeap )
+		if ( !target.IsValid() || !Npc.IsOnGround )
 			return Verdict.None;
 
 		var distance = Gap( target );
@@ -224,9 +315,10 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 
 	bool Retreating( GameObject target )
 	{
-		if ( Judge( target ) == Verdict.Leap )
+		// Free to leap again: it stops backing off and squares up for it
+		if ( _nextLeap && Judge( target ) == Verdict.Leap )
 		{
-			StartWindUp( target );
+			Settle();
 			return true;
 		}
 
@@ -313,6 +405,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	void StartWindUp( GameObject target )
 	{
 		Npc.Movement?.Stop();
+		TurnClip = null;
 		_target = target;
 		_locked = null;
 		_telegraphed = false;
@@ -330,7 +423,8 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 
 	bool WindingUp()
 	{
-		if ( _target.IsValid() )
+		// A crab squared up before its clip and keeps still through it; its aim is the telegraph's lock
+		if ( _target.IsValid() && IsZombie )
 			TurnToward( _target.WorldPosition );
 
 		// The telegraph locks the jump onto where the enemy's eyes are now
@@ -403,9 +497,9 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		if ( !(ClipDone && (_launched > 0.1f && Npc.IsOnGround || _struck)) && _launched < _airLimit )
 			return true;
 
-		// Down: a crab waits a moment before it may leap again
-		if ( !IsZombie && _nextLeap.Relative < MaxPause )
-			_nextLeap = Game.Random.Float( 0.1f, MaxPause );
+		// Down: a crab stands a moment before it decides again
+		if ( !IsZombie )
+			_pause = Game.Random.Float( 0, MaxPause );
 		if ( _flight is { } flight )
 			Land( Npc, flight );
 		_flight = null;

@@ -51,6 +51,21 @@ public abstract class CreatureBehaviour : Component
 	/// <summary>Clips the behaviour may layer over the creature: additive or bone-masked.</summary>
 	public virtual IEnumerable<string> GestureChoices => [];
 
+	/// <summary>Host: a share of its usual pace it moves at now.</summary>
+	public virtual float PaceScale => 1;
+
+	/// <summary>Playback rate of the clip in <see cref="Animation"/>.</summary>
+	public virtual float AnimationRate => 1;
+
+	/// <summary>Every peer: an event of the clip the creature's body plays now, as its animation reaches it.</summary>
+	public virtual void OnAnimationEvent( SourceModelSequenceData.Event e ) { }
+
+	/// <summary>Host: the creature is about to say a line; true when the behaviour said it its own way or keeps it quiet.</summary>
+	public virtual bool Speaks( VoiceLine line, GameObject about ) => false;
+
+	/// <summary>Host: the creature has just started a melee swing with this clip.</summary>
+	public virtual void SwingStarted( string clip ) { }
+
 	/// <summary>The last gesture played; replayed on clients when <see cref="GestureSerial"/> changes.</summary>
 	[Sync( SyncFlags.FromHost )] public string Gesture { get; private set; }
 	[Sync( SyncFlags.FromHost )] public int GestureSerial { get; private set; }
@@ -78,6 +93,27 @@ public abstract class CreatureBehaviour : Component
 		if ( Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
 			Sound.Play( sound, WorldPosition );
 	}
+
+	/// <summary>Plays a sound from the creature on this peer only, such as one an animation event cues on every peer.</summary>
+	protected void PlayLocalSound( string name )
+	{
+		if ( !Application.IsDedicatedServer && Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
+			GameObject.PlaySound( sound );
+	}
+
+	/// <summary>Turns toward a direction across the ground at up to a rate in degrees a second; returns the degrees left.</summary>
+	protected float TurnToward( Vector3 direction, float rate )
+	{
+		direction = direction.WithZ( 0 );
+		if ( direction.Length < 0.5f )
+			return 0;
+
+		var delta = Angles.NormalizeAngle( Rotation.LookAt( direction ).Yaw() - WorldRotation.Yaw() );
+		var limit = rate * MathF.Min( Time.Delta, 0.2f );
+		var step = Math.Clamp( delta, -limit, limit );
+		WorldRotation = Rotation.FromYaw( WorldRotation.Yaw() + step );
+		return MathF.Abs( delta - step );
+	}
 }
 
 /// <summary>
@@ -87,7 +123,7 @@ public abstract class CreatureBehaviour : Component
 [Title( "Source Creature NPC" )]
 [Category( "Source 1" )]
 [Alias( "Source1.SourceCreatureNpc", "SourceCreatureNpc" )]
-public sealed class CreatureNpc : BaseNpc, Component.IPressable
+public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDamageable.IEvents
 {
 	/// <summary>How a creature gets around.</summary>
 	public enum Locomotions { Ground, Flying, Stationary }
@@ -280,6 +316,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		base.OnStart();
 		_body = GetComponent<Rigidbody>( true );
 		_behaviours = GetComponents<CreatureBehaviour>().ToArray();
+		_animation.EventFired += OnAnimationEvent;
 		_manhack = GetComponent<Hl2.Manhack>();
 		_projectile = GetComponent<Hl2.NpcProjectileAttack>();
 		_rangedEffects = GetComponent<NpcRangedEffects>();
@@ -397,6 +434,16 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 	float GroundSpeed( string clip ) => _sequences?.Get( clip )?.GroundSpeed ?? 0;
 
+	void OnAnimationEvent( SourceModelSequenceData.Event e )
+	{
+		foreach ( var behaviour in _behaviours )
+			if ( behaviour.IsValid() )
+				behaviour.OnAnimationEvent( e );
+	}
+
+	/// <summary>Says a line unless one of its behaviours speaks it its own way.</summary>
+	bool Say( VoiceLine line, GameObject about = null ) => !_behaviours.Any( x => x.Speaks( line, about ) ) && NpcVoice.Say( this, Voice, line, about );
+
 	string Translate( string activity, string clip )
 	{
 		foreach ( var behaviour in _behaviours )
@@ -443,16 +490,20 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		var speed = Locomotion == Locomotions.Ground ? MeasureSpeed() : MoveSpeed;
 		var moving = Locomotion == Locomotions.Flying || Movement?.IsMoving == true || speed > 10;
 		string forced = null;
+		var forcedRate = 1f;
 		foreach ( var behaviour in _behaviours )
 		{
 			forced = behaviour.Animation;
-			if ( forced is not null )
-				break;
+			if ( forced is null )
+				continue;
+
+			forcedRate = behaviour.AnimationRate;
+			break;
 		}
 
 		if ( forced is not null )
 		{
-			_animation.Play( forced );
+			_animation.Play( forced, forcedRate );
 		}
 		else if ( _link.Clip( Animation, _animation, out var restart ) is { } linkClip )
 		{
@@ -560,12 +611,12 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 		var target = Passive ? null : Senses?.FindBestTarget();
 		if ( target.IsValid() && !_target.IsValid() )
-			NpcVoice.Say( this, Voice, VoiceLine.Alert, target );
+			Say( VoiceLine.Alert, target );
 		_target = target;
 		if ( !target.IsValid() && _nextIdleLine )
 		{
 			_nextIdleLine = Game.Random.Float( 10, 30 );
-			NpcVoice.Say( this, Voice, VoiceLine.Idle );
+			Say( VoiceLine.Idle );
 		}
 
 		React();
@@ -674,10 +725,22 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		_strikeTarget = target;
 		if ( _rangedStrike && _strikes.Length > 0 )
 			_rangedEffects?.PresentCharge( _strikes[0].Time );
+		if ( !_rangedStrike )
+			foreach ( var behaviour in _behaviours )
+				behaviour.SwingStarted( clip );
 	}
 
 	/// <summary>The enemy it is after this think.</summary>
 	internal GameObject Enemy => _target;
+
+	/// <summary>In the middle of an attack, or a hit of one is still to land.</summary>
+	internal bool InAttack => Attacking || _strikeTarget.IsValid();
+
+	/// <summary>Every peer: the ground speed its body covers, smoothed over a few frames.</summary>
+	internal float Speed => _measuredSpeed;
+
+	/// <summary>Host: one claw of a swing a behaviour plays itself, by the swing rules' sweep: a hit or a miss.</summary>
+	internal void Claw( GameObject target, string hitEvent ) => Swing( target, hitEvent );
 
 	/// <summary>Height of its body: the top of its collider, else of its navigation hull.</summary>
 	float BodyHeight => GetComponentInChildren<BoxCollider>() is { } box ? box.Center.z + box.Scale.z * 0.5f : GetComponent<NavMeshAgent>()?.Height ?? 72;
@@ -795,7 +858,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		hurry = hurry && _run != _walk && _behaviours.All( x => x.AllowsRun );
 		var clip = hurry ? Translate( "ACT_RUN", _run ) : Translate( "ACT_WALK", _walk );
 		var ground = GroundSpeed( clip );
-		return ground > 1 ? ground : hurry ? MoveSpeed * 1.6f : MoveSpeed;
+		var scale = _behaviours.Aggregate( 1f, ( product, x ) => product * x.PaceScale );
+		return (ground > 1 ? ground : hurry ? MoveSpeed * 1.6f : MoveSpeed) * scale;
 	}
 
 	bool HasRangedAttack => _projectile.IsValid() || _rangedEffects.IsValid() || _photo.IsValid();
@@ -990,7 +1054,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		if ( attacker.IsValid() && !Passive && GetDisposition( attacker ) != Disposition.Friendly )
 			SetRelationship( attacker, Disposition.Hostile, priority: 10 );
 		if ( Health >= 1 )
-			NpcVoice.Say( this, Voice, VoiceLine.Pain );
+			Say( VoiceLine.Pain );
 		if ( !Ambient || !attacker.IsValid() || attacker == GameObject )
 			return;
 
@@ -1140,8 +1204,27 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		return GetSchedule<IdleSchedule>();
 	}
 
+	/// <summary>
+	/// Its body running into a player, or a player into it, is no blow either way, however fast: the physics impact the
+	/// engine reports for the contact is dropped. Its bite or claw is all a leap or a pounce does.
+	/// </summary>
+	bool BodyContactWithPlayer( Component.IDamageable.DamageEvent e, GameObject other ) =>
+		e.DamageInfo.Tags.Contains( "impact" ) && other.IsValid() && other.GetComponentInParent<PlayerController>().IsValid();
+
+	void Component.IDamageable.IEvents.OnDamaging( Component.IDamageable.DamageEvent e )
+	{
+		if ( e.Victim.IsValid() && e.Victim != GameObject && e.DamageInfo.Attacker?.Root == GameObject.Root && BodyContactWithPlayer( e, e.Victim ) )
+			e.Cancelled = true;
+	}
+
 	protected override void OnDamaging( Component.IDamageable.DamageEvent damage )
 	{
+		if ( BodyContactWithPlayer( damage, damage.DamageInfo.Attacker ) )
+		{
+			damage.Cancelled = true;
+			return;
+		}
+
 		INpcPart.PreDamage( this, damage );
 
 		if ( BlastHits > 0 && damage.AcceptedDamage >= BlastHitThreshold && damage.DamageInfo.Tags.Contains( DamageTags.Explosion ) )
