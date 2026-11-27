@@ -10,6 +10,7 @@ partial class MapLoader
 	private readonly List<(Model Model, Material Material, float Height, WaterCaptureSettings Capture, bool Skybox)> _waterModels = [];
 	private void BuildWater( BspFile bsp, GameObject geometry, Fog atmosphere = null, bool skybox = false )
 	{
+		var map = BuildWaterVolumes( bsp, geometry, skybox );
 		var lod = bsp.Entities.FirstOrDefault( entity => entity.Get( "classname" ) == "water_lod_control" );
 		foreach ( var water in _waterModels )
 		{
@@ -34,6 +35,7 @@ partial class MapLoader
 			}
 			var surface = child.AddComponent<SourceWater>();
 			surface.Renderer = renderer;
+			surface.Map = map;
 			surface.Material = water.Material;
 			surface.Height = water.Height;
 			surface.AboveWater = water.Capture.Above;
@@ -46,8 +48,6 @@ partial class MapLoader
 			surface.CheapWaterEndDistance = lod?.Number( "cheapwaterenddistance", 2000 ) ?? 0.1f;
 			child.Enabled = true;
 		}
-
-		BuildWaterVolumes( bsp, geometry, skybox );
 	}
 
 	private void BuildWaterModels( Dictionary<(int Texture, float Height), MeshGroup> groups, bool skybox )
@@ -100,10 +100,10 @@ partial class MapLoader
 		return Host.LoadContentMaterial( path, root );
 	}
 
-	void BuildWaterVolumes( BspFile bsp, GameObject geometry, bool skybox )
+	SourceWaterMap BuildWaterVolumes( BspFile bsp, GameObject geometry, bool skybox )
 	{
 		var (nodes, root) = bsp.BuildWaterTree( skybox );
-		if ( root == -1 ) return;
+		if ( root is -1 or SourceWaterMap.NoVisibleWater ) return null;
 		var map = geometry.AddComponent<SourceWaterMap>();
 		map.Nodes = nodes;
 		map.Root = root;
@@ -114,7 +114,7 @@ partial class MapLoader
 			audio.Ambient = ambient;
 		}
 		var indices = nodes.SelectMany( node => new[] { node.Front, node.Back } ).Append( root )
-			.Where( index => index < -1 ).Select( index => -index - 2 ).Distinct();
+			.Where( index => index < -1 && index != SourceWaterMap.NoVisibleWater ).Select( index => -index - 2 ).Distinct();
 		foreach ( var index in indices )
 		{
 			var data = bsp.Water[index];
@@ -163,5 +163,6 @@ partial class MapLoader
 			}
 			child.Enabled = true;
 		}
+		return map;
 	}
 }

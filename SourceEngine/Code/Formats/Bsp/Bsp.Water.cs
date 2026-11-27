@@ -47,7 +47,11 @@ internal partial class BspFile
 				int leafIndex = -entry.Index - 1;
 				var leaf = leaves[leafIndex];
 				bool include = skybox ? IsActiveSkyboxLeaf( leaf ) : !skyboxAreas.Contains( leaf.Area );
-				mapped[entry.Index] = include && (leaf.Contents & 0x30) != 0 ? -leafWaterIds[leafIndex] - 2 : -1;
+				// Dry leaves only need expensive water views when VBSP marks them CONTENTS_TESTFOGVOLUME.
+				int child = include && (leaf.Contents & 0x100) != 0 ? -1 : SourceWaterMap.NoVisibleWater;
+				if ( include && leafWaterIds[leafIndex] >= 0 && (leaf.Contents & 0x30) != 0 )
+					child = -leafWaterIds[leafIndex] - 2;
+				mapped[entry.Index] = child;
 				continue;
 			}
 			var node = nodes[entry.Index];

@@ -6,6 +6,7 @@ namespace Source1;
 [Title( "Source Water" ), Category( "Source Engine" )]
 public sealed class SourceWater : Component, Component.ExecuteInEditor
 {
+	[Property] public SourceWaterMap Map { get; set; }
 	[Property] public ModelRenderer Renderer { get; set; }
 	[Property] public Material Material { get; set; }
 	[Property] public Fog Atmosphere { get; set; }
@@ -68,6 +69,8 @@ public sealed class SourceWater : Component, Component.ExecuteInEditor
 		commands.Attributes.Set( "SourceWaterHasRefraction", false );
 		Renderer.ExecuteBefore = commands;
 		if ( !camera.IsValid() || camera.Orthographic || camera.CustomProjectionMatrix is not null )
+			return false;
+		if ( Map.IsValid() && !Map.CanSeeWater( camera.WorldPosition ) )
 			return false;
 		var origin = WorldTransform.PointToWorld( new Vector3( 0, 0, Height ) );
 		var normal = WorldRotation.Up * (WorldScale.z < 0 ? -1 : 1);

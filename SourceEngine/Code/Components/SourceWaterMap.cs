@@ -6,6 +6,8 @@ namespace Source1;
 [Hide]
 public sealed class SourceWaterMap : Component
 {
+	internal const int NoVisibleWater = int.MinValue;
+
 	public struct Node
 	{
 		public Vector4 Plane { get; set; }
@@ -43,7 +45,15 @@ public sealed class SourceWaterMap : Component
 		return body.FromSurface( point.WithZ( body.SampleHeight( point ) ) ).z - position.z;
 	}
 
+	internal bool CanSeeWater( Vector3 position ) => FindLeaf( position ) != NoVisibleWater;
+
 	public int FindWater( Vector3 position )
+	{
+		int leaf = FindLeaf( position );
+		return leaf == NoVisibleWater ? -1 : -leaf - 2;
+	}
+
+	int FindLeaf( Vector3 position )
 	{
 		position = WorldTransform.PointToLocal( position );
 		int index = Root;
@@ -55,7 +65,7 @@ public sealed class SourceWaterMap : Component
 			var distance = position.x * node.Plane.x + position.y * node.Plane.y + position.z * node.Plane.z - node.Plane.w;
 			index = distance >= 0 ? node.Front : node.Back;
 		}
-		return -index - 2;
+		return index;
 	}
 }
 
