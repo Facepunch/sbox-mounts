@@ -171,16 +171,21 @@ internal sealed class EntityPrefab( GameObject root, SourceGameMount mount, Enti
 		return npc;
 	}
 
-	public void Navigation( float radius = 13, float height = 72, float acceleration = 2000, float? run = null, float? walk = null, bool opensDoors = false )
+	public void Navigation( float radius = 13, float height = 72, float acceleration = 2000, float? run = null, float? walk = null, bool opensDoors = false ) =>
+		Navigation<DoorNavigation>( radius, height, acceleration, run, walk, opensDoors );
+
+	/// <summary>Navigation with a movement layer of its own kind, such as one that turns at a set rate.</summary>
+	public T Navigation<T>( float radius = 13, float height = 72, float acceleration = 2000, float? run = null, float? walk = null, bool opensDoors = false ) where T : DoorNavigation, new()
 	{
 		var agent = root.AddComponent<NavMeshAgent>();
 		agent.Radius = radius;
 		agent.Height = height;
 		agent.Acceleration = acceleration;
-		var navigation = root.AddComponent<DoorNavigation>();
+		var navigation = root.AddComponent<T>();
 		navigation.OpensDoors = opensDoors;
 		if ( run.HasValue ) navigation.RunSpeed = run.Value;
 		if ( walk.HasValue ) navigation.WalkSpeed = walk.Value;
+		return navigation;
 	}
 
 	public void Skill( string health, string damage = null, string playerDamage = null, string config = null )

@@ -58,15 +58,11 @@ public sealed class Unburrow : CreatureBehaviour
 [Title( "HL2 Antlion Guard" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2AntlionGuard", "Hl2AntlionGuard" )]
-public sealed class AntlionGuard : CreatureBehaviour
+public sealed partial class AntlionGuard : CreatureBehaviour
 {
 	const float BlowSize = 32;
 	/// <summary>Seconds after a charge hits during which it doesn't shove.</summary>
 	const float AfterCharge = 2;
-
-	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [];
-
-	protected override void OnConfigure( Model model, ModelSequences sequences ) { }
 
 	public override bool AllowsMelee => GetComponent<Charge>() is not { } charge || charge.SinceHit >= AfterCharge;
 

@@ -34,8 +34,11 @@ public static class Creatures
 			Build = p =>
 			{
 				var npc = p.Npc<CreatureNpc>();
-				p.Navigation( height: 130, radius: 45 );
+				// Accelerates at its run speed plus 50 a second squared; the layer sets it from the clip
+				p.Navigation<GuardNavigation>( height: 130, radius: 45, acceleration: 383 );
 				p.Skill( "sk_antlionguard_health", playerDamage: "sk_antlionguard_dmg_shove" );
+				// Sees anything less than about 114 degrees off its nose
+				p.Root.GetComponent<Sandbox.Npcs.Layers.SensesLayer>( true ).FieldOfView = 228;
 
 				npc.Health = 500;
 				npc.Move = "run1";
@@ -49,11 +52,10 @@ public static class Creatures
 				// A run at its enemy goes on to about contact before it shoves
 				npc.ChaseDistance = 64;
 				npc.SwingAfterChase = true;
-				npc.Voice = "NPC_AntlionGuard";
+				// Its voice is its own: pain only on heavy hits, growls from its clips, see AntlionGuard
+				npc.Flinches = CreatureNpc.FlinchRules.None;
+				npc.BlendGrids = true;
 				npc.EyeHeight = 70;
-				var unburrow = p.Root.AddComponent<Unburrow>();
-				unburrow.Activity = "ACT_ANTLIONGUARD_UNBURROW";
-				unburrow.Sound = "NPC_AntlionGuard.Roar";
 				p.Root.AddComponent<AntlionGuard>();
 				p.Root.AddComponent<Charge>();
 				p.BoxAt( new( 0, 0, 65 ), new( 90, 80, 130 ) );

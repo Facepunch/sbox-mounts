@@ -192,6 +192,13 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		_lastTime = 0;
 	}
 
+	/// <summary>Host: cuts a charge short where it stands, as heavy damage does.</summary>
+	internal void Interrupt()
+	{
+		if ( State != Phase.None )
+			Finish();
+	}
+
 	/// <summary>Hands the body back to navigation and waits for the next charge.</summary>
 	void Finish()
 	{

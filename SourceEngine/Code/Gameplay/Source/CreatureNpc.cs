@@ -215,6 +215,9 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	/// <summary>The NPC class's sound script prefix, such as NPC_Strider, for its <see cref="NpcVoice"/> lines.</summary>
 	[Property] public string Voice { get; set; }
 
+	/// <summary>Plays movement clips that carry a blend grid (such as a walk on move_yaw) over their cells, so a behaviour can drive the pose.</summary>
+	[Property] public bool BlendGrids { get; set; }
+
 	[Sync( SyncFlags.FromHost )] public GameObject Leader { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeSince LastAttack { get; set; } = 10;
 	[Sync( SyncFlags.FromHost )] int AttackSerial { get; set; }
@@ -390,6 +393,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	void Configure( Model model )
 	{
 		_configuredModel = model;
+		_animation.UseBlendGrids = BlendGrids;
 		_sequences = ModelSequences.Of( model );
 		_idle = _sequences.FindActivity( "ACT_IDLE", Idle );
 		_walk = _sequences.FindActivity( Locomotion == Locomotions.Flying ? "ACT_FLY" : "ACT_WALK", Move );
@@ -741,6 +745,9 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 
 	/// <summary>Host: one claw of a swing a behaviour plays itself, by the swing rules' sweep: a hit or a miss.</summary>
 	internal void Claw( GameObject target, string hitEvent ) => Swing( target, hitEvent );
+
+	/// <summary>Sets one of the model's pose parameters, such as move_yaw, on this machine.</summary>
+	internal void SetPose( string name, float value ) => _animation.SetPoseParameter( name, value );
 
 	/// <summary>Height of its body: the top of its collider, else of its navigation hull.</summary>
 	float BodyHeight => GetComponentInChildren<BoxCollider>() is { } box ? box.Center.z + box.Scale.z * 0.5f : GetComponent<NavMeshAgent>()?.Height ?? 72;

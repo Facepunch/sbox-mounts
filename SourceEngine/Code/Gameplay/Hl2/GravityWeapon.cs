@@ -168,6 +168,7 @@ public sealed class GravityWeapon : Weapon
 					if ( CanMove( part.Component ) ) Launch( part.Component );
 			}
 			else Launch( held );
+			PlayerThrows.Mark( held.GameObject, Owner?.GameObject );
 			RestoreOwner();
 
 			void Launch( Rigidbody body )
@@ -206,7 +207,11 @@ public sealed class GravityWeapon : Weapon
 				using var recipients = Rpc.FilterInclude( body.Network.Owner );
 				PuntRemoteBody( body, forward, trace.EndPosition );
 			}
-			else PuntBodies( body, forward, trace.EndPosition );
+			else
+			{
+				PuntBodies( body, forward, trace.EndPosition );
+				PlayerThrows.Mark( body.GameObject, Owner?.GameObject );
+			}
 			return PuntResult.Hit;
 		}
 

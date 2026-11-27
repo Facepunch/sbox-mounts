@@ -3,7 +3,7 @@ using Sandbox.Npcs.Layers;
 namespace Source1;
 
 [Hide]
-public sealed class DoorNavigation : NavigationLayer
+public class DoorNavigation : NavigationLayer
 {
 	[Property] public bool OpensDoors { get; set; }
 
