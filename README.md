@@ -15,6 +15,7 @@ See the full [Mount API docs](https://sbox.game/dev/doc/game-mounts/) to learn m
 | [Garry's Mod](https://store.steampowered.com/app/4000) | `gmod` | Source | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | [Half-Life&nbsp;2 (+&nbsp;Episodes)](https://store.steampowered.com/app/220) | `hl2` | Source | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | [Half-Life](https://store.steampowered.com/app/70) | `hl1` | GoldSrc | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [POSTAL: Brain Damaged](https://store.steampowered.com/app/1359980) | `pbd` | Unity | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | [Counter-Strike](https://store.steampowered.com/app/10) | `cstrike` | GoldSrc | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | [Counter-Strike: Condition&nbsp;Zero](https://store.steampowered.com/app/80) | `czero` | GoldSrc | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | [Counter-Strike: Source](https://store.steampowered.com/app/240) | `css` | Source | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
