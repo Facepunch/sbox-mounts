@@ -45,8 +45,28 @@ public static class Npcs
 		return null;
 	}
 
+	/// <summary>Gone, or out of health.</summary>
+	public static bool IsDead( GameObject go ) => !go.IsValid() || HealthOf( go ) is { Health: < 1 };
+
 	/// <summary>Whether this is a player: it has the engine's player controller.</summary>
 	public static bool IsPlayer( GameObject go ) => go.IsValid() && go.GetComponent<PlayerController>().IsValid();
+
+	/// <summary>Tags a trace leaves out to see only the world and props: characters, corpses, debris and triggers.</summary>
+	public static readonly string[] PastCharacters = ["trigger", "player", "npc", "playercontroller", "ragdoll", "debris"];
+
+	/// <summary>
+	/// Turns an object toward a yaw at up to a rate in degrees a second, each update counting for at most 0.2 seconds; a rate
+	/// of 0 turns at once. Returns the degrees left.
+	/// </summary>
+	public static float TurnToward( GameObject go, float yaw, float rate )
+	{
+		var current = go.WorldRotation.Yaw();
+		var delta = Angles.NormalizeAngle( yaw - current );
+		var limit = rate > 0 ? rate * MathF.Min( Time.Delta, 0.2f ) : 180;
+		var step = Math.Clamp( delta, -limit, limit );
+		go.WorldRotation = Rotation.FromYaw( current + step );
+		return MathF.Abs( delta - step );
+	}
 
 	/// <summary>Where a victim is grabbed or aimed at: a player's middle, else the centre of its bounds.</summary>
 	public static Vector3 CapturePoint( GameObject victim )

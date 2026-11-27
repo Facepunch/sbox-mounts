@@ -1,5 +1,4 @@
 using Sandbox.Npcs;
-using Sandbox.Npcs.Layers;
 
 namespace Source1.Hl2;
 
@@ -42,7 +41,7 @@ public sealed class EnemySearch : CreatureBehaviour, INpcPart
 	internal GameObject Remembered => _lost.IsValid() && _sinceSeen < Discard && Worth( _lost ) ? _lost : null;
 
 	/// <summary>Only an enemy is worth remembering: one that died or made friends is let go.</summary>
-	bool Worth( GameObject enemy ) => Npcs.HealthOf( enemy ) is not { Health: < 1 } && Npc.GetDisposition( enemy ) == Disposition.Hostile;
+	bool Worth( GameObject enemy ) => !Npcs.IsDead( enemy ) && Npc.GetDisposition( enemy ) == Disposition.Hostile;
 
 	/// <summary>Host: every frame its enemy is in sight, whichever behaviour has the creature, so memory runs from the last sighting.</summary>
 	protected override void OnUpdate()
@@ -113,10 +112,7 @@ public sealed class EnemySearch : CreatureBehaviour, INpcPart
 
 		if ( _goal is not null )
 		{
-			var status = movement.Status;
-			var done = status is MovementLayer.MovementStatus.Arrived or MovementLayer.MovementStatus.Failed
-				|| _sinceGoal > 0.5f && status == MovementLayer.MovementStatus.Idle || _sinceGoal > WanderGiveUp;
-			if ( !done )
+			if ( !MoveEnded( _sinceGoal, WanderGiveUp ) )
 				return true;
 
 			_goal = null;
@@ -127,8 +123,7 @@ public sealed class EnemySearch : CreatureBehaviour, INpcPart
 		if ( !_nextWander )
 			return true;
 
-		var direction = Rotation.FromYaw( Game.Random.Float( 0, 360 ) ).Forward;
-		if ( movement.ProjectPoint( WorldPosition + direction * Game.Random.Float( WanderNearest, WanderFarthest ) ) is { } spot
+		if ( RandomSpot( WanderNearest, WanderFarthest ) is { } spot
 			&& (spot - WorldPosition).WithZ( 0 ).Length >= WanderNearest )
 		{
 			_goal = spot;

@@ -119,12 +119,15 @@ public sealed class GuardNavigation : DoorNavigation
 		if ( direction.Length < 1 || npc.InAttack )
 			return;
 
-		var rate = enemy.IsValid() && !Npcs.IsPlayer( enemy ) ? NpcTurnRate : TurnRate;
+		var rate = TurnRateAgainst( enemy );
 		var toCorner = next.WithZ( 0 ).Distance( position.WithZ( 0 ) );
 		if ( toCorner < CornerBoostRange )
 			rate *= 1 + 0.01f * (CornerBoostRange - toCorner);
-		Turn( Rotation.LookAt( direction ).Yaw(), rate );
+		Npcs.TurnToward( Npc.GameObject, Rotation.LookAt( direction ).Yaw(), rate );
 	}
+
+	/// <summary>Degrees a second it turns against this enemy.</summary>
+	public float TurnRateAgainst( GameObject enemy ) => enemy.IsValid() && !Npcs.IsPlayer( enemy ) ? NpcTurnRate : TurnRate;
 
 	/// <summary>
 	/// The speed it may go now: its run, or its walk where it travels well off its facing; no faster than lets it brake
@@ -171,17 +174,6 @@ public sealed class GuardNavigation : DoorNavigation
 		speed *= _slopeScale;
 
 		Agent.MaxSpeed = speed;
-	}
-
-	/// <summary>Turns toward a yaw, at most the rate times the update's length, itself capped at 0.2 seconds; returns the degrees left.</summary>
-	public float Turn( float yaw, float rate )
-	{
-		var current = WorldRotation.Yaw();
-		var delta = Angles.NormalizeAngle( yaw - current );
-		var limit = rate * MathF.Min( Time.Delta, 0.2f );
-		var step = Math.Clamp( delta, -limit, limit );
-		Npc.WorldRotation = Rotation.FromYaw( current + step );
-		return MathF.Abs( delta - step );
 	}
 
 	/// <summary>Host: moves the standing body by a clip's ground motion, onto the floor and not into anything solid.</summary>

@@ -85,7 +85,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	float TurnRate => Kind is Leaper.FastHeadcrab or Leaper.FastZombie ? 1200 : 300;
 
 	/// <summary>Degrees per second a crab turns in place: in its idle, and with its turn clip when well off.</summary>
-	float IdleTurnRate => Kind == Leaper.FastHeadcrab ? 1200 : 300;
+	internal float IdleTurnRate => Kind == Leaper.FastHeadcrab ? 1200 : 300;
 	float TurnClipRate => Kind == Leaper.Headcrab ? 150 : IdleTurnRate;
 
 	public override string Animation => State switch
@@ -224,9 +224,8 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		var clip = going ? TurnClip : MathF.Abs( delta ) > TurnClipAngle ? delta > 0 ? _turnLeft : _turnRight : null;
 		_turned = true;
 		_sinceTurn = 0;
-		var step = (clip is null ? IdleTurnRate : TurnClipRate) * MathF.Min( Time.Delta, 0.2f );
 		TurnClip = clip;
-		WorldRotation = Rotation.FromYaw( yaw + Math.Clamp( delta, -step, step ) );
+		TurnToward( flat, clip is null ? IdleTurnRate : TurnClipRate );
 	}
 
 	void Enter( Phase phase )
@@ -687,7 +686,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 			: target.GetComponentInChildren<BoxCollider>() is { } box && box.IsValid() ? box.GetWorldBounds() : target.GetBounds();
 	}
 
-	static Vector3 EyesOf( GameObject target ) => target.GetComponent<PlayerController>() is { } player && player.IsValid() ? player.EyeTransform.Position
+	internal static Vector3 EyesOf( GameObject target ) => target.GetComponent<PlayerController>() is { } player && player.IsValid() ? player.EyeTransform.Position
 		: target.GetComponent<BaseNpc>() is { } npc && npc.IsValid() ? npc.EyePosition
 		: target.GetBounds().Center;
 

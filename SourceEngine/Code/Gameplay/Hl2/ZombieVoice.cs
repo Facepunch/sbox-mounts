@@ -31,6 +31,9 @@ public sealed class ZombieVoice : CreatureBehaviour
 
 	enum Loop { Main, Second, Moan }
 
+	/// <summary>Tags its ground and pound traces leave out.</summary>
+	static readonly string[] SolidAhead = ["trigger", "npc", "player"];
+
 	/// <summary>Faster than this, the generic footstep events use the running steps.</summary>
 	const float RunFootstepSpeed = 150;
 
@@ -382,7 +385,7 @@ public sealed class ZombieVoice : CreatureBehaviour
 
 	SoundEvent GroundStep( bool left )
 	{
-		var tr = Scene.Trace.Ray( WorldPosition + Vector3.Up * 8, WorldPosition - Vector3.Up * 16 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
+		var tr = Scene.Trace.Ray( WorldPosition + Vector3.Up * 8, WorldPosition - Vector3.Up * 16 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( SolidAhead ).Run();
 		if ( !tr.Hit || tr.Surface is not { } surface )
 			return null;
 
@@ -413,7 +416,7 @@ public sealed class ZombieVoice : CreatureBehaviour
 			return;
 
 		var eyes = Npc.EyePosition;
-		var tr = Scene.Trace.Ray( eyes, eyes + WorldRotation.Forward * 128 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "npc", "player" ).Run();
+		var tr = Scene.Trace.Ray( eyes, eyes + WorldRotation.Forward * 128 ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( SolidAhead ).Run();
 		if ( !tr.Hit )
 			return;
 

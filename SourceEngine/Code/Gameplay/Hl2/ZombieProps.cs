@@ -112,8 +112,7 @@ public sealed class ZombieProps : CreatureBehaviour
 		_rightLow = sequences.FindActivity( "ACT_ZOM_SWATRIGHTLOW" );
 		_leftMid = sequences.FindActivity( "ACT_ZOM_SWATLEFTMID" );
 		_leftLow = sequences.FindActivity( "ACT_ZOM_SWATLEFTLOW" );
-		_claws = sequences.All.Where( s => !s.Delta && s.Activity == "ACT_MELEE_ATTACK1" && model.AnimationClips().ContainsKey( s.Name ) )
-			.Select( s => s.Name ).ToArray();
+		_claws = sequences.Clips( "ACT_MELEE_ATTACK1" );
 	}
 
 	protected override void OnUpdate()
@@ -173,7 +172,7 @@ public sealed class ZombieProps : CreatureBehaviour
 				_cornered = _avoidedProp;
 				_avoided.Destroy();
 			}
-			else if ( Npc.Movement?.ProjectPoint( WorldPosition + Rotation.FromYaw( Game.Random.Float( 0, 360 ) ).Forward * Game.Random.Float( 48, 240 ) ) is { } goal )
+			else if ( RandomSpot( 48, 240 ) is { } goal )
 			{
 				_wanderGoal = goal;
 				_lastPath = 10;

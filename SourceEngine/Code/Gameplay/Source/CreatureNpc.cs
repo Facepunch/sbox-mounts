@@ -87,32 +87,45 @@ public abstract class CreatureBehaviour : Component
 
 	protected float Duration( string clip, float fallback ) => ConfiguredModel?.AnimationClips().TryGetValue( clip ?? "", out var animation ) == true ? animation.Duration : fallback;
 
+	/// <summary>Plays a sound where the creature is, on every peer.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	protected void PlaySound( string name )
-	{
-		if ( Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
-			Sound.Play( sound, WorldPosition );
-	}
+	protected void PlaySound( string name ) => PlayLocalSound( name, follow: false );
 
-	/// <summary>Plays a sound from the creature on this peer only, such as one an animation event cues on every peer.</summary>
-	protected void PlayLocalSound( string name )
+	/// <summary>Plays a sound from the creature on this peer only, such as one an animation event cues on every peer; it follows the creature unless <paramref name="follow"/> is off.</summary>
+	protected void PlayLocalSound( string name, bool follow = true )
 	{
-		if ( !Application.IsDedicatedServer && Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
+		if ( Application.IsDedicatedServer || Sounds.Sound( name, MountContent.Of( GameObject ) ) is not { } sound )
+			return;
+
+		if ( follow )
 			GameObject.PlaySound( sound );
+		else
+			Sound.Play( sound, WorldPosition );
 	}
 
 	/// <summary>Turns toward a direction across the ground at up to a rate in degrees a second; returns the degrees left.</summary>
 	protected float TurnToward( Vector3 direction, float rate )
 	{
 		direction = direction.WithZ( 0 );
-		if ( direction.Length < 0.5f )
-			return 0;
+		return direction.Length < 0.5f ? 0 : Npcs.TurnToward( GameObject, Rotation.LookAt( direction ).Yaw(), rate );
+	}
 
-		var delta = Angles.NormalizeAngle( Rotation.LookAt( direction ).Yaw() - WorldRotation.Yaw() );
-		var limit = rate * MathF.Min( Time.Delta, 0.2f );
-		var step = Math.Clamp( delta, -limit, limit );
-		WorldRotation = Rotation.FromYaw( WorldRotation.Yaw() + step );
-		return MathF.Abs( delta - step );
+	/// <summary>The yaw that faces a point across the ground.</summary>
+	protected float YawTo( Vector3 point ) => Rotation.LookAt( (point - WorldPosition).WithZ( 0 ) ).Yaw();
+
+	/// <summary>A spot on the navmesh in a random direction, a random distance from <paramref name="min"/> to <paramref name="max"/> away, or null.</summary>
+	protected Vector3? RandomSpot( float min, float max ) =>
+		Npc.Movement?.ProjectPoint( WorldPosition + Rotation.FromYaw( Game.Random.Float( 0, 360 ) ).Forward * Game.Random.Float( min, max ) );
+
+	/// <summary>
+	/// Host: the move it ordered <paramref name="sinceOrdered"/> seconds ago is over: arrived, failed, standing idle once it has
+	/// had half a second to set off, or running past <paramref name="giveUp"/> seconds.
+	/// </summary>
+	protected bool MoveEnded( float sinceOrdered, float giveUp )
+	{
+		var status = Npc.Movement?.Status;
+		return status is MovementLayer.MovementStatus.Arrived or MovementLayer.MovementStatus.Failed
+			|| sinceOrdered > 0.5f && status == MovementLayer.MovementStatus.Idle || sinceOrdered > giveUp;
 	}
 }
 
@@ -401,7 +414,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 		_melee = _sequences.FindActivity( "ACT_MELEE_ATTACK1" );
 		// Leaps and crab throws are ACT_RANGE_ATTACK1 too; those belong to their components.
 		_ranged = HasRangedAttack ? _sequences.FindActivity( "ACT_RANGE_ATTACK1" ) : null;
-		_meleeChoices = _sequences.All.Where( s => !s.Delta && s.Activity == "ACT_MELEE_ATTACK1" && model.AnimationClips().ContainsKey( s.Name ) ).Select( s => s.Name ).ToArray();
+		_meleeChoices = _sequences.Clips( "ACT_MELEE_ATTACK1" );
 		// Masked ACT_GESTURE_FLINCH_* sequences (zombies) play over whatever the creature is doing, as Source's gesture layer does.
 		// The flinch rules also use the big and small flinch gestures.
 		_flinches = _sequences.All.Where( s => !s.Delta && s.BoneMask is not null && model.AnimationClips().ContainsKey( s.Name ) && s.Activity is { } activity
@@ -647,7 +660,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 		}
 
 		// Through a swing it keeps turning toward its enemy, unless that has died
-		if ( SwingTurnRate > 0 && Swinging && _swingEnemy.IsValid() && Npcs.HealthOf( _swingEnemy ) is not { Health: < 1 } )
+		if ( SwingTurnRate > 0 && Swinging && !Npcs.IsDead( _swingEnemy ) )
 			TurnToward( _swingEnemy.WorldPosition, SwingTurnRate );
 
 		var squadGoal = _squadTarget.IsValid() ? _squadTarget.WorldPosition : _squadGoal;
@@ -720,7 +733,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 		// A real attack activity holds the creature for its length; a stand-in clip (stalker, strider) only for the interval.
 		// A swing under the swing rules holds for its clip even when the clip is marked to loop, as the fast zombie's is.
 		var attackActivity = _attackActivities.Contains( clip ?? "" ) || SwingCone > 0 && !_rangedStrike && _meleeChoices.Contains( clip );
-		var duration = Renderer.Model.AnimationClips().TryGetValue( clip ?? "", out var animation ) ? animation.Duration : 0;
+		var duration = ClipLength( clip );
 		_attackHolds = attackActivity && duration > 0;
 		_attackRecovery = _attackHolds ? duration : AttackInterval;
 		LastAttack = 0;
@@ -823,19 +836,11 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 		return true;
 	}
 
-	/// <summary>Turns toward a point, at most the rate times the think's length, itself capped at 0.2 seconds; 0 turns at once. Returns the degrees left.</summary>
+	/// <summary>Turns toward a point at up to a rate in degrees a second; 0 turns at once. Returns the degrees left.</summary>
 	float TurnToward( Vector3 point, float rate )
 	{
 		var flat = (point - WorldPosition).WithZ( 0 );
-		if ( flat.Length < 1 )
-			return 0;
-
-		var yaw = WorldRotation.Yaw();
-		var delta = Angles.NormalizeAngle( Rotation.LookAt( flat ).Yaw() - yaw );
-		var limit = rate > 0 ? rate * MathF.Min( Time.Delta, 0.2f ) : 180;
-		var step = Math.Clamp( delta, -limit, limit );
-		WorldRotation = Rotation.FromYaw( yaw + step );
-		return MathF.Abs( delta - step );
+		return flat.Length < 1 ? 0 : Npcs.TurnToward( GameObject, Rotation.LookAt( flat ).Yaw(), rate );
 	}
 
 	/// <summary>A passive walker greets the player once (TLK_HELLO) and otherwise chats now and then.</summary>
@@ -926,7 +931,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	{
 		var centre = Centre;
 		if ( target.IsValid() && Scene.Trace.Box( new Vector3( 16 ), centre, Npcs.CapturePoint( target ) ).IgnoreDynamic().IgnoreGameObjectHierarchy( GameObject )
-			.IgnoreGameObjectHierarchy( target ).WithoutTags( "trigger", "npc", "player", "playercontroller", "ragdoll", "debris" ).Run().Hit )
+			.IgnoreGameObjectHierarchy( target ).WithoutTags( Npcs.PastCharacters ).Run().Hit )
 			return;
 
 		var start = SwingCentre;

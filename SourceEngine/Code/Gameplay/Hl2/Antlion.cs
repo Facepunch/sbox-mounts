@@ -71,7 +71,7 @@ public sealed partial class AntlionGuard : CreatureBehaviour
 		var npc = Npc;
 		PlaySound( "NPC_AntlionGuard.StepLight" );
 		// A new enemy or a dead one cuts the shove short; losing sight of it doesn't
-		if ( !AllowsMelee || npc.Enemy.IsValid() && target != npc.Enemy || Npcs.HealthOf( target ) is { Health: < 1 } )
+		if ( !AllowsMelee || npc.Enemy.IsValid() && target != npc.Enemy || Npcs.IsDead( target ) )
 			return true;
 
 		// Who it shoves decides the damage for everything the blow touches
@@ -90,24 +90,8 @@ public sealed partial class AntlionGuard : CreatureBehaviour
 
 		npc.Damage( hit.Character, centre, Npcs.CapturePoint( hit.Character ), DamageTags.Melee, amount );
 		if ( Npcs.IsPlayer( hit.Character ) )
-			Shoved( hit.Character, forward * 400 + Vector3.Up * 150 );
+			Charge.ThrowPlayer( hit.Character, forward * 400 + Vector3.Up * 150, new Angles( 20, 0, -20 ), shoved: true );
 		return true;
-	}
-
-	/// <summary>The owner throws the shoved player, kicks the view, shakes the screen and flashes it red.</summary>
-	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void Shoved( GameObject victim, Vector3 velocity )
-	{
-		var player = victim?.GetComponent<PlayerController>();
-		if ( !player.IsValid() || player.IsProxy )
-			return;
-
-		player.PreventGrounding( 0.2f );
-		player.Body.Velocity += velocity;
-		ViewPunch.Apply( player, new Angles( 20, 0, -20 ), reset: false );
-		// A hard shake, held to the strongest a shake may be
-		player.Scene.Camera?.AddShake( 16, 1.5f, 1 );
-		ScreenFade.Show( player.Scene.Camera, new Color( 128 / 255f, 0, 0, 128 / 255f ), 0.1f, 1 );
 	}
 }
 

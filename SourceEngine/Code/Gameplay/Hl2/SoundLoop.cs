@@ -10,11 +10,10 @@ sealed class SoundLoop
 {
 	readonly GameObject _owner;
 	readonly string _name;
-	readonly bool _waitUntilHeard, _relative;
+	readonly bool _waitUntilHeard;
 	readonly Ramp _volume, _pitch;
 	SoundEvent _sound;
 	SoundHandle _handle;
-	float _baseVolume = 1;
 
 	/// <summary>A value gliding through queued steps, each a target and the seconds to reach it.</summary>
 	sealed class Ramp
@@ -69,13 +68,11 @@ sealed class SoundLoop
 	/// <param name="volume">Starting volume, 0 to 1.</param>
 	/// <param name="pitch">Starting pitch, in percent of normal.</param>
 	/// <param name="waitUntilHeard">Starts the sound, or starts it again after a wave without loop points has run out, only once it can be heard.</param>
-	/// <param name="relative">Volumes scale the sound's own volume instead of replacing it.</param>
-	public SoundLoop( GameObject owner, string name, float volume = 0, float pitch = 100, bool waitUntilHeard = false, bool relative = false )
+	public SoundLoop( GameObject owner, string name, float volume = 0, float pitch = 100, bool waitUntilHeard = false )
 	{
 		_owner = owner;
 		_name = name;
 		_waitUntilHeard = waitUntilHeard;
-		_relative = relative;
 		_volume = new Ramp( volume );
 		_pitch = new Ramp( pitch );
 	}
@@ -105,14 +102,11 @@ sealed class SoundLoop
 
 		// Started again when a wave without loop points has run out
 		if ( (_handle is null || !_handle.IsValid() || _handle.IsStopped) && (!_waitUntilHeard || _volume.Value > 0.01f) )
-		{
 			_handle = _owner.PlaySound( _sound );
-			_baseVolume = _handle is not null && _handle.IsValid() ? _handle.Volume : 1;
-		}
 		if ( _handle is null || !_handle.IsValid() )
 			return;
 
-		_handle.Volume = _volume.Value * (_relative ? _baseVolume : 1);
+		_handle.Volume = _volume.Value;
 		_handle.Pitch = _pitch.Value / 100;
 	}
 

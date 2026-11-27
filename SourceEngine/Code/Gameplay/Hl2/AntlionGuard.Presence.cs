@@ -12,7 +12,10 @@ public sealed partial class AntlionGuard
 	/// <summary>Footsteps for indoor maps, which use the guard's inside step sounds.</summary>
 	[Property] public bool InsideFootsteps { get; set; }
 
-	const float LightBleed = 0.5f, HeavyBleed = 0.25f;
+	const float LightBleed = 0.5f;
+
+	/// <summary>At or below this share of its health it limps, bleeds heavily, and heavy throws no longer make it flinch.</summary>
+	const float BadlyHurt = 0.25f;
 
 	SoundLoop _growlHigh, _growlIdle, _breath, _confused;
 
@@ -27,7 +30,7 @@ public sealed partial class AntlionGuard
 	/// <summary>Its voices start silent, and play on unheard once started.</summary>
 	protected override void OnAwake()
 	{
-		SoundLoop Voice( string name ) => new( GameObject, name, waitUntilHeard: true, relative: true );
+		SoundLoop Voice( string name ) => new( GameObject, name, waitUntilHeard: true );
 		_growlHigh = Voice( "NPC_AntlionGuard.GrowlHigh" );
 		_growlIdle = Voice( "NPC_AntlionGuard.GrowlIdle" );
 		_breath = Voice( "NPC_AntlionGuard.BreathSound" );
@@ -79,9 +82,7 @@ public sealed partial class AntlionGuard
 			_moving = moving;
 			if ( moving )
 			{
-				var time = Random( 2, 4 );
-				_breath.FadeVolume( (0.6f, time) );
-				_breath.FadePitch( (Random( 140, 160 ), time) );
+				Pant( 140, 160 );
 				_growlIdle.FadeVolume( (0, 1) );
 				_growlIdle.FadePitch( (Random( 90, 110 ), 0.2f) );
 			}
@@ -119,22 +120,22 @@ public sealed partial class AntlionGuard
 		switch ( name )
 		{
 			case "AE_ANTLIONGUARD_FOOTSTEP_LIGHT":
-				Once( InsideFootsteps ? "NPC_AntlionGuard.Inside.StepLight" : "NPC_AntlionGuard.StepLight" );
+				PlayLocalSound( InsideFootsteps ? "NPC_AntlionGuard.Inside.StepLight" : "NPC_AntlionGuard.StepLight", follow: false );
 				break;
 			case "AE_ANTLIONGUARD_FOOTSTEP_HEAVY":
-				Once( InsideFootsteps ? "NPC_AntlionGuard.Inside.StepHeavy" : "NPC_AntlionGuard.StepHeavy" );
+				PlayLocalSound( InsideFootsteps ? "NPC_AntlionGuard.Inside.StepHeavy" : "NPC_AntlionGuard.StepHeavy", follow: false );
 				break;
 			case "AE_ANTLIONGUARD_VOICE_GROWL":
 				// Mostly a fast growl, sometimes a frustrated roar
 				Silence( Game.Random.Int( 0, 10 ) < 6 ? FastGrowl() : FrustratedRoar() );
-				Once( "NPC_AntlionGuard.Anger" );
+				PlayLocalSound( "NPC_AntlionGuard.Anger", follow: false );
 				break;
 			case "AE_ANTLIONGUARD_VOICE_BARK":
 				Silence( MathF.Max( Bark(), _confused.FadeVolume( (1, Random( 0.1f, 0.2f )), (Random( 0.2f, 0.3f ), Random( 0.1f, 0.2f )), (0, Random( 0.4f, 0.6f )) ) ) );
 				break;
 			case "AE_ANTLIONGUARD_VOICE_ROAR":
 				Silence( FastGrowl() );
-				Once( "NPC_AntlionGuard.Roar" );
+				PlayLocalSound( "NPC_AntlionGuard.Roar", follow: false );
 				break;
 			case "AE_ANTLIONGUARD_VOICE_PAIN":
 				Silence( MathF.Max( _confused.FadeVolume( (1, Random( 0.1f, 0.2f )), (1, Random( 0.5f, 0.8f )), (Random( 0.1f, 0.2f ), Random( 0.1f, 0.2f )), (0, Random( 0.5f, 0.75f )) ),
@@ -142,8 +143,8 @@ public sealed partial class AntlionGuard
 				break;
 			case "AE_ANTLIONGUARD_VOICE_SQUEEZE":
 				Silence( _growlHigh.FadeVolume( (1, Random( 0.1f, 0.2f )), (0, Random( 1, 1.5f )) ) );
-				Pant();
-				Once( "NPC_AntlionGuard.Anger" );
+				Pant( 60, 80 );
+				PlayLocalSound( "NPC_AntlionGuard.Anger", follow: false );
 				break;
 			case "AE_ANTLIONGUARD_VOICE_GRUNT":
 				Silence( MathF.Max( _confused.FadeVolume( (Random( 0.6f, 1 ), Random( 0.1f, 0.2f )), (0, Random( 0.1f, 0.2f )) ),
@@ -151,8 +152,8 @@ public sealed partial class AntlionGuard
 				break;
 			case "AE_ANTLIONGUARD_VOICE_SCRATCH":
 				Silence( 0 );
-				Pant();
-				Once( "NPC_AntlionGuard.Anger" );
+				Pant( 60, 80 );
+				PlayLocalSound( "NPC_AntlionGuard.Anger", follow: false );
 				break;
 		}
 	}
@@ -161,7 +162,7 @@ public sealed partial class AntlionGuard
 
 	float FrustratedRoar()
 	{
-		Once( "NPC_AntlionGuard.FrustratedRoar" );
+		PlayLocalSound( "NPC_AntlionGuard.FrustratedRoar", follow: false );
 		return _growlHigh.FadeVolume( (0, 0.5f) );
 	}
 
@@ -175,25 +176,19 @@ public sealed partial class AntlionGuard
 		_nextSwell = MathF.Max( _nextSwell.Relative, 0 ) + length;
 	}
 
-	/// <summary>A hard breath at a low pitch.</summary>
-	void Pant()
+	/// <summary>A hard breath, up to 0.6 over 2 to 4 seconds, at a pitch between the two.</summary>
+	void Pant( float lowPitch, float highPitch )
 	{
 		var time = Random( 2, 4 );
 		_breath.FadeVolume( (0.6f, time) );
-		_breath.FadePitch( (Random( 60, 80 ), time) );
-	}
-
-	void Once( string name )
-	{
-		if ( Sounds.Sound( name, MountContent.Of( GameObject ) ) is { } sound )
-			Sound.Play( sound, WorldPosition );
+		_breath.FadePitch( (Random( lowPitch, highPitch ), time) );
 	}
 
 	/// <summary>Below half health it bleeds lightly, at a quarter heavily.</summary>
 	void Bleed()
 	{
 		var share = Npc.MaxHealth > 0 ? Npc.Health / Npc.MaxHealth : 1;
-		var effect = Npc.Health < 1 ? null : share <= HeavyBleed ? "blood_antlionguard_injured_heavy" : share < LightBleed ? "blood_antlionguard_injured_light" : null;
+		var effect = Npc.Health < 1 ? null : share <= BadlyHurt ? "blood_antlionguard_injured_heavy" : share < LightBleed ? "blood_antlionguard_injured_light" : null;
 		if ( effect == _bleeding )
 			return;
 		_bleeding = effect;

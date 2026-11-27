@@ -41,7 +41,7 @@ public sealed class HeadcrabAlert : CreatureBehaviour
 
 	protected override void OnStart() => _sinceSpawn = 0;
 
-	float TurnRate => Kind == Leap.Leaper.FastHeadcrab ? 1200 : 300;
+	float TurnRate => (_leap ??= GetComponent<Leap>())?.IdleTurnRate ?? 300;
 
 	string AlertSound => Kind == Leap.Leaper.PoisonHeadcrab ? "NPC_BlackHeadcrab.AlertVoice" : $"{Prefix}.Alert";
 

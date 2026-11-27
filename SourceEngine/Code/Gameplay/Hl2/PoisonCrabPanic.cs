@@ -163,7 +163,7 @@ public sealed class PoisonCrabPanic : CreatureBehaviour, INpcPart
 			return null;
 
 		var threat = _threat.IsValid() ? _threat : null;
-		var eyes = threat.IsValid() ? EyesOf( threat ) : WorldPosition;
+		var eyes = threat.IsValid() ? Leap.EyesOf( threat ) : WorldPosition;
 		var distance = threat.IsValid() ? WorldPosition.Distance( threat.WorldPosition ) : 0;
 		Vector3? away = null;
 		var inner = 48f;
@@ -206,18 +206,12 @@ public sealed class PoisonCrabPanic : CreatureBehaviour, INpcPart
 		return away;
 	}
 
-	static Vector3 EyesOf( GameObject target ) => target.GetComponent<PlayerController>() is { } player && player.IsValid() ? player.EyeTransform.Position
-		: target.GetComponent<BaseNpc>() is { } npc && npc.IsValid() ? npc.EyePosition : target.GetBounds().Center;
-
 	bool Panic()
 	{
-		var status = Npc.Movement?.Status;
-		var arrived = _cover is null || status is MovementLayer.MovementStatus.Arrived or MovementLayer.MovementStatus.Failed
-			|| _sinceStep > 0.5f && status == MovementLayer.MovementStatus.Idle || _sinceStep > CoverGiveUp;
-		if ( !arrived )
+		if ( _cover is not null && !MoveEnded( _sinceStep, CoverGiveUp ) )
 			return true;
 
-		if ( status == MovementLayer.MovementStatus.Failed )
+		if ( Npc.Movement?.Status == MovementLayer.MovementStatus.Failed )
 			_hidden = false;
 
 		if ( _cover is not null && _hidden )

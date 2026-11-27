@@ -44,7 +44,7 @@ public sealed class DoorPounding : CreatureBehaviour
 	{
 		_tantrum = sequences.FindActivity( "ACT_ZOMBIE_TANTRUM" );
 		_pound = sequences.FindActivity( "ACT_ZOMBIE_WALLPOUND" );
-		_claws = sequences.All.Where( s => !s.Delta && s.Activity == "ACT_MELEE_ATTACK1" && model.AnimationClips().ContainsKey( s.Name ) ).Select( s => s.Name ).ToArray();
+		_claws = sequences.Clips( "ACT_MELEE_ATTACK1" );
 	}
 
 	public override bool Think( GameObject target )
@@ -104,7 +104,7 @@ public sealed class DoorPounding : CreatureBehaviour
 	{
 		// An open door, a dead enemy or a new one ends it at once
 		if ( !_door.IsValid() || _door.State is Door.DoorState.Open or Door.DoorState.Opening
-			|| !_enemy.IsValid() || Npcs.HealthOf( _enemy ) is { Health: < 1 } || target.IsValid() && target != _enemy )
+			|| Npcs.IsDead( _enemy ) || target.IsValid() && target != _enemy )
 			return End();
 
 		switch ( _step )
@@ -191,7 +191,7 @@ public sealed class DoorPounding : CreatureBehaviour
 		var movement = Npc.Movement;
 		var spot = movement?.ProjectPoint( WorldPosition + _back * Game.Random.Float( BackMin, BackMax ) );
 		if ( spot is null || (spot.Value - WorldPosition).WithZ( 0 ).Length < BackMin * 0.5f )
-			spot = movement?.ProjectPoint( WorldPosition + Rotation.FromYaw( Game.Random.Float( 0, 360 ) ).Forward * Game.Random.Float( WanderMin, WanderMax ) );
+			spot = RandomSpot( WanderMin, WanderMax );
 		if ( spot is null )
 		{
 			_away = false;
