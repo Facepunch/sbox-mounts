@@ -92,7 +92,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>Discard a pending movement goal if the creature never reaches it.</summary>
 	const float CommandTimeout = 30;
 
-	const float MeleeRange = 90;
 	const string FlinchLayer = "flinch";
 	const string GestureLayer = "gesture";
 
@@ -108,6 +107,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	[Property] public float MoveSpeed { get; set; } = 120;
 	[Property] public float FlightHeight { get; set; } = 80;
 	[Property] public float AttackRange { get; set; } = 65;
+	/// <summary>How far a melee hit reaches, short of <see cref="AttackRange"/>; a victim's body adds 40.</summary>
+	[Property] public float MeleeRange { get; set; } = 90;
 	[Property] public float AttackDamage { get; set; } = 15;
 	internal float? PlayerAttackDamage { get; set; }
 	[Property] public float AttackInterval { get; set; } = 1.2f;

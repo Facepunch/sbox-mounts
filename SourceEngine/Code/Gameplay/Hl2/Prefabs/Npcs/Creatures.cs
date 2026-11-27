@@ -43,6 +43,8 @@ public static class Creatures
 				npc.MoveSpeed = 220;
 				npc.AttackDamage = 250;
 				npc.AttackRange = 140;
+				// The shove reaches 156 with the 40 a victim's body adds
+				npc.MeleeRange = 116;
 				npc.AttackHeight = 70;
 				npc.Voice = "NPC_AntlionGuard";
 				npc.EyeHeight = 70;
