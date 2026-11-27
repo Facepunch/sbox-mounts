@@ -42,6 +42,28 @@ public abstract class CreatureBehaviour : Component
 	/// <summary>False holds the creature to its walk while it chases.</summary>
 	public virtual bool AllowsRun => true;
 
+	/// <summary>Clips the behaviour may layer over the creature: additive or bone-masked.</summary>
+	public virtual IEnumerable<string> GestureChoices => [];
+
+	/// <summary>The last gesture played; replayed on clients when <see cref="GestureSerial"/> changes.</summary>
+	[Sync( SyncFlags.FromHost )] public string Gesture { get; private set; }
+	[Sync( SyncFlags.FromHost )] public int GestureSerial { get; private set; }
+
+	/// <summary>Host: layer one of <see cref="GestureChoices"/> over the creature.</summary>
+	protected void PlayGesture( string clip )
+	{
+		if ( clip is null )
+			return;
+
+		Gesture = clip;
+		GestureSerial++;
+	}
+
+	/// <summary>The clip for a gesture activity: additive, else bone-masked.</summary>
+	protected static string FindGesture( Model model, ModelSequences sequences, string activity ) =>
+		sequences.FindGesture( activity ) ?? sequences.All.FirstOrDefault( s => !s.Delta && s.BoneMask is not null
+			&& string.Equals( s.Activity, activity, StringComparison.OrdinalIgnoreCase ) && model.AnimationClips().ContainsKey( s.Name ) )?.Name;
+
 	protected float Duration( string clip, float fallback ) => ConfiguredModel?.AnimationClips().TryGetValue( clip ?? "", out var animation ) == true ? animation.Duration : fallback;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -72,6 +94,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 	const float MeleeRange = 90;
 	const string FlinchLayer = "flinch";
+	const string GestureLayer = "gesture";
 
 	[Property] public string Idle { get; set; } = "idle";
 	[Property] public string Move { get; set; } = "walk";
@@ -112,6 +135,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	int _observedAttack;
 	int _observedFlinch;
 	string[] _flinches = [];
+	readonly Dictionary<CreatureBehaviour, int> _observedGestures = [];
 	TimeSince _lastFlinch = 10;
 	Model _configuredModel;
 	string _idle, _walk, _run, _melee, _ranged;
@@ -277,7 +301,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		// Masked ACT_GESTURE_FLINCH_* sequences (zombies) play over whatever the creature is doing, as Source's gesture layer does.
 		_flinches = _sequences.All.Where( s => !s.Delta && s.BoneMask is not null && s.Activity?.StartsWith( "ACT_GESTURE_FLINCH", StringComparison.Ordinal ) == true && model.AnimationClips().ContainsKey( s.Name ) )
 			.Select( s => s.Name ).ToArray();
-		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>> { [FlinchLayer] = _flinches };
 		if ( _melee is null && !HasRangedAttack && !_behaviours.Any( x => x is Hl2.Leap ) )
 			_melee = Attack;
 		_attackActivities = _sequences.All.Where( s => !s.Looping && !string.IsNullOrEmpty( s.Activity ) && s.Activity != "ACT_IDLE" ).Select( s => s.Name )
@@ -285,6 +308,15 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 		foreach ( var behaviour in _behaviours )
 			behaviour.Configure( model );
+
+		// Behaviour gestures: additive ones on the gesture slot, bone-masked ones on their own layer
+		var gestures = _behaviours.SelectMany( x => x.GestureChoices ).Where( x => x is not null ).Distinct().ToArray();
+		_animation.Gestures = gestures.Where( x => _sequences.Get( x ) is { Delta: true } ).ToArray();
+		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>>
+		{
+			[FlinchLayer] = _flinches,
+			[GestureLayer] = gestures.Where( x => _sequences.Get( x ) is { Delta: false } ).ToArray()
+		};
 
 		_link = new LinkAnimation( _sequences );
 		_choices = [(_idle, true), (_walk, true), (_run, true), (_ranged, false), .. _meleeChoices.Select( x => (x, false) ), (_melee, false),
@@ -321,6 +353,15 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		{
 			_observedFlinch = FlinchSerial;
 			_animation.PlayOverlay( FlinchLayer, Flinch, restart: true );
+		}
+
+		foreach ( var behaviour in _behaviours )
+		{
+			// First sight only records the serial, so late joiners don't replay old gestures
+			if ( _observedGestures.TryGetValue( behaviour, out var seen ) && seen != behaviour.GestureSerial
+				&& !_animation.PlayGesture( behaviour.Gesture ) )
+				_animation.PlayOverlay( GestureLayer, behaviour.Gesture, restart: true );
+			_observedGestures[behaviour] = behaviour.GestureSerial;
 		}
 
 		UpdateHeld();
