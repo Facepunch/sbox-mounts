@@ -2,7 +2,7 @@ using System;
 
 namespace Source1.BlackMesa;
 
-internal sealed partial class MapFormat : BspFormat
+internal sealed class MapFormat : BspFormat
 {
 	private readonly Dictionary<string, CubemapVolume> cubemaps = new( StringComparer.OrdinalIgnoreCase );
 
@@ -12,7 +12,6 @@ internal sealed partial class MapFormat : BspFormat
 
 	internal override void IndexMap( string path, IReadOnlyDictionary<string, SourceGameMount.SourceFile> files )
 	{
-		IndexThumbnail( path, files );
 		if ( !files.TryGetValue( Path.ChangeExtension( path, ".pcv" ), out var file ) ) return;
 		try
 		{

@@ -20,8 +20,7 @@ internal sealed partial class MapLoader : SceneLoader<SourceGameMount>
 	{
 		var name = System.IO.Path.GetFileNameWithoutExtension( FullPath );
 		var image = Host.GetContentPath( $"maps/thumb/{name}.png" )
-			?? Host.GetContentPath( $"maps/{name}.png" )
-			?? (Host.MapFormat.MapThumbnail( FullPath ) is { } thumbnail ? Host.GetContentPath( thumbnail ) : null);
+			?? Host.GetContentPath( $"maps/{name}.png" );
 		return image is null ? null : Texture.Load( $"{image}.vtex", false );
 	}
 
@@ -110,7 +109,6 @@ internal sealed partial class MapLoader : SceneLoader<SourceGameMount>
 		BuildBrushLadders( bsp, world, worldBrushes );
 		AddShadowBlocker( BuildShadowModel( bsp, 0, worldBrushes ), geometry );
 		BuildEntities( bsp, world );
-		Host.MapFormat.AddPreviewPoint( bsp, world );
 		BuildLightProbes( bsp, world );
 		BuildSkybox3D( bsp, world );
 	}
