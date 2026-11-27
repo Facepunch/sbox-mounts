@@ -4,7 +4,7 @@ using Sandbox.Npcs;
 
 namespace Source1;
 
-public enum VoiceLine { Alert, AlertNpc, Pain, Death, Kill, Reload, Cover, Grenade, Idle, Greet, Fear, Follow, Unfollow, Announce, BatonOn, BatonOff }
+public enum VoiceLine { Alert, AlertNpc, Pain, Death, Kill, Reload, Cover, Grenade, Idle, Greet, Fear, Follow, Unfollow, Announce, Assault, Kick, BatonOn, BatonOff }
 
 /// <summary>
 /// What a mounted NPC says in a situation. HL2's soldiers and metrocops speak sentence groups (!NAME) as their m_Sentences.Speak
@@ -55,6 +55,8 @@ public static class NpcVoice
 			[VoiceLine.Cover] = ["!COMBINE_COVER"],
 			[VoiceLine.Grenade] = ["!COMBINE_THROW_GRENADE"],
 			[VoiceLine.Announce] = ["!COMBINE_ANNOUNCE"],
+			[VoiceLine.Assault] = ["!COMBINE_ASSAULT"],
+			[VoiceLine.Kick] = ["!COMBINE_KICK"],
 			[VoiceLine.Idle] = ["!COMBINE_IDLE", "!COMBINE_CHECK", "!COMBINE_QUEST"],
 		},
 		["npc_metropolice"] = new()
@@ -113,6 +115,7 @@ public static class NpcVoice
 		[VoiceLine.Unfollow] = (2200, 1),
 		[VoiceLine.Fear] = (2000, 4),
 		[VoiceLine.Announce] = (1700, 4),
+		[VoiceLine.Assault] = (1500, 4),
 		[VoiceLine.Grenade] = (1700, 4),
 		[VoiceLine.Alert] = (1600, 8),
 		[VoiceLine.AlertNpc] = (1600, 8),
@@ -122,6 +125,7 @@ public static class NpcVoice
 		[VoiceLine.Cover] = (1200, 8),
 		[VoiceLine.Reload] = (1200, 6),
 		[VoiceLine.Greet] = (1100, 10),
+		[VoiceLine.Kick] = (1100, 0.5f),
 		[VoiceLine.Idle] = (500, 20),
 	};
 
@@ -377,6 +381,9 @@ public static class NpcVoice
 
 		return true;
 	}
+
+	/// <summary>The original NPC class a character is spawned as, read from its body model, or null.</summary>
+	internal static string ClassOf( GameObject go ) => ClassOf( ModelOf( go ) );
 
 	/// <summary>Humans are citizens; the HL2 catalog spawns the rest by model.</summary>
 	static string ClassOf( string model ) => model is null ? null

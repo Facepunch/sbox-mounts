@@ -8,8 +8,15 @@ namespace Source1;
 [Title( "Source Combat NPC" )]
 [Category( "Source 1" )]
 [Alias( "Source1.SourceCombatNpc", "SourceCombatNpc" )]
-public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Component.IPressable
+public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Component.IPressable, BaseCombatWeapon.IEvents
 {
+	/// <summary>Each shot counts as an attack for the kick's warning.</summary>
+	void BaseCombatWeapon.IEvents.OnWeaponEvent( BaseCombatWeapon weapon, string name )
+	{
+		if ( string.Equals( name, WeaponEvents.Attack, StringComparison.OrdinalIgnoreCase ) )
+			_lastAttack = 0;
+	}
+
 	/// <summary>
 	/// When true, this NPC is friendly to players and will follow them, engaging hostile NPCs.
 	/// When false, this NPC targets players and friendly NPCs.
@@ -65,8 +72,37 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 		Leader = Leader == player.GameObject ? null : player.GameObject;
 	}
 
-	/// <summary>Approximation of SCHED_BACK_AWAY_FROM_ENEMY: an armed NPC steps back from an enemy inside this share of its weapon's range, still facing and shooting it.</summary>
-	const float BackAwayFraction = 0.25f;
+	/// <summary>
+	/// An enemy inside the weapon's minimum range is too close to shoot. The NPC runs this far straight away from where the
+	/// enemy was, or failing that at least two and up to four hull widths, then shoots again once the enemy is out of it.
+	/// </summary>
+	const float BackAwayDistance = 120;
+	const float BackAwayNearWidths = 2;
+	const float BackAwayFarWidths = 4;
+
+	/// <summary>How far round the NPC the back-away looks for a walkable spot farther from the enemy when the straight run is blocked.</summary>
+	const float BackAwaySearchRadius = 256;
+
+	/// <summary>A soldier stepping in towards a too-close enemy stops this close to where it saw it.</summary>
+	const float StepInDistance = 48;
+
+	/// <summary>
+	/// The Combine kick (a rifle-butt strike): chosen within 64 units, about 45 degrees of facing and 64 units of height; it
+	/// lands at animation event 3, sweeping a 32 x 32 x 36 box 70 units ahead, pushing a struck player 100 back and 50 up
+	/// and jolting the view 12 degrees up and 7 to the side.
+	/// </summary>
+	const float KickRange = 64;
+	const float KickCone = 0.7f;
+	const float KickHeight = 64;
+	const int KickHitEvent = 3;
+	const float KickReach = 70;
+	static readonly Vector3 KickBox = new( 32, 32, 36 );
+	static readonly Vector2 KickPush = new( 100, 50 );
+	static readonly Angles KickViewPunch = new( -12, -7, 0 );
+
+	/// <summary>A player not looking at a soldier that hasn't attacked (shot or kicked) for this long is warned before the kick, which then waits up to <see cref="KickWarnWait"/> for them to look.</summary>
+	const float KickWarnAfter = 3;
+	const float KickWarnWait = 2;
 
 	/// <summary>npc_combine's grenade toss animation event, COMBINE_AE_GREN_TOSS, and the toss speed of its throw arc.</summary>
 	const int CombineAeGrenToss = 7;
@@ -106,6 +142,12 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 
 	[Property] public bool DistractedByBugbait { get; set; }
 
+	/// <summary>Never backs away: with an enemy inside its weapon's minimum range it steps in towards it instead, as Combine soldiers do.</summary>
+	[Property] public bool StepsIn { get; set; }
+
+	/// <summary>Strikes an enemy right in front of it with its weapon's butt before doing anything else, as Combine soldiers do.</summary>
+	[Property] public bool Kicks { get; set; }
+
 	/// <summary>Manhacks this metrocop can deploy, like npc_metropolice's manhacks keyvalue.</summary>
 	[Property] public int Manhacks { get; set; }
 
@@ -130,6 +172,7 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 	GameObject _actionTarget;
 	GameObject _heldManhack;
 	TimeSince _lastFlinch = 10;
+	TimeSince _lastAttack = 10;
 	TimeSince _lastHeal = 1000;
 	TimeSince _lastPatientCheck;
 	TimeSince _lastGrenadeCheck = 10;
@@ -254,13 +297,46 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 			return chase;
 		}
 
-		if ( Weapon.IsValid() && enemy.WorldPosition.Distance( WorldPosition ) < MathF.Max( Weapon.Npc.MinRange, Weapon.Npc.MaxRange * BackAwayFraction ) )
+		// A possible kick comes before every other attack, whatever the weapon and its ammo.
+		if ( CanKick( enemy ) && Clip( "ACT_MELEE_ATTACK1" ) is { } kickClip )
 		{
-			CallOut( VoiceLine.Cover, enemy );
+			// A player who isn't looking, and hasn't been attacked for a while, is warned first and given a moment to look.
+			// The warning opens the attack, so the kick that follows it isn't warned again.
+			var unwarned = _lastAttack > KickWarnAfter;
+			_lastAttack = 0;
+			if ( unwarned && enemy.GetComponent<PlayerController>() is { } player && !LookedAtBy( player ) )
+			{
+				CallOut( VoiceLine.Announce, enemy );
+				var warn = GetSchedule<WarnSchedule>();
+				warn.Target = enemy;
+				warn.Duration = KickWarnWait;
+				warn.Over = () => LookedAtBy( player ) || KickInterrupted( enemy );
+				return warn;
+			}
+
+			return ActionSchedule( kickClip, enemy, e => Kick( e ), () => KickInterrupted( enemy ) );
+		}
+
+		if ( TooClose( enemy ) )
+		{
+			if ( StepsIn )
+			{
+				AnnounceStepIn( enemy );
+				var close = GetSchedule<StepInSchedule>();
+				close.Target = enemy;
+				close.Goal = enemy.WorldPosition;
+				close.StopDistance = StepInDistance;
+				close.Speed = Movement?.RunSpeed ?? 0;
+				close.TooClose = () => TooClose( enemy );
+				return close;
+			}
+
 			var away = GetSchedule<BackAwaySchedule>();
 			away.Target = enemy;
-			away.Weapon = Weapon;
-			away.Speed = Movement?.WalkSpeed ?? 0;
+			away.From = enemy.WorldPosition;
+			away.Spot = BackAwaySpot( enemy.WorldPosition );
+			away.Speed = Movement?.RunSpeed ?? 0;
+			away.TooClose = () => TooClose( enemy );
 			return away;
 		}
 
@@ -282,13 +358,252 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 		return base.SelectSchedule();
 	}
 
-	ActionSchedule ActionSchedule( string clip, GameObject faceTarget, Func<SourceModelSequenceData.Event, bool> release )
+	ActionSchedule ActionSchedule( string clip, GameObject faceTarget, Func<SourceModelSequenceData.Event, bool> release, Func<bool> interrupted = null )
 	{
 		var schedule = GetSchedule<ActionSchedule>();
 		schedule.Clip = clip;
 		schedule.FaceTarget = faceTarget;
 		schedule.Release = release;
+		schedule.Interrupted = interrupted;
 		return schedule;
+	}
+
+	/// <summary>The enemy is inside the minimum range of the weapon in hand, so the NPC can't shoot it, and it can't kick it either.</summary>
+	internal bool TooClose( GameObject enemy )
+		=> enemy.IsValid() && Weapon.IsValid() && Weapon.Npc.MinRange > 0 && Weapon.IsActive && Weapon.Holder == this
+			&& CloseRangeDistance( GameObject, enemy ) < Weapon.Npc.MinRange && !CanKick( enemy );
+
+	/// <summary>Why a kick can't reach an enemy, or <see cref="KickCheck.Ok"/>.</summary>
+	internal enum KickCheck { Ok, Unable, Headcrab, Far, NotFacing, Height, Blocked }
+
+	internal bool CanKick( GameObject enemy ) => CheckKick( enemy ) == KickCheck.Ok;
+
+	/// <summary>
+	/// A kicking soldier can strike an enemy within <see cref="KickRange"/> (the close-range distance), within about 45 degrees
+	/// of its body's facing, with feet no more than <see cref="KickHeight"/> above or below its own, in a clear line from body
+	/// centre to body centre, and that isn't a headcrab.
+	/// </summary>
+	internal KickCheck CheckKick( GameObject enemy )
+	{
+		if ( !Kicks || !enemy.IsValid() )
+			return KickCheck.Unable;
+		if ( NpcVoice.ClassOf( enemy )?.StartsWith( "npc_headcrab", StringComparison.Ordinal ) == true )
+			return KickCheck.Headcrab;
+		if ( CloseRangeDistance( GameObject, enemy ) > KickRange )
+			return KickCheck.Far;
+		if ( (enemy.WorldPosition - WorldPosition).WithZ( 0 ).Normal.Dot( WorldRotation.Forward.WithZ( 0 ).Normal ) < KickCone )
+			return KickCheck.NotFacing;
+		if ( MathF.Abs( enemy.WorldPosition.z - WorldPosition.z ) > KickHeight )
+			return KickCheck.Height;
+
+		var tr = Scene.Trace.Ray( Body( GameObject ).Center, Body( enemy ).Center ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ragdoll", "debris" ).Run();
+		return !tr.Hit || tr.GameObject?.Root == enemy.Root ? KickCheck.Ok : KickCheck.Blocked;
+	}
+
+	/// <summary>A kick is cut short, before or after it lands, by a new enemy, the enemy's death or losing sight of it. Damage ends it too.</summary>
+	bool KickInterrupted( GameObject enemy )
+		=> Npcs.HealthOf( enemy ) is not { Health: > 0 } || Senses.IsValid() && (Senses.FindBestTarget() is { } best && best != enemy || !Senses.VisibleHostiles.Contains( enemy ));
+
+	/// <summary>
+	/// The kick lands at its animation event: a box swept forward along the body's facing from half its height, then from
+	/// just above its head, strikes the first character it hates. World geometry stops it; friends and props don't.
+	/// A struck player is pushed back and up and has the view jolted. The soldier grunts, hit or miss.
+	/// </summary>
+	bool Kick( SourceModelSequenceData.Event e )
+	{
+		// A clip that ends without the strike event strikes nothing.
+		if ( e is null )
+			return true;
+		if ( e.Id != KickHitEvent )
+			return false;
+
+		NpcVoice.Say( this, Voice, VoiceLine.Kick );
+		var body = Body( GameObject );
+		var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
+		var start = WorldPosition + Vector3.Up * body.Size.z * 0.5f;
+		var end = start + forward * KickReach;
+		if ( (KickSweep( start, end ) ?? KickSweep( WorldPosition.WithZ( body.Maxs.z + 1 ), end )) is not { } hit )
+			return true;
+
+		var victim = hit.GameObject;
+		var damage = new DamageInfo
+		{
+			Damage = Elite ? _skill.Get( "sk_combine_guard_kick", 15 ) : _skill.Get( "sk_combine_s_kick", 10 ),
+			Attacker = GameObject,
+			Weapon = Weapon?.GameObject,
+			Origin = start,
+			Position = hit.Position
+		};
+		damage.Tags.Add( DamageTags.Melee );
+		Npcs.HealthOf( victim )?.OnDamage( damage );
+		PlayMountedSound( "NPC_Combine.WeaponBash", WorldPosition );
+
+		if ( Npcs.IsPlayer( victim ) )
+		{
+			Npcs.Knockback( victim, forward * KickPush.x + Vector3.Up * KickPush.y );
+			PunchView( victim, KickViewPunch );
+		}
+		return true;
+	}
+
+	/// <summary>The first hated character the kick's box meets between <paramref name="from"/> and <paramref name="to"/>, unless world geometry is in the way.</summary>
+	(GameObject GameObject, Vector3 Position)? KickSweep( Vector3 from, Vector3 to )
+	{
+		var box = BBox.FromPositionAndSize( Vector3.Zero, KickBox );
+		foreach ( var tr in Scene.Trace.Box( box, from, to ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "ragdoll", "debris" ).RunAll().OrderBy( x => x.Fraction ) )
+		{
+			var hit = tr.GameObject;
+			var character = hit?.GetComponentInParent<BaseNpc>()?.GameObject ?? hit?.GetComponentInParent<PlayerController>()?.GameObject;
+			if ( character.IsValid() )
+			{
+				if ( GetDisposition( character ) == Disposition.Hostile && Npcs.HealthOf( character ) is { Health: > 0 } )
+					return (character, tr.HitPosition);
+				continue;
+			}
+
+			// Props and other damageable or loose objects let the kick through; anything fixed stops it.
+			if ( hit?.GetComponentInParent<Component.IDamageable>() is not null || hit?.GetComponentInParent<Rigidbody>() is { MotionEnabled: true } )
+				continue;
+			return null;
+		}
+		return null;
+	}
+
+	/// <summary>Jolts a struck player's view. The owner simulates its own view.</summary>
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void PunchView( GameObject victim, Angles punch )
+	{
+		var player = victim?.GetComponent<PlayerController>();
+		if ( player.IsValid() && !player.IsProxy )
+			ViewPunch.Apply( player, punch, reset: false );
+	}
+
+	/// <summary>
+	/// The distance a weapon's minimum range is measured over: between the centres of the two bodies, leaving out any height
+	/// they share. Side by side on a floor that is the flat distance; one above the other adds only the gap between them.
+	/// </summary>
+	internal static float CloseRangeDistance( GameObject from, GameObject to )
+	{
+		var a = Body( from );
+		var b = Body( to );
+		var gap = b.Mins.z > a.Maxs.z ? b.Mins.z - a.Maxs.z : a.Mins.z > b.Maxs.z ? a.Mins.z - b.Maxs.z : 0;
+		return MathF.Sqrt( a.Center.WithZ( 0 ).DistanceSquared( b.Center.WithZ( 0 ) ) + gap * gap );
+	}
+
+	/// <summary>A body's hull in the world: a player's, the collision box a mounted NPC's prefab gives it, else its bounds.</summary>
+	internal static BBox Body( GameObject go )
+	{
+		if ( go.GetComponent<PlayerController>() is { } player && player.IsValid() )
+		{
+			var radius = new Vector3( player.BodyRadius, player.BodyRadius, 0 );
+			return new BBox( player.WorldPosition - radius, player.WorldPosition + radius + Vector3.Up * player.CurrentHeight );
+		}
+
+		if ( go.Children.FirstOrDefault( x => x.Name == "collider" )?.GetComponent<BoxCollider>() is { } box && box.IsValid() )
+			return BBox.FromPositionAndSize( box.WorldPosition + box.WorldRotation * box.Center, box.Scale );
+
+		return go.GetBounds();
+	}
+
+	/// <summary>
+	/// Where to back away to from an enemy at <paramref name="threat"/>: the full run straight away (sliding along a wall it
+	/// meets), else the nearest walkable spot farther from the enemy on this side of it, else a shorter run straight away.
+	/// Null when cornered.
+	/// </summary>
+	Vector3? BackAwaySpot( Vector3 threat )
+	{
+		var away = (WorldPosition - threat).WithZ( 0 );
+		away = away.Length > 1 ? away.Normal : -WorldRotation.Forward.WithZ( 0 ).Normal;
+		var width = Body( GameObject ).Size.x;
+
+		if ( RunAway( away, BackAwayDistance, out var spot ) >= BackAwayDistance - 1 )
+			return spot;
+		if ( FartherSpot( threat, away, width ) is { } point )
+			return point;
+		if ( RunAway( away, width * BackAwayFarWidths, out spot ) >= width * BackAwayNearWidths )
+			return spot;
+		return null;
+	}
+
+	/// <summary>
+	/// How far the NPC's hull gets along <paramref name="direction"/>, sliding along the first thing it meets for the rest of
+	/// <paramref name="distance"/>, and the walkable spot it ends on. Zero when that spot is off the navmesh.
+	/// </summary>
+	float RunAway( Vector3 direction, float distance, out Vector3 end )
+	{
+		var hull = MoveHull();
+		var start = WorldPosition;
+		var covered = 0f;
+		for ( var leg = 0; leg < 2 && covered < distance - 1; leg++ )
+		{
+			var tr = MoveTrace( hull, start, start + direction * (distance - covered) );
+			if ( tr.StartedSolid )
+				break;
+
+			covered += tr.Distance;
+			start = tr.EndPosition;
+			if ( !tr.Hit )
+				break;
+
+			direction = (direction - tr.Normal * direction.Dot( tr.Normal )).WithZ( 0 );
+			if ( direction.Length < 0.1f )
+				break;
+			direction = direction.Normal;
+		}
+
+		end = start;
+		if ( Scene.NavMesh.GetClosestPoint( start, 32 ) is not { } ground || ground.WithZ( 0 ).Distance( start.WithZ( 0 ) ) > 16 )
+			return 0;
+
+		end = ground;
+		return covered;
+	}
+
+	/// <summary>The nearest walkable spot round the NPC that is farther from the enemy, on the far side from it and in a clear line.</summary>
+	Vector3? FartherSpot( Vector3 threat, Vector3 away, float width )
+	{
+		var hull = MoveHull();
+		var range = WorldPosition.WithZ( 0 ).Distance( threat.WithZ( 0 ) );
+		Vector3? best = null;
+		var bestDistance = float.MaxValue;
+		for ( var i = 0; i < 12; i++ )
+		{
+			if ( Scene.NavMesh.GetRandomPoint( WorldPosition, BackAwaySearchRadius ) is not { } point )
+				continue;
+
+			var offset = (point - WorldPosition).WithZ( 0 );
+			if ( offset.Length < width * BackAwayNearWidths || offset.Length >= bestDistance || offset.Normal.Dot( away ) <= 0
+				|| point.WithZ( 0 ).Distance( threat.WithZ( 0 ) ) <= range || MoveTrace( hull, WorldPosition, point.WithZ( WorldPosition.z ) ).Hit )
+				continue;
+
+			best = point;
+			bestDistance = offset.Length;
+		}
+		return best;
+	}
+
+	/// <summary>The NPC's hull from step height up, relative to its feet, for checking where it can move.</summary>
+	BBox MoveHull()
+	{
+		var body = Body( GameObject );
+		var step = MathF.Min( Scene.NavMesh.AgentStepSize, body.Size.z * 0.5f );
+		return new BBox( (body.Mins - WorldPosition).WithZ( step ), body.Maxs - WorldPosition );
+	}
+
+	SceneTraceResult MoveTrace( BBox hull, Vector3 from, Vector3 to )
+		=> Scene.Trace.Box( hull, from, to ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "player", "playercontroller", "npc", "debris" ).Run();
+
+	/// <summary>One time in three a soldier stepping in calls it, if the enemy is within 2000 units and can see it.</summary>
+	void AnnounceStepIn( GameObject enemy )
+	{
+		if ( Game.Random.Int( 0, 2 ) != 0 || enemy.WorldPosition.Distance( WorldPosition ) > 2000 )
+			return;
+
+		var seen = enemy.GetComponent<PlayerController>() is { } player && player.IsValid()
+			? LookedAtBy( player )
+			: enemy.GetComponent<BaseNpc>() is { } npc && npc.Senses.IsValid() && npc.Senses.VisibleHostiles.Contains( GameObject );
+		if ( seen )
+			NpcVoice.Say( this, Voice, VoiceLine.Assault, enemy );
 	}
 
 	GameObject FindPatient()
@@ -621,6 +936,12 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 			if ( FindPatient() is not null )
 				EndCurrentSchedule();
 		}
+
+		// A kick becoming possible, or an enemy coming inside the weapon's minimum range, cuts the engagement short, burst
+		// included, so the NPC kicks, backs away or steps in at once.
+		if ( Networking.IsHost && ActiveSchedule is CombatEngageSchedule && (Kicks || Weapon.IsValid() && Weapon.Npc.MinRange > 0) && Senses.IsValid()
+			&& Senses.FindBestTarget() is { } engaged && (CanKick( engaged ) || TooClose( engaged )) )
+			EndCurrentSchedule();
 
 		// COND_METROPOLICE_CHANGE_BATON_STATE: an ambient schedule gives way to switching the baton off.
 		if ( Networking.IsHost && Weapon is Hl2.Stunstick { StunActive: true } && _batonDebounce && ActiveSchedule is { Priority: < SchedulePriorities.Alert } && Clip( "ACT_DEACTIVATE_BATON" ) is not null )

@@ -18,6 +18,8 @@ public static class Combine
 				p.Skill( "sk_combine_guard_health" );
 
 				npc.DistractedByBugbait = true;
+				npc.StepsIn = true;
+				npc.Kicks = true;
 				npc.PatrolRadius = 2048;
 				npc.SearchTimeout = 20;
 				npc.Elite = true;
@@ -42,6 +44,8 @@ public static class Combine
 				p.Skill( "sk_combine_s_health" );
 
 				npc.DistractedByBugbait = true;
+				npc.StepsIn = true;
+				npc.Kicks = true;
 				npc.Health = 50;
 				npc.PatrolRadius = 2048;
 				npc.SearchTimeout = 20;
@@ -104,6 +108,8 @@ public static class Combine
 				p.Skill( "sk_combine_s_health" );
 
 				npc.DistractedByBugbait = true;
+				npc.StepsIn = true;
+				npc.Kicks = true;
 				npc.Health = 60;
 				npc.PatrolRadius = 2048;
 				npc.SearchTimeout = 20;
