@@ -146,6 +146,18 @@ public static class Machines
 				charge.DamageSetting = "sk_hunter_dmg_charge";
 				charge.HitSound = "NPC_Hunter.ChargeHitEnemy";
 				charge.CrashSound = "NPC_Hunter.ChargeHitWorld";
+				charge.FaceTurnRate = 450;
+				charge.FaceTurnRateStill = 350;
+				charge.WindUpTurnRate = 350;
+				charge.RunTurnRate = 50;
+				charge.CloseTurnRate = 50;
+				charge.NpcTurnRate = 0;
+				charge.LightPropRatio = 1 / 3f;
+				charge.Smashes = false;
+				charge.HullWidth = 36;
+				charge.RunDamageScale = 2;
+				charge.CrashShakeAmplitude = 16;
+				charge.CrashShakeRadius = 400;
 				p.Box( 65, 110 );
 			}
 		};
