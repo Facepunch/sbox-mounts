@@ -99,6 +99,9 @@ static partial class UnitModel
 	public static Result BuildBrowser( BundleDatabase database, MapMaterials materials, string unit, string resourceName )
 		=> BuildCore( database, materials, unit, resourceName, null, null, true );
 
+	internal static Result BuildDebris( BundleDatabase database, MapMaterials materials, string unit, string resourceName, HashSet<ulong> objects )
+		=> BuildCore( database, materials, unit, resourceName, null, null, false, objects );
+
 	/// <summary>
 	/// Runtime geometry after every sequence the mission has run on a placed unit, in order (later toggles win).
 	/// Uses the lenient evaluator: literal object/body toggles apply and unreproducible actions are skipped.

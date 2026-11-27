@@ -12,6 +12,7 @@ sealed class XmlNode
 	public string Attribute( string name ) => attributes.GetValueOrDefault( name );
 	public XmlNode Element( string name ) => children.FirstOrDefault( c => c.Name == name );
 	public IEnumerable<XmlNode> Elements( string name ) => children.Where( c => c.Name == name );
+	public IReadOnlyList<XmlNode> Children => children;
 
 	public static XmlNode Parse( string text )
 	{

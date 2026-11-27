@@ -47,6 +47,7 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 		TrackBodies( sequence );
 		PaydayMapState.For( Scene )?.SetUnitState( GameObject, applied );
 		PlaySounds( sequence );
+		PaydaySequenceEffects.Play( this, sequence );
 		return Rebuild();
 	}
 
@@ -58,7 +59,11 @@ public sealed class PaydayUnitState : Component, Component.IDamageable
 	{
 		if ( GetComponent<PaydayDoor>().IsValid() ) return;
 		int known = applied.Count <= sequences.Count && applied.SequenceEqual( sequences.Take( applied.Count ) ) ? applied.Count : sequences.Count;
-		if ( audible ) foreach ( var sequence in sequences.Skip( known ) ) PlaySounds( sequence );
+		if ( audible ) foreach ( var sequence in sequences.Skip( known ) )
+		{
+			PlaySounds( sequence );
+			PaydaySequenceEffects.Play( this, sequence );
+		}
 		applied.Clear();
 		enabledBodies = null;
 		foreach ( var sequence in sequences ) { applied.Add( sequence ); TrackBodies( sequence ); }

@@ -49,7 +49,10 @@ Previously the models contained hitbox data but only the coarse living collider 
 - Both use `BaseNpc.StartCarry` / owner-checked `StopCarry` to suspend grounded hostile
   NPCs through the engine's shared physics/brain control. Victims remain enabled and
   damageable, then resume their original AI after release.
-- Host-controlled target and phase; four-second hold, six-second retry, 0.6-second windup.
+- Host-controlled target, phase and strike clock; four-second hold, six-second retry.
+  Taser retains a 0.6-second windup. Cloaker imports the kick's `anim_act_01` marker
+  (0.9667 seconds) as its strike time and continues the full two-second clip through
+  the hold's beginning. Interrupted attacks immediately leave the special animation.
   Cloaker deals 20 initial damage; both deal five damage per second while holding.
   These durations/damage values are sandbox adaptations, not original difficulty balance.
 - Damage interrupts the attacker. Death, disable/destruction, loss of range/line of sight,
@@ -59,10 +62,10 @@ Previously the models contained hitbox data but only the coarse living collider 
   scripted controllers and other custom brains outside the shared ground/carry contract
   are not established as compatible targets.
 
-Player incapacitation/revival, authored victim reactions, Cloaker knockdown/ground attacks,
-exact kick impact timing and full Taser electrical particles remain unfinished. The current
-windup samples only the beginning of the kick clip; visual previews show the rigs and wire,
-not a complete authored takedown. Two-client replication remains unverified.
+Player incapacitation/revival, authored victim reactions, Cloaker knockdown/ground attacks
+and full Taser electrical particles remain unfinished. The generic forward-kick clip's
+action marker supplies timing; the original `spooc_strike` redirect/complete takedown
+sequence has not been reconstructed. Two-client replication remains unverified.
 
 ## Verification
 
@@ -79,6 +82,8 @@ not a complete authored takedown. Two-client replication remains unverified.
 - `VerifyDisablerCleanup.csx`: 14 lifecycle cases covering timeout, attacker death,
   disable/destruction, obstruction, ownership transfer and victim death for both units.
 - `PreviewDisablerNpcs.csx`: rendered attack previews in disposable scenes.
+- `VerifyCloakerStrike.csx`: authored marker timing, single strike, complete follow-through,
+  return to ordinary animation and pre-impact interruption; captures three kick frames.
 
 Reference behavior: installed PDTH `.unit`, `.object`, `.sequence_manager` and animation
 assets, plus the archived [PDTH Lua reference](https://github.com/DrNewbie/payday-the-heist-lua):

@@ -55,6 +55,13 @@ sealed class PaydayNpcPrefabLoader( NpcDefinition definition ) : ResourceLoader<
 					disabler.AttackKind = definition.Id == "taser" ? PaydayDisablerNpc.AttackKinds.Taser : PaydayDisablerNpc.AttackKinds.Cloaker;
 					disabler.AttackRange = (definition.Id == "taser" ? 1400 : 1500) / 2.54f;
 					disabler.ChargeSound = chargeSound; disabler.HoldSound = holdSound;
+					if ( definition.Id == "cloaker" )
+					{
+						var kick = Host.Characters[definition.Id].Clips["special"];
+						disabler.SpecialAnimationDuration = kick.Duration;
+						// This authored action marker is the strike point in the imported kick.
+						disabler.Windup = kick.Cues.First( cue => cue.Name == "anim_act_01" ).Time;
+					}
 				}
 				combat.Faction = definition.Faction;
 				combat.InitiallyHostile = definition.HostileToPlayer;

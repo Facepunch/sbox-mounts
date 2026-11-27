@@ -18,13 +18,14 @@ public sealed class PaydayNpcAnimator : Component
 		var npc = GetComponent<BaseNpc>();
 		if ( !npc.IsValid() ) return;
 		float speed = npc.Animation?.MoveVelocity.Length ?? 0;
-		string clip = npc is PaydayDisablerNpc { AttackKind: PaydayDisablerNpc.AttackKinds.Cloaker, AttackPhase: PaydayDisablerNpc.AttackPhases.Windup } ? "special"
+		string clip = npc is PaydayDisablerNpc { IsPlayingSpecialAnimation: true } ? "special"
 			: npc is BaseCombatNpc { Weapon.IsReloading: true } ? "reload"
 			: npc is PaydayCivilian { Surrendered: true, Leader: null } ? "surrender"
 			: speed > 140 ? "run" : speed > 10 ? "walk" : "idle";
 		if ( clip != CurrentClip ) { CurrentClip = clip; elapsed = 0; blend = 0; }
 		elapsed += Time.Delta;
-		SamplePose( CurrentClip, elapsed );
+		SamplePose( CurrentClip, clip == "special" && npc is PaydayDisablerNpc disabler
+			? disabler.SpecialAnimationTime : elapsed );
 	}
 
 	public void SamplePose( string clip, float time )

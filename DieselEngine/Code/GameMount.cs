@@ -106,6 +106,7 @@ public sealed partial class PaydayMount : BaseGameMount
 		ulong textureType = IdString.Hash( "texture" );
 		ulong unitType = IdString.Hash( "unit" );
 		ulong animationType = IdString.Hash( "animation" );
+		ulong effectType = IdString.Hash( "effect" );
 		ulong materialType = IdString.Hash( "material_config" );
 		// The installed game supplies its own path dictionary. No external hashlist or extracted assets required.
 		var lookup = Database.Find( "idstring_lookup", "idstring_lookup" );
@@ -117,6 +118,15 @@ public sealed partial class PaydayMount : BaseGameMount
 		foreach ( var name in Encoding.Latin1.GetString( lookup ).Split( '\0' ).Distinct() )
 		{
 			ulong hash = IdString.Hash( name );
+			if ( Database.Entries.ContainsKey( (effectType, hash) ) )
+			{
+				context.Add( ResourceType.GameResource, $"{name}.pdeffect", new PaydayEffectLoader( name ) );
+				if ( GetEffect( name ).Atoms.Any( a => a.Element( "visualizerstack" )?.Elements( "billboard" ).Any() == true ) )
+				{
+					var effect = new PaydayEffectPrefabLoader( name ); effect.Tags.Add( "entity" );
+					context.Add( ResourceType.PrefabFile, $"entities/{name}.prefab", effect );
+				}
+			}
 			if ( Database.Entries.ContainsKey( (animationType, hash) ) ) animationPaths.Add( name );
 			if ( Database.Entries.ContainsKey( (bankType, hash) ) ) bankPaths.Add( name );
 			if ( Database.Entries.ContainsKey( (materialType, hash) ) )
@@ -144,6 +154,7 @@ public sealed partial class PaydayMount : BaseGameMount
 			{
 				// Binary formats (e.g. massunit brushes) reference units by hash only.
 				UnitNames.TryAdd( hash, name );
+				RegisterDebris( context, name );
 				try
 				{
 					if ( UnitModel.DescribeForBrowser( Database, name ) is { } info )
@@ -285,6 +296,8 @@ public sealed partial class PaydayMount : BaseGameMount
 		sequenceManagers.Clear();
 		sequenceSounds.Clear();
 		runtimeMaterials = null;
+		effects.Clear(); effectAnchors.Clear(); debris.Clear();
+		effectPixels.Clear(); effectSprites.Clear(); EffectTextures.Clear();
 		Database = null;
 	}
 }

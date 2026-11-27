@@ -15,6 +15,7 @@ public sealed class PaydayDisablerNpc : PaydayCombatNpc
 	// Root-to-root reach accommodates the shared NPC hulls, including foreign rigs.
 	[Property] public float StrikeRange { get; set; } = 72;
 	[Property] public float Windup { get; set; } = .6f;
+	[Property] public float SpecialAnimationDuration { get; set; }
 	[Property] public float HoldDuration { get; set; } = 4;
 	[Property] public float Cooldown { get; set; } = 6;
 	[Property] public float StrikeDamage { get; set; } = 20;
@@ -23,6 +24,11 @@ public sealed class PaydayDisablerNpc : PaydayCombatNpc
 	[Property] public SoundEvent HoldSound { get; set; }
 	[Sync( SyncFlags.FromHost )] public GameObject AttackTarget { get; private set; }
 	[Sync( SyncFlags.FromHost )] public AttackPhases AttackPhase { get; private set; }
+	[Sync( SyncFlags.FromHost )] TimeSince StrikeStarted { get; set; }
+	public float SpecialAnimationTime => Math.Max( 0, StrikeStarted );
+	public bool IsPlayingSpecialAnimation => AttackKind == AttackKinds.Cloaker
+		&& AttackPhase is AttackPhases.Windup or AttackPhases.Holding
+		&& SpecialAnimationTime < SpecialAnimationDuration;
 	TimeUntil retry, scan, phaseEnd, attackEnd, nextDamage;
 	BaseNpc held;
 	LineRenderer beam;
@@ -105,12 +111,14 @@ public sealed class PaydayDisablerNpc : PaydayCombatNpc
 		if ( AttackPhase == AttackPhases.Approaching )
 		{
 			AttackPhase = AttackPhases.Windup;
+			StrikeStarted = 0;
 			phaseEnd = Math.Max( .1f, Windup );
 			PlayCharge();
 		}
 		if ( AttackPhase == AttackPhases.Windup )
 		{
-			if ( phaseEnd > 0 ) return TaskResult.Running;
+			if ( AttackKind == AttackKinds.Cloaker ? SpecialAnimationTime < Math.Max( .1f, Windup ) : phaseEnd > 0 )
+				return TaskResult.Running;
 			if ( target.PhysicsCarrier.IsValid() || !target.IsOnGround ) return TaskResult.Failed;
 			held = target;
 			held.StartCarry( GameObject );
