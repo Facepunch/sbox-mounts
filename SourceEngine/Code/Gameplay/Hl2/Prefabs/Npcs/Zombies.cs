@@ -36,11 +36,12 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation();
-				p.Skill( "sk_zombie_health", damage: "sk_zombie_dmg_one_slash" );
+				p.Skill( "sk_zombie_health" );
 
 				npc.Move = "Run";
 				npc.Attack = "Melee";
 				npc.MoveSpeed = 220;
+				npc.AttackDamage = 3;
 				npc.AttackInterval = 0.8f;
 				npc.AttackDelay = 0.2f;
 				npc.Voice = "NPC_FastZombie";
@@ -136,7 +137,7 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation();
-				p.Skill( "sk_zombie_health", damage: "sk_zombie_dmg_both_slash" );
+				p.Skill( "sk_zombie_health", damage: "sk_zombie_dmg_one_slash" );
 
 				npc.Idle = "Idle01";
 				npc.Attack = "attackA";
@@ -185,14 +186,14 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation();
-				p.Skill( "sk_zombie_soldier_health", damage: "sk_zombie_dmg_both_slash", config: "skill_episodic.cfg" );
+				p.Skill( "sk_zombie_soldier_health", damage: "sk_zombie_dmg_one_slash", config: "skill_episodic.cfg" );
 
 				npc.Idle = "Idle01";
 				npc.Move = "walk_All";
 				npc.Attack = "AttackA";
 				npc.MoveSpeed = 80;
 				npc.AttackRange = 75;
-				npc.AttackDamage = 20;
+				npc.AttackDamage = 10;
 				npc.Voice = "Zombie";
 				npc.EyeHeight = 57.6f;
 				p.Root.AddComponent<ZombineGrenade>();
