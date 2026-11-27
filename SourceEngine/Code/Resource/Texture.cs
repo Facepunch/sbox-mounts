@@ -89,7 +89,7 @@ internal sealed partial class TextureLoader( string filename, int? frame = 0 ) :
 	}
 }
 
-internal sealed class PngTextureLoader( string fullPath ) : ResourceLoader<SourceGameMount>
+internal sealed class BitmapTextureLoader( string fullPath ) : ResourceLoader<SourceGameMount>
 {
 	protected override object Load()
 	{

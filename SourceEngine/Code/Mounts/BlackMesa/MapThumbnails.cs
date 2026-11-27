@@ -57,7 +57,11 @@ internal sealed partial class MapFormat
 			result[entry.Value] = ChapterImage( entry.Key );
 		return result;
 
-		static string ChapterImage( string number ) => $"materials/vgui/chapters/chapter{number}.vtf";
+		string ChapterImage( string number )
+		{
+			var image = $"ui/campaign/images/chapter{number}.jpg";
+			return files.ContainsKey( image ) ? image : $"materials/vgui/chapters/chapter{number}.vtf";
+		}
 
 		IEnumerable<KeyValuePair<string, string>> Read( string path )
 		{
