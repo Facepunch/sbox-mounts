@@ -11,7 +11,8 @@ public static class Npcs
 	{
 		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [fallback];
 		var impacts = ModelSequences.Of( model ).All.FirstOrDefault( s => s.Name == clip )?.Events
-			.Where( e => e.Name?.StartsWith( "AE_ZOMBIE_ATTACK_", StringComparison.Ordinal ) == true
+			// AE_ZOMBIE_ATTACK_SCREAM is only the attack sound
+			.Where( e => e.Name?.StartsWith( "AE_ZOMBIE_ATTACK_", StringComparison.Ordinal ) == true && e.Name != "AE_ZOMBIE_ATTACK_SCREAM"
 				|| e.Name?.Contains( "_MELEE_HIT", StringComparison.Ordinal ) == true
 				|| e.Name?.StartsWith( "AE_HUNTER_MELEE_ATTACK_", StringComparison.Ordinal ) == true
 				|| e.Name is "AE_VORTIGAUNT_ZAP_SHOOT" or "AE_VORTIGAUNT_CLAW_LEFT" or "AE_VORTIGAUNT_CLAW_RIGHT" or "AE_VORTIGAUNT_KICK"

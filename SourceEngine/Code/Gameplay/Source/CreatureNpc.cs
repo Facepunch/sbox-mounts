@@ -36,6 +36,12 @@ public abstract class CreatureBehaviour : Component
 	/// <summary>Host think; true while the behaviour owns the creature.</summary>
 	public virtual bool Think( GameObject target ) => false;
 
+	/// <summary>The clip to play for one of the creature's activities instead of its own; null keeps the creature's.</summary>
+	public virtual string TranslateActivity( string activity ) => null;
+
+	/// <summary>False holds the creature to its walk while it chases.</summary>
+	public virtual bool AllowsRun => true;
+
 	protected float Duration( string clip, float fallback ) => ConfiguredModel?.AnimationClips().TryGetValue( clip ?? "", out var animation ) == true ? animation.Duration : fallback;
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -287,6 +293,17 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 	float GroundSpeed( string clip ) => _sequences?.Get( clip )?.GroundSpeed ?? 0;
 
+	string Translate( string activity, string clip )
+	{
+		foreach ( var behaviour in _behaviours )
+		{
+			if ( behaviour.TranslateActivity( activity ) is { } translated )
+				return translated;
+		}
+
+		return clip;
+	}
+
 	protected override void OnUpdate()
 	{
 		base.OnUpdate();
@@ -336,14 +353,17 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		else if ( _animation.Current != AttackClip || _animation.Finished || LastAttack >= Math.Max( AttackInterval, _animation.Duration )
 			|| moving && !_attackActivities.Contains( AttackClip ?? "" ) )
 		{
-			var walkSpeed = GroundSpeed( _walk );
-			var runSpeed = GroundSpeed( _run );
+			var idle = Translate( "ACT_IDLE", _idle );
+			var walk = Translate( "ACT_WALK", _walk );
+			var run = _run != _walk ? Translate( "ACT_RUN", _run ) : walk;
+			var walkSpeed = GroundSpeed( walk );
+			var runSpeed = GroundSpeed( run );
 			// Switch where both clips are equally far off in playback rate.
-			var running = _run != _walk && (walkSpeed > 1 && runSpeed > walkSpeed ? speed > MathF.Sqrt( walkSpeed * runSpeed ) : speed > MoveSpeed * 1.25f);
-			var clip = !moving || Aquatic && !IsUnderwater( WorldPosition ) ? _idle : running ? _run : _walk;
+			var running = run != walk && (walkSpeed > 1 && runSpeed > walkSpeed ? speed > MathF.Sqrt( walkSpeed * runSpeed ) : speed > MoveSpeed * 1.25f);
+			var clip = !moving || Aquatic && !IsUnderwater( WorldPosition ) ? idle : running ? run : walk;
 			// Feet match the ground: rate is our speed over the clip's ground speed, or over the configured pace without one.
 			var ground = GroundSpeed( clip );
-			var rate = clip == _idle || Locomotion != Locomotions.Ground ? 1
+			var rate = clip == idle || Locomotion != Locomotions.Ground ? 1
 				: ground > 1 ? Math.Clamp( speed / ground, 0.3f, 2.5f )
 				: Math.Clamp( speed / (running ? MoveSpeed * 1.6f : MoveSpeed), 0.5f, 1.6f );
 			_animation.Play( clip, rate );
@@ -505,7 +525,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			WorldRotation = Rotation.LookAt( (target.WorldPosition - WorldPosition).WithZ( 0 ) );
 
 		_rangedStrike = ranged && distance > meleeRange;
-		var clip = _rangedStrike ? _ranged ?? Attack : PickMelee() ?? Attack;
+		var clip = _rangedStrike ? _ranged ?? Attack : Translate( "ACT_MELEE_ATTACK1", null ) ?? PickMelee() ?? Attack;
 		_strikeTimes = Npcs.AttackTimes( Renderer.Model, clip, AttackDelay );
 		_strikeIndex = 0;
 		// A real attack activity holds the creature for its length; a stand-in clip (stalker, strider) only for the interval.
@@ -543,11 +563,12 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	}
 
 	/// <summary>Move at the walk or run clip's own ground speed, so the feet do not slide; the configured pace without one.</summary>
-	float PaceFor( bool hurry )
+	internal float PaceFor( bool hurry )
 	{
-		var clip = hurry && _run != _walk ? _run : _walk;
+		hurry = hurry && _run != _walk && _behaviours.All( x => x.AllowsRun );
+		var clip = hurry ? Translate( "ACT_RUN", _run ) : Translate( "ACT_WALK", _walk );
 		var ground = GroundSpeed( clip );
-		return ground > 1 ? ground : hurry && _run != _walk ? MoveSpeed * 1.6f : MoveSpeed;
+		return ground > 1 ? ground : hurry ? MoveSpeed * 1.6f : MoveSpeed;
 	}
 
 	bool HasRangedAttack => _projectile.IsValid() || _rangedEffects.IsValid() || _photo.IsValid();
