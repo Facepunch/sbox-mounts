@@ -28,11 +28,7 @@ StaticCombo( S_SOURCE_FRAMEBUFFER, F_SOURCE_FRAMEBUFFER, Sys( ALL ) );
 	#endif
 #endif
 #if S_ALPHA_TEST && !S_TRANSLUCENT
-	RenderState( AlphaToCoverageEnable, S_MODE_DEPTH != 0 );
-	#if !S_MODE_DEPTH
-		RenderState( DepthFunc, EQUAL );
-		RenderState( DepthWriteEnable, false );
-	#endif
+	RenderState( AlphaToCoverageEnable, true );
 #endif
 BoolAttribute( renderbackfaces, F_RENDER_BACKFACES != 0 );
 
@@ -514,27 +510,12 @@ float4 MainPs( PixelInput i ) : SV_Target0
 		* lerp( 1, i.vSourceColor.a, saturate( g_flSourceVertexAlpha ) ) );
 	#if S_ALPHA_TEST
 		#if !S_TRANSLUCENT
-			clip( opacity - 0.000001 );
 			#if S_SOURCE_TEXTURE_ANIMATION
 				float2 alphaTextureSize = float2( TextureDimensions2DArrayS( g_tColor, 0 ) );
 			#else
 				float2 alphaTextureSize = float2( TextureDimensions2DS( g_tColor, 0 ) );
 			#endif
-			if ( g_nMSAASampleCount > 1 )
-			{
-				float2 texelUv = baseUv * alphaTextureSize;
-				float2 dx = ddx( texelUv );
-				float2 dy = ddy( texelUv );
-				float minification = saturate( 0.5 * log2( max( max( dot( dx, dx ), dot( dy, dy ) ), 1 ) ) );
-				float edgeCoverage = saturate( 0.5 + (opacity - g_flSourceAlphaTestReference) / max( fwidth( opacity ), 0.000001 ) );
-				opacity = lerp( edgeCoverage, opacity, minification );
-				clip( opacity - 0.000001 );
-			}
-			else
-			{
-				clip( opacity - g_flSourceAlphaTestReference );
-				opacity = 1;
-			}
+			opacity = AdjustOpacityForAlphaToCoverage( opacity, g_flSourceAlphaTestReference, 1, baseUv, alphaTextureSize );
 		#else
 			clip( opacity - g_flSourceAlphaTestReference );
 		#endif
