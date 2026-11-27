@@ -17,7 +17,7 @@ internal sealed partial class SourceModelBuilder
 		};
 		var vertexLit = source.Mdl.IsStaticProp && !new MaterialSlots( this, source.Mdl, source.Vtx, lighting ).UsesBumpMapping();
 		if ( vertexLit && diskLighting && (flags & 0x40) == 0 )
-			lighting.ReadVertices( Host, hdr ? $"sp_hdr_{index}.vhv" : $"sp_{index}.vhv", source.Mdl.Checksum );
+			Host.MapFormat.ReadVertexLighting( Host, lighting, index, source.Mdl.Checksum, hdr );
 		if ( vertexLit && diskLighting && (flags & 0x100) == 0 )
 		{
 			if ( !hdr || !lighting.ReadTexels( Host, $"texelslighting_{index}_hdr.ppl", source.Mdl.Checksum ) )

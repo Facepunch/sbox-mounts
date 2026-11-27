@@ -39,6 +39,8 @@ public abstract partial class SourceGameMount
 		return loader.Path;
 	}
 
+	internal virtual string ResolveShader( string shader ) => shader;
+
 	internal SourceMaterial GetSourceMaterial( string path )
 	{
 		using var files = AcquireIndex();

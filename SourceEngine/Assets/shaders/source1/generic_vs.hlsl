@@ -23,6 +23,9 @@ PixelInput MainVs( VertexInput v )
 	#endif
 	i.vSourceColor = v.vSourceColor;
 	i.flSourceBlend = v.vSourceBlend.r;
+	#if S_SOURCE_FOUR_WAY
+		i.vLayerWeights = v.vSourceBlend.gba;
+	#endif
 	i.flSourceAlpha = SourceAlpha();
 	i.flSourceFrame = SourceFrame();
 	i.vSourcePropLighting = v.vSourcePropLighting;

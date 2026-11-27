@@ -33,6 +33,7 @@ internal sealed partial class VtxFile
 			var materials = replacements[lod] = new Dictionary<int, string>( header.NumReplacements );
 			LumpReader<MaterialReplacementHeader>.ReadLumpFromStream( stream, header.NumReplacements, replacement =>
 			{
+				if ( replacement.MaterialId == -1 ) return;
 				if ( replacement.MaterialId < 0 || replacement.MaterialId >= materialCount )
 					throw new InvalidDataException( "VTX material replacement references an invalid material." );
 				var nameOffset = stream.Position + replacement.ReplacementMaterialNameOffset;

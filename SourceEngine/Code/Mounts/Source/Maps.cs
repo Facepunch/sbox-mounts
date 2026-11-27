@@ -7,12 +7,15 @@ public abstract partial class SourceGameMount
 {
 	internal static string GetMapPakRoot( string path ) => $"{Path.ChangeExtension( path, null )}/pak/";
 
-	private sealed class MapImportEntry( SourceFile file )
+	internal virtual BspFormat CreateMapFormat() => BspFormat.Default;
+	internal BspFormat MapFormat { get { lock ( indexLock ) return index.MapFormat; } }
+
+	private sealed class MapImportEntry( SourceFile file, BspFormat format )
 	{
 		public readonly Lazy<BspFile> Data = new( () =>
 		{
 			using var stream = file.Open();
-			return new BspFile( stream );
+			return new BspFile( stream, format );
 		} );
 		public int Users;
 	}
@@ -35,7 +38,7 @@ public abstract partial class SourceGameMount
 			{
 				filename = ResolveContentFile( files, path );
 				if ( !files.MapImports.TryGetValue( filename, out entry ) )
-					files.MapImports.Add( filename, entry = new MapImportEntry( files.Files[filename] ) );
+					files.MapImports.Add( filename, entry = new MapImportEntry( files.Files[filename], files.MapFormat ) );
 				entry.Users++;
 			}
 		}
@@ -100,6 +103,7 @@ public abstract partial class SourceGameMount
 				package?.Dispose();
 				stream?.Dispose();
 			}
+			files.MapFormat.IndexMap( map.Path, files.Files );
 			var root = GetMapPakRoot( map.Path );
 			files.ContentParents.Add( root, GetContentRoot( map.Path, "maps" ) );
 			foreach ( var path in indexed.GetFilePaths() )

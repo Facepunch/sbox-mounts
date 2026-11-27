@@ -114,6 +114,7 @@ public abstract partial class SourceGameMount
 		public readonly HashSet<string> PackedAudioRoots = new( StringComparer.OrdinalIgnoreCase );
 		public readonly List<(string Path, string Root)> MapDecals = [];
 		public readonly List<(string Path, ResourceFactory Factory)> Resources = [];
+		public BspFormat MapFormat { get; init; } = BspFormat.Default;
 		public readonly List<string> Errors = [];
 		public readonly Dictionary<string, SourceSurfaceDefinition> Surfaces = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, SourceSoundDefinition> SurfaceSounds = new( StringComparer.OrdinalIgnoreCase );

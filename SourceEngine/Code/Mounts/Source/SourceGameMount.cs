@@ -45,7 +45,7 @@ public abstract partial class SourceGameMount : BaseGameMount
 
 	internal void IndexContent( IEnumerable<ContentSource> sources )
 	{
-		var next = new FileIndex();
+		var next = new FileIndex { MapFormat = CreateMapFormat() };
 		try
 		{
 			IndexSources( next, sources );

@@ -94,7 +94,7 @@ partial class MapLoader
 		const int CONTENTS_GRATE = 0x8;
 		const int SURF_NOPHYSICS_COLL = 0x2;
 		bool added = false;
-		var materialSurfaces = new Dictionary<int, (string Primary, string Secondary)>();
+		var materialSurfaces = new Dictionary<int, (string Primary, byte[] Indices)>();
 		Span<Vector3> corners = stackalloc Vector3[4];
 		ref var world = ref bsp.Models[0];
 		for ( int i = world.FirstFace; i < world.FirstFace + world.FaceCount; i++ )
@@ -128,7 +128,8 @@ partial class MapLoader
 			if ( !materialSurfaces.TryGetValue( texData, out var surfaceNames ) )
 			{
 				var materialPath = $"texture data {texData}";
-				surfaceNames = ("default", "default");
+				var primary = "default";
+				VmtParameters? parameters = null;
 				try
 				{
 					if ( texData < 0 )
@@ -137,32 +138,51 @@ partial class MapLoader
 					if ( Host.GetContentPath( materialPath, ContentRoot ) is null )
 						materialPath = $"{GetBaseMaterialPath( materialPath[..^4] )}.vmt";
 					var material = VmtFile.Load( materialPath, path => Host.OpenContentFile( path, ContentRoot ), null, diagnostic => Log.Warning( $"{diagnostic.Path}:{diagnostic.Line}: {diagnostic.Message}" ) );
-					var parameters = new VmtParameters( material.Parameters, materialPath );
-					var primary = parameters.String( "$surfaceprop", "default" );
-					var secondary = parameters.String( "$surfaceprop2", primary );
-					surfaceNames = (primary, string.IsNullOrWhiteSpace( secondary ) ? primary : secondary);
+					parameters = new VmtParameters( material.Parameters, materialPath );
+					primary = parameters.Value.String( "$surfaceprop", "default" );
 				}
 				catch ( Exception e ) when ( e is FileNotFoundException or InvalidDataException or NotSupportedException )
 				{
 					Log.Warning( $"{FullPath}: displacement surface properties could not be read from '{materialPath}': {e.Message} Using the mount's default surface." );
 				}
 
+				var layers = new byte[4];
+				layers[0] = getMaterial( Host.GetSurface( primary, FullPath ) );
+				for ( int layer = 1; layer < layers.Length; layer++ )
+				{
+					var name = parameters?.String( $"$surfaceprop{layer + 1}" );
+					layers[layer] = string.IsNullOrWhiteSpace( name ) ? layers[0] : getMaterial( Host.GetSurface( name, FullPath ) );
+				}
+				surfaceNames = (primary, layers);
 				materialSurfaces.Add( texData, surfaceNames );
 			}
 
-			var primaryIndex = getMaterial( Host.GetSurface( surfaceNames.Primary, FullPath ) );
-			var secondaryIndex = getMaterial( Host.GetSurface( surfaceNames.Secondary, FullPath ) );
 			var materials = new byte[indices.Count / 3];
 			bool multiblend = (disp.Flags & 0x40000000) != 0;
 			for ( int triangle = 0; triangle < materials.Length; triangle++ )
 			{
+				if ( disp.BlendStart >= 0 )
+				{
+					var coverage = Vector4.Zero;
+					for ( int corner = 0; corner < 3; corner++ )
+					{
+						var w = bsp.DisplacementBlends[disp.BlendStart + indices[triangle * 3 + corner]];
+						float lower = (1 - w.z) * (1 - w.w);
+						coverage += new Vector4( (1 - w.y) * lower, w.y * lower, w.z * (1 - w.w), w.w );
+					}
+					int dominant = 0;
+					for ( int layer = 1; layer < 4; layer++ )
+						if ( coverage[layer] > coverage[dominant] ) dominant = layer;
+					materials[triangle] = surfaceNames.Indices[dominant];
+					continue;
+				}
 				float alpha = 0;
 				for ( int corner = 0; corner < 3; corner++ )
 					alpha += bsp.DispVerts[disp.DispVertStart + indices[triangle * 3 + corner]].Alpha;
-				materials[triangle] = !multiblend && alpha > 382.5f ? secondaryIndex : primaryIndex;
+				materials[triangle] = surfaceNames.Indices[!multiblend && alpha > 382.5f ? 1 : 0];
 			}
 
-			if ( multiblend )
+			if ( multiblend && disp.BlendStart < 0 )
 				Log.Warning( $"{FullPath}: virtualterrain displacement {face.DispInfo} uses multiblend; its primary surface is used because multiblend data is not imported." );
 			var meshIndices = new uint[indices.Count];
 			for ( int index = 0; index < meshIndices.Length; index++ )

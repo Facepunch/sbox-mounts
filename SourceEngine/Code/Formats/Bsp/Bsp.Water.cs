@@ -24,7 +24,7 @@ internal partial class BspFile
 		ReadSpatialData( stream, start, lumps );
 		foreach ( var data in Water )
 		{
-			if ( !float.IsFinite( data.SurfaceHeight ) || !float.IsFinite( data.MinimumHeight ) || data.MinimumHeight > data.SurfaceHeight )
+			if ( !float.IsFinite( data.SurfaceHeight ) || !float.IsFinite( data.MinimumHeight ) )
 				throw new InvalidDataException( "Invalid BSP water heights." );
 			ValidateRange( data.TexInfo, 1, TexInfos.Length, "Water texture info" );
 		}

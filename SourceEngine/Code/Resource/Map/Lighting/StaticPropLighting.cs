@@ -24,13 +24,13 @@ internal sealed class StaticPropLighting( string name, string contentRoot, VtxFi
 		vertexLit = vertices;
 	}
 
-	public void ReadVertices( SourceGameMount mount, string filename, int checksum )
+	public bool ReadVertices( SourceGameMount mount, string filename, int checksum )
 	{
 		var found = mount.TryOpenContentFile( $"{ContentRoot}{filename}", out var stream );
 		using ( stream )
 		{
 			if ( !found )
-				return;
+				return false;
 			try
 			{
 				var file = new VhvFile( stream, checksum );
@@ -39,10 +39,12 @@ internal sealed class StaticPropLighting( string name, string contentRoot, VtxFi
 				var mapped = MapVertexColors( file, vtx.LightingMeshes );
 				foreach ( var entry in mapped )
 					colors.Add( entry.Key, entry.Value );
+				return true;
 			}
 			catch ( Exception e ) when ( e is InvalidDataException or NotSupportedException or ArithmeticException )
 			{
 				Log.Warning( $"{ContentRoot}{filename}: baked vertex lighting was not imported: {e.Message}" );
+				return false;
 			}
 		}
 	}

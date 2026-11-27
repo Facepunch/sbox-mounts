@@ -1,4 +1,7 @@
 #define CUSTOM_MATERIAL_INPUTS
+#ifndef S_SOURCE_FOUR_WAY
+	#define S_SOURCE_FOUR_WAY 0
+#endif
 #ifndef S_SOURCE_MONITOR
 	#define S_SOURCE_MONITOR 0
 #endif
@@ -24,6 +27,9 @@ struct PixelInput
 	#include "common/pixelinput.hlsl"
 	float4 vSourceColor : COLOR0;
 	float flSourceBlend : TEXCOORD14;
+	#if S_SOURCE_FOUR_WAY
+		float3 vLayerWeights : TEXCOORD19;
+	#endif
 	nointerpolation float flSourceAlpha : TEXCOORD15;
 	nointerpolation float flSourceFrame : TEXCOORD16;
 	float3 vSourcePropLighting : TEXCOORD17;

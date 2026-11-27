@@ -60,6 +60,7 @@ internal struct BspModel
 
 internal struct BspDispInfo
 {
+	public int BlendStart;
 	public Vector3 StartPosition;
 	public int DispVertStart;
 	public int DispTriStart;

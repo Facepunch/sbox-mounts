@@ -34,7 +34,13 @@ partial class MapLoader
 					lmUV = new Vector2( lmU, lmV );
 				}
 
-				group.Vertices.Add( new BlendLightmapVertex( basePos, Vector3.Up, tangent, uv, lmUV, alpha ) );
+				var vertex = new BlendLightmapVertex( basePos, Vector3.Up, tangent, uv, lmUV, alpha );
+				if ( disp.BlendStart >= 0 )
+				{
+					var weights = bsp.DisplacementBlends[disp.BlendStart + y * size + x];
+					vertex.BlendValues = new Vector4( alpha, weights.y, weights.z, weights.w );
+				}
+				group.Vertices.Add( vertex );
 			}
 		}
 

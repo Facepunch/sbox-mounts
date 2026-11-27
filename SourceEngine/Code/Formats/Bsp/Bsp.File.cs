@@ -26,7 +26,7 @@ internal partial class BspFile
 	public Vector3[] VertNormals;
 	public ushort[] VertNormalIndices;
 	public int[] FaceVertexNormalOffsets;
-	public BspFile( Stream stream )
+	public BspFile( Stream stream, BspFormat format = null )
 	{
 		var header = new BspHeader( stream );
 		var fileStart = header.Start;
@@ -59,13 +59,43 @@ internal partial class BspFile
 		VertNormals = ReadLump<Vector3>( stream, fileStart, lumps[30] );
 		VertNormalIndices = ReadLump<ushort>( stream, fileStart, lumps[31] );
 		ValidateGeometry();
+		if ( format?.MultiblendLump is int multiblend )
+			DisplacementBlends = ReadDisplacementBlends( stream, fileStart, lumps[multiblend] );
 		Entities = ReadEntities( ReadRaw( stream, fileStart, lumps[0] ) );
 		ReadSkyboxAreas( stream, fileStart, lumps );
 		ReadLeafAmbient( stream, fileStart, lumps );
 		ReadWater( stream, fileStart, lumps );
-		StaticProps = ReadStaticProps( stream, fileStart, lumps[35] );
+		StaticProps = ReadStaticProps( stream, fileStart, lumps[35], format );
 		ReadCollisionBrushes( stream, fileStart, lumps );
 		ReadPropLighting( stream, fileStart, lumps );
+	}
+
+	internal Vector4[] DisplacementBlends { get; } = [];
+
+	Vector4[] ReadDisplacementBlends( Stream stream, long fileStart, (int offset, int length, int version, int uncompressedSize) lump )
+	{
+		if ( lump.length == 0 ) return [];
+		var bytes = ReadRaw( stream, fileStart, lump );
+		const int stride = 80; // Four weights, four alpha values and four RGB colors per vertex.
+		var weights = new Vector4[bytes.Length / stride];
+		int start = 0;
+		foreach ( ref var disp in DispInfos.AsSpan() )
+		{
+			if ( (disp.Flags & 0x40000000) == 0 ) continue;
+			int side = (1 << disp.Power) + 1;
+			ValidateRange( start, side * side, weights.Length, "Displacement multiblend vertices" );
+			disp.BlendStart = start;
+			start += side * side;
+		}
+		if ( start != weights.Length || bytes.Length % stride != 0 )
+			throw new InvalidDataException( "BSP displacement multiblend count does not match its displacements." );
+		for ( int i = 0; i < weights.Length; i++ )
+		{
+			var offset = i * stride;
+			weights[i] = new Vector4( BitConverter.ToSingle( bytes, offset ), BitConverter.ToSingle( bytes, offset + 4 ),
+				BitConverter.ToSingle( bytes, offset + 8 ), BitConverter.ToSingle( bytes, offset + 12 ) );
+		}
+		return weights;
 	}
 
 	public string GetTexDataString( int texDataIndex )
@@ -137,6 +167,7 @@ internal partial class BspFile
 		for ( int i = 0; i < count; i++ )
 		{
 			int off = i * STRUCT_SIZE;
+			result[i].BlendStart = -1;
 			result[i].StartPosition = new Vector3( BitConverter.ToSingle( data, off ), BitConverter.ToSingle( data, off + 4 ), BitConverter.ToSingle( data, off + 8 ) );
 			result[i].DispVertStart = BitConverter.ToInt32( data, off + 12 );
 			result[i].DispTriStart = BitConverter.ToInt32( data, off + 16 );

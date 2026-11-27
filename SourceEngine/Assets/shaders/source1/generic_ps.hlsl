@@ -209,6 +209,9 @@ float3 g_vSourceEnvTint < Default3( 1, 1, 1 ); >;
 float3 g_vSourceEnvContrast < Default3( 0, 0, 0 ); >;
 float3 g_vSourceEnvSaturation < Default3( 1, 1, 1 ); >;
 float g_flSourceEnvRoughness < Default( 0 ); >;
+float4 g_vSourceEnvOrigin < Default4( 0, 0, 0, 0 ); >;
+float3 g_vSourceEnvMins < Default3( 0, 0, 0 ); >;
+float3 g_vSourceEnvMaxs < Default3( 0, 0, 0 ); >;
 float g_flSourceEnvMip < Default( 0 ); >;
 float g_flSourceLightmapScale < Default( 1 ); >;
 float g_flSourceHasBumpLightmap < Default( 0 ); >;
@@ -282,9 +285,8 @@ bool SourceOwnsBaseAlpha()
 	return g_nSourceEnvMask == 1;
 }
 
-void SourceDetail( inout float4 color, float4 detail, inout float3 normal, out float3 emission )
+void SourceDetail( inout float4 color, float4 detail, inout float3 normal, out float3 emission, float amount )
 {
-	float amount = saturate( SourceProxyScalar( g_flSourceDetailBlendFactor, g_flSourceDetailBlendProxy ) );
 	emission = 0;
 	switch ( g_nSourceDetailMode )
 	{
@@ -357,16 +359,16 @@ float3 SourceBakedLighting( float2 uv, float3 normal, bool ssbump, float3 detail
 	return irradiance * max( 0, g_flSourceLightmapScale );
 }
 
-float4 SourceSurfaceSample( Texture2D image, SamplerState sampling, float2 uv, PixelInput i )
+float4 SourceSurfaceSample( Texture2D image, SamplerState sampling, float2 uv, PixelInput i, float2 scale = 1 )
 {
 	if ( g_flSourceSeamlessScale != 0 )
 	{
 		float3 coordinate = (i.vPositionWithOffsetWs + g_vHighPrecisionLightingOffsetWs.xyz) * g_flSourceSeamlessScale;
-		return image.Sample( sampling, coordinate.zy ) * i.vSourceSeamlessWeights.x
-			+ image.Sample( sampling, coordinate.xz ) * i.vSourceSeamlessWeights.y
-			+ image.Sample( sampling, coordinate.xy ) * i.vSourceSeamlessWeights.z;
+		return image.Sample( sampling, coordinate.zy * scale ) * i.vSourceSeamlessWeights.x
+			+ image.Sample( sampling, coordinate.xz * scale ) * i.vSourceSeamlessWeights.y
+			+ image.Sample( sampling, coordinate.xy * scale ) * i.vSourceSeamlessWeights.z;
 	}
-	return image.Sample( sampling, uv );
+	return image.Sample( sampling, uv * scale );
 }
 
 #if S_SOURCE_TEXTURE_ANIMATION
@@ -383,6 +385,10 @@ float4 SourceSurfaceSample( Texture2DArray image, SamplerState sampling, float2 
 }
 #endif
 
+#if S_SOURCE_FOUR_WAY
+	#include "source1/four_way_blend.hlsl"
+#endif
+
 float4 MainPs( PixelInput i ) : SV_Target0
 {
 	float2 uv = i.vTextureCoords.xy;
@@ -392,6 +398,13 @@ float4 MainPs( PixelInput i ) : SV_Target0
 		float4 baseColor = float4( g_tSourceScene.Sample( g_sSourceClamp, saturate( baseUv ) * g_vFrameBufferCopyInvSizeAndUvScale.zw ).rgb, 1 );
 	#else
 		float4 baseColor = SourceSurfaceSample( g_tColor, g_sColor, baseUv, i );
+	#endif
+	#if S_SOURCE_FOUR_WAY
+		float3 amounts;
+		float lum = LayerLuminance( baseColor.rgb, g_vLayer1Range.xy );
+		amounts.x = BlendLayer( baseColor, lum, g_tColor2, i, baseUv, i.vLayerWeights.x, g_vLayer2Range, g_vLayer2Controls );
+		amounts.y = BlendLayer( baseColor, lum, g_tColor3, i, baseUv, i.vLayerWeights.y, g_vLayer3Range, g_vLayer3Controls );
+		amounts.z = BlendLayer( baseColor, lum, g_tColor4, i, baseUv, i.vLayerWeights.z, g_vLayer4Range, g_vLayer4Controls );
 	#endif
 	#if S_SOURCE_MONITOR
 	{
@@ -408,12 +421,22 @@ float4 MainPs( PixelInput i ) : SV_Target0
 	float4 normalTexel = float4( 0.5, 0.5, 1, 1 );
 	if ( g_flSourceHasNormal > 0.5 )
 		normalTexel = SourceSurfaceSample( g_tNormal, g_sNormal, normalUv, i );
+	#if S_SOURCE_FOUR_WAY
+		if ( g_nSourceNormalEncoding == 1 && g_flSourceSsBump == 0 )
+		{
+			float2 xy = normalTexel.xy * 2 - 1;
+			normalTexel.z = sqrt( saturate( 1 - dot( xy, xy ) ) ) * 0.5 + 0.5;
+		}
+		BlendLayerNormal( normalTexel, g_tNormal2, i, normalUv, g_vLayer2Controls.xy, amounts.x * g_vLayerNormalFactors.x, g_vLayerNormalEncodings.x );
+		BlendLayerNormal( normalTexel, g_tNormal3, i, normalUv, g_vLayer3Controls.xy, amounts.y * g_vLayerNormalFactors.y, g_vLayerNormalEncodings.y );
+		BlendLayerNormal( normalTexel, g_tNormal4, i, normalUv, g_vLayer4Controls.xy, amounts.z * g_vLayerNormalFactors.z, g_vLayerNormalEncodings.z );
+	#endif
 	normalTexel.a = lerp( 1, normalTexel.a, saturate( g_vSourceTextureAlphaPresence.z ) );
 	float3 normal = g_flSourceHasNormal > 0.5
-		? SourceNormal( normalTexel, g_flSourceSsBump, g_flSourceNormalScale, g_nSourceNormalEncoding ) : float3( 0, 0, 1 );
+		? SourceNormal( normalTexel, g_flSourceSsBump, g_flSourceNormalScale, S_SOURCE_FOUR_WAY ? 0 : g_nSourceNormalEncoding ) : float3( 0, 0, 1 );
 	bool lightmapSsBump = g_flSourceSsBump > 0.5;
 	float3 lightmapNormal = lightmapSsBump ? normalTexel.rgb : normalTexel.rgb * 2 - 1;
-	if ( !lightmapSsBump && g_nSourceNormalEncoding == 1 )
+	if ( !S_SOURCE_FOUR_WAY && !lightmapSsBump && g_nSourceNormalEncoding == 1 )
 		lightmapNormal.z = sqrt( saturate( 1 - dot( lightmapNormal.xy, lightmapNormal.xy ) ) );
 
 	#if S_SOURCE_TRANSITION
@@ -463,7 +486,13 @@ float4 MainPs( PixelInput i ) : SV_Target0
 			detail.rgb = SrgbGammaToLinear( detail.rgb );
 		detail.rgb *= g_vSourceDetailTint;
 		lightmapDetail = detail.rgb;
-		SourceDetail( color, detail, normal, detailEmission );
+		float detailAmount = saturate( SourceProxyScalar( g_flSourceDetailBlendFactor, g_flSourceDetailBlendProxy ) );
+		#if S_SOURCE_FOUR_WAY
+			detailAmount = lerp( detailAmount, g_vLayerDetailFactors.x, amounts.x );
+			detailAmount = lerp( detailAmount, g_vLayerDetailFactors.y, amounts.y );
+			detailAmount = lerp( detailAmount, g_vLayerDetailFactors.z, amounts.z );
+		#endif
+		SourceDetail( color, detail, normal, detailEmission, detailAmount );
 	}
 	#if S_SOURCE_WORLD_TWO_TEXTURE || S_SOURCE_TRANSITION
 		color.rgb *= SourceProxyVector( g_vSourceColorTint, g_vSourceColorTintProxy );
@@ -683,7 +712,12 @@ float4 MainPs( PixelInput i ) : SV_Target0
 			mask = lerp( saturate( mask ), 1 - saturate( mask ), saturate( g_flSourceEnvMaskInvert ) );
 			float3 reflection;
 			if ( g_flSourceHasEnvCube > 0.5 )
-				reflection = g_tEnvCube.SampleLevel( g_sSourceCube, reflect( -view, normalWs ), max( 0, g_flSourceEnvMip ) ).rgb;
+			{
+				float3 direction = reflect( -view, normalWs );
+				if ( g_vSourceEnvOrigin.w > 0 )
+					direction = CubeMapBoxProjection( direction, material.WorldPosition - g_vSourceEnvOrigin.xyz, g_vSourceEnvMins, g_vSourceEnvMaxs );
+				reflection = g_tEnvCube.SampleLevel( g_sSourceCube, direction, max( 0, g_flSourceEnvMip ) ).rgb;
+			}
 			else
 			{
 				reflection = EnvMap::From( material.WorldPosition, i.vPositionSs, normalWs, saturate( g_flSourceEnvRoughness ).xx );

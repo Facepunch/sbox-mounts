@@ -7,7 +7,7 @@ internal partial class BspFile
 {
 	public MapProp[] StaticProps { get; private set; } = [];
 
-	internal static MapProp[] ReadStaticProps( Stream stream, long fileStart, (int offset, int length, int version, int uncompressedSize) lump )
+	internal static MapProp[] ReadStaticProps( Stream stream, long fileStart, (int offset, int length, int version, int uncompressedSize) lump, BspFormat format = null )
 	{
 		ValidateLump( lump, 0 );
 		if ( lump.length == 0 )
@@ -69,12 +69,13 @@ internal partial class BspFile
 			payload = data.AsSpan( start, length ).ToArray();
 		}
 
-		return ParseStaticProps( payload, version );
+		return ParseStaticProps( payload, version, format );
 	}
 
-	internal static MapProp[] ParseStaticProps( byte[] data, int version )
+	internal static MapProp[] ParseStaticProps( byte[] data, int version, BspFormat format = null )
 	{
-		if ( version is not (4 or 5 or 6 or 10) )
+		var layout = (format ?? BspFormat.Default).StaticProps( version );
+		if ( layout.Stride == 0 )
 		{
 			Log.Warning( $"BSP static-prop version {version} is unsupported; static props were omitted." );
 			return [];
@@ -110,17 +111,9 @@ internal partial class BspFile
 		if ( remaining % propCount != 0 || remaining / propCount < 56 )
 			throw new InvalidDataException( "Truncated BSP static-prop records." );
 		var stride = remaining / propCount;
-		var expected = version switch
-		{
-			4 => 56,
-			5 => 60,
-			6 => 64,
-			10 => 72,
-			_ => 0
-		};
-		if ( stride < expected )
+		if ( stride < layout.Stride )
 			throw new InvalidDataException( "Truncated BSP static-prop records." );
-		if ( stride != expected )
+		if ( stride != layout.Stride )
 		{
 			Log.Warning( $"BSP static-prop layout v{version}/{stride} bytes is unsupported; {propCount} static props were omitted." );
 			return [];
@@ -139,8 +132,12 @@ internal partial class BspFile
 			var skin = BitConverter.ToInt32( data, position + 32 );
 			if ( skin < 0 )
 				throw new InvalidDataException( "Static prop has a negative skin." );
-			var flags = version == 10 ? BitConverter.ToUInt32( data, position + 64 ) : data[position + 31];
-			props[i] = new MapProp( names[modelIndex], $"prop_static_{i}", origin, new Angles( angles.x, angles.y, angles.z ), 1, skin, data[position + 30], Color.White, StaticPropIndex: i, StaticPropFlags: flags, LightingOrigin: (flags & 2) != 0 ? ReadStaticPropVector( data, position + 44 ) : origin, Leaves: propLeafIndices.AsSpan( firstLeaf, propLeaves ).ToArray() );
+			var flags = layout.FlagsOffset >= 0 ? BitConverter.ToUInt32( data, position + layout.FlagsOffset ) : data[position + 31];
+			int tintOffset = position + layout.TintOffset;
+			Color tint = layout.TintOffset >= 0
+				? new Color32( data[tintOffset], data[tintOffset + 1], data[tintOffset + 2], data[tintOffset + 3] )
+				: Color.White;
+			props[i] = new MapProp( names[modelIndex], $"prop_static_{i}", origin, new Angles( angles.x, angles.y, angles.z ), 1, skin, data[position + 30], tint, StaticPropIndex: i, StaticPropFlags: flags, LightingOrigin: (flags & 2) != 0 ? ReadStaticPropVector( data, position + 44 ) : origin, Leaves: propLeafIndices.AsSpan( firstLeaf, propLeaves ).ToArray() );
 		}
 
 		return props;

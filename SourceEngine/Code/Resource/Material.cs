@@ -42,7 +42,7 @@ internal sealed partial class SourceMaterialBuilder
 		FullPath = path;
 		contentRoot = SourceGameMount.GetContentRoot( path, "materials" );
 		parameters = new VmtParameters( VmtFile.SelectParameters( vmt ), FullPath );
-		shaderName = VmtFile.NormalizeShaderName( vmt.ShaderName );
+		shaderName = Host.ResolveShader( VmtFile.NormalizeShaderName( vmt.ShaderName ) );
 		proxies = vmt.Root.GetBlock( "proxies" );
 		(transforms, alpha, animation) = GetMaterialProxies( vmt, shaderName, parameters );
 	}
@@ -65,6 +65,7 @@ internal sealed partial class SourceMaterialBuilder
 			"monitorscreen" => CreateMonitor( resourceName, mapSurface ),
 			"water" => CreateEffect( true, parameters, transforms, alpha, animation, resourceName ),
 			"worldvertextransition" => CreateSurface( "lightmappedgeneric", parameters, transforms, alpha, animation, resourceName, mapSurface: true ),
+			"lightmapped_4wayblend" => CreateSurface( "lightmapped_4wayblend", parameters, transforms, alpha, animation, resourceName, mapSurface: true ),
 			"vertexlitgeneric" or "lightmappedgeneric" or "unlitgeneric" or "vortwarp" or "worldtwotextureblend"
 				=> CreateSurface( shaderName, parameters, transforms, alpha, animation, resourceName, mapSurface ),
 			_ => throw new NotSupportedException( $"{FullPath}: unsupported Source material shader '{shaderName}'." )
@@ -106,6 +107,7 @@ internal sealed partial class SourceMaterialBuilder
 	internal static bool IsSurfaceShader( Material material ) => material.ShaderName is
 		"shaders/source1/vertexlitgeneric.shader" or "shaders/source1/lightmappedgeneric.shader"
 		or "shaders/source1/unlitgeneric.shader" or "shaders/source1/worldvertextransition.shader"
+		or "shaders/source1/lightmapped_4wayblend.shader"
 		or "shaders/source1/vortwarp.shader" or "shaders/source1/monitorscreen.shader"
 		or "shaders/source1/worldtwotextureblend.shader";
 

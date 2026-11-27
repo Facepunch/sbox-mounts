@@ -4,16 +4,22 @@ namespace Source1;
 
 internal sealed class VhvFile
 {
-	public sealed record Mesh( int Lod, byte[] Colors )
+	public sealed record Mesh( int Lod, byte[] Colors, int Stride = 4 )
 	{
-		public int VertexCount => Colors.Length / 4;
+		public int VertexCount => Colors.Length / Stride;
 
 		public Vector3 GetColor( int vertex )
 		{
-			int offset = checked(vertex * 4);
-			ValidateRange( offset, 4, Colors.Length );
-			return new Vector3( DecodeChannel( Colors[offset + 2] ), DecodeChannel( Colors[offset + 1] ), DecodeChannel( Colors[offset] ) );
+			int offset = checked(vertex * Stride);
+			ValidateRange( offset, Stride, Colors.Length );
+			if ( Stride == 4 ) return ReadSample( offset );
+			// A flat tangent-space normal weights the three bump-lighting directions equally.
+			return (ReadSample( offset ) + ReadSample( offset + 4 ) + ReadSample( offset + 8 )) / 3;
 		}
+
+		Vector3 ReadSample( int i ) => Stride == 16
+			? new Vector3( Colors[i + 2], Colors[i + 1], Colors[i] ) * MathF.ScaleB( 1f / 255, Colors[i + 3] - 128 )
+			: new Vector3( DecodeChannel( Colors[i + 2] ), DecodeChannel( Colors[i + 1] ), DecodeChannel( Colors[i] ) );
 	}
 
 	public int Checksum { get; }
@@ -31,8 +37,9 @@ internal sealed class VhvFile
 		Checksum = BitConverter.ToInt32( data, 4 );
 		if ( Checksum != checksum )
 			throw new InvalidDataException( "VHV and MDL checksums do not match." );
-		if ( BitConverter.ToInt32( data, 12 ) != 4 )
-			throw new NotSupportedException( "Unsupported VHV vertex size; expected BGRA8888." );
+		int flags = BitConverter.ToInt32( data, 8 ), stride = BitConverter.ToInt32( data, 12 );
+		if ( stride != 4 && (flags, stride) is not ((2, 12) or (0x100000, 16)) )
+			throw new NotSupportedException( $"Unsupported VHV vertex format {flags}/{stride}." );
 		if ( data.Length >= headerSize + 4 && BitConverter.ToUInt32( data, headerSize ) == 0x414D5A4C )
 		{
 			ValidateRange( headerSize, 17, data.Length );
@@ -61,8 +68,8 @@ internal sealed class VhvFile
 			int offset = BitConverter.ToInt32( data, entry + 8 );
 			if ( lod is < 0 or > 7 || offset < directoryEnd )
 				throw new InvalidDataException( "Invalid VHV mesh header." );
-			ValidateRange( offset, (long)vertexCount * 4, data.Length );
-			Meshes[mesh] = new Mesh( lod, data.AsSpan( offset, checked(vertexCount * 4) ).ToArray() );
+			ValidateRange( offset, (long)vertexCount * stride, data.Length );
+			Meshes[mesh] = new Mesh( lod, data.AsSpan( offset, checked(vertexCount * stride) ).ToArray(), stride );
 			vertices += vertexCount;
 		}
 

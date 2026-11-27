@@ -16,7 +16,15 @@ internal sealed partial class MdlFile
 		stream.ReadExactly( bytes );
 		var end = Array.IndexOf( bytes, (byte)0 );
 		var text = Encoding.UTF8.GetString( bytes, 0, end < 0 ? bytes.Length : end );
-		return VmtFile.ParseKeyValues( text, "MDL keyvalues",
-			diagnostic => throw new NotSupportedException( diagnostic.Message ) );
+		try
+		{
+			return VmtFile.ParseKeyValues( text, "MDL keyvalues",
+				diagnostic => throw new NotSupportedException( diagnostic.Message ) );
+		}
+		catch ( InvalidDataException e )
+		{
+			Log.Trace( $"Ignoring malformed MDL keyvalues: {e.Message}" );
+			return [];
+		}
 	}
 }
