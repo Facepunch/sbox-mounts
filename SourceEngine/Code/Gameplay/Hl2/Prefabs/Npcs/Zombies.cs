@@ -53,6 +53,9 @@ public static class Zombies
 				leap.SoundPrefix = "NPC_FastZombie";
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "fast_headcrab";
+				zombie.LegsModel = "models/gibs/fast_zombie_legs.mdl";
+				zombie.TorsoModel = "models/gibs/fast_zombie_torso.mdl";
+				zombie.GibsFromBlasts = true;
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
@@ -153,6 +156,8 @@ public static class Zombies
 				zombie.Headcrab = "headcrab";
 				zombie.Torso = "zombie_torso";
 				zombie.LegsModel = "models/zombie/classic_legs.mdl";
+				zombie.TorsoModel = "models/zombie/classic_torso.mdl";
+				zombie.GibsFromBlasts = true;
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
@@ -176,6 +181,7 @@ public static class Zombies
 				npc.EyeHeight = 15;
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "headcrab";
+				zombie.IsTorso = true;
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 24 );
 			}
@@ -202,6 +208,8 @@ public static class Zombies
 				p.Root.AddComponent<ZombineGrenade>();
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "headcrab";
+				zombie.LegsModel = "models/zombie/zombie_soldier_legs.mdl";
+				zombie.TorsoModel = "models/zombie/zombie_soldier_torso.mdl";
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
 			}
