@@ -121,7 +121,7 @@ public sealed partial class PaydayMount : BaseGameMount
 			if ( Database.Entries.ContainsKey( (effectType, hash) ) )
 			{
 				context.Add( ResourceType.GameResource, $"{name}.pdeffect", new PaydayEffectLoader( name ) );
-				if ( GetEffect( name ).Atoms.Any( a => a.Element( "visualizerstack" )?.Elements( "billboard" ).Any() == true ) )
+				if ( GetEffect( name ).HasPlayback )
 				{
 					var effect = new PaydayEffectPrefabLoader( name ); effect.Tags.Add( "entity" );
 					context.Add( ResourceType.PrefabFile, $"entities/{name}.prefab", effect );

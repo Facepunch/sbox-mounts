@@ -17,7 +17,13 @@ static class PaydaySequenceEffects
 					if ( Application.IsDedicatedServer ) continue;
 					var go = new GameObject( unit.Scene, false, action.Path.Split( '/' ).Last() ) { NetworkMode = NetworkMode.Never };
 					go.WorldTransform = transform;
-					go.AddComponent<PaydayEffect>().EffectPath = action.Path;
+					var playback = go.AddComponent<PaydayEffect>();
+					playback.EffectPath = action.Path;
+					if ( mount.GetEffect( action.Path ).IsLooping )
+					{
+						playback.Source = unit.GameObject;
+						playback.SourceTransform = unit.WorldTransform.ToLocal( transform );
+					}
 					go.Enabled = true;
 				}
 				else if ( action.Kind == "spawn_unit" )

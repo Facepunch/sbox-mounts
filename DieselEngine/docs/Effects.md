@@ -7,7 +7,7 @@ The mount indexes all **209** shipped `.effect` definitions as
 texture dependency paths and unsupported stack-operator names. All **40** distinct texture
 dependencies resolve to original installed DDS assets; no game data is copied into the repository.
 
-The 205 definitions containing billboards also have `entities/<original effect path>.prefab` resources,
+The 206 definitions containing billboards or child-effect events also have `entities/<original effect path>.prefab` resources,
 under **PAYDAY Effects**. For example:
 
 `mount://payday/entities/effects/particles/window/bank_window_vault.prefab`
@@ -25,14 +25,23 @@ Implemented common paths:
 - Velocity integration, scaled-velocity curves, constant acceleration and angular velocity.
 - Particle-age versus atom-time curves; size, color, opacity, rotation and animated atlas frames.
 - Camera-facing sprites, normal/additive blending, centimetre-to-inch and axis conversion.
+- Time/frequency-driven particle recycling with box/circle positions and normal velocity.
+- Teleport/tick child effects, including event-only emitters; all 15 child dependencies resolve.
+- Channel color/opacity initialization and scaling. Multiple billboards share one simulated particle.
+
+Looping sequence effects follow their source's rest-pose attachment transform. Source disable
+or destruction stops the owned effect hierarchy. `Stop()` clears particles and children;
+re-enabling starts fresh. Finite parents wait for their children to finish. Child spawning
+is bounded to 64 active effects per scene and four ancestor levels, with cycle rejection.
 
 This is a **partial Diesel particle interpreter**, not complete native effect reproduction.
-Lights, trails, model visualizers, collision/teleport respawning, child-effect events, wind,
+Lights, trails, model visualizers, collision-triggered respawning, wind,
 non-camera billboard orientations, authored emitter sounds, preroll and some channel/input
-variants remain unsupported. Infinite effects currently retain their initial particles; their
-native respawn operators are not implemented. Atlas stepping currently follows +X then +Y.
+variants remain unsupported. Teleporter support covers constant-lifetime time triggers and
+constant/key frequency triggers with box/circle positioners. Other positioners, channel modes,
+tick jitter and exact orientation inheritance remain incomplete. Atlas stepping follows +X then +Y.
 `UnsupportedOperators` reports unknown stack nodes, not every unsupported attribute variant.
-Definitions without billboards remain available as data resources but are not advertised as
+Definitions without billboards or child events remain available as data resources but are not advertised as
 playable effect prefabs.
 
 ## Asset sequence integration
@@ -78,10 +87,18 @@ Eight units containing authored debris bodies also have independent emitter pref
 - `VerifySequenceEffects.csx`: bank-window burst and plank destruction with five independently
   moving bodies, silent state restoration and debris lifetime cleanup.
 - `VerifyEffectPrefabs.csx`: definition/prefab catalog loading and independent spawning.
+- `VerifyLoopingEffects.csx`: drill recycling, recurring spark children, source following,
+  stop/restart and cleanup on source disable/destruction.
+- `VerifyEffectCascades.csx`: finite tick-child emission, frequency recycling and hierarchy cleanup.
 
-All 209 data resources, 205 effect prefabs and eight debris prefabs pass editor and installed
+All 209 data resources, 206 effect prefabs and eight debris prefabs pass installed
 standalone-client loading. Independent spawning, rendered playback, sequence integration,
 physical fragment motion, silent restoration and cleanup pass in the standalone client.
 The tests warm assets and sample short bursts during playback because the live client
 continues advancing scenes between awaited script ticks. See the main README for the
 installed package hash. Multiplayer and full-map stress testing remain pending.
+
+The installed looping/child-effect increment also passes standalone-client recycling,
+source following, stop/restart, source disable/destruction, finite hierarchy cleanup and
+scene budgets. The explosion fixture reaches the 64-effect cap; the fire fixture recycles
+341 particles. These bounded playback checks do not establish full native visual fidelity.

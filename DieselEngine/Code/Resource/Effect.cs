@@ -1,12 +1,13 @@
 namespace Diesel;
 
-[GameResource( "PAYDAY Effect", "pdeffect", "Original PAYDAY particle definition and texture dependencies" )]
+[AssetType( Name = "PAYDAY Effect", Extension = "pdeffect", Category = "Effects" )]
 public sealed class PaydayEffectResource : GameResource
 {
 	public string SourcePath { get; set; }
 	public string SourceXml { get; set; }
 	public string[] TexturePaths { get; set; } = [];
 	public string[] UnsupportedOperators { get; set; } = [];
+	public string[] ChildEffectPaths { get; set; } = [];
 	internal EffectDefinition Definition { get; set; }
 }
 
@@ -19,7 +20,8 @@ sealed class PaydayEffectLoader( string source ) : ResourceLoader<PaydayMount>
 		{
 			SourcePath = source, SourceXml = definition.Source, Definition = definition,
 			TexturePaths = definition.Textures.Select( t => $"mount://payday/{t}.texture.vtex" ).ToArray(),
-			UnsupportedOperators = definition.Unsupported
+			UnsupportedOperators = definition.Unsupported,
+			ChildEffectPaths = definition.ChildEffects.Select( p => $"mount://payday/{p}.pdeffect" ).ToArray()
 		};
 	}
 }

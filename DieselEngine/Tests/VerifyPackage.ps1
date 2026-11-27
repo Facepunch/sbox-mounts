@@ -33,7 +33,9 @@ try {
     }
     $required = @(
         'Diesel.PaydayUnitState', 'Diesel.PaydayMapState', 'Diesel.PaydayDoorPlacement',
-        'Diesel.PaydayScriptedProp', 'Diesel.PaydayAnimationInfo', 'Diesel.PaydayUnitAnimationInfo'
+        'Diesel.PaydayScriptedProp', 'Diesel.PaydayAnimationInfo', 'Diesel.PaydayUnitAnimationInfo',
+        'Diesel.PaydayEffectResource', 'Diesel.PaydayEffect', 'Diesel.PaydaySequenceEffects',
+        'Diesel.PaydayDebris', 'Diesel.PaydayDebrisEmitter', 'Diesel.PaydayEffectPrefabLoader'
     )
     foreach ($name in $required) {
         if (!$types.ContainsKey($name)) { throw "Stale or incomplete mount assembly: missing $name" }
@@ -80,7 +82,7 @@ foreach ($level in $levels) {
 [pscustomobject]@{
     Package = [IO.Path]::GetFullPath($PackageRoot)
     Assembly = 'PASS'
-    RuntimeApi = 'PASS (unit/map state, animation resources, metadata, scripted group playback)'
+    RuntimeApi = 'PASS (unit/map state, animations, effect resources/playback, sequence effects, debris and prefab loaders)'
     ArchivedMissionRuntime = 'ABSENT'
     AssemblySha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash
     CompiledShaders = $shaders.Count

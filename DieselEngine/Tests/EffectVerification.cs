@@ -13,6 +13,12 @@ static class EffectVerification
 		foreach ( var texture in textures )
 			if ( db.Find( "texture", texture ) is not { Length: > 128 } bytes || BitConverter.ToUInt32( bytes, 0 ) != 0x20534444 )
 				throw new Exception( $"Missing or malformed effect DDS: {texture}" );
+		var children = definitions.SelectMany( d => d.ChildEffects ).Distinct().ToArray();
+		foreach ( var child in children )
+			if ( db.Find( "effect", child ) is null ) throw new Exception( $"Missing child effect: {child}" );
+		var sparks = new EffectDefinition( db.Find( "effect", "effects/particles/environment/scene_sparks" ) );
+		if ( !sparks.IsLooping || !sparks.HasPlayback || sparks.ChildEffects.Length != 1 )
+			throw new Exception( "Event-only looping effect metadata was lost." );
 		var curve = XmlNode.Parse( "<node><keys loop='false'><key t='0' v='1'/><key t='1' v='3'/></keys></node>" );
 		if ( EffectDefinition.Curve( curve, "keys", .5f, default ).x != 2 ) throw new Exception( "Curve interpolation failed." );
 		try { EffectDefinition.Number( XmlNode.Parse( "<node value='NaN'/>" ), "value" ); throw new Exception( "Accepted nonfinite parameter." ); }
@@ -24,6 +30,6 @@ static class EffectVerification
 		var unit = XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "unit", actions[1].Path ) ) );
 		var bodies = DebrisDefinition.Read( XmlNode.Parse( Encoding.UTF8.GetString( db.Find( "object", unit.Element( "object" ).Attribute( "file" ) ) ) ) );
 		if ( bodies.Length != 5 || bodies.Any( b => b.Objects.Count != 2 ) ) throw new Exception( "Authored plank body split failed." );
-		Console.WriteLine( $"PASS: {definitions.Length} original effects, {textures.Length} DDS dependencies, curves, sequence anchors and five authored debris bodies." );
+		Console.WriteLine( $"PASS: {definitions.Length} original effects, {textures.Length} DDS dependencies, {children.Length} child dependencies, {definitions.Count(d=>d.HasPlayback)} playable definitions, curves, sequence anchors and five authored debris bodies." );
 	}
 }

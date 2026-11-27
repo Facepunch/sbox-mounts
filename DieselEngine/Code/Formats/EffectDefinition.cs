@@ -10,6 +10,9 @@ sealed class EffectDefinition
 	public XmlNode[] Atoms { get; }
 	public string[] Textures { get; }
 	public string[] Unsupported { get; }
+	public string[] ChildEffects { get; }
+	public bool IsLooping => Atoms.Any( a => Number( a, "lifetime", 1 ) < 0 );
+	public bool HasPlayback => ChildEffects.Length > 0 || Atoms.Any( a => a.Element( "visualizerstack" )?.Elements( "billboard" ).Any() == true );
 	public string Source { get; }
 	public EffectDefinition( byte[] bytes )
 	{
@@ -20,6 +23,8 @@ sealed class EffectDefinition
 		if ( Atoms.Length > 256 ) throw new InvalidDataException( "Too many effect atoms." );
 		Textures = Atoms.SelectMany( a => a.Element( "visualizerstack" )?.Children ?? [] )
 			.Select( n => n.Attribute( "texture" ) ).Where( n => !string.IsNullOrEmpty( n ) ).Distinct().ToArray();
+		ChildEffects = Atoms.SelectMany( a => a.Elements( "effect_spawn" ) ).Select( s => s.Attribute( "effect" ) )
+			.Where( p => !string.IsNullOrEmpty( p ) ).Distinct().ToArray();
 		Unsupported = Atoms.SelectMany( a => a.Children.Where( n => n.Name.EndsWith( "stack" ) )
 			.SelectMany( n => n.Children ) ).Where( n => !Supported.Contains( n.Name ) )
 			.Select( n => n.Name ).Distinct().Order().ToArray();
@@ -28,7 +33,8 @@ sealed class EffectDefinition
 		"boxrandomposition", "localboxrandomposition", "boxrandomvelocity", "boxrandomaspectsize",
 		"boxrandomsize", "boxrandomangle", "boxrandomanglevelocity", "boxrandomage", "constantage",
 		"boxrandomuvoffset", "constantacceleration", "velocityintegrator", "scaledvelocityintegrator",
-		"anglevelocityintegrator", "ager", "worldtransform", "billboard"
+		"anglevelocityintegrator", "ager", "worldtransform", "billboard", "teleporter", "eventtick",
+		"boxrandomopacity", "boxrandomcolor", "boxrandomcolorgradient"
 	];
 	public static float Number( XmlNode n, string key, float fallback = 0 )
 	{
