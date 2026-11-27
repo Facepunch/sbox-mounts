@@ -12,7 +12,8 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( height: 20, radius: 12.5f );
-				p.Skill( "sk_headcrab_fast_health", damage: "sk_headcrab_melee_dmg" );
+				// The fast crab's spawn reads the classic crab's health setting
+				p.Skill( "sk_headcrab_health", damage: "sk_headcrab_melee_dmg" );
 
 				npc.Idle = "Idle01";
 				npc.Move = "Run1";
@@ -24,6 +25,7 @@ public static class Zombies
 				npc.Voice = "NPC_FastHeadcrab";
 				npc.EyeHeight = 15;
 				var leap = p.Root.AddComponent<Leap>();
+				leap.Kind = Leap.Leaper.FastHeadcrab;
 				leap.SoundPrefix = "NPC_FastHeadcrab";
 				p.Box( 25, 20 );
 			}
@@ -47,8 +49,8 @@ public static class Zombies
 				npc.Voice = "NPC_FastZombie";
 				npc.EyeHeight = 57.6f;
 				var leap = p.Root.AddComponent<Leap>();
+				leap.Kind = Leap.Leaper.FastZombie;
 				leap.SoundPrefix = "NPC_FastZombie";
-				leap.LeapSound = "NPC_FastZombie.LeapAttack";
 				var zombie = p.Root.AddComponent<Zombie>();
 				zombie.Headcrab = "fast_headcrab";
 				p.Renderer.BodyGroups = 5;
@@ -98,6 +100,7 @@ public static class Zombies
 				npc.Voice = "NPC_BlackHeadcrab";
 				npc.EyeHeight = 16;
 				var leap = p.Root.AddComponent<Leap>();
+				leap.Kind = Leap.Leaper.PoisonHeadcrab;
 				leap.SoundPrefix = "NPC_BlackHeadcrab";
 				p.Box( 28, 22 );
 			}
