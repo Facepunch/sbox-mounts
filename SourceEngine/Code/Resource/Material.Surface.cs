@@ -92,6 +92,8 @@ internal sealed partial class SourceMaterialBuilder
 
 		var surfaceShader = fourWay ? shader : transition ? "worldvertextransition" : shaderName;
 		var material = CreateShaderMaterial( $"shaders/source1/{surfaceShader}.shader", resourceName );
+		if ( surfaceShader == "lightmappedgeneric" && parameters.Boolean( "$decal" ) )
+			material.SetFeature( "F_SOURCE_DECAL", 1 );
 		if ( fourWay )
 		{
 			var factors = Vector3.Zero;

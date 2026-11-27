@@ -35,6 +35,7 @@ partial class MapLoader
 				}
 
 				var vertex = new BlendLightmapVertex( basePos, Vector3.Up, tangent, uv, lmUV, alpha );
+				vertex.Color = new Color32( 255, 255, 255, (byte)Math.Round( alpha * 255 ) );
 				if ( disp.BlendStart >= 0 )
 				{
 					var weights = bsp.DisplacementBlends[disp.BlendStart + y * size + x];
