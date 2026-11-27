@@ -50,18 +50,68 @@ public sealed class Unburrow : CreatureBehaviour
 	}
 }
 
-/// <summary>npc_antlionguard's shove: CNPC_AntlionGuard::Shove throws whoever its melee hits forward 400 and up 150. A charge hit throws on its own.</summary>
+/// <summary>
+/// The antlion guard's shove. The blow goes at its enemy if that is still in reach and in front, else straight ahead; it
+/// strikes props on the way and the first character, friend or foe, which it then strikes again. A shoved player is thrown,
+/// has the view knocked, the screen shaken and flashed red. Props around the blow scatter, hit or miss.
+/// </summary>
 [Title( "HL2 Antlion Guard" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2AntlionGuard", "Hl2AntlionGuard" )]
-public sealed class AntlionGuard : Component, Component.IDamageable.IEvents
+public sealed class AntlionGuard : CreatureBehaviour
 {
-	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent e )
+	const float BlowSize = 32;
+	/// <summary>Seconds after a charge hits during which it doesn't shove.</summary>
+	const float AfterCharge = 2;
+
+	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [];
+
+	protected override void OnConfigure( Model model, ModelSequences sequences ) { }
+
+	public override bool AllowsMelee => GetComponent<Charge>() is not { } charge || charge.SinceHit >= AfterCharge;
+
+	public override bool Strike( GameObject target, string hitEvent )
 	{
-		if ( e.DamageInfo.Attacker != GameObject || !e.DamageInfo.Tags.Contains( "melee" ) || GetComponent<Charge>() is { Charging: true } )
+		var npc = Npc;
+		PlaySound( "NPC_AntlionGuard.StepLight" );
+		// A new enemy or a dead one cuts the shove short; losing sight of it doesn't
+		if ( !AllowsMelee || npc.Enemy.IsValid() && target != npc.Enemy || Npcs.HealthOf( target ) is { Health: < 1 } )
+			return true;
+
+		// Who it shoves decides the damage for everything the blow touches
+		var amount = Npcs.IsPlayer( target ) ? npc.PlayerAttackDamage ?? npc.AttackDamage : npc.AttackDamage;
+		var centre = npc.Centre;
+		var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
+		var aim = Npcs.CapturePoint( target );
+		var end = aim.Distance( centre ) <= npc.AttackRange && npc.InSwingCone( target ) ? aim : centre + forward * npc.AttackRange;
+
+		var hit = npc.SweepHit( centre, end, BlowSize, amount, anyone: true );
+		GetComponent<Charge>()?.ImpactPush( hit.End, 100, 250, reach: 100 );
+		if ( hit.Stopped )
+			PlaySound( "NPC_AntlionGuard.Shove" );
+		if ( !hit.Character.IsValid() )
+			return true;
+
+		npc.Damage( hit.Character, centre, Npcs.CapturePoint( hit.Character ), DamageTags.Melee, amount );
+		if ( Npcs.IsPlayer( hit.Character ) )
+			Shoved( hit.Character, forward * 400 + Vector3.Up * 150 );
+		return true;
+	}
+
+	/// <summary>The owner throws the shoved player, kicks the view, shakes the screen and flashes it red.</summary>
+	[Rpc.Broadcast( NetFlags.HostOnly )]
+	static void Shoved( GameObject victim, Vector3 velocity )
+	{
+		var player = victim?.GetComponent<PlayerController>();
+		if ( !player.IsValid() || player.IsProxy )
 			return;
 
-		Npcs.Knockback( e.Victim, WorldRotation.Forward * 400 + Vector3.Up * 150 );
+		player.PreventGrounding( 0.2f );
+		player.Body.Velocity += velocity;
+		ViewPunch.Apply( player, new Angles( 20, 0, -20 ), reset: false );
+		// A hard shake, held to the strongest a shake may be
+		player.Scene.Camera?.AddShake( 16, 1.5f, 1 );
+		ScreenFade.Show( player.Scene.Camera, new Color( 128 / 255f, 0, 0, 128 / 255f ), 0.1f, 1 );
 	}
 }
 

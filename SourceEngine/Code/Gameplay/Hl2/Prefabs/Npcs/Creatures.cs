@@ -42,10 +42,13 @@ public static class Creatures
 				npc.Attack = "shove";
 				npc.MoveSpeed = 220;
 				npc.AttackDamage = 250;
-				npc.AttackRange = 140;
-				// The shove reaches 156 with the 40 a victim's body adds
-				npc.MeleeRange = 116;
+				npc.AttackRange = 156;
 				npc.AttackHeight = 70;
+				npc.SwingCone = 0.7f;
+				npc.FaceTurnRate = 200;
+				// A run at its enemy goes on to about contact before it shoves
+				npc.ChaseDistance = 64;
+				npc.SwingAfterChase = true;
 				npc.Voice = "NPC_AntlionGuard";
 				npc.EyeHeight = 70;
 				var unburrow = p.Root.AddComponent<Unburrow>();
