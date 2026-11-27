@@ -203,7 +203,7 @@ public static class Zombies
 				npc.MoveSpeed = 80;
 				npc.AttackRange = 75;
 				npc.AttackDamage = 10;
-				npc.Voice = "Zombie";
+				npc.Voice = "Zombine";
 				npc.EyeHeight = 57.6f;
 				p.Root.AddComponent<ZombineGrenade>();
 				var zombie = p.Root.AddComponent<Zombie>();
