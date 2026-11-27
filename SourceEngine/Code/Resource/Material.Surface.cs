@@ -15,11 +15,13 @@ internal sealed partial class SourceMaterialBuilder
 		var unlit = shader == "unlitgeneric" || (warp && parameters.Boolean( "$unlit" ));
 
 		var modelSurface = shader is "vertexlitgeneric" or "unlitgeneric" or "vortwarp";
-		var skin = shader == "vertexlitgeneric" && parameters.Boolean( "$phong" );
 		var framebuffer = IsFramebufferTexture( parameters.String( "$basetexture" ) );
 		if ( framebuffer && (parameters.Integer( "$frame" ) != 0 || animation is { FrameRate: > 0 }) )
 			throw new NotSupportedException( $"{FullPath}: framebuffer textures do not support frames or animation." );
 		var normal = Load( "$bumpmap", "$bumpframe" );
+		var baseAlphaPhong = parameters.Boolean( "$basemapalphaphongmask" );
+		var skin = shader == "vertexlitgeneric" && parameters.Boolean( "$phong" )
+			&& (normal != null || baseAlphaPhong || !string.IsNullOrWhiteSpace( parameters.String( "$lightwarptexture" ) ));
 		var albedo = worldBlend && normal != null && !parameters.Boolean( "$nodiffusebumplighting" )
 			&& !string.IsNullOrWhiteSpace( parameters.String( "$basetexture" ) )
 			&& !string.IsNullOrWhiteSpace( parameters.String( "$albedo" ) );
@@ -61,7 +63,7 @@ internal sealed partial class SourceMaterialBuilder
 		if ( sphere && !parameters.Boolean( "$envmapsphere" ) )
 			Log.Trace( $"{name}: using legacy 2D environment mapping for '{environmentPath}'." );
 		var envMaskMode = normalEnvMask ? 2 : baseEnvMask ? 1 : 0;
-		var phongMask = skin && (parameters.Boolean( "$basemapalphaphongmask" ) || normal == null) ? 1 : 2;
+		var phongMask = skin && baseAlphaPhong ? 1 : 2;
 		if ( skin && phongMask != 1 && parameters.Boolean( "$basemapluminancephongmask" ) )
 			phongMask = 3;
 		var selfIllum = parameters.Boolean( "$selfillum" ) && (selfIllumMask != null || color?.HasAlpha == true);
@@ -223,7 +225,7 @@ internal sealed partial class SourceMaterialBuilder
 			Log.Trace( $"{name}: $seamless_scale is not implemented by '{shaderName}'." );
 		if ( !string.IsNullOrWhiteSpace( parameters.String( "$parallaxmap" ) ) )
 			Log.Trace( $"{name}: $parallaxmap is not implemented by the surface shader." );
-		if ( !skin && parameters.Boolean( "$phong" ) )
+		if ( shader != "vertexlitgeneric" && parameters.Boolean( "$phong" ) )
 			Log.Trace( $"{name}: $phong is only implemented for VertexLitGeneric." );
 		if ( !modelSurface && parameters.Boolean( "$blendtintbybasealpha" ) )
 			Log.Trace( $"{name}: $blendtintbybasealpha is only implemented for VertexLitGeneric and UnlitGeneric." );
