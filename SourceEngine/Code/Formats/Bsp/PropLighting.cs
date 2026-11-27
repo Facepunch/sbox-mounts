@@ -20,7 +20,10 @@ internal struct PropWorldLight
 			return 1 / Math.Max( 1, squared );
 		if ( Type == QuakeLight )
 			return Math.Max( 0, Linear - MathF.Sqrt( squared ) );
-		return 1 / Math.Max( float.Epsilon, Constant + Linear * MathF.Sqrt( squared ) + Quadratic * squared );
+		// A probe can coincide with a point light. Use a one-unit minimum distance for attenuation.
+		squared = Math.Max( 1, squared );
+		float attenuation = Constant + Linear * MathF.Sqrt( squared ) + Quadratic * squared;
+		return attenuation > 0 ? 1 / attenuation : 0;
 	}
 
 	public readonly float Angular( Vector3 direction )
