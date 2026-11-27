@@ -150,17 +150,18 @@ internal sealed partial class MdlFile
 		};
 	}
 
-	// The ground motion studiomdl extracted from one animation, over its whole length:
-	// Accumulate movement over one complete cycle.
-	private Vector3 ReadAnimationMovement( byte[] data, int index, StudioAnimDesc animation )
+	// The ground motion studiomdl extracted from one animation, up to a frame (default: all of it):
+	// Accumulate movement, and the yaw turned in degrees, up to that frame.
+	private (Vector3 Position, float Yaw) ReadAnimationMovement( byte[] data, int index, StudioAnimDesc animation, float? frame = null )
 	{
 		if ( animation.NumMovements is < 1 or > 1024 )
 			return default;
 		const int size = 44; // endframe, motion flags, v0, v1, angle, vector, position
 		var first = _header.LocalAnimIndex + (long)index * Unsafe.SizeOf<StudioAnimDesc>() + animation.MovementIndex;
-		float lastFrame = animation.NumFrames - 1;
+		var lastFrame = frame ?? animation.NumFrames - 1;
 		var previousFrame = 0f;
 		var position = Vector3.Zero;
+		var yaw = 0f;
 		for ( var i = 0; i < animation.NumMovements; i++ )
 		{
 			var piece = data.AsSpan( checked((int)(first + (long)i * size)), size );
@@ -174,12 +175,16 @@ internal sealed partial class MdlFile
 				var distance = v0 * fraction + 0.5f * (v1 - v0) * fraction * fraction;
 				if ( float.IsFinite( distance ) )
 					position += Vector96( piece[20..] ) * distance;
+				// The piece turns evenly towards its end yaw.
+				yaw += (BinaryPrimitives.ReadSingleLittleEndian( piece[16..] ) - yaw) * fraction;
 				break;
 			}
 			previousFrame = endFrame;
 			position = Vector96( piece[32..] );
+			yaw = BinaryPrimitives.ReadSingleLittleEndian( piece[16..] );
 		}
-		return float.IsFinite( position.x ) && float.IsFinite( position.y ) && float.IsFinite( position.z ) ? position : default;
+		var valid = float.IsFinite( position.x ) && float.IsFinite( position.y ) && float.IsFinite( position.z );
+		return valid ? (position, float.IsFinite( yaw ) ? yaw : 0) : default;
 	}
 
 	// mathlib's QuaternionScale: scales the rotation angle and keeps the axis.
@@ -481,6 +486,8 @@ internal sealed partial class MdlFile
 				var (frameCount, rate) = Timing( source, index, NeutralCell( source, index ) );
 				metadata = source.Mdl.ReadSequenceMetadata( source.Data, source.SequenceOffset( index ), sequence, name );
 				(metadata.Movement, metadata.GroundSpeed) = GroundMotion( source, index, null );
+				if ( !metadata.Movement.IsNearlyZero() )
+					(metadata.MovementPath, metadata.MovementYaw) = MovementPath( source, index, frameCount, metadata.Movement );
 				var mask = BoneMask( source, index );
 				masked = mask >= 0;
 				metadata.BoneMask = masked ? $"weights/{mask}" : null;
@@ -824,12 +831,41 @@ internal sealed partial class MdlFile
 			foreach ( var (animationIndex, weight) in BlendedAnimations( source, index, cell, NoParameters ) )
 			{
 				var animation = source.Mdl.ReadAnimationDescriptor( source.Data, animationIndex );
-				movement += source.Mdl.ReadAnimationMovement( source.Data, animationIndex, animation ) * weight;
+				movement += source.Mdl.ReadAnimationMovement( source.Data, animationIndex, animation ).Position * weight;
 				if ( animation.NumFrames > 1 && float.IsFinite( animation.Fps ) )
 					cyclesPerSecond += animation.Fps / (animation.NumFrames - 1) * weight;
 			}
 			var duration = cyclesPerSecond > 0 ? 1 / cyclesPerSecond : 0.1f;
 			return (movement, movement.Length / duration);
+		}
+
+		// Ground position and yaw turned at evenly spaced cycles, one per frame up to MaxPathPoints.
+		// The path is empty when it is steady and straight, since Movement alone describes that; the yaw when it doesn't turn.
+		private (Vector3[] Path, float[] Yaw) MovementPath( AnimationSource source, int index, int frameCount, Vector3 movement )
+		{
+			const int MaxPathPoints = 64;
+			const float SteadyTolerance = 1;
+			const float TurnTolerance = 0.5f;
+			var count = Math.Clamp( frameCount, 2, MaxPathPoints );
+			var path = new Vector3[count];
+			var yaw = new float[count];
+			foreach ( var (animationIndex, weight) in BlendedAnimations( source, index, null, NoParameters ) )
+			{
+				var animation = source.Mdl.ReadAnimationDescriptor( source.Data, animationIndex );
+				for ( var i = 0; i < count; i++ )
+				{
+					var frame = (animation.NumFrames - 1) * (float)i / (count - 1);
+					var (position, turned) = source.Mdl.ReadAnimationMovement( source.Data, animationIndex, animation, frame );
+					path[i] += position * weight;
+					yaw[i] += turned * weight;
+				}
+			}
+
+			if ( path.Any( p => !float.IsFinite( p.x + p.y + p.z ) ) )
+				return ([], []);
+			var steady = path.Select( ( p, i ) => p.Distance( movement * i / (count - 1) ) ).All( x => x < SteadyTolerance );
+			var turns = yaw.Any( x => MathF.Abs( x ) > TurnTolerance );
+			return (steady && !turns ? [] : path, turns ? yaw : []);
 		}
 
 		private static void ValidateGrid( StudioSeqDesc sequence )

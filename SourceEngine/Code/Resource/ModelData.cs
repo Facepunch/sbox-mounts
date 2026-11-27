@@ -242,6 +242,18 @@ public sealed class SourceModelSequenceData
 	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
 	public float GroundSpeed { get; set; }
 	/// <summary>
+	/// Ground motion so far at evenly spaced points of the cycle, in model space, for sequences whose speed varies
+	/// (such as a skid to a stop). Empty when <see cref="Movement"/> at a steady speed describes it.
+	/// </summary>
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	public Vector3[] MovementPath { get; set; } = [];
+	/// <summary>
+	/// Yaw turned so far, in degrees, at the points of <see cref="MovementPath"/>, for sequences that turn as they move
+	/// (such as a skid that swings round). Empty when they don't.
+	/// </summary>
+	[JsonIgnore( Condition = JsonIgnoreCondition.WhenWritingDefault )]
+	public float[] MovementYaw { get; set; } = [];
+	/// <summary>
 	/// Pose parameters that blend between the clips of <see cref="BlendGrid"/>: none, one, or two.
 	/// The clip named after the sequence is the grid evaluated with every parameter at zero.
 	/// </summary>
