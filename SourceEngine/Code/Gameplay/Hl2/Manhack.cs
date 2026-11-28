@@ -36,7 +36,14 @@ public sealed class Manhack : Component, INpcPart
 	Vector3 _wander;
 	Vector3 _wanderGoal;
 	Vector3 _apart;
-	bool _attacking;
+	[Sync( SyncFlags.FromHost )] GameObject Enemy { get; set; }
+	[Sync( SyncFlags.FromHost )] bool Packed { get; set; }
+	SoundHandle _engine1, _engine2, _blades;
+	bool _playing;
+	TimeSince _spinUp;
+	TimeUntil _nextEngineNoise;
+	TimeUntil _nextWaterCheck;
+	bool _underwater;
 	Vector3 _heading;
 	Vector3 _lastPosition;
 	GameObject _smoke;
@@ -60,11 +67,20 @@ public sealed class Manhack : Component, INpcPart
 
 	protected override void OnUpdate()
 	{
+		if ( Networking.IsHost && Npc.IsValid() )
+		{
+			var packed = Npc.PhysicsCarrier?.GetComponent<Sandbox.Npcs.BaseNpc>() is not null;
+			if ( Packed && !packed ) Emit( "NPC_Manhack.Unpack" );
+			Packed = packed;
+		}
+
+		var running = Npc is { Health: > 0 } && !Packed;
+		if ( !Application.IsDedicatedServer ) UpdateEngine( running );
 		if ( Npc.IsValid() && Npc.Renderer.IsValid() )
 		{
 			// CNPC_Manhack::SpinBlades shows the blur once its flying engine is up to speed.
 			Npc.Renderer.SetBodyGroup( "Blade", 0 );
-			Npc.Renderer.SetBodyGroup( "BladeBlur", Npc.Health > 0 && !Npc.PhysicsCarrier.IsValid() ? 1 : 0 );
+			Npc.Renderer.SetBodyGroup( "BladeBlur", running ? 1 : 0 );
 		}
 
 		// CNPC_Manhack::OnTakeDamage_Alive's smoke trail below half health.
@@ -80,7 +96,7 @@ public sealed class Manhack : Component, INpcPart
 		if ( _lastWander > 0.5f )
 		{
 			_lastWander = 0;
-			_wanderGoal = Vector3.Random * (_attacking ? AttackWander : Wander);
+			_wanderGoal = Vector3.Random * (Enemy.IsValid() ? AttackWander : Wander);
 		}
 		_wander = _wander.LerpTo( _wanderGoal, Time.Delta * 4 );
 
@@ -95,6 +111,69 @@ public sealed class Manhack : Component, INpcPart
 		}
 		_apart = _apart.LerpTo( apart, Time.Delta * 6 );
 	}
+
+	void UpdateEngine( bool running )
+	{
+		if ( running != _playing )
+		{
+			if ( !running )
+			{
+				StopEngine();
+				return;
+			}
+
+			_playing = true;
+			_spinUp = 0;
+			_engine1 = StartLoop( "NPC_Manhack.EngineSound1", 1 );
+			_engine2 = StartLoop( "NPC_Manhack.EngineSound2", 0.85f );
+			_blades = StartLoop( "NPC_Manhack.BladeSound", 1 );
+		}
+
+		if ( !running ) return;
+		if ( _nextWaterCheck )
+		{
+			_underwater = SourceWaterMap.IsUnderwater( Scene, WorldPosition );
+			_nextWaterCheck = 0.1f;
+		}
+
+		var distance = Enemy.IsValid() ? WorldPosition.Distance( Enemy.WorldPosition ) : float.MaxValue;
+		var near = distance < 512;
+		var pitch1 = _underwater ? 0.85f : near ? 1 + 0.6f * (1 - distance / 512) : 1;
+		var pitch2 = _underwater ? 0.9f : near ? 0.85f + 1.05f * (1 - distance / 400) : 0.85f;
+		var volume = 0.7f * Math.Clamp( (float)_spinUp / 2, 0, 1 );
+		if ( _engine1.IsValid() )
+		{
+			_engine1.Volume = volume;
+			_engine1.Pitch = MathX.Lerp( _engine1.Pitch, pitch1, Time.Delta / (_underwater ? 0.5f : 0.1f) );
+		}
+		if ( _engine2.IsValid() )
+		{
+			_engine2.Volume = volume;
+			_engine2.Pitch = MathX.Lerp( _engine2.Pitch, pitch2, Time.Delta / (_underwater ? 0.5f : near ? 0.1f : 0.2f) );
+		}
+		if ( _blades.IsValid() ) _blades.Volume = volume;
+	}
+
+	SoundHandle StartLoop( string name, float pitch )
+	{
+		var handle = GameObject.PlaySound( Sounds.Sound( name, Mount ) );
+		if ( handle.IsValid() )
+		{
+			handle.Volume = 0;
+			handle.Pitch = pitch;
+		}
+		return handle;
+	}
+
+	void StopEngine()
+	{
+		_engine1?.Stop();
+		_engine2?.Stop();
+		_blades?.Stop();
+		_playing = false;
+	}
+
+	protected override void OnDisabled() => StopEngine();
 
 	/// <summary>Bounce: a knock the flying layer flies off, instead of moving the manhack ourselves.</summary>
 	void Bounce( Vector3 direction )
@@ -139,9 +218,15 @@ public sealed class Manhack : Component, INpcPart
 	/// <summary>Host: slice the target while touching it, then bounce off.</summary>
 	public void Contact( GameObject target )
 	{
-		_attacking = target.IsValid();
+		Enemy = target;
 		if ( !target.IsValid() || !Npc.IsValid() )
 			return;
+
+		if ( _nextEngineNoise && WorldPosition.Distance( target.WorldPosition ) < 48 )
+		{
+			Emit( "NPC_Manhack.EngineNoise" );
+			_nextEngineNoise = Game.Random.Float( 3, 10 );
+		}
 
 		var center = WorldPosition;
 		if ( !Npcs.Touches( GameObject, target, center, SliceReach, out var closest ) )
@@ -160,16 +245,16 @@ public sealed class Manhack : Component, INpcPart
 		var tr = Scene.Trace.Ray( center, closest + (closest - center).Normal * 8 ).IgnoreGameObjectHierarchy( GameObject ).Run();
 		var bleeds = !tr.Hit || tr.GameObject?.Root != target.Root || (tr.Surface?.ResourceName ?? "").Contains( "flesh" );
 		if ( bleeds )
-			Slice( center );
+			Emit( "NPC_Manhack.Slice" );
 		else
 			Grind( tr.EndPosition, SparkDirection( tr.Normal ) );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void Slice( Vector3 position )
+	void Emit( string name )
 	{
-		if ( Sounds.Sound( "NPC_Manhack.Slice", Mount ) is { } sound )
-			Sound.Play( sound, position );
+		if ( !Application.IsDedicatedServer && Sounds.Sound( name, Mount ) is { } sound )
+			GameObject.PlaySound( sound );
 	}
 
 	[Rpc.Broadcast( NetFlags.HostOnly )]
@@ -189,7 +274,10 @@ public sealed class Manhack : Component, INpcPart
 		var info = damage.DamageInfo;
 		var clubbed = info.Tags.Has( "melee" ) || info.Weapon?.GetComponent<BaseCombatWeapon>() is MeleeWeapon;
 		if ( clubbed )
+		{
+			Emit( "NPC_Manhack.Bat" );
 			Sparks( info.Position, 1, (info.Origin - info.Position).Normal );
+		}
 	}
 
 	void INpcPart.OnNpcDeath( Component.IDamageable.DeathEvent death )
