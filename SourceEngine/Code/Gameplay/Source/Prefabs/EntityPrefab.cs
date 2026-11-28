@@ -97,6 +97,7 @@ internal sealed class EntityPrefab( GameObject root, SourceGameMount mount, Enti
 
 	T MakeWeapon<T>( string skin ) where T : Weapon, new()
 	{
+		root.NetworkMode = NetworkMode.Object;
 		var weapon = root.AddComponent<T>();
 		if ( weapon is BulletWeapon )
 		{

@@ -366,7 +366,7 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 			HostThink();
 
 		var speed = Aquatic ? Animation.MoveVelocity.Length : Locomotion == Locomotions.Ground ? MeasureSpeed() : MoveSpeed;
-		var moving = Aquatic ? speed > 2 : Locomotion == Locomotions.Flying || Movement?.IsMoving == true || speed > 10;
+		var moving = Aquatic ? speed > 2 : Locomotion == Locomotions.Flying || (!IsProxy && Movement?.IsMoving == true) || speed > 10;
 		string forced = null;
 		foreach ( var behaviour in _behaviours )
 		{
@@ -441,6 +441,13 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>Horizontal speed the body actually covers. The agent's reported velocity runs ahead of it, which slid the feet.</summary>
 	float MeasureSpeed()
 	{
+		if ( IsProxy )
+		{
+			var velocity = Animation.MoveVelocity.WithZ( 0 );
+			_animation.SetMoveYaw( velocity, WorldRotation );
+			return velocity.Length;
+		}
+
 		var travel = (WorldPosition - _lastPosition).WithZ( 0 );
 		var moved = travel.Length;
 		_lastPosition = WorldPosition;
