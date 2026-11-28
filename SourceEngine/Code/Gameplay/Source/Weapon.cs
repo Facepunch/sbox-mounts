@@ -10,6 +10,8 @@ namespace Source1;
 [Alias( "Source1.SourceWeapon", "SourceWeapon" )]
 public abstract class Weapon : BaseCombatWeapon
 {
+	internal virtual (string Rig, string Sequence, string Reload)? NpcGripPose => null;
+
 	/// <summary>The authored wrist position in the held model when the model has no wrist bone of its own.</summary>
 	internal virtual ValueTask<Vector3?> GetGripPosition( Model worldModel ) => default;
 

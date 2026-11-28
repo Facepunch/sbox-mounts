@@ -6,6 +6,9 @@ namespace Source1;
 internal sealed class SourceAnimations
 {
 	public const string SkeletonName = "skeleton.skel";
+	internal const string GripMask = "grip_reload";
+	internal const string FingerMask = "grip_fingers";
+	internal static bool IsFinger( string bone ) => bone.StartsWith( "ValveBiped.Bip01_", StringComparison.OrdinalIgnoreCase ) && bone.Contains( "_Finger", StringComparison.OrdinalIgnoreCase );
 	public const string ModelSpace = "__ik_model_space";
 	public bool HasModelSpaceTargets { get; }
 	public const string IkRelease = "ik_release";
@@ -55,6 +58,12 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 		{
 			builder.AddBone( bone.Name, bone.Local, bone.Parent ?? (animations.HasModelSpaceTargets ? SourceAnimations.ModelSpace : null) );
 		}
+
+		if ( animations.Bones.Any( b => SourceAnimations.IsFinger( b.Name ) ) )
+			builder.AddBoneMask( SourceAnimations.FingerMask, animations.Bones.ToDictionary( b => b.Name, b => SourceAnimations.IsFinger( b.Name ) || WeaponGrip.IsSupportTarget( b.Name ) ? 1f : 0f ), 0 );
+
+		if ( animations.Bones.Any( b => WeaponGrip.IsSupportTarget( b.Name ) ) )
+			builder.AddBoneMask( SourceAnimations.GripMask, animations.Bones.ToDictionary( b => b.Name, b => WeaponGrip.IsArm( b.Name ) || WeaponGrip.IsSupportTarget( b.Name ) || WeaponGrip.IsDrivingTarget( b.Name ) ? 1f : 0f ), 0 );
 
 		foreach ( var mask in animations.Masks )
 		{

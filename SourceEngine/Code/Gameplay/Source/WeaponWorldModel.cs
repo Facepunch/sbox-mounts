@@ -107,7 +107,7 @@ public sealed class WeaponWorldModel : BaseWeaponModel
 		if ( _pumpPending && _pumpAt <= 0 )
 			PlayPump();
 		MuzzleGameObject = _muzzleName is null ? null : Renderer.GetAttachmentObject( _muzzleName );
-		if ( Renderer.BoneMergeTarget.IsValid() )
+		if ( Renderer.BoneMergeTarget.IsValid() || _weapon?.Holder is Sandbox.Npcs.BaseNpc )
 		{
 			Renderer.LocalTransform = global::Transform.Zero;
 			_alignedModel = null;

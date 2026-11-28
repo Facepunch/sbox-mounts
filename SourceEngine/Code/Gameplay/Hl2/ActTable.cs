@@ -126,7 +126,7 @@ public static class ActTable
 
 	/// <summary>The lowered idle supplied by the equipped weapon, or the companion's ordinary idle.</summary>
 	internal static string RelaxedIdle( ModelSequences sequences, BaseCombatWeapon weapon, int seed ) =>
-		Rows.TryGetValue( WeaponSetup.Of( weapon )?.Data?.ClassName ?? "", out var row ) ? sequences.PickActivity( row.RelaxedIdle, seed ) : null;
+		sequences.PickActivity( Rows[WeaponClass( sequences, weapon )].RelaxedIdle, seed );
 
 	/// <summary>Like <see cref="Resolve(ModelSequences, string)"/>, but false for a weapon HL2 gives no NPC acttable.</summary>
 	public static bool TryResolve( ModelSequences sequences, string weaponClass, out NpcWeaponLayers layers )

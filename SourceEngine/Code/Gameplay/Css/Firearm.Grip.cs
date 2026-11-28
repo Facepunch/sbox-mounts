@@ -2,6 +2,9 @@ namespace Source1.Css;
 
 public partial class Firearm
 {
+	internal override (string Rig, string Sequence, string Reload)? NpcGripPose => Setup.Data?.PlayerAnimationExtension is { } extension && HoldType != WeaponHolds.DualPistols
+		? ("mount://css/models/player/t_phoenix.mdl.vmdl", $"Idle_Upper_{extension}", $"Idle_Reload_{extension}") : null;
+
 	Vector3? _leftGrip;
 	SkinnedModelRenderer _gripBody;
 	SkinnedModelRenderer _heldModel;

@@ -24,6 +24,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	SkinnedModelRenderer Renderer => Npc?.Renderer;
 
 	NpcWeaponLayers _layers;
+	WeaponGrip _grip;
 	(Model, Model, SourceModelWeaponData, string, string) _resolvedFor;
 	ModelSequences _sequences;
 	LinkAnimation _link;
@@ -47,6 +48,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	/// <summary>How long reloading <paramref name="rounds"/> takes: the reload clip, or one pass of a looped shotgun insert per round. Null without either.</summary>
 	public float? ReloadDuration( int rounds )
 	{
+		if ( _grip?.Reload is { Duration: > 0 } action ) return action.Duration;
 		var clips = Renderer?.Model?.AnimationClips();
 		if ( clips is null )
 			return null;
@@ -96,6 +98,8 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 			return false;
 
 		_resolvedFor = key;
+		_grip = Renderer.GetBoneObject( WeaponGrip.Right ).IsValid() && Renderer.GetBoneObject( WeaponGrip.Left ).IsValid()
+			? WeaponGrip.From( model, key.Item2, (weapon as Weapon)?.NpcGripPose ) : null;
 		_sequences = ModelSequences.Of( model );
 		_link = new LinkAnimation( _sequences );
 		var weaponClass = Hl2.ActTable.WeaponClass( _sequences, weapon );
@@ -133,7 +137,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 
 	void CreatePlayer()
 	{
-		_animation = new();
+		_animation = new() { Grip = _grip };
 		_turn = new NpcTurn( _sequences );
 		_animation.EventFired += OnAnimationEvent;
 		_animation.UseBlendGrids = true;
@@ -157,21 +161,23 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 			return;
 
 		var weapon = npc.Weapon;
-		if ( weapon?.WorldModel.IsValid() == true )
-		{
-			var weaponRenderer = weapon.WorldModel.GetComponentInChildren<SkinnedModelRenderer>();
-			if ( weaponRenderer.IsValid() && weaponRenderer.BoneMergeTarget != Renderer )
-			{
-				weapon.WorldModel.Parent = Renderer.GameObject;
-				weapon.WorldModel.LocalTransform = global::Transform.Zero;
-				weaponRenderer.BoneMergeTarget = Renderer;
-			}
-		}
 
 		if ( ResolveLayers() )
 		{
 			_animation?.Dispose();
 			_animation = null;
+		}
+
+		if ( weapon?.WorldModel.IsValid() == true && weapon.WorldModel.GetComponentInChildren<SkinnedModelRenderer>() is { } held )
+		{
+			var parent = _grip is null ? Renderer.GameObject : Renderer.GetBoneObject( WeaponGrip.Right );
+			var merge = _grip is null ? Renderer : null;
+			if ( weapon.WorldModel.Parent != parent || held.BoneMergeTarget != merge )
+			{
+				weapon.WorldModel.Parent = parent;
+				weapon.WorldModel.LocalTransform = _grip?.Weapon ?? global::Transform.Zero;
+				held.BoneMergeTarget = merge;
+			}
 		}
 
 		if ( _animation is null )
@@ -212,7 +218,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		}
 
 		_animation.Tick();
-		_animation.ApplyBoneLocks( UpperLayer, ReloadLayer );
+		_animation.ApplyBoneLocks( UpperLayer, ReloadLayer, weapon?.IsReloading == true && _animation.Current == Reload );
 	}
 
 	void UpdateLocomotion( CombatNpc npc, BaseCombatWeapon weapon )

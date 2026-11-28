@@ -64,23 +64,7 @@ public static class People
 			}
 		};
 
-		yield return new( "hl2", EntityKind.Npc, "citizen", "Citizen", "models/humans/group01/male_07.mdl", "idle_subtle" )
-		{
-			Build = p =>
-			{
-				var npc = p.Npc<CreatureNpc>();
-				p.Navigation( opensDoors: true );
-				p.Skill( "sk_citizen_health" );
-
-				npc.Idle = "idle_subtle";
-				npc.Move = "walk_all";
-				npc.Attack = "idle_subtle";
-				npc.Passive = true;
-				npc.MoveSpeed = 85;
-				npc.EyeHeight = 57.6f;
-				p.Box( 26, 72 );
-			}
-		};
+		yield return Citizen( "citizen", "Citizen", "group01" );
 
 		yield return new( "hl2", EntityKind.Npc, "eli", "Eli Vance", "models/eli.mdl", "idle_subtle" )
 		{
@@ -192,15 +176,15 @@ public static class People
 			}
 		};
 
-		yield return Rebel( "rebel", "Rebel", "group03", false );
+		yield return Citizen( "rebel", "Rebel", "group03", "smg" );
 
-		yield return Rebel( "rebel_medic", "Rebel Medic", "group03m", true );
+		yield return Citizen( "rebel_medic", "Rebel Medic", "group03m", "smg", medic: true );
 	}
 
-	static EntityDefinition Rebel( string name, string title, string model, bool medic ) =>
+	static EntityDefinition Citizen( string name, string title, string model, string weapon = null, bool medic = false ) =>
 		new( "hl2", EntityKind.Npc, name, title, $"models/humans/{model}/male_07.mdl", "idle_subtle" )
 		{
-			RequiredPrefabs = ["entities/weapons/smg.prefab"],
+			RequiredPrefabs = weapon is null ? [] : [$"entities/weapons/{weapon}.prefab"],
 			Build = p =>
 			{
 				var npc = p.Npc<CombatNpc>();
@@ -214,7 +198,7 @@ public static class People
 				npc.EyeHeight = 57.6f;
 				p.Root.AddComponent<CitizenAnimator>();
 				p.Box( 26, 72 );
-				npc.Weapon = p.Equip( "smg" );
+				if ( weapon is not null ) npc.Weapon = p.Equip( weapon );
 			}
 		};
 }
