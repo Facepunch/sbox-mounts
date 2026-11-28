@@ -104,8 +104,9 @@ public partial class Firearm
 		painter.BlendMode = BlendMode.Normal;
 		painter.Stroke = Stroke.None;
 		painter.Fill = Color.Black;
-		var center = size * 0.5f;
-		var radius = center.y - MathF.Floor( size.y / 16 );
+		var center = new Vector2( (int)size.x / 2, (int)size.y / 2 );
+		var inset = (int)size.y / 16;
+		var radius = center.y - inset;
 		if ( _scopeLens.IsValid() )
 		{
 			using var lens = painter.Scope();
@@ -121,15 +122,22 @@ public partial class Firearm
 			return;
 		}
 
+		// Cover the arc edges with continuous strips so antialiasing cannot expose the scene between tiles.
+		painter.Rect( new Rect( 0, 0, size.x, center.y - radius + 1 ) );
+		painter.Rect( new Rect( 0, center.y + radius - 1, size.x, size.y - center.y - radius + 1 ) );
+		if ( center.x > radius )
+		{
+			painter.Rect( new Rect( 0, 0, center.x - radius + 1, size.y ) );
+			painter.Rect( new Rect( center.x + radius - 1, 0, size.x - center.x - radius + 1, size.y ) );
+		}
+
 		painter.Translate( center );
 		for ( int x = -1; x <= 1; x += 2 )
 			for ( int y = -1; y <= 1; y += 2 )
 			{
 				using var quadrant = painter.Scope();
 				painter.Scale( x, y );
-				painter.Texture( _scopeArc, new Rect( 0, 0, radius, radius ), Color.Black );
-				painter.Rect( new Rect( 0, radius, center.x, center.y - radius ) );
-				if ( center.x > radius ) painter.Rect( new Rect( radius, 0, center.x - radius, radius ) );
+				painter.Texture( _scopeArc, new Rect( -1, -1, radius + 1, radius + 1 ), Color.Black );
 			}
 	}
 }
