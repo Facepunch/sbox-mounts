@@ -228,8 +228,14 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	/// <summary>The NPC class's sound script prefix, such as NPC_Strider, for its <see cref="NpcVoice"/> lines.</summary>
 	[Property] public string Voice { get; set; }
 
-	/// <summary>Plays movement clips that carry a blend grid (such as a walk on move_yaw) over their cells, so a behaviour can drive the pose.</summary>
+	/// <summary>
+	/// Plays movement clips that carry a blend grid over their cells. A walk on move_yaw then follows the way it travels
+	/// against the way it faces, so it can step sideways or back while it faces its target.
+	/// </summary>
 	[Property] public bool BlendGrids { get; set; }
+
+	/// <summary>With <see cref="BlendGrids"/>: within this of its target it faces the target on the move and steps along its path; beyond, it faces its travel. Zero: at any range.</summary>
+	[Property] public float StrafeRange { get; set; }
 
 	[Sync( SyncFlags.FromHost )] public GameObject Leader { get; set; }
 	[Sync( SyncFlags.FromHost )] TimeSince LastAttack { get; set; } = 10;
@@ -282,7 +288,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	TimeUntil _nextFlinch;
 	bool _flinchedRecently;
 	Vector3 _lastPosition;
-	float _measuredSpeed;
+	float _measuredSpeed, _moveYaw;
 	GameObject _target;
 	TimeUntil _nextIdleLine = 10;
 	GameObject _scaredOf;
@@ -543,7 +549,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 			var running = run != walk && (walkSpeed > 1 && runSpeed > walkSpeed ? speed > MathF.Sqrt( walkSpeed * runSpeed ) : speed > MoveSpeed * 1.25f);
 			var clip = !moving || Aquatic && !IsUnderwater( WorldPosition ) ? idle : running ? run : walk;
 			// Feet match the ground: rate is our speed over the clip's ground speed, or over the configured pace without one.
-			var ground = GroundSpeed( clip );
+			var ground = StepSpeed( clip );
 			var rate = clip == idle || Locomotion != Locomotions.Ground ? 1
 				: ground > 1 ? Math.Clamp( speed / ground, 0.3f, 2.5f )
 				: Math.Clamp( speed / (running ? MoveSpeed * 1.6f : MoveSpeed), 0.5f, 1.6f );
@@ -583,11 +589,41 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 	/// <summary>Horizontal speed the body actually covers. The agent's reported velocity runs ahead of it, which slid the feet.</summary>
 	float MeasureSpeed()
 	{
-		var moved = (WorldPosition - _lastPosition).WithZ( 0 ).Length;
+		var moved = (WorldPosition - _lastPosition).WithZ( 0 );
 		_lastPosition = WorldPosition;
-		if ( Time.Delta > 0 && moved < 100 )
-			_measuredSpeed = MathX.Lerp( _measuredSpeed, moved / Time.Delta, Math.Clamp( Time.Delta * 10, 0, 1 ) );
+		if ( Time.Delta > 0 && moved.Length < 100 )
+		{
+			_measuredSpeed = MathX.Lerp( _measuredSpeed, moved.Length / Time.Delta, Math.Clamp( Time.Delta * 10, 0, 1 ) );
+			if ( BlendGrids )
+				TravelYaw( moved );
+		}
 		return _measuredSpeed;
+	}
+
+	/// <summary>move_yaw eases toward the way it travels against the way it faces; straight ahead once it stops.</summary>
+	void TravelYaw( Vector3 moved )
+	{
+		var target = _measuredSpeed > 20 ? Angles.NormalizeAngle( Rotation.LookAt( moved ).Yaw() - WorldRotation.Yaw() ) : 0;
+		_moveYaw = Angles.NormalizeAngle( _moveYaw + Angles.NormalizeAngle( target - _moveYaw ) * Math.Clamp( Time.Delta * 8, 0, 1 ) );
+		_animation.SetPoseParameter( "move_yaw", _moveYaw );
+	}
+
+	/// <summary>The clip's ground speed the way it is stepping: a move_yaw grid's cells blended at the current move_yaw.</summary>
+	float StepSpeed( string clip )
+	{
+		if ( !BlendGrids || _sequences?.Get( clip ) is not { BlendAxes: [{ Parameter: "move_yaw" } axis] } sequence
+			|| sequence.BlendGridSpeeds.Length != axis.Positions.Length || axis.Positions.Length < 2 )
+			return GroundSpeed( clip );
+
+		var positions = axis.Positions;
+		var speeds = sequence.BlendGridSpeeds;
+		var yaw = Math.Clamp( _moveYaw, positions[0], positions[^1] );
+		for ( var i = 1; i < positions.Length; i++ )
+		{
+			if ( yaw <= positions[i] )
+				return MathX.Lerp( speeds[i - 1], speeds[i], (yaw - positions[i - 1]) / MathF.Max( positions[i] - positions[i - 1], 0.001f ) );
+		}
+		return speeds[^1];
 	}
 
 	/// <summary>Source NPCs stop for the length of an attack activity; a stand-in clip (strider minigun, stalker beam) fires on the move.</summary>
@@ -879,15 +915,19 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 
 	/// <summary>
 	/// What it faces on its way to a target. One whose move clips blend by direction (<see cref="BlendGrids"/>) faces the
-	/// target throughout and steps along its path. One that only walks forward faces the way it travels, so it doesn't slide
-	/// sideways round corners, and faces its target only once it's close and heading straight at it.
+	/// target within <see cref="StrafeRange"/> and steps along its path. One that only walks forward faces the way it
+	/// travels, so it doesn't slide sideways round corners, and faces its target only once it's close and heading straight
+	/// at it. Beyond those ranges both face their travel.
 	/// </summary>
 	internal GameObject FacedOnTheWay( GameObject target )
 	{
-		if ( !target.IsValid() || BlendGrids )
-			return target;
+		if ( !target.IsValid() )
+			return null;
 
 		var to = (target.WorldPosition - WorldPosition).WithZ( 0 );
+		if ( BlendGrids )
+			return StrafeRange <= 0 || to.Length <= StrafeRange ? target : null;
+
 		if ( to.Length > FaceTargetRange || GetComponent<NavMeshAgent>() is not { } agent || !agent.IsNavigating )
 			return null;
 

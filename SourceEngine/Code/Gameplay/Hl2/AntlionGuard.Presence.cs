@@ -3,8 +3,7 @@ using System;
 namespace Source1.Hl2;
 
 /// <summary>
-/// What every machine shows and hears of the antlion guard: its legs follow the way it travels against the way it faces,
-/// its feet thud on the clips' footstep events, it pants while it moves and rumbles while it stands, its voice events
+/// What every machine shows and hears of the antlion guard: its feet thud on the clips' footstep events, it pants while it moves and rumbles while it stands, its voice events
 /// play growls and roars over those, and it bleeds once badly hurt.
 /// </summary>
 public sealed partial class AntlionGuard
@@ -21,8 +20,6 @@ public sealed partial class AntlionGuard
 
 	bool _moving;
 	TimeUntil _nextSwell;
-	Vector3 _lastPosition;
-	float _speed, _moveYaw;
 	string _bleeding;
 	GameObject _bleed;
 	static float Random( float min, float max ) => Game.Random.Float( min, max );
@@ -41,7 +38,6 @@ public sealed partial class AntlionGuard
 	{
 		if ( !Npc.IsValid() )
 			return;
-		Legs();
 		Npc.SetPose( "throw", ThrowYaw );
 		if ( Application.IsDedicatedServer )
 			return;
@@ -57,26 +53,13 @@ public sealed partial class AntlionGuard
 			Claimed.Remove( _prop );
 	}
 
-	/// <summary>move_yaw is the way it travels against the way it faces, so it steps sideways or back while squared up.</summary>
-	void Legs()
-	{
-		var moved = (WorldPosition - _lastPosition).WithZ( 0 );
-		_lastPosition = WorldPosition;
-		if ( Time.Delta <= 0 || moved.Length > 100 )
-			return;
-		_speed = MathX.Lerp( _speed, moved.Length / Time.Delta, Math.Clamp( Time.Delta * 10, 0, 1 ) );
-		var target = _speed > 20 ? Angles.NormalizeAngle( Rotation.LookAt( moved ).Yaw() - WorldRotation.Yaw() ) : 0;
-		_moveYaw = Angles.NormalizeAngle( _moveYaw + Angles.NormalizeAngle( target - _moveYaw ) * Math.Clamp( Time.Delta * 8, 0, 1 ) );
-		Npc.SetPose( "move_yaw", _moveYaw );
-	}
-
 	/// <summary>
 	/// Moving, it pants up to 0.6 over 2 to 4 seconds and its low growl dies away. Stopped, the panting fades over 2 to 8
 	/// seconds and the low growl swells now and then. A voice event silences both until the next of these.
 	/// </summary>
 	void Breathe()
 	{
-		var moving = _speed > 10;
+		var moving = Npc.Speed > 10;
 		if ( moving != _moving )
 		{
 			_moving = moving;
