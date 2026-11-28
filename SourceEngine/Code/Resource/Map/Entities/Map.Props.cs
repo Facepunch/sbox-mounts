@@ -74,6 +74,8 @@ partial class MapLoader
 				instance.Tags.Add( "world" );
 			if ( prop.StaticPropIndex < 0 )
 				instance.Tags.Add( "source1_entity" );
+			if ( !skybox && prop.Solid != 0 && (prop.Gameplay || prop.Physics is PropPhysics.Rigid or PropPhysics.Ragdoll) )
+				MakeNetworkRoot( instance );
 			if ( entity is not null )
 			{
 				instance.Tags.Add( ActivatorFilter.ClassTag + entity.Get( "classname" ) );
@@ -82,9 +84,6 @@ partial class MapLoader
 				// A physics prop flagged as debris, which characters walk through.
 				if ( prop.Physics == PropPhysics.Rigid && (entity.Integer( "spawnflags" ) & 4) != 0 )
 					instance.Tags.Add( Hl2.ZombieProps.DebrisTag );
-				if ( !skybox && prop.Solid != 0 && entity.Get( "classname" ) is "prop_dynamic" or "prop_dynamic_override"
-					&& entity.Get( "gmod_allowphysgun" ) != "0" )
-					instance.NetworkMode = NetworkMode.Object;
 			}
 			if ( prop.EnableOnPhyscannon )
 				instance.Tags.Add( Hl2.GravityWeapon.EnableMotionTag );
@@ -93,10 +92,7 @@ partial class MapLoader
 			{
 				AddGameplayProp( prop, instance, model, materialGroup );
 				if ( entity?.Get( "OnBreak" ) is not null )
-				{
-					instance.NetworkMode = NetworkMode.Object;
 					RegisterEntityIO( entity, instance.GetOrAddComponent<PropDamage>() );
-				}
 				return instance;
 			}
 

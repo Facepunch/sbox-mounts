@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Source1;
 
-internal enum BspCollisionKind { Solid, Clip, Sky, Window }
+internal enum BspCollisionKind { Solid, PlayerClip, NpcClip, ActorClip, Sky, Window }
 
 internal sealed class BspPhysicsMesh
 {
@@ -27,8 +27,18 @@ internal partial class BspFile
 	internal const int ContentsWindow = 0x2;
 	internal static bool IsWindowOnly( int contents ) => (contents & MaskShot) == ContentsWindow;
 
-	internal const int ContentsClip = 0x30000;
-	internal const int ContentsBlockAudio = 0x4003;
+	static BspCollisionKind ClipKind( int contents )
+	{
+		if ( (contents & MaskShot) != 0 ) return BspCollisionKind.Solid;
+		return (contents & 0x30000) switch
+		{
+			0x10000 => BspCollisionKind.PlayerClip,
+			0x20000 => BspCollisionKind.NpcClip,
+			0x30000 => BspCollisionKind.ActorClip,
+			_ => BspCollisionKind.Solid
+		};
+	}
+
 	internal const int SurfaceSky = 6;
 	internal readonly HashSet<byte> _missingPhysicsMaterials = [];
 	internal ushort[] leafBrushes = [];
@@ -98,7 +108,7 @@ internal partial class BspFile
 			if ( modelIndex == requestedModel )
 			{
 				var fluidSolids = fluids is null ? null : new Dictionary<int, BspPhysicsFluid>();
-				var (skipSolids, passAudioSolids, usesVirtualTerrain, solidSurfaces, materialTable, modelMass) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | ContentsSlime, fluidSolids );
+				var (skipSolids, clips, usesVirtualTerrain, solidSurfaces, materialTable, modelMass) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | ContentsSlime, fluidSolids );
 				mass = modelMass;
 				virtualTerrain |= usesVirtualTerrain;
 				for ( int s = 0; s < solidCount; s++ )
@@ -112,13 +122,13 @@ internal partial class BspFile
 					if ( fluidSolids is not null && fluidSolids.TryGetValue( s, out var fluid ) )
 					{
 						var fluidMeshes = new List<BspPhysicsMesh>();
-						ParseIvpSolid( PhysCollideData, pos, solidSize, fluid.Hulls, fluidMeshes, IVP_TO_HL, fluid.SurfaceName, materialTable, false, fluid: true );
+						ParseIvpSolid( PhysCollideData, pos, solidSize, fluid.Hulls, fluidMeshes, IVP_TO_HL, fluid.SurfaceName, materialTable, BspCollisionKind.Solid, fluid: true );
 						if ( fluidMeshes.Count != 0 || fluid.Hulls.Count == 0 )
 							throw new InvalidDataException( "BSP fluid collision must contain convex volumes." );
 						fluids.Add( fluid );
 					}
 					else if ( !skipSolids.Contains( s ) )
-						ParseIvpSolid( PhysCollideData, pos, solidSize, hulls, meshes, IVP_TO_HL, solidSurfaces.GetValueOrDefault( s, "default" ), materialTable, passAudioSolids.Contains( s ) );
+						ParseIvpSolid( PhysCollideData, pos, solidSize, hulls, meshes, IVP_TO_HL, solidSurfaces.GetValueOrDefault( s, "default" ), materialTable, clips.GetValueOrDefault( s ) );
 					pos += solidSize;
 				}
 
@@ -132,17 +142,17 @@ internal partial class BspFile
 		return (hulls, meshes, virtualTerrain, mass);
 	}
 
-	internal static (HashSet<int> SkipSolids, HashSet<int> PassAudioSolids, bool VirtualTerrain, Dictionary<int, string> SolidSurfaces, Dictionary<byte, string> MaterialTable, float Mass) ParsePhysicsKeydata( byte[] data, int offset, int length, int solidCount, int contentsMask, Dictionary<int, BspPhysicsFluid> fluids = null )
+	internal static (HashSet<int> SkipSolids, Dictionary<int, BspCollisionKind> ClipKinds, bool VirtualTerrain, Dictionary<int, string> SolidSurfaces, Dictionary<byte, string> MaterialTable, float Mass) ParsePhysicsKeydata( byte[] data, int offset, int length, int solidCount, int contentsMask, Dictionary<int, BspPhysicsFluid> fluids = null )
 	{
 		float mass = 0;
 		var skip = new HashSet<int>();
-		var passAudio = new HashSet<int>();
+		var clips = new Dictionary<int, BspCollisionKind>();
 		bool virtualTerrain = false;
 		var solidSurfaces = new Dictionary<int, string>();
 		var materialTable = new Dictionary<byte, string>();
 		ValidateRange( offset, length, data.Length, "Physics keydata" );
 		if ( length == 0 )
-			return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable, mass);
+			return (skip, clips, virtualTerrain, solidSurfaces, materialTable, mass);
 		var text = System.Text.Encoding.ASCII.GetString( data, offset, length ).TrimEnd( '\0' );
 		foreach ( var block in VmtFile.ParseKeyValues( text, "BSP physics keydata", diagnostic => throw new InvalidDataException( $"Unsupported BSP physics KeyValues: {diagnostic.Message}" ) ) )
 		{
@@ -181,8 +191,8 @@ internal partial class BspFile
 					throw new InvalidDataException( "BSP physics solid has invalid contents." );
 				if ( (contents & contentsMask) != 0 )
 					skip.Add( index );
-				if ( (contents & ContentsClip) != 0 && (contents & ContentsBlockAudio) == 0 )
-					passAudio.Add( index );
+				var kind = ClipKind( contents );
+				if ( kind != BspCollisionKind.Solid ) clips[index] = kind;
 			}
 			if ( block.Name.Equals( "fluid", StringComparison.OrdinalIgnoreCase ) )
 			{
@@ -204,10 +214,10 @@ internal partial class BspFile
 			}
 		}
 
-		return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable, mass);
+		return (skip, clips, virtualTerrain, solidSurfaces, materialTable, mass);
 	}
 
-	internal void ParseIvpSolid( byte[] data, int blobStart, int blobSize, List<BspPhysicsHull> hulls, List<BspPhysicsMesh> meshes, float scale, string surface, Dictionary<byte, string> materialTable, bool passAudio, bool fluid = false )
+	internal void ParseIvpSolid( byte[] data, int blobStart, int blobSize, List<BspPhysicsHull> hulls, List<BspPhysicsMesh> meshes, float scale, string surface, Dictionary<byte, string> materialTable, BspCollisionKind kind, bool fluid = false )
 	{
 		int blobEnd = blobStart + blobSize;
 		int pos = blobStart;
@@ -238,7 +248,7 @@ internal partial class BspFile
 			throw new InvalidDataException( "BSP physics model type does not match its compact surface." );
 		if ( ivpsMagic == MoppId )
 		{
-			meshes.Add( ReadMoppMesh( data, ivpSurfaceStart, blobEnd, scale, surface, materialTable, passAudio ) );
+			meshes.Add( ReadMoppMesh( data, ivpSurfaceStart, blobEnd, scale, surface, materialTable, kind ) );
 			return;
 		}
 		if ( ivpsMagic != 0x53505649 )
@@ -265,14 +275,14 @@ internal partial class BspFile
 					mesh ??= new BspPhysicsMesh
 					{
 						SurfaceName = surface,
-						Kind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid
+						Kind = kind
 					};
 					meshVertices ??= [];
 					ExtractLedgeMesh( data, ledgePos, blobStart, blobEnd, mesh, meshVertices, scale, surface, materialTable );
 				}
 				else
 				{
-					ExtractLedgeHull( data, ledgePos, blobStart, blobEnd, hulls, meshes, scale, surface, materialTable, passAudio, fluid );
+					ExtractLedgeHull( data, ledgePos, blobStart, blobEnd, hulls, meshes, scale, surface, materialTable, kind, fluid );
 				}
 			}
 			else
@@ -286,7 +296,7 @@ internal partial class BspFile
 			meshes.Add( mesh );
 	}
 
-	BspPhysicsMesh ReadMoppMesh( byte[] data, int start, int end, float scale, string surface, Dictionary<byte, string> materialTable, bool passAudio )
+	BspPhysicsMesh ReadMoppMesh( byte[] data, int start, int end, float scale, string surface, Dictionary<byte, string> materialTable, BspCollisionKind kind )
 	{
 		int size = (int)(BitConverter.ToUInt32( data, start + 28 ) >> 8);
 		ValidateRange( start, size, end, "IVP compact MOPP" );
@@ -301,7 +311,7 @@ internal partial class BspFile
 
 		// IVP_Compact_Ledge_Solver::get_all_ledges stops at the first ledge's shared point array.
 		int points = ResolvePhysicsOffset( ledge, BitConverter.ToInt32( data, ledge ), 16, ledge + 16, tree );
-		var mesh = new BspPhysicsMesh { SurfaceName = surface, Kind = passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid };
+		var mesh = new BspPhysicsMesh { SurfaceName = surface, Kind = kind };
 		var vertices = new Dictionary<int, uint>();
 		while ( ledge < points )
 		{
@@ -363,7 +373,7 @@ internal partial class BspFile
 		mesh.Indices.AddRange( indices );
 	}
 
-	internal void ExtractLedgeHull( byte[] data, int ledgePos, int blobStart, int blobEnd, List<BspPhysicsHull> hulls, List<BspPhysicsMesh> meshes, float scale, string surface, Dictionary<byte, string> materialTable, bool passAudio, bool fluid = false )
+	internal void ExtractLedgeHull( byte[] data, int ledgePos, int blobStart, int blobEnd, List<BspPhysicsHull> hulls, List<BspPhysicsMesh> meshes, float scale, string surface, Dictionary<byte, string> materialTable, BspCollisionKind kind, bool fluid = false )
 	{
 		int cPointOffset = BitConverter.ToInt32( data, ledgePos );
 		short nTriangles = BitConverter.ToInt16( data, ledgePos + 12 );
@@ -405,9 +415,9 @@ internal partial class BspFile
 		int brushIndex = BitConverter.ToInt32( data, ledgePos + 4 );
 		ValidateRange( brushIndex, 1, collisionBrushes.Length, "IVP collision brush index" );
 		var brush = collisionBrushes[brushIndex];
-		passAudio |= (brush.Contents & ContentsClip) != 0 && (brush.Contents & ContentsBlockAudio) == 0;
+		if ( kind == BspCollisionKind.Solid ) kind = ClipKind( brush.Contents );
 		var otherKind = IsWindowOnly( brush.Contents ) ? BspCollisionKind.Window
-			: passAudio ? BspCollisionKind.Clip : BspCollisionKind.Solid;
+			: kind;
 		bool hasSky = false;
 		for ( int index = brush.FirstSide; index < brush.FirstSide + brush.SideCount && !hasSky; index++ )
 		{

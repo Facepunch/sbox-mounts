@@ -82,6 +82,7 @@ internal sealed partial class MapLoader : SceneLoader<SourceGameMount>
 
 		var (surfaces, aggregates) = BuildWorldModel( bsp );
 		var world = new GameObject( true, "worldspawn" );
+		world.AddComponent<MapClipRules>();
 		var geometry = new GameObject( true, "world" )
 		{
 			Parent = world,

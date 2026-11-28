@@ -32,23 +32,32 @@ partial class MapLoader
 			var kind = group.Key;
 			var parts = group.Select( entry => entry.Value ).ToList();
 			var target = world;
+			string clip = kind switch
+			{
+				BspCollisionKind.PlayerClip => MapClipRules.PlayerClip,
+				BspCollisionKind.NpcClip => MapClipRules.NpcClip,
+				BspCollisionKind.ActorClip => MapClipRules.ActorClip,
+				_ => null
+			};
 			if ( kind != BspCollisionKind.Solid )
 			{
-				target = new GameObject( false, kind switch { BspCollisionKind.Sky => "sky collision", BspCollisionKind.Window => "window collision", _ => "audio transparent collision" } )
+				target = new GameObject( false, clip ?? (kind == BspCollisionKind.Sky ? "sky collision" : "window collision") )
 				{
 					Parent = world,
 					IsStatic = staticCollider
 				};
-				target.Tags.Add( "world" );
+				if ( clip is not null ) target.Tags.Add( clip );
+				else target.Tags.Add( "world" );
 				if ( kind == BspCollisionKind.Window ) target.Tags.Add( "source1_window" );
 				else target.Tags.Add( "passaudio" );
 				if ( kind == BspCollisionKind.Sky ) target.Tags.Add( "source1_sky" );
 			}
 
-			var suffix = kind switch { BspCollisionKind.Clip => "_passaudio", BspCollisionKind.Sky => "_sky", BspCollisionKind.Window => "_window", _ => "" };
+			var suffix = kind switch { BspCollisionKind.Sky => "_sky", BspCollisionKind.Window => "_window", _ => clip is null ? "" : $"_{clip}" };
 			var physics = PhysicsGroupDescription.Create( $"source1/{Host.Ident}/{FullPath}/{(skybox ? "skybox_" : "")}model_{modelIndex}{suffix}.vphys", parts, surfaces );
 			_worldPhysics.Add( physics );
 			var collider = target.AddComponent<PhysicsCollider>( false );
+			if ( clip is not null ) collider.ColliderFlags |= ColliderFlags.IgnoreTraces;
 			collider.Static = staticCollider;
 			collider.Physics = physics;
 			collider.Enabled = true;
