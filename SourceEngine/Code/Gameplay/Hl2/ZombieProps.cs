@@ -358,12 +358,8 @@ public sealed class ZombieProps : CreatureBehaviour
 	bool BeginClaw()
 	{
 		var clip = Game.Random.FromArray( _claws );
-		var duration = Duration( clip, 1 );
-		var hits = ModelSequences.Of( ConfiguredModel ).Get( clip )?.Events
-			.Where( e => e.Name is "AE_ZOMBIE_ATTACK_RIGHT" or "AE_ZOMBIE_ATTACK_LEFT" or "AE_ZOMBIE_ATTACK_BOTH" or "AE_ZOMBIE_POISON_SPIT" )
-			.Select( e => Math.Clamp( e.Cycle, 0, 1 ) * duration ).Distinct().Order().ToArray();
-		var times = hits is { Length: > 0 } ? hits : Npcs.AttackTimes( ConfiguredModel, clip, Npc.AttackDelay );
-		return BeginClip( clip, times.Select( t => (t, (Action<GameObject>)ClawHit) ).ToArray() );
+		var hits = Npcs.AttackCues( ConfiguredModel, clip, Npc.AttackDelay );
+		return BeginClip( clip, hits.Select( hit => (hit.Time, (Action<GameObject>)(target => ClawHit( target, Npc.EventDamage( hit.Event ) ))) ).ToArray() );
 	}
 
 	bool BeginClip( string clip, (float, Action<GameObject>)[] cues )
@@ -430,7 +426,7 @@ public sealed class ZombieProps : CreatureBehaviour
 	/// One claw: whatever the sweep ahead meets takes it, and the chosen prop takes it wherever it is when the sweep
 	/// meets nothing. Solid world between the zombie and its enemy stops the whole claw.
 	/// </summary>
-	void ClawHit( GameObject target )
+	void ClawHit( GameObject target, float? damage )
 	{
 		var center = Center;
 		if ( Scene.Trace.Box( BBox.FromPositionAndSize( Vector3.Zero, 16 ), center, Npcs.CapturePoint( target ) )
@@ -443,11 +439,11 @@ public sealed class ZombieProps : CreatureBehaviour
 		var body = struck?.GetComponentInParent<Rigidbody>();
 
 		if ( struck.IsValid() && (struck.GetComponentInParent<BaseNpc>().IsValid() || struck.GetComponentInParent<PlayerController>().IsValid()) )
-			Npc.Damage( struck, center, sweep.HitPosition, DamageTags.Melee );
+			Npc.Damage( struck, center, sweep.HitPosition, DamageTags.Melee, damage );
 		else if ( IsLooseProp( body ) )
-			HitProp( body, center, Npc.AttackDamage * ClawPushPerDamage );
+			HitProp( body, center, (damage ?? Npc.AttackDamage) * ClawPushPerDamage, damage );
 		else if ( _prop.IsValid() )
-			HitProp( _prop, center, ClawFallbackPush );
+			HitProp( _prop, center, ClawFallbackPush, damage );
 		else
 		{
 			PlaySound( "Zombie.AttackMiss" );
@@ -457,10 +453,10 @@ public sealed class ZombieProps : CreatureBehaviour
 		PlaySound( "Zombie.AttackHit" );
 	}
 
-	void HitProp( Rigidbody body, Vector3 center, float push )
+	void HitProp( Rigidbody body, Vector3 center, float push, float? damage )
 	{
 		var bodyCenter = body.GetWorldBounds().Center;
-		Npc.Damage( body.GameObject, center, bodyCenter, DamageTags.Melee );
+		Npc.Damage( body.GameObject, center, bodyCenter, DamageTags.Melee, damage );
 		if ( body.IsValid() && body.MotionEnabled )
 			body.ApplyImpulseAt( center, (bodyCenter - center).Normal * push );
 

@@ -92,6 +92,7 @@ public sealed class AntlionMaker : Component
 		}
 		ApplyOrder( npc );
 		_children.Add( npc );
+		child.GetOrAddComponent<Unburrow>();
 		child.NetworkSpawn();
 		burrow.ReuseDelay = 2;
 		if ( Remaining > 0 ) Remaining--;

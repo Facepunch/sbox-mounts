@@ -11,6 +11,7 @@ public static class Creatures
 			Build = p =>
 			{
 				var npc = p.Npc<CreatureNpc>();
+				p.Root.Tags.Add( "antlion" );
 				p.Navigation( height: 55, radius: 25 );
 				p.Skill( "sk_antlion_health", damage: "sk_antlion_swipe_damage" );
 
@@ -23,7 +24,6 @@ public static class Creatures
 				npc.AttackHeight = 35;
 				npc.Voice = "NPC_Antlion";
 				npc.EyeHeight = 24;
-				p.Root.AddComponent<Unburrow>();
 				p.Root.AddComponent<AntlionJump>();
 				p.Box( 50, 55 );
 			}
@@ -34,6 +34,7 @@ public static class Creatures
 			Build = p =>
 			{
 				var npc = p.Npc<CreatureNpc>();
+				p.Root.Tags.Add( "antlion" );
 				p.Navigation( height: 130, radius: 45 );
 				p.Skill( "sk_antlionguard_health", playerDamage: "sk_antlionguard_dmg_shove" );
 
@@ -48,9 +49,6 @@ public static class Creatures
 				npc.AttackHeight = 70;
 				npc.Voice = "NPC_AntlionGuard";
 				npc.EyeHeight = 70;
-				var unburrow = p.Root.AddComponent<Unburrow>();
-				unburrow.Activity = "ACT_ANTLIONGUARD_UNBURROW";
-				unburrow.Sound = "NPC_AntlionGuard.Roar";
 				p.Root.AddComponent<AntlionGuard>();
 				p.Root.AddComponent<Charge>();
 				p.BoxAt( new( 0, 0, 65 ), new( 90, 80, 130 ) );
@@ -63,6 +61,7 @@ public static class Creatures
 			Build = p =>
 			{
 				var npc = p.Npc<CreatureNpc>();
+				p.Root.Tags.Add( "antlion" );
 				p.Navigation( height: 45, radius: 25 );
 				p.Skill( "sk_antlion_worker_health", config: "skill_episodic.cfg" );
 
@@ -79,7 +78,6 @@ public static class Creatures
 				npc.EyeHeight = 24;
 				var npcProjectileAttack = p.Root.AddComponent<NpcProjectileAttack>();
 				npcProjectileAttack.FireSound = "NPC_Antlion.PoisonShoot";
-				p.Root.AddComponent<Unburrow>();
 				p.Box( 50, 45 );
 			}
 		};
@@ -105,17 +103,13 @@ public static class Creatures
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( height: 105, radius: 30, opensDoors: true );
-				p.Skill( "sk_dog_health" );
 
 				npc.Friendly = true;
-				npc.Health = 500;
+				npc.Health = npc.MaxHealth = 999;
 				npc.Idle = "idle01";
 				npc.Move = "run_all";
-				npc.Attack = "pound";
-				npc.AttackDamage = 80;
+				npc.Attack = null;
 				npc.MoveSpeed = 220;
-				npc.AttackRange = 130;
-				npc.AttackHeight = 65;
 				npc.Voice = "NPC_Dog";
 				npc.EyeHeight = 65;
 				p.Box( 60, 105 );
@@ -189,6 +183,7 @@ public static class Creatures
 				npc.AttackDelay = 0.7f;
 				npc.AttackHeight = 50;
 				npc.Voice = "NPC_Vortigaunt";
+				p.Root.AddComponent<Vortigaunt>();
 				npc.EyeHeight = 50;
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.MuzzleAttachment = "leftclaw";
@@ -214,9 +209,9 @@ public static class Creatures
 			Build = p =>
 			{
 				var npc = p.Npc<CreatureNpc>();
-				p.Skill( $"sk_{name}_health" );
+				p.Skill( "sk_crow_health" );
 
-				npc.Health = 5;
+				npc.Health = npc.MaxHealth = 1;
 				npc.Idle = "Idle01";
 				npc.Move = fly;
 				npc.Attack = "Idle01";

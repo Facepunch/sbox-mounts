@@ -201,7 +201,7 @@ public sealed class Rocket : Projectile, Component.IDamageable
 	float _damageUntilShotDown = 20;
 	float _fractionalDamage;
 	[Sync( SyncFlags.FromHost )] TimeUntil AugerEnds { get; set; }
-	bool ShotDown => AugerEnds != default( TimeUntil );
+	internal bool ShotDown => AugerEnds != default( TimeUntil );
 	ParticleEffect[] _embers;
 	TimeUntil _nextTurn;
 	Vector3 _aim;
@@ -614,7 +614,7 @@ public sealed class EnergyBall : Projectile
 		if ( hitProp )
 			BaseCombatWeapon.ShootBullet( tr, 1000, 0, Attacker, Weapon.IsValid() ? Weapon.GameObject : GameObject, [DamageTags.Crush, "dissolve"], hitboxTags: false );
 
-		var damaged = !hitProp && DamageVictim( tr, ["energy"] );
+		var damaged = !hitProp && DamageVictim( tr, ["energy", "combineball"] );
 		PlayImpact( tr, damaged ? "NPC_CombineBall.KillImpact" : "NPC_CombineBall.Impact", impactEffect: false );
 		BounceEffect( tr.HitPosition, tr.Normal, MountName );
 		Velocity = outgoing;

@@ -8,19 +8,18 @@ public static class Machines
 	[Entities.Definitions]
 	public static IEnumerable<EntityDefinition> All()
 	{
-		yield return new( "hl2", EntityKind.Npc, "dropship", "Combine Dropship", "models/combine_dropship.mdl", "idle" )
+		yield return new( "hl2", EntityKind.Npc, "dropship", "Combine Dropship", "models/combine_dropship.mdl", "idle_exagg" )
 		{
 			RequiredPrefabs = ["entities/npcs/combine_soldier.prefab"],
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Dropship>();
 				var sensesLayer = p.Root.GetComponent<SensesLayer>( true );
 				sensesLayer.SightRange = 2860;
-				p.Skill( "sk_dropship_health", damage: "sk_npc_dmg_dropship" );
+				p.Skill( null, damage: "sk_npc_dmg_dropship" );
 
-				npc.Health = 1000;
-				npc.Move = "hover";
-				npc.Attack = "idle";
+				npc.Health = npc.MaxHealth = 100;
+				npc.Idle = npc.Move = npc.Attack = "idle_exagg";
 				npc.Locomotion = CreatureNpc.Locomotions.Flying;
 				npc.HatesCombine = false;
 				npc.FlightHeight = 300;
@@ -30,7 +29,6 @@ public static class Machines
 				npc.AttackInterval = 0.3f;
 				npc.AttackDelay = 0;
 				npc.Voice = "NPC_CombineDropship";
-				npc.BlastHits = 5;
 				var deployPrefab = p.Root.AddComponent<DeployPrefab>();
 				deployPrefab.Prefab = "combine_soldier";
 				deployPrefab.Range = 1600;
@@ -39,27 +37,24 @@ public static class Machines
 			}
 		};
 
-		yield return new( "hl2", EntityKind.Npc, "gunship", "Combine Gunship", "models/gunship.mdl", "idle" )
+		yield return new( "hl2", EntityKind.Npc, "gunship", "Combine Gunship", "models/gunship.mdl", "prop_turn" )
 		{
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Gunship>();
 				var sensesLayer = p.Root.GetComponent<SensesLayer>( true );
 				sensesLayer.SightRange = 3250;
-				p.Skill( "sk_gunship_health", damage: "sk_npc_dmg_gunship", playerDamage: "sk_npc_dmg_gunship_to_plr" );
+				sensesLayer.FieldOfView = 270;
+				p.Skill( null, damage: "sk_npc_dmg_gunship", playerDamage: "sk_npc_dmg_gunship_to_plr" );
 
-				npc.Health = 1000;
-				npc.Move = "idle";
-				npc.Attack = "idle";
+				npc.Health = npc.MaxHealth = 100;
+				npc.Idle = npc.Move = npc.Attack = "prop_turn";
 				npc.Locomotion = CreatureNpc.Locomotions.Flying;
 				npc.HatesCombine = false;
 				npc.FlightHeight = 350;
 				npc.MoveSpeed = 220;
 				npc.AttackRange = 2500;
-				npc.AttackInterval = 0.2f;
-				npc.AttackDelay = 0;
 				npc.Voice = "NPC_CombineGunship";
-				npc.BlastHits = 5;
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.FireSound = "NPC_CombineGunship.CannonSound";
 				npcRangedEffects.ContinuousSound = true;
@@ -71,12 +66,12 @@ public static class Machines
 		{
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<HunterChopper>();
 				var sensesLayer = p.Root.GetComponent<SensesLayer>( true );
 				sensesLayer.SightRange = 3900;
 				p.Skill( "sk_helicopter_health", damage: "sk_npc_dmg_helicopter", playerDamage: "sk_npc_dmg_helicopter_to_plr" );
 
-				npc.Health = 1200;
+				npc.Health = npc.MaxHealth = 5600;
 				npc.Move = "idle";
 				npc.Attack = "idle";
 				npc.Locomotion = CreatureNpc.Locomotions.Flying;
@@ -88,7 +83,6 @@ public static class Machines
 				npc.AttackInterval = 0.15f;
 				npc.AttackDelay = 0;
 				npc.Voice = "NPC_AttackHelicopter";
-				npc.BlastHits = 5;
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.MuzzleAttachment = "Muzzle";
 				npcRangedEffects.FireSound = "NPC_AttackHelicopter.FireGun";
@@ -261,13 +255,13 @@ public static class Machines
 		{
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Strider>();
 				p.Navigation( height: 480, radius: 50 );
 				var sensesLayer = p.Root.GetComponent<SensesLayer>( true );
 				sensesLayer.SightRange = 3120;
 				p.Skill( "sk_strider_health", damage: "sk_npc_dmg_strider", playerDamage: "sk_npc_dmg_strider_to_plr" );
 
-				npc.Health = 1000;
+				npc.Health = npc.MaxHealth = 350;
 				npc.Idle = "Idle01";
 				npc.Move = "walk_all";
 				npc.Attack = "Idle01";
@@ -278,7 +272,6 @@ public static class Machines
 				npc.AttackDelay = 0;
 				npc.AttackHeight = 430;
 				npc.Voice = "NPC_Strider";
-				npc.BlastHits = 7;
 				npc.EyeHeight = 430;
 				p.Root.AddComponent<StriderCannon>();
 				p.Root.AddComponent<StriderStomp>();
@@ -298,7 +291,7 @@ public static class Machines
 				var rigidbody = p.Root.GetComponent<Rigidbody>( true );
 				rigidbody.Locking = rigidbody.Locking with { Pitch = false, Roll = false };
 				rigidbody.Gravity = false;
-				p.Skill( "sk_turret_ceiling_health" );
+				npc.Health = npc.MaxHealth = 1000;
 
 				npc.EyeHeight = 48;
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();

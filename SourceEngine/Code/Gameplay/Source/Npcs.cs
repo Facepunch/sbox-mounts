@@ -6,19 +6,34 @@ namespace Source1;
 /// <summary>Shared by the mounted NPCs and their behaviours: hit timing, grab points and knockback.</summary>
 public static class Npcs
 {
-	/// <summary>When a creature's attack clip lands its hits: the mounted impact markers when the author supplied them, else the fallback delay.</summary>
-	public static float[] AttackTimes( Model model, string clip, float fallback )
+	internal static Component.IPressable.Tooltip? FollowTooltip( bool canFollow, GameObject leader )
 	{
-		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [fallback];
-		var impacts = ModelSequences.Of( model ).All.FirstOrDefault( s => s.Name == clip )?.Events
+		if ( !canFollow ) return null;
+		return leader.IsValid()
+			? new( "#npc.action.stop_following", "person_off", null )
+			: new( "#npc.action.follow", "follow_the_signs", null );
+	}
+
+	internal static GameObject FollowPlayer( GameObject source, Vector3 npcPosition )
+	{
+		var player = source?.GetComponentInParent<PlayerController>();
+		if ( !player.IsValid() || player.WorldPosition.DistanceSquared( npcPosition ) > 160 * 160 ) return null;
+		return Rpc.Caller is null || player.Network.Owner == Rpc.Caller ? player.GameObject : null;
+	}
+
+	/// <summary>When a creature's attack clip lands its hits: the mounted impact markers when the author supplied them, else the fallback delay.</summary>
+	public static (float Time, string Event)[] AttackCues( Model model, string clip, float fallback )
+	{
+		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [(fallback, null)];
+		var impacts = ModelSequences.Of( model ).Get( clip )?.Events
 			// AE_ZOMBIE_ATTACK_SCREAM is only the attack sound
 			.Where( e => e.Name?.StartsWith( "AE_ZOMBIE_ATTACK_", StringComparison.Ordinal ) == true && e.Name != "AE_ZOMBIE_ATTACK_SCREAM"
 				|| e.Name?.Contains( "_MELEE_HIT", StringComparison.Ordinal ) == true
 				|| e.Name?.StartsWith( "AE_HUNTER_MELEE_ATTACK_", StringComparison.Ordinal ) == true
 				|| e.Name is "AE_VORTIGAUNT_ZAP_SHOOT" or "AE_VORTIGAUNT_CLAW_LEFT" or "AE_VORTIGAUNT_CLAW_RIGHT" or "AE_VORTIGAUNT_KICK"
-				or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" )
-			.Select( e => Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration ).Distinct().Order().ToArray();
-		return impacts is { Length: > 0 } ? impacts : [fallback];
+				or "AE_ZOMBIE_POISON_SPIT" or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" )
+			.Select( e => (Time: Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration, Event: e.Name) ).DistinctBy( cue => cue.Time ).OrderBy( cue => cue.Time ).ToArray();
+		return impacts is { Length: > 0 } ? impacts : [(fallback, null)];
 	}
 
 	/// <summary>

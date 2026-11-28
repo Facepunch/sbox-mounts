@@ -81,13 +81,10 @@ public abstract class CreatureBehaviour : Component
 [Title( "Source Creature NPC" )]
 [Category( "Source 1" )]
 [Alias( "Source1.SourceCreatureNpc", "SourceCreatureNpc" )]
-public sealed class CreatureNpc : BaseNpc, Component.IPressable
+public class CreatureNpc : BaseNpc, Component.IPressable
 {
 	/// <summary>How a creature gets around.</summary>
 	public enum Locomotions { Ground, Flying, Stationary }
-
-	/// <summary>GUNSHIP_MIN_DAMAGE_THRESHOLD in npc_combinegunship.cpp: smaller blasts are not a hit.</summary>
-	const float BlastHitThreshold = 50;
 
 	/// <summary>Discard a pending movement goal if the creature never reaches it.</summary>
 	const float CommandTimeout = 30;
@@ -110,6 +107,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>How far a melee hit reaches, short of <see cref="AttackRange"/>; a victim's body adds 40.</summary>
 	[Property] public float MeleeRange { get; set; } = 90;
 	[Property] public float AttackDamage { get; set; } = 15;
+	internal Dictionary<string, float> DamageByEvent { get; set; }
+	internal float? EventDamage( string name ) => name is not null && DamageByEvent?.TryGetValue( name, out var damage ) == true ? damage : null;
 	internal float? PlayerAttackDamage { get; set; }
 	[Property] public float AttackInterval { get; set; } = 1.2f;
 	[Property] public float AttackDelay { get; set; } = 0.3f;
@@ -117,12 +116,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 	/// <summary>A shooter with a melee attack that holds its distance while it can shoot, as npc_hunter does, instead of closing in between shots.</summary>
 	[Property] public bool StandOff { get; set; }
-
-	/// <summary>
-	/// Explosions that kill it, as npc_strider counts sk_strider_num_missiles and npc_combinegunship sk_gunship_health_increments:
-	/// a blast of at least 50 takes that share of its health. Other damage still counts as dealt. 0 takes blasts as dealt.
-	/// </summary>
-	[Property] public int BlastHits { get; set; }
 
 	/// <summary>The NPC class's sound script prefix, such as NPC_Strider, for its <see cref="NpcVoice"/> lines.</summary>
 	[Property] public string Voice { get; set; }
@@ -144,12 +137,12 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	(string, bool)[] _choices = [];
 	ModelSequences _sequences;
 	HashSet<string> _attackActivities = [];
-	AnimationPlayer _animation = new();
+	AnimationPlayer _animation = new() { UseBlendGrids = true };
 	LinkAnimation _link;
 	CreatureBehaviour[] _behaviours = [];
 	Hl2.Manhack _manhack;
 	Hl2.NpcProjectileAttack _projectile;
-	NpcRangedEffects _rangedEffects;
+	protected NpcRangedEffects RangedEffects { get; private set; }
 	Hl2.ScannerPhoto _photo;
 	Rigidbody _body;
 	Vector3 _home;
@@ -162,7 +155,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	TimeSince _lastPath;
 	bool _wasHeld;
 	GameObject _strikeTarget;
-	float[] _strikeTimes = [];
+	(float Time, string Event)[] _strikes = [];
 	int _strikeIndex;
 	float _attackRecovery;
 	bool _rangedStrike;
@@ -208,7 +201,10 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	protected override void OnAwake()
 	{
 		if ( Locomotion == Locomotions.Flying && !GetComponent<MovementLayer>( true ).IsValid() )
-			AddComponent<FlyingLayer>().Bounds = Aquatic ? FlyingLayer.FlyingBounds.WaterOnly : FlyingLayer.FlyingBounds.Anywhere;
+		{
+			if ( Aquatic ) AddComponent<SwimLayer>();
+			else AddComponent<FlyingLayer>();
+		}
 
 		base.OnAwake();
 	}
@@ -220,7 +216,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		_behaviours = GetComponents<CreatureBehaviour>().ToArray();
 		_manhack = GetComponent<Hl2.Manhack>();
 		_projectile = GetComponent<Hl2.NpcProjectileAttack>();
-		_rangedEffects = GetComponent<NpcRangedEffects>();
+		RangedEffects = GetComponent<NpcRangedEffects>();
 		_photo = GetComponent<Hl2.ScannerPhoto>();
 		_home = WorldPosition;
 		if ( IsProxy )
@@ -228,7 +224,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			_observedAttack = AttackSerial;
 			_observedFlinch = FlinchSerial;
 		}
-		else if ( Locomotion == Locomotions.Flying )
+		else if ( Locomotion == Locomotions.Flying && !Aquatic )
 		{
 			LiftOff();
 		}
@@ -293,7 +289,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		_configuredModel = model;
 		_sequences = ModelSequences.Of( model );
 		_idle = _sequences.FindActivity( "ACT_IDLE", Idle );
-		_walk = _sequences.FindActivity( Locomotion == Locomotions.Flying ? "ACT_FLY" : "ACT_WALK", Move );
+		_walk = _sequences.FindActivity( Locomotion == Locomotions.Flying && !Aquatic ? "ACT_FLY" : "ACT_WALK", Move );
 		_run = _sequences.FindActivity( "ACT_RUN", _walk );
 		_melee = _sequences.FindActivity( "ACT_MELEE_ATTACK1" );
 		// Leaps and crab throws are ACT_RANGE_ATTACK1 too; those belong to their components.
@@ -369,8 +365,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		if ( Networking.IsHost && !PhysicsCarrier.IsValid() )
 			HostThink();
 
-		var speed = Locomotion == Locomotions.Ground ? MeasureSpeed() : MoveSpeed;
-		var moving = Locomotion == Locomotions.Flying || Movement?.IsMoving == true || speed > 10;
+		var speed = Aquatic ? Animation.MoveVelocity.Length : Locomotion == Locomotions.Ground ? MeasureSpeed() : MoveSpeed;
+		var moving = Aquatic ? speed > 2 : Locomotion == Locomotions.Flying || Movement?.IsMoving == true || speed > 10;
 		string forced = null;
 		foreach ( var behaviour in _behaviours )
 		{
@@ -402,9 +398,10 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			var runSpeed = GroundSpeed( run );
 			// Switch where both clips are equally far off in playback rate.
 			var running = run != walk && (walkSpeed > 1 && runSpeed > walkSpeed ? speed > MathF.Sqrt( walkSpeed * runSpeed ) : speed > MoveSpeed * 1.25f);
-			var clip = !moving || Aquatic && !IsUnderwater( WorldPosition ) ? idle : running ? run : walk;
+			if ( Aquatic ) running = speed > Movement.WalkSpeed;
+			var clip = !moving ? idle : running ? run : walk;
 			// Feet match the ground: rate is our speed over the clip's ground speed, or over the configured pace without one.
-			var ground = GroundSpeed( clip );
+			var ground = _animation.GroundSpeed( _sequences.Get( clip ) );
 			var rate = clip == idle || Locomotion != Locomotions.Ground ? 1
 				: ground > 1 ? Math.Clamp( speed / ground, 0.3f, 2.5f )
 				: Math.Clamp( speed / (running ? MoveSpeed * 1.6f : MoveSpeed), 0.5f, 1.6f );
@@ -444,10 +441,14 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	/// <summary>Horizontal speed the body actually covers. The agent's reported velocity runs ahead of it, which slid the feet.</summary>
 	float MeasureSpeed()
 	{
-		var moved = (WorldPosition - _lastPosition).WithZ( 0 ).Length;
+		var travel = (WorldPosition - _lastPosition).WithZ( 0 );
+		var moved = travel.Length;
 		_lastPosition = WorldPosition;
 		if ( Time.Delta > 0 && moved < 100 )
+		{
+			_animation.SetMoveYaw( travel / Time.Delta, WorldRotation );
 			_measuredSpeed = MathX.Lerp( _measuredSpeed, moved / Time.Delta, Math.Clamp( Time.Delta * 10, 0, 1 ) );
+		}
 		return _measuredSpeed;
 	}
 
@@ -470,24 +471,15 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		}
 
 		if ( _command.HasValue && _sinceCommand >= CommandTimeout ) _command = null;
-		if ( Aquatic )
+		if ( Aquatic && !IsUnderwater( WorldPosition ) )
 		{
-			var submerged = IsUnderwater( WorldPosition );
-			if ( _body.IsValid() )
-			{
-				_body.Gravity = !submerged;
-				_body.MotionEnabled = !submerged;
-			}
-
-			if ( !submerged )
-			{
-				Movement?.Stop();
-				_strikeTarget = null;
-				return;
-			}
+			Movement?.Stop();
+			_strikeTarget = null;
+			return;
 		}
 
-		var target = Passive ? null : Senses?.FindBestTarget();
+		var canEngage = _melee is not null || HasRangedAttack || _behaviours.Length > 0 || _manhack.IsValid();
+		var target = !Passive && canEngage ? SelectCombatTarget() : null;
 		if ( target.IsValid() && !_target.IsValid() )
 			NpcVoice.Say( this, Voice, VoiceLine.Alert, target );
 		_target = target;
@@ -509,10 +501,10 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		if ( Aquatic && target.IsValid() && !IsUnderwater( target.GetBounds().Center ) )
 			target = null;
 
-		while ( _strikeTarget.IsValid() && _strikeIndex < _strikeTimes.Length && LastAttack >= _strikeTimes[_strikeIndex] )
+		while ( _strikeTarget.IsValid() && _strikeIndex < _strikes.Length && LastAttack >= _strikes[_strikeIndex].Time )
 		{
-			Strike( _strikeTarget );
-			if ( ++_strikeIndex == _strikeTimes.Length )
+			Strike( _strikeTarget, _strikes[_strikeIndex].Event );
+			if ( ++_strikeIndex == _strikes.Length )
 				_strikeTarget = null;
 		}
 
@@ -544,6 +536,10 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 				_lastPath = 0;
 			}
 		}
+		else if ( Movement is SwimLayer swimmer )
+		{
+			swimmer.MoveTo( target.IsValid() ? Npcs.CapturePoint( target ) : goal, stop, MoveSpeed );
+		}
 		else if ( Locomotion == Locomotions.Flying && Movement is FlyingLayer flying )
 		{
 			flying.HoverHeight = target.IsValid() && AttackRange < 150 ? AttackHeight : FlightHeight;
@@ -560,6 +556,14 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			return;
 		}
 
+		UpdateAttack( target, distance, meleeRange );
+	}
+
+	protected virtual GameObject SelectCombatTarget() => Senses?.FindBestTarget();
+
+	protected virtual void UpdateAttack( GameObject target, float distance, float meleeRange )
+	{
+		var ranged = HasRangedAttack;
 		if ( !target.IsValid() || Passive || !ranged && _melee is null || _strikeTarget.IsValid() || LastAttack < Math.Max( AttackInterval, _attackRecovery ) || distance > AttackRange )
 			return;
 
@@ -568,7 +572,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 
 		_rangedStrike = ranged && distance > meleeRange;
 		var clip = _rangedStrike ? _ranged ?? Attack : Translate( "ACT_MELEE_ATTACK1", null ) ?? PickMelee() ?? Attack;
-		_strikeTimes = Npcs.AttackTimes( Renderer.Model, clip, AttackDelay );
+		_strikes = Npcs.AttackCues( Renderer.Model, clip, AttackDelay );
 		_strikeIndex = 0;
 		// A real attack activity holds the creature for its length; a stand-in clip (stalker, strider) only for the interval.
 		var attackActivity = _attackActivities.Contains( clip ?? "" );
@@ -579,8 +583,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		AttackClip = clip;
 		AttackSerial++;
 		_strikeTarget = target;
-		if ( _rangedStrike && _strikeTimes.Length > 0 )
-			_rangedEffects?.PresentCharge( _strikeTimes[0] );
+		if ( _rangedStrike && _strikes.Length > 0 )
+			RangedEffects?.PresentCharge( _strikes[0].Time );
 	}
 
 	/// <summary>A passive walker greets the player once (TLK_HELLO) and otherwise chats now and then.</summary>
@@ -613,10 +617,10 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		return ground > 1 ? ground : hurry ? MoveSpeed * 1.6f : MoveSpeed;
 	}
 
-	bool HasRangedAttack => _projectile.IsValid() || _rangedEffects.IsValid() || _photo.IsValid();
+	bool HasRangedAttack => _projectile.IsValid() || RangedEffects.IsValid() || _photo.IsValid();
 
 
-	void Strike( GameObject target )
+	void Strike( GameObject target, string hitEvent )
 	{
 		if ( _rangedStrike && _projectile.IsValid() )
 		{
@@ -630,7 +634,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 			return;
 		}
 
-		var presentation = _rangedStrike ? _rangedEffects : null;
+		var presentation = _rangedStrike ? RangedEffects : null;
 		var start = presentation?.Muzzle?.Position ?? WorldPosition + Vector3.Up * AttackHeight;
 		var end = Npcs.CapturePoint( target );
 		var range = _rangedStrike ? AttackRange : Math.Min( AttackRange, MeleeRange );
@@ -642,7 +646,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		if ( tr.Hit && tr.GameObject?.Root != target.Root )
 			return;
 
-		Damage( target, start, tr.EndPosition, presentation?.DamageTag ?? (_rangedStrike ? "bullet" : "melee") );
+		Damage( target, start, tr.EndPosition, presentation?.DamageTag ?? (_rangedStrike ? "bullet" : "melee"), EventDamage( hitEvent ) );
 	}
 
 	internal void Damage( GameObject target, Vector3 origin, Vector3 position, string tag, float? amount = null )
@@ -665,7 +669,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		player.Body.Velocity += velocity;
 	}
 
-	bool IsUnderwater( Vector3 point ) => WaterBody.Find( Scene, point ).IsValid();
+	bool IsUnderwater( Vector3 point ) => SourceWaterMap.IsUnderwater( Scene, point );
 
 	protected override void OnDamaged( Component.IDamageable.DamageEvent damage )
 	{
@@ -735,9 +739,6 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	protected override void OnDamaging( Component.IDamageable.DamageEvent damage )
 	{
 		INpcPart.PreDamage( this, damage );
-
-		if ( BlastHits > 0 && damage.AcceptedDamage >= BlastHitThreshold && damage.DamageInfo.Tags.Contains( DamageTags.Explosion ) )
-			damage.AcceptedDamage = Math.Max( damage.AcceptedDamage, MaxHealth / BlastHits + 1 );
 	}
 
 	/// <summary>A model without a collision model (the gunship) leaves no ragdoll that can fall, so it drops as a box of its bounds.</summary>
@@ -773,6 +774,8 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 		base.OnDeath( death );
 	}
 
+	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) => Npcs.FollowTooltip( Friendly || Passive, Leader );
+
 	bool IPressable.CanPress( IPressable.Event e ) => Friendly || Passive;
 
 	bool IPressable.Press( IPressable.Event e )
@@ -784,15 +787,11 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable
 	[Rpc.Host]
 	void Follow( GameObject source )
 	{
-		var player = source?.GetComponentInParent<PlayerController>();
-		if ( !player.IsValid() || !(Friendly || Passive) || player.WorldPosition.Distance( WorldPosition ) > 160 )
+		if ( !(Friendly || Passive) || Npcs.FollowPlayer( source, WorldPosition ) is not { } player )
 			return;
 
-		if ( Rpc.Caller is not null && player.Network.Owner != Rpc.Caller )
-			return;
-
-		Leader = Leader == player.GameObject ? null : player.GameObject;
-		NpcVoice.Say( this, Voice, Leader.IsValid() ? VoiceLine.Follow : VoiceLine.Unfollow, player.GameObject );
+		Leader = Leader == player ? null : player;
+		NpcVoice.Say( this, Voice, Leader.IsValid() ? VoiceLine.Follow : VoiceLine.Unfollow, player );
 		EndCurrentSchedule();
 	}
 

@@ -38,15 +38,7 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 		}
 	}
 
-	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e )
-	{
-		if ( !Friendly )
-			return null;
-
-		return Leader.IsValid()
-			? new IPressable.Tooltip( "#npc.action.stop_following", "person_off", null )
-			: new IPressable.Tooltip( "#npc.action.follow", "follow_the_signs", null );
-	}
+	IPressable.Tooltip? IPressable.GetTooltip( IPressable.Event e ) => Npcs.FollowTooltip( Friendly, Leader );
 
 	bool IPressable.CanPress( IPressable.Event e ) => Friendly;
 
@@ -59,17 +51,8 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 	[Rpc.Host]
 	private void ToggleFollow( GameObject presserObject )
 	{
-		if ( !Friendly || !presserObject.IsValid() )
-			return;
-
-		var player = presserObject.Root.GetComponent<PlayerController>();
-		if ( !player.IsValid() )
-			return;
-
-		if ( Rpc.Caller is not null && player.Network.Owner != Rpc.Caller )
-			return;
-
-		Leader = Leader == player.GameObject ? null : player.GameObject;
+		if ( Friendly && Npcs.FollowPlayer( presserObject, WorldPosition ) is { } player )
+			Leader = Leader == player ? null : player;
 	}
 
 	/// <summary>
@@ -633,14 +616,14 @@ public sealed class CombatNpc : BaseCombatNpc, Component.IDamageable.IEvents, Co
 
 	internal void BeginHeal( GameObject patient )
 	{
-		_lastHeal = 0;
 		StartAction( Clip( "ACT_CIT_HEAL" ), e =>
 		{
 			if ( e is not null && e.Name != "AE_CITIZEN_HEAL" )
 				return false;
 
-			if ( Npcs.HealthOf( patient ) is { Health: > 0 } health )
+			if ( Npcs.HealthOf( patient ) is { Health: > 0 } health && WorldPosition.Distance( patient.WorldPosition ) <= HealSchedule.TargetRange * 2 )
 			{
+				_lastHeal = 0;
 				health.Health = Math.Min( health.MaxHealth, health.Health + _skill.Get( "sk_citizen_heal_player", 25 ) );
 				PlayMountedSound( "HealthKit.Touch", patient.WorldPosition );
 			}

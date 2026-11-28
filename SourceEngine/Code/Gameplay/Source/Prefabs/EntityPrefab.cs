@@ -183,13 +183,14 @@ internal sealed class EntityPrefab( GameObject root, SourceGameMount mount, Enti
 		if ( walk.HasValue ) navigation.WalkSpeed = walk.Value;
 	}
 
-	public void Skill( string health, string damage = null, string playerDamage = null, string config = null )
+	public NpcDefaults Skill( string health, string damage = null, string playerDamage = null, string config = null )
 	{
 		var defaults = root.AddComponent<NpcDefaults>();
 		defaults.HealthSetting = health;
 		defaults.DamageSetting = damage;
 		defaults.PlayerDamageSetting = playerDamage;
 		defaults.AdditionalConfig = config;
+		return defaults;
 	}
 
 	public void Box( float width, float height ) => BoxAt( Vector3.Up * (height * 0.5f), new( width, width, height ) );

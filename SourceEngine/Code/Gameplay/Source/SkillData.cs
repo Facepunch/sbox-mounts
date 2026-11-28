@@ -29,6 +29,7 @@ public sealed class NpcDefaults : Component
 {
 	[Property] public string AdditionalConfig { get; set; }
 	[Property] public string HealthSetting { get; set; }
+	[Property] public Dictionary<string, string> AttackEventSettings { get; set; }
 	[Property] public string DamageSetting { get; set; }
 	[Property] public string PlayerDamageSetting { get; set; }
 
@@ -54,6 +55,9 @@ public sealed class NpcDefaults : Component
 
 		if ( npc is not CreatureNpc creature )
 			return;
+
+		if ( AttackEventSettings is { Count: > 0 } )
+			creature.DamageByEvent = AttackEventSettings.Where( x => values.ContainsKey( x.Value ) ).ToDictionary( x => x.Key, x => values[x.Value] );
 
 		if ( !string.IsNullOrWhiteSpace( DamageSetting ) && values.TryGetValue( DamageSetting, out var damage ) && damage >= 0 )
 			creature.AttackDamage = damage;

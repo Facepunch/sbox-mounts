@@ -60,6 +60,9 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 	SoundEvent _roll, _rollSpikes, _openSpikes, _closeSpikes, _shock, _taunt;
 	Model _closed, _spikes;
 	bool _exploded;
+	TimeUntil? _preDetonate;
+	TimeUntil? _detonate;
+	TimeUntil _stunned;
 
 	// A ball has no steady forward, so it sees all round. It hunts players and their friends.
 	public override string Faction => Factions.Monster;
@@ -160,7 +163,7 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 
 	void ICollisionListener.OnCollisionStart( Collision collision )
 	{
-		if ( IsProxy || !Rigidbody.IsValid() || _lastBounce < BounceCooldown ) return;
+		if ( IsProxy || _detonate.HasValue || !Rigidbody.IsValid() || _lastBounce < BounceCooldown ) return;
 
 		var root = collision.Other.GameObject?.Root;
 		if ( !root.IsValid() || root == GameObject.Root ) return;
@@ -178,6 +181,45 @@ public sealed class Rollermine : BaseNpc, Component.ICollisionListener
 		if ( away.LengthSquared < 0.01f ) away = WorldRotation.Backward.WithZ( 0 );
 		Rigidbody.Velocity = Vector3.Zero;
 		Rigidbody.ApplyImpulse( (away.Normal + Vector3.Up * 2f).Normal * BounceForce );
+	}
+
+	protected override void OnDamaging( Component.IDamageable.DamageEvent hit )
+	{
+		hit.Cancelled = true;
+		var info = hit.DamageInfo;
+		if ( !info.Tags.Has( DamageTags.Explosion ) && !info.Tags.Has( "burn" ) && !info.Tags.Has( "fire" ) )
+			return;
+
+		if ( info.Attacker?.GetComponent<Rollermine>() is not null )
+		{
+			if ( _stunned <= 0 && Rigidbody.IsValid() )
+				Rigidbody.Velocity += Vector3.Up * 300;
+			_stunned = 1;
+		}
+		else if ( !_detonate.HasValue )
+		{
+			_preDetonate ??= Game.Random.Float( 0.1f, 0.5f );
+		}
+	}
+
+	protected override void Think()
+	{
+		if ( _detonate.HasValue )
+		{
+			if ( _detonate.Value <= 0 ) Health = 0;
+			return;
+		}
+
+		if ( _preDetonate.HasValue && _preDetonate.Value <= 0 )
+		{
+			_preDetonate = null;
+			_detonate = 0.5f;
+			if ( Rigidbody.IsValid() ) Rigidbody.Velocity += Vector3.Up * 300;
+			if ( Sounds.Sound( "NPC_RollerMine.Hurt", _mount ) is { } sound ) GameObject.PlaySound( sound );
+			return;
+		}
+
+		if ( _stunned <= 0 ) base.Think();
 	}
 
 	protected override void OnDeath( Component.IDamageable.DeathEvent death )

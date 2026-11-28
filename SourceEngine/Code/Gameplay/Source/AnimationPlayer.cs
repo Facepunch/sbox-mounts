@@ -65,9 +65,6 @@ public sealed class AnimationPlayer : IDisposable
 	/// </summary>
 	public bool UseBlendGrids { get; set; }
 
-	/// <summary>Additive delta sequences with a grid, such as an aim matrix, layered over everything; see <see cref="SetLayerWeight"/>.</summary>
-	public IReadOnlyList<string> AdditiveLayers { get; set; } = [];
-
 	/// <summary>Additive one-shot delta sequences, such as flinch gestures; see <see cref="PlayGesture"/>.</summary>
 	public IReadOnlyList<string> Gestures { get; set; } = [];
 
@@ -86,6 +83,38 @@ public sealed class AnimationPlayer : IDisposable
 	public const string BoneLockLayer = "bone_locks";
 
 	public void SetPoseParameter( string name, float value ) => Set( _poses, "pose:", name, value );
+	public void SetMoveYaw( Vector3 velocity, Rotation facing )
+	{
+		var travel = velocity.WithZ( 0 );
+		SetPoseParameter( "move_yaw", travel.LengthSquared > 100 ? Angles.NormalizeAngle( Rotation.LookAt( travel ).Yaw() - facing.Yaw() ) : 0 );
+	}
+
+	/// <summary>Ground distance per second at the same directional blend the graph is playing.</summary>
+	public float GroundSpeed( SourceModelSequenceData sequence )
+	{
+		if ( sequence is null ) return 0;
+		if ( sequence.BlendAxes is not [{ Parameter: "move_yaw" } axis] || !_poses.TryGetValue( "move_yaw", out var pose ) )
+			return sequence.GroundSpeed;
+
+		var stops = axis.Positions;
+		var motion = sequence.BlendGridMovement;
+		var speeds = sequence.BlendGridSpeeds;
+		if ( motion.Length != stops.Length || speeds.Length != stops.Length ) return sequence.GroundSpeed;
+
+		var yaw = Wrap( axis, pose.Value );
+		for ( var i = 1; i < stops.Length; i++ )
+		{
+			if ( yaw > stops[i] || stops[i] <= stops[i - 1] ) continue;
+			var t = Math.Clamp( (yaw - stops[i - 1]) / (stops[i] - stops[i - 1]), 0, 1 );
+			var a = motion[i - 1];
+			var b = motion[i];
+			if ( a.IsNearlyZero() || b.IsNearlyZero() ) return MathX.Lerp( speeds[i - 1], speeds[i], t );
+			// The model blends travel per cycle and cycles per second independently.
+			return Vector3.Lerp( a, b, t ).Length * MathX.Lerp( speeds[i - 1] / a.Length, speeds[i] / b.Length, t );
+		}
+		return sequence.GroundSpeed;
+	}
+
 	public void SetLayerWeight( string layer, float weight ) => Set( _layerWeights, "layer:", layer, weight );
 
 	static void Set( Dictionary<string, Parameter> parameters, string prefix, string name, float value )
@@ -177,10 +206,11 @@ public sealed class AnimationPlayer : IDisposable
 		// weights and the gesture selection are declared here, ahead of the clips that use them.
 		var gridded = available.Select( x => _sequences.Get( x.Name ) )
 			.Where( s => UseBlendGrids && s is { Delta: false } && !staticBlends.ContainsKey( s.Name ) && HasGrid( s ) );
-		var additive = AdditiveLayers.Select( _sequences.Get ).Where( s => s is { Delta: true } && HasGrid( s ) ).ToArray();
-		foreach ( var axis in gridded.Concat( additive ).SelectMany( s => s.BlendAxes ) )
+		var clipLayers = available.Select( x => _sequences.Get( x.Name ) )
+			.Where( s => UseBlendGrids && s is { Delta: false, AdditiveLayers.Length: > 0 } )
+			.ToDictionary( s => s.Name, s => s.AdditiveLayers.Select( _sequences.Get ).Where( layer => layer is { Delta: true } && HasGrid( layer ) ).ToArray(), StringComparer.OrdinalIgnoreCase );
+		foreach ( var axis in gridded.Concat( clipLayers.Values.SelectMany( layers => layers ).Distinct() ).SelectMany( s => s.BlendAxes ) )
 			Parameter( axis );
-		var layerWeights = additive.ToDictionary( s => s.Name, s => builder.AddControlParameter( $"layer:{s.Name}", GraphBuilder.NodeKind.Float, new() { DefaultFloat = 0, Min = 0, Max = 1 } ) );
 		_gestures = Gestures.Where( x => _sequences.Get( x ) is { Delta: true } && HasClip( x ) ).Distinct().ToArray();
 		_gesture = null;
 		var gestureKeys = SlotKeys( _gestures );
@@ -254,7 +284,7 @@ public sealed class AnimationPlayer : IDisposable
 			return rows;
 		}
 
-		GraphBuilder.Node Playback( string name, bool loop )
+		GraphBuilder.Node BasePose( string name, bool loop )
 		{
 			if ( staticBlends.TryGetValue( name, out var sequence ) )
 			{
@@ -267,6 +297,29 @@ public sealed class AnimationPlayer : IDisposable
 			if ( UseBlendGrids && metadata is { Delta: false } && HasGrid( metadata ) )
 				return Grid( metadata );
 			return builder.Clip( ResolveClip( name ), new() { Looping = metadata?.Looping ?? loop, SampleRootMotion = false } );
+		}
+
+		// Aiming is authored per sequence. Layer its grids before the state machine blends
+		// the pose, so a run, shot or reload each carries its own arm position.
+		var poseGrids = new Dictionary<string, GraphBuilder.Node>( StringComparer.OrdinalIgnoreCase );
+		GraphBuilder.Node Playback( string name, bool loop )
+		{
+			var pose = BasePose( name, loop );
+			if ( !clipLayers.TryGetValue( name, out var companions ) || companions.Length == 0 )
+				return pose;
+
+			var layered = builder.Layers( pose );
+			foreach ( var companion in companions )
+			{
+				if ( !poseGrids.TryGetValue( companion.Name, out var grid ) )
+				{
+					grid = Grid( companion );
+					if ( companion.BlendGrid.All( cell => _model.AnimationClips()[cell].FrameCount <= 1 ) )
+						poseGrids[companion.Name] = grid;
+				}
+				layered.AddLayer( grid, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true } );
+			}
+			return layered;
 		}
 
 		// One state per key, switched by an id parameter, with a transition from every state to every other.
@@ -338,8 +391,6 @@ public sealed class AnimationPlayer : IDisposable
 				blend.Add( pose.Positions[i], builder.Pose( ResolveClip( pose.Clips[i] ), new GraphBuilder.PoseSettings() ) );
 			layers.AddLayer( blend, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true } );
 		}
-		foreach ( var sequence in additive )
-			layers.AddLayer( Grid( sequence ), new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true, Weight = layerWeights[sequence.Name] } );
 		if ( _gestures.Length > 0 )
 		{
 			// One-shot additive gestures, two slots each so a repeat restarts cleanly.

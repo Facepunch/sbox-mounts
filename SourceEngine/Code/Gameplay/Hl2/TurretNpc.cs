@@ -9,7 +9,7 @@ namespace Source1.Hl2;
 [Alias( "Source1.Hl2TurretNpc", "Hl2TurretNpc" )]
 public sealed class TurretNpc : BaseNpc
 {
-	public enum TurretState { Closed, Opening, Active, Closing, Tipped }
+	public enum TurretState { Closed, Opening, Active, Closing, Tipped, Carried, Thrashing, Retracting }
 	[Property] public bool FloorMounted { get; set; }
 	[Property] public bool TracksWithBody { get; set; }
 	[Property] public float AttackRange { get; set; } = 1500;
@@ -25,6 +25,7 @@ public sealed class TurretNpc : BaseNpc
 	readonly AnimationPlayer _animation = new();
 	(string, bool)[] _choices = [];
 	TimeSince _phaseTime, _lastSeen, _lastShot;
+	TimeUntil _stopThrashing;
 	TurretState? _shownState;
 	int _shownShot;
 	Model _model;
@@ -53,6 +54,7 @@ public sealed class TurretNpc : BaseNpc
 
 	/// <summary>npc_turret_floor fires pistol rounds, npc_turret_ceiling AR2 rounds, both one shot per 0.1 s ActiveThink.</summary>
 	float ShotDamage => _skill.Get( FloorMounted ? "sk_npc_dmg_pistol" : "sk_npc_dmg_ar2", 3 );
+	static readonly TagSet BulletTags = new( ["bullet"] );
 	const float ShotInterval = 0.1f;
 
 	protected override void OnStart()
@@ -117,7 +119,7 @@ public sealed class TurretNpc : BaseNpc
 		_laser ??= MountedEffects.AddBeam( GameObject, "effects/laser1", _mountName );
 		var reach = Scene.Trace.Ray( start.Value.Position, start.Value.Position + (end.Value.Position - start.Value.Position).Normal * AttackRange )
 			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).Run().EndPosition;
-		MountedEffects.SetBeam( _laser, start.Value.Position, reach, State == TurretState.Tipped ? 0 : 1, 160, new Color( 1, 0, 0 ) );
+		MountedEffects.SetBeam( _laser, start.Value.Position, reach, State is TurretState.Tipped or TurretState.Retracting or TurretState.Carried or TurretState.Thrashing ? 0 : 1, 160, new Color( 1, 0, 0 ) );
 	}
 
 	void Configure( Model model )
@@ -175,7 +177,7 @@ public sealed class TurretNpc : BaseNpc
 			// A late joiner shows the state it finds without its sound.
 			var observed = _shownState is not null;
 			_shownState = State;
-			_animation.Play( State switch { TurretState.Opening => _open, TurretState.Active => _active, TurretState.Closing => _close, TurretState.Tipped => _carry, _ => _closed }, restart: true );
+			_animation.Play( State switch { TurretState.Opening => _open, TurretState.Active => _active, TurretState.Closing or TurretState.Retracting => _close, TurretState.Thrashing => _active, TurretState.Carried => _carry, _ => _closed }, restart: true );
 			var sound = !observed ? null : State == TurretState.Opening ? _deploySound : State == TurretState.Closing ? _retireSound : null;
 			if ( sound is not null )
 				Sound.Play( sound, WorldPosition );
@@ -197,7 +199,7 @@ public sealed class TurretNpc : BaseNpc
 			_animation.Play( _active );
 		}
 
-		if ( State == TurretState.Active )
+		if ( State is TurretState.Active or TurretState.Thrashing )
 		{
 			// Close the loop around the authored muzzle. Some rigs' neutral barrel
 			// differs from their root axes; infer that error rather than adding offsets.
@@ -238,15 +240,64 @@ public sealed class TurretNpc : BaseNpc
 
 	void UpdateTipped()
 	{
-		if ( PhysicsCarrier.IsValid() || (FloorMounted && WorldRotation.Up.Dot( Vector3.Up ) < 0.65f) )
-			ChangeState( TurretState.Tipped );
-		else if ( State == TurretState.Tipped )
+		if ( PhysicsCarrier.IsValid() )
+		{
+			ChangeState( TurretState.Carried );
+			return;
+		}
+
+		if ( FloorMounted && WorldRotation.Up.Dot( Vector3.Up ) < 0.5f )
+		{
+			switch ( State )
+			{
+				case TurretState.Thrashing:
+					if ( _stopThrashing )
+						ChangeState( TurretState.Retracting );
+					else if ( _lastShot >= 0.05f )
+					{
+						var offset = Rotation.From( Game.Random.Float( -60, 60 ), Game.Random.Float( -60, 60 ), 0 );
+						AimPoint = Muzzle.Position + WorldRotation * offset.Forward * AttackRange;
+						if ( Friendly )
+							_lastShot = 0;
+						else
+							Fire( Muzzle.Rotation, 0.08716f );
+					}
+					break;
+				case TurretState.Retracting:
+					if ( _phaseTime >= Duration( _close ) )
+						ChangeState( TurretState.Tipped );
+					break;
+				case TurretState.Tipped:
+					break;
+				default:
+					_stopThrashing = Game.Random.Float( 2, 2.5f );
+					ChangeState( TurretState.Thrashing );
+					break;
+			}
+		}
+		else if ( State is TurretState.Thrashing or TurretState.Retracting or TurretState.Tipped )
+		{
+			_lastSeen = 0;
+			AimPoint = Muzzle.Position + WorldRotation.Forward * AttackRange;
+			ChangeState( TurretState.Active );
+		}
+		else if ( State == TurretState.Carried )
+		{
 			ChangeState( TurretState.Closed );
+		}
+	}
+
+	protected override void OnDamaging( Component.IDamageable.DamageEvent e )
+	{
+		if ( FloorMounted )
+			e.AcceptedDamage = 0;
+		else if ( !TracksWithBody && State is TurretState.Closed or TurretState.Closing )
+			e.AcceptedDamage = MathF.Floor( e.AcceptedDamage * 0.1f );
 	}
 
 	protected override void Think()
 	{
-		if ( State == TurretState.Tipped )
+		if ( State is TurretState.Carried or TurretState.Thrashing or TurretState.Retracting or TurretState.Tipped )
 			return;
 
 		var target = Senses?.FindBestTarget();
@@ -300,19 +351,42 @@ public sealed class TurretNpc : BaseNpc
 	void Shoot( GameObject target )
 	{
 		var muzzle = Muzzle;
-		if ( muzzle.Rotation.Forward.Dot( (AimPoint - muzzle.Position).Normal ) < 0.999f )
+		var direction = (AimPoint - muzzle.Position).Normal;
+		var forward = muzzle.Rotation.Forward;
+		const float cos10 = 0.9848078f;
+		bool close = FloorMounted && muzzle.Position.DistanceSquared( AimPoint ) < 60 * 60;
+		if ( close && forward.WithZ( 0 ).Normal.Dot( direction.WithZ( 0 ).Normal ) < cos10 )
 			return;
 
-		var trace = Scene.Trace.Ray( muzzle.Position, AimPoint ).IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger" ).UseHitboxes().Run();
-		if ( trace.Hit && trace.GameObject?.Root != target.Root )
+		var alignment = forward.Dot( direction );
+		if ( alignment < (close ? 0.7071068f : cos10) )
 			return;
+
+		var aim = Rotation.LookAt( close && alignment < cos10 ? forward : direction );
+		Fire( aim, ShotSpread( target ) );
+	}
+
+	void Fire( Rotation aim, float cone )
+	{
+		var muzzle = Muzzle;
+		var spread = BulletWeapon.SampleSpreadDisk() * cone;
+		var ray = new Ray( muzzle.Position, (aim.Forward + aim.Right * spread.x + aim.Up * spread.y).Normal );
+		var trace = Scene.Trace.Ray( ray, 16384 ).IgnoreGameObjectHierarchy( GameObject )
+			.WithCollisionRules( "bullet" ).WithoutTags( "playercontroller" ).UseHitboxes().Run();
+		BaseCombatWeapon.ShootBullet( trace, ShotDamage, Prefabs.Weapons.BulletImpulse, GameObject, GameObject, BulletTags );
 
 		_lastShot = 0;
 		ShotSerial++;
 		GetComponent<NpcRangedEffects>()?.PresentShot( new( trace.EndPosition, trace.Hit, trace.Normal, trace.GameObject, trace.Surface, muzzle.Position ) );
-		var damage = new DamageInfo { Damage = ShotDamage, Attacker = GameObject, Weapon = GameObject, Origin = muzzle.Position, Position = trace.EndPosition };
-		damage.Tags.Add( "bullet" );
-		target.GetComponentInParent<Component.IDamageable>()?.OnDamage( damage );
+	}
+
+	float ShotSpread( GameObject target )
+	{
+		if ( !FloorMounted ) return 0.04362f; // Five-degree cone.
+		const float cone = 0.08716f; // Ten-degree cone.
+		if ( Npcs.IsPlayer( target ) || target.GetComponent<Zombie>().IsValid() || target.GetComponent<CreatureNpc>() is { RespondsToBugbait: true } || target.GetComponent<AntlionGuard>().IsValid() )
+			return cone;
+		return target.GetComponent<CombatNpc>() is { Friendly: false } ? cone * 1.25f : cone * 2;
 	}
 
 	protected override void OnDestroy()

@@ -16,6 +16,8 @@ public sealed class NpcRangedEffects : Component
 	[Property] public string MuzzleParticle { get; set; }
 	[Property] public Color TracerColor { get; set; } = new( 1, 0.7f, 0.3f );
 	[Property] public bool Beam { get; set; }
+	[Property] public bool ContinuousBeam { get; set; }
+	NoisyBeam _beam;
 
 	/// <summary>The Source sprite a beam is drawn with, its width and its noise amplitude (CBeam::SetNoise).</summary>
 	[Property] public string BeamSprite { get; set; } = "sprites/laserbeam";
@@ -137,10 +139,18 @@ public sealed class NpcRangedEffects : Component
 			return;
 		}
 
-		// Beams (vortigaunt zap, stalker laser) are code-drawn CBeams in Source, one from each charging hand.
-		foreach ( var name in ChargePoints )
-			if ( renderer?.GetAttachmentObject( name ) is { } hand )
-				NoisyBeam.Create( BeamSprite, hand, shot.HitPosition, BeamWidth, BeamNoise, TracerColor, 0.5f, mount );
+		if ( ContinuousBeam )
+		{
+			if ( _beam.IsValid() ) _beam.Retarget( shot.HitPosition );
+			else if ( renderer?.GetAttachmentObject( MuzzleAttachment ) is { } muzzle )
+				_beam = NoisyBeam.Create( BeamSprite, muzzle, shot.HitPosition, BeamWidth, BeamNoise, TracerColor, 0.4f, mount );
+		}
+		else
+		{
+			foreach ( var name in ChargePoints )
+				if ( renderer?.GetAttachmentObject( name ) is { } attachment )
+					NoisyBeam.Create( BeamSprite, attachment, shot.HitPosition, BeamWidth, BeamNoise, TracerColor, 0.5f, mount );
+		}
 
 		if ( !shot.Hit || BeamNoise <= 0 )
 			return;
@@ -171,6 +181,7 @@ public sealed class NpcRangedEffects : Component
 
 	protected override void OnDisabled()
 	{
+		if ( _beam.IsValid() ) _beam.GameObject.Destroy();
 		_soundHandle?.Stop();
 		_soundHandle = null;
 		StopCharge();
@@ -196,7 +207,7 @@ public sealed class NoisyBeam : Component
 	Color _color;
 	TimeSince _age;
 
-	public static void Create( string sprite, GameObject start, Vector3 end, float width, float noise, Color color, float life, string mount )
+	public static NoisyBeam Create( string sprite, GameObject start, Vector3 end, float width, float noise, Color color, float life, string mount )
 	{
 		var go = new GameObject( false, "Source beam" );
 		go.NetworkMode = NetworkMode.Never;
@@ -204,7 +215,7 @@ public sealed class NoisyBeam : Component
 		if ( !line.IsValid() )
 		{
 			go.Destroy();
-			return;
+			return null;
 		}
 
 		var beam = go.AddComponent<NoisyBeam>();
@@ -217,6 +228,13 @@ public sealed class NoisyBeam : Component
 		beam._life = life;
 		beam.Draw( 0 );
 		go.Enabled = true;
+		return beam;
+	}
+
+	internal void Retarget( Vector3 end )
+	{
+		_end = end;
+		_age = 0;
 	}
 
 	protected override void OnStart() => _age = 0;
@@ -236,17 +254,25 @@ public sealed class NoisyBeam : Component
 	void Draw( float t )
 	{
 		var start = _start.WorldPosition;
-		var delta = _end - start;
-		var segments = Math.Clamp( (int)(delta.Length / 24), 1, 32 );
-		var side = Vector3.Cross( delta.Normal, MathF.Abs( delta.Normal.z ) > 0.9f ? Vector3.Forward : Vector3.Up ).Normal;
-		var up = Vector3.Cross( side, delta.Normal ).Normal;
 		_line.VectorPoints ??= new();
 		_line.VectorPoints.Clear();
-		for ( var i = 0; i <= segments; i++ )
+		if ( _noise == 0 )
 		{
-			var f = i / (float)segments;
-			var amplitude = _noise * MathF.Sin( f * MathF.PI );
-			_line.VectorPoints.Add( start + delta * f + (side * Game.Random.Float( -1, 1 ) + up * Game.Random.Float( -1, 1 )) * amplitude );
+			_line.VectorPoints.Add( start );
+			_line.VectorPoints.Add( _end );
+		}
+		else
+		{
+			var delta = _end - start;
+			var segments = Math.Clamp( (int)(delta.Length / 24), 1, 32 );
+			var side = Vector3.Cross( delta.Normal, MathF.Abs( delta.Normal.z ) > 0.9f ? Vector3.Forward : Vector3.Up ).Normal;
+			var up = Vector3.Cross( side, delta.Normal ).Normal;
+			for ( var i = 0; i <= segments; i++ )
+			{
+				var f = i / (float)segments;
+				var amplitude = _noise * MathF.Sin( f * MathF.PI );
+				_line.VectorPoints.Add( start + delta * f + (side * Game.Random.Float( -1, 1 ) + up * Game.Random.Float( -1, 1 )) * amplitude );
+			}
 		}
 		_line.Width = _width;
 		_line.Color = (_color * Math.Clamp( 2 - 2 * t, 0, 1 )).WithAlpha( 1 );

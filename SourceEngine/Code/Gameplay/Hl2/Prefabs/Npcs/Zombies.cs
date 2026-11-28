@@ -3,6 +3,12 @@ namespace Source1.Hl2.Prefabs.Npcs;
 [Library]
 public static class Zombies
 {
+	static void ClawSkill( EntityPrefab p, string health, string config = null )
+	{
+		var skill = p.Skill( health, damage: "sk_zombie_dmg_one_slash", config: config );
+		skill.AttackEventSettings = new() { ["AE_ZOMBIE_ATTACK_BOTH"] = "sk_zombie_dmg_both_slash" };
+	}
+
 	[Entities.Definitions]
 	public static IEnumerable<EntityDefinition> All()
 	{
@@ -116,7 +122,7 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( height: 70, radius: 21 );
-				p.Skill( "sk_zombie_poison_health", damage: "sk_zombie_dmg_one_slash" );
+				ClawSkill( p, "sk_zombie_poison_health" );
 
 				npc.Idle = "Idle01";
 				npc.Move = "Walk";
@@ -145,7 +151,7 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation();
-				p.Skill( "sk_zombie_health", damage: "sk_zombie_dmg_one_slash" );
+				ClawSkill( p, "sk_zombie_health" );
 
 				npc.Idle = "Idle01";
 				npc.Attack = "attackA";
@@ -174,7 +180,7 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( height: 24 );
-				p.Skill( "sk_zombie_health", damage: "sk_zombie_dmg_one_slash" );
+				ClawSkill( p, "sk_zombie_health" );
 
 				npc.Idle = "Idle01";
 				npc.Move = "crawl";
@@ -199,7 +205,7 @@ public static class Zombies
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation();
-				p.Skill( "sk_zombie_soldier_health", damage: "sk_zombie_dmg_one_slash", config: "skill_episodic.cfg" );
+				ClawSkill( p, "sk_zombie_soldier_health", config: "skill_episodic.cfg" );
 
 				npc.Idle = "Idle01";
 				npc.Move = "walk_All";

@@ -17,7 +17,7 @@ internal static class SourceSoundEvents
 	internal static SoundEvent Create( SourceGameMount host, SourceSoundDefinition definition, string contentRoot = "", bool ambient = false, int? channel = null )
 	{
 		var sounds = new List<SoundFile>();
-		foreach ( var wave in definition.Waves )
+		foreach ( var wave in Application.IsHeadless ? [] : definition.Waves )
 		{
 			// ^ stores close/far recordings and < stores front/rear recordings,
 			// not ordinary left/right stereo. Use close/front until SoundEvent can

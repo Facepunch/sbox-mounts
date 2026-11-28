@@ -7,23 +7,24 @@ namespace Source1.Hl2;
 [Title( "HL2 Barnacle NPC" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2BarnacleNpc", "Hl2BarnacleNpc" )]
-public sealed class BarnacleNpc : BaseNpc
+public sealed class BarnacleNpc : BaseNpc, Component.IDamageable.IEvents
 {
 	[Property] public float AttackRange { get; set; } = 600;
 	[Property] public float AttackDamage { get; set; } = 15;
-	[Property] public float AttackInterval { get; set; } = 1;
 	[Sync( SyncFlags.FromHost )] public GameObject CapturedTarget { get; private set; }
-	[Sync( SyncFlags.FromHost )] int BiteSerial { get; set; }
+	[Sync( SyncFlags.FromHost )] string FeedingClip { get; set; }
 	readonly AnimationPlayer _animation = new();
-	int _shownBite;
-	string _idle, _bite;
+	string _idle, _lift, _bitePlayer, _biteHuman, _biteSmall, _chewHuman, _chewSmall;
 	(string, bool)[] _choices = [];
 	Model _model;
-	TimeSince _lastBite = 10;
+	TimeUntil _search, _digest;
+	ModelPhysics _swallowing;
+	float _swallowEnd;
 
 	public override string Faction => Factions.Monster;
 	protected override void SetupRelationships()
 	{
+		SetRelationship( Factions.Monster, Disposition.Hostile );
 		SetRelationship( Factions.Player, Disposition.Hostile );
 		SetRelationship( Factions.Ally, Disposition.Hostile );
 		SetRelationship( Factions.Citizen, Disposition.Hostile );
@@ -33,8 +34,7 @@ public sealed class BarnacleNpc : BaseNpc
 	protected override void OnStart()
 	{
 		base.OnStart();
-		if ( IsProxy )
-			_shownBite = BiteSerial;
+		_animation.EventFired += OnAnimationEvent;
 
 		if ( GetComponent<Rigidbody>( true ) is { } body )
 		{
@@ -69,8 +69,15 @@ public sealed class BarnacleNpc : BaseNpc
 			_model = Renderer.Model;
 			var sequences = ModelSequences.Of( _model );
 			_idle = sequences.FindActivity( "ACT_IDLE", "idle01" );
-			_bite = sequences.FindActivity( "ACT_BARNACLE_BITE_PLAYER", _idle );
-			_choices = [(_idle, true), (_bite, false)];
+			string Feeding( string activity ) => sequences.FindActivity( "ACT_BARNACLE_" + activity, _idle );
+			_lift = Feeding( "SLURP" );
+			_bitePlayer = Feeding( "BITE_PLAYER" );
+			_biteHuman = Feeding( "BITE_HUMAN" );
+			_biteSmall = Feeding( "BITE_SMALL_THINGS" );
+			_chewHuman = Feeding( "CHEW_HUMAN" );
+			_chewSmall = Feeding( "CHEW_SMALL_THINGS" );
+			_choices = new[] { _idle, _lift, _bitePlayer, _biteHuman, _biteSmall, _chewHuman, _chewSmall }
+				.Select( clip => (clip, sequences.Get( clip )?.Looping == true) ).ToArray();
 		}
 
 		if ( !_animation.Ensure( Renderer, _choices, _idle ) )
@@ -79,16 +86,7 @@ public sealed class BarnacleNpc : BaseNpc
 		if ( Networking.IsHost )
 			HostThink();
 
-		if ( BiteSerial != _shownBite )
-		{
-			_shownBite = BiteSerial;
-			_animation.Play( _bite, restart: true );
-		}
-		else if ( _animation.Current != _bite || _animation.Finished )
-		{
-			_animation.Play( _idle );
-		}
-
+		_animation.Play( FeedingClip ?? _idle );
 		_animation.Tick();
 	}
 
@@ -115,7 +113,7 @@ public sealed class BarnacleNpc : BaseNpc
 	{
 		var mouth = Mouth;
 		return Scene.GetAllComponents<PlayerController>().Select( x => x.GameObject )
-			.Concat( Scene.GetAllComponents<BaseNpc>().Where( x => x != this ).Select( x => x.GameObject ) )
+			.Concat( Scene.GetAllComponents<BaseNpc>().Where( x => x.Health > 0 && x is not (BarnacleNpc or TurretNpc or Rollermine) ).Select( x => x.GameObject ) )
 			.Where( x => (x.WorldPosition - mouth).WithZ( 0 ).Length < 35 && GetDisposition( x ) == Disposition.Hostile );
 	}
 
@@ -123,39 +121,82 @@ public sealed class BarnacleNpc : BaseNpc
 	{
 		if ( !NpcConVars.Enabled )
 		{
-			if ( CapturedTarget.IsValid() )
-				Capture( null );
+			Capture( null );
+			ReleaseBody();
+			FeedingClip = null;
 			return;
 		}
 
-		// A barnacle catches by tongue contact, independent of its eye direction.
-		if ( !Reachable( CapturedTarget ) )
-			Capture( Prey().FirstOrDefault( Reachable ) );
+		if ( _animation.Current == FeedingClip && _animation.Finished )
+		{
+			if ( FeedingClip == _biteHuman ) FeedingClip = _chewHuman;
+			else if ( FeedingClip == _biteSmall ) FeedingClip = _chewSmall;
+			else if ( FeedingClip == _bitePlayer && !CapturedTarget.IsValid() ) FeedingClip = null;
+			else if ( (FeedingClip == _chewHuman || FeedingClip == _chewSmall) && !_swallowing.IsValid() && _digest ) FeedingClip = null;
+		}
 
 		if ( !CapturedTarget.IsValid() )
+		{
+			if ( _swallowing.IsValid() || (FeedingClip is not null && FeedingClip != _lift) ) return;
+			FeedingClip = null;
+			if ( !_search ) return;
+			_search = 0.1f;
+			var prey = Prey().FirstOrDefault( Reachable );
+			if ( !prey.IsValid() ) return;
+			Capture( prey );
+		}
+		else if ( FeedingClip == _lift && !Reachable( CapturedTarget ) )
+		{
+			Capture( null );
+			FeedingClip = null;
 			return;
+		}
 
 		var mouth = Mouth;
 		var body = CapturedTarget.GetComponentInChildren<Rigidbody>();
 		if ( body.IsValid() && !Npcs.IsPlayer( CapturedTarget ) )
 		{
 			body.MotionEnabled = true;
-			body.Velocity = ((mouth - Vector3.Up * 35 - Npcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
+			body.Velocity = PullVelocity();
 		}
 
-		if ( mouth.Distance( Npcs.CapturePoint( CapturedTarget ) ) > 60 || _lastBite < AttackInterval )
+		if ( FeedingClip is not null && FeedingClip != _lift ) return;
+		if ( mouth.Distance( Npcs.CapturePoint( CapturedTarget ) ) > 60 )
+			FeedingClip = _lift;
+		else if ( Npcs.IsPlayer( CapturedTarget ) )
+			FeedingClip = _bitePlayer;
+		else
+			FeedingClip = (CapturedTarget.GetComponent<BoxCollider>()?.LocalBounds.Size.z ?? CapturedTarget.GetBounds().Size.z) < 40 ? _biteSmall : _biteHuman;
+	}
+
+	Vector3 PullVelocity() => ((Mouth - Vector3.Up * 35 - Npcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 80 );
+
+	void OnAnimationEvent( SourceModelSequenceData.Event e )
+	{
+		if ( !Networking.IsHost || FeedingClip != _animation.Current || e.Name != "AE_BARNACLE_BITE" || !CapturedTarget.IsValid() )
 			return;
 
-		_lastBite = 0;
-		BiteSerial++;
-		var damage = new DamageInfo { Damage = AttackDamage, Attacker = GameObject, Weapon = GameObject, Origin = mouth, Position = Npcs.CapturePoint( CapturedTarget ) };
+		var victim = CapturedTarget;
+		var damage = new DamageInfo { Damage = victim.GetComponent<BaseNpc>()?.Health ?? AttackDamage, Attacker = GameObject, Weapon = GameObject, Origin = Mouth, Position = Npcs.CapturePoint( victim ) };
 		damage.Tags.Add( "melee" );
-		CapturedTarget.GetComponentInParent<Component.IDamageable>()?.OnDamage( damage );
+		victim.GetComponentInParent<Component.IDamageable>()?.OnDamage( damage );
 	}
 
 	protected override void OnFixedUpdate()
 	{
 		base.OnFixedUpdate();
+		if ( Networking.IsHost && _swallowing.IsValid() )
+		{
+			if ( _swallowing.WorldPosition.z >= _swallowEnd )
+			{
+				_swallowing.GameObject.Destroy();
+				_digest = 10;
+			}
+			else
+				foreach ( var body in _swallowing.Bodies )
+					if ( body.Component.IsValid() ) body.Component.Velocity = Vector3.Up * 32;
+		}
+
 		if ( !CapturedTarget.IsValid() )
 			return;
 
@@ -166,12 +207,31 @@ public sealed class BarnacleNpc : BaseNpc
 
 		controller.PreventGrounding( 0.1f );
 		controller.WishVelocity = Vector3.Zero;
-		controller.Body.Velocity = ((Mouth - Vector3.Up * 35 - Npcs.CapturePoint( CapturedTarget )) * 4).ClampLength( 150 );
+		controller.Body.Velocity = PullVelocity();
+	}
+
+	void IDamageable.IEvents.OnDied( IDamageable.DeathEvent e )
+	{
+		if ( e.Instigator != GameObject || e.Victim != CapturedTarget || e.Ragdoll?.GetComponent<ModelPhysics>() is not { } physics )
+			return;
+
+		_swallowing = physics;
+		_swallowEnd = WorldPosition.z + physics.WorldPosition.z - e.Ragdoll.GetBounds().Mins.z;
+		foreach ( var body in physics.Bodies )
+			if ( body.Component?.PhysicsBody is { } b ) b.EnableSolidCollisions = false;
+	}
+
+	void ReleaseBody()
+	{
+		if ( !_swallowing.IsValid() ) return;
+		foreach ( var body in _swallowing.Bodies )
+			if ( body.Component?.PhysicsBody is { } b ) b.EnableSolidCollisions = true;
+		_swallowing = null;
 	}
 
 	void Capture( GameObject victim )
 	{
-		if ( !Networking.IsHost )
+		if ( !Networking.IsHost || CapturedTarget == victim )
 			return;
 
 		var previous = CapturedTarget.IsValid() ? CapturedTarget.GetComponent<BaseNpc>() : null;
@@ -186,12 +246,14 @@ public sealed class BarnacleNpc : BaseNpc
 
 	protected override void OnDisabled()
 	{
+		ReleaseBody();
 		Capture( null );
 		base.OnDisabled();
 	}
 
 	protected override void OnDestroy()
 	{
+		ReleaseBody();
 		Capture( null );
 		_animation.Dispose();
 		base.OnDestroy();

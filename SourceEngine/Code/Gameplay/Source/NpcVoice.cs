@@ -242,11 +242,23 @@ public static class NpcVoice
 	static Utterance SoundScript( string mount, string name )
 	{
 		var sound = Sounds.Sound( name, mount );
-		var files = sound?.Sounds.Where( x => x.IsValid() ).ToArray() ?? [];
-		if ( files.Length == 0 )
+		if ( sound is null )
 			return null;
 
-		return new Utterance( name, [Game.Random.FromArray( files ).ResourcePath], [sound.Pitch.GetValue()], [sound.Volume.GetValue()], sound.ResourcePath );
+		string wave;
+		if ( Application.IsHeadless )
+		{
+			var loader = Sandbox.Mounting.Directory.Get( mount )?.GetByPath( sound.ResourcePath ) as SurfaceSoundLoader;
+			if ( loader?.Waves is not { Count: > 0 } waves ) return null;
+			wave = $"mount://{mount}/{waves[Game.Random.Int( 0, waves.Count - 1 )]}.vsnd";
+		}
+		else
+		{
+			var files = sound.Sounds.Where( x => x.IsValid() ).ToArray();
+			if ( files.Length == 0 ) return null;
+			wave = Game.Random.FromArray( files ).ResourcePath;
+		}
+		return new Utterance( name, [wave], [sound.Pitch.GetValue()], [sound.Volume.GetValue()], sound.ResourcePath );
 	}
 
 	/// <summary>

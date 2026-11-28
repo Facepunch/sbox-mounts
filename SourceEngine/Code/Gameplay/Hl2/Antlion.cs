@@ -3,7 +3,7 @@ using Sandbox.Npcs;
 
 namespace Source1.Hl2;
 
-/// <summary>Digs out of the ground when spawned, playing the model's burrow-out activity before it does anything else.</summary>
+/// <summary>Plays the burrow-out activity for an antlion spawned by a burrow maker.</summary>
 [Title( "HL2 Unburrow" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2Unburrow", "Hl2Unburrow" )]

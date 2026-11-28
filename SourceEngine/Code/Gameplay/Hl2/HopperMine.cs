@@ -211,6 +211,8 @@ public sealed class HopperMine : BaseNpc, Component.ICollisionListener
 		GameObject.Destroy();
 	}
 
+	protected override void OnDamaging( Component.IDamageable.DamageEvent hit ) => hit.Cancelled = true;
+
 	protected override void OnDeath( Component.IDamageable.DeathEvent death ) => Detonate();
 
 	protected override void OnDestroy()

@@ -28,7 +28,6 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	ModelSequences _sequences;
 	LinkAnimation _link;
 	(string, bool)[] _choices = [];
-	string _aimLayer;
 	string _aimYawParameter;
 	string _aimPitchParameter;
 	string _reloadClip;
@@ -39,7 +38,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	bool _wasReloading;
 	int _shownAction;
 	int _shownGesture;
-	float _aimYaw, _aimPitch, _aimWeight;
+	float _aimYaw, _aimPitch;
 
 	/// <summary>The reload clip resolved for the current weapon, used to time the NPC reload. Empty for a looped reload, timed by the weapon.</summary>
 	public string Reload => _layers?.Clips.Reload ?? (_layers?.ReloadLoops == true ? null : _reloadClip) ?? "";
@@ -102,35 +101,17 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		var acttable = Hl2.ActTable.Resolve( _sequences, weaponClass );
 		_layers = ResolveWeaponLayers( model, _sequences, weapon, key.Item2, acttable );
 		_reloadClip = _layers.Reloads[0];
-		_aimLayer = FindAimLayer( weaponClass );
-
-		// The aim matrix: the HL2 one picked by name, else the one a weapon pose names as its additive layer.
-		var aim = _sequences.Get( _aimLayer ) ?? _layers.Upper.Where( x => x is not null ).SelectMany( x => _sequences.Get( x ).AdditiveLayers )
-			.Select( _sequences.Get ).FirstOrDefault( x => x is { Delta: true, BlendAxes.Length: 2 } );
+		var aim = _layers.Clips.All.Concat( _layers.Upper ).Select( _sequences.Get ).Where( s => s is not null )
+			.SelectMany( s => s.AdditiveLayers ).Select( _sequences.Get ).FirstOrDefault( s => s is { Delta: true, BlendAxes.Length: 2 }
+				&& s.BlendAxes.Any( a => a.Parameter.EndsWith( "yaw", StringComparison.OrdinalIgnoreCase ) ) );
 		_aimYawParameter = aim?.BlendAxes.FirstOrDefault( a => a.Parameter.EndsWith( "yaw", StringComparison.OrdinalIgnoreCase ) )?.Parameter;
 		_aimPitchParameter = aim?.BlendAxes.FirstOrDefault( a => a.Parameter.EndsWith( "pitch", StringComparison.OrdinalIgnoreCase ) )?.Parameter;
 		return true;
 	}
 
-	/// <summary>
-	/// The model's additive aim matrix (an aim_yaw by aim_pitch delta grid). Source autolayers it on the weapon
-	/// sequences, which the mount does not export, so the standing matrix for the weapon is picked by name.
-	/// </summary>
-	string FindAimLayer( string weaponClass )
-	{
-		var aims = _sequences.All.Where( s => s.Delta && s.BlendAxes.Length == 2
-			&& s.BlendAxes.Any( a => a.Parameter == "aim_yaw" ) && s.BlendAxes.Any( a => a.Parameter == "aim_pitch" ) ).Select( s => s.Name ).ToArray();
-		var shotgun = weaponClass == "weapon_shotgun";
-		return aims.Where( n => n.EndsWith( "_SG", StringComparison.OrdinalIgnoreCase ) == shotgun )
-			.OrderByDescending( n => n.Contains( "stand", StringComparison.OrdinalIgnoreCase ) )
-			.ThenByDescending( n => n.Contains( weaponClass["weapon_".Length..], StringComparison.OrdinalIgnoreCase ) )
-			.ThenBy( n => n.Contains( "crouch", StringComparison.OrdinalIgnoreCase ) )
-			.ThenBy( n => n.Length ).FirstOrDefault() ?? aims.FirstOrDefault();
-	}
-
 	/// <summary>A locomotion clip's ground speed at its normal rate; for a grid that starts from standing (Source's 9-way blend), its fastest cell's.</summary>
 	float GroundSpeed( string clip ) => _sequences?.Get( clip ) is { } sequence
-		? sequence.GroundSpeed > 0 ? sequence.GroundSpeed : sequence.BlendGridSpeeds.DefaultIfEmpty().Max()
+		? sequence.GroundSpeed > 0 ? _animation.GroundSpeed( sequence ) : sequence.BlendGridSpeeds.DefaultIfEmpty().Max()
 		: 0;
 
 	/// <summary>A 9-way grid holds a standing cell, so its pose carries the speed: move_x and move_y run from 0 at rest to 1 at full stride.</summary>
@@ -154,7 +135,6 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		_animation.EventFired += OnAnimationEvent;
 		_animation.UseBlendGrids = true;
 		_animation.Gestures = FlinchGestures.Select( _sequences.FindGesture ).Concat( _layers.Shots.SelectMany( x => x ) ).Where( x => x is not null ).Distinct().ToArray();
-		_animation.AdditiveLayers = _aimLayer is null ? [] : [_aimLayer];
 		// The weapon sequences hold bones with IK, such as the hands on the weapon bone; the mount names each held
 		// bone and a target bone its clips animate. One weight drives every lock, so only holds all stances share are locked.
 		var holds = _layers.Upper.Where( x => x is not null ).Distinct()
@@ -300,11 +280,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	void UpdatePoseParameters()
 	{
 		var npc = Npc;
-		var velocity = npc.Animation.MoveVelocity.WithZ( 0 );
-		if ( velocity.Length > 10 )
-			_animation.SetPoseParameter( "move_yaw", Angles.NormalizeAngle( Rotation.LookAt( velocity ).Yaw() - WorldRotation.Yaw() ) );
-		else
-			_animation.SetPoseParameter( "move_yaw", 0 );
+		_animation.SetMoveYaw( npc.Animation.MoveVelocity, WorldRotation );
 
 		if ( _aimYawParameter is null )
 			return;
@@ -315,12 +291,9 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		_aimYaw = MathX.Lerp( _aimYaw, aiming ? Angles.NormalizeAngle( aim.yaw - WorldRotation.Yaw() ) : 0, Time.Delta * 8 );
 		// Source aim and body pitch are the pitch of the aim direction, positive down like ours (CAI_BaseNPC::SetAim, CBasePlayerAnimState).
 		_aimPitch = MathX.Lerp( _aimPitch, aiming ? aim.pitch : 0, Time.Delta * 8 );
-		_aimWeight = MathX.Lerp( _aimWeight, aiming ? 1 : 0, Time.Delta * 6 );
 		_animation.SetPoseParameter( _aimYawParameter, _aimYaw );
 		if ( _aimPitchParameter is not null )
 			_animation.SetPoseParameter( _aimPitchParameter, _aimPitch );
-		if ( _aimLayer is not null )
-			_animation.SetLayerWeight( _aimLayer, _aimWeight );
 	}
 
 	void OnAnimationEvent( SourceModelSequenceData.Event e )

@@ -5,6 +5,8 @@ namespace Source1.Hl2.Prefabs;
 [Library]
 public static class Weapons
 {
+	internal const float BulletImpulse = 667.973f;
+
 	[Entities.Definitions]
 	public static IEnumerable<EntityDefinition> Weapon357() =>
 		Define<BulletWeapon>( "357", ".357 Magnum", "357",
@@ -40,7 +42,7 @@ public static class Weapons
 			{
 				w.DeployTime = 0.208333f;
 				w.PreferredSlot = 2;
-				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = 667.973f, SpreadBase = new( 3, 3 ), SpreadGrowth = new( 0, 0 ) };
+				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = BulletImpulse, SpreadBase = new( 3, 3 ), SpreadGrowth = new( 0, 0 ) };
 				w.ClipMaxSize = 45;
 				w.ContinuousFireRate = true;
 				w.EmptyClickInterval = 0.5f;
@@ -204,7 +206,7 @@ public static class Weapons
 			w =>
 			{
 				w.PreferredSlot = 2;
-				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = 667.973f, SpreadBase = new( 1, 1 ), SpreadGrowth = new( 5, 5 ), SpreadRecovery = 1.5f };
+				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = BulletImpulse, SpreadBase = new( 1, 1 ), SpreadGrowth = new( 5, 5 ), SpreadRecovery = 1.5f };
 				w.ClipMaxSize = 18;
 				w.PunchResponse = Weapon.PunchResponses.ResetImpulse;
 				w.PunchPitch = new( 0.25f, 0.5f );
@@ -297,7 +299,7 @@ public static class Weapons
 			{
 				w.DeployTime = 0.208333f;
 				w.PreferredSlot = 2;
-				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = 667.973f, SpreadBase = new( 5, 5 ), SpreadGrowth = new( 0, 0 ) };
+				w.Ballistics = w.Ballistics with { Damage = 8, Range = 56755.84f, Radius = 0, Force = BulletImpulse, SpreadBase = new( 5, 5 ), SpreadGrowth = new( 0, 0 ) };
 				w.ClipMaxSize = 45;
 				w.EmptyClickInterval = 0.5f;
 				w.SecondaryAutomatic = true;

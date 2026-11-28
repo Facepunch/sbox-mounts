@@ -155,12 +155,11 @@ public sealed class StepInSchedule : BaseSchedule
 		|| Npc.Senses.IsValid() && Npc.Senses.FindBestTarget() is { } enemy && enemy != Target;
 }
 
-/// <summary>npc_citizen17's medic: walk up to the patient, then the heal animation applies the kit at AE_CITIZEN_HEAL.</summary>
+/// <summary>Walk to the patient and apply the kit on the heal animation event.</summary>
 public sealed class HealSchedule : BaseSchedule
 {
-	/// <summary>HEAL_MOVE_RANGE and HEAL_TARGET_RANGE in npc_citizen17.cpp.</summary>
 	public const float MoveRange = 30 * 12;
-	const float TargetRange = 12 * 12;
+	internal const float TargetRange = 120;
 	public GameObject Patient { get; set; }
 	public override int Priority => SchedulePriorities.Alert;
 
@@ -182,7 +181,12 @@ public sealed class HealTask( GameObject patient ) : BaseTask
 	}
 
 	protected override TaskResult OnUpdate()
-		=> Npc is CombatNpc npc && patient.IsValid() && npc.UpdateAction( patient ) ? TaskResult.Running : TaskResult.Success;
+	{
+		if ( Npc is not CombatNpc npc || !patient.IsValid() || (patient.WorldPosition - npc.WorldPosition).WithZ( 0 ).Length > HealSchedule.MoveRange * 0.5f )
+			return TaskResult.Success;
+
+		return npc.UpdateAction( patient ) ? TaskResult.Running : TaskResult.Success;
+	}
 
 	protected override void OnEnd() => (Npc as CombatNpc)?.EndAction();
 }

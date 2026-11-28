@@ -125,29 +125,31 @@ public static class Combine
 		{
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Stalker>();
 				p.Navigation();
 				p.Skill( "sk_stalker_health" );
 
 				npc.Idle = "idle1";
-				npc.Attack = "working";
-				npc.AttackRange = 700;
-				npc.AttackDamage = 8;
-				npc.AttackInterval = 0.3f;
-				npc.AttackDelay = 0.1f;
+				npc.Attack = npc.Idle;
+				npc.AttackRange = 3600 * 0.66f;
+				p.Root.GetComponent<SensesLayer>( true ).SightRange = 3599;
+				npc.AttackDamage = 1;
+				npc.AttackInterval = 0.1f;
+				npc.AttackDelay = 0;
 				npc.HatesCombine = false;
 				npc.AttackHeight = 50;
 				npc.Voice = "NPC_Stalker";
 				npc.EyeHeight = 50;
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.MuzzleAttachment = "eyes";
-				npcRangedEffects.FireSound = "NPC_Stalker.BurnWall";
+				npcRangedEffects.FireSound = "NPC_Stalker.BurnFlesh";
 				npcRangedEffects.ContinuousSound = true;
 				npcRangedEffects.Beam = true;
-				npcRangedEffects.TracerColor = new( 1, 0.2f, 0.05f, 1 );
+				npcRangedEffects.ContinuousBeam = true;
+				npcRangedEffects.TracerColor = Color.Red;
 				npcRangedEffects.BeamSprite = "sprites/laser";
-				npcRangedEffects.BeamWidth = 3;
-				npcRangedEffects.DamageTag = "burn";
+				npcRangedEffects.BeamWidth = 2;
+				npcRangedEffects.DamageTag = "shock";
 				p.Box( 26, 72 );
 			}
 		};

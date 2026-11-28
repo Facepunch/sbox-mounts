@@ -13,7 +13,7 @@ public static class People
 			{
 				var npc = p.Npc<CombatNpc>();
 				p.Navigation( run: 180, walk: 85, opensDoors: true );
-				p.Skill( "sk_alyx_health" );
+				npc.Health = npc.MaxHealth = 80;
 
 				npc.Friendly = true;
 				npc.PatrolRadius = 2048;
@@ -33,7 +33,7 @@ public static class People
 			{
 				var npc = p.Npc<CombatNpc>();
 				p.Navigation( run: 180, walk: 85, opensDoors: true );
-				p.Skill( "sk_barney_health" );
+				npc.Health = npc.MaxHealth = 80;
 
 				npc.Friendly = true;
 				npc.PatrolRadius = 2048;
@@ -52,7 +52,7 @@ public static class People
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( opensDoors: true );
-				p.Skill( "sk_breen_health" );
+				npc.Health = npc.MaxHealth = 8;
 
 				npc.Idle = "idle_subtle";
 				npc.Move = "walk_all";
@@ -88,7 +88,7 @@ public static class People
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( opensDoors: true );
-				p.Skill( "sk_eli_health" );
+				npc.Health = npc.MaxHealth = 8;
 
 				npc.Idle = "idle_subtle";
 				npc.Move = "walk_all";
@@ -106,7 +106,7 @@ public static class People
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( opensDoors: true );
-				p.Skill( "sk_gman_health" );
+				npc.Health = npc.MaxHealth = 8;
 
 				npc.Idle = "idle_subtle";
 				npc.Move = "walk_all";
@@ -125,7 +125,7 @@ public static class People
 			{
 				var npc = p.Npc<CombatNpc>();
 				p.Navigation( run: 180, walk: 85, opensDoors: true );
-				p.Skill( "sk_grigori_health" );
+				npc.Health = npc.MaxHealth = 100;
 
 				npc.Friendly = true;
 				npc.PatrolRadius = 2048;
@@ -143,7 +143,7 @@ public static class People
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( opensDoors: true );
-				p.Skill( "sk_kleiner_health" );
+				npc.Health = npc.MaxHealth = 8;
 
 				npc.Idle = "idle_subtle";
 				npc.Move = "walk_all";
@@ -161,7 +161,7 @@ public static class People
 			{
 				var npc = p.Npc<CreatureNpc>();
 				p.Navigation( opensDoors: true );
-				p.Skill( "sk_mossman_health" );
+				npc.Health = npc.MaxHealth = 8;
 
 				npc.Idle = "idle_subtle";
 				npc.Move = "walk_all";

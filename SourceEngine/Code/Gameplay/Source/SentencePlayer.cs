@@ -37,7 +37,7 @@ public sealed class SentencePlayer : Component
 		var duration = 0.2f;
 		for ( var i = 0; i < waves.Length; i++ )
 		{
-			var file = SoundFile.Load( waves[i] );
+			var file = Application.IsHeadless ? null : SoundFile.Load( waves[i] );
 			duration += (file.IsValid() && file.IsLoaded ? file.Duration / Math.Max( pitch[i], 0.1f ) : 0.6f) + 0.05f;
 		}
 
@@ -55,6 +55,7 @@ public sealed class SentencePlayer : Component
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	public static void SayDeath( GameObject speaker, Vector3 position, string[] waves, float[] pitch, float[] volume, string level )
 	{
+		if ( Application.IsHeadless ) return;
 		if ( speaker.IsValid() && speaker.GetComponent<SentencePlayer>() is { } current )
 			current.Stop();
 
@@ -71,8 +72,7 @@ public sealed class SentencePlayer : Component
 	[Rpc.Broadcast( NetFlags.HostOnly )]
 	static void Play( GameObject speaker, string[] waves, float[] pitch, float[] volume, string level )
 	{
-		if ( !speaker.IsValid() )
-			return;
+		if ( Application.IsHeadless || !speaker.IsValid() ) return;
 
 		var player = speaker.GetOrAddComponent<SentencePlayer>();
 		player.Flags |= ComponentFlags.NotNetworked;

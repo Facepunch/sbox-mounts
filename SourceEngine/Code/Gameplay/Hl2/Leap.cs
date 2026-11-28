@@ -44,7 +44,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	const float ReleaseHop = 40, ReleaseClear = 32, ReleaseAirTime = 1;
 	const int ReleaseHops = 5;
 
-	public enum Phase { None, WindUp, Flight, Retreat }
+	public enum Phase { None, WindUp, Flight, Retreat, LandLeft, LandRight, ThreatDisplay }
 
 	[Sync( SyncFlags.FromHost )] Phase State { get; set; }
 
@@ -53,10 +53,10 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 
 	float _launchTime, _airLimit;
 	float? _telegraphTime;
-	string _idleClip, _strikeClip;
+	string _idleClip, _strikeClip, _landLeft, _landRight, _threat;
 	GameObject _target;
 	Vector3? _locked;
-	bool _telegraphed, _armed, _failed, _struck, _screamed;
+	bool _telegraphed, _armed, _failed, _struck, _alerted;
 	TimeSince _phase, _clipStarted, _launched, _sinceTarget;
 	TimeUntil _nextLeap;
 	Flight? _flight;
@@ -72,17 +72,23 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 	public override string Animation => State switch
 	{
 		Phase.WindUp => Clip,
+		Phase.ThreatDisplay => _threat,
 		Phase.Flight => !ClipDone ? Clip : IsZombie ? _strikeClip ?? Clip : _idleClip,
+		Phase.LandLeft => _landLeft,
+		Phase.LandRight => _landRight,
 		_ => null,
 	};
 
-	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(Clip, false), (_strikeClip, false), (_idleClip, true)];
+	public override IEnumerable<(string Name, bool Loop)> AnimationChoices => [(Clip, false), (_strikeClip, false), (_idleClip, true), (_landLeft, false), (_landRight, false), (_threat, false)];
 
 	protected override void OnConfigure( Model model, ModelSequences sequences )
 	{
 		Clip = sequences.FindActivity( "ACT_RANGE_ATTACK1" );
 		_idleClip = sequences.FindActivity( "ACT_IDLE" );
+		_threat = sequences.FindActivity( "ACT_HEADCRAB_THREAT_DISPLAY" );
 		_strikeClip = sequences.FindActivity( "ACT_FASTZOMBIE_LEAP_STRIKE" );
+		_landLeft = sequences.FindActivity( "ACT_FASTZOMBIE_LAND_LEFT" );
+		_landRight = sequences.FindActivity( "ACT_FASTZOMBIE_LAND_RIGHT" );
 		var events = sequences.Get( Clip )?.Events ?? [];
 		var duration = Duration( Clip, 0 );
 		_launchTime = (events.FirstOrDefault( e => e.Name is "AE_HEADCRAB_JUMPATTACK" or "AE_FASTZOMBIE_LEAP" )?.Cycle ?? 0) * duration;
@@ -100,7 +106,7 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		if ( target.IsValid() )
 			_sinceTarget = 0;
 		else if ( _sinceTarget > 2 )
-			_screamed = false;
+			_alerted = false;
 
 		// A crab never rides a creature or player: it hops straight off, unless a hop is already under way
 		if ( !IsZombie && OnCreature && (State != Phase.Flight || !ClipDone && _launched > 0.1f) )
@@ -114,10 +120,24 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 			case Phase.WindUp: return WindingUp();
 			case Phase.Flight: return Flying( target );
 			case Phase.Retreat: return Retreating( target );
+			case Phase.ThreatDisplay:
+			case Phase.LandLeft:
+			case Phase.LandRight:
+				if ( target.IsValid() ) TurnToward( target.WorldPosition );
+				if ( _phase < Duration( Animation, 0 ) ) return true;
+				return Settle();
 		}
 
 		if ( _releaseHops > 0 )
 			return HopOffBody();
+
+		if ( !_alerted && _threat is not null && target.IsValid() && npc.IsOnGround )
+		{
+			_alerted = true;
+			npc.Movement?.Stop();
+			Enter( Phase.ThreatDisplay );
+			return true;
+		}
 
 		switch ( IsZombie ? CanPounce( target ) ? Verdict.Leap : Verdict.None : Judge( target ) )
 		{
@@ -323,8 +343,8 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		if ( IsZombie )
 		{
 			// The first leap of a fight gets the full scream
-			PlaySound( _screamed ? $"{SoundPrefix}.RangeAttack" : $"{SoundPrefix}.Scream" );
-			_screamed = true;
+			PlaySound( _alerted ? $"{SoundPrefix}.RangeAttack" : $"{SoundPrefix}.Scream" );
+			_alerted = true;
 		}
 	}
 
@@ -411,6 +431,16 @@ public sealed class Leap : CreatureBehaviour, INpcPart, Component.ICollisionList
 		_flight = null;
 		_armed = false;
 		ClipDone = true;
+		if ( IsZombie && target.IsValid() )
+		{
+			var left = WorldRotation.Left.Dot( target.WorldPosition - WorldPosition ) >= 0;
+			if ( (left ? _landLeft : _landRight) is not null )
+			{
+				Npc.Movement?.Stop();
+				Enter( left ? Phase.LandLeft : Phase.LandRight );
+				return true;
+			}
+		}
 		return Settle();
 	}
 

@@ -656,7 +656,9 @@ public class BulletWeapon : Weapon
 		return new( MathF.Sin( (spread.x * 0.5f).DegreeToRadian() ), MathF.Sin( (spread.y * 0.5f).DegreeToRadian() ) );
 	}
 
-	protected virtual Vector2 SampleSpread()
+	protected virtual Vector2 SampleSpread() => SampleSpreadDisk();
+
+	internal static Vector2 SampleSpreadDisk()
 	{
 		Vector2 offset;
 		do
