@@ -19,7 +19,7 @@ public abstract partial class SourceGameMount
 		var options = new SoundFile.LoadOptions { Channel = channel };
 		return file.EndsWith( ".mp3", StringComparison.OrdinalIgnoreCase )
 			? SoundFile.FromMp3( name, GetFileBytes( file ), options )
-			: SoundFile.FromWav( name, GetFileBytes( file ), options );
+			: WavSoundLoader.FromWav( name, GetFileBytes( file ), channel );
 	}
 
 	internal string GetBreakModelPath( string path )

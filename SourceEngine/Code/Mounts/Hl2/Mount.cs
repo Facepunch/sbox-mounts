@@ -7,7 +7,7 @@ namespace Source1.Hl2;
 /// With Garry's Mod installed, its handless <c>models/weapons/c_*</c> viewmodels are available either way,
 /// and its hand-rigged <c>models/weapons/w_*</c> world models replace the game's own.
 /// </summary>
-public sealed class Mount : SourceGameMount
+public sealed partial class Mount : SourceGameMount
 {
 	protected override string ContentDirectory => "hl2";
 	internal override IEnumerable<string> PlayerStartClasses => ["info_player_combine", "info_player_rebel"];

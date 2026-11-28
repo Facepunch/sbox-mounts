@@ -116,6 +116,7 @@ public abstract partial class SourceGameMount
 		public readonly List<(string Path, ResourceFactory Factory)> Resources = [];
 		public BspFormat MapFormat { get; init; } = BspFormat.Default;
 		public readonly List<string> Errors = [];
+		public readonly HashSet<string> FemaleActors = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, SourceSurfaceDefinition> Surfaces = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, SourceSoundDefinition> SurfaceSounds = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, WeakReference<MdlFile.AnimationFile>> AnimationFiles = new( StringComparer.OrdinalIgnoreCase );

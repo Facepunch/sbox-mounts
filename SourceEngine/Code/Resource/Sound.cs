@@ -4,7 +4,32 @@ namespace Source1;
 
 internal sealed class WavSoundLoader( string fullPath ) : ResourceLoader<SourceGameMount>
 {
-	protected override object Load() => SoundFile.FromWav( Path, Host.GetFileBytes( fullPath ) );
+	protected override object Load() => FromWav( Path, Host.GetFileBytes( fullPath ) );
+
+	internal static SoundFile FromWav( string name, byte[] data, int? channel = null )
+	{
+		var options = new SoundFile.LoadOptions { Channel = channel };
+		// Some looping waves store their sample range in a sampler chunk.
+		for ( int i = 12; i <= data.Length - 8; )
+		{
+			int length = BitConverter.ToInt32( data, i + 4 );
+			if ( length < 0 || length > data.Length - i - 8 ) break;
+			if ( data.AsSpan( i, 4 ).SequenceEqual( "smpl"u8 ) && length >= 60 &&
+				BitConverter.ToUInt32( data, i + 36 ) > 0 && BitConverter.ToUInt32( data, i + 48 ) == 0 )
+			{
+				var start = BitConverter.ToUInt32( data, i + 52 );
+				var end = BitConverter.ToUInt32( data, i + 56 );
+				if ( start <= end && end < int.MaxValue )
+				{
+					options.LoopStart = (int)start;
+					options.LoopEnd = (int)end + 1;
+				}
+				break;
+			}
+			i += 8 + length + (length & 1);
+		}
+		return SoundFile.FromWav( name, data, options );
+	}
 }
 
 internal sealed class Mp3SoundLoader( string fullPath ) : ResourceLoader<SourceGameMount>

@@ -9,6 +9,8 @@ public abstract partial class SourceGameMount : BaseGameMount
 	public virtual GameRules GameRules { get; } = new();
 	protected internal virtual ViewModelMotion.Settings ViewModelMovement => ViewModelMotion.Settings.Default;
 	protected abstract string ContentDirectory { get; }
+	internal virtual void PlayNpcEvent( Sandbox.Npcs.BaseNpc npc, SourceModelSequenceData sequence, SourceModelSequenceData.Event evt ) { }
+
 	protected internal virtual string[] VoicePatterns( VoiceLine line ) => [];
 	protected internal virtual string FallbackCubemap => null;
 

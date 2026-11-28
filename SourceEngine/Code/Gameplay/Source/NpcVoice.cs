@@ -202,7 +202,7 @@ public static class NpcVoice
 		{
 			var utterance = name.StartsWith( '!' ) ? Sentence( npc, mount, name[1..], Sounds.Sound( SentenceParameters.GetValueOrDefault( npcClass ?? "" ), mount ) )
 				: name.StartsWith( "TLK_", StringComparison.Ordinal ) ? Concept( npc, mount, model, npcClass, name, lookAt )
-				: SoundScript( mount, name );
+				: SoundScript( mount, name, model );
 			if ( utterance is not null )
 				return utterance;
 		}
@@ -211,7 +211,7 @@ public static class NpcVoice
 			return chatter;
 
 		var names = Lines( mount, prefix, line );
-		return names.Length > 0 ? SoundScript( mount, Game.Random.FromArray( names ) ) : null;
+		return names.Length > 0 ? SoundScript( mount, Game.Random.FromArray( names ), model ) : null;
 	}
 
 	/// <summary>
@@ -238,10 +238,12 @@ public static class NpcVoice
 		return new Utterance( name, [$"mount://{mount}/{Game.Random.FromArray( lines ).Wave}.vsnd"], [1], [1], null );
 	}
 
+	static bool IsFemale( string mount, string model ) => (Sandbox.Mounting.Directory.Get( mount ) as SourceGameMount)?.IsFemaleActor( model ) == true;
+
 	/// <summary>One of the sound script's waves, picked on the host so every client speaks the same one.</summary>
-	static Utterance SoundScript( string mount, string name )
+	static Utterance SoundScript( string mount, string name, string model )
 	{
-		var sound = Sounds.Sound( name, mount );
+		var sound = Sounds.Sound( name, mount, IsFemale( mount, model ) );
 		if ( sound is null )
 			return null;
 
@@ -288,7 +290,7 @@ public static class NpcVoice
 			return null;
 
 		var facts = Facts( npc, npcClass, lookAt );
-		var gender = model.Contains( "female", StringComparison.OrdinalIgnoreCase ) ? "female" : "male";
+		var gender = IsFemale( mount, model ) ? "female" : "male";
 		var candidates = rules.Where( x => x.Criteria.All( c => facts.TryGetValue( c.Key, out var value ) && Matches( c.Value, value ) ) );
 		foreach ( var rule in candidates.OrderByDescending( x => x.Criteria.Count ).ThenBy( _ => Game.Random.Float() ) )
 		{
@@ -315,7 +317,7 @@ public static class NpcVoice
 			return Sentence( npc, mount, response.Sentence, null );
 
 		if ( !string.IsNullOrEmpty( response.Sound ) )
-			return SoundScript( mount, response.Sound );
+			return SoundScript( mount, response.Sound, ModelOf( npc.GameObject ) );
 
 		if ( string.IsNullOrEmpty( response.Wave ) )
 			return null;

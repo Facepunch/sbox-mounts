@@ -12,6 +12,10 @@ public sealed class AnimationPlayer : IDisposable
 	Model _unplayable;
 	SkinnedModelRenderer _renderer;
 	TimeSince _elapsed;
+	float _rateStarted, _clipOffset;
+	float ClipTime => _clipOffset + ((float)_elapsed - _rateStarted) * _rate;
+	Sandbox.Npcs.BaseNpc _npc;
+	SourceGameMount _npcMount;
 	int _slot;
 	bool _splitSlots;
 	readonly string[] _slotClips = new string[2];
@@ -25,6 +29,7 @@ public sealed class AnimationPlayer : IDisposable
 	readonly Dictionary<string, Parameter> _layerWeights = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, SourceModelSequenceData.BlendAxis> _axes = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, SoundEvent> _eventSounds = new();
+	Dictionary<string, SoundHandle> _stoppableSounds;
 	string _gesture;
 	int _gestureSlot;
 	TimeUntil _gestureEnd;
@@ -132,8 +137,8 @@ public sealed class AnimationPlayer : IDisposable
 	public float ClipDuration( string name ) => _model?.AnimationClips().TryGetValue( name ?? "", out var clip ) == true ? clip.Duration : 0;
 	public float Elapsed => _elapsed;
 	/// <summary>Source can advance a transition once its authored fade-out begins.</summary>
-	public bool InFadeOut => _elapsed * _rate >= Duration - (_sequences.Get( Current )?.FadeOut ?? 0);
-	public bool Finished => _elapsed >= Duration / MathF.Max( _rate, 0.01f );
+	public bool InFadeOut => ClipTime >= Duration - (_sequences.Get( Current )?.FadeOut ?? 0);
+	public bool Finished => ClipTime >= Duration;
 
 	/// <summary>
 	/// Builds the graph once per model, starting directly in <paramref name="initial"/> so the first clip does not blend in from another.
@@ -150,6 +155,8 @@ public sealed class AnimationPlayer : IDisposable
 		Dispose();
 		_model = animationModel;
 		_renderer = renderer;
+		_npc = Application.IsDedicatedServer ? null : renderer.GetComponentInParent<Sandbox.Npcs.BaseNpc>();
+		_npcMount = _npc?.Renderer == renderer ? Sandbox.Mounting.Directory.Get( MountContent.Of( _model ) ) as SourceGameMount : null;
 		_sequences = ModelSequences.Of( _model );
 		_eventSounds.Clear();
 		_axes.Clear();
@@ -167,8 +174,18 @@ public sealed class AnimationPlayer : IDisposable
 		}
 
 		if ( retarget is null && !Application.IsDedicatedServer )
-			foreach ( var sound in _sequences.All.SelectMany( s => s.Events ).Where( Sounds.IsSoundEvent ).Select( e => e.Options ).Distinct() )
-				if ( !string.IsNullOrWhiteSpace( sound ) ) _eventSounds[sound] = Sounds.Sound( sound, MountContent.Of( _model ) );
+		{
+			var mount = MountContent.Of( _model );
+			var female = _npcMount?.IsFemaleActor( _model.ResourcePath ) == true;
+			foreach ( var evt in _sequences.Events )
+			{
+				if ( string.IsNullOrWhiteSpace( evt.Options ) ) continue;
+				if ( evt.Name == "AE_CL_STOPSOUND" )
+					(_stoppableSounds ??= new( StringComparer.OrdinalIgnoreCase )).TryAdd( evt.Options, null );
+				else if ( Sounds.IsSoundEvent( evt ) && !_eventSounds.ContainsKey( evt.Options ) )
+					_eventSounds[evt.Options] = Sounds.Sound( evt.Options, mount, female );
+			}
+		}
 
 		// Plain sequence players only differ by their ordered clips and looping flags.
 		_sharedGraph = targetSkeleton is null && retarget is null && !UseBlendGrids
@@ -508,12 +525,19 @@ public sealed class AnimationPlayer : IDisposable
 				? incoming.Snap ? 0 : MathF.Min( outgoing.FadeOut, incoming.FadeIn ) : 0.08f;
 			Current = name;
 			_elapsed = 0;
+			_rateStarted = _clipOffset = 0;
 			_eventTime = -0.0001f;
 			_slot = 1 - _slot;
 			_slotClips[_slot] = name;
 			_selection = _splitSlots ? (_slot == 0 ? "first" : "second") : $"{name}:{_slot}";
 		}
-		_rate = Math.Clamp( rate, 0.01f, 4 );
+		rate = Math.Clamp( rate, 0.01f, 4 );
+		if ( rate != _rate )
+		{
+			_clipOffset = ClipTime;
+			_rateStarted = _elapsed;
+			_rate = rate;
+		}
 		_rates[_slot] = _rate;
 	}
 
@@ -582,7 +606,7 @@ public sealed class AnimationPlayer : IDisposable
 	void DispatchEvents()
 	{
 		if ( _sequences?.Get( Current ) is not { } sequence || Duration <= 0 ) return;
-		var time = (float)_elapsed * _rate;
+		var time = ClipTime;
 		var end = sequence.Looping ? time : MathF.Min( time, Duration );
 		var firstLoop = sequence.Looping ? Math.Max( 0, (int)(_eventTime / Duration) ) : 0;
 		var lastLoop = sequence.Looping ? (int)(end / Duration) : 0;
@@ -595,7 +619,18 @@ public sealed class AnimationPlayer : IDisposable
 				if ( eventTime > _eventTime && eventTime <= end )
 				{
 					if ( EventSound( evt ) is { } sound )
-						_renderer.GameObject.PlaySound( sound );
+					{
+						var handle = _renderer.GameObject.PlaySound( sound );
+						if ( _stoppableSounds?.TryGetValue( evt.Options, out var previous ) == true )
+						{
+							previous?.Stop();
+							_stoppableSounds[evt.Options] = handle;
+						}
+					}
+					else if ( evt.Name == "AE_CL_STOPSOUND" && evt.Options is { } name )
+						_stoppableSounds?.GetValueOrDefault( name )?.Stop();
+					else
+						_npcMount?.PlayNpcEvent( _npc, sequence, evt );
 					EventFired?.Invoke( evt );
 				}
 			}
@@ -605,6 +640,11 @@ public sealed class AnimationPlayer : IDisposable
 	public void Dispose()
 	{
 		if ( _renderer.IsValid() && _renderer.Animation.Graph == _graph ) _renderer.Animation.Graph = null;
+		if ( _stoppableSounds is not null )
+		{
+			foreach ( var handle in _stoppableSounds.Values ) handle?.Stop();
+			_stoppableSounds = null;
+		}
 		if ( !_sharedGraph ) _graph?.Dispose();
 		_graph = null;
 		_model = null;

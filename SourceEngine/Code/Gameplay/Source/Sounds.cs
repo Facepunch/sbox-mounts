@@ -9,11 +9,14 @@ static class Sounds
 	public static SoundEvent Refresh( SoundEvent sound ) =>
 		sound is not null && !sound.IsValid() && !string.IsNullOrEmpty( sound.ResourcePath ) ? GameResource.Load<SoundEvent>( sound.ResourcePath ) : sound;
 
-	public static SoundEvent Sound( string name, string mountName )
+	public static SoundEvent Sound( string name, string mountName, bool female = false )
 	{
 		if ( string.IsNullOrWhiteSpace( name ) ) return null;
 		var path = $"mount://{mountName}/sounds/events/{Uri.EscapeDataString( name.ToLowerInvariant() )}.sound";
-		return Sandbox.Mounting.Directory.Get( mountName )?.GetByPath( path ) is not null ? GameResource.Load<SoundEvent>( path ) : null;
+		var mount = Sandbox.Mounting.Directory.Get( mountName );
+		if ( female && mount?.GetByPath( Path.ChangeExtension( path, "female.sound" ) ) is { } variant )
+			return GameResource.Load<SoundEvent>( variant.Path );
+		return mount?.GetByPath( path ) is not null ? GameResource.Load<SoundEvent>( path ) : null;
 	}
 
 	static readonly Dictionary<string, HashSet<string>> Events = new();

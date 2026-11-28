@@ -4,6 +4,14 @@ namespace Source1;
 
 public abstract partial class SourceGameMount
 {
+	internal bool IsFemaleActor( string model )
+	{
+		if ( string.IsNullOrEmpty( model ) ) return false;
+		var name = Path.GetFileNameWithoutExtension( model );
+		if ( name.EndsWith( ".mdl", StringComparison.OrdinalIgnoreCase ) ) name = Path.GetFileNameWithoutExtension( name );
+		return index.FemaleActors.Contains( name );
+	}
+
 	private void MountSoundEvents( MountContext context, FileIndex files )
 	{
 		const string manifest = "scripts/game_sounds_manifest.txt";
@@ -11,6 +19,13 @@ public abstract partial class SourceGameMount
 		var names = new HashSet<string>( StringComparer.OrdinalIgnoreCase );
 		try
 		{
+			const string actors = "scripts/global_actors.txt";
+			if ( files.Files.TryGetValue( actors, out var actorFile ) )
+				foreach ( var block in ScriptManifest.Parse( actorFile.ReadText(), actors, message => Log.Trace( message ) ) )
+					foreach ( var actor in block.Children )
+						if ( string.Equals( actor.Value, "female", StringComparison.OrdinalIgnoreCase ) )
+							files.FemaleActors.Add( actor.Name );
+
 			foreach ( var path in ScriptManifest.Read( files.Files[manifest].ReadText(), manifest, "game_sounds_manifest", "precache_file", "declare_file", "preload_file" ) )
 			{
 				if ( !files.Files.ContainsKey( path ) ) continue;
@@ -21,9 +36,17 @@ public abstract partial class SourceGameMount
 						if ( names.Contains( root.Name ) ) continue;
 						try
 						{
-							var definition = ResolveSurfaceSound( SourceSoundDefinition.Parse( root, path ) );
-							if ( definition is null ) continue;
+							var definition = SourceSoundDefinition.Parse( root, path );
 							var name = $"sounds/events/{Uri.EscapeDataString( root.Name.ToLowerInvariant() )}";
+							if ( definition.Waves.Any( w => w.Contains( "$gender" ) ) )
+							{
+								SourceSoundDefinition For( string gender ) => definition with { Waves = definition.Waves.Select( w => w.Replace( "$gender", gender ) ).ToArray() };
+								if ( ResolveSurfaceSound( For( "female" ) ) is { } female )
+									context.Add( ResourceType.GameResource, $"{name}.female.sound", new SurfaceSoundLoader( female ) );
+								definition = For( "male" );
+							}
+							definition = ResolveSurfaceSound( definition );
+							if ( definition is null ) continue;
 							context.Add( ResourceType.GameResource, $"{name}.sound", new SurfaceSoundLoader( definition ) );
 							if ( definition.Encoding == WaveEncoding.Doppler )
 							{

@@ -29,6 +29,7 @@ public static class Machines
 				npc.AttackInterval = 0.3f;
 				npc.AttackDelay = 0;
 				npc.Voice = "NPC_CombineDropship";
+				p.Root.AddComponent<SoundPointComponent>().SoundEvent = Sounds.Sound( "NPC_CombineDropship.RotorLoop", "hl2" );
 				var deployPrefab = p.Root.AddComponent<DeployPrefab>();
 				deployPrefab.Prefab = "combine_soldier";
 				deployPrefab.Range = 1600;
@@ -55,6 +56,7 @@ public static class Machines
 				npc.MoveSpeed = 220;
 				npc.AttackRange = 2500;
 				npc.Voice = "NPC_CombineGunship";
+				p.Root.AddComponent<SoundPointComponent>().SoundEvent = Sounds.Sound( "NPC_CombineGunship.RotorSound", "hl2" );
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.FireSound = "NPC_CombineGunship.CannonSound";
 				npcRangedEffects.ContinuousSound = true;
@@ -83,6 +85,7 @@ public static class Machines
 				npc.AttackInterval = 0.15f;
 				npc.AttackDelay = 0;
 				npc.Voice = "NPC_AttackHelicopter";
+				p.Root.AddComponent<SoundPointComponent>().SoundEvent = Sounds.Sound( "NPC_AttackHelicopter.Rotors", "hl2" );
 				var npcRangedEffects = p.Root.AddComponent<NpcRangedEffects>();
 				npcRangedEffects.MuzzleAttachment = "Muzzle";
 				npcRangedEffects.FireSound = "NPC_AttackHelicopter.FireGun";
@@ -206,7 +209,7 @@ public static class Machines
 		{
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Scanner>();
 				p.Skill( "sk_scanner_health" );
 
 				npc.Health = 40;
@@ -230,7 +233,7 @@ public static class Machines
 			RequiredPrefabs = ["entities/npcs/hopper_mine.prefab"],
 			Build = p =>
 			{
-				var npc = p.Npc<CreatureNpc>();
+				var npc = p.Npc<Scanner>();
 				p.Skill( "sk_scanner_health" );
 
 				npc.Health = 50;

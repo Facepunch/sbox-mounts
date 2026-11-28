@@ -135,7 +135,7 @@ internal sealed record SourceSoundDefinition( string Name, string SourcePath, IR
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' mixes wave encodings." );
 			encoding = waveEncoding;
 			wave = ScriptManifest.ContentPath( wave[prefix..] );
-			if ( wave.Contains( '$' ) || (!wave.EndsWith( ".wav" ) && !wave.EndsWith( ".mp3" )) )
+			if ( wave.Replace( "$gender", "" ).Contains( '$' ) || (!wave.EndsWith( ".wav" ) && !wave.EndsWith( ".mp3" )) )
 				throw new NotSupportedException( $"{path}: sound '{root.Name}' uses unsupported wave '{wave}'." );
 			waves.Add( wave.StartsWith( "sound/" ) ? wave : $"sound/{wave}" );
 		}
