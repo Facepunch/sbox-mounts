@@ -18,25 +18,35 @@ partial class MapLoader
 		protected virtual MapProp Read( MapEntity entity ) => ReadProp( entity );
 	}
 
-	private sealed class DynamicPropEntityLoader() : PropEntityLoader( true )
+	private class DynamicPropEntityLoader() : PropEntityLoader( true )
 	{
 		protected override Component Configure( MapEntity entity, GameObject instance )
 		{
-			var initial = entity.Get( "DefaultAnim" );
-			if ( string.IsNullOrEmpty( initial ) && string.IsNullOrEmpty( entity.Get( "targetname" ) ) ) return null;
 			var model = instance.GetComponent<Prop>( true )?.Model ?? instance.GetComponent<ModelRenderer>( true )?.Model;
 			if ( ModelClips.Of( model ).Count == 0 ) return null;
+			var initial = InitialSequence( entity, model );
+			if ( string.IsNullOrEmpty( initial ) && string.IsNullOrEmpty( entity.Get( "targetname" ) ) ) return null;
 			if ( instance.NetworkMode != NetworkMode.Object ) MakeNetworkRoot( instance );
 			var animation = instance.AddComponent<PropAnimation>();
 			animation.Sequence = initial;
 			return animation;
 		}
 
+		protected virtual string InitialSequence( MapEntity entity, Model model ) => entity.Get( "DefaultAnim" );
+
 		protected override MapProp Read( MapEntity entity )
 		{
 			var prop = base.Read( entity );
 			return prop with { Visible = prop.Visible && entity.Integer( "StartDisabled" ) == 0, Gameplay = true };
 		}
+	}
+
+	private sealed class FurnitureEntityLoader : DynamicPropEntityLoader
+	{
+		protected override string InitialSequence( MapEntity entity, Model model ) => ModelSequences.Of( model ).All.FirstOrDefault()?.Name;
+
+		// Scripted furniture has no solid root. Maps can supply separate blocking brushes.
+		protected override MapProp Read( MapEntity entity ) => base.Read( entity ) with { Solid = 0 };
 	}
 
 	private sealed class PhysicsPropEntityLoader : PropEntityLoader

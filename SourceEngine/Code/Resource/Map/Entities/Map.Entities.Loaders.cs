@@ -13,6 +13,7 @@ partial class MapLoader
 			"prop_static" or "prop_ragdoll_attached" or "prop_detail" or "prop_vehicle"
 				or "prop_vehicle_driveable" or "prop_vehicle_jeep" or "prop_vehicle_airboat" or "prop_vehicle_prisoner_pod" => new PropEntityLoader(),
 			"prop_door_rotating" or "prop_door_rotating_checkpoint" or "dz_door" => new PropDoorLoader(),
+			"npc_furniture" or "monster_furniture" => new FurnitureEntityLoader(),
 			"prop_dynamic" or "prop_dynamic_override" => new DynamicPropEntityLoader(),
 			"prop_physics" or "prop_physics_override" or "prop_physics_multiplayer" or "prop_physics_respawnable" => new PhysicsPropEntityLoader(),
 			"prop_ragdoll" => new RagdollEntityLoader(),
