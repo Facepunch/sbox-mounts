@@ -73,6 +73,7 @@ internal sealed class EntityPrefab( GameObject root, SourceGameMount mount, Enti
 
 	public BaseCombatWeapon Equip( string name )
 	{
+		root.GetOrAddComponent<BaseNpcInventory>();
 		var weapon = Prefab( $"entities/weapons/{name}.prefab" ).Clone( new CloneConfig { Parent = root, Transform = Transform.Zero, StartEnabled = true } );
 		return weapon.GetComponent<BaseCombatWeapon>( true );
 	}
