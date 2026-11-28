@@ -94,12 +94,13 @@ public sealed class ModelClips : IReadOnlyDictionary<string, Clip>
 		return value is not null;
 	}
 
-	Dictionary<Clip, Clip> _reloadGrips;
+	Dictionary<(Clip Action, Clip BasePose, string Socket, string Anchor, Transform Start), Clip> _reloadGrips;
 
-	internal Clip ReloadGrip( Clip action, SourceModelSequenceData sequence, int helper, int driver )
+	internal Clip ReloadGrip( Clip action, SourceModelSequenceData sequence, int helper, int driver, Clip rest, string socket, string anchor, Transform start )
 	{
 		_reloadGrips ??= [];
-		if ( _reloadGrips.TryGetValue( action, out var result ) ) return result;
+		var key = (action, action.IsAdditive ? rest : null, socket, anchor, start);
+		if ( _reloadGrips.TryGetValue( key, out var result ) ) return result;
 		var source = action.Skeleton.Bones;
 		int Hand( string name ) => source.FirstOrDefault( b => b.Name == (sequence.IkTargets.FirstOrDefault( x => x.Bone == name )?.TargetBone ?? name) )?.Index ?? -1;
 		var right = Hand( WeaponGrip.Right );
@@ -110,27 +111,39 @@ public sealed class ModelClips : IReadOnlyDictionary<string, Clip>
 
 		var arms = (from joint in source where WeaponGrip.IsArm( joint.Name )
 			join bone in Skeleton.Bones on joint.Name equals bone.Name select (joint.Index, Target: bone.Index)).ToArray();
+		var sourceAnchor = source.FirstOrDefault( b => b.Name == anchor );
+		var targetSocket = Skeleton.Bones.FirstOrDefault( b => b.Name == socket );
+		var basePose = action.IsAdditive ? source.Select( b => rest.GetLocalTransform( 0, b.Index ) ).ToArray() : null;
 		var frame = Skeleton.Bones.Select( b => b.LocalTransform ).ToArray();
 		var builder = new ClipBuilder { Skeleton = Skeleton, FrameRate = action.FrameRate };
 		for ( var i = 0; i < action.FrameCount; i++ )
 		{
 			var cycle = i / (float)Math.Max( 1, action.FrameCount - 1 );
+			Transform Local( int bone )
+			{
+				var value = action.GetLocalTransform( cycle, bone );
+				if ( basePose is null ) return value;
+				var bind = basePose[bone];
+				return new( bind.Position + value.Position, bind.Rotation * value.Rotation, bind.Scale );
+			}
 			Transform Sample( int bone )
 			{
-				var transform = action.GetLocalTransform( cycle, bone );
+				var transform = Local( bone );
 				for ( var parent = source[bone].ParentIndex; parent >= 0; parent = source[parent].ParentIndex )
-					transform = action.GetLocalTransform( cycle, parent ).ToWorld( transform );
+					transform = Local( parent ).ToWorld( transform );
 				return transform;
 			}
 			var wrist = Sample( right );
 			frame[driver] = Sample( chest.Index ).ToLocal( wrist );
 			frame[helper] = wrist.ToLocal( Sample( left ) );
+			if ( targetSocket is not null && sourceAnchor is not null )
+				frame[targetSocket.Index] = Local( sourceAnchor.Index ).ToWorld( start.ToLocal( targetSocket.LocalTransform ) );
 			foreach ( var (joint, target) in arms )
-				frame[target] = frame[target].WithRotation( action.GetLocalTransform( cycle, joint ).Rotation );
+				frame[target] = frame[target].WithRotation( Local( joint ).Rotation );
 			builder.AddFrame( frame );
 		}
 
-		return _reloadGrips[action] = builder.Create();
+		return _reloadGrips[key] = builder.Create();
 	}
 
 	readonly Dictionary<Clip, Clip> _fingerPoses = new();

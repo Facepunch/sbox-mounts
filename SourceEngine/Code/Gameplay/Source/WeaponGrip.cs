@@ -2,13 +2,18 @@ using Sandbox.Animation;
 
 namespace Source1;
 
+internal sealed record GripPose( string Rig, string Sequence, string[] Reloads, string ActionBase = null );
+
 /// <summary>Weapon and support-hand transforms expressed in the driving wrist's space.</summary>
-internal sealed record WeaponGrip( Transform Weapon, Transform SupportHand, Clip Fingers, Clip Reload, string Helper, string Driver, SourceModelSequenceData.LayerRamp? ReloadBlend )
+internal sealed record WeaponGrip( string Attachment, Transform Weapon, Transform SupportHand, Clip Fingers, WeaponGrip.Action[] Reloads, string Helper, string Driver )
 {
+	internal sealed record Action( SourceModelSequenceData Sequence, Clip Clip );
+	internal Action Reload( int stance ) => Reloads.ElementAtOrDefault( stance ) ?? Reloads.FirstOrDefault();
+
 	internal const string Right = "ValveBiped.Bip01_R_Hand";
 	internal const string Left = "ValveBiped.Bip01_L_Hand";
 
-	internal static WeaponGrip From( Model body, Model weapon, (string Rig, string Sequence, string Reload)? pose )
+	internal static WeaponGrip From( Model body, Model weapon, GripPose pose )
 	{
 		var anchor = weapon?.Bones.GetBone( "ValveBiped.weapon_bone" ) ?? weapon?.Bones.GetBone( "ValveBiped.weapon_bone_left" );
 		if ( anchor is null || body.Bones.GetBone( anchor.Name ) is not null || pose is not { } hold ) return null;
@@ -29,15 +34,34 @@ internal sealed record WeaponGrip( Transform Weapon, Transform SupportHand, Clip
 		}
 
 		if ( Sample( Right ) is not { } right || Sample( Left ) is not { } left || Sample( anchor.Name ) is not { } mount ) return null;
+		var parent = rig.Bones.GetBone( anchor.Name )?.Parent?.Name;
+		var attachment = parent == Left ? Left : Right;
+		var wrist = attachment == Left ? left : right;
+		var socket = body.Bones.GetBone( attachment == Left ? "ValveBiped.Anim_Attachment_LH" : "ValveBiped.Anim_Attachment_RH" );
+		var animateSocket = socket?.Parent?.Name == attachment && parent == attachment;
+		var start = wrist.ToLocal( mount );
 		var origin = mount.ToWorld( anchor.LocalTransform.ToLocal( Transform.Zero ) );
 		var clips = body.AnimationClips();
 		var helper = clips.Skeleton.Bones.FirstOrDefault( b => b.ParentIndex >= 0 && clips.Skeleton.Bones[b.ParentIndex].Name == Right && IsSupportTarget( b.Name ) );
 		var driver = clips.Skeleton.Bones.FirstOrDefault( b => IsDrivingTarget( b.Name ) );
-		var reload = ModelSequences.Of( rig ).Get( hold.Reload );
-		var motion = helper is not null && driver is not null && reload is not null && rig.AnimationClips().TryGetValue( reload.Name, out var action )
-			? clips.ReloadGrip( action, reload, helper.Index, driver.Index ) : null;
+		Action LoadAction( string name )
+		{
+			var sequence = ModelSequences.Of( rig ).Get( name );
+			if ( sequence is null || !rig.AnimationClips().TryGetValue( sequence.Name, out var action ) ) return null;
+			var rest = clip;
+			if ( action.IsAdditive && hold.ActionBase is not null && !rig.AnimationClips().TryGetValue( hold.ActionBase, out rest ) ) return null;
+			var motion = clips.ReloadGrip( action, sequence, helper.Index, driver.Index, rest, animateSocket ? socket.Name : null, anchor.Name, start );
+			return motion is null ? null : new( sequence, motion );
+		}
+		var motions = helper is null || driver is null ? [] : hold.Reloads?.Select( LoadAction ).ToArray() ?? [];
 		var support = right.ToLocal( left );
-		return new( right.ToLocal( origin ), support, clips.FingerPose( clip, helper?.Index, support ), motion, helper?.Name, driver?.Name, reload?.PoseBlend );
+		var weaponOffset = wrist.ToLocal( origin );
+		if ( animateSocket )
+		{
+			var socketInWrist = socket.Parent.LocalTransform.ToLocal( socket.LocalTransform );
+			weaponOffset = socketInWrist.ToLocal( weaponOffset );
+		}
+		return new( animateSocket ? socket.Name : attachment, weaponOffset, support, clips.FingerPose( clip, helper?.Index, support ), motions, helper?.Name, driver?.Name );
 	}
 
 	internal static bool IsSupportTarget( string name ) => name.StartsWith( "ik_target:" ) && name.EndsWith( ":" + Right );
@@ -49,7 +73,7 @@ internal sealed record WeaponGrip( Transform Weapon, Transform SupportHand, Clip
 
 	internal static bool IsDrivingTarget( string name ) => name == "ik_target:rhand:ValveBiped.Bip01_Spine2";
 
-	internal GraphBuilder.Node Apply( GraphBuilder builder, GraphBuilder.Node pose, GraphBuilder.Node weight, GraphBuilder.Node phase )
+	internal GraphBuilder.Node Apply( GraphBuilder builder, GraphBuilder.Node pose, GraphBuilder.Node weight, GraphBuilder.Node phase, GraphBuilder.Node selection )
 	{
 		var layers = builder.Layers( pose );
 		var mask = builder.BoneMask( SourceAnimations.FingerMask );
@@ -63,10 +87,20 @@ internal sealed record WeaponGrip( Transform Weapon, Transform SupportHand, Clip
 		var inverse = SupportHand.ToLocal( Transform.Zero );
 		var drive = builder.TargetOffset( builder.BoneTarget( Left ), inverse.Position, inverse.Rotation, true, null, true );
 		arms = builder.TwoBoneIK( arms, Right, drive, new() { WorldSpace = false, BlendTime = 0 } );
-		if ( Reload is null ) return arms;
+		if ( selection is null ) return arms;
 
 		var action = builder.Layers( arms );
-		action.AddLayer( builder.Pose( Reload, phase ), new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, BoneMask = builder.BoneMask( SourceAnimations.GripMask ) } );
+		GraphBuilder.Node reload;
+		if ( Reloads.Length == 1 )
+			reload = builder.Pose( Reloads[0].Clip, phase );
+		else
+		{
+			var stances = builder.BlendSpace( selection );
+			for ( var i = 0; i < Reloads.Length; i++ )
+				if ( Reload( i ) is { } take ) stances.Add( i, builder.Pose( take.Clip, phase ) );
+			reload = stances;
+		}
+		action.AddLayer( reload, new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, BoneMask = builder.BoneMask( SourceAnimations.GripMask ) } );
 		var drivingHand = builder.TwoBoneIK( action, Right, builder.BoneTarget( Driver ), new() { WorldSpace = false, BlendTime = 0 } );
 		return builder.TwoBoneIK( builder.Blend( arms, drivingHand, weight ), Left, support, new() { WorldSpace = false, BlendTime = 0 } );
 	}

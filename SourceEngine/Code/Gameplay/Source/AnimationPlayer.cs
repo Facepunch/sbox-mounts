@@ -148,14 +148,15 @@ public sealed class AnimationPlayer : IDisposable
 		return sequence.GroundSpeed;
 	}
 
-	public void ApplyBoneLocks( string holdLayer, string releaseLayer, bool fullBodyReload )
+	public void ApplyBoneLocks( string holdLayer, string releaseLayer, bool fullBodyReload, int stance )
 	{
-		if ( Grip?.Reload is not null && IsReady )
+		if ( Grip?.Reload( stance ) is { } action && IsReady )
 		{
 			_overlays.TryGetValue( releaseLayer, out var reload );
 			var weight = fullBodyReload ? 1 : reload?.Weight ?? 0;
 			var phase = fullBodyReload && Duration > 0 ? ClipTime / Duration : reload?.Cycle ?? 0;
-			_renderer.Animation.Parameters.TrySet( "grip_reload", weight * (Grip.ReloadBlend?.Weight( phase ) ?? 1) );
+			_renderer.Animation.Parameters.TrySet( "grip_reload", weight * (action.Sequence.PoseBlend?.Weight( phase ) ?? 1) );
+			_renderer.Animation.Parameters.TrySet( "grip_stance", (float)stance );
 			_renderer.Animation.Parameters.TrySet( "grip_phase", Math.Clamp( phase, 0, 1 ) );
 		}
 		if ( _grips.Length == 0 || !_overlays.TryGetValue( holdLayer, out var hold ) ) return;
@@ -333,8 +334,9 @@ public sealed class AnimationPlayer : IDisposable
 		var locks = BoneLocks.Where( x => _model.Bones.GetBone( x.Effector ) is not null && _model.Bones.GetBone( x.Target ) is not null ).ToArray();
 		_grips = locks.Select( pair => (pair.Target, SourceAnimations.ReleaseChannel( pair.Effector )) ).ToArray();
 		var groundParameters = _feet.Select( foot => foot.Parameters( builder, _model ) ).ToArray();
-		var reloadWeight = Grip?.Reload is null ? null : builder.FloatParameter( "grip_reload", 0, 1 );
-		var reloadPhase = Grip?.Reload is null ? null : builder.FloatParameter( "grip_phase", 0, 1 );
+		var reloadStance = Grip?.Reloads.Any( x => x is not null ) == true ? builder.FloatParameter( "grip_stance", 0, NpcWeaponLayers.Stances - 1 ) : null;
+		var reloadWeight = reloadStance is null ? null : builder.FloatParameter( "grip_reload", 0, 1 );
+		var reloadPhase = reloadStance is null ? null : builder.FloatParameter( "grip_phase", 0, 1 );
 		var lockWeights = _grips.Select( grip => builder.FloatParameter( grip.Target, 0, 1 ) ).ToArray();
 
 		GraphBuilder.Node Parameter( SourceModelSequenceData.BlendAxis axis )
@@ -551,7 +553,7 @@ public sealed class AnimationPlayer : IDisposable
 		GraphBuilder.Node root = layers;
 		for ( var i = 0; i < locks.Length; i++ )
 			root = builder.TwoBoneIK( root, locks[i].Effector, builder.BoneTarget( locks[i].Target ), new() { WorldSpace = false, Weight = lockWeights[i], BlendTime = 0 } );
-		if ( Grip is not null ) root = Grip.Apply( builder, root, reloadWeight, reloadPhase );
+		if ( Grip is not null ) root = Grip.Apply( builder, root, reloadWeight, reloadPhase, reloadStance );
 		for ( var i = 0; i < _feet.Length; i++ ) root = _feet[i].Build( builder, root, groundParameters[i] );
 		return builder.Create( root, "Mounted animation" );
 	}

@@ -2,6 +2,8 @@ namespace Source1.Dods;
 
 public sealed class Garand : Rifle
 {
+	internal override GripPose NpcGripPose => new( "mount://dods/models/player/american_rifleman.mdl.vmdl", "StandIdle_RIFLE", ["Reload_RIFLE"], "StandAim_RIFLE" );
+
 	internal override bool UsesDeployedClips => Sighted;
 
 	public override bool CanReload() => Clip1 == 0 && base.CanReload();

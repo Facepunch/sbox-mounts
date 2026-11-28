@@ -33,6 +33,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	string _aimYawParameter;
 	string _aimPitchParameter;
 	string _reloadClip;
+	int _reloadStance;
 	int _shotCount;
 	AnimationPlayer _animation;
 	TimeSince _lastShot = 10;
@@ -48,7 +49,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	/// <summary>How long reloading <paramref name="rounds"/> takes: the reload clip, or one pass of a looped shotgun insert per round. Null without either.</summary>
 	public float? ReloadDuration( int rounds )
 	{
-		if ( _grip?.Reload is { Duration: > 0 } action ) return action.Duration;
+		if ( _grip?.Reload( _reloadStance )?.Clip is { Duration: > 0 } action ) return action.Duration;
 		var clips = Renderer?.Model?.AnimationClips();
 		if ( clips is null )
 			return null;
@@ -170,7 +171,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 
 		if ( weapon?.WorldModel.IsValid() == true && weapon.WorldModel.GetComponentInChildren<SkinnedModelRenderer>() is { } held )
 		{
-			var parent = _grip is null ? Renderer.GameObject : Renderer.GetBoneObject( WeaponGrip.Right );
+			var parent = _grip is null ? Renderer.GameObject : Renderer.GetBoneObject( _grip.Attachment );
 			var merge = _grip is null ? Renderer : null;
 			if ( weapon.WorldModel.Parent != parent || held.BoneMergeTarget != merge )
 			{
@@ -218,7 +219,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		}
 
 		_animation.Tick();
-		_animation.ApplyBoneLocks( UpperLayer, ReloadLayer, weapon?.IsReloading == true && _animation.Current == Reload );
+		_animation.ApplyBoneLocks( UpperLayer, ReloadLayer, weapon?.IsReloading == true && _animation.Current == Reload, _reloadStance );
 	}
 
 	void UpdateLocomotion( CombatNpc npc, BaseCombatWeapon weapon )
@@ -239,7 +240,10 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		var stance = running ? 2 : speed > 10 ? 1 : 0;
 		// The stance a reload starts in picks its clip, as CCSPlayerAnimState does.
 		if ( !reloading )
+		{
+			_reloadStance = stance;
 			_reloadClip = _layers.Reloads[stance];
+		}
 
 		// Moving, already part way through it, or without a full-body reload, the reload stays on the upper body and the legs keep going.
 		var upperReload = reloading && _reloadClip is not null && (speed > 10 || clips.Reload is null || _animation.OverlayClip( ReloadLayer ) == _reloadClip);

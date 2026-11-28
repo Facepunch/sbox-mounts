@@ -20,6 +20,8 @@ public sealed class PlayerAnimState : NpcAnimator
 	/// <summary>The dual Elites shoot from the right and left gun in turn.</summary>
 	static readonly string[] AlternatingShotSuffixes = ["_R", "_L"];
 
+	internal static string[] ReloadSequences( string extension ) => Stances.Select( stance => $"{stance}_Reload_{extension}" ).ToArray();
+
 	const string UpperPrefix = "Idle_Upper_";
 
 	/// <summary>The acttable's legs with the player model's weapon layers over them, or null for a model without weapon sequences.</summary>

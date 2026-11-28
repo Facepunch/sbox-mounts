@@ -63,7 +63,7 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 			builder.AddBoneMask( SourceAnimations.FingerMask, animations.Bones.ToDictionary( b => b.Name, b => SourceAnimations.IsFinger( b.Name ) || WeaponGrip.IsSupportTarget( b.Name ) ? 1f : 0f ), 0 );
 
 		if ( animations.Bones.Any( b => WeaponGrip.IsSupportTarget( b.Name ) ) )
-			builder.AddBoneMask( SourceAnimations.GripMask, animations.Bones.ToDictionary( b => b.Name, b => WeaponGrip.IsArm( b.Name ) || WeaponGrip.IsSupportTarget( b.Name ) || WeaponGrip.IsDrivingTarget( b.Name ) ? 1f : 0f ), 0 );
+			builder.AddBoneMask( SourceAnimations.GripMask, animations.Bones.ToDictionary( b => b.Name, b => b.Name is "ValveBiped.Anim_Attachment_LH" or "ValveBiped.Anim_Attachment_RH" || WeaponGrip.IsArm( b.Name ) || WeaponGrip.IsSupportTarget( b.Name ) || WeaponGrip.IsDrivingTarget( b.Name ) ? 1f : 0f ), 0 );
 
 		foreach ( var mask in animations.Masks )
 		{
