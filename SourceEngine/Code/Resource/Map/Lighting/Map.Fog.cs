@@ -51,7 +51,7 @@ partial class MapLoader
 		var density = entity.Number( "fogmaxdensity", 1 ).Clamp( 0, 1 );
 		fog.MaximumOpacity = density * density;
 		fog.ColorSource = FogColorSource.Constant;
-		var hdrColors = hdr && entity.Vector( "fogcolor_hdr" ).x > 0;
+		var hdrColors = hdr && entity.Color( "fogcolor_hdr" ).x > 0;
 		fog.DirectionalColorEnabled = entity.Integer( "fogblend" ) != 0;
 		fog.Color = ReadFogColor( entity, "fogcolor", hdrColors, scale );
 		if ( fog.DirectionalColorEnabled )
@@ -67,7 +67,7 @@ partial class MapLoader
 
 	static Color ReadFogColor( MapEntity entity, string key, bool hdr, float scale )
 	{
-		var color = entity.Vector( hdr ? $"{key}_hdr" : key ).Clamp( 0, 255 );
+		var color = entity.Color( hdr ? $"{key}_hdr" : key ).Clamp( 0, 255 );
 		color = (new Vector3( (byte)color.x, (byte)color.y, (byte)color.z ) * scale).Clamp( 0, 255 );
 		return new Color32( (byte)color.x, (byte)color.y, (byte)color.z ).ToColor( true );
 	}

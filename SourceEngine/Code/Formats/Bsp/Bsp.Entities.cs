@@ -54,7 +54,15 @@ internal sealed class MapEntity( Dictionary<string, string> values, IReadOnlyLis
 		return ParseVector( text, key );
 	}
 
-	private Vector3 ParseVector( ReadOnlySpan<char> text, string key )
+	// color32 keys such as fogcolor store "r g b a"; Source reads the colour and ignores the alpha.
+	public Vector3 Color( string key, Vector3 fallback = default )
+	{
+		if ( !values.TryGetValue( key, out var text ) )
+			return fallback;
+		return ParseVector( text, key, allowAlpha: true );
+	}
+
+	private Vector3 ParseVector( ReadOnlySpan<char> text, string key, bool allowAlpha = false )
 	{
 		var remaining = text;
 		Span<float> parts = stackalloc float[3];
@@ -68,6 +76,13 @@ internal sealed class MapEntity( Dictionary<string, string> values, IReadOnlyLis
 				throw InvalidValue( key, "three finite numbers" );
 			parts[i] = ParseNumber( remaining[..length], key );
 			remaining = remaining[length..];
+		}
+
+		if ( allowAlpha && !remaining.IsWhiteSpace() )
+		{
+			remaining = remaining.Trim();
+			ParseNumber( remaining, key );
+			return new Vector3( parts[0], parts[1], parts[2] );
 		}
 
 		if ( !remaining.IsWhiteSpace() )
