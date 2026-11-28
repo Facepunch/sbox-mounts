@@ -239,6 +239,12 @@ internal sealed partial class SourceMaterialBuilder
 		{
 			var path = parameters.String( key );
 			if ( string.IsNullOrWhiteSpace( path ) ) return null;
+
+			// an addon that points at a map it does not ship (a shared normal map) still draws, just without it
+			if ( key is not ("$basetexture" or "$albedo") && !path.Trim().StartsWith( "_rt_", StringComparison.OrdinalIgnoreCase )
+				&& Host.GetContentPath( VmtFile.NormalizePath( path, ".vtf" ), contentRoot ) is null )
+				return null;
+
 			var loaded = LoadSurfaceTexture( path, frameKey == null ? 0 : parameters.Integer( frameKey ),
 				key is "$basetexture" or "$albedo" ? animation : null );
 			if ( loaded.IsCube != cube )

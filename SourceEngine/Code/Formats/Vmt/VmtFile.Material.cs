@@ -11,6 +11,10 @@ internal sealed partial class VmtFile
 	internal static string NormalizeShaderName( string shader )
 	{
 		shader = shader.ToLowerInvariant();
+
+		// the SDK's own copies of the shaders (SDK_VertexLitGeneric), which addons made for the Source SDK use, are the same shaders
+		if ( shader.StartsWith( "sdk_", StringComparison.Ordinal ) ) shader = shader[4..];
+
 		foreach ( var suffix in ShaderSuffixes )
 			if ( shader.EndsWith( suffix, StringComparison.Ordinal ) ) return shader[..^suffix.Length];
 		return shader;
