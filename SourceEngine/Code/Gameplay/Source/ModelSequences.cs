@@ -14,6 +14,7 @@ public sealed class ModelSequences
 	readonly Model _model;
 	readonly Dictionary<string, SourceModelSequenceData> _byName = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, string> _activities = new( StringComparer.OrdinalIgnoreCase );
+	readonly Dictionary<string, SourceModelSequenceData[]> _variants = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, string> _gestures = new( StringComparer.OrdinalIgnoreCase );
 
 	public IReadOnlyList<SourceModelSequenceData> All { get; }
@@ -33,6 +34,34 @@ public sealed class ModelSequences
 
 	/// <summary>The highest weighted full-body sequence with a clip for an activity; additive gesture layers are skipped.</summary>
 	public string FindActivity( string activity, string fallback = null ) => Find( _activities, activity, delta: false ) ?? fallback;
+
+	internal string PickActivity( string activity, int seed )
+	{
+		if ( !_variants.TryGetValue( activity, out var variants ) )
+		{
+			variants = All.Where( s => !s.Delta && string.Equals( s.Activity, activity, StringComparison.OrdinalIgnoreCase )
+				&& _model.AnimationClips().ContainsKey( s.Name ) ).ToArray();
+			_variants[activity] = variants;
+		}
+		return variants.Length > 1 ? Pick( variants, new Random( seed ) ) : variants.FirstOrDefault()?.Name;
+	}
+
+	internal static string Pick( SourceModelSequenceData[] sequences, Random random, string current = null )
+	{
+		var total = 0;
+		foreach ( var sequence in sequences )
+		{
+			if ( sequence.ActivityWeight < 0 && sequence.Name == current ) return sequence.Name;
+			total += Math.Abs( sequence.ActivityWeight );
+		}
+		var choice = random.Next( total );
+		foreach ( var sequence in sequences )
+		{
+			choice -= Math.Abs( sequence.ActivityWeight );
+			if ( choice < 0 ) return sequence.Name;
+		}
+		return sequences.FirstOrDefault()?.Name;
+	}
 
 	/// <summary>The additive delta sequence with a clip for an ACT_GESTURE_* activity.</summary>
 	public string FindGesture( string activity ) => Find( _gestures, activity, delta: true );

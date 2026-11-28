@@ -11,16 +11,16 @@ public static class ActTable
 	/// <summary>The row of an NPC holding a weapon it has no activities for: the base, unarmed activities.</summary>
 	public const string Unarmed = "unarmed";
 
-	sealed record Row( NpcActivities Activities, string GestureReload );
+	sealed record Row( NpcActivities Activities, string GestureReload, string RelaxedIdle = "ACT_IDLE" );
 
 	[SkipHotload]
 	static readonly Row Base = new( new( "ACT_IDLE", "ACT_IDLE_ANGRY", "ACT_RANGE_ATTACK1", "ACT_RELOAD", "ACT_WALK", "ACT_WALK_AIM", "ACT_RUN", "ACT_RUN_AIM" ), "ACT_GESTURE_RELOAD" );
 
 	[SkipHotload]
-	static readonly Row Smg1 = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SMG1", "ACT_RANGE_ATTACK_SMG1", "ACT_RELOAD_SMG1", "ACT_WALK_RIFLE", "ACT_WALK_AIM_RIFLE", "ACT_RUN_RIFLE", "ACT_RUN_AIM_RIFLE" ), "ACT_GESTURE_RELOAD_SMG1" );
+	static readonly Row Smg1 = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SMG1", "ACT_RANGE_ATTACK_SMG1", "ACT_RELOAD_SMG1", "ACT_WALK_RIFLE", "ACT_WALK_AIM_RIFLE", "ACT_RUN_RIFLE", "ACT_RUN_AIM_RIFLE" ), "ACT_GESTURE_RELOAD_SMG1", "ACT_IDLE_SMG1_RELAXED" );
 
 	[SkipHotload]
-	static readonly Row Shotgun = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SHOTGUN", "ACT_RANGE_ATTACK_SHOTGUN", "ACT_RELOAD_SHOTGUN", "ACT_WALK_RIFLE", "ACT_WALK_AIM_SHOTGUN", "ACT_RUN_RIFLE", "ACT_RUN_AIM_SHOTGUN" ), "ACT_GESTURE_RELOAD_SHOTGUN" );
+	static readonly Row Shotgun = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SHOTGUN", "ACT_RANGE_ATTACK_SHOTGUN", "ACT_RELOAD_SHOTGUN", "ACT_WALK_RIFLE", "ACT_WALK_AIM_SHOTGUN", "ACT_RUN_RIFLE", "ACT_RUN_AIM_SHOTGUN" ), "ACT_GESTURE_RELOAD_SHOTGUN", "ACT_IDLE_SHOTGUN_RELAXED" );
 
 	[SkipHotload]
 	static readonly Row Pistol = new( new( "ACT_IDLE_PISTOL", "ACT_IDLE_ANGRY_PISTOL", "ACT_RANGE_ATTACK_PISTOL", "ACT_RELOAD_PISTOL", "ACT_WALK_PISTOL", "ACT_WALK_AIM_PISTOL", "ACT_RUN_PISTOL", "ACT_RUN_AIM_PISTOL" ), "ACT_GESTURE_RELOAD_PISTOL" );
@@ -44,10 +44,11 @@ public static class ActTable
 		["weapon_stunstick_player"] = Stunstick,
 		// weapon_crowbar also translates ACT_IDLE.
 		["weapon_crowbar"] = Stunstick with { Activities = Stunstick.Activities with { Idle = "ACT_IDLE_ANGRY_MELEE" } },
-		["weapon_rpg"] = new( new( "ACT_IDLE_RPG", "ACT_IDLE_ANGRY_RPG", "ACT_RANGE_ATTACK_RPG", "ACT_RELOAD", "ACT_WALK_RPG", "ACT_WALK_AIM", "ACT_RUN_RPG", "ACT_RUN_AIM" ), null ),
+		["weapon_rpg"] = new( new( "ACT_IDLE_RPG", "ACT_IDLE_ANGRY_RPG", "ACT_RANGE_ATTACK_RPG", "ACT_RELOAD", "ACT_WALK_RPG", "ACT_WALK_AIM", "ACT_RUN_RPG", "ACT_RUN_AIM" ), null, "ACT_IDLE_RPG" ),
 		["weapon_bugbait"] = Base,
 		["weapon_frag"] = Base,
 		["weapon_physcannon"] = Base,
+		["weapon_physgun"] = Base,
 		[Unarmed] = Base,
 	};
 
@@ -122,6 +123,10 @@ public static class ActTable
 	/// </summary>
 	public static NpcWeaponLayers Resolve( ModelSequences sequences, string weaponClass )
 		=> Resolve( sequences, Rows.GetValueOrDefault( weaponClass ?? "" ) ?? Smg1 );
+
+	/// <summary>The lowered idle supplied by the equipped weapon, or the companion's ordinary idle.</summary>
+	internal static string RelaxedIdle( ModelSequences sequences, BaseCombatWeapon weapon, int seed ) =>
+		Rows.TryGetValue( WeaponSetup.Of( weapon )?.Data?.ClassName ?? "", out var row ) ? sequences.PickActivity( row.RelaxedIdle, seed ) : null;
 
 	/// <summary>Like <see cref="Resolve(ModelSequences, string)"/>, but false for a weapon HL2 gives no NPC acttable.</summary>
 	public static bool TryResolve( ModelSequences sequences, string weaponClass, out NpcWeaponLayers layers )

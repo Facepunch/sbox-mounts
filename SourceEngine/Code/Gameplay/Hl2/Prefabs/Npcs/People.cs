@@ -212,7 +212,7 @@ public static class People
 				npc.PatrolRadius = 2048;
 				npc.SearchTimeout = 20;
 				npc.EyeHeight = 57.6f;
-				p.Root.AddComponent<NpcAnimator>();
+				p.Root.AddComponent<CitizenAnimator>();
 				p.Box( 26, 72 );
 				npc.Weapon = p.Equip( "smg" );
 			}

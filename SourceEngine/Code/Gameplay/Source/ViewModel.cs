@@ -597,22 +597,7 @@ public sealed class ViewModel : BaseWeaponModel
 		if ( !_muzzleEventClips.Contains( clip ?? "" ) ) MuzzleFlash( null, null );
 	}
 
-	string PickSequence( SourceModelSequenceData[] sequences )
-	{
-		var total = 0;
-		foreach ( var sequence in sequences )
-		{
-			if ( sequence.ActivityWeight < 0 && sequence.Name == _animation.Current ) return sequence.Name;
-			total += Math.Abs( sequence.ActivityWeight );
-		}
-		var choice = Random.Shared.Next( total );
-		foreach ( var sequence in sequences )
-		{
-			choice -= Math.Abs( sequence.ActivityWeight );
-			if ( choice < 0 ) return sequence.Name;
-		}
-		return sequences[0].Name;
-	}
+	string PickSequence( SourceModelSequenceData[] sequences ) => ModelSequences.Pick( sequences, Random.Shared, _animation.Current );
 
 	string AttackClip()
 	{
