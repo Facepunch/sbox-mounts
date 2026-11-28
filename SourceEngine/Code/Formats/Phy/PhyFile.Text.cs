@@ -23,7 +23,7 @@ internal sealed partial class PhyFile
 			throw new InvalidDataException( $"{SourceName}: PHY text is not valid UTF-8.", exception );
 		}
 		Text = VmtFile.ParseKeyValues( text, SourceName,
-			diagnostic => throw Error( $"unsupported KeyValues condition/directive: {diagnostic.Message}" ) );
+			diagnostic => throw Error( $"unsupported KeyValues condition/directive: {diagnostic.Message}" ), allowStrayBlockNames: true );
 		var seen = new bool[Solids.Count];
 		var constraints = new List<Constraint>();
 		var pairs = new List<CollisionPair>();

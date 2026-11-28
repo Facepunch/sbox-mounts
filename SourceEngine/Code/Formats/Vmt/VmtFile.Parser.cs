@@ -107,7 +107,7 @@ internal sealed partial class VmtFile
 			return token;
 		}
 
-		public List<VmtNode> ReadDocument()
+		public List<VmtNode> ReadDocument( bool allowStrayBlockNames = false )
 		{
 			var roots = new List<VmtNode>();
 			while ( Peek().Kind != TokenKind.End )
@@ -124,6 +124,7 @@ internal sealed partial class VmtFile
 				if ( name.Text.StartsWith( '#' ) )
 					throw new NotSupportedException( $"Unsupported VMT directive {name.Text} in {path}:{name.Line}." );
 				var accepted = ReadConditions();
+				if ( allowStrayBlockNames && Peek().Kind == TokenKind.Value ) continue;
 				if ( Take().Kind != TokenKind.Open || string.IsNullOrWhiteSpace( name.Text ) )
 					throw new InvalidDataException( $"Expected a named VMT shader block in {path}:{name.Line}." );
 				var root = new VmtNode( name.Text, null, ReadBlockContents( 0 ) );

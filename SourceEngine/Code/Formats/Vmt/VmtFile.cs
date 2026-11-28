@@ -30,12 +30,12 @@ internal sealed partial class VmtFile
 	/// Without escape sequences a backslash before a quote is literal, as in Source's default KeyValues reader.
 	/// </summary>
 	public static IReadOnlyList<VmtNode> ParseKeyValues( string text, string sourceName,
-		Action<VmtDiagnostic> reportDiagnostic = null, bool escapeSequences = true )
+		Action<VmtDiagnostic> reportDiagnostic = null, bool escapeSequences = true, bool allowStrayBlockNames = false )
 	{
 		var context = new LoadContext( _ => throw new NotSupportedException( "Standalone KeyValues file inclusion is not supported." ),
 			null, reportDiagnostic );
 		var parser = new Parser( text, sourceName, context, escapeSequences );
-		var roots = parser.ReadDocument();
+		var roots = parser.ReadDocument( allowStrayBlockNames );
 		if ( parser.Includes.Count > 0 || parser.Bases.Count > 0 )
 			throw new NotSupportedException( $"{sourceName}: standalone KeyValues file inclusion is not supported." );
 		return roots.AsReadOnly();
