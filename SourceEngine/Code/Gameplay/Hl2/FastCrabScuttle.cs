@@ -74,7 +74,7 @@ public sealed class FastCrabScuttle : CreatureBehaviour
 
 		// The new pace takes hold now, not at the next re-path
 		if ( _scale != was && movement.MoveTarget is { } goal )
-			movement.MoveTo( goal, movement.StopDistance, Npc.PaceFor( true ), target );
+			movement.MoveTo( goal, movement.StopDistance, Npc.PaceFor( true ), Npc.FacedOnTheWay( target ) );
 
 		return false;
 	}

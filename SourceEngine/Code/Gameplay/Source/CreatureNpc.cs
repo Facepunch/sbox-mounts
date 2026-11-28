@@ -685,7 +685,7 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 			else if ( _lastPath > 0.4f )
 			{
 				if ( distance > stop )
-					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue || squadGoal.HasValue ), target );
+					Movement?.MoveTo( goal, stop, PaceFor( target.IsValid() || _command.HasValue || squadGoal.HasValue ), FacedOnTheWay( target ) );
 				else
 					Movement?.Stop();
 				_lastPath = 0;
@@ -872,6 +872,27 @@ public sealed class CreatureNpc : BaseNpc, Component.IPressable, Component.IDama
 		var ground = GroundSpeed( clip );
 		var scale = _behaviours.Aggregate( 1f, ( product, x ) => product * x.PaceScale );
 		return (ground > 1 ? ground : hurry ? MoveSpeed * 1.6f : MoveSpeed) * scale;
+	}
+
+	/// <summary>A forward-only walker faces its target within this range of it, once its path this far ahead heads within this many degrees of it.</summary>
+	const float FaceTargetRange = 128, FaceTargetAngle = 30, FaceTargetLook = 32;
+
+	/// <summary>
+	/// What it faces on its way to a target. One whose move clips blend by direction (<see cref="BlendGrids"/>) faces the
+	/// target throughout and steps along its path. One that only walks forward faces the way it travels, so it doesn't slide
+	/// sideways round corners, and faces its target only once it's close and heading straight at it.
+	/// </summary>
+	internal GameObject FacedOnTheWay( GameObject target )
+	{
+		if ( !target.IsValid() || BlendGrids )
+			return target;
+
+		var to = (target.WorldPosition - WorldPosition).WithZ( 0 );
+		if ( to.Length > FaceTargetRange || GetComponent<NavMeshAgent>() is not { } agent || !agent.IsNavigating )
+			return null;
+
+		var ahead = (agent.GetLookAhead( FaceTargetLook ) - WorldPosition).WithZ( 0 );
+		return ahead.Length > 1 && ahead.Normal.Dot( to.Normal ) >= MathF.Cos( FaceTargetAngle.DegreeToRadian() ) ? target : null;
 	}
 
 	bool HasRangedAttack => _projectile.IsValid() || _rangedEffects.IsValid() || _photo.IsValid();
