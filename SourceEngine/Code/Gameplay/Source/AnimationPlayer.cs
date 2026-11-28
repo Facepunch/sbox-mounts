@@ -114,7 +114,9 @@ public sealed class AnimationPlayer : IDisposable
 	public void SetMoveYaw( Vector3 velocity, Rotation facing )
 	{
 		var travel = velocity.WithZ( 0 );
-		SetPoseParameter( "move_yaw", travel.LengthSquared > 100 ? Angles.NormalizeAngle( Rotation.LookAt( travel ).Yaw() - facing.Yaw() ) : 0 );
+		// The outgoing walk still samples this direction while it fades to idle.
+		if ( travel.LengthSquared > 100 )
+			SetPoseParameter( "move_yaw", Angles.NormalizeAngle( Rotation.LookAt( travel ).Yaw() - facing.Yaw() ) );
 	}
 
 	/// <summary>Ground distance per second at the same directional blend the graph is playing.</summary>

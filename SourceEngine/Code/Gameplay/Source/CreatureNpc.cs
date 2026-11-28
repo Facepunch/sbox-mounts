@@ -160,8 +160,6 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 	float _attackRecovery;
 	bool _rangedStrike;
 	bool _attackHolds;
-	Vector3 _lastPosition;
-	float _measuredSpeed;
 	GameObject _target;
 	TimeUntil _nextIdleLine = 10;
 	GameObject _scaredOf;
@@ -365,8 +363,12 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 		if ( Networking.IsHost && !PhysicsCarrier.IsValid() )
 			HostThink();
 
-		var speed = Aquatic ? Animation.MoveVelocity.Length : Locomotion == Locomotions.Ground ? MeasureSpeed() : MoveSpeed;
-		var moving = Aquatic ? speed > 2 : Locomotion == Locomotions.Flying || (!IsProxy && Movement?.IsMoving == true) || speed > 10;
+		var velocity = Animation.MoveVelocity;
+		if ( Locomotion == Locomotions.Ground )
+			_animation.SetMoveYaw( velocity, WorldRotation );
+
+		var speed = Aquatic ? velocity.Length : Locomotion == Locomotions.Ground ? velocity.WithZ( 0 ).Length : MoveSpeed;
+		var moving = Aquatic ? speed > 2 : Locomotion == Locomotions.Flying || speed > 10;
 		string forced = null;
 		foreach ( var behaviour in _behaviours )
 		{
@@ -436,27 +438,6 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 		// A flyer's body is handed to physics by its carrier, see Npc.PhysicsCarrier.
 		if ( Locomotion == Locomotions.Stationary && _body.IsValid() )
 			_body.MotionEnabled = _wasHeld;
-	}
-
-	/// <summary>Horizontal speed the body actually covers. The agent's reported velocity runs ahead of it, which slid the feet.</summary>
-	float MeasureSpeed()
-	{
-		if ( IsProxy )
-		{
-			var velocity = Animation.MoveVelocity.WithZ( 0 );
-			_animation.SetMoveYaw( velocity, WorldRotation );
-			return velocity.Length;
-		}
-
-		var travel = (WorldPosition - _lastPosition).WithZ( 0 );
-		var moved = travel.Length;
-		_lastPosition = WorldPosition;
-		if ( Time.Delta > 0 && moved < 100 )
-		{
-			_animation.SetMoveYaw( travel / Time.Delta, WorldRotation );
-			_measuredSpeed = MathX.Lerp( _measuredSpeed, moved / Time.Delta, Math.Clamp( Time.Delta * 10, 0, 1 ) );
-		}
-		return _measuredSpeed;
 	}
 
 	/// <summary>Source NPCs stop for the length of an attack activity; a stand-in clip (strider minigun, stalker beam) fires on the move.</summary>
