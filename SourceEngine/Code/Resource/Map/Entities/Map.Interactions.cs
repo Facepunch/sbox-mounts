@@ -264,7 +264,8 @@ partial class MapLoader
 			button.Move = (flags & 1) == 0 && button.MoveDelta.Length >= 1;
 			var speed = entity.Number( "speed", 40 );
 			if ( speed == 0 ) speed = 40;
-			button.AnimationTime = button.Move ? button.MoveDelta.Length / Math.Max( 1, speed ) : 0;
+			// even a button that doesn't move needs some animation time, or it never finishes animating and ignores later presses
+			button.AnimationTime = Math.Max( button.Move ? button.MoveDelta.Length / Math.Max( 1, speed ) : 0, 0.05f );
 			var wait = entity.Number( "wait", 1 );
 			if ( wait == 0 ) wait = 1;
 			button.AutoReset = wait >= 0 && (flags & 32) == 0;
