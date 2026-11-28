@@ -1,22 +1,32 @@
 using System;
-using Door = Sandbox.Mapping.Door;
 
 namespace Source1.Hl2;
 
 /// <summary>
-/// A zombie chasing an enemy, seen or remembered, stops dead against a closed door in its path. It squares up (with a
-/// tantrum unless resting) and pounds for a few seconds, mostly with its fists, now and then a claw. Each rest it throws a
-/// tantrum facing the door, or steps back and walks up again; then it goes at the door again while the door keeps it from
-/// its enemy. It stops when the door opens, the enemy dies or another turns up. The door takes no harm.
+/// A zombie chasing an enemy, seen or remembered, is stopped dead short of a closed door in its path by its navigation,
+/// which never opens doors for it. It squares up (with a tantrum unless resting) and pounds for a few seconds, mostly with
+/// its fists, now and then a claw. Each rest it throws a tantrum facing the door, or steps back and walks up again; then it
+/// goes at the door again while the door keeps it from its enemy. It stops when the door opens, the enemy dies or another
+/// turns up. The door takes no harm. It stands back from the door by its arms' reach, so its blows land on the face
+/// rather than through it.
 /// </summary>
 [Title( "HL2 Door Pounding" )]
 [Category( "Half-Life 2" )]
 public sealed class DoorPounding : CreatureBehaviour
 {
-	/// <summary>How far ahead along its path a door counts as in its way, and how close counts as touching it.</summary>
-	const float DoorReach = 64, Contact = 4;
+	/// <summary>How far from the door's face its centre stands to pound: as far forward as the pound's arms reach. Unset, it stands where its navigation stopped it.</summary>
+	[Property] public float StandOff { get; set; }
+
+	/// <summary>The claws it strikes the door with, those that reach no further than the pound; unset, all its melee clips.</summary>
+	[Property] public string[] DoorClaws { get; set; }
+
+	/// <summary>Host, for debugging: its centre's distance from the door's face and its angle off square to it, while at a door.</summary>
+	public (float Distance, float Angle)? AtDoor { get; private set; }
 
 	const float PoundMin = 2, PoundMax = 6, RestTime = 3, TurnRate = 250, TurnGiveUp = 1, Gap = 0.1f;
+
+	/// <summary>How fast it slides onto its stand-off, and the most it slides.</summary>
+	const float SlideRate = 60, SlideMax = 24;
 
 	// Between bouts: the stand, the step back from the door, or failing that a short wander, and its give-up
 	const float Stand = 1, BackMin = 48, BackMax = 112, WanderMin = 48, WanderMax = 240, WalkGiveUp = 4;
@@ -28,10 +38,10 @@ public sealed class DoorPounding : CreatureBehaviour
 	string _tantrum, _pound, _next;
 	string[] _claws = [];
 	Step _step;
-	Door _door;
+	PropDoor _door;
 	GameObject _enemy;
 	EnemySearch _search;
-	Vector3 _face, _standFacing, _back;
+	Vector3 _face, _standFacing, _back, _doorPoint;
 	float _clipLength;
 	bool _rested, _away;
 	TimeSince _sinceStep;
@@ -45,6 +55,16 @@ public sealed class DoorPounding : CreatureBehaviour
 		_tantrum = sequences.FindActivity( "ACT_ZOMBIE_TANTRUM" );
 		_pound = sequences.FindActivity( "ACT_ZOMBIE_WALLPOUND" );
 		_claws = sequences.Clips( "ACT_MELEE_ATTACK1" );
+		if ( DoorClaws is { Length: > 0 } )
+			_claws = _claws.Where( DoorClaws.Contains ).ToArray();
+	}
+
+	protected override void OnStart()
+	{
+		base.OnStart();
+		// Its navigation stops it the stand-off short of a closed door, not with its body touching it
+		if ( StandOff > 0 && GetComponent<DoorNavigation>() is { } navigation )
+			navigation.DoorStandOff = StandOff;
 	}
 
 	public override bool Think( GameObject target )
@@ -54,16 +74,19 @@ public sealed class DoorPounding : CreatureBehaviour
 
 		// The door that blocks it usually hides its enemy too: one it still remembers counts
 		var enemy = target.IsValid() ? target : (_search ??= GetComponent<EnemySearch>())?.Remembered;
+		// Its navigation has stopped it short of a closed door on its way
 		var movement = Npc.Movement;
-		if ( movement?.MoveTarget is null || !enemy.IsValid() || _pound is null || DoorInTheWay() is not { } door )
+		if ( movement?.MoveTarget is null || !enemy.IsValid() || _pound is null
+			|| movement is not DoorNavigation { BlockingDoor: { State: PropDoor.DoorState.Closed } door } navigation )
 			return false;
 
-		// Touching the door: a dead stop, whatever comes next
 		movement.Stop();
-		_door = door.Door;
+		_door = door;
 		_enemy = enemy;
-		_face = -door.Normal.WithZ( 0 ).Normal;
-		_back = door.Normal.WithZ( 0 ).Normal;
+		_face = -navigation.BlockingNormal.WithZ( 0 ).Normal;
+		_back = navigation.BlockingNormal.WithZ( 0 ).Normal;
+		_doorPoint = navigation.BlockingPoint;
+		Settle();
 
 		if ( _restEnds )
 		{
@@ -83,29 +106,15 @@ public sealed class DoorPounding : CreatureBehaviour
 		return true;
 	}
 
-	/// <summary>A closed door its body touches the way its path goes on; straight ahead without a path.</summary>
-	(Door Door, Vector3 Normal)? DoorInTheWay()
-	{
-		var agent = GetComponent<NavMeshAgent>();
-		var along = agent.IsValid() ? (agent.GetLookAhead( DoorReach ) - WorldPosition).WithZ( 0 ) : Vector3.Zero;
-		var direction = along.Length > 1 ? along.Normal : WorldRotation.Forward.WithZ( 0 ).Normal;
-		var width = agent.IsValid() ? agent.Radius * 2 : 26;
-		var centre = Npc.Centre;
-		var tr = Scene.Trace.Box( new Vector3( width ), centre, centre + direction * DoorReach ).IgnoreGameObjectHierarchy( GameObject )
-			.WithoutTags( "trigger", "npc", "player", "debris", "ragdoll" ).Run();
-		if ( !tr.Hit || !(tr.StartedSolid || tr.Distance <= Contact) )
-			return null;
-
-		return tr.GameObject?.GetComponentInParent<Door>() is { } door && door.State is Door.DoorState.Closed or Door.DoorState.Closing
-			? (door, tr.StartedSolid ? -direction : tr.Normal) : null;
-	}
-
 	bool Continue( GameObject target )
 	{
-		// An open door, a dead enemy or a new one ends it at once
-		if ( !_door.IsValid() || _door.State is Door.DoorState.Open or Door.DoorState.Opening
+		// A door that opens (or is broken down), a dead enemy or a new one ends it at once
+		if ( !_door.IsValid() || _door.State is not (PropDoor.DoorState.Closed or PropDoor.DoorState.Closing)
 			|| Npcs.IsDead( _enemy ) || target.IsValid() && target != _enemy )
 			return End();
+
+		if ( _step != Step.StepBack )
+			Settle();
 
 		switch ( _step )
 		{
@@ -234,11 +243,32 @@ public sealed class DoorPounding : CreatureBehaviour
 		_sinceStep = 0;
 	}
 
-	/// <summary>Back to the chase; a door still in the way stops it again on contact.</summary>
+	/// <summary>
+	/// Holds it square on to the door's face at the stand-off: its navigation stops it about there along its path, a little
+	/// closer when it came at an angle, and it slides the rest of the way along the door's normal.
+	/// </summary>
+	void Settle()
+	{
+		var gap = (WorldPosition - _doorPoint).WithZ( 0 ).Dot( _back );
+		AtDoor = (gap, MathF.Abs( Angles.NormalizeAngle( WorldRotation.Yaw() - Rotation.LookAt( _face ).Yaw() ) ));
+		var error = StandOff - gap;
+		if ( StandOff <= 0 || MathF.Abs( error ) < 0.25f || MathF.Abs( error ) > SlideMax )
+			return;
+
+		var step = Math.Clamp( error, -SlideRate * Time.Delta, SlideRate * Time.Delta );
+		if ( Scene.NavMesh.GetClosestPoint( WorldPosition + _back * step, 16 ) is not { } spot )
+			return;
+
+		GetComponent<NavMeshAgent>()?.SetAgentPosition( spot );
+		WorldPosition = spot;
+	}
+
+	/// <summary>Back to the chase; a door still in the way stops it again the stand-off short of it.</summary>
 	void Release()
 	{
 		Playing = null;
 		_step = Step.None;
+		AtDoor = null;
 	}
 
 	bool End()
@@ -248,6 +278,7 @@ public sealed class DoorPounding : CreatureBehaviour
 		_step = Step.None;
 		_door = null;
 		_enemy = null;
+		AtDoor = null;
 		if ( pounding )
 			Stopped();
 		return false;

@@ -215,7 +215,11 @@ public static class Zombies
 				zombie.GibsFromBlasts = true;
 				var props = p.Root.AddComponent<ZombieProps>();
 				props.AttackSound = "Zombie.Attack";
-				p.Root.AddComponent<DoorPounding>();
+				// Measured from the model: the pound's blows land 40 and 43 ahead of its origin (its arms 43.4 at most);
+				// attackA, attackC and attackF reach 40, the other claws 49 to 53 and would go through the door
+				var pounding = p.Root.AddComponent<DoorPounding>();
+				pounding.StandOff = 44;
+				pounding.DoorClaws = ["attackA", "attackC", "attackF"];
 				VoiceAndSearch( p, ZombieVoice.Breed.Classic );
 				p.Renderer.BodyGroups = 5;
 				p.Box( 26, 72 );
