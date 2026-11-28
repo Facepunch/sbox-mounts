@@ -18,8 +18,34 @@ partial class MapLoader
 		}
 	}
 
+	private sealed class HurtTriggerLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildHurtTrigger( entity );
+	}
+
 	private sealed partial class EntityBuilder
 	{
+		public void BuildHurtTrigger( MapEntity entity )
+		{
+			var model = entity.Get( "model" );
+			if ( model?.StartsWith( '*' ) != true || !int.TryParse( model.AsSpan( 1 ), out var index ) || index <= 0 || index >= bsp.Models.Length ) return;
+
+			var trigger = new GameObject( World, false, entity.Get( "targetname", entity.Get( "classname" ) ) );
+			trigger.LocalTransform = new( entity.Vector( "origin" ), Rotation.From( entity.Angles ) );
+			TrackParent( entity, trigger );
+			var hurt = trigger.AddComponent<HurtTrigger>();
+			hurt.Damage = entity.Number( "damage", 10 );
+			hurt.Cycle = entity.Number( "damagecycle", 1 );
+			hurt.SpawnFlags = entity.Integer( "spawnflags" );
+			RegisterEntityIO( entity, hurt );
+
+			owner.BuildWorldPhysics( bsp, trigger, modelIndex: index, staticCollider: string.IsNullOrEmpty( entity.Get( "parentname" ) ) );
+			foreach ( var collider in trigger.GetComponentsInChildren<PhysicsCollider>( true ) ) collider.IsTrigger = true;
+			trigger.Enabled = true;
+			if ( entity.Integer( "StartDisabled" ) != 0 ) hurt.TurnOff();
+		}
+
 		void WireTrigger( MapEntity entity, PlayerTrigger trigger )
 		{
 			trigger.Enter = BuildOutput( entity, "OnStartTouch", true );

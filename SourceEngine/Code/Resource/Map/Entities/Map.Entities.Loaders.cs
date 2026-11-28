@@ -35,6 +35,7 @@ partial class MapLoader
 			"npc_antlion_template_maker" => new AntlionMakerLoader(),
 			"info_node_hint" => new NodeHintLoader(),
 			"trigger_multiple" or "trigger_once" => new PlayerTriggerLoader(),
+			"trigger_hurt" => new HurtTriggerLoader(),
 			"logic_relay" => new RelayLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),

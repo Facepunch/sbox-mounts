@@ -13,6 +13,17 @@ partial class MapLoader
 		public virtual bool CollidesWhenHidden( MapEntity entity ) => false;
 		public virtual bool HasUnsupportedBehavior => false;
 		public virtual bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model ) => false;
+
+		// Source maps switch these brushes with Enable and Disable inputs.
+		protected bool AddToggle( EntityBuilder builder, MapEntity entity, GameObject instance )
+		{
+			var toggle = instance.AddComponent<ToggleBrush>();
+			toggle.IsOn = IsEnabled( entity );
+			toggle.CollidesWhenHidden = CollidesWhenHidden( entity );
+			toggle.Renders = (entity.Integer( "effects" ) & 32) == 0 && entity.Integer( "rendermode" ) != 10;
+			builder.RegisterEntityIO( entity, toggle );
+			return false;
+		}
 	}
 
 	private sealed class ToggleBrushEntityLoader : BrushEntityLoader
@@ -20,6 +31,7 @@ partial class MapLoader
 		public override bool IsEnabled( MapEntity entity ) => entity.Integer( "StartDisabled" ) == 0;
 		public override bool IsSolid( MapEntity entity ) => entity.Integer( "Solidity" ) != 1;
 		public override bool CollidesWhenHidden( MapEntity entity ) => entity.Integer( "Solidity" ) == 2;
+		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model ) => AddToggle( builder, entity, instance );
 	}
 
 	private class WallEntityLoader : BrushEntityLoader
@@ -30,6 +42,7 @@ partial class MapLoader
 	private sealed class ToggleWallEntityLoader : WallEntityLoader
 	{
 		public override bool IsEnabled( MapEntity entity ) => (entity.Integer( "spawnflags" ) & 1) == 0;
+		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model ) => AddToggle( builder, entity, instance );
 	}
 
 	private sealed class IllusionaryEntityLoader : WallEntityLoader

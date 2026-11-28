@@ -170,7 +170,7 @@ partial class MapLoader
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
 				};
 			}
-			if ( target is Dods.BombTarget or PlayerTrigger or MapRelay or Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
+			if ( target is Dods.BombTarget or PlayerTrigger or HurtTrigger or ToggleBrush or MapRelay or Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
 			{
 				var listener = (target, input.ToLowerInvariant()) switch
 				{
@@ -179,6 +179,12 @@ partial class MapLoader
 					(PlayerTrigger, "enable") => nameof( PlayerTrigger.TurnOn ),
 					(PlayerTrigger, "disable") => nameof( PlayerTrigger.TurnOff ),
 					(PlayerTrigger, "toggle") => nameof( PlayerTrigger.Toggle ),
+					(HurtTrigger, "enable") => nameof( HurtTrigger.TurnOn ),
+					(HurtTrigger, "disable") => nameof( HurtTrigger.TurnOff ),
+					(HurtTrigger, "toggle") => nameof( HurtTrigger.Toggle ),
+					(ToggleBrush, "enable") => nameof( ToggleBrush.TurnOn ),
+					(ToggleBrush, "disable") => nameof( ToggleBrush.TurnOff ),
+					(ToggleBrush, "toggle") => nameof( ToggleBrush.Toggle ),
 					(MapRelay, "trigger") => nameof( MapRelay.Trigger ),
 					(MapRelay, "enable") => nameof( MapRelay.TurnOn ),
 					(MapRelay, "disable") => nameof( MapRelay.TurnOff ),
