@@ -118,6 +118,7 @@ public abstract partial class SourceGameMount : BaseGameMount
 		MountSpeech( context, current );
 		MountParticles( context, current );
 		MountEntities( context );
+		MountAddonSpawnlists( context, current );
 		try
 		{
 			MountSurfaces( context, current );

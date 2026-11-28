@@ -16,6 +16,9 @@ internal sealed class GmaArchive : IContentArchive
 
 	private readonly record struct Entry( long Offset, long Length );
 
+	/// <summary>The addon's name from the header.</summary>
+	public string Title { get; }
+
 	public GmaArchive( BaseFileSystem fileSystem, string filename )
 	{
 		this.fileSystem = fileSystem;
@@ -32,7 +35,7 @@ internal sealed class GmaArchive : IContentArchive
 		reader.ReadUInt64();
 		if ( version > 1 )
 			while ( SkipString( reader ) ) { }
-		SkipString( reader );
+		Title = ReadString( reader );
 		SkipString( reader );
 		SkipString( reader );
 		reader.ReadInt32();
@@ -85,6 +88,15 @@ internal sealed class GmaArchive : IContentArchive
 			archive?.Release();
 			archive = null;
 		}
+	}
+
+	private static string ReadString( BinaryReader reader )
+	{
+		var bytes = new List<byte>();
+		byte value;
+		while ( (value = reader.ReadByte()) != 0 )
+			bytes.Add( value );
+		return Encoding.UTF8.GetString( CollectionsMarshal.AsSpan( bytes ) );
 	}
 
 	private static bool SkipString( BinaryReader reader )

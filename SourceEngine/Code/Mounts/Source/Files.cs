@@ -23,9 +23,14 @@ public abstract partial class SourceGameMount
 	/// and use '/' separators; the root directory itself is "".
 	/// <paramref name="Replaces"/> selects files of an archive that take the place of an earlier source's file
 	/// at the same path, and are left out where there is none.
+	/// <paramref name="Addon"/> names the source as one addon, which the spawn menu lists on its own.
 	/// </summary>
 	internal readonly record struct ContentSource( BaseFileSystem FileSystem, string Path, bool IsArchive, bool Recursive = true,
-		string Prefix = "", IReadOnlyList<string> Files = null, Func<string, bool> Include = null, Func<string, bool> Replaces = null );
+		string Prefix = "", IReadOnlyList<string> Files = null, Func<string, bool> Include = null, Func<string, bool> Replaces = null,
+		string Addon = null );
+
+	/// <summary>An addon's files, as the paths it provides, and how to open one of them.</summary>
+	internal sealed record ContentAddon( string Id, string Title, IReadOnlyList<string> Files, Func<string, Stream> Open );
 
 	private static bool IsArchive( string path ) => path.EndsWith( ".vpk", StringComparison.OrdinalIgnoreCase )
 		|| path.EndsWith( ".gma", StringComparison.OrdinalIgnoreCase );
@@ -108,6 +113,7 @@ public abstract partial class SourceGameMount
 		private int references = 1;
 		public readonly object Scope = new();
 		public readonly List<IContentArchive> Packages = [];
+		public readonly List<ContentAddon> Addons = [];
 		public readonly Dictionary<string, SourceFile> Files = new( StringComparer.OrdinalIgnoreCase );
 		public readonly Dictionary<string, string> ContentParents = new( StringComparer.OrdinalIgnoreCase );
 		public readonly HashSet<string> SoundscapeRoots = new( StringComparer.OrdinalIgnoreCase );
@@ -222,6 +228,8 @@ public abstract partial class SourceGameMount
 				{
 					package?.Dispose();
 				}
+				if ( source.Addon is { } addon )
+					files.Addons.Add( new( addon, (indexed as GmaArchive)?.Title ?? addon, indexed.GetFilePaths().ToList(), indexed.OpenFile ) );
 				foreach ( var path in indexed.GetFilePaths() )
 				{
 					if ( source.Include?.Invoke( path ) == false )
@@ -234,6 +242,7 @@ public abstract partial class SourceGameMount
 				continue;
 			}
 
+			var addonFiles = source.Addon is null ? null : new List<string>();
 			foreach ( var path in source.Files ?? EnumerateContentFiles( source.FileSystem, source.Path, source.Recursive ) )
 			{
 				if ( IsArchive( path ) )
@@ -241,9 +250,13 @@ public abstract partial class SourceGameMount
 				var virtualPath = source.Prefix + (source.Path.Length == 0 ? path : path[(source.Path.Length + 1)..]);
 				if ( source.Include?.Invoke( virtualPath ) == false )
 					continue;
+				addonFiles?.Add( virtualPath );
 				if ( !files.Add( virtualPath, new SourceFile( path, null, source.FileSystem ) ) )
 					Log.Trace( $"{path}: '{virtualPath}' was not indexed because an earlier content source takes precedence." );
 			}
+
+			if ( addonFiles is not null )
+				files.Addons.Add( new( source.Addon, source.Addon, addonFiles, path => source.FileSystem.OpenRead( $"{source.Path}/{path}" ) ) );
 		}
 	}
 
