@@ -452,15 +452,14 @@ public abstract class Weapon : BaseCombatWeapon
 
 		WasDropped = true;
 		var wasNetworked = Network.Active;
+		if ( wasNetworked ) Network.DropOwnership();
 		GameObject.SetParent( null, true );
 		WorldScale = PrefabWorldScale();
 		GameObject.Enabled = true;
 		WorldPosition = position;
 		WorldRotation = rotation;
 		StartDrop( velocity );
-		if ( Network.Active )
-			Network.DropOwnership();
-		else if ( wasNetworked )
+		if ( wasNetworked && !Network.Active )
 			GameObject.NetworkSpawn( true, null );
 		return true;
 	}
