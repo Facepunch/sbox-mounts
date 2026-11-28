@@ -139,6 +139,7 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 	HashSet<string> _attackActivities = [];
 	AnimationPlayer _animation = new() { UseBlendGrids = true };
 	LinkAnimation _link;
+	NpcTurn _turn;
 	CreatureBehaviour[] _behaviours = [];
 	Hl2.Manhack _manhack;
 	Hl2.NpcProjectileAttack _projectile;
@@ -307,15 +308,17 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 		// Behaviour gestures: additive ones on the gesture slot, bone-masked ones on their own layer
 		var gestures = _behaviours.SelectMany( x => x.GestureChoices ).Where( x => x is not null ).Distinct().ToArray();
 		_animation.Gestures = gestures.Where( x => _sequences.Get( x ) is { Delta: true } ).ToArray();
+		_turn = new NpcTurn( _sequences );
 		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>>
 		{
+			[NpcTurn.Layer] = _turn.Gestures,
 			[FlinchLayer] = _flinches,
 			[GestureLayer] = gestures.Where( x => _sequences.Get( x ) is { Delta: false } ).ToArray()
 		};
 
 		_link = new LinkAnimation( _sequences );
 		_choices = [(_idle, true), (_walk, true), (_run, true), (_ranged, false), .. _meleeChoices.Select( x => (x, false) ), (_melee, false),
-			.. _behaviours.SelectMany( x => x.AnimationChoices ), .. _link.Choices];
+			.. _behaviours.SelectMany( x => x.AnimationChoices ), .. _link.Choices, .. _turn.Choices];
 	}
 
 	float GroundSpeed( string clip ) => _sequences?.Get( clip )?.GroundSpeed ?? 0;
@@ -401,10 +404,11 @@ public class CreatureNpc : BaseNpc, Component.IPressable
 			// Switch where both clips are equally far off in playback rate.
 			var running = run != walk && (walkSpeed > 1 && runSpeed > walkSpeed ? speed > MathF.Sqrt( walkSpeed * runSpeed ) : speed > MoveSpeed * 1.25f);
 			if ( Aquatic ) running = speed > Movement.WalkSpeed;
-			var clip = !moving ? idle : running ? run : walk;
+			var turn = _turn.Update( this, _animation, !moving && Locomotion == Locomotions.Ground );
+			var clip = !moving ? turn ?? idle : running ? run : walk;
 			// Feet match the ground: rate is our speed over the clip's ground speed, or over the configured pace without one.
 			var ground = _animation.GroundSpeed( _sequences.Get( clip ) );
-			var rate = clip == idle || Locomotion != Locomotions.Ground ? 1
+			var rate = !moving || Locomotion != Locomotions.Ground ? 1
 				: ground > 1 ? Math.Clamp( speed / ground, 0.3f, 2.5f )
 				: Math.Clamp( speed / (running ? MoveSpeed * 1.6f : MoveSpeed), 0.5f, 1.6f );
 			_animation.Play( clip, rate );

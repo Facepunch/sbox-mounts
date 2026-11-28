@@ -334,6 +334,7 @@ public sealed class SourceModelAnimationData
 	public string ClipFolder { get; set; }
 	/// <summary>Names of the clips the model offers.</summary>
 	public string[] Clips { get; set; } = [];
+	public string[] GroundBones { get; set; } = [];
 }
 
 /// <summary>A model's authored, static additive pose layer, driven by a named parameter.</summary>

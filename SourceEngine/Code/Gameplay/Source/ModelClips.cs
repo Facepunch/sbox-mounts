@@ -33,6 +33,8 @@ public sealed class ModelClips : IReadOnlyDictionary<string, Clip>
 
 	public static ModelClips Of( Model model ) => model is null ? None : Cache.GetValue( model, x => new ModelClips( x.GetData<SourceModelAnimationData>() ) );
 
+	internal string[] GroundBones => _data?.GroundBones ?? [];
+
 	public Skeleton Skeleton
 	{
 		get

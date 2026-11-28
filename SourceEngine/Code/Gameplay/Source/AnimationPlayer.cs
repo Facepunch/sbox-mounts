@@ -8,6 +8,8 @@ public sealed class AnimationPlayer : IDisposable
 {
 	Graph _graph;
 	bool _sharedGraph;
+	GroundFoot[] _feet = [];
+	Vector3 _renderOrigin;
 	Model _model;
 	Model _unplayable;
 	SkinnedModelRenderer _renderer;
@@ -229,6 +231,14 @@ public sealed class AnimationPlayer : IDisposable
 		// Plain sequence players only differ by their ordered clips and looping flags.
 		_sharedGraph = targetSkeleton is null && retarget is null && !UseBlendGrids
 			&& Gestures.Count == 0 && OverlayLayers.Count == 0 && BoneLocks.Count == 0;
+		if ( _npc?.Renderer == renderer && renderer.GameObject != _npc.GameObject && retarget is null
+			&& _model.AnimationClips().GroundBones is { Length: > 0 } feet )
+		{
+			_feet = feet.Where( bone => _model.Bones.GetBone( bone )?.Parent?.Parent is not null && _model.Bones.GetBone( GroundFoot.Pad( bone ) ) is not null && _model.Bones.GetBone( GroundFoot.Ankle( bone ) ) is not null )
+				.Select( bone => new GroundFoot( bone ) ).ToArray();
+			_renderOrigin = renderer.LocalPosition;
+			_sharedGraph = false;
+		}
 		Graph Build() => BuildGraph( available, targetSkeleton, retarget );
 		_graph = _sharedGraph ? _model.AnimationClips().GetPlaybackGraph( available, Build ) : Build();
 		renderer.Animation.Graph = _graph;
@@ -313,6 +323,7 @@ public sealed class AnimationPlayer : IDisposable
 
 		var locks = BoneLocks.Where( x => _model.Bones.GetBone( x.Effector ) is not null && _model.Bones.GetBone( x.Target ) is not null ).ToArray();
 		_grips = locks.Select( pair => (pair.Target, SourceAnimations.ReleaseChannel( pair.Effector )) ).ToArray();
+		var groundParameters = _feet.Select( foot => foot.Parameters( builder, _model ) ).ToArray();
 		var lockWeights = _grips.Select( grip => builder.FloatParameter( grip.Target, 0, 1 ) ).ToArray();
 
 		GraphBuilder.Node Parameter( SourceModelSequenceData.BlendAxis axis )
@@ -476,7 +487,7 @@ public sealed class AnimationPlayer : IDisposable
 				if ( overlay.Companions[clip].Length > 0 && _model.AnimationClips().ContainsKey( unlayered ) )
 					clip = unlayered;
 				return builder.SpeedScale( builder.Clip( ResolveClip( clip ), new() { Looping = true, SampleRootMotion = false } ), overlay.Rates[SlotOf( overlay.Keys[i] )] );
-			}, ( _, _ ) => 0.15f );
+			}, ( from, to ) => from == 0 || to == 0 ? 0 : 0.15f );
 			layers.AddLayer( machine, new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, Synchronized = overlay.Synchronized, IgnoreEvents = true, Weight = overlay.Weight, BoneMask = OverlayMask( builder, overlay.Keys, overlay.Id ) } );
 
 			// A masked clip's additive layers (the spine of an arm gesture, an aim matrix) play beside it, keyed by the overlay's selection
@@ -529,6 +540,7 @@ public sealed class AnimationPlayer : IDisposable
 		GraphBuilder.Node root = layers;
 		for ( var i = 0; i < locks.Length; i++ )
 			root = builder.TwoBoneIK( root, locks[i].Effector, builder.BoneTarget( locks[i].Target ), new() { WorldSpace = false, Weight = lockWeights[i], BlendTime = 0 } );
+		for ( var i = 0; i < _feet.Length; i++ ) root = _feet[i].Build( builder, root, groundParameters[i] );
 		return builder.Create( root, "Mounted animation" );
 	}
 
@@ -560,7 +572,7 @@ public sealed class AnimationPlayer : IDisposable
 	/// Plays a clip from <see cref="OverlayLayers"/> on the named layer, fading in by the sequence's fadein; a one-shot fades out
 	/// on its own at the end. <paramref name="loop"/> overrides the sequence's looping. Returns false when the layer cannot play it.
 	/// </summary>
-	public bool PlayOverlay( string layer, string clip, float rate = 1, bool restart = false, bool? loop = null )
+	public bool PlayOverlay( string layer, string clip, float rate = 1, bool restart = false, bool? loop = null, bool fade = true )
 	{
 		if ( !_overlays.TryGetValue( layer ?? "", out var overlay ) || !overlay.Clips.Contains( clip ) )
 			return false;
@@ -576,8 +588,8 @@ public sealed class AnimationPlayer : IDisposable
 			overlay.Looping = loop ?? sequence.Looping;
 			overlay.Animation = _model.AnimationClips()[clip];
 			overlay.Sequence = sequence;
-			overlay.FadeIn = MathF.Max( sequence.FadeIn, 0.05f );
-			overlay.FadeOut = MathF.Max( sequence.FadeOut, 0.05f );
+			overlay.FadeIn = fade ? MathF.Max( sequence.FadeIn, 0.05f ) : 0;
+			overlay.FadeOut = fade ? MathF.Max( sequence.FadeOut, 0.05f ) : 0;
 		}
 
 		overlay.Active = true;
@@ -661,6 +673,24 @@ public sealed class AnimationPlayer : IDisposable
 	{
 		if ( !IsReady ) return;
 		ApplySequence( _renderer );
+		if ( _feet.Length > 0 )
+		{
+			var origin = _renderer.WorldTransform.WithPosition( _renderer.GameObject.Parent.WorldTransform.PointToWorld( _renderOrigin ) );
+			float low = 0, high = 0;
+			foreach ( var foot in _feet )
+			{
+				float unlatch = 0;
+				foreach ( var overlay in _overlays.Values )
+					if ( overlay.Weight > 0 && overlay.Animation.TryGetFloatChannel( overlay.Cycle, SourceAnimations.IkRelease, foot.UnlatchChannel, out var value ) )
+						unlatch = MathF.Max( unlatch, value * overlay.Weight );
+				if ( foot.Update( _renderer, _npc, origin, unlatch ) is not { } contact ) continue;
+				low = MathF.Min( low, contact );
+				high = MathF.Max( high, contact );
+			}
+			const float step = 18;
+			var offset = Math.Clamp( low, -step + Math.Clamp( high - low - step, 0, step ), 0 );
+			_renderer.LocalPosition = _renderOrigin + Vector3.Up * MathX.Lerp( _renderer.LocalPosition.z - _renderOrigin.z, offset / origin.Scale.z, 1 - MathF.Exp( -Time.Delta * 24 ) );
+		}
 		var parameters = _renderer.Animation.Parameters;
 		if ( _gestures.Length > 0 )
 		{
@@ -675,7 +705,9 @@ public sealed class AnimationPlayer : IDisposable
 			var remaining = overlay.Looping ? float.MaxValue : ((overlay.Animation?.Duration ?? 0) - overlay.ClipTime) / overlay.Rate;
 			if ( remaining <= 0 )
 				overlay.Active = false;
-			if ( overlay.Sequence?.PoseBlend.HasValue == true && overlay.Active )
+			if ( overlay.FadeIn == 0 )
+				overlay.Weight = overlay.Active ? 1 : 0;
+			else if ( overlay.Sequence?.PoseBlend.HasValue == true && overlay.Active )
 				overlay.Weight = 1;
 			else
 			{
@@ -743,6 +775,8 @@ public sealed class AnimationPlayer : IDisposable
 
 	public void Dispose()
 	{
+		if ( _feet.Length > 0 && _renderer.IsValid() ) _renderer.LocalPosition = _renderOrigin;
+		_feet = [];
 		if ( _renderer.IsValid() && _renderer.Animation.Graph == _graph ) _renderer.Animation.Graph = null;
 		if ( _stoppableSounds is not null )
 		{

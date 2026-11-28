@@ -6,7 +6,7 @@ namespace Source1;
 
 internal sealed partial class MdlFile
 {
-	internal readonly record struct BakedClip( Transform[][] Frames, Dictionary<string, float[]> Releases = null );
+	internal readonly record struct BakedClip( Transform[][] Frames, Dictionary<string, float[]> Releases = null, Dictionary<string, float[][]> Ground = null );
 
 	/// <summary>
 	/// One clip of a model. <see cref="ReadFrames"/> bakes its frames on demand, as parent-space transforms
@@ -21,7 +21,7 @@ internal sealed partial class MdlFile
 	/// <paramref name="BoneMasks"/> holds the distinct sequence weight lists by bone, in that same order.
 	/// </summary>
 	internal sealed record ImportedAnimations( IReadOnlyList<ImportedAnimation> Clips, SourceModelPoseParameterData[] PoseParameters,
-		IReadOnlyList<(string Name, float[] Weights)> BoneMasks, IReadOnlyList<(string Name, int Parent)> IkBones, string[] IkEndBones )
+		IReadOnlyList<(string Name, float[] Weights)> BoneMasks, IReadOnlyList<(string Name, int Parent)> IkBones, string[] IkEndBones, string[] GroundBones )
 	{
 		/// <summary>
 		/// The sequence data to store on the model. Every read of it parses the stored form,
@@ -465,10 +465,12 @@ internal sealed partial class MdlFile
 				Loop = x.Value.Loop
 			} ).ToArray();
 			// A masked clip supplies its own relative targets. Model-space locks retain the underlying pose.
-			var targetNames = ikBones.Select( IkBoneName ).ToArray();
+			var groundBones = groundChains.Select( i => master._boneNames[chains[i].End] ).ToArray();
+			var helpers = ikBones.Select( x => (Name: IkBoneName( x ), Parent: x.Bone) ).Concat( groundBones.SelectMany( bone => new[]{ (GroundFoot.Pad( bone ), 0), (GroundFoot.Ankle( bone ), 0) } ) ).ToArray();
+			var targetNames = helpers.Select( x => x.Item1 ).ToArray();
 			var masks = boneMasks.Select( ( mask, i ) => ($"weights/{i}", (float[])[.. mask.Weights, .. targetNames.Select( t => mask.Targets.Contains( t ) ? 1f : 0f )]) ).ToArray();
-			return new( result, parameters, masks, ikBones.Select( x => (IkBoneName( x ), x.Bone) ).ToArray(),
-				chains.Where( x => x.End >= 0 ).Select( x => master._boneNames[x.End] ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray() );
+			return new( result, parameters, masks, helpers,
+				chains.Where( x => x.End >= 0 ).Select( x => master._boneNames[x.End] ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray(), groundBones );
 		}
 
 		private void ExportSequence( AnimationSource source, int index, string name )
@@ -487,6 +489,8 @@ internal sealed partial class MdlFile
 				if ( delta && (sequence.Flags & SequencePost) == 0 )
 					throw new NotSupportedException( "Pre-multiplied delta sequence." );
 				var (frameCount, rate) = Timing( source, index, NeutralCell( source, index ) );
+				ValidateGrid( sequence );
+				FindGroundChains( source, index );
 				metadata = source.Mdl.ReadSequenceMetadata( source.Data, source.SequenceOffset( index ), sequence, name );
 				(metadata.Movement, metadata.GroundSpeed) = GroundMotion( source, index, null );
 				if ( !metadata.Movement.IsNearlyZero() )
@@ -937,6 +941,7 @@ internal sealed partial class MdlFile
 			var delta = (source.Sequences[index].Flags & SequenceDelta) != 0;
 			var frames = new Transform[frameCount][];
 			Dictionary<string, float[]> releases = null;
+			Dictionary<string, float[][]> contacts = null;
 			for ( var frame = 0; frame < frameCount; frame++ )
 			{
 				var cycle = frameCount == 1 ? 0 : (float)frame / (frameCount - 1);
@@ -963,10 +968,11 @@ internal sealed partial class MdlFile
 					pose[bone].Rotation = q.Normal;
 				}
 				frames[frame] = WithIkBones( pose, ik, delta );
+				if ( !delta && !masked && ik is not null ) BakeGround( frames[frame], pose, ik, frame, frameCount, ref contacts );
 				if ( masked && ik is not null ) RecordReleases( ik, frame, frameCount, ref releases );
 			}
 			decoded.Clear();
-			return new( frames, releases );
+			return new( frames, releases, contacts );
 		}
 
 		// Blends one sequence, then its auto layers, onto the pose, and gathers

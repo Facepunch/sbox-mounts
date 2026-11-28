@@ -9,22 +9,25 @@ internal sealed class SourceAnimations
 	public const string ModelSpace = "__ik_model_space";
 	public bool HasModelSpaceTargets { get; }
 	public const string IkRelease = "ik_release";
+	public static string UnlatchChannel( string bone ) => $"unlatch:{bone}";
 	public static string ReleaseChannel( string bone ) => $"release:{bone}";
 	public static string HoldRestClip( string name ) => $"__hold/{name}";
 	public static string UnlayeredClip( string name ) => $"__base/{name}";
 
 	public (string Name, string Parent, Transform Local)[] Bones { get; }
 	public IReadOnlyList<(string Name, float[] Weights)> Masks { get; }
+	public string[] GroundBones { get; }
 	public string[] IkEndBones { get; }
 	public Dictionary<string, MdlFile.ImportedAnimation> Clips { get; } = new( StringComparer.OrdinalIgnoreCase );
 
 	public SourceAnimations( (string Name, string Parent, Transform Local)[] bones, IReadOnlyList<(string Name, float[] Weights)> masks,
-		IReadOnlyList<MdlFile.ImportedAnimation> clips, string[] ikEndBones )
+		IReadOnlyList<MdlFile.ImportedAnimation> clips, string[] ikEndBones, string[] groundBones )
 	{
 		Bones = bones;
 		HasModelSpaceTargets = bones.Any( b => b.Parent == ModelSpace );
 		Masks = masks;
 		IkEndBones = ikEndBones;
+		GroundBones = groundBones;
 		foreach ( var clip in clips )
 		{
 			Clips.TryAdd( clip.Name, clip );
@@ -46,7 +49,8 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 
 		var builder = Sandbox.Animation.Skeleton.Builder;
 		if ( animations.HasModelSpaceTargets ) builder.AddBone( SourceAnimations.ModelSpace, Transform.Zero );
-		if ( animations.IkEndBones.Length > 0 ) builder.AddFloatChannelSet( SourceAnimations.IkRelease, Array.ConvertAll( animations.IkEndBones, SourceAnimations.ReleaseChannel ) );
+		if ( animations.IkEndBones.Length > 0 ) builder.AddFloatChannelSet( SourceAnimations.IkRelease, animations.IkEndBones.Select( SourceAnimations.ReleaseChannel ).Concat( animations.GroundBones.Select( SourceAnimations.UnlatchChannel ) ).ToArray() );
+		foreach ( var foot in animations.GroundBones ) builder.AddFloatChannelSet( GroundFoot.Set( foot ), GroundFoot.Channels.Select( c => GroundFoot.Channel( foot, c ) ).ToArray() );
 		foreach ( var bone in animations.Bones )
 		{
 			builder.AddBone( bone.Name, bone.Local, bone.Parent ?? (animations.HasModelSpaceTargets ? SourceAnimations.ModelSpace : null) );
@@ -59,6 +63,8 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 			{
 				weights[animations.Bones[bone].Name] = Math.Clamp( mask.Weights[bone], 0, 1 );
 			}
+			foreach ( var foot in animations.GroundBones )
+				foreach ( var channel in GroundFoot.Channels ) weights[GroundFoot.Channel( foot, channel )] = weights[foot];
 			builder.AddBoneMask( mask.Name, weights );
 		}
 
@@ -113,8 +119,13 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 			builder.AddFrame( pose );
 		}
 		if ( baked.Releases is not null )
-			foreach ( var (bone, samples) in baked.Releases )
-				builder.AddFloatChannelTrack( SourceAnimations.IkRelease, SourceAnimations.ReleaseChannel( bone ), samples );
+			foreach ( var (channel, samples) in baked.Releases )
+				builder.AddFloatChannelTrack( SourceAnimations.IkRelease, channel, samples );
+
+		if ( baked.Ground is not null )
+			foreach ( var (foot, tracks) in baked.Ground )
+				for ( var i = 0; i < tracks.Length; i++ )
+					builder.AddFloatChannelTrack( GroundFoot.Set( foot ), GroundFoot.Channel( foot, GroundFoot.Channels[i] ), tracks[i] );
 
 		return builder.Create( Path );
 	}

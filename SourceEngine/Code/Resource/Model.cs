@@ -101,6 +101,7 @@ internal sealed partial class SourceModelBuilder( SourceGameMount mount, string 
 				{
 					Skeleton = SourceAnimations.SkeletonPath( name ),
 					ClipFolder = SourceAnimations.ClipFolder( name ),
+					GroundBones = animations.GroundBones,
 					Clips = animations.Clips.Select( animation => animation.Name ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray()
 				} );
 			}
@@ -118,7 +119,7 @@ internal sealed partial class SourceModelBuilder( SourceGameMount mount, string 
 				var built = result.Bones.GetBone( bone );
 				if ( built is null ) return (bone, (string)null, Transform.Zero);
 				return (bone, built.Parent?.Name, built.Parent is null ? built.LocalTransform : built.Parent.LocalTransform.ToLocal( built.LocalTransform ));
-			} ).ToArray(), animations.BoneMasks, animations.Clips, animations.IkEndBones ) );
+			} ).ToArray(), animations.BoneMasks, animations.Clips, animations.IkEndBones, animations.GroundBones ) );
 		}
 		if ( physicsPlan != null )
 			ValidatePhysics( result, physics, physicsPlan );

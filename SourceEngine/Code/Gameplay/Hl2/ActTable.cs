@@ -20,17 +20,21 @@ public static class ActTable
 	static readonly Row Smg1 = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SMG1", "ACT_RANGE_ATTACK_SMG1", "ACT_RELOAD_SMG1", "ACT_WALK_RIFLE", "ACT_WALK_AIM_RIFLE", "ACT_RUN_RIFLE", "ACT_RUN_AIM_RIFLE" ), "ACT_GESTURE_RELOAD_SMG1" );
 
 	[SkipHotload]
+	static readonly Row Shotgun = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SHOTGUN", "ACT_RANGE_ATTACK_SHOTGUN", "ACT_RELOAD_SHOTGUN", "ACT_WALK_RIFLE", "ACT_WALK_AIM_SHOTGUN", "ACT_RUN_RIFLE", "ACT_RUN_AIM_SHOTGUN" ), "ACT_GESTURE_RELOAD_SHOTGUN" );
+
+	[SkipHotload]
 	static readonly Row Pistol = new( new( "ACT_IDLE_PISTOL", "ACT_IDLE_ANGRY_PISTOL", "ACT_RANGE_ATTACK_PISTOL", "ACT_RELOAD_PISTOL", "ACT_WALK_PISTOL", "ACT_WALK_AIM_PISTOL", "ACT_RUN_PISTOL", "ACT_RUN_AIM_PISTOL" ), "ACT_GESTURE_RELOAD_PISTOL" );
 
 	[SkipHotload]
-	static readonly Row Stunstick = new( new( "ACT_IDLE", "ACT_IDLE_ANGRY_MELEE", "ACT_MELEE_ATTACK_SWING", "ACT_RELOAD", "ACT_WALK", "ACT_WALK", "ACT_RUN", "ACT_RUN" ), null );
+	static readonly Row Stunstick = new( new( "ACT_IDLE", "ACT_IDLE_ANGRY_MELEE", "ACT_MELEE_ATTACK_SWING", "ACT_RELOAD", "ACT_WALK", "ACT_WALK_AIM", "ACT_RUN", "ACT_RUN_AIM" ), null );
 
 	[SkipHotload]
 	static readonly Dictionary<string, Row> Rows = new( StringComparer.OrdinalIgnoreCase )
 	{
 		["weapon_smg1"] = Smg1,
 		["weapon_ar2"] = Smg1 with { Activities = Smg1.Activities with { Attack = "ACT_RANGE_ATTACK_AR2" } },
-		["weapon_shotgun"] = new( new( "ACT_IDLE_SMG1", "ACT_IDLE_ANGRY_SHOTGUN", "ACT_RANGE_ATTACK_SHOTGUN", "ACT_RELOAD_SHOTGUN", "ACT_WALK_RIFLE", "ACT_WALK_AIM_SHOTGUN", "ACT_RUN_RIFLE", "ACT_RUN_AIM_SHOTGUN" ), "ACT_GESTURE_RELOAD_SHOTGUN" ),
+		["weapon_shotgun"] = Shotgun,
+		["weapon_crossbow"] = Shotgun,
 		["weapon_pistol"] = Pistol,
 		// weapon_357 has no NPC acttable in HL2; it is held like the pistol.
 		["weapon_357"] = Pistol,
@@ -40,7 +44,10 @@ public static class ActTable
 		["weapon_stunstick_player"] = Stunstick,
 		// weapon_crowbar also translates ACT_IDLE.
 		["weapon_crowbar"] = Stunstick with { Activities = Stunstick.Activities with { Idle = "ACT_IDLE_ANGRY_MELEE" } },
-		["weapon_rpg"] = new( new( "ACT_IDLE_RPG", "ACT_IDLE_ANGRY_RPG", "ACT_RANGE_ATTACK_RPG", "ACT_RELOAD", "ACT_WALK_RPG", "ACT_WALK_RPG", "ACT_RUN_RPG", "ACT_RUN_RPG" ), null ),
+		["weapon_rpg"] = new( new( "ACT_IDLE_RPG", "ACT_IDLE_ANGRY_RPG", "ACT_RANGE_ATTACK_RPG", "ACT_RELOAD", "ACT_WALK_RPG", "ACT_WALK_AIM", "ACT_RUN_RPG", "ACT_RUN_AIM" ), null ),
+		["weapon_bugbait"] = Base,
+		["weapon_frag"] = Base,
+		["weapon_physcannon"] = Base,
 		[Unarmed] = Base,
 	};
 
@@ -89,7 +96,8 @@ public static class ActTable
 	/// </summary>
 	public static string WeaponClass( ModelSequences sequences, BaseCombatWeapon weapon )
 	{
-		if ( WeaponSetup.Of( weapon )?.Data?.ClassName is { } scripted && Has( sequences, scripted ) )
+		if ( weapon is null ) return Unarmed;
+		if ( WeaponSetup.Of( weapon )?.Data?.ClassName is { } scripted && Rows.ContainsKey( scripted ) )
 			return scripted;
 
 		if ( Has( sequences, weapon?.HoldType ) )

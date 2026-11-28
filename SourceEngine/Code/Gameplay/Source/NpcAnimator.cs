@@ -27,6 +27,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	(Model, Model, SourceModelWeaponData, string, string) _resolvedFor;
 	ModelSequences _sequences;
 	LinkAnimation _link;
+	NpcTurn _turn;
 	(string, bool)[] _choices = [];
 	string _aimYawParameter;
 	string _aimPitchParameter;
@@ -133,6 +134,7 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 	void CreatePlayer()
 	{
 		_animation = new();
+		_turn = new NpcTurn( _sequences );
 		_animation.EventFired += OnAnimationEvent;
 		_animation.UseBlendGrids = true;
 		_animation.SynchronizedOverlay = UpperLayer;
@@ -141,10 +143,11 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 			.SelectMany( x => _sequences.Get( x ).IkTargets ).Select( t => (t.Bone, t.TargetBone) ).Distinct().ToArray();
 		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>>
 		{
+			[NpcTurn.Layer] = _turn.Gestures,
 			[UpperLayer] = _layers.Upper.Where( x => x is not null ).Distinct().ToArray(),
 			[ReloadLayer] = _layers.Reloads.Where( x => x is not null ).Distinct().ToArray()
 		};
-		_choices = [.. _layers.Clips.All.Select( x => (x, true) ), .. ActionActivities.Select( x => (_sequences.FindActivity( x ), false) ), .. _link.Choices];
+		_choices = [.. _layers.Clips.All.Select( x => (x, true) ), .. ActionActivities.Select( x => (_sequences.FindActivity( x ), false) ), .. _link.Choices, .. _turn.Choices];
 	}
 
 	protected override void OnUpdate()
@@ -242,11 +245,12 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		else if ( !reloading )
 			_animation.StopOverlay( ReloadLayer );
 
+		var turn = _turn.Update( npc, _animation, !reloading && speed <= 10 && _lastShot >= .2f );
 		var name = reloading && !upperReload && !string.IsNullOrEmpty( Reload ) ? Reload
 			: running ? clips.Running( aiming )
 			: speed > 10 ? clips.Walking( aiming )
 			: _lastShot < 0.2f && clips.Attack is not null ? clips.Attack
-			: clips.Standing( aiming );
+			: turn ?? clips.Standing( aiming );
 
 		var rate = name == Reload && Renderer.Model.AnimationClips().TryGetValue( Reload ?? "", out var clip )
 			? clip.Duration / reloadTime

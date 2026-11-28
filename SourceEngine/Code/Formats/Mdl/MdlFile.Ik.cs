@@ -7,7 +7,7 @@ namespace Source1;
 // A sequence's IK rule holds the end bone of a chain relative
 // to another bone, which is how hands stay on a weapon that is animated on a bone of its own; a release rule
 // lets the chain go. A lock keeps an end bone where it was while a layer is added on top.
-// Ground and attachment rules need the world around the model and are not solved.
+// Ground rules are resolved against scene collision when the NPC is drawn.
 internal sealed partial class MdlFile
 {
 	// mstudioikrule_t types
@@ -54,6 +54,7 @@ internal sealed partial class MdlFile
 		int FirstFrame, int ErrorIndex, int CompressedIndex, float Start, float Peak, float Tail, float End )
 	{
 		public ReadOnlySpan<byte> Region => Buffer.AsSpan( RegionStart, RegionLength );
+		public Vector3 Ground => Vector96( Region[(Offset + 20)..] ); // height, radius, floor
 	}
 
 	private IkRuleData? ReadIkRule( byte[] data, Func<byte[]> blocks, int animationIndex, StudioAnimDesc animation, int rule )
@@ -283,12 +284,76 @@ internal sealed partial class MdlFile
 	}
 
 	/// <summary>An IK rule gathered while posing: where a chain's end bone should be, relative to a master bone.</summary>
-	private readonly record struct IkRule( int Type, int Chain, int Bone, Vector3 Position, Rotation Rotation, float Weight, float RuleWeight );
+	private readonly record struct IkRule( int Type, int Chain, int Bone, Vector3 Position, Rotation Rotation, float Weight, float RuleWeight, Vector3 Ground, float Latch );
 
 	private sealed partial class AnimationImporter
 	{
 		// The master model's usable IK chains.
 		private IkChain[] chains;
+		private readonly List<int> groundChains = [];
+		private readonly HashSet<(AnimationSource, int)> inspectedGround = [];
+
+		private void FindGroundChains( AnimationSource source, int index )
+		{
+			var seq = source.Sequences[index];
+			if ( seq.NumIkRules <= 0 || chains.Length == 0 ) return;
+			for ( var y = 0; y < seq.GroupSize2; y++ )
+			for ( var x = 0; x < seq.GroupSize; x++ )
+			{
+				var id = source.Animation( index, x, y );
+				if ( !inspectedGround.Add( (source, id) ) ) continue;
+				var anim = source.Mdl.ReadAnimationDescriptor( source.Data, id );
+				for ( var i = 0; i < Math.Min( anim.NumIkRules, 64 ); i++ )
+				{
+					if ( source.Mdl.ReadIkRule( source.Data, source.File.Blocks, id, anim, i ) is not { Type: IkGround } rule ) continue;
+					var chain = MasterChain( source, rule.Chain );
+					if ( chain >= 0 && !groundChains.Contains( chain ) ) groundChains.Add( chain );
+				}
+			}
+		}
+
+		private void BakeGround( Transform[] framePose, Transform[] pose, List<IkRule>[] context, int frame, int count, ref Dictionary<string, float[][]> tracks )
+		{
+			Transform[] world = null;
+			for ( var i = 0; i < groundChains.Count; i++ )
+			{
+				var chain = groundChains[i];
+				IkRule contact = default;
+				float weight = 0, latch = 0;
+				foreach ( var rule in context[chain] )
+				{
+					if ( rule.Type == IkGround )
+					{
+						contact = rule;
+						weight = MathX.Lerp( weight, rule.Weight, rule.RuleWeight );
+						latch = rule.Latch * rule.RuleWeight;
+					}
+					else if ( rule.Type == IkRelease || rule.Type == IkUnlatch )
+					{
+						latch *= 1 - rule.Weight * rule.RuleWeight;
+						if ( rule.Type == IkRelease ) weight *= 1 - rule.Weight * rule.RuleWeight;
+					}
+				}
+
+				world ??= WorldPose( pose );
+				var ankle = world[chains[chain].End];
+				var active = weight > 0 && contact.Ground.x > 0;
+				var pad = active ? ankle.ToWorld( new Transform( contact.Position, contact.Rotation ).ToLocal( Transform.Zero ) ) : ankle;
+				var slot = pose.Length + ikBones.Count + 2 * i;
+				framePose[slot] = world[0].ToLocal( pad );
+				framePose[slot + 1] = world[0].ToLocal( ankle );
+				if ( !active ) continue;
+				tracks ??= new();
+				var bone = master._boneNames[chains[chain].End];
+				if ( !tracks.TryGetValue( bone, out var samples ) )
+					tracks[bone] = samples = GroundFoot.Channels.Select( _ => new float[count] ).ToArray();
+				samples[0][frame] = weight;
+				samples[1][frame] = contact.Ground.x;
+				samples[2][frame] = contact.Ground.y;
+				samples[3][frame] = contact.Ground.z;
+				samples[4][frame] = latch;
+			}
+		}
 
 		private List<IkRule>[] NewIkContext()
 		{
@@ -403,11 +468,24 @@ internal sealed partial class MdlFile
 				tail -= 1;
 				end -= 1;
 			}
+			if ( start < 0 )
+			{
+				start += 1;
+				peak += 1;
+				tail += 1;
+				end += 1;
+			}
 			var weight = IkRuleWeight( start, peak, tail, end, cycle );
-			if ( !(weight > 0.001f) )
-				return false;
+			if ( weight <= 0.001f )
+			{
+				var anim = source.Mdl.ReadAnimationDescriptor( source.Data, animations[0].Animation );
+				if ( rules[0].Rule.Type != IkGround || (anim.Flags & SequenceLooping) == 0 || end - start <= .75f ) return false;
+				weight = .001f;
+				cycle = end - .001f;
+			}
 
 			var position = Vector3.Zero;
+			var ground = Vector3.Zero;
 			float x = 0, y = 0, z = 0, w = 0;
 			foreach ( var (rule, frameCount, ruleWeight) in rules )
 			{
@@ -416,6 +494,7 @@ internal sealed partial class MdlFile
 				if ( !ReadIkError( rule, frameCount, cycle, out var p, out var q ) )
 					return false;
 				position += p * ruleWeight;
+				if ( rule.Type == IkGround ) ground += rule.Ground * ruleWeight;
 				var sign = x * q.x + y * q.y + z * q.z + w * q.w < 0 ? -ruleWeight : ruleWeight;
 				x += q.x * sign;
 				y += q.y * sign;
@@ -424,7 +503,7 @@ internal sealed partial class MdlFile
 			}
 			var length = MathF.Sqrt( x * x + y * y + z * z + w * w );
 			var rotation = length > 0.0001f ? new Rotation( x / length, y / length, z / length, w / length ) : Rotation.Identity;
-			result = new( rules[0].Rule.Type, rules[0].Rule.Chain, rules[0].Rule.Bone, position, rotation, weight, 1 );
+			result = new( rules[0].Rule.Type, rules[0].Rule.Chain, rules[0].Rule.Bone, position, rotation, weight, 1, ground, (end > 1 && cycle < start ? cycle + 1 : cycle) >= peak ? weight : 0 );
 			return float.IsFinite( position.x ) && float.IsFinite( position.y ) && float.IsFinite( position.z );
 		}
 
@@ -433,16 +512,23 @@ internal sealed partial class MdlFile
 		{
 			for ( var i = 0; i < context.Length; i++ )
 			{
-				var release = 0f;
+				float release = 0, unlatch = 0;
 				foreach ( var rule in context[i] )
-					if ( rule.Type == IkRelease )
-						release += (1 - release) * rule.Weight * rule.RuleWeight;
-
-				if ( release <= 0 ) continue;
+				{
+					if ( rule.Type is not (IkRelease or IkUnlatch) ) continue;
+					unlatch = MathF.Max( unlatch, rule.Latch > 0 ? 1 : rule.Weight );
+					if ( rule.Type == IkRelease ) release += (1 - release) * rule.Weight * rule.RuleWeight;
+				}
+				if ( unlatch <= 0 && release <= 0 ) continue;
 				var bone = master._boneNames[chains[i].End];
 				tracks ??= new();
-				if ( !tracks.TryGetValue( bone, out var samples ) ) tracks[bone] = samples = new float[frameCount];
-				samples[frame] = release;
+				if ( release > 0 ) Sample( tracks, SourceAnimations.ReleaseChannel( bone ), release );
+				if ( unlatch > 0 && groundChains.Contains( i ) ) Sample( tracks, SourceAnimations.UnlatchChannel( bone ), unlatch );
+			}
+			void Sample( Dictionary<string, float[]> channels, string name, float value )
+			{
+				if ( !channels.TryGetValue( name, out var samples ) ) channels[name] = samples = new float[frameCount];
+				samples[frame] = value;
 			}
 		}
 
@@ -641,9 +727,10 @@ internal sealed partial class MdlFile
 		// end bone, in the space of the bone it is a child of.
 		private Transform[] WithIkBones( Transform[] pose, List<IkRule>[] context, bool delta = false )
 		{
-			if ( ikBones.Count == 0 )
+			if ( ikBones.Count == 0 && groundChains.Count == 0 )
 				return pose;
-			var frame = new Transform[pose.Length + ikBones.Count];
+			var frame = new Transform[pose.Length + ikBones.Count + 2 * groundChains.Count];
+			Array.Fill( frame, Transform.Zero, pose.Length + ikBones.Count, 2 * groundChains.Count );
 			pose.CopyTo( frame, 0 );
 			Transform[] world = null;
 			for ( var i = 0; i < ikBones.Count; i++ )
