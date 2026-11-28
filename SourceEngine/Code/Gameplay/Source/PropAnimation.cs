@@ -1,5 +1,4 @@
 using System;
-using Sandbox.Animation;
 
 namespace Source1;
 
@@ -28,13 +27,11 @@ public sealed class PropAnimation : Component, IMapInput
 	{
 		if ( string.IsNullOrEmpty( sequence ) || GetComponent<SkinnedModelRenderer>( true ) is not {} renderer ) return;
 		var model = renderer.Model;
-		if ( !model.IsValid() || ModelSequences.Of( model ).Get( sequence ) is not {} metadata ) return;
-		var clips = model.AnimationClips();
-		if ( !clips.TryGetValue( metadata.Name, out var clip ) || clips.Skeleton is null ) return;
-
-		var builder = Graph.Builder;
-		builder.WithSkeleton( clips.Skeleton );
-		renderer.Animation.Graph = builder.Create( builder.Clip( clip, new() { Looping = metadata.Looping, SampleRootMotion = false } ), metadata.Name );
+		if ( !model.IsValid() ) return;
+		var graph = model.AnimationClips().SequenceGraph( ModelSequences.Of( model ).Get( sequence ) );
+		if ( graph is null ) return;
+		if ( previous == sequence ) renderer.Animation.Graph = null;
+		renderer.Animation.Graph = graph;
 		renderer.UseAnimGraph = true;
 	}
 }

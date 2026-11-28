@@ -20,6 +20,10 @@ public sealed class ModelClips : IReadOnlyDictionary<string, Clip>
 	Skeleton _skeleton;
 	bool _skeletonLoaded;
 	Graph _pickupPose;
+	Dictionary<string, Graph> _sequenceGraphs;
+	List<PlaybackGraph> _playbackGraphs;
+
+	sealed record PlaybackGraph( (string Name, bool Loop)[] Choices, Graph Graph );
 
 	ModelClips( SourceModelAnimationData data )
 	{
@@ -37,6 +41,29 @@ public sealed class ModelClips : IReadOnlyDictionary<string, Clip>
 			_skeletonLoaded = true;
 			return _skeleton = Skeleton.Load( _data.Skeleton );
 		}
+	}
+
+	internal Graph GetPlaybackGraph( (string Name, bool Loop)[] choices, Func<Graph> build )
+	{
+		_playbackGraphs ??= [];
+		foreach ( var entry in _playbackGraphs )
+			if ( choices.SequenceEqual( entry.Choices ) ) return entry.Graph;
+
+		var graph = build();
+		_playbackGraphs.Add( new( choices, graph ) );
+		return graph;
+	}
+
+	internal Graph SequenceGraph( SourceModelSequenceData sequence )
+	{
+		if ( sequence is null || !TryGetValue( sequence.Name, out var clip ) || Skeleton is null ) return null;
+		_sequenceGraphs ??= new( StringComparer.OrdinalIgnoreCase );
+		if ( _sequenceGraphs.TryGetValue( sequence.Name, out var graph ) ) return graph;
+
+		var builder = Graph.Builder;
+		builder.WithSkeleton( Skeleton );
+		var playback = builder.Clip( clip, new() { Looping = sequence.Looping, SampleRootMotion = false } );
+		return _sequenceGraphs[sequence.Name] = builder.Create( playback, sequence.Name );
 	}
 
 	// Dropped weapons use the first frame of their world model's default sequence.

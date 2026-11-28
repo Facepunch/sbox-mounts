@@ -502,16 +502,6 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 		var painPose = graph.Clip( painClip.Animation, new() { SampleRootMotion = false } );
 		foreach ( var group in painMask )
 			output = graph.Layers( output ).AddLayer( painPose, new() { BoneMask = graph.BoneMask( group.Name ), Weight = painParameters[group.Name], IgnoreEvents = true } );
-		var patrolGraphs = new Dictionary<string, Graph>( System.StringComparer.OrdinalIgnoreCase );
-		Graph LoadPatrolGraph( string file )
-		{
-			if ( patrolGraphs.TryGetValue( file, out var cached ) ) return cached;
-			if ( !fs.FileExists( file ) ) return null;
-			var name = file["Data/Animations/".Length..^4];
-			var clip = library.Clip( name );
-			var builder = new GraphBuilder().WithSkeleton( rig );
-			return patrolGraphs[file] = builder.Create( builder.Clip( clip.Animation, new() { Looping = clip.Looping, SampleRootMotion = false } ) );
-		}
 		RagdollFallPose.Layer FallLayer( string name )
 		{
 			var clip = library.Clip( name );
@@ -519,7 +509,7 @@ internal sealed record RabbitGuardAnimations( Graph Graph, Skeleton Rig, IReadOn
 			return new( clip, Enumerable.Range( 0, rig.BoneCount ).Select( i => weights[$"bone_{i}"] ).ToArray() );
 		}
 		return new( graph.Create( output, path + "/guard.ag" ), rig, clips, movement, idlePoses, movementRig, moves, bodyAttacks.Keys.Concat( blocked.Values ).ToHashSet(), unweighted, torsoBones, [RabbitLimbBone.Chain( skeleton, parents, "left_leg", scale ), RabbitLimbBone.Chain( skeleton, parents, "right_leg", scale )], [RabbitLimbBone.Chain( skeleton, parents, "leftarm", scale ), RabbitLimbBone.Chain( skeleton, parents, "rightarm", scale )], HalfLength( hip ), HalfLength( parents[torso.BoneId] ), $"bone_{skeleton.IKBones["head"].BoneId}", HalfLength( parents[skeleton.IKBones["head"].BoneId] ), headRig, ears, skeleton.BoneMass.ToArray(), character.RequireElement( "appearance" ).Number( "default_scale" ) ?? 1f, scale, morphs ) {
-			PatrolGraph = LoadPatrolGraph,
+			PatrolGraph = library.PatrolGraph,
 			PatrolRig = patrolRigs?.Count == 1 ? patrolRigs.First() : null,
 			Torso = new( skeleton.BindPose[hip], skeleton.BindPose[parents[torso.BoneId]], chestBind, HalfLength( parents[torso.BoneId] ), HalfLength( torso.BoneId ) ),
 			TailBones = skeleton.IKBones.TryGetValue( "tail", out var tail ) ? RabbitLimbBone.Chain( skeleton, parents, "tail", scale, tail.ChainLength ) : [],

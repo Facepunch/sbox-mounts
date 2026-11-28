@@ -11,6 +11,7 @@ internal sealed class CharacterAnimationLibrary
 	internal SkeletonData Skeleton { get; }
 	internal float Scale { get; }
 	internal (string Name, float Weight)[] PainMask { get; }
+	readonly Dictionary<string, Graph> patrolGraphs = new( System.StringComparer.OrdinalIgnoreCase );
 	readonly BaseFileSystem fs;
 	readonly string path, referenceRig, targetRig;
 	readonly ILookup<string, string> mapping;
@@ -92,6 +93,15 @@ internal sealed class CharacterAnimationLibrary
 		bones.AddBoneMask( "knife_right", knifeMask, defaultFloatChannelWeight: 0f );
 		bones.AddBoneMask( "knife_left", left, defaultFloatChannelWeight: 0f );
 		Rig = bones.Create( path + "/rabbit.skel" );
+	}
+
+	internal Graph PatrolGraph( string file )
+	{
+		if ( patrolGraphs.TryGetValue( file, out var graph ) ) return graph;
+		if ( !fs.FileExists( file ) ) return null;
+		var clip = Clip( file["Data/Animations/".Length..^4] );
+		var builder = new GraphBuilder().WithSkeleton( Rig );
+		return patrolGraphs[file] = builder.Create( builder.Clip( clip.Animation, new() { Looping = clip.Looping, SampleRootMotion = false } ) );
 	}
 
 	internal RabbitRetarget SourceFor( string name )

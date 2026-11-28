@@ -7,6 +7,7 @@ namespace Source1;
 public sealed class AnimationPlayer : IDisposable
 {
 	Graph _graph;
+	bool _sharedGraph;
 	Model _model;
 	Model _unplayable;
 	SkinnedModelRenderer _renderer;
@@ -152,6 +153,9 @@ public sealed class AnimationPlayer : IDisposable
 		_sequences = ModelSequences.Of( _model );
 		_eventSounds.Clear();
 		_axes.Clear();
+		_gestures = [];
+		_gesture = null;
+		_overlays.Clear();
 		var available = choices.Where( x => !string.IsNullOrWhiteSpace( x.Name ) && HasClip( x.Name ) )
 			.DistinctBy( x => x.Name, StringComparer.OrdinalIgnoreCase )
 			.OrderBy( x => string.Equals( x.Name, initial, StringComparison.OrdinalIgnoreCase ) ? 0 : 1 ).ToArray();
@@ -166,6 +170,22 @@ public sealed class AnimationPlayer : IDisposable
 			foreach ( var sound in _sequences.All.SelectMany( s => s.Events ).Where( Sounds.IsSoundEvent ).Select( e => e.Options ).Distinct() )
 				if ( !string.IsNullOrWhiteSpace( sound ) ) _eventSounds[sound] = Sounds.Sound( sound, MountContent.Of( _model ) );
 
+		// Plain sequence players only differ by their ordered clips and looping flags.
+		_sharedGraph = targetSkeleton is null && retarget is null && !UseBlendGrids
+			&& Gestures.Count == 0 && OverlayLayers.Count == 0 && BoneLocks.Count == 0;
+		_splitSlots = available.Length * 2 > GraphBuilder.StateMachineBuilder.MaxStates;
+		Graph Build() => BuildGraph( available, targetSkeleton, retarget );
+		_graph = _sharedGraph ? _model.AnimationClips().GetPlaybackGraph( available, Build ) : Build();
+		renderer.Animation.Graph = _graph;
+		renderer.UseAnimGraph = true;
+		// The first state is the graph's default, so the first Play lands on slot 0 without a transition.
+		_slot = 1;
+		Play( available[0].Name, restart: true );
+		return true;
+	}
+
+	Graph BuildGraph( (string Name, bool Loop)[] available, Skeleton targetSkeleton, Func<Clip, Clip> retarget )
+	{
 		var builder = Graph.Builder;
 		builder.WithSkeleton( targetSkeleton ?? _model.AnimationSkeleton() );
 		Clip ResolveClip( string name )
@@ -177,7 +197,6 @@ public sealed class AnimationPlayer : IDisposable
 		// ResetTime on a shared parameter also rewinds the outgoing clip, causing
 		// a visible snap on shots, shell inserts and interrupted reloads.
 		var clips = available.SelectMany( x => Enumerable.Range( 0, 2 ).Select( slot => (x.Name, x.Loop, Slot: slot, Key: $"{x.Name}:{slot}") ) ).ToArray();
-		_splitSlots = clips.Length > GraphBuilder.StateMachineBuilder.MaxStates;
 		var selected = builder.IdParameter( "sequence", _splitSlots ? ["first", "second"] : clips.Select( x => x.Key ).ToArray() );
 		var names = available.Select( x => x.Name ).ToArray();
 		var slotIds = _splitSlots ? new[] { builder.IdParameter( "clip0", names ), builder.IdParameter( "clip1", names ) } : null;
@@ -212,11 +231,9 @@ public sealed class AnimationPlayer : IDisposable
 		foreach ( var axis in gridded.Concat( clipLayers.Values.SelectMany( layers => layers ).Distinct() ).SelectMany( s => s.BlendAxes ) )
 			Parameter( axis );
 		_gestures = Gestures.Where( x => _sequences.Get( x ) is { Delta: true } && HasClip( x ) ).Distinct().ToArray();
-		_gesture = null;
 		var gestureKeys = SlotKeys( _gestures );
 		var gestureId = _gestures.Length > 0 ? builder.IdParameter( "gesture", gestureKeys ) : null;
 		var gestureWeight = _gestures.Length > 0 ? builder.AddControlParameter( "gesture_weight", GraphBuilder.NodeKind.Float, new() { DefaultFloat = 0, Min = 0, Max = 1 } ) : null;
-		_overlays.Clear();
 		var overlayParameters = new List<(string[] Keys, GraphBuilder.Node Id, GraphBuilder.Node Weight, GraphBuilder.Node[] Rates, Dictionary<string, SourceModelSequenceData[]> Companions)>();
 		foreach ( var (name, list) in OverlayLayers )
 		{
@@ -401,13 +418,7 @@ public sealed class AnimationPlayer : IDisposable
 		GraphBuilder.Node root = layers;
 		foreach ( var (effector, target) in locks )
 			root = builder.TwoBoneIK( root, effector, builder.BoneTarget( target ), new() { WorldSpace = false, Weight = lockWeight, BlendTime = 0 } );
-		_graph = builder.Create( root, "HL2 mounted animation" );
-		renderer.Animation.Graph = _graph;
-		renderer.UseAnimGraph = true;
-		// The first state is the graph's default, so the first Play lands on slot 0 without a transition.
-		_slot = 1;
-		Play( available[0].Name, restart: true );
-		return true;
+		return builder.Create( root, "Mounted animation" );
 	}
 
 	// Mounted clips decode on first lookup; a sequence that fails to decode is listed but has no clip.
@@ -594,7 +605,7 @@ public sealed class AnimationPlayer : IDisposable
 	public void Dispose()
 	{
 		if ( _renderer.IsValid() && _renderer.Animation.Graph == _graph ) _renderer.Animation.Graph = null;
-		_graph?.Dispose();
+		if ( !_sharedGraph ) _graph?.Dispose();
 		_graph = null;
 		_model = null;
 		Current = null;
