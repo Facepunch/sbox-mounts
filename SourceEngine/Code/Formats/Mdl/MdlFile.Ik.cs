@@ -527,6 +527,13 @@ internal sealed partial class MdlFile
 
 		private readonly record struct IkLock( int Chain, float PositionWeight, float RotationWeight, Transform End, Vector3 KneePosition, Vector3 KneeDirection );
 
+		private (int Chain, float Position, float LocalRotation) ReadIkLock( AnimationSource source, int index, int lockIndex )
+		{
+			var entry = source.SequenceData( index, source.Sequences[index].IkLockIndex + lockIndex * 32L, 32 );
+			return (MasterChain( source, BinaryPrimitives.ReadInt32LittleEndian( entry ) ),
+				BinaryPrimitives.ReadSingleLittleEndian( entry[4..] ), BinaryPrimitives.ReadSingleLittleEndian( entry[8..] ));
+		}
+
 		// Remembers where the locked chains' end bones are before a layer is added.
 		private IkLock[] RecordIkLocks( AnimationSource source, int index, Transform[] pose )
 		{
@@ -538,12 +545,11 @@ internal sealed partial class MdlFile
 			for ( var i = 0; i < sequence.NumIkLocks; i++ )
 			{
 				// mstudioiklock_t: chain, position weight, local rotation weight, flags
-				var entry = source.SequenceData( index, sequence.IkLockIndex + i * 32L, 32 );
-				var chain = MasterChain( source, BinaryPrimitives.ReadInt32LittleEndian( entry ) );
+				var (chain, position, rotation) = ReadIkLock( source, index, i );
 				if ( chain < 0 )
 					continue;
 				var knee = chains[chain].KneeDirection.LengthSquared > 0 ? world[chains[chain].Root].Rotation * chains[chain].KneeDirection : Vector3.Zero;
-				locks.Add( new( chain, BinaryPrimitives.ReadSingleLittleEndian( entry[4..] ), BinaryPrimitives.ReadSingleLittleEndian( entry[8..] ),
+				locks.Add( new( chain, position, rotation,
 					world[chains[chain].End], world[chains[chain].Middle].Position, knee ) );
 			}
 			return locks.Count > 0 ? locks.ToArray() : null;
@@ -578,12 +584,29 @@ internal sealed partial class MdlFile
 			return rules.Count == 1 && rule.Type == IkSelf && rule.Bone >= 0 && rule.Weight * rule.RuleWeight > 0.999f;
 		}
 
-		private string IkBoneName( (int Chain, int Bone) target ) => $"ik_target:{chains[target.Chain].Name}:{master._boneNames[target.Bone]}";
+		private string IkBoneName( (int Chain, int Bone) target ) => target.Bone < 0 ? $"ik_lock:{chains[target.Chain].Name}"
+			: $"ik_target:{chains[target.Chain].Name}:{master._boneNames[target.Bone]}";
+
+		private SourceModelSequenceData.IkTarget[] LayerLocks( AnimationSource source, int index )
+		{
+			var count = source.Sequences[index].NumIkLocks;
+			if ( count is <= 0 or > 64 ) return [];
+			var result = new List<SourceModelSequenceData.IkTarget>();
+			for ( var i = 0; i < count; i++ )
+			{
+				var (chain, position, rotation) = ReadIkLock( source, index, i );
+				if ( chain < 0 || position != 1 || rotation != 0 ) continue;
+				var target = (chain, -1);
+				if ( !ikBones.Contains( target ) ) ikBones.Add( target );
+				result.Add( new() { Bone = master._boneNames[chains[chain].End], TargetBone = IkBoneName( target ) } );
+			}
+			return result.ToArray();
+		}
 
 		// What the sequence holds with IK, for a consumer that layers sequences at runtime and has to solve
 		// them on the final pose. Each target is a bone added to the skeleton as a child of the
 		// bone the rule is relative to; the clips animate it to where the chain's end bone belongs.
-		private SourceModelSequenceData.IkTarget[] IkTargets( AnimationSource source, int index )
+		private SourceModelSequenceData.IkTarget[] IkTargets( AnimationSource source, int index, SourceModelSequenceData.LayerRamp? ramp )
 		{
 			if ( chains.Length == 0 )
 				return [];
@@ -592,7 +615,8 @@ internal sealed partial class MdlFile
 			foreach ( var cycle in new[] { 0f, 0.25f, 0.5f, 0.75f, 0.9999f } )
 			{
 				var context = NewIkContext();
-				Accumulate( null, source, index, cycle, 1, 0, null, NoParameters, null, context );
+				var phase = ramp is { } timed ? MathX.Lerp( timed.Peak, timed.Tail, cycle ) : cycle;
+				Accumulate( null, source, index, phase, 1, 0, null, NoParameters, null, context );
 				for ( var chain = 0; chain < held.Length; chain++ )
 				{
 					var bone = HoldsChain( context[chain], out var rule ) ? rule.Bone : -1;
@@ -615,17 +639,24 @@ internal sealed partial class MdlFile
 
 		// A frame with the IK target bones behind the model's own: each sits where its rule puts the chain's
 		// end bone, in the space of the bone it is a child of.
-		private Transform[] WithIkBones( Transform[] pose, List<IkRule>[] context )
+		private Transform[] WithIkBones( Transform[] pose, List<IkRule>[] context, bool delta = false )
 		{
 			if ( ikBones.Count == 0 )
 				return pose;
 			var frame = new Transform[pose.Length + ikBones.Count];
 			pose.CopyTo( frame, 0 );
+			Transform[] world = null;
 			for ( var i = 0; i < ikBones.Count; i++ )
 			{
-				frame[pose.Length + i] = context is not null && HoldsChain( context[ikBones[i].Chain], out var rule ) && rule.Bone == ikBones[i].Bone
-					? new Transform( rule.Position, rule.Rotation )
-					: Transform.Zero;
+				if ( ikBones[i].Bone < 0 && context is not null && !delta )
+				{
+					world ??= WorldPose( pose );
+					frame[pose.Length + i] = world[chains[ikBones[i].Chain].End];
+					continue;
+				}
+				var rules = context?[ikBones[i].Chain];
+				frame[pose.Length + i] = rules is [var rule] && rule.Type == IkSelf && rule.Bone == ikBones[i].Bone
+					? new Transform( rule.Position, rule.Rotation ) : Transform.Zero;
 			}
 			return frame;
 		}

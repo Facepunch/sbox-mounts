@@ -6,9 +6,12 @@ namespace Source1;
 internal sealed class SourceAnimations
 {
 	public const string SkeletonName = "skeleton.skel";
+	public const string ModelSpace = "__ik_model_space";
+	public bool HasModelSpaceTargets { get; }
 	public const string IkRelease = "ik_release";
 	public static string ReleaseChannel( string bone ) => $"release:{bone}";
 	public static string HoldRestClip( string name ) => $"__hold/{name}";
+	public static string UnlayeredClip( string name ) => $"__base/{name}";
 
 	public (string Name, string Parent, Transform Local)[] Bones { get; }
 	public IReadOnlyList<(string Name, float[] Weights)> Masks { get; }
@@ -19,6 +22,7 @@ internal sealed class SourceAnimations
 		IReadOnlyList<MdlFile.ImportedAnimation> clips, string[] ikEndBones )
 	{
 		Bones = bones;
+		HasModelSpaceTargets = bones.Any( b => b.Parent == ModelSpace );
 		Masks = masks;
 		IkEndBones = ikEndBones;
 		foreach ( var clip in clips )
@@ -41,10 +45,11 @@ internal sealed class SkeletonLoader : ResourceLoader<SourceGameMount>
 			return null;
 
 		var builder = Sandbox.Animation.Skeleton.Builder;
+		if ( animations.HasModelSpaceTargets ) builder.AddBone( SourceAnimations.ModelSpace, Transform.Zero );
 		if ( animations.IkEndBones.Length > 0 ) builder.AddFloatChannelSet( SourceAnimations.IkRelease, Array.ConvertAll( animations.IkEndBones, SourceAnimations.ReleaseChannel ) );
 		foreach ( var bone in animations.Bones )
 		{
-			builder.AddBone( bone.Name, bone.Local, bone.Parent );
+			builder.AddBone( bone.Name, bone.Local, bone.Parent ?? (animations.HasModelSpaceTargets ? SourceAnimations.ModelSpace : null) );
 		}
 
 		foreach ( var mask in animations.Masks )
@@ -94,11 +99,13 @@ internal sealed class ClipLoader( string name ) : ResourceLoader<SourceGameMount
 
 		var bones = skeleton.Bones;
 		var pose = new Transform[bones.Count];
+		var offset = animations.HasModelSpaceTargets ? 1 : 0;
+		if ( offset > 0 ) pose[0] = clip.Delta ? Transform.Zero.WithScale( 0 ) : Transform.Zero;
 		foreach ( var frame in baked.Frames )
 		{
-			for ( var bone = 0; bone < pose.Length; bone++ )
+			for ( var bone = offset; bone < pose.Length; bone++ )
 			{
-				var local = bone < frame.Length ? frame[bone] : clip.Delta ? Transform.Zero : bones[bone].LocalTransform;
+				var local = bone - offset < frame.Length ? frame[bone - offset] : clip.Delta ? Transform.Zero : bones[bone].LocalTransform;
 				// An additive clip stores scale as its difference from one.
 				pose[bone] = clip.Delta ? local.WithScale( local.Scale.x - 1 ) : local;
 			}

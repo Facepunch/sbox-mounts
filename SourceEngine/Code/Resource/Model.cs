@@ -90,6 +90,7 @@ internal sealed partial class SourceModelBuilder( SourceGameMount mount, string 
 			animatedBones = [.. boneNames, .. animations.IkBones.Select( x => x.Name )];
 			foreach ( var (target, parent) in animations.IkBones )
 			{
+				if ( parent < 0 ) continue;
 				// Bones are given in model space when the model has meshes, as the skeleton's own are.
 				var bind = vtx == null ? new Transform( Vector3.Zero ) : boneTransforms[parent];
 				builder.AddBone( target, bind.Position, bind.Rotation, boneNames[parent] );
@@ -110,8 +111,10 @@ internal sealed partial class SourceModelBuilder( SourceGameMount mount, string 
 		if ( animations is not null && name is not null )
 		{
 			// The skeleton and clips are mounted resources of their own, created when something first loads them.
-			Host.AddAnimations( name, new SourceAnimations( animatedBones.Select( bone =>
+			Host.AddAnimations( name, new SourceAnimations( animatedBones.Select( ( bone, index ) =>
 			{
+				if ( index >= boneNames.Length && animations.IkBones[index - boneNames.Length].Parent < 0 )
+					return (bone, SourceAnimations.ModelSpace, Transform.Zero);
 				var built = result.Bones.GetBone( bone );
 				if ( built is null ) return (bone, (string)null, Transform.Zero);
 				return (bone, built.Parent?.Name, built.Parent is null ? built.LocalTransform : built.Parent.LocalTransform.ToLocal( built.LocalTransform ));

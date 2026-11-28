@@ -319,7 +319,7 @@ internal sealed partial class MdlFile
 		private readonly List<ImportedAnimation> result = [];
 		private readonly HashSet<string> names = new( StringComparer.OrdinalIgnoreCase );
 		// Distinct sequence weight lists by master bone, exported as the bone masks "weights/N".
-		private readonly List<float[]> boneMasks = [];
+		private readonly List<(float[] Weights, string[] Targets)> boneMasks = [];
 		// IK target bones added behind the model's own: a chain and the master bone its rule is relative to.
 		private readonly List<(int Chain, int Bone)> ikBones = [];
 		private List<(AnimationSource Source, int Index, string Name)> autoplay;
@@ -464,8 +464,9 @@ internal sealed partial class MdlFile
 				Max = MathF.Max( x.Value.Start, x.Value.End ),
 				Loop = x.Value.Loop
 			} ).ToArray();
-			// A masked clip drives the IK targets it carries, so every mask weights them fully.
-			var masks = boneMasks.Select( ( weights, i ) => ($"weights/{i}", (float[])[.. weights, .. Enumerable.Repeat( 1f, ikBones.Count )]) ).ToArray();
+			// A masked clip supplies its own relative targets. Model-space locks retain the underlying pose.
+			var targetNames = ikBones.Select( IkBoneName ).ToArray();
+			var masks = boneMasks.Select( ( mask, i ) => ($"weights/{i}", (float[])[.. mask.Weights, .. targetNames.Select( t => mask.Targets.Contains( t ) ? 1f : 0f )]) ).ToArray();
 			return new( result, parameters, masks, ikBones.Select( x => (IkBoneName( x ), x.Bone) ).ToArray(),
 				chains.Where( x => x.End >= 0 ).Select( x => master._boneNames[x.End] ).Distinct( StringComparer.OrdinalIgnoreCase ).ToArray() );
 		}
@@ -477,6 +478,8 @@ internal sealed partial class MdlFile
 			var looping = (sequence.Flags & SequenceLooping) != 0;
 			SourceModelSequenceData metadata;
 			bool masked;
+			HashSet<(AnimationSource, int)> liveLayers;
+			var grid = (Source: source, Index: index);
 			try
 			{
 				// A delta sequence without the post flag applies before the pose it is layered onto,
@@ -488,27 +491,52 @@ internal sealed partial class MdlFile
 				(metadata.Movement, metadata.GroundSpeed) = GroundMotion( source, index, null );
 				if ( !metadata.Movement.IsNearlyZero() )
 					(metadata.MovementPath, metadata.MovementYaw) = MovementPath( source, index, frameCount, metadata.Movement );
-				var mask = BoneMask( source, index );
+				var ramp = delta ? null : PoseBlend( source, index );
+				if ( !delta )
+					metadata.IkTargets = IkTargets( source, index, ramp );
+				else if ( IsBlendGrid( source, index ) )
+					metadata.IkTargets = LayerLocks( source, index );
+				var mask = BoneMask( source, index, metadata.IkTargets );
 				masked = mask >= 0;
 				metadata.BoneMask = masked ? $"weights/{mask}" : null;
-				if ( masked ) metadata.PoseBlend = PoseBlend( source, index );
+				if ( masked ) metadata.PoseBlend = ramp;
 				var deltaLayers = DeltaLayers( source, index );
-				metadata.AdditiveLayers = deltaLayers.Where( x => !masked || IsBlendGrid( x.Source, x.Index ) ).Select( x => x.Source.SequenceName( x.Index ) )
+				liveLayers = delta ? [] : deltaLayers.Where( layer => IsBlendGrid( layer.Source, layer.Index )
+					&& (layer.Source.Sequences[layer.Index].Flags & SequencePost) != 0 ).ToHashSet();
+				// A timed aim layer can occupy the parent's grid. Each cell then carries its authored
+				// envelope and IK through the whole clip, including the frames where it releases.
+				if ( !masked && !IsBlendGrid( source, index ) && liveLayers.Count == 1 )
+				{
+					var layer = liveLayers.First();
+					for ( var i = 0; i < sequence.NumAutoLayers; i++ )
+					{
+						var entry = source.SequenceData( index, sequence.AutoLayerIndex + i * 24L, 24 );
+						var flags = BinaryPrimitives.ReadInt32LittleEndian( entry[4..] );
+						if ( Defined( source, BinaryPrimitives.ReadInt16LittleEndian( entry ) ) == layer
+							&& (flags & LayerPose) == 0 && ReadRamp( entry, flags ).IsTimed )
+						{
+							grid = layer;
+							break;
+						}
+					}
+				}
+				var bakedLayers = !masked && IsBlendGrid( grid.Source, grid.Index )
+					? liveLayers.Where( layer => SameGrid( grid, layer ) ).ToHashSet() : [];
+				liveLayers.ExceptWith( bakedLayers );
+				metadata.AdditiveLayers = deltaLayers.Where( x => !bakedLayers.Contains( x ) && (!masked || IsBlendGrid( x.Source, x.Index )) ).Select( x => x.Source.SequenceName( x.Index ) )
 					.Where( x => !string.IsNullOrWhiteSpace( x ) ).Distinct().ToArray();
-				if ( masked && deltaLayers.Any( x => !IsBlendGrid( x.Source, x.Index ) && ReachesPast( x.Source, x.Index, boneMasks[mask] ) ) )
+				if ( masked && deltaLayers.Any( x => !IsBlendGrid( x.Source, x.Index ) && ReachesPast( x.Source, x.Index, boneMasks[mask].Weights ) ) )
 				{
 					// The clip of a masked sequence has its delta layers baked in on the bones it weights. What they
 					// do to the other bones would be lost behind the mask, so it is offered as an additive clip of its own.
 					var remainder = $"__additive/{name}";
-					var weights = boneMasks[mask];
+					var weights = boneMasks[mask].Weights;
 					result.Add( new( remainder, rate, looping, frameCount, () => new( BakeRemainder( source, index, frameCount, weights ) ),
 						new SourceModelSequenceData { Name = remainder, Looping = looping, Delta = true }, Delta: true ) );
 					names.Add( remainder );
 					metadata.AdditiveLayers = [.. metadata.AdditiveLayers, remainder];
 				}
-				if ( !delta )
-					metadata.IkTargets = IkTargets( source, index );
-				if ( !masked && metadata.IkTargets is { Length: > 0 } )
+				if ( !delta && !masked && metadata.IkTargets is { Length: > 0 } )
 				{
 					var rest = SourceAnimations.HoldRestClip( name );
 					names.Add( rest );
@@ -516,6 +544,8 @@ internal sealed partial class MdlFile
 				}
 				names.Add( name );
 				result.Add( new( name, rate, looping, frameCount, () => Bake( source, index, frameCount, null, NoParameters, masked ), metadata, Delta: delta ) );
+				if ( liveLayers.Count > 0 )
+					AddUnlayeredClip( name, rate, looping, frameCount, () => Bake( source, index, frameCount, null, NoParameters, masked, omit: liveLayers ) );
 			}
 			catch ( Exception e ) when ( IsDataError( e ) )
 			{
@@ -525,7 +555,7 @@ internal sealed partial class MdlFile
 
 			try
 			{
-				ExportGrid( source, index, name, metadata, masked );
+				ExportGrid( source, index, name, metadata, masked, liveLayers, grid );
 			}
 			catch ( Exception e ) when ( IsDataError( e ) )
 			{
@@ -533,25 +563,42 @@ internal sealed partial class MdlFile
 			}
 		}
 
-		// Every cell of a blended sequence as its own clip, so a consumer can blend them by pose parameter.
-		private void ExportGrid( AnimationSource source, int index, string name, SourceModelSequenceData metadata, bool masked )
+		private bool SameGrid( (AnimationSource Source, int Index) a, (AnimationSource Source, int Index) b )
+		{
+			for ( var axis = 0; axis < 2; axis++ )
+			{
+				var first = Axis( a.Source, a.Index, axis );
+				var second = Axis( b.Source, b.Index, axis );
+				if ( first?.Parameter != second?.Parameter || (first is not null && !first.Positions.SequenceEqual( second.Positions )) )
+					return false;
+				if ( axis == 0 && first is null ) return false;
+			}
+			return true;
+		}
+
+		private void AddUnlayeredClip( string name, float rate, bool loop, int frames, Func<BakedClip> bake )
+		{
+			var clip = SourceAnimations.UnlayeredClip( name );
+			names.Add( clip );
+			result.Add( new( clip, rate, loop, frames, bake, null ) );
+		}
+
+		private void ExportGrid( AnimationSource source, int index, string name, SourceModelSequenceData metadata, bool masked,
+			HashSet<(AnimationSource, int)> liveLayers, (AnimationSource Source, int Index) grid )
 		{
 			var sequence = source.Sequences[index];
-			var width = sequence.GroupSize;
-			var height = sequence.GroupSize2;
-			if ( sequence.NumBlends < 2 || width < 2 )
+			var shape = grid.Source.Sequences[grid.Index];
+			var width = shape.GroupSize;
+			var height = shape.GroupSize2;
+			if ( shape.NumBlends < 2 || width < 2 )
 				return;
-			var axes = new List<SourceModelSequenceData.BlendAxis> { Axis( source, index, 0 ) };
+			var axes = new List<SourceModelSequenceData.BlendAxis> { Axis( grid.Source, grid.Index, 0 ) };
 			if ( height > 1 )
-				axes.Add( Axis( source, index, 1 ) );
+				axes.Add( Axis( grid.Source, grid.Index, 1 ) );
 			if ( axes.Contains( null ) )
 				return;
 
 			var single = true;
-			for ( var cell = 0; cell < width * height; cell++ )
-			{
-				single &= Timing( source, index, (cell % width, cell / width) ).FrameCount == 1;
-			}
 
 			// Cells that share an animation are the same clip unless a layer could tell them apart.
 			var sameAnimation = sequence.NumAutoLayers == 0 && autoplay.Count == 0 ? new Dictionary<int, string>() : null;
@@ -564,8 +611,9 @@ internal sealed partial class MdlFile
 			{
 				var x = cell % width;
 				var y = cell / width;
-				(movement[cell], speeds[cell]) = GroundMotion( source, index, (x, y) );
-				var animation = source.Animation( index, x, y );
+				(int X, int Y) baseCell = grid == (source, index) ? (x, y) : (0, 0);
+				(movement[cell], speeds[cell]) = GroundMotion( source, index, baseCell );
+				var animation = source.Animation( index, baseCell.X, baseCell.Y );
 				if ( sameAnimation is not null && sameAnimation.TryGetValue( animation, out var existing ) )
 				{
 					clips[cell] = existing;
@@ -577,9 +625,13 @@ internal sealed partial class MdlFile
 				var parameters = new Dictionary<string, float>( StringComparer.OrdinalIgnoreCase ) { [axes[0].Parameter] = axes[0].Positions[x] };
 				if ( height > 1 )
 					parameters[axes[1].Parameter] = axes[1].Positions[y];
-				var (frameCount, rate) = Timing( source, index, (x, y) );
+				var (frameCount, rate) = Timing( source, index, baseCell );
+				single &= frameCount == 1;
 				added.Add( new( clip, rate, (sequence.Flags & SequenceLooping) != 0, frameCount,
-					() => Bake( source, index, frameCount, (x, y), parameters, masked ), null, Delta: delta ) );
+					() => Bake( source, index, frameCount, baseCell, parameters, masked ), null, Delta: delta ) );
+				if ( liveLayers.Count > 0 )
+					AddUnlayeredClip( clip, rate, (sequence.Flags & SequenceLooping) != 0, frameCount,
+						() => Bake( source, index, frameCount, baseCell, parameters, masked, omit: liveLayers ) );
 				clips[cell] = clip;
 				sameAnimation?.Add( animation, clip );
 			}
@@ -757,7 +809,7 @@ internal sealed partial class MdlFile
 
 		// The bone mask for a sequence that poses only part of the skeleton, or -1 when it needs none:
 		// a delta sequence is baked already scaled by its weights, and full weights mask nothing.
-		private int BoneMask( AnimationSource source, int index )
+		private int BoneMask( AnimationSource source, int index, SourceModelSequenceData.IkTarget[] targets )
 		{
 			if ( (source.Sequences[index].Flags & SequenceDelta) != 0 )
 				return -1;
@@ -769,10 +821,11 @@ internal sealed partial class MdlFile
 			}
 			if ( !partial )
 				return -1;
-			var existing = boneMasks.FindIndex( x => x.AsSpan().SequenceEqual( weights ) );
+			var names = targets.Select( t => t.TargetBone ).ToArray();
+			var existing = boneMasks.FindIndex( x => x.Weights.AsSpan().SequenceEqual( weights ) && x.Targets.AsSpan().SequenceEqual( names ) );
 			if ( existing >= 0 || boneMasks.Count >= MaxBoneMasks )
 				return existing;
-			boneMasks.Add( weights );
+			boneMasks.Add( (weights, names) );
 			return boneMasks.Count - 1;
 		}
 
@@ -878,7 +931,7 @@ internal sealed partial class MdlFile
 		// them in as well would apply them twice, and a layer ramping in would drag the bind pose along.
 		// So the first non-delta sequence to weight a bone poses it fully, whatever its weight at that moment;
 		// later ones blend over it by their weights.
-		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false, bool solveIk = true )
+		private BakedClip Bake( AnimationSource source, int index, int frameCount, (int X, int Y)? cell, Dictionary<string, float> parameters, bool masked = false, bool solveIk = true, HashSet<(AnimationSource, int)> omit = null )
 		{
 			decoded.Clear();
 			var delta = (source.Sequences[index].Flags & SequenceDelta) != 0;
@@ -888,8 +941,8 @@ internal sealed partial class MdlFile
 			{
 				var cycle = frameCount == 1 ? 0 : (float)frame / (frameCount - 1);
 				var pose = delta ? Enumerable.Repeat( Transform.Zero, bind.Length ).ToArray() : bind.ToArray();
-				var ik = delta ? null : NewIkContext();
-				Accumulate( pose, source, index, cycle, 1, 0, cell, parameters, masked ? new bool[pose.Length] : null, ik );
+				var ik = NewIkContext();
+				Accumulate( pose, source, index, cycle, 1, 0, cell, parameters, masked ? new bool[pose.Length] : null, ik, omit: omit );
 				if ( !delta )
 				{
 					// Bake autoplay layers at the clip's cycle.
@@ -909,7 +962,7 @@ internal sealed partial class MdlFile
 						throw new InvalidDataException( "Non-finite or degenerate animation pose." );
 					pose[bone].Rotation = q.Normal;
 				}
-				frames[frame] = WithIkBones( pose, ik );
+				frames[frame] = WithIkBones( pose, ik, delta );
 				if ( masked && ik is not null ) RecordReleases( ik, frame, frameCount, ref releases );
 			}
 			decoded.Clear();
@@ -919,7 +972,7 @@ internal sealed partial class MdlFile
 		// Blends one sequence, then its auto layers, onto the pose, and gathers
 		// its IK rules. Without a pose it only gathers the rules.
 		private void Accumulate( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, (int X, int Y)? cell,
-			Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false )
+			Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false, HashSet<(AnimationSource, int)> omit = null )
 		{
 			if ( depth > 8 || (uint)index >= source.Sequences.Length )
 				throw new InvalidDataException( "Invalid or cyclic animation layer." );
@@ -938,11 +991,11 @@ internal sealed partial class MdlFile
 				// With deltasOnly the pose is the sum of the delta sequences alone; absolute poses are passed over.
 				var sequencePose = CalcPose( source, index, cycle, cell, parameters );
 				if ( local )
-					AddLayers( sequencePose, source, index, cycle, 1, depth, true, parameters, null, ik, deltasOnly );
+					AddLayers( sequencePose, source, index, cycle, 1, depth, true, parameters, null, ik, deltasOnly, omit );
 				SlerpBones( pose, source, index, sequencePose, weight, covered );
 			}
 			AddIkRules( ik, source, index, cycle, weight, cell, parameters );
-			AddLayers( pose, source, index, cycle, weight, depth, false, parameters, covered, ik, deltasOnly );
+			AddLayers( pose, source, index, cycle, weight, depth, false, parameters, covered, ik, deltasOnly, omit );
 			if ( locks is not null )
 				SolveIkLocks( pose, locks );
 		}
@@ -975,7 +1028,7 @@ internal sealed partial class MdlFile
 			return blend.HasValue && !source.BoneMap.Any( bone => bone >= 0 && source.Weight( index, bone ) > 0 ) ? blend : null;
 		}
 
-		private void AddLayers( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, bool local, Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false )
+		private void AddLayers( Transform[] pose, AnimationSource source, int index, float cycle, float weight, int depth, bool local, Dictionary<string, float> parameters, bool[] covered = null, List<IkRule>[] ik = null, bool deltasOnly = false, HashSet<(AnimationSource, int)> omit = null )
 		{
 			var sequence = source.Sequences[index];
 			if ( sequence.NumAutoLayers is < 0 or > 64 )
@@ -1008,13 +1061,13 @@ internal sealed partial class MdlFile
 						layerCycle = (cycle - blend.Start) / (blend.End - blend.Start);
 				}
 				int child = BinaryPrimitives.ReadInt16LittleEndian( layer );
-				if ( Defined( source, child ) is not { } resolved )
+				if ( Defined( source, child ) is not { } resolved || omit?.Contains( resolved ) == true )
 					continue;
 				(var layerSource, child) = resolved;
 				// A delta grid is not part of the remainder; the consumer drives it by its parameters.
 				if ( deltasOnly && (uint)child < layerSource.Sequences.Length && (layerSource.Sequences[child].Flags & SequenceDelta) != 0 && IsBlendGrid( layerSource, child ) )
 					continue;
-				Accumulate( pose, layerSource, child, layerCycle, layerWeight, depth + 1, null, parameters, covered, ik, deltasOnly );
+				Accumulate( pose, layerSource, child, layerCycle, layerWeight, depth + 1, null, parameters, covered, ik, deltasOnly, omit );
 			}
 		}
 
@@ -1156,7 +1209,7 @@ internal sealed partial class MdlFile
 			for ( var bone = 0; bone < pose.Length; bone++ )
 			{
 				var mapped = source.BoneMap[bone];
-				if ( mapped < 0 || !frames.Animated[mapped] )
+				if ( mapped < 0 )
 				{
 					pose[bone] = frames.Delta ? Transform.Zero : bind[bone];
 					continue;

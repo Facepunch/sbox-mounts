@@ -17,22 +17,22 @@ public sealed class AnimationPlayer : IDisposable
 	Sandbox.Npcs.BaseNpc _npc;
 	SourceGameMount _npcMount;
 	int _slot;
-	bool _splitSlots;
-	readonly string[] _slotClips = new string[2];
+	static readonly string[] SlotNames = ["first", "second", "third"];
+	readonly string[] _slotClips = new string[SlotNames.Length];
 	float _fade;
-	string _selection;
-	readonly float[] _rates = [1, 1];
+	readonly float[] _rates = [1, 1, 1];
 	ModelSequences _sequences;
 	float _eventTime;
 	float _rate = 1;
 	readonly Dictionary<string, Parameter> _poses = new( StringComparer.OrdinalIgnoreCase );
-	readonly Dictionary<string, Parameter> _layerWeights = new( StringComparer.OrdinalIgnoreCase );
+	(string Target, string Release)[] _grips = [];
 	readonly Dictionary<string, SourceModelSequenceData.BlendAxis> _axes = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, SoundEvent> _eventSounds = new();
 	Dictionary<string, SoundHandle> _stoppableSounds;
 	string _gesture;
 	int _gestureSlot;
 	TimeUntil _gestureEnd;
+	const float GestureFade = 0.1f;
 	string[] _gestures = [];
 	readonly Dictionary<string, Overlay> _overlays = new( StringComparer.OrdinalIgnoreCase );
 
@@ -55,11 +55,32 @@ public sealed class AnimationPlayer : IDisposable
 		public bool Active;
 		public bool Looping;
 		public float Rate = 1;
-		public float Duration;
+		public Clip Animation;
+		public SourceModelSequenceData Sequence;
 		public float FadeIn = 0.2f;
 		public float FadeOut = 0.2f;
 		public float Weight;
 		public TimeSince Started;
+		public float Offset;
+		public float ClipTime => Offset + Started * Rate;
+		public float Cycle
+		{
+			get
+			{
+				if ( Animation is not { Duration: > 0 } ) return 0;
+				var cycle = ClipTime / Animation.Duration;
+				return Looping ? cycle % 1 : Math.Clamp( cycle, 0, 1 );
+			}
+		}
+		public float PoseWeight => Weight * (Sequence?.PoseBlend?.Weight( Cycle ) ?? 1);
+
+		public bool Holds( string target )
+		{
+			if ( Sequence is null ) return false;
+			foreach ( var grip in Sequence.IkTargets )
+				if ( grip.TargetBone == target ) return true;
+			return false;
+		}
 		public string IdKey;
 		public string WeightKey;
 		public string[] RateKeys;
@@ -80,13 +101,14 @@ public sealed class AnimationPlayer : IDisposable
 	/// </summary>
 	public IReadOnlyDictionary<string, IReadOnlyList<string>> OverlayLayers { get; set; } = new Dictionary<string, IReadOnlyList<string>>();
 
+	/// <summary>The overlay that follows the base sequence's animation cycle.</summary>
+	public string SynchronizedOverlay { get; set; }
+
 	/// <summary>
 	/// Bones pulled onto other bones of the final pose by two-bone IK, such as hands onto a weapon's grip bones,
-	/// weighted by <see cref="SetLayerWeight"/> with <see cref="BoneLockLayer"/>. Pairs with a bone the skeleton lacks are skipped.
+	/// weighted by the active hold and the release track for each bone.
 	/// </summary>
 	public IReadOnlyList<(string Effector, string Target)> BoneLocks { get; set; } = [];
-
-	public const string BoneLockLayer = "bone_locks";
 
 	public void SetPoseParameter( string name, float value ) => Set( _poses, "pose:", name, value );
 	public void SetMoveYaw( Vector3 velocity, Rotation facing )
@@ -121,7 +143,22 @@ public sealed class AnimationPlayer : IDisposable
 		return sequence.GroundSpeed;
 	}
 
-	public void SetLayerWeight( string layer, float weight ) => Set( _layerWeights, "layer:", layer, weight );
+	public void ApplyBoneLocks( string holdLayer, string releaseLayer )
+	{
+		if ( _grips.Length == 0 || !_overlays.TryGetValue( holdLayer, out var hold ) ) return;
+		_overlays.TryGetValue( releaseLayer, out var release );
+		var clip = release is { Weight: > 0 } ? release.Animation : null;
+		var cycle = release?.Cycle ?? 0;
+		foreach ( var (target, channel) in _grips )
+		{
+			var fraction = clip is not null && clip.TryGetFloatChannel( cycle, SourceAnimations.IkRelease, channel, out var value )
+				? value * release.Weight : 0f;
+			var weight = hold.Holds( target ) ? hold.PoseWeight * (1 - fraction) : 0f;
+			if ( clip is not null && release.Holds( target ) )
+				weight += (1 - weight) * release.PoseWeight;
+			_renderer.Animation.Parameters.TrySet( target, weight );
+		}
+	}
 
 	static void Set( Dictionary<string, Parameter> parameters, string prefix, string name, float value )
 	{
@@ -190,13 +227,12 @@ public sealed class AnimationPlayer : IDisposable
 		// Plain sequence players only differ by their ordered clips and looping flags.
 		_sharedGraph = targetSkeleton is null && retarget is null && !UseBlendGrids
 			&& Gestures.Count == 0 && OverlayLayers.Count == 0 && BoneLocks.Count == 0;
-		_splitSlots = available.Length * 2 > GraphBuilder.StateMachineBuilder.MaxStates;
 		Graph Build() => BuildGraph( available, targetSkeleton, retarget );
 		_graph = _sharedGraph ? _model.AnimationClips().GetPlaybackGraph( available, Build ) : Build();
 		renderer.Animation.Graph = _graph;
 		renderer.UseAnimGraph = true;
 		// The first state is the graph's default, so the first Play lands on slot 0 without a transition.
-		_slot = 1;
+		_slot = -1;
 		Play( available[0].Name, restart: true );
 		return true;
 	}
@@ -210,15 +246,11 @@ public sealed class AnimationPlayer : IDisposable
 			var clip = _model.AnimationClips()[name];
 			return retarget is null ? clip : retarget( clip );
 		}
-		// Two playback slots let a repeated shot crossfade from the current pose.
-		// ResetTime on a shared parameter also rewinds the outgoing clip, causing
-		// a visible snap on shots, shell inserts and interrupted reloads.
-		var clips = available.SelectMany( x => Enumerable.Range( 0, 2 ).Select( slot => (x.Name, x.Loop, Slot: slot, Key: $"{x.Name}:{slot}") ) ).ToArray();
-		var selected = builder.IdParameter( "sequence", _splitSlots ? ["first", "second"] : clips.Select( x => x.Key ).ToArray() );
+		var selected = builder.IdParameter( "sequence", SlotNames );
 		var names = available.Select( x => x.Name ).ToArray();
-		var slotIds = _splitSlots ? new[] { builder.IdParameter( "clip0", names ), builder.IdParameter( "clip1", names ) } : null;
-		var fade = _splitSlots ? builder.AddControlParameter( "sequenceFade", GraphBuilder.NodeKind.Float, new() { Max = 4 } ) : null;
-		var speeds = Enumerable.Range( 0, 2 ).Select( slot => builder.AddControlParameter( $"rate{slot}", GraphBuilder.NodeKind.Float,
+		var slotIds = SlotNames.Select( ( _, i ) => builder.IdParameter( $"clip{i}", names ) ).ToArray();
+		var fade = builder.AddControlParameter( "sequenceFade", GraphBuilder.NodeKind.Float, new() { Max = 4 } );
+		var speeds = Enumerable.Range( 0, SlotNames.Length ).Select( slot => builder.AddControlParameter( $"rate{slot}", GraphBuilder.NodeKind.Float,
 			new() { DefaultFloat = 1, Min = 0, Max = 4 } ) ).ToArray();
 		var poseLayers = (_model.GetData<SourceModelPoseLayerData[]>() ?? []).Where( p => p.Clips.Length >= 2 && p.Clips.Length == p.Positions.Length
 			&& p.Clips.All( HasClip ) ).ToArray();
@@ -251,7 +283,7 @@ public sealed class AnimationPlayer : IDisposable
 		var gestureKeys = SlotKeys( _gestures );
 		var gestureId = _gestures.Length > 0 ? builder.IdParameter( "gesture", gestureKeys ) : null;
 		var gestureWeight = _gestures.Length > 0 ? builder.AddControlParameter( "gesture_weight", GraphBuilder.NodeKind.Float, new() { DefaultFloat = 0, Min = 0, Max = 1 } ) : null;
-		var overlayParameters = new List<(string[] Keys, GraphBuilder.Node Id, GraphBuilder.Node Weight, GraphBuilder.Node[] Rates, Dictionary<string, SourceModelSequenceData[]> Companions)>();
+		var overlayParameters = new List<(string[] Keys, GraphBuilder.Node Id, GraphBuilder.Node Weight, GraphBuilder.Node[] Rates, Dictionary<string, SourceModelSequenceData[]> Companions, bool Synchronized)>();
 		foreach ( var (name, list) in OverlayLayers )
 		{
 			var playable = list.Where( x => _sequences.Get( x ) is { Delta: false } && HasClip( x ) ).Distinct().ToArray();
@@ -274,11 +306,12 @@ public sealed class AnimationPlayer : IDisposable
 			overlayParameters.Add( (keys, builder.IdParameter( overlay.IdKey, keys ),
 				builder.AddControlParameter( overlay.WeightKey, GraphBuilder.NodeKind.Float, new() { DefaultFloat = 0, Min = 0, Max = 1 } ),
 				overlay.RateKeys.Select( key => builder.AddControlParameter( key, GraphBuilder.NodeKind.Float, new() { DefaultFloat = 1, Min = 0, Max = 4 } ) ).ToArray(),
-				companions) );
+				companions, name == SynchronizedOverlay) );
 		}
 
 		var locks = BoneLocks.Where( x => _model.Bones.GetBone( x.Effector ) is not null && _model.Bones.GetBone( x.Target ) is not null ).ToArray();
-		var lockWeight = locks.Length > 0 ? builder.AddControlParameter( $"layer:{BoneLockLayer}", GraphBuilder.NodeKind.Float, new() { DefaultFloat = 0, Min = 0, Max = 1 } ) : null;
+		_grips = locks.Select( pair => (pair.Target, SourceAnimations.ReleaseChannel( pair.Effector )) ).ToArray();
+		var lockWeights = _grips.Select( grip => builder.FloatParameter( grip.Target, 0, 1 ) ).ToArray();
 
 		GraphBuilder.Node Parameter( SourceModelSequenceData.BlendAxis axis )
 		{
@@ -298,39 +331,75 @@ public sealed class AnimationPlayer : IDisposable
 				: builder.Clip( animation, new() { Looping = loop, SampleRootMotion = false } );
 		}
 
-		// Blend along the first axis per row, then across rows.
-		GraphBuilder.Node Grid( SourceModelSequenceData sequence )
+		GraphBuilder.Node Grid( SourceModelSequenceData sequence, bool unlayered = false )
 		{
 			var x = sequence.BlendAxes[0];
+			GraphBuilder.Node Sample( string clip ) => Cell( unlayered ? SourceAnimations.UnlayeredClip( clip ) : clip, sequence.Looping );
 			GraphBuilder.Node Row( int row )
 			{
 				var blend = builder.BlendSpace( Parameter( x ), looping: sequence.Looping );
 				for ( var i = 0; i < x.Positions.Length; i++ )
-					blend.Add( x.Positions[i], Cell( sequence.BlendGrid[i + row * x.Positions.Length], sequence.Looping ) );
+					blend.Add( x.Positions[i], Sample( sequence.BlendGrid[i + row * x.Positions.Length] ) );
 				return blend;
 			}
 			if ( sequence.BlendAxes.Length == 1 )
 				return Row( 0 );
 			var y = sequence.BlendAxes[1];
-			var rows = builder.BlendSpace( Parameter( y ), looping: sequence.Looping );
-			for ( var j = 0; j < y.Positions.Length; j++ )
-				rows.Add( y.Positions[j], Row( j ) );
-			return rows;
+			// Native 2D blend spaces store vertex indices in a byte.
+			if ( sequence.BlendGrid.Length > byte.MaxValue + 1 )
+			{
+				var rows = builder.BlendSpace( Parameter( y ), looping: sequence.Looping );
+				for ( var j = 0; j < y.Positions.Length; j++ )
+					rows.Add( y.Positions[j], Row( j ) );
+				return rows;
+			}
+
+			var width = x.Positions.Length;
+			var height = y.Positions.Length;
+			var points = new Vector2[width * height];
+			var triangles = new List<int>( (width - 1) * (height - 1) * 6 );
+			for ( var row = 0; row < height; row++ )
+			for ( var col = 0; col < width; col++ )
+			{
+				var a = row * width + col;
+				points[a] = new( x.Positions[col], y.Positions[row] );
+				if ( row == height - 1 || col == width - 1 ) continue;
+
+				var b = a + 1;
+				var c = a + width;
+				var d = c + 1;
+				if ( ((row + col) & 1) == 0 )
+					triangles.AddRange( [a, b, d, d, c, a] );
+				else
+					triangles.AddRange( [c, a, b, b, d, c] );
+			}
+
+			var hull = new List<int>();
+			for ( var col = 0; col < width; col++ ) hull.Add( col );
+			for ( var row = 1; row < height; row++ ) hull.Add( row * width + width - 1 );
+			for ( var col = width - 2; col >= 0; col-- ) hull.Add( (height - 1) * width + col );
+			for ( var row = height - 2; row >= 0; row-- ) hull.Add( row * width );
+
+			return builder.BlendSpace2D( Parameter( x ), Parameter( y ), new GraphBuilder.BlendSpace2DSettings
+			{
+				Sources = sequence.BlendGrid.Select( Sample ).ToArray(),
+				Positions = points, Indices = triangles, HullIndices = hull, Looping = sequence.Looping
+			} );
 		}
 
-		GraphBuilder.Node BasePose( string name, bool loop )
+		GraphBuilder.Node BasePose( string name, bool loop, bool unlayered )
 		{
 			if ( staticBlends.TryGetValue( name, out var sequence ) )
 			{
 				var blend = builder.BlendSpace( poseParameters[sequence.BlendParameter], looping: false );
 				for ( var i = 0; i < sequence.BlendClips.Length; i++ )
-					blend.Add( sequence.BlendPositions[i], builder.Pose( ResolveClip( sequence.BlendClips[i] ), new GraphBuilder.PoseSettings() ) );
+					blend.Add( sequence.BlendPositions[i], builder.Pose( ResolveClip( unlayered ? SourceAnimations.UnlayeredClip( sequence.BlendClips[i] ) : sequence.BlendClips[i] ), new GraphBuilder.PoseSettings() ) );
 				return blend;
 			}
 			var metadata = _sequences.Get( name );
 			if ( UseBlendGrids && metadata is { Delta: false } && HasGrid( metadata ) )
-				return Grid( metadata );
-			return builder.Clip( ResolveClip( name ), new() { Looping = metadata?.Looping ?? loop, SampleRootMotion = false } );
+				return Grid( metadata, unlayered );
+			return builder.Clip( ResolveClip( unlayered ? SourceAnimations.UnlayeredClip( name ) : name ), new() { Looping = metadata?.Looping ?? loop, SampleRootMotion = false } );
 		}
 
 		// Aiming is authored per sequence. Layer its grids before the state machine blends
@@ -338,11 +407,10 @@ public sealed class AnimationPlayer : IDisposable
 		var poseGrids = new Dictionary<string, GraphBuilder.Node>( StringComparer.OrdinalIgnoreCase );
 		GraphBuilder.Node Playback( string name, bool loop )
 		{
-			var pose = BasePose( name, loop );
 			if ( !clipLayers.TryGetValue( name, out var companions ) || companions.Length == 0 )
-				return pose;
+				return BasePose( name, loop, false );
 
-			var layered = builder.Layers( pose );
+			var layered = builder.Layers( BasePose( name, loop, _model.AnimationClips().ContainsKey( SourceAnimations.UnlayeredClip( name ) ) ) );
 			foreach ( var companion in companions )
 			{
 				if ( !poseGrids.TryGetValue( companion.Name, out var grid ) )
@@ -353,7 +421,11 @@ public sealed class AnimationPlayer : IDisposable
 				}
 				layered.AddLayer( grid, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true } );
 			}
-			return layered;
+			GraphBuilder.Node result = layered;
+			var targets = companions.SelectMany( companion => companion.IkTargets ).DistinctBy( target => target.Bone );
+			foreach ( var target in targets.Concat( _sequences.Get( name ).IkTargets ) )
+				result = builder.TwoBoneIK( result, target.Bone, builder.BoneTarget( target.TargetBone ), new() { WorldSpace = false, BlendTime = 0 } );
+			return result;
 		}
 
 		// One state per key, switched by an id parameter, with a transition from every state to every other.
@@ -377,28 +449,33 @@ public sealed class AnimationPlayer : IDisposable
 			var machine = builder.StateMachine();
 			GraphBuilder.StateMachineBuilder.State State( int i ) => machine.AddState( builder.SpeedScale( builder.IdBasedSelector( slotIds[i],
 				available.Select( x => (x.Name, Playback( x.Name, x.Loop )) ) ), speeds[i] ) );
-			var first = State( 0 );
-			var second = State( 1 );
+			// During an interrupted fade both previous slots still contribute to the outgoing pose.
+			var states = SlotNames.Select( ( _, i ) => State( i ) ).ToArray();
 			var transition = new GraphBuilder.TransitionSettings { DurationOverride = fade, BlendEasing = GraphBuilder.Easing.InOutSine, CanBeForced = true };
-			machine.AddTransition( first, second, builder.IdCompare( selected, "second" ), transition );
-			machine.AddTransition( second, first, builder.IdCompare( selected, "first" ), transition );
+			for ( var to = 0; to < states.Length; to++ )
+			{
+				var condition = builder.IdCompare( selected, SlotNames[to] );
+				foreach ( var from in states )
+					if ( from != states[to] ) machine.AddTransition( from, states[to], condition, transition );
+			}
 			return machine;
 		}
-		var main = _splitSlots ? SlotMachine() : Selector( selected, clips.Select( x => x.Key ).ToArray(), i => builder.SpeedScale( Playback( clips[i].Name, clips[i].Loop ), speeds[clips[i].Slot] ), ( from, to ) =>
-			// A completed reload still needs its authored fade into idle; clamping to the outgoing clip's remaining time makes that fade zero.
-			_sequences.Get( clips[from].Name ) is { } outgoing && _sequences.Get( clips[to].Name ) is { } incoming
-				? incoming.Snap ? 0 : MathF.Min( outgoing.FadeOut, incoming.FadeIn )
-				: 0.08f, GraphBuilder.Easing.InOutSine ); // Closest built-in curve to the Source sequence fade (smoothstep).
-		var layers = builder.Layers( main.Build() );
+		var layers = builder.Layers( SlotMachine().Build() );
 		foreach ( var overlay in overlayParameters )
 		{
 			// A two-slot machine per overlay layer, masked per clip by its sequence's weightlist; looping in the graph either way,
 			// as a one-shot fades out before its end and a caller may loop a non-looping clip.
 			// The inactive state must share the clips' parent space; ZeroPose is additive.
-			var machine = Selector( overlay.Id, overlay.Keys, i => i == 0 ? builder.ReferencePose()
-				: builder.SpeedScale( builder.Clip( ResolveClip( ClipOf( overlay.Keys[i] ) ), new() { Looping = true, SampleRootMotion = false } ), overlay.Rates[SlotOf( overlay.Keys[i] )] ),
-				( _, _ ) => 0.15f );
-			layers.AddLayer( machine, new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, IgnoreEvents = true, Weight = overlay.Weight, BoneMask = OverlayMask( builder, overlay.Keys, overlay.Id ) } );
+			var machine = Selector( overlay.Id, overlay.Keys, i =>
+			{
+				if ( i == 0 ) return builder.ReferencePose();
+				var clip = ClipOf( overlay.Keys[i] );
+				var unlayered = SourceAnimations.UnlayeredClip( clip );
+				if ( overlay.Companions[clip].Length > 0 && _model.AnimationClips().ContainsKey( unlayered ) )
+					clip = unlayered;
+				return builder.SpeedScale( builder.Clip( ResolveClip( clip ), new() { Looping = true, SampleRootMotion = false } ), overlay.Rates[SlotOf( overlay.Keys[i] )] );
+			}, ( _, _ ) => 0.15f );
+			layers.AddLayer( machine, new() { BlendMode = GraphBuilder.LayerBlendMode.Overlay, Synchronized = overlay.Synchronized, IgnoreEvents = true, Weight = overlay.Weight, BoneMask = OverlayMask( builder, overlay.Keys, overlay.Id ) } );
 
 			// A masked clip's additive layers (the spine of an arm gesture, an aim matrix) play beside it, keyed by the overlay's selection
 			// so they switch and restart with it, one layer per position in the clips' AdditiveLayers lists.
@@ -415,7 +492,22 @@ public sealed class AnimationPlayer : IDisposable
 					var node = HasGrid( sequence ) ? Grid( sequence ) : Cell( sequence.Name, true );
 					return builder.SpeedScale( node, overlay.Rates[SlotOf( overlay.Keys[i] )] );
 				}, ( _, _ ) => 0.15f );
-				layers.AddLayer( companions, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true, Weight = overlay.Weight } );
+				layers.AddLayer( companions, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, Synchronized = overlay.Synchronized, IgnoreEvents = true, Weight = overlay.Weight } );
+			}
+
+			var lockedClips = overlay.Companions.SelectMany( pair => pair.Value.SelectMany( s => s.IkTargets )
+				.Select( t => (Clip: pair.Key, t.Bone, t.TargetBone) ) );
+			foreach ( var group in lockedClips.GroupBy( t => (t.Bone, t.TargetBone) ) )
+			{
+				var clipsWithLock = group.Select( t => t.Clip ).ToHashSet();
+				var weight = overlay.Weight;
+				if ( clipsWithLock.Count != overlay.Companions.Count )
+				{
+					var conditions = overlay.Keys.Skip( 1 ).Where( key => clipsWithLock.Contains( ClipOf( key ) ) );
+					weight = builder.Multiply( weight, builder.FloatSelector( conditions.Select( key => (builder.IdCompare( overlay.Id, key ), 1f) ), easeTime: 0.15f ) );
+				}
+				var ik = builder.TwoBoneIK( layers, group.Key.Bone, builder.BoneTarget( group.Key.TargetBone ), new() { WorldSpace = false, BlendTime = 0, Weight = weight } );
+				layers = builder.Layers( ik );
 			}
 		}
 		foreach ( var pose in poseLayers )
@@ -429,12 +521,12 @@ public sealed class AnimationPlayer : IDisposable
 		{
 			// One-shot additive gestures, two slots each so a repeat restarts cleanly.
 			var gestures = Selector( gestureId, gestureKeys, i => i == 0 ? builder.ZeroPose()
-				: builder.Clip( ResolveClip( ClipOf( gestureKeys[i] ) ), new() { Looping = false, SampleRootMotion = false } ), ( _, _ ) => 0.1f );
+				: builder.Clip( ResolveClip( ClipOf( gestureKeys[i] ) ), new() { Looping = false, SampleRootMotion = false } ), ( _, _ ) => GestureFade );
 			layers.AddLayer( gestures, new() { BlendMode = GraphBuilder.LayerBlendMode.Additive, IgnoreEvents = true, Weight = gestureWeight } );
 		}
 		GraphBuilder.Node root = layers;
-		foreach ( var (effector, target) in locks )
-			root = builder.TwoBoneIK( root, effector, builder.BoneTarget( target ), new() { WorldSpace = false, Weight = lockWeight, BlendTime = 0 } );
+		for ( var i = 0; i < locks.Length; i++ )
+			root = builder.TwoBoneIK( root, locks[i].Effector, builder.BoneTarget( locks[i].Target ), new() { WorldSpace = false, Weight = lockWeights[i], BlendTime = 0 } );
 		return builder.Create( root, "Mounted animation" );
 	}
 
@@ -478,14 +570,22 @@ public sealed class AnimationPlayer : IDisposable
 			overlay.Slot = 1 - overlay.Slot;
 			overlay.Selection = $"{clip}:{overlay.Slot}";
 			overlay.Started = 0;
+			overlay.Offset = 0;
 			overlay.Looping = loop ?? sequence.Looping;
-			overlay.Duration = _model.AnimationClips()[clip].Duration;
+			overlay.Animation = _model.AnimationClips()[clip];
+			overlay.Sequence = sequence;
 			overlay.FadeIn = MathF.Max( sequence.FadeIn, 0.05f );
 			overlay.FadeOut = MathF.Max( sequence.FadeOut, 0.05f );
 		}
 
 		overlay.Active = true;
-		overlay.Rate = Math.Clamp( rate, 0.01f, 4 );
+		rate = Math.Clamp( rate, 0.01f, 4 );
+		if ( overlay.Rate != rate )
+		{
+			overlay.Offset = overlay.ClipTime;
+			overlay.Started = 0;
+			overlay.Rate = rate;
+		}
 		return true;
 	}
 
@@ -527,9 +627,8 @@ public sealed class AnimationPlayer : IDisposable
 			_elapsed = 0;
 			_rateStarted = _clipOffset = 0;
 			_eventTime = -0.0001f;
-			_slot = 1 - _slot;
+			_slot = (_slot + 1) % SlotNames.Length;
 			_slotClips[_slot] = name;
-			_selection = _splitSlots ? (_slot == 0 ? "first" : "second") : $"{name}:{_slot}";
 		}
 		rate = Math.Clamp( rate, 0.01f, 4 );
 		if ( rate != _rate )
@@ -544,13 +643,12 @@ public sealed class AnimationPlayer : IDisposable
 	internal void ApplySequence( SkinnedModelRenderer renderer )
 	{
 		var parameters = renderer.Animation.Parameters;
-		if ( _splitSlots )
-		{
-			parameters.TrySet( "clip0", _slotClips[0] ?? Current );
-			parameters.TrySet( "clip1", _slotClips[1] ?? Current );
-			parameters.TrySet( "sequenceFade", _fade );
-		}
-		parameters.TrySet( "sequence", _selection );
+		parameters.TrySet( "clip0", _slotClips[0] ?? Current );
+		parameters.TrySet( "clip1", _slotClips[1] ?? Current );
+		parameters.TrySet( "clip2", _slotClips[2] ?? Current );
+		parameters.TrySet( "rate2", _rates[2] );
+		parameters.TrySet( "sequenceFade", _fade );
+		parameters.TrySet( "sequence", SlotNames[_slot] );
 		parameters.TrySet( "rate0", _rates[0] );
 		parameters.TrySet( "rate1", _rates[1] );
 		foreach ( var pose in _poses.Values )
@@ -562,25 +660,29 @@ public sealed class AnimationPlayer : IDisposable
 		if ( !IsReady ) return;
 		ApplySequence( _renderer );
 		var parameters = _renderer.Animation.Parameters;
-		foreach ( var layer in _layerWeights.Values )
-			parameters.TrySet( layer.Key, layer.Value );
 		if ( _gestures.Length > 0 )
 		{
 			var active = _gesture is not null && _gestureEnd > 0;
 			parameters.TrySet( "gesture", active ? _gesture : None );
-			parameters.TrySet( "gesture_weight", active ? 1f : 0f );
+			// Keep evaluating the transition back to the additive zero pose.
+			parameters.TrySet( "gesture_weight", _gesture is not null && _gestureEnd > -GestureFade ? 1f : 0f );
 		}
 		foreach ( var overlay in _overlays.Values )
 		{
 			// A one-shot starts fading out so that it is gone as its last frame plays.
-			var remaining = overlay.Looping ? float.MaxValue : (overlay.Duration - overlay.Started * overlay.Rate) / overlay.Rate;
+			var remaining = overlay.Looping ? float.MaxValue : ((overlay.Animation?.Duration ?? 0) - overlay.ClipTime) / overlay.Rate;
 			if ( remaining <= 0 )
 				overlay.Active = false;
-			var target = overlay.Active ? MathF.Min( 1, remaining / overlay.FadeOut ) : 0;
-			var fade = target > overlay.Weight ? overlay.FadeIn : overlay.FadeOut;
-			overlay.Weight = target > overlay.Weight ? MathF.Min( target, overlay.Weight + Time.Delta / fade ) : MathF.Max( target, overlay.Weight - Time.Delta / fade );
+			if ( overlay.Sequence?.PoseBlend.HasValue == true && overlay.Active )
+				overlay.Weight = 1;
+			else
+			{
+				var target = overlay.Active ? MathF.Min( 1, remaining / overlay.FadeOut ) : 0;
+				var fade = target > overlay.Weight ? overlay.FadeIn : overlay.FadeOut;
+				overlay.Weight = target > overlay.Weight ? MathF.Min( target, overlay.Weight + Time.Delta / fade ) : MathF.Max( target, overlay.Weight - Time.Delta / fade );
+			}
 			parameters.TrySet( overlay.IdKey, overlay.Weight > 0 && overlay.Clip is not null ? overlay.Selection : None );
-			parameters.TrySet( overlay.WeightKey, overlay.Weight );
+			parameters.TrySet( overlay.WeightKey, overlay.PoseWeight );
 			parameters.TrySet( overlay.RateKeys[overlay.Slot], overlay.Rate );
 		}
 		DispatchEvents();

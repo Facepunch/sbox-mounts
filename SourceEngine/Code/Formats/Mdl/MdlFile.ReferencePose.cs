@@ -97,9 +97,6 @@ internal sealed partial class MdlFile
 	{
 		public readonly int FrameCount = frameCount;
 		public readonly bool Delta = delta;
-		// Bones without a track hold this MDL's bind pose (zero for delta animations).
-		// A model that includes this MDL substitutes its own bind pose for them.
-		public readonly bool[] Animated = new bool[boneCount];
 		// Some frames were stripped from the MDL at compile time and hold the base pose.
 		public bool Incomplete;
 		public readonly Vector3[] Positions = new Vector3[frameCount * boneCount];
@@ -240,7 +237,6 @@ internal sealed partial class MdlFile
 			var source = Bones[bone];
 			var payload = offset + 4;
 			var boneDelta = (flags & 0x10) != 0;
-			result.Animated[bone] = true;
 
 			var rotation = boneDelta ? Rotation.Identity : source.Quaternion;
 			var animatedRotation = (flags & (0x02 | 0x20)) == 0 && (flags & 0x08) != 0;
@@ -337,7 +333,6 @@ internal sealed partial class MdlFile
 				int flags = data[24 + bone];
 				if ( flags == 0 )
 					continue;
-				result.Animated[bone] = true;
 				var at = (first + i) * BoneCount + bone;
 				if ( (flags & 0x40) != 0 ) { result.Rotations[at] = Quaternion48S( data[constant..] ); constant += 6; }
 				else if ( (flags & 0x02) != 0 ) { result.Rotations[at] = Quaternion48( data[constant..] ); constant += 6; }

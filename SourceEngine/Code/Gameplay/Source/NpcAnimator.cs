@@ -102,8 +102,9 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		_layers = ResolveWeaponLayers( model, _sequences, weapon, key.Item2, acttable );
 		_reloadClip = _layers.Reloads[0];
 		var aim = _layers.Clips.All.Concat( _layers.Upper ).Select( _sequences.Get ).Where( s => s is not null )
-			.SelectMany( s => s.AdditiveLayers ).Select( _sequences.Get ).FirstOrDefault( s => s is { Delta: true, BlendAxes.Length: 2 }
-				&& s.BlendAxes.Any( a => a.Parameter.EndsWith( "yaw", StringComparison.OrdinalIgnoreCase ) ) );
+			.SelectMany( s => s.AdditiveLayers.Select( _sequences.Get ).Prepend( s ) ).FirstOrDefault( s => s is { BlendAxes.Length: 2 }
+				&& s.BlendAxes.Any( a => a.Parameter.EndsWith( "yaw", StringComparison.OrdinalIgnoreCase ) )
+				&& s.BlendAxes.Any( a => a.Parameter.EndsWith( "pitch", StringComparison.OrdinalIgnoreCase ) ) );
 		_aimYawParameter = aim?.BlendAxes.FirstOrDefault( a => a.Parameter.EndsWith( "yaw", StringComparison.OrdinalIgnoreCase ) )?.Parameter;
 		_aimPitchParameter = aim?.BlendAxes.FirstOrDefault( a => a.Parameter.EndsWith( "pitch", StringComparison.OrdinalIgnoreCase ) )?.Parameter;
 		return true;
@@ -134,12 +135,10 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		_animation = new();
 		_animation.EventFired += OnAnimationEvent;
 		_animation.UseBlendGrids = true;
+		_animation.SynchronizedOverlay = UpperLayer;
 		_animation.Gestures = FlinchGestures.Select( _sequences.FindGesture ).Concat( _layers.Shots.SelectMany( x => x ) ).Where( x => x is not null ).Distinct().ToArray();
-		// The weapon sequences hold bones with IK, such as the hands on the weapon bone; the mount names each held
-		// bone and a target bone its clips animate. One weight drives every lock, so only holds all stances share are locked.
-		var holds = _layers.Upper.Where( x => x is not null ).Distinct()
-			.Select( x => _sequences.Get( x ).IkTargets.Select( t => (t.Bone, t.TargetBone) ).ToArray() ).ToArray();
-		_animation.BoneLocks = holds.Length == 0 ? [] : holds.Skip( 1 ).Aggregate( holds[0], ( shared, next ) => shared.Intersect( next ).ToArray() );
+		_animation.BoneLocks = _layers.Upper.Concat( _layers.Reloads ).Where( x => x is not null ).Distinct()
+			.SelectMany( x => _sequences.Get( x ).IkTargets ).Select( t => (t.Bone, t.TargetBone) ).Distinct().ToArray();
 		_animation.OverlayLayers = new Dictionary<string, IReadOnlyList<string>>
 		{
 			[UpperLayer] = _layers.Upper.Where( x => x is not null ).Distinct().ToArray(),
@@ -192,22 +191,25 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 			_animation.Play( npc.Action, restart: true );
 		}
 
-		if ( PlayingAction && !_animation.Finished )
-		{
-			_animation.Tick();
-			return;
-		}
-
-		if ( _link.Clip( npc.Animation, _animation, out var restart ) is { } linkClip )
+		var fullBody = PlayingAction && !_animation.Finished;
+		if ( !fullBody && _link.Clip( npc.Animation, _animation, out var restart ) is { } linkClip )
 		{
 			_animation.Play( linkClip, restart: restart );
-			_animation.StopOverlay( UpperLayer );
-			_animation.SetLayerWeight( AnimationPlayer.BoneLockLayer, _animation.OverlayWeight( UpperLayer ) * (1 - _animation.OverlayWeight( ReloadLayer )) );
-			_animation.Tick();
-			return;
+			fullBody = true;
 		}
 
-		UpdateLocomotion( npc, weapon );
+		if ( fullBody )
+		{
+			_animation.StopOverlay( UpperLayer );
+			_animation.StopOverlay( ReloadLayer );
+		}
+		else
+		{
+			UpdateLocomotion( npc, weapon );
+		}
+
+		_animation.Tick();
+		_animation.ApplyBoneLocks( UpperLayer, ReloadLayer );
 	}
 
 	void UpdateLocomotion( CombatNpc npc, BaseCombatWeapon weapon )
@@ -260,20 +262,15 @@ public class NpcAnimator : Component, BaseCombatWeapon.IEvents
 		_animation.SetPoseParameter( "move_y", local.y * stride );
 
 		// The weapon pose runs on the legs' cycle, as CCSPlayerAnimState's aim layer does.
-		if ( _layers.Upper[stance] is { } upper && Renderer.Model.AnimationClips().TryGetValue( upper, out var upperClip )
-			&& Renderer.Model.AnimationClips().TryGetValue( name ?? "", out var legs ) && legs.Duration > 0 )
-			_animation.PlayOverlay( UpperLayer, upper, upperClip.Duration / legs.Duration * rate, loop: true );
+		if ( _layers.Upper[stance] is { } upper )
+			_animation.PlayOverlay( UpperLayer, upper, loop: true );
 		else
 			_animation.StopOverlay( UpperLayer );
-
-		// The hands hold the weapon pose's grips, except while a reload moves them.
-		_animation.SetLayerWeight( AnimationPlayer.BoneLockLayer, _animation.OverlayWeight( UpperLayer ) * (1 - _animation.OverlayWeight( ReloadLayer )) );
 
 		var shots = _layers.Shots[stance];
 		if ( _shotPending && shots.Length > 0 )
 			_animation.PlayGesture( shots[_shotCount++ % shots.Length] );
 		_shotPending = false;
-		_animation.Tick();
 	}
 
 	/// <summary>move_yaw follows the walk direction relative to the body, the aim matrix's yaw and pitch the synced look target.</summary>
