@@ -227,7 +227,13 @@ internal partial class BspFile
 				throw new InvalidDataException( $"GoldSrc BSP {(LumpType)i} lump is outside the file." );
 		}
 
-		Planes = ReadLump<Plane>( stream, lumps[(int)LumpType.Planes], LumpType.Planes );
+		// Blue Shift kept the BSP version but exchanged the entity and plane lumps.
+		ref var entities = ref lumps[(int)LumpType.Entities];
+		ref var planes = ref lumps[(int)LumpType.Planes];
+		if ( entities.Length % Unsafe.SizeOf<Plane>() == 0 && StartsWithEntity( stream, planes ) && !StartsWithEntity( stream, entities ) )
+			(entities, planes) = (planes, entities);
+
+		Planes = ReadLump<Plane>( stream, planes, LumpType.Planes );
 		Vertices = ReadLump<Vector3>( stream, lumps[(int)LumpType.Vertices], LumpType.Vertices );
 		TexInfos = ReadLump<TexInfo>( stream, lumps[(int)LumpType.TexInfo], LumpType.TexInfo );
 		Faces = ReadLump<Face>( stream, lumps[(int)LumpType.Faces], LumpType.Faces );
@@ -243,7 +249,18 @@ internal partial class BspFile
 		Lighting = ReadBytes( stream, lumps[(int)LumpType.Lighting] );
 
 		ReadTextures( reader, lumps[(int)LumpType.Textures] );
-		ParseEntities( Encoding.UTF8.GetString( ReadBytes( stream, lumps[(int)LumpType.Entities] ) ) );
+		ParseEntities( Encoding.UTF8.GetString( ReadBytes( stream, entities ) ) );
+	}
+
+	static bool StartsWithEntity( Stream stream, Lump lump )
+	{
+		stream.Position = lump.Offset;
+		for ( var i = 0; i < lump.Length; i++ )
+		{
+			var c = stream.ReadByte();
+			if ( c is not (' ' or '\t' or '\r' or '\n') ) return c == '{';
+		}
+		return false;
 	}
 
 	/// <summary>

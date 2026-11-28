@@ -5,6 +5,9 @@ namespace Source1;
 
 public abstract partial class SourceGameMount
 {
+	internal virtual IEnumerable<string> PlayerStartClasses => [];
+	internal IReadOnlySet<string> PlayerStarts { get; private set; }
+
 	internal virtual string TriggerTag( string className ) => null;
 
 	internal static string GetMapPakRoot( string path ) => $"{Path.ChangeExtension( path, null )}/pak/";

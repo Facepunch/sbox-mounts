@@ -10,6 +10,7 @@ public sealed class Mount : SourceGameMount
 {
 	protected override string ContentDirectory => "cstrike";
 	internal override string TriggerTag( string className ) => className == "func_bomb_target" ? C4.SiteTag : null;
+	internal override IEnumerable<string> PlayerStartClasses => ["info_player_logo"];
 	public override string Ident => "css";
 
 	public override string Title => "Counter-Strike: Source";

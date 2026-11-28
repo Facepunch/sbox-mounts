@@ -3,6 +3,7 @@ namespace Source1.Dods;
 public sealed class Mount : SourceGameMount
 {
 	protected override string ContentDirectory => "dod";
+	internal override IEnumerable<string> PlayerStartClasses => ["info_player_allies", "info_player_axis"];
 	public override string Ident => "dods";
 	public override string Title => "Day of Defeat: Source";
 	public override long AppId => 300;

@@ -10,6 +10,7 @@ namespace Source1.Hl2;
 public sealed class Mount : SourceGameMount
 {
 	protected override string ContentDirectory => "hl2";
+	internal override IEnumerable<string> PlayerStartClasses => ["info_player_combine", "info_player_rebel"];
 	public override string Ident => "hl2";
 
 	public override string Title => "Half-Life 2";

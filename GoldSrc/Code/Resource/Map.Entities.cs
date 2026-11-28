@@ -52,6 +52,7 @@ partial class MapBuilder
 				return;
 
 			case "info_player_start" or "info_player_deathmatch" or "info_player_coop":
+			case var name when Host.IsPlayerStart( name ):
 				SpawnPlayerStart( entity );
 				return;
 

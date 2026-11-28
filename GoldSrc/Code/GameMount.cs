@@ -13,6 +13,7 @@ public abstract partial class GameMount : BaseGameMount
 	public override long? SteamAppId => AppId;
 
 	public abstract IReadOnlyList<string> GameDirs { get; }
+	internal virtual bool IsPlayerStart( string name ) => false;
 
 	internal BaseFileSystem FileSystem { get; private set; }
 
@@ -205,6 +206,7 @@ public partial class HalfLifeMount : GameMount
 
 public class OpposingForceMount : GameMount
 {
+	internal override bool IsPlayerStart( string name ) => name == "info_ctfspawn";
 	public override string Ident => "opfor";
 	public override string Title => "Half-Life: Opposing Force";
 	public override long AppId => 50;
@@ -221,13 +223,14 @@ public class BlueShiftMount : GameMount
 
 public class CounterStrikeMount : GameMount
 {
+	internal override bool IsPlayerStart( string name ) => name == "info_vip_start";
 	public override string Ident => "cstrike";
 	public override string Title => "Counter-Strike";
 	public override long AppId => 10;
 	public override IReadOnlyList<string> GameDirs => ["cstrike_hd", "cstrike"];
 }
 
-public class ConditionZeroMount : GameMount
+public class ConditionZeroMount : CounterStrikeMount
 {
 	public override string Ident => "czero";
 	public override string Title => "Counter-Strike: Condition Zero";
@@ -245,6 +248,7 @@ public class RicochetMount : GameMount
 
 public class TeamFortressClassicMount : GameMount
 {
+	internal override bool IsPlayerStart( string name ) => name is "info_player_teamspawn" or "i_p_t";
 	public override string Ident => "tfc";
 	public override string Title => "Team Fortress Classic";
 	public override long AppId => 20;
@@ -261,6 +265,7 @@ public class DeathmatchClassicMount : GameMount
 
 public class DayOfDefeatMount : GameMount
 {
+	internal override bool IsPlayerStart( string name ) => name is "info_player_allies" or "info_player_axis" or "info_initial_player_allies" or "info_initial_player_axis";
 	public override string Ident => "dod";
 	public override string Title => "Day of Defeat";
 	public override long AppId => 30;
@@ -277,6 +282,7 @@ public class SvenCoopMount : GameMount
 
 public class CryOfFearMount : GameMount
 {
+	internal override bool IsPlayerStart( string name ) => name is "cof_coop_spawn1" or "cof_coop_spawn2" or "cof_coop_spawn3" or "cof_coop_spawn4";
 	public override string Ident => "cof";
 	public override string Title => "Cry of Fear";
 	public override long AppId => 223710;

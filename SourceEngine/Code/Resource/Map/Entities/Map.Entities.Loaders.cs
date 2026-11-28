@@ -5,7 +5,7 @@ namespace Source1;
 
 partial class MapLoader
 {
-	private static EntityLoader FindEntityLoader( string className ) =>
+	private static EntityLoader FindEntityLoader( string className, SourceGameMount mount = null ) =>
 		className.ToLowerInvariant() switch
 		{
 			"worldspawn" => new WorldEntityLoader(),
@@ -40,6 +40,7 @@ partial class MapLoader
 			"infodecal" => new DecalEntityLoader(),
 			"info_projecteddecal" => new ProjectedDecalEntityLoader(),
 			"env_soundscape" => new SoundscapeEntityLoader(),
+			var spawn when mount?.PlayerStarts?.Contains( spawn ) == true => new SpawnEntityLoader(),
 			_ => null
 		};
 
@@ -71,7 +72,7 @@ partial class MapLoader
 		{
 			var className = entity.Get( "classname" );
 			if ( !skybox && className == "func_areaportalwindow" ) portalWindows.Add( entity );
-			var loader = className is null ? null : FindEntityLoader( className );
+			var loader = className is null ? null : FindEntityLoader( className, Host );
 			if ( loader is not null )
 			{
 				if ( skybox && !loader.SupportsSkybox )
@@ -264,7 +265,9 @@ partial class MapLoader
 				LocalPosition = entity.Vector( "origin" ),
 				LocalRotation = Rotation.From( ReadAngles( entity ) )
 			};
-			instance.AddComponent<SpawnPoint>();
+			var spawn = instance.AddComponent<SpawnPoint>();
+			if ( instance.Name == "info_player_start" && (entity.Integer( "spawnflags" ) & 1) != 0 )
+				spawn.Priority = 1;
 		}
 	}
 }

@@ -111,6 +111,7 @@ public abstract partial class SourceGameMount : BaseGameMount
 			}
 		}
 
+		PlayerStarts = PlayerStartClasses.ToHashSet( StringComparer.OrdinalIgnoreCase );
 		MountDecals( context, current );
 		MountSoundscapes( context, current );
 		MountSoundEvents( context, current );
