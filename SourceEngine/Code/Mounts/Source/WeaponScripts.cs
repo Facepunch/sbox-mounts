@@ -101,7 +101,7 @@ public abstract partial class SourceGameMount
 	protected virtual string WeaponScriptKey => null;
 
 	/// <summary>The pickup title and fallback reserve limit for a weapon script's ammo type.</summary>
-	private protected virtual (string Title, int? Capacity) AmmoDefaults( string ammo ) => (ammo, null);
+	private protected virtual (string Title, int? Capacity) AmmoDefaults( string ammo ) => (ammo.ToTitleCase(), null);
 
 	protected virtual string WeaponScriptPrefix => "scripts/weapon_";
 

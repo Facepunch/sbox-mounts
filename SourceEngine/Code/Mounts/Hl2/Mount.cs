@@ -23,6 +23,25 @@ public sealed class Mount : SourceGameMount
 	protected internal override bool UseDrawSequenceDuration => true;
 	protected internal override BaseAmmoResource CreateAmmoResource() => new GarrysMod.Ammo();
 
+	private protected override (string Title, int? Capacity) AmmoDefaults( string ammo ) => (AmmoTitle( ammo ), null);
+
+	internal static string AmmoTitle( string ammo ) => ammo.ToLowerInvariant() switch
+	{
+		"pistol" => "Pistol Ammo",
+		"357" => ".357 Magnum Ammo",
+		"alyxgun" => "Alyx Gun Ammo",
+		"ar2" => "Pulse Ammo",
+		"ar2altfire" => "Combine Balls",
+		"smg1" => "SMG Ammo",
+		"smg1_grenade" => "SMG Grenades",
+		"buckshot" => "Shotgun Ammo",
+		"xbowbolt" => "Crossbow Bolts",
+		"rpg_round" => "RPG Rounds",
+		"slam" => "S.L.A.M. Ammo",
+		"grenade" => "Grenades",
+		_ => ammo.ToTitleCase()
+	};
+
 	protected internal override string[] VoicePatterns( VoiceLine line ) => line switch
 	{
 		VoiceLine.Alert => ["{0}.Alert", "{0}.SeeEnemy", "{0}.FoundEnemy", "{0}.AlertNear"],

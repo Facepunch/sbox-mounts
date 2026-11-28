@@ -14,6 +14,8 @@ public sealed partial class Mount : SourceGameMount
 	public override Source1.GameRules GameRules { get; } = new GameRules();
 	protected internal override BaseAmmoResource CreateAmmoResource() => new Ammo();
 
+	private protected override (string Title, int? Capacity) AmmoDefaults( string ammo ) => (Hl2.Mount.AmmoTitle( ammo ), null);
+
 	internal const long SteamId = 4000;
 
 	// Garry's Mod's copy of the archives in a standalone game's shared hl2 folder.
