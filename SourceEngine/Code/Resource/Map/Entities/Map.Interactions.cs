@@ -286,8 +286,11 @@ partial class MapLoader
 		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model )
 		{
 			var flags = entity.Integer( "spawnflags" );
+			MakeNetworkRoot( instance );
 			var button = instance.AddComponent<Button>( false );
 			button.Mode = Button.ButtonMode.Toggle;
+			var sound = entity.Integer( "sounds" );
+			if ( sound > 0 ) button.OnSound = builder.MapSound( $"Buttons.snd{sound}" );
 			button.MoveDelta = BrushMove( entity, model, 4 );
 			button.Move = (flags & 1) == 0 && button.MoveDelta.Length >= 1;
 			var speed = entity.Number( "speed", 40 );

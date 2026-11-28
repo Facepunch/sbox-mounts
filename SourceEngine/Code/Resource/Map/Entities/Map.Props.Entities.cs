@@ -23,7 +23,7 @@ partial class MapLoader
 		protected override Component Configure( MapEntity entity, GameObject instance )
 		{
 			var model = instance.GetComponent<Prop>( true )?.Model ?? instance.GetComponent<ModelRenderer>( true )?.Model;
-			if ( ModelClips.Of( model ).Count == 0 ) return null;
+			if ( !model.IsValid() || (model.MaterialGroupCount < 2 && ModelClips.Of( model ).Count == 0) ) return null;
 			var initial = InitialSequence( entity, model );
 			if ( string.IsNullOrEmpty( initial ) && string.IsNullOrEmpty( entity.Get( "targetname" ) ) ) return null;
 			if ( instance.NetworkMode != NetworkMode.Object ) MakeNetworkRoot( instance );
