@@ -37,6 +37,7 @@ See the full [Mount API docs](https://sbox.game/dev/doc/game-mounts/) to learn m
 | [Quake III Arena](https://store.steampowered.com/app/2200) | `quake3` | idTech 3 | ✅ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ |
 | [Return to Castle Wolfenstein](https://store.steampowered.com/app/9010) | `rtcw` | idTech 3 | ✅ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ |
 | [Wolfenstein: Enemy&nbsp;Territory](https://store.steampowered.com/app/1873030) | `wolfet` | idTech 3 | ✅ | ❌ | ❌ | ⚠️ | ❌ | ✅ | ✅ |
+| [Magicka](https://store.steampowered.com/app/42910) | `magicka` | XNA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 
 ## Development
