@@ -6,7 +6,7 @@ internal sealed partial class SourceMaterialBuilder
 {
 	private Material CreateEffect( bool water, VmtParameters parameters, TextureTransforms transforms, MaterialAlpha alpha, TextureAnimation? animation, string resourceName )
 	{
-		var material = CreateShaderMaterial( "shaders/source1/water.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/source1/water.shader", resourceName, translucent: true );
 		material.SetFeature( "F_SOURCE_WATER", water ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		var aboveWater = parameters.Boolean( "$abovewater", true );

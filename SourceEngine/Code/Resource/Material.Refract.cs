@@ -6,7 +6,7 @@ internal sealed partial class SourceMaterialBuilder
 {
 	private Material CreateRefract( bool core, string resourceName, bool aftershock = false, bool screenOverlay = false )
 	{
-		var material = CreateShaderMaterial( $"shaders/source1/{(screenOverlay ? "underwater" : shaderName)}.shader", resourceName );
+		var material = CreateShaderMaterial( $"shaders/source1/{(screenOverlay ? "underwater" : shaderName)}.shader", resourceName, translucent: true );
 		material.SetFeature( "F_SOURCE_DEPTH_WRITE", !screenOverlay && !aftershock && !parameters.Boolean( "$nowritez" ) ? 1 : 0 );
 		material.SetFeature( "F_RENDER_BACKFACES", parameters.Boolean( "$nocull" ) ? 1 : 0 );
 		var normalPath = parameters.String( "$normalmap", parameters.String( "$bumpmap" ) );

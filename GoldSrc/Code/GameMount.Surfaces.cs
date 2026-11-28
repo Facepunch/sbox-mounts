@@ -137,6 +137,8 @@ public abstract partial class GameMount
 
 	internal SoundFile[] LoadSurfaceWaves( GoldSrcSurfaceSound sound )
 	{
+		if ( Application.IsDedicatedServer ) return [];
+
 		return sound.Waves.SelectMany( wave => _surfaceWaves[wave] )
 			.Select( path =>
 			{

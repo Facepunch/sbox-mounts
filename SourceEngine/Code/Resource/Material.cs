@@ -72,6 +72,12 @@ internal sealed partial class SourceMaterialBuilder
 				=> CreateSurface( shaderName, parameters, transforms, alpha, animation, resourceName, mapSurface ),
 			_ => throw new NotSupportedException( $"{FullPath}: unsupported Source material shader '{shaderName}'." )
 		};
+		// Dedicated servers have no shader-generated attributes when building map geometry.
+		if ( Application.IsDedicatedServer )
+		{
+			if ( material.GetFeature( "F_TRANSLUCENT" ) != 0 ) material.Attributes.Set( "translucent", 1 );
+			if ( material.GetFeature( "F_ALPHA_TEST" ) != 0 ) material.Attributes.Set( "alphatest", 1 );
+		}
 		BindProxyProgram( material );
 		material.Set( "g_bFogEnabled", !screenOverlay && !parameters.Boolean( "$nofog" ) );
 		material.Attributes.Set( "PhysicsSurfaceProperties", Host.GetSurfaceBindingName( parameters.String( "$surfaceprop", "default" ), FullPath ) );
@@ -99,11 +105,13 @@ internal sealed partial class SourceMaterialBuilder
 		return material;
 	}
 
-	private Material CreateShaderMaterial( string shader, string resourceName = null )
+	private Material CreateShaderMaterial( string shader, string resourceName = null, bool translucent = false )
 	{
 		var name = resourceName ?? $"source1/{Host.Ident}/{System.IO.Path.ChangeExtension( FullPath, ".vmat" )}";
-		return Material.Create( name, shader, anonymous: false )
+		var material = Material.Create( name, shader, anonymous: false )
 			?? throw new InvalidOperationException( $"Could not create '{FullPath}' using {shader}." );
+		if ( translucent && Application.IsDedicatedServer ) material.Attributes.Set( "translucent", 1 );
+		return material;
 	}
 
 	internal static void UpdateProbeUsage( Material material )

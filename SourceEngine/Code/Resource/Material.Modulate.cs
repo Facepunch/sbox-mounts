@@ -23,7 +23,7 @@ internal sealed partial class SourceMaterialBuilder
 		var tint = parameters.Vector( "$color", Vector3.One ) * parameters.Vector( "$color2", Vector3.One );
 		if ( !float.IsFinite( tint.x ) || !float.IsFinite( tint.y ) || !float.IsFinite( tint.z ) )
 			throw new InvalidDataException( $"{name}: material modulation overflows." );
-		var material = CreateShaderMaterial( "shaders/source1/modulate.shader", resourceName );
+		var material = CreateShaderMaterial( "shaders/source1/modulate.shader", resourceName, translucent: true );
 		animation.GetValueOrDefault().Bind( material, color );
 		material.SetFeature( "F_SOURCE_MOD2X", parameters.Boolean( "$mod2x" ) ? 1 : 0 );
 		material.SetFeature( "F_SOURCE_WRITEZ", parameters.Boolean( "$writez" ) ? 1 : 0 );
