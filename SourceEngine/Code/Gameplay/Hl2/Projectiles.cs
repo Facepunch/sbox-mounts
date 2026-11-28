@@ -455,26 +455,41 @@ public sealed class Grenade : Projectile
 	protected override float? Physical => HalfSize;
 	protected override Collider CreateCollider( float halfSize )
 	{
-		var mount = Sandbox.Mounting.Directory.Get( MountName );
-		var asset = mount?.GetByPath( $"mount://{MountName}/{ModelPath}.vmdl" );
-		if ( asset is null )
+		var collider = AddFragCollider( GameObject, MountName, ModelPath, out var resolvedPath );
+		ModelPath = resolvedPath;
+		return collider;
+	}
+
+	internal const string DefaultModel = "models/weapons/w_grenade.mdl";
+
+	internal static Collider AddFragCollider( GameObject go, string mountName, string modelPath, out string resolvedPath )
+	{
+		var mount = Sandbox.Mounting.Directory.Get( mountName );
+		var asset = mount?.GetByPath( $"mount://{mountName}/{modelPath}.vmdl" );
+		resolvedPath = modelPath;
+		if ( asset is null && modelPath != DefaultModel )
 		{
-			ModelPath = "models/weapons/w_grenade.mdl";
-			asset = mount?.GetByPath( $"mount://{MountName}/{ModelPath}.vmdl" );
+			resolvedPath = DefaultModel;
+			asset = mount?.GetByPath( $"mount://{mountName}/{DefaultModel}.vmdl" );
 		}
 
 		var model = asset is null ? null : Model.Load( asset.Path );
 		Collider collider;
 		if ( model?.Physics?.Parts.Count > 0 )
 		{
-			var hull = GameObject.AddComponent<ModelCollider>();
+			var hull = go.AddComponent<ModelCollider>();
 			hull.Model = model;
 			collider = hull;
 		}
-		else collider = base.CreateCollider( halfSize );
+		else
+		{
+			var box = go.AddComponent<BoxCollider>();
+			box.Scale = Vector3.One * (2 * HalfSize);
+			collider = box;
+		}
 
 		if ( mount is SourceGameMount source )
-			collider.Surface = source.GetSurface( "grenade", ModelPath );
+			collider.Surface = source.GetSurface( "grenade", resolvedPath );
 		return collider;
 	}
 

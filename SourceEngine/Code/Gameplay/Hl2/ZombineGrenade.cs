@@ -229,10 +229,9 @@ public sealed class NpcGrenade : Component
 		var renderer = go.AddComponent<SkinnedModelRenderer>();
 		var loader = go.AddComponent<MountedModel>();
 		loader.MountName = mountName;
-		loader.ModelPath = "models/weapons/w_grenade.mdl";
+		loader.ModelPath = Grenade.DefaultModel;
 		loader.Renderer = renderer;
-		var collider = go.AddComponent<SphereCollider>();
-		collider.Radius = 3;
+		var collider = Grenade.AddFragCollider( go, mountName, loader.ModelPath, out _ );
 		collider.Enabled = throwVelocity.HasValue;
 		var body = go.AddComponent<Rigidbody>();
 		body.MotionEnabled = throwVelocity.HasValue;
@@ -275,7 +274,7 @@ public sealed class NpcGrenade : Component
 		}
 
 		Holder = null;
-		GetComponent<SphereCollider>( true ).Enabled = true;
+		GetComponent<Collider>( true ).Enabled = true;
 		GetComponent<Rigidbody>().MotionEnabled = true;
 	}
 
