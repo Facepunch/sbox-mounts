@@ -16,6 +16,32 @@ public sealed partial class Mount : SourceGameMount
 
 	internal const long SteamId = 4000;
 
+	private protected override IEnumerable<ContentSource> FindContent( InitializeContext context )
+	{
+		if ( context.GetFileSystem( AppId ) is not { } install )
+			return null;
+
+		// Addons come after the installed content, subscribed ones from the Workshop first.
+		var sources = ScanContent( install ).Select( HideAddonFolders ).Concat( ScanAddonFolders( install ) );
+		if ( context.GetWorkshopFileSystem( AppId ) is { } workshop )
+			sources = sources.Concat( ScanContent( workshop ).Where( source => source.IsArchive ).Select( source => source with { Addon = source.Path[..source.Path.IndexOf( '/' )] } ) );
+		return sources;
+	}
+
+	// An addon folder's files belong at its own root, so the game folder doesn't also list them under addons/. Its maps stay there.
+	private ContentSource HideAddonFolders( ContentSource source ) => source.IsArchive || !source.Path.Equals( ContentDirectory, StringComparison.OrdinalIgnoreCase )
+		? source : source with { Include = path => !path.StartsWith( "addons/", StringComparison.OrdinalIgnoreCase ) || path.Contains( "/maps/", StringComparison.OrdinalIgnoreCase ) };
+
+	private IEnumerable<ContentSource> ScanAddonFolders( BaseFileSystem install )
+	{
+		var addons = $"{ContentDirectory}/addons";
+		if ( !install.DirectoryExists( addons ) )
+			yield break;
+
+		foreach ( var name in install.FindDirectory( addons ).Order( StringComparer.OrdinalIgnoreCase ) )
+			yield return new( install, $"{addons}/{Path.GetFileName( name )}", false, Addon: Path.GetFileName( name ), Include: path => !path.StartsWith( "maps/", StringComparison.OrdinalIgnoreCase ) );
+	}
+
 	// Garry's Mod's copy of the archives in a standalone game's shared hl2 folder.
 	internal static IEnumerable<ContentSource> SharedArchives( BaseFileSystem garrysMod ) =>
 		garrysMod.FindFile( "sourceengine", "hl2_*_dir.vpk" )
