@@ -76,6 +76,7 @@ partial class MapLoader
 				instance.Tags.Add( "source1_entity" );
 			if ( entity is not null )
 			{
+				instance.Tags.Add( ActivatorFilter.ClassTag + entity.Get( "classname" ) );
 				TrackParent( entity, instance );
 				GarrysMod.PhysicsGun.TagMapEntity( instance, entity );
 				// A physics prop flagged as debris, which characters walk through.

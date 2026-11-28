@@ -124,14 +124,4 @@ partial class MapBuilder
 
 	private static Doo.Block InvokeBlock( Component component, string method, bool activator = true )
 		=> MapState.InvokeBlock( component, method, activator );
-
-	/// <summary>
-	/// GoldSrc's "triggerstate": 0 is off, 2 is toggle, anything else is on.
-	/// </summary>
-	private static UseType TriggerState( Entity entity ) => entity.GetInt( "triggerstate" ) switch
-	{
-		0 => UseType.Off,
-		2 => UseType.Toggle,
-		_ => UseType.On
-	};
 }

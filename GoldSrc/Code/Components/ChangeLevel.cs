@@ -45,6 +45,14 @@ public sealed class ChangeLevel : MapEntity, Component.ITriggerListener
 		if ( !InTransition( hull ) ) return;
 
 		_changing = true;
+		if ( !MapState.SoloCampaign )
+		{
+			Fire( OnTrigger, activator );
+			LaunchArguments.Map = Destination;
+			Game.Load( Game.Ident, keepClients: true );
+			return;
+		}
+
 		var landmark = named.OfType<Landmark>().FirstOrDefault();
 		// Global tracktrains continue on the overlapping track in the next BSP. Their
 		// configured starting node is only for entering that map directly.

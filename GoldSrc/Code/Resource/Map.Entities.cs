@@ -87,9 +87,7 @@ partial class MapBuilder
 	private void SpawnLight( Entity entity )
 	{
 		if ( string.IsNullOrEmpty( entity.TargetName ) ) return;
-		var go = new GameObject( true, EntityName( entity ) );
-		go.WorldPosition = entity.Origin;
-		go.WorldRotation = entity.Rotation;
+		var go = CreatePoint( entity );
 		var light = go.AddComponent<Light>();
 		light.TargetName = entity.TargetName;
 		light.Styles = _lightStyles;
@@ -120,6 +118,12 @@ partial class MapBuilder
 	/// </summary>
 	private void SpawnPointEntity( BspFile bsp, Entity entity )
 	{
+		if ( Host.CreatePointEntity( entity ) is { } custom )
+		{
+			custom.TargetName = entity.TargetName;
+			RegisterTarget( entity, custom );
+			return;
+		}
 		if ( SpawnEffectEntity( entity ) ) return;
 		var className = entity.ClassName;
 		if ( TrySpawnPickup( entity ) || TrySpawnNpc( bsp, entity ) ) return;
@@ -127,7 +131,7 @@ partial class MapBuilder
 
 		var handled = isMonster || className is "path_track" or "path_corner" or "multi_manager"
 			or "player_loadsaved" or "env_fade" or "speaker" or "monstermaker" or "env_shake" or "scripted_sentence" or "ambient_generic" or "env_message" or "trigger_auto" or "trigger_relay"
-			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter"
+			or "scripted_sequence" or "env_global" or "multisource" or "trigger_counter" or "trigger_camera"
 			or "info_landmark" or "trigger_changetarget" or "info_target" or "info_teleport_destination"
 			or "game_counter" or "game_counter_set" or "env_render";
 
@@ -137,9 +141,7 @@ partial class MapBuilder
 			return;
 		}
 
-		var go = new GameObject( true, EntityName( entity ) );
-		go.WorldPosition = entity.Origin;
-		go.WorldRotation = entity.Rotation;
+		var go = CreatePoint( entity );
 
 		if ( isMonster )
 		{
@@ -149,6 +151,22 @@ partial class MapBuilder
 
 		switch ( className )
 		{
+			case "trigger_camera":
+				var camera = go.AddComponent<CameraTrigger>();
+				go.NetworkMode = NetworkMode.Object;
+				camera.TargetName = entity.TargetName;
+				camera.Wait = entity.GetFloat( "wait" );
+				camera.Path = entity.GetString( "moveto" );
+				camera.Speed = entity.GetFloat( "speed" );
+				camera.Acceleration = entity.GetFloat( "acceleration" );
+				camera.Deceleration = entity.GetFloat( "deceleration" );
+				camera.StartAtPlayer = (entity.SpawnFlags & 1) != 0;
+				camera.LookAtPlayer = (entity.SpawnFlags & 2) != 0;
+				camera.TakeControl = (entity.SpawnFlags & 4) != 0;
+				RegisterTarget( entity, camera );
+				WireTrigger( entity, camera );
+				return;
+
 			case "monstermaker":
 				var maker = go.AddComponent<MonsterMaker>();
 				maker.TargetName = entity.TargetName;
@@ -339,6 +357,12 @@ partial class MapBuilder
 	// ScreenFade sends both times as unsigned 4.12 fixed point.
 	private static float FadeTime( float seconds ) => (int)Math.Clamp( seconds * 4096f, 0f, ushort.MaxValue ) / 4096f;
 
+	internal static GameObject CreatePoint( Entity entity ) => new( true, EntityName( entity ) )
+	{
+		WorldPosition = entity.Origin,
+		WorldRotation = entity.Rotation
+	};
+
 	private static string EntityName( Entity entity )
 		=> string.IsNullOrEmpty( entity.TargetName ) ? entity.ClassName : $"{entity.ClassName} ({entity.TargetName})";
 
@@ -371,7 +395,7 @@ partial class MapBuilder
 
 		// trigger_auto and trigger_relay choose the use type their target is fired with; everything
 		// else uses the default USE_TOGGLE.
-		WireTrigger( entity, relay, isRelay ? TriggerState( entity ) : UseType.Toggle );
+		WireTrigger( entity, relay, Host.ConfigureRelay( relay, entity ) );
 	}
 
 	/// <summary>

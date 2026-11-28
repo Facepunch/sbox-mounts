@@ -6,10 +6,20 @@ partial class MapBuilder
 {
 	private bool SpawnLevelTrigger( Entity entity, BspModel model )
 	{
-		if ( entity.ClassName is not ("trigger_changelevel" or "trigger_transition") ) return false;
+		if ( entity.ClassName is not ("trigger_changelevel" or "trigger_transition" or "trigger_endsection") ) return false;
 		var go = new GameObject( true, EntityName( entity ) ) { IsStatic = true };
 		go.WorldPosition = entity.Origin + (model.Mins + model.Maxs) * 0.5f;
 		var size = model.Maxs - model.Mins;
+		if ( entity.ClassName == "trigger_endsection" )
+		{
+			var end = go.AddComponent<EndSection>();
+			end.TargetName = entity.TargetName;
+			end.Section = entity.GetString( "section", entity.GetString( "message" ) );
+			if ( (entity.SpawnFlags & 1) == 0 )
+				AddCollider( go, GetTriggerPhysics( entity.BrushModelIndex, size ), true, trigger: true );
+			RegisterTarget( entity, end );
+			return true;
+		}
 		if ( entity.ClassName == "trigger_transition" )
 		{
 			var volume = go.AddComponent<TransitionVolume>();

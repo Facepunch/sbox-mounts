@@ -1,8 +1,22 @@
+using Sandbox.Movement;
+using Sandbox.Npcs;
+
 namespace Source1;
 
 [Hide]
-public sealed class PlayerTrigger : Component, Component.ITriggerListener
+public class PlayerTrigger : Component, Component.ITriggerListener, IMapInput
 {
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => BuildInput( input, parameter );
+
+	internal virtual Doo.Block BuildInput( string input, string parameter ) => input.ToLowerInvariant() switch
+	{
+		"enable" when parameter.Length == 0 => this.Call( nameof( TurnOn ) ),
+		"disable" when parameter.Length == 0 => this.Call( nameof( TurnOff ) ),
+		"toggle" when parameter.Length == 0 => this.Call( nameof( Toggle ) ),
+		"touchtest" when parameter.Length == 0 => this.Call( nameof( TouchTest ) ),
+		_ => null
+	};
+
 	[Property] public Doo Enter { get; set; }
 	[Property] public Doo Leave { get; set; }
 	[Property] public Doo First { get; set; }
@@ -10,41 +24,106 @@ public sealed class PlayerTrigger : Component, Component.ITriggerListener
 	[Property] public Doo Activate { get; set; }
 	[Property] public float Wait { get; set; }
 
-	readonly HashSet<GameObject> _players = [];
+	[Property] public Doo Touching { get; set; }
+	[Property] public Doo NotTouching { get; set; }
+	[Property] public ActivatorFilter Filter { get; set; }
+	[Property] public Actors ActorFlags { get; set; } = Actors.Players;
+
+	[System.Flags]
+	public enum Actors
+	{
+		Players = 1, Npcs = 2, Pushables = 4, Physics = 8, AlliesOnly = 16,
+		SeatedPlayers = 32, All = 64, UnseatedPlayers = 512, Debris = 1024, SeatedNpcs = 2048
+	}
+
+	readonly Dictionary<(Collider, Collider), GameObject> _contacts = [];
+	readonly Dictionary<GameObject, int> _actors = [];
+	protected Dictionary<GameObject, int>.KeyCollection Occupants => _actors.Keys;
+	protected virtual bool TrackClientTouches => false;
+	[Property, Sync( SyncFlags.FromHost ), Change( nameof( OnDisabledChanged ) )] public bool Disabled { get; private set; }
 	TimeUntil _next;
 	bool _spent;
 
 	public void TurnOn() => SetListening( true );
 	public void TurnOff() => SetListening( false );
-	public void Toggle() => SetListening( !GetComponentsInChildren<Collider>( true ).Any( c => c.Enabled ) );
+	public void Toggle() => SetListening( Disabled );
 
 	void SetListening( bool enabled )
 	{
-		if ( enabled && _spent ) return;
-		foreach ( var collider in GetComponentsInChildren<Collider>( true ) ) collider.Enabled = enabled;
-		if ( enabled || _players.Count == 0 ) return;
-		foreach ( var player in _players.ToArray() ) EndTouch( player );
+		if ( enabled && _spent || Disabled == !enabled ) return;
+		Disabled = !enabled;
 	}
 
-	void ITriggerListener.OnTriggerEnter( GameObject other )
+	protected virtual void OnDisabledChanged( bool previous, bool disabled )
 	{
-		if ( !Networking.IsHost || other.GetComponentInParent<PlayerController>() is not { } player || !_players.Add( player.GameObject ) ) return;
-		Fire( Enter, player.GameObject );
-		if ( _players.Count == 1 ) Fire( First, player.GameObject );
-		if ( _players.Contains( player.GameObject ) ) TryActivate( player.GameObject );
+		foreach ( var collider in GetComponentsInChildren<Collider>( true ) ) collider.Enabled = !disabled;
+		if ( !disabled ) return;
+		_contacts.Clear();
+		foreach ( var actor in _actors.Keys.ToArray() ) EndTouch( actor );
 	}
 
-	void ITriggerListener.OnTriggerExit( GameObject other )
+	public void TouchTest()
 	{
-		if ( !Networking.IsHost || other.GetComponentInParent<PlayerController>() is not { } player ) return;
-		EndTouch( player.GameObject );
+		if ( !Disabled ) Fire( _actors.Count > 0 ? Touching : NotTouching, GameObject );
 	}
 
-	void EndTouch( GameObject player )
+	GameObject ResolveActor( Collider other )
 	{
-		if ( !_players.Remove( player ) ) return;
-		Fire( Leave, player );
-		if ( _players.Count == 0 ) Fire( Last, player );
+		bool Allows( Actors mask ) => (ActorFlags & mask) != 0;
+		if ( other.GetComponentInParent<PlayerController>() is { } player )
+		{
+			if ( !Allows( Actors.Players | Actors.All | Actors.SeatedPlayers | Actors.UnseatedPlayers )
+				|| Npcs.HealthOf( player.GameObject ) is { Health: <= 0 } ) return null;
+			if ( Allows( Actors.SeatedPlayers | Actors.UnseatedPlayers ) )
+			{
+				var seated = player.GetComponentInParent<ISitTarget>() is not null;
+				if ( Allows( seated ? Actors.UnseatedPlayers : Actors.SeatedPlayers ) ) return null;
+			}
+			return player.GameObject;
+		}
+
+		if ( other.GetComponentInParent<BaseNpc>() is { } npc )
+		{
+			if ( !Allows( Actors.Npcs | Actors.All | Actors.AlliesOnly | Actors.SeatedNpcs ) ) return null;
+			if ( Allows( Actors.SeatedNpcs ) && npc.GetComponentInParent<ISitTarget>() is null ) return null;
+			if ( Allows( Actors.AlliesOnly ) && !Scene.GetAllComponents<PlayerController>().Any( p => npc.GetDisposition( p.GameObject ) == Disposition.Friendly ) ) return null;
+			return npc.GameObject;
+		}
+
+		var body = other.GetComponentInParent<Rigidbody>();
+		var actor = body?.GameObject ?? other.GameObject;
+		if ( actor.Tags.Has( "debris" ) || actor.Tags.Has( "map_debris" ) )
+			return Allows( Actors.Debris ) ? actor : null;
+		return Allows( Actors.All ) || (body.IsValid() && Allows( Actors.Physics )) ? actor : null;
+	}
+
+	void ITriggerListener.OnTriggerEnter( Collider self, Collider other )
+	{
+		if ( (!Networking.IsHost && !TrackClientTouches) || Disabled || ResolveActor( other ) is not { } actor || (Filter.IsValid() && !Filter.Accepts( actor )) || !_contacts.TryAdd( (self, other), actor ) ) return;
+		_actors.TryGetValue( actor, out var count );
+		_actors[actor] = count + 1;
+		if ( count != 0 ) return;
+		OccupancyChanged( actor, true );
+		if ( !Networking.IsHost ) return;
+		Fire( Enter, actor );
+		if ( _actors.Count == 1 ) Fire( First, actor );
+		if ( _actors.ContainsKey( actor ) ) ActivateActor( actor );
+	}
+
+	void ITriggerListener.OnTriggerExit( Collider self, Collider other )
+	{
+		if ( !_contacts.Remove( (self, other), out var actor ) ) return;
+		if ( --_actors[actor] == 0 ) EndTouch( actor );
+	}
+
+	void EndTouch( GameObject actor )
+	{
+		if ( !_actors.Remove( actor ) ) return;
+		OccupancyChanged( actor, false );
+		if ( !Networking.IsHost ) return;
+		ActorLeft( actor );
+		Fire( Leave, actor );
+		if ( _actors.Count == 0 ) Fire( Last, actor );
 	}
 
 	protected override void OnFixedUpdate()
@@ -55,10 +134,10 @@ public sealed class PlayerTrigger : Component, Component.ITriggerListener
 			TurnOff();
 			Enabled = false;
 		}
-		else if ( Activate is not null && _players.Count > 0 ) TryActivate( _players.First() );
+		else if ( Activate is not null && _actors.Count > 0 ) ActivateActor( _actors.Keys.First() );
 	}
 
-	void TryActivate( GameObject player )
+	protected virtual void ActivateActor( GameObject player )
 	{
 		if ( _spent || _next > 0 ) return;
 		_next = Wait == 0 ? 0.2f : Wait;
@@ -67,5 +146,9 @@ public sealed class PlayerTrigger : Component, Component.ITriggerListener
 		Fire( Activate, player );
 	}
 
-	void Fire( Doo output, GameObject player ) => RunDoo( output, c => c.SetArgument( "user", player ) );
+	protected virtual void OccupancyChanged( GameObject actor, bool inside ) { }
+
+	protected virtual void ActorLeft( GameObject actor ) { }
+
+	protected void Fire( Doo output, GameObject player ) => RunDoo( output, c => c.SetArgument( "user", player ) );
 }

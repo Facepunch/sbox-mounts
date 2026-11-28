@@ -7,11 +7,34 @@ partial class MapBuilder
 {
 	private bool SpawnSpecialTriggerVolume( Entity entity, BspModel model )
 	{
-		if ( entity.ClassName is not ("trigger_teleport" or "trigger_gravity") ) return false;
+		if ( entity.ClassName is not ("trigger_teleport" or "trigger_gravity" or "trigger_push" or "trigger_monsterjump") ) return false;
 		var center = (model.Mins + model.Maxs) * 0.5f;
 		var go = new GameObject( true, EntityName( entity ) ) { IsStatic = true };
 		go.WorldPosition = entity.Origin + center;
 		AddCollider( go, GetTriggerPhysics( entity.BrushModelIndex, model.Maxs - model.Mins ), true, trigger: true );
+		if ( entity.ClassName == "trigger_monsterjump" )
+		{
+			var jump = go.AddComponent<MonsterJump>();
+			jump.TargetName = entity.TargetName;
+			jump.Velocity = entity.MoveDirection * 200 + Vector3.Up * 150;
+			jump.Volume = go.GetComponent<Collider>();
+			if ( jump.Volume.IsValid() ) jump.Volume.Enabled = string.IsNullOrEmpty( entity.TargetName );
+			RegisterTarget( entity, jump );
+			return true;
+		}
+		if ( entity.ClassName == "trigger_push" )
+		{
+			var push = go.AddComponent<PushTrigger>();
+			push.TargetName = entity.TargetName;
+			push.Volume = go.GetComponent<Collider>();
+			push.PushVelocity = entity.MoveDirection * DefaultSpeed( entity, 100 );
+			push.Once = (entity.SpawnFlags & 1) != 0;
+			if ( push.Volume.IsValid() ) push.Volume.Enabled = (entity.SpawnFlags & 2) == 0;
+			Host.ConfigurePush( push );
+			RegisterTarget( entity, push );
+			return true;
+		}
+
 		var trigger = go.AddComponent<MovementTrigger>();
 		trigger.TargetName = entity.TargetName;
 		trigger.Kind = entity.ClassName == "trigger_teleport" ? MovementTrigger.TriggerKind.Teleport : MovementTrigger.TriggerKind.Gravity;

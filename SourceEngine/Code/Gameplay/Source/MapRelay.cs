@@ -2,8 +2,18 @@ using System;
 
 namespace Source1;
 
-public sealed class MapRelay : Component
+public sealed class MapRelay : Component, IMapInput
 {
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => input.ToLowerInvariant() switch
+	{
+		"enable" when parameter.Length == 0 => this.Call( nameof( TurnOn ) ),
+		"disable" when parameter.Length == 0 => this.Call( nameof( TurnOff ) ),
+		"toggle" when parameter.Length == 0 => this.Call( nameof( Toggle ) ),
+		"cancelpending" when parameter.Length == 0 => this.Call( nameof( CancelPending ) ),
+		"trigger" when parameter.Length == 0 => this.Call( nameof( Trigger ), MapInputs.User( hasUser ) ),
+		_ => null
+	};
+
 	[Property] public bool Disabled { get; set; }
 	[Property] public bool Once { get; set; }
 	[Property] public bool FastRetrigger { get; set; }

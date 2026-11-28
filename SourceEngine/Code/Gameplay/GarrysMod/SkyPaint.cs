@@ -144,7 +144,7 @@ public class SkyPaint : Component, IMapInput
 			_sky.Set( "g_tStars", mount.LoadStars( after, ContentRoot ) );
 	}
 
-	Doo.Block IMapInput.BuildInput( string input, string value )
+	Doo.Block IMapInput.BuildInput( string input, string value, bool hasUser )
 	{
 		if ( !input.StartsWith( "Set", StringComparison.OrdinalIgnoreCase ) ) return null;
 		var field = input[3..].ToLowerInvariant();

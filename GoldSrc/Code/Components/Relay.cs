@@ -25,6 +25,9 @@ public sealed class Relay : MapEntity
 	/// </summary>
 	[Property] public bool AllowOverlap { get; set; } = true;
 	[Property] public bool SelfActivator { get; set; }
+	[Property] public float Value { get; set; }
+	[Property] public float ResetDelay { get; set; }
+	TimeUntil _ready;
 	[Property] public string GlobalState { get; set; }
 	[Property, Hide] public bool Fired { get; set; }
 	[Property, Hide] public bool SpawnChecked { get; set; }
@@ -46,7 +49,7 @@ public sealed class Relay : MapEntity
 
 	public override void Trigger( GameObject activator = null )
 	{
-		if ( !CanTrigger ) return;
+		if ( !CanTrigger || (Fired && _ready > 0) ) return;
 		if ( FireOnce && Fired )
 			return;
 
@@ -54,7 +57,8 @@ public sealed class Relay : MapEntity
 			return;
 
 		Fired = true;
-		Fire( OnTrigger, SelfActivator ? GameObject : activator, detached: FireOnce );
+		_ready = ResetDelay;
+		Fire( OnTrigger, SelfActivator ? GameObject : activator, Value, detached: FireOnce );
 		if ( FireOnce ) RemoveAfter( 0.1f );
 	}
 

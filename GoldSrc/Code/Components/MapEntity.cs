@@ -8,7 +8,8 @@ public enum UseType
 	Off,
 	On,
 	Set,
-	Toggle
+	Toggle,
+	Kill
 }
 
 /// <summary>
@@ -26,6 +27,7 @@ public abstract class MapEntity : Component
 	[Property, Hide] public string KillInput { get; set; } = nameof( Kill );
 	[Property, Hide] public bool UsesTargetOutput { get; set; }
 	[Property, Hide] public UseType OutputUse { get; set; } = UseType.Toggle;
+	[Property, Hide] public bool KeepDelayedActivator { get; set; }
 	[Property, Hide] public float OutputDelay { get; set; }
 	[Property, Hide] public string OutputKillTarget { get; set; }
 
@@ -118,7 +120,7 @@ public abstract class MapEntity : Component
 			pending.Target = Target;
 			Map.Entities.Add( pending );
 			var player = activator.IsValid() ? activator.GetComponentInParent<PlayerController>() : null;
-			pending.Begin( doo, player.IsValid() ? player.GameObject : null );
+			pending.Begin( doo, KeepDelayedActivator ? activator : player?.GameObject, value );
 			return;
 		}
 

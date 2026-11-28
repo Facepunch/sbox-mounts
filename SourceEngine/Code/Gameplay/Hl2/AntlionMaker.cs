@@ -3,8 +3,17 @@ using Sandbox.Npcs;
 namespace Source1.Hl2;
 
 /// <summary>Spawns antlions from a named template at burrow hints belonging to this maker.</summary>
-public sealed class AntlionMaker : Component
+public sealed class AntlionMaker : Component, IMapInput
 {
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => input.ToLowerInvariant() switch
+	{
+		"enable" when parameter.Length == 0 => this.Call( nameof( StartSpawning ) ),
+		"disable" when parameter.Length == 0 => this.Call( nameof( StopSpawning ) ),
+		"setfighttarget" when parameter.Length > 0 && (!parameter.StartsWith( '!' ) || parameter == "!player") =>
+			this.Call( nameof( SetFightTarget ), new Doo.LiteralExpression { LiteralValue = parameter } ),
+		_ => null
+	};
+
 	[Property] public string Group { get; set; }
 	[Property] public string TemplateName { get; set; }
 	[Property] public string ChildPrefab { get; set; }

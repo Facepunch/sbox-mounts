@@ -13,6 +13,15 @@ public abstract partial class GameMount : BaseGameMount
 	public override long? SteamAppId => AppId;
 
 	public abstract IReadOnlyList<string> GameDirs { get; }
+	internal virtual Maps.UseType ConfigureRelay( Maps.Relay relay, Bsp.Entity entity ) => entity.GetInt( "triggerstate" ) switch
+	{
+		0 => Maps.UseType.Off,
+		2 => Maps.UseType.Toggle,
+		_ => Maps.UseType.On
+	};
+
+	internal virtual Maps.MapEntity CreatePointEntity( Bsp.Entity entity ) => null;
+	internal virtual void ConfigurePush( Maps.PushTrigger trigger ) { }
 	internal virtual bool IsPlayerStart( string name ) => false;
 
 	internal BaseFileSystem FileSystem { get; private set; }
@@ -240,6 +249,7 @@ public class ConditionZeroMount : CounterStrikeMount
 
 public class RicochetMount : GameMount
 {
+	internal override void ConfigurePush( Maps.PushTrigger trigger ) => trigger.ScaleByTickRate = true;
 	public override string Ident => "ricochet";
 	public override string Title => "Ricochet";
 	public override long AppId => 60;
@@ -257,6 +267,12 @@ public class TeamFortressClassicMount : GameMount
 
 public class DeathmatchClassicMount : GameMount
 {
+	internal override void ConfigurePush( Maps.PushTrigger trigger )
+	{
+		trigger.PlayersOnly = true;
+		trigger.ScaleByTickRate = true;
+	}
+
 	public override string Ident => "dmc";
 	public override string Title => "Deathmatch Classic";
 	public override long AppId => 40;
@@ -270,14 +286,6 @@ public class DayOfDefeatMount : GameMount
 	public override string Title => "Day of Defeat";
 	public override long AppId => 30;
 	public override IReadOnlyList<string> GameDirs => ["dod_hd", "dod"];
-}
-
-public class SvenCoopMount : GameMount
-{
-	public override string Ident => "svencoop";
-	public override string Title => "Sven Co-op";
-	public override long AppId => 225840;
-	public override IReadOnlyList<string> GameDirs => ["svencoop"];
 }
 
 public class CryOfFearMount : GameMount

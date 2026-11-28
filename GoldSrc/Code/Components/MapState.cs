@@ -62,9 +62,9 @@ public sealed partial class MapState : Component
 		}
 		foreach ( var entity in FindAll( name ) )
 		{
-			var method = entity.UseMethods[(int)use];
+			var method = use == UseType.Kill ? entity.KillInput : entity.UseMethods[(int)use];
 			if ( method is not null )
-				body.Add( InvokeBlock( entity, method ) );
+				body.Add( InvokeBlock( entity, method, use != UseType.Kill ) );
 		}
 		return body.Count > 0 ? new Doo { Body = body } : null;
 	}

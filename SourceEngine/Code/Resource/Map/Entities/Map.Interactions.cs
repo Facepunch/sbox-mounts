@@ -253,6 +253,34 @@ partial class MapLoader
 		}
 	}
 
+	private sealed class RotatingBrushLoader : BrushEntityLoader
+	{
+		public override bool IsSolid( MapEntity entity ) => (entity.Integer( "spawnflags" ) & 64) == 0;
+
+		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model )
+		{
+			MakeNetworkRoot( instance );
+			var flags = entity.Integer( "spawnflags" );
+			var rotor = instance.AddComponent<RotatingBrush>();
+			rotor.Axis = (flags & 4) != 0 ? new Angles( 0, 0, 1 ) : (flags & 8) != 0 ? new Angles( 1, 0, 0 ) : new Angles( 0, 1, 0 );
+			if ( (flags & 2) != 0 ) rotor.Axis *= -1;
+			rotor.MaxSpeed = MathF.Abs( entity.Number( "maxspeed" ) );
+			if ( rotor.MaxSpeed == 0 ) rotor.MaxSpeed = 100;
+			rotor.StartOn = (flags & 1) != 0;
+			if ( (flags & 16) != 0 )
+			{
+				rotor.Friction = entity.Number( "fanfriction" ) / 100f;
+				if ( rotor.Friction == 0 ) rotor.Friction = 1;
+			}
+			rotor.HurtTouch = (flags & 32) != 0;
+			rotor.Sound = builder.MapSound( entity.Get( "message" ) );
+			rotor.Volume = entity.Number( "volume" ) / 10f;
+			if ( rotor.Volume == 0 ) rotor.Volume = 1;
+			builder.RegisterEntityIO( entity, rotor );
+			return true;
+		}
+	}
+
 	private sealed class ButtonEntityLoader : BrushEntityLoader
 	{
 		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model )

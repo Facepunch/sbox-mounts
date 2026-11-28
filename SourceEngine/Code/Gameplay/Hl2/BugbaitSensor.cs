@@ -1,7 +1,17 @@
 namespace Source1.Hl2;
 
-public sealed class BugbaitSensor : Component
+public sealed class BugbaitSensor : Component, IMapInput, IMapOutputs
 {
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => input.ToLowerInvariant() switch
+	{
+		"enable" when parameter.Length == 0 => this.Call( nameof( StartListening ) ),
+		"disable" when parameter.Length == 0 => this.Call( nameof( StopListening ) ),
+		"toggle" when parameter.Length == 0 => this.Call( nameof( ToggleListening ) ),
+		_ => null
+	};
+
+	void IMapOutputs.Wire( System.Func<string, bool, Doo> output ) => OnBaited = output( "OnBaited", true );
+
 	[Property] public bool Listening { get; set; }
 	[ConVar( "bugbait_radius", ConVarFlags.Server, Help = "Detection radius for bugbait sensors without a map override." )]
 	public static float DefaultRadius { get; set; } = 512;

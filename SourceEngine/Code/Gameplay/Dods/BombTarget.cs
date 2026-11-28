@@ -1,7 +1,23 @@
 namespace Source1.Dods;
 
-public sealed class BombTarget : Component, Component.IPressable
+public sealed class BombTarget : Component, Component.IPressable, IMapInput, IMapOutputs
 {
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => input.ToLowerInvariant() switch
+	{
+		"enable" when parameter.Length == 0 => this.Call( nameof( Activate ) ),
+		"disable" when parameter.Length == 0 => this.Call( nameof( Deactivate ) ),
+		_ => null
+	};
+
+	void IMapOutputs.Wire( System.Func<string, bool, Doo> output )
+	{
+		OnPlanted = output( "OnBombPlanted", false );
+		OnExploded = output( "OnBombExploded", false );
+		OnDefused = output( "OnBombDefused", false );
+		OnActivated = output( "OnBombTargetActivated", false );
+		OnDeactivated = output( "OnBombTargetDeactivated", false );
+	}
+
 	internal const string TargetModel = "models/weapons/w_tnt_red.mdl";
 	public enum States { Ready, Armed, Inactive }
 

@@ -16,6 +16,7 @@ partial class MapLoader
 			"prop_dynamic" or "prop_dynamic_override" => new DynamicPropEntityLoader(),
 			"prop_physics" or "prop_physics_override" or "prop_physics_multiplayer" or "prop_physics_respawnable" => new PhysicsPropEntityLoader(),
 			"prop_ragdoll" => new RagdollEntityLoader(),
+			"func_physbox" or "func_physbox_multiplayer" => new PhysicsBrushLoader(),
 			"func_brush" or "func_monitor" => new ToggleBrushEntityLoader(),
 			"func_wall" => new WallEntityLoader(),
 			"func_wall_toggle" => new ToggleWallEntityLoader(),
@@ -25,16 +26,26 @@ partial class MapLoader
 			"func_conveyor" => new ConveyorEntityLoader(),
 			"func_lookdoor" => new LookDoorLoader(),
 			"momentary_door" or "func_movelinear" => new LinearMoverLoader(),
-			"func_rot_button" or "func_rotating" or "func_train" or "func_tracktrain" => new UnsimulatedBrushEntityLoader(),
+			"func_rotating" => new RotatingBrushLoader(),
+			"func_rot_button" or "func_train" or "func_tracktrain" => new UnsimulatedBrushEntityLoader(),
 			"func_breakable" or "func_breakable_surf" => new BreakableEntityLoader(),
 			"func_door" => new DoorEntityLoader( DoorMode.Sliding ),
 			"func_door_rotating" => new DoorEntityLoader( DoorMode.Rotating ),
 			"func_button" => new ButtonEntityLoader(),
 			"dod_bomb_target" => new BombTargetLoader(),
-			"info_target" => new NamedTargetLoader(),
+			"info_target" or "info_landmark" or "info_teleport_destination" => new NamedTargetLoader(),
 			"npc_antlion_template_maker" => new AntlionMakerLoader(),
 			"info_node_hint" => new NodeHintLoader(),
-			"trigger_multiple" or "trigger_once" => new PlayerTriggerLoader(),
+			"trigger_playermovement" => new MovementTriggerLoader(),
+			"trigger_changelevel" => new SimpleTriggerLoader<ChangeLevel>(),
+			"trigger_remove" => new SimpleTriggerLoader<RemoveTrigger>(),
+			"trigger_look" => new LookTriggerLoader(),
+			"trigger_multiple" or "trigger_soundscape" or "trigger_push" or "trigger_hurt" or "trigger_once" or "trigger_gravity" or "trigger_teleport" or "trigger_teleport_relative" => new PlayerTriggerLoader(),
+			"filter_base" => new FilterLoader( ActivatorFilter.Test.Always ),
+			"filter_activator_name" => new FilterLoader( ActivatorFilter.Test.Name ),
+			"filter_activator_class" => new FilterLoader( ActivatorFilter.Test.Class ),
+			"filter_activator_mass_greater" => new FilterLoader( ActivatorFilter.Test.MassGreater ),
+			"filter_multi" => new FilterLoader( ActivatorFilter.Test.All ),
 			"logic_relay" => new RelayLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
@@ -140,12 +151,14 @@ partial class MapLoader
 		public override void Load( EntityBuilder builder, MapEntity entity )
 		{
 			if ( entity.Get( "targetname" ) is not { Length: > 0 } name ) return;
-			_ = new GameObject( true, name )
+			var target = new GameObject( true, name )
 			{
 				Parent = builder.World,
 				LocalPosition = entity.Vector( "origin" ),
 				LocalRotation = Rotation.From( entity.Angles )
 			};
+			if ( entity.Get( "classname" ) == "info_landmark" ) target.Tags.Add( "source1_landmark" );
+			builder.TrackParent( entity, target );
 		}
 	}
 

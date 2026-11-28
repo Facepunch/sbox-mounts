@@ -7,9 +7,10 @@ namespace GoldSrc.Maps;
 public sealed class DelayedUse : MapEntity
 {
 	[Property] public GameObject Activator { get; set; }
+	[Property] public float Value { get; set; }
 	[Property] public float FireAt { get; set; }
 
-	public void Begin( Doo output, GameObject activator )
+	public void Begin( Doo output, GameObject activator, float value = 0f )
 	{
 		float delay = 0f;
 		var skip = 0;
@@ -19,6 +20,7 @@ public sealed class DelayedUse : MapEntity
 			skip = 1;
 		}
 		Activator = activator;
+		Value = value;
 		FireAt = Time.Now + MathF.Max( delay, 0f );
 		OnTrigger = new Doo { Body = output.Body.Skip( skip ).ToList() };
 	}
@@ -26,7 +28,7 @@ public sealed class DelayedUse : MapEntity
 	protected override void OnFixedUpdate()
 	{
 		if ( !CanTrigger || Time.Now < FireAt ) return;
-		Fire( OnTrigger, Activator.IsValid() ? Activator : null, detached: true );
+		Fire( OnTrigger, Activator.IsValid() ? Activator : null, Value, detached: true );
 		Kill();
 	}
 

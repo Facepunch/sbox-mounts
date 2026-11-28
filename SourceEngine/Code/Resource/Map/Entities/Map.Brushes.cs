@@ -43,6 +43,26 @@ partial class MapLoader
 		public override bool HasUnsupportedBehavior => true;
 	}
 
+	private sealed class PhysicsBrushLoader : BrushEntityLoader
+	{
+		public override bool AddInteraction( EntityBuilder builder, MapEntity entity, GameObject instance, BspModel model )
+		{
+			MakeNetworkRoot( instance );
+			instance.Tags.Remove( "world" );
+			var flags = entity.Integer( "spawnflags" );
+			if ( (flags & 0x4000) != 0 ) instance.Tags.Add( "debris" );
+			var brush = instance.AddComponent<PhysicsBrush>();
+			brush.Body = instance.AddComponent<Rigidbody>();
+			brush.Body.StartAsleep = (flags & 0x1000) != 0;
+			brush.ForceToEnableMotion = entity.Number( "forcetoenablemotion" );
+			brush.IgnorePlayerBumps = (flags & 0x800000) != 0;
+			brush.Body.CollisionEventsEnabled = brush.ForceToEnableMotion > 0;
+			brush.Body.MotionEnabled = (flags & 0x8000) == 0 && entity.Number( "damagetoenablemotion" ) <= 0 && brush.ForceToEnableMotion <= 0;
+			builder.RegisterEntityIO( entity, brush );
+			return true;
+		}
+	}
+
 	private sealed class ConveyorEntityLoader : WallEntityLoader
 	{
 		public override bool HasUnsupportedBehavior => true;
@@ -114,7 +134,8 @@ partial class MapLoader
 		public void BuildBrush( MapEntity entity, BrushEntityLoader loader )
 		{
 			var path = entity.Get( "model" );
-			if ( path is null || !path.StartsWith( '*' ) || !int.TryParse( path.AsSpan( 1 ), NumberStyles.None, CultureInfo.InvariantCulture, out var index ) || index <= 0 || index >= bsp.Models.Length )
+			if ( string.IsNullOrEmpty( path ) ) return;
+			if ( !path.StartsWith( '*' ) || !int.TryParse( path.AsSpan( 1 ), NumberStyles.None, CultureInfo.InvariantCulture, out var index ) || index <= 0 || index >= bsp.Models.Length )
 				throw new InvalidDataException( $"{owner.FullPath}: brush entity '{entity.Get( "classname" )}' has invalid model '{path}'." );
 			if ( !brushModels.TryGetValue( index, out var model ) )
 			{
@@ -134,12 +155,16 @@ partial class MapLoader
 				LocalPosition = entity.Vector( "origin" ),
 				LocalRotation = Rotation.From( loader.ReadAngles( entity ) )
 			};
+			instance.Tags.Add( ActivatorFilter.ClassTag + entity.Get( "classname" ) );
 			TrackParent( entity, instance );
 			instance.Tags.Add( "world" );
 			instance.Tags.Add( "source1_entity" );
 			GarrysMod.PhysicsGun.TagMapEntity( instance, entity );
 			var prop = ReadProp( entity );
-			var visible = prop.Visible && (entity.Integer( "effects" ) & 32) == 0 && loader.IsEnabled( entity );
+			var enabled = loader.IsEnabled( entity );
+			var toggleable = loader is ToggleBrushEntityLoader or ToggleWallEntityLoader;
+			var receivesInputs = toggleable && !skybox && !string.IsNullOrEmpty( entity.Get( "targetname" ) );
+			var visible = prop.Visible && (entity.Integer( "effects" ) & 32) == 0 && enabled;
 			if ( model is not null )
 			{
 				var renderer = instance.AddComponent<ModelRenderer>();
@@ -156,9 +181,14 @@ partial class MapLoader
 			instance.IsStatic = !moving;
 			if ( loader.IsSolid( entity ) )
 			{
-				owner.BuildWorldPhysics( bsp, instance, modelIndex: index, staticCollider: !moving );
+				var mass = owner.BuildWorldPhysics( bsp, instance, modelIndex: index, staticCollider: !moving );
+				if ( mass > 0 && loader is PhysicsBrushLoader )
+				{
+					var scale = entity.Number( "massscale" );
+					instance.GetComponent<Rigidbody>().MassOverride = scale > 0 ? mass * scale : mass;
+				}
 				foreach ( var collider in instance.GetComponentsInChildren<PhysicsCollider>( true ) )
-					collider.Enabled = visible || loader.CollidesWhenHidden( entity );
+					collider.Enabled = (toggleable ? enabled : visible) || loader.CollidesWhenHidden( entity );
 			}
 			if ( !skybox && loader.HasUnsupportedBehavior )
 				Log.Trace( $"Entity '{className}' has no equivalent native behavior; retaining its geometry and collision without Source simulation." );
@@ -170,7 +200,17 @@ partial class MapLoader
 					shadowBrushModels.Add( index, shadowModel );
 				}
 
-				owner.AddShadowBlocker( shadowModel, instance, visible );
+				owner.AddShadowBlocker( shadowModel, instance, receivesInputs && prop.Visible || visible );
+			}
+			if ( receivesInputs )
+			{
+				MakeNetworkRoot( instance );
+				var brush = instance.AddComponent<ToggleBrush>();
+				brush.ToggleOnly = loader is ToggleWallEntityLoader;
+				brush.Renderers = prop.Visible ? instance.GetComponentsInChildren<ModelRenderer>( true ).ToList() : [];
+				brush.Colliders = loader.CollidesWhenHidden( entity ) ? [] : instance.GetComponentsInChildren<PhysicsCollider>( true ).ToList();
+				brush.Hidden = !enabled || (entity.Integer( "effects" ) & 32) != 0;
+				RegisterEntityIO( entity, brush );
 			}
 		}
 	}

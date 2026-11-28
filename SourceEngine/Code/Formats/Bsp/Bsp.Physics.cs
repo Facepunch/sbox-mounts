@@ -67,13 +67,14 @@ internal partial class BspFile
 		}
 	}
 
-	public (List<BspPhysicsHull> Hulls, List<BspPhysicsMesh> Meshes, bool VirtualTerrain) ParsePhysicsGeometry( int requestedModel = 0, List<BspPhysicsFluid> fluids = null )
+	public (List<BspPhysicsHull> Hulls, List<BspPhysicsMesh> Meshes, bool VirtualTerrain, float Mass) ParsePhysicsGeometry( int requestedModel = 0, List<BspPhysicsFluid> fluids = null )
 	{
 		var hulls = new List<BspPhysicsHull>();
+		float mass = 0;
 		var meshes = new List<BspPhysicsMesh>();
 		bool virtualTerrain = false;
 		if ( PhysCollideData.Length == 0 )
-			return (hulls, meshes, virtualTerrain);
+			return (hulls, meshes, virtualTerrain, mass);
 		const float IVP_TO_HL = 1.0f / 0.0254f;
 		const int CONTENTS_WATER = 0x20;
 		int pos = 0;
@@ -97,7 +98,8 @@ internal partial class BspFile
 			if ( modelIndex == requestedModel )
 			{
 				var fluidSolids = fluids is null ? null : new Dictionary<int, BspPhysicsFluid>();
-				var (skipSolids, passAudioSolids, usesVirtualTerrain, solidSurfaces, materialTable) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | ContentsSlime, fluidSolids );
+				var (skipSolids, passAudioSolids, usesVirtualTerrain, solidSurfaces, materialTable, modelMass) = ParsePhysicsKeydata( PhysCollideData, dataEnd, keydataSize, solidCount, CONTENTS_WATER | ContentsSlime, fluidSolids );
+				mass = modelMass;
 				virtualTerrain |= usesVirtualTerrain;
 				for ( int s = 0; s < solidCount; s++ )
 				{
@@ -127,11 +129,12 @@ internal partial class BspFile
 			pos = dataEnd + keydataSize;
 		}
 
-		return (hulls, meshes, virtualTerrain);
+		return (hulls, meshes, virtualTerrain, mass);
 	}
 
-	internal static (HashSet<int> SkipSolids, HashSet<int> PassAudioSolids, bool VirtualTerrain, Dictionary<int, string> SolidSurfaces, Dictionary<byte, string> MaterialTable) ParsePhysicsKeydata( byte[] data, int offset, int length, int solidCount, int contentsMask, Dictionary<int, BspPhysicsFluid> fluids = null )
+	internal static (HashSet<int> SkipSolids, HashSet<int> PassAudioSolids, bool VirtualTerrain, Dictionary<int, string> SolidSurfaces, Dictionary<byte, string> MaterialTable, float Mass) ParsePhysicsKeydata( byte[] data, int offset, int length, int solidCount, int contentsMask, Dictionary<int, BspPhysicsFluid> fluids = null )
 	{
+		float mass = 0;
 		var skip = new HashSet<int>();
 		var passAudio = new HashSet<int>();
 		bool virtualTerrain = false;
@@ -139,7 +142,7 @@ internal partial class BspFile
 		var materialTable = new Dictionary<byte, string>();
 		ValidateRange( offset, length, data.Length, "Physics keydata" );
 		if ( length == 0 )
-			return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable);
+			return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable, mass);
 		var text = System.Text.Encoding.ASCII.GetString( data, offset, length ).TrimEnd( '\0' );
 		foreach ( var block in VmtFile.ParseKeyValues( text, "BSP physics keydata", diagnostic => throw new InvalidDataException( $"Unsupported BSP physics KeyValues: {diagnostic.Message}" ) ) )
 		{
@@ -167,6 +170,8 @@ internal partial class BspFile
 			if ( !block.Values.TryGetValue( "index", out var indexValue ) || !int.TryParse( indexValue, out int index ) )
 				throw new InvalidDataException( "BSP physics solid has an invalid index." );
 			ValidateRange( index, 1, solidCount, "Physics keydata solid index" );
+			if ( index == 0 && block.Values.TryGetValue( "mass", out var massValue ) )
+				float.TryParse( massValue, System.Globalization.CultureInfo.InvariantCulture, out mass );
 			if ( block.Values.TryGetValue( "surfaceprop", out var surface ) )
 				solidSurfaces[index] = surface;
 			int contents = 0;
@@ -199,7 +204,7 @@ internal partial class BspFile
 			}
 		}
 
-		return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable);
+		return (skip, passAudio, virtualTerrain, solidSurfaces, materialTable, mass);
 	}
 
 	internal void ParseIvpSolid( byte[] data, int blobStart, int blobSize, List<BspPhysicsHull> hulls, List<BspPhysicsMesh> meshes, float scale, string surface, Dictionary<byte, string> materialTable, bool passAudio, bool fluid = false )

@@ -74,7 +74,7 @@ public class LinearMover : MovingBrush, IMapInput
 
 	protected override void OnDestroy() => _sound?.Stop();
 
-	Doo.Block IMapInput.BuildInput( string input, string parameter ) => BuildInput( input, parameter );
+	Doo.Block IMapInput.BuildInput( string input, string parameter, bool hasUser ) => BuildInput( input, parameter );
 
 	internal virtual Doo.Block BuildInput( string input, string parameter )
 	{

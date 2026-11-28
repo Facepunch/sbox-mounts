@@ -6,10 +6,10 @@ namespace Source1;
 
 partial class MapLoader
 {
-	void BuildWorldPhysics( BspFile bsp, GameObject world, bool skybox = false, int modelIndex = 0, bool staticCollider = true )
+	float BuildWorldPhysics( BspFile bsp, GameObject world, bool skybox = false, int modelIndex = 0, bool staticCollider = true )
 	{
 		var fluids = new List<BspPhysicsFluid>();
-		var (hulls, meshes, virtualTerrain) = bsp.ParsePhysicsGeometry( modelIndex, skybox ? null : fluids );
+		var (hulls, meshes, virtualTerrain, mass) = bsp.ParsePhysicsGeometry( modelIndex, skybox ? null : fluids );
 		BuildWaterPhysics( fluids, world, modelIndex );
 		if ( skybox )
 			bsp.FilterSkyboxPhysics( hulls, meshes );
@@ -26,7 +26,7 @@ partial class MapLoader
 
 		bool hasDisplacements = modelIndex == 0 && virtualTerrain && AddDisplacementPhysics( bsp, name => GetBody( name, BspCollisionKind.Solid ), GetMaterial, skybox );
 		if ( hulls.Count == 0 && meshes.Count == 0 && !hasDisplacements )
-			return;
+			return 0;
 		foreach ( var group in bodies.GroupBy( entry => entry.Key.Kind ) )
 		{
 			var kind = group.Key;
@@ -55,6 +55,8 @@ partial class MapLoader
 			if ( kind != BspCollisionKind.Solid )
 				target.Enabled = true;
 		}
+
+		return mass;
 
 		PhysicsBodyBuilder GetBody( string name, BspCollisionKind kind )
 		{

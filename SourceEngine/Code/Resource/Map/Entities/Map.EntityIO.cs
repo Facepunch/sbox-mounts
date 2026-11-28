@@ -13,6 +13,7 @@ partial class MapLoader
 
 		private void WireEntityIO()
 		{
+			WireFilters();
 			foreach ( var (entity, component) in ioEntities )
 			{
 				if ( component is MovingDoor moving )
@@ -29,21 +30,14 @@ partial class MapLoader
 				}
 				switch ( component )
 				{
-					case Dods.BombTarget target:
-						target.OnPlanted = BuildOutput( entity, "OnBombPlanted", false );
-						target.OnExploded = BuildOutput( entity, "OnBombExploded", false );
-						target.OnDefused = BuildOutput( entity, "OnBombDefused", false );
-						target.OnActivated = BuildOutput( entity, "OnBombTargetActivated", false );
-						target.OnDeactivated = BuildOutput( entity, "OnBombTargetDeactivated", false );
+					case IMapOutputs outputs:
+						outputs.Wire( (name, hasUser) => BuildOutput( entity, name, hasUser ) );
 						break;
 					case PlayerTrigger trigger:
 						WireTrigger( entity, trigger );
 						break;
 					case MapRelay relay:
 						BuildOutput( entity, "OnTrigger", true, relay.OnTrigger );
-						break;
-					case Hl2.BugbaitSensor sensor:
-						sensor.OnBaited = BuildOutput( entity, "OnBaited", true );
 						break;
 					case SourceGlassPane pane:
 						pane.OnBreak = BuildOutput( entity, "OnBreak", true );
@@ -106,7 +100,7 @@ partial class MapLoader
 					InvokeType = Doo.InvokeType.Member,
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = limited },
 					Member = $"{typeof( LimitedMapOutputs ).FullName}.{nameof( LimitedMapOutputs.Fire )}",
-					Arguments = [new Doo.LiteralExpression { LiteralValue = index }, UserArgument( hasUser )]
+					Arguments = [new Doo.LiteralExpression { LiteralValue = index }, MapInputs.User( hasUser )]
 				}) );
 			}
 			if ( actions.Count == 0 ) return null;
@@ -127,9 +121,6 @@ partial class MapLoader
 			return BspEntityConnection.ResolveTargets( source, name, ioEntities.Keys ).Select( entity => ioEntities[entity] );
 		}
 
-		private static Doo.Expression UserArgument( bool hasUser ) => hasUser
-			? new Doo.VariableExpression { VariableName = "user" }
-			: new Doo.LiteralExpression { LiteralValue = default };
 
 		private static Doo.Block BuildInput( Component target, string input, bool hasUser, string parameter, Component caller )
 		{
@@ -140,13 +131,12 @@ partial class MapLoader
 					InvokeType = Doo.InvokeType.Member,
 					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = handle },
 					Member = $"{typeof( PropDoor ).FullName}.{nameof( PropDoor.OpenAwayFrom )}",
-					Arguments = [new Doo.LiteralExpression { LiteralValue = parameter }, UserArgument( hasUser ), new Doo.LiteralExpression { LiteralValue = caller.GameObject }]
+					Arguments = [new Doo.LiteralExpression { LiteralValue = parameter }, MapInputs.User( hasUser ), new Doo.LiteralExpression { LiteralValue = caller.GameObject }]
 				};
 			}
-			if ( target is IMapInput receiver && receiver.BuildInput( input, parameter ) is { } action ) return action;
+			if ( target is IMapInput receiver && receiver.BuildInput( input, parameter, hasUser ) is { } action ) return action;
 			if ( target is MovingBrush && DoorInputs.Build( target, input, parameter ) is { } doorAction ) return doorAction;
-			if ( parameter.Length > 0 && !input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase )
-				&& !input.Equals( "SetFightTarget", StringComparison.OrdinalIgnoreCase ) ) return null;
+			if ( parameter.Length > 0 && !input.Equals( "Shatter", StringComparison.OrdinalIgnoreCase ) ) return null;
 			if ( input.Equals( "Kill", StringComparison.OrdinalIgnoreCase ) )
 			{
 				return new Doo.InvokeBlock
@@ -170,39 +160,6 @@ partial class MapLoader
 					Arguments = restore ? null : [new Doo.LiteralExpression { LiteralValue = area }]
 				};
 			}
-			if ( target is Dods.BombTarget or PlayerTrigger or MapRelay or Hl2.BugbaitSensor or Hl2.AntlionBurrow or Hl2.AntlionMaker )
-			{
-				var listener = (target, input.ToLowerInvariant()) switch
-				{
-					(Dods.BombTarget, "enable") => nameof( Dods.BombTarget.Activate ),
-					(Dods.BombTarget, "disable") => nameof( Dods.BombTarget.Deactivate ),
-					(PlayerTrigger, "enable") => nameof( PlayerTrigger.TurnOn ),
-					(PlayerTrigger, "disable") => nameof( PlayerTrigger.TurnOff ),
-					(PlayerTrigger, "toggle") => nameof( PlayerTrigger.Toggle ),
-					(MapRelay, "trigger") => nameof( MapRelay.Trigger ),
-					(MapRelay, "enable") => nameof( MapRelay.TurnOn ),
-					(MapRelay, "disable") => nameof( MapRelay.TurnOff ),
-					(MapRelay, "toggle") => nameof( MapRelay.Toggle ),
-					(MapRelay, "cancelpending") => nameof( MapRelay.CancelPending ),
-					(Hl2.BugbaitSensor, "enable") => nameof( Hl2.BugbaitSensor.StartListening ),
-					(Hl2.BugbaitSensor, "disable") => nameof( Hl2.BugbaitSensor.StopListening ),
-					(Hl2.BugbaitSensor, "toggle") => nameof( Hl2.BugbaitSensor.ToggleListening ),
-					(Hl2.AntlionMaker, "setfighttarget") when parameter.Length > 0 && (!parameter.StartsWith( '!' ) || parameter == "!player") => nameof( Hl2.AntlionMaker.SetFightTarget ),
-					(Hl2.AntlionMaker, "enable") => nameof( Hl2.AntlionMaker.StartSpawning ),
-					(Hl2.AntlionMaker, "disable") => nameof( Hl2.AntlionMaker.StopSpawning ),
-					(Hl2.AntlionBurrow, "enablehint") => nameof( Hl2.AntlionBurrow.EnableHint ),
-					(Hl2.AntlionBurrow, "disablehint") => nameof( Hl2.AntlionBurrow.DisableHint ),
-					_ => null
-				};
-				if ( listener is null ) return null;
-				return new Doo.InvokeBlock
-				{
-					InvokeType = Doo.InvokeType.Member,
-					TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
-					Member = $"{target.GetType().FullName}.{listener}",
-					Arguments = listener == nameof( MapRelay.Trigger ) ? [UserArgument( hasUser )] : listener == nameof( Hl2.AntlionMaker.SetFightTarget ) ? [new Doo.LiteralExpression { LiteralValue = parameter }] : null
-				};
-			}
 			if ( target is not MovingDoor ) return null;
 			var method = input.ToLowerInvariant() switch
 			{
@@ -217,7 +174,7 @@ partial class MapLoader
 				InvokeType = Doo.InvokeType.Member,
 				TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = target },
 				Member = $"{target.GetType().FullName}.{method}",
-				Arguments = method == nameof( BrushDoor.Close ) ? null : [UserArgument( hasUser )]
+				Arguments = method == nameof( BrushDoor.Close ) ? null : [MapInputs.User( hasUser )]
 			};
 		}
 	}
@@ -225,5 +182,25 @@ partial class MapLoader
 
 internal interface IMapInput
 {
-	Doo.Block BuildInput( string input, string parameter );
+	Doo.Block BuildInput( string input, string parameter, bool hasUser );
+}
+
+internal interface IMapOutputs
+{
+	void Wire( Func<string, bool, Doo> output );
+}
+
+internal static class MapInputs
+{
+	internal static Doo.Expression User( bool hasUser ) => hasUser
+		? new Doo.VariableExpression { VariableName = "user" }
+		: new Doo.LiteralExpression { LiteralValue = default };
+
+	internal static Doo.Block Call( this Component component, string method, params List<Doo.Expression> arguments ) => new Doo.InvokeBlock
+	{
+		InvokeType = Doo.InvokeType.Member,
+		TargetComponent = new Doo.TargetComponent { Type = Doo.TargetComponent.TargetType.Direct, ComponentValue = component },
+		Member = $"{component.GetType().FullName}.{method}",
+		Arguments = arguments
+	};
 }

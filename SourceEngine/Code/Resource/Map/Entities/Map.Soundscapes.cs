@@ -13,6 +13,36 @@ partial class MapLoader
 	private sealed partial class EntityBuilder
 	{
 		private GameObject soundscapeParent;
+		Dictionary<string, string> triggeredSoundscapes;
+
+		public void BuildSoundscapeVolume( MapEntity entity, SoundscapeVolume volume, BspModel model )
+		{
+			if ( triggeredSoundscapes is null )
+			{
+				triggeredSoundscapes = new( StringComparer.OrdinalIgnoreCase );
+				foreach ( var point in bsp.Entities )
+					if ( point.Get( "classname" ) == "env_soundscape_triggerable" && point.Get( "targetname" ) is { Length: > 0 } target )
+						triggeredSoundscapes.TryAdd( target, point.Get( "soundscape" ) );
+			}
+			if ( !triggeredSoundscapes.TryGetValue( entity.Get( "soundscape", "" ), out var name ) || string.IsNullOrWhiteSpace( name ) ) return;
+			try
+			{
+				var soundscape = owner.Host.GetSoundscape( name, owner.ContentRoot );
+				var center = new GameObject( volume.GameObject, true, name );
+				center.LocalPosition = (model.Mins + model.Maxs) * 0.5f;
+				var playback = center.AddComponent<SoundscapeTrigger>();
+				playback.Soundscape = soundscape;
+				playback.Type = SoundscapeTrigger.TriggerType.Box;
+				playback.BoxSize = (model.Maxs - model.Mins) * 0.5f;
+				playback.StayActiveOnExit = true;
+				volume.Playback = playback;
+			}
+			catch ( Exception e ) when ( e is IOException or InvalidDataException or NotSupportedException )
+			{
+				Log.Trace( $"Soundscape '{name}' was not imported: {e.Message}" );
+			}
+		}
+
 		public void BuildSoundscape( MapEntity entity )
 		{
 			try

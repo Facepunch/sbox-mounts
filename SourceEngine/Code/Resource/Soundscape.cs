@@ -7,6 +7,7 @@ internal sealed class SourceSoundscapeLoader( SourceSoundscapes.Definition defin
 		foreach ( var diagnostic in definition.Diagnostics )
 			Log.Trace( diagnostic );
 		var soundscape = new Soundscape();
+		if ( Application.IsHeadless ) return soundscape;
 		for ( var i = 0; i < definition.Entries.Count; i++ )
 		{
 			var entry = definition.Entries[i];
