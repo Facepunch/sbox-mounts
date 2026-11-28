@@ -42,6 +42,10 @@ partial class MapLoader
 					case SourceGlassPane pane:
 						pane.OnBreak = BuildOutput( entity, "OnBreak", true );
 						break;
+					case PropAnimation animation:
+						if ( animation.GetComponent<PropDamage>( true ) is {} damageableProp )
+							damageableProp.OnBreak = BuildOutput( entity, "OnBreak", true );
+						break;
 					case PropDamage damageable:
 						damageable.OnBreak = BuildOutput( entity, "OnBreak", true );
 						break;

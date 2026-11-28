@@ -2,14 +2,36 @@ namespace Source1;
 
 partial class MapLoader
 {
-	private class PropEntityLoader : EntityLoader
+	private class PropEntityLoader( bool animated = false ) : EntityLoader
 	{
-		public override void Load( EntityBuilder builder, MapEntity entity ) => builder.BuildProp( Read( entity ), entity );
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			var instance = builder.BuildProp( Read( entity ), entity, animated );
+			if ( !instance.IsValid() ) return;
+			var damage = entity.Get( "OnBreak" ) is not null && instance.GetComponent<Prop>( true ).IsValid()
+				? instance.GetOrAddComponent<PropDamage>() : null;
+			var target = Configure( entity, instance ) ?? damage;
+			if ( target.IsValid() ) builder.RegisterEntityIO( entity, target );
+		}
+
+		protected virtual Component Configure( MapEntity entity, GameObject instance ) => null;
 		protected virtual MapProp Read( MapEntity entity ) => ReadProp( entity );
 	}
 
-	private sealed class DynamicPropEntityLoader : PropEntityLoader
+	private sealed class DynamicPropEntityLoader() : PropEntityLoader( true )
 	{
+		protected override Component Configure( MapEntity entity, GameObject instance )
+		{
+			var initial = entity.Get( "DefaultAnim" );
+			if ( string.IsNullOrEmpty( initial ) && string.IsNullOrEmpty( entity.Get( "targetname" ) ) ) return null;
+			var model = instance.GetComponent<Prop>( true )?.Model ?? instance.GetComponent<ModelRenderer>( true )?.Model;
+			if ( ModelClips.Of( model ).Count == 0 ) return null;
+			if ( instance.NetworkMode != NetworkMode.Object ) MakeNetworkRoot( instance );
+			var animation = instance.AddComponent<PropAnimation>();
+			animation.Sequence = initial;
+			return animation;
+		}
+
 		protected override MapProp Read( MapEntity entity )
 		{
 			var prop = base.Read( entity );

@@ -91,8 +91,6 @@ partial class MapLoader
 			if ( useGameplay )
 			{
 				AddGameplayProp( prop, instance, model, materialGroup );
-				if ( entity?.Get( "OnBreak" ) is not null )
-					RegisterEntityIO( entity, instance.GetOrAddComponent<PropDamage>() );
 				return instance;
 			}
 

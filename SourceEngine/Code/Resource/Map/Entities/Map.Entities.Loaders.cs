@@ -46,6 +46,7 @@ partial class MapLoader
 			"filter_activator_class" => new FilterLoader( ActivatorFilter.Test.Class ),
 			"filter_activator_mass_greater" => new FilterLoader( ActivatorFilter.Test.MassGreater ),
 			"filter_multi" => new FilterLoader( ActivatorFilter.Test.All ),
+			"logic_auto" => new AutoLoader(),
 			"logic_relay" => new RelayLoader(),
 			"point_bugbait" => new BugbaitSensorLoader(),
 			"infodecal" => new DecalEntityLoader(),
@@ -225,6 +226,17 @@ partial class MapLoader
 			burrow.Group = entity.Get( "Group" );
 			burrow.Available = entity.Integer( "StartHintDisabled" ) == 0;
 			builder.RegisterEntityIO( entity, burrow );
+		}
+	}
+
+	private sealed class AutoLoader : EntityLoader
+	{
+		public override bool SupportsSkybox => false;
+		public override void Load( EntityBuilder builder, MapEntity entity )
+		{
+			if ( !string.IsNullOrEmpty( entity.Get( "globalstate" ) ) || entity.Get( "OnMapSpawn" ) is null ) return;
+			var point = new GameObject( builder.World, true, entity.Get( "targetname", "logic_auto" ) );
+			builder.RegisterEntityIO( entity, point.AddComponent<MapSpawn>() );
 		}
 	}
 
