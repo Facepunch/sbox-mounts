@@ -125,6 +125,9 @@ public static class Machines
 				npc.Health = 210;
 				npc.Idle = "idle1";
 				npc.Move = "canter_all";
+				// Its move clips blend by direction: within 512 of its enemy it faces the enemy and strafes, further out it faces its travel
+				npc.BlendGrids = true;
+				npc.StrafeRange = 512;
 				npc.Attack = "shoot_unplanted";
 				npc.HatesCombine = false;
 				npc.MoveSpeed = 180;

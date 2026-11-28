@@ -56,7 +56,8 @@ public sealed class ZombineGrenade : CreatureBehaviour
 		"ACT_IDLE" when Holding => _idle,
 		"ACT_WALK" when Holding => _walk,
 		"ACT_RUN" when Holding => _run,
-		"ACT_MELEE_ATTACK1" when Holding || FastSwing => _fastAttack,
+		// A sprint that reaches swing range ends in the fast swing
+		"ACT_MELEE_ATTACK1" when Holding || FastSwing || Sprinting => _fastAttack,
 		_ => null
 	};
 
@@ -112,7 +113,7 @@ public sealed class ZombineGrenade : CreatureBehaviour
 
 		_nextDecision = DecisionInterval;
 		var distance = target.IsValid() ? WorldPosition.Distance( target.WorldPosition ) : float.MaxValue;
-		var inReach = distance <= npc.AttackRange;
+		var inReach = npc.CanSwing( target );
 		if ( WantsToPull( npc, target, distance ) )
 		{
 			_used = true;

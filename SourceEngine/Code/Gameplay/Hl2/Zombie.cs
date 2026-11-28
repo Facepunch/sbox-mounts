@@ -432,6 +432,9 @@ public sealed class Zombie : CreatureBehaviour, INpcPart
 		if ( !Fits( at ) || SpawnCrab( at, facing, enemy ) is not { } crab )
 			return;
 
+		// A poison crab shaken off panics once it lands
+		crab.GetComponent<PoisonCrabPanic>()?.PanicOnLanding( Game.Random.Float( 2, 8 ) );
+
 		if ( velocity.z > 0 )
 			crab.GetComponent<CreatureNpc>()?.Launch( velocity );
 		else

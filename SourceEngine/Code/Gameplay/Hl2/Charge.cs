@@ -71,6 +71,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	[Sync( SyncFlags.FromHost )] Phase State { get; set; }
 	[Sync( SyncFlags.FromHost )] string Clip { get; set; }
 	public bool Charging => State != Phase.None;
+	internal TimeSince SinceHit => _sinceHit;
 
 	ModelSequences _sequences;
 	string _start, _run, _stop, _turnLeft, _turnRight, _anticipation, _hitGesture;
@@ -133,7 +134,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 
 		// It ends for a new enemy or a dead one, not one out of sight; an enemy lost before the run leaves nothing to stop from.
 		// Thrown or carried, physics has the body.
-		var lost = Dead( _target ) || target.IsValid() && target != _target;
+		var lost = Npcs.IsDead( _target ) || target.IsValid() && target != _target;
 		if ( GetComponent<Rigidbody>() is { MotionEnabled: true } || lost && State == Phase.Face )
 			Finish();
 		else if ( State is Phase.Stop or Phase.Crash )
@@ -191,6 +192,13 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		_lastTime = 0;
 	}
 
+	/// <summary>Host: cuts a charge short where it stands, as heavy damage does.</summary>
+	internal void Interrupt()
+	{
+		if ( State != Phase.None )
+			Finish();
+	}
+
 	/// <summary>Hands the body back to navigation and waits for the next charge.</summary>
 	void Finish()
 	{
@@ -204,7 +212,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	/// <summary>Turns in place until it faces the enemy, on the turn animations where the model has them.</summary>
 	void Face()
 	{
-		var yaw = YawTo( _target );
+		var yaw = YawTo( _target.WorldPosition );
 		var offset = Angles.NormalizeAngle( yaw - WorldRotation.Yaw() );
 		if ( MathF.Abs( offset ) <= 2 || _time > 3 )
 		{
@@ -213,7 +221,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		}
 
 		Clip = offset > 0 ? _turnLeft : _turnRight;
-		TurnToward( yaw, NpcRate ?? (Clip is null ? FaceTurnRateStill : FaceTurnRate) );
+		Npcs.TurnToward( GameObject, yaw, NpcRate ?? (Clip is null ? FaceTurnRateStill : FaceTurnRate) );
 	}
 
 	/// <summary>The wind-up and the run: give up once past the enemy, steer, brace, and step along the animation.</summary>
@@ -233,7 +241,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		}
 
 		var close = WorldPosition.WithZ( 0 ).Distance( _target.WorldPosition.WithZ( 0 ) ) <= CloseRange;
-		TurnToward( YawTo( _target ) + Avoidance(), NpcRate ?? (State == Phase.Start ? WindUpTurnRate : close ? CloseTurnRate : RunTurnRate) );
+		Npcs.TurnToward( GameObject, YawTo( _target.WorldPosition ) + Avoidance(), NpcRate ?? (State == Phase.Start ? WindUpTurnRate : close ? CloseTurnRate : RunTurnRate) );
 		if ( Smashes )
 			Anticipate();
 
@@ -258,16 +266,6 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	}
 
 	float? NpcRate => !Npcs.IsPlayer( _target ) && NpcTurnRate > 0 ? NpcTurnRate : null;
-
-	float YawTo( GameObject target ) => Rotation.LookAt( (target.WorldPosition - WorldPosition).WithZ( 0 ) ).Yaw();
-
-	/// <summary>Turns toward a yaw, at most the rate times the think's length, itself capped at 0.2 seconds.</summary>
-	void TurnToward( float yaw, float rate )
-	{
-		var limit = rate * MathF.Min( Time.Delta, 0.2f );
-		var current = WorldRotation.Yaw();
-		WorldRotation = Rotation.FromYaw( current + Math.Clamp( Angles.NormalizeAngle( yaw - current ), -limit, limit ) );
-	}
 
 	/// <summary>Degrees to steer off the line to the enemy, away from whichever side a probe 45 degrees out finds blocked.</summary>
 	float Avoidance()
@@ -352,24 +350,8 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		return blocked ? tr : null;
 	}
 
-	/// <summary>The clip's ground motion and turn from its start to <paramref name="time"/>, in its starting frame, along its path where it varies.</summary>
-	(Vector3 Position, float Yaw) Travelled( float time )
-	{
-		var duration = Duration( Clip, 0 );
-		if ( _sequences.Get( Clip ) is not { } sequence || duration <= 0 )
-			return default;
-
-		var loops = sequence.Looping ? MathF.Floor( time / duration ) : 0;
-		var cycle = sequence.Looping ? time / duration - loops : Math.Clamp( time / duration, 0, 1 );
-		if ( sequence.MovementPath is not { Length: > 1 } path )
-			return (sequence.Movement * (loops + cycle), 0);
-
-		var position = cycle * (path.Length - 1);
-		var index = Math.Min( (int)position, path.Length - 2 );
-		var t = position - index;
-		var yaw = sequence.MovementYaw is { Length: > 1 } turn ? loops * turn[^1] + MathX.Lerp( turn[index], turn[index + 1], t ) : 0;
-		return (sequence.Movement * loops + Vector3.Lerp( path[index], path[index + 1], t ), yaw);
-	}
+	/// <summary>The clip's ground motion and turn from its start to <paramref name="time"/>.</summary>
+	(Vector3 Position, float Yaw) Travelled( float time ) => _sequences.Travelled( Clip, Duration( Clip, 0 ), time );
 
 	/// <summary>What a step ran into decides it: an enemy is hit, an antlion trampled, a light prop ploughed through, the rest crashed into.</summary>
 	void Blocked( SceneTraceResult tr )
@@ -439,7 +421,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		var scatter = new Vector3( Game.Random.Float( -32, 32 ), Game.Random.Float( -32, 32 ), Game.Random.Float( -32, 32 ) );
 		Strike( victim, player ? _skill.Get( DamageSetting, 20 ) : NonPlayerDamage, DamageTags.Melee, centre + scatter, player ? default : away * HitForce );
 		if ( player )
-			ThrowPlayer( victim, away.WithZ( 0 ).Normal * 250 + Vector3.Up * 128 + shove );
+			ThrowPlayer( victim, away.WithZ( 0 ).Normal * 250 + Vector3.Up * 128 + shove, new Angles( 20, 20, -30 ), shoved: false );
 		else if ( Smashes )
 			Npcs.Knockback( victim, shove );
 		Enter( Phase.Stop, _stop );
@@ -476,7 +458,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	/// <summary>The impact: a shake and a thud, and the guard smashes what is in front of it and blasts the props around.</summary>
 	void Impact()
 	{
-		Shake( CrashShakeAmplitude, CrashShakeRadius );
+		Shake( CrashShakeAmplitude, CrashShakeRadius, 4, 1 );
 		PlaySound( CrashSound );
 		if ( !Smashes )
 			return;
@@ -504,14 +486,19 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		ImpactPush( end, 200, 500 );
 	}
 
-	/// <summary>Shoves loose physics objects near a point away from its own origin, harder the closer they are, down to half at the edge.</summary>
-	void ImpactPush( Vector3 centre, float radius, float strength )
+	/// <summary>
+	/// Shoves loose physics objects near a point away from its own origin, harder the closer they are, down to half at the edge;
+	/// only those within <paramref name="reach"/> of its origin.
+	/// </summary>
+	internal void ImpactPush( Vector3 centre, float radius, float strength, float reach = float.PositiveInfinity )
 	{
 		var bodies = Scene.FindInPhysics( new Sphere( centre, radius ) ).Select( x => x.GetComponentInParent<Rigidbody>() )
 			.Where( x => x.IsValid() && x.MotionEnabled && !x.Tags.Has( "ragdoll" ) && !IsCharacter( Entity( x.GameObject ) ) ).Distinct().ToArray();
 		foreach ( var body in bodies )
 		{
 			var mass = body.PhysicsBody.MassCenter;
+			if ( WorldPosition.Distance( mass ) > reach )
+				continue;
 			var falloff = 1 - 0.5f * MathF.Min( centre.Distance( mass ) / radius, 1 );
 			var impulse = MathF.Max( 1, strength - WorldPosition.Distance( mass ) / 2.5f ) * PushScale * falloff * Game.Random.Float( 0.85f, 1.15f );
 			Push( body.GameObject, (mass - WorldPosition).Normal * impulse );
@@ -526,31 +513,37 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 
 	/// <summary>An impulse through the body's mass centre, adding at most <see cref="MaxPushSpeed"/>, applied where the body is simulated.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void Push( GameObject target, Vector3 impulse )
+	internal static void Push( GameObject target, Vector3 impulse )
 	{
 		if ( target.IsValid() && target.GetComponent<Rigidbody>() is { IsProxy: false } body )
 			body.ApplyImpulse( impulse.ClampLength( MaxPushSpeed * body.Mass ) );
 	}
 
-	/// <summary>A charged player is thrown, has the view knocked askew and the screen flashes red. The owner moves the player.</summary>
+	/// <summary>
+	/// A charged or shoved player is thrown, has the view knocked askew and the screen flashes red; a shove adds to the
+	/// player's speed rather than setting it, and shakes the screen as hard as a shake may. The owner moves the player.
+	/// </summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	static void ThrowPlayer( GameObject victim, Vector3 velocity )
+	internal static void ThrowPlayer( GameObject victim, Vector3 velocity, Angles punch, bool shoved )
 	{
 		var player = victim?.GetComponent<PlayerController>();
 		if ( !player.IsValid() || player.IsProxy )
 			return;
 
 		player.PreventGrounding( 0.2f );
-		player.Body.Velocity = velocity;
-		ViewPunch.Apply( player, new Angles( 20, 20, -30 ), reset: false );
+		player.Body.Velocity = shoved ? player.Body.Velocity + velocity : velocity;
+		ViewPunch.Apply( player, punch, reset: false );
+		if ( shoved )
+			player.Scene.Camera?.AddShake( 16, 1.5f, 1 );
 		ScreenFade.Show( player.Scene.Camera, new Color( 128 / 255f, 0, 0, 128 / 255f ), 0.1f, 1 );
 	}
 
+	/// <summary>Shakes the screen of everyone near it, the amplitude held to the strongest a shake may be.</summary>
 	[Rpc.Broadcast( NetFlags.HostOnly )]
-	void Shake( float amplitude, float radius )
+	internal void Shake( float amplitude, float radius, float frequency, float duration )
 	{
 		if ( !Application.IsDedicatedServer )
-			Scene.GetSystem<CameraEffectSystem>()?.AddShake( WorldPosition, radius, MathF.Min( amplitude, 16 ), 4, 1 );
+			Scene.GetSystem<CameraEffectSystem>()?.AddShake( WorldPosition, radius, MathF.Min( amplitude, 16 ), frequency, duration );
 	}
 
 	SceneTrace Sweep( float bottom, Vector3 from, Vector3 to )
@@ -570,8 +563,6 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 		hit?.GetComponentInParent<BaseNpc>()?.GameObject ?? hit?.GetComponentInParent<PlayerController>()?.GameObject
 		?? hit?.GetComponentInParent<Rigidbody>()?.GameObject ?? (hit?.GetComponentInParent<Component.IDamageable>() as Component)?.GameObject;
 
-	static bool Dead( GameObject go ) => !go.IsValid() || Npcs.HealthOf( go ) is { Health: < 1 };
-
 	static bool IsCharacter( GameObject entity ) => entity.IsValid() && (entity.GetComponent<BaseNpc>().IsValid() || Npcs.IsPlayer( entity ));
 
 	/// <summary>The world, a brush or anything else that is not a character and does not move.</summary>
@@ -580,7 +571,7 @@ public sealed class Charge : CreatureBehaviour, Component.IDamageable.IEvents
 	/// <summary>Antlions and workers; guards are not trampled.</summary>
 	static bool IsAntlion( GameObject entity ) => entity.IsValid() && entity.GetComponent<CreatureNpc>() is { Voice: "NPC_Antlion", Health: >= 1 };
 
-	bool Hates( GameObject entity ) => entity.IsValid() && !Dead( entity ) && Npc.GetDisposition( entity ) == Disposition.Hostile;
+	bool Hates( GameObject entity ) => entity.IsValid() && !Npcs.IsDead( entity ) && Npc.GetDisposition( entity ) == Disposition.Hostile;
 
 	bool IsLightProp( GameObject entity ) => entity.IsValid() && !IsCharacter( entity )
 		&& entity.GetComponent<Rigidbody>() is { MotionEnabled: true } body && MathF.Max( body.Mass, body.MassOverride ) <= _mass * LightPropRatio;

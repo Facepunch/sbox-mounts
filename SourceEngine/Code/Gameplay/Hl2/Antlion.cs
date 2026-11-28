@@ -50,18 +50,48 @@ public sealed class Unburrow : CreatureBehaviour
 	}
 }
 
-/// <summary>npc_antlionguard's shove: CNPC_AntlionGuard::Shove throws whoever its melee hits forward 400 and up 150. A charge hit throws on its own.</summary>
+/// <summary>
+/// The antlion guard's shove. The blow goes at its enemy if that is still in reach and in front, else straight ahead; it
+/// strikes props on the way and the first character, friend or foe, which it then strikes again. A shoved player is thrown,
+/// has the view knocked, the screen shaken and flashed red. Props around the blow scatter, hit or miss.
+/// </summary>
 [Title( "HL2 Antlion Guard" )]
 [Category( "Half-Life 2" )]
 [Alias( "Source1.Hl2AntlionGuard", "Hl2AntlionGuard" )]
-public sealed class AntlionGuard : Component, Component.IDamageable.IEvents
+public sealed partial class AntlionGuard : CreatureBehaviour
 {
-	void IDamageable.IEvents.OnDamaged( IDamageable.DamageEvent e )
-	{
-		if ( e.DamageInfo.Attacker != GameObject || !e.DamageInfo.Tags.Contains( "melee" ) || GetComponent<Charge>() is { Charging: true } )
-			return;
+	const float BlowSize = 32;
+	/// <summary>Seconds after a charge hits during which it doesn't shove.</summary>
+	const float AfterCharge = 2;
 
-		Npcs.Knockback( e.Victim, WorldRotation.Forward * 400 + Vector3.Up * 150 );
+	public override bool AllowsMelee => GetComponent<Charge>() is not { } charge || charge.SinceHit >= AfterCharge;
+
+	public override bool Strike( GameObject target, string hitEvent )
+	{
+		var npc = Npc;
+		PlaySound( "NPC_AntlionGuard.StepLight" );
+		// A new enemy or a dead one cuts the shove short; losing sight of it doesn't
+		if ( !AllowsMelee || npc.Enemy.IsValid() && target != npc.Enemy || Npcs.IsDead( target ) )
+			return true;
+
+		// Who it shoves decides the damage for everything the blow touches
+		var amount = Npcs.IsPlayer( target ) ? npc.PlayerAttackDamage ?? npc.AttackDamage : npc.AttackDamage;
+		var centre = npc.Centre;
+		var forward = WorldRotation.Forward.WithZ( 0 ).Normal;
+		var aim = Npcs.CapturePoint( target );
+		var end = aim.Distance( centre ) <= npc.AttackRange && npc.InSwingCone( target ) ? aim : centre + forward * npc.AttackRange;
+
+		var hit = npc.SweepHit( centre, end, BlowSize, amount, anyone: true );
+		GetComponent<Charge>()?.ImpactPush( hit.End, 100, 250, reach: 100 );
+		if ( hit.Stopped )
+			PlaySound( "NPC_AntlionGuard.Shove" );
+		if ( !hit.Character.IsValid() )
+			return true;
+
+		npc.Damage( hit.Character, centre, Npcs.CapturePoint( hit.Character ), DamageTags.Melee, amount );
+		if ( Npcs.IsPlayer( hit.Character ) )
+			Charge.ThrowPlayer( hit.Character, forward * 400 + Vector3.Up * 150, new Angles( 20, 0, -20 ), shoved: true );
+		return true;
 	}
 }
 

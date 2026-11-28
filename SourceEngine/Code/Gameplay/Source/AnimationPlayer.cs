@@ -20,6 +20,10 @@ public sealed class AnimationPlayer : IDisposable
 	ModelSequences _sequences;
 	float _eventTime;
 	float _rate = 1;
+
+	/// <summary>How far into the clip playback is: real time since it started, each stretch at the rate it played at.</summary>
+	float _playTime;
+	float _advancedAt;
 	readonly Dictionary<string, Parameter> _poses = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, Parameter> _layerWeights = new( StringComparer.OrdinalIgnoreCase );
 	readonly Dictionary<string, SourceModelSequenceData.BlendAxis> _axes = new( StringComparer.OrdinalIgnoreCase );
@@ -437,6 +441,8 @@ public sealed class AnimationPlayer : IDisposable
 	public void Play( string name, float rate = 1, bool restart = false )
 	{
 		if ( _model?.AnimationClips().ContainsKey( name ?? "" ) != true ) return;
+		// The time so far played at the old rate, before a new one takes over
+		Advance();
 		if ( Current != name || restart )
 		{
 			// Flush the last interval before changing clips, including cycle-one
@@ -446,6 +452,7 @@ public sealed class AnimationPlayer : IDisposable
 				? incoming.Snap ? 0 : MathF.Min( outgoing.FadeOut, incoming.FadeIn ) : 0.08f;
 			Current = name;
 			_elapsed = 0;
+			_playTime = _advancedAt = 0;
 			_eventTime = -0.0001f;
 			_slot = 1 - _slot;
 			_slotClips[_slot] = name;
@@ -517,10 +524,20 @@ public sealed class AnimationPlayer : IDisposable
 	internal bool PlaysSound( string clip, SoundEvent sound ) =>
 		_sequences?.Get( clip )?.Events.Any( evt => EventSound( evt ) == sound ) == true;
 
+	void Advance()
+	{
+		var now = (float)_elapsed;
+		_playTime += (now - _advancedAt) * _rate;
+		_advancedAt = now;
+	}
+
 	void DispatchEvents()
 	{
 		if ( _sequences?.Get( Current ) is not { } sequence || Duration <= 0 ) return;
-		var time = (float)_elapsed * _rate;
+		// Playback time, not elapsed time at today's rate: a clip whose rate follows the ground speed would otherwise run its
+		// event clock backwards and forwards and fire the same events again
+		Advance();
+		var time = _playTime;
 		var end = sequence.Looping ? time : MathF.Min( time, Duration );
 		var firstLoop = sequence.Looping ? Math.Max( 0, (int)(_eventTime / Duration) ) : 0;
 		var lastLoop = sequence.Looping ? (int)(end / Duration) : 0;

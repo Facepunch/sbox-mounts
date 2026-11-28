@@ -193,7 +193,7 @@ static partial class WeaponEffects
 	}
 
 	/// <summary>Source surfaceprops by name: alien, antlion and zombie flesh bleed yellow, other flesh red.</summary>
-	static string BloodParticle( Surface surface )
+	internal static string BloodParticle( Surface surface )
 	{
 		var name = surface.ResourceName ?? "";
 		if ( name.Contains( "alienflesh" ) || name.Contains( "antlion" ) || name.Contains( "zombieflesh" ) ) return "blood_impact_yellow_01";

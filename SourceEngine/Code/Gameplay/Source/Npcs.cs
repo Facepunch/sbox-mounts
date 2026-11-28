@@ -6,19 +6,22 @@ namespace Source1;
 /// <summary>Shared by the mounted NPCs and their behaviours: hit timing, grab points and knockback.</summary>
 public static class Npcs
 {
-	/// <summary>When a creature's attack clip lands its hits: the mounted impact markers when the author supplied them, else the fallback delay.</summary>
-	public static float[] AttackTimes( Model model, string clip, float fallback )
+	/// <summary>
+	/// When a creature's attack clip lands its hits, with the marker for each: the mounted impact markers when the author
+	/// supplied them, else the fallback delay, which has none.
+	/// </summary>
+	public static (float Time, string Event)[] AttackEvents( Model model, string clip, float fallback )
 	{
-		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [fallback];
+		if ( model?.AnimationClips().TryGetValue( clip ?? "", out var animation ) != true ) return [(fallback, null)];
 		var impacts = ModelSequences.Of( model ).All.FirstOrDefault( s => s.Name == clip )?.Events
 			// AE_ZOMBIE_ATTACK_SCREAM is only the attack sound
 			.Where( e => e.Name?.StartsWith( "AE_ZOMBIE_ATTACK_", StringComparison.Ordinal ) == true && e.Name != "AE_ZOMBIE_ATTACK_SCREAM"
 				|| e.Name?.Contains( "_MELEE_HIT", StringComparison.Ordinal ) == true
 				|| e.Name?.StartsWith( "AE_HUNTER_MELEE_ATTACK_", StringComparison.Ordinal ) == true
 				|| e.Name is "AE_VORTIGAUNT_ZAP_SHOOT" or "AE_VORTIGAUNT_CLAW_LEFT" or "AE_VORTIGAUNT_CLAW_RIGHT" or "AE_VORTIGAUNT_KICK"
-				or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" )
-			.Select( e => Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration ).Distinct().Order().ToArray();
-		return impacts is { Length: > 0 } ? impacts : [fallback];
+				or "AE_ANTLION_WORKER_SPIT" or "AE_HUNTER_MELEE_HIT" or "AE_ANTLIONGUARD_SHOVE" )
+			.Select( e => (Time: Math.Clamp( e.Cycle, 0, 1 ) * animation.Duration, Event: e.Name ) ).DistinctBy( x => x.Time ).OrderBy( x => x.Time ).ToArray();
+		return impacts is { Length: > 0 } ? impacts : [(fallback, null)];
 	}
 
 	/// <summary>
@@ -42,8 +45,28 @@ public static class Npcs
 		return null;
 	}
 
+	/// <summary>Gone, or out of health.</summary>
+	public static bool IsDead( GameObject go ) => !go.IsValid() || HealthOf( go ) is { Health: < 1 };
+
 	/// <summary>Whether this is a player: it has the engine's player controller.</summary>
 	public static bool IsPlayer( GameObject go ) => go.IsValid() && go.GetComponent<PlayerController>().IsValid();
+
+	/// <summary>Tags a trace leaves out to see only the world and props: characters, corpses, debris and triggers.</summary>
+	public static readonly string[] PastCharacters = ["trigger", "player", "npc", "playercontroller", "ragdoll", "debris"];
+
+	/// <summary>
+	/// Turns an object toward a yaw at up to a rate in degrees a second, each update counting for at most 0.2 seconds; a rate
+	/// of 0 turns at once. Returns the degrees left.
+	/// </summary>
+	public static float TurnToward( GameObject go, float yaw, float rate )
+	{
+		var current = go.WorldRotation.Yaw();
+		var delta = Angles.NormalizeAngle( yaw - current );
+		var limit = rate > 0 ? rate * MathF.Min( Time.Delta, 0.2f ) : 180;
+		var step = Math.Clamp( delta, -limit, limit );
+		go.WorldRotation = Rotation.FromYaw( current + step );
+		return MathF.Abs( delta - step );
+	}
 
 	/// <summary>Where a victim is grabbed or aimed at: a player's middle, else the centre of its bounds.</summary>
 	public static Vector3 CapturePoint( GameObject victim )

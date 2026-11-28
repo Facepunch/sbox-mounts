@@ -39,8 +39,7 @@ public sealed class ZombieProps : CreatureBehaviour
 	const float ScanAfterSwat = 5;
 	const float AttemptInterval = 3;
 
-	/// <summary>Push on a clawed prop per point of damage, and on the blocker when the claw sweep missed it.</summary>
-	const float ClawPushPerDamage = 300;
+	/// <summary>Push on the blocker when the claw sweep missed it.</summary>
 	const float ClawFallbackPush = 120;
 
 	/// <summary>Props lower than this are walked over; this close ahead counts as up against one.</summary>
@@ -113,8 +112,7 @@ public sealed class ZombieProps : CreatureBehaviour
 		_rightLow = sequences.FindActivity( "ACT_ZOM_SWATRIGHTLOW" );
 		_leftMid = sequences.FindActivity( "ACT_ZOM_SWATLEFTMID" );
 		_leftLow = sequences.FindActivity( "ACT_ZOM_SWATLEFTLOW" );
-		_claws = sequences.All.Where( s => !s.Delta && s.Activity == "ACT_MELEE_ATTACK1" && model.AnimationClips().ContainsKey( s.Name ) )
-			.Select( s => s.Name ).ToArray();
+		_claws = sequences.Clips( "ACT_MELEE_ATTACK1" );
 	}
 
 	protected override void OnUpdate()
@@ -174,7 +172,7 @@ public sealed class ZombieProps : CreatureBehaviour
 				_cornered = _avoidedProp;
 				_avoided.Destroy();
 			}
-			else if ( Npc.Movement?.ProjectPoint( WorldPosition + Rotation.FromYaw( Game.Random.Float( 0, 360 ) ).Forward * Game.Random.Float( 48, 240 ) ) is { } goal )
+			else if ( RandomSpot( 48, 240 ) is { } goal )
 			{
 				_wanderGoal = goal;
 				_lastPath = 10;
@@ -358,12 +356,8 @@ public sealed class ZombieProps : CreatureBehaviour
 	bool BeginClaw()
 	{
 		var clip = Game.Random.FromArray( _claws );
-		var duration = Duration( clip, 1 );
-		var hits = ModelSequences.Of( ConfiguredModel ).Get( clip )?.Events
-			.Where( e => e.Name is "AE_ZOMBIE_ATTACK_RIGHT" or "AE_ZOMBIE_ATTACK_LEFT" or "AE_ZOMBIE_ATTACK_BOTH" or "AE_ZOMBIE_POISON_SPIT" )
-			.Select( e => Math.Clamp( e.Cycle, 0, 1 ) * duration ).Distinct().Order().ToArray();
-		var times = hits is { Length: > 0 } ? hits : Npcs.AttackTimes( ConfiguredModel, clip, Npc.AttackDelay );
-		return BeginClip( clip, times.Select( t => (t, (Action<GameObject>)ClawHit) ).ToArray() );
+		var hits = Npcs.AttackEvents( ConfiguredModel, clip, Npc.AttackDelay );
+		return BeginClip( clip, hits.Select( x => (x.Time, (Action<GameObject>)ClawHit) ).ToArray() );
 	}
 
 	bool BeginClip( string clip, (float, Action<GameObject>)[] cues )
@@ -427,8 +421,8 @@ public sealed class ZombieProps : CreatureBehaviour
 	}
 
 	/// <summary>
-	/// One claw: whatever the sweep ahead meets takes it, and the chosen prop takes it wherever it is when the sweep
-	/// meets nothing. Solid world between the zombie and its enemy stops the whole claw.
+	/// One claw, the zombie's shared sweep ahead: props on the way and the first character it hates take it. The chosen
+	/// prop takes it wherever it is when the sweep meets nothing. Solid world between the zombie and its enemy stops the whole claw.
 	/// </summary>
 	void ClawHit( GameObject target )
 	{
@@ -437,36 +431,30 @@ public sealed class ZombieProps : CreatureBehaviour
 			.IgnoreDynamic().IgnoreGameObjectHierarchy( GameObject ).WithoutTags( PassThrough ).Run().Hit )
 			return;
 
-		var sweep = Scene.Trace.Box( BBox.FromPositionAndSize( Vector3.Zero, HullRadius * 2 ), center, center + WorldRotation.Forward * Npc.AttackRange )
-			.IgnoreGameObjectHierarchy( GameObject ).WithoutTags( "trigger", "debris", "projectile" ).Run();
-		var struck = sweep.Hit ? sweep.GameObject : null;
-		var body = struck?.GetComponentInParent<Rigidbody>();
-
-		if ( struck.IsValid() && (struck.GetComponentInParent<BaseNpc>().IsValid() || struck.GetComponentInParent<PlayerController>().IsValid()) )
-			Npc.Damage( struck, center, sweep.HitPosition, DamageTags.Melee );
-		else if ( IsLooseProp( body ) )
-			HitProp( body, center, Npc.AttackDamage * ClawPushPerDamage );
-		else if ( _prop.IsValid() )
-			HitProp( _prop, center, ClawFallbackPush );
-		else
+		var hit = Npc.SweepHit( center, center + WorldRotation.Forward * Npc.AttackRange, HullRadius * 2, null, anyone: false );
+		if ( hit.Prop.IsValid() && hit.Prop == _prop?.GameObject )
+			Clawed();
+		else if ( !hit.Character.IsValid() && !hit.Prop.IsValid() )
 		{
-			PlaySound( "Zombie.AttackMiss" );
-			return;
+			if ( !_prop.IsValid() )
+			{
+				PlaySound( "Zombie.AttackMiss" );
+				return;
+			}
+
+			var bodyCenter = _prop.GetWorldBounds().Center;
+			Npc.Damage( _prop.GameObject, center, bodyCenter, DamageTags.Melee );
+			if ( _prop.IsValid() && _prop.MotionEnabled )
+				_prop.ApplyImpulseAt( center, (bodyCenter - center).Normal * ClawFallbackPush );
+			Clawed();
 		}
 
 		PlaySound( "Zombie.AttackHit" );
 	}
 
-	void HitProp( Rigidbody body, Vector3 center, float push )
+	/// <summary>A clawed prop is no longer the one it means to swat; it tries again a little later.</summary>
+	void Clawed()
 	{
-		var bodyCenter = body.GetWorldBounds().Center;
-		Npc.Damage( body.GameObject, center, bodyCenter, DamageTags.Melee );
-		if ( body.IsValid() && body.MotionEnabled )
-			body.ApplyImpulseAt( center, (bodyCenter - center).Normal * push );
-
-		if ( body != _prop )
-			return;
-
 		_prop = null;
 		_nextAttempt = Game.Random.Float( 2, 4 );
 	}
