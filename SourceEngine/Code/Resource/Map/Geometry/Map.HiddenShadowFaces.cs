@@ -4,11 +4,13 @@ namespace Source1;
 
 partial class MapLoader
 {
+	private enum ShadowBacking { None, NoDraw, BlockLight }
+
 	// VBSP strips nodraw backing from the render mesh, including the solid roof above inset lights.
 	private static void AddHiddenShadowFaces( BspFile bsp, int modelIndex, HashSet<int> brushIds, Func<Vector3, MeshGroup> chunkFor, Func<int, bool> isOpaque )
 	{
 		if ( bsp.leafBrushes.Length == 0 ) return;
-		var backingTextures = new Dictionary<int, bool>();
+		var backingTextures = new Dictionary<int, ShadowBacking>();
 		var model = bsp.Models[modelIndex];
 		var pending = new Stack<int>();
 
@@ -22,6 +24,7 @@ partial class MapLoader
 			if ( (brush.Contents & (BspContents.Solid | BspContents.Opaque)) == 0 ) continue;
 			var sides = bsp.collisionBrushSides.AsSpan( brush.FirstSide, brush.SideCount );
 			bool hasBacking = false, passesLight = false;
+			bool backsGeometry = modelIndex == 0;
 			foreach ( var side in sides )
 			{
 				if ( side.Bevel != 0 || side.TexInfo < 0 ) continue;
@@ -32,13 +35,15 @@ partial class MapLoader
 					passesLight = true;
 					break;
 				}
-				hasBacking |= IsBacking( side.TexInfo );
+				var backing = GetBacking( side.TexInfo );
+				hasBacking |= backing != ShadowBacking.None;
+				backsGeometry |= (info.Flags & BspSurfaceFlags.NoDraw) == 0 || backing == ShadowBacking.BlockLight;
 			}
-			if ( !hasBacking || passesLight ) continue;
+			if ( !hasBacking || !backsGeometry || passesLight ) continue;
 
 			foreach ( var side in sides )
 			{
-				if ( side.Bevel != 0 || !IsBacking( side.TexInfo ) ) continue;
+				if ( side.Bevel != 0 || GetBacking( side.TexInfo ) == ShadowBacking.None ) continue;
 				var plane = bsp.Planes[side.Plane];
 				var normal = plane.Normal;
 				var tangent = Vector3.Cross( normal, MathF.Abs( normal.z ) < 0.9f ? Vector3.Up : Vector3.Right ).Normal;
@@ -62,15 +67,16 @@ partial class MapLoader
 			}
 		}
 
-		bool IsBacking( int texInfo )
+		ShadowBacking GetBacking( int texInfo )
 		{
-			if ( texInfo < 0 ) return false;
+			if ( texInfo < 0 ) return ShadowBacking.None;
 			var info = bsp.TexInfos[texInfo];
-			if ( info.TexData < 0 || (info.Flags & BspSurfaceFlags.NoDraw) == 0 ) return false;
+			if ( info.TexData < 0 || (info.Flags & BspSurfaceFlags.NoDraw) == 0 ) return ShadowBacking.None;
 			if ( backingTextures.TryGetValue( info.TexData, out var backing ) ) return backing;
 			var name = bsp.GetTexDataString( info.TexData );
-			return backingTextures[info.TexData] = string.Equals( name, "tools/toolsnodraw", StringComparison.OrdinalIgnoreCase )
-				|| string.Equals( name, "tools/toolsblocklight", StringComparison.OrdinalIgnoreCase );
+			if ( string.Equals( name, "tools/toolsnodraw", StringComparison.OrdinalIgnoreCase ) ) backing = ShadowBacking.NoDraw;
+			else if ( string.Equals( name, "tools/toolsblocklight", StringComparison.OrdinalIgnoreCase ) ) backing = ShadowBacking.BlockLight;
+			return backingTextures[info.TexData] = backing;
 		}
 	}
 }
