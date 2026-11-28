@@ -109,6 +109,7 @@ internal sealed partial class MapLoader : SceneLoader<SourceGameMount>
 		BuildBrushLadders( bsp, world, worldBrushes );
 		AddShadowBlocker( BuildShadowModel( bsp, 0, worldBrushes ), geometry );
 		BuildEntities( bsp, world );
+		BuildNavMesh( world );
 		BuildLightProbes( bsp, world );
 		BuildSkybox3D( bsp, world );
 	}
