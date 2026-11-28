@@ -65,6 +65,30 @@ partial class MapLoader
 					door.LinkedDoors.Add( leaf );
 				}
 			}
+			LinkAdjacentPropDoors();
+		}
+
+		// Hammer names double door leaves with `slavename`; leaves left unnamed are matched as the same model standing side by side facing opposite ways.
+		private void LinkAdjacentPropDoors()
+		{
+			bool Free( PropDoor door ) => door.Master is null && door.LinkedDoors.Count == 0 && door.Renderer.IsValid();
+			foreach ( var (entity, door) in propDoors )
+			{
+				if ( !Free( door ) ) continue;
+				var size = door.Renderer.Model.Bounds.Size * door.WorldScale.x;
+				var thin = size.x < size.y ? 0 : 1;
+				var forward = door.ClosedAngles.ToRotation();
+				var leaf = propDoors
+					.Where( x => x.Door != door && Free( x.Door ) && x.Entity.Get( "model" ) == entity.Get( "model" )
+						&& Vector3.Dot( x.Door.ClosedAngles.ToRotation().Forward, forward.Forward ) < -0.9f
+						&& x.Door.WorldPosition.Distance( door.WorldPosition ) <= Math.Max( size.x, size.y ) * 2.1f
+						&& Math.Abs( (forward.Inverse * (x.Door.WorldPosition - door.WorldPosition))[thin] ) <= Math.Min( size.x, size.y ) )
+					.OrderBy( x => x.Door.WorldPosition.Distance( door.WorldPosition ) )
+					.Select( x => x.Door ).FirstOrDefault();
+				if ( leaf is null ) continue;
+				leaf.Master = door;
+				door.LinkedDoors.Add( leaf );
+			}
 		}
 
 		static int ForwardSwingSign( SkinnedModelRenderer renderer )
