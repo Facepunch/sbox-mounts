@@ -154,9 +154,10 @@ internal sealed partial class VtxFile
 									if ( strip.IndexOffset < 0 || strip.NumIndices < 0 || strip.IndexOffset > indices.Length - strip.NumIndices
 										|| strip.VertOffset < 0 || strip.NumVerts < 0 || strip.VertOffset > verts.Length - strip.NumVerts )
 										throw new InvalidDataException( "VTX strip range is outside its strip group." );
-									if ( strip.Flags != StripHeaderFlags.IsTriList && strip.Flags != StripHeaderFlags.IsTriStrip )
+									// Source only checks the tri-strip bit and draws everything else as a triangle list, so a strip with no flags set is a list.
+									if ( strip.Flags is not (StripHeaderFlags.None or StripHeaderFlags.IsTriList or StripHeaderFlags.IsTriStrip) )
 										throw new InvalidDataException( "Unsupported VTX strip topology." );
-									if ( strip.Flags == StripHeaderFlags.IsTriList && strip.NumIndices % 3 != 0 )
+									if ( strip.Flags != StripHeaderFlags.IsTriStrip && strip.NumIndices % 3 != 0 )
 										throw new InvalidDataException( "VTX triangle list has an incomplete triangle." );
 
 									for ( var i = 0; i < strip.NumIndices; ++i )
@@ -214,7 +215,7 @@ internal sealed partial class VtxFile
 			var output = 0;
 			foreach ( var (vertices, indices, strip) in stripData )
 			{
-				if ( strip.Flags == StripHeaderFlags.IsTriList )
+				if ( strip.Flags != StripHeaderFlags.IsTriStrip )
 				{
 					for ( var i = 0; i < strip.NumIndices; ++i )
 						_indices[output++] = vertices[indices[strip.IndexOffset + i]].OrigMeshVertId;
